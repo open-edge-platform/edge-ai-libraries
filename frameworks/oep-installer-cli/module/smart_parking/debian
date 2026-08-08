@@ -25,30 +25,29 @@ debian_90_install_smart_parking () {
   ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
 
   # setup
-  pushd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe" > /dev/null
+  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
   ./install.sh smart-parking $(ensure_ip)
   verify_smart_parking
-  popd > /dev/null
 }
 
 debian_90_start_smart_parking () {
+  ensure_open_ports 443 debian_90_stop_smart_parking
   configure_smart_parking
-  pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
   docker compose up -d
-  ./sample_start.sh
-  echo "UI entrypoint: https://$(ensure_ip)"
-  popd > /dev/null
+  ./sample_start.sh $([[ " $* " = *" --npu "* ]] && echo npu || echo gpu)
+  echo "@@HIGHLIGHT UI entrypoint: https://$(ensure_ip)"
+  echo "@@HIGHLIGHT Grafana username/password: admin"
 }
 
 debian_90_stop_smart_parking () {
   configure_smart_parking
-  pushd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe > /dev/null
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
   ./sample_stop.sh
-  docker compose down -v
-  popd > /dev/null
+  docker compose down -v --remove-orphans
 }
 
 debian_90_remove_smart_parking () {
-  configure_smart_parking
+  debian_90_stop_smart_parking || true
   ensure_rmdir "$workspace"
 }

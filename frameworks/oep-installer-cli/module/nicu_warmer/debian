@@ -3,7 +3,7 @@ configure_nicu_warmer () {
   workspace="$(ensure_project_path)/nicu-warmer"
   version=50e02996223da20a7375aaf7919faf3f1d50ed5c
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
-  device_env="configs/res/all-gpu.env"
+  device_env="configs/res/all-$([[ " $* " = *" --npu "* ]] && echo npu || echo gpu).env"
   models=(
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin"
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml"
@@ -32,7 +32,7 @@ debian_90_profile_nicu_warmer () {
 }
 
 debian_90_install_nicu_warmer () {
-  configure_nicu_warmer
+  configure_nicu_warmer $*
   if verify_nicu_warmer && [[ " $* " != *" --reset-nicu_warmer "* ]]; then
     echo "NICU Warmer is already installed. Skipping" 1>&2
     return
@@ -69,23 +69,15 @@ debian_90_install_nicu_warmer () {
 }
 
 debian_90_start_nicu_warmer () {
-  # check ports
-  for port in 8080; do
-    ensure_sudo lsof -i TCP:$port > /dev/null 2>&1 || continue
-    debian_90_stop_nicu_warmer || true
-    ensure_sudo lsof -i TCP:$port > /dev/null 2>&1 || continue
-    echo "TCP port $port is occupied" 1>&2
-    return 3
-  done
-
-  configure_nicu_warmer
+  ensure_open_ports 8080 debian_90_stop_nicu_warmer
+  configure_nicu_warmer $*
   cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
-  make run-gpu
+  make run DEVICE_ENV=$device_env
   echo "@@HIGHLIGHT UI entrypoint: http://$(ensure_ip):8080"
 }
 
 debian_90_stop_nicu_warmer () {
-  configure_nicu_warmer
+  configure_nicu_warmer $*
   cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
   make down
 }
