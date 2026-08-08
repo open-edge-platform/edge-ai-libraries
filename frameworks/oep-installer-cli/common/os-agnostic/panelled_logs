@@ -49,13 +49,13 @@ readonly C_BOLD=$'\033[1m'
 # ------------------------------------------------------------------ charset
 if [[ ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} == *[Uu][Tt][Ff]* ]]; then
   BC_H='─'; BC_V='│'; BC_B='│'
-  G_OK='✔'; G_FAIL='✘'; G_RUN='◐'; G_HL='▸'; G_ELL='…'; G_DN='>>'
+  G_OK='✔'; G_FAIL='✘'; G_RUN='◐'; G_HL='▸'; G_ELL='…'; G_DN='>>'; G_SUM='Σ'
 else
   BC_H='-'; BC_V='|'; BC_B='|'
-  G_OK='+'; G_FAIL='x'; G_RUN='*'; G_HL='>'; G_ELL='~'; G_DN='>>'
+  G_OK='+'; G_FAIL='x'; G_RUN='*'; G_HL='>'; G_ELL='~'; G_DN='>>'; G_SUM='='
 fi
 G_SEL='<<'
-readonly BC_H BC_V BC_B G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL
+readonly BC_H BC_V BC_B G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL G_SUM
 
 # ------------------------------------------------------------------ tunables
 readonly TAIL_LINES=2
@@ -662,6 +662,46 @@ _build_block() {
   LDIRTY[$name]=""
 }
 
+declare -a SUMROWS=()
+SUMH=0
+_build_total() {
+  local lw=$1 name nok=0 nfail=0 endms tot
+  SUMROWS=(); SUMH=0
+  (( REVIEW )) || return
+  (( T_FIRST > 0 )) || return
+  (( lw >= 12 )) || return
+
+  endms=$T_LAST
+  (( endms == 0 )) && endms=$(_now_ms)
+  tot=$(( endms - T_FIRST ))
+  (( tot < 0 )) && tot=0
+  _fmt_elapsed "$tot"
+  local tstr=$REPLY
+  [[ -z $tstr ]] && return
+
+  for name in "${ORDER[@]}"; do
+    [[ -z $name ]] && continue
+    [[ -n ${REPORT[$name]:-} ]] && continue
+    case ${STATUS[$name]:-} in
+      ok)   nok=$(( nok + 1 ))   ;;
+      fail) nfail=$(( nfail + 1 )) ;;
+    esac
+  done
+
+  _hrule_v "$lw"
+  SUMROWS+=("${C_DIM}${HRULE}${C_RESET}")
+
+  local tally=""
+  _dwidth "${G_SUM} Total ${tstr}"
+  if (( REPLY + 12 <= lw )); then
+    tally="  ${G_OK} ${nok} ${G_FAIL} ${nfail}"
+  fi
+  _fit_v "$lw" "${G_SUM} Total ${tstr}${tally}" 1
+  if (( nfail > 0 )); then SUMROWS+=("${C_BOLD}${C_RED}${FITTED}${C_RESET}")
+  else SUMROWS+=("${C_BOLD}${C_GREEN}${FITTED}${C_RESET}"); fi
+  SUMH=${#SUMROWS[@]}
+}
+
 _draw() {
   local force=${1:-0}
   (( DRAWING )) && return
@@ -729,6 +769,10 @@ _draw() {
     [[ -n ${LDIRTY[$name]:-} ]] && { _build_block "$name" "$lw"; LEFT_VALID=0; }
   done
 
+  _build_total "$lw"
+  local lbody=$(( body - SUMH - 1 ))
+  (( lbody < 1 )) && { SUMROWS=(); SUMH=0; lbody=$body; }
+
   if (( ! LEFT_VALID )); then
     local -a blk=() blk_st=()
     for name in "${ORDER[@]}"; do
@@ -740,7 +784,7 @@ _draw() {
     for (( j = 0; j < ${#blk[@]}; j++ )); do
       nl=${blk[j]//[!$'\n']/}; total=$(( total + ${#nl} + 1 ))
     done
-    while (( total > body && ${#blk[@]} > 1 )); do
+    while (( total > lbody && ${#blk[@]} > 1 )); do
       local drop=-1
       for (( j = 0; j < ${#blk[@]}; j++ )); do
         if [[ ${blk_st[j]} != fail ]]; then drop=$j; break; fi
@@ -755,6 +799,14 @@ _draw() {
       while IFS= read -r src; do LEFT_ROWS+=("$src"); done <<<"${blk[j]}"
     done
     LEFT_VALID=1
+  fi
+
+  if (( SUMH > 0 )); then
+    local anchor=$(( body - 1 ))
+    (( anchor < SUMH )) && anchor=$SUMH
+    # anchor the footer to the bottom of the left column
+    while (( ${#LEFT_ROWS[@]} < body - SUMH )); do LEFT_ROWS+=(""); done
+    LEFT_ROWS=("${LEFT_ROWS[@]:0:anchor-SUMH}" "${SUMROWS[@]}")
   fi
 
   local -a right=()
@@ -871,6 +923,7 @@ _finish() {
   _stop_all_timers
   (( T_LAST == 0 )) && T_LAST=$(_now_ms)
   FULL_CLEAR=1
+  LEFT_VALID=0
   RCACHE_COMP=""; RCACHE_N=-1
   _draw 1
   printf '\033[?7h'
