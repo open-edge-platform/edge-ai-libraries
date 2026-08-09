@@ -1,0 +1,56 @@
+
+configure_smart_nvr () {
+  workspace="$(ensure_project_path)/smart-nvr"
+  suites_version=release-2026.1.0
+  suites_repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  libraries_version=release-2026.1.0
+  libraries_repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
+}
+
+verify_smart_nvr () {
+  [ -e "$workspace"/metro-ai-suite/smart-nvr ]
+}
+
+debian_90_profile_smart_nvr () {
+  echo "git curl gawk python3_venv"
+}
+
+debian_90_install_smart_nvr () {
+  configure_smart_nvr
+  if verify_smart_nvr && [[ "$*" != *"--reset-smart_nvr"* ]]; then
+    echo "Smart nvr is already installed. Skipping..."
+    return 0
+  fi
+
+  # clone the repository
+  ensure_disk_space 300
+  ensure_git_clone "$workspace" $suites_version $repository metro-ai-suite/smart-nvr
+  ensure_git_clone "$workspace" $suites_version $repository metro-ai-suite/smart-nvr
+
+  # setup
+  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+  ./install.sh smart-nvr $(ensure_ip)
+  verify_smart_nvr
+}
+
+debian_90_start_smart_nvr () {
+  ensure_open_ports "80 443" debian_90_stop_smart_nvr
+  configure_smart_nvr
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  docker compose up -d
+  ./sample_start.sh $(ensure_select_device $*)
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT Grafana username/password: admin"
+}
+
+debian_90_stop_smart_nvr () {
+  configure_smart_nvr
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  ./sample_stop.sh || true
+  docker compose down -v --remove-orphans
+}
+
+debian_90_remove_smart_nvr () {
+  debian_90_stop_smart_nvr || true
+  ensure_rmdir "$workspace"
+}
