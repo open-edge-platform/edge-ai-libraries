@@ -34,6 +34,7 @@ ensure_panelled_logs () {(
 #   FORCE_COLS / FORCE_ROWS override detected geometry
 
 set -o pipefail
+set -u
 readonly ACT_TEXT=($*) 
 
 # ------------------------------------------------------------------ colors
@@ -101,8 +102,6 @@ declare -A WRAPC=()
 declare -A WRAPCN=()
 declare -A WRAPW=()
 declare -A LBLK=()
-declare -A LBLKC=()
-declare -A LHASHL=()
 declare -A LDIRTY=()
 declare -a LEFT_ROWS=()
 declare -a PREV=()
@@ -648,9 +647,7 @@ _build_block() {
   if (( REVIEW )) && [[ $name == "$SHOWN" && $st == fail ]]; then hdr+=" ${G_SEL}"; fi
   _fit_v $(( lw - 2 )) "$hdr" 1
   local buf="${SG_C}${SG_M} ${FITTED}${C_RESET}"
-  local hdrbuf=$buf
   if [[ -n ${HL[$name]:-} ]]; then
-    LHASHL[$name]=1
     local hpfx="  ${G_HL} "
     _dwidth "$hpfx"; local hpw=$REPLY
     local hw=$(( lw - hpw ))
@@ -670,7 +667,6 @@ _build_block() {
       done
     done <<<"${HL[$name]}"
   else
-    LHASHL[$name]=""
     local -a tl=()
     [[ -n ${L1[$name]:-} ]] && tl+=("${L1[$name]}")
     [[ -n ${L2[$name]:-} ]] && tl+=("${L2[$name]}")
@@ -681,7 +677,6 @@ _build_block() {
     done
   fi
   LBLK[$name]=$buf
-  if [[ -n ${LHASHL[$name]:-} ]]; then LBLKC[$name]=$buf; else LBLKC[$name]=$hdrbuf; fi
   LDIRTY[$name]=""
 }
 
@@ -753,39 +748,13 @@ _draw() {
   done
 
   if (( ! LEFT_VALID )); then
-    local -a blk=() blk_st=() blk_nm=()
+    local -a blk=() blk_nm=()
     for name in "${ORDER[@]}"; do
       [[ -z $name ]] && continue
       [[ -n ${REPORT[$name]:-} ]] && continue
-      blk+=("${LBLK[$name]:-}"); blk_st+=("${STATUS[$name]:-}"); blk_nm+=("$name")
+      blk+=("${LBLK[$name]:-}"); blk_nm+=("$name")
     done
-    local total=0 nl
-    for (( j = 0; j < ${#blk[@]}; j++ )); do
-      nl=${blk[j]//[!$'\n']/}; total=$(( total + ${#nl} + 1 ))
-    done
-    for (( j = 0; j < ${#blk[@]} && total > body; j++ )); do
-      [[ ${blk[j]} == "${blk_cm[j]}" ]] && continue
-      nl=${blk[j]//[!$'\n']/};    total=$(( total - ${#nl} - 1 ))
-      blk[j]=${blk_cm[j]}
-      nl=${blk[j]//[!$'\n']/};    total=$(( total + ${#nl} + 1 ))
-    done
-    while (( total > body && ${#blk[@]} > 1 )); do
-      local drop=-1
-      for (( j = 0; j < ${#blk[@]}; j++ )); do
-        if [[ ${blk_st[j]} != fail && -z ${blk_hl[j]} ]]; then drop=$j; break; fi
-      done
-      if (( drop < 0 )); then
-        for (( j = 0; j < ${#blk[@]}; j++ )); do
-          if [[ ${blk_st[j]} != fail ]]; then drop=$j; break; fi
-        done
-      fi
-      (( drop < 0 )) && drop=0
-      nl=${blk[drop]//[!$'\n']/}; total=$(( total - ${#nl} - 1 ))
-      blk=("${blk[@]:0:drop}"       "${blk[@]:drop+1}")
-      blk_st=("${blk_st[@]:0:drop}" "${blk_st[@]:drop+1}")
-      blk_hl=("${blk_hl[@]:0:drop}" "${blk_hl[@]:drop+1}")
-      blk_cm=("${blk_cm[@]:0:drop}" "${blk_cm[@]:drop+1}")
-    done
+    local nl
     LEFT_ROWS=()
     for (( j = 0; j < ${#blk[@]}; j++ )); do
       while IFS= read -r src; do LEFT_ROWS+=("$src"); done <<<"${blk[j]}"
@@ -809,14 +778,6 @@ _draw() {
       LEFT_ROWS=("${LEFT_ROWS[@]:wstart:body}")
     fi
     LEFT_VALID=1
-  fi
-
-  if (( SUMH > 0 )); then
-    local anchor=$(( body - 1 ))
-    (( anchor < SUMH )) && anchor=$SUMH
-    # anchor the footer to the bottom of the left column
-    while (( ${#LEFT_ROWS[@]} < body - SUMH )); do LEFT_ROWS+=(""); done
-    LEFT_ROWS=("${LEFT_ROWS[@]:0:anchor-SUMH}" "${SUMROWS[@]}")
   fi
 
   local -a right=()
