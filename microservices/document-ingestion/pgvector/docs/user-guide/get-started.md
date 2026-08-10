@@ -128,7 +128,7 @@ This method provides the fastest way to get started with the microservice.
 
    ```bash
    # Clone the latest on mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
    # Alternatively, Clone a specific release branch
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
    ```
@@ -159,8 +159,8 @@ This method provides the fastest way to get started with the microservice.
    The user is required to configure the registry and tag params before starting the microservices.
 
    ```bash
-   export CONTAINER_REGISTRY_URL=<preferred-registry-url> #defaults to "intel/" if not set
-   export CONTAINER_TAG=<preferred-tag> #defaults to "latest" if not set
+   export CONTAINER_REGISTRY_URL=intel/ #defaults to "intel/" if not set
+   export CONTAINER_TAG=2026.2.0-rc1    #defaults to "latest" if not set
 
    # Run the production environment for all services in daemon mode
    source ./run.sh
