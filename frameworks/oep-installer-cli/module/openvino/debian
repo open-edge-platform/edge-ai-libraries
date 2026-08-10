@@ -44,10 +44,11 @@ debian_70_install_openvino () {
     python3 -m venv "${openvino_venv}"
     . "${openvino_venv}"/bin/activate
     pip install openvino-genai==${version}
-
-    echo "@@HIGHLIGHT openvino-genai installed at $workspace"
-    echo "@@HIGHLIGHT explore samples at /usr/share/openvino"
   fi
+
+  # info
+  echo "@@HIGHLIGHT openvino-genai installed at $workspace"
+  echo "@@HIGHLIGHT explore samples at /usr/share/openvino"
 }
 
 debian_70_remove_openvino () {

@@ -13,8 +13,11 @@ debian_75_profile_dlstreamer () {
 }
 
 verify_dlstreamer () {
-  dpkg-query -L intel-dlstreamer-${version} > /dev/null 2>&1 || return 1
-  [ -r "$workspace/venv/bin/activate" ] || return 1
+  dpkg-query -l intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
+  [ -r "$workspace/python3-venv/bin/activate" ] || return 1
+  cd "$workspace"
+  . python3-venv/bin/activate
+  pip show ultralytics nncf
 }
 
 debian_75_install_dlstreamer () {
@@ -40,18 +43,19 @@ debian_75_install_dlstreamer () {
     ensure_apt install --no-install-recommends -y intel-dlstreamer=$version
 
     # clone the dlstreamer repostiory
-    ensure_git_clone "$workspace" release-v$version $repository
+    ensure_git_clone "$workspace" v$version $repository
 
     # create the dlstreamer venv
-    python3 -m venv "$workspace"/venv
-    . "$workspace"/venv/bin/activate
-    pip install -r nncf==3.0.0 ultralytics==8.4.57
-
-    # info
-    echo "@@HIGHLIGHT dlstreamer venv @$workspace/venv"
-    echo "@@HIGHLIGHT samples @$workspace/samples"
-    echo "@@HIGHLIGHT env @$workspace/scripts/setup_dls_env.sh"
+    cd "$workspace"
+    python3 -m venv python3-venv
+    . python3-venv/bin/activate
+    pip install nncf==3.0.0 ultralytics==8.4.57
   fi
+
+  # info
+  echo "@@HIGHLIGHT env @$workspace/scripts/setup_dls_env.sh"
+  echo "@@HIGHLIGHT python venv @$workspace/python3-venv"
+  echo "@@HIGHLIGHT samples @$workspace/samples"
 }
 
 debian_75_remove_dlstreamer () {
