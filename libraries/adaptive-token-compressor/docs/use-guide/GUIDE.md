@@ -1,15 +1,129 @@
 # Adaptive Token Compressor — Guide
 
-This guide covers compressor principles and workflow, configuration reference,
-available metrics, testing, FAQ, and resources. For installation and a quick
-start, see the [README](README.md).
+This guide covers single-compressor metrics collection, multi-compressor usage,
+compressor principles and workflow, configuration reference, available metrics,
+testing, FAQ, and resources. For installation and a single-compressor quick
+start, see the [README](../../README.md).
+
+## Single-Compressor Metrics Collection with CompressionManager
+
+Metrics collection requires using `CompressionManager`. Register a single
+compressor, attach metrics, and read the aggregated snapshot:
+
+```python
+from adaptive_token_compressor import (
+    CompressionManager,
+    CompressionContext,
+    create_compressor,
+    CompressionRatio,
+    TotalSaved
+)
+
+# Metrics collection requires using CompressionManager
+manager = CompressionManager()
+
+# Register compressor first
+harness_compressor = manager.register_compressor(
+    "harness",
+    create_compressor("harness", lingua_url="http://localhost:8001/compress"),
+)
+
+# Then register metrics with names
+manager.register_metric("compression_ratio", CompressionRatio(sources="harness"))
+manager.register_metric("total_saved", TotalSaved(sources="harness"))
+
+# Compress multiple requests
+for i in range(5):
+    messages = [...]  # Different messages each time
+    ctx = CompressionContext(messages=messages)
+    result = harness_compressor.compress(ctx)
+
+# View aggregated metrics (returns dict with all registered metric names)
+stats = manager.snapshot()
+print(f"Compression ratio: {stats['compression_ratio']:.2%}")
+print(f"Total saved: {stats['total_saved']} tokens")
+```
+
+## Multi-Compressor Usage with CompressionManager
+
+Metrics support both **per-source** tracking (single source string) and **cross-compressor aggregation** (list of sources). Cross-compressor metrics let you track combined statistics — e.g. average duration per request across the harness and tool compressors together.
+
+```python
+from adaptive_token_compressor import (
+    CompressionManager,
+    CompressionContext,
+    create_compressor,
+    TotalSaved,
+    AvgDurationPerRequest,
+)
+
+# Initialize manager
+manager = CompressionManager()
+
+# Register compressors first
+harness_compressor = manager.register_compressor(
+    "harness",
+    create_compressor("harness", lingua_url="http://localhost:8001/compress"),
+)
+tool_compressor = manager.register_compressor(
+    "tool",
+    create_compressor(
+        "tool",
+        predictor_url="http://localhost:8000/v1/chat/completions",
+    ),
+)
+
+# Register one per-source metric plus two aggregate metrics
+manager.register_metric(
+    "harness_saved",
+    TotalSaved(sources="harness")
+)
+manager.register_metric(
+    "total_saved_all",
+    TotalSaved(sources=["harness", "tool"])
+)
+manager.register_metric(
+    "avg_dur_per_request_all",
+    AvgDurationPerRequest(sources=["harness", "tool"])
+)
+
+# Process multiple requests
+for i in range(10):
+    messages = [...]  # Different messages each time
+    tools = [...]     # Full tool list
+
+    # IMPORTANT: use the SAME req_id for all compressors in one request so
+    # request_count() counts unique requests, not per-compressor calls. This
+    # makes avg_dur_per_request_all = total duration / number of requests.
+    req_id = f"req-{i}"
+
+    ctx = CompressionContext(messages=messages, tools=tools)
+
+    # Compress tools
+    result = tool_compressor.compress(ctx, req_id=req_id)
+    ctx = CompressionContext(messages=result.messages, tools=result.tools)
+
+    # Compress messages
+    result = harness_compressor.compress(ctx, req_id=req_id)
+
+    # Use result.messages and result.tools for LLM inference
+
+# View aggregated metrics (snapshot returns all registered metrics)
+stats = manager.snapshot()
+
+print(f"  Harness saved: {stats['harness_saved']} tokens")
+print(f"  Total saved (all): {stats['total_saved_all']} tokens")
+print(f"  Avg duration per request (all): {stats['avg_dur_per_request_all']:.1f} ms")
+```
+
+> **Note on PerRequest metrics** (`AvgDurationPerRequest`, `AvgSavedPerRequest`, etc.): these divide by the number of unique requests. You must either pass `req_id` to `compressor.compress(ctx, req_id=...)` (as above), or call `manager.set_per_anchor("<source>")` to use one compressor's call count as the request denominator. Without either, `manager.snapshot()` raises a `RuntimeError` (the denominator is checked at snapshot time, not at registration).
 
 ## Compressor Principles and Workflow
 
 This section explains how each compressor works conceptually and what the
 runtime pipeline looks like.
 
-![Overall Workflow](pics/workflow.png)
+![Overall Workflow](../assets/workflow.png)
 
 ### HarnessCompressor
 
@@ -20,7 +134,7 @@ assembly stage. It combines lightweight rules (message slicing / role-aware
 handling) with Lingua-based lossy compression for long text blocks, so token
 cost drops while preserving instruction-critical content.
 
-![HarnessCompressor](pics/harness_compressor.png)
+![HarnessCompressor](../assets/harness_compressor.png)
 
 **Workflow**
 
@@ -41,7 +155,7 @@ ToolCompressor reduces tool-schema prompt cost by selecting only likely-needed
 tools for the current request. It uses an external predictor LLM to score tool
 relevance from conversation context, then keeps high-value tools only.
 
-![ToolCompressor](pics/tool_compressor.png)
+![ToolCompressor](../assets/tool_compressor.png)
 
 **Workflow**
 
@@ -56,9 +170,7 @@ relevance from conversation context, then keeps high-value tools only.
 
 ### Lingua Server Configuration
 
-Lingua server supports both `llmlingua2` and `longllmlingua` in one running
-instance. `LINGUA_MODE` sets the startup default only; request
-payload `mode` can override it per `/compress` call.
+Lingua server uses the `llmlingua2` (LLMLingua-2) compression mode.
 
 #### Docker Compose Environment Variables
 
@@ -67,16 +179,15 @@ payload `mode` can override it per `/compress` call.
 | `LINGUA_BACKEND` | `pytorch` | `pytorch` or `ov` |
 | `LINGUA_DEVICE` | `xpu` | `xpu`, `cpu`, `cuda` (`cuda` is PyTorch-only) |
 | `LINGUA_XPU_INDEX` | `0` | Used when `LINGUA_DEVICE=xpu`,specify the XPU index. For OpenVINO, maps to `GPU.<index>`; when index is `0`, generic `GPU` is also accepted as a compatibility fallback |
-| `LINGUA_MODE` | `llmlingua2` | Startup default mode: `llmlingua2` or `longllmlingua` |
-| `LINGUA_MODEL_NAME_ID` | empty | Optional fixed model id. Empty -> mode-specific defaults |
+| `LINGUA_MODE` | `llmlingua2` | Compression mode: `llmlingua2` |
+| `LINGUA_MODEL_NAME_ID` | empty | Optional fixed model id. Empty -> mode default |
 | `LINGUA_PORT` | `8001` | Host port mapping for `lingua-pytorch` service |
 | `LINGUA_OV_PORT` | `8002` | Host port mapping for `lingua-ov` service |
 | `LINGUA_HOST` | `0.0.0.0` | Bind address for the container service |
 
-Mode-specific default models when `LINGUA_MODEL_NAME_ID` is empty:
+Default model when `LINGUA_MODEL_NAME_ID` is empty:
 
 - `llmlingua2` -> `microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank`
-- `longllmlingua` -> `NousResearch/Llama-2-7b-hf`
 
 ### HarnessCompressor Configuration
 
@@ -254,7 +365,6 @@ ctx = manager.compress("harness", ctx)   # Compress messages
 
 ## Resources
 
-- [LongLLMLingua: Accelerating and Enhancing LLMs in Long Context Scenarios via Prompt Compression](https://aclanthology.org/2024.acl-long.91/)
 - [LLMLingua-2: Data Distillation for Efficient and Faithful Task-Agnostic Prompt Compression](https://arxiv.org/abs/2403.12968)
-- [Lingua Deployment Guide](deployment/lingua/README.md)
-- [Tool Predictor Setup](deployment/tool_predictor/README.md)
+- [Lingua Deployment Guide](lingua-deployment.md)
+- [Tool Predictor Setup](tool-predictor-deployment.md)
