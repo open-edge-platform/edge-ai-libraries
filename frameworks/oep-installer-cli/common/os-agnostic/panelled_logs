@@ -715,7 +715,8 @@ _draw() {
     local k; for k in "${ORDER[@]}"; do [[ -n $k ]] && WRAPW[$k]=-1; done
   fi
 
-  local body=$(( rows - 2 ))
+  local body=$(( rows - 3 ))
+  (( body < 1 )) && body=1
   local name src i j
 
   local view=${FOCUS:-$CURRENT}

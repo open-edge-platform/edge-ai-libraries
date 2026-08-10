@@ -53,7 +53,7 @@ debian_75_install_dlstreamer () {
   fi
 
   # info
-  echo "@@HIGHLIGHT env @$workspace/scripts/setup_dls_env.sh"
+  echo "@@HIGHLIGHT shell env @$workspace/scripts/setup_dls_env.sh"
   echo "@@HIGHLIGHT python venv @$workspace/python3-venv"
   echo "@@HIGHLIGHT samples @$workspace/samples"
 }

@@ -47,7 +47,7 @@ debian_70_install_openvino () {
   fi
 
   # info
-  echo "@@HIGHLIGHT openvino-genai @$workspace"
+  echo "@@HIGHLIGHT openvino-genai @$openvino_venv"
   echo "@@HIGHLIGHT openvino samples @/usr/share/openvino"
 }
 
