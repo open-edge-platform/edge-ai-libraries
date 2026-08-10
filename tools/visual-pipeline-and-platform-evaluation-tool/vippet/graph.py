@@ -16,7 +16,7 @@ from resources import (
     get_scripts_manager,
 )
 from utils import slugify_text
-from video_decoder import VideoDecoder
+from video_decoder import VideoDecoder, split_device_target
 from videos import VideosManager
 from images import ImagesManager
 
@@ -1726,8 +1726,8 @@ class Graph:
         in order.
 
         Returns:
-            Device name ("CPU", "GPU", "NPU"), or "CPU" as default
-            if no gva* node with device attribute is found.
+            Device name as written on the element ("CPU", "GPU", "GPU.1", "NPU"),
+            or "CPU" as default if no gva* node with device attribute is found.
         """
         # Build adjacency map for forward traversal
         edges_from: dict[str, list[str]] = {}
@@ -1918,7 +1918,10 @@ class Graph:
         Args:
             codec: Input stream codec (e.g., "h264", "h265", "MJPG", "YUYV"),
                 or None if codec cannot be determined (keeps decodebin3 as fallback).
-            target_device: Target device from gvadetect ("CPU", "GPU", "NPU").
+            target_device: Target device from gvadetect ("CPU", "GPU", "GPU.1", "NPU").
+                For an indexed GPU the VA elements bound to the matching render
+                node are used (e.g. varenderD129h264dec for GPU.1), so decoding
+                and inference share the same GPU.
 
         Returns:
             Modified Graph with decodebin3 replaced.
@@ -1985,10 +1988,10 @@ class Graph:
         if replacement_kind == "keep":
             return modified_graph
 
-        # Determine output caps type based on target device.
+        # Determine output caps type based on target device family.
         # VA-API decoders (GPU/NPU) output to VAMemory, CPU decoders output raw.
-        device_upper = target_device.upper()
-        if device_upper in {"GPU", "NPU"}:
+        device_family, _ = split_device_target(target_device)
+        if device_family in {"GPU", "NPU"}:
             output_caps_type = "video/x-raw(memory:VAMemory)"
         else:
             output_caps_type = "video/x-raw"
@@ -2003,7 +2006,7 @@ class Graph:
             n.type == "gvamotiondetect" for n in modified_graph.nodes
         )
         needs_post_decoder_converter = v4l2_caps_node_info is not None or (
-            has_gvamotiondetect and device_upper == "CPU"
+            has_gvamotiondetect and device_family == "CPU"
         )
 
         # Find max existing ID across all nodes and edges for generating new IDs
@@ -2041,8 +2044,8 @@ class Graph:
 
         for db_node_id in decodebin3_node_ids:
             if replacement_kind == "videoconvert":
-                if device_upper in {"GPU", "NPU"}:
-                    element_type = "vapostproc"
+                if device_family in {"GPU", "NPU"}:
+                    element_type = video_decoder.select_postproc(target_device)
                 else:
                     element_type = "videoconvert"
                 replacements.append((db_node_id, element_type, [], []))
@@ -2066,8 +2069,8 @@ class Graph:
                 if needs_post_decoder_converter:
                     converter_node_id = str(next_id)
                     next_id += 1
-                    if device_upper in {"GPU", "NPU"}:
-                        converter_element = "vapostproc"
+                    if device_family in {"GPU", "NPU"}:
+                        converter_element = video_decoder.select_postproc(target_device)
                     else:
                         converter_element = "videoconvert"
                     converter_node = Node(
@@ -2190,14 +2193,16 @@ class Graph:
             if db_node is None:
                 continue
 
-            if kind in {"videoconvert", "vapostproc"}:
+            if kind != "parsebin_decoder":
+                # ``kind`` is the replacement element itself: videoconvert,
+                # vapostproc or its render-node variant (varenderD129postproc).
                 db_node.type = kind
                 logger.debug(
                     f"Replaced decodebin3 (node {db_node_id}) with {kind} "
                     f"for raw format '{codec}'"
                 )
 
-            elif kind == "parsebin_decoder":
+            else:
                 # Rename decodebin3 → parsebin
                 db_node.type = "parsebin"
 
@@ -2419,7 +2424,7 @@ class Graph:
         # node we skip it, so calling ``_adapt_image_set_video_pipeline``
         # twice on the same graph (or running the same conversion
         # repeatedly in the UI) does not stack up adapter pairs.
-        _device_norm_step0 = (target_device or "").upper()
+        _device_norm_step0, _ = split_device_target(target_device)
         _skip_cpu_format_force = _device_norm_step0 in {"GPU", "NPU"}
 
         def _successor_already_forces_format(decoder_id: str) -> bool:
@@ -2627,7 +2632,7 @@ class Graph:
         # ``type`` literally starts with ``video/x-raw(memory:`` —
         # there is no GStreamer element with such a name, so this
         # cannot misfire on a real element.
-        _device_norm_step1b = (target_device or "").upper()
+        _device_norm_step1b, _ = split_device_target(target_device)
         _skip_va_downgrade = _device_norm_step1b in {"GPU", "NPU"}
         for node in self.nodes:
             if _skip_va_downgrade:
@@ -2703,11 +2708,11 @@ class Graph:
             VideoEncoder,
         )
 
-        device_norm = (target_device or "").upper()
+        device_norm, device_gpu_index = split_device_target(target_device)
         wants_va_encoder = device_norm in {"GPU", "NPU"}
         encoder_device = ENCODER_DEVICE_GPU if wants_va_encoder else ENCODER_DEVICE_CPU
         encoder_element_str = VideoEncoder()._select_element(
-            encoder_device, streaming=False
+            encoder_device, streaming=False, gpu_index=device_gpu_index
         )
         # Fallback: if the requested device has no available encoder
         # (e.g. running on a CPU-only host that still requested GPU),
@@ -2992,7 +2997,7 @@ class Graph:
                 ``"NPU"``). NPU is treated like GPU for the purpose of
                 memory hand-off (the VA-API stack handles both).
         """
-        device = (target_device or "").upper()
+        device, _ = split_device_target(target_device)
         wants_va_memory = device in {"GPU", "NPU"}
 
         # Map software decoder name -> image-set node id (the
@@ -3146,7 +3151,11 @@ class Graph:
 
             vapostproc_id = str(next_id_int)
             next_id_int += 1
-            vapostproc_node = Node(id=vapostproc_id, type="vapostproc", data={})
+            vapostproc_node = Node(
+                id=vapostproc_id,
+                type=VideoDecoder().select_postproc(target_device),
+                data={},
+            )
 
             caps_id = str(next_id_int)
             next_id_int += 1
