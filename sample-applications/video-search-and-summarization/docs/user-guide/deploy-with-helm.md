@@ -80,7 +80,8 @@ Update or edit the values in YAML file as follows:
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
 | `global.registry` | Single-source image registry override for all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, multimodal-dataprep, multimodal-embedding-serving, vector-retriever). Leave empty to keep each subchart's own default. | `""` or `my-registry.example.com/vss/` |
-| `global.tag` | Single-source image tag override for the VSS service images above. Leave empty to keep each subchart's own default tag. | `""` or `2026.2.0-rc1` |
+| `global.tag` | Single-source image tag override for the VSS service images above. Also used as fallback for `global.modelDownload.image.tag` when that value is empty. | `""` or `2026.2.0-rc1` |
+| `global.modelDownload.image.tag` | Optional explicit model-download image tag. Leave empty to inherit `global.tag` (and if both are empty, chart defaults to `latest`). | `""` or `2026.2.0-rc1` |
 | `global.pullPolicy` | Image pull policy override for the VSS service images above. Leave empty to keep each subchart's default (`IfNotPresent`). Set to `Always` to force a fresh pull on every pod start (e.g. when reusing a mutable tag). | `""`, `Always`, or `IfNotPresent` |
 | `global.metricsManager.enabled` | Deploy Metrics Manager and enable direct DataPrep metric publishing | `true` or `false` |
 | `global.keepPvc` | PVC gets deleted by default once helm is uninstalled. Set this to true to persist PVC (helps avoid delay due to model re-downloads when re-installing chart). | `true` or `false` |

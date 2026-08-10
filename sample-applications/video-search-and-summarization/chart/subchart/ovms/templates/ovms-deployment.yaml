@@ -75,7 +75,7 @@ spec:
       # then exits — advancing to the next init container or the main container.
       initContainers:
         - name: download-vlm
-          image: "{{ .Values.global.modelDownload.image.repository }}:{{ .Values.global.modelDownload.image.tag }}"
+          image: "{{ include "vss.modelDownloadImage" . }}"
           imagePullPolicy: {{ .Values.global.modelDownload.image.pullPolicy }}
           command: ["/bin/sh", "/scripts/download-ovms-model.sh"]
           env:
@@ -122,7 +122,7 @@ spec:
             {{- end }}
         {{- if $ovmsSplitModel }}
         - name: download-llm
-          image: "{{ .Values.global.modelDownload.image.repository }}:{{ .Values.global.modelDownload.image.tag }}"
+          image: "{{ include "vss.modelDownloadImage" . }}"
           imagePullPolicy: {{ .Values.global.modelDownload.image.pullPolicy }}
           command: ["/bin/sh", "/scripts/download-ovms-model.sh"]
           env:
