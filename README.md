@@ -6,16 +6,15 @@
 
 # Edge-AI-Libraries
 
-Welcome to **Edge AI Libraries** - highly optimized libraries, microservices,
-and tools designed for building and deploying real-time AI solutions
-on edge devices.
+Welcome to **Edge AI Libraries** - a set of Intel-optimized libraries, microservices, tools,
+and demos intended for developing real-time edge AI solutions.
 
-If you are an AI developer, data scientist, or system integrator, these assets
+If you are an AI developer, data scientist, or system integrator, these assets will
 help you organize data, train models, run efficient inference, and deliver
 robust, industry-grade automation systems for computer vision, multimedia,
 and industrial use cases.
 
-## Spotlight - Key Components
+## Key Components
 
 These flagship components represent the most advanced, widely adopted, and
 impactful tools in the repository:
@@ -90,6 +89,23 @@ and high-performance inference on edge devices.
 - [Edge AI Tuning Kit](https://github.com/open-edge-platform/edge-ai-tuning-kit)
 
   Create, tailor, and implement custom AI models directly on edge platforms.
+
+### LLM Inference Optimization
+
+These libraries reduce the compute, memory, and token cost of running large
+language model and agent workloads on the edge, improving inference efficiency
+without changing model behavior.
+
+- [Adaptive Token Compressor](./libraries/adaptive-token-compressor)
+
+  Pluggable token compression for LLM agent systems — compresses system
+  prompts, context, and tool schemas to cut input token usage.
+
+- [KVCache Quantization and Offload](./libraries/kv-quant-offload)
+
+  Near-lossless 4-bit KV-cache quantization for LMCache/vLLM, reducing
+  KV-cache memory and storage overhead for KV offload on Intel edge
+  accelerators.
 
 ### Streaming and Multimedia AI
 
@@ -261,7 +277,7 @@ to help users get started quickly and understand integration patterns: 
 - [Video Search and Summarization](./sample-applications/video-search-and-summarization) 
 
   Application combining video content analysis with search and
-  summarization capabilities. 🧪 Now with experimental support for 
+  summarization capabilities. 🧪 Now with experimental support for
   Intel Arc Pro B-series GPUs (B60, B65, B70). 
 
 - [Edge Developer Kit Reference Scripts](https://github.com/open-edge-platform/edge-developer-kit-reference-scripts) 
@@ -272,8 +288,8 @@ to help users get started quickly and understand integration patterns: 
   edge devices.
 
 > Visit the [Edge AI Suites](https://github.com/open-edge-platform/edge-ai-suites)
-> repository for a broader set of sample applications targeted at
-> specific industry segments. 
+  repository for a broader set of sample applications targeted at
+  specific industry segments. 
      
 ### Edge Analytics Microservices
 
@@ -295,6 +311,7 @@ structured and time-series data.
   with rapid training and low-latency inference.
 
 ### Edge-device Enablement Framework (EEF)
+
 A comprehensive framework providing hardware abstraction, device management,
 and deployment tools for edge AI applications. Simplifies cross-platform
 development and enables consistent deployment across diverse edge hardware
@@ -368,3 +385,7 @@ The **Edge AI Libraries** project is licensed under the [APACHE 2.0](./LICENSE) 
 | Dataset Management Framework (Datumaro) | [MIT License](https://github.com/open-edge-platform/datumaro/blob/develop/LICENSE) |
 | Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/main/LICENSE) |
 | Deep Learning Streamer | [MIT License](https://github.com/open-edge-platform/dlstreamer/blob/main/LICENSE) |
+
+Some of the software maintained under the Edge AI Libraries repository is intended for
+demonstration and reference purposes only. For more information, refer to
+[Notes on Usage](https://docs.openedgeplatform.intel.com/dev/OEP-articles/notes-on-usage.html).

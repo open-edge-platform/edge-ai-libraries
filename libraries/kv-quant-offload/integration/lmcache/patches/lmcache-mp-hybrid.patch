@@ -1,0 +1,1558 @@
+diff --git a/docs/source/getting_started/installation.rst b/docs/source/getting_started/installation.rst
+index f0710d0a..9a4d79d4 100644
+--- a/docs/source/getting_started/installation.rst
++++ b/docs/source/getting_started/installation.rst
+@@ -164,6 +164,9 @@ Install LMCache
+                             uv pip install -r requirements/build.txt
+ 
+                             # Build LMCache with SYCL backend.
++                            # If torch.xpu is available, editable installs
++                            # now auto-select this path; BUILD_WITH_SYCL=1
++                            # still forces it explicitly.
+                             BUILD_WITH_SYCL=1 uv pip install --no-build-isolation -e .
+ 
+ 
+diff --git a/lmcache/integration/vllm/kv_cache_group_edits.py b/lmcache/integration/vllm/kv_cache_group_edits.py
+index c8feb86e..35712db5 100644
+--- a/lmcache/integration/vllm/kv_cache_group_edits.py
++++ b/lmcache/integration/vllm/kv_cache_group_edits.py
+@@ -314,6 +314,7 @@ class _SubpagedAttentionViewEdit(KVCacheGroupEdit):
+                 f"expected a (num_blocks, 2, block_size, num_heads, head_size) "
+                 f"attention KV tensor, got {got}"
+             )
++
+         logical_block_size = spec.block_size
+         kernel_block_size = kv_cache.shape[2]
+         if logical_block_size % kernel_block_size != 0:
+diff --git a/lmcache/integration/vllm/lmcache_mp_connector.py b/lmcache/integration/vllm/lmcache_mp_connector.py
+index ebdbf781..d4b0085b 100644
+--- a/lmcache/integration/vllm/lmcache_mp_connector.py
++++ b/lmcache/integration/vllm/lmcache_mp_connector.py
+@@ -30,6 +30,7 @@ except ImportError:
+ # Third Party
+ from vllm.v1.attention.backend import AttentionMetadata
+ from vllm.v1.core.sched.output import SchedulerOutput
++from vllm.v1.kv_cache_interface import get_kv_cache_spec_kind
+ from vllm.v1.outputs import KVConnectorOutput
+ from vllm.v1.request import RequestStatus
+ from vllm.v1.utils import ConstantList
+@@ -37,7 +38,7 @@ import torch
+ import zmq
+ 
+ # First Party
+-from lmcache import torch_dev
++from lmcache import torch_dev, torch_device_type
+ from lmcache.banner import print_banner_once
+ from lmcache.integration.vllm.kv_cache_group_edits import (
+     apply_kv_cache_group_edits,
+@@ -100,6 +101,84 @@ if TYPE_CHECKING:
+ logger = lmcache_init_logger(__name__)
+ 
+ 
++def _cache_spec_category(kind: str) -> str:
++    if kind == "mamba":
++        return "mamba"
++    if kind == "unknown":
++        return "unknown"
++    return "attention"
++
++
++def _format_kv_cache_spec(engine_group_idx: int, spec: Any) -> str:
++    kind = get_kv_cache_spec_kind(spec).value
++    fields: list[str] = [
++        f"group={engine_group_idx}",
++        f"category={_cache_spec_category(kind)}",
++        f"kind={kind}",
++        f"class={type(spec).__name__}",
++        f"block_size={getattr(spec, 'block_size', None)}",
++        f"page_size_bytes={getattr(spec, 'page_size_bytes', None)}",
++    ]
++    for attr in (
++        "num_kv_heads",
++        "head_size",
++        "head_size_v",
++        "dtype",
++        "kv_quant_mode",
++        "sliding_window",
++        "attention_chunk_size",
++        "sink_len",
++        "shapes",
++        "dtypes",
++        "mamba_type",
++        "mamba_cache_mode",
++        "num_speculative_blocks",
++    ):
++        if hasattr(spec, attr):
++            fields.append(f"{attr}={getattr(spec, attr)}")
++    return "{" + ", ".join(fields) + "}"
++
++
++def _format_kv_cache_config(kv_cache_config: Any) -> str:
++    if kv_cache_config is None:
++        return "[]"
++    groups = getattr(kv_cache_config, "kv_cache_groups", None) or []
++    return "[" + "; ".join(
++        _format_kv_cache_spec(idx, group.kv_cache_spec)
++        for idx, group in enumerate(groups)
++    ) + "]"
++
++
++def _format_cache_tensor(cache: Any) -> str:
++    if isinstance(cache, torch.Tensor):
++        return (
++            f"Tensor(shape={tuple(cache.shape)}, dtype={cache.dtype}, "
++            f"device={cache.device}, stride={tuple(cache.stride())})"
++        )
++    if isinstance(cache, (list, tuple)):
++        return type(cache).__name__ + "(" + ", ".join(
++            _format_cache_tensor(item) for item in cache
++        ) + ")"
++    return type(cache).__name__
++
++
++def _format_op(op: LoadStoreOp) -> str:
++    block_ids = op.block_ids
++    if not block_ids:
++        group_block_counts: list[int] = []
++    elif isinstance(block_ids[0], int):
++        group_block_counts = [len(block_ids)]
++    else:
++        group_block_counts = [len(group_block_ids) for group_block_ids in block_ids]
++    return (
++        f"tokens=[{op.start}, {op.end}), "
++        f"num_tokens={op.end - op.start}, "
++        f"skip_first_n_tokens={op.skip_first_n_tokens}, "
++        f"group_block_counts={group_block_counts}, "
++        f"flat_block_count={len(op.flat_block_ids)}"
++    )
++
++
+ # Helper functions
+ def validate_mamba_step_alignment(vllm_config: VllmConfig) -> None:
+     """Reject scheduler configs that can skip Mamba state snapshots.
+@@ -161,6 +240,24 @@ def build_parallel_strategy_from_vllm_config(
+     )
+ 
+ 
++def _record_transfer_event() -> Any:
++    # Only CUDA supports interprocess events; other accelerators should use
++    # regular events. Keep a TypeError fallback for maximum compatibility.
++    if torch_device_type == "cuda":
++        try:
++            event = torch_dev.Event(interprocess=True)
++        except TypeError:
++            logger.warning_once(
++                "torch device Event() does not support interprocess=True; "
++                "falling back to Event()."
++            )
++            event = torch_dev.Event()
++    else:
++        event = torch_dev.Event()
++    event.record()
++    return event
++
++
+ class LMCacheMPRequestState(enum.Enum):
+     """
+     State machine:
+@@ -562,6 +659,12 @@ class LMCacheMPConnector(KVConnectorBase_V1, SupportsHMA):
+         self._group_tokens_per_block: list[int] = [
+             group.kv_cache_spec.block_size for group in vllm_groups
+         ] or [vllm_config.cache_config.block_size]
++        self._kv_cache_spec_info = _format_kv_cache_config(kv_cache_config)
++        logger.info(
++            "LMCache MP connector initialized: role=%s, kv_cache_specs=%s",
++            self.role,
++            self._kv_cache_spec_info,
++        )
+         for engine_group_idx, tokens_per_block in enumerate(
+             self._group_tokens_per_block
+         ):
+@@ -621,6 +724,17 @@ class LMCacheMPConnector(KVConnectorBase_V1, SupportsHMA):
+         # Must precede both group-info creation and transfer registration so
+         # they see the same edited views.
+         kv_caches = apply_kv_cache_group_edits(kv_cache_config, kv_caches)
++        logger.info(
++            "LMCache MP register_kv_caches: num_layers=%d, kv_cache_specs=%s",
++            len(kv_caches),
++            self._kv_cache_spec_info,
++        )
++        for layer_name, kv_cache in kv_caches.items():
++            logger.info(
++                "LMCache MP cache layer registered: layer=%s, cache=%s",
++                layer_name,
++                _format_cache_tensor(kv_cache),
++            )
+         engine_group_infos = create_engine_group_infos_from_vllm(
+             kv_cache_config,
+             kv_caches,
+@@ -663,9 +777,18 @@ class LMCacheMPConnector(KVConnectorBase_V1, SupportsHMA):
+         if len(request_ids) == 0:
+             return
+ 
++        for request_id, op, cache_salt in zip(request_ids, ops, cache_salts):
++            logger.info(
++                "LMCache MP cache submit: direction=RETRIEVE, request_id=%s, "
++                "cache_salt=%s, %s, kv_cache_specs=%s",
++                request_id,
++                cache_salt,
++                _format_op(op),
++                self._kv_cache_spec_info,
++            )
++
+         with torch_dev.stream(torch_dev.current_stream()):
+-            event = torch_dev.Event(interprocess=True)
+-            event.record()
++            event = _record_transfer_event()
+ 
+         self.worker_adapter.batched_submit_retrieve_requests(
+             request_ids, ops, event, cache_salts=cache_salts
+@@ -734,9 +857,18 @@ class LMCacheMPConnector(KVConnectorBase_V1, SupportsHMA):
+         if len(request_ids) == 0:
+             return
+ 
++        for request_id, op, cache_salt in zip(request_ids, ops, cache_salts):
++            logger.info(
++                "LMCache MP cache submit: direction=STORE, request_id=%s, "
++                "cache_salt=%s, %s, kv_cache_specs=%s",
++                request_id,
++                cache_salt,
++                _format_op(op),
++                self._kv_cache_spec_info,
++            )
++
+         with torch_dev.stream(torch_dev.current_stream()):
+-            event = torch_dev.Event(interprocess=True)
+-            event.record()
++            event = _record_transfer_event()
+ 
+         self.worker_adapter.batched_submit_store_requests(
+             request_ids, ops, event, cache_salts=cache_salts
+@@ -1124,6 +1256,14 @@ class LMCacheMPConnector(KVConnectorBase_V1, SupportsHMA):
+                 group_tokens_per_block=self._group_tokens_per_block,
+             )
+             if r_metadata is not None:
++                logger.info(
++                    "LMCache MP cache metadata prepared: direction=RETRIEVE, "
++                    "request_id=%s, cache_salt=%s, %s, kv_cache_specs=%s",
++                    r_metadata.request_id,
++                    r_metadata.cache_salt,
++                    _format_op(r_metadata.op),
++                    self._kv_cache_spec_info,
++                )
+                 metadata.add_request_metadata(r_metadata)
+             request_tracker.state = LMCacheMPRequestState.READY
+ 
+@@ -1146,6 +1286,14 @@ class LMCacheMPConnector(KVConnectorBase_V1, SupportsHMA):
+                 self._group_tokens_per_block,
+             )
+             if r_meta is not None:
++                logger.info(
++                    "LMCache MP cache metadata prepared: direction=STORE, "
++                    "request_id=%s, cache_salt=%s, %s, kv_cache_specs=%s",
++                    r_meta.request_id,
++                    r_meta.cache_salt,
++                    _format_op(r_meta.op),
++                    self._kv_cache_spec_info,
++                )
+                 metadata.add_request_metadata(r_meta)
+ 
+     def _process_cached_requests(
+@@ -1176,6 +1324,14 @@ class LMCacheMPConnector(KVConnectorBase_V1, SupportsHMA):
+             )
+ 
+             if r_meta is not None:
++                logger.info(
++                    "LMCache MP cache metadata prepared: direction=STORE, "
++                    "request_id=%s, cache_salt=%s, %s, kv_cache_specs=%s",
++                    r_meta.request_id,
++                    r_meta.cache_salt,
++                    _format_op(r_meta.op),
++                    self._kv_cache_spec_info,
++                )
+                 metadata.add_request_metadata(r_meta)
+ 
+     def _report_block_allocation_deltas(
+diff --git a/lmcache/v1/multiprocess/custom_types.py b/lmcache/v1/multiprocess/custom_types.py
+index 70268317..021737b1 100644
+--- a/lmcache/v1/multiprocess/custom_types.py
++++ b/lmcache/v1/multiprocess/custom_types.py
+@@ -11,6 +11,7 @@ import torch
+ 
+ # First Party
+ from lmcache import torch_dev, torch_device_type
++from lmcache.v1.multiprocess.group_view import EngineGroupInfo
+ 
+ """
+ Defines the types and the customized encoder/decoders for inter-process
+@@ -327,6 +328,7 @@ class RegisterNonGpuContextPayload(msgspec.Struct):
+         hidden_dim_size: Flattened hidden dimension per token.
+         dtype_str: Torch dtype name (e.g. ``"float16"``).
+         use_mla: Whether the worker KV format is MLA.
++        engine_group_infos: LMCache KV group metadata for multi-group transfer.
+     """
+ 
+     instance_id: int
+@@ -337,6 +339,7 @@ class RegisterNonGpuContextPayload(msgspec.Struct):
+     hidden_dim_size: int
+     dtype_str: str
+     use_mla: bool
++    engine_group_infos: list[EngineGroupInfo] = msgspec.field(default_factory=list)
+ 
+ 
+ @dataclass
+diff --git a/lmcache/v1/multiprocess/engine_context.py b/lmcache/v1/multiprocess/engine_context.py
+index c7055e51..5d9695f0 100644
+--- a/lmcache/v1/multiprocess/engine_context.py
++++ b/lmcache/v1/multiprocess/engine_context.py
+@@ -40,6 +40,11 @@ class _LayoutDescEntry:
+ 
+     layout_desc: MemoryLayoutDesc
+     ref_count: int
++    # Number of LMCache object groups for this (model, world_size). Hybrid
++    # models (e.g. Mamba + attention) register more than one; single-group
++    # models register 1. Consumers (LookupModule) need this to prefetch and
++    # read-lock every object group, not just group 0.
++    num_object_groups: int = 1
+ 
+ 
+ class LayoutDescRegistry:
+@@ -62,6 +67,7 @@ class LayoutDescRegistry:
+         model_name: str,
+         world_size: int,
+         layout_desc: MemoryLayoutDesc,
++        num_object_groups: int = 1,
+     ) -> None:
+         """Register a layout descriptor for a (model_name, world_size) pair.
+ 
+@@ -72,6 +78,9 @@ class LayoutDescRegistry:
+             model_name: The model name.
+             world_size: The world size.
+             layout_desc: The memory layout descriptor.
++            num_object_groups: Number of LMCache object groups for this
++                registration (>= 1). Retained so lookups prefetch/read-lock
++                every group. Defaults to 1 for single-group models.
+         """
+         key = (model_name, world_size)
+         with self._lock:
+@@ -80,10 +89,12 @@ class LayoutDescRegistry:
+                 self._registry[key] = _LayoutDescEntry(
+                     layout_desc=layout_desc,
+                     ref_count=1,
++                    num_object_groups=max(1, num_object_groups),
+                 )
+                 return
+ 
+             entry.layout_desc = layout_desc
++            entry.num_object_groups = max(1, num_object_groups)
+             entry.ref_count += 1
+ 
+     def unregister(self, model_name: str, world_size: int) -> None:
+@@ -124,6 +135,23 @@ class LayoutDescRegistry:
+                 return None
+             return entry.layout_desc
+ 
++    def find_num_object_groups(self, model_name: str, world_size: int) -> int:
++        """Look up the object-group count for a (model_name, world_size) pair.
++
++        Args:
++            model_name: The model name.
++            world_size: The world size.
++
++        Returns:
++            The registered object-group count, or 1 if no entry is found
++            (single-group default).
++        """
++        with self._lock:
++            entry = self._registry.get((model_name, world_size))
++            if entry is None:
++                return 1
++            return entry.num_object_groups
++
+ 
+ class MPCacheEngineContext:
+     """Shared infrastructure for all engine modules.
+diff --git a/lmcache/v1/multiprocess/modules/lookup.py b/lmcache/v1/multiprocess/modules/lookup.py
+index 8172ad03..7f7a9b44 100644
+--- a/lmcache/v1/multiprocess/modules/lookup.py
++++ b/lmcache/v1/multiprocess/modules/lookup.py
+@@ -10,6 +10,7 @@ import time
+ # First Party
+ from lmcache.logging import init_logger
+ from lmcache.v1.distributed.api import (
++    ObjectKey,
+     PrefetchHandle,
+     ipc_key_to_object_keys,
+ )
+@@ -67,6 +68,51 @@ def compute_extra_count(
+     return tp - 1 if tp > world_size else 0
+ 
+ 
++def _expand_prefetch_obj_keys(
++    key: IPCCacheEngineKey,
++    chunk_hashes: list[bytes],
++    num_object_groups: int,
++) -> list[ObjectKey]:
++    """Build the prefetch/lock key list covering every object group.
++
++    Hybrid models have more than one KV-cache (object) group; store and
++    retrieve operate on all of them, so the prefetch must read-lock all of
++    them too (otherwise retrieve finds the non-prefetched groups
++    ``KEY_NOT_READABLE`` and the whole retrieve fails).
++
++    Keys are ordered chunk-major so the prefix-hit counter in
++    ``submit_prefetch_task`` still breaks at the first missing chunk: for
++    each chunk, all ``(object_group, kv_rank)`` keys are emitted
++    contiguously. The hit count is recovered by dividing the raw
++    leading-ones count by ``world_size * num_object_groups`` (mirroring the
++    existing ``world_size`` expand-then-divide scheme). With
++    ``num_object_groups == 1`` this returns exactly the previous
++    single-group ordering, so behavior is unchanged for non-hybrid models.
++
++    Args:
++        key: The lookup cache key (provides model_name, world_size,
++            worker_id, cache_salt).
++        chunk_hashes: Per-chunk content hashes.
++        num_object_groups: Number of object groups to cover (>= 1).
++
++    Returns:
++        Flat, chunk-major list of ObjectKeys across all object groups.
++    """
++    num_chunks = len(chunk_hashes)
++    if num_chunks == 0:
++        return []
++    group_ids = list(range(max(1, num_object_groups)))
++    per_group = ipc_key_to_object_keys(key, chunk_hashes, group_ids)
++    # Each per_group[g] is ordered [chunk-major, kv_rank-inner].
++    num_ranks = len(per_group[0]) // num_chunks
++    obj_keys: list[ObjectKey] = []
++    for chunk_idx in range(num_chunks):
++        base = chunk_idx * num_ranks
++        for group_keys in per_group:
++            obj_keys.extend(group_keys[base : base + num_ranks])
++    return obj_keys
++
++
+ @dataclass
+ class _PrefetchJob:
+     handle: PrefetchHandle
+@@ -84,6 +130,11 @@ class _PrefetchJob:
+     # tenant / isolation domain (an empty string means no salt set).
+     model_name: str = ""
+     cache_salt: str = ""
++    # Number of object groups covered by this prefetch. The raw
++    # leading-ones hit count spans ``world_size * num_object_groups`` keys
++    # per chunk, so the chunk-level hit count divides both out. Defaults to
++    # 1 for single-group models.
++    num_object_groups: int = 1
+ 
+ 
+ class LookupModule:
+@@ -266,7 +317,13 @@ class LookupModule:
+         session.set_tokens(list(key.token_ids))
+         session.lookup_ipc_key = key
+ 
+-        obj_keys = ipc_key_to_object_keys(key, chunk_hashes, [0])[0]
++        # Cover every object group (hybrid models have >1). Prefetching only
++        # group 0 leaves the other groups un-read-locked, so retrieve fails
++        # (KEY_NOT_READABLE) and loads no external KV.
++        num_object_groups = self._ctx.layout_desc_registry.find_num_object_groups(
++            model_name, world_size
++        )
++        obj_keys = _expand_prefetch_obj_keys(key, chunk_hashes, num_object_groups)
+ 
+         handle = self._ctx.storage_manager.submit_prefetch_task(
+             obj_keys,
+@@ -282,6 +339,7 @@ class LookupModule:
+                 requested_tokens=requested_tokens,
+                 model_name=model_name,
+                 cache_salt=key.cache_salt,
++                num_object_groups=num_object_groups,
+             )
+         )
+ 
+@@ -313,7 +371,8 @@ class LookupModule:
+         if found is None:
+             return None
+ 
+-        found_count = found // job.world_size
++        # Raw hits span world_size * num_object_groups keys per chunk.
++        found_count = found // (job.world_size * job.num_object_groups)
+         return found_count
+ 
+     def query_prefetch_status(
+@@ -352,7 +411,12 @@ class LookupModule:
+         # 1. the world size is the same between keys
+         # 2. the lookup sort the keys in prefix order and breaks at the
+         #    first failure
+-        found_count = found.count_leading_ones() // job.world_size
++        # Keys are expanded by world_size * num_object_groups per chunk
++        # (chunk-major), so both multipliers are divided out to recover the
++        # chunk-level hit count.
++        found_count = found.count_leading_ones() // (
++            job.world_size * job.num_object_groups
++        )
+ 
+         self._ctx.event_bus.publish(
+             Event(
+@@ -399,7 +463,12 @@ class LookupModule:
+         )
+         if not chunk_hashes:
+             return
+-        obj_keys = ipc_key_to_object_keys(key, chunk_hashes, [0])[0]
++        # Release locks for every object group, matching what lookup()
++        # acquired (otherwise the non-group-0 locks leak).
++        num_object_groups = self._ctx.layout_desc_registry.find_num_object_groups(
++            key.model_name, key.world_size
++        )
++        obj_keys = _expand_prefetch_obj_keys(key, chunk_hashes, num_object_groups)
+ 
+         extra_count = compute_extra_count(tp_size, key.world_size)
+ 
+@@ -437,7 +506,14 @@ class LookupModule:
+             return
+ 
+         chunk_hashes = [TokenHasher.hash_to_bytes(h) for h in session.get_hashes(0)]
+-        obj_keys = ipc_key_to_object_keys(session.lookup_ipc_key, chunk_hashes, [0])[0]
++        # Touch every object group so hybrid-model groups share one LRU
++        # recency (touching only group 0 lets the other groups age out first).
++        num_object_groups = self._ctx.layout_desc_registry.find_num_object_groups(
++            session.lookup_ipc_key.model_name, session.lookup_ipc_key.world_size
++        )
++        obj_keys = _expand_prefetch_obj_keys(
++            session.lookup_ipc_key, chunk_hashes, num_object_groups
++        )
+         # unified touch of all keys, which include retrieved and stored keys
+         # TODO(chunxiaozheng): when l2 is enabled, the prefetched keys from l2 are temp
+         #  and will be deleted after finish_read_prefetched, when we touch all keys,
+diff --git a/lmcache/v1/multiprocess/modules/non_gpu_transfer.py b/lmcache/v1/multiprocess/modules/non_gpu_transfer.py
+index 5e17911e..21a54918 100644
+--- a/lmcache/v1/multiprocess/modules/non_gpu_transfer.py
++++ b/lmcache/v1/multiprocess/modules/non_gpu_transfer.py
+@@ -21,6 +21,7 @@ from lmcache.v1.multiprocess.custom_types import (
+     RegisterNonGpuContextPayload,
+ )
+ from lmcache.v1.multiprocess.engine_context import MPCacheEngineContext, ShmPoolInfo
++from lmcache.v1.multiprocess.group_view import EngineGroupInfo
+ from lmcache.v1.multiprocess.engine_module import (
+     HandlerSpec,
+     ThreadPoolType,
+@@ -53,8 +54,10 @@ class NonGPUContextEntry:
+     """
+ 
+     metadata: NonGpuContextMetadata
++    metadata_by_group: list[NonGpuContextMetadata]
+     model_name: str
+     world_size: int
++    engine_group_infos: list[EngineGroupInfo]
+ 
+ 
+ class NonGPUTransferModule:
+@@ -161,10 +164,40 @@ class NonGPUTransferModule:
+     ) -> tuple[int, IPCCacheEngineKey]:
+         return (instance_id, key)
+ 
+-    def _resolve_single_group_obj_keys(self, key: IPCCacheEngineKey) -> list[ObjectKey]:
+-        """Resolve object keys for the single object group used by
+-        non-GPU transfers."""
+-        return self._ctx.resolve_obj_keys(key, [0])[0]
++    def _resolve_obj_keys(self, key: IPCCacheEngineKey, instance_id: int) -> list[ObjectKey]:
++        """Resolve object keys for every registered non-GPU object group."""
++        entry = self._non_gpu_contexts.get(instance_id)
++        object_group_ids = (
++            list(range(len(entry.engine_group_infos)))
++            if entry is not None and entry.engine_group_infos
++            else [0]
++        )
++        return [
++            obj_key
++            for group_obj_keys in self._ctx.resolve_obj_keys(key, object_group_ids)
++            for obj_key in group_obj_keys
++        ]
++
++    @staticmethod
++    def _make_metadata(
++        *,
++        num_layers: int,
++        chunk_size: int,
++        hidden_dim_size: int,
++        dtype: torch.dtype,
++        block_size: int,
++        use_mla: bool,
++    ) -> NonGpuContextMetadata:
++        shape = (
++            torch.Size([num_layers, chunk_size, hidden_dim_size])
++            if use_mla
++            else torch.Size([2, num_layers, chunk_size, hidden_dim_size])
++        )
++        return NonGpuContextMetadata(
++            layout_desc=MemoryLayoutDesc(shapes=[shape], dtypes=[dtype]),
++            block_size=block_size,
++            use_mla=use_mla,
++        )
+ 
+     def register_kv_cache_non_gpu_context(
+         self,
+@@ -199,25 +232,31 @@ class NonGPUTransferModule:
+                 "'bfloat16' for torch.bfloat16, 'float32' for torch.float32)."
+             )
+ 
+-        shape = (
+-            torch.Size(
+-                [payload.num_layers, self._ctx.chunk_size, payload.hidden_dim_size]
+-            )
+-            if payload.use_mla
+-            else torch.Size(
+-                [2, payload.num_layers, self._ctx.chunk_size, payload.hidden_dim_size]
+-            )
+-        )
+-        layout_desc = MemoryLayoutDesc(shapes=[shape], dtypes=[dtype])
+-        metadata = NonGpuContextMetadata(
+-            layout_desc=layout_desc,
++        metadata = self._make_metadata(
++            num_layers=payload.num_layers,
++            chunk_size=self._ctx.chunk_size,
++            hidden_dim_size=payload.hidden_dim_size,
++            dtype=dtype,
+             block_size=payload.block_size,
+             use_mla=payload.use_mla,
+         )
++        metadata_by_group = [
++            self._make_metadata(
++                num_layers=len(group_info.layer_indices),
++                chunk_size=self._ctx.chunk_size,
++                hidden_dim_size=payload.hidden_dim_size,
++                dtype=dtype,
++                block_size=group_info.tokens_per_block or payload.block_size,
++                use_mla=payload.use_mla,
++            )
++            for group_info in payload.engine_group_infos
++        ]
+         self._non_gpu_contexts[payload.instance_id] = NonGPUContextEntry(
+             metadata=metadata,
++            metadata_by_group=metadata_by_group,
+             model_name=payload.model_name,
+             world_size=payload.world_size,
++            engine_group_infos=list(payload.engine_group_infos),
+         )
+         strategy: TransferStrategy = create_transfer_strategy(
+             self._ctx.storage_manager,
+@@ -238,7 +277,10 @@ class NonGPUTransferModule:
+         )
+ 
+         self._ctx.layout_desc_registry.register(
+-            payload.model_name, payload.world_size, layout_desc
++            payload.model_name,
++            payload.world_size,
++            metadata.layout_desc,
++            num_object_groups=max(1, len(payload.engine_group_infos)),
+         )
+         return RegisterNonGpuContextResponse(shm_name=shm_name, pool_size=pool_size)
+ 
+@@ -314,8 +356,8 @@ class NonGPUTransferModule:
+         response = strategy.prepare_store(
+             key=key,
+             instance_id=instance_id,
+-            context=entry.metadata,
+-            resolve_obj_keys=self._resolve_single_group_obj_keys,
++            context=entry.metadata_by_group or entry.metadata,
++            resolve_obj_keys=lambda key: self._resolve_obj_keys(key, instance_id),
+         )
+         session = self._ctx.session_manager.get_or_create(key.request_id)
+         session.extras["store_start_time"] = time.perf_counter()
+@@ -358,12 +400,12 @@ class NonGPUTransferModule:
+             key=key,
+             instance_id=instance_id,
+             cpu_data=cpu_data,
+-            context=entry.metadata,
+-            resolve_obj_keys=self._resolve_single_group_obj_keys,
++            context=entry.metadata_by_group or entry.metadata,
++            resolve_obj_keys=lambda key: self._resolve_obj_keys(key, instance_id),
+         )
+         if st is not None and result:
+             num_tokens = (
+-                len(self._resolve_single_group_obj_keys(key)) * self._ctx.chunk_size
++                len(self._resolve_obj_keys(key, instance_id)) * self._ctx.chunk_size
+             )
+             logger.info(
+                 "Stored %d tokens in %.3f seconds",
+@@ -399,7 +441,7 @@ class NonGPUTransferModule:
+         response = strategy.prepare_retrieve(
+             key=key,
+             instance_id=instance_id,
+-            resolve_obj_keys=self._resolve_single_group_obj_keys,
++            resolve_obj_keys=lambda key: self._resolve_obj_keys(key, instance_id),
+         )
+         session = self._ctx.session_manager.get_or_create(key.request_id)
+         session.extras["retrieve_start_time"] = time.perf_counter()
+@@ -430,7 +472,7 @@ class NonGPUTransferModule:
+         result = strategy.commit_retrieve(key=key, instance_id=instance_id)
+         if st is not None:
+             num_tokens = (
+-                len(self._resolve_single_group_obj_keys(key)) * self._ctx.chunk_size
++                len(self._resolve_obj_keys(key, instance_id)) * self._ctx.chunk_size
+             )
+             logger.info(
+                 "Retrieved %d tokens in %.3f seconds",
+diff --git a/lmcache/v1/multiprocess/modules/server_transfer.py b/lmcache/v1/multiprocess/modules/server_transfer.py
+index fc967f79..57c6daa3 100644
+--- a/lmcache/v1/multiprocess/modules/server_transfer.py
++++ b/lmcache/v1/multiprocess/modules/server_transfer.py
+@@ -3,7 +3,7 @@
+ 
+ # Standard
+ from _thread import LockType
+-from collections.abc import Callable
++from collections.abc import Callable, Sequence
+ from typing import TYPE_CHECKING, Any
+ import abc
+ import pickle
+@@ -28,12 +28,41 @@ if TYPE_CHECKING:
+ 
+ logger = init_logger(__name__)
+ 
++ContextMetadata = NonGpuContextMetadata | Sequence[NonGpuContextMetadata]
++
+ 
+ def _dtype_to_name(dtype: torch.dtype) -> str:
+     """Return a stable torch dtype name without module prefix."""
+     return str(dtype).split(".")[-1]
+ 
+ 
++def _reserve_write_by_group(
++    storage_manager: "StorageManager",
++    obj_keys: list[ObjectKey],
++    context: ContextMetadata,
++    policy: str,
++) -> dict[ObjectKey, Any]:
++    if isinstance(context, NonGpuContextMetadata):
++        return storage_manager.reserve_write(obj_keys, context.layout_desc, policy)
++
++    reserved: dict[ObjectKey, Any] = {}
++    grouped_keys: dict[int, list[ObjectKey]] = {}
++    for obj_key in obj_keys:
++        grouped_keys.setdefault(obj_key.object_group_id, []).append(obj_key)
++
++    for object_group_id, group_obj_keys in grouped_keys.items():
++        if object_group_id >= len(context):
++            raise ValueError(
++                f"No non-GPU context metadata for object group {object_group_id}"
++            )
++        reserved.update(
++            storage_manager.reserve_write(
++                group_obj_keys, context[object_group_id].layout_desc, policy
++            )
++        )
++    return reserved
++
++
+ def create_transfer_strategy(
+     storage_manager: "StorageManager",
+     *,
+@@ -90,7 +119,7 @@ class TransferStrategy(abc.ABC):
+         self,
+         key: IPCCacheEngineKey,
+         instance_id: int,
+-        context: NonGpuContextMetadata,
++        context: ContextMetadata,
+         resolve_obj_keys: Callable[[IPCCacheEngineKey], list[ObjectKey]],
+     ) -> PrepareStoreResponse:
+         """Prepare destination resources for a store request.
+@@ -111,7 +140,7 @@ class TransferStrategy(abc.ABC):
+         key: IPCCacheEngineKey,
+         instance_id: int,
+         cpu_data: bytes,
+-        context: NonGpuContextMetadata,
++        context: ContextMetadata,
+         resolve_obj_keys: Callable[[IPCCacheEngineKey], list[ObjectKey]],
+     ) -> bool:
+         """Finalize a store request.
+@@ -186,7 +215,7 @@ class PickleTransferStrategy(TransferStrategy):
+         self,
+         key: IPCCacheEngineKey,
+         instance_id: int,
+-        context: NonGpuContextMetadata,
++        context: ContextMetadata,
+         resolve_obj_keys: Callable[[IPCCacheEngineKey], list[ObjectKey]],
+     ) -> PrepareStoreResponse:
+         """Return empty store context for pickle mode.
+@@ -200,7 +229,7 @@ class PickleTransferStrategy(TransferStrategy):
+         key: IPCCacheEngineKey,
+         instance_id: int,
+         cpu_data: bytes,
+-        context: NonGpuContextMetadata,
++        context: ContextMetadata,
+         resolve_obj_keys: Callable[[IPCCacheEngineKey], list[ObjectKey]],
+     ) -> bool:
+         """Deserialize and write pickled chunks into reserved objects.
+@@ -210,8 +239,8 @@ class PickleTransferStrategy(TransferStrategy):
+         """
+         obj_keys = resolve_obj_keys(key)
+         chunks: list[torch.Tensor] = pickle.loads(cpu_data)
+-        reserved_dict = self._storage_manager.reserve_write(
+-            obj_keys, context.layout_desc, "new"
++        reserved_dict = _reserve_write_by_group(
++            self._storage_manager, obj_keys, context, "new"
+         )
+         written_keys: list[ObjectKey] = []
+         try:
+@@ -313,7 +342,7 @@ class ShmTransferStrategy(TransferStrategy):
+         self,
+         key: IPCCacheEngineKey,
+         instance_id: int,
+-        context: NonGpuContextMetadata,
++        context: ContextMetadata,
+         resolve_obj_keys: Callable[[IPCCacheEngineKey], list[ObjectKey]],
+     ) -> PrepareStoreResponse:
+         """Reserve SHM-backed objects and return slot descriptors.
+@@ -322,9 +351,7 @@ class ShmTransferStrategy(TransferStrategy):
+             Context with ``slots`` and ``chunk_indices``.
+         """
+         obj_keys = resolve_obj_keys(key)
+-        reserved = self._storage_manager.reserve_write(
+-            obj_keys, context.layout_desc, "new"
+-        )
++        reserved = _reserve_write_by_group(self._storage_manager, obj_keys, context, "new")
+         slots: list[dict[str, Any]] = []
+         chunk_indices: list[int] = []
+         reserved_keys: list[ObjectKey] = []
+@@ -364,7 +391,7 @@ class ShmTransferStrategy(TransferStrategy):
+         key: IPCCacheEngineKey,
+         instance_id: int,
+         cpu_data: bytes,
+-        context: NonGpuContextMetadata,
++        context: ContextMetadata,
+         resolve_obj_keys: Callable[[IPCCacheEngineKey], list[ObjectKey]],
+     ) -> bool:
+         """Finalize SHM store write locks or fallback to pickle commit.
+diff --git a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py b/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
+index 1d90fc52..75bc7e37 100644
+--- a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
++++ b/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
+@@ -309,6 +309,88 @@ class DataTransferContext(TransferContext):
+         self._non_gpu_context: NonGpuContext | None = None
+         self._layout_hints: LayoutHints | None = None
+         self._gpu_kv_format: Any = None
++        self._engine_group_infos: list[EngineGroupInfo] = []
++        self._chunk_size_tokens: int | None = None
++
++    def _kv_caches_for_group(
++        self,
++        kv_caches: dict[str, torch.Tensor],
++        group_info: EngineGroupInfo | None,
++    ) -> dict[str, torch.Tensor]:
++        if group_info is None or not group_info.layer_indices:
++            return kv_caches
++        kv_cache_items = list(kv_caches.items())
++        return {name: tensor for idx, (name, tensor) in enumerate(kv_cache_items) if idx in group_info.layer_indices}
++
++    def _blocks_per_chunk_for_group(
++        self,
++        group_info: EngineGroupInfo | None,
++        default_blocks_in_chunk: int,
++    ) -> int:
++        if group_info is None or group_info.tokens_per_block <= 0:
++            return default_blocks_in_chunk
++        if self._chunk_size_tokens is None:
++            return default_blocks_in_chunk
++        if self._chunk_size_tokens % group_info.tokens_per_block != 0:
++            raise ValueError(
++                f"LMCache chunk size {self._chunk_size_tokens} must be a multiple "
++                f"of group tokens_per_block {group_info.tokens_per_block}"
++            )
++        return self._chunk_size_tokens // group_info.tokens_per_block
++
++    def _chunk_views_for_group(
++        self,
++        chunks: list[torch.Tensor] | None,
++        group_info: EngineGroupInfo | None,
++        expected_layers: int,
++    ) -> list[torch.Tensor] | None:
++        if chunks is None or group_info is None or not group_info.layer_indices:
++            return chunks
++
++        layer_dim = 0 if self._gpu_kv_format is not None and is_mla(self._gpu_kv_format) else 1
++        indices = tuple(group_info.layer_indices)
++        start = min(indices)
++        stop = max(indices) + 1
++        if stop - start != len(indices) or indices != tuple(range(start, stop)):
++            return chunks
++
++        views: list[torch.Tensor] = []
++        for chunk in chunks:
++            if chunk.dim() <= layer_dim:
++                views.append(chunk)
++                continue
++            layer_count = chunk.shape[layer_dim]
++            if layer_count == expected_layers:
++                views.append(chunk)
++            elif layer_count >= stop:
++                views.append(chunk.narrow(layer_dim, start, expected_layers))
++            else:
++                views.append(chunk)
++        return views
++
++    def _iter_transfer_groups(
++        self,
++        kv_caches: dict[str, torch.Tensor],
++        block_ids: list[list[int]],
++        blocks_in_chunk: int,
++    ):
++        if not self._engine_group_infos:
++            yield None, kv_caches, _single_group_block_ids(block_ids), blocks_in_chunk
++            return
++        if len(block_ids) != len(self._engine_group_infos):
++            raise ValueError(
++                f"Expected {len(self._engine_group_infos)} block-id groups, "
++                f"got {len(block_ids)}"
++            )
++        for group_info, group_block_ids in zip(
++            self._engine_group_infos, block_ids, strict=True
++        ):
++            yield (
++                group_info,
++                self._kv_caches_for_group(kv_caches, group_info),
++                group_block_ids,
++                self._blocks_per_chunk_for_group(group_info, blocks_in_chunk),
++            )
+ 
+     def register(
+         self,
+@@ -325,14 +407,10 @@ class DataTransferContext(TransferContext):
+     ) -> None:
+         """Register KV caches with the non-GPU context server.
+ 
+-        ``engine_group_infos`` is accepted to satisfy the base interface but
+-        is currently a no-op: the non-GPU transfer path does not support
+-        hybrid KV cache groups and rejects multi-group transfers at store /
+-        retrieve time (see ``_single_group_block_ids``).
++        ``engine_group_infos`` is used to split worker-side gather/scatter by
++        LMCache object group, matching the CUDA transfer path's object-group
++        keying while keeping the non-GPU transport protocol synchronous.
+         """
+-        # TODO: per-group compression (EngineGroupInfo.tokens_per_block vs
+-        # the tensor-detected slot count, e.g. DeepSeek V4) is only handled
+-        # on the CUDA path. The non-CUDA path is yet to be implemented.
+         (
+             block_size,
+             num_layers,
+@@ -342,6 +420,8 @@ class DataTransferContext(TransferContext):
+         ) = compute_kv_layout(kv_caches, layout_hints=layout_hints)
+         self._layout_hints = layout_hints
+         self._gpu_kv_format = gpu_kv_format
++        self._engine_group_infos = list(engine_group_infos)
++        self._chunk_size_tokens = blocks_in_chunk * block_size
+ 
+         use_mla_flag = is_mla(gpu_kv_format)
+         shape = (
+@@ -367,6 +447,7 @@ class DataTransferContext(TransferContext):
+                     hidden_dim_size=hidden_dim_size,
+                     dtype_str=dtype_str,
+                     use_mla=use_mla_flag,
++                    engine_group_infos=list(engine_group_infos),
+                 )
+             ],
+         )
+@@ -420,15 +501,45 @@ class DataTransferContext(TransferContext):
+             future: MessagingFuture[bool] = MessagingFuture()
+             future.set_result(True)
+             return future
+-        cpu_chunks = gather_paged_kv_to_cpu(
+-            kv_caches,
+-            _single_group_block_ids(block_ids),
+-            blocks_in_chunk,
+-            layout_hints=self._layout_hints,
+-            gpu_kv_format=self._gpu_kv_format,
+-            out=out_buffers,
+-            chunk_indices=chunk_indices,
+-        )
++        cpu_chunks: list[torch.Tensor] = []
++        group_offset = 0
++        for _group_info, group_kv_caches, group_block_ids, group_blocks_in_chunk in self._iter_transfer_groups(
++            kv_caches, block_ids, blocks_in_chunk
++        ):
++            num_group_chunks = len(group_block_ids) // group_blocks_in_chunk
++            if chunk_indices is None:
++                group_chunk_indices = None
++                group_out_buffers = None
++            else:
++                selected = [
++                    (out_idx, chunk_idx - group_offset)
++                    for out_idx, chunk_idx in enumerate(chunk_indices)
++                    if group_offset <= chunk_idx < group_offset + num_group_chunks
++                ]
++                group_chunk_indices = [chunk_idx for _, chunk_idx in selected]
++                group_out_buffers = (
++                    [out_buffers[out_idx] for out_idx, _ in selected]
++                    if out_buffers is not None
++                    else None
++                )
++            if chunk_indices is None or group_chunk_indices:
++                group_out_buffers = self._chunk_views_for_group(
++                    group_out_buffers,
++                    _group_info,
++                    len(group_kv_caches),
++                )
++                cpu_chunks.extend(
++                    gather_paged_kv_to_cpu(
++                        group_kv_caches,
++                        group_block_ids,
++                        group_blocks_in_chunk,
++                        layout_hints=self._layout_hints,
++                        gpu_kv_format=self._gpu_kv_format,
++                        out=group_out_buffers,
++                        chunk_indices=group_chunk_indices,
++                    )
++                )
++            group_offset += num_group_chunks
+         if out_buffers is not None:
+             # SHM path uses async device->CPU copies; complete them before commit.
+             torch_dev.synchronize()
+@@ -459,15 +570,27 @@ class DataTransferContext(TransferContext):
+         ok = src_buffers is not None
+         if src_buffers is not None:
+             try:
+-                scatter_cpu_to_paged_kv(
+-                    kv_caches,
+-                    _single_group_block_ids(block_ids),
+-                    src_buffers,
+-                    blocks_in_chunk,
+-                    skip_first_n_tokens=skip_first_n_tokens,
+-                    layout_hints=self._layout_hints,
+-                    gpu_kv_format=self._gpu_kv_format,
+-                )
++                group_offset = 0
++                for _group_info, group_kv_caches, group_block_ids, group_blocks_in_chunk in self._iter_transfer_groups(
++                    kv_caches, block_ids, blocks_in_chunk
++                ):
++                    num_group_chunks = len(group_block_ids) // group_blocks_in_chunk
++                    group_chunks = src_buffers[group_offset : group_offset + num_group_chunks]
++                    group_chunks = self._chunk_views_for_group(
++                        group_chunks,
++                        _group_info,
++                        len(group_kv_caches),
++                    )
++                    scatter_cpu_to_paged_kv(
++                        group_kv_caches,
++                        group_block_ids,
++                        group_chunks,
++                        group_blocks_in_chunk,
++                        skip_first_n_tokens=skip_first_n_tokens,
++                        layout_hints=self._layout_hints,
++                        gpu_kv_format=self._gpu_kv_format,
++                    )
++                    group_offset += num_group_chunks
+             except (RuntimeError, ValueError, TypeError, IndexError):
+                 logger.exception("Failed to scatter retrieved CPU context chunks")
+                 ok = False
+diff --git a/setup.py b/setup.py
+index 9c59f2d9..c0441c47 100644
+--- a/setup.py
++++ b/setup.py
+@@ -42,6 +42,32 @@ BUILD_WITH_MUSA = os.environ.get("BUILD_WITH_MUSA", "0") == "1"
+ ENABLE_CXX11_ABI = os.environ.get("ENABLE_CXX11_ABI", "1") == "1"
+ 
+ 
++def _select_gpu_backend() -> str:
++    """Select the GPU backend used for native extension builds.
++
++    Explicit build flags take precedence. When no flag is set, prefer the
++    accelerator that PyTorch reports as available so editable installs do not
++    fall through to CUDA on XPU or ROCm systems.
++    """
++    if BUILD_WITH_HIP:
++        return "hip"
++    if BUILD_WITH_SYCL:
++        return "sycl"
++    if BUILD_WITH_MUSA:
++        return "musa"
++
++    # Third Party
++    import torch
++
++    if getattr(torch.version, "hip", None):
++        return "hip"
++    if hasattr(torch, "xpu") and torch.xpu.is_available():
++        return "sycl"
++    if hasattr(torch, "musa") and torch.musa.is_available():
++        return "musa"
++    return "cuda"
++
++
+ def _read_requirements(path: Path) -> list[str]:
+     if not path.exists():
+         return []
+@@ -383,15 +409,15 @@ def source_dist_extension() -> tuple[list, dict]:
+     return [], {}
+ 
+ 
+-def _get_common_cpp_flags() -> list[str]:
++def _get_common_cpp_flags(gpu_backend: str) -> list[str]:
+     """Select common pure C++ ABI flags based on the configured build backend.
+ 
+     Returns:
+         A list of compiler flags for pure C++ extensions.
+     """
+-    if BUILD_WITH_HIP:
++    if gpu_backend == "hip":
+         return []
+-    if BUILD_WITH_SYCL:
++    if gpu_backend == "sycl":
+         return ["-D_GLIBCXX_USE_CXX11_ABI=1"]
+     if ENABLE_CXX11_ABI:
+         return ["-D_GLIBCXX_USE_CXX11_ABI=1"]
+@@ -420,20 +446,21 @@ def _collect_extensions() -> tuple[list, dict]:
+     if NO_NATIVE_EXT:
+         return [], {}
+ 
+-    common_cpp_flags = _get_common_cpp_flags()
++    gpu_backend = _select_gpu_backend()
++    common_cpp_flags = _get_common_cpp_flags(gpu_backend)
+     # Preserve historical SYCL compatibility: lmcache_fs was compiled without
+     # _GLIBCXX_USE_CXX11_ABI in pre-refactor builds.
+-    fs_cpp_flags = [] if BUILD_WITH_SYCL else common_cpp_flags
++    fs_cpp_flags = [] if gpu_backend == "sycl" else common_cpp_flags
+     ext_modules, cmdclass = _common_cpp_extensions(common_cpp_flags, fs_cpp_flags)
+ 
+     if NO_GPU_EXT:
+         return ext_modules, cmdclass
+ 
+-    if BUILD_WITH_SYCL:
++    if gpu_backend == "sycl":
+         gpu_ext_modules, cmdclass = sycl_extension()
+-    elif BUILD_WITH_HIP:
++    elif gpu_backend == "hip":
+         gpu_ext_modules, cmdclass = rocm_extension()
+-    elif BUILD_WITH_MUSA:
++    elif gpu_backend == "musa":
+         gpu_ext_modules, cmdclass = musa_extension()
+     else:
+         gpu_ext_modules, cmdclass = cuda_extension()
+@@ -448,11 +475,12 @@ if __name__ == "__main__":
+     # NO_GPU_EXT skips GPU-vendor deps (cupy / nixl).
+     if not NO_GPU_EXT:
+         core_file: Optional[str]
+-        if BUILD_WITH_HIP:
++        gpu_backend = _select_gpu_backend()
++        if gpu_backend == "hip":
+             core_file = "rocm_core.txt"
+-        elif BUILD_WITH_SYCL:
++        elif gpu_backend == "sycl":
+             core_file = "xpu_core.txt"
+-        elif BUILD_WITH_MUSA:
++        elif gpu_backend == "musa":
+             core_file = None
+         else:
+             # CUDA major selects between cu12 and cu13 vendor pins (cupy, nixl).
+diff --git a/tests/test_setup_backend_selection.py b/tests/test_setup_backend_selection.py
+new file mode 100644
+index 00000000..60e30300
+--- /dev/null
++++ b/tests/test_setup_backend_selection.py
+@@ -0,0 +1,68 @@
++# SPDX-License-Identifier: Apache-2.0
++
++# Standard
++import importlib.util
++import sys
++import types
++from pathlib import Path
++
++# Third Party
++import pytest
++
++
++ROOT_DIR = Path(__file__).resolve().parents[1]
++
++
++def _load_setup_module() -> types.ModuleType:
++    module_name = "lmcache_setup_test_module"
++    spec = importlib.util.spec_from_file_location(module_name, ROOT_DIR / "setup.py")
++    assert spec is not None and spec.loader is not None
++    module = importlib.util.module_from_spec(spec)
++    sys.modules[module_name] = module
++    spec.loader.exec_module(module)
++    return module
++
++
++def _fake_torch(*, xpu_available: bool, cuda_available: bool) -> types.ModuleType:
++    torch_module = types.ModuleType("torch")
++    torch_module.version = types.SimpleNamespace(hip=None)
++    torch_module.xpu = types.SimpleNamespace(is_available=lambda: xpu_available)
++    torch_module.cuda = types.SimpleNamespace(is_available=lambda: cuda_available)
++    return torch_module
++
++
++@pytest.mark.parametrize("env_name", ["BUILD_WITH_HIP", "BUILD_WITH_SYCL", "BUILD_WITH_MUSA"])
++def test_select_gpu_backend_prefers_explicit_env(monkeypatch, env_name: str) -> None:
++    for name in ("BUILD_WITH_HIP", "BUILD_WITH_SYCL", "BUILD_WITH_MUSA"):
++        monkeypatch.delenv(name, raising=False)
++    monkeypatch.setenv(env_name, "1")
++    monkeypatch.setitem(sys.modules, "torch", _fake_torch(xpu_available=False, cuda_available=True))
++
++    setup_module = _load_setup_module()
++
++    expected_backend = {
++        "BUILD_WITH_HIP": "hip",
++        "BUILD_WITH_SYCL": "sycl",
++        "BUILD_WITH_MUSA": "musa",
++    }[env_name]
++    assert setup_module._select_gpu_backend() == expected_backend
++
++
++def test_select_gpu_backend_prefers_xpu_over_cuda(monkeypatch) -> None:
++    for name in ("BUILD_WITH_HIP", "BUILD_WITH_SYCL", "BUILD_WITH_MUSA"):
++        monkeypatch.delenv(name, raising=False)
++    monkeypatch.setitem(sys.modules, "torch", _fake_torch(xpu_available=True, cuda_available=True))
++
++    setup_module = _load_setup_module()
++
++    assert setup_module._select_gpu_backend() == "sycl"
++
++
++def test_select_gpu_backend_falls_back_to_cuda(monkeypatch) -> None:
++    for name in ("BUILD_WITH_HIP", "BUILD_WITH_SYCL", "BUILD_WITH_MUSA"):
++        monkeypatch.delenv(name, raising=False)
++    monkeypatch.setitem(sys.modules, "torch", _fake_torch(xpu_available=False, cuda_available=True))
++
++    setup_module = _load_setup_module()
++
++    assert setup_module._select_gpu_backend() == "cuda"
+\ No newline at end of file
+diff --git a/tests/v1/multiprocess/test_non_cuda_data_transfer.py b/tests/v1/multiprocess/test_non_cuda_data_transfer.py
+index 8262d856..6ff577c8 100644
+--- a/tests/v1/multiprocess/test_non_cuda_data_transfer.py
++++ b/tests/v1/multiprocess/test_non_cuda_data_transfer.py
+@@ -395,6 +395,188 @@ def test_create_transfer_context_env_var_overrides_default(
+     assert isinstance(context, DataTransferContext)
+ 
+ 
++def test_data_transfer_context_store_accepts_multi_group_block_ids(
++    monkeypatch: Any,
++) -> None:
++    """Non-GPU transfer should gather each LMCache group, not reject it."""
++    # First Party
++    from lmcache.v1.multiprocess.group_view import EngineGroupInfo
++    from lmcache.v1.multiprocess.transfer_context import worker_transfer
++    from lmcache.v1.multiprocess.transfer_context.worker_transfer import (
++        DataTransferContext,
++    )
++
++    context = DataTransferContext()
++    context._non_gpu_context = MagicMock()  # type: ignore[attr-defined]
++    context._non_gpu_context.prepare_store.return_value = None  # type: ignore[attr-defined]
++    context._non_gpu_context.commit_store.return_value = True  # type: ignore[attr-defined]
++    context._engine_group_infos = [  # type: ignore[attr-defined]
++        EngineGroupInfo(0, (0,), tokens_per_block=4),
++        EngineGroupInfo(1, (1,), tokens_per_block=4),
++    ]
++    context._chunk_size_tokens = 8  # type: ignore[attr-defined]
++    kv_caches = {
++        "layer_0": torch.randn(2, 4, 4, 1, 2),
++        "layer_1": torch.randn(2, 4, 4, 1, 2),
++    }
++    gathered_chunks = [torch.tensor([0]), torch.tensor([1])]
++    gather_mock = MagicMock(side_effect=[[gathered_chunks[0]], [gathered_chunks[1]]])
++    monkeypatch.setattr(worker_transfer, "gather_paged_kv_to_cpu", gather_mock)
++
++    future = context.submit_store(
++        "req",
++        MagicMock(),
++        1,
++        kv_caches,
++        [[0, 1], [10, 11]],
++        MagicMock(),
++        blocks_in_chunk=2,
++    )
++
++    assert future.result() is True
++    assert gather_mock.call_count == 2
++    assert list(gather_mock.call_args_list[0].args[0]) == ["layer_0"]
++    assert gather_mock.call_args_list[0].args[1] == [0, 1]
++    assert list(gather_mock.call_args_list[1].args[0]) == ["layer_1"]
++    assert gather_mock.call_args_list[1].args[1] == [10, 11]
++    context._non_gpu_context.commit_store.assert_called_once()  # type: ignore[attr-defined]
++    assert context._non_gpu_context.commit_store.call_args.args[2] == gathered_chunks  # type: ignore[attr-defined]
++
++
++def test_data_transfer_context_retrieve_accepts_multi_group_block_ids(
++    monkeypatch: Any,
++) -> None:
++    """Non-GPU transfer should scatter retrieved chunks per LMCache group."""
++    # First Party
++    from lmcache.v1.multiprocess.group_view import EngineGroupInfo
++    from lmcache.v1.multiprocess.transfer_context import worker_transfer
++    from lmcache.v1.multiprocess.transfer_context.worker_transfer import (
++        DataTransferContext,
++    )
++
++    context = DataTransferContext()
++    context._non_gpu_context = MagicMock()  # type: ignore[attr-defined]
++    context._non_gpu_context.prepare_retrieve.return_value = [  # type: ignore[attr-defined]
++        torch.tensor([0]),
++        torch.tensor([1]),
++    ]
++    context._non_gpu_context.commit_retrieve.return_value = True  # type: ignore[attr-defined]
++    context._engine_group_infos = [  # type: ignore[attr-defined]
++        EngineGroupInfo(0, (0,), tokens_per_block=4),
++        EngineGroupInfo(1, (1,), tokens_per_block=4),
++    ]
++    context._chunk_size_tokens = 8  # type: ignore[attr-defined]
++    kv_caches = {
++        "layer_0": torch.randn(2, 4, 4, 1, 2),
++        "layer_1": torch.randn(2, 4, 4, 1, 2),
++    }
++    scatter_mock = MagicMock()
++    monkeypatch.setattr(worker_transfer, "scatter_cpu_to_paged_kv", scatter_mock)
++
++    future = context.submit_retrieve(
++        "req",
++        MagicMock(),
++        1,
++        kv_caches,
++        [[0, 1], [10, 11]],
++        MagicMock(),
++        blocks_in_chunk=2,
++    )
++
++    assert future.result() is True
++    assert scatter_mock.call_count == 2
++    assert list(scatter_mock.call_args_list[0].args[0]) == ["layer_0"]
++    assert scatter_mock.call_args_list[0].args[1] == [0, 1]
++    assert scatter_mock.call_args_list[1].args[0].keys() == {"layer_1"}
++    assert scatter_mock.call_args_list[1].args[1] == [10, 11]
++
++
++def test_non_gpu_module_resolves_object_keys_for_registered_groups(
++    stub_native_storage_ops: Any,
++    server_module_factory: ServerModuleFactory,
++) -> None:
++    """Server-side non-GPU context should use all registered object groups."""
++    # First Party
++    from lmcache.v1.multiprocess.custom_types import RegisterNonGpuContextPayload
++    from lmcache.v1.multiprocess.group_view import EngineGroupInfo
++
++    module, _, _, ctx = server_module_factory(chunk_size=8)
++    group_0_keys = [MagicMock(object_group_id=0), MagicMock(object_group_id=0)]
++    group_1_keys = [MagicMock(object_group_id=1), MagicMock(object_group_id=1)]
++    ctx.resolve_obj_keys = MagicMock(return_value=[group_0_keys, group_1_keys])  # type: ignore[method-assign]
++    module.register_kv_cache_non_gpu_context(
++        RegisterNonGpuContextPayload(
++            instance_id=11,
++            model_name="m",
++            world_size=1,
++            block_size=4,
++            num_layers=2,
++            hidden_dim_size=16,
++            dtype_str="float32",
++            use_mla=False,
++            engine_group_infos=[
++                EngineGroupInfo(0, (0,), tokens_per_block=4),
++                EngineGroupInfo(1, (1,), tokens_per_block=4),
++            ],
++        )
++    )
++
++    key = _default_key()
++    obj_keys = module._resolve_obj_keys(key, 11)  # type: ignore[attr-defined]
++
++    assert len(obj_keys) == 4
++    assert {obj_key.object_group_id for obj_key in obj_keys} == {0, 1}
++    ctx.resolve_obj_keys.assert_called_once_with(key, [0, 1])  # type: ignore[attr-defined]
++    assert obj_keys == group_0_keys + group_1_keys
++
++
++def test_non_gpu_module_prepare_store_uses_group_layouts(
++    stub_native_storage_ops: Any,
++    server_module_factory: ServerModuleFactory,
++) -> None:
++    """SHM store reservations should use per-object-group layer counts."""
++    # First Party
++    from lmcache.v1.multiprocess.custom_types import RegisterNonGpuContextPayload
++    from lmcache.v1.multiprocess.group_view import EngineGroupInfo
++
++    mock_storage = MagicMock()
++    mock_storage.reserve_write.return_value = {}
++    module, _, _, ctx = server_module_factory(
++        chunk_size=8,
++        storage_manager_config=_make_storage_manager_config(
++            shm_name="lmcache_test_pool", pool_size=4096
++        ),
++        mock_storage=mock_storage,
++    )
++    group_0_keys = [MagicMock(object_group_id=0), MagicMock(object_group_id=0)]
++    group_1_keys = [MagicMock(object_group_id=1), MagicMock(object_group_id=1)]
++    ctx.resolve_obj_keys = MagicMock(return_value=[group_0_keys, group_1_keys])  # type: ignore[method-assign]
++    module.register_kv_cache_non_gpu_context(
++        RegisterNonGpuContextPayload(
++            instance_id=11,
++            model_name="m",
++            world_size=1,
++            block_size=4,
++            num_layers=24,
++            hidden_dim_size=16,
++            dtype_str="float32",
++            use_mla=False,
++            engine_group_infos=[
++                EngineGroupInfo(0, tuple(range(6)), tokens_per_block=4),
++                EngineGroupInfo(1, tuple(range(6, 24)), tokens_per_block=4),
++            ],
++        )
++    )
++
++    module.prepare_store(_default_key(), 11)
++
++    assert mock_storage.reserve_write.call_count == 2
++    first_layout = mock_storage.reserve_write.call_args_list[0].args[1]
++    second_layout = mock_storage.reserve_write.call_args_list[1].args[1]
++    assert first_layout.shapes[0] == torch.Size([2, 6, 8, 16])
++    assert second_layout.shapes[0] == torch.Size([2, 18, 8, 16])
++
++
+ @pytest.mark.parametrize(
+     ("builder_fn", "expected_block_size", "expected_hidden_dim", "layout_hints"),
+     [
+@@ -614,6 +796,9 @@ def stub_native_storage_ops() -> Any:
+     module = type(sys)("lmcache.native_storage_ops")
+     module.TTLLock = type("TTLLock", (), {})  # type: ignore[attr-defined]
+     module.Bitmap = type("Bitmap", (), {})  # type: ignore[attr-defined]
++    module.PeriodicEventNotifier = type(  # type: ignore[attr-defined]
++        "PeriodicEventNotifier", (), {}
++    )
+     with patch.dict(
+         sys.modules,
+         {
+diff --git a/tests/v1/multiprocess/test_worker_transfer.py b/tests/v1/multiprocess/test_worker_transfer.py
+new file mode 100644
+index 00000000..4ec99a52
+--- /dev/null
++++ b/tests/v1/multiprocess/test_worker_transfer.py
+@@ -0,0 +1,58 @@
++# SPDX-License-Identifier: Apache-2.0
++from unittest.mock import MagicMock, patch
++
++import torch
++
++from lmcache.v1.multiprocess.group_view import EngineGroupInfo
++from lmcache.v1.multiprocess.transfer_context.worker_transfer import DataTransferContext
++
++
++class _FakeNonGpuContext:
++    def __init__(self, chunks: list[torch.Tensor]) -> None:
++        self.chunks = chunks
++        self.committed_chunks: list[torch.Tensor] | None = None
++
++    def prepare_store(self, _key, _instance_id):
++        return self.chunks, [0]
++
++    def commit_store(self, _key, _instance_id, chunks):
++        self.committed_chunks = chunks
++        return True
++
++
++def test_submit_store_narrows_full_layer_shm_chunk_to_engine_group():
++    ctx = DataTransferContext()
++    full_chunk = torch.zeros(2, 24, 4, 8)
++    fake_non_gpu_context = _FakeNonGpuContext([full_chunk])
++    ctx._non_gpu_context = fake_non_gpu_context
++    ctx._engine_group_infos = [
++        EngineGroupInfo(engine_group_id=0, layer_indices=tuple(range(6)), tokens_per_block=4)
++    ]
++    ctx._chunk_size_tokens = 4
++
++    kv_caches = {f"layer_{i}": torch.empty(2, 1, 4, 1, 8) for i in range(24)}
++
++    with (
++        patch("lmcache.v1.multiprocess.transfer_context.worker_transfer.torch_dev.synchronize"),
++        patch(
++            "lmcache.v1.multiprocess.transfer_context.worker_transfer.gather_paged_kv_to_cpu",
++            return_value=[torch.empty(2, 6, 4, 8)],
++        ) as gather,
++    ):
++        future = ctx.submit_store(
++            "req",
++            object(),
++            0,
++            kv_caches,
++            [[0]],
++            MagicMock(),
++            1,
++        )
++
++    assert future.result() is True
++    group_out = gather.call_args.kwargs["out"]
++    assert group_out is not None
++    assert group_out[0].shape == (2, 6, 4, 8)
++    group_out[0].fill_(3)
++    assert torch.all(full_chunk[:, :6] == 3)
++    assert torch.all(full_chunk[:, 6:] == 0)
+\ No newline at end of file
+diff --git a/lmcache/integration/vllm/vllm_multi_process_adapter.py b/lmcache/integration/vllm/vllm_multi_process_adapter.py
+index 63145376..33d625e7 100644
+--- a/lmcache/integration/vllm/vllm_multi_process_adapter.py
++++ b/lmcache/integration/vllm/vllm_multi_process_adapter.py
+@@ -280,7 +280,7 @@ def send_ping(
+         return False
+ 
+ 
+-@dataclass
++@dataclass(init=False)
+ class ParallelStrategy:
+     use_mla: bool
+     """Whether to use the MLA."""
+@@ -300,6 +300,37 @@ class ParallelStrategy:
+     pp_size: int
+     """The pipeline parallel size."""
+ 
++    def __init__(self, use_mla: bool, *args, **kwargs):
++        self.use_mla = use_mla
++        if kwargs:
++            self.vllm_world_size = int(kwargs["vllm_world_size"])
++            self.vllm_worker_id = int(kwargs["vllm_worker_id"])
++            self.tp_size = int(kwargs["tp_size"])
++            self.pp_size = int(kwargs["pp_size"])
++        elif len(args) == 4:
++            (
++                self.vllm_world_size,
++                self.vllm_worker_id,
++                self.tp_size,
++                self.pp_size,
++            ) = map(int, args)
++        elif len(args) == 6:
++            (
++                _kv_world_size,
++                _kv_worker_id,
++                self.vllm_world_size,
++                self.vllm_worker_id,
++                self.tp_size,
++                self.pp_size,
++            ) = map(int, args)
++        else:
++            raise TypeError(
++                "ParallelStrategy expects use_mla plus either "
++                "(vllm_world_size, vllm_worker_id, tp_size, pp_size) or "
++                "(kv_world_size, kv_worker_id, vllm_world_size, "
++                "vllm_worker_id, tp_size, pp_size)"
++            )
++
+     @property
+     def kv_world_size(self) -> int:
+         """Number of pieces a single token chunk's KV cache is split into
+@@ -1035,6 +1066,16 @@ class LMCacheMPWorkerAdapter:
+     def is_kv_writer(self) -> bool:
+         """Whether this worker is responsible for storing KV."""
+         return self.parallel_strategy.is_kv_writer
++
++    @property
++    def use_mla(self) -> bool:
++        """Whether the current vLLM worker uses MLA KV layout."""
++        return self.parallel_strategy.use_mla
++
++    @property
++    def is_first_rank_of_pp_group(self) -> bool:
++        """Compatibility shim for newer vLLM MP connectors."""
++        return self.parallel_strategy.is_kv_writer
+ 
+     def register_kv_caches(
+         self,
+

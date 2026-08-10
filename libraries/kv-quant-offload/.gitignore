@@ -1,0 +1,15 @@
+build/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+dist/
+*.so
+.vscode/*
+**/*.log
+integration/lmcache/vllm/kvcache/*
+perf_results.json
+.tmp_inspect/
+.claude/
+# Leftover root-owned KV-cache dump under the old (pre-restructure) path that
+# couldn't be deleted (permission denied); harmless and not part of the repo.
+**/*.whl
