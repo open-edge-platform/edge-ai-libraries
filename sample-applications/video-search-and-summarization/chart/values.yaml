@@ -327,7 +327,7 @@ metricsmanager:
   coLocateWithDataPrep: true
   image:
     repository: intel/metrics-manager
-    tag: "2026.2.0-20260804-weekly"
+    tag: "2026.2.0-rc1"
     pullPolicy: IfNotPresent
 
 # VSS UI subchart alias conditions. Detailed defaults come from subchart/vss-ui/values.yaml.

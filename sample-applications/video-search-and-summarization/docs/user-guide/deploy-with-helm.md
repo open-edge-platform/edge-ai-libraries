@@ -123,7 +123,7 @@ Update or edit the values in YAML file as follows:
 | `pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS` | Timeout in milliseconds for search dataprep operations (video embedding pipeline). Increase for large videos or slow hardware. | `600000` (default, 10 minutes) |
 | `videoingestion.odModelName` | Name of object detection model (generic YOLO id from the model-download ultralytics hub) used during video ingestion | `yolov8l` |
 | `metricsmanager.image.repository` | Metrics Manager image repository | `docker.io/intel/metrics-manager` |
-| `metricsmanager.image.tag` | Metrics Manager image tag | `2026.2.0-20260804-weekly` |
+| `metricsmanager.image.tag` | Metrics Manager image tag | `2026.2.0-rc1` |
 
 > **`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` override:** You do **not** need to put this in `user_values_override.yaml`. You can set it directly at install/upgrade time with `--set`, for example:
 >
