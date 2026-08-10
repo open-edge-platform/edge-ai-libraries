@@ -1,0 +1,5 @@
+
+debian_99_profile_computer_vision () {
+  echo "dlstreamer vippet geti anomalib"
+}
+
