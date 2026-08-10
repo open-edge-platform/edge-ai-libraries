@@ -794,7 +794,7 @@ _draw() {
     if (( nrows > body )); then
       local wstart=$(( nrows - body ))
       # during review, scroll so the cycled failure's block is visible
-      if (( REVIEW )) && [[ -n $SHOWN ]]; then
+      if (( REVIEW )) && (( ${#FAILED[@]} > 0 )) && [[ -n $SHOWN ]]; then
         local off=0 hit=-1
         for (( j = 0; j < ${#blk[@]}; j++ )); do
           if [[ ${blk_nm[j]} == "$SHOWN" ]]; then hit=$off; break; fi
