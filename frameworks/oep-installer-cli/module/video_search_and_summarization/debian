@@ -1,0 +1,114 @@
+
+configure_video_search_and_summarization () {
+  workspace="$(ensure_project_path)/video_search_and_summarization"
+  version=7f124d9ef54c843345f51bb74c86103cef819531
+  repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
+  used_ports="${APP_HOST_PORT:-12345} 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640"
+
+  export HF_TOKEN=$(ensure_hf_token)
+  local device=$(ensure_select_device $*)
+  export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+  export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en
+  export OD_MODEL_NAME=yolov8l-worldv2
+  export TEXT_EMBEDDING_MODEL=QwenText/qwen3-embedding-0.6b
+  export OVMS_LLM_MODEL_NAME=meta-llama/Llama-3.2-3B-Instruct
+  export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false
+  export MULTIMODAL_EMBEDDING_MODEL=CLIP/clip-vit-b-32
+  export FRAME_INTERVAL=15
+  export MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=true
+  export ROI_CONSOLIDATION_ENABLED=true
+  export ROI_CONSOLIDATION_IOU_THRESHOLD=0.2
+  export ROI_CONSOLIDATION_CLASS_AWARE=false
+  export ROI_CONSOLIDATION_CONTEXT_SCALE=0.2
+  export ENABLE_METRICS_MANAGER=true
+  export PM_VLM_CONCURRENT=6
+  export PM_LLM_CONCURRENT=1
+  export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+  export LLM_COMPRESSION_WEIGHT_FORMAT=int4
+  export SDK_USE_OPENVINO=true
+  export DATAPREP_EMBEDDING_DEVICE=${device^^}
+  export DATAPREP_DETECTION_DEVICE=${device^^}
+  export MME_EMBEDDING_DEVICE=${device^^}
+  export VLM_TARGET_DEVICE=${device^^}
+  export HUGGINGFACE_TOKEN=$HF_TOKEN
+  export HF_TOKEN=$HF_TOKEN
+  export HF_HUB_CACHE=\"$workspace/sample-applications/video-search-and-summarization/.cache\"
+  export GATED_MODEL=$([ -n "$HF_TOKEN" ] && echo true || echo false)
+  export LLM_TARGET_DEVICE=${device^^}
+  export PM_MULTI_FRAME_COUNT=34
+  export ENABLE_EMBEDDING_GPU=$([ "$device" = "gpu" ] && echo true || echo false)
+  export EMBEDDING_PROCESSING_MODE=sdk
+  export ENABLE_OBJECT_DETECTION=false
+  export MINIO_ROOT_USER=$(cat /dev/random | tr -dc a-z | head -c 5)
+  export MINIO_ROOT_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+  export POSTGRES_USER=$(cat /dev/random | tr -dc a-z | head -c 5)
+  export POSTGRES_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+  export RABBITMQ_USER=$(cat /dev/random | tr -dc a-z | head -c 5)
+  export RABBITMQ_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+  export REGISTRY_URL=intel
+  export TAG=latest
+}
+
+verify_video_search_and_summarization () {
+  local files_to_check=(
+    ov_models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml
+    ov_models/object-detection/ultralytics/public/yolov8l/FP16/yolov8l.xml
+    ov_models/ovms/openvino_models/gpu/int4/meta-llama/Llama-3.2-3B-Instruct/openvino_model.xml
+    ov_models/ovms/openvino_models/gpu/int4/Qwen/Qwen2.5-VL-3B-Instruct/openvino_config.json
+    ov_models/ovms/openvino_models/gpu/int4/config_all.json
+    ov_models/ovms/config.json
+  )
+  for f in ${files_to_check[@]}; do
+    [ -e "$workspace"/sample-applications/video-search-and-summarization/$f ] || return 1
+  done
+}
+
+debian_85_profile_video_search_and_summarization () {
+  echo "git curl gawk python3_venv"
+}
+
+debian_85_install_video_search_and_summarization () {
+  configure_video_search_and_summarization $*
+  if verify_video_search_and_summarization && [[ "$*" != *"--reset-video_search_and_summarization"* ]]; then
+    echo "video_search_and_summarization is already installed. Skipping..."
+    return 0
+  fi
+
+  # clone the repository
+  ensure_disk_space 8000
+  ensure_open_ports "$used_ports" return 3
+  ensure_git_clone "$workspace" $version $repository sample-applications/video-search-and-summarization
+
+  # setup
+  cd "$workspace"/sample-applications/video-search-and-summarization
+  sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh
+  sed -i 's|FINAL_ARG=.*|FINAL_ARG="${FINAL_ARG:-up -d}"|' setup.sh
+  export FINAL_ARG=pull
+  . ./setup.sh --search-and-summary
+
+  verify_video_search_and_summarization
+}
+
+debian_85_start_video_search_and_summarization () {
+  configure_video_search_and_summarization $*
+  ensure_open_ports "$used_ports" debian_85_stop_video_search_and_summarization $*
+
+  cd "$workspace"/sample-applications/video-search-and-summarization
+  export FINAL_ARG=
+  . ./setup.sh --search-and-summary
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${APP_HOST_PORT}"
+}
+
+debian_85_stop_video_search_and_summarization () {
+  configure_video_search_and_summarization $*
+
+  cd "$workspace"/sample-applications/video-search-and-summarization
+  . ./setup.sh --stop || true
+  . ./setup.sh --clean-data || true
+}
+
+debian_85_remove_video_search_and_summarization () {
+  debian_85_stop_video_search_and_summarization $* || true
+  ensure_rmdir "$workspace"
+}

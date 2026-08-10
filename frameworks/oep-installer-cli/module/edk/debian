@@ -1,0 +1,28 @@
+
+configure_edk () {
+  workspace="$(ensure_project_path)/edk"
+  version=origin/main
+  repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts"
+}
+
+debian_30_profile_edk () {
+  echo "git"
+}
+
+debian_30_install_edk () {
+  configure_edk
+  if [ -d "$workspace" ] && [[ "$*" != "--reset-edk" ]]; then
+    echo "Edk is already installed. Skipping..."
+  else
+    ensure_git_clone "$workspace" $version $repository
+    pushd "$workspace" > /dev/null
+    ensure_sudo ./main_installer.sh
+    popd "$workspace"
+  fi
+}
+
+debian_30_remove_edk () {
+  configure_edk
+  ensure_rmdir "$workspace"
+}
+

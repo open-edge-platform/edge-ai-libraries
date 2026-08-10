@@ -1,0 +1,56 @@
+
+# ISV application example: Unstructured (https://github.com/Unstructured-IO/unstructured)
+# Open-source pre-processing tools for turning documents (PDF, HTML, DOCX, ...)
+# into structured data. Shipped and run as the upstream docker image so that all
+# system dependencies (poppler, tesseract, libreoffice, ...) are self-contained.
+configure_unstructured () {
+  container_name=unstructured
+  image=downloads.unstructured.io/unstructured-io/unstructured:latest
+  workspace="$(ensure_project_path)/unstructured"
+}
+
+debian_95_profile_unstructured () {
+  echo "docker curl"
+}
+
+debian_95_install_unstructured () {
+  configure_unstructured
+  if docker inspect "$container_name" > /dev/null 2>&1 && [[ "$*" != *"--reset-unstructured"* ]]; then
+    echo "Unstructured is already installed. Skipping..."
+    return 0
+  fi
+
+  # drop any previous container when re-installing
+  [[ "$*" != *"--reset-unstructured"* ]] || docker rm -f "$container_name" 2> /dev/null || true
+
+  mkdir -p "$workspace"
+  ensure_docker_run "$container_name" "$image" -d -t -v "$workspace":/data
+}
+
+debian_95_start_unstructured () {
+  configure_unstructured
+  docker start "$container_name" > /dev/null
+
+  # prove the library works by partitioning one of the bundled example docs
+  echo "Running Unstructured partition demo..."
+  docker exec "$container_name" python3 -c '
+from unstructured.partition.auto import partition
+elements = partition(filename="example-docs/eml/fake-email.eml")
+print("\n\n".join(str(el) for el in elements))
+'
+  echo
+  echo "Unstructured is running in container \"$container_name\"."
+  echo "Open a shell with: docker exec -it $container_name bash"
+  echo "Host directory $workspace is mounted at /data inside the container."
+}
+
+debian_95_stop_unstructured () {
+  configure_unstructured
+  docker stop "$container_name" 2> /dev/null || true
+}
+
+debian_95_remove_unstructured () {
+  configure_unstructured
+  docker rm -f "$container_name" 2> /dev/null || true
+  ensure_rmdir "$workspace"
+}

@@ -1,0 +1,53 @@
+
+configure_smart_parking () {
+  workspace="$(ensure_project_path)/smart-parking"
+  version=release-2026.1.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+verify_smart_parking () {
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_1.mp4 ]
+}
+
+debian_90_profile_smart_parking () {
+  echo "git curl gawk"
+}
+
+debian_90_install_smart_parking () {
+  configure_smart_parking
+  if verify_smart_parking && [[ "$*" != *"--reset-smart_parking"* ]]; then
+    echo "Smart parking is already installed. Skipping..."
+    return 0
+  fi
+
+  # clone the repository
+  ensure_disk_space 300
+  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+
+  # setup
+  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+  ./install.sh smart-parking $(ensure_ip)
+  verify_smart_parking
+}
+
+debian_90_start_smart_parking () {
+  ensure_open_ports "80 443" debian_90_stop_smart_parking
+  configure_smart_parking
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  docker compose up -d
+  ./sample_start.sh $(ensure_select_device $*)
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT Grafana username/password: admin"
+}
+
+debian_90_stop_smart_parking () {
+  configure_smart_parking
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  ./sample_stop.sh || true
+  docker compose down -v --remove-orphans
+}
+
+debian_90_remove_smart_parking () {
+  debian_90_stop_smart_parking || true
+  ensure_rmdir "$workspace"
+}

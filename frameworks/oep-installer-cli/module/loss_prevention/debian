@@ -1,0 +1,68 @@
+
+configure_loss_prevention () {
+  workspace="$(ensure_project_path)/loss_prevention"
+  version=v2026.1.0-rc2
+  repository="https://github.com/intel-retail/loss-prevention.git"
+}
+
+verify_loss_prevention () {
+  [ -e "$workspace"/performance-tools/sample-media/face-detection-3249935-1080-15-bench.mp4 ]
+}
+
+debian_90_profile_loss_prevention () {
+  echo "git curl gawk"
+}
+
+debian_90_install_loss_prevention () {
+  configure_loss_prevention
+  if verify_loss_prevention && [[ "$*" != *"--reset-loss_prevention"* ]]; then
+    echo "Loss prevention is already installed. Skipping"
+    return
+  fi
+
+  # clone the repository
+  ensure_disk_space 300
+  ensure_git_clone "$workspace" $version $repository
+
+  # setup
+  pushd "$workspace" > /dev/null
+  cat > src/.env <<EOF
+MINIO_ROOT_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
+MINIO_ROOT_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
+MINIO_API_HOST_PORT="4000"
+MINIO_CONSOLE_HOST_PORT="4001"
+RABBITMQ_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
+RABBITMQ_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
+LP_IP="$(ensure_ip)"
+LP_BASE_DIR="{{ workspace }}"
+LLM_BASE_DIR="{{ workspace }}/microservices/vlm/ov-models"
+VLM_SERVICE_PORT="8000"
+LOW_LATENCY=1
+DROP_OLD_FRAMES=1
+MEDIAN_LATENCY=0
+USER_GROUP_ID=$(id -g)
+VIDEO_GROUP_ID=$(getent group video | cut -f3 -d:)
+RENDER_GROUP_ID=$(getent group render | cut -f3 -d:)
+LOCAL_UID=$(id -u)
+LOCAL_GID=$(id -g)
+EOF
+
+  # download videos
+  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+  set -a
+  . src/.env
+  set +a
+  make download-sample-videos
+
+  # download models
+  make download-models
+
+  verify_loss_prevention
+  popd > /dev/null
+}
+
+debian_90_remove_loss_prevention () {
+  configure_loss_prevention
+  ensure_rmdir "$workspace"
+}
+

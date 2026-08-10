@@ -1,0 +1,4 @@
+
+debian_99_profile_health_and_life_science_ai_suite () {
+  [ "$1" != "start" ] || echo "pre_system_scan core_types nicu_warmer"
+}

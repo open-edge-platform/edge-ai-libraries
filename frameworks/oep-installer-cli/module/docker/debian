@@ -1,0 +1,65 @@
+
+configure_docker_proxies () {
+  echo "Configure docker engine proxies..."
+  [ -z "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ] || \
+    grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
+      ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
+      cat | ensure_sudo tee /etc/systemd/system/docker.service.d/proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
+Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
+Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
+EOF
+      ensure_sudo systemctl daemon-reload
+      ensure_sudo systemctl restart docker
+    )
+
+  local CONFIG_JSON=~/.docker/config.json
+  echo "Configure docker client proxies..."
+  grep -q -F '"proxies"' $CONFIG_JSON 2> /dev/null || (
+    mkdir -p "$(dirname $CONFIG_JSON)"
+    python3 - "$CONFIG_JSON" <<'EOF'
+import json, os, sys
+p = sys.argv[1]
+cfg = json.load(open(p)) if os.path.exists(p) else {}
+cfg.setdefault("proxies", {})["default"] = {
+    "httpProxy":  os.environ.get("http_proxy",  os.environ.get("HTTP_PROXY", "")),
+    "httpsProxy": os.environ.get("https_proxy", os.environ.get("HTTPS_PROXY", "")),
+    "noProxy":    os.environ.get("no_proxy",    os.environ.get("NO_PROXY", "")),
+}
+json.dump(cfg, open(p, "w"), indent=2)
+EOF
+  )
+}
+
+debian_20_install_docker () {
+  if docker version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
+    echo "Docker is already installed. Skipping..."
+  else
+    echo "Remove legacy installation"
+    ensure_apt remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc
+
+    ensure_apt update
+    ensure_apt install -y docker.io docker-buildx-plugin docker-compose-plugin
+
+    DAEMON_JSON="/etc/docker/daemon.json"
+    if [ ! -f "$DAEMON_JSON" ]; then
+      ensure_sudo mkdir -p /etc/docker
+      cat | ensure_sudo tee $DAEMON_JSON <<EOF
+{
+   "exec-opts": [
+        "native.cgroupdriver=systemd"
+    ]
+}
+EOF
+    fi
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl restart docker
+
+    echo "Add $USER to the docker group"
+    ensure_sudo usermod -aG docker $USER || true
+    newgrp docker || true
+  fi
+  configure_docker_proxies
+}
+

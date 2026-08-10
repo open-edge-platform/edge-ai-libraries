@@ -1,0 +1,6 @@
+
+debian_99_profile_metro_ai_suite () {
+  # metro ai suites cannot start at the same time
+  [ "$1" = "start" ] || echo "pre_system_scan core_types smart_intersection smart_parking loitering_detection video_search_and_summarization"
+}
+

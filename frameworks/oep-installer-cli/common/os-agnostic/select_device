@@ -1,0 +1,13 @@
+
+# select --gpu/--npu from command line arguments
+ensure_select_device () {
+  case " $* " in
+  *" --npu "*)
+    echo npu
+    ;;
+  *)
+    echo gpu
+    ;;
+  esac
+}
+

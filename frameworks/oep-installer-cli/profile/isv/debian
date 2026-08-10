@@ -1,0 +1,9 @@
+
+# ISV applications category. Groups third-party (independent software vendor)
+# applications so they can be installed together with a single name:
+#   ./openedge-cli install isv
+# To add a new ISV application, create module/debian_<name> following the
+# module/debian_unstructured example and append its <name> to the list below.
+debian_95_profile_isv () {
+  echo "pre_system_scan core_types unstructured"
+}

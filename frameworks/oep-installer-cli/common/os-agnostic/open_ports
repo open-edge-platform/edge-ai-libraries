@@ -1,0 +1,13 @@
+
+# ensure ports are open
+ensure_open_ports () {
+  local ports="$1"
+  for port in $ports; do
+    ensure_sudo lsof -i TCP:$port > /dev/null 2>&1 || continue
+    "${@:2}" || true
+    ensure_sudo lsof -i TCP:$port > /dev/null 2>&1 || continue
+    echo "TCP port $port is occupied" 1>&2
+    return 3
+  done
+}
+

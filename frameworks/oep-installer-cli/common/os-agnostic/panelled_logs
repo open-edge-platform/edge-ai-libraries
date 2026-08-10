@@ -1,0 +1,1037 @@
+
+ensure_panelled_logs () {(
+#
+# Protocol (markers your installer emits on stdout/stderr):
+#   @@COMP       <name>     start/switch to component (starts its timer)
+#   @@OK         [name]     mark component installed OK   (stops its timer)
+#   @@FAIL       [name]     mark component failed         (stops its timer)
+#   @@HIGHLIGHT  <text>     append a custom line to this component's left-pane
+#                           block; replaces the default log tail, any length
+#   @@HIGHLIGHT             (no argument) clear highlights, revert to log tail
+#   @@HL         ...        short alias for @@HIGHLIGHT
+#   @@REPORT     <name>     start a REPORT section (e.g. a final summary).
+#                           Reports get no left-pane row; the right pane splits
+#                           with failing components CYCLING on top and the
+#                           report anchored to the BOTTOM.
+#   @@FOCUS      <name>     pin the right pane to <name>; stops cycling
+#   @@FOCUS                 (no argument) release the pin
+#   anything else           log line attributed to the current component
+#
+# Environment:
+#   KEEP_COLOR=0            strip the installer's own SGR colors (default: 1)
+#   WRAP_MODE=clip          truncate long lines instead of wrapping (default wrap)
+#   LEFT_WIDTH=<n>          pin the left column width (default: auto-size)
+#   LEFT_MAX_PCT=<n>        cap for auto-sizing, percent of screen (default 34)
+#   REPORT_MAX_PCT=<n>      max share of the right pane for the report (default 55)
+#   SPLIT_MIN=<n>           min rows for either split section (default 6)
+#   CYCLE_SEC=<n>           seconds each failure is shown (default 4, 0=off)
+#   FINAL_SEC=<n>           TOTAL seconds spent cycling after EOF (default 6)
+#   HOLD_SEC=<n>            pause before exit when exactly one failure (default 3)
+#   CYCLE_END=last|first|rotate   where cycling settles on exit (default last)
+#   REDRAW_MS=<n>           min ms between repaints (default 50)
+#   TICK_SEC=<n>            idle poll interval, seconds (default 0.5)
+#   NARROW_GLYPHS=1         assume all glyphs are 1 cell (disable width table)
+#   FORCE_COLS / FORCE_ROWS override detected geometry
+
+set -o pipefail
+readonly ACT_TEXT=($*) 
+
+# ------------------------------------------------------------------ colors
+readonly C_RESET=$'\033[0m'
+readonly C_GREEN=$'\033[1;32m'
+readonly C_RED=$'\033[1;31m'
+readonly C_YELLOW=$'\033[1;33m'
+readonly C_CYAN=$'\033[1;36m'
+readonly C_DIM=$'\033[2m'
+readonly C_BOLD=$'\033[1m'
+
+# ------------------------------------------------------------------ charset
+if [[ ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} == *[Uu][Tt][Ff]* ]]; then
+  BC_H='─'; BC_V='│'; BC_B='│'
+  G_OK='✔'; G_FAIL='✘'; G_RUN='◐'; G_HL='▸'; G_ELL='…'; G_DN='>>'
+else
+  BC_H='-'; BC_V='|'; BC_B='|'
+  G_OK='+'; G_FAIL='x'; G_RUN='*'; G_HL='>'; G_ELL='~'; G_DN='>>'
+fi
+G_SEL='<<'
+readonly BC_H BC_V BC_B G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL
+
+# ------------------------------------------------------------------ tunables
+readonly TAIL_LINES=2
+readonly MAX_HL=12
+readonly MAX_RBUF=2000
+readonly MAX_WRAP=3000
+readonly LEFT_MIN=16
+KEEP_COLOR=${KEEP_COLOR:-1}
+WRAP_MODE=${WRAP_MODE:-wrap}
+LEFT_WIDTH=${LEFT_WIDTH:-0}
+LEFT_MAX_PCT=${LEFT_MAX_PCT:-34}
+REPORT_MAX_PCT=${REPORT_MAX_PCT:-55}
+SPLIT_MIN=${SPLIT_MIN:-6}
+CYCLE_SEC=${CYCLE_SEC:-4}
+FINAL_SEC=${FINAL_SEC:-16}
+HOLD_SEC=${HOLD_SEC:-3}
+CYCLE_END=${CYCLE_END:-rotate}
+REDRAW_MS=${REDRAW_MS:-50}
+TICK_SEC=${TICK_SEC:-0.5}
+NARROW_GLYPHS=${NARROW_GLYPHS:-0}
+
+readonly CSI_FINAL='[A-Za-z@\[\\\]^_`{|}~]'
+readonly SEP_W=3
+
+# ------------------------------------------------------------------ state
+declare -a ORDER=()
+declare -A STATUS=()
+declare -A L1=() L2=()
+declare -A RBUF=()
+declare -A RCNT=()
+declare -A HL=()
+declare -A HCNT=()
+declare -A REPORT=()
+declare -A TSTART=()
+declare -A TACC=()
+declare -A TDONE=()
+declare -A TSHOWN=()
+declare -a FAILED=()
+declare -A WCACHE=()
+declare -A DWCACHE=()
+declare -A HRCACHE=()
+
+declare -A WRAPC=()
+declare -A WRAPCN=()
+declare -A WRAPW=()
+declare -A LBLK=()
+declare -A LDIRTY=()
+declare -a LEFT_ROWS=()
+declare -a PREV=()
+declare -a RCACHE_ROWS=()
+RCACHE_COMP=""; RCACHE_W=-1; RCACHE_N=-1
+LEFT_VALID=0
+
+CURRENT=""
+FOCUS=""
+SHOWN=""
+CYCLE_IDX=0
+CYCLE_AT=0
+REVIEW=0
+LAST_DRAW=0
+WIDEST=0
+FRAMES=0
+DRAW_MS=0
+T_FIRST=0
+T_LAST=0
+
+TTY_COLS=0
+TTY_ROWS=0
+TTY_FD=-1
+GEOM_DIRTY=1
+DRAWING=0
+PREV_LW=-1
+PREV_RW=-1
+FULL_CLEAR=1
+RW_NOW=0
+
+# ------------------------------------------------------------------ geometry
+_open_tty() {
+  if [[ -e /dev/tty ]] && { exec {TTY_FD}<>/dev/tty; } 2>/dev/null; then return 0; fi
+  if [[ -t 2 ]] && { exec {TTY_FD}>&2; } 2>/dev/null; then return 0; fi
+  if [[ -t 1 ]] && { exec {TTY_FD}>&1; } 2>/dev/null; then return 0; fi
+  TTY_FD=-1; return 1
+}
+
+_probe_geom() {
+  local sz
+  if (( TTY_FD >= 0 )); then
+    sz=$(stty size <&"$TTY_FD" 2>/dev/null)
+    if [[ $sz == +([0-9])' '+([0-9]) ]]; then
+      printf '%s %s' "${sz##* }" "${sz%% *}"; return 0
+    fi
+  fi
+  if [[ -n ${COLUMNS:-} && -n ${LINES:-} ]]; then
+    printf '%s %s' "$COLUMNS" "$LINES"; return 0
+  fi
+  return 1
+}
+
+_read_geom() {
+  local c r sz
+  shopt -s checkwinsize 2>/dev/null
+  if [[ -n ${FORCE_COLS:-} ]]; then
+    c=$FORCE_COLS; r=${FORCE_ROWS:-${LINES:-24}}
+  else
+    sz=$(_probe_geom) || sz=""
+    if [[ -n $sz ]]; then c=${sz%% *}; r=${sz##* }
+    else c=${COLUMNS:-80}; r=${LINES:-24}; fi
+  fi
+  [[ $c == +([0-9]) ]] || c=80
+  [[ $r == +([0-9]) ]] || r=24
+  (( c < 40 )) && c=40
+  (( r < 10 )) && r=10
+  if (( c != TTY_COLS || r != TTY_ROWS )); then
+    FULL_CLEAR=1; DWCACHE=(); HRCACHE=(); PREV=()
+  fi
+  TTY_COLS=$c; TTY_ROWS=$r
+  GEOM_DIRTY=0
+}
+
+# ------------------------------------------------------------------ width
+_cellw() {
+  local ch=$1 cp
+  if [[ -z $ch ]]; then REPLY=0; return; fi
+  if [[ $ch == [[:ascii:]] ]]; then REPLY=1; return; fi
+  if (( NARROW_GLYPHS )); then REPLY=1; return; fi
+  if [[ -n ${WCACHE[$ch]:-} ]]; then REPLY=${WCACHE[$ch]}; return; fi
+  printf -v cp '%d' "'$ch" 2>/dev/null || cp=0
+  local w=1
+  if   (( cp >= 0x1100  && cp <= 0x115F  )); then w=2
+  elif (( cp >= 0x2E80  && cp <= 0x303E  )); then w=2
+  elif (( cp >= 0x3041  && cp <= 0x33FF  )); then w=2
+  elif (( cp >= 0x3400  && cp <= 0x4DBF  )); then w=2
+  elif (( cp >= 0x4E00  && cp <= 0x9FFF  )); then w=2
+  elif (( cp >= 0xA000  && cp <= 0xA4CF  )); then w=2
+  elif (( cp >= 0xAC00  && cp <= 0xD7A3  )); then w=2
+  elif (( cp >= 0xF900  && cp <= 0xFAFF  )); then w=2
+  elif (( cp >= 0xFE30  && cp <= 0xFE6F  )); then w=2
+  elif (( cp >= 0xFF00  && cp <= 0xFF60  )); then w=2
+  elif (( cp >= 0xFFE0  && cp <= 0xFFE6  )); then w=2
+  elif (( cp >= 0x1F300 && cp <= 0x1FAFF )); then w=2
+  elif (( cp >= 0x20000 && cp <= 0x3FFFD )); then w=2
+  elif (( cp == 0x26A0 || cp == 0x26D4 || cp == 0x2757 || cp == 0x2753 )); then w=2
+  elif (( cp >= 0x25B6 && cp <= 0x25C0 )); then w=2
+  elif (( cp >= 0x2B00 && cp <= 0x2BFF )); then w=2
+  elif (( cp >= 0x0300 && cp <= 0x036F )); then w=0
+  fi
+  WCACHE[$ch]=$w
+  REPLY=$w
+}
+
+_dwidth() {
+  local s=$1
+  if [[ -z $s ]]; then REPLY=0; return; fi
+  if [[ $s != *[![:ascii:]]* ]]; then REPLY=${#s}; return; fi
+  if [[ -n ${DWCACHE[$s]:-} ]]; then REPLY=${DWCACHE[$s]}; return; fi
+  local n=0 i
+  for (( i = 0; i < ${#s}; i++ )); do
+    _cellw "${s:i:1}"; n=$(( n + REPLY ))
+  done
+  (( ${#DWCACHE[@]} > 4000 )) && DWCACHE=()
+  DWCACHE[$s]=$n
+  REPLY=$n
+}
+
+TAKEN=""; TAKENW=0
+_take_cells() {
+  local w=$1 s=$2
+  if (( w <= 0 )) || [[ -z $s ]]; then TAKEN=""; TAKENW=0; return; fi
+  if [[ $s != *[![:ascii:]]* ]]; then
+    if (( ${#s} <= w )); then TAKEN=$s; TAKENW=${#s}
+    else TAKEN=${s:0:w}; TAKENW=$w; fi
+    return
+  fi
+  local n=0 i out=""
+  for (( i = 0; i < ${#s}; i++ )); do
+    _cellw "${s:i:1}"
+    (( n + REPLY > w )) && break
+    out+=${s:i:1}; n=$(( n + REPLY ))
+  done
+  TAKEN=$out; TAKENW=$n
+}
+
+# ------------------------------------------------------------------ timing
+_now_ms() { printf '%s' $(( ${EPOCHREALTIME/./} / 1000 )); }
+
+_elapsed_ms() {
+  local c=$1
+  REPLY=0
+  [[ -z $c ]] && return
+  if [[ -n ${TDONE[$c]:-} ]]; then REPLY=${TDONE[$c]}; return; fi
+  local acc=${TACC[$c]:-0}
+  if [[ -n ${TSTART[$c]:-} ]]; then
+    REPLY=$(( acc + $(_now_ms) - ${TSTART[$c]} ))
+  else
+    REPLY=$acc
+  fi
+  (( REPLY < 0 )) && REPLY=0
+}
+
+_fmt_elapsed() {
+  local ms=${1:-0} s m h
+  (( ms < 0 )) && ms=0
+  s=$(( ms / 1000 ))
+  if   (( s < 60 ));   then printf -v REPLY '%ds' "$s"
+  elif (( s < 3600 )); then printf -v REPLY '%dm%02ds' $(( s / 60 )) $(( s % 60 ))
+  else printf -v REPLY '%dh%02dm' $(( s / 3600 )) $(( (s % 3600) / 60 )); 
+  fi
+}
+
+_timer_start() {
+  local c=$1
+  [[ -z $c ]] && return
+  if [[ -n ${TDONE[$c]:-} ]]; then
+    TACC[$c]=${TDONE[$c]}
+    unset "TDONE[$c]"
+  fi
+  : "${TACC[$c]:=0}"
+  TSTART[$c]=$(_now_ms)
+  TSHOWN[$c]=-1
+  (( T_FIRST == 0 )) && T_FIRST=${TSTART[$c]}
+}
+
+_timer_stop() {
+  local c=$1
+  [[ -z $c ]] && return
+  [[ -n ${TDONE[$c]:-} ]] && return
+  [[ -z ${TSTART[$c]:-} && -z ${TACC[$c]:-} ]] && return
+  _elapsed_ms "$c"
+  TDONE[$c]=$REPLY
+  unset "TSTART[$c]"
+}
+
+# ------------------------------------------------------------------ helpers
+HRULE=""
+_hrule_v() {
+  local w=$1
+  (( w <= 0 )) && { HRULE=""; return; }
+  if [[ -n ${HRCACHE[$w]:-} ]]; then HRULE=${HRCACHE[$w]}; return; fi
+  local s; printf -v s '%*s' "$w" ''
+  HRULE=${s// /$BC_H}
+  HRCACHE[$w]=$HRULE
+}
+
+PLAIN=""; SGRTEXT=""
+_sanitize_v() {
+  local s=$1 keep=$2 out="" pre rest fin i ch
+  s=${s//$'\t'/    }
+  s=${s//$'\v'/ }; s=${s//$'\f'/ }; s=${s//$'\b'/}
+  [[ $s == *$'\r'* ]] && s=${s##*$'\r'}
+  if [[ $s == *$'\033'* ]]; then
+    while [[ $s == *$'\033'* ]]; do
+      pre=${s%%$'\033'*}; out+=$pre; rest=${s:${#pre}+1}
+      case ${rest:0:1} in
+        '[')
+          i=1
+          while (( i < ${#rest} )); do
+            ch=${rest:i:1}; [[ $ch == $CSI_FINAL ]] && break; (( i++ ))
+          done
+          fin=${rest:i:1}
+          if (( keep )) && [[ $fin == m ]]; then out+=$'\033'"${rest:0:i+1}"; fi
+          s=${rest:i+1} ;;
+        ']')
+          if   [[ $rest == *$'\007'* ]];   then s=${rest#*$'\007'}
+          elif [[ $rest == *$'\033\\'* ]]; then s=${rest#*$'\033\\'}
+          else s=""; fi ;;
+        'P'|'X'|'^'|'_')
+          if [[ $rest == *$'\033\\'* ]]; then s=${rest#*$'\033\\'}; else s=""; fi ;;
+        *) s=${rest:1} ;;
+      esac
+    done
+    out+=$s
+  else
+    out=$s
+  fi
+  out=${out%"${out##*[![:space:]]}"}
+  if (( keep )); then SGRTEXT=$out; else PLAIN=$out; fi
+}
+
+_plain_v() { _sanitize_v "$1" 0; }
+
+FITTED=""
+_fit_v() {
+  local w=$1 raw=$2 fp=${3:-0}
+  if (( w <= 0 )); then FITTED=""; return; fi
+  _plain_v "$raw"
+  local plain=$PLAIN
+  _dwidth "$plain"; local pw=$REPLY
+
+  if (( ! fp && KEEP_COLOR )) && [[ $raw == *$'\033'* ]]; then
+    _sanitize_v "$raw" 1
+    local c=$SGRTEXT
+    if (( pw <= w )); then
+      printf -v FITTED '%s%s%*s' "$c" "$C_RESET" $(( w - pw )) ''
+      return
+    fi
+    local out="" n=0 i ch seg
+    while [[ -n $c ]]; do
+      if [[ ${c:0:1} == $'\033' ]]; then
+        i=2
+        while (( i < ${#c} )); do
+          ch=${c:i:1}; [[ $ch == $CSI_FINAL ]] && break; (( i++ ))
+        done
+        out+=${c:0:i+1}; c=${c:i+1}; continue
+      fi
+      seg=${c%%$'\033'*}; c=${c:${#seg}}
+      _take_cells $(( w - 1 - n )) "$seg"
+      out+=$TAKEN; n=$(( n + TAKENW ))
+      (( n >= w - 1 )) && break
+    done
+    printf -v FITTED '%s%s%s%*s' "$out" "$C_RESET" "$G_ELL" $(( w - n - 1 )) ''
+    return
+  fi
+
+  if (( pw <= w )); then
+    printf -v FITTED '%s%*s' "$plain" $(( w - pw )) ''
+  else
+    _take_cells $(( w - 1 )) "$plain"
+    printf -v FITTED '%s%s%*s' "$TAKEN" "$G_ELL" $(( w - TAKENW - 1 )) ''
+  fi
+}
+
+declare -a WRAPPED=()
+
+_wrap_into() {
+  local w=$1
+  (( w <= 0 )) && return
+  _plain_v "$2"
+  local s=$PLAIN t tw brk sw row
+  if [[ -z $s ]]; then printf -v row '%*s' "$w" ''; WRAPPED+=("$row"); return; fi
+  while :; do
+    _dwidth "$s"; sw=$REPLY
+    if (( sw <= w )); then
+      printf -v row '%s%*s' "$s" $(( w - sw )) ''
+      WRAPPED+=("$row"); return
+    fi
+    _take_cells "$w" "$s"
+    t=$TAKEN; tw=$TAKENW
+    [[ -z $t ]] && { t=${s:0:1}; _dwidth "$t"; tw=$REPLY; }
+    if [[ $t == *" "* && ${s:${#t}:1} != " " ]]; then
+      brk=${t% *}
+      if (( ${#brk} > 0 )); then t=$brk; _dwidth "$t"; tw=$REPLY; fi
+    fi
+    printf -v row '%s%*s' "$t" $(( w - tw )) ''
+    WRAPPED+=("$row")
+    s=${s:${#t}}
+    [[ ${s:0:1} == " " ]] && s=${s:1}
+    [[ -z $s ]] && return
+  done
+}
+
+_wrap_color_into() {
+  local w=$1 s=$2
+  (( w <= 0 )) && return
+  local active="" row="" n=0 seg i ch esc brk segw t tw out
+  while [[ -n $s ]]; do
+    if [[ ${s:0:1} == $'\033' ]]; then
+      i=2
+      while (( i < ${#s} )); do
+        ch=${s:i:1}; [[ $ch == $CSI_FINAL ]] && break; (( i++ ))
+      done
+      esc=${s:0:i+1}; s=${s:i+1}
+      if [[ $esc == $'\033[0m' || $esc == $'\033[m' ]]; then active=""; else active+=$esc; fi
+      row+=$esc; continue
+    fi
+    seg=${s%%$'\033'*}
+    [[ -z $seg ]] && continue
+    s=${s:${#seg}}
+    while :; do
+      _dwidth "$seg"; segw=$REPLY
+      if (( n + segw <= w )); then row+=$seg; n=$(( n + segw )); break; fi
+      _take_cells $(( w - n )) "$seg"
+      t=$TAKEN; tw=$TAKENW
+      [[ -z $t ]] && { t=${seg:0:1}; _dwidth "$t"; tw=$REPLY; }
+      if [[ $t == *" "* && ${seg:${#t}:1} != " " ]]; then
+        brk=${t% *}
+        if (( ${#brk} > 0 )); then t=$brk; _dwidth "$t"; tw=$REPLY; fi
+      fi
+      row+=$t; n=$(( n + tw ))
+      printf -v out '%s%s%*s' "$row" "$C_RESET" $(( w - n )) ''
+      WRAPPED+=("$out")
+      row=$active; n=0
+      seg=${seg:${#t}}
+      [[ ${seg:0:1} == " " ]] && seg=${seg:1}
+      [[ -z $seg ]] && break
+    done
+  done
+  printf -v out '%s%s%*s' "$row" "$C_RESET" $(( w - n )) ''
+  WRAPPED+=("$out")
+}
+
+_wrap_one() {
+  local w=$1 line=$2
+  WRAPPED=()
+  if [[ $WRAP_MODE == clip ]]; then
+    _fit_v "$w" "$line"; WRAPPED=("$FITTED")
+  elif (( KEEP_COLOR )); then
+    _wrap_color_into "$w" "$line"
+  else
+    _wrap_into "$w" "$line"
+  fi
+}
+
+SG_C=""; SG_M=""; SG_L=""
+_sg() {
+  case ${1:-} in
+    ok)   SG_C=$C_GREEN;  SG_M=$G_OK;   SG_L="${ACT_TEXT[2],,}" ;;
+    fail) SG_C=$C_RED;    SG_M=$G_FAIL; SG_L="failed"    ;;
+    *)    SG_C=$C_YELLOW; SG_M=$G_RUN;  SG_L="${ACT_TEXT[1],,}" ;;
+  esac
+}
+
+HDRTXT=""
+_header_text() {
+  local name=$1
+  HDRTXT=""
+  [[ -z $name ]] && return
+  _sg "${STATUS[$name]:-}"
+  _elapsed_ms "$name"
+  local ms=$REPLY
+  if (( ms <= 0 )) && [[ -z ${TDONE[$name]:-} ]]; then
+    HDRTXT="${name} [${SG_L}]"; return
+  fi
+  _fmt_elapsed "$ms"
+  if [[ -z $REPLY ]]; then HDRTXT="${name} [${SG_L}]"
+  else HDRTXT="${name} [${SG_L}, ${REPLY}]"; fi
+}
+
+_note_width() {
+  local name=$1
+  [[ -z $name ]] && return
+  _header_text "$name"
+  _dwidth "$HDRTXT"
+  local wneed=$(( REPLY + 5 ))
+  (( wneed > WIDEST )) && WIDEST=$wneed
+}
+
+_touch_comp() {
+  local name=$1
+  [[ -z $name ]] && return
+  [[ -n ${STATUS[$name]:-} ]] && return
+  ORDER+=("$name")
+  STATUS[$name]="${ACT_TEXT[1],,}"
+  L1[$name]=""; L2[$name]=""
+  RBUF[$name]=""; RCNT[$name]=0
+  HL[$name]="";   HCNT[$name]=0
+  REPORT[$name]=""
+  TACC[$name]=0; TSHOWN[$name]=-1
+  WRAPC[$name]=""; WRAPCN[$name]=0; WRAPW[$name]=-1
+  LDIRTY[$name]=1; LEFT_VALID=0
+  _dwidth "$name"
+  local wneed=$(( REPLY + 26 ))
+  (( wneed > WIDEST )) && WIDEST=$wneed
+}
+
+_mark_fail() {
+  local name=$1 f
+  [[ -z $name ]] && return
+  STATUS[$name]="fail"
+  _timer_stop "$name"
+  LDIRTY[$name]=1; LEFT_VALID=0
+  for f in "${FAILED[@]}"; do [[ $f == "$name" ]] && return; done
+  FAILED+=("$name")
+  CYCLE_IDX=$(( ${#FAILED[@]} - 1 ))
+  CYCLE_AT=$(( $(_now_ms) + CYCLE_SEC * 1000 ))
+}
+
+_push_log() {
+  local c=$1 line=$2 r
+  [[ -z $c ]] && return
+  L1[$c]=${L2[$c]:-}
+  L2[$c]=$line
+  LDIRTY[$c]=1; LEFT_VALID=0
+  RBUF[$c]+="${line}"$'\n'
+  RCNT[$c]=$(( ${RCNT[$c]:-0} + 1 ))
+
+  if (( RW_NOW > 0 )) && [[ ${WRAPW[$c]:--1} == "$RW_NOW" ]]; then
+    _wrap_one "$RW_NOW" "$line"
+    for r in "${WRAPPED[@]}"; do
+      WRAPC[$c]+="${r}"$'\n'
+      WRAPCN[$c]=$(( ${WRAPCN[$c]:-0} + 1 ))
+    done
+    if (( ${WRAPCN[$c]:-0} > MAX_WRAP )); then WRAPW[$c]=-1; fi
+    [[ $c == "$RCACHE_COMP" ]] && RCACHE_N=-1
+  fi
+
+  if (( ${RCNT[$c]:-0} > MAX_RBUF )); then
+    local keep=$(( MAX_RBUF / 2 ))
+    RBUF[$c]=$(printf '%s' "${RBUF[$c]}" | tail -n "$keep")$'\n'
+    RCNT[$c]=$keep
+    WRAPW[$c]=-1
+    [[ $c == "$RCACHE_COMP" ]] && RCACHE_N=-1
+  fi
+}
+
+_push_highlight() {
+  local c=$1 text=$2
+  [[ -z $c ]] && return
+  HL[$c]+="${text}"$'\n'
+  HCNT[$c]=$(( ${HCNT[$c]:-0} + 1 ))
+  if (( ${HCNT[$c]:-0} > MAX_HL )); then
+    HL[$c]=$(printf '%s' "${HL[$c]}" | tail -n "$MAX_HL")$'\n'
+    HCNT[$c]=$MAX_HL
+  fi
+  LDIRTY[$c]=1; LEFT_VALID=0
+}
+
+_clear_highlight() {
+  local c=$1
+  [[ -z $c ]] && return
+  HL[$c]=""; HCNT[$c]=0; LDIRTY[$c]=1; LEFT_VALID=0
+}
+
+_ensure_wrap() {
+  local c=$1 w=$2 src r
+  [[ -z $c ]] && return
+  [[ ${WRAPW[$c]:--1} == "$w" ]] && return
+  local acc="" n=0
+  if [[ -n ${RBUF[$c]:-} ]]; then
+    while IFS= read -r src; do
+      _wrap_one "$w" "$src"
+      for r in "${WRAPPED[@]}"; do acc+="${r}"$'\n'; n=$(( n + 1 )); done
+    done <<<"${RBUF[$c]}"
+  fi
+  WRAPC[$c]=$acc; WRAPCN[$c]=$n; WRAPW[$c]=$w
+  [[ $c == "$RCACHE_COMP" ]] && RCACHE_N=-1
+}
+
+# NOTE: RCACHE_ROWS must NOT be cleared before the cache-hit early return,
+# or every cache hit yields an empty pane.
+_load_rows() {
+  local c=$1 w=$2
+  if [[ -z $c ]]; then
+    RCACHE_ROWS=(); RCACHE_COMP=""; RCACHE_W=-1; RCACHE_N=-1; return
+  fi
+  _ensure_wrap "$c" "$w"
+  if [[ $c == "$RCACHE_COMP" ]] && (( RCACHE_W == w )) \
+     && (( RCACHE_N == ${WRAPCN[$c]:-0} )); then
+    return
+  fi
+  RCACHE_ROWS=()
+  if [[ -n ${WRAPC[$c]:-} ]]; then
+    mapfile -t RCACHE_ROWS <<<"${WRAPC[$c]%$'\n'}"
+  fi
+  RCACHE_COMP=$c; RCACHE_W=$w; RCACHE_N=${WRAPCN[$c]:-0}
+}
+
+_timer_tick() {
+  (( ${#TSTART[@]} == 0 )) && return 1
+  local c s hit=1
+  for c in "${!TSTART[@]}"; do
+    [[ -z $c ]] && continue
+    _elapsed_ms "$c"; s=$(( REPLY / 1000 ))
+    if (( s != ${TSHOWN[$c]:--1} )); then
+      TSHOWN[$c]=$s; LDIRTY[$c]=1; LEFT_VALID=0; hit=0
+    fi
+  done
+  return $hit
+}
+
+# ------------------------------------------------------------------ cycling
+_cycle_tick() {
+  (( REVIEW )) || return 1
+  local n=${#FAILED[@]}
+  (( n < 2 )) && return 1
+  [[ -n $FOCUS ]] && return 1
+  (( CYCLE_SEC <= 0 )) && return 1
+  local now; now=$(_now_ms)
+  (( now < CYCLE_AT )) && return 1
+  CYCLE_IDX=$(( (CYCLE_IDX + 1) % n ))
+  CYCLE_AT=$(( now + CYCLE_SEC * 1000 ))
+  return 0
+}
+
+# ------------------------------------------------------------------ rendering
+_build_block() {
+  local name=$1 lw=$2
+  [[ -z $name ]] && return
+  local st=${STATUS[$name]:-} src wline i
+  _header_text "$name"
+  local hdr=$HDRTXT
+  if (( REVIEW )) && [[ $name == "$SHOWN" && $st == fail ]]; then hdr+=" ${G_SEL}"; fi
+  _fit_v $(( lw - 2 )) "$hdr" 1
+  local buf="${SG_C}${SG_M} ${FITTED}${C_RESET}"
+  if [[ -n ${HL[$name]:-} ]]; then
+    while IFS= read -r src; do
+      [[ -z $src ]] && continue
+      WRAPPED=(); _wrap_into $(( lw - 4 )) "$src"
+      for wline in "${WRAPPED[@]}"; do
+        _fit_v "$lw" "  ${G_HL} ${wline}" 1
+        buf+=$'\n'"${C_CYAN}${FITTED}${C_RESET}"
+      done
+    done <<<"${HL[$name]}"
+  else
+    local -a tl=()
+    [[ -n ${L1[$name]:-} ]] && tl+=("${L1[$name]}")
+    [[ -n ${L2[$name]:-} ]] && tl+=("${L2[$name]}")
+    for (( i = ${#tl[@]} - TAIL_LINES; i < ${#tl[@]}; i++ )); do
+      (( i < 0 )) && continue
+      _fit_v "$lw" "  ${BC_B} ${tl[i]}" 1
+      buf+=$'\n'"${C_DIM}${FITTED}${C_RESET}"
+    done
+  fi
+  LBLK[$name]=$buf
+  LDIRTY[$name]=""
+}
+
+_draw() {
+  local force=${1:-0}
+  (( DRAWING )) && return
+  DRAWING=1
+
+  local t0; t0=$(_now_ms)
+  if (( ! force && t0 - LAST_DRAW < REDRAW_MS )); then DRAWING=0; return; fi
+  LAST_DRAW=$t0
+
+  (( GEOM_DIRTY )) && _read_geom
+  local cols=$TTY_COLS rows=$TTY_ROWS
+
+  local usable=$cols lw
+  if (( LEFT_WIDTH > 0 )); then
+    lw=$LEFT_WIDTH
+  else
+    local cap=$(( usable * LEFT_MAX_PCT / 100 ))
+    lw=$WIDEST
+    (( lw < LEFT_MIN )) && lw=$LEFT_MIN
+    (( lw > cap )) && lw=$cap
+  fi
+  local rw=$(( usable - lw - SEP_W ))
+  if (( rw < 24 )); then rw=24; lw=$(( usable - rw - SEP_W )); fi
+  (( lw < 8 )) && lw=8
+
+  if (( lw != PREV_LW )); then
+    PREV_LW=$lw; FULL_CLEAR=1; LEFT_VALID=0
+    local k; for k in "${ORDER[@]}"; do [[ -n $k ]] && LDIRTY[$k]=1; done
+  fi
+  if (( rw != PREV_RW )); then
+    PREV_RW=$rw; RW_NOW=$rw; export LOG_COLUMNS=$rw
+    FULL_CLEAR=1; RCACHE_COMP=""; RCACHE_N=-1
+    local k; for k in "${ORDER[@]}"; do [[ -n $k ]] && WRAPW[$k]=-1; done
+  fi
+
+  local body=$(( rows - 2 ))
+  local name src i j
+
+  local view=${FOCUS:-$CURRENT}
+  local is_report=0
+  [[ -n $view && -n ${REPORT[$view]:-} ]] && is_report=1
+
+  local upper="" nfail=${#FAILED[@]}
+  if [[ -n $FOCUS ]]; then
+    upper=$FOCUS
+  elif (( REVIEW )) && (( nfail > 0 )); then
+    (( CYCLE_IDX >= nfail )) && CYCLE_IDX=0
+    upper=${FAILED[CYCLE_IDX]}
+  elif (( is_report )); then
+    for (( j = ${#ORDER[@]} - 1; j >= 0; j-- )); do
+      if [[ -z ${REPORT[${ORDER[j]}]:-} ]]; then upper=${ORDER[j]}; break; fi
+    done
+  else
+    upper=$view
+  fi
+  if [[ $upper != "$SHOWN" ]]; then
+    [[ -n $SHOWN ]] && LDIRTY[$SHOWN]=1
+    [[ -n $upper ]] && LDIRTY[$upper]=1
+    SHOWN=$upper; LEFT_VALID=0
+  fi
+
+  for name in "${ORDER[@]}"; do
+    [[ -z $name ]] && continue
+    [[ -n ${REPORT[$name]:-} ]] && continue
+    [[ -n ${LDIRTY[$name]:-} ]] && { _build_block "$name" "$lw"; LEFT_VALID=0; }
+  done
+
+  if (( ! LEFT_VALID )); then
+    local -a blk=() blk_st=()
+    for name in "${ORDER[@]}"; do
+      [[ -z $name ]] && continue
+      [[ -n ${REPORT[$name]:-} ]] && continue
+      blk+=("${LBLK[$name]:-}"); blk_st+=("${STATUS[$name]:-}")
+    done
+    local total=0 nl
+    for (( j = 0; j < ${#blk[@]}; j++ )); do
+      nl=${blk[j]//[!$'\n']/}; total=$(( total + ${#nl} + 1 ))
+    done
+    while (( total > body && ${#blk[@]} > 1 )); do
+      local drop=-1
+      for (( j = 0; j < ${#blk[@]}; j++ )); do
+        if [[ ${blk_st[j]} != fail ]]; then drop=$j; break; fi
+      done
+      (( drop < 0 )) && drop=0
+      nl=${blk[drop]//[!$'\n']/}; total=$(( total - ${#nl} - 1 ))
+      blk=("${blk[@]:0:drop}" "${blk[@]:drop+1}")
+      blk_st=("${blk_st[@]:0:drop}" "${blk_st[@]:drop+1}")
+    done
+    LEFT_ROWS=()
+    for (( j = 0; j < ${#blk[@]}; j++ )); do
+      while IFS= read -r src; do LEFT_ROWS+=("$src"); done <<<"${blk[j]}"
+    done
+    LEFT_VALID=1
+  fi
+
+  if (( SUMH > 0 )); then
+    local anchor=$(( body - 1 ))
+    (( anchor < SUMH )) && anchor=$SUMH
+    # anchor the footer to the bottom of the left column
+    while (( ${#LEFT_ROWS[@]} < body - SUMH )); do LEFT_ROWS+=(""); done
+    LEFT_ROWS=("${LEFT_ROWS[@]:0:anchor-SUMH}" "${SUMROWS[@]}")
+  fi
+
+  local -a right=()
+  local counter=""
+  if (( REVIEW )) && (( nfail > 1 )); then
+    if [[ -n $FOCUS ]]; then 
+      counter="  (pinned, ${nfail} failed)"
+    elif (( CYCLE_SEC > 0 )); then 
+      counter="  ($(( CYCLE_IDX + 1 )) of ${nfail})"
+    fi
+  fi
+
+  local hcomp=${upper:-$view}
+  if [[ -z $hcomp ]]; then
+    _fit_v "$rw" "waiting..." 1
+    right+=("${C_DIM}${FITTED}${C_RESET}")
+  else
+    local tstr=""
+    _sg "${STATUS[$hcomp]:-}"
+    if [[ -z ${REPORT[$hcomp]:-} ]]; then
+      _elapsed_ms "$hcomp"
+      if (( REPLY > 0 )); then _fmt_elapsed "$REPLY"; [[ -n $REPLY ]] && tstr=", ${REPLY}"; fi
+    fi
+    _fit_v "$rw" "${SG_M} ${hcomp} [${SG_L}${tstr}]${counter}" 1
+    right+=("${SG_C}${FITTED}${C_RESET}")
+    _hrule_v "$rw"
+    right+=("${C_DIM}${HRULE}${C_RESET}")
+  fi
+
+  local avail=$(( body - ${#right[@]} ))
+  if (( avail > 0 )) && [[ -n $hcomp ]]; then
+    if (( is_report )) && [[ -n $upper ]] && (( avail >= SPLIT_MIN * 2 + 1 )); then
+      local rcap=$(( avail * REPORT_MAX_PCT / 100 ))
+      (( rcap < SPLIT_MIN )) && rcap=$SPLIT_MIN
+      _load_rows "$view" "$rw"
+      local -a rep=("${RCACHE_ROWS[@]:0:rcap}")
+      local lo=${#rep[@]}
+      (( lo < 1 )) && lo=1
+      local hi=$(( avail - lo - 1 ))
+      (( hi < SPLIT_MIN )) && { hi=$SPLIT_MIN; lo=$(( avail - hi - 1 )); }
+
+      _load_rows "$upper" "$rw"
+      local n=${#RCACHE_ROWS[@]} start=0
+      (( n > hi )) && start=$(( n - hi ))
+      (( n > 0 )) && right+=("${RCACHE_ROWS[@]:start:hi}")
+
+      while (( ${#right[@]} < body - lo - 1 )); do right+=(""); done
+      _fit_v "$rw" "${G_DN} ${view}" 1
+      right+=("${C_BOLD}${C_CYAN}${FITTED}${C_RESET}")
+      (( lo > 0 )) && right+=("${rep[@]:0:lo}")
+    else
+      _load_rows "$hcomp" "$rw"
+      local n=${#RCACHE_ROWS[@]} start=0
+      if (( n > 0 )); then
+        if (( is_report )); then
+          right+=("${RCACHE_ROWS[@]:0:avail}")
+        else
+          (( n > avail )) && start=$(( n - avail ))
+          right+=("${RCACHE_ROWS[@]:start:avail}")
+        fi
+      fi
+    fi
+  fi
+
+  local out="" l r rowstr
+  if (( FULL_CLEAR )); then out+=$'\033[2J'; PREV=(); FULL_CLEAR=0; fi
+
+  local title=" ${ACT_TEXT[0]} progress "
+  if (( REVIEW )); then
+    local name nok=0 nfail=0
+    for name in "${ORDER[@]}"; do
+      [[ -z $name ]] && continue
+      [[ -n ${REPORT[$name]:-} ]] && continue
+      case ${STATUS[$name]:-} in
+        ok)   nok=$(( nok + 1 ))     ;;
+        fail) nfail=$(( nfail + 1 )) ;;
+      esac
+    done
+    title=" ${ACT_TEXT[0]} completed:  ${G_OK} ${nok}  ${G_FAIL} ${nfail}"
+  fi
+  if (( T_FIRST > 0 )); then
+    local endms=$T_LAST
+    (( endms == 0 )) && endms=$(_now_ms)
+    _fmt_elapsed $(( endms - T_FIRST ))
+    [[ -n $REPLY ]] && title+="  ${REPLY}"
+  fi
+  _fit_v "$usable" "$title" 1
+  rowstr="${C_BOLD}${FITTED}${C_RESET}"
+  if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
+    out+=$'\033[1;1H'"$rowstr"$'\033[K'; PREV[0]=$rowstr
+  fi
+  _hrule_v "$usable"
+  rowstr="${C_DIM}${HRULE}${C_RESET}"
+  if [[ ${PREV[1]:-__} != "$rowstr" ]]; then
+    out+=$'\033[2;1H'"$rowstr"$'\033[K'; PREV[1]=$rowstr
+  fi
+
+  for (( i = 0; i < body; i++ )); do
+    l=${LEFT_ROWS[i]:-}
+    if [[ $l != *$'\033'* ]]; then _fit_v "$lw" "$l" 1; l=$FITTED; fi
+    r=${right[i]:-}
+    rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}"
+    j=$(( i + 2 ))
+    if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
+      printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( i + 3 )) "$rowstr"
+      PREV[j]=$rowstr
+    fi
+  done
+
+  [[ -n $out ]] && printf '%s' "$out"
+
+  FRAMES=$(( FRAMES + 1 ))
+  DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ))
+  DRAWING=0
+}
+
+# ------------------------------------------------------------------ teardown
+_stop_all_timers() {
+  local c
+  (( ${#TSTART[@]} == 0 )) && return
+  for c in "${!TSTART[@]}"; do [[ -n $c ]] && _timer_stop "$c"; done
+}
+
+_finish() {
+  DRAWING=0
+  _stop_all_timers
+  (( T_LAST == 0 )) && T_LAST=$(_now_ms)
+  FULL_CLEAR=1
+  LEFT_VALID=0
+  RCACHE_COMP=""; RCACHE_N=-1
+  _draw 1
+  printf '\033[?7h'
+  printf '\033[%d;1H\033[K' "$TTY_ROWS"   # last row, cleared, NO newline
+  printf '\033[?25h'
+  (( TTY_FD >= 0 )) && exec {TTY_FD}>&-
+}
+
+# ------------------------------------------------------------------ input
+_handle_line() {
+  local line=$1 key rest target clean plainkey hpay
+  if (( KEEP_COLOR )); then _sanitize_v "$line" 1; clean=$SGRTEXT
+  else _sanitize_v "$line" 0; clean=$PLAIN; fi
+
+  _plain_v "$line"; plainkey=$PLAIN
+  plainkey=${plainkey#"${plainkey%%[![:space:]]*}"}
+  key=${plainkey%%[[:space:]]*}
+  rest=${plainkey#"$key"}
+  rest=${rest#"${rest%%[![:space:]]*}"}
+
+  case ${key^^} in
+    @@COMP)
+      [[ -z $rest ]] && return
+      if [[ -n $CURRENT && $CURRENT != "$rest" && -z ${REPORT[$CURRENT]:-} ]]; then
+        _timer_stop "$CURRENT"
+      fi
+      CURRENT=$rest
+      _touch_comp "$CURRENT"
+      STATUS[$CURRENT]="${ACT_TEXT[1],,}"
+      [[ -n ${TDONE[$CURRENT]:-} ]] && unset "TDONE[$CURRENT]"
+      _timer_start "$CURRENT"
+      _note_width "$CURRENT"
+      LDIRTY[$CURRENT]=1; LEFT_VALID=0
+      REVIEW=0
+      _draw 1; return ;;
+    @@REPORT)
+      [[ -z $rest ]] && return
+      if [[ -n $CURRENT && -z ${REPORT[$CURRENT]:-} ]]; then
+        _timer_stop "$CURRENT"
+      fi
+      T_LAST=$(_now_ms)
+      CURRENT=$rest
+      _touch_comp "$CURRENT"
+      REPORT[$CURRENT]=1
+      STATUS[$CURRENT]="ok"
+      LEFT_VALID=0
+      REVIEW=1
+      CYCLE_IDX=0
+      CYCLE_AT=$(( $(_now_ms) + CYCLE_SEC * 1000 ))
+      _draw 1; return ;;
+    @@FOCUS)
+      if [[ -z $rest ]]; then FOCUS=""; CYCLE_AT=0
+      else _touch_comp "$rest"; FOCUS=$rest; fi
+      _draw 1; return ;;
+    @@OK|@@FAIL)
+      target=${rest:-$CURRENT}
+      [[ -z $target ]] && return
+      _touch_comp "$target"
+      if [[ ${key^^} == @@OK ]]; then
+        STATUS[$target]="ok"; _timer_stop "$target"
+        LDIRTY[$target]=1; LEFT_VALID=0
+      else
+        _mark_fail "$target"
+      fi
+      _note_width "$target"
+      _draw 1; return ;;
+    @@HIGHLIGHT|@@HL)
+      if [[ -z $CURRENT ]]; then
+        CURRENT="general"; _touch_comp "$CURRENT"; _timer_start "$CURRENT"
+      fi
+      hpay=${clean#*"$key"}
+      hpay=${hpay#"${hpay%%[![:space:]]*}"}
+      if [[ -z $rest ]]; then _clear_highlight "$CURRENT"; else _push_highlight "$CURRENT" "$hpay"; fi
+      _draw 1; return ;;
+  esac
+  if [[ -z $CURRENT ]]; then
+    CURRENT="general"; _touch_comp "$CURRENT"; _timer_start "$CURRENT"
+  fi
+  _push_log "$CURRENT" "$clean"
+  _draw
+}
+
+# ------------------------------------------------------------------ main loop
+  [[ -t 1 ]] || { cat; return; }
+
+  _open_tty
+  _read_geom
+
+  printf '\033[?25l'
+  printf '\033[?7l'
+  trap '_finish' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'GEOM_DIRTY=1; FULL_CLEAR=1' WINCH
+  printf '\033[2J\033[H'
+
+  local line rc
+  while true; do
+    line=""
+    if IFS= read -r -t "$TICK_SEC" line; then
+      _handle_line "$line"
+    else
+      rc=$?
+      if (( rc > 128 )); then
+        _timer_tick && _draw 1
+        _cycle_tick && _draw 1
+        continue
+      fi
+      [[ -n $line ]] && _handle_line "$line"
+      break
+    fi
+    _timer_tick && _draw
+    _cycle_tick && _draw 1
+  done
+
+  _stop_all_timers
+  (( T_LAST == 0 )) && T_LAST=$(_now_ms)
+  LEFT_VALID=0
+  local c
+  for c in "${ORDER[@]}"; do [[ -n $c ]] && LDIRTY[$c]=1; done
+
+  REVIEW=1
+  local nfail=${#FAILED[@]}
+  if (( nfail > 1 && CYCLE_SEC > 0 && FINAL_SEC > 0 )) && [[ -z $FOCUS ]]; then
+    CYCLE_AT=0
+    _draw 1
+    local deadline=$(( $(_now_ms) + FINAL_SEC * 1000 ))
+    while (( $(_now_ms) < deadline )); do
+      sleep "$TICK_SEC"
+      _cycle_tick && _draw 1
+    done
+    case $CYCLE_END in
+      first) CYCLE_IDX=0 ;;
+      rotate) : ;;
+      *)     CYCLE_IDX=$(( nfail - 1 )) ;;
+    esac
+  elif (( nfail == 1 && HOLD_SEC > 0 )); then
+    # single failure: draw it, then hold briefly so it is readable
+    _draw 1
+    sleep "$HOLD_SEC"
+  fi
+  _draw 1
+)}
+

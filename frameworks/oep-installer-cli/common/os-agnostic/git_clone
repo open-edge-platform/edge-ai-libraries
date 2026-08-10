@@ -1,0 +1,29 @@
+
+# sparse or full git clone
+# full clone: <workspace> <version> <repository>
+# sparse clone: <workspace> <version> <repository> <dirs> [<dirs>...]
+ensure_git_clone () {
+  local workspace="$1"
+  local version="$2"
+  local repository="$3"
+
+  ensure_rmdir "$workspace"
+  mkdir -p "$(dirname "$workspace")"
+  if [ ${#@} -ge 4 ]; then
+    # sparse checkout
+    mkdir -p "$workspace"
+    pushd "$workspace" > /dev/null
+    git clone --filter=blob:none --no-checkout $repository .
+    git sparse-checkout init --cone
+    git sparse-checkout set "${@:4}"
+    git checkout $version
+    popd > /dev/null
+  else
+    # full checkout
+    git clone -b $version --depth 1 $repository "$workspace"
+    pushd "$workspace" > /dev/null
+    [ ! -e .gitmodules ] || git submodule update --init --recursive
+    popd > /dev/null
+  fi
+}
+

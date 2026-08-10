@@ -1,0 +1,46 @@
+
+configure_esq () {
+  workspace="$(ensure_project_path)/esq"
+}
+
+debian_70_profile_esq () {
+  echo "curl git libgl1 make edk docker uv"
+}
+
+debian_70_install_esq () {
+  configure_uv
+  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ "$*" != *"--reset-esq"* ]]; then
+    echo "Esq is already installed. Skipping..."
+  else
+    curl -sL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true
+    curl -sL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true
+    uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main
+
+    configure_esq
+    mkdir -p "$workspace"
+    echo "esq installed at $(which esq)"
+    echo "esq workspace created at $workspace"
+  fi
+}
+
+debian_70_start_esq () {
+  configure_uv
+  configure_esq
+  pushd "$workspace" > /dev/null
+  esq clean --all
+
+  local cmdline_str=" $* "
+  local options=(${cmdline_str# -- })
+  [ ${#options[@]} -gt 0 ] || options=(-qo)
+
+  esq run ${options[@]} -v -f && esq summary && esq report
+  popd > /dev/null
+}
+
+debian_70_remove_esq () {
+  configure_uv
+  configure_esq
+  ensure_rmdir "$workspace"
+  esq clean --all
+  uv tool uninstall --force esq || true
+}

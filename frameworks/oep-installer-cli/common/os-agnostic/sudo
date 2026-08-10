@@ -1,0 +1,10 @@
+
+# perform sudo in automation or in tty
+ensure_sudo () {
+  if [ -n "$SUDO_PASSWORD" ]; then
+    echo "$SUDO_PASSWORD" | sudo -S "$@"
+  else
+    sudo "$@"
+  fi
+}
+

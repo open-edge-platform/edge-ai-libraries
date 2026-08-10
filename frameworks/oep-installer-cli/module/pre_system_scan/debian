@@ -1,0 +1,196 @@
+
+debian_10_profile_pre_system_scan () {
+  [ "$1" != "install" ] || echo "curl dmidecode"
+}
+
+debian_10_install_pre_system_scan () {
+  set -o pipefail
+  (
+    echo "------------------------------------------------------------------------"
+
+    ok="${green}✓  PASS${reset}"
+    nok="${red}⚠  MSG${reset}"
+
+    system_summary="$(system_scan_get_system_summary)"
+    echo "System|$system_summary"
+
+    pass=$ok
+    membank_info="$(system_scan_check_membank)"
+    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Configuration}"
+    echo -e "RAM|$membank_info|$pass"
+
+    pass=$ok
+    [[ $PRETTY_NAME = *"24.04"* ]] || pass="${nok/MSG/Not supported}"
+    echo -e "OS|$PRETTY_NAME|$pass"
+
+    pass=$ok
+    docker_ver="$(system_scan_check_docker)"
+    [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}"
+    [ -n "$docker_ver" ] || pass="${nok} Missing Docker"
+    echo -e "Docker|$docker_ver|$pass"
+
+    net_pass=$ok
+    net_access="$(system_scan_check_network_access)"
+    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}"
+    echo -e "Network|$net_access|$net_pass"
+
+    echo "Accelerators:"
+
+    pass=$ok
+    cpuinst_info="$(system_scan_check_cpu_instructions)"
+    [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}"
+    echo -e "CPU|$cpuinst_info|$pass"
+
+    gpu_accels=("8086:b08f" "8086:7d51" "8086:fd80")
+    for accel in ${gpu_accels[@]}; do
+      pass=$ok
+      accel_info="$(system_scan_check_pci_device $accel "Intel Integrated Graphics")"
+      if [ -n "$accel_info" ]; then
+        [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
+        echo -e "GPU|$accel_info|$pass"
+      fi
+    done
+
+    npu_accels=("8086:b03e" "8086:7d1d" "8086:fd3e")
+    for accel in ${npu_accels[@]}; do
+      pass=$ok
+      accel_info="$(system_scan_check_pci_device $accel "Intel AI Boost")"
+      if [ -n "$accel_info" ]; then
+        [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
+        echo -e "NPU|$accel_info|$pass"
+      fi
+    done
+
+    echo "------------------------------------------------------------------------"
+    [ "$net_pass" = "$ok" ]
+  ) | ensure_columns
+}
+
+system_scan_check_membank () {
+  local dmi_out="$(ensure_sudo dmidecode -t memory 2>/dev/null)"
+  local installed_modules=()
+  mapfile -t installed_modules < <(echo "$dmi_out" | awk -v in_dev=0 '
+    /^Memory Device$/ {
+      if (in_dev && size !~ /No Module Installed/ && size !~ /Unknown/ && size != "") {
+        print size " | Locator: " loc " | Bank: " bank
+      }
+      in_dev=1;size="";loc="N/A";bank="N/A"
+    }
+    /^\s*Size:/ {
+      size=gensub(/^\s*Size:\s*/,"",1)
+    }
+    /^\s*Locator:/ {
+      loc=gensub(/^\s*Locator:\s*/,"",1)
+    }
+    /^\s*Bank Locator:/ {
+      bank=gensub(/^\s*Bank Locator:\s*/,"",1)
+    }
+    END {
+      if (in_dev && size !~ /No Module Installed/ && size !~ /Unknown/ && size != "") {
+        print size " | Locator: " loc " | Bank: " bank
+      }
+    }')
+
+  local total_slots=$(echo "$dmi_out" | grep -c "^\s*Locator:" || true)
+  local populated_count=${#installed_modules[@]}
+
+  if [[ ${populated_count} -eq 0 ]]; then
+    echo "Not detected"
+    return
+  fi
+
+  local channels=() mod
+  for mod in "${installed_modules[@]}"; do
+    local channel_id=""
+    if [[ "$mod" =~ ([Cc]ontroller[0-9]+|[Mm][Cc][0-9]+|[Nn]ode[0-9]+|[Pp][0-9]+)[_-]?([Cc][Hh][Aa][Nn][Nn]?[Ee]?[Ll]?[_-]?[[:space:]]*[A-Za-z0-9]+) ]]; then
+        channel_id="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
+    elif [[ "$mod" =~ [Cc][Hh][Aa][Nn][Nn]?[Ee]?[Ll]?[_-]?[[:space:]]*([A-Za-z0-9]+) ]]; then
+        channel_id="Channel_${BASH_REMATCH[1]}"
+    elif [[ "$mod" =~ Locator:[[:space:]]*[A-Za-z0-9_-]*([A-Za-z])[0-9] ]]; then
+        channel_id="Channel_${BASH_REMATCH[1]}"
+    fi
+    [ -z "$channel_id" ] || channels+=("$channel_id")
+  done
+
+  local uniq_channels=($(printf "%s\n" "${channels[@]}" | sort -u))
+  local uniq_channel_count=${#uniq_channels[@]}
+
+  if [[ $populated_count -eq 1 ]]; then
+    echo "SINGLE-CHANNEL"
+  elif [[ $uniq_channel_count -ge 2 ]]; then
+    echo "DUAL/MULTI-CHANNELS"
+  elif [[ ${uniq_channel_count} -eq 1 && $populated_count -gt 1 ]]; then
+    echo "MISCONFIGURED SINGLE-CHANNEL"
+  else
+    echo "UNKNOWN"
+  fi
+}
+
+system_scan_check_network_access () {
+  local check_urls=(
+    http://ubuntu.com
+    https://apt.repos.intel.com
+  ) url
+  for url in ${check_urls[@]}; do
+    if ! curl --connect-timeout 1 --head $url > /dev/null 2>&1; then
+      echo "$url by $(id -un)"
+      return
+    fi
+    if ! ensure_sudo curl --connect-timeout 1 --head $url > /dev/null 2>&1; then
+      echo "$url by root"
+      return 
+    fi
+  done
+  echo "registry reachable"
+}
+
+system_scan_get_system_summary () {
+  local cpuinfo="$(grep -m1 "model name" /proc/cpuinfo | cut -f2 -d: | sed 's|^ ||g')"
+  local coreinfo="$(grep "processor" /proc/cpuinfo | wc -l) cores"
+  local meminfo="$(grep -m1 "MemTotal:" /proc/meminfo | cut -f2 -d: | tr -d ' ')"
+  [[ "$meminfo" != *kB ]] || meminfo="$(( ${meminfo%kB} / 1000000 ))GB"
+  [[ "$meminfo" != *mB ]] || meminfo="$(( ${meminfo%mB} / 1000 ))GB"
+  echo "$cpuinfo · $coreinfo · $meminfo RAM"
+}
+
+system_scan_check_docker () {
+  local docker_ver=$(docker version 2> /dev/null | awk '/Version:/{print$NF;exit}' || true)
+  local compose_ver=$(docker compose version 2> /dev/null | awk '{print$NF}' || true)
+  [ -z "$compose_ver" ] || docker_ver="$docker_ver + Compose $compose_ver"
+  echo "$docker_ver"
+}
+
+system_scan_check_cpu_instructions () {
+  local cpu_accels=("vnni" "avx2")
+  local detected=() missed=()
+  for accel in ${cpu_accels[@]}; do
+    if grep -q -F $accel /proc/cpuinfo > /dev/null; then
+      detected+=($accel)
+    else
+      missed+=($accel)
+    fi
+  done
+  if [ ${#missed[@]} -gt 0 ]; then
+    echo "Missing ${missed[*]^^}"
+  else
+    echo "${detected[*]^^}"
+  fi
+}
+
+system_scan_check_pci_device () {
+  local deviceid=$1
+  local default_name="$2"
+  local lspci_out="$(lspci -v -n 2> /dev/null | grep -A10 -F $deviceid)"
+  local subsystem="$(echo "$lspci_out" | grep -m1 Subsystem: | cut -f2- -d: | sed 's|^ ||g' || true)"
+  if [ -n "$subsystem" ]; then
+    local name="$(echo "$lspci_out" | grep -m1 DeviceName: | cut -f2- -d: | sed 's|^ ||g' || true)"
+    local driver="$(echo "$lspci_out" | awk '/Kernel driver in use:/{print$NF}' || true)"
+    local driver_str=""
+    if [ -n "$driver" ]; then
+      driver_str=$(modinfo $driver 2>/dev/null | awk '/vermagic:/{print$2}' || true)
+      [ -z "$driver_str" ] || driver_str=" · driver $driver $driver_str"
+    fi
+    echo "${name:-$default_name}$driver_str"
+  fi
+}
+

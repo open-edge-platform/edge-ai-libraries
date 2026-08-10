@@ -1,0 +1,16 @@
+
+# apt with apt update executed only once
+ensure_apt () {
+  case "$1" in
+  update)
+    # apt-get update got executed only once unless -y is specified
+    [ ! -e /dev/shm/apt_update ] || [[ " $* " != *" -y "* ]] || return 0
+    ensure_sudo DEBIAN_FRONTEND=noninteractive apt-get "$@"
+    touch /dev/shm/apt_update
+    ;;
+  *)
+    ensure_sudo DEBIAN_FRONTEND=noninteractive apt-get "$@"
+    ;;
+  esac
+}
+

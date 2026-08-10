@@ -1,0 +1,6 @@
+
+# completely remove dir
+ensure_rmdir () {
+  rm -rf "$1" 2> /dev/null || ensure_sudo rm -rf "$1"
+}
+

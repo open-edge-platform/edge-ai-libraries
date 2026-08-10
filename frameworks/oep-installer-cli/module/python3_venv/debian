@@ -1,0 +1,10 @@
+
+debian_05_install_python3_venv () {
+  if dpkg-query -L python3-venv > /dev/null 2>&1; then
+    echo "Python3-venv is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y python3-venv
+  fi
+}
+

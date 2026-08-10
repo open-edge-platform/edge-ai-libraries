@@ -1,0 +1,88 @@
+
+configure_nicu_warmer () {
+  workspace="$(ensure_project_path)/nicu-warmer"
+  version=50e02996223da20a7375aaf7919faf3f1d50ed5c
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  device_env="configs/res/all-$(ensure_select_device $*).env"
+  models=(
+    "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin"
+    "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml"
+    "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.bin?download=true person-detect-fp32.bin"
+    "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.xml?download=true person-detect-fp32.xml"
+    "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.bin?download=true latch-detect-fp32.bin"
+    "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.xml?download=true latch-detect-fp32.xml"
+    "https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5 models_rppg/mtts_can.hdf5"
+    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.xml action-recognition-0001-encoder.xml"
+    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.bin action-recognition-0001-encoder.bin"
+    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.xml action-recognition-0001-decoder.xml"
+    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.bin action-recognition-0001-decoder.bin"
+  )
+}
+
+verify_nicu_warmer () {
+  for model1 in "${models[@]}"; do
+    [ -e "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/${model1#* } ] || return 1
+  done
+  . "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/.env 2> /dev/null
+  docker inspect intel/hl-ai-nicu-backend:$TAG > /dev/null 2>&1
+}
+
+debian_90_profile_nicu_warmer () {
+  echo "git curl gawk docker"
+}
+
+debian_90_install_nicu_warmer () {
+  configure_nicu_warmer $*
+  if verify_nicu_warmer && [[ " $* " != *" --reset-nicu_warmer "* ]]; then
+    echo "NICU Warmer is already installed. Skipping" 1>&2
+    return
+  fi
+
+  # clone the repository
+  ensure_disk_space 160
+  ensure_git_clone "$workspace" $version $repository health-and-life-sciences-ai-suite/NICU-Warmer
+
+  # configure and optimization
+  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
+  sed -i 's|decodebin3 ! .*|decodebin3|' configs/res/all-gpu.env
+  sed -i -e 's|- *"8080:8080"||' -e 's|- *"5001:5001"||' -e 's|- *"9100:9000"||' -e 's|- *"1883:1883"||' -e 's|3001|8080|' Makefile docker-compose.yaml
+  sed -i -z 's| *ports:\n\([ ]*[^ -]\)|\1|g' docker-compose.yaml
+  echo "DEVICE_ENV=$device_env" >> .env 
+  echo "TAG=$(grep -E ^TAG Makefile | cut -f2 -d= | tr -d ' ')" >> .env 
+
+  # download models
+  mkdir -p models_rppg
+  for model1 in "${models[@]}"; do
+    [ -e ${model1#* } ] || curl -sSf -L --retry 5 --retry-all-errors --retry-delay 2 "${model1%% *}" -o ${model1#* }
+  done
+
+  # setup
+  make setup DEVICE_ENV=$device_env
+
+  # prepull images
+  docker compose --profile dlsps pull --ignore-buildable
+
+  # build images
+  docker compose --profile dlsps build --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
+
+  verify_nicu_warmer
+}
+
+debian_90_start_nicu_warmer () {
+  ensure_open_ports 8080 debian_90_stop_nicu_warmer
+  configure_nicu_warmer $*
+  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
+  make run DEVICE_ENV=$device_env
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):8080"
+}
+
+debian_90_stop_nicu_warmer () {
+  configure_nicu_warmer $*
+  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
+  make down
+}
+
+debian_90_remove_nicu_warmer () {
+  debian_90_stop_nicu_warmer || true
+  ensure_rmdir "$workspace"
+}

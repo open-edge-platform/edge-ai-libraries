@@ -1,0 +1,18 @@
+
+# create/destroy a tmpdir with trap to delete the folder on ERR
+ensure_tmpdir () {
+  # $1: op
+  # $2: varname in create or tmpdir in destroy
+  # $3: prefix in create
+  case "$1" in
+  create)
+    printf -v $2 "%s" $(mktemp -d /tmp/openedge-cli-${3:-}.XXXXXX)
+    trap "ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
+    ;;
+  destroy)
+    trap - ERR SIGINT EXIT
+    rm -rf "$2"
+    ;;
+  esac
+}
+

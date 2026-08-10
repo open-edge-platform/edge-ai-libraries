@@ -1,0 +1,6 @@
+
+debian_99_profile_manufacturing_ai_suite () {
+  # manufacturing ai suites cannot start at the same time
+  [ "$1" = "start" ] || echo "pre_system_scan core_types pallet_defect_detection pcb_anomaly_detection"
+}
+

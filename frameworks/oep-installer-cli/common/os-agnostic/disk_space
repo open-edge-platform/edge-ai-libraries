@@ -1,0 +1,12 @@
+
+# check disk space
+ensure_disk_space () {
+  local disk_size=$1            # in MB
+  local disk_path="${2:-$HOME}" # optional disk path
+  local disk_avail=$(df -h --output=avail "$disk_path" | awk '/[0-9]G/{a=$1*1000}/[0-9]M/{a=$1*1}/[0-9]K/{a=$1/1000}END{print int(a)}')
+  if [ "$disk_size" -gt "$disk_avail" ]; then
+    echo "Not enough disk space: required ${disk_size}MiB and available ${disk_avail}MiB"
+    return 3
+  fi
+}
+

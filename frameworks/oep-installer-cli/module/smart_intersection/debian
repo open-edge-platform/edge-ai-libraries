@@ -1,0 +1,70 @@
+
+configure_smart_intersection () {
+  workspace="$(ensure_project_path)/smart-intersection"
+  version=release-2026.1.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+verify_smart_intersection () {
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/1122north_h264 ]
+}
+
+debian_90_profile_smart_intersection () {
+  echo "git curl gawk jq"
+}
+
+debian_90_install_smart_intersection () {
+  configure_smart_intersection
+  if verify_smart_intersection && [[ " $* " != *" --reset-smart_intersection "* ]]; then
+    echo "Smart intersection is already installed. Skipping"
+    return
+  fi
+
+  # clone the repository
+  ensure_disk_space 1500
+  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+
+  # setup
+  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+  sed -i 's|sudo chown|#sudo chown|' smart_intersection/install.sh
+  ./install.sh smart-intersection $(ensure_ip)
+  verify_smart_intersection
+}
+
+debian_90_start_smart_intersection () {
+  configure_smart_intersection
+  ensure_open_ports 443 debian_90_stop_smart_intersection
+
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+
+  local device=$(ensure_select_device $*)
+  sed -i -e "s|DETECTION_DEVICE=.*|DETECTION_DEVICE=$device|" -e "s|CLASSIFICATION_DEVICE=.*|CLASSIFICATION_DEVICE=$device|" docker-compose.yml
+  [ -e smart-intersection/src/dlstreamer-pipeline-server/config.json.orig ] || cp -f smart-intersection/src/dlstreamer-pipeline-server/config.json smart-intersection/src/dlstreamer-pipeline-server/config.json.orig
+  case "$device" in
+  cpu)
+    jq -r '.config.pipelines[].name | select(endswith("-gpu") or endswith("-npu") | not)' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
+    ;;
+  npu)
+    jq -r '.config.pipelines[].name | select(endswith("-npu"))' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
+    ;;
+  *)
+    jq -r '.config.pipelines[].name | select(endswith("-gpu"))' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
+    ;;
+  esac
+
+  export SUPASS=$(cat smart-intersection/src/secrets/supass)
+  docker compose up -d 
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
+  echo "@@HIGHLIGHT username/password: admin/$SUPASS"
+}
+
+debian_90_stop_smart_intersection () {
+  configure_smart_intersection
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  docker compose -f compose-scenescape.yml down -v --remove-orphans
+}
+
+debian_90_remove_smart_intersection () {
+  debian_90_stop_smart_intersection || true
+  ensure_rmdir "$workspace"
+}

@@ -1,0 +1,10 @@
+
+debian_10_install_libgl1 () {
+  if dpkg-query -L libgl1 > /dev/null 2>&1; then
+    echo "Libgl1 is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y libgl1
+  fi
+}
+

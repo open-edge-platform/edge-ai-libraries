@@ -1,0 +1,6 @@
+
+# return the current machine IP address
+ensure_ip () {
+  ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
+}
+

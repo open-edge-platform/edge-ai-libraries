@@ -1,0 +1,6 @@
+
+ensure_hf_token () {
+  [ -n "$HF_TOKEN" ] || [ ! -r ~/.hf_token ] || HF_TOKEN=$(< ~/.hf_token)
+  echo "$HF_TOKEN"
+}
+

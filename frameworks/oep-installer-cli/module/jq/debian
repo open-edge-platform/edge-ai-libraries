@@ -1,0 +1,10 @@
+
+debian_05_install_jq () {
+  if dpkg-query -L jq > /dev/null 2>&1; then
+    echo "jq is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y jq
+  fi
+}
+
