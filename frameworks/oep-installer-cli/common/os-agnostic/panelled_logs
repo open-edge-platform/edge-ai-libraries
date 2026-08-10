@@ -74,7 +74,7 @@ HOLD_SEC=${HOLD_SEC:-3}
 CYCLE_END=${CYCLE_END:-rotate}
 REDRAW_MS=${REDRAW_MS:-50}
 TICK_SEC=${TICK_SEC:-0.5}
-NARROW_GLYPHS=${NARROW_GLYPHS:-1}
+NARROW_GLYPHS=${NARROW_GLYPHS:-0}
 
 readonly CSI_FINAL='[A-Za-z@\[\\\]^_`{|}~]'
 readonly SEP_W=3
@@ -101,6 +101,8 @@ declare -A WRAPC=()
 declare -A WRAPCN=()
 declare -A WRAPW=()
 declare -A LBLK=()
+declare -A LBLKC=()
+declare -A LHASHL=()
 declare -A LDIRTY=()
 declare -a LEFT_ROWS=()
 declare -a PREV=()
@@ -396,6 +398,9 @@ _wrap_into() {
     if [[ $t == *" "* && ${s:${#t}:1} != " " ]]; then
       brk=${t% *}
       if (( ${#brk} > 0 )); then t=$brk; _dwidth "$t"; tw=$REPLY; fi
+    elif [[ $t == */* && ${s:${#t}:1} != " " ]]; then
+      brk=${t%/*}/
+      if (( ${#brk} > 1 )); then t=$brk; _dwidth "$t"; tw=$REPLY; fi
     fi
     printf -v row '%s%*s' "$t" $(( w - tw )) ''
     WRAPPED+=("$row")
@@ -640,7 +645,9 @@ _build_block() {
   if (( REVIEW )) && [[ $name == "$SHOWN" && $st == fail ]]; then hdr+=" ${G_SEL}"; fi
   _fit_v $(( lw - 2 )) "$hdr" 1
   local buf="${SG_C}${SG_M} ${FITTED}${C_RESET}"
+  local hdrbuf=$buf
   if [[ -n ${HL[$name]:-} ]]; then
+    LHASHL[$name]=1
     local hpfx="  ${G_HL} "
     _dwidth "$hpfx"; local hpw=$REPLY
     local hw=$(( lw - hpw ))
@@ -648,7 +655,7 @@ _build_block() {
     while IFS= read -r src; do
       [[ -z $src ]] && continue
       WRAPPED=(); _wrap_into "$hw" "$src"
-      local first=1
+      local first=1 cont
       for wline in "${WRAPPED[@]}"; do
         if (( first )); then
           _fit_v "$lw" "${hpfx}${wline}" 1; first=0
@@ -660,6 +667,7 @@ _build_block() {
       done
     done <<<"${HL[$name]}"
   else
+    LHASH[$name]=""
     local -a tl=()
     [[ -n ${L1[$name]:-} ]] && tl+=("${L1[$name]}")
     [[ -n ${L2[$name]:-} ]] && tl+=("${L2[$name]}")
@@ -670,6 +678,7 @@ _build_block() {
     done
   fi
   LBLK[$name]=$buf
+  if [[ -n ${LHASHL[$name]:-} ]]; then LBLKC[$name]=$buf; else LBLKC[$name]=$hdrbuf; fi
   LDIRTY[$name]=""
 }
 
@@ -741,25 +750,39 @@ _draw() {
   done
 
   if (( ! LEFT_VALID )); then
-    local -a blk=() blk_st=()
+    local -a blk=() blk_st=() blk_hl=() blk_cm=()
     for name in "${ORDER[@]}"; do
       [[ -z $name ]] && continue
       [[ -n ${REPORT[$name]:-} ]] && continue
-      blk+=("${LBLK[$name]:-}"); blk_st+=("${STATUS[$name]:-}")
+      blk+=("${LBLK[$name]:-}");   blk_st+=("${STATUS[$name]:-}")
+      blk_cm+=("${LBLKC[$name]:-}"); blk_hl+=("${LHASHL[$name]:-}")
     done
     local total=0 nl
     for (( j = 0; j < ${#blk[@]}; j++ )); do
       nl=${blk[j]//[!$'\n']/}; total=$(( total + ${#nl} + 1 ))
     done
+    for (( j = 0; j < ${#blk[@]} && total > body; j++ )); do
+      [[ ${blk[j]} == "${blk_cm[j]}" ]] && continue
+      nl=${blk[j]//[!$'\n']/};    total=$(( total - ${#nl} - 1 ))
+      blk[j]=${blk_cm[j]}
+      nl=${blk[j]//[!$'\n']/};    total=$(( total + ${#nl} + 1 ))
+    done
     while (( total > body && ${#blk[@]} > 1 )); do
       local drop=-1
       for (( j = 0; j < ${#blk[@]}; j++ )); do
-        if [[ ${blk_st[j]} != fail ]]; then drop=$j; break; fi
+        if [[ ${blk_st[j]} != fail && -z ${blk_hl[j]} ]]; then drop=$j; break; fi
       done
+      if (( drop < 0 )); then
+        for (( j = 0; j < ${#blk[@]}; j++ )); do
+          if [[ ${blk_st[j]} != fail ]]; then drop=$j; break; fi
+        done
+      fi
       (( drop < 0 )) && drop=0
       nl=${blk[drop]//[!$'\n']/}; total=$(( total - ${#nl} - 1 ))
-      blk=("${blk[@]:0:drop}" "${blk[@]:drop+1}")
+      blk=("${blk[@]:0:drop}"       "${blk[@]:drop+1}")
       blk_st=("${blk_st[@]:0:drop}" "${blk_st[@]:drop+1}")
+      blk_hl=("${blk_hl[@]:0:drop}" "${blk_hl[@]:drop+1}")
+      blk_cm=("${blk_cm[@]:0:drop}" "${blk_cm[@]:drop+1}")
     done
     LEFT_ROWS=()
     for (( j = 0; j < ${#blk[@]}; j++ )); do
