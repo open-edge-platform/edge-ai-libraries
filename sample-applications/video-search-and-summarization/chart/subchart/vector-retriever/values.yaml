@@ -6,7 +6,7 @@ image:
   # Leave repository empty to auto-select `intel/vector-retriever-<backend>`
   # from `retriever.backend`.
   repository: ""
-  tag: "latest"
+  tag: "2026.2.0-rc1"
   pullPolicy: IfNotPresent
 
 retriever:

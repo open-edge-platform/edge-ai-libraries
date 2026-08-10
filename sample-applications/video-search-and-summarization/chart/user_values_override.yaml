@@ -8,7 +8,7 @@ global:
   #   tag: override the tag for the VSS images above.
   # Example:
   #   registry: "docker.io/intel"
-  #   tag: "latest"
+  #   tag: "2026.2.0-rc1"
   registry: ""
   tag: ""
   # pullPolicy overrides imagePullPolicy for the VSS service images above.
@@ -106,4 +106,3 @@ ovms:
 videoingestion:
   # odModelName defines the name of Object Detection Model
   odModelName: ""
-
