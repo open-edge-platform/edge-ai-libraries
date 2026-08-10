@@ -35,7 +35,7 @@ Before you begin, ensure that you have the following prerequisites:
       ```bash
       # OVMS Configuration
       export VOLUME_OVMS=<model-export-path-for-OVMS>  # For example, use: export VOLUME_OVMS="$PWD"
-      export LLM_MODEL="microsoft/Phi-3.5-mini-instruct"
+      export LLM_MODEL="microsoft/Phi-4"
 
       # Docker Image Registry Configuration
       export REGISTRY="intel/"

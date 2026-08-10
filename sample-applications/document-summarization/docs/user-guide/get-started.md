@@ -25,7 +25,7 @@ The sample application has been validated with a few models just to validate the
 
 | Model Server | Models Validated |
    |--------------|-------------------|
-   | `OVMS` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
+   | `OVMS` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-4`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
 
 Note: Limited validation was done on DeepSeek model.
 
@@ -65,7 +65,7 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
      ```bash
      # OVMS Configuration
      export VOLUME_OVMS=<model-export-path-for-OVMS>  # For example, use: export VOLUME_OVMS="$PWD"
-     export LLM_MODEL="microsoft/Phi-3.5-mini-instruct"
+     export LLM_MODEL="microsoft/Phi-4"
 
      # Docker Image Registry Configuration
      export REGISTRY="intel/"
