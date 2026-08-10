@@ -45,7 +45,7 @@ RUN apt-get update -y && apt-get install --no-install-recommends --fix-missing -
     && rm -rf /var/lib/apt/lists/*
 
 # Install poetry 2.4.1 - based on $POETRY_VERSION env var
-RUN set -o pipefail && curl -sSL https://install.python-poetry.org | python -
+RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
 
 WORKDIR $SETUP_PATH
 # Copy poetry configuration files

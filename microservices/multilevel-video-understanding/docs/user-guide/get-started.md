@@ -213,7 +213,6 @@ http://localhost:8192/docs
 3. Install dependencies:
 
    ```bash
-   poetry lock
    poetry install
    ```
 
