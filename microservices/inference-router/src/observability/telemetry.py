@@ -30,6 +30,9 @@ from .events import (
 logger = logging.getLogger("telemetry")
 
 
+# Note on long-running accumulation: every counter below is a Python ``int``,
+# which is arbitrary-precision and cannot overflow no matter how long the
+# process runs — so there is no numeric overflow to guard against here.
 @dataclass
 class ProviderTokenStats:
     """Per-provider token, latency, TTFT and TPOT counters."""
@@ -81,6 +84,18 @@ class TokenMetrics:
     total_tpot_ms: float = 0.0
     ttft_count: int = 0
     tpot_count: int = 0
+
+    # Token totals BEFORE router plugins (raw) and AFTER (compressed request
+    # forwarded to backend), system / tool / context / overall. Same tiktoken
+    # unit → the before/after delta is the actual compressor saving.
+    before_router_system_tokens: int = 0
+    before_router_tool_tokens: int = 0
+    before_router_context_tokens: int = 0
+    before_router_overall_tokens: int = 0
+    after_router_system_tokens: int = 0
+    after_router_tool_tokens: int = 0
+    after_router_context_tokens: int = 0
+    after_router_overall_tokens: int = 0
 
     def for_provider(self, name: str) -> ProviderTokenStats:
         """Return (creating if needed) the stats bucket for ``name``."""
@@ -480,6 +495,15 @@ class InMemoryTelemetry(Telemetry):
         for event in completed_events:
             metrics.total_requests += 1
 
+            metrics.before_router_system_tokens += event.before_router_system_tokens
+            metrics.before_router_tool_tokens += event.before_router_tool_tokens
+            metrics.before_router_context_tokens += event.before_router_context_tokens
+            metrics.before_router_overall_tokens += event.before_router_overall_tokens
+            metrics.after_router_system_tokens += event.after_router_system_tokens
+            metrics.after_router_tool_tokens += event.after_router_tool_tokens
+            metrics.after_router_context_tokens += event.after_router_context_tokens
+            metrics.after_router_overall_tokens += event.after_router_overall_tokens
+
             if event.total_latency_ms is not None:
                 metrics.total_latency_ms += event.total_latency_ms
             if event.ttft_ms is not None:
@@ -489,13 +513,15 @@ class InMemoryTelemetry(Telemetry):
                 metrics.total_tpot_ms += event.tpot_ms
                 metrics.tpot_count += 1
 
-            # Composite bucket key: ``"<model>@<provider>"`` so dashboards can
-            # tell which model handled the traffic when one provider exposes
-            # multiple models, or two providers share a model. Falls back to
-            # ``"<provider>"`` alone when the backend echoed no model id.
+            # Composite bucket key: ``"<provider>/<model>"`` (openclaw/OpenRouter
+            # style) so dashboards can tell which model handled the traffic when
+            # one provider exposes multiple models, or two providers share a
+            # model. Falls back to ``"<provider>"`` alone when the backend echoed
+            # no model id. Provider names are sanitized to exclude ``/`` (see
+            # ``src.config.loader.validate_name``), so the split stays unambiguous.
             provider_name = event.provider_name or "unknown"
             model_name = event.final_model or (event.models_used[0] if event.models_used else "")
-            bucket_key = f"{model_name}@{provider_name}" if model_name else provider_name
+            bucket_key = f"{provider_name}/{model_name}" if model_name else provider_name
             bucket = metrics.for_provider(bucket_key)
             bucket.requests += 1
             bucket.input_tokens += event.total_input_tokens

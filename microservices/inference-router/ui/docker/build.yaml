@@ -1,0 +1,6 @@
+services:
+  inference-router-ui:
+    image: ${REGISTRY:-opea}/inference-router-ui:${TAG:-latest}
+    build:
+      context: ../..
+      dockerfile: ./ui/docker/Dockerfile.ui
