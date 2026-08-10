@@ -1,0 +1,56 @@
+
+configure_openvino () {
+  key_url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+  deb_entry="deb https://apt.repos.intel.com/openvino ${ID}${VERSION_ID%.*} main"
+  version=2026.3.0
+  genai_venv="$(ensure_project_path)/openvino-genai"
+}
+
+debian_70_profile_openvino () {
+  echo "curl gpg python3_venv"
+}
+
+verify_openvino () {
+  dpkg-query -L openvino-${version} > /dev/null 2>&1 || return 1
+  [ -r "$genai_venv"/bin/activate ] || return 1
+  . "$genai_venv"/bin/activate
+  pip show openvino-genai | grep -q -F ${version} || return 1
+}
+
+debian_70_install_openvino () {
+  configure_openvino
+  
+  if verify_openvino; then
+    echo "openvino-${version} already installed. Skipping"
+  else
+    # product key
+    no_proxy= NO_PROXY= curl -fL $key_url -o /tmp/$(basename $key_url)
+    ensure_sudo gpg --yes --output /etc/apt/trusted.gpg.d/intel.gpg --dearmor /tmp/$(basename $key_url)
+
+    # deb entry
+    echo "$deb_entry" | ensure_sudo tee /etc/apt/sources.list.d/intel-openvino.list
+
+    # apt update
+    ensure_apt update -y
+
+    # install openvino
+    ensure_apt install --no-install-recommends -y openvino-$version
+
+    # install openvino-genai
+    python3 -m venv "${genai_venv}"
+    . "${genai_venv}"/bin/activate
+    pip install openvino-genai==${version}
+  fi
+}
+
+debian_70_remove_openvino () {
+  configure_openvino
+
+  if verify_openvino; then
+    ensure_apt remove -y openvino-${version}
+    ensure_rmdir "$genai_venv"
+  else
+    echo "openvino-${version} already removed. Skipping"
+  fi
+}
+

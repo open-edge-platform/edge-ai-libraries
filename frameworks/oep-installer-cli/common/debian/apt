@@ -1,15 +1,16 @@
 
 # apt with apt update executed only once
 ensure_apt () {
+  local no_proxy1=$(echo ${no_proxy:-$NO_PROXY} | tr ',' '\n' | grep -v -E '^[.]?intel.com$' | tr '\n' ',')
   case "$1" in
   update)
     # apt-get update got executed only once unless -y is specified
-    [ ! -e /dev/shm/apt_update ] || [[ " $* " != *" -y "* ]] || return 0
-    ensure_sudo DEBIAN_FRONTEND=noninteractive apt-get "$@"
+    [ ! -e /dev/shm/apt_update ] || [[ " $* " = *" -y "* ]] || return 0
+    ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
     touch /dev/shm/apt_update
     ;;
   *)
-    ensure_sudo DEBIAN_FRONTEND=noninteractive apt-get "$@"
+    ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy%%,} apt-get -y "$@"
     ;;
   esac
 }
