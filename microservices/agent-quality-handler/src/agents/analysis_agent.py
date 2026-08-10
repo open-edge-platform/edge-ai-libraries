@@ -17,6 +17,7 @@ def run(
     use_case_id: str,
     config: dict,
     prompts_dir: str | None = None,
+    policy_result: dict | None = None,
     min_confidence: float | None = None,
     min_id: int | None = None,
     max_id: int | None = None,
@@ -34,7 +35,7 @@ def run(
     )
 
     if llm_client.is_fallback_mode():
-        return _fallback_analysis(detections)
+        return _fallback_analysis(detections, policy_result)
 
     system_prompt = prompt_loader.get_section(use_case_id, "SYSTEM", prompts_dir)
     analysis_instructions = prompt_loader.get_section(use_case_id, "ANALYSIS", prompts_dir)
@@ -43,6 +44,10 @@ def run(
         f"{analysis_instructions}\n\n"
         f"Detection statistics:\n{json.dumps(_compact_stats(detections), indent=2)}"
     )
+    if policy_result:
+        user_message += (
+            f"\n\nPolicy output:\n{json.dumps(policy_result, indent=2)}"
+        )
 
     raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message, max_tokens=800)
     log.info("Analysis agent LLM response received (%d chars)", len(raw))
@@ -88,13 +93,18 @@ def _compact_stats(detections: list[dict]) -> dict:
     }
 
 
-def _fallback_analysis(detections: list[dict]) -> dict[str, Any]:
+def _fallback_analysis(
+    detections: list[dict], policy_result: dict | None = None
+) -> dict[str, Any]:
     from collections import Counter
 
     counts = Counter(d["label"] for d in detections)
-    return {
+    result: dict[str, Any] = {
         "mode": "fallback",
         "total_detections": len(detections),
         "by_class": [{"label": k, "count": v} for k, v in counts.most_common()],
         "high_confidence": [d for d in detections if d.get("confidence", 0) >= 0.8],
     }
+    if policy_result:
+        result["policy_context"] = policy_result
+    return result
