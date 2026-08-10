@@ -3,7 +3,7 @@
 
 services:
   aqh-agent:
-    image: ${REGISTRY:-intel/}agent-quality-handler:${TAG:-latest}
+    image: ${REGISTRY:-intel/}agent-quality-handler:${TAG:-2026.2.0-rc1}
     container_name: aqh-agent
     hostname: aqh-agent
     build:
@@ -198,7 +198,7 @@ services:
       start_period: 30s
 
   model-download:
-    image: intel/model-download:latest
+    image: intel/model-download:2026.2.0-rc1
     command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,openvino}
     container_name: aqh-model-download
     hostname: model-download

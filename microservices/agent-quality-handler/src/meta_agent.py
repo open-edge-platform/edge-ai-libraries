@@ -92,6 +92,7 @@ def _run_analysis(state: AgentState) -> AgentState:
             state["use_case_id"],
             state["config"],
             state.get("prompts_dir"),
+            state.get("policy_result") or None,
             None,
             state.get("min_id"),
             state.get("max_id"),

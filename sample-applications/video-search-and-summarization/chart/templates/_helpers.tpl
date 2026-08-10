@@ -124,3 +124,20 @@ When registry is empty the repository is used verbatim, preserving existing beha
 {{- printf "%s:%s" $repository $tag -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Resolve model-download tag with fallback order:
+1) global.modelDownload.image.tag
+2) global.tag
+3) latest
+*/}}
+{{- define "vss.modelDownloadTag" -}}
+{{- coalesce .Values.global.modelDownload.image.tag .Values.global.tag "latest" -}}
+{{- end -}}
+
+{{/*
+Compose model-download image reference from repository and resolved tag.
+*/}}
+{{- define "vss.modelDownloadImage" -}}
+{{- printf "%s:%s" .Values.global.modelDownload.image.repository (include "vss.modelDownloadTag" .) -}}
+{{- end -}}

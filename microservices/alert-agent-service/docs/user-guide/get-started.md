@@ -44,7 +44,7 @@ Export variables with the required configuration:
 export PORT=8000
 export LOG_LEVEL=INFO
 export REGISTRY="intel/"
-export TAG=latest
+export TAG=2026.2.0-rc1
 
 # ----- ADK / LLM -----
 export AGENT_MODE=true

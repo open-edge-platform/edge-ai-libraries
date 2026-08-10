@@ -42,7 +42,7 @@ endif
 
 # Image registry/tag, forwarded to scripts/run_service.sh (see docker/compose.yaml).
 REGISTRY ?= $(_env_REGISTRY)
-TAG ?= $(if $(_env_TAG),$(_env_TAG),latest)
+TAG ?= $(if $(_env_TAG),$(_env_TAG),2026.2.0-rc1)
 
 SERVICE_NAME := model-download
 

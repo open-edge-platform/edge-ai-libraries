@@ -1,5 +1,8 @@
 # Release Notes: Vector Retriever
 
+These release notes describe the Vector Retriever microservice. For sample-application
+integration context, see the [Video Search and Summarization release notes](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/video-search-and-summarization/release-notes.html).
+
 ## Version 2026.2.0
 
 **Release Date:** August 4, 2026
@@ -23,16 +26,3 @@
 - Refreshed the OpenAPI specification.
 - Resolved a copyleft licensing issue in the service dependencies.
 - Documentation fixes and corrections.
-
-For sample-application integration context, see the Video Search and Summarization release notes in the corresponding sample application documentation.
-
-## Supporting Resources
-
-- [Overview](Overview.md)
-- [Overview and Architecture](overview-architecture.md)
-- [Get Started](get-started.md)
-- [API Reference](api-reference.md)
-- [OpenAPI Specification](api-docs/openapi.yaml)
-- [How to Build from Source](how-to-build-from-source.md)
-- [System Requirements](system-requirements.md)
-- [Add New Retriever Backend](add-new-retriever-backend.md)

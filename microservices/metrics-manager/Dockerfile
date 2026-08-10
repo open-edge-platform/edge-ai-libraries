@@ -163,7 +163,12 @@ COPY uv.lock* ./
 RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 ENV UV_PROJECT_ENVIRONMENT="/opt/venv"
-RUN uv sync --no-group test --no-group dev --no-install-project
+ARG INSTALL_OPENVINO=false
+RUN if [ "$INSTALL_OPENVINO" = "true" ]; then \
+        uv sync --extra openvino --no-group test --no-group dev --no-install-project; \
+    else \
+        uv sync --no-group test --no-group dev --no-install-project; \
+    fi
 
 # -----------------------------------------------------------------------------
 # Stage 3: Test image
@@ -196,6 +201,8 @@ CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS production
 
+ARG INSTALL_OPENVINO=false
+
 # Proxy settings (passed from docker-compose build args)
 ARG http_proxy
 ARG HTTP_PROXY
@@ -223,10 +230,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install capabilities-required system tools.
 # - dmidecode: memory technology discovery (DDR4/DDR5/etc.)
 # - pciutils: lspci-based PCI/GPU branding discovery
+# - libva-utils: vainfo for runtime VAAPI codec capability detection
+# - util-linux: lsblk for storage device enumeration
+# - hwinfo: extended hardware information probing
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends dmidecode pciutils && \
+    packages="dmidecode pciutils util-linux hwinfo"; \
+    if [ "$INSTALL_OPENVINO" = "true" ]; then \
+        packages="$packages vainfo intel-media-va-driver"; \
+    fi; \
+    apt-get install --yes --no-install-recommends $packages && \
     pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
     (dpkg -s perl-base >/dev/null 2>&1 && dpkg --purge --force-remove-essential perl-base || true) && \
     apt-get clean && \
