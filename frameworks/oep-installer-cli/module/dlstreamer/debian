@@ -27,7 +27,7 @@ debian_75_install_dlstreamer () {
     echo "dlstreamer-${version} already installed. Skipping"
   else
     # remove old versions
-    ensure_apt autoremove -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
+    ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
 
     # product key
     sudo mkdir -p $(dirname $key_file)
@@ -62,7 +62,7 @@ debian_75_remove_dlstreamer () {
   configure_dlstreamer
 
   if verify_dlstreamer; then
-    ensure_apt autoremove -y intel-dlstreamer
+    ensure_apt autoremove -m -y intel-dlstreamer
     ensure_sudo -rf "$workspace"
   else
     echo "dlstreamer already removed. Skipping"

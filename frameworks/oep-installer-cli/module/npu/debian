@@ -1,0 +1,51 @@
+
+configure_npu () {
+  version=1.35.0
+  repository=https://api.github.com/repos/intel/linux-npu-driver
+  workspace="$(ensure_project_path)/npu"
+}
+
+verify_npu () {
+  (
+    set -o pipefail
+    dpkg-query -l intel-level-zero-npu intel-fw-npu intel-driver-compiler-npu 2> /dev/null | grep -q -F $version
+  )
+}
+
+debian_40_profile_npu () {
+  echo "libtbb12 jq libze1"
+}
+
+debian_40_install_npu () {
+  configure_npu $*
+
+  if verify_npu; then
+    echo "Npu drivers are already installed. Skipping..."
+  else
+    # remove legacies
+    ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+
+    mkdir -p "$workspace"
+    cd "$workspace"
+
+    # download deb packages
+    local packages=($(curl -sL $repository/releases/tags/v$version | jq -r '.assets[] | select(.name|endswith(".tar.gz")) | .browser_download_url'))
+    for p in ${packages[*]}; do
+      curl -sL "$p" | tar xfz -
+    done 
+
+    # install the debs
+    ensure_apt install -y $(find . -name "*.deb" -print)
+    ensure_sudo rm -rf "$workspace"
+  fi
+}
+
+debian_40_remove_npu () {
+  if verify_npu; then
+    ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+    ensure_sudo rm -rf "$workspace"
+  else
+    echo "npu drivers are removed already. Skipping"
+  fi
+}
+

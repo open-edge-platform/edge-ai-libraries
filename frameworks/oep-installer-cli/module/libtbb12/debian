@@ -1,0 +1,10 @@
+
+debian_05_install_libtbb12 () {
+  if dpkg-query -L libtbb12 > /dev/null 2>&1; then
+    echo "libtbb12 is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y libtbb12
+  fi
+}
+
