@@ -23,6 +23,6 @@ debian_30_install_edk () {
 
 debian_30_remove_edk () {
   configure_edk
-  ensure_rmdir "$workspace"
+  ensure_sudo rm -rf "$workspace"
 }
 

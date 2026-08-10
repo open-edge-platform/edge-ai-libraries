@@ -1,0 +1,66 @@
+
+configure_dlstreamer () {
+  key_url=https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg
+  key_file=/usr/share/keyrings/dls-archive-keyring.gpg
+  deb_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main"
+  repository=https://github.com/open-edge-platform/dlstreamer
+  workspace="$(ensure_project_path)/dlstreamer"
+  version=2026.1.0
+}
+
+debian_75_profile_dlstreamer () {
+  echo "git openvino"
+}
+
+verify_dlstreamer () {
+  dpkg-query -L intel-dlstreamer-${version} > /dev/null 2>&1 || return 1
+  [ -r "$workspace/venv/bin/activate" ] || return 1
+}
+
+debian_75_install_dlstreamer () {
+  configure_dlstreamer
+  
+  if verify_dlstreamer; then
+    echo "dlstreamer-${version} already installed. Skipping"
+  else
+    # remove old versions
+    ensure_apt autoremove -y intel-dlstreamer || true
+
+    # product key
+    sudo mkdir -p $(dirname $key_file)
+    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
+
+    # deb entry
+    echo "$deb_entry" | ensure_sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
+
+    # apt update
+    ensure_apt update -y
+
+    # install dlstreamer
+    ensure_apt install --no-install-recommends -y --allow-downgrade intel-dlstreamer=$version
+
+    # clone the dlstreamer repostiory
+    ensure_git "$workspace" release-v$version $repository
+
+    # create the dlstreamer venv
+    python3 -m venv "$workspace"/venv
+    . "$workspace"/venv/bin/activate
+    pip install -r nncf==3.0.0 ultralytics==8.4.57
+
+    # info
+    echo "@@HIGHLIGHT dlstreamer venv @$workspace/venv"
+    echo "@@HIGHLIGHT samples @$workspace/samples"
+  fi
+}
+
+debian_75_remove_dlstreamer () {
+  configure_dlstreamer
+
+  if verify_dlstreamer; then
+    ensure_apt autoremove -y intel-dlstreamer
+    ensure_sudo -rf "$workspace"
+  else
+    echo "dlstreamer already removed. Skipping"
+  fi
+}
+

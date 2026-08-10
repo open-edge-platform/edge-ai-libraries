@@ -110,5 +110,5 @@ debian_85_stop_video_search_and_summarization () {
 
 debian_85_remove_video_search_and_summarization () {
   debian_85_stop_video_search_and_summarization $* || true
-  ensure_rmdir "$workspace"
+  ensure_sudo rm -rf "$workspace"
 }

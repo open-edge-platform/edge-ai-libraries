@@ -13,7 +13,7 @@ main () {
   trap - EXIT
 
   local args=() cmd=""
-  for v in $*; do
+  for v in "$@"; do
     case $v in
     --help)
       local cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
@@ -46,7 +46,7 @@ main () {
 }
 
 act_extract_modules () {
-  local act_name=$1
+  local act_name=${1%%,*}
   local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_) profile)
   local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f4- -d_))
   local all_module_args=" ${all_modules[*]/#/--} "
@@ -60,13 +60,14 @@ act_extract_modules () {
 }
 
 act_extract_args () {
-  local act_name=$1
+  local act_name=${1%%,*}
   local module_name=$2
+  local act_modules="$3"
   local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_) profile)
   local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f4- -d_))
   local all_module_args=" ${all_modules[*]/#/--} "
   local args1=() args2=() i j
-  for ((i=3;i<=${#*};i++)); do
+  for ((i=4;i<=${#@};i++)); do
     if [[ " ${all_module_args} " = *" ${*:$i:1} "* ]]; then
       for ((j=++i;j<=${#*};j++)); do
         [[ " ${all_module_args} " != *" ${*:$j:1} "* ]] || break
@@ -77,12 +78,12 @@ act_extract_args () {
       args1+=(${*:$i:1})
     fi
   done
-  echo "${args1[*]} -- ${args2[*]}"
+  echo "${args1[*]} ${act_modules} -- ${args2[*]}"
 }
 
 act_find_deps () {
-  local act_name=$1 i=0
-  local modules=($(act_extract_modules $*))
+  local act_name=${1%%,*} i=0
+  local modules=($(act_extract_modules "$@"))
   local -A handlers=()
   while [ $i -lt ${#modules[*]} ]; do
     local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' ')
@@ -97,13 +98,13 @@ act_find_deps () {
 }
 
 act_helpper () {
-  local act_name=${1% *}
-  local act_text="${1#* }"
+  local act_name=${1%%,*}
+  local act_text="${1#*,}"
   local sort_options="$2"
   shift
   shift
 
-  if [[ "$*" = *"--help"* ]]; then
+  if [[ " $* " = *" --help "* ]]; then
     local components=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${act_name}_" | cut -f4- -d_))
     if [ ${#components[*]} -gt 0 ]; then
       if [ "${act_name}" = "install" ]; then
@@ -116,7 +117,7 @@ act_helpper () {
   fi
 
   # scan for dependencies
-  local handles=($(act_find_deps $act_name $*))
+  local handles=($(act_find_deps $act_name "$@"))
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
@@ -127,13 +128,13 @@ act_helpper () {
         name=$(echo $handler | cut -f4- -d_)
         if [[ " $* " = *" --dry-run "* ]]; then
           echo "@@COMP $name"
-          echo "Invoke $handler with $(act_extract_args $act_name $name $*)" 
+          echo "Invoke $handler with $(act_extract_args $act_name $name "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")" 
           echo "@@OK $name"
         else
           echo "@@COMP $name"
           (
             set -e
-            $handler $(act_extract_args $act_name $name $*) &
+            $handler $(act_extract_args $act_name $name "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@") &
             wait -n
           )
           local rc1=$?
@@ -150,7 +151,7 @@ act_helpper () {
         echo "@@REPORT SYSTEM SUMMARY"
         ${ID_LIKE}_10_${act_name}_pre_system_scan
       fi
-    } > >(ensure_panelled_logs $act_text) 2>&1
+    } > >(ensure_panelled_logs ${act_text//,/ }) 2>&1
     # wait for background processes
     wait
     return $rc
@@ -161,15 +162,15 @@ act_helpper () {
 }
 
 subcommand_install () {
-  act_helpper "install Installation Installing Installed" "" "$@"
+  act_helpper "install,Installation,Installing,Installed" "" "$@"
 }
 
 subcommand_remove () {
-  act_helpper "remove Removal Removing Removed" "-r" "$@"
+  act_helpper "remove,Removal,Removing,Removed" "-r" "$@"
 }
 
 subcommand_start () {
-  act_helpper "start Start Starting Started" "" "$@"
+  act_helpper "start,Start,Starting,Started" "" "$@"
 }
 
 subcommand_stop () {
@@ -177,7 +178,7 @@ subcommand_stop () {
 }
 
 subcommand_list () {
-  [[ "$*" != *"--help"* ]] || return
+  [[ " $* " != *" --help "* ]] || return
 
   local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_))
   local all_profiles=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f3 -d' '))
@@ -218,7 +219,7 @@ subcommand_list () {
 subcommand_bootstrap () {
   local mydir="$(dirname "$(readlink -f "$0")")"
 
-  if [[ "$*" = "--help" ]]; then
+  if [[ " $* " = *" --help "* ]]; then
     echo "bootstrap options:"
     echo "  --install=<name>       set default installation component|profile."
     echo "  --start=<name>         set default start component|profile."
@@ -264,9 +265,9 @@ subcommand_bootstrap () {
   if [ ${#scripts[@]} -gt 0 ]; then
     local install_modules=() start_modules=()
     local rendered="$(dirname "$0")/rendered/openedge-cli"
-    if [[ "$*" != *"--dry-run"* ]]; then
+    if [[ " $* " != *" --dry-run "* ]]; then
       sed '/^#### COLLECTION OF MODULES ####/q' "$0" > "$rendered"
-      for m in $*; do
+      for m in "$@"; do
         case "$m" in
         --install=*)
           install_modules+=(${m#*=})
@@ -283,8 +284,8 @@ subcommand_bootstrap () {
     fi
     for script in "${!scripts[@]}"; do
       echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
-      [[ "$*" = *"--dry-run"* ]] || cat "$script" >> "$rendered" 2> /dev/null || true
-      [[ "$*" = *"--dry-run"* ]] || cat "${script%/*}/os-agnostic" 2> /dev/null >> "$rendered" || true
+      [[ " $* " = *" --dry-run "* ]] || cat "$script" >> "$rendered" 2> /dev/null || true
+      [[ " $* " = *" --dry-run "* ]] || cat "${script%/*}/os-agnostic" 2> /dev/null >> "$rendered" || true
     done
     [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]} || exit" >> "$rendered"
     [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]} || exit" >> "$rendered"

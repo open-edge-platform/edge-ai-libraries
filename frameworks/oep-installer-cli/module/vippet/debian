@@ -37,5 +37,5 @@ debian_90_stop_vippet () {
 
 debian_90_remove_vippet () {
   configure_vippet
-  ensure_rmdir "$workspace"
+  ensure_sudo rm -rf "$workspace"
 }

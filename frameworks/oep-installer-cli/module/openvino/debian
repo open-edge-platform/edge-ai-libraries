@@ -3,7 +3,7 @@ configure_openvino () {
   key_url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
   key_file=/usr/share/keyrings/intel-gpg-archive-keyring.gpg
   deb_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/openvino ${ID}${VERSION_ID%.*} main"
-  version=2026.3.0
+  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.1.0 || echo 2026.3.0)
   openvino_venv="$(ensure_project_path)/openvino-genai"
 }
 
@@ -19,14 +19,17 @@ verify_openvino () {
 }
 
 debian_70_install_openvino () {
-  configure_openvino
+  configure_openvino $*
   
   if verify_openvino; then
     echo "openvino-${version} already installed. Skipping"
   else
+    # remove old versions
+    ensure_apt autoremove -y openvino-$version openvino || true
+
     # product key
     ensure_sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file
+    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
 
     # deb entry
     echo "$deb_entry" | ensure_sudo tee /etc/apt/sources.list.d/intel-openvino.list
@@ -48,11 +51,11 @@ debian_70_install_openvino () {
 }
 
 debian_70_remove_openvino () {
-  configure_openvino
+  configure_openvino $*
 
   if verify_openvino; then
-    ensure_apt autoremove -y openvino-${version}
-    ensure_rmdir "$openvino_venv"
+    ensure_apt autoremove -y openvino-${version} openvino || true
+    ensure_sudo rm -rf "$openvino_venv" /etc/apt/sources.list.d/intel-openvino.list
   else
     echo "openvino-${version} already removed. Skipping"
   fi

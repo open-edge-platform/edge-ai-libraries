@@ -63,6 +63,6 @@ EOF
 
 debian_90_remove_loss_prevention () {
   configure_loss_prevention
-  ensure_rmdir "$workspace"
+  ensure_sudo rm -rf "$workspace"
 }
 
