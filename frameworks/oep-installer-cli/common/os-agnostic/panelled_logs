@@ -670,7 +670,7 @@ _build_block() {
       done
     done <<<"${HL[$name]}"
   else
-    LHASH[$name]=""
+    LHASHL[$name]=""
     local -a tl=()
     [[ -n ${L1[$name]:-} ]] && tl+=("${L1[$name]}")
     [[ -n ${L2[$name]:-} ]] && tl+=("${L2[$name]}")
@@ -753,12 +753,11 @@ _draw() {
   done
 
   if (( ! LEFT_VALID )); then
-    local -a blk=() blk_st=() blk_hl=() blk_cm=()
+    local -a blk=() blk_st=() blk_nm=()
     for name in "${ORDER[@]}"; do
       [[ -z $name ]] && continue
       [[ -n ${REPORT[$name]:-} ]] && continue
-      blk+=("${LBLK[$name]:-}");   blk_st+=("${STATUS[$name]:-}")
-      blk_cm+=("${LBLKC[$name]:-}"); blk_hl+=("${LHASHL[$name]:-}")
+      blk+=("${LBLK[$name]:-}"); blk_st+=("${STATUS[$name]:-}"); blk_nm+=("$name")
     done
     local total=0 nl
     for (( j = 0; j < ${#blk[@]}; j++ )); do
@@ -791,6 +790,24 @@ _draw() {
     for (( j = 0; j < ${#blk[@]}; j++ )); do
       while IFS= read -r src; do LEFT_ROWS+=("$src"); done <<<"${blk[j]}"
     done
+    local nrows=${#LEFT_ROWS[@]}
+    if (( nrows > body )); then
+      local wstart=$(( nrows - body ))
+      # during review, scroll so the cycled failure's block is visible
+      if (( REVIEW )) && [[ -n $SHOWN ]]; then
+        local off=0 hit=-1
+        for (( j = 0; j < ${#blk[@]}; j++ )); do
+          if [[ ${blk_nm[j]} == "$SHOWN" ]]; then hit=$off; break; fi
+          nl=${blk[j]//[!$'\n']/}; off=$(( off + ${#nl} + 1 ))
+        done
+        if (( hit >= 0 )); then
+          wstart=$hit
+          (( wstart > nrows - body )) && wstart=$(( nrows - body ))
+          (( wstart < 0 )) && wstart=0
+        fi
+      fi
+      LEFT_ROWS=("${LEFT_ROWS[@]:wstart:body}")
+    fi
     LEFT_VALID=1
   fi
 
