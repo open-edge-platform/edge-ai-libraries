@@ -225,6 +225,9 @@ const DemoMode = () => {
   const [densityJobId, setDensityJobId] = useState<string | null>(null);
   const handleStreamRateChange = useStreamRateChange(setPipelineSelections);
   const [performanceJobId, setPerformanceJobId] = useState<string | null>(null);
+  const [activeTest, setActiveTest] = useState<
+    "performance-test" | "density-test"
+  >("performance-test");
 
   useActiveJobSync(
     activeTest === "performance-test" ? performanceJobId : densityJobId,
@@ -272,9 +275,6 @@ const DemoMode = () => {
   );
   const [openConfigSection, setOpenConfigSection] =
     useState<string>("pipeline-config");
-  const [activeTest, setActiveTest] = useState<
-    "performance-test" | "density-test"
-  >("performance-test");
   const [lastRunTest, setLastRunTest] = useState<
     "performance-test" | "density-test"
   >("performance-test");
@@ -2232,7 +2232,7 @@ const DemoMode = () => {
                                   <div className="space-y-3">
                                     {/* Participation rate per pipeline */}
                                     <div className="space-y-2">
-                                      {pipelineSelections.map((selection) => {
+                                      {pipelineSelections.map((selection, index) => {
                                         const pipeline = pipelines.find(
                                           (p) => p.id === selection.pipelineId,
                                         );
@@ -2258,7 +2258,7 @@ const DemoMode = () => {
                                               value={selection.stream_rate}
                                               onChange={(val) =>
                                                 handleStreamRateChange(
-                                                  selection.pipelineId,
+                                                  index,
                                                   val,
                                                 )
                                               }
