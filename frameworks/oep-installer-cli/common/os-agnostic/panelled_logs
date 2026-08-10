@@ -74,7 +74,7 @@ HOLD_SEC=${HOLD_SEC:-3}
 CYCLE_END=${CYCLE_END:-rotate}
 REDRAW_MS=${REDRAW_MS:-50}
 TICK_SEC=${TICK_SEC:-0.5}
-NARROW_GLYPHS=${NARROW_GLYPHS:-0}
+NARROW_GLYPHS=${NARROW_GLYPHS:-1}
 
 readonly CSI_FINAL='[A-Za-z@\[\\\]^_`{|}~]'
 readonly SEP_W=3
@@ -554,6 +554,8 @@ _push_highlight() {
   [[ -z $c ]] && return
   HL[$c]+="${text}"$'\n'
   HCNT[$c]=$(( ${HCNT[$c]:-0} + 1 ))
+  _dwidth "  ${G_HL} ${text}"
+  (( REPLY > WIDEST )) && WIDEST=$REPLY   # capped later by LEFT_MAX_PCT
   if (( ${HCNT[$c]:-0} > MAX_HL )); then
     HL[$c]=$(printf '%s' "${HL[$c]}" | tail -n "$MAX_HL")$'\n'
     HCNT[$c]=$MAX_HL
@@ -639,11 +641,21 @@ _build_block() {
   _fit_v $(( lw - 2 )) "$hdr" 1
   local buf="${SG_C}${SG_M} ${FITTED}${C_RESET}"
   if [[ -n ${HL[$name]:-} ]]; then
+    local hpfx="  ${G_HL} "
+    _dwidth "$hpfx"; local hpw=$REPLY
+    local hw=$(( lw - hpw ))
+    (( hw < 1 )) && hw=1
     while IFS= read -r src; do
       [[ -z $src ]] && continue
-      WRAPPED=(); _wrap_into $(( lw - 4 )) "$src"
+      WRAPPED=(); _wrap_into "$hw" "$src"
+      local first=1
       for wline in "${WRAPPED[@]}"; do
-        _fit_v "$lw" "  ${G_HL} ${wline}" 1
+        if (( first )); then
+          _fit_v "$lw" "${hpfx}${wline}" 1; first=0
+        else
+          printf -v cont '%*s' "$hpw" ''
+          _fit_v "$lw" "${cont}${wline}" 1
+        fi
         buf+=$'\n'"${C_CYAN}${FITTED}${C_RESET}"
       done
     done <<<"${HL[$name]}"
