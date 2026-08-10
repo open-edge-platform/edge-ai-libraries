@@ -116,10 +116,6 @@ README.md           @xwu2intel
 /microservices/visual-data-preparation-for-retrieval/docs/      @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
 /microservices/visual-data-preparation-for-retrieval/README.md  @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/vlm-openvino-serving/                            @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
-/microservices/vlm-openvino-serving/docs/                       @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
-/microservices/vlm-openvino-serving/README.md                   @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
-
 
 # ============================================================================
 # Sample Applications
