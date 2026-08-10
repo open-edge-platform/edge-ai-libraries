@@ -172,9 +172,7 @@ export const DensityClassicPipelineSelection = ({
                 </label>
                 <ParticipationSlider
                   value={selection.stream_rate}
-                  onChange={(val) =>
-                    handleStreamRateChange(selection.pipelineId, val)
-                  }
+                  onChange={(val) => handleStreamRateChange(index, val)}
                   min={0}
                   max={100}
                   disabled={disabled}
