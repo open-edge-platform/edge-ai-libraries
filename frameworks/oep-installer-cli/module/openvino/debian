@@ -2,7 +2,8 @@
 configure_openvino () {
   key_url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
   key_file=/usr/share/keyrings/intel-gpg-archive-keyring.gpg
-  deb_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/openvino ${ID}${VERSION_ID%.*} main"
+  apt_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/openvino ${ID}${VERSION_ID%.*} main"
+  apt_file=/etc/apt/sources.list.d/intel-openvino.list
   version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.1.0 || echo 2026.3.0)
   openvino_venv="$(ensure_project_path)/openvino-genai"
 }
@@ -32,7 +33,7 @@ debian_70_install_openvino () {
     no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
 
     # deb entry
-    echo "$deb_entry" | ensure_sudo tee /etc/apt/sources.list.d/intel-openvino.list
+    echo "$apt_entry" | ensure_sudo tee $apt_file > /dev/null
 
     # apt update
     ensure_apt update -y

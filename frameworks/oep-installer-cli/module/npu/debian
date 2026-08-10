@@ -6,6 +6,7 @@ configure_npu () {
 }
 
 verify_npu () {
+  [ -b /dev/accel/accel0 ]
   (
     set -o pipefail
     dpkg-query -l intel-level-zero-npu intel-fw-npu intel-driver-compiler-npu 2> /dev/null | grep -q -F $version

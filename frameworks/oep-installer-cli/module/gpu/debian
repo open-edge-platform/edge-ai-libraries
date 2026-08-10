@@ -1,0 +1,53 @@
+
+configure_gpu () {
+  key_url="https://repositories.intel.com/gpu/intel-graphics.key"
+  key_file="/usr/share/keyrings/intel-graphics.gpg"
+  apt_entry="deb [signed-by=$key_file] https://repositories.intel.com/gpu/${ID} ${VERSION_CODENAME} unified"
+  apt_file="/etc/apt/sources.list.d/intel-graphics.list"
+  version=26.2.2
+}
+
+verify_gpu () {
+  [ -b /dev/render/renderD128 ]
+  (
+    set -o pipefail
+    dpkg-query -l intel-media-va-driver-non-free 2> /dev/null | grep -q -F $version
+  )
+}
+
+debian_40_profile_gpu () {
+  echo "curl gpg libze1"
+}
+
+debian_40_install_gpu () {
+  configure_gpu $*
+
+  if verify_gpu && [[ " $* " != *" --reset-gpu "* ]]; then
+    echo "Gpu drivers are already installed. Skipping..."
+  else
+    # remove legacies
+    debian_40_remove_gpu || true
+
+    # product key
+    ensure_sudo mkdir -p $(dirname $key_file)
+    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
+
+    # deb entry
+    echo "$apt_entry" | ensure_sudo tee $apt_file > /dev/null
+
+    # apt update
+    ensure_apt update -y
+
+    # install the packages
+    ensure_apt install --no-install-recommends -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd
+  fi
+}
+
+debian_40_remove_gpu () {
+  if verify_gpu; then
+    ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
+  else
+    echo "Gpu drivers are removed already. Skipping"
+  fi
+}
+
