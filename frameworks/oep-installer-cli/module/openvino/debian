@@ -25,7 +25,7 @@ debian_70_install_openvino () {
     echo "openvino-${version} already installed. Skipping"
   else
     # remove old versions
-    ensure_apt autoremove -y openvino-$version openvino || true
+    ensure_apt autoremove -y $(dpkg -l | grep openvino | awk '{print$2}') || true
 
     # product key
     ensure_sudo mkdir -p $(dirname $key_file)
@@ -45,7 +45,7 @@ debian_70_install_openvino () {
     . "${openvino_venv}"/bin/activate
     pip install openvino-genai==${version}
 
-    echo "@@HIGHLIGHT openvino installed at $workspace"
+    echo "@@HIGHLIGHT openvino-genai installed at $workspace"
     echo "@@HIGHLIGHT explore samples at /usr/share/openvino"
   fi
 }

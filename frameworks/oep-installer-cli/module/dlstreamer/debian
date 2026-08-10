@@ -24,7 +24,7 @@ debian_75_install_dlstreamer () {
     echo "dlstreamer-${version} already installed. Skipping"
   else
     # remove old versions
-    ensure_apt autoremove -y intel-dlstreamer || true
+    ensure_apt autoremove -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
 
     # product key
     sudo mkdir -p $(dirname $key_file)
@@ -37,10 +37,10 @@ debian_75_install_dlstreamer () {
     ensure_apt update -y
 
     # install dlstreamer
-    ensure_apt install --no-install-recommends -y --allow-downgrade intel-dlstreamer=$version
+    ensure_apt install --no-install-recommends -y intel-dlstreamer=$version
 
     # clone the dlstreamer repostiory
-    ensure_git "$workspace" release-v$version $repository
+    ensure_git_clone "$workspace" release-v$version $repository
 
     # create the dlstreamer venv
     python3 -m venv "$workspace"/venv
@@ -50,6 +50,7 @@ debian_75_install_dlstreamer () {
     # info
     echo "@@HIGHLIGHT dlstreamer venv @$workspace/venv"
     echo "@@HIGHLIGHT samples @$workspace/samples"
+    echo "@@HIGHLIGHT env @$workspace/scripts/setup_dls_env.sh"
   fi
 }
 

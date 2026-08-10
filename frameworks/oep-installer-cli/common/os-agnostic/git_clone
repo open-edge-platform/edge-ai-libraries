@@ -7,7 +7,7 @@ ensure_git_clone () {
   local version="$2"
   local repository="$3"
 
-  ensure_rmdir "$workspace"
+  ensure_sudo rm -rf "$workspace"
   mkdir -p "$(dirname "$workspace")"
   if [ ${#@} -ge 4 ]; then
     # sparse checkout
