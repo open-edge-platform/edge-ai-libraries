@@ -200,6 +200,32 @@ _IMAGE_SET_VA_DECODERS: dict[str, list[str]] = {
     "tiff": [],
 }
 
+# Pre-process backends that make an inference element attach to a VA display.
+VA_PREPROC_BACKENDS = {
+    "va",
+    "va-surface-sharing",
+    "vaapi",
+    "vaapi-surface-sharing",
+}
+
+
+def _required_va_render_node(device: str) -> Optional[int]:
+    """Render node an inference element pins its VA display to.
+
+    Returns the index relative to ``/dev/dri/renderD128``, or None when the element
+    adopts the display created upstream (bare ``GPU``) and so fits any pipeline.
+    """
+    normalized = (device or "").upper()
+    if normalized == "GPU":
+        return None
+
+    family, index = split_device_target(normalized)
+    if family == "GPU":
+        return index
+
+    # CPU and NPU never inspect the upstream context; they open the first render node.
+    return 0
+
 
 def _image_set_caps_for_extension(extension: str) -> str:
     """
@@ -3403,6 +3429,59 @@ class Graph:
                     f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
                     f"but found '{next_type}' instead"
                 )
+
+    def validate_inference_devices_share_va_display(self) -> None:
+        """Validate that every VA-accelerated inference element can reach the frames.
+
+        Decoded frames live in the memory of one GPU render node, and DL Streamer
+        cannot hand a VA surface from one physical device to another. Each inference
+        element pins its VA display as follows (see ``createVaDisplay`` in DL Streamer's
+        ``inference_impl.cpp``):
+
+        * ``device=GPU.N`` opens ``/dev/dri/renderD(128+N)``
+        * ``device=GPU`` adopts whichever display the upstream decoder created
+        * ``device=NPU`` / ``device=CPU`` always open ``/dev/dri/renderD128``
+
+        So an NPU element only composes with ``GPU``/``GPU.0``, and two different
+        indexed GPUs never compose. Both cases otherwise fail mid-run with an opaque
+        ``vaCreateSurfaces2 ... resource allocation failed``, so reject them up front.
+
+        Raises:
+            ValueError: If a VA-accelerated inference element requires a different
+                render node than the one the pipeline decodes into.
+        """
+        chain_device = self.get_target_device()
+        chain_family, chain_index = split_device_target(chain_device)
+
+        # A CPU-decoded pipeline carries system memory, so there is no VA display to share.
+        if chain_family not in {"GPU", "NPU"}:
+            return
+
+        chain_render_node = chain_index or 0
+
+        for node in self.nodes:
+            if not node.type.startswith("gva"):
+                continue
+            if node.data.get("pre-process-backend") not in VA_PREPROC_BACKENDS:
+                continue
+
+            device = str(node.data.get("device", "")).upper()
+            required_render_node = _required_va_render_node(device)
+            if (
+                required_render_node is None
+                or required_render_node == chain_render_node
+            ):
+                continue
+
+            raise ValueError(
+                f"Cannot run '{node.type}' (node '{node.id}') on {device}: this pipeline "
+                f"decodes into {chain_device.upper()} memory (/dev/dri/renderD{128 + chain_render_node}), "
+                f"while {device} inference needs /dev/dri/renderD{128 + required_render_node}. "
+                "Decoded video frames stay on the accelerator that produced them and cannot be "
+                "moved to another one. Please set every inference element to the same GPU. "
+                "NPU and CPU inference always use the first GPU, so they can only be paired "
+                "with GPU or GPU.0."
+            )
 
     @staticmethod
     def _build_v4l2_caps_node(
