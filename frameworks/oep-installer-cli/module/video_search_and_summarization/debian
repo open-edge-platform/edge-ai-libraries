@@ -75,7 +75,7 @@ debian_85_install_video_search_and_summarization () {
   fi
 
   # clone the repository
-  ensure_disk_space 300
+  ensure_disk_space 8000
   ensure_open_ports "$used_ports" return 3
   ensure_git_clone "$workspace" $version $repository sample-applications/video-search-and-summarization
 
