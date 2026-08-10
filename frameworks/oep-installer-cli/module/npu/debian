@@ -19,7 +19,7 @@ debian_40_profile_npu () {
 debian_40_install_npu () {
   configure_npu $*
 
-  if verify_npu; then
+  if verify_npu && [[ " $* " != *" --reset-npu "* ]]; then
     echo "Npu drivers are already installed. Skipping..."
   else
     # remove legacies
@@ -29,7 +29,9 @@ debian_40_install_npu () {
     cd "$workspace"
 
     # download deb packages
-    local packages=($(curl -sL $repository/releases/tags/v$version | jq -r '.assets[] | select(.name|endswith(".tar.gz")) | .browser_download_url'))
+    local packages=($(curl -sL $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url"))
+    [ ${#packages[*]} -gt 0 ] || return 3
+
     for p in ${packages[*]}; do
       curl -sL "$p" | tar xfz -
     done 

@@ -23,7 +23,7 @@ verify_dlstreamer () {
 debian_75_install_dlstreamer () {
   configure_dlstreamer
   
-  if verify_dlstreamer; then
+  if verify_dlstreamer && [[ " $* " != *" --reset-dlstreamer "* ]]; then
     echo "dlstreamer-${version} already installed. Skipping"
   else
     # remove old versions

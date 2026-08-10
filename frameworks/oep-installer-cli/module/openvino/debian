@@ -21,7 +21,7 @@ verify_openvino () {
 debian_70_install_openvino () {
   configure_openvino $*
   
-  if verify_openvino; then
+  if verify_openvino && [[ " $* " != *" --reset-openvino "* ]]; then
     echo "openvino-${version} already installed. Skipping"
   else
     # remove old versions
