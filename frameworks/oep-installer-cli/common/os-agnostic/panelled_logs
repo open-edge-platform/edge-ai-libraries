@@ -199,7 +199,7 @@ _cellw() {
   elif (( cp >= 0x1F300 && cp <= 0x1FAFF )); then w=2
   elif (( cp >= 0x20000 && cp <= 0x3FFFD )); then w=2
   elif (( cp == 0x26A0 || cp == 0x26D4 || cp == 0x2757 || cp == 0x2753 )); then w=2
-  elif (( cp >= 0x25B6 && cp <= 0x25C0 )); then w=2
+  elif (( cp >= 0x25B6 && cp <= 0x25C0 )); then w=1
   elif (( cp >= 0x2B00 && cp <= 0x2BFF )); then w=2
   elif (( cp >= 0x0300 && cp <= 0x036F )); then w=0
   fi
@@ -398,9 +398,12 @@ _wrap_into() {
     if [[ $t == *" "* && ${s:${#t}:1} != " " ]]; then
       brk=${t% *}
       if (( ${#brk} > 0 )); then t=$brk; _dwidth "$t"; tw=$REPLY; fi
-    elif [[ $t == */* && ${s:${#t}:1} != " " ]]; then
-      brk=${t%/*}/
-      if (( ${#brk} > 1 )); then t=$brk; _dwidth "$t"; tw=$REPLY; fi
+    elif [[ $t == *"/"* && ${s:${#t}:1} != " " ]]; then
+      brk=${t%/*}                       # everything before the last '/'
+      brk=${t:0:${#brk}+1}              # ...plus that '/'
+      if (( ${#brk} > 1 && ${#brk} < ${#t} )); then
+        t=$brk; _dwidth "$t"; tw=$REPLY
+      fi
     fi
     printf -v row '%s%*s' "$t" $(( w - tw )) ''
     WRAPPED+=("$row")
