@@ -9,6 +9,7 @@
 VERSION := $(shell cat VERSION 2>/dev/null | tr -d '[:space:]')
 TAG     ?= $(VERSION)
 REGISTRY ?=
+INSTALL_OPENVINO ?= false
 
 # Helm packaging configuration. Charts are pushed to the same OCI path as
 # the container image; the chart version carries a `-helm` suffix so the
@@ -21,6 +22,7 @@ HELM_PACKAGE_DIR   := dist/helm
 
 export TAG
 export REGISTRY
+export INSTALL_OPENVINO
 
 .PHONY: help version build build-test up down logs test clean bump \
         helm-lint helm-template helm-package helm-push generate-helm
@@ -28,7 +30,8 @@ export REGISTRY
 help:
 	@echo "Metrics Manager - available targets:"
 	@echo "  make version            Print the version read from VERSION"
-	@echo "  make build              Build the metrics-manager image tagged $(REGISTRY)metrics-manager:$(TAG)"
+	@echo "  make build              Build the slim metrics-manager image tagged $(REGISTRY)metrics-manager:$(TAG)"
+	@echo "  INSTALL_OPENVINO=true make build  Build the extended image with OpenVINO and Intel media VA drivers"
 	@echo "  make build-test         Build the metrics-manager-test image"
 	@echo "  make up                 Start the stack (docker compose up -d)"
 	@echo "  make down               Stop the stack"

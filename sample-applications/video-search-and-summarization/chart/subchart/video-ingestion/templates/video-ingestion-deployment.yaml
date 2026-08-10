@@ -30,7 +30,7 @@ spec:
         # REST API. The script lives in the vss-model-download-helper ConfigMap
         # (chart/templates/model-download-helper.yaml) to keep this template clean.
         - name: od-model-downloader
-          image: "{{ .Values.global.modelDownload.image.repository }}:{{ .Values.global.modelDownload.image.tag }}"
+          image: "{{ include "vss.modelDownloadImage" . }}"
           imagePullPolicy: {{ .Values.global.modelDownload.image.pullPolicy }}
           command: ["/bin/bash", "-c"]
           args:
