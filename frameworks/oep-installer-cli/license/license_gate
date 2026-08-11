@@ -526,25 +526,38 @@ class Gate(object):
                 break
             y = y0 + 1 + r
             seen = fl[si]
+
+            pctread = 0
+            if not seen:
+                s, e = self.doc.starts[si], self.doc.ends[si]
+                span = e - s + 1
+                if span > 0:
+                    pctread = int(100.0 * sum(self.vis[s:e + 1]) / span)
+                    # never round a partial read up to a misleading 100
+                    if pctread >= 100:
+                        pctread = 99
+            show_pct = (not seen) and pctread > 0
+
             caret = G_CUR if si == here else " "
             body = "%s%d. %s" % (caret, si + 1, self.lic[si].display())
-            if len(body) > lbl_w:
-                body = body[: lbl_w - 1] + G_ELL
+            eff_w = lbl_w - 4 if show_pct else lbl_w
+            if len(body) > eff_w: 
+                body = body[: eff_w - 1] + G_ELL
             if active and si == self.tsel:
                 a = curses.A_REVERSE
             elif si == here:
                 a = curses.A_BOLD
             else:
                 a = curses.A_NORMAL if seen else curses.A_DIM
-            self.put(y, x0 + 1, " " + body.ljust(lbl_w), a)
+            self.put(y, x0 + 1, " " + body.ljust(eff_w), a)
 
-            pctread = 0
-            if not seen:
-                s, e = self.doc.starts[si], self.doc.ends[si]
-                pctread = int(100.0 * sum(self.vis[s:e + 1]) / max(1, e - s + 1))
-            mark = G_CHK if seen else G_DOT
+            if seen:
+                self.put(y, mark_x, G_CHK, self.cattr(2) | curses.A_BOLD)
+            elif show_pct:
+                self.put(y, mark_x - 3, "%3d%%" % pctread, curses.A_DIM)
+            else:
+                self.put(y, mark_x, G_DOT, curses.A_DIM)
 
-            self.put(y, mark_x, mark, (self.cattr(2) | curses.A_BOLD) if seen else curses.A_DIM)
             self.toc_hit.append((y, si))
 
         done = sum(1 for f in fl if f)
@@ -606,10 +619,13 @@ class Gate(object):
         x += len(dec) + 3
 
         if not ok:
-            left = sum(1 for f in self.flags() if not f)
-            self.put(y, x, "%d unread" % left, curses.A_DIM)
-        else:
-            self.put(y, x, "accepting covers ALL %d licenses" % self.n, curses.A_DIM)
+            parts = []
+            for si, f in enumerate(self.flags()):
+                if not f:
+                    s, e = self.doc.starts[si], self.doc.ends[si]
+                    p = int(100.0 * sum(self.vis[s:e + 1]) / max(1, e - s + 1))
+                    parts.append("%d:%d%%" % (si + 1, p))
+            self.put(y, x, "unread  " + "  ".join(parts[:5]), curses.A_DIM)
 
     # ---- main frame
 
@@ -621,7 +637,6 @@ class Gate(object):
         rows = self.body_rows(bh)
         total = len(self.doc.lines)
         self.off = max(0, min(self.off, max(0, total - rows)))
-        self.prev_view = None
         vis = min(rows, total - self.off)               # lines actually drawn
         self._mark_seen(self.off, self.off + vis - 1)
 
@@ -825,7 +840,8 @@ class Gate(object):
                     y0, x0, bh, bw = self.box()
                     mx = ev[0] if ev else x0 + bw
                     if mx < x0 + self.sidebar_w(bw) + 2:
-                        self.ttop = max(0, min(max(0, self.n - 1), self.ttop + wheel))
+                        tview = max(1, self.body_rows(bh) - 2)
+                        self.ttop = max(0, min(max(0, self.n - tview), self.ttop + wheel))
                         self.tsel = max(0, min(self.n - 1, self.tsel + wheel))
                     else:
                         self.off += wheel
@@ -870,7 +886,7 @@ class Gate(object):
                         self.tsel = si
                         self.off = self.doc.starts[si]
                         self.focus = "reader"
-                        self.preview = None
+                        self.prev_view = None
                         break
                 continue
 
