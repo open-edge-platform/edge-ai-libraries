@@ -1,5 +1,5 @@
 
-debian_99_profile_retail_ai_suites () {
+debian_99_profile_retail_ai_suite () {
   # metro ai suites cannot start at the same time
   [ "$1" = "start" ] || echo "pre_system_scan core_types loss_prevention"
 }
