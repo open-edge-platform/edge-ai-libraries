@@ -321,7 +321,8 @@ class Gate(object):
         self.n = len(lics)
         self.doc, self.dw = None, -1
         self.off = 0
-        self.seen = [-1] * self.n
+        self.vis = None
+        self.prev_view = None
         self.focus = "reader"          # reader | toc | actions
         self.tsel, self.ttop = 0, 0
         self.bsel = self.B_DECLINE     # safer default until accept unlocks
@@ -387,44 +388,61 @@ class Gate(object):
         iw = self.reader_w(self.box()[3])
         if self.doc is not None and self.dw == iw:
             return
-        done = []
+        done, frac = [], []
         if self.doc is not None:
-            done = [self.seen[si] >= self.doc.ends[si] for si in range(self.n)]
-            frac = []
             for si in range(self.n):
                 s, e = self.doc.starts[si], self.doc.ends[si]
-                frac.append(0.0 if e <= s else
-                            max(0.0, min(1.0, (self.seen[si] - s) / float(e - s))))
+                span = e - s + 1
+                cnt = sum(self.vis[s:e + 1])
+                done.append(cnt >= span)
+                frac.append(cnt / float(span) if span else 0.0)
         tot = len(self.doc.lines) if self.doc else 0
         f_off = (self.off / float(tot)) if tot else 0.0
         self.doc = Document(self.lic, iw)
         self.dw = iw
         self.off = int(f_off * len(self.doc.lines))
+        self.vis = bytearray(len(self.doc.lines))
+        self.prev_view = None
         for si in range(self.n):
             s, e = self.doc.starts[si], self.doc.ends[si]
             if not done:
-                self.seen[si] = s - 1
-            elif done[si]:
-                self.seen[si] = e
+                continue
+            if done[si]:
+                for i in range(s, e + 1):
+                    self.vis[i] = 1
             else:
-                self.seen[si] = min(e - 1, s + int(frac[si] * (e - s)))
+                k = int(frac[si] * (e - s + 1))
+                for i in range(s, min(e, s + k - 1) + 1):
+                    self.vis[i] = 1
+
 
     def _mark_seen(self, top, bot):
-        for si in range(self.n):
-            s, e = self.doc.starts[si], self.doc.ends[si]
-            if bot < s or top > e:
-                continue
-            if top <= self.seen[si] + 1:          # contiguous
-                self.seen[si] = max(self.seen[si], min(bot, e))
+        lo, hi = top, bot
+        # A smooth scroll (<= one viewport) implies the skipped lines passed
+        # under the eye; a long jump does not.
+        if self.prev_view is not None:
+            ptop, pbot = self.prev_view
+            page = bot - top + 1
+            if 0 < top - pbot <= page:        # scrolled forward
+                lo = pbot + 1
+            elif 0 < ptop - bot <= page:      # scrolled backward
+                hi = ptop - 1
+        for i in range(max(0, lo), min(len(self.vis) - 1, hi) + 1):
+            self.vis[i] = 1
+        self.prev_view = (top, bot)
 
     # ---- read state
 
     def flags(self):
         if not self.gate:
             return [True] * self.n
-        if self.doc is None:
+        if self.doc is None or self.vis is None:
             return [False] * self.n
-        return [self.seen[si] >= self.doc.ends[si] for si in range(self.n)]
+        out = []
+        for si in range(self.n):
+            s, e = self.doc.starts[si], self.doc.ends[si]
+            out.append(sum(self.vis[s:e + 1]) >= e - s + 1)
+        return out
 
     def all_read(self):
         return all(self.flags())
@@ -519,8 +537,14 @@ class Gate(object):
             else:
                 a = curses.A_NORMAL if seen else curses.A_DIM
             self.put(y, x0 + 1, " " + body.ljust(lbl_w), a)
-            self.put(y, mark_x, G_CHK if seen else G_DOT,
-                     (self.cattr(2) | curses.A_BOLD) if seen else curses.A_DIM)
+
+            pctread = 0
+            if not seen:
+                s, e = self.doc.starts[si], self.doc.ends[si]
+                pctread = int(100.0 * sum(self.vis[s:e + 1]) / max(1, e - s + 1))
+            mark = G_CHK if seen else G_DOT
+
+            self.put(y, mark_x, mark, (self.cattr(2) | curses.A_BOLD) if seen else curses.A_DIM)
             self.toc_hit.append((y, si))
 
         done = sum(1 for f in fl if f)
