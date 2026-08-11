@@ -621,6 +621,7 @@ class Gate(object):
         rows = self.body_rows(bh)
         total = len(self.doc.lines)
         self.off = max(0, min(self.off, max(0, total - rows)))
+        self.prev_view = None
         vis = min(rows, total - self.off)               # lines actually drawn
         self._mark_seen(self.off, self.off + vis - 1)
 
@@ -734,6 +735,7 @@ class Gate(object):
         else:
             unread = [i for i, f in enumerate(self.flags()) if not f]
             self.off = self.doc.starts[unread[0]]
+            self.prev_view = None
             self.tsel = unread[0]
             self.focus = "reader"
             self.status = "license %d unread" % (unread[0] + 1)
@@ -836,6 +838,7 @@ class Gate(object):
                 # drag in progress: motion events carry no button bits
                 if self.drag == "reader" and self.rd_bar:
                     self.off = self.bar_to_off(self.rd_bar, my)
+                    self.prev_view = None
                     if B1R and (st & B1R):
                         self.drag = None
                     continue
@@ -847,6 +850,7 @@ class Gate(object):
                 if self.rd_bar and mx == self.rd_bar[1] \
                         and self.rd_bar[0] <= my < self.rd_bar[0] + self.rd_bar[2]:
                     self.off = self.bar_to_off(self.rd_bar, my)
+                    self.prev_view = None
                     self.drag = "reader"
                     self.focus = "reader"
                     continue
@@ -863,8 +867,10 @@ class Gate(object):
 
                 for ty, si in self.toc_hit:
                     if my == ty and x0 < mx < x0 + self.sidebar_w(bw) + 1:
-                        self.tsel, self.focus = si, "toc"
+                        self.tsel = si
                         self.off = self.doc.starts[si]
+                        self.focus = "reader"
+                        self.preview = None
                         break
                 continue
 
@@ -922,6 +928,7 @@ class Gate(object):
                 elif c in (10, 13, curses.KEY_ENTER, curses.KEY_RIGHT, ord(" ")):
                     self.off = self.doc.starts[self.tsel]
                     self.focus, self.status = "reader", ""
+                    self.prev_view = None
                 elif c == 27:
                     self.focus = "reader"
                 continue
@@ -937,8 +944,10 @@ class Gate(object):
                 self.off -= view - 1
             elif c in (ord("g"), curses.KEY_HOME):
                 self.off = 0
+                self.prev_view = None
             elif c in (ord("G"), curses.KEY_END):
                 self.off = total
+                self.prev_view = None
             elif c == curses.KEY_LEFT:
                 self.focus = "toc"
                 self.tsel = self.cur_sec()
@@ -946,10 +955,12 @@ class Gate(object):
                 h = self.doc.search(self.needle, self.off)
                 if h >= 0:
                     self.off = h
+                    self.prev_view = None
             elif c == ord("N") and self.needle:
                 h = self.doc.search(self.needle, self.off, back=True)
                 if h >= 0:
                     self.off = h
+                    self.prev_view = None
             elif c == 27:
                 self.mode = "decline"
 
