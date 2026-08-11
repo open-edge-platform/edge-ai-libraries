@@ -33,23 +33,26 @@ RUN mkdir neo && cd neo \
     && dpkg -i *.deb \
     && cd .. && rm -rf neo
 
-# CPU torch is enough for OpenVINO-backed execution paths and avoids the XPU
-# wheel / IPEX dependency set entirely.
+# CPU torch is enough for OpenVINO-backed execution paths (OV drives the GPU via
+# its own runtime; torch never leaves the CPU here). Install from the CPU wheel
+# index to get the lean CPU-only build and avoid the heavy accelerator runtime
+# packages the default PyPI torch wheel pulls in on Linux (unused here, ~GBs).
 RUN pip install --no-cache-dir \
-        torch==2.8.0
+        torch==2.8.0 \
+        --index-url https://download.pytorch.org/whl/cpu
 
 # Lingua server's own runtime deps (NOT adaptive-token-compressor).
 RUN pip install --no-cache-dir \
-        llmlingua \
-        fastapi \
-        "uvicorn[standard]" \
-        huggingface_hub \
+        "llmlingua>=0.2" \
+        "fastapi>=0.110" \
+        "uvicorn[standard]>=0.27" \
+        "huggingface-hub>=0.20" \
         pydantic
 
 # OpenVINO backend deps used by `--backend ov`.
 RUN pip install --no-cache-dir \
-        openvino \
-        "optimum[openvino]"
+        "openvino>=2024.0" \
+        "optimum[openvino]>=1.24.0"
 
 # Apply LLMLingua-2 patch (digit_neighbor_radius). Same patch file used by
 # bare-metal `python -m ...apply_patch`. See plan §6.5.1.5.
