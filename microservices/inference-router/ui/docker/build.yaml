@@ -1,3 +1,6 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   inference-router-ui:
     image: ${REGISTRY:-opea}/inference-router-ui:${TAG:-latest}
