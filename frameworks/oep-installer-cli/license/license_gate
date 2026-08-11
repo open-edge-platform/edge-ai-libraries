@@ -51,12 +51,11 @@ def die(msg):
 # ---------------------------------------------------------------- parsing
 
 class License(object):
-    __slots__ = ("lid", "title", "version", "components", "src", "sha", "heads", "_dup")
+    __slots__ = ("lid", "title", "components", "src", "sha", "heads", "_dup")
 
     def __init__(self, lid):
         self.lid = lid
         self.title = ""
-        self.version = ""
         self.components = []
         self.src = []
         self.sha = ""
@@ -65,8 +64,7 @@ class License(object):
 
 
     def display(self):
-        t = self.title or self.lid
-        return "%s (%s)" % (t, self.version) if self.version else t
+        return self.title or self.lid
 
 
 _MARK = re.compile(r"^\s*@@([A-Za-z-]+)\s*(.*?)\s*$")
