@@ -3,7 +3,7 @@
 
 """Policy Agent — generates inspection policies from detection data.
 
-In LLM mode:  calls vlm-openvino-serving via the llm_client wrapper.
+In LLM mode:  calls the configured inference backend via the llm_client wrapper.
 In fallback mode: applies threshold-based rules from policy_fallback.json.
 """
 

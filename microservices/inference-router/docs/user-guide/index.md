@@ -87,4 +87,5 @@ Key Features:
 ## Learn More
 
 - Begin with the [Quick Start Guide](./get-started.md).
+- Read the [Plugins guide](./plugin.md) for the plugin system and built-in plugins.
 - See the [API Reference](./api-reference.md) for endpoint details.

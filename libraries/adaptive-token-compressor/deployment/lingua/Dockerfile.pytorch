@@ -48,18 +48,13 @@ RUN pip install --no-cache-dir \
         --index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/
 
 # Lingua server's own runtime deps (NOT adaptive-token-compressor).
+# Mirrors the `lingua-server-xpu` extra in pyproject.toml.
 RUN pip install --no-cache-dir \
-        llmlingua \
-        fastapi \
-        "uvicorn[standard]" \
-        pydantic
-
-# Pin the transformer stack to the version pair validated against LLMLingua-2
-# for the longllmlingua path. Installing after llmlingua ensures we override
-# any looser transitive dependency that may otherwise pull in a newer release.
-RUN pip install --no-cache-dir \
-        transformers==4.39.3 \
-        huggingface_hub==0.23.5
+        "llmlingua>=0.2" \
+        "fastapi>=0.110" \
+        "uvicorn[standard]>=0.27" \
+        pydantic \
+        "huggingface-hub>=0.20"
 
 # Apply LLMLingua-2 patch (digit_neighbor_radius). Same patch file used by
 # bare-metal `python -m ...apply_patch`. See plan §6.5.1.5.

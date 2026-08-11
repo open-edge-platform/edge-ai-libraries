@@ -2,9 +2,9 @@
 
 ## Version 2026.2.0
 
-**TBD**
+**Release date:** TBD
 
-**New**
+**New:**
 
 - Initial release of the Alert Agent Service.
 - Generic multimodal alert action dispatcher supporting text, image, video, and binary payloads.
@@ -21,7 +21,7 @@
 - Liveness probe (`GET /api/v1/health`).
 - Docker Compose deployment with OVMS LLM sidecar container.
 
-**Known Issues**
+**Known Issues:**
 
 - OVMS LLM container startup may take up to 5 minutes while the model is downloaded and loaded for the first time.
 - MCP integration supports HTTP transport only; stdio/process-based MCP transports are not currently supported.
