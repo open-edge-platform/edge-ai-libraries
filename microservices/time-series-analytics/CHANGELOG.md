@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.2] - September 2026
+
+### Changed
+- Bumped Intel GPU driver/compute-runtime version to `26.27.39122` and added corresponding install script logic. ([#2722])
+- Updated Kapacitor version to `1.8.6`. ([#2417])
+- Bumped `python-multipart` and `setuptools` dependency versions. ([#2427])
+- Updated image suffix and Helm chart version to `2026.2.0-rc1`. ([#2577])
+- Updated tag references to `rc1`. ([#2720])
+
+### Removed
+- Removed leftover Model Registry references (`MODEL_REGISTRY_URL` environment variable and related config) from Docker Compose, Helm, and unit tests. ([#2457])
+
+### Fixed
+- Fixed SDLe-reported path traversal vulnerability by adding `sanitize_dir_name()` validation before deriving UDF working directories from configuration/environment input. ([#2671])
+
+### Documentation
+- Reviewed release notes and separated 2025 release notes into their own file. ([#2580])
+- Updated release notes for Time Series Analytics. ([#2372])
+- Added explicit branch checkout instructions. ([#2354])
+
+---
+
+[#2722]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2722
+[#2720]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2720
+[#2671]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2671
+[#2580]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2580
+[#2577]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2577
+[#2457]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2457
+[#2427]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2427
+[#2417]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2417
+[#2372]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2372
+[#2354]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2354
+
 ## [2026.1] - June 2026
 
 ### Added

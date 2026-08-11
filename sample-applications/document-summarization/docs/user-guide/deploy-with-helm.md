@@ -57,7 +57,7 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 | `global.huggingface.token` | Your Hugging Face API token | `<your-huggingface-token` |
 | `global.ui.nodePort` | Sets the static port (in the 30000–32767 range) | |
 | `global.otlp` | OTLP Endpoint | `<your-otlp-endpoint>` |
-| `global.llm.llmModelId` | Model to be used with ovms | Intel/neural-chat-7b-v3-3 or microsoft/Phi-3.5-mini-instruct |
+| `global.llm.llmModelId` | Model to be used with ovms | Intel/neural-chat-7b-v3-3 or microsoft/Phi-4 |
 
 ### Option 2: Install from Source
 

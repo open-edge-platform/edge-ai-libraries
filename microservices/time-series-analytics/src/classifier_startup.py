@@ -10,6 +10,7 @@
 import subprocess
 import os
 import os.path
+import re
 import time
 import tempfile
 import sys
@@ -39,6 +40,20 @@ SUCCESS = 0
 FAILURE = -1
 KAPACITOR_PORT = 9092
 KAPACITOR_NAME = 'kapacitord'
+
+def sanitize_dir_name(dir_name):
+    """Validate that a directory name is a single safe path segment.
+
+    Rejects empty values, path separators, and '..' so callers can safely
+    join it under SECURE_TEMP_DIR without risking path traversal outside
+    of that directory.
+    """
+    if not dir_name or not re.fullmatch(r"[A-Za-z0-9_.-]+", dir_name) or dir_name in (".", ".."):
+        raise ValueError(
+            f"Invalid directory name: {dir_name!r}. Only letters, digits, '.', "
+            "'_' and '-' are allowed, with no path separators or '..'."
+        )
+    return dir_name
 
 def kapacitor_daemon_logs(logger):
     """Read the kapacitor logs and print it to stdout
@@ -476,6 +491,7 @@ def classifier_startup(config):
         dir_name = os.getenv("SAMPLE_APP")
     else:
         dir_name = udf_name
+    dir_name = sanitize_dir_name(dir_name)
 
     udf_section = config_data.get('udf', {}).get('functions', {})
     udf_section[udf_name] = tomlkit.table()

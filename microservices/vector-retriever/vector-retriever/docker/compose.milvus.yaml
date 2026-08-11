@@ -3,7 +3,7 @@
 
 services:
   multimodal-embedding-serving:
-    image: intel/multimodal-embedding-serving:latest
+    image: intel/multimodal-embedding-serving:2026.2.0-rc1
     container_name: multimodal-embedding-serving
     ports:
       - '${EMBEDDING_SERVER_PORT:-9777}:8000'
