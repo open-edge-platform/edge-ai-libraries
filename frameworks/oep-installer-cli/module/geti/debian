@@ -19,7 +19,8 @@ debian_90_install_geti () {
   if verify_geti && [[ " $* " != *" --reset-geti "* ]]; then
     echo "Geti already installed. Skipping."
   else
-    ensure_disk_space 16000
+    ensure_disk_space 40000
+    ensure_ram_size 16000000
     docker pull $image_name
   fi
 }
@@ -51,6 +52,5 @@ debian_90_stop_geti () {
 debian_90_remove_geti () {
   debian_90_stop_geti $* || true
   docker image rm $image_name || true
-  ensure_sudo rm -rf "$workspace"
 }
 
