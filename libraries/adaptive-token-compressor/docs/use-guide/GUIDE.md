@@ -118,7 +118,7 @@ print(f"  Avg duration per request (all): {stats['avg_dur_per_request_all']:.1f}
 
 > **Note on PerRequest metrics** (`AvgDurationPerRequest`, `AvgSavedPerRequest`, etc.): these divide by the number of unique requests. You must either pass `req_id` to `compressor.compress(ctx, req_id=...)` (as above), or call `manager.set_per_anchor("<source>")` to use one compressor's call count as the request denominator. Without either, `manager.snapshot()` raises a `RuntimeError` (the denominator is checked at snapshot time, not at registration).
 
-## Compressor Principles and Workflow
+## Compressor Principles
 
 This section explains how each compressor works conceptually and what the
 runtime pipeline looks like.
@@ -136,16 +136,6 @@ cost drops while preserving instruction-critical content.
 
 ![HarnessCompressor](../assets/harness_compressor.png)
 
-**Workflow**
-
-1. Input: chat messages (`system`, `developer`, `user`, `assistant`, `tool`).
-2. Role-aware preprocessing: split and normalize message segments according to
-    profile strategy.
-3. Routing decision: short or sensitive spans are kept; compressible spans are
-    sent to backend compression.
-4. Backend compression: Lingua (default) applies token-budget reduction with
-    digit-preservation controls.
-5. Merge and output: reassemble compressed messages + emit metrics.
 
 ### ToolCompressor
 
@@ -157,14 +147,6 @@ relevance from conversation context, then keeps high-value tools only.
 
 ![ToolCompressor](../assets/tool_compressor.png)
 
-**Workflow**
-
-1. Input: current messages + full candidate tool list.
-2. Prompt construction: build predictor prompt from user intent and tool
-    descriptions.
-3. Relevance scoring: predictor model returns per-tool likelihood/importance.
-4. Selection: apply threshold/ranking policy to keep top tools.
-5. Metrics: record token savings, call count, and latency.
 
 ## Configuration Reference
 
@@ -325,42 +307,6 @@ pytest tests/core/test_metrics.py
 
 # With coverage
 pytest --cov=adaptive_token_compressor
-```
-
-## FAQ
-
-### Q: What's required to use each compressor?
-
-**HarnessCompressor**: 
-- Lingua Server (required)
-- Claw Compactor (optional, recommended for better quality)
-
-**ToolCompressor**:
-- LLM endpoint for tool prediction (required, e.g., vLLM chat completions)
-
-
-### Q: What is Claw Compactor?
-
-A content-type detection library that routes different content types (code, JSON, text, search results) to optimal compression strategies. Used by HarnessCompressor for enhanced compression quality.
-
-### Q: What happens if I don't install Claw Compactor?
-
-`HarnessCompressor` will fall back to basic Lingua compression for all content types. You'll still get compression, but without content-type-specific optimizations (less optimal for code, JSON, structured data).
-
-### Q: How does digit protection work?
-
-A patched version of LLMLingua-2 identifies digits and protects them plus surrounding words (default: 3 before and after) from deletion during compression. This prevents numerical data loss in benchmarks, PDFs, and data-heavy content.
-
-
-### Q: How do I chain multiple compressors?
-
-Pass the `CompressionContext` through each compressor:
-
-```python
-ctx = CompressionContext(messages=messages, tools=tools)
-ctx = manager.compress("tool", ctx)      # Filter tools
-ctx = manager.compress("harness", ctx)   # Compress messages
-# Use ctx.messages and ctx.tools
 ```
 
 ## Resources
