@@ -10,7 +10,6 @@ verify_anomalib () {
   . "$workspace"/venv/bin/activate
   set -o pipefail
   pip show anomalib | grep -q -F $version || return 1
-  set +o pipefail
 }
 
 debian_70_profile_anomalib () {
@@ -22,8 +21,11 @@ debian_70_install_anomalib () {
   if verify_anomalib && [[ " $* " != *" --reset-anomalib "* ]]; then
     echo "Anomalib already installed. Skipping"
   else
-    mkdir -p "$workspace"/venv
-    . "$workspace"/venv/bin/activate
+    ensure_disk_space 6000
+    mkdir -p "$workspace"
+    cd "$workspace"
+    python3 -m venv venv
+    . venv/bin/activate
     pip install anomalib==${version}
   fi
 

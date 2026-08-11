@@ -19,6 +19,7 @@ debian_90_install_geti () {
   if verify_geti && [[ " $* " != *" --reset-geti "* ]]; then
     echo "Geti already installed. Skipping."
   else
+    ensure_disk_space 16000
     docker pull $image_name
   fi
 }
