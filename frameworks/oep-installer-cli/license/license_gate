@@ -288,21 +288,6 @@ class Document(object):
         return -1
 
 
-def build_outline(lics, doc):
-    """Flat, renderable tree: (depth, label, target_line, section, is_license)."""
-    out = []
-    for si, lic in enumerate(lics):
-        out.append((0, lic.display(), doc.starts[si], si, True))
-        for srci in sorted(lic.heads):
-            depth, label = lic.heads[srci]
-            tgt = doc.map.get((si, srci))
-            if tgt is not None:
-                out.append((depth + 1, label, tgt, si, False))
-    return out
-
-
-# ---------------------------------------------------------------- tty
-
 def bind_tty():
     try:
         sys.stdout.flush()
@@ -334,7 +319,7 @@ class Gate(object):
     def __init__(self, scr, lics, gate=True):
         self.scr, self.lic, self.gate = scr, lics, gate
         self.n = len(lics)
-        self.doc, self.dw, self.outline = None, -1, []
+        self.doc, self.dw = None, -1
         self.off = 0
         self.cov = [0] * self.n
         self.focus = "reader"          # reader | toc | actions
@@ -403,22 +388,25 @@ class Gate(object):
         iw = self.reader_w(self.box()[3])
         if self.doc is not None and self.dw == iw:
             return
-        tot = len(self.doc.lines) if self.doc else 0
-        f_off = (self.off / float(tot)) if tot else 0.0
-        f_cov = []
+        # remember progress as a fraction of each license, then restore
+        frac = []
         if self.doc is not None:
             for si in range(self.n):
                 ln = self.doc.ends[si] - self.doc.starts[si] + 1
-                f_cov.append(self.cov[si] / float(ln) if ln else 0.0)
+                frac.append(min(1.0, self.cov[si] / float(ln)) if ln else 0.0)
+        tot = len(self.doc.lines) if self.doc else 0
+        f_off = (self.off / float(tot)) if tot else 0.0
         self.doc = Document(self.lic, iw)
         self.dw = iw
-        self.outline = build_outline(self.lic, self.doc)
-        n = len(self.doc.lines)
-        self.off = int(f_off * n)
-        if f_cov:
-            for si in range(self.n):
-                ln = self.doc.ends[si] - self.doc.starts[si] + 1
-                self.cov[si] = min(ln, int(f_cov[si] * ln))
+        self.off = int(f_off * len(self.doc.lines))
+        for si in range(self.n):
+            ln = self.doc.ends[si] - self.doc.starts[si] + 1
+            if frac and frac[si] >= 0.999:
+                self.cov[si] = ln          # stay complete across a resize
+            elif frac:
+                self.cov[si] = min(ln - 1, int(frac[si] * ln))
+            else:
+                self.cov[si] = 0
 
     def _mark_seen(self, top, bot):
         """Extend contiguous coverage for any license the viewport covers.
@@ -448,15 +436,10 @@ class Gate(object):
     def all_read(self):
         return all(self.flags())
 
-    def cur_outline(self):
-        """Index of the outline entry containing the current scroll position."""
-        best = 0
-        for i, (_, _, tgt, _, _) in enumerate(self.outline):
-            if tgt <= self.off:
-                best = i
-            else:
-                break
-        return best
+    def cur_sec(self):
+        if not self.doc.lines:
+            return 0
+        return self.doc.lines[min(self.off, len(self.doc.lines) - 1)][2]
 
     # ---- primitives
 
@@ -509,79 +492,54 @@ class Gate(object):
     def draw_toc(self, y0, x0, h, w):
         active = (self.focus == "toc")
         self.rect(y0, x0, h, w, dim=not active)
-        label = " Contents " if not active else " Contents [focused] "
-        self.put(y0, x0 + 2, label[: w - 4],
+        self.put(y0, x0 + 2, " Licenses ",
                  curses.A_BOLD | (self.cattr(1) if active else 0))
 
         view = h - 2
-        total = len(self.outline)
-        self.tsel = max(0, min(self.tsel, total - 1))
+        fl = self.flags()
+        here = self.cur_sec()
+        self.tsel = max(0, min(self.tsel, self.n - 1))
         if self.tsel < self.ttop:
             self.ttop = self.tsel
         elif self.tsel >= self.ttop + view:
             self.ttop = self.tsel - view + 1
-        self.ttop = max(0, min(self.ttop, max(0, total - view)))
+        self.ttop = max(0, min(self.ttop, max(0, self.n - view)))
 
-        fl = self.flags()
-        here = self.cur_outline()
-        mark_x = x0 + w -4
-        lbl_w = max(6, mark_x - (x0 + 2) -1)
+        mark_x = x0 + w - 3
+        lbl_w = max(6, mark_x - (x0 + 2) - 1)
         self.toc_hit = []
 
         for r in range(view):
-            i = self.ttop + r
-            if i >= total:
+            si = self.ttop + r
+            if si >= self.n:
                 break
-            depth, lab, tgt, sec, is_lic = self.outline[i]
             y = y0 + 1 + r
-
-            if is_lic:
-                seen = fl[sec]
-                body = "%d. %s" % (sec + 1, lab)
-                base = curses.A_BOLD | (self.cattr(2) if seen else 0)
-            else:
-                seen = (tgt < self.frontier(sec))
-                body = "%s%s" % ("  " * min(depth, 2), lab)
-                base = curses.A_NORMAL if seen else curses.A_DIM
-
-            caret = G_CUR if i == here else " "
-            mark = G_CHK if seen else (G_DOT if is_lic else " ")
-
-            label = (caret + body)
-            if len(label) > lbl_w:
-                label = label[: lbl_w - 1] + (G_ELL if UTF else "~")
-            label = label.ljust(lbl_w)
-
-            if self.focus == "toc" and i == self.tsel:
+            seen = fl[si]
+            caret = G_CUR if si == here else " "
+            body = "%s%d. %s" % (caret, si + 1, self.lic[si].display())
+            if len(body) > lbl_w:
+                body = body[: lbl_w - 1] + G_ELL
+            if active and si == self.tsel:
                 a = curses.A_REVERSE
-            elif i == here:
-                a = base | curses.A_BOLD
+            elif si == here:
+                a = curses.A_BOLD
             else:
-                a = base
-
-            self.put(y, x0 + 1, " " + label, a)
-            # mark sits in its own column, outside the highlight
-            self.put(y, mark_x, mark,
+                a = curses.A_NORMAL if seen else curses.A_DIM
+            self.put(y, x0 + 1, " " + body.ljust(lbl_w), a)
+            self.put(y, mark_x, G_CHK if seen else G_DOT,
                      (self.cattr(2) | curses.A_BOLD) if seen else curses.A_DIM)
-            self.toc_hit.append((y, i))
-
-        self.tc_bar = self.bar(y0 + 1, x0 + w - 2, view, total, self.ttop)
+            self.toc_hit.append((y, si))
 
         done = sum(1 for f in fl if f)
-        tag = " %d/%d read " % (done, self.n)
+        tag = " %d/%d " % (done, self.n)
         self.put(y0 + h - 1, x0 + w - len(tag) - 3, tag,
                  curses.A_DIM | (self.cattr(2) if done == self.n else 0))
 
     # ---- reader
 
     def draw_reader(self, y0, x0, h, w):
-        p = self.doc
-        total = len(p.lines)
-        view = h
-        self.off = max(0, min(self.off, max(0, total - view)))
-        self._mark_seen(self.off, min(total - 1, self.off + view - 1))
-
-        for r in range(view):
+        total = len(self.doc.lines)
+        for r in range(h):
             i = self.off + r
             if i >= total:
                 break
@@ -598,7 +556,7 @@ class Gate(object):
                 a = curses.A_REVERSE
             self.put(y0 + r, x0, text[:w], a)
 
-        self.rd_bar = self.bar(y0, x0 + w + 1, view, total, self.off)
+        self.rd_bar = self.bar(y0, x0 + w + 1, h, total, self.off)
 
     # ---- action bar
 
@@ -631,11 +589,8 @@ class Gate(object):
         x += len(dec) + 3
 
         if not ok:
-            left = [i + 1 for i, f in enumerate(self.flags()) if not f]
-            msg = "%d of %d still unread (%s)" % (
-                len(left), self.n,
-                ",".join(str(i) for i in left[:6]) + ("..." if len(left) > 6 else ""))
-            self.put(y, x, msg, curses.A_DIM)
+            left = sum(1 for f in self.flags() if not f)
+            self.put(y, x, "%d unread" % left, curses.A_DIM)
         else:
             self.put(y, x, "accepting covers ALL %d licenses" % self.n, curses.A_DIM)
 
@@ -648,14 +603,15 @@ class Gate(object):
         sw = self.sidebar_w(bw)
         rows = self.body_rows(bh)
         total = len(self.doc.lines)
-        view = rows
+
+        # clamp + credit before anything renders, so the TOC is never stale
+        self.off = max(0, min(self.off, max(0, total - rows)))
+        self._mark_seen(self.off, min(total - 1, self.off + rows - 1))
 
         self.rect(y0, x0, bh, bw, dim=True)
-        self.put(y0, x0 + 3, " License Agreement ", curses.A_BOLD | self.cattr(1))
-        pct = 100 if total <= view else int(100.0 * (self.off + view) / total)
-        sec = self.doc.lines[min(self.off, total - 1)][2] if total else 0
-        right = " %s  %d%% " % (self.lic[sec].display()[:40], pct)
-        self.put(y0, x0 + bw - len(right) - 4, right, curses.A_DIM)
+        pct = 100 if total <= rows else int(100.0 * (self.off + rows) / total)
+        self.put(y0, x0 + 3, " %s  %d%% " % (self.lic[self.cur_sec()].display()[:48], pct),
+                 curses.A_BOLD | self.cattr(1))
 
         body_top = y0 + 1
         self.draw_toc(body_top, x0 + 1, rows, sw)
@@ -663,16 +619,14 @@ class Gate(object):
 
         self.put(y0 + bh - 4, x0 + 1, G_H * (bw - 2), curses.A_DIM)
         self.draw_actions(y0 + bh - 3, x0, bw)
-
         if self.status:
             self.put(y0 + bh - 4, x0 + bw - len(self.status) - 4,
                      " " + self.status + " ", curses.A_DIM)
-
-        hint = ("TAB focus  \u2191\u2193 move/scroll  ENTER open  PgUp/PgDn  "
-                "g/G  / search  A accept  q decline") if UTF else \
-               ("TAB focus  arrows move/scroll  ENTER open  PgUp/PgDn  "
-                "g/G  / search  A accept  q decline")
-        self.put(y0 + bh - 2, x0 + 2, hint, curses.A_DIM)
+        self.put(y0 + bh - 2, x0 + 2,
+                 "TAB pane   \u2191\u2193 PgDn scroll   A accept   q decline"
+                 if UTF else
+                 "TAB pane   arrows/PgDn scroll   A accept   q decline",
+                 curses.A_DIM)
         self.scr.noutrefresh()
         curses.doupdate()
 
@@ -764,10 +718,9 @@ class Gate(object):
         else:
             unread = [i for i, f in enumerate(self.flags()) if not f]
             self.off = self.doc.starts[unread[0]]
-            self.tsel = next((k for k, e in enumerate(self.outline)
-                              if e[4] and e[3] == unread[0]), 0)
+            self.tsel = unread[0]
             self.focus = "reader"
-            self.status = "license %d not read yet" % (unread[0] + 1)
+            self.status = "license %d unread" % (unread[0] + 1)
 
     # ---- loop
 
@@ -905,10 +858,10 @@ class Gate(object):
                             break
                     continue
 
-                for ty, idx in self.toc_hit:
+                for ty, si in self.toc_hit:
                     if my == ty and x0 < mx < x0 + self.sidebar_w(bw) + 1:
-                        self.tsel, self.focus = idx, "toc"
-                        self.off = self.outline[idx][2]
+                        self.tsel, self.focus = si, "toc"
+                        self.off = self.doc.starts[si]
                         break
                 continue
 
@@ -958,19 +911,14 @@ class Gate(object):
                 if c in (curses.KEY_UP, ord("k")):
                     self.tsel = max(0, self.tsel - 1)
                 elif c in (curses.KEY_DOWN, ord("j")):
-                    self.tsel = min(len(self.outline) - 1, self.tsel + 1)
-                elif c == curses.KEY_PPAGE:
-                    self.tsel = max(0, self.tsel - (view - 2))
-                elif c == curses.KEY_NPAGE:
-                    self.tsel = min(len(self.outline) - 1, self.tsel + (view - 2))
+                    self.tsel = min(self.n - 1, self.tsel + 1)
                 elif c in (curses.KEY_HOME, ord("g")):
                     self.tsel = 0
                 elif c in (curses.KEY_END, ord("G")):
-                    self.tsel = len(self.outline) - 1
+                    self.tsel = self.n - 1
                 elif c in (10, 13, curses.KEY_ENTER, curses.KEY_RIGHT, ord(" ")):
-                    self.off = self.outline[self.tsel][2]
-                    self.focus = "reader"
-                    self.status = ""
+                    self.off = self.doc.starts[self.tsel]
+                    self.focus, self.status = "reader", ""
                 elif c == 27:
                     self.focus = "reader"
                 continue
@@ -990,7 +938,7 @@ class Gate(object):
                 self.off = total
             elif c == curses.KEY_LEFT:
                 self.focus = "toc"
-                self.tsel = self.cur_outline()
+                self.tsel = self.cur_sec()
             elif c == ord("n") and self.needle:
                 h = self.doc.search(self.needle, self.off)
                 if h >= 0:
