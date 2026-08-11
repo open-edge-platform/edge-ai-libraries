@@ -1,3 +1,8 @@
+<!--
+  Copyright (C) 2026 Intel Corporation
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 <template>
   <a-layout class="layout-container">
     <a-layout-header class="layout-header">
@@ -34,5 +39,6 @@ onMounted(() => {
 </script>
 <style lang="less">
 .full-screen {
+  height: 100vh;
 }
 </style>
