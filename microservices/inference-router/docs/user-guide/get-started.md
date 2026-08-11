@@ -310,8 +310,18 @@ Use the unified `compressor` node and select the compressor kind with
 - `harness` — compresses system/developer messages using a **Lingua server**.
 
 
-The router image already includes the compressor library (installed
-by `scripts/build_docker.sh` at build time).
+### Build the compressor-enabled image
+
+The default build in [Step 2](#step-2-build-image) does **not** include the
+compressor library. To use compression plugins, rebuild the image with
+`--with-compressor`:
+
+```bash
+bash scripts/deploy_docker.sh --build --with-compressor
+```
+
+This vendors and installs `adaptive-token-compressor` into the router image so
+the plugins are available at runtime.
 
 These backend services are **not** part of the router. For how to deploy
 the Lingua server and the tool predictor,
