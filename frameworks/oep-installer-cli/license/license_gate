@@ -356,7 +356,6 @@ class Gate(object):
         # scrollbar drag state
         self.drag = None                 # None | "reader" | "toc"
         self.rd_bar = None               # (y_top, x, view, total)
-        self.tc_bar = None
 
     # ---- geometry
     #
@@ -543,7 +542,7 @@ class Gate(object):
             i = self.off + r
             if i >= total:
                 break
-            text, style, _ = p.lines[i]
+            text, style, _ = self.doc.lines[i]
             if style == S_TITLE:
                 a = curses.A_BOLD | self.cattr(1)
             elif style == S_HEAD:
@@ -807,9 +806,8 @@ class Gate(object):
                     y0, x0, bh, bw = self.box()
                     mx = ev[0] if ev else x0 + bw
                     if mx < x0 + self.sidebar_w(bw) + 2:
-                        self.ttop = max(0, self.ttop + wheel)
-                        self.tsel = max(0, min(len(self.outline) - 1,
-                                               self.tsel + wheel))
+                        self.ttop = max(0, min(max(0, self.n - 1), self.ttop + wheel))
+                        self.tsel = max(0, min(self.n - 1, self.tsel + wheel))
                     else:
                         self.off += wheel
                 if ev is None:
@@ -824,12 +822,6 @@ class Gate(object):
                     if B1R and (st & B1R):
                         self.drag = None
                     continue
-                if self.drag == "toc" and self.tc_bar:
-                    self.ttop = self.bar_to_off(self.tc_bar, my)
-                    self.tsel = max(0, min(len(self.outline) - 1, self.ttop))
-                    if B1R and (st & B1R):
-                        self.drag = None
-                    continue
 
                 if not (st & (B1P | B1C)):
                     continue
@@ -840,12 +832,6 @@ class Gate(object):
                     self.off = self.bar_to_off(self.rd_bar, my)
                     self.drag = "reader"
                     self.focus = "reader"
-                    continue
-                if self.tc_bar and mx == self.tc_bar[1] \
-                        and self.tc_bar[0] <= my < self.tc_bar[0] + self.tc_bar[2]:
-                    self.ttop = self.bar_to_off(self.tc_bar, my)
-                    self.drag = "toc"
-                    self.focus = "toc"
                     continue
 
                 if my == y0 + bh - 3:
@@ -1059,6 +1045,13 @@ def main():
         accepted = curses.wrapper(lambda s: Gate(s, lics, not args.no_scroll_gate).run())
     except (curses.error, Exception):
         accepted = None
+    except KeyboardInterrupt:
+        return EXIT_DECLINED
+    except Exception:
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        return EXIT_ERROR
+
     if accepted is None:
         accepted = plain_flow(lics, not args.no_scroll_gate)
     if accepted is None:
