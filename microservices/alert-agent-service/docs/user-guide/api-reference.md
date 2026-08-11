@@ -11,46 +11,46 @@ Interactive API documentation (Swagger UI) is available at `http://<host>:9001/d
 
 ### Actions
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/alerts` | Flexible JSON alert ingestion (alert-service compatible) |
-| `POST` | `/api/v1/actions/execute` | Dispatch alert actions (main entry point) |
+| Method | Path                      | Description                                              |
+| ------ | ------------------------- | -------------------------------------------------------- |
+| `POST` | `/api/v1/alerts`          | Flexible JSON alert ingestion (alert-service compatible) |
+| `POST` | `/api/v1/actions/execute` | Dispatch alert actions (main entry point)                |
 
 ### Streaming
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/events` | Server-Sent Events stream for real-time alert fanout |
-| `GET` | `/api/v1/ws` | WebSocket stream (mirrors SSE events) |
+| Method | Path             | Description                                          |
+| ------ | ---------------- | ---------------------------------------------------- |
+| `GET`  | `/api/v1/events` | Server-Sent Events stream for real-time alert fanout |
+| `GET`  | `/api/v1/ws`     | WebSocket stream (mirrors SSE events)                |
 
 ### Tools
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/tools` | List all registered action tools (built-in + MCP) |
+| Method | Path                          | Description                                         |
+| ------ | ----------------------------- | --------------------------------------------------- |
+| `GET`  | `/api/v1/tools`               | List all registered action tools (built-in + MCP)   |
 | `POST` | `/api/v1/tools/{name}/invoke` | Manually invoke a built-in tool (testing/debugging) |
-| `POST` | `/api/v1/tools/reload` | Hot-reload `resources/tools.json` without restart |
+| `POST` | `/api/v1/tools/reload`        | Hot-reload `resources/tools.json` without restart   |
 
 ### MCP
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/mcp/status` | Get connection status of all configured MCP servers |
-| `GET` | `/api/v1/mcp/tools` | List all tools discovered from MCP servers |
-| `POST` | `/api/v1/mcp/reload` | Reconnect to MCP servers and refresh the tool registry |
-| `POST` | `/api/v1/mcp/tools/{name}/invoke` | Manually invoke an MCP tool (testing/debugging) |
+| Method | Path                              | Description                                            |
+| ------ | --------------------------------- | ------------------------------------------------------ |
+| `GET`  | `/api/v1/mcp/status`              | Get connection status of all configured MCP servers    |
+| `GET`  | `/api/v1/mcp/tools`               | List all tools discovered from MCP servers             |
+| `POST` | `/api/v1/mcp/reload`              | Reconnect to MCP servers and refresh the tool registry |
+| `POST` | `/api/v1/mcp/tools/{name}/invoke` | Manually invoke an MCP tool (testing/debugging)        |
 
 ### Subscriptions
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/subscriptions` | List all loaded subscription entries from config |
+| Method | Path                    | Description                                      |
+| ------ | ----------------------- | ------------------------------------------------ |
+| `GET`  | `/api/v1/subscriptions` | List all loaded subscription entries from config |
 
 ### Observability
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/health` | Liveness probe |
+| Method | Path             | Description    |
+| ------ | ---------------- | -------------- |
+| `GET`  | `/api/v1/health` | Liveness probe |
 
 ---
 
@@ -62,17 +62,17 @@ Accept a flexible JSON alert payload, matching the alert-service API contract. T
 
 Any JSON object. The following fields are recognised and mapped:
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `alert_type` | string | `"UNKNOWN"` | Alert type identifier |
-| `source_id` | string | `"unknown"` | Originating source identifier |
-| `alert_name` | string | value of `alert_type` | Name of the triggered alert |
-| `answer` | string | `"YES"` | Detection result (`YES` / `NO`) |
-| `reason` | string | `""` | Human-readable explanation |
-| `metadata` | object | `{}` | Arbitrary metadata |
-| `timestamp` | string | auto-generated | ISO-8601 timestamp |
-| `tools` | array | `["log_alert"]` | Tool names to invoke |
-| `payloads` | array | `[]` | Multimodal payload list |
+| Field        | Type   | Default               | Description                     |
+| ------------ | ------ | --------------------- | ------------------------------- |
+| `alert_type` | string | `"UNKNOWN"`           | Alert type identifier           |
+| `source_id`  | string | `"unknown"`           | Originating source identifier   |
+| `alert_name` | string | value of `alert_type` | Name of the triggered alert     |
+| `answer`     | string | `"YES"`               | Detection result (`YES` / `NO`) |
+| `reason`     | string | `""`                  | Human-readable explanation      |
+| `metadata`   | object | `{}`                  | Arbitrary metadata              |
+| `timestamp`  | string | auto-generated        | ISO-8601 timestamp              |
+| `tools`      | array  | `["log_alert"]`       | Tool names to invoke            |
+| `payloads`   | array  | `[]`                  | Multimodal payload list         |
 
 ### Example Request
 
@@ -105,7 +105,7 @@ Submit an alert with optional multimodal payloads. The service dispatches config
 
 ### Request Body
 
-```json
+```
 {
   "event_id": "string (auto-generated UUID if omitted)",
   "source_id": "string (required) — camera ID, sensor ID, device ID",
@@ -173,12 +173,12 @@ Connects to the Server-Sent Events stream and receives real-time alert dispatch 
 
 ### Event Types
 
-| Event | Description |
-|-------|-------------|
-| `init` | Emitted on connect — confirms service info |
-| `alert_action` | Emitted after each successful dispatch |
-| `keepalive` | Emitted every 15 seconds to prevent proxy timeouts |
-| `error` | Emitted on unexpected SSE-level errors |
+| Event          | Description                                        |
+| -------------- | -------------------------------------------------- |
+| `init`         | Emitted on connect — confirms service info         |
+| `alert_action` | Emitted after each successful dispatch             |
+| `keepalive`    | Emitted every 15 seconds to prevent proxy timeouts |
+| `error`        | Emitted on unexpected SSE-level errors             |
 
 ### Example `alert_action` Event Data
 
@@ -294,19 +294,19 @@ Lists all subscription entries loaded from the subscription config file.
     {
       "alert_name": "CONCEALMENT",
       "tools": ["log_alert", "trigger_webhook", "capture_snapshot"],
-      "tool_arguments": {"trigger_webhook": {"url": "https://..."}},
-      "dedup": {"enabled": true, "strategy": "field_hash", "fields": ["source_id"], "window_seconds": 30},
-      "escalation": {"threshold_consecutive": 3, "additional_tools": ["publish_mqtt"]}
+      "tool_arguments": { "trigger_webhook": { "url": "https://..." } },
+      "dedup": {
+        "enabled": true,
+        "strategy": "field_hash",
+        "fields": ["source_id"],
+        "window_seconds": 30
+      },
+      "escalation": {
+        "threshold_consecutive": 3,
+        "additional_tools": ["publish_mqtt"]
+      }
     }
   ],
   "count": 1
 }
 ```
-
----
-
-<!--hide_directive
-```{eval-rst}
-.. swagger-plugin:: ./_assets/openapi.yaml
-```
-hide_directive-->
