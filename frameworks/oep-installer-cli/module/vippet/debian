@@ -5,37 +5,41 @@ configure_vippet () {
   repository=https://github.com/open-edge-platform/edge-ai-libraries.git
 }
 
+verify_vippet () {
+  [ -r "$workspace/tools/visual-pipeline-and-platform-evaluation-tool/.env" ]
+}
+
 debian_90_profile_vippet () {
   echo "docker make curl git"
 }
 
 debian_90_install_vippet () {
   configure_vippet
-  if [ -e "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" ] && [[ "$*" != *"--reset-uv"* ]]; then
+  if verify_vippet && [[ " $* " != *" --reset-vippet "* ]]; then
     echo "Vipet is already installed. Skipping..."
   else
     ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool
-    pushd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" > /dev/null
+    cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
     make build-onvif-discovery
-    popd > /dev/null
+    docker compose -f compose.yml pull --ignore-buildable
   fi
 }
 
 debian_90_start_vippet () {
+  ensure_open_ports "80 7860 8000 9090 8554 8889" debian_90_stop_vippet
   configure_vippet
-  pushd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" > /dev/null
+  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
   make run
-  popd > /dev/null
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
 }
 
 debian_90_stop_vippet () {
   configure_vippet
-  pushd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" > /dev/null
-  make stop
-  popd > /dev/null
+  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
+  make stop || true
 }
 
 debian_90_remove_vippet () {
-  configure_vippet
+  debian_90_stop_vippet $* || true
   ensure_sudo rm -rf "$workspace"
 }
