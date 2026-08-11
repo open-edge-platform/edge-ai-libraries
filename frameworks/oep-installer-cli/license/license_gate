@@ -321,7 +321,7 @@ class Gate(object):
         self.n = len(lics)
         self.doc, self.dw = None, -1
         self.off = 0
-        self.cov = [0] * self.n
+        self.seen = [-1] * self.n
         self.focus = "reader"          # reader | toc | actions
         self.tsel, self.ttop = 0, 0
         self.bsel = self.B_DECLINE     # safer default until accept unlocks
@@ -384,43 +384,35 @@ class Gate(object):
         return bw - self.sidebar_w(bw) - 6
 
     def ensure(self):
-        iw = self.reader_w(self.box()[3])
-        if self.doc is not None and self.dw == iw:
-            return
-        # remember progress as a fraction of each license, then restore
-        frac = []
+        done = []
         if self.doc is not None:
+            done = [self.seen[si] >= self.doc.ends[si] for si in range(self.n)]
+            frac = []
             for si in range(self.n):
-                ln = self.doc.ends[si] - self.doc.starts[si] + 1
-                frac.append(min(1.0, self.cov[si] / float(ln)) if ln else 0.0)
+                s, e = self.doc.starts[si], self.doc.ends[si]
+                frac.append(0.0 if e <= s else
+                            max(0.0, min(1.0, (self.seen[si] - s) / float(e - s))))
         tot = len(self.doc.lines) if self.doc else 0
         f_off = (self.off / float(tot)) if tot else 0.0
         self.doc = Document(self.lic, iw)
         self.dw = iw
         self.off = int(f_off * len(self.doc.lines))
         for si in range(self.n):
-            ln = self.doc.ends[si] - self.doc.starts[si] + 1
-            if frac and frac[si] >= 0.999:
-                self.cov[si] = ln          # stay complete across a resize
-            elif frac:
-                self.cov[si] = min(ln - 1, int(frac[si] * ln))
+            s, e = self.doc.starts[si], self.doc.ends[si]
+            if not done:
+                self.seen[si] = s - 1
+            elif done[si]:
+                self.seen[si] = e
             else:
-                self.cov[si] = 0
+                self.seen[si] = min(e - 1, s + int(frac[si] * (e - s)))
 
     def _mark_seen(self, top, bot):
-        """Extend contiguous coverage for any license the viewport covers.
-        Jumping past the frontier deliberately earns no credit."""
         for si in range(self.n):
             s, e = self.doc.starts[si], self.doc.ends[si]
             if bot < s or top > e:
                 continue
-            if top <= s + self.cov[si]:          # contiguous with what's read
-                seen = min(bot, e) - s + 1
-                if seen > self.cov[si]:
-                    self.cov[si] = seen
-
-    def frontier(self, si):
-        return self.doc.starts[si] + self.cov[si]
+            if top <= self.seen[si] + 1:          # contiguous
+                self.seen[si] = max(self.seen[si], min(bot, e))
 
     # ---- read state
 
@@ -429,8 +421,7 @@ class Gate(object):
             return [True] * self.n
         if self.doc is None:
             return [False] * self.n
-        return [self.cov[si] >= self.doc.ends[si] - self.doc.starts[si] + 1
-                for si in range(self.n)]
+        return [self.seen[si] >= self.doc.ends[si] for si in range(self.n)]
 
     def all_read(self):
         return all(self.flags())
@@ -602,10 +593,9 @@ class Gate(object):
         sw = self.sidebar_w(bw)
         rows = self.body_rows(bh)
         total = len(self.doc.lines)
-
-        # clamp + credit before anything renders, so the TOC is never stale
         self.off = max(0, min(self.off, max(0, total - rows)))
-        self._mark_seen(self.off, min(total - 1, self.off + rows - 1))
+        vis = min(rows, total - self.off)               # lines actually drawn
+        self._mark_seen(self.off, self.off + vis - 1)
 
         self.rect(y0, x0, bh, bw, dim=True)
         pct = 100 if total <= rows else int(100.0 * (self.off + rows) / total)
