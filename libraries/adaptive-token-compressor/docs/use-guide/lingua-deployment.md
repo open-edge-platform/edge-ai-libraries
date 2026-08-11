@@ -14,9 +14,7 @@ The compose file now defines two services:
 - `lingua-pytorch` on host port `8001`
 - `lingua-ov` on host port `8002` (opt-in via profile; override with `LINGUA_OV_PORT`)
 
-One server instance supports both compression modes (`llmlingua2` and
-`longllmlingua`). `LINGUA_MODE` sets only the startup default; request payload
-`mode` can override it per `/compress` call.
+The server uses the `llmlingua2` (LLMLingua-2) compression mode.
 
 Each image carries only the standalone server file and its runtime deps.
 The PyTorch image installs torch + IPEX + llmlingua + fastapi + uvicorn.
@@ -54,11 +52,9 @@ docker compose --profile ov up -d --build lingua-ov
 Current backend/mode support status:
 
 - PyTorch + `llmlingua2`: supported
-- PyTorch + `longllmlingua`: supported
 - OpenVINO + `llmlingua2`: supported
-- OpenVINO + `longllmlingua`: not supported with the current implementation
 
-Default startup mode: `llmlingua2`.
+Startup mode: `llmlingua2`.
 
 ## Override variables (no .env file needed)
 
@@ -78,22 +74,13 @@ LINGUA_DEVICE=xpu LINGUA_XPU_INDEX=1 docker compose up -d --build lingua-pytorch
 # Different port
 LINGUA_PORT=9000 docker compose up -d --build lingua-pytorch
 
-# Pin mode + model independently
-LINGUA_MODE=llmlingua2 \
+# Pin model independently
 LINGUA_MODEL_NAME_ID=microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank \
   docker compose up -d --build lingua-pytorch
-
-# LongLLMLingua mode with separate model id
-LINGUA_MODE=longllmlingua \
-LINGUA_MODEL_NAME_ID=NousResearch/Llama-2-7b-hf \
-    docker compose up -d --build lingua-pytorch
 
 # Combine
 LINGUA_DEVICE=cpu LINGUA_PORT=9000 docker compose up -d --build lingua-pytorch
 ```
-
-Use `longllmlingua` only with the PyTorch service. The current OpenVINO path
-supports `llmlingua2` but does not support `longllmlingua`.
 
 | Variable | Default | Notes |
 |---|---|---|
@@ -102,8 +89,8 @@ supports `llmlingua2` but does not support `longllmlingua`.
 | `LINGUA_BACKEND` | `pytorch` | Kept for the server process; compose service selection uses `lingua-pytorch` / `lingua-ov`. |
 | `LINGUA_DEVICE` | `xpu` | `xpu` / `cpu` / `cuda`. xpu requires `/dev/dri` on host. |
 | `LINGUA_XPU_INDEX` | `0` | XPU index when `LINGUA_DEVICE=xpu`. PyTorch uses `xpu:<index>`; OpenVINO prefers `GPU.<index>` and accepts generic `GPU` as fallback for index `0`. |
-| `LINGUA_MODE` | `llmlingua2` | Compression mode: `llmlingua2` or `longllmlingua`. |
-| `LINGUA_MODEL_NAME_ID` | (empty) | HF model ID. If empty, defaults are mode-specific: `llmlingua2` → `microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank`, `longllmlingua` → `NousResearch/Llama-2-7b-hf`. |
+| `LINGUA_MODE` | `llmlingua2` | Compression mode: `llmlingua2`. |
+| `LINGUA_MODEL_NAME_ID` | (empty) | HF model ID. If empty, defaults to `microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank`. |
 | `HF_HUB_OFFLINE` | `0` | First-run downloads allowed. Set `1` for strict offline. |
 | `HF_ENDPOINT` | `https://hf-mirror.com` | Mainland China mirror; unset/override for upstream HF. |
 | `http_proxy`/`https_proxy`/`no_proxy` | (unset) | Build-time + runtime proxies. |
@@ -117,7 +104,7 @@ curl http://localhost:8001/health
 #     "status":"ok",
 #     "mode":"llmlingua2",
 #     "supports_request_mode_override":true,
-#     "supported_modes":["llmlingua2","longllmlingua"],
+#     "supported_modes":["llmlingua2"],
 #     "initialized_modes":{
 #       "llmlingua2":{
 #         "model_name_id":"...",
@@ -165,4 +152,4 @@ docker compose down -v             # also remove HF model cache volume
   uses `pip install adaptive-token-compressor[lingua-server-xpu|-cpu|-ov]` +
   `python -m adaptive_token_compressor.model_servers.lingua.apply_patch` +
   `python -m adaptive_token_compressor.model_servers.lingua`
-- Companion vLLM tool predictor: `deployment/tool_predictor/README.md`
+- Companion vLLM tool predictor: [tool-predictor-deployment.md](tool-predictor-deployment.md)

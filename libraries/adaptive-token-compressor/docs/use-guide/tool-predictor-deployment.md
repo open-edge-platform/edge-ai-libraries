@@ -78,4 +78,4 @@ serving your chosen model works.
 
 ## See also
 
-- Companion lingua server: `deployment/lingua/README.md`
+- Companion lingua server: [lingua-deployment.md](lingua-deployment.md)

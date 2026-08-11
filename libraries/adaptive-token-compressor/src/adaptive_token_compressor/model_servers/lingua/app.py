@@ -36,17 +36,6 @@ class CompressRequest(BaseModel):
     force_tokens: list[str] | None = None
     force_reserve_digit: bool = False
     digit_neighbor_radius: int = 0
-    question: str | None = None
-
-
-# LongLLMLingua request defaults kept internal to the server.
-_LONG_CONDITION_IN_QUESTION = "after_condition"
-_LONG_REORDER_CONTEXT = "sort"
-_LONG_DYNAMIC_CONTEXT_COMPRESSION_RATIO = 0.3
-_LONG_CONDITION_COMPARE = True
-_LONG_CONTEXT_BUDGET = "+100"
-_LONG_RANK_METHOD = "longllmlingua"
-_LONG_CONCATE_QUESTION = False
 
 
 logger = logging.getLogger("adaptive_token_compressor.model_servers.lingua")
@@ -93,20 +82,16 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         default=_env_str("LINGUA_MODEL_NAME_ID", _env_str("LINGUA_MODEL", "")),
         help=(
-            "HF model id (optional). Independent from --mode. "
-            "If omitted, mode-specific default model is used."
+            "HF model id (optional). "
+            "If omitted, the LLMLingua-2 default model is used."
         ),
     )
     parser.add_argument(
         "--mode",
         type=str,
         default=_env_str("LINGUA_MODE", "llmlingua2"),
-        choices=["llmlingua2", "longllmlingua"],
-        help=(
-            "Compression mode. Independent from model id: "
-            "llmlingua2 uses LLMLingua-2 path; longllmlingua uses "
-            "LongLLMLingua path with question/context parameters."
-        ),
+        choices=["llmlingua2"],
+        help="Compression mode. Only llmlingua2 (LLMLingua-2 path) is supported.",
     )
     return parser.parse_args()
 
@@ -129,9 +114,9 @@ def build_app(args: argparse.Namespace) -> Any:
     logger.info("Backend=%s  Requested device=%s", args.backend, args.device)
 
     startup_mode = (args.mode or "llmlingua2").strip().lower()
-    supported_modes = {"llmlingua2", "longllmlingua"}
+    supported_modes = {"llmlingua2"}
     if startup_mode not in supported_modes:
-        raise ValueError("--mode must be one of: llmlingua2, longllmlingua")
+        raise ValueError("--mode must be: llmlingua2")
 
     requested_model_name = (args.model_name_id or "").strip()
     logger.info("Startup default compression mode: %s", startup_mode)
@@ -148,11 +133,8 @@ def build_app(args: argparse.Namespace) -> Any:
         if selected_mode in mode_state:
             return mode_state[selected_mode]
 
-        use_llmlingua2 = selected_mode == "llmlingua2"
         default_model_name = (
             "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
-            if use_llmlingua2
-            else "NousResearch/Llama-2-7b-hf"
         )
         effective_model_name = requested_model_name or default_model_name
 
@@ -162,17 +144,11 @@ def build_app(args: argparse.Namespace) -> Any:
             effective_model_name if effective_model_name else "<llmlingua-default>",
         )
 
-        if selected_mode == "llmlingua2":
-            llm_lingua = PromptCompressor(
-                model_name=effective_model_name,
-                use_llmlingua2=True,
-                device_map="cpu",
-            )
-        else:
-            llm_lingua = PromptCompressor(
-                model_name=effective_model_name,
-                device_map="cpu",
-            )
+        llm_lingua = PromptCompressor(
+            model_name=effective_model_name,
+            use_llmlingua2=True,
+            device_map="cpu",
+        )
 
         runtime_device = str(llm_lingua.device)
         ov_exec_devices = "n/a"
@@ -375,42 +351,7 @@ def build_app(args: argparse.Namespace) -> Any:
         # Patched LLMLingua reads `_digit_neighbor_radius` instance attr;
         # vanilla version ignores it.
         llm_lingua._digit_neighbor_radius = request.digit_neighbor_radius
-        if request_mode == "longllmlingua" and request.question:
-            try:
-                result = llm_lingua.compress_prompt(
-                    request.text,
-                    question=request.question,
-                    rate=request.rate,
-                    force_tokens=force_tokens,
-                    force_reserve_digit=request.force_reserve_digit,
-                    condition_in_question=_LONG_CONDITION_IN_QUESTION,
-                    reorder_context=_LONG_REORDER_CONTEXT,
-                    dynamic_context_compression_ratio=_LONG_DYNAMIC_CONTEXT_COMPRESSION_RATIO,
-                    condition_compare=_LONG_CONDITION_COMPARE,
-                    context_budget=_LONG_CONTEXT_BUDGET,
-                    rank_method=_LONG_RANK_METHOD,
-                    concate_question=_LONG_CONCATE_QUESTION,
-                )
-            except AssertionError:
-                logger.exception(
-                    "LongLLMLingua internal assertion failed; falling back to plain compress_prompt. "
-                    "text_len=%s question_len=%s condition_in_question=%s reorder_context=%s "
-                    "condition_compare=%s context_budget=%s rank_method=%s",
-                    len(request.text),
-                    len(request.question),
-                    _LONG_CONDITION_IN_QUESTION,
-                    _LONG_REORDER_CONTEXT,
-                    _LONG_CONDITION_COMPARE,
-                    _LONG_CONTEXT_BUDGET,
-                    _LONG_RANK_METHOD,
-                )
-                result = _plain_compress()
-        else:
-            if request_mode == "longllmlingua" and not request.question:
-                logger.warning(
-                    "LongLLMLingua mode requested without question; falling back to plain compress_prompt"
-                )
-            result = _plain_compress()
+        result = _plain_compress()
 
         # On OV path, retry execution-device probe after first real inference.
         if args.backend == "ov" and not state["ov_exec_reprobe_done"]:

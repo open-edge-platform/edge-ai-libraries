@@ -45,7 +45,7 @@ RUN apt-get update -y && apt-get install --no-install-recommends --fix-missing -
     && rm -rf /var/lib/apt/lists/*
 
 # Install poetry 2.4.1 - based on $POETRY_VERSION env var
-RUN set -o pipefail && curl -sSL https://install.python-poetry.org | python -
+RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
 
 WORKDIR $SETUP_PATH
 # Copy poetry configuration files
@@ -54,13 +54,10 @@ COPY pyproject.toml poetry.lock ./
 # Install dependencies without dev dependencies
 RUN poetry lock && poetry install --no-root --no-interaction --no-ansi
 
-# system-wide setuptools upgrade
-RUN pip install --upgrade "setuptools>=83.0.0"
-
-# Install video-chunking-utils from OEP/EAL source
-RUN git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Install video-chunking-utils from OEP/EAL source.
+RUN git clone --depth 1 https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
 RUN pip install $SETUP_PATH/edge-ai-libraries/libraries/video-chunking-utils/ && \
-    rm -rf $SETUP_PATH/edge-ai-libraries/libraries/video-chunking-utils
+    rm -rf $SETUP_PATH/edge-ai-libraries
 
 # JWT token clean up
 RUN [ -f $VENV_PATH/lib/python3.13/site-packages/skimage/data/_fetchers.py ] && \
@@ -97,6 +94,18 @@ COPY . /app/
 # exist inside the image as an empty directory.
 RUN mkdir -p /home/appuser/.cache/.multilevel-video-understanding \
     && chown -R appuser:appuser /app /home/appuser/.cache
+
+# Drop pip from the runtime image. pip ships its own vendored dependency inventory
+# (pip/_vendor/vendor.txt + bom.cdx.json) pinning setuptools 70.3.0 and msgpack 1.1.2,
+# which scanners report as installed packages - independent of pyproject.toml,
+# poetry.lock or any setuptools upgrade. Nothing at runtime needs pip.
+RUN rm -rf /usr/local/lib/python3.13/site-packages/pip \
+           /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
+           /usr/local/lib/python3.13/ensurepip \
+           /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.13 \
+           $VENV_PATH/lib/python3.13/site-packages/pip \
+           $VENV_PATH/lib/python3.13/site-packages/pip-*.dist-info \
+           $VENV_PATH/bin/pip $VENV_PATH/bin/pip3 $VENV_PATH/bin/pip3.13
 
 USER appuser
 

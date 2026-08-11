@@ -29,7 +29,6 @@ class CompressionBackend(Protocol):
         force_tokens: list[str] | None = None,
         force_reserve_digit: bool = False,
         digit_neighbor_radius: int = 0,
-        question: str | None = None,
     ) -> str: ...
 
     def health_check(self, *, timeout: float = 5.0) -> HealthStatus: ...
@@ -64,7 +63,6 @@ class LinguaHTTPBackend:
         force_tokens: list[str] | None = None,
         force_reserve_digit: bool = False,
         digit_neighbor_radius: int = 0,
-        question: str | None = None,
     ) -> str:
         payload = {
             "text": text,
@@ -76,12 +74,6 @@ class LinguaHTTPBackend:
             payload["mode"] = mode
         if force_tokens is not None:
             payload["force_tokens"] = force_tokens
-        if mode == "longllmlingua" and question:
-            payload.update(
-                {
-                    "question": question,
-                }
-            )
         component = f"backend@{self._lingua_url}"
         try:
             resp = requests.post(self._lingua_url, json=payload, timeout=self._timeout)
@@ -129,7 +121,6 @@ class NoopBackend:
         force_tokens: list[str] | None = None,
         force_reserve_digit: bool = False,
         digit_neighbor_radius: int = 0,
-        question: str | None = None,
     ) -> str:
         return text
 
