@@ -1,0 +1,1091 @@
+#!/bin/bash
+# ---------------------------------------------------------------------------
+# ensure_license_gate -- all-or-nothing license acceptance gate.
+#
+# Reads a license bundle on STDIN, renders a navigable modal dialog with an
+# auto-generated table of contents, and requires a single collective accept.
+#
+# Bundle format (markers are case-insensitive, leading whitespace ignored):
+#
+#   @@LICENSE-HEADER  <id>          begin a license record
+#   @@TITLE           <text>        human-readable title      (optional)
+#   @@VERSION         <text>        appended to the title     (optional)
+#   @@COMPONENT       <name>        repeatable                (optional)
+#   @@COMPONENTS      a, b, c       comma list                (optional)
+#   @@LICENSE-TEXT                  everything after this line is body text
+#                                   until the next @@LICENSE-HEADER
+#   @@LICENSE-END                   optional explicit terminator
+#
+#   Terse header form is also accepted:
+#       @@LICENSE-HEADER <id> | <title> | <comp1,comp2>
+# Options:
+#   --accept-license[=ID,...]   non-interactive; bare form accepts everything,
+#                               list form fails if the bundle contains an id
+#                               that was not listed
+#   --receipt <path>            write a JSON acceptance receipt (with sha256
+#                               of each license text)
+#   --no-scroll-gate            do not require reading to the end
+#   --plain                     skip the TUI, use the line-mode fallback
+#   --print                     dump the assembled bundle and exit
+#
+# Exit codes: 0 accepted, 1 declined, 2 error / no terminal.
+#
+ensure_license_gate () {
+  local _lg_py _lg_rc
+
+  if [ "${1:-}" = "--plain" ] || ! command -v python3 >/dev/null 2>&1; then
+    [ "${1:-}" = "--plain" ] && shift
+    _license_gate_plain "$@"
+    return $?
+  fi
+
+  _lg_py=$(cat <<'__LICENSE_GATE_PY__'
+# -*- coding: utf-8 -*-
+"""Stdlib-only license acceptance gate. Bundle arrives on stdin."""
+
+import argparse, curses, hashlib, json, os, platform, re, sys, textwrap, time
+
+EXIT_OK, EXIT_DECLINED, EXIT_ERROR = 0, 1, 2
+
+_enc = (os.environ.get("LC_ALL") or os.environ.get("LC_CTYPE")
+        or os.environ.get("LANG") or "")
+UTF = "utf" in _enc.lower()
+
+if UTF:
+    G_TL, G_TR, G_BL, G_BR, G_H, G_V = "\u250c", "\u2510", "\u2514", "\u2518", "\u2500", "\u2502"
+    G_BAR, G_TRK, G_CHK, G_ARR, G_TEE = "\u2588", "\u2502", "\u2714", "\u25b8", "\u2514"
+    G_DOT, G_CUR = "\u25cb", "\u25b8"
+    G_ELL = "\u2026"
+else:
+    G_TL, G_TR, G_BL, G_BR, G_H, G_V = "+", "+", "+", "+", "-", "|"
+    G_BAR, G_TRK, G_CHK, G_ARR, G_TEE = "#", "|", "x", ">", "`"
+    G_DOT, G_CUR = "o", ">"
+    G_ELL = "~"
+
+def die(msg):
+    sys.stderr.write("license-gate: %s\n" % msg)
+    sys.exit(EXIT_ERROR)
+
+
+# ---------------------------------------------------------------- parsing
+
+class License(object):
+    __slots__ = ("lid", "title", "version", "components", "src", "sha", "heads", "_dup")
+
+    def __init__(self, lid):
+        self.lid = lid
+        self.title = ""
+        self.version = ""
+        self.components = []
+        self.src = []
+        self.sha = ""
+        self.heads = {}
+        self._dup = False
+
+
+    def display(self):
+        t = self.title or self.lid
+        return "%s (%s)" % (t, self.version) if self.version else t
+
+
+_MARK = re.compile(r"^\s*@@([A-Za-z-]+)\s*(.*?)\s*$")
+
+
+def parse_bundle(data):
+    order, by_id = [], {}
+    cur, in_text = None, False
+
+    for raw in data.split("\n"):
+        m = _MARK.match(raw)
+        key = m.group(1).upper() if m else ""
+
+        if key == "LICENSE-HEADER":
+            rest = m.group(2)
+            parts = [p.strip() for p in rest.split("|")]
+            lid = parts[0]
+            if not lid:
+                die("@@LICENSE-HEADER requires an id")
+            if lid in by_id:
+                cur = by_id[lid]
+                cur._dup = True
+            else:
+                cur = License(lid)
+                by_id[lid] = cur
+                order.append(cur)
+            if len(parts) > 1 and parts[1]:
+                cur.title = cur.title or parts[1]
+            if len(parts) > 2 and parts[2]:
+                for c in parts[2].split(","):
+                    c = c.strip()
+                    if c and c not in cur.components:
+                        cur.components.append(c)
+            in_text = False
+            continue
+
+        if cur is None:
+            continue  # preamble before the first header is ignored
+
+        if key == "LICENSE-TEXT":
+            in_text = True
+            continue
+        if key == "LICENSE-END":
+            in_text, cur = False, None
+            continue
+
+        if not in_text and key:
+            val = m.group(2)
+            if key == "TITLE":
+                cur.title = val
+            elif key == "VERSION":
+                cur.version = val
+            elif key == "COMPONENT":
+                if val and val not in cur.components:
+                    cur.components.append(val)
+            elif key == "COMPONENTS":
+                for c in val.split(","):
+                    c = c.strip()
+                    if c and c not in cur.components:
+                        cur.components.append(c)
+            continue
+
+        if in_text:
+            if getattr(cur, "_dup", False):
+                continue  # same id seen twice: keep the first body only
+            cur.src.append(raw.replace("\t", "    ").rstrip("\r"))
+
+    for lic in order:
+        while lic.src and not lic.src[0].strip():
+            lic.src.pop(0)
+        while lic.src and not lic.src[-1].strip():
+            lic.src.pop()
+        if not lic.src:
+            die("license %r has no @@LICENSE-TEXT body" % lic.lid)
+        blob = ("\n".join(lic.src)).encode("utf-8", "replace")
+        lic.sha = hashlib.sha256(blob).hexdigest()
+        lic.heads = detect_headings(lic.src)
+    return order
+
+
+# ---------------------------------------------------------------- auto TOC
+
+_H_MD = re.compile(r"^(#{1,6})\s+(.+?)\s*#*$")
+_H_NUM = re.compile(r"^((?:\d+\.)*\d+)[.)]?\s+(\S.{0,78})$")
+_H_KW = re.compile(r"^(ARTICLE|SECTION|EXHIBIT|APPENDIX|SCHEDULE|ANNEX|"
+                   r"ATTACHMENT|PREAMBLE|DEFINITIONS?|TERMS?)\b", re.I)
+_H_ROM = re.compile(r"^([IVXLCDM]+)[.)]\s+(\S.{0,78})$")
+_H_LET = re.compile(r"^\(?([a-zA-Z])[.)]\s+(\S.{0,78})$")
+_UNDER = set("-=_~*")
+
+
+def detect_headings(src):
+    """Return {source_line_index: (depth, label)} inferred from the text.
+
+    Heuristics, in priority order: markdown ATX, underlined lines, numbered
+    clauses, keyword openers, roman numerals, and isolated all-caps lines.
+    Deliberately conservative: if the result looks like noise the TOC for that
+    license is dropped and it is treated as a single flat section.
+    """
+    found = {}
+    n = len(src)
+    for i, raw in enumerate(src):
+        s = raw.strip()
+        if not s or len(s) > 90:
+            continue
+        prev = src[i - 1].strip() if i > 0 else ""
+        nxt = src[i + 1].strip() if i + 1 < n else ""
+        depth, label = None, s
+
+        m = _H_MD.match(s)
+        if m:
+            depth, label = min(len(m.group(1)) - 1, 2), m.group(2)
+
+        if depth is None and nxt and len(nxt) >= 3 and set(nxt) <= _UNDER:
+            depth, label = 0, s
+
+        if depth is None:
+            m = _H_NUM.match(s)
+            if m:
+                body = m.group(2)
+                terminal = s.endswith((".", ";", ","))
+                shouty = body.upper() == body and any(c.isalpha() for c in body)
+                if shouty or not terminal or len(s) <= 48:
+                    depth = min(m.group(1).count("."), 2)
+                    label = s
+
+        if depth is None and _H_KW.match(s) and len(s) <= 70:
+            depth, label = 0, s
+
+        if depth is None:
+            m = _H_ROM.match(s)
+            if m and len(m.group(1)) <= 5:
+                depth, label = 0, s
+
+        if depth is None and prev == "" and len(s) <= 60 and not s.endswith("."):
+            letters = [c for c in s if c.isalpha()]
+            if letters and all(c.isupper() for c in letters):
+                depth, label = 0, s
+
+        if depth is None and prev == "" and nxt == "":
+            m = _H_LET.match(s)
+            if m and len(s) <= 60:
+                depth, label = 1, s
+
+        if depth is not None:
+            found[i] = (depth, re.sub(r"\s+", " ", label).strip()[:72])
+
+    if len(found) < 2 or len(found) > 400:
+        return {}
+    # A heading every other line means the heuristics latched onto body text.
+    if len(found) > max(8, n // 3):
+        return {}
+    return found
+
+
+# ---------------------------------------------------------------- document
+
+S_NORM, S_TITLE, S_META, S_RULE, S_HEAD = range(5)
+
+
+class Document(object):
+    def __init__(self, lics, width):
+        self.lines = []      # (text, style, section)
+        self.starts, self.ends = [], []
+        self.map = {}        # (section, source index) -> wrapped index
+        w = max(24, width)
+        wrap = textwrap.TextWrapper(
+            width=w, replace_whitespace=False, drop_whitespace=False,
+            break_long_words=True, break_on_hyphens=False)
+
+        for si, lic in enumerate(lics):
+            self.starts.append(len(self.lines))
+            self.lines.append(("%d/%d  %s" % (si + 1, len(lics), lic.display()),
+                               S_TITLE, si))
+            if lic.components:
+                for chunk in wrap.wrap("required by: " + ", ".join(lic.components)):
+                    self.lines.append((chunk.rstrip(), S_META, si))
+            self.lines.append((G_H * w, S_RULE, si))
+            self.lines.append(("", S_NORM, si))
+            for srci, para in enumerate(lic.src):
+                self.map[(si, srci)] = len(self.lines)
+                if not para.strip():
+                    self.lines.append(("", S_NORM, si))
+                    continue
+                style = S_HEAD if srci in lic.heads else S_NORM
+                for chunk in (wrap.wrap(para) or [""]):
+                    self.lines.append((chunk.rstrip(), style, si))
+            self.lines.append(("", S_NORM, si))
+            self.ends.append(len(self.lines) - 1)
+
+    def search(self, needle, start, back=False):
+        needle = needle.lower()
+        n = len(self.lines)
+        first = range(start - 1, -1, -1) if back else range(start + 1, n)
+        second = range(n - 1, start, -1) if back else range(0, start + 1)
+        for rng in (first, second):
+            for i in rng:
+                if needle in self.lines[i][0].lower():
+                    return i
+        return -1
+
+
+def build_outline(lics, doc):
+    """Flat, renderable tree: (depth, label, target_line, section, is_license)."""
+    out = []
+    for si, lic in enumerate(lics):
+        out.append((0, lic.display(), doc.starts[si], si, True))
+        for srci in sorted(lic.heads):
+            depth, label = lic.heads[srci]
+            tgt = doc.map.get((si, srci))
+            if tgt is not None:
+                out.append((depth + 1, label, tgt, si, False))
+    return out
+
+
+# ---------------------------------------------------------------- tty
+
+def bind_tty():
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
+    try:
+        fd = os.open("/dev/tty", os.O_RDWR)
+    except OSError:
+        return False
+    os.dup2(fd, 0)
+    os.dup2(fd, 1)
+    if fd > 2:
+        os.close(fd)
+    if not os.environ.get("TERM") or os.environ["TERM"] == "dumb":
+        os.environ["TERM"] = "xterm"
+    return True
+
+
+# ---------------------------------------------------------------- ui
+
+class Gate(object):
+    """Three persistent regions: TOC panel (left), reader (right),
+    action bar (bottom). Decline is always live; accept unlocks when every
+    license has been scrolled to its end."""
+
+    WORD = "accept"
+    B_ACCEPT, B_DECLINE = 0, 1
+
+    def __init__(self, scr, lics, gate=True):
+        self.scr, self.lic, self.gate = scr, lics, gate
+        self.n = len(lics)
+        self.doc, self.dw, self.outline = None, -1, []
+        self.off, self.reached = 0, -1
+        self.focus = "reader"          # reader | toc | actions
+        self.tsel, self.ttop = 0, 0
+        self.bsel = self.B_DECLINE     # safer default until accept unlocks
+        self.mode = "main"             # main | confirm | decline
+        self.needle, self.status, self.typed = "", "", ""
+        self.toc_hit, self.btn_hit = [], []
+        curses.curs_set(0)
+        scr.keypad(True)
+        try:
+            curses.use_default_colors()
+            curses.init_pair(1, curses.COLOR_CYAN, -1)
+            curses.init_pair(2, curses.COLOR_GREEN, -1)
+            curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_GREEN)
+            curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_RED)
+            curses.init_pair(5, curses.COLOR_RED, -1)
+        except curses.error:
+            pass
+        try:
+            curses.mousemask(curses.ALL_MOUSE_EVENTS|curses.REPORT_MOUSE_POSITION)
+            curses.mouseinterval(0)
+        except curses.error:
+            pass
+        # scrollbar drag state
+        self.drag = None                 # None | "reader" | "toc"
+        self.rd_bar = None               # (y_top, x, view, total)
+        self.tc_bar = None
+
+    # ---- geometry
+    #
+    #   y0            +-- title -----------------------------------+
+    #   body_top      | +-- Contents --+  reader text              |
+    #                 | | ...          |                           |
+    #   body_bot      | +--------------+                           |
+    #   bh-4          |-------------------------------------------|
+    #   bh-3          | [ Accept all N ]  [ Decline ]   status     |
+    #   bh-2          | key hints / search prompt                  |
+    #   bh-1          +-------------------------------------------+
+
+    def box(self):
+        h, w = self.scr.getmaxyx()
+        bw = min(110, max(46, w - 2))
+        bh = max(14, h - 1)
+        return (h - bh) // 2, (w - bw) // 2, bh, bw
+
+    def sidebar_w(self, bw):
+        return max(20, min(38, bw // 3))
+
+    def body_rows(self, bh):
+        return bh - 6                      # body_top .. body_bot inclusive
+
+    def reader_w(self, bw):
+        return bw - self.sidebar_w(bw) - 6
+
+    def ensure(self):
+        iw = self.reader_w(self.box()[3])
+        if self.doc is not None and self.dw == iw:
+            return
+        tot = len(self.doc.lines) if self.doc else 0
+        f_off = (self.off / float(tot)) if tot else 0.0
+        f_read = ((self.reached + 1) / float(tot)) if tot else 0.0
+        self.doc = Document(self.lic, iw)
+        self.dw = iw
+        self.outline = build_outline(self.lic, self.doc)
+        n = len(self.doc.lines)
+        self.off = int(f_off * n)
+        self.reached = int(f_read * n) - 1
+
+    # ---- read state
+
+    def flags(self):
+        if not self.gate:
+            return [True] * self.n
+        if self.doc is None:
+            return [False] * self.n
+        return [self.reached >= e for e in self.doc.ends]
+
+    def all_read(self):
+        return all(self.flags())
+
+    def cur_outline(self):
+        """Index of the outline entry containing the current scroll position."""
+        best = 0
+        for i, (_, _, tgt, _, _) in enumerate(self.outline):
+            if tgt <= self.off:
+                best = i
+            else:
+                break
+        return best
+
+    # ---- primitives
+
+    def put(self, y, x, s, a=0):
+        h, w = self.scr.getmaxyx()
+        if y < 0 or y >= h or x < 0 or x >= w:
+            return
+        try:
+            self.scr.addstr(y, x, s[: max(0, w - x - 1)], a)
+        except curses.error:
+            pass
+
+    def rect(self, y0, x0, h, w, dim=True):
+        a = curses.A_DIM if dim else curses.A_NORMAL
+        self.put(y0, x0, G_TL + G_H * (w - 2) + G_TR, a)
+        self.put(y0 + h - 1, x0, G_BL + G_H * (w - 2) + G_BR, a)
+        for i in range(1, h - 1):
+            self.put(y0 + i, x0, G_V, a)
+            self.put(y0 + i, x0 + w - 1, G_V, a)
+
+    def bar(self, y, x, view, total, off):
+        """Draw a scrollbar; return (y, x, view, total) for hit-testing."""
+        if total <= view or view < 2:
+            return None
+        thumb = max(1, view * view // total)
+        span = view - thumb
+        pos = int(round(span * off / float(total - view))) if total > view else 0
+        for i in range(view):
+            self.put(y + i, x, G_BAR if pos <= i < pos + thumb else G_TRK,
+                     curses.A_DIM)
+        return (y, x, view, total)
+
+    def bar_to_off(self, geom, my):
+        """Map a click/drag row on a scrollbar to a scroll offset."""
+        y, x, view, total = geom
+        thumb = max(1, view * view // total)
+        span = max(1, view - thumb)
+        rel = min(max(0, my - y - thumb // 2), span)
+        return int(round(rel * (total - view) / float(span)))
+
+    def cattr(self, pair, fallback=curses.A_NORMAL):
+        try:
+            return curses.color_pair(pair)
+        except curses.error:
+            return fallback
+
+    # ---- TOC panel
+
+    def draw_toc(self, y0, x0, h, w):
+        active = (self.focus == "toc")
+        self.rect(y0, x0, h, w, dim=not active)
+        label = " Contents " if not active else " Contents [focused] "
+        self.put(y0, x0 + 2, label[: w - 4],
+                 curses.A_BOLD | (self.cattr(1) if active else 0))
+
+        view = h - 2
+        total = len(self.outline)
+        self.tsel = max(0, min(self.tsel, total - 1))
+        if self.tsel < self.ttop:
+            self.ttop = self.tsel
+        elif self.tsel >= self.ttop + view:
+            self.ttop = self.tsel - view + 1
+        self.ttop = max(0, min(self.ttop, max(0, total - view)))
+
+        fl = self.flags()
+        here = self.cur_outline()
+        lbl_w = max(6, w - 6)        # " " caret label " " mark " "
+        self.toc_hit = []
+
+        for r in range(view):
+            i = self.ttop + r
+            if i >= total:
+                break
+            depth, lab, tgt, sec, is_lic = self.outline[i]
+            y = y0 + 1 + r
+
+            if is_lic:
+                seen = fl[sec]
+                body = "%d. %s" % (sec + 1, lab)
+                base = curses.A_BOLD | (self.cattr(2) if seen else 0)
+            else:
+                seen = (self.reached >= tgt)
+                body = "%s%s" % ("  " * min(depth, 2), lab)
+                base = curses.A_NORMAL if seen else curses.A_DIM
+
+            caret = G_CUR if i == here else " "
+            mark = G_CHK if seen else (G_DOT if is_lic else " ")
+
+            label = (caret + body)
+            if len(label) > lbl_w:
+                label = label[: lbl_w - 1] + (G_ELL if UTF else "~")
+            label = label.ljust(lbl_w)
+
+            if self.focus == "toc" and i == self.tsel:
+                a = curses.A_REVERSE
+            elif i == here:
+                a = base | curses.A_BOLD
+            else:
+                a = base
+
+            self.put(y, x0 + 1, " " + label, a)
+            # mark sits in its own column, outside the highlight
+            self.put(y, x0 + 1 + 1 + lbl_w, mark,
+                     (self.cattr(2) | curses.A_BOLD) if seen else curses.A_DIM)
+            self.toc_hit.append((y, i))
+
+        self.tc_bar = self.bar(y0 + 1, x0 + w - 2, view, total, self.ttop)
+
+        done = sum(1 for f in fl if f)
+        tag = " %d/%d read " % (done, self.n)
+        self.put(y0 + h - 1, x0 + w - len(tag) - 3, tag,
+                 curses.A_DIM | (self.cattr(2) if done == self.n else 0))
+
+    # ---- reader
+
+    def draw_reader(self, y0, x0, h, w):
+        p = self.doc
+        total = len(p.lines)
+        view = h
+        self.off = max(0, min(self.off, max(0, total - view)))
+        self.reached = max(self.reached, min(total - 1, self.off + view - 1))
+
+        for r in range(view):
+            i = self.off + r
+            if i >= total:
+                break
+            text, style, _ = p.lines[i]
+            if style == S_TITLE:
+                a = curses.A_BOLD | self.cattr(1)
+            elif style == S_HEAD:
+                a = curses.A_BOLD
+            elif style in (S_META, S_RULE):
+                a = curses.A_DIM
+            else:
+                a = curses.A_NORMAL
+            if self.needle and self.needle.lower() in text.lower():
+                a = curses.A_REVERSE
+            self.put(y0 + r, x0, text[:w], a)
+
+        self.rd_bar = self.bar(y0, x0 + w + 1, view, total, self.off)
+
+    # ---- action bar
+
+    def draw_actions(self, y, x0, bw):
+        ok = self.all_read()
+        acc = "  Accept all %d license%s  " % (self.n, "" if self.n == 1 else "s")
+        dec = "  Decline and exit  "
+        focus_bar = (self.focus == "actions")
+        self.btn_hit = []
+
+        x = x0 + 2
+        if ok:
+            a = self.cattr(3, curses.A_REVERSE)
+            if focus_bar and self.bsel == self.B_ACCEPT:
+                a |= curses.A_BOLD
+        else:
+            a = curses.A_DIM | curses.A_REVERSE
+        if focus_bar and self.bsel == self.B_ACCEPT and ok:
+            self.put(y, x - 1, G_CUR, curses.A_BOLD)
+        self.put(y, x, acc, a)
+        self.btn_hit.append((x, x + len(acc), "accept"))
+        x += len(acc) + 3
+
+        a = self.cattr(4, curses.A_REVERSE) if (focus_bar and self.bsel == self.B_DECLINE) \
+            else (self.cattr(5) | curses.A_BOLD)
+        if focus_bar and self.bsel == self.B_DECLINE:
+            self.put(y, x - 1, G_CUR, curses.A_BOLD)
+        self.put(y, x, dec, a)
+        self.btn_hit.append((x, x + len(dec), "decline"))
+        x += len(dec) + 3
+
+        if not ok:
+            left = [i + 1 for i, f in enumerate(self.flags()) if not f]
+            msg = "%d of %d still unread (%s)" % (
+                len(left), self.n,
+                ",".join(str(i) for i in left[:6]) + ("..." if len(left) > 6 else ""))
+            self.put(y, x, msg, curses.A_DIM)
+        else:
+            self.put(y, x, "accepting covers ALL %d licenses" % self.n, curses.A_DIM)
+
+    # ---- main frame
+
+    def draw_main(self):
+        self.ensure()
+        self.scr.erase()
+        y0, x0, bh, bw = self.box()
+        sw = self.sidebar_w(bw)
+        rows = self.body_rows(bh)
+        total = len(self.doc.lines)
+        view = rows
+
+        self.rect(y0, x0, bh, bw, dim=True)
+        self.put(y0, x0 + 3, " License Agreement ", curses.A_BOLD | self.cattr(1))
+        pct = 100 if total <= view else int(100.0 * (self.off + view) / total)
+        sec = self.doc.lines[min(self.off, total - 1)][2] if total else 0
+        right = " %s  %d%% " % (self.lic[sec].display()[:40], pct)
+        self.put(y0, x0 + bw - len(right) - 4, right, curses.A_DIM)
+
+        body_top = y0 + 1
+        self.draw_toc(body_top, x0 + 1, rows, sw)
+        self.draw_reader(body_top, x0 + sw + 3, rows, self.reader_w(bw))
+
+        self.put(y0 + bh - 4, x0 + 1, G_H * (bw - 2), curses.A_DIM)
+        self.draw_actions(y0 + bh - 3, x0, bw)
+
+        if self.status:
+            self.put(y0 + bh - 4, x0 + bw - len(self.status) - 4,
+                     " " + self.status + " ", curses.A_DIM)
+
+        hint = ("TAB focus  \u2191\u2193 move/scroll  ENTER open  PgUp/PgDn  "
+                "g/G  / search  A accept  q decline") if UTF else \
+               ("TAB focus  arrows move/scroll  ENTER open  PgUp/PgDn  "
+                "g/G  / search  A accept  q decline")
+        self.put(y0 + bh - 2, x0 + 2, hint, curses.A_DIM)
+        self.scr.noutrefresh()
+        curses.doupdate()
+
+    # ---- overlays
+
+    def draw_confirm(self):
+        self.scr.erase()
+        self.draw_main_backdrop()
+        h, w = self.scr.getmaxyx()
+        bw, bh = min(74, w - 4), min(h - 2, 8 + min(self.n, 6))
+        x0, y0 = (w - bw) // 2, (h - bh) // 2
+        self.rect(y0, x0, bh, bw, dim=False)
+        self.put(y0, x0 + 3, " Confirm acceptance ", curses.A_BOLD | self.cattr(1))
+        self.put(y0 + 2, x0 + 3, "You are accepting ALL %d licenses:" % self.n,
+                 curses.A_BOLD)
+        row = y0 + 3
+        for i, l in enumerate(self.lic):
+            if row >= y0 + bh - 5:
+                self.put(row, x0 + 5, "... and %d more" % (self.n - i), curses.A_DIM)
+                break
+            self.put(row, x0 + 5, "%s %s" % (G_CUR, l.display()), curses.A_DIM)
+            row += 1
+        self.put(y0 + bh - 4, x0 + 3,
+                 "Type %r then ENTER.   ESC to go back." % self.WORD)
+        self.put(y0 + bh - 3, x0 + 3, "> " + (self.typed + " " * 18)[:18],
+                 curses.A_REVERSE)
+        self.scr.noutrefresh()
+        curses.doupdate()
+
+    def draw_decline(self):
+        self.scr.erase()
+        self.draw_main_backdrop()
+        h, w = self.scr.getmaxyx()
+        bw, bh = min(64, w - 4), 7
+        x0, y0 = (w - bw) // 2, (h - bh) // 2
+        self.rect(y0, x0, bh, bw, dim=False)
+        self.put(y0, x0 + 3, " Decline ", curses.A_BOLD | self.cattr(5))
+        self.put(y0 + 2, x0 + 3, "Decline the licenses and exit without installing?",
+                 curses.A_BOLD)
+        self.put(y0 + 4, x0 + 3, "y = decline and exit     n / ESC = go back",
+                 curses.A_DIM)
+        self.scr.noutrefresh()
+        curses.doupdate()
+
+    def draw_main_backdrop(self):
+        try:
+            self.draw_main_quiet()
+        except curses.error:
+            pass
+
+    def draw_main_quiet(self):
+        y0, x0, bh, bw = self.box()
+        self.rect(y0, x0, bh, bw, dim=True)
+        self.put(y0, x0 + 3, " License Agreement ", curses.A_DIM)
+
+    # ---- search
+
+    def ask_search(self):
+        y0, x0, bh, bw = self.box()
+        buf = ""
+        curses.curs_set(1)
+        while True:
+            self.put(y0 + bh - 2, x0 + 2, ("/" + buf).ljust(bw - 6), curses.A_REVERSE)
+            self.scr.refresh()
+            c = self.scr.getch()
+            if c in (10, 13, curses.KEY_ENTER):
+                break
+            if c == 27:
+                buf = ""
+                break
+            if c in (curses.KEY_BACKSPACE, 127, 8):
+                buf = buf[:-1]
+            elif 32 <= c < 127:
+                buf += chr(c)
+        curses.curs_set(0)
+        self.needle = buf
+        if buf:
+            hit = self.doc.search(buf, self.off)
+            if hit >= 0:
+                self.off, self.status = hit, ""
+            else:
+                self.status = "no match"
+
+    # ---- actions
+
+    def try_accept(self):
+        if self.all_read():
+            self.mode, self.typed = "confirm", ""
+        else:
+            unread = [i for i, f in enumerate(self.flags()) if not f]
+            self.off = self.doc.starts[unread[0]]
+            self.tsel = next((k for k, e in enumerate(self.outline)
+                              if e[4] and e[3] == unread[0]), 0)
+            self.focus = "reader"
+            self.status = "license %d not read yet" % (unread[0] + 1)
+
+    # ---- loop
+
+    def run(self):
+        B4 = getattr(curses, "BUTTON4_PRESSED", 0)
+        B5 = getattr(curses, "BUTTON5_PRESSED", 0)
+        B1 = (getattr(curses, "BUTTON1_CLICKED", 0)
+              | getattr(curses, "BUTTON1_PRESSED", 0))
+        while True:
+            if self.mode == "main":
+                self.draw_main()
+            elif self.mode == "confirm":
+                self.draw_confirm()
+            else:
+                self.draw_decline()
+            c = self.scr.getch()
+
+            if c == curses.KEY_RESIZE:
+                self.doc, self.dw = None, -1
+                continue
+
+            # ---- decline confirmation
+            if self.mode == "decline":
+                if c in (ord("y"), ord("Y")):
+                    return False
+                if c in (ord("n"), ord("N"), 27, 10, 13, curses.KEY_ENTER):
+                    self.mode = "main"
+                continue
+
+            # ---- accept confirmation
+            if self.mode == "confirm":
+                if c == 27:
+                    self.mode, self.typed = "main", ""
+                elif c in (10, 13, curses.KEY_ENTER):
+                    if self.typed.strip().lower() == self.WORD:
+                        return True
+                    self.typed, self.status = "", "type 'accept' exactly"
+                elif c in (curses.KEY_BACKSPACE, 127, 8):
+                    self.typed = self.typed[:-1]
+                elif 32 <= c < 127 and len(self.typed) < 18:
+                    self.typed += chr(c)
+                continue
+
+            # ---- mouse
+            if c == curses.KEY_MOUSE:
+                B1P = getattr(curses, "BUTTON1_PRESSED", 0)
+                B1R = getattr(curses, "BUTTON1_RELEASED", 0)
+                B1C = getattr(curses, "BUTTON1_CLICKED", 0)
+                wheel = 0
+                ev = None
+                # drain the queue: coalesce wheel steps, keep the last position
+                self.scr.nodelay(True)
+                try:
+                    while True:
+                        try:
+                            _, mx, my, _, st = curses.getmouse()
+                        except curses.error:
+                            break
+                        if B4 and st & B4:
+                            wheel -= 3
+                        elif B5 and st & B5:
+                            wheel += 3
+                        else:
+                            ev = (mx, my, st)
+                        nxt = self.scr.getch()
+                        if nxt != curses.KEY_MOUSE:
+                            if nxt != -1:
+                                curses.ungetch(nxt)
+                            break
+                finally:
+                    self.scr.nodelay(False)
+
+                if wheel:
+                    y0, x0, bh, bw = self.box()
+                    mx = ev[0] if ev else x0 + bw
+                    if mx < x0 + self.sidebar_w(bw) + 2:
+                        self.ttop = max(0, self.ttop + wheel)
+                        self.tsel = max(0, min(len(self.outline) - 1,
+                                               self.tsel + wheel))
+                    else:
+                        self.off += wheel
+                if ev is None:
+                    continue
+
+                mx, my, st = ev
+                y0, x0, bh, bw = self.box()
+
+                if B1R and (st & B1R):
+                    self.drag = None
+                    continue
+
+                # drag in progress: motion events carry no button bits
+                if self.drag == "reader" and self.rd_bar:
+                    self.off = self.bar_to_off(self.rd_bar, my)
+                    continue
+                if self.drag == "toc" and self.tc_bar:
+                    self.ttop = self.bar_to_off(self.tc_bar, my)
+                    continue
+
+                if not (st & (B1P | B1C)):
+                    continue
+
+                # scrollbar press: jump the thumb, then start dragging
+                if self.rd_bar and mx == self.rd_bar[1] \
+                        and self.rd_bar[0] <= my < self.rd_bar[0] + self.rd_bar[2]:
+                    self.off = self.bar_to_off(self.rd_bar, my)
+                    self.drag = "reader"
+                    self.focus = "reader"
+                    continue
+                if self.tc_bar and mx == self.tc_bar[1] \
+                        and self.tc_bar[0] <= my < self.tc_bar[0] + self.tc_bar[2]:
+                    self.ttop = self.bar_to_off(self.tc_bar, my)
+                    self.drag = "toc"
+                    self.focus = "toc"
+                    continue
+
+                if my == y0 + bh - 3:
+                    for lo, hi, name in self.btn_hit:
+                        if lo <= mx < hi:
+                            if name == "accept":
+                                self.try_accept()
+                            else:
+                                self.mode = "decline"
+                            break
+                    continue
+
+                for ty, idx in self.toc_hit:
+                    if my == ty and x0 < mx < x0 + self.sidebar_w(bw) + 1:
+                        self.tsel, self.focus = idx, "toc"
+                        self.off = self.outline[idx][2]
+                        break
+                continue
+
+            # ---- always-live global keys
+            if c in (ord("q"), ord("Q")):
+                self.mode = "decline"
+                continue
+            if c == ord("A"):
+                self.try_accept()
+                continue
+            if c == ord("\t"):
+                self.focus = {"reader": "toc", "toc": "actions",
+                              "actions": "reader"}[self.focus]
+                continue
+            if c == curses.KEY_BTAB:
+                self.focus = {"reader": "actions", "actions": "toc",
+                              "toc": "reader"}[self.focus]
+                continue
+            if c == ord("/"):
+                self.focus = "reader"
+                self.ask_search()
+                continue
+            if c == ord("t"):
+                self.focus = "toc"
+                continue
+
+            view = self.body_rows(self.box()[2])
+            total = len(self.doc.lines)
+
+            # ---- action bar focus
+            if self.focus == "actions":
+                if c in (curses.KEY_LEFT, ord("h")):
+                    self.bsel = self.B_ACCEPT
+                elif c in (curses.KEY_RIGHT, ord("l")):
+                    self.bsel = self.B_DECLINE
+                elif c in (10, 13, curses.KEY_ENTER, ord(" ")):
+                    if self.bsel == self.B_ACCEPT:
+                        self.try_accept()
+                    else:
+                        self.mode = "decline"
+                elif c == 27:
+                    self.focus = "reader"
+                continue
+
+            # ---- TOC focus
+            if self.focus == "toc":
+                if c in (curses.KEY_UP, ord("k")):
+                    self.tsel = max(0, self.tsel - 1)
+                elif c in (curses.KEY_DOWN, ord("j")):
+                    self.tsel = min(len(self.outline) - 1, self.tsel + 1)
+                elif c == curses.KEY_PPAGE:
+                    self.tsel = max(0, self.tsel - (view - 2))
+                elif c == curses.KEY_NPAGE:
+                    self.tsel = min(len(self.outline) - 1, self.tsel + (view - 2))
+                elif c in (curses.KEY_HOME, ord("g")):
+                    self.tsel = 0
+                elif c in (curses.KEY_END, ord("G")):
+                    self.tsel = len(self.outline) - 1
+                elif c in (10, 13, curses.KEY_ENTER, curses.KEY_RIGHT, ord(" ")):
+                    self.off = self.outline[self.tsel][2]
+                    self.focus = "reader"
+                    self.status = ""
+                elif c == 27:
+                    self.focus = "reader"
+                continue
+
+            # ---- reader focus
+            if c in (curses.KEY_DOWN, ord("j")):
+                self.off += 1
+            elif c in (curses.KEY_UP, ord("k")):
+                self.off -= 1
+            elif c in (curses.KEY_NPAGE, ord(" ")):
+                self.off += view - 1
+            elif c == curses.KEY_PPAGE:
+                self.off -= view - 1
+            elif c in (ord("g"), curses.KEY_HOME):
+                self.off = 0
+            elif c in (ord("G"), curses.KEY_END):
+                self.off = total
+            elif c == curses.KEY_LEFT:
+                self.focus = "toc"
+                self.tsel = self.cur_outline()
+            elif c == ord("n") and self.needle:
+                h = self.doc.search(self.needle, self.off)
+                if h >= 0:
+                    self.off = h
+            elif c == ord("N") and self.needle:
+                h = self.doc.search(self.needle, self.off, back=True)
+                if h >= 0:
+                    self.off = h
+            elif c == 27:
+                self.mode = "decline"
+
+
+# ---------------------------------------------------------------- fallbacks
+
+def plain_flow(lics, gate=True):
+    """Line-mode acceptance when curses is unavailable."""
+    try:
+        tty = open("/dev/tty", "r+")
+    except IOError:
+        return None
+    w = tty.write
+    n = len(lics)
+    w("\nThe following %d license%s must be accepted:\n\n" % (n, "" if n == 1 else "s"))
+    for i, l in enumerate(lics):
+        w("  %d. %s\n" % (i + 1, l.display()))
+        if l.components:
+            w("     required by: %s\n" % ", ".join(l.components))
+    while True:
+        w("\n[number]=read  a=read all  accept=accept all  q=decline > ")
+        tty.flush()
+        ans = (tty.readline() or "q").strip().lower()
+        if ans in ("q", "quit", "decline", "n", "no"):
+            return False
+        if ans == "accept":
+            return True
+        if ans == "a":
+            for l in lics:
+                w("\n=== %s ===\n" % l.display())
+                w("\n".join(l.src) + "\n")
+        elif ans.isdigit() and 1 <= int(ans) <= n:
+            l = lics[int(ans) - 1]
+            w("\n=== %s ===\n" % l.display())
+            w("\n".join(l.src) + "\n")
+
+
+# ---------------------------------------------------------------- receipt
+
+def write_receipt(path, lics, mode):
+    rec = {
+        "accepted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "user": os.environ.get("SUDO_USER") or os.environ.get("USER") or str(os.getuid()),
+        "hostname": platform.node(),
+        "mode": mode,
+        "licenses": [{"id": l.lid, "title": l.display(), "sha256": l.sha,
+                      "components": l.components} for l in lics],
+    }
+    tmp = path + ".tmp"
+    try:
+        d = os.path.dirname(os.path.abspath(path))
+        if d:
+            try:
+                os.makedirs(d)
+            except OSError:
+                pass
+        with open(tmp, "w") as fh:
+            json.dump(rec, fh, indent=2, sort_keys=True)
+            fh.write("\n")
+        os.rename(tmp, path)
+    except (OSError, IOError) as exc:
+        die("cannot write receipt %s: %s" % (path, exc))
+
+
+# ---------------------------------------------------------------- main
+
+def main():
+    ap = argparse.ArgumentParser(prog="license-gate", add_help=True)
+    ap.add_argument("--accept-license", nargs="?", const="*", default=None)
+    ap.add_argument("--receipt", default=None)
+    ap.add_argument("--no-scroll-gate", action="store_true")
+    ap.add_argument("--print", dest="dump", action="store_true")
+    args = ap.parse_args()
+
+    data = sys.stdin.read()
+    if not data.strip():
+        return EXIT_OK
+    lics = parse_bundle(data)
+    if not lics:
+        return EXIT_OK
+
+    if args.dump:
+        for l in lics:
+            sys.stdout.write("=== %s [%s] ===\n" % (l.display(), l.lid))
+            if l.components:
+                sys.stdout.write("required by: %s\n" % ", ".join(l.components))
+            sys.stdout.write("\n".join(l.src) + "\n\n")
+        return EXIT_OK
+
+    if args.accept_license is not None:
+        need = [l.lid for l in lics]
+        if args.accept_license != "*":
+            given = set(x.strip() for x in args.accept_license.split(",") if x.strip())
+            missing = [i for i in need if i not in given]
+            if missing:
+                die("--accept-license does not cover: %s" % ", ".join(missing))
+        sys.stdout.write("Accepted licenses: %s\n" % ", ".join(need))
+        if args.receipt:
+            write_receipt(args.receipt, lics, "non-interactive")
+        return EXIT_OK
+
+    if not bind_tty():
+        sys.stderr.write("license-gate: no terminal; re-run with --accept-license "
+                         "to accept:\n%s\n" %
+                         "\n".join("  %s (%s)" % (l.lid, l.display()) for l in lics))
+        return EXIT_ERROR
+
+    accepted = None
+    try:
+        accepted = curses.wrapper(lambda s: Gate(s, lics, not args.no_scroll_gate).run())
+    except (curses.error, Exception):
+        accepted = None
+    if accepted is None:
+        accepted = plain_flow(lics, not args.no_scroll_gate)
+    if accepted is None:
+        return EXIT_ERROR
+    if not accepted:
+        sys.stderr.write("license-gate: declined\n")
+        return EXIT_DECLINED
+    if args.receipt:
+        write_receipt(args.receipt, lics, "interactive")
+    return EXIT_OK
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(EXIT_DECLINED)
+__LICENSE_GATE_PY__
+)
+
+  python3 -c "$_lg_py" "$@"
+  _lg_rc=$?
+  return $_lg_rc
+}
