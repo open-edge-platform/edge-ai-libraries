@@ -1,8 +1,14 @@
+/*
+ * Copyright (C) 2026 Intel Corporation
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 @font-face {
   font-family: "iconfont"; /* Project id 4784207 */
-  src: url('iconfont.woff2?t=1777441371724') format('woff2'),
-       url('iconfont.woff?t=1777441371724') format('woff'),
-       url('iconfont.ttf?t=1777441371724') format('truetype');
+  src:
+    url("iconfont.woff2?t=1777441371724") format("woff2"),
+    url("iconfont.woff?t=1777441371724") format("woff"),
+    url("iconfont.ttf?t=1777441371724") format("truetype");
 }
 
 .iconfont {
@@ -336,4 +342,3 @@
 .icon-active:before {
   content: "\e795";
 }
-

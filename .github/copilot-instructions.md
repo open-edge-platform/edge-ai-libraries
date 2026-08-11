@@ -60,7 +60,7 @@ For detailed security review guidance, follow:
 edge-ai-libraries/
 ├── libraries/          # Reusable AI/ML libraries (anomalib, datumaro, geti-sdk, model_api, …)
 ├── microservices/      # Standalone deployable services (dlstreamer-pipeline-server, model-registry,
-│                       #   time-series-analytics, vlm-openvino-serving, audio-analyzer, …)
+│                       #   time-series-analytics, audio-analyzer, …)
 ├── sample-applications/# End-to-end reference apps (chat-qna, document-summarization, …)
 ├── tools/              # Developer tooling (npu-monitor-tool, visual-pipeline-evaluation, …)
 ├── frameworks/         # Edge device enablement framework
