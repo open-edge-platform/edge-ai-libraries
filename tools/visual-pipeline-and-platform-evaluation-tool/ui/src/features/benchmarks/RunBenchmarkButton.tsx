@@ -22,9 +22,14 @@ import { unslug } from "@/lib/utils";
 
 type RunBenchmarkButtonProps = {
   suiteSlug: string;
+  /** Models required by the suite workloads that are not installed yet. */
+  missingRequiredModels?: string[];
 };
 
-export const RunBenchmarkButton = ({ suiteSlug }: RunBenchmarkButtonProps) => {
+export const RunBenchmarkButton = ({
+  suiteSlug,
+  missingRequiredModels = [],
+}: RunBenchmarkButtonProps) => {
   const [newJobId, setNewJobId] = useState<string | null>(null);
   const [stoppingJobId, setStoppingJobId] = useState<string | null>(null);
   const [displayProgress, setDisplayProgress] = useState(0);
@@ -96,6 +101,9 @@ export const RunBenchmarkButton = ({ suiteSlug }: RunBenchmarkButtonProps) => {
     }
   }, [activeJobStatus, isThisSuiteRunning]);
 
+  const hasMissingRequiredModels =
+    !isThisSuiteRunning && missingRequiredModels.length > 0;
+
   const button = (
     <Button
       type="button"
@@ -104,6 +112,7 @@ export const RunBenchmarkButton = ({ suiteSlug }: RunBenchmarkButtonProps) => {
         (isThisSuiteRunning && (isStopping || !!stoppingJobId)) ||
         (!isThisSuiteRunning &&
           (isMutating || !!newJobId || isOtherSuiteRunning)) ||
+        hasMissingRequiredModels ||
         !suiteSlug
       }
       variant={isThisSuiteRunning ? "destructive" : "default"}
@@ -131,6 +140,23 @@ export const RunBenchmarkButton = ({ suiteSlug }: RunBenchmarkButtonProps) => {
         <TooltipContent>
           Another benchmark is currently running (
           {unslug(runningJob!.suite_slug)}). Please wait for it to finish.
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  if (hasMissingRequiredModels) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {/* span captures pointer events that the disabled button swallows */}
+          <span className="inline-flex cursor-not-allowed">{button}</span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-80">
+          <p>Install all required models first.</p>
+          <p className="mt-1 text-xs text-muted-foreground break-words">
+            Missing: {missingRequiredModels.join(", ")}
+          </p>
         </TooltipContent>
       </Tooltip>
     );

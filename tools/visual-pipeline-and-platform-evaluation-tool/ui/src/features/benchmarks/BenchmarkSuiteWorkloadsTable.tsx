@@ -7,9 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog.tsx";
 import { extractModelNamesFromNodes } from "@/features/models/modelNames.ts";
-import { useRequiredModelsStatus } from "@/features/models/useRequiredModelsStatus.ts";
 import { useMemo } from "react";
 
 const THUMBNAIL_PLACEHOLDER = "/src/assets/thumbnail_placeholder.png";
@@ -91,87 +89,63 @@ export const BenchmarkSuiteWorkloadsTable = ({
     [benchmark.workloads, pipelinesMap],
   );
 
-  const requiredModels = useMemo(
-    () => [...new Set(rows.flatMap((row) => row.modelNames))],
-    [rows],
-  );
-
-  const {
-    modelStatuses,
-    isDialogOpen,
-    setIsDialogOpen,
-    refresh: refreshRequiredModels,
-  } = useRequiredModelsStatus(requiredModels, {
-    errorMessage: "Failed to check models used in benchmark workloads",
-  });
-
   return (
-    <>
-      <Table className="border rounded-lg">
-        <TableHeader className="bg-muted">
-          <TableRow>
-            <TableHead className="w-32"></TableHead>
-            <TableHead className="w-max">Pipeline Name</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead className="w-max">Variants</TableHead>
-            <TableHead className="w-max">Details</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.id}>
-              <TableCell>
-                <img
-                  src={row.pipeline?.thumbnail ?? THUMBNAIL_PLACEHOLDER}
-                  alt={row.pipeline?.name ?? row.pipelineId}
-                  className="w-32 h-16 object-cover"
-                />
-              </TableCell>
-              <TableCell className="font-medium whitespace-nowrap">
-                {row.pipeline?.name ?? row.pipelineId}
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                <p className="whitespace-pre-wrap">
-                  {row.pipeline?.description ?? "-"}
-                </p>
-              </TableCell>
-              <TableCell>
-                <p className="whitespace-pre-wrap text-xs">
-                  {row.variantNames ?? "-"}
-                </p>
-              </TableCell>
-              <TableCell className="text-xs">
-                <div className="space-y-1">
-                  <div>Input: {String(row.sourceValue ?? "-")}</div>
-                  <div>
-                    Models:{" "}
-                    {row.modelNames.length > 0
-                      ? row.modelNames.map((modelName, index) => (
-                          <span
-                            key={`${row.id}-${modelName}-${index}`}
-                            title={modelName}
-                          >
-                            {truncateModelName(modelName)}
-                            {index < row.modelNames.length - 1 ? ", " : ""}
-                          </span>
-                        ))
-                      : "-"}
-                  </div>
-                  <div>Tested stream counts: {row.uniqueStreams ?? "-"}</div>
+    <Table className="border rounded-lg">
+      <TableHeader className="bg-muted">
+        <TableRow>
+          <TableHead className="w-32"></TableHead>
+          <TableHead className="w-max">Pipeline Name</TableHead>
+          <TableHead>Description</TableHead>
+          <TableHead className="w-max">Variants</TableHead>
+          <TableHead className="w-max">Details</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={row.id}>
+            <TableCell>
+              <img
+                src={row.pipeline?.thumbnail ?? THUMBNAIL_PLACEHOLDER}
+                alt={row.pipeline?.name ?? row.pipelineId}
+                className="w-32 h-16 object-cover"
+              />
+            </TableCell>
+            <TableCell className="font-medium whitespace-nowrap">
+              {row.pipeline?.name ?? row.pipelineId}
+            </TableCell>
+            <TableCell className="text-muted-foreground">
+              <p className="whitespace-pre-wrap">
+                {row.pipeline?.description ?? "-"}
+              </p>
+            </TableCell>
+            <TableCell>
+              <p className="whitespace-pre-wrap text-xs">
+                {row.variantNames ?? "-"}
+              </p>
+            </TableCell>
+            <TableCell className="text-xs">
+              <div className="space-y-1">
+                <div>Input: {String(row.sourceValue ?? "-")}</div>
+                <div>
+                  Models:{" "}
+                  {row.modelNames.length > 0
+                    ? row.modelNames.map((modelName, index) => (
+                        <span
+                          key={`${row.id}-${modelName}-${index}`}
+                          title={modelName}
+                        >
+                          {truncateModelName(modelName)}
+                          {index < row.modelNames.length - 1 ? ", " : ""}
+                        </span>
+                      ))
+                    : "-"}
                 </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-
-      <PipelineModelsRequiredDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        models={modelStatuses}
-        onModelsChanged={refreshRequiredModels}
-        description="One or more models used by this benchmark's workloads are not installed."
-      />
-    </>
+                <div>Tested stream counts: {row.uniqueStreams ?? "-"}</div>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 };
