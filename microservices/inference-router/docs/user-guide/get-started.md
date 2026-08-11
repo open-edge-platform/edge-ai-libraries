@@ -88,6 +88,8 @@ replace `Qwen/Qwen3.5-2B` with that equivalent source:
 pip install -U huggingface_hub
 ```
 
+Note: if you encounter `externally-managed-environment` error, either run the install command with `--break-system-packages`, or create a python virtual environment first.
+
 ```bash
 hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen2.5-2B-FP16
 ```
