@@ -54,10 +54,8 @@ in one place, making it easier to identify bottlenecks and compare platform beha
 
 :::{toctree}
 :hidden:
-:caption: Overview
 
-Edge AI Libraries <https://docs.openedgeplatform.intel.com/dev/ai-libraries.html>
-ViPPET <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html>
+Go back to Libraries <https://docs.openedgeplatform.intel.com/dev/ai-libraries.html>
 
 :::
 
@@ -65,6 +63,7 @@ ViPPET <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pip
 :hidden:
 :caption: Get Started
 
+ViPPET Overview <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html>
 ./get-started/installation
 ./get-started/quickstart
 
