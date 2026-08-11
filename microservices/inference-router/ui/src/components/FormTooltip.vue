@@ -1,3 +1,8 @@
+<!--
+  Copyright (C) 2026 Intel Corporation
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 <template>
   <a-tooltip placement="topRight" arrow-point-at-center>
     <template #title>

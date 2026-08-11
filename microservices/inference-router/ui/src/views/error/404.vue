@@ -1,3 +1,8 @@
+<!--
+  Copyright (C) 2026 Intel Corporation
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 <template>
   <div class="not-found">
     <img :src="notFound" alt="" class="not-found-icon" />
