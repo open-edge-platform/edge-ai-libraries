@@ -335,7 +335,8 @@ class Gate(object):
         self.scr, self.lic, self.gate = scr, lics, gate
         self.n = len(lics)
         self.doc, self.dw, self.outline = None, -1, []
-        self.off, self.reached = 0, -1
+        self.off = 0
+        self.cov = [0] * self.n
         self.focus = "reader"          # reader | toc | actions
         self.tsel, self.ttop = 0, 0
         self.bsel = self.B_DECLINE     # safer default until accept unlocks
@@ -354,10 +355,19 @@ class Gate(object):
         except curses.error:
             pass
         try:
-            curses.mousemask(curses.ALL_MOUSE_EVENTS|curses.REPORT_MOUSE_POSITION)
+            avail, _ = curses.mousemask(curses.ALL_MOUSE_EVENTS|curses.REPORT_MOUSE_POSITION)
             curses.mouseinterval(0)
         except curses.error:
+            avail = 0
+
+        self.motion = bool(avail & curses.REPORT_MOUSE_POSITION)
+        try:
+            sys.stdout.write("\033[?1002h\033[?1006h")
+            sys.stdout.flush()
+            self.motion = True
+        except Exception:
             pass
+
         # scrollbar drag state
         self.drag = None                 # None | "reader" | "toc"
         self.rd_bar = None               # (y_top, x, view, total)
@@ -395,13 +405,35 @@ class Gate(object):
             return
         tot = len(self.doc.lines) if self.doc else 0
         f_off = (self.off / float(tot)) if tot else 0.0
-        f_read = ((self.reached + 1) / float(tot)) if tot else 0.0
+        f_cov = []
+        if self.doc is not None:
+            for si in range(self.n):
+                ln = self.doc.ends[si] - self.doc.starts[si] + 1
+                f_cov.append(self.cov[si] / float(ln) if ln else 0.0)
         self.doc = Document(self.lic, iw)
         self.dw = iw
         self.outline = build_outline(self.lic, self.doc)
         n = len(self.doc.lines)
         self.off = int(f_off * n)
-        self.reached = int(f_read * n) - 1
+        if f_cov:
+            for si in range(self.n):
+                ln = self.doc.ends[si] - self.doc.starts[si] + 1
+                self.cov[si] = min(ln, int(f_cov[si] * ln))
+
+    def _mark_seen(self, top, bot):
+        """Extend contiguous coverage for any license the viewport covers.
+        Jumping past the frontier deliberately earns no credit."""
+        for si in range(self.n):
+            s, e = self.doc.starts[si], self.doc.ends[si]
+            if bot < s or top > e:
+                continue
+            if top <= s + self.cov[si]:          # contiguous with what's read
+                seen = min(bot, e) - s + 1
+                if seen > self.cov[si]:
+                    self.cov[si] = seen
+
+    def frontier(self, si):
+        return self.doc.starts[si] + self.cov[si]
 
     # ---- read state
 
@@ -410,7 +442,8 @@ class Gate(object):
             return [True] * self.n
         if self.doc is None:
             return [False] * self.n
-        return [self.reached >= e for e in self.doc.ends]
+        return [self.cov[si] >= self.doc.ends[si] - self.doc.starts[si] + 1
+                for si in range(self.n)]
 
     def all_read(self):
         return all(self.flags())
@@ -462,7 +495,8 @@ class Gate(object):
         thumb = max(1, view * view // total)
         span = max(1, view - thumb)
         rel = min(max(0, my - y - thumb // 2), span)
-        return int(round(rel * (total - view) / float(span)))
+        off = int(round(rel * (total - view) / float(span)))
+        return max(0, min(off, total - view))
 
     def cattr(self, pair, fallback=curses.A_NORMAL):
         try:
@@ -490,7 +524,8 @@ class Gate(object):
 
         fl = self.flags()
         here = self.cur_outline()
-        lbl_w = max(6, w - 6)        # " " caret label " " mark " "
+        mark_x = x0 + w -4
+        lbl_w = max(6, mark_x - (x0 + 2) -1)
         self.toc_hit = []
 
         for r in range(view):
@@ -505,7 +540,7 @@ class Gate(object):
                 body = "%d. %s" % (sec + 1, lab)
                 base = curses.A_BOLD | (self.cattr(2) if seen else 0)
             else:
-                seen = (self.reached >= tgt)
+                seen = (tgt < self.frontier(sec))
                 body = "%s%s" % ("  " * min(depth, 2), lab)
                 base = curses.A_NORMAL if seen else curses.A_DIM
 
@@ -526,7 +561,7 @@ class Gate(object):
 
             self.put(y, x0 + 1, " " + label, a)
             # mark sits in its own column, outside the highlight
-            self.put(y, x0 + 1 + 1 + lbl_w, mark,
+            self.put(y, mark_x, mark,
                      (self.cattr(2) | curses.A_BOLD) if seen else curses.A_DIM)
             self.toc_hit.append((y, i))
 
@@ -544,7 +579,7 @@ class Gate(object):
         total = len(p.lines)
         view = h
         self.off = max(0, min(self.off, max(0, total - view)))
-        self.reached = max(self.reached, min(total - 1, self.off + view - 1))
+        self._mark_seen(self.off, min(total - 1, self.off + view - 1))
 
         for r in range(view):
             i = self.off + r
@@ -737,6 +772,16 @@ class Gate(object):
     # ---- loop
 
     def run(self):
+        try:
+            return self._run()
+        finally:
+            try:
+                sys.stdout.write("\033[?1002l\033[?1006l")
+                sys.stdout.flush()
+            except Exception:
+                pass
+
+    def _run(self):
         B4 = getattr(curses, "BUTTON4_PRESSED", 0)
         B5 = getattr(curses, "BUTTON5_PRESSED", 0)
         B1 = (getattr(curses, "BUTTON1_CLICKED", 0)
@@ -820,16 +865,17 @@ class Gate(object):
                 mx, my, st = ev
                 y0, x0, bh, bw = self.box()
 
-                if B1R and (st & B1R):
-                    self.drag = None
-                    continue
-
                 # drag in progress: motion events carry no button bits
                 if self.drag == "reader" and self.rd_bar:
                     self.off = self.bar_to_off(self.rd_bar, my)
+                    if B1R and (st & B1R):
+                        self.drag = None
                     continue
                 if self.drag == "toc" and self.tc_bar:
                     self.ttop = self.bar_to_off(self.tc_bar, my)
+                    self.tsel = max(0, min(len(self.outline) - 1, self.ttop))
+                    if B1R and (st & B1R):
+                        self.drag = None
                     continue
 
                 if not (st & (B1P | B1C)):
