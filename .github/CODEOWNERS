@@ -54,16 +54,20 @@ README.md           @xwu2intel
 /libraries/video-chunking-utils/                       @Johere @zhangcong2019 @llin60 @xwu2intel
 /libraries/video-chunking-utils/docs/                  @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /libraries/video-chunking-utils/README.md              @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
-/libraries/adaptive-token-compressor/                  @mnoiy @myqi @llin60 @Junyu-B @xwu2intel
-/libraries/adaptive-token-compressor/README.md         @mnoiy @myqi @llin60 @Junyu-B @xwu2intel @open-edge-platform/open-edge-platform-docs-write
-/libraries/kv-quant-offload/                          @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel
-/libraries/kv-quant-offload/README.md                 @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/adaptive-token-compressor/                  @myqi @llin60 @Junyu-B @xwu2intel
+/libraries/adaptive-token-compressor/README.md         @myqi @llin60 @Junyu-B @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/kv-quant-offload/                           @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel
+/libraries/kv-quant-offload/README.md                  @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 # ============================================================================
 # microservices
 # ============================================================================
 
-# /microservices/alert-service/                        owners needed
+# ------- need confirmed owners
+#/microservices/alert-agent-service/                   @14pankaj 
+#/microservices/alert-agent-service/docs/              @14pankaj @open-edge-platform/open-edge-platform-docs-write
+#/microservices/alert-agent-service/README.md          @14pankaj @open-edge-platform/open-edge-platform-docs-write
+
 
 /microservices/audio-analyzer/                         @bhardwaj-nakul @bharagha @krish918 @avinash-palleti
 /microservices/audio-analyzer/docs/                    @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
@@ -77,7 +81,7 @@ README.md           @xwu2intel
 /microservices/document-ingestion/pgvector/docs/       @bharagha @krish918 @madhuri-rai07 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
 /microservices//document-ingestion/pgvector/README.md  @bharagha @krish918 @madhuri-rai07 @yogeshmpandey @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/inference-router/                      @llin60 @myqi @mnoiy @Junyu-B @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/microservices/inference-router/                      @llin60 @myqi @Junyu-B @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/metrics-manager/                        @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli
 /microservices/metrics-manager/docs/                   @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @mkobyli  @open-edge-platform/open-edge-platform-docs-write
@@ -108,9 +112,12 @@ README.md           @xwu2intel
 /microservices/time-series-analytics/docs/             @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe @tanvidhola-ux @open-edge-platform/open-edge-platform-docs-write
 /microservices/time-series-analytics/README.md         @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe @tanvidhola-ux @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/vector-retriever/                                @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
-/microservices/vector-retriever/docs/                           @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
-/microservices/vector-retriever/README.md                       @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
+/microservices/vector-retriever/milvus                     @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
+/microservices/vector-retriever/vector-retriever           @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
+/microservices/vector-retriever/milvus/docs/               @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
+/microservices/vector-retriever/vector-retriever/docs/     @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
+/microservices/vector-retriever/milvus/README.md           @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
+/microservices/vector-retriever/vector-retriever/README.md @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/visual-data-preparation-for-retrieval/           @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/visual-data-preparation-for-retrieval/docs/      @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
@@ -159,4 +166,5 @@ README.md           @xwu2intel
 # Frameworks
 # ============================================================================
 /frameworks/edgedevice-enablement-framework/             @chinthap @ANUSHABHASKAR @mutra-vamsi
+/frameworks/edgedevice-enablement-framework/docs/        @chinthap @ANUSHABHASKAR @mutra-vamsi @k-mochi  @open-edge-platform/open-edge-platform-docs-write
 /frameworks/edgedevice-enablement-framework/README.md    @chinthap @ANUSHABHASKAR @mutra-vamsi @k-mochi  @open-edge-platform/open-edge-platform-docs-write
