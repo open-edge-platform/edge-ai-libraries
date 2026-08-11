@@ -22,7 +22,6 @@ import { unslug } from "@/lib/utils";
 
 type RunBenchmarkButtonProps = {
   suiteSlug: string;
-  /** Models required by the suite workloads that are not installed yet. */
   missingRequiredModels?: string[];
 };
 
@@ -134,7 +133,6 @@ export const RunBenchmarkButton = ({
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          {/* span captures pointer events that the disabled button swallows */}
           <span className="inline-flex cursor-not-allowed">{button}</span>
         </TooltipTrigger>
         <TooltipContent>
@@ -149,7 +147,6 @@ export const RunBenchmarkButton = ({
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          {/* span captures pointer events that the disabled button swallows */}
           <span className="inline-flex cursor-not-allowed">{button}</span>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-80">

@@ -56,7 +56,6 @@ export const BenchmarkSuiteWorkloadsTable = ({
           )
           .join("\n");
 
-        // Extract details from first variant's pipeline graph.
         const firstVariantId = workload.variants.split(",")[0]?.trim();
         const firstVariant = firstVariantId
           ? pipeline?.variants.find((v) => v.id === firstVariantId)
