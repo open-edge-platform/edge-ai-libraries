@@ -7,39 +7,20 @@
 #
 # Bundle format (markers are case-insensitive, leading whitespace ignored):
 #
-#   @@LICENSE-HEADER  <id>          begin a license record
-#   @@TITLE           <text>        human-readable title      (optional)
-#   @@VERSION         <text>        appended to the title     (optional)
-#   @@COMPONENT       <name>        repeatable                (optional)
-#   @@COMPONENTS      a, b, c       comma list                (optional)
+#   @@LICENSE-HEADER <id> | <title> | <comp1,comp2>   begin a license record
 #   @@LICENSE-TEXT                  everything after this line is body text
 #                                   until the next @@LICENSE-HEADER
-#   @@LICENSE-END                   optional explicit terminator
 #
 #   Terse header form is also accepted:
-#       @@LICENSE-HEADER <id> | <title> | <comp1,comp2>
 # Options:
 #   --accept-license[=ID,...]   non-interactive; bare form accepts everything,
 #                               list form fails if the bundle contains an id
 #                               that was not listed
-#   --receipt <path>            write a JSON acceptance receipt (with sha256
-#                               of each license text)
-#   --no-scroll-gate            do not require reading to the end
-#   --plain                     skip the TUI, use the line-mode fallback
-#   --print                     dump the assembled bundle and exit
 #
 # Exit codes: 0 accepted, 1 declined, 2 error / no terminal.
 #
 ensure_license_gate () {
-  local _lg_py _lg_rc
-
-  if [ "${1:-}" = "--plain" ] || ! command -v python3 >/dev/null 2>&1; then
-    [ "${1:-}" = "--plain" ] && shift
-    _license_gate_plain "$@"
-    return $?
-  fi
-
-  _lg_py=$(cat <<'__LICENSE_GATE_PY__'
+  local _lg_py=$(cat <<'__LICENSE_GATE_PY__'
 # -*- coding: utf-8 -*-
 """Stdlib-only license acceptance gate. Bundle arrives on stdin."""
 
@@ -127,25 +108,6 @@ def parse_bundle(data):
 
         if key == "LICENSE-TEXT":
             in_text = True
-            continue
-        if key == "LICENSE-END":
-            in_text, cur = False, None
-            continue
-
-        if not in_text and key:
-            val = m.group(2)
-            if key == "TITLE":
-                cur.title = val
-            elif key == "VERSION":
-                cur.version = val
-            elif key == "COMPONENT":
-                if val and val not in cur.components:
-                    cur.components.append(val)
-            elif key == "COMPONENTS":
-                for c in val.split(","):
-                    c = c.strip()
-                    if c and c not in cur.components:
-                        cur.components.append(c)
             continue
 
         if in_text:
@@ -316,8 +278,8 @@ class Gate(object):
     WORD = "accept"
     B_ACCEPT, B_DECLINE = 0, 1
 
-    def __init__(self, scr, lics, gate=True):
-        self.scr, self.lic, self.gate = scr, lics, gate
+    def __init__(self, scr, lics):
+        self.scr, self.lic = scr, lics
         self.n = len(lics)
         self.doc, self.dw = None, -1
         self.off = 0
@@ -434,8 +396,6 @@ class Gate(object):
     # ---- read state
 
     def flags(self):
-        if not self.gate:
-            return [True] * self.n
         if self.doc is None or self.vis is None:
             return [False] * self.n
         out = []
@@ -981,74 +941,10 @@ class Gate(object):
                 self.mode = "decline"
 
 
-# ---------------------------------------------------------------- fallbacks
-
-def plain_flow(lics, gate=True):
-    """Line-mode acceptance when curses is unavailable."""
-    try:
-        tty = open("/dev/tty", "r+")
-    except IOError:
-        return None
-    w = tty.write
-    n = len(lics)
-    w("\nThe following %d license%s must be accepted:\n\n" % (n, "" if n == 1 else "s"))
-    for i, l in enumerate(lics):
-        w("  %d. %s\n" % (i + 1, l.display()))
-        if l.components:
-            w("     required by: %s\n" % ", ".join(l.components))
-    while True:
-        w("\n[number]=read  a=read all  accept=accept all  q=decline > ")
-        tty.flush()
-        ans = (tty.readline() or "q").strip().lower()
-        if ans in ("q", "quit", "decline", "n", "no"):
-            return False
-        if ans == "accept":
-            return True
-        if ans == "a":
-            for l in lics:
-                w("\n=== %s ===\n" % l.display())
-                w("\n".join(l.src) + "\n")
-        elif ans.isdigit() and 1 <= int(ans) <= n:
-            l = lics[int(ans) - 1]
-            w("\n=== %s ===\n" % l.display())
-            w("\n".join(l.src) + "\n")
-
-
-# ---------------------------------------------------------------- receipt
-
-def write_receipt(path, lics, mode):
-    rec = {
-        "accepted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "user": os.environ.get("SUDO_USER") or os.environ.get("USER") or str(os.getuid()),
-        "hostname": platform.node(),
-        "mode": mode,
-        "licenses": [{"id": l.lid, "title": l.display(), "sha256": l.sha,
-                      "components": l.components} for l in lics],
-    }
-    tmp = path + ".tmp"
-    try:
-        d = os.path.dirname(os.path.abspath(path))
-        if d:
-            try:
-                os.makedirs(d)
-            except OSError:
-                pass
-        with open(tmp, "w") as fh:
-            json.dump(rec, fh, indent=2, sort_keys=True)
-            fh.write("\n")
-        os.rename(tmp, path)
-    except (OSError, IOError) as exc:
-        die("cannot write receipt %s: %s" % (path, exc))
-
-
-# ---------------------------------------------------------------- main
-
 def main():
     ap = argparse.ArgumentParser(prog="license-gate", add_help=True)
     ap.add_argument("--accept-license", nargs="?", const="*", default=None)
-    ap.add_argument("--receipt", default=None)
     ap.add_argument("--no-scroll-gate", action="store_true")
-    ap.add_argument("--print", dest="dump", action="store_true")
     args = ap.parse_args()
 
     data = sys.stdin.read()
@@ -1056,14 +952,6 @@ def main():
         return EXIT_OK
     lics = parse_bundle(data)
     if not lics:
-        return EXIT_OK
-
-    if args.dump:
-        for l in lics:
-            sys.stdout.write("=== %s [%s] ===\n" % (l.display(), l.lid))
-            if l.components:
-                sys.stdout.write("required by: %s\n" % ", ".join(l.components))
-            sys.stdout.write("\n".join(l.src) + "\n\n")
         return EXIT_OK
 
     if args.accept_license is not None:
@@ -1074,8 +962,6 @@ def main():
             if missing:
                 die("--accept-license does not cover: %s" % ", ".join(missing))
         sys.stdout.write("Accepted licenses: %s\n" % ", ".join(need))
-        if args.receipt:
-            write_receipt(args.receipt, lics, "non-interactive")
         return EXIT_OK
 
     if not bind_tty():
@@ -1086,7 +972,7 @@ def main():
 
     accepted = None
     try:
-        accepted = curses.wrapper(lambda s: Gate(s, lics, not args.no_scroll_gate).run())
+        accepted = curses.wrapper(lambda s: Gate(s, lics).run())
     except curses.error:
         accepted = None
     except KeyboardInterrupt:
@@ -1097,14 +983,10 @@ def main():
         return EXIT_ERROR
 
     if accepted is None:
-        accepted = plain_flow(lics, not args.no_scroll_gate)
-    if accepted is None:
         return EXIT_ERROR
     if not accepted:
         sys.stderr.write("license-gate: declined\n")
         return EXIT_DECLINED
-    if args.receipt:
-        write_receipt(args.receipt, lics, "interactive")
     return EXIT_OK
 
 
@@ -1115,8 +997,5 @@ if __name__ == "__main__":
         sys.exit(EXIT_DECLINED)
 __LICENSE_GATE_PY__
 )
-
   python3 -c "$_lg_py" "$@"
-  _lg_rc=$?
-  return $_lg_rc
 }
