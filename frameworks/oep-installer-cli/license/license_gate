@@ -384,6 +384,9 @@ class Gate(object):
         return bw - self.sidebar_w(bw) - 6
 
     def ensure(self):
+        iw = self.reader_w(self.box()[3])
+        if self.doc is not None and self.dw == iw:
+            return
         done = []
         if self.doc is not None:
             done = [self.seen[si] >= self.doc.ends[si] for si in range(self.n)]
@@ -1033,7 +1036,7 @@ def main():
     accepted = None
     try:
         accepted = curses.wrapper(lambda s: Gate(s, lics, not args.no_scroll_gate).run())
-    except (curses.error, Exception):
+    except curses.error:
         accepted = None
     except KeyboardInterrupt:
         return EXIT_DECLINED
