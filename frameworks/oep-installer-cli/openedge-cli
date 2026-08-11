@@ -121,27 +121,31 @@ act_helpper () {
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
-    local rc=0
+    local rc=0 order=0
     {
-      local rc=0
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
-        name=$(echo $handler | cut -f4- -d_)
+        local name1=$(echo $handler | cut -f4- -d_)
+        if [ "$act_name" = "remove" ]; then
+          local order1=$(echo $handler | cut -f2 -d_)
+          [ "$order" -gt 0 ] || order=$order1
+          [ "$order1" -ge "$order" ] || break
+        fi
         if [[ " $* " = *" --dry-run "* ]]; then
-          echo "@@COMP $name"
-          echo "Invoke $handler with $(act_extract_args $act_name $name "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")" 
-          echo "@@OK $name"
+          echo "@@COMP $name1"
+          echo "Invoke $handler with $(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")" 
+          echo "@@OK $name1"
         else
-          echo "@@COMP $name"
+          echo "@@COMP $name1"
           (
             set -e
-            $handler $(act_extract_args $act_name $name "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@") &
+            $handler $(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@") &
             wait -n
           )
           local rc1=$?
           if [ $rc1 -eq 0 ]; then
-            echo "@@OK $name"
+            echo "@@OK $name1"
           else
-            echo "@@FAIL $name"
+            echo "@@FAIL $name1"
             rc=$rc1
             [[ " $* " = *" --continue "* ]] || break
           fi
