@@ -20,20 +20,20 @@ ia-time-series-analytics-microservice:
 1. Base docker image: python:3.13-slim
 License-Identifier: Python Software Foundation License (PSF License)
 
-2. Kapacitor 1.8.5
+2. Kapacitor 1.8.6
 License-Identifier: MIT License
 
 3. requirements.txt
 
 License-Identifier: Apache License 2.0
+aiofiles==25.1.0
 dpctl==0.21.1
-pyOpenSSL==26.2.0
+msgpack==1.2.1
+pyOpenSSL==26.4.0
 python-multipart==0.0.32
+requests==2.34.2
 scikit-learn-intelex==2025.11.0
 sortedcontainers==2.4.0
-aiofiles==25.1.0
-msgpack==1.1.2
-requests==2.33.1
 ----------------------------------------------------------------------
 
 License-Identifier: Apache License 2.0 / BSD-3-Clause License (dual licensed)
@@ -45,71 +45,76 @@ packaging==26.0
 ----------------------------------------------------------------------
 
 License-Identifier: BSD-3-Clause
-click==8.3.3
-idna==3.14
-scikit-learn==1.6.1
-scipy==1.17.1
+click==8.4.2
+idna==3.18
 joblib==1.5.3
-numpy==2.4.4
 protobuf==7.34.0
-starlette==1.0.0
+pycparser==3.0
+scikit-learn==1.6.1
+scipy==1.18.0
+starlette==1.6.0
 threadpoolctl==3.6.0
 uvicorn==0.41.0
-pycparser==3.0
+----------------------------------------------------------------------
+
+License-Identifier: BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
+numpy==2.5.2
 ----------------------------------------------------------------------
 
 License-Identifier: Mozilla Public License 2.0
-certifi==2026.4.22
+certifi==2026.7.22
 ----------------------------------------------------------------------
 
 License-Identifier: Python Software Foundation License (PSF License)
-typing_extensions==4.15.0
+typing_extensions==4.16.0
 ----------------------------------------------------------------------
 
 License-Identifier: MIT License
-h11==0.16.0
 aiosqlite==0.22.1
-annotated-types==0.7.0
-setuptools==82.0.1
-six==1.17.0
-urllib3==2.7.0
-charset-normalizer==3.4.7
-annotated-doc==0.0.4
-cffi==2.0.0
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.14.2
+charset-normalizer==3.4.9
 fastapi==0.135.0
+h11==0.16.0
 influxdb==5.3.2
+pip==26.2.1
 pydantic==2.13.4
 pydantic_core==2.46.4
+pytz==2026.3.post1
+setuptools==83.0.0
+six==1.17.0
 tomlkit==0.14.0
-anyio==4.13.0
-pytz==2026.2
-typing-inspection==0.4.2
+typing-inspection==0.4.3
+urllib3==2.7.0
+----------------------------------------------------------------------
+
+License-Identifier: MIT No Attribution License (MIT-0)
+cffi==2.1.1
 ----------------------------------------------------------------------
 
 License-Identifier: Other/Proprietary License (Intel Simplified Software License)
-tcmlib==1.5.0
-tbb==2022.3.1
 daal==2025.11.0
+tbb==2022.3.1
+tcmlib==1.5.0
 ----------------------------------------------------------------------
 
-License-Identifier: LGPL-3.0
+License-Identifier: GNU Lesser General Public License v3 or later
 asyncua==1.1.8
 ----------------------------------------------------------------------
 
 License-Identifier: Apache-2.0 or BSD-3-Clause
-cryptography==48.0.0
+cryptography==50.0.0
 ----------------------------------------------------------------------
 
-
-License-Identifier: Other/Proprietary 
-License (Intel End User License Agreement for Developer Tools)
+License-Identifier: Other/Proprietary License (Intel End User License Agreement for Developer Tools)
 intel-cmplr-lib-rt==2025.3.3
 intel-cmplr-lib-ur==2025.3.3
 intel-cmplr-lic-rt==2025.3.3
 intel-sycl-rt==2025.3.3
 ----------------------------------------------------------------------
 
-License: Apache-2.0 with LLVM exceptions
+License-Identifier: Apache-2.0 with LLVM exceptions
 umf==1.0.3
 
 ---------------------------------------------------------------------------------------------------------------------------
