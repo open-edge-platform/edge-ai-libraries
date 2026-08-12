@@ -3,11 +3,11 @@
 
 """Plugin system exports and registry registration."""
 
-from src.plugins.base import RequestPlugin, PluginSchemaError
+from src.plugins.base import PluginBaseNode, PluginSchemaError
 from src.plugins.manager import PluginManager, create_plugin_manager
 
 __all__ = [
-    "RequestPlugin",
+    "PluginBaseNode",
     "PluginSchemaError",
     "PluginManager",
     "create_plugin_manager",

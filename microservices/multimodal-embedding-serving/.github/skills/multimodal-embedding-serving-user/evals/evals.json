@@ -50,7 +50,7 @@
       "id": 5,
       "name": "negative-summarization-routing",
       "prompt": "Use the multimodal embedding service to give me a text summary of this warehouse video.",
-      "expected_output": "Declines: the service returns embedding vectors, not text descriptions. Points to a vision-language model (e.g. vlm-openvino-serving) for summarization.",
+      "expected_output": "Declines: the service returns embedding vectors, not text descriptions. Points to a vision-language model (e.g. OVMS-backed summarization pipeline) for summarization.",
       "expectations": [
         "Does not claim the embedding service can produce a text summary",
         "Explains embeddings are vectors for similarity/retrieval, not descriptions",

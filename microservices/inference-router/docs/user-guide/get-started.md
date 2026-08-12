@@ -30,7 +30,7 @@ cd microservices/inference-router
 
 ### Step 1: Configure
 
-Copy the example config and edit it to point at your backend. If your provider
+Copy the example config and edit it to point at your backend. Note that the backend service **must be alive beforehand**. If your provider
 needs API keys, also copy `.env.example` to `workspace/.env` and fill in the
 applicable values:
 
@@ -72,6 +72,40 @@ in `type/model`. Use `hosted_vllm` for a self-hosted vLLM server, or any other
 When `workspace/config.yaml` references values such as `${OPENAI_API_KEY}` or
 `${ANTHROPIC_API_KEY}`, Docker Compose forwards them from `workspace/.env`
 into the container.
+
+
+#### Model preparation
+Docker Compose deployments require the OpenVINO model prepared
+**before starting the router**. The currently supported intelligent routing classifier model is
+`Qwen3.5-2B-FP16`.
+
+Download the supported Qwen3.5 2B OpenVINO model. If your
+environment uses an internal model mirror or an approved local checkpoint,
+replace `Qwen/Qwen3.5-2B` with that equivalent source:
+
+```bash
+# install huggingface CLI
+pip install -U huggingface_hub
+```
+
+Note: if you encounter `externally-managed-environment` error, either run the install command with `--break-system-packages`, or create a python virtual environment first.
+
+```bash
+hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen2.5-2B-FP16
+```
+
+> ⚠️ **`/opt` permissions:** the default `/opt/models` is typically root-owned.
+> Grant your user access
+> (`sudo mkdir -p /opt/models && sudo chown "$USER:$USER" /opt/models`)
+
+> For PRC users, you might need to set `export HF_ENDPOINT=https://hf-mirror.com`
+
+For Docker Compose deployments, export the model path on this host with
+`IR_OV_MODEL`; the compose file mounts it into the container automatically.
+
+```bash
+export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
+```
 
 ### Step 2: Build Image
 
@@ -188,7 +222,271 @@ View router metrics:
 curl http://localhost:8000/v1/metrics
 ```
 
+## Optional: Pass-through Services
+
+Besides chat completions, the router can expose additional OpenAI/Cohere-compatible
+endpoints that **forward the request body verbatim** to a backing service and
+return the response untouched. These are configured as **providers** — the same
+`providers:` list as chat backends — so they are listed, enabled/disabled, and
+updated through the same [provider config API](./api-reference.md).
+
+Currently supported services (the provider `type` selects the service and the
+endpoint it exposes):
+
+| Provider `type` | Endpoint exposed              | Typical backend                  |
+| --------------- | ----------------------------- | -------------------------------- |
+| `transcription` | `POST /v1/audio/transcriptions` | Speech-to-text (e.g. Whisper)  |
+| `tts`           | `POST /v1/audio/speech`         | Text-to-speech                 |
+| `embeddings`    | `POST /v1/embeddings`           | Embedding model                |
+| `rerank`        | `POST /v1/rerank`               | Reranker (Cohere-compatible)   |
+| `ocr`           | `POST /v1/ocr`                  | OCR / document understanding   |
+
+### Enable a pass-through service
+
+Add a provider whose `type` is one of the values above. The request is forwarded
+to `settings.endpoint`; if the endpoint is a base URL, the service subpath (e.g.
+`/v1/ocr`) is appended automatically. `model` is a nominal identifier used for
+display. There is no `enabled` field to add — a provider present in the config is
+enabled (set `enabled: false` to keep it in the file but turn it off).
+
+```yaml
+providers:
+  # ... your chat providers ...
+
+  - name: "ocr-backend"
+    type: "ocr"                       # exposes POST /v1/ocr
+    model: "ocr"
+    settings:
+      endpoint: "http://localhost:8002"
+      timeout: 600                    # OCR cold-start + multi-page docs can be slow
+      auth:                           # optional; same shape as chat providers
+        scheme: "none"
+
+  - name: "embeddings-backend"
+    type: "embeddings"                # exposes POST /v1/embeddings
+    model: "bge-m3"
+    settings:
+      endpoint: "http://localhost:9002"
+      timeout: 30
+```
+
+Then call the endpoint directly (the body and response are passed through as-is):
+
+```bash
+curl http://localhost:8000/v1/ocr \
+  -H "Content-Type: application/json" \
+  -d '{"image_path": "/data/page.png"}'
+
+curl http://localhost:8000/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{"model": "bge-m3", "input": "hello world"}'
+```
+
+Notes:
+
+- **Not listed in `/v1/models`.** Pass-through backends are not chat-capable
+  models, so they are omitted from `/v1/models`. They still appear in
+  `/v1/providers` and can be managed there.
+- **Concurrency.** Requests to these endpoints count against `max-concurrency`,
+  shared with `/v1/chat/completions` — when the limit is reached the router
+  returns `429`. Status/config endpoints (`/health`, `/v1/models`, `/v1/config`)
+  are never limited.
+- **Dynamic control.** Because they are ordinary providers, you can enable,
+  disable, update, or delete them at runtime through the `/v1/providers` API; the
+  change takes effect immediately. Disabling or removing the provider makes its
+  endpoint return `503`.
+- The backing services are **not** part of the router — deploy them separately.
+
+## Optional: Compression Plugins
+
+The router can compress prompts before they reach the backend to cut token
+usage, via optional plugins based on
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor).
+Use the unified `compressor` node and select the compressor kind with
+`settings.type`:
+
+- `tool` — filters the request `tools` schema to a relevant subset using a
+  **tool predictor** (an OpenAI-compatible LLM endpoint).
+- `harness` — compresses system/developer messages using a **Lingua server**.
+
+
+### Build the compressor-enabled image
+
+The default build in [Step 2](#step-2-build-image) does **not** include the
+compressor library. To use compression plugins, rebuild the image with
+`--with-compressor`:
+
+```bash
+bash scripts/deploy_docker.sh --build --with-compressor
+```
+
+This vendors and installs `adaptive-token-compressor` into the router image so
+the plugins are available at runtime.
+
+These backend services are **not** part of the router. For how to deploy
+the Lingua server and the tool predictor,
+see the
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+repository. 
+For detailed purpose and behavior of each compressor, see the
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor) repository documentation.
+
+
+### Configuration
+
+Enable the plugins under `plugins` in `workspace/config.yaml`, pointing each at
+your running services:
+
+Plugin stages:
+
+- `prerouting`: runs before provider selection (routing decision).
+- `postrouting`: runs after provider selection and before the backend call.
+- `postresponse`: runs on the response after backend inference.
+
+For compressor plugins, define them only in `prerouting` or `postrouting`.
+`postresponse` is not for request compression.
+
+In each plugin entry, `node` must be one of the supported fixed values
+(currently `compressor`). `settings.type` selects the compressor kind
+(`tool` or `harness`). `name` is only an instance identifier and can be any
+unique string.
+
+```yaml
+plugins:
+  prerouting:
+    - name: "compressor_tool"
+      node: "compressor"
+      enabled: true
+      settings:
+        type: "tool"
+        predictor_url: "http://localhost:8088/v1/chat/completions"
+        predictor_model: "Qwen/Qwen3.6-35B-A3B"
+        score_threshold: 2.0
+        prompt_mode: "dynamic"
+        tool_descriptions_mode: "dynamic"
+        placement: "schema"
+  postrouting:
+    - name: "compressor_harness"
+      node: "compressor"
+      enabled: true
+      settings:
+        type: "harness"
+        profile: "openclaw"
+        lingua_url: "http://localhost:8001/compress"
+        compress_rate: 0.5
+        compress_min_chars: 200
+        timeout: 60.0
+        enable_quantum_lock: false
+  postresponse: []
+```
+
+### Metrics checking
+
+Compressor-related metrics are exposed from two endpoints:
+After sending chat requests, view aggregated compression metrics by
+
+```bash
+curl http://localhost:8000/v1/plugins/compressor
+```
+
+To compare token usage before and after router plugin processing (overall
+compressor effect), use:
+
+```bash
+curl http://localhost:8000/v1/metrics
+```
+
+
+### 1) `/v1/plugins/compressor` (node-level compression metrics)
+
+This endpoint returns the `compressor` node view, including metrics aggregated
+by the shared `CompressionManager`:
+
+- `metrics`: numeric aggregates.
+- `cache_stats`: per-compressor cache usage.
+
+The `metrics` object usually contains:
+
+- `<plugin_name>.total_input`: sum of input tokens before this plugin's compression.
+- `<plugin_name>.total_output`: sum of output tokens after this plugin's compression.
+- `<plugin_name>.call_count`: number of times this plugin ran.
+- `<plugin_name>.compression_ratio`: `total_output / total_input` for this plugin.
+  Lower means stronger compression.
+- `<plugin_name>.avg_duration_per_call`: average plugin latency in milliseconds.
+
+It also includes cross-plugin overall fields:
+
+- `overall.total_requests`: unique request count across compressor plugins.
+- `overall.total_input`: summed input tokens across all compressor plugins.
+- `overall.total_output`: summed output tokens across all compressor plugins.
+- `overall.compression_ratio`: `overall.total_output / overall.total_input`.
+- `overall.avg_duration_per_request`: average end-to-end compression time per request.
+
+`cache_stats` is keyed by plugin name:
+
+- `<plugin_name>.currsize`: current cache entry count.
+- `<plugin_name>.maxsize`: configured cache capacity.
+
+This endpoint returns the node metadata plus empty metrics when no compressor
+plugin is configured, or when compressor metrics are not available yet (for
+example before any request flows through the compressor pipeline).
+
+### 2) `/v1/metrics` (router telemetry with compression effect)
+
+This endpoint includes compressor effect under `token_metrics`:
+
+- `token_metrics.before_router`: token counts before plugin processing.
+- `token_metrics.after_router`: token counts after plugin processing.
+
+> **Note**
+> `after_router` is measured after `prerouting` and `postrouting` are both
+> completed (it is the request that will be forwarded to the backend).
+
+Each of the above contains:
+
+- `system_prompt_tokens`: system + developer message tokens.
+- `tool_schema_tokens`: `request.tools` schema tokens.
+- `context_tokens`: all other message tokens (user / assistant / tool).
+- `overall_tokens`: sum of the three categories.
+
+How to interpret compression savings:
+
+- Per category saving = `before_router.<x> - after_router.<x>`.
+- Overall saving = `before_router.overall_tokens - after_router.overall_tokens`.
+- Overall remaining ratio = `after_router.overall_tokens / before_router.overall_tokens`.
+
+Unlike provider-reported prompt tokens, `before_router` and `after_router`
+here are counted with the same token accounting method, so they are directly
+comparable.
+
+### 3) `/v1/plugins/{node}/{name}` (per-instance view)
+
+Beyond the group-aggregated compression view above, any plugin may fold its
+**own** runtime info (including metrics) into its instance view. Fetch it with:
+
+```bash
+curl http://localhost:8000/v1/plugins/<node>/<name>
+```
+
+The response is whatever the plugin's `describe()` hook returns — the instance
+config plus any plugin-defined fields (e.g. a `metrics` object). Plugins that
+support it can reset their per-instance state:
+
+```bash
+curl -X POST http://localhost:8000/v1/plugins/<node>/<name>/reset
+```
+
+There is also a node-level pair: `GET /v1/plugins/<node>` (the type's
+`describe_node()` payload, which may carry cross-instance aggregates) and
+`POST /v1/plugins/<node>/reset`. See the
+[API Reference](./api-reference.md#get-plugin) for the full contract.
+
+Registering your own plugin type and the full list of built-in plugins are
+covered in the [Plugins guide](./plugin.md).
+
 ## Learn More
 
+- See the [Plugins guide](./plugin.md) for the plugin system, built-in plugins,
+  and how to register a new one.
 - Check the [API Reference](./api-reference.md) for endpoint details.
 - See the [Release Notes](./release-notes.md) for version history.
