@@ -73,7 +73,7 @@ Stop and remove all running containers:
 make stop
 ```
 
-Downloaded models, videos, and benchmark output under `shared/` are preserved. To also remove
+Downloaded models and videos under `shared/` are preserved. To also remove
 those artifacts, run:
 
 ```bash
