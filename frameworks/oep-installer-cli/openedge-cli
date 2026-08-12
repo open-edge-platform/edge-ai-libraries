@@ -121,6 +121,35 @@ act_helpper () {
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
+    if [ "$act_name" = "install" ]; then
+      # build license gate
+      local -A licenses=() licenses_text=()
+      for licenser in ${handles[*]/_install_/_license_}; do
+        if declare -F $licenser > /dev/null 2>&1; then
+          local license_text="$($licenser "$@")"
+          local id1=$(echo "$license_text" | awk '/@@LICENSE-ID/{print$2}')
+          if declare -F ${id1} > /dev/null 2>&1; then
+            license_text="$(${id1} "$@")"
+          fi
+          if [ -n "$license_text" ]; then
+            local name1=$(echo $licenser | cut -f4- -d_)
+            licenses[$id1]="${licenses[$id1]:-}$name1,"
+            licenses_text[$id1]="$license_text"
+          fi
+        fi
+      done
+      if [ ${#licenses[*]} -gt 0 ]; then
+        for id1 in ${!licenses[*]}; do
+          echo "${licenses_text[$id1]}"
+          echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")"
+        done | tee | ensure_license_gate "$@"
+        if [ $? -ne 0 ]; then
+          echo "License declined"
+          exit 3
+        fi
+      fi
+    fi
+
     local rc=0 order=0
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
@@ -238,7 +267,7 @@ subcommand_bootstrap () {
   
   # scan for dependencies
   local modules=(${*##-*})
-  local -A scripts=()
+  local -A scripts=() licenses=()
   local i=0 script
   while [ $i -lt ${#modules[*]} ]; do
     local script="$mydir"/profile/${modules[$i]}/${ID_LIKE}
@@ -258,6 +287,19 @@ subcommand_bootstrap () {
           $profiler $cmd
         done
       ))
+      local licenser=$(
+        [ ! -r "$script_nos" ] || . "$script_nos"
+        . "$script"
+        declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_license_${modules[$i]}$" | cut -f3 -d' '
+      )
+      if [ -n "$licenser" ]; then
+        local license_id="$(
+          [ ! -r "$script_nos" ] || . "$script_nos"
+          . "$script"
+          $licenser "$@" | awk '/@@LICENSE-ID/{print$2}'
+        )"
+        [ -z "$license_id" ] || licenses[$license_id]=1
+      fi
     else
       echo "Unknown component or profile: ${modules[$i]}" 1>&2
       exit 3
@@ -266,38 +308,48 @@ subcommand_bootstrap () {
   done
 
   # construct final installer
-  if [ ${#scripts[@]} -gt 0 ]; then
-    local install_modules=() start_modules=()
-    local rendered="$(dirname "$0")/rendered/openedge-cli"
-    if [[ " $* " != *" --dry-run "* ]]; then
-      sed '/^#### COLLECTION OF MODULES ####/q' "$0" > "$rendered"
-      for m in "$@"; do
-        case "$m" in
-        --install=*)
-          install_modules+=(${m#*=})
-          ;;
-        --start=*)
-          start_modules+=(${m#*=})
-          ;;
-        esac
-      done
-      cat "$mydir"/common/os-agnostic/* >> "$rendered"
-      if [ -d "$mydir"/common/${ID_LIKE} ]; then
-        cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
-      fi
-    fi
-    for script in "${!scripts[@]}"; do
-      echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
-      [[ " $* " = *" --dry-run "* ]] || cat "$script" >> "$rendered" 2> /dev/null || true
-      [[ " $* " = *" --dry-run "* ]] || cat "${script%/*}/os-agnostic" 2> /dev/null >> "$rendered" || true
-    done
-    [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]} || exit" >> "$rendered"
-    [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]} || exit" >> "$rendered"
-    chmod a+rx "$rendered"
-    echo "Rendered to $rendered"
-  else
+  if [ ${#scripts[@]} -eq 0 ]; then
     echo "No bootstrap component" 1>&2
     exit 3
   fi
+
+  local rendered="$(dirname "$0")/rendered/openedge-cli"
+  local install_modules=() start_modules=()
+  if [[ " $* " != *" --dry-run "* ]]; then
+    sed '/^#### COLLECTION OF MODULES ####/q' "$0" > "$rendered"
+    for m in "$@"; do
+      case "$m" in
+      --install=*)
+        install_modules+=(${m#*=})
+        ;;
+      --start=*)
+        start_modules+=(${m#*=})
+        ;;
+      esac
+    done
+    cat "$mydir"/common/os-agnostic/* >> "$rendered"
+    if [ -d "$mydir"/common/${ID_LIKE} ]; then
+      cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
+    fi
+  fi
+
+  if [ ${#licenses[@]} -gt 0 ]; then
+    cat "$mydir"/license/common/license_* >> "$rendered"
+    for licenser in "${!licenses[@]}"; do
+      [ ! -r "$mydir"/license/collection/$licenser ] || cat "$mydir"/license/collection/$licenser >> "$rendered"
+    done
+  fi
+
+  for script in "${!scripts[@]}"; do
+    echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
+    [[ " $* " = *" --dry-run "* ]] || cat "$script" >> "$rendered" 2> /dev/null || true
+    [[ " $* " = *" --dry-run "* ]] || cat "${script%/*}/os-agnostic" 2> /dev/null >> "$rendered" || true
+  done
+
+  [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]} || exit" >> "$rendered"
+  [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]} || exit" >> "$rendered"
+
+  chmod a+rx "$rendered"
+  echo "Rendered to $rendered"
 }
 

@@ -5,13 +5,10 @@
 # Reads a license bundle on STDIN, renders a navigable modal dialog with an
 # auto-generated table of contents, and requires a single collective accept.
 #
-# Bundle format (markers are case-insensitive, leading whitespace ignored):
+#   @@LICENSE-ID         <id>          begin a license record
+#   @@LICENSE-TITLE      <text>        human-readable title      (optional)
+#   @@LICENSE-COMPONENT  a, b, c       comma list                (optional)
 #
-#   @@LICENSE-HEADER <id> | <title> | <comp1,comp2>   begin a license record
-#   @@LICENSE-TEXT                  everything after this line is body text
-#                                   until the next @@LICENSE-HEADER
-#
-#   Terse header form is also accepted:
 # Options:
 #   --accept-license[=ID,...]   non-interactive; bare form accepts everything,
 #                               list form fails if the bundle contains an id
@@ -20,10 +17,7 @@
 # Exit codes: 0 accepted, 1 declined, 2 error / no terminal.
 #
 ensure_license_gate () {
-  local _lg_py=$(cat <<'__LICENSE_GATE_PY__'
-# -*- coding: utf-8 -*-
-"""Stdlib-only license acceptance gate. Bundle arrives on stdin."""
-
+  local py=$(cat <<'__LICENSE_GATE_PY__'
 import argparse, curses, hashlib, json, os, platform, re, sys, textwrap, time
 
 EXIT_OK, EXIT_DECLINED, EXIT_ERROR = 0, 1, 2
@@ -72,18 +66,16 @@ _MARK = re.compile(r"^\s*@@([A-Za-z-]+)\s*(.*?)\s*$")
 
 def parse_bundle(data):
     order, by_id = [], {}
-    cur, in_text = None, False
+    cur = None
 
     for raw in data.split("\n"):
         m = _MARK.match(raw)
         key = m.group(1).upper() if m else ""
 
-        if key == "LICENSE-HEADER":
-            rest = m.group(2)
-            parts = [p.strip() for p in rest.split("|")]
-            lid = parts[0]
+        if key == "LICENSE-ID":
+            lid = m.group(2)
             if not lid:
-                die("@@LICENSE-HEADER requires an id")
+                die("@@LICENSE-ID requires an id")
             if lid in by_id:
                 cur = by_id[lid]
                 cur._dup = True
@@ -91,27 +83,26 @@ def parse_bundle(data):
                 cur = License(lid)
                 by_id[lid] = cur
                 order.append(cur)
-            if len(parts) > 1 and parts[1]:
-                cur.title = cur.title or parts[1]
-            if len(parts) > 2 and parts[2]:
-                for c in parts[2].split(","):
-                    c = c.strip()
-                    if c and c not in cur.components:
-                        cur.components.append(c)
-            in_text = False
             continue
 
         if cur is None:
             continue  # preamble before the first header is ignored
 
-        if key == "LICENSE-TEXT":
-            in_text = True
+        if key == "LICENSE-TITLE":
+            val = m.group(2)
+            cur.title = val
+            continue
+        elif key == "LICENSE-COMPONENT":
+            val = m.group(2)
+            for c in val.split(","):
+                c = c.strip()
+                if c and c not in cur.components:
+                    cur.components.append(c)
             continue
 
-        if in_text:
-            if getattr(cur, "_dup", False):
-                continue  # same id seen twice: keep the first body only
-            cur.src.append(raw.replace("\t", "    ").rstrip("\r"))
+        if getattr(cur, "_dup", False):
+            continue  # same id seen twice: keep the first body only
+        cur.src.append(raw.replace("\t", "    ").rstrip("\r"))
 
     for lic in order:
         while lic.src and not lic.src[0].strip():
@@ -943,7 +934,7 @@ def main():
     ap = argparse.ArgumentParser(prog="license-gate", add_help=True)
     ap.add_argument("--accept-license", nargs="?", const="*", default=None)
     ap.add_argument("--no-scroll-gate", action="store_true")
-    args = ap.parse_args()
+    args, _ = ap.parse_known_args()
 
     data = sys.stdin.read()
     if not data.strip():
@@ -983,17 +974,14 @@ def main():
     if accepted is None:
         return EXIT_ERROR
     if not accepted:
-        sys.stderr.write("license-gate: declined\n")
         return EXIT_DECLINED
     return EXIT_OK
 
-
-if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except KeyboardInterrupt:
-        sys.exit(EXIT_DECLINED)
+try:
+  sys.exit(main())
+except KeyboardInterrupt:
+  sys.exit(EXIT_DECLINED)
 __LICENSE_GATE_PY__
 )
-  python3 -c "$_lg_py" "$@"
+  python3 -c "$py" "$@"
 }

@@ -1,0 +1,7 @@
+
+# fetch license without external dependency (curl)
+ensure_license_fetch () {
+  local url="$1"
+  python3 -c "import urllib.request as r;print(r.urlopen('$url').read().decode('utf-8'))"
+}
+

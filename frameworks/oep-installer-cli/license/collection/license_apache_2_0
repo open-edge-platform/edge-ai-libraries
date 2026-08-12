@@ -1,0 +1,9 @@
+
+license_apache_2_0 () {
+  cat <<EOF
+@@LICENSE-ID license_apache_2_0
+@@LICENSE-TITLE Apache License Version 2.0
+EOF
+  ensure_license_fetch https://www.apache.org/licenses/LICENSE-2.0.txt
+}
+
