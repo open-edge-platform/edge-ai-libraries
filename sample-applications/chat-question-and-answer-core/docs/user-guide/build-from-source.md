@@ -182,8 +182,6 @@ After building the images for the `Chat Q&A Core` application, you can run the a
 
    Configure the models to be used (LLM, Embeddings, Rerankers) through a YAML configuration file, as outlined in the [Get-Started: Running The Application using Docker Compose](./get-started.md#running-the-application-using-docker-compose) section.
 
-   Refer to and use the same list of models for OpenVINO toolkit framework as documented in [Chat Q&A](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/get-started.html#supported-models).
-
 2. Start the Docker containers with the previously built images:
 
    ```bash
