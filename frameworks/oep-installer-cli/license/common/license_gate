@@ -382,6 +382,16 @@ class Gate(object):
             self.vis[i] = 1
         self.prev_view = (top, bot)
 
+    def show_toc(self):
+        return self.n > 1
+
+    def sidebar_w(self, bw):
+        return 0 if not self.show_toc() else max(20, min(38, bw // 3))
+
+    def reader_w(self, bw):
+        sw = self.sidebar_w(bw)
+        return bw - 6 if sw == 0 else bw - sw - 6
+
     # ---- read state
 
     def flags(self):
@@ -574,7 +584,7 @@ class Gate(object):
                     s, e = self.doc.starts[si], self.doc.ends[si]
                     p = int(100.0 * sum(self.vis[s:e + 1]) / max(1, e - s + 1))
                     parts.append("%d:%d%%" % (si + 1, p))
-            self.put(y, x, "unread  " + "  ".join(parts[:5]), curses.A_DIM)
+            self.put(y, x, "accepting covers %d license(s)" % self.n, curses.A_DIM)
 
     # ---- main frame
 
@@ -595,8 +605,12 @@ class Gate(object):
                  curses.A_BOLD | self.cattr(1))
 
         body_top = y0 + 1
-        self.draw_toc(body_top, x0 + 1, rows, sw)
-        self.draw_reader(body_top, x0 + sw + 3, rows, self.reader_w(bw))
+        if self.show_toc():
+            self.draw_toc(body_top, x0 + 1, rows, sw)
+            self.draw_reader(body_top, x0 + sw + 3, rows, self.reader_w(bw))
+        else:
+            self.draw_reader(body_top, x0 + 2, rows, self.reader_w(bw))
+            self.toc_hit = []
 
         self.put(y0 + bh - 4, x0 + 1, G_H * (bw - 2), curses.A_DIM)
         self.draw_actions(y0 + bh - 3, x0, bw)
@@ -621,7 +635,7 @@ class Gate(object):
         x0, y0 = (w - bw) // 2, (h - bh) // 2
         self.rect(y0, x0, bh, bw, dim=False)
         self.put(y0, x0 + 3, " Confirm acceptance ", curses.A_BOLD | self.cattr(1))
-        self.put(y0 + 2, x0 + 3, "You are accepting ALL %d licenses:" % self.n,
+        self.put(y0 + 2, x0 + 3, "You are accepting %d license(s):" % self.n,
                  curses.A_BOLD)
         row = y0 + 3
         for i, l in enumerate(self.lic):
@@ -847,18 +861,24 @@ class Gate(object):
                 self.try_accept()
                 continue
             if c == ord("\t"):
-                self.focus = {"reader": "toc", "toc": "actions",
-                              "actions": "reader"}[self.focus]
+                if self.show_toc():
+                    self.focus = {"reader": "toc", "toc": "actions",
+                                  "actions": "reader"}[self.focus]
+                else:
+                    self.focus = "actions" if self.focus == "reader" else "reader"
                 continue
             if c == curses.KEY_BTAB:
-                self.focus = {"reader": "actions", "actions": "toc",
-                              "toc": "reader"}[self.focus]
+                if self.show_toc():
+                    self.focus = {"reader": "actions", "actions": "toc",
+                                  "toc": "reader"}[self.focus]
+                else:
+                    self.focus = "actions" if self.focus == "reader" else "reader"
                 continue
             if c == ord("/"):
                 self.focus = "reader"
                 self.ask_search()
                 continue
-            if c == ord("t"):
+            if c == ord("t") and self.show_toc():
                 self.focus = "toc"
                 continue
 
@@ -913,7 +933,7 @@ class Gate(object):
             elif c in (ord("G"), curses.KEY_END):
                 self.off = total
                 self.prev_view = None
-            elif c == curses.KEY_LEFT:
+            elif c == curses.KEY_LEFT and self.show_toc():
                 self.focus = "toc"
                 self.tsel = self.cur_sec()
             elif c == ord("n") and self.needle:
