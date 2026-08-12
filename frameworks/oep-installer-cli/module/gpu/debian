@@ -31,11 +31,7 @@ debian_40_install_gpu () {
     debian_40_remove_gpu || true
 
     # create the render group
-    getent group render >/dev/null 2>&1 || {
-      ensure_sudo groupadd render
-      sudo usermod -aG render $USER
-      newgrp render
-    }
+    ensure_group_add render
 
     # product key
     ensure_sudo mkdir -p $(dirname $key_file)

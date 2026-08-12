@@ -29,11 +29,7 @@ debian_40_install_npu () {
     ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
 
     # create the render group
-    getent group render >/dev/null 2>&1 || {
-      ensure_sudo groupadd render
-      sudo usermod -aG render $USER
-      newgrp render
-    }
+    ensure_group_add render
   
     mkdir -p "$workspace"
     cd "$workspace"

@@ -39,6 +39,9 @@ debian_20_install_docker () {
     echo "Remove legacy installation"
     ensure_apt remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc
 
+    # create docker group
+    ensure_group_add docker
+
     ensure_apt update
     ensure_apt install -y docker.io docker-buildx-plugin docker-compose-plugin
 
@@ -55,10 +58,6 @@ EOF
     fi
     ensure_sudo systemctl daemon-reload
     ensure_sudo systemctl restart docker
-
-    echo "Add $USER to the docker group"
-    ensure_sudo usermod -aG docker $USER || true
-    newgrp docker || true
   fi
   configure_docker_proxies
 }
