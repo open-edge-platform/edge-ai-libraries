@@ -31,7 +31,7 @@ dpctl==0.21.1
 msgpack==1.2.1
 pyOpenSSL==26.4.0
 python-multipart==0.0.32
-requests==2.34.2
+requests==2.33.0
 scikit-learn-intelex==2025.11.0
 sortedcontainers==2.4.0
 ----------------------------------------------------------------------
@@ -99,7 +99,7 @@ tbb==2022.3.1
 tcmlib==1.5.0
 ----------------------------------------------------------------------
 
-License-Identifier: GNU Lesser General Public License v3 or later
+License-Identifier: LGPL-3.0-or-later
 asyncua==1.1.8
 ----------------------------------------------------------------------
 
