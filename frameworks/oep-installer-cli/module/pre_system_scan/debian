@@ -41,7 +41,7 @@ debian_10_install_pre_system_scan () {
     [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}"
     echo -e "CPU|$cpuinst_info|$pass"
 
-    gpu_accels=("8086:b08f" "8086:7d51" "8086:fd80")
+    gpu_accels=("8086:b08f" "8086:7d51" "8086:fd80" "8086:2212")
     for accel in ${gpu_accels[@]}; do
       pass=$ok
       accel_info="$(system_scan_check_pci_device $accel "Intel Integrated Graphics")"
@@ -51,7 +51,7 @@ debian_10_install_pre_system_scan () {
       fi
     done
 
-    npu_accels=("8086:b03e" "8086:7d1d" "8086:fd3e")
+    npu_accels=("8086:b03e" "8086:7d1d" "8086:fd3e" "8086:7270")
     for accel in ${npu_accels[@]}; do
       pass=$ok
       accel_info="$(system_scan_check_pci_device $accel "Intel AI Boost")"
