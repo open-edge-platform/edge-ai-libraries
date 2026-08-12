@@ -33,7 +33,7 @@ supported hubs. Only the Hugging Face download functionality is disabled.
 2. Open **Settings -> Access Tokens** and create a new token. A token with the **read** role
    is sufficient to download public and gated models.
 3. For any gated model, additionally [accept](../../user-guide/model-management/huggingface.md) its license on the model's Hugging Face page
-while signed in with the same account.
+   while signed in with the same account.
 
 #### Configure the token
 
