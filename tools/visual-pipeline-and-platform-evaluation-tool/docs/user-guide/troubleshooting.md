@@ -12,7 +12,7 @@ the ViPPET application is **restarted**.
 
 For more information about DL Streamer Optimizer behavior and limitations, see the DL Streamer
 Optimizer limitations section in the DL Streamer documentation:
-[DL Streamer Optimizer limitations](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/optimizer.html#limitations).
+[DL Streamer Optimizer limitations](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/optimizer.html#limitations).
 
 **If ViPPET is restarted while DL Streamer Optimizer is running:**
 

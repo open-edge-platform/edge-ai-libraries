@@ -16,7 +16,7 @@ Before starting, ensure the following:
 
 For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
 script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
-[Install Guide Ubuntu - Prerequisites](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
+[Install Guide Ubuntu - Prerequisites](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
 
 This guide assumes basic familiarity with terminal usage.
 

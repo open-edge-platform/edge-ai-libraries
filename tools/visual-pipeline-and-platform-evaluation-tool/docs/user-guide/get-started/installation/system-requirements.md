@@ -18,4 +18,4 @@ efficiently.
 - Docker Engine version 20.10 or higher.
 - For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DL Streamer installation
 script, which detects available devices and installs the required drivers. Follow the **Prerequisites** section in
-[DL Streamer Install Guide - Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
+[DL Streamer Install Guide - Ubuntu](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
