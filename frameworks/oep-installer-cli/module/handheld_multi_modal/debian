@@ -1,0 +1,52 @@
+
+configure_handheld_multi_modal () {
+  workspace="$(ensure_project_path)/handheld_multi_modal"
+  version=819da745b053c03bd9b4a943fdf20f900fa2e4c2
+  repository=https://github.com/open-edge-platform/edge-ai-suites.git
+}
+
+verify_handheld_multi_modal () {
+  [ -e "$workspace"/federal-aerospace/apps/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml ]
+}
+
+debian_90_profile_handheld_multi_modal () {
+  echo "yq make curl"
+}
+
+debian_90_install_handheld_multi_modal () {
+  configure_handheld_multi_modal
+  if verify_handheld_multi_modal $* && [[ " $* " != *" --reset-handheld_multi_modal "* ]]; then
+    echo "handheld_multi_modal already installed. Skipping"
+  else
+    ensure_disk_space 300
+
+    ensure_git_clone "$workspace" $version $repository federal-aerospace/apps/handheld-multi-modal
+    cd "$workspace"/federal-aerospace/apps/handheld-multi-modal
+    make setup
+    make build-whisper
+    make vippet-get
+    yes | make models-license
+    docker compose -f docker-compose.yml pull --ignore-buildable
+    verify_handheld_multi_modal $*
+  fi
+}
+
+debian_90_start_handheld_multi_modal () {
+  ensure_ports_open "443 1443 5443 6443 7443 8443 80 7860 8000 9090 8554 8889" debian_90_stop_handheld_multi_modal $*
+  configure_handheld_multi_modal
+  cd "$workspace"/federal-aerospace/apps/handheld-multi-modal
+  make deploy
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
+}
+
+debian_90_stop_handheld_multi_modal () {
+  configure_handheld_multi_modal
+  cd "$workspace"/federal-aerospace/apps/handheld-multi-modal
+  make down
+}
+
+debian_90_remove_handheld_multi_modal () {
+  debian_90_stop_handheld_multi_modal $*
+  ensure_sudo rm -rf "$workspace"
+}
+

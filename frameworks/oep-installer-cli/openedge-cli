@@ -155,15 +155,16 @@ act_helpper () {
           [ "$order" -gt 0 ] || order=$order1
           [ "$order1" -ge "$order" ] || break
         fi
+        local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")"
         if [[ " $* " = *" --dry-run "* ]]; then
           echo "@@COMP $name1"
-          echo "Invoke $handler with $(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")" 
+          echo "Invoke $handler with $invoke_args" 
           echo "@@OK $name1"
         else
           echo "@@COMP $name1"
           (
             set -e
-            $handler $(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@") &
+            $handler $invoke_args &
             wait -n
           )
           local rc1=$?
@@ -176,7 +177,7 @@ act_helpper () {
           fi
         fi
       done
-      if [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
+      if [[ " $* " != *" --dry-run "* ]] && [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
         echo "@@REPORT SYSTEM SUMMARY"
         ${ID_LIKE}_10_${act_name}_pre_system_scan
       fi
