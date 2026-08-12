@@ -326,14 +326,8 @@ class Gate(object):
         bh = max(14, h - 1)
         return (h - bh) // 2, (w - bw) // 2, bh, bw
 
-    def sidebar_w(self, bw):
-        return max(20, min(38, bw // 3))
-
     def body_rows(self, bh):
         return bh - 6                      # body_top .. body_bot inclusive
-
-    def reader_w(self, bw):
-        return bw - self.sidebar_w(bw) - 6
 
     def ensure(self):
         iw = self.reader_w(self.box()[3])
@@ -546,6 +540,10 @@ class Gate(object):
             self.put(y0 + r, x0, text[:w], a)
 
         self.rd_bar = self.bar(y0, x0 + w + 1, h, total, self.off)
+        # focus rail: a solid edge in the gutter to the left of the text
+        if self.focus == "reader":
+            for r in range(h):
+                self.put(y0 + r, x0 - 2, G_V, self.cattr(1) | curses.A_BOLD)
 
     # ---- action bar
 
@@ -583,8 +581,19 @@ class Gate(object):
                 if not f:
                     s, e = self.doc.starts[si], self.doc.ends[si]
                     p = int(100.0 * sum(self.vis[s:e + 1]) / max(1, e - s + 1))
-                    parts.append("%d:%d%%" % (si + 1, p))
-            self.put(y, x, "accepting covers %d license(s)" % self.n, curses.A_DIM)
+                    parts.append("%d:%d%%" % (si + 1, p) if self.n > 1
+                                 else "%d%% read" % p)
+            msg = "not yet read \u2014 " + "  ".join(parts[:5]) if UTF \
+                  else "not yet read - " + "  ".join(parts[:5])
+            self.put(y, x, msg, curses.A_DIM)
+        elif self.n == 1:
+            self.put(y, x, "read in full \u2014 ready to accept" if UTF
+                     else "read in full - ready to accept", curses.A_DIM)
+        else:
+            self.put(y, x, "all %d read \u2014 accepting binds you to every one"
+                     % self.n if UTF else
+                     "all %d read - accepting binds you to every one" % self.n,
+                     curses.A_DIM)
 
     # ---- main frame
 
@@ -601,8 +610,11 @@ class Gate(object):
 
         self.rect(y0, x0, bh, bw, dim=True)
         pct = 100 if total <= rows else int(100.0 * (self.off + rows) / total)
-        self.put(y0, x0 + 3, " %s  %d%% " % (self.lic[self.cur_sec()].display()[:48], pct),
-                 curses.A_BOLD | self.cattr(1))
+        head = " %s  %d%% " % (self.lic[self.cur_sec()].display()[:44], pct)
+        self.put(y0, x0 + 3, head, curses.A_BOLD | self.cattr(1))
+        if self.focus == "reader":
+            self.put(y0, x0 + 3 + len(head), "[reading]" if not UTF
+                     else "\u25c2 reading \u25b8", self.cattr(2) | curses.A_BOLD)
 
         body_top = y0 + 1
         if self.show_toc():

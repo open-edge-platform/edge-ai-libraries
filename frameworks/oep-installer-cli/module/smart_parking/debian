@@ -51,3 +51,4 @@ debian_90_remove_smart_parking () {
   debian_90_stop_smart_parking || true
   ensure_sudo rm -rf "$workspace"
 }
+

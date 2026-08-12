@@ -127,15 +127,11 @@ act_helpper () {
       for licenser in ${handles[*]/_install_/_license_}; do
         if declare -F $licenser > /dev/null 2>&1; then
           local license_text="$($licenser "$@")"
+          [ -n "$license_text" ] || continue
           local id1=$(echo "$license_text" | awk '/@@LICENSE-ID/{print$2}')
-          if declare -F ${id1} > /dev/null 2>&1; then
-            license_text="$(${id1} "$@")"
-          fi
-          if [ -n "$license_text" ]; then
-            local name1=$(echo $licenser | cut -f4- -d_)
-            licenses[$id1]="${licenses[$id1]:-}$name1,"
-            licenses_text[$id1]="$license_text"
-          fi
+          local name1=$(echo $licenser | cut -f4- -d_)
+          licenses[$id1]="${licenses[$id1]:-}$name1,"
+          licenses_text[$id1]="$license_text"
         fi
       done
       if [ ${#licenses[*]} -gt 0 ]; then
@@ -267,8 +263,8 @@ subcommand_bootstrap () {
   
   # scan for dependencies
   local modules=(${*##-*})
-  local -A scripts=() licenses=()
-  local i=0 script
+  local -A scripts=()
+  local i=0 script license_common=0
   while [ $i -lt ${#modules[*]} ]; do
     local script="$mydir"/profile/${modules[$i]}/${ID_LIKE}
     [ -r "$script" ] || script="$mydir"/module/${modules[$i]}/${ID_LIKE}
@@ -290,16 +286,9 @@ subcommand_bootstrap () {
       local licenser=$(
         [ ! -r "$script_nos" ] || . "$script_nos"
         . "$script"
-        declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_license_${modules[$i]}$" | cut -f3 -d' '
+        declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_license_${modules[$i]}$"
       )
-      if [ -n "$licenser" ]; then
-        local license_id="$(
-          [ ! -r "$script_nos" ] || . "$script_nos"
-          . "$script"
-          $licenser "$@" | awk '/@@LICENSE-ID/{print$2}'
-        )"
-        [ -z "$license_id" ] || licenses[$license_id]=1
-      fi
+      [ -z "$licenser" ] || license_common=1
     else
       echo "Unknown component or profile: ${modules[$i]}" 1>&2
       exit 3
@@ -331,13 +320,7 @@ subcommand_bootstrap () {
     if [ -d "$mydir"/common/${ID_LIKE} ]; then
       cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
     fi
-  fi
-
-  if [ ${#licenses[@]} -gt 0 ]; then
-    cat "$mydir"/license/common/license_* >> "$rendered"
-    for licenser in "${!licenses[@]}"; do
-      [ ! -r "$mydir"/license/collection/$licenser ] || cat "$mydir"/license/collection/$licenser >> "$rendered"
-    done
+    [ $license_common -eq 0 ] || cat "$mydir"/license/license_* >> "$rendered"
   fi
 
   for script in "${!scripts[@]}"; do
