@@ -13,7 +13,11 @@ import { BenchmarkSuiteWorkloadsTable } from "@/features/benchmarks/BenchmarkSui
 import { BenchmarkSuiteRunsTable } from "@/features/benchmarks/BenchmarkSuiteRunsTable.tsx";
 import { BenchmarkSuiteDetailsSkeleton } from "@/features/benchmarks/BenchmarkSuiteDetailsSkeleton";
 import { RunBenchmarkButton } from "@/features/benchmarks/RunBenchmarkButton";
+import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog.tsx";
+import { extractModelNamesFromNodes } from "@/features/models/modelNames.ts";
+import { useRequiredModelsStatus } from "@/features/models/useRequiredModelsStatus.ts";
 import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
+import { useMemo } from "react";
 
 export const BenchmarkDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +41,36 @@ export const BenchmarkDetail = () => {
   const suiteRuns: BenchmarkSuiteRun[] = benchmarkRuns ?? [];
 
   const isLoadingPipelines = pipelinesMap.size === 0;
+
+  const requiredModels = useMemo(
+    () =>
+      (benchmark?.workloads ?? []).flatMap((workload) => {
+        const pipeline = pipelinesMap.get(workload.pipeline_id);
+        const firstVariantId = workload.variants.split(",")[0]?.trim();
+        const firstVariant = firstVariantId
+          ? pipeline?.variants.find((variant) => variant.id === firstVariantId)
+          : undefined;
+
+        return extractModelNamesFromNodes(firstVariant?.pipeline_graph?.nodes);
+      }),
+    [benchmark, pipelinesMap],
+  );
+
+  const {
+    modelStatuses,
+    missingModels,
+    isDialogOpen,
+    setIsDialogOpen,
+    refresh: refreshRequiredModels,
+  } = useRequiredModelsStatus(requiredModels, {
+    skip: !benchmark || isLoadingPipelines,
+    errorMessage: "Failed to check models used in benchmark workloads",
+  });
+
+  const missingRequiredModels = useMemo(
+    () => missingModels.map((item) => item.model),
+    [missingModels],
+  );
 
   if (isLoadingBenchmark || isLoadingPipelines) {
     return <BenchmarkSuiteDetailsSkeleton source={source} />;
@@ -69,7 +103,10 @@ export const BenchmarkDetail = () => {
           <h1 className="font-medium text-xl">Workloads</h1>
           <Badge variant="outline">{benchmark.workloads.length}</Badge>
         </div>
-        <RunBenchmarkButton suiteSlug={benchmark.slug} />
+        <RunBenchmarkButton
+          suiteSlug={benchmark.slug}
+          missingRequiredModels={missingRequiredModels}
+        />
       </div>
       <BenchmarkSuiteWorkloadsTable
         benchmark={benchmark}
@@ -78,6 +115,13 @@ export const BenchmarkDetail = () => {
       <h1 className="font-medium text-xl mt-6 mb-4">Benchmark Results</h1>
       <BenchmarkSuiteRunsTable suiteRuns={suiteRuns} source={source} />
       <div className="h-10" />
+      <PipelineModelsRequiredDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        models={modelStatuses}
+        onModelsChanged={refreshRequiredModels}
+        description="One or more models used by this benchmark's workloads are not installed."
+      />
     </div>
   );
 };
