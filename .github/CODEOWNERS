@@ -63,11 +63,9 @@ README.md           @xwu2intel
 # microservices
 # ============================================================================
 
-# ------- need confirmed owners
-#/microservices/alert-agent-service/                   @14pankaj 
-#/microservices/alert-agent-service/docs/              @14pankaj @open-edge-platform/open-edge-platform-docs-write
-#/microservices/alert-agent-service/README.md          @14pankaj @open-edge-platform/open-edge-platform-docs-write
-
+/microservices/alert-agent-service/                   @14pankaj @madhuri-rai07 @rrajore
+/microservices/alert-agent-service/docs/              @14pankaj @madhuri-rai07 @rrajore @open-edge-platform/open-edge-platform-docs-write
+/microservices/alert-agent-service/README.md          @14pankaj @madhuri-rai07 @rrajore @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/audio-analyzer/                         @bhardwaj-nakul @bharagha @krish918 @avinash-palleti
 /microservices/audio-analyzer/docs/                    @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
