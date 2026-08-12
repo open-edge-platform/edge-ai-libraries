@@ -148,8 +148,8 @@ system_scan_get_system_summary () {
   local cpuinfo="$(grep -m1 "model name" /proc/cpuinfo | cut -f2 -d: | sed 's|^ ||g')"
   local coreinfo="$(grep "processor" /proc/cpuinfo | wc -l) cores"
   local meminfo="$(grep -m1 "MemTotal:" /proc/meminfo | cut -f2 -d: | tr -d ' ')"
-  [[ "$meminfo" != *kB ]] || meminfo="$(( ${meminfo%kB} / 1000000 ))GB"
-  [[ "$meminfo" != *mB ]] || meminfo="$(( ${meminfo%mB} / 1000 ))GB"
+  [[ "$meminfo" != *kB ]] || meminfo="$(( ${meminfo%kB} / 1024 / 1024 ))GB"
+  [[ "$meminfo" != *mB ]] || meminfo="$(( ${meminfo%mB} / 1024 ))GB"
   echo "$cpuinfo · $coreinfo · $meminfo RAM"
 }
 
