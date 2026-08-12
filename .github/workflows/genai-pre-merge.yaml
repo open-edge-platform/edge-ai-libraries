@@ -30,19 +30,19 @@ jobs:
       ZIZMOR_VERSION: 1.5.2
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           
       - name: Install uv
-        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
         
       - name: Run Zizmor Workflow Security Scan
         continue-on-error: true
         run: uvx zizmor=="$ZIZMOR_VERSION" "$GITHUB_WORKSPACE" --no-exit-codes > zizmor_workflow_scan_report.txt
           
       - name: Upload Zizmor Scan Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: zizmor-workflow-security-report
@@ -56,7 +56,7 @@ jobs:
       changed_projects: ${{ steps.discover.outputs.changed_projects }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -90,7 +90,7 @@ jobs:
       RERANKER_MODEL: BAAI/bge-reranker-base    
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false   
       
@@ -123,7 +123,7 @@ jobs:
           rm -rf venv
           
       # - name: Upload Coverage Report
-      #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      #   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       #   continue-on-error: true
       #   with:
       #     name: core-coverage-report
@@ -154,7 +154,7 @@ jobs:
           npx vitest run --reporter=html --outputFile=ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=ui-coverage-html
       
       - name: Upload UI Results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         continue-on-error: true
         if: always()
         with:
@@ -179,7 +179,7 @@ jobs:
       
       - name: Upload trivy reports
         continue-on-error: true
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: trivy-code-scan-results-core
@@ -210,7 +210,7 @@ jobs:
       - name: Upload Antivirus Report
         continue-on-error: true
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: antivirus-report-core
           path: sample-applications/chat-question-and-answer-core/clamav-scan-report.log
@@ -242,7 +242,7 @@ jobs:
       - name: Upload Trivy Image Report
         continue-on-error: true
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Trivy image scan report-core
           path: |
@@ -262,7 +262,7 @@ jobs:
       
       - name: Upload Bandit Security Report
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bandit-security-report-core
           path: |
@@ -282,7 +282,7 @@ jobs:
       RERANKER_MODEL: BAAI/bge-reranker-base    
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       
@@ -317,7 +317,7 @@ jobs:
           
       # - name: Upload Coverage Report
       #   continue-on-error: true
-      #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      #   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       #   with:
       #     name: chatqna-coverage-report-qa
       #     path: |
@@ -346,7 +346,7 @@ jobs:
       
       - name: Upload UI Results
         continue-on-error: true
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: chatqna-ui-test-results-qa
@@ -368,7 +368,7 @@ jobs:
       
       - name: Upload trivy reports
         continue-on-error: true
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: trivy-code-scan-results-chatqna
@@ -397,7 +397,7 @@ jobs:
       - name: Upload Antivirus Report
         continue-on-error: true
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: antivirus-report-qa
           path: sample-applications/chat-question-and-answer/clamav-scan-report.log
@@ -429,7 +429,7 @@ jobs:
       - name: Upload Trivy Image Report
         continue-on-error: true
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Trivy image scan report-qa
           path: |
@@ -450,7 +450,7 @@ jobs:
       - name: Upload Bandit Security Report
         continue-on-error: true
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bandit-security-report-qa
           path: |
@@ -470,7 +470,7 @@ jobs:
       VOLUME_OVMS: "$PWD"
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false   
       
@@ -503,7 +503,7 @@ jobs:
           rm -rf venv
           
       # - name: Upload Coverage Report
-      #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      #   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       #   continue-on-error: true
       #   with:
       #     name: doc-summary-coverage-report
@@ -531,7 +531,7 @@ jobs:
       
       - name: Upload trivy reports
         continue-on-error: true
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: trivy-code-scan-results-doc-summary
@@ -562,7 +562,7 @@ jobs:
       - name: Upload Antivirus Report
         continue-on-error: true
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: antivirus-report-doc-summary
           path: sample-applications/document-summarization/clamav-scan-report.log
@@ -589,7 +589,7 @@ jobs:
       - name: Upload Trivy Image Report
         continue-on-error: true
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Trivy image scan report-doc-summary
           path: |
@@ -607,7 +607,7 @@ jobs:
       
       - name: Upload Bandit Security Report
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bandit-security-report-doc-summary
           path: |
@@ -624,7 +624,7 @@ jobs:
       HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}   
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false   
       
@@ -658,7 +658,7 @@ jobs:
           
       # - name: Upload Coverage Report
       #   continue-on-error: true
-      #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      #   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       #   with:
       #     name: doc_ing-coverage-report
       #     path: |
@@ -683,7 +683,7 @@ jobs:
       
       - name: Upload trivy reports
         continue-on-error: true
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: trivy-code-scan-results-doc_ing
@@ -713,7 +713,7 @@ jobs:
       - name: Upload Antivirus Report
         continue-on-error: true
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: antivirus-report-doc
           path: microservices/document-ingestion/pgvector/clamav-scan-report.log
@@ -735,7 +735,7 @@ jobs:
       - name: Upload Trivy Image Report
         continue-on-error: true
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Trivy image scan report-doc
           path: |
@@ -755,7 +755,7 @@ jobs:
       - name: Upload Bandit Security Report
         continue-on-error: true
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bandit-security-report-doc
           path: |

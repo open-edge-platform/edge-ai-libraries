@@ -40,7 +40,7 @@ jobs:
       fail-fast: false
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         repository: open-edge-platform/edge-ai-libraries
         ref: ${{ inputs.tag || 'main' }}
@@ -62,7 +62,7 @@ jobs:
         docker save ${DOCKER_REGISTRY}${TIME_SERIES_ANALYTICS_IMAGE}:${IMAGE_SUFFIX:-latest}${WEEKLY_BUILD_DATE:+-${WEEKLY_BUILD_DATE}}${WEEKLY_BUILD_DATE:+-weekly} | sudo k3s ctr images import -
         pytest -q -vv --self-contained-html --html=/tmp/test_report/report.html ${TEST_PATTERN}
     - name: Upload HTML  test report to Github
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: function-test-report
         path: /tmp/test_report

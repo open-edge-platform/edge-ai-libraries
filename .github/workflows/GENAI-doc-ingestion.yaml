@@ -25,7 +25,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       
@@ -48,7 +48,7 @@ jobs:
           echo "=== Image Build Verification Complete ==="
       
       - name: Run Trivy Filesystem Scan
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@b9d94768d2db3e1250a0416c8878c4c8086d27b9
         id: trivy-fs
         with:
           scan_type: "fs"  
@@ -60,7 +60,7 @@ jobs:
       
          
       - name: Run trivy Scan - document-ingestion (HTML Report)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@b9d94768d2db3e1250a0416c8878c4c8086d27b9
         id: document-ingestion-html
         with:
           scan_type: "image"  
@@ -72,7 +72,7 @@ jobs:
           generate_sbom: "false"
 
       - name: Run trivy Scan - document-ingestion (SPDX SBOM)
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@b9d94768d2db3e1250a0416c8878c4c8086d27b9
         id: document-ingestion-spdx
         with:
           scan_type: "image"  
@@ -85,7 +85,7 @@ jobs:
           generate_sbom: "false"
 
       - name: Scan Dockerfile with Trivy
-        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@b9d94768d2db3e1250a0416c8878c4c8086d27b9
         with:
           scan_type: "config"
           scan_target: "microservices/document-ingestion/pgvector/docker/"
@@ -95,7 +95,7 @@ jobs:
           report_suffix: "-config-document-ingestion-CT222"
            
       - name: Upload Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: trivy-report-document-ingestion
           path: security-results/trivy*
@@ -105,10 +105,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       
       - name: Run Bandit Scan
-        uses: open-edge-platform/orch-ci/.github/actions/security/bandit@27276444a9bcf247a27369406686b689933bd1ff
+        uses: open-edge-platform/orch-ci/.github/actions/security/bandit@b9d94768d2db3e1250a0416c8878c4c8086d27b9
         id: bandit
         with:
           scan-scope: "all"  
@@ -118,7 +118,7 @@ jobs:
           report_suffix: "-bandit-document-ingestion-CT161"
           
       - name: Upload Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bandit-report-document-ingestion
           path: bandit-report-*.txt
@@ -129,7 +129,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       
       - name: Run ClamAV Scan
         uses: open-edge-platform/orch-ci/.github/actions/security/clamav@27276444a9bcf247a27369406686b689933bd1ff
@@ -142,7 +142,7 @@ jobs:
           exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
           
       - name: Upload Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: clamav-report-document-ingestion
           path: security-results/clamav*
@@ -154,12 +154,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           
       - name: Install gitleaks
-        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
+        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@547a9b246177a30455df6b332eded93577a6d5ca
         with:
           bootstrap_tools: "gitleaks"
           
@@ -168,7 +168,7 @@ jobs:
         run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
         
       - name: Clone CI repo
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: open-edge-platform/orch-ci
           path: ci
@@ -179,7 +179,7 @@ jobs:
           gitleaks dir "microservices/document-ingestion/" -v -c ci/.gitleaks.toml --baseline-path ci/gitleaks_baselines/gitleaks-document-ingestion.json -r gitleaks-document-ingestion.json || true
           
       - name: Upload Gitleaks Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gitleaks-report-document-ingestion-${{ steps.timestamp.outputs.time }}
           path: gitleaks-document-ingestion.json
@@ -190,10 +190,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       
       - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.10'
       
@@ -234,7 +234,7 @@ jobs:
           echo "Pylint scan completed"
       
       - name: Upload pylint Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pylint-report-document-ingestion
           path: microservices/document-ingestion/pgvector/security-results/pylint-report-document-ingestion.txt
@@ -245,10 +245,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       
       - name: Setup environment with shellcheck
-        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
+        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@547a9b246177a30455df6b332eded93577a6d5ca
         with:
           bootstrap_tools: "shellcheck"
       
@@ -269,7 +269,7 @@ jobs:
           echo "ShellCheck scan completed"
       
       - name: Upload ShellCheck Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: shellcheck-report-document-ingestion
           path: security-results/shellcheck-report-document-ingestion.txt
