@@ -1,0 +1,167 @@
+debian_95_license_unstructured () {
+  cat <<EOF
+@@LICENSE-ID unstructured_platform
+@@LICENSE-TITLE UNSTRUCTURED TECHNOLOGIES, INC. PLATFORM TERMS OF SERVICE
+
+UNSTRUCTURED TECHNOLOGIES, INC. PLATFORM TERMS OF SERVICE
+Last Updated: July 9, 2026
+
+These Platform Terms of Service ("Agreement") are between Unstructured Technologies, Inc., a Delaware corporation ("Unstructured," "we," or "us"), and the organization or individual who registers for or uses the Platform ("Customer" or "you"). By creating an account, accessing, or using the Platform, you agree to this Agreement. If you are accepting on behalf of an organization, you represent that you have authority to bind that organization.
+
+This Agreement governs your use of the Unstructured platform, API, and related services, including Pipelines, Transform, and Foundation offerings as well as Unstructured's tools, connectors, and services made available through third-party AI tool marketplaces or development environments (such as MCP servers accessed through third-party chat agents or coding assistants), whether accessed directly or through integrations with third-party products (collectively, the "Platform"). This Agreement does not govern your use of the Unstructured marketing website at https://unstructured.io, which is subject to separate Website Terms of Use.
+
+1. DEFINITIONS
+
+"Authorized User" means an employee or contractor of Customer whom Customer authorizes to access or use the Platform on Customer's behalf.
+
+"Connected Sources" means the third-party services (e.g., Google Workspace, Microsoft 365, Atlassian, Salesforce, Slack, Dropbox, Box, Zendesk, Amazon S3) that Customer authorizes the Platform to access via OAuth or other credential-based authorization in connection with Foundation.
+
+"Customer Data" means (a) the documents and other data that Customer submits to the Platform for processing ("Input"); (b) to the extent permitted by applicable law, the output returned by the Platform based on Customer's Input ("Output"); and (c) with respect to Foundation, the Foundation Index, including all extractions, summaries, topic classifications, metadata, and source document content maintained therein.
+
+"Documentation" means Unstructured's standard user documentation for the Platform, as made available at https://docs.unstructured.io/.
+
+"Foundation" means Unstructured's persistent knowledge index product, which connects to Customer's Connected Sources, processes data from those sources through AI models to generate entity extractions, topic classifications, summaries, and related output, stores the results in a persistent index, and makes the index available for query through the Platform and supported integrations (including MCP server integrations accessed through third-party chat agents or coding assistants).
+
+"Foundation Index" means the persistent index maintained by Foundation containing Customer's Input, Output (including named entities, topics, summaries, and metadata), and, where configured by Customer, source document content. The Foundation Index is Customer Data.
+
+"Restricted Data" means (i) payment card data subject to PCI DSS, (ii) Social Security numbers or other government-issued identification numbers, (iii) credentials to financial accounts, (iv) "protected health information" regulated by HIPAA, (v) biometric or genetic data, (vi) personal data of children under 13 (or such higher age threshold as applicable law may require), or (vii) any other data subject to heightened security or compliance requirements under applicable law.
+
+"Source Credentials" means the OAuth tokens, API keys, IAM credentials, or other authentication credentials that Customer provides to enable Foundation to access Customer's Connected Sources.
+
+"Third-Party Services" means third-party products and services that interoperate with the Platform, including data sources ("Source Connectors"), data destinations ("Destination Connectors"), and artificial intelligence tools ("AI Tools").
+
+"Unstructured-Managed AI Services" means features of the Platform that process Customer Data using third-party AI models accessed through Unstructured's own accounts and credentials.
+
+2. ACCESS AND USE
+
+2.1. License. Subject to this Agreement, Unstructured grants Customer a non-exclusive, non-transferable right during the Term to access and use the Platform for Customer's internal business purposes in accordance with the Documentation and any usage limits associated with Customer's plan. Customer may permit its employees and contractors to access the Platform as Authorized Users. Customer is responsible for all acts and omissions of Authorized Users and for maintaining the confidentiality of account credentials.
+
+2.2. Use Restrictions. Customer shall not (and shall not permit any third party to): (a) reverse engineer, decompile, or disassemble the Platform, except to the extent expressly permitted by applicable law; (b) use the Platform to provide processing services to third parties; (c) circumvent or disable usage limits, security features, or access controls; (d) remove or obscure proprietary notices; (e) use the Platform to develop or improve products or services that compete with the Platform; (f) use the Platform to store or process content that is unlawful or infringes third-party rights; (g) attempt to gain unauthorized access to any systems, networks, or data associated with the Platform; (h) interfere with or disrupt the integrity or performance of the Platform; or (i) exceed the usage limits associated with Customer's plan.
+
+2.3. Acceptable Use Policy. Customer's use of the Platform is subject to the Acceptable Use Policy (including the AI Acceptable Use Policy) published at https://unstructured.io/legal.
+
+2.4. Modifications. Unstructured may modify the Platform from time to time. Unstructured will use commercially reasonable efforts to provide advance notice of modifications that materially reduce existing functionality. If a modification materially reduces the features or functionality of the Platform and Unstructured has not provided a substantially equivalent replacement, Customer may terminate this Agreement within thirty (30) days following the modification and receive a pro-rata refund of prepaid fees.
+
+3. CUSTOMER DATA AND INTELLECTUAL PROPERTY
+
+3.1. Customer Data Ownership. As between the parties, Customer retains all right, title, and interest in Customer Data. Customer grants Unstructured a limited, non-exclusive, royalty-free license to use, reproduce, and process Customer Data solely as necessary to provide, maintain, secure, and support the Platform to Customer.
+
+3.2. No Model Training. Unstructured will not use Customer Data to train or improve Unstructured's generalized machine learning or artificial intelligence models. Where Customer Data is processed through Unstructured-Managed AI Services, Unstructured has obtained commitments from the applicable AI providers that Customer Data will not be used to train or improve such providers' generalized AI models.
+
+3.3. Unstructured Ownership. Unstructured and its licensors own all right, title, and interest in the Platform, Documentation, and all modifications and derivative works thereof. No rights are granted to Customer except as expressly set forth in this Agreement.
+
+3.4. Usage Data. Customer authorizes Unstructured to collect and use information about Customer's configuration and use of the Platform ("Usage Data") to: (i) manage Customer's account and calculate fees; (ii) provide support; (iii) operate, maintain, secure, and optimize the Platform; and (iv) generate aggregated, anonymized analytics to improve Unstructured's products and services, provided that such analytics do not identify Customer or any individual. Usage Data is not Customer Data.
+
+3.5. Feedback. If Customer provides suggestions or feedback regarding the Platform, Customer grants Unstructured a perpetual, irrevocable, worldwide, royalty-free license to use and incorporate such feedback without restriction or obligation.
+
+3.6. Restricted Data. Customer shall not submit to the Platform any Restricted Data. Customer is solely responsible for determining whether Customer Data is subject to heightened regulatory requirements.
+
+3.7 Foundation. The following provisions apply to Customer's use of Foundation:
+
+3.7.1. Service Description. Foundation ingests data from Customer's Connected Sources via OAuth or other credential-based authorization, processes such data through Unstructured-Managed AI Services to generate entity extractions, topic classifications, summaries, and related Output, stores Input and Output in the Foundation Index, and provides query access to the Foundation Index.
+
+3.7.2. Persistent Storage. Unlike Pipelines and Transform, which process Customer Data transiently, Foundation creates and maintains a persistent Foundation Index. Customer Data in the Foundation Index is retained until Customer removes the applicable Connected Source or deletes Customer's account. Foundation does not currently support automated time-based deletion (TTL) of indexed data.
+
+3.7.3. Source Credentials. Customer provides Source Credentials to enable Foundation to access Customer's Connected Sources. All Source Credentials are encrypted at rest. Unstructured requests only read-only access scopes from Connected Sources. Upon Customer's removal of a Connected Source or deletion of Customer's account, Unstructured will delete the associated Source Credentials and, where the credential protocol supports it, initiate revocation at the source.
+
+3.7.4. Continuous Processing. Foundation periodically re-indexes Customer's Connected Sources to keep the Foundation Index current. Customer authorizes this ongoing automated processing for so long as the applicable Connected Source remains connected.
+
+3.7.5. Permissions. The Foundation Index reflects the access permissions in effect at the time each document was indexed. Foundation does not dynamically update the Foundation Index when Customer's permissions in the Connected Source change after ingestion. Customer is solely responsible for managing which Connected Sources are connected and for disconnecting Connected Sources when continued indexing is no longer appropriate.
+
+3.7.6. Connected Source Responsibility. Connected Sources are Third-Party Services for purposes of this Agreement. Customer is solely responsible for compliance with the terms of service, privacy policies, and other agreements governing Customer's Connected Sources, and for ensuring that Customer's authorization of the Platform to access a Connected Source does not violate any such terms. Unstructured is notresponsible for the availability, accuracy, or completeness of data retrieved from Connected Sources.
+
+3.7.7. Deletion. Customer may delete data from the Foundation Index at any time by removing individual Connected Sources (which deletes all indexed data from that source) or by deleting Customer's account (which deletes all Customer Data, Source Credentials, and account information). Unstructured will complete deletion within thirty (30) days and will certify deletion upon Customer's written request.
+
+3.7.8. Single-Player Access. Each Foundation account is for use by a single individual. Customer shall not share Foundation account credentials or permit any other person to access Foundation through Customer's account.
+
+4. THIRD-PARTY SERVICES AND AI TOOLS
+
+4.1. Third-Party Services. The Platform may interoperate with Third-Party Services. Third-Party Services are not part of the Platform and are provided by their respective providers under separate terms. Unstructured makes no warranties regarding Third-Party Services and is not liable for losses arising from Third-Party Services.
+
+4.2. AI Tools and AI Output. If Customer uses AI Tools through the Platform: (a) Output generated by AI Tools is considered Customer Data for ownership purposes, but Customer acknowledges that AI Output may not be unique; (b) Customer is solely responsible for evaluating the accuracy, legality, and suitability of any AI Output, including through human review where appropriate; (c) Customer's use of AI Tools may affect Customer's ability to obtain or enforce intellectual property rights in AI Output; and (d) with respect to Foundation, Output generated by the Service (including entity extractions, topic classifications, and summaries) may contain errors, omissions, or inaccuracies, and Customer is solely responsible for evaluating the accuracy and suitability of any Foundation Output before relying on or acting upon it.
+
+4.3. Customer-Provided Credentials (BYOK). Where Customer provides its own API keys or credentials to access Third-Party Services, the applicable Third-Party Service providers are Customer's vendors, and Unstructured has no responsibility for their performance, availability, outputs, or data handling practices. Where Customer provides Source Credentials to enable Foundation to access Customer's Connected Sources, the foregoing applies to such Connected Source providers. For clarity, Foundation processing uses Unstructured-Managed AI Services (not BYOK) for entity extraction, topic classification, and summarization.
+
+4.4. Unstructured-Managed AI Services. When Customer uses Unstructured-Managed AI Services, Unstructured will use commercially reasonable efforts to select AI providers that maintain commercially reasonable security practices and that do not use Customer Data to train or improve their generalized AI models. Customer shall comply with the AI Acceptable Use Policy published at https://unstructured.io/legal.
+
+5. FEES AND PAYMENT
+
+5.1. Fees and Taxes. The Platform offers both free and paid tiers. For Transform, all accounts include an initial allowance of 15,000 pages per calendar month at no charge, which resets at the start of each calendar month. If Customer enrolls in a paid plan, usage in excess of the free-page allowance is charged at $0.03 per page. Once Customer has accrued $3,000 in page-processing fees, additional pages are included at no charge up to a cumulative total of 1,000,000 pages. Usage exceeding 1,000,000 cumulative pages is charged at $0.03 per page. For Pipelines, all accounts include a one-time free allowance of 15,000 pages. If Customer enrolls in a paid plan, usage in excess of that one-time allowance is charged at $0.03 per page. All fees are stated in U.S. dollars unless otherwise specified. All fees are exclusive of taxes. Customer is responsible for all applicable taxes, except for taxes based on Unstructured's net income. Except as expressly provided in this Agreement, all fees are non-refundable.
+
+5.2. Foundation. Foundation is currently offered at no charge. Unstructured reserves the right to introduce fees for Foundation upon sixty (60) days' advance notice to Customer. If Unstructured introduces fees for Foundation, Customer may terminate its use of Foundation before such fees take effect without affecting Customer's rights or obligations with respect to any other Platform products. For clarity, a change from no-charge to paid status for Foundation constitutes a fee change requiring notice under the Fee Changes provision of this Section.
+
+5.3. Payment. Customer shall provide a valid payment method (e.g., credit card) when required by the applicable product or plan. Fees are invoiced monthly in arrears based on Customer's usage during the preceding billing period. By providing a payment method, Customer authorizes Unstructured to (i) store Customer's payment credentials in accordance with applicable payment card industry standards and (ii) initiate charges against the stored payment method for all fees incurred under this Agreement without requiring a separate invoice or authorization for each charge. Once Customer's usage exceeds the free-page allowance and Customer transitions to a paid plan, Customer may not revert to the free tier for that product. Unstructured may suspend access to the Platform if any payment is more than fifteen (15) days overdue.
+
+5.4. Fee Changes. Unstructured may change its fees upon thirty (30) days' advance notice. Fee changes take effect at the start of the next billing period following such notice. Customer's continued use of the Platform after a fee change constitutes acceptance. If Customer does not agree to a fee change, Customer may terminate this Agreement before the new fees take effect. For clarity, a change in the amount Customer owes due to Customer's own usage volume (including movement between pricing tiers based on the consumption thresholds set forth in this Agreement) does not constitute a fee change requiring notice under this Section.
+
+6. CONFIDENTIALITY
+
+6.1. Obligations. Each party agrees to: (a) use the other party's confidential information solely for purposes of this Agreement; (b) not disclose such information to third parties except to employees, contractors, or advisors who have a need to know and are bound by confidentiality obligations at least as protective as those herein; and (c) protect such information using at least the same degree of care it uses for its own confidential information, but not less than reasonable care. Unstructured's pricing, security materials, and the terms of this Agreement are Unstructured's confidential information. Customer Data is Customer's confidential information.
+
+6.2. Exceptions. Confidentiality obligations do not apply to information that: (a) is or becomes publicly available through no fault of the receiving party; (b) was rightfully known to the receiving party prior to disclosure; (c) is rightfully obtained from a third party without restriction on disclosure; or (d) is independently developed by the receiving party without reference to the disclosing party's confidential information. A receiving party may disclose confidential information to the extent required by law or court order, provided that the receiving party gives the disclosing party prompt notice (to the extent legally permitted) and reasonable assistance to seek a protective order.
+
+7. DATA PROTECTION AND SECURITY
+
+7.1. Security Practices. Unstructured will maintain administrative, physical, and technical safeguards designed to protect the security, confidentiality, and integrity of Customer Data as described in the Security Practices available at https://trust.unstructured.io.
+
+7.2. Data Processing Addendum. To the extent Unstructured processes personal data on Customer's behalf, the Data Processing Addendum published at https://unstructured.io/legal applies and is incorporated into this Agreement by reference.
+
+8. WARRANTIES
+
+8.1. Mutual Warranties. Each party represents and warrants that it has the legal authority to enter into this Agreement.
+
+8.2. Disclaimer. EXCEPT AS EXPRESSLY SET FORTH IN THIS AGREEMENT, THE PLATFORM AND DOCUMENTATION ARE PROVIDED "AS IS." UNSTRUCTURED DISCLAIMS ALL OTHER WARRANTIES, WHETHER EXPRESS, IMPLIED, OR STATUTORY, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND ACCURACY.
+
+9. LIMITATION OF LIABILITY
+
+9.1. Exclusion of Consequential Damages; Limitation of Liability. EXCEPT FOR EXCLUDED CLAIMS, NEITHER PARTY WILL BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, INCLUDING DAMAGES FOR LOST PROFITS, LOST REVENUE, LOST DATA, OR BUSINESS INTERRUPTION, REGARDLESS OF THE THEORY OF LIABILITY, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. EXCEPT FOR EXCLUDED CLAIMS, EACH PARTY'S TOTAL CUMULATIVE LIABILITY ARISING OUT OF OR RELATED TO THIS AGREEMENT WILL NOT EXCEED THE GREATER OF (A) THE TOTAL FEES PAID OR PAYABLE BY CUSTOMER DURING THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO LIABILITY, OR (B) ONE HUNDRED DOLLARS ($100).
+
+9.2. Excluded Claims. "Excluded Claims" means: (a) Customer's indemnification obligations under Section 10; (b) Customer's payment obligations; (c) either party's gross negligence, fraud, or willful misconduct; (d) either party's infringement or misappropriation of the other party's intellectual property rights; and (e) liability that cannot be limited under applicable law.
+
+10. INDEMNIFICATION
+
+10.1. Customer will defend Unstructured against third-party claims arising from: (a) Customer Data; (b) Customer's use of the Platform in violation of applicable law; or (c) Customer's violation of Section 3.6 (Restricted Data), and will pay damages finally awarded or settlement amounts agreed to. Unstructured shall provide Customer prompt written notice of any claim subject to indemnification, grant Customer sole control of the defense and settlement, and provide reasonable cooperation. Customer may not settle in a manner that imposes obligations on Unstructured without Unstructured's prior written consent.
+
+11. TERM AND TERMINATION
+
+11.1. Term. This Agreement is effective when Customer creates an account and continues until terminated ("Term").
+
+11.2. Termination. Customer may terminate this Agreement at any time by closing its account through the Platform. Unstructured may terminate this Agreement upon written notice if Customer materially breaches this Agreement and fails to cure within thirty (30) days after receiving written notice specifying the breach (or ten (10) days for non-payment). Unstructured may terminate this Agreement for any reason upon sixty (60) days' advance written notice to Customer. Upon such termination, Unstructured will refund any prepaid fees for the unused portion of the then-current billing period.
+
+11.3. Suspension. Unstructured may suspend Customer's access if: (a) Customer's account is overdue per Section 5.2; (b) Customer's use poses an imminent threat to the security, integrity, or availability of the Platform; or (c) Customer materially violates the Acceptable Use Policy. Unstructured will provide advance notice where practicable and will promptly restore access once the issue is resolved. Suspension does not relieve Customer of payment obligations.
+
+11.4. Effect of Termination. Upon termination: (a) all rights granted to Customer terminate immediately; (b) Customer shall cease all use of the Platform; (c) Customer shall pay all fees accrued through the termination date; and (d) Customer may export Customer Data for thirty (30) days following termination using the Platform's available functionality, after which Unstructured may delete Customer Data in accordance with the Security Practices. With respect to Foundation, upon termination Unstructured will delete the Foundation Index and all Source Credentials in accordance with Section 3.7(g).
+
+11.5. Survival. Sections 3 (Customer Data and Intellectual Property), 5 (Fees and Payment, to the extent of accrued obligations), 6 (Confidentiality), 8.2 (Disclaimer), 9 (Limitation of Liability), 10 (Indemnification), 11.4 (Effect of Termination), and 12 (General Provisions) survive termination.
+
+12. GENERAL PROVISIONS
+
+12.1. Governing Law; Arbitration. This Agreement is governed by the laws of the State of California, without regard to conflict of laws principles. Except for disputes that qualify for small claims court, all disputes will be resolved through final and binding arbitration administered by the American Arbitration Association under its Commercial Arbitration Rules. Arbitration will take place in San Francisco, California, or by videoconference at the arbitrator's discretion. Each party waives the right to a jury trial and to participate in a class action. Either party may seek injunctive relief in any court of competent jurisdiction to protect its intellectual property rights or confidential information.
+
+12.2. Notices. Notices to Customer will be sent to the email address associated with Customer's account. Notices to Unstructured must be sent to legal@unstructured.io.
+
+12.3. Assignment. Neither party may assign this Agreement without the other party's prior written consent, except in connection with a merger, acquisition, or sale of all or substantially all of its assets. Unstructured may assign to an Affiliate upon notice.
+
+12.4. Force Majeure. Neither party is liable for failure or delay in performance (other than payment obligations) caused by circumstances beyond its reasonable control.
+
+12.5. Severability; No Waiver; Modification. If any provision is held invalid or unenforceable, the remaining provisions remain in full force. No failure or delay in exercising any right constitutes a waiver. Any waiver must be in writing. Unstructured may update this Agreement by posting a revised version at https://unstructured.io/legal and providing thirty (30) days' advance notice (by email or through the Platform). Continued use of the Platform after such notice constitutes acceptance. If Customer does not agree to the updated terms, Customer may terminate this Agreement before the changes take effect.
+
+12.6. Export Compliance. Customer shall not use the Platform in violation of applicable export control laws or sanctions. Customer represents that it is not located in, or a national or resident of, any country subject to U.S. trade sanctions, and is not on any U.S. government restricted party list.
+
+12.7. Government End Users. The Platform and Documentation are "commercial computer software" as defined in FAR 12.212 and DFARS 227.7202.
+
+12.8. Entire Agreement. This Agreement, together with the Additional Terms, constitutes the entire agreement between the parties regarding the Platform. If Customer subsequently executes a Subscription Agreement or Software License Agreement with Unstructured, that agreement will govern and this Agreement will cease to apply.
+
+13. ADDITIONAL TERMS
+
+The following additional terms apply and are incorporated by reference. These terms are published at https://unstructured.io/legal:
+
+Data Processing Addendum (published at https://unstructured.io/legal; applies if and to the extent Unstructured processes personal data in connection with the Platform)
+Acceptable Use Policy, including the AI Acceptable Use Policy (published at https://unstructured.io/legal)
+Unstructured may update the Additional Terms from time to time; provided that such updates will not materially reduce the protections afforded to Customer during the then-current billing period. In the event of conflict between this Agreement and the Additional Terms, this Agreement controls, except that the Data Processing Addendum controls with respect to the processing of personal data.
+
+14. CONTACT
+
+Questions regarding this Agreement may be directed to legal@unstructured.io.
+EOF
+}
