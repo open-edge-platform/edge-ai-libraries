@@ -1,5 +1,5 @@
 
 debian_99_profile_computer_vision () {
-  echo "dlstreamer vippet geti anomalib"
+  echo "pre_system_scan npu gpu core_types dlstreamer vippet geti anomalib"
 }
 
