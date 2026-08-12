@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/alert-services/alert-agent-service">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/alert-agent-service">
      GitHub
   </a>
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/alert-services/alert-agent-service/README.md">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/alert-agent-service/README.md">
      Readme
   </a>
 </div>
