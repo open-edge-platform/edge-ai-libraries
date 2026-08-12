@@ -1,10 +1,12 @@
-# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-# SPDX-License-Identifier: Apache-2.0
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
 
 # KVCache Quantization and Offload Library
 
 KVCache Quantization and Offload Library is a near-lossless 4-bit KV-cache quantization codec for LMCache/vLLM,
-purpose-built for offloading KV caches from xpu memory to host memory / disk
+purpose-built for offloading KV caches from XPU memory to host memory / disk
 on edge devices — restoring prefix-cache hits that would otherwise be lost to
 memory pressure.
 
@@ -22,16 +24,9 @@ memory pressure.
 
 ## Prerequisites
 
-- Python >= 3.10.
-- PyTorch (`torch`, `numpy` — base dependencies).
-- A C++17 compiler. Builds against AVX2 by default; set `KVWEAVE_ISA=avx512`
-  on hosts with AVX-512 FP16/BF16 support.
-- Optional: the Intel oneAPI DPC++ compiler (`icpx` in `PATH`) — only needed
-  for `KVWEAVE_COMPILER=icpx` or to build the XPU kernels (`KVWEAVE_XPU=1`).
-- Optional: the `lmcache` package (`pip install ".[lmcache]"`) — needed to use
-  the LMCache serde plugin.
-- Docker — needed to run the Docker-based vLLM + LMCache + KV quant offload deployment
-  in [Quick Start](#quick-start).
+See [docs/configuration.md](docs/configuration.md#prerequisites) for the full
+list of prerequisites (Python/PyTorch/compiler versions, optional oneAPI and
+`lmcache` dependencies, Docker).
 
 
 ## Architecture
@@ -73,26 +68,28 @@ kvweave/csrc/             Core C++ quantize/dequantize kernels (CPU + XPU/SYCL)
 kvweave/bindings/         pybind11 wrappers exposing kvweave/csrc/ as Python extensions
 docs/assets/              README images and other static documentation assets
 integration/lmcache/      Docker-based vLLM + LMCache + KV quant offload deployment scripts
-tests/                    Quantization accuracy/perf and serde unit tests, vllm-curl.sh smoke test
+tests/                    Quantization accuracy/perf and serde unit tests, vllm-bench-two-waves.sh benchmark
 ```
 
 ## Install
 
-Build the CPU extension (`kvweave.kvweave_quant`):
+Create a virtual environment, and build the CPU extension (`kvweave.kvweave_quant`):
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install .
 ```
 
-Environment variables recognized by `setup.py`:
-- `KVWEAVE_ISA` (`avx2` default, or `avx512` on hosts with AVX-512 FP16/BF16 support)
-- `KVWEAVE_COMPILER` (`default`, or `icpx` to build with the Intel oneAPI compiler)
-- `KVWEAVE_MULTITHREAD` (`1` default, set `0` to disable OpenMP)
-- `KVWEAVE_XPU` (`0` default; set `1` to also build `kvweave.kvweave_quant_xpu`, the
-  SYCL/DPC++ quantize/dequantize kernels for Intel GPUs. Requires the Intel
-  oneAPI DPC++ compiler (`icpx`) in `PATH` and a PyTorch build with XPU
-  support; forces `CC=icx`/`CXX=icpx` regardless of `KVWEAVE_COMPILER`. This
-  module is standalone — it is not wired into the LMCache serde/codec path.)
+See [docs/configuration.md](docs/configuration.md#build-environment-variables)
+for the environment variables recognized by `setup.py` (`KVWEAVE_ISA`,
+`KVWEAVE_COMPILER`, `KVWEAVE_MULTITHREAD`, `KVWEAVE_XPU`).
+
+
+## Running Unit Tests
+
+See [docs/configuration.md](docs/configuration.md#running-unit-tests) for how
+to set up a venv, install `kvweave`, and run `pytest ./tests`.
 
 
 ## Quick Start
@@ -108,10 +105,16 @@ starts vLLM's OpenAI-compatible API server wired to it via `LMCacheMPConnector`.
 MODEL_PATH=/path/to/models bash integration/lmcache/vllm/vllm-start.sh
 ```
 
-Then smoke-test the running server:
+See [docs/configuration.md](docs/configuration.md#deployment-environment-variables-integrationlmcachevllmvllm-startsh)
+for the full list of environment variables `vllm-start.sh` accepts (model
+path, ports, LMCache sizing, `FORCE_BUILD`, and Docker build/run passthroughs).
+
+Then test the running server, setting `TOKENIZER_PATH` to a model path your
+host can load with `AutoTokenizer` (e.g. the same `${MODEL_PATH}/${MODEL}`
+passed to `vllm-start.sh` above):
 
 ```bash
-bash tests/vllm-curl.sh
+TOKENIZER_PATH=/path/to/models bash tests/vllm-bench-two-waves.sh
 ```
 
 

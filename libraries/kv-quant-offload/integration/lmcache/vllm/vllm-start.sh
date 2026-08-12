@@ -86,6 +86,7 @@ if ! docker image inspect "${IMAGE_NAME}" >/dev/null 2>&1 || [[ "${FORCE_BUILD}"
 
   echo "Building image ${IMAGE_NAME}"
   docker build \
+    --no-cache \
     -f "${DOCKERFILE_PATH}" \
     -t "${IMAGE_NAME}" \
     "${BUILD_ARGS[@]}" \
@@ -99,11 +100,22 @@ echo "Removing any existing container named ${CONTAINER_NAME}"
 docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
 
 echo "Starting container ${CONTAINER_NAME}"
+
+# The image runs vLLM/LMCache as a non-root user, so it needs supplementary
+# group membership matching the host's render/video group GIDs to access
+# /dev/dri (GIDs vary per host, so they can't be baked into the image).
+GROUP_ADD_OPTS=()
+RENDER_GID="$(stat -c '%g' /dev/dri/renderD* 2>/dev/null | head -n1 || true)"
+VIDEO_GID="$(stat -c '%g' /dev/dri/card* 2>/dev/null | head -n1 || true)"
+[[ -n "${RENDER_GID}" ]] && GROUP_ADD_OPTS+=( --group-add "${RENDER_GID}" )
+[[ -n "${VIDEO_GID}" ]] && GROUP_ADD_OPTS+=( --group-add "${VIDEO_GID}" )
+
 docker run -d \
   --name "${CONTAINER_NAME}" \
   --ipc=host \
   --privileged \
   --device=/dev/dri \
+  "${GROUP_ADD_OPTS[@]}" \
   --shm-size=16g \
   -v "${MODEL_PATH}:/models:ro" \
   -e LMCACHE_MP_HOST="tcp://127.0.0.1" \
