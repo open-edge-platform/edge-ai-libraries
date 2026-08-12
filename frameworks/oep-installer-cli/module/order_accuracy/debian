@@ -1,0 +1,48 @@
+
+configure_order_accuracy () {
+  workspace="$(ensure_project_path)/order-accuracy"
+  version=e39b4e27b9b219f6dcba4c1f9037f0d7ac04ea8e
+  repository="https://github.com/intel-retail/order-accuracy.git"
+}
+
+verify_order_accuracy () {
+  [ -e "$workspace"/order-accuracy ]
+}
+
+debian_90_profile_order_accuracy () {
+  echo "git curl gawk make python3_venv"
+}
+
+debian_90_install_order_accuracy () {
+  configure_order_accuracy
+  if verify_order_accuracy && [[ "$*" != *"--reset-order_accuracy"* ]]; then
+    echo "Order accuracy is already installed. Skipping"
+    return
+  fi
+
+  # clone the repository
+  ensure_disk_space 300
+  ensure_git_clone "$workspace" $version $repository
+
+  # setup
+  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+  for app in dine-in take-away; do
+    cd "$workspace"/$app
+    make init-env
+    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$(ensure_hf_token)|" .env
+    cd ../ovms-service
+    ./setup_models.sh --app $app
+    make build
+  done
+  
+  verify_order_accuracy
+
+  echo "@@HIGHLIGHT workspace @$workspace"
+  echo "@@HIGHLIGHT cd dine-in[|take-away] && make up"
+}
+
+debian_90_remove_order_accuracy () {
+  configure_order_accuracy
+  ensure_sudo rm -rf "$workspace"
+}
+

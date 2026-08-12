@@ -20,8 +20,12 @@ ensure_git_clone () {
     popd > /dev/null
   else
     # full checkout
-    git clone -b $version --depth 1 $repository "$workspace"
+    mkdir -p "$workspace"
     pushd "$workspace" > /dev/null
+    git init -q
+    git remote add origin "$repository"
+    git fetch --depth 1 origin "$version"
+    git checkout -q FETCH_HEAD
     [ ! -e .gitmodules ] || git submodule update --init --recursive
     popd > /dev/null
   fi

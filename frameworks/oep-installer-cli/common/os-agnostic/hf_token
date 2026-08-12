@@ -1,6 +1,14 @@
 
 ensure_hf_token () {
-  [ -n "$HF_TOKEN" ] || [ ! -r ~/.hf_token ] || HF_TOKEN=$(< ~/.hf_token)
+  if [ -z "$HF_TOKEN" ]; then
+    if [ -r "$HOME"/.cache/huggingface/token ]; then
+      export HF_TOKEN=$(< "$HOME"/.cache/huggingface/token)
+    elif [ -r "$HOME"/.hf_token ]; then
+      export HF_TOKEN=$(< "$HOME"/.hf_token)
+    else
+      export HF_TOKEN=$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json > /dev/null 2>&1 || true)
+    fi
+  fi
   echo "$HF_TOKEN"
 }
 

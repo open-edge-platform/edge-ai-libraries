@@ -10,7 +10,7 @@ verify_loss_prevention () {
 }
 
 debian_90_profile_loss_prevention () {
-  echo "git curl gawk"
+  echo "git curl gawk make python3_venv"
 }
 
 debian_90_install_loss_prevention () {
