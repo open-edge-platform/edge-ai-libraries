@@ -7,6 +7,8 @@ configure_npu () {
 
 verify_npu () {
   [ -b /dev/accel/accel0 ]
+  getent group render >/dev/null 2>&1 
+  id -nG | grep -qw render
   (
     set -o pipefail
     dpkg-query -l intel-level-zero-npu intel-fw-npu intel-driver-compiler-npu 2> /dev/null | grep -q -F $version
@@ -26,6 +28,13 @@ debian_40_install_npu () {
     # remove legacies
     ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
 
+    # create the render group
+    getent group render >/dev/null 2>&1 || {
+      ensure_sudo groupadd render
+      sudo usermod -aG render $USER
+      newgrp render
+    }
+  
     mkdir -p "$workspace"
     cd "$workspace"
 

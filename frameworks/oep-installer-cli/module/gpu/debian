@@ -9,6 +9,8 @@ configure_gpu () {
 
 verify_gpu () {
   [ -b /dev/render/renderD128 ]
+  getent group render >/dev/null 2>&1
+  id -nG | grep -qw render
   (
     set -o pipefail
     dpkg-query -l intel-media-va-driver-non-free 2> /dev/null | grep -q -F $version
@@ -27,6 +29,13 @@ debian_40_install_gpu () {
   else
     # remove legacies
     debian_40_remove_gpu || true
+
+    # create the render group
+    getent group render >/dev/null 2>&1 || {
+      ensure_sudo groupadd render
+      sudo usermod -aG render $USER
+      newgrp render
+    }
 
     # product key
     ensure_sudo mkdir -p $(dirname $key_file)
