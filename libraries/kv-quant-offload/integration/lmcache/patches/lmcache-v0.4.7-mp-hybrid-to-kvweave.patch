@@ -1,5 +1,5 @@
 diff --git a/lmcache/integration/vllm/kv_cache_group_edits.py b/lmcache/integration/vllm/kv_cache_group_edits.py
-index 35712db..0a81894 100644
+index 35712db5..0a818947 100644
 --- a/lmcache/integration/vllm/kv_cache_group_edits.py
 +++ b/lmcache/integration/vllm/kv_cache_group_edits.py
 @@ -38,6 +38,7 @@ from __future__ import annotations
@@ -162,7 +162,7 @@ index 35712db..0a81894 100644
          # vLLM lays out one padded page per block as (conv | ssm | pad), and
          # the conv state is the view that starts at the page base: its leading
 diff --git a/lmcache/integration/vllm/kv_cache_groups.py b/lmcache/integration/vllm/kv_cache_groups.py
-index b15ae67..7467650 100644
+index b15ae671..74676505 100644
 --- a/lmcache/integration/vllm/kv_cache_groups.py
 +++ b/lmcache/integration/vllm/kv_cache_groups.py
 @@ -12,13 +12,99 @@ if TYPE_CHECKING:
@@ -357,7 +357,7 @@ index b15ae67..7467650 100644
          for identity, indices in group_layers_by_identity(
              normalized_kv_caches,
 diff --git a/lmcache/v1/distributed/l1_manager.py b/lmcache/v1/distributed/l1_manager.py
-index 64ae54c..ad445fa 100644
+index 64ae54cf..ad445fa1 100644
 --- a/lmcache/v1/distributed/l1_manager.py
 +++ b/lmcache/v1/distributed/l1_manager.py
 @@ -815,6 +815,10 @@ class L1Manager:
@@ -372,7 +372,7 @@ index 64ae54c..ad445fa 100644
          """Close the L1Manager and free all resources."""
          with self._lock:
 diff --git a/lmcache/v1/distributed/memory_manager/gds_l1_memory_manager.py b/lmcache/v1/distributed/memory_manager/gds_l1_memory_manager.py
-index e1275f3..b6b4fc4 100644
+index e1275f35..b6b4fc49 100644
 --- a/lmcache/v1/distributed/memory_manager/gds_l1_memory_manager.py
 +++ b/lmcache/v1/distributed/memory_manager/gds_l1_memory_manager.py
 @@ -120,6 +120,10 @@ class GDSL1MemoryManager:
@@ -387,7 +387,7 @@ index e1275f3..b6b4fc4 100644
          """No-op: the GDSContext owning the slab is closed at server shutdown."""
          return
 diff --git a/lmcache/v1/distributed/memory_manager/l1_manager_protocol.py b/lmcache/v1/distributed/memory_manager/l1_manager_protocol.py
-index d456005..116e83a 100644
+index d4560050..116e83a2 100644
 --- a/lmcache/v1/distributed/memory_manager/l1_manager_protocol.py
 +++ b/lmcache/v1/distributed/memory_manager/l1_manager_protocol.py
 @@ -41,6 +41,10 @@ class L1ManagerProtocol(Protocol):
@@ -402,7 +402,7 @@ index d456005..116e83a 100644
          """Release all resources."""
          ...
 diff --git a/lmcache/v1/distributed/memory_manager/l1_memory_manager.py b/lmcache/v1/distributed/memory_manager/l1_memory_manager.py
-index 1ad2140..a80ef5b 100644
+index 1ad21400..a80ef5bd 100644
 --- a/lmcache/v1/distributed/memory_manager/l1_memory_manager.py
 +++ b/lmcache/v1/distributed/memory_manager/l1_memory_manager.py
 @@ -205,6 +205,10 @@ class L1MemoryManager:
@@ -418,7 +418,7 @@ index 1ad2140..a80ef5b 100644
          Close the memory manager and release all resources.
 diff --git a/lmcache/v1/distributed/serde/kvweave_config.py b/lmcache/v1/distributed/serde/kvweave_config.py
 new file mode 100644
-index 0000000..9f8f194
+index 00000000..9f8f1946
 --- /dev/null
 +++ b/lmcache/v1/distributed/serde/kvweave_config.py
 @@ -0,0 +1,131 @@
@@ -555,7 +555,7 @@ index 0000000..9f8f194
 +        )
 diff --git a/lmcache/v1/distributed/serde/kvweave_serde.py b/lmcache/v1/distributed/serde/kvweave_serde.py
 new file mode 100644
-index 0000000..6a1f425
+index 00000000..862a5fab
 --- /dev/null
 +++ b/lmcache/v1/distributed/serde/kvweave_serde.py
 @@ -0,0 +1,645 @@
@@ -744,7 +744,7 @@ index 0000000..6a1f425
 +        ):
 +            payload = self._serialize_raw(cpu_tensor, kv_shape)
 +            if self.log:
-+                logger.info(
++                logger.debug(
 +                    "KVWeave store raw shape=%s dtype=%s raw_bytes=%d payload_bytes=%d "
 +                    "attention_shape=%s",
 +                    tuple(cpu_tensor.shape), cpu_tensor.dtype, raw_bytes, len(payload),
@@ -794,7 +794,7 @@ index 0000000..6a1f425
 +            q_bytes = 2 * _quantized_half_bytes(half_elements, self.qbit)
 +            scale_bytes = max(0, len(inner_payload) - len(header) - 8 - q_bytes)
 +            ratio = (len(payload_bytes) / raw_bytes) if raw_bytes else 0.0
-+            logger.info(
++            logger.debug(
 +                "KVWeave quantize store shape=%s dtype=%s qbit=%d scaling=%s "
 +                "raw_bytes=%d payload_bytes=%d ratio=%.4f q_bytes=%d scale_bytes=%d",
 +                tuple(cpu_tensor.shape), cpu_tensor.dtype, self.qbit, raw_bytes,
@@ -809,7 +809,7 @@ index 0000000..6a1f425
 +        if parsed["raw"]:
 +            tensor = self._decode_raw(parsed, dst_tensor)
 +            if self.log:
-+                logger.info(
++                logger.debug(
 +                    "KVWeave load raw shape=%s payload_buffer_bytes=%d restored_bytes=%d",
 +                    tuple(parsed["shape"]), len(raw), _tensor_nbytes(tensor),
 +                )
@@ -830,7 +830,7 @@ index 0000000..6a1f425
 +            if self.log:
 +                q_bytes = len(parsed["q_data"])
 +                scale_bytes = len(parsed["k_scale_bytes"]) + len(parsed["v_scale_bytes"])
-+                logger.info(
++                logger.debug(
 +                    "KVWeave dequantize load shape=%s qbit=%d payload_buffer_bytes=%d "
 +                    "q_bytes=%d scale_bytes=%d restored_bytes=%d",
 +                    tuple(parsed["shape"]), int(parsed["qbit"]), len(raw),
@@ -1204,8 +1204,111 @@ index 0000000..6a1f425
 +        expected = torch.arange(hadamard_size, dtype=perm.dtype)
 +        if not torch.equal(torch.sort(perm).values, expected):
 +            raise ValueError("perm must be a permutation of range(h)")
+diff --git a/lmcache/v1/distributed/storage_controllers/prefetch_controller.py b/lmcache/v1/distributed/storage_controllers/prefetch_controller.py
+index 8b9a9228..a1151d1b 100644
+--- a/lmcache/v1/distributed/storage_controllers/prefetch_controller.py
++++ b/lmcache/v1/distributed/storage_controllers/prefetch_controller.py
+@@ -124,7 +124,7 @@ class InFlightPrefetchRequest:
+ 
+     request_id: PrefetchRequestId
+     keys: list[ObjectKey]
+-    layout_desc: MemoryLayoutDesc
++    layout_desc: MemoryLayoutDesc | dict[int, MemoryLayoutDesc]
+     phase: PrefetchPhase
+     extra_count: int = 0
+     """Extra read locks per key (on top of the default 1) to acquire when
+@@ -206,7 +206,7 @@ class PrefetchController(StorageControllerInterface):
+             tuple[
+                 PrefetchRequestId,
+                 list[ObjectKey],
+-                MemoryLayoutDesc,
++                MemoryLayoutDesc | dict[int, MemoryLayoutDesc],
+                 int,
+                 TrimPolicy,
+             ]
+@@ -224,7 +224,7 @@ class PrefetchController(StorageControllerInterface):
+             tuple[
+                 PrefetchRequestId,
+                 list[ObjectKey],
+-                MemoryLayoutDesc,
++                MemoryLayoutDesc | dict[int, MemoryLayoutDesc],
+                 int,
+                 TrimPolicy,
+             ]
+@@ -289,7 +289,7 @@ class PrefetchController(StorageControllerInterface):
+     def submit_prefetch_request(
+         self,
+         keys: list[ObjectKey],
+-        layout_desc: MemoryLayoutDesc,
++        layout_desc: MemoryLayoutDesc | dict[int, MemoryLayoutDesc],
+         extra_count: int = 0,
+         policy: TrimPolicy = TrimPolicy.PREFIX,
+     ) -> PrefetchRequestId:
+@@ -310,7 +310,9 @@ class PrefetchController(StorageControllerInterface):
+         Args:
+             keys: List of object keys to prefetch from L2 into L1.
+                 The ordering defines the prefix: index 0 is the first key.
+-            layout_desc: Memory layout for L1 write buffer allocation.
++            layout_desc: Memory layout for L1 write buffer allocation. Can be
++                a single layout for all keys, or a mapping from
++                ``object_group_id`` to per-group layout.
+             extra_count: Extra read locks per key (on top of the default 1)
+                 to acquire when transitioning loaded keys from write-locked
+                 to read-locked.  Must match the ``extra_count`` used in the
+@@ -568,7 +570,7 @@ class PrefetchController(StorageControllerInterface):
+         self,
+         request_id: PrefetchRequestId,
+         keys: list[ObjectKey],
+-        layout_desc: MemoryLayoutDesc,
++        layout_desc: MemoryLayoutDesc | dict[int, MemoryLayoutDesc],
+         extra_count: int = 0,
+         policy: TrimPolicy = TrimPolicy.PREFIX,
+     ) -> None:
+@@ -654,12 +656,36 @@ class PrefetchController(StorageControllerInterface):
+         retentions = self._policy.select_l1_retentions(
+             keys_to_reserve,
+         )
+-        write_results = l1_mgr.reserve_write(
+-            keys=keys_to_reserve,
+-            is_temporary=[not r for r in retentions],
+-            layout_desc=request.layout_desc,
+-            mode="new",
+-        )
++        is_temporary = [not r for r in retentions]
++        if isinstance(request.layout_desc, dict):
++            write_results: dict[ObjectKey, tuple[L1Error, MemoryObj | None]] = {}
++            grouped_keys: dict[int, list[ObjectKey]] = defaultdict(list)
++            grouped_temp: dict[int, list[bool]] = defaultdict(list)
++            for key, temp in zip(keys_to_reserve, is_temporary, strict=False):
++                grouped_keys[key.object_group_id].append(key)
++                grouped_temp[key.object_group_id].append(temp)
++
++            for object_group_id, group_keys in grouped_keys.items():
++                group_layout_desc = request.layout_desc.get(object_group_id)
++                if group_layout_desc is None:
++                    raise ValueError(
++                        "Missing layout_desc for object_group_id "
++                        f"{object_group_id} in prefetch request {request.request_id}"
++                    )
++                group_results = l1_mgr.reserve_write(
++                    keys=group_keys,
++                    is_temporary=grouped_temp[object_group_id],
++                    layout_desc=group_layout_desc,
++                    mode="new",
++                )
++                write_results.update(group_results)
++        else:
++            write_results = l1_mgr.reserve_write(
++                keys=keys_to_reserve,
++                is_temporary=is_temporary,
++                layout_desc=request.layout_desc,
++                mode="new",
++            )
+ 
+         # Step 4: filter to successfully reserved keys
+         reserved_key_set: set[ObjectKey] = set()
 diff --git a/lmcache/v1/distributed/storage_manager.py b/lmcache/v1/distributed/storage_manager.py
-index 44873cf..314d926 100644
+index 44873cf4..314d9263 100644
 --- a/lmcache/v1/distributed/storage_manager.py
 +++ b/lmcache/v1/distributed/storage_manager.py
 @@ -6,6 +6,7 @@ Distributed multi-tier storage manager for MP mode
@@ -1265,8 +1368,181 @@ index 44873cf..314d926 100644
      # External APIs for serving engine integration code to call
      @enable_tracing()
      def reserve_write(
+diff --git a/lmcache/v1/gpu_connector/utils.py b/lmcache/v1/gpu_connector/utils.py
+index a2729939..dd29ce1f 100644
+--- a/lmcache/v1/gpu_connector/utils.py
++++ b/lmcache/v1/gpu_connector/utils.py
+@@ -495,8 +495,8 @@ def legible_print_gpu_kv_format(gpu_kv_format: "lmc_ops.GPUKVFormat"):
+     if shape.startswith("Unknown"):
+         logger.warning(f"Unknown GPU KV Format: {gpu_kv_format}")
+     else:
+-        logger.info("GPU KV Format: %s", shape)
+-        logger.info("Currently used by:\n  - %s", backend)
++        logger.debug("GPU KV Format: %s", shape)
++        logger.debug("Currently used by:\n  - %s", backend)
+ 
+ 
+ def _list_depth_tensor_dim(kv_caches: DiscoverableKVCache) -> tuple[int, int]:
+@@ -633,7 +633,7 @@ def normalize_kv_and_discover_format(
+     # list_depth: number of external wrapping lists
+     # tensor_dim: number of dimensions of the internal tensor
+     list_depth, tensor_dim = _list_depth_tensor_dim(kv_caches)
+-    logger.info("list_depth: %d, tensor_dim: %d", list_depth, tensor_dim)
++    logger.debug("list_depth: %d, tensor_dim: %d", list_depth, tensor_dim)
+     probe: DiscoverableKVCache = kv_caches
+     list_dims = []
+     for _ in range(list_depth):
+@@ -644,7 +644,7 @@ def normalize_kv_and_discover_format(
+     dims_str = (
+         "".join(f"[{d}]" for d in list_dims) + f"[{', '.join(map(str, tensor_dims))}]"
+     )
+-    logger.info("GPU KV Cache Dimensions: %s", dims_str)
++    logger.debug("GPU KV Cache Dimensions: %s", dims_str)
+ 
+     detected_format = None
+ 
+diff --git a/lmcache/v1/mp_observability/subscribers/logging/l2.py b/lmcache/v1/mp_observability/subscribers/logging/l2.py
+index ff168382..ce661524 100644
+--- a/lmcache/v1/mp_observability/subscribers/logging/l2.py
++++ b/lmcache/v1/mp_observability/subscribers/logging/l2.py
+@@ -16,6 +16,13 @@ logger = init_logger(__name__)
+ class L2LoggingSubscriber(EventSubscriber):
+     """Logs L2 store and prefetch events at debug level."""
+ 
++    def __init__(self) -> None:
++        # Correlate submit -> complete for per-task L2 timing.
++        self._pending_store: dict[tuple[int, int], float] = {}
++        self._pending_load_task: dict[tuple[int, int], float] = {}
++        # Correlate request-level L2 prefetch load -> L1 finalize completion.
++        self._pending_prefetch_load: dict[int, float] = {}
++
+     def get_subscriptions(self) -> dict[EventType, EventCallback]:
+         return {
+             EventType.L2_STORE_SUBMITTED: self._on_store_submitted,
+@@ -24,10 +31,17 @@ class L2LoggingSubscriber(EventSubscriber):
+             EventType.L2_PREFETCH_LOOKUP_COMPLETED: self._on_lookup_completed,
+             EventType.L2_PREFETCH_LOAD_SUBMITTED: self._on_load_submitted,
+             EventType.L2_PREFETCH_LOAD_COMPLETED: self._on_load_completed,
++            EventType.L2_LOAD_TASK_SUBMITTED: self._on_load_task_submitted,
++            EventType.L2_LOAD_TASK_COMPLETED: self._on_load_task_completed,
+             EventType.L2_KEYS_EVICTED: self._on_evicted,
+         }
+ 
+     def _on_store_submitted(self, event: Event) -> None:
++        adapter_index = event.metadata.get("adapter_index")
++        task_id = event.metadata.get("task_id")
++        if adapter_index is not None and task_id is not None:
++            self._pending_store[(int(adapter_index), int(task_id))] = event.timestamp
++
+         logger.debug(
+             "L2 store submitted: %d keys to adapter %d",
+             event.metadata["key_count"],
+@@ -35,9 +49,27 @@ class L2LoggingSubscriber(EventSubscriber):
+         )
+ 
+     def _on_store_completed(self, event: Event) -> None:
++        adapter_index = int(event.metadata["adapter_index"])
++        task_id = int(event.metadata["task_id"])
++        start_ts = self._pending_store.pop((adapter_index, task_id), None)
++        if start_ts is not None:
++            cost_ms = max(0.0, (event.timestamp - start_ts) * 1000.0)
++            logger.debug(
++                "L2 store completed: adapter %d, task %d, %d succeeded, %d failed, "
++                "Cost:%.3fms",
++                adapter_index,
++                task_id,
++                event.metadata["succeeded_count"],
++                event.metadata["failed_count"],
++                cost_ms,
++            )
++            return
++
+         logger.debug(
+-            "L2 store completed: adapter %d, %d succeeded, %d failed",
+-            event.metadata["adapter_index"],
++            "L2 store completed: adapter %d, task %d, %d succeeded, %d failed, "
++            "Cost:N/A(correlation-miss)",
++            adapter_index,
++            task_id,
+             event.metadata["succeeded_count"],
+             event.metadata["failed_count"],
+         )
+@@ -58,6 +90,10 @@ class L2LoggingSubscriber(EventSubscriber):
+         )
+ 
+     def _on_load_submitted(self, event: Event) -> None:
++        request_id = event.metadata.get("request_id")
++        if request_id is not None:
++            self._pending_prefetch_load[int(request_id)] = event.timestamp
++
+         logger.debug(
+             "L2 prefetch load submitted: request %d, %d keys to %d adapters",
+             event.metadata["request_id"],
+@@ -66,13 +102,60 @@ class L2LoggingSubscriber(EventSubscriber):
+         )
+ 
+     def _on_load_completed(self, event: Event) -> None:
++        request_id = int(event.metadata["request_id"])
++        start_ts = self._pending_prefetch_load.pop(request_id, None)
++        if start_ts is not None:
++            cost_ms = max(0.0, (event.timestamp - start_ts) * 1000.0)
++            logger.debug(
++                "L2 prefetch load->L1 completed: request %d, %d loaded, %d failed, "
++                "Cost:%.3fms",
++                request_id,
++                event.metadata["loaded_count"],
++                event.metadata["failed_count"],
++                cost_ms,
++            )
++            return
++
+         logger.debug(
+-            "L2 prefetch load completed: request %d, %d loaded, %d failed",
+-            event.metadata["request_id"],
++            "L2 prefetch load->L1 completed: request %d, %d loaded, %d failed, "
++            "Cost:N/A(correlation-miss)",
++            request_id,
+             event.metadata["loaded_count"],
+             event.metadata["failed_count"],
+         )
+ 
++    def _on_load_task_submitted(self, event: Event) -> None:
++        request_id = event.metadata.get("request_id")
++        adapter_index = event.metadata.get("adapter_index")
++        if request_id is not None and adapter_index is not None:
++            self._pending_load_task[(int(request_id), int(adapter_index))] = (
++                event.timestamp
++            )
++
++    def _on_load_task_completed(self, event: Event) -> None:
++        request_id = int(event.metadata["request_id"])
++        adapter_index = int(event.metadata["adapter_index"])
++        task_id = int(event.metadata["task_id"])
++        start_ts = self._pending_load_task.pop((request_id, adapter_index), None)
++        if start_ts is None:
++            logger.debug(
++                "L2 load task completed: request %d, adapter %d, task %d, "
++                "Cost:N/A(correlation-miss)",
++                request_id,
++                adapter_index,
++                task_id,
++            )
++            return
++
++        cost_ms = max(0.0, (event.timestamp - start_ts) * 1000.0)
++        logger.debug(
++            "L2 load task completed: request %d, adapter %d, task %d, Cost:%.3fms",
++            request_id,
++            adapter_index,
++            task_id,
++            cost_ms,
++        )
++
+     def _on_evicted(self, event: Event) -> None:
+         logger.debug(
+             "L2 eviction: %d keys",
 diff --git a/lmcache/v1/multiprocess/custom_types.py b/lmcache/v1/multiprocess/custom_types.py
-index 021737b..abf5af4 100644
+index 021737b1..abf5af41 100644
 --- a/lmcache/v1/multiprocess/custom_types.py
 +++ b/lmcache/v1/multiprocess/custom_types.py
 @@ -1,7 +1,7 @@
@@ -1348,8 +1624,70 @@ index 021737b..abf5af4 100644
  
  
  @dataclass
+diff --git a/lmcache/v1/multiprocess/engine_context.py b/lmcache/v1/multiprocess/engine_context.py
+index 5d9695f0..bb326333 100644
+--- a/lmcache/v1/multiprocess/engine_context.py
++++ b/lmcache/v1/multiprocess/engine_context.py
+@@ -38,7 +38,11 @@ class ShmPoolInfo(TypedDict):
+ class _LayoutDescEntry:
+     """Stored layout descriptor and its active registration count."""
+ 
+-    layout_desc: MemoryLayoutDesc
++    # A single descriptor applies to every object group (the common case).
++    # A dict keyed by object_group_id is used when groups have diverging
++    # layouts -- e.g. hybrid models where some groups are KVWeave-quantized
++    # (smaller, uint8-packed) and others are stored raw.
++    layout_desc: MemoryLayoutDesc | dict[int, MemoryLayoutDesc]
+     ref_count: int
+     # Number of LMCache object groups for this (model, world_size). Hybrid
+     # models (e.g. Mamba + attention) register more than one; single-group
+@@ -66,7 +70,7 @@ class LayoutDescRegistry:
+         self,
+         model_name: str,
+         world_size: int,
+-        layout_desc: MemoryLayoutDesc,
++        layout_desc: MemoryLayoutDesc | dict[int, MemoryLayoutDesc],
+         num_object_groups: int = 1,
+     ) -> None:
+         """Register a layout descriptor for a (model_name, world_size) pair.
+@@ -77,7 +81,11 @@ class LayoutDescRegistry:
+         Args:
+             model_name: The model name.
+             world_size: The world size.
+-            layout_desc: The memory layout descriptor.
++            layout_desc: The memory layout descriptor. Pass a single
++                ``MemoryLayoutDesc`` when every object group shares the same
++                layout, or a ``dict[int, MemoryLayoutDesc]`` keyed by
++                object_group_id when groups diverge (e.g. per-group KVWeave
++                quantization).
+             num_object_groups: Number of LMCache object groups for this
+                 registration (>= 1). Retained so lookups prefetch/read-lock
+                 every group. Defaults to 1 for single-group models.
+@@ -119,7 +127,9 @@ class LayoutDescRegistry:
+ 
+             entry.ref_count -= 1
+ 
+-    def find(self, model_name: str, world_size: int) -> MemoryLayoutDesc | None:
++    def find(
++        self, model_name: str, world_size: int
++    ) -> MemoryLayoutDesc | dict[int, MemoryLayoutDesc] | None:
+         """Look up a layout descriptor by (model_name, world_size).
+ 
+         Args:
+@@ -127,7 +137,10 @@ class LayoutDescRegistry:
+             world_size: The world size.
+ 
+         Returns:
+-            The layout descriptor if found, otherwise None.
++            The layout descriptor if found, otherwise None. A single
++            ``MemoryLayoutDesc`` if every object group shares one layout, or
++            a ``dict[int, MemoryLayoutDesc]`` keyed by object_group_id if
++            groups diverge (see :meth:`register`).
+         """
+         with self._lock:
+             entry = self._registry.get((model_name, world_size))
 diff --git a/lmcache/v1/multiprocess/group_view.py b/lmcache/v1/multiprocess/group_view.py
-index 4b7742a..245a9b3 100644
+index 4b7742a2..245a9b3d 100644
 --- a/lmcache/v1/multiprocess/group_view.py
 +++ b/lmcache/v1/multiprocess/group_view.py
 @@ -23,6 +23,34 @@ from typing import cast
@@ -1416,8 +1754,36 @@ index 4b7742a..245a9b3 100644
  
  def num_engine_groups(groups: Sequence[EngineGroupInfo]) -> int:
      """Return the number of engine groups (block-id lists per transfer request).
+diff --git a/lmcache/v1/multiprocess/modules/lookup.py b/lmcache/v1/multiprocess/modules/lookup.py
+index 7f7a9b44..11cc62bf 100644
+--- a/lmcache/v1/multiprocess/modules/lookup.py
++++ b/lmcache/v1/multiprocess/modules/lookup.py
+@@ -297,6 +297,12 @@ class LookupModule:
+         # (including dtype/shape list comprehensions) when no subscriber is
+         # listening (e.g. lookup hash logger is disabled).
+         if self._ctx.event_bus.has_subscribers(EventType.MP_LOOKUP):
++            # layout_desc is a dict[int, MemoryLayoutDesc] when object groups
++            # have diverging layouts (e.g. per-group KVWeave quantization);
++            # group 0 is representative enough for this observability event.
++            representative_layout_desc = (
++                layout_desc[0] if isinstance(layout_desc, dict) else layout_desc
++            )
+             self._ctx.event_bus.publish(
+                 Event(
+                     event_type=EventType.MP_LOOKUP,
+@@ -307,8 +313,8 @@ class LookupModule:
+                         "model_name": model_name,
+                         "chunk_size": self._ctx.chunk_size,
+                         "seq_len": len(key.token_ids),
+-                        "dtypes": [str(d) for d in layout_desc.dtypes],
+-                        "shapes": [list(s) for s in layout_desc.shapes],
++                        "dtypes": [str(d) for d in representative_layout_desc.dtypes],
++                        "shapes": [list(s) for s in representative_layout_desc.shapes],
+                     },
+                 )
+             )
 diff --git a/lmcache/v1/multiprocess/modules/non_gpu_transfer.py b/lmcache/v1/multiprocess/modules/non_gpu_transfer.py
-index 21a5491..5681875 100644
+index 21a54918..4b5663c9 100644
 --- a/lmcache/v1/multiprocess/modules/non_gpu_transfer.py
 +++ b/lmcache/v1/multiprocess/modules/non_gpu_transfer.py
 @@ -19,6 +19,8 @@ from lmcache.v1.distributed.api import (
@@ -1504,9 +1870,102 @@ index 21a5491..5681875 100644
          self._non_gpu_contexts[payload.instance_id] = NonGPUContextEntry(
              metadata=metadata,
              metadata_by_group=metadata_by_group,
+@@ -276,10 +317,26 @@ class NonGPUTransferModule:
+             payload.world_size,
+         )
+ 
++        # Always register per-group layouts (metadata_by_group), never the
++        # single unquantized metadata.layout_desc: hybrid models (e.g.
++        # Mamba + attention) have object groups with genuinely different
++        # sizes (different layer counts / hidden dims), and KVWeave-quantized
++        # groups additionally shrink to a smaller uint8-packed layout. Using
++        # one layout for every group -- as metadata.layout_desc would --
++        # makes lookup/prefetch over-reserve L1 space for every non-matching
++        # group (e.g. reserving attention-sized space for mamba chunks).
++        # metadata_by_group is empty for single-group (non-hybrid) models
++        # (payload.engine_group_infos is empty), so fall back to the single
++        # metadata.layout_desc as group 0 in that case.
++        registered_layout_desc: MemoryLayoutDesc | dict[int, MemoryLayoutDesc] = (
++            {idx: m.layout_desc for idx, m in enumerate(metadata_by_group)}
++            if metadata_by_group
++            else metadata.layout_desc
++        )
+         self._ctx.layout_desc_registry.register(
+             payload.model_name,
+             payload.world_size,
+-            metadata.layout_desc,
++            registered_layout_desc,
+             num_object_groups=max(1, len(payload.engine_group_infos)),
+         )
+         return RegisterNonGpuContextResponse(shm_name=shm_name, pool_size=pool_size)
+diff --git a/lmcache/v1/multiprocess/server.py b/lmcache/v1/multiprocess/server.py
+index 7d5ff8d8..7993dd47 100644
+--- a/lmcache/v1/multiprocess/server.py
++++ b/lmcache/v1/multiprocess/server.py
+@@ -3,6 +3,7 @@
+ 
+ # Standard
+ import argparse
++import os
+ import shutil
+ import sys
+ import time
+@@ -51,6 +52,44 @@ from lmcache.v1.multiprocess.protocol import (
+ 
+ logger = init_logger(__name__)
+ 
++_ENV_L1_KVWEAVE_QUANT = "LMCACHE_MP_L1_KVWEAVE_QUANT"
++_ENV_KVWEAVE_LINEAR_QUANT_ENABLED = "LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED"
++_TRUE_VALUES = frozenset({"1", "true", "yes", "y", "on"})
++
++
++def _env_flag(name: str, default: bool) -> bool:
++    """Read a boolean environment flag, falling back to ``default`` when unset.
++
++    Uses the same accepted spellings as the worker-side parsing in
++    ``lmcache.v1.multiprocess.transfer_context.worker_transfer`` so the values
++    logged at startup match the ones the workers actually apply.
++
++    Args:
++        name: Environment variable name to read.
++        default: Value returned when the variable is not set.
++
++    Returns:
++        The parsed boolean value, or ``default`` if the variable is unset.
++    """
++    raw = os.environ.get(name)
++    if raw is None:
++        return default
++    return str(raw).strip().lower() in _TRUE_VALUES
++
++
++def _log_l1_quant_config() -> None:
++    """Log the L1 KVWeave quantization configuration when it is enabled.
++
++    Emits nothing when ``LMCACHE_MP_L1_KVWEAVE_QUANT`` is off, so the line only
++    appears for runs that actually quantize L1.
++    """
++    if not _env_flag(_ENV_L1_KVWEAVE_QUANT, default=False):
++        return
++    logger.info(
++        "Enable L1 4bit quant, hybrid attention quant: %s",
++        _env_flag(_ENV_KVWEAVE_LINEAR_QUANT_ENABLED, default=True),
++    )
++
+ 
+ class MPCacheEngine:
+     """Compositor that assembles pluggable engine modules.
+@@ -182,6 +221,7 @@ def _build_modules(
+         )
+ 
+     logger.info("Supported transfer mode: %s", mp_config.supported_transfer_mode)
++    _log_l1_quant_config()
+ 
+     if mp_config.engine_type == "blend_legacy":
+         if mp_config.supported_transfer_mode == "non_gpu":
 diff --git a/lmcache/v1/multiprocess/transfer_context/mamba_quant.py b/lmcache/v1/multiprocess/transfer_context/mamba_quant.py
 new file mode 100644
-index 0000000..31eafd5
+index 00000000..50c576d6
 --- /dev/null
 +++ b/lmcache/v1/multiprocess/transfer_context/mamba_quant.py
 @@ -0,0 +1,580 @@
@@ -2091,7 +2550,7 @@ index 0000000..31eafd5
 +    ssm_payload = blob[4 + conv_len :]
 +    return conv_payload, ssm_payload
 diff --git a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py b/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
-index 75bc7e3..3679fd0 100644
+index 75bc7e37..babe5057 100644
 --- a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
 +++ b/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
 @@ -16,10 +16,22 @@ from lmcache import torch_dev
@@ -2264,7 +2723,7 @@ index 75bc7e3..3679fd0 100644
 +            and self._kvweave_conv_scaling_method
 +            in _UNSUPPORTED_CONV_RH_SCALING_METHODS
 +        ):
-+            logger.info(
++            logger.debug(
 +                "rh is not supported for conv with scaling_method=%r "
 +                "(conv has no real head axis); falling back to "
 +                "scaling_method='per_tensor', rh=False",
@@ -2460,7 +2919,7 @@ index 75bc7e3..3679fd0 100644
 +                zip(transfer_groups, self._group_raw_layout_descs, strict=True)
 +            ):
 +                if not self._should_attempt_group_quant(group_info):
-+                    logger.info(
++                    logger.debug(
 +                        "Skipping L1 KVWeave quantization for group %d because "
 +                        "linear quantization is disabled",
 +                        idx,
@@ -2484,7 +2943,7 @@ index 75bc7e3..3679fd0 100644
 +                    serialized_nbytes,
 +                    group_info,
 +                ):
-+                    logger.info(
++                    logger.debug(
 +                        "Skipping L1 KVWeave quantization for group %d because "
 +                        "estimated serialized size %d does not meet threshold for raw %d",
 +                        idx,
@@ -2887,7 +3346,7 @@ index 75bc7e3..3679fd0 100644
 +    if kvweave_conv_rh and kvweave_conv_scaling_method in (
 +        _UNSUPPORTED_CONV_RH_SCALING_METHODS
 +    ):
-+        logger.info(
++        logger.debug(
 +            "rh is not supported for conv with scaling_method=%r "
 +            "(conv has no real head axis); falling back to "
 +            "scaling_method='per_tensor', rh=False",
@@ -2958,7 +3417,7 @@ old mode 100644
 new mode 100755
 diff --git a/tests/v1/multiprocess/test_mamba_quant.py b/tests/v1/multiprocess/test_mamba_quant.py
 new file mode 100644
-index 0000000..b30f470
+index 00000000..e14afe8c
 --- /dev/null
 +++ b/tests/v1/multiprocess/test_mamba_quant.py
 @@ -0,0 +1,477 @@
@@ -3442,7 +3901,7 @@ index 0000000..b30f470
 diff --git a/tests/v1/multiprocess/test_worker_transfer.py b/tests/v1/multiprocess/test_worker_transfer.py
 old mode 100644
 new mode 100755
-index 4ec99a5..4f29e74
+index 4ec99a52..4f29e748
 --- a/tests/v1/multiprocess/test_worker_transfer.py
 +++ b/tests/v1/multiprocess/test_worker_transfer.py
 @@ -3,8 +3,14 @@ from unittest.mock import MagicMock, patch
@@ -3605,7 +4064,7 @@ index 4ec99a5..4f29e74
 +    assert ctx._kvweave_linear_quant_enabled is False
 \ No newline at end of file
 diff --git a/tests/v1/test_kv_cache_groups.py b/tests/v1/test_kv_cache_groups.py
-index b7a0f51..919c124 100644
+index b7a0f51a..919c124a 100644
 --- a/tests/v1/test_kv_cache_groups.py
 +++ b/tests/v1/test_kv_cache_groups.py
 @@ -53,6 +53,7 @@ def test_engine_group_info_old_payload_defaults_sw_size():
@@ -3617,7 +4076,7 @@ index b7a0f51..919c124 100644
  
  def test_engine_group_infos_msgspec_round_trip():
 diff --git a/tests/v1/test_vllm_kv_cache_groups.py b/tests/v1/test_vllm_kv_cache_groups.py
-index 021a72c..cef4142 100644
+index 021a72cb..cef41423 100644
 --- a/tests/v1/test_vllm_kv_cache_groups.py
 +++ b/tests/v1/test_vllm_kv_cache_groups.py
 @@ -43,6 +43,11 @@ class FullAttentionSpec:
@@ -3654,107 +4113,3 @@ index 021a72c..cef4142 100644
  
  
  def test_conversion_splits_by_lmcache_layer_identity():
-
-diff --git a/lmcache/v1/distributed/storage_controllers/prefetch_controller.py b/lmcache/v1/distributed/storage_controllers/prefetch_controller.py
-index 8b9a9228..a1151d1b 100644
---- a/lmcache/v1/distributed/storage_controllers/prefetch_controller.py
-+++ b/lmcache/v1/distributed/storage_controllers/prefetch_controller.py
-@@ -124,7 +124,7 @@ class InFlightPrefetchRequest:
- 
-     request_id: PrefetchRequestId
-     keys: list[ObjectKey]
--    layout_desc: MemoryLayoutDesc
-+    layout_desc: MemoryLayoutDesc | dict[int, MemoryLayoutDesc]
-     phase: PrefetchPhase
-     extra_count: int = 0
-     """Extra read locks per key (on top of the default 1) to acquire when
-@@ -206,7 +206,7 @@ class PrefetchController(StorageControllerInterface):
-             tuple[
-                 PrefetchRequestId,
-                 list[ObjectKey],
--                MemoryLayoutDesc,
-+                MemoryLayoutDesc | dict[int, MemoryLayoutDesc],
-                 int,
-                 TrimPolicy,
-             ]
-@@ -224,7 +224,7 @@ class PrefetchController(StorageControllerInterface):
-             tuple[
-                 PrefetchRequestId,
-                 list[ObjectKey],
--                MemoryLayoutDesc,
-+                MemoryLayoutDesc | dict[int, MemoryLayoutDesc],
-                 int,
-                 TrimPolicy,
-             ]
-@@ -289,7 +289,7 @@ class PrefetchController(StorageControllerInterface):
-     def submit_prefetch_request(
-         self,
-         keys: list[ObjectKey],
--        layout_desc: MemoryLayoutDesc,
-+        layout_desc: MemoryLayoutDesc | dict[int, MemoryLayoutDesc],
-         extra_count: int = 0,
-         policy: TrimPolicy = TrimPolicy.PREFIX,
-     ) -> PrefetchRequestId:
-@@ -310,7 +310,9 @@ class PrefetchController(StorageControllerInterface):
-         Args:
-             keys: List of object keys to prefetch from L2 into L1.
-                 The ordering defines the prefix: index 0 is the first key.
--            layout_desc: Memory layout for L1 write buffer allocation.
-+            layout_desc: Memory layout for L1 write buffer allocation. Can be
-+                a single layout for all keys, or a mapping from
-+                ``object_group_id`` to per-group layout.
-             extra_count: Extra read locks per key (on top of the default 1)
-                 to acquire when transitioning loaded keys from write-locked
-                 to read-locked.  Must match the ``extra_count`` used in the
-@@ -568,7 +570,7 @@ class PrefetchController(StorageControllerInterface):
-         self,
-         request_id: PrefetchRequestId,
-         keys: list[ObjectKey],
--        layout_desc: MemoryLayoutDesc,
-+        layout_desc: MemoryLayoutDesc | dict[int, MemoryLayoutDesc],
-         extra_count: int = 0,
-         policy: TrimPolicy = TrimPolicy.PREFIX,
-     ) -> None:
-@@ -654,12 +656,36 @@ class PrefetchController(StorageControllerInterface):
-         retentions = self._policy.select_l1_retentions(
-             keys_to_reserve,
-         )
--        write_results = l1_mgr.reserve_write(
--            keys=keys_to_reserve,
--            is_temporary=[not r for r in retentions],
--            layout_desc=request.layout_desc,
--            mode="new",
--        )
-+        is_temporary = [not r for r in retentions]
-+        if isinstance(request.layout_desc, dict):
-+            write_results: dict[ObjectKey, tuple[L1Error, MemoryObj | None]] = {}
-+            grouped_keys: dict[int, list[ObjectKey]] = defaultdict(list)
-+            grouped_temp: dict[int, list[bool]] = defaultdict(list)
-+            for key, temp in zip(keys_to_reserve, is_temporary, strict=False):
-+                grouped_keys[key.object_group_id].append(key)
-+                grouped_temp[key.object_group_id].append(temp)
-+
-+            for object_group_id, group_keys in grouped_keys.items():
-+                group_layout_desc = request.layout_desc.get(object_group_id)
-+                if group_layout_desc is None:
-+                    raise ValueError(
-+                        "Missing layout_desc for object_group_id "
-+                        f"{object_group_id} in prefetch request {request.request_id}"
-+                    )
-+                group_results = l1_mgr.reserve_write(
-+                    keys=group_keys,
-+                    is_temporary=grouped_temp[object_group_id],
-+                    layout_desc=group_layout_desc,
-+                    mode="new",
-+                )
-+                write_results.update(group_results)
-+        else:
-+            write_results = l1_mgr.reserve_write(
-+                keys=keys_to_reserve,
-+                is_temporary=is_temporary,
-+                layout_desc=request.layout_desc,
-+                mode="new",
-+            )
- 
-         # Step 4: filter to successfully reserved keys
-         reserved_key_set: set[ObjectKey] = set()

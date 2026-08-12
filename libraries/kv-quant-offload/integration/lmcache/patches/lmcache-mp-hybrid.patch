@@ -160,7 +160,7 @@ index ebdbf781..d4b0085b 100644
              group.kv_cache_spec.block_size for group in vllm_groups
          ] or [vllm_config.cache_config.block_size]
 +        self._kv_cache_spec_info = _format_kv_cache_config(kv_cache_config)
-+        logger.info(
++        logger.debug(
 +            "LMCache MP connector initialized: role=%s, kv_cache_specs=%s",
 +            self.role,
 +            self._kv_cache_spec_info,
@@ -172,13 +172,13 @@ index ebdbf781..d4b0085b 100644
          # Must precede both group-info creation and transfer registration so
          # they see the same edited views.
          kv_caches = apply_kv_cache_group_edits(kv_cache_config, kv_caches)
-+        logger.info(
++        logger.debug(
 +            "LMCache MP register_kv_caches: num_layers=%d, kv_cache_specs=%s",
 +            len(kv_caches),
 +            self._kv_cache_spec_info,
 +        )
 +        for layer_name, kv_cache in kv_caches.items():
-+            logger.info(
++            logger.debug(
 +                "LMCache MP cache layer registered: layer=%s, cache=%s",
 +                layer_name,
 +                _format_cache_tensor(kv_cache),
@@ -191,7 +191,7 @@ index ebdbf781..d4b0085b 100644
              return
  
 +        for request_id, op, cache_salt in zip(request_ids, ops, cache_salts):
-+            logger.info(
++            logger.debug(
 +                "LMCache MP cache submit: direction=RETRIEVE, request_id=%s, "
 +                "cache_salt=%s, %s, kv_cache_specs=%s",
 +                request_id,
@@ -212,7 +212,7 @@ index ebdbf781..d4b0085b 100644
              return
  
 +        for request_id, op, cache_salt in zip(request_ids, ops, cache_salts):
-+            logger.info(
++            logger.debug(
 +                "LMCache MP cache submit: direction=STORE, request_id=%s, "
 +                "cache_salt=%s, %s, kv_cache_specs=%s",
 +                request_id,
@@ -232,7 +232,7 @@ index ebdbf781..d4b0085b 100644
                  group_tokens_per_block=self._group_tokens_per_block,
              )
              if r_metadata is not None:
-+                logger.info(
++                logger.debug(
 +                    "LMCache MP cache metadata prepared: direction=RETRIEVE, "
 +                    "request_id=%s, cache_salt=%s, %s, kv_cache_specs=%s",
 +                    r_metadata.request_id,
@@ -247,7 +247,7 @@ index ebdbf781..d4b0085b 100644
                  self._group_tokens_per_block,
              )
              if r_meta is not None:
-+                logger.info(
++                logger.debug(
 +                    "LMCache MP cache metadata prepared: direction=STORE, "
 +                    "request_id=%s, cache_salt=%s, %s, kv_cache_specs=%s",
 +                    r_meta.request_id,
@@ -262,7 +262,7 @@ index ebdbf781..d4b0085b 100644
              )
  
              if r_meta is not None:
-+                logger.info(
++                logger.debug(
 +                    "LMCache MP cache metadata prepared: direction=STORE, "
 +                    "request_id=%s, cache_salt=%s, %s, kv_cache_specs=%s",
 +                    r_meta.request_id,
