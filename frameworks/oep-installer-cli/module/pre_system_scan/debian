@@ -181,7 +181,7 @@ system_scan_check_cpu_instructions () {
 system_scan_check_pci_device () {
   local deviceid=${1,,}
   local default_name="$2"
-  local lspci_out="$(lspci -v -n 2> /dev/null | grep -A10 -E "[0-9a-f]{2}:[0-9a-f]{2}.[0-9a-f] [0-9a-f]{4}: $deviceid ")"
+  local lspci_out="$(lspci -v -n -d $deviceid)"
   local subsystem="$(echo "$lspci_out" | grep -m1 Subsystem: | cut -f2- -d: | sed 's|^ ||g' || true)"
   if [ -n "$subsystem" ]; then
     local name="$(echo "$lspci_out" | grep -m1 DeviceName: | cut -f2- -d: | sed 's|^ ||g' || true)"
