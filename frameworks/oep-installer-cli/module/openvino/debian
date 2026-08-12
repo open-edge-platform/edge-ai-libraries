@@ -9,7 +9,7 @@ configure_openvino () {
 }
 
 debian_70_profile_openvino () {
-  echo "curl gpg python3_venv"
+  echo "curl gpg python3_venv edge_base"
 }
 
 verify_openvino () {

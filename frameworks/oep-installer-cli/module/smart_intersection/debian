@@ -10,7 +10,7 @@ verify_smart_intersection () {
 }
 
 debian_90_profile_smart_intersection () {
-  echo "git curl gawk jq"
+  echo "git curl gawk jq edge_base docker"
 }
 
 debian_90_install_smart_intersection () {

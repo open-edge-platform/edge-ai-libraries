@@ -4,7 +4,7 @@ configure_esq () {
 }
 
 debian_85_profile_esq () {
-  echo "curl git libgl1 make docker uv gpu npu openvino dlstreamer"
+  echo "curl git libgl1 make docker uv edge_base openvino dlstreamer"
 }
 
 debian_85_install_esq () {

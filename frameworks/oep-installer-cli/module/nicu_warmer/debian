@@ -28,7 +28,7 @@ verify_nicu_warmer () {
 }
 
 debian_90_profile_nicu_warmer () {
-  echo "git curl gawk docker"
+  echo "git curl gawk docker edge_base"
 }
 
 debian_90_install_nicu_warmer () {

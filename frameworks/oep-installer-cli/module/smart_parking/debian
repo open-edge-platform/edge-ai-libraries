@@ -10,7 +10,7 @@ verify_smart_parking () {
 }
 
 debian_90_profile_smart_parking () {
-  echo "git curl gawk"
+  echo "git curl gawk edge_base docker"
 }
 
 debian_90_install_smart_parking () {

@@ -1,0 +1,5 @@
+
+debian_99_profile_edge_base () {
+  echo "gpu npu core_types pre_system_scan"
+}
+

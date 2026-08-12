@@ -10,7 +10,7 @@ verify_loitering_detection () {
 }
 
 debian_90_profile_loitering_detection () {
-  echo "git curl gawk"
+  echo "git curl gawk docker edge_base"
 }
 
 debian_90_install_loitering_detection () {

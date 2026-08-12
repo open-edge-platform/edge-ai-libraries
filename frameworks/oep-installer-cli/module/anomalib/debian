@@ -13,7 +13,7 @@ verify_anomalib () {
 }
 
 debian_70_profile_anomalib () {
-  echo "python3_venv"
+  echo "python3_venv edge_base"
 }
 
 debian_70_install_anomalib () {

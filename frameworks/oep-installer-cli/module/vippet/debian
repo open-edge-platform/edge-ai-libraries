@@ -10,7 +10,7 @@ verify_vippet () {
 }
 
 debian_90_profile_vippet () {
-  echo "docker make curl git"
+  echo "docker make curl git edge_base"
 }
 
 debian_90_install_vippet () {

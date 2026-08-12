@@ -10,7 +10,7 @@ verify_pallet_defect_detection () {
 }
 
 debian_90_profile_pallet_defect_detection () {
-  echo "git curl gawk unzip"
+  echo "git curl gawk unzip docker edge_base"
 }
 
 debian_90_install_pallet_defect_detection () {

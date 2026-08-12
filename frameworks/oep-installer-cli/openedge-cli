@@ -276,7 +276,9 @@ subcommand_bootstrap () {
   while [ $i -lt ${#modules[*]} ]; do
     local script="$mydir"/profile/${modules[$i]}/${ID_LIKE}
     [ -r "$script" ] || script="$mydir"/module/${modules[$i]}/${ID_LIKE}
-    if [ -r "$script" ]; then
+    if [ ${scripts["$script"]:-0} -eq 1 ]; then
+      :
+    elif [ -r "$script" ]; then
       scripts["$script"]=1
       local script_nos="${script%/*}/os-agnostic"
       local profiler=$(

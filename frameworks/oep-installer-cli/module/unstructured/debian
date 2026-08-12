@@ -10,7 +10,7 @@ configure_unstructured () {
 }
 
 debian_95_profile_unstructured () {
-  echo "docker curl"
+  echo "docker curl edge_base"
 }
 
 debian_95_install_unstructured () {

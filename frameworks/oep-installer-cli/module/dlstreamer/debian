@@ -9,7 +9,7 @@ configure_dlstreamer () {
 }
 
 debian_75_profile_dlstreamer () {
-  echo "git openvino"
+  echo "git openvino edge_base"
 }
 
 verify_dlstreamer () {

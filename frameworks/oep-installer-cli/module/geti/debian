@@ -10,7 +10,7 @@ verify_geti () {
 }
 
 debian_90_profile_geti () {
-  echo "docker"
+  echo "docker edge_base"
 }
 
 debian_90_install_geti () {
