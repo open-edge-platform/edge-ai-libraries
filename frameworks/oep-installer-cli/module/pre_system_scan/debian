@@ -6,7 +6,7 @@ debian_10_profile_pre_system_scan () {
 debian_10_install_pre_system_scan () {
   set -o pipefail
   (
-    echo "------------------------------------------------------------------------"
+    echo "----------------------------------------------------------------"
 
     ok="${green}✓  PASS${reset}"
     nok="${red}⚠  MSG${reset}"
@@ -62,7 +62,7 @@ debian_10_install_pre_system_scan () {
       fi
     done
 
-    echo "------------------------------------------------------------------------"
+    echo "----------------------------------------------------------------"
     [ "$net_pass" = "$ok" ]
   ) | ensure_columns
 }
