@@ -117,7 +117,14 @@ act_helpper () {
   fi
 
   # scan for dependencies
-  local handles=($(act_find_deps $act_name $([[ " $* " != *" --dry-run "* ]] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1 && echo "pre_system_scan") "$@"))
+  local handles=($(
+    act_find_deps $act_name $(
+      # always included modules
+      for m in pre_system_scan core_types; do 
+        declare -F | grep -q -E " ${ID_LIKE}_[0-9]+_${act_name}_${m}$" && echo $m
+      done
+    ) "$@"
+  ))
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
