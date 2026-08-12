@@ -554,3 +554,7 @@ curl http://localhost:8200/api/v1/plugins
 Copyright (C) 2025-2026 Intel Corporation
 
 SPDX-License-Identifier: Apache-2.0
+
+<!--hide_directive```{eval-rst}
+.. swagger-plugin:: ./_assets/openapi.yaml
+```hide_directive-->
