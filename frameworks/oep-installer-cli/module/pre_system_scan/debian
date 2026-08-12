@@ -34,6 +34,7 @@ debian_10_install_pre_system_scan () {
     [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}"
     echo -e "Network|$net_access|$net_pass"
 
+    echo
     echo "Accelerators:"
 
     pass=$ok
@@ -178,9 +179,9 @@ system_scan_check_cpu_instructions () {
 }
 
 system_scan_check_pci_device () {
-  local deviceid=$1
+  local deviceid=${1,,}
   local default_name="$2"
-  local lspci_out="$(lspci -v -n 2> /dev/null | grep -A10 -F $deviceid)"
+  local lspci_out="$(lspci -v -n 2> /dev/null | grep -A10 -E "[0-9a-f]{2}:[0-9a-f]{2}.[0-9a-f] [0-9a-f]{4}: $deviceid ")"
   local subsystem="$(echo "$lspci_out" | grep -m1 Subsystem: | cut -f2- -d: | sed 's|^ ||g' || true)"
   if [ -n "$subsystem" ]; then
     local name="$(echo "$lspci_out" | grep -m1 DeviceName: | cut -f2- -d: | sed 's|^ ||g' || true)"
