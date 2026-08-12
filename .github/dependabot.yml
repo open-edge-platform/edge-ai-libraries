@@ -105,20 +105,6 @@ updates:
   # Python (pip) — Sample Applications
   # ─────────────────────────────────────────
   - package-ecosystem: "pip"
-    directory: "/sample-applications/chat-question-and-answer"
-    schedule:
-      interval: "weekly"
-    versioning-strategy: lockfile-only
-    cooldown:
-      default-days: 7
-    open-pull-requests-limit: 5
-    groups:
-      python-deps:
-        applies-to: version-updates
-        patterns:
-          - "*"
-
-  - package-ecosystem: "pip"
     directory: "/sample-applications/chat-question-and-answer-core"
     schedule:
       interval: "weekly"
@@ -208,19 +194,6 @@ updates:
   # ─────────────────────────────────────────
   - package-ecosystem: "npm"
     directory: "/sample-applications/chat-question-and-answer-core/ui"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-    open-pull-requests-limit: 5
-    groups:
-      npm-deps:
-        applies-to: version-updates
-        patterns:
-          - "*"
-
-  - package-ecosystem: "npm"
-    directory: "/sample-applications/chat-question-and-answer/ui/react"
     schedule:
       interval: "weekly"
     cooldown:
