@@ -69,7 +69,7 @@ debian_90_install_nicu_warmer () {
 }
 
 debian_90_start_nicu_warmer () {
-  ensure_open_ports 8080 debian_90_stop_nicu_warmer
+  ensure_ports_open 8080 debian_90_stop_nicu_warmer
   configure_nicu_warmer $*
   cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
   make run DEVICE_ENV=$device_env

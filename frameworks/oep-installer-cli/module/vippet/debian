@@ -26,7 +26,7 @@ debian_90_install_vippet () {
 }
 
 debian_90_start_vippet () {
-  ensure_open_ports "80 7860 8000 9090 8554 8889" debian_90_stop_vippet
+  ensure_ports_open "80 7860 8000 9090 8554 8889" debian_90_stop_vippet
   configure_vippet
   cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
   make run

@@ -31,7 +31,7 @@ debian_90_install_smart_parking () {
 }
 
 debian_90_start_smart_parking () {
-  ensure_open_ports "80 443" debian_90_stop_smart_parking
+  ensure_ports_open "80 443" debian_90_stop_smart_parking
   configure_smart_parking
   cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
   docker compose up -d

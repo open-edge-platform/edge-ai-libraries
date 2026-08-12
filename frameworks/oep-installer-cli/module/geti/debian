@@ -27,7 +27,7 @@ debian_90_install_geti () {
 
 debian_90_start_geti () {
   configure_geti $*
-  ensure_open_ports "$port" debian_90_stop_geti
+  ensure_ports_open "$port" debian_90_stop_geti
 
   mkdir -p "$workspace"/geti-data
   docker run --rm --name geti-app -d \

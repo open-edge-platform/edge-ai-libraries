@@ -40,7 +40,7 @@ EOF
 }
 
 debian_90_start_pallet_defect_detection () {
-  ensure_open_ports "80 443" debian_90_stop_pallet_defect_detection
+  ensure_ports_open "80 443" debian_90_stop_pallet_defect_detection
 
   configure_pallet_defect_detection
   cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision

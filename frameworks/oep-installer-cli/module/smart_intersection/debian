@@ -33,7 +33,7 @@ debian_90_install_smart_intersection () {
 
 debian_90_start_smart_intersection () {
   configure_smart_intersection
-  ensure_open_ports 443 debian_90_stop_smart_intersection
+  ensure_ports_open 443 debian_90_stop_smart_intersection
 
   cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
 

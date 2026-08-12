@@ -1,6 +1,6 @@
 
 # ensure ports are open
-ensure_open_ports () {
+ensure_ports_open () {
   local ports="$1"
   for port in $ports; do
     ensure_sudo lsof -i TCP:$port > /dev/null 2>&1 || continue

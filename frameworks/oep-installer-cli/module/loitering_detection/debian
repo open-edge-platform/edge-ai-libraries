@@ -31,7 +31,7 @@ debian_90_install_loitering_detection () {
 }
 
 debian_90_start_loitering_detection () {
-  ensure_open_ports "80 443" debian_90_stop_loitering_detection
+  ensure_ports_open "80 443" debian_90_stop_loitering_detection
   configure_loitering_detection
   cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
   docker compose -f compose-without-scenescape.yml up -d

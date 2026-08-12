@@ -76,7 +76,7 @@ debian_85_install_video_search_and_summarization () {
 
   # clone the repository
   ensure_disk_space 8000
-  ensure_open_ports "$used_ports" return 3
+  ensure_ports_open "$used_ports" return 3
   ensure_git_clone "$workspace" $version $repository sample-applications/video-search-and-summarization
 
   # setup
@@ -91,7 +91,7 @@ debian_85_install_video_search_and_summarization () {
 
 debian_85_start_video_search_and_summarization () {
   configure_video_search_and_summarization $*
-  ensure_open_ports "$used_ports" debian_85_stop_video_search_and_summarization $*
+  ensure_ports_open "$used_ports" debian_85_stop_video_search_and_summarization $*
 
   cd "$workspace"/sample-applications/video-search-and-summarization
   export FINAL_ARG=
