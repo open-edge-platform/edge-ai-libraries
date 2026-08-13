@@ -16,7 +16,7 @@ WORKDIR /app
 # without `/dev/dri` devices passed in (CPU users) — IPEX simply won't be used.
 # `patch` is required for the LLMLingua-2 source patch step below; python:slim
 # images don't ship it by default.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
         curl ocl-icd-libopencl1 libze1 patch \
     && rm -rf /var/lib/apt/lists/*
 
@@ -61,7 +61,8 @@ RUN pip install --no-cache-dir --upgrade \
         "setuptools>=78.1.1" \
         "wheel>=0.46.2" \
         "jaraco.context>=6.1.0" \
-        "msgpack>=1.2.1"
+        "msgpack>=1.2.1" \
+        "pillow>=12.3.0"
 
 # Apply LLMLingua-2 patch (digit_neighbor_radius). Same patch file used by
 # bare-metal `python -m ...apply_patch`. See plan §6.5.1.5.
