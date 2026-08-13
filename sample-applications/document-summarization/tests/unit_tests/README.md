@@ -81,7 +81,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
 
    ```bash
     export VOLUME_OVMS==<model-export-path-for-OVMS>  # For example, use: export VOLUME_OVMS="$PWD"
-    export LLM_MODEL=microsoft/Phi-3.5-mini-instruct
+    export LLM_MODEL=microsoft/Phi-4
    ```
 
 7. **Navigate to the Tests Directory**
