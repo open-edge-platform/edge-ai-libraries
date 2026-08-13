@@ -15,7 +15,7 @@ Follow the below steps to publish tensor vector data along with other metadata v
 2. Update pipeline present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json` with the pipeline below (edit the path to model XML and proc JSON to your needs):
 
    > **Note:** The model used in the below pipeline is from the list of [supported models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
-   > Please refer to the DL Streamer [model preparation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html) documentation on how to download it for your usage.
+   > Refer to the DL Streamer [model preparation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html) documentation on how to download it for your usage.
 
    ```sh
    "pipeline": "{auto_source} ! decodebin ! gvadetect model=/home/pipeline-server/omz/intel/person-vehicle-bike-detection-2004/FP32/person-vehicle-bike-detection-2004.xml model-proc=/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/person-vehicle-bike-detection-2004.json ! queue ! gvainference model=/home/pipeline-server/resources/models/classification/resnet50/FP16/resnet-50-pytorch.xml inference-region=1 ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvametapublish ! appsink name=destination ",
