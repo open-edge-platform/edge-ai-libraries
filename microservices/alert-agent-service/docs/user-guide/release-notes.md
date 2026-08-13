@@ -8,7 +8,7 @@
 
 - Initial release of the Alert Agent Service.
 - Generic multimodal alert action dispatcher supporting text, image, video, and binary payloads.
-- ADK-powered dispatch mode using Google Agent Development Kit (ADK) backed by OpenVINO Model Server (OVMS) with pre-converted models from huggingface.
+- ADK-powered dispatch mode using Google Agent Development Kit (ADK) backed by OpenVINO™ Model Server (OVMS) with pre-converted models from huggingface.
 - Rule-based dispatch mode (`AGENT_MODE=false`) for deterministic tool invocation without LLM overhead.
 - Four built-in action tools: `log_alert`, `trigger_webhook`, `capture_snapshot`, `publish_mqtt`.
 - YAML-based subscription configuration for per-alert-name default tool routing, deduplication rules, and escalation policies.

@@ -97,7 +97,6 @@ The `xeon_vllm_values.yaml` override file (included in the chart) pre-configures
 
 > **Model selection**: `vllm.enabled: true` (set by `xeon_vllm_values.yaml`) automatically disables the VLM Inference Microservice (`vlminference.enabled: false`). vLLM uses the model specified in `global.vlmName`; ensure it is compatible with vLLM and available on Hugging Face.
 
-
 ## Step 3: Build Helm Dependencies
 
 From the chart directory, run:
@@ -130,6 +129,7 @@ kubectl create namespace ${NAMESPACE}
 Choose the deployment mode that fits your use case. In both cases, `xeon_vllm_values.yaml` enables vLLM and configures resource allocations for Intel Xeon CPUs.
 
 > **Switching modes**: Always uninstall the current release before switching to a different mode:
+>
 > ```bash
 > helm uninstall vss -n ${NAMESPACE}
 > ```
@@ -158,7 +158,7 @@ helm install vss . \
   -n ${NAMESPACE}
 ```
 
-> **Requirement:** The chart will raise an error if `global.embeddingModelName` is not set. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+> **Requirement:** The chart will raise an error if `global.embeddingModelName` is not set. Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
 
 **Understanding the override files:**
 
@@ -199,7 +199,6 @@ Open the URL in your browser to access the VSS dashboard.
 
 ---
 
-
 ## Managing the Deployment
 
 ### Upgrading
@@ -233,4 +232,4 @@ helm uninstall vss -n ${NAMESPACE}
 kubectl delete namespace ${NAMESPACE}
 ```
 
-> By default, PVCs are deleted with the Helm release. If you set `global.keepPvc: true`, PVCs are retained and reusable in future deployments to avoid re-downloading models.
+> **Note:** By default, PVCs are deleted with the Helm release. If you set `global.keepPvc: true`, PVCs are retained and reusable in future deployments to avoid re-downloading models.
