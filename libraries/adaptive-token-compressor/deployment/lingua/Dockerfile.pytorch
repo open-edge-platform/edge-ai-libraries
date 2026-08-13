@@ -56,6 +56,13 @@ RUN pip install --no-cache-dir \
         pydantic \
         "huggingface-hub>=0.20"
 
+# Security: force-upgrade transitively-pulled packages flagged by trivy.
+RUN pip install --no-cache-dir --upgrade \
+        "setuptools>=78.1.1" \
+        "wheel>=0.46.2" \
+        "jaraco.context>=6.1.0" \
+        "msgpack>=1.2.1"
+
 # Apply LLMLingua-2 patch (digit_neighbor_radius). Same patch file used by
 # bare-metal `python -m ...apply_patch`. See plan §6.5.1.5.
 COPY src/adaptive_token_compressor/model_servers/lingua/patches/0001-digit-neighbor-radius.patch /tmp/
