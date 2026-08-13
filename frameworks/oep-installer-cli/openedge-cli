@@ -345,10 +345,11 @@ subcommand_bootstrap () {
     cat "${script%/*}/os-agnostic" 2> /dev/null >> "$rendered" || true
   done
 
-  [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]} || exit" >> "$rendered"
-  [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]} || exit" >> "$rendered"
-
-  chmod a+rx "$rendered"
-  echo "Rendered to $rendered"
+  if [[ " $* " != *" --dry-run "* ]]; then
+    [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]} || exit" >> "$rendered"
+    [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]} || exit" >> "$rendered"
+    chmod a+rx "$rendered"
+    echo "Rendered to $rendered"
+  fi
 }
 
