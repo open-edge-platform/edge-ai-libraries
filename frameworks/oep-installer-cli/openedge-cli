@@ -340,8 +340,9 @@ subcommand_bootstrap () {
 
   for script in "${!scripts[@]}"; do
     echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
-    [[ " $* " = *" --dry-run "* ]] || cat "$script" >> "$rendered" 2> /dev/null || true
-    [[ " $* " = *" --dry-run "* ]] || cat "${script%/*}/os-agnostic" 2> /dev/null >> "$rendered" || true
+    [[ " $* " != *" --dry-run "* ]] || continue
+    cat "$script" >> "$rendered" 2> /dev/null || true
+    cat "${script%/*}/os-agnostic" 2> /dev/null >> "$rendered" || true
   done
 
   [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]} || exit" >> "$rendered"
