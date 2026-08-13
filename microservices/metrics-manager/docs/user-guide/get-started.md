@@ -397,12 +397,12 @@ docker compose down --rmi local
 
 ## Troubleshooting Installation
 
-| Issue                 | Solution                                                 |
-| --------------------- | -------------------------------------------------------- |
-| Port already in use   | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
-| Build fails           | Run `docker builder prune` to clear cache                |
-| Container won't start | Check logs: `docker logs metrics-manager`                |
-| No GPU/NPU metrics    | Expected if hardware not present; other metrics continue |
+| Issue                    | Solution                                                 |
+| ------------------------ | -------------------------------------------------------- |
+| Port already in use      | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
+| Build fails              | Run `docker builder prune` to clear cache                |
+| Container will not start | Check logs: `docker logs metrics-manager`                |
+| No GPU/NPU metrics       | Expected if hardware not present; other metrics continue |
 
 See [Troubleshooting](./troubleshooting.md) for more issues.
 

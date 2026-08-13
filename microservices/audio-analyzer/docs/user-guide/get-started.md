@@ -89,7 +89,7 @@ curl --noproxy '*' -X POST http://127.0.0.1:8010/v1/audio/transcriptions \
   -F file=@tests/philosophy_10_russell_128kb.mp3
 ```
 
-Expected: a JSON body containing a `"text"` field, plus an `X-Session-ID`
+Expected result: a JSON body containing a `"text"` field, plus an `X-Session-ID`
 response header.
 
 ### Verify OpenAI-compatible streaming (SSE)
@@ -103,7 +103,7 @@ curl --noproxy '*' -N -X POST http://127.0.0.1:8010/v1/audio/transcriptions \
   -F stream=true
 ```
 
-Expected: a sequence of `transcript.text.delta` frames as each chunk is
+Expected result: a sequence of `transcript.text.delta` frames as each chunk is
 transcribed, one final `transcript.text.done` frame with the full text, then
 the `[DONE]` sentinel:
 

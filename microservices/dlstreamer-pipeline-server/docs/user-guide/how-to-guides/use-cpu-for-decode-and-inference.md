@@ -2,13 +2,14 @@
 
 ## Tutorial on how to use CPU specific pipelines
 
-- A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_cpu_decode_and_inference/config.json`. We need to volume mount the sample config file into dlstreamer-pipeline-server service present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` file. Refer below snippets:
+- A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_cpu_decode_and_inference/config.json`. We need to volume mount the sample config file into `dlstreamer-pipeline-server` service present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` file. Refer to the snippets below:
 
     ```sh
         volumes:
         # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_cpu_decode_and_inference/config.json to config file that DL Streamer Pipeline Server container loads.
         - "../configs/sample_cpu_decode_and_inference/config.json:/home/pipeline-server/config.json"
     ```
+
 - Restart DL Streamer pipeline server
 
     ```sh
@@ -42,4 +43,4 @@
 
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
-- To perform decode and inference on GPU or NPU, please see [this document](./use-gpu-npu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/performance_guide.md).
+- To perform decode and inference on GPU or NPU, please see [this document](./use-gpu-npu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/performance_guide.html).

@@ -1,6 +1,6 @@
 # Get Started
 
-The Alert Agent Service is a generic multimodal alert action dispatcher. It accepts alert events from detection pipelines (video analytics, audio sensors, IoT devices, and more), optionally applies LLM-based reasoning via Google ADK and OpenVINO Model Server, and dispatches configurable action tools such as webhook notifications, MQTT publishing, snapshot saving, and structured logging.
+The Alert Agent Service is a generic multimodal alert action dispatcher. It accepts alert events from detection pipelines (video analytics, audio sensors, IoT devices, and more), optionally applies LLM-based reasoning via Google ADK and OpenVINO™ Model Server, and dispatches configurable action tools such as webhook notifications, MQTT publishing, snapshot saving, and structured logging.
 
 ## Features
 
@@ -88,11 +88,11 @@ docker compose -f docker/docker-compose.yml --profile agent up -d
 
 This starts up to three containers:
 
-| Container             | Description                                                                 |
-| --------------------- | --------------------------------------------------------------------------- |
-| `alert-agent-service` | The alert action dispatcher                                                 |
-| `mqtt`                | Local MQTT broker used by the MQTT action tool                              |
-| `ovms-llm`            | OpenVINO Model Server serving the Phi-4-mini-instruct LLM (agent mode only) |
+| Container             | Description                                                                  |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `alert-agent-service` | The alert action dispatcher                                                  |
+| `mqtt`                | Local MQTT broker used by the MQTT action tool                               |
+| `ovms-llm`            | OpenVINO™ Model Server serving the Phi-4-mini-instruct LLM (agent mode only) |
 
 In agent mode, the `ovms-llm` container is started only when you include `--profile agent`. Initial startup may take 2–5 minutes while the LLM model is downloaded and loaded. During that time, `alert-agent-service` may be up before the LLM is ready.
 

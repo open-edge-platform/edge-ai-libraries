@@ -47,7 +47,7 @@
   - **Impact**: Support for 1000+ metrics per second without API latency spikes
 
 - **Memory Protection** — Automatic eviction of oldest metrics when in-memory limit is reached (default 100k metrics)
-  - **Impact**: Metrics service can't run out of memory even under sustained high ingestion
+  - **Impact**: Metrics service can not run out of memory even under sustained high ingestion
 
 - **Structured Logging** — JSON-formatted logs by default (with human-readable text option for development)
   - **Impact**: Easy integration with log aggregators (ELK, Datadog, etc.)

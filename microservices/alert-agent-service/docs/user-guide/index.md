@@ -16,7 +16,7 @@ The Alert Agent Service is a generic, multimodal alert action dispatcher microse
 ## Key Features
 
 - **Multimodal Payloads**: Accept text, image, audio, video, and binary media artifacts attached to alert events.
-- **ADK-Powered Dispatch**: LLM-based agentic reasoning via Google ADK and OpenVINO Model Server for intelligent tool selection.
+- **ADK-Powered Dispatch**: LLM-based agentic reasoning via Google ADK and OpenVINO™ Model Server for intelligent tool selection.
 - **Rule-Based Dispatch**: Deterministic tool invocation without LLM overhead when `AGENT_MODE=false`.
 - **Subscription Config**: YAML-driven default routing so upstream callers only need to send minimal request fields.
 - **Deduplication**: Suppress repeated alerts within configurable time windows to avoid notification floods.
