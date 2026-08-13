@@ -16,7 +16,7 @@ WORKDIR /app
 # without `/dev/dri` devices passed in (CPU users) — OpenVINO simply won't use XPU.
 # `patch` is required for the LLMLingua-2 source patch step below; python:slim
 # images don't ship it by default.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
         curl ocl-icd-libopencl1 libze1 patch \
     && rm -rf /var/lib/apt/lists/*
 
