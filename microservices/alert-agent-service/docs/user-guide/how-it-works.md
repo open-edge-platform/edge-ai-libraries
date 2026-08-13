@@ -8,7 +8,7 @@ to understand how the service processes alert events, reasons over them, and dis
 
 The service exposes a FastAPI-based REST API and supports two dispatch modes:
 
-- **ADK mode (default)**: Uses Google Agent Development Kit (ADK) backed by an OpenVINO Model Server (OVMS) LLM to reason over the alert and invoke tools autonomously.
+- **ADK mode (default)**: Uses Google Agent Development Kit (ADK) backed by an OpenVINO™ Model Server (OVMS) LLM to reason over the alert and invoke tools autonomously.
 - **Rule-based mode**: Directly invokes the ordered list of tools specified in the request or subscription configuration without LLM reasoning.
 
 The following diagram illustrates the high-level architecture and data flow:

@@ -16,7 +16,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 # HF env must be set BEFORE huggingface_hub is imported transitively (it
 # reads HF_ENDPOINT / HF_HUB_OFFLINE on first import). Defaults match
@@ -26,16 +26,27 @@ os.environ.setdefault("HF_HUB_OFFLINE", "0")
 
 # pydantic stays at module scope — FastAPI treats locally-defined BaseModel
 # subclasses as query parameters, not request body.
-from pydantic import BaseModel  # noqa: E402  (after env setup is intentional)
+from pydantic import BaseModel, ConfigDict, Field, field_validator  # noqa: E402  (after env setup is intentional)
 
 
 class CompressRequest(BaseModel):
-    text: str
-    mode: str | None = None
-    rate: float = 0.33
-    force_tokens: list[str] | None = None
-    force_reserve_digit: bool = False
-    digit_neighbor_radius: int = 0
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(min_length=1)
+    mode: Literal["llmlingua2"] | None = None
+    rate: float = Field(default=0.33, gt=0.0, le=1.0)
+    force_tokens: list[str] | None = Field(default=None, max_length=100)
+    force_reserve_digit: bool = Field(default=False, strict=True)
+    digit_neighbor_radius: int = Field(default=0, ge=0, le=100)
+
+    @field_validator("digit_neighbor_radius", mode="before")
+    @classmethod
+    def _reject_bool_radius(cls, v: Any) -> Any:
+        # bool is a subclass of int, so non-strict validation would silently
+        # accept `true`/`false` as 1/0. Reject it explicitly while still allowing
+        # float-valued integers like 99.0.
+        if isinstance(v, bool):
+            raise ValueError("digit_neighbor_radius must be an integer, not a boolean")
+        return v
 
 
 logger = logging.getLogger("adaptive_token_compressor.model_servers.lingua")
@@ -48,6 +59,23 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger.setLevel(getattr(logging, _LOG_LEVEL, logging.INFO))
+
+# Optional, deployment-tunable hard ceiling on request `text` length (chars).
+# Unset or <= 0 means "no hard limit" (default) so unknown-large but legitimate
+# contexts are not rejected out of the box. Set LINGUA_MAX_TEXT_CHARS in
+# production once the real upper bound is known to bound worst-case resource use
+# (compression runs a transformer model — oversized input is a cheap DoS vector).
+def _parse_max_text_chars() -> int:
+    raw = os.environ.get("LINGUA_MAX_TEXT_CHARS", "0").strip()
+    try:
+        val = int(raw)
+    except ValueError:
+        logger.warning("Invalid LINGUA_MAX_TEXT_CHARS=%r; treating as unset (no limit)", raw)
+        return 0
+    return val if val > 0 else 0
+
+
+MAX_TEXT_CHARS = _parse_max_text_chars()
 
 
 def _parse_args() -> argparse.Namespace:
@@ -76,7 +104,7 @@ def _parse_args() -> argparse.Namespace:
         help="XPU device index used when --device=xpu",
     )
     parser.add_argument("--port", type=int, default=int(_env_str("LINGUA_PORT", "8001")))
-    parser.add_argument("--host", type=str, default=_env_str("LINGUA_HOST", "0.0.0.0"))
+    parser.add_argument("--host", type=str, default=_env_str("LINGUA_HOST", "localhost"))
     parser.add_argument(
         "--model_name_id",
         type=str,
@@ -98,7 +126,9 @@ def _parse_args() -> argparse.Namespace:
 
 def build_app(args: argparse.Namespace) -> Any:
     import torch  # noqa: F401
-    from fastapi import FastAPI, HTTPException
+    from fastapi import FastAPI, HTTPException, Request
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.responses import JSONResponse
     from llmlingua import PromptCompressor
 
     if args.backend == "pytorch" and args.device == "xpu":
@@ -321,11 +351,48 @@ def build_app(args: argparse.Namespace) -> Any:
 
     app = FastAPI(title="Lingua Server")
 
-    @app.post("/compress")
+    @app.exception_handler(RequestValidationError)
+    async def _log_invalid_request(request: Request, exc: RequestValidationError):
+        # Requirement: log requests with invalid parameters (a burst signals the
+        # interface is under attack). Log only field locations + error types, not
+        # the raw offending values, to avoid injecting attacker-controlled data
+        # into the logs. Response body stays the FastAPI-standard generic 422.
+        summary = "; ".join(
+            f"{'.'.join(str(p) for p in e.get('loc', []))}:{e.get('type', '?')}"
+            for e in exc.errors()
+        )
+        logger.warning(
+            "invalid /compress request rejected (422) from %s: %s",
+            request.client.host if request.client else "unknown",
+            summary,
+        )
+        # Keep the body generic (no echo of attacker-controlled values) BUT
+        # shaped to the published HTTPValidationError schema (detail: array of
+        # ValidationError), so the response still conforms to the OpenAPI spec.
+        return JSONResponse(
+            status_code=422,
+            content={"detail": [{"loc": [], "msg": "invalid request parameters", "type": "validation_error"}]},
+        )
+
+    _ERROR_RESPONSES = {
+        400: {"description": "Malformed request body or unsupported mode"},
+        413: {"description": "Request text exceeds LINGUA_MAX_TEXT_CHARS"},
+        422: {"description": "Request failed schema validation"},
+    }
+
+    @app.post("/compress", responses=_ERROR_RESPONSES)
     async def compress_text(request: CompressRequest) -> dict:
         start = time.perf_counter()
+        # Deployment-tunable hard ceiling on text size (DoS guard). 0 = no limit.
+        if MAX_TEXT_CHARS and len(request.text) > MAX_TEXT_CHARS:
+            logger.warning(
+                "oversized /compress request rejected (413): text=%d chars exceeds LINGUA_MAX_TEXT_CHARS=%d",
+                len(request.text), MAX_TEXT_CHARS,
+            )
+            raise HTTPException(status_code=413, detail="text too large")
         request_mode = ((request.mode or startup_mode).strip().lower() if request.mode else startup_mode)
         if request_mode not in supported_modes:
+            logger.warning("invalid /compress mode rejected (400): %r", request.mode)
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -351,7 +418,16 @@ def build_app(args: argparse.Namespace) -> Any:
         # Patched LLMLingua reads `_digit_neighbor_radius` instance attr;
         # vanilla version ignores it.
         llm_lingua._digit_neighbor_radius = request.digit_neighbor_radius
-        result = _plain_compress()
+        # Defense in depth: LLMLingua can raise bare AssertionError / ValueError
+        # on adversarial-but-schema-valid inputs. Convert any such failure into a
+        # clean 400 with a generic message instead of leaking a 500 + stack trace.
+        try:
+            result = _plain_compress()
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning("compression failed (400) for a valid-shaped request: %s", type(exc).__name__)
+            raise HTTPException(status_code=400, detail="compression failed for the given parameters") from exc
 
         # On OV path, retry execution-device probe after first real inference.
         if args.backend == "ov" and not state["ov_exec_reprobe_done"]:

@@ -6,23 +6,23 @@ This document describes the configuration options available in `config.json` for
 
 ```json
 {
-    "udfs": {
-        "name": "windturbine_anomaly_detector",
-        "models": "windturbine_anomaly_detector.pkl",
-        "device": "CPU"
+  "udfs": {
+    "name": "windturbine_anomaly_detector",
+    "models": "windturbine_anomaly_detector.pkl",
+    "device": "CPU"
+  },
+  "alerts": {
+    "mqtt": {
+      "mqtt_broker_host": "ia-mqtt-broker",
+      "mqtt_broker_port": 1883,
+      "name": "my_mqtt_broker"
     },
-    "alerts": {
-        "mqtt": {
-            "mqtt_broker_host": "ia-mqtt-broker",
-            "mqtt_broker_port": 1883,
-            "name": "my_mqtt_broker"
-        },
-        "opcua": {
-            "opcua_server": "opc.tcp://ia-opcua-server:4840/freeopcua/server/",
-            "namespace": 1,
-            "node_id": 2004
-        }
+    "opcua": {
+      "opcua_server": "opc.tcp://ia-opcua-server:4840/freeopcua/server/",
+      "namespace": 1,
+      "node_id": 2004
     }
+  }
 }
 ```
 
@@ -32,11 +32,11 @@ This document describes the configuration options available in `config.json` for
 
 ### **UDFs Configuration**
 
-| Key      | Mandatory | Description                                                                                   | Example Value                          |
-|----------|-----------|-----------------------------------------------------------------------------------------------|----------------------------------------|
-| `name`   | Yes       | The name of the UDF script.                                                                   | `"windturbine_anomaly_detector"`       |
-| `models` | No        | The name of the model file used by the UDF.                                                   | `"windturbine_anomaly_detector.pkl"`   |
-| `device` | No        | Specifies the hardware `CPU` or `GPU` for executing the UDF model inference. Default is `CPU`.| `"CPU/cpu/GPU/gpu"`                    | 
+| Key      | Mandatory | Description                                                                                    | Example Value                        |
+| -------- | --------- | ---------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `name`   | Yes       | The name of the UDF script.                                                                    | `"windturbine_anomaly_detector"`     |
+| `models` | No        | The name of the model file used by the UDF.                                                    | `"windturbine_anomaly_detector.pkl"` |
+| `device` | No        | Specifies the hardware `CPU` or `GPU` for executing the UDF model inference. Default is `CPU`. | `"CPU/cpu/GPU/gpu"`                  |
 
 Refer to [Running inferencing on GPU](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/get-started.html#running-user-defined-function-udf-inference-on-gpu) for usage of GPU in Time Series - Wind Turbine Anomaly Detection Sample App.
 
@@ -51,11 +51,11 @@ Refer to [Running inferencing on GPU](https://docs.openedgeplatform.intel.com/20
 
 #### **MQTT Configuration** (optional)
 
-| Key                 | Mandatory | Description                                                 | Example Value          |
-|---------------------|-----------|-------------------------------------------------------------|------------------------|
-| `mqtt_broker_host`  | Yes       | The hostname or IP address of the MQTT broker.              | `"ia-mqtt-broker"`     |
-| `mqtt_broker_port`  | Yes       | The port number of the MQTT broker.                         | `1883`                 |
-| `name`              | Yes       | The name of the MQTT broker configuration.                  | `"my_mqtt_broker"`     |
+| Key                | Mandatory | Description                                    | Example Value      |
+| ------------------ | --------- | ---------------------------------------------- | ------------------ |
+| `mqtt_broker_host` | Yes       | The hostname or IP address of the MQTT broker. | `"ia-mqtt-broker"` |
+| `mqtt_broker_port` | Yes       | The port number of the MQTT broker.            | `1883`             |
+| `name`             | Yes       | The name of the MQTT broker configuration.     | `"my_mqtt_broker"` |
 
 For more information on how to configure MQTT alerts, refer to [Publishing MQTT Alerts](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/how-to-guides/configure-alerts.html#docker-publish-mqtt-alerts)
 
@@ -66,11 +66,11 @@ For more information on how to configure MQTT alerts, refer to [Publishing MQTT 
 
 #### **OPC UA Configuration** (optional)
 
-| Key            | Mandatory | Description                                                 | Example Value                                      |
-|----------------|-----------|-------------------------------------------------------------|----------------------------------------------------|
-| `opcua_server` | Yes       | The OPC UA server endpoint URL.                             | `"opc.tcp://ia-opcua-server:4840/freeopcua/server/"` |
-| `namespace`    | Yes       | The namespace index for the OPC UA node.                    | `1`                                                |
-| `node_id`      | Yes       | The node ID where alerts will be published.                 | `2004`                                             |
+| Key            | Mandatory | Description                                 | Example Value                                        |
+| -------------- | --------- | ------------------------------------------- | ---------------------------------------------------- |
+| `opcua_server` | Yes       | The OPC UA server endpoint URL.             | `"opc.tcp://ia-opcua-server:4840/freeopcua/server/"` |
+| `namespace`    | Yes       | The namespace index for the OPC UA node.    | `1`                                                  |
+| `node_id`      | Yes       | The node ID where alerts will be published. | `2004`                                               |
 
 For more information on how to configure OPC-UA alerts, refer to [Publishing OPC-UA Alerts](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/how-to-guides/configure-alerts.html#docker-publish-opc-ua-alerts)
 
@@ -79,4 +79,4 @@ For more information on how to configure OPC-UA alerts, refer to [Publishing OPC
 > - An OPC UA server must be available and running at the specified endpoint
 >   for this code to function properly.
 > - Ensure the server is accessible and the connection parameters (endpoint URL, security settings, credentials)
-> are correctly configured before attempting to connect.
+>   are correctly configured before attempting to connect.

@@ -65,17 +65,10 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-If you want to build with `KVWEAVE_XPU=1`, install this PyTorch XPU build first:
+If you want to build with `KVWEAVE_XPU=1`:
 
 ```bash
-pip install torch==2.11.0+xpu torchaudio torchvision \
-    --index-url https://download.pytorch.org/whl/xpu
-```
-
-Then build the extension (and, with `KVWEAVE_XPU=1`, the XPU extension):
-
-```bash
-KVWEAVE_COMPILER=icpx KVWEAVE_XPU=1 pip install .
+KVWEAVE_COMPILER=icpx KVWEAVE_XPU=1 pip install . --extra-index-url https://download.pytorch.org/whl/xpu
 ```
 
 
@@ -87,7 +80,7 @@ suite:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install .
+pip install . --extra-index-url https://download.pytorch.org/whl/xpu
 pip install pytest
 pytest ./tests
 ```
