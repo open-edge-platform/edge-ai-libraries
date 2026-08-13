@@ -179,14 +179,14 @@ class TestLinguaHTTPBackendCompressErrors:
     def test_http_500_raises_backend_error(self):
         responses.post("http://localhost:8001/compress", status=500)
         backend = LinguaHTTPBackend()
-        with pytest.raises(BackendError, match="HTTP request failed"):
+        with pytest.raises(BackendError, match="backend request failed"):
             backend.compress("text", rate=0.5)
 
     @responses.activate
     def test_http_404_raises_backend_error(self):
         responses.post("http://localhost:8001/compress", status=404)
         backend = LinguaHTTPBackend()
-        with pytest.raises(BackendError, match="HTTP request failed"):
+        with pytest.raises(BackendError, match="backend request failed"):
             backend.compress("text", rate=0.5)
 
     @responses.activate
@@ -198,14 +198,14 @@ class TestLinguaHTTPBackendCompressErrors:
             "http://localhost:8001/compress", body=req_lib.Timeout("Connection timeout")
         )
         backend = LinguaHTTPBackend()
-        with pytest.raises(BackendError, match="HTTP request failed"):
+        with pytest.raises(BackendError, match="backend request failed"):
             backend.compress("text", rate=0.5)
 
     @responses.activate
     def test_invalid_json_raises_backend_error(self):
         responses.post("http://localhost:8001/compress", body="not json", status=200)
         backend = LinguaHTTPBackend()
-        with pytest.raises(BackendError, match="Invalid JSON"):
+        with pytest.raises(BackendError, match="backend returned invalid response"):
             backend.compress("text", rate=0.5)
 
     @responses.activate
@@ -248,6 +248,15 @@ class TestLinguaHTTPBackendHealthCheck:
         status = backend.health_check()
         assert status.state is HealthState.HEALTHY
         assert "backend@http://localhost:8001/compress" in status.component
+
+    @responses.activate
+    def test_failure_message_does_not_expose_exception_details(self):
+        secret = "https://user:secret@example.test/health"
+        responses.get("http://localhost:8001/health", body=RuntimeError(secret))
+        status = LinguaHTTPBackend().health_check()
+        assert status.state is HealthState.UNHEALTHY
+        assert status.message == "backend unavailable"
+        assert secret not in status.message
 
     @responses.activate
     def test_status_loading_returns_degraded(self):
