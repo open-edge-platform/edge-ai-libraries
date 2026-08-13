@@ -10,7 +10,8 @@ In most of the cases, you can use the `curl | bash` pattern to start the install
 By default, the base installer does not contain any installable components. They are located under the directories: `module` or `profile`. Use the `boostrap` command to self-construct the final installer:
 
 ```
-./openedge-cli bootstrap metro_ai_suite
+./openedge-cli bootstrap                                            # include all profiles, or
+# ./openedge-cli bootstrap metro_ai_suite                           # include specific profile/module
 # ./openedge-cli bootstrap --install=metro_ai_suite metro_ai_suite  # install metro_ai_suite by default
 ```
 
@@ -41,6 +42,8 @@ For install an ISV application, you can use the following commands:
 ```
 
 > If components within a profile are not compatible with each other, you cannot start/stop a profile. You can always start/stop a component directly.  
+> `./rendered/openedge-cli stop` will stop all apps.  
+
 
 
 

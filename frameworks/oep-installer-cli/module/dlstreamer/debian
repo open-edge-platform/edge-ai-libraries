@@ -55,7 +55,7 @@ debian_75_install_dlstreamer () {
   # info
   echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
   echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples"
-  echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer
+  echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
   echo "@@HIGHLIGHT python venv @$workspace/python3-venv"
 }
 

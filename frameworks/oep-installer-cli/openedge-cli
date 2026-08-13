@@ -211,7 +211,9 @@ subcommand_start () {
 }
 
 subcommand_stop () {
-  act_helpper "stop Stop Stopping Stopped" "-r" "$@"
+  local args=("$@")
+  [ ${#args[@]} -gt 0 ] || args+=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_stop_" | cut -f4- -d_))
+  act_helpper "stop Stop Stopping Stopped" "-r" "${args[@]}"
 }
 
 subcommand_list () {
@@ -273,6 +275,7 @@ subcommand_bootstrap () {
   
   # scan for dependencies
   local modules=(${*##-*})
+  [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";find profile -name "$ID_LIKE" | cut -f2 -d/))
   local -A scripts=()
   local i=0 script license_common=0
   while [ $i -lt ${#modules[*]} ]; do
