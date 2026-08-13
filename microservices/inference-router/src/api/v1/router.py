@@ -26,11 +26,10 @@ from src.exceptions import ProviderError, RoutingError
 from src.models import (
     ChatCompletionRequest,
     ChatCompletionResponse,
-    PluginConfigUpdateRequest,
-    PluginListResponse,
-    PluginResponse,
-    PluginSettingsResponse,
 )
+from src.observability.token_accounting import compute_token_breakdown
+from src.plugins.manager import set_request_id
+from src.providers import PASSTHROUGH_TYPES
 from src.router.logging_utils import (
     is_verbose_full_enabled,
     log_to_gateway_file,
@@ -66,6 +65,7 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
     log_dir = getattr(state, "log_dir", None)
 
     request_id = new_request_id()
+    set_request_id(request_id)
 
     logger.info(
         f"Request received: request_id={request_id}, "
@@ -103,12 +103,26 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
         print(msg)
         log_to_gateway_file(msg, log_dir)
 
+    before_router = compute_token_breakdown(request)
+    after_router = None
     try:
         start_time = time.time()
         chat_response, route_info = await orchestrator.chat(request)
         is_direct = route_info.is_direct
         final_provider_name = route_info.provider_name
         routing_reason = route_info.reason
+
+        if route_info.processed_request is not None:
+            # Same tiktoken unit as before_router → the delta is the saving.
+            after_router = compute_token_breakdown(route_info.processed_request)
+            if is_verbose_full_enabled(verbose_full):
+                log_verbose_response(
+                    "Processed request",
+                    route_info.processed_request.model_dump(),
+                    request_id,
+                    log_dir,
+                    verbose,
+                )
 
         if is_direct:
             log_verbose_response(
@@ -177,6 +191,8 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
                 provider_name=final_provider_name,
                 is_direct=is_direct,
                 is_streaming=False,
+                before_router=before_router,
+                after_router=after_router,
             )
         except Exception as telemetry_error:
             logger.warning(
@@ -216,6 +232,10 @@ async def list_models(http_request: Request):
     models = []
     for prov in config.providers:
         if not prov.enabled:
+            continue
+        # Pass-through backends (ocr/embeddings/...) are not chat-capable models;
+        # they are reachable via their dedicated /v1 endpoints, not this list.
+        if prov.type in PASSTHROUGH_TYPES:
             continue
         models.append({
             "id": prov.model,
@@ -289,6 +309,22 @@ async def get_metrics(http_request: Request):
                 "total_requests": total_requests,
                 "avg_tokens_per_request": round(metrics.avg_tokens_per_request, 1),
             },
+            # Token breakdown BEFORE router plugins (raw request) — same
+            # tiktoken unit as after_router below, so the delta is the saving.
+            "before_router": {
+                "system_prompt_tokens": metrics.before_router_system_tokens,
+                "tool_schema_tokens": metrics.before_router_tool_tokens,
+                "context_tokens": metrics.before_router_context_tokens,
+                "overall_tokens": metrics.before_router_overall_tokens,
+            },
+            # Token breakdown AFTER router plugins (compressed request actually
+            # forwarded to the backend). Same tiktoken unit as before_router.
+            "after_router": {
+                "system_prompt_tokens": metrics.after_router_system_tokens,
+                "tool_schema_tokens": metrics.after_router_tool_tokens,
+                "context_tokens": metrics.after_router_context_tokens,
+                "overall_tokens": metrics.after_router_overall_tokens,
+            },
         },
         "latency_metrics": {
             "by_provider": by_provider_latency,
@@ -320,131 +356,3 @@ async def reset_metrics(http_request: Request):
     }
 
 
-# ---------------------------------------------------------------------------
-# Plugin configuration
-# ---------------------------------------------------------------------------
-
-
-@router.get("/plugins")
-async def list_plugins(http_request: Request) -> PluginListResponse:
-    """List all configured plugins."""
-    plugin_manager = http_request.app.state.plugin_manager
-
-    try:
-        plugins_config = plugin_manager.get_all_plugins_config()
-        plugins_response = []
-        for config in plugins_config:
-            plugin_resp = PluginResponse(
-                name=config["name"],
-                node=config["node"],
-                enabled=config["enabled"],
-                trigger=config["trigger"],
-                settings=PluginSettingsResponse(**config["settings"]),
-            )
-            plugins_response.append(plugin_resp)
-
-        return PluginListResponse(data=plugins_response)
-    except Exception as e:
-        logger.error(f"Failed to list plugins: {e}")
-        raise HTTPException(status_code=500, detail="Failed to list plugins")
-
-
-@router.get("/plugins/{name}/{node}")
-async def get_plugin(name: str, node: str, http_request: Request) -> PluginResponse:
-    """Get plugin configuration by name and node type."""
-    plugin_manager = http_request.app.state.plugin_manager
-
-    try:
-        plugin = plugin_manager.get_plugin_by_name_and_node(name, node)
-        if not plugin:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Plugin '{name}' with node '{node}' not found",
-            )
-
-        return PluginResponse(
-            name=plugin.name,
-            node=plugin.plugin_type(),
-            enabled=True,
-            trigger=plugin.trigger,
-            settings=PluginSettingsResponse(
-                extra_config=getattr(plugin.parsed_settings, "extra_config", {})
-            ),
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to get plugin {name}/{node}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get plugin configuration")
-
-
-@router.put("/plugins/{name}/{node}")
-async def update_plugin(
-    name: str, node: str, update_req: PluginConfigUpdateRequest, http_request: Request
-) -> PluginResponse:
-    """Update plugin configuration by name and node type."""
-    plugin_manager = http_request.app.state.plugin_manager
-
-    try:
-        plugin = plugin_manager.get_plugin_by_name_and_node(name, node)
-        if not plugin:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Plugin '{name}' with node '{node}' not found",
-            )
-
-        if update_req.settings:
-            new_settings = update_req.settings.model_dump(exclude_unset=True)
-            if not plugin_manager.update_plugin_settings(name, node, new_settings):
-                raise HTTPException(status_code=500, detail="Failed to update plugin settings")
-
-        return PluginResponse(
-            name=plugin.name,
-            node=plugin.plugin_type(),
-            enabled=True,
-            trigger=plugin.trigger,
-            settings=PluginSettingsResponse(
-                extra_config=getattr(plugin.parsed_settings, "extra_config", {})
-            ),
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to update plugin {name}/{node}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update plugin configuration")
-
-
-@router.post("/plugins/{name}/{node}")
-async def create_or_update_plugin(
-    name: str, node: str, update_req: PluginConfigUpdateRequest, http_request: Request
-) -> PluginResponse:
-    """Create or update plugin configuration by name and node type."""
-    plugin_manager = http_request.app.state.plugin_manager
-
-    try:
-        plugin = plugin_manager.get_plugin_by_name_and_node(name, node)
-        if plugin:
-            if update_req.settings:
-                new_settings = update_req.settings.model_dump(exclude_unset=True)
-                if not plugin_manager.update_plugin_settings(name, node, new_settings):
-                    raise HTTPException(status_code=500, detail="Failed to update plugin settings")
-
-            return PluginResponse(
-                name=plugin.name,
-                node=plugin.plugin_type(),
-                enabled=True,
-                trigger=plugin.trigger,
-                settings=PluginSettingsResponse(
-                    extra_config=getattr(plugin.parsed_settings, "extra_config", {})
-                ),
-            )
-
-        raise HTTPException(
-            status_code=404,
-            detail=f"Plugin '{name}' with node '{node}' not found",
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to create/update plugin {name}/{node}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to configure plugin")

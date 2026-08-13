@@ -48,18 +48,13 @@ RUN pip install --no-cache-dir \
         --index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/
 
 # Lingua server's own runtime deps (NOT adaptive-token-compressor).
+# Mirrors the `lingua-server-xpu` extra in pyproject.toml.
 RUN pip install --no-cache-dir \
-        llmlingua \
-        fastapi \
-        "uvicorn[standard]" \
-        pydantic
-
-# Pin the transformer stack to the version pair validated against LLMLingua-2
-# for the longllmlingua path. Installing after llmlingua ensures we override
-# any looser transitive dependency that may otherwise pull in a newer release.
-RUN pip install --no-cache-dir \
-        transformers==4.39.3 \
-        huggingface_hub==0.23.5
+        "llmlingua>=0.2" \
+        "fastapi>=0.110" \
+        "uvicorn[standard]>=0.27" \
+        pydantic \
+        "huggingface-hub>=0.20"
 
 # Apply LLMLingua-2 patch (digit_neighbor_radius). Same patch file used by
 # bare-metal `python -m ...apply_patch`. See plan §6.5.1.5.
@@ -72,8 +67,11 @@ RUN cd "$(python -c 'import llmlingua, os; print(os.path.dirname(llmlingua.__fil
 # app.py runs both `python -m ...lingua` and `python lingua_server.py`).
 COPY src/adaptive_token_compressor/model_servers/lingua/app.py /app/lingua_server.py
 
-# HuggingFace model cache (mounted as a named volume in compose).
-RUN mkdir -p /root/.cache/huggingface
+# HuggingFace model cache (mounted as a named volume in compose). Lives under
+# the non-root user's home so the mounted volume is writable without root.
+ENV HF_HOME=/home/user/.cache/huggingface
+RUN useradd -m -u 1000 user && mkdir -p ${HF_HOME} && chown -R user:user ${HF_HOME} /app
+USER user
 
 ENV LINGUA_PORT=8001
 ENV LINGUA_BACKEND=pytorch

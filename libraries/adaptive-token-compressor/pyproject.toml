@@ -54,8 +54,13 @@ lingua-server-xpu = [
     "uvicorn[standard]>=0.27",
     "huggingface-hub>=0.20",
 ]
-# CPU-only fallback for the PyTorch backend (no IPEX, no XPU wheels needed;
-# default PyPI index works). Pass `--backend pytorch --device cpu` on launch.
+# CPU-only fallback for the PyTorch backend (no IPEX, no XPU wheels needed).
+# Pass `--backend pytorch --device cpu` on launch. Install from the CPU wheel
+# index to get the lean CPU-only torch build and avoid the heavy accelerator
+# runtime packages the default PyPI wheel pulls in on Linux (pyproject can't
+# encode index URLs):
+#   pip install --index-url https://download.pytorch.org/whl/cpu \
+#               "adaptive-token-compressor[lingua-server-cpu]"
 lingua-server-cpu = [
     "torch>=2.0",
     "llmlingua>=0.2",
@@ -65,8 +70,11 @@ lingua-server-cpu = [
 ]
 # OpenVINO backend (`--backend ov`, device xpu or cpu). OV drives the Intel GPU
 # via its own runtime (not torch), so plain CPU torch is enough — no IPEX/XPU
-# wheels, default PyPI index works.
-#   pip install "adaptive-token-compressor[lingua-server-ov]"
+# wheels. Install from the CPU wheel index to get the lean CPU-only torch build
+# and avoid the heavy accelerator runtime packages the default PyPI wheel pulls
+# in on Linux (pyproject can't encode index URLs):
+#   pip install --index-url https://download.pytorch.org/whl/cpu \
+#               "adaptive-token-compressor[lingua-server-ov]"
 lingua-server-ov = [
     "torch==2.8.0",
     "llmlingua>=0.2",
@@ -78,10 +86,11 @@ lingua-server-ov = [
 ]
 dev = ["pytest>=8", "responses>=0.25", "httpx>=0.27", "ruff", "mypy"]
 
-# Ship LICENSE in the wheel's .dist-info so `pip install` users receive it
-# (MANIFEST.in covers the sdist).
+# Ship LICENSE + third_party_program.txt in the wheel's .dist-info so
+# `pip install` users receive the license and the third-party dependency
+# notices. (MANIFEST.in covers the sdist.)
 [tool.setuptools]
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "third_party_program.txt"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

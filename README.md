@@ -101,6 +101,12 @@ without changing model behavior.
   Pluggable token compression for LLM agent systems — compresses system
   prompts, context, and tool schemas to cut input token usage.
 
+- [KVCache Quantization and Offload](./libraries/kv-quant-offload)
+
+  Near-lossless 4-bit KV-cache quantization for LMCache/vLLM, reducing
+  KV-cache memory and storage overhead for KV offload on Intel edge
+  accelerators.
+
 ### Streaming and Multimedia AI
 
 Handling large-scale media analytics workloads, these components support
@@ -119,8 +125,7 @@ indexing, and audio analysis.
   Microservices providing real-time audio transcription and
   intelligence extraction. 
 
-- [VLM Inference Serving](./microservices/vlm-openvino-serving)
-  & [Multimodal Embedding](./microservices/multimodal-embedding-serving)
+- [Multimodal Embedding](./microservices/multimodal-embedding-serving)
 
   Services handling vision-language models and embedding generation
   for multimodal search.
@@ -146,7 +151,7 @@ and scalability. This group offers components for dataset curation,
 vector search, and document ingestion across multimodal data. 
 
 - [Vector Retriever (Milvus)](./microservices/visual-data-preparation-for-retrieval/milvus)
-  & [Visual Data Preparation (Milvus and VDMS)](./microservices/visual-data-preparation-for-retrieval/vdms)
+  & [Visual Data Preparation (Milvus and Multimodal-dataprep)](./microservices/visual-data-preparation-for-retrieval/multimodal-dataprep)
 
   High-performance vector similarity search and visual data indexing. 
 
@@ -246,18 +251,13 @@ advanced robotic workloads at the edge.
 
   Unified interface library bridging motion control commands
   between AI modules and industrial/robotic devices; simplifies
-  real-time control integration and system interoperability in mixed
+  real-time control integration and system interoperability in mixed 
   hardware environments.
 
 ### Sample Applications and Reference Implementations
 
 Ready-to-use example applications demonstrating real-world AI use cases
 to help users get started quickly and understand integration patterns: 
-
-- [Chat Question and Answer](./sample-applications/chat-question-and-answer) 
-
-  Conversational AI application integrating retrieval-augmented generation for
-  question answering. 
 
 - [Chat Question and Answer Core](./sample-applications/chat-question-and-answer-core) 
 
