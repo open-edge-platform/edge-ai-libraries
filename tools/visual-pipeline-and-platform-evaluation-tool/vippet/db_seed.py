@@ -210,7 +210,7 @@ def _get_seed_object_specs() -> list[SeedObjectSpec]:
             name="pipeline definitions (placeholder)",
             loader=_load_pipeline_seed_specs_placeholder,
             applier=_seed_pipeline_definitions_placeholder,
-        )
+        ),
     ]
 
 
