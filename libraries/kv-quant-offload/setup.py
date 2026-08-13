@@ -3,15 +3,30 @@
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import torch
 from setuptools import setup
-from torch.utils.cpp_extension import BuildExtension, CppExtension
+from torch.utils.cpp_extension import BuildExtension, CppExtension, include_paths
 
 CSRC_DIR = Path("kvweave/csrc")
 BINDINGS_DIR = Path("kvweave/bindings")
 REPO_ROOT = Path(__file__).resolve().parent
+
+# Re-declare third-party include dirs as system headers (-isystem) so
+# -Wconversion/-Wall/-Wextra below apply to kvweave's own code without
+# erroring on warnings in headers this project doesn't control: libtorch's
+# own headers (not -Wconversion-clean), and -- for KVWEAVE_XPU=1 builds --
+# the oneAPI/SYCL runtime headers that the `intel-sycl-rt`/`dpcpp-cpp-rt` pip
+# packages drop directly under the venv's `sys.prefix/include` (e.g.
+# sycl/detail/defines_elementary.hpp, which uses [[deprecated]] in a way
+# -Wall treats as an error under -Werror).
+THIRDPARTY_ISYSTEM_FLAGS = [
+    flag
+    for path in [*include_paths(), os.path.join(sys.prefix, "include")]
+    for flag in ("-isystem", path)
+]
 
 AVX512_FLAGS = [
     "-mavx512bw",
@@ -69,13 +84,58 @@ else:
 
 # Set KVWEAVE_MULTITHREAD=0 to disable OpenMP multithreading
 use_mt = os.environ.get("KVWEAVE_MULTITHREAD", "1") != "0"
-MT_COMPILE_FLAGS = ["-fopenmp", "-DUSE_MULTITHREADING"] if use_mt else []
-MT_LINK_FLAGS = ["-fopenmp"] if use_mt else []
+# icpx treats -fopenmp as a deprecated spelling of -qopenmp and (with -Werror)
+# fails the build over it; gcc/g++ only understands -fopenmp.
+OPENMP_FLAG = "-qopenmp" if compiler == "icpx" else "-fopenmp"
+MT_COMPILE_FLAGS = [OPENMP_FLAG, "-DUSE_MULTITHREADING"] if use_mt else []
+MT_LINK_FLAGS = [OPENMP_FLAG] if use_mt else []
 
 BUILD_DEFINES = [
     f'-DKVWEAVE_BUILD_COMPILER="{compiler}"',
     f'-DKVWEAVE_BUILD_ISA="{isa}"',
     f'-DKVWEAVE_BUILD_MULTITHREAD={1 if use_mt else 0}',
+]
+
+# Intel-required C/C++ compiler hardening flags for release builds (SDL429).
+# Written explicitly rather than relying on a given toolchain's default specs
+# (e.g. Ubuntu's patched gcc enables some of these by default, but icpx or a
+# plain upstream gcc may not), so protection is guaranteed regardless of the
+# build environment.
+HARDENING_COMPILE_FLAGS = [
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wconversion",
+    "-Wimplicit-fallthrough",
+    "-Wformat",
+    "-Wformat-security",
+    "-Werror=format-security",
+    "-fstack-protector-strong",
+    "-fstack-clash-protection",
+    # CET (shadow stack + indirect branch tracking). Kept at "full" rather
+    # than trading down to "branch" for Spectre retpoline (-mretpoline /
+    # -mfunction-return=thunk + -mindirect-branch=thunk), since
+    # -fcf-protection=full conflicts with the retpoline thunk flags on GCC.
+    # -fsanitize=cfi was evaluated and intentionally not used: it requires
+    # -flto (switching object format to LLVM bitcode, which icpx can't also
+    # emit as native objects via -ffat-lto-objects) and the standard itself
+    # recommends it only for final binaries, not libraries like this one.
+    #
+    # Under icpx -fsycl, -fcf-protection=full is wrapped in -Xarch_host: CET
+    # is an x86 host-CPU feature with no meaning for the spir64 SYCL device
+    # compilation pass, and icpx (with -Werror) hard-fails on the "ignored
+    # option" warning otherwise. -Xarch_host is icpx/clang-only syntax, so
+    # this can't be a flag gcc would also accept.
+    *(["-Xarch_host", "-fcf-protection=full"] if compiler == "icpx" else ["-fcf-protection=full"]),
+    "-D_FORTIFY_SOURCE=3",
+    "-D_GLIBCXX_ASSERTIONS",
+]
+HARDENING_LINK_FLAGS = [
+    "-Wl,-z,relro,-z,now",
+    "-Wl,-z,noexecstack",
+    # NOTE: -Wl,-z,nodlopen is intentionally omitted. It marks the shared
+    # object as refusing dlopen(), but this extension IS loaded via dlopen()
+    # by Python's import machinery -- enabling it makes the module unimportable.
 ]
 
 quant_extension = CppExtension(
@@ -91,8 +151,10 @@ quant_extension = CppExtension(
         *AVX_FLAGS,
         *MT_COMPILE_FLAGS,
         *BUILD_DEFINES,
+        *THIRDPARTY_ISYSTEM_FLAGS,
+        *HARDENING_COMPILE_FLAGS,
     ],
-    extra_link_args=[*MT_LINK_FLAGS],
+    extra_link_args=[*MT_LINK_FLAGS, *HARDENING_LINK_FLAGS],
 )
 
 ext_modules = [quant_extension]
@@ -111,8 +173,10 @@ if xpu_enabled:
             "-O3",
             "-fp-model=precise",
             "-DKVWEAVE_XPU=1",
+            *THIRDPARTY_ISYSTEM_FLAGS,
+            *HARDENING_COMPILE_FLAGS,
         ],
-        extra_link_args=["-fsycl"],
+        extra_link_args=["-fsycl", *HARDENING_LINK_FLAGS],
     )
     ext_modules.append(xpu_extension)
 

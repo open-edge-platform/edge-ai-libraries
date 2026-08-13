@@ -17,7 +17,7 @@ ENV VIRTUAL_ENV=/opt/buildenv \
     VLLM_TARGET_DEVICE=xpu \
     WHEELS=/wheels
 
-COPY ../kv-quant-offload /src/kvweave
+COPY . /src/kvweave
 
 SHELL ["bash", "-c"]
 

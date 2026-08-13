@@ -108,7 +108,7 @@ sycl_quantization_args build_sycl_args(
     return args;
 }
 
-int64_t compute_num_chunks(const sycl_quantization_args& args, int64_t element_count) {
+int64_t compute_num_chunks(const sycl_quantization_args& args, [[maybe_unused]] int64_t element_count) {
     if (args.scaling_method == "per_token") {
         return static_cast<int64_t>(args.blocks_num) * args.block_size;
     } else if (args.scaling_method == "per_channel") {
@@ -251,10 +251,10 @@ quantize_kvcache_xpu(
     quant_event.wait();
 
     // Copy scales/zps to host
-    std::vector<float> h_scales(num_chunks);
-    std::vector<float> h_zps(num_chunks);
-    queue.memcpy(h_scales.data(), d_scales, num_chunks * sizeof(float)).wait();
-    queue.memcpy(h_zps.data(), d_zps, num_chunks * sizeof(float)).wait();
+    std::vector<float> h_scales(static_cast<size_t>(num_chunks));
+    std::vector<float> h_zps(static_cast<size_t>(num_chunks));
+    queue.memcpy(h_scales.data(), d_scales, static_cast<size_t>(num_chunks) * sizeof(float)).wait();
+    queue.memcpy(h_zps.data(), d_zps, static_cast<size_t>(num_chunks) * sizeof(float)).wait();
 
     // Serialize to the same format as CPU wrapper
     std::string scale_blob = serialize_scales(

@@ -447,7 +447,7 @@ static void dequantize_one_half_per_layer(
             {layer_numel}, dst.options()
         );
         quantization_args layer_args = args;
-        ScaleIdGuard guard(scale_id, layer_scales[l]);
+        ScaleIdGuard guard(scale_id, layer_scales[static_cast<size_t>(l)]);
         dispatch_dequantization_kernel(layer_src, layer_dst, scale_id, layer_args);
     }
 }
@@ -1153,7 +1153,7 @@ pybind11::bytes kvweave_serialize_chunk_py(
     }
     uint32_t k_len = static_cast<uint32_t>(k_scale_data.size());
     uint32_t v_len = static_cast<uint32_t>(v_scale_data.size());
-    int item_bytes = (qbit <= 8) ? 1 : 2;
+    size_t item_bytes = (qbit <= 8) ? 1 : 2;
 
     size_t total = hdr_str.size()
                  + 4u + k_len
@@ -1262,7 +1262,7 @@ pybind11::bytes kvweave_serialize_chunk_state_py(
             "kvweave scale blob exceeds uint32 length framing limit");
     }
     uint32_t scale_len = static_cast<uint32_t>(scale_data.size());
-    int item_bytes = (qbit <= 8) ? 1 : 2;
+    size_t item_bytes = (qbit <= 8) ? 1 : 2;
 
     size_t total = hdr_str.size()
                  + 4u + scale_len

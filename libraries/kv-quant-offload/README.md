@@ -78,7 +78,7 @@ Create a virtual environment, and build the CPU extension (`kvweave.kvweave_quan
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install .
+pip install . --extra-index-url https://download.pytorch.org/whl/xpu
 ```
 
 See [docs/configuration.md](docs/configuration.md#build-environment-variables)
@@ -102,7 +102,7 @@ and `integration/lmcache/patches/lmcache-v0.4.7-mp-hybrid-to-kvweave.patch`
 starts vLLM's OpenAI-compatible API server wired to it via `LMCacheMPConnector`.
 
 ```bash
-MODEL_PATH=/path/to/models bash integration/lmcache/vllm/vllm-start.sh
+MODEL=model_name SERVE=model_name MODEL_PATH=/path/to/models bash integration/lmcache/vllm/vllm-start.sh
 ```
 
 See [docs/configuration.md](docs/configuration.md#deployment-environment-variables-integrationlmcachevllmvllm-startsh)
@@ -114,9 +114,15 @@ host can load with `AutoTokenizer` (e.g. the same `${MODEL_PATH}/${MODEL}`
 passed to `vllm-start.sh` above):
 
 ```bash
-TOKENIZER_PATH=/path/to/models bash tests/vllm-bench-two-waves.sh
+MODEL=model_name SERVE=model_name TOKENIZER_PATH=/path/to/models bash tests/vllm-bench-two-waves.sh
 ```
 
+If you meet error about memory after build iamge, use:
+
+```
+echo 3 | sudo tee /proc/sys/vm/drop_caches
+```
+to clean the cache and restart the vllm server.
 
 ## License
 
