@@ -18,11 +18,11 @@ This guide shows how to:
 The application supports **four** deployment modes. Each mode deploys only the services and UI(s) relevant to the selected functionality:
 
 | Mode | Features | UI Layout | Description | Command Option |
-|------|----|-------|-----------------------|---------|
+| ---- | -------- | --------- | ----------- | -------------- |
 | **Summary** | Video summarization only | Summary UI available at `/` (root URI) | Summarize a given video with several tunable parameters. | `--summary` |
 | **Search** | Video Search only | Search UI available at `/` (root URI). | Search for entities in a given video. **Embedding used for search:** Video frame embeddings | `--search` |
 | **Dual UI** | Video Summarization and Video Search | Two separate UIs available at `/summary/` and `/search/` URI. | **Embedding used for search:** Video frame embeddings | `--summary --search` |
-| **Unified UI** | Video Summarization and **Modified** Video Search | A single unified UI available at `/` (root URI). | **Embedding used for search:** Summarized content text embeddings  | `--summary-and-search` |
+| **Unified UI** | Video Summarization and **Modified** Video Search | A single unified UI available at `/` (root URI). | **Embedding used for search:** Summarized content text embeddings | `--summary-and-search` |
 
 > **NOTE :** The video search in **Unified UI** mode is modified for creating the embeddings of video summary texts and searching over them, rather than creating and using video frame embeddings. Hence, this mode includes video summarization feature, as well, in the same UI.
 
@@ -108,7 +108,7 @@ Before running the application, you need to set several environment variables:
    - **Mode-specific environment variables to set Models:**
 
       | Variable | Mode | Purpose |
-      |----------|-------------|---------|
+      | -------- | ---- | ------- |
       | `VLM_MODEL_NAME` | Summary, Dual UI, Unified UI | VLM model for video captioning and summarization. |
       | `ENABLED_WHISPER_MODELS` | Summary, Dual UI, Unified UI | Whisper model(s) for audio analysis. |
       | `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | YOLO model for object detection during video ingestion. |
@@ -160,7 +160,7 @@ Before running the application, you need to set several environment variables:
       export TEXT_EMBEDDING_MODEL="QwenText/qwen3-embedding-0.6b"
       ```
 
-      > **Note**: Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model names.
+      > **Note:** Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model names.
 
 4. **Configure summarization to use audio transcript (Summary and Dual UI mode):**
 
@@ -176,7 +176,6 @@ Before running the application, you need to set several environment variables:
       >
       > This environment variable sets the **default** value. Users can override it per-video using the **"Use Audio in Summary"** checkbox in the Audio Settings section of the video upload modal.
 
-
 5. **Configure Directory Watcher (Search and Dual UI mode)**:
 
    For automated video ingestion into the search pipeline (available only  in `--search` and `--summary --search` modes), you can use the directory watcher service:
@@ -186,7 +185,7 @@ Before running the application, you need to set several environment variables:
       export VS_WATCHER_DIR="/path/to/your/video/directory"
       ```
 
-   > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with `--search` and `--summary --search` modes.
+   > **Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with `--search` and `--summary --search` modes.
 
 6. **Control the frame extraction interval (Search and Dual UI mode)**:
 
@@ -258,17 +257,17 @@ Before running the application, you need to set several environment variables:
 
 10. **Tune Inference Concurrency (Summary and Dual UI mode)**:
 
-   Control how many concurrent inference requests the pipeline manager sends to OVMS or vLLM. These values affect throughput and resource utilization:
+    Control how many concurrent inference requests the pipeline manager sends to OVMS or vLLM. These values affect throughput and resource utilization:
 
-   ```bash
-   # Maximum concurrent VLM requests for chunk captioning (default: 6 for CPU, 1 for GPU)
-   export PM_VLM_CONCURRENT=6
+    ```bash
+    # Maximum concurrent VLM requests for chunk captioning (default: 6 for CPU, 1 for GPU)
+    export PM_VLM_CONCURRENT=6
 
-   # Maximum concurrent LLM requests for final summarization (default: 1)
-   export PM_LLM_CONCURRENT=1
-   ```
+    # Maximum concurrent LLM requests for final summarization (default: 1)
+    export PM_LLM_CONCURRENT=1
+    ```
 
-   > **Note**: For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
+    > **Note:** For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
 
 11. **Override OVMS Model Weight Compression Format (Summary and Dual UI mode)**:
 
@@ -282,12 +281,12 @@ Before running the application, you need to set several environment variables:
     export LLM_COMPRESSION_WEIGHT_FORMAT=int4
     ```
 
-    > **Note**: Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
+    > **Note:** Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
 
 12. **Configure Embedding Execution (Search and Dual UI mode)**:
 
     The `multimodal-dataprep` service loads the embedding model in-process and generates
-    embeddings during video search indexing. Enable OpenVINO optimization for the
+    embeddings during video search indexing. Enable OpenVINO™ optimization for the
     in-process embedding path:
 
     ```bash
@@ -296,7 +295,7 @@ Before running the application, you need to set several environment variables:
     export SDK_USE_OPENVINO=true
     ```
 
-    > **Note**: `multimodal-dataprep` embeds in-process (no separate embedding service is required for indexing). The standalone `multimodal-embedding-serving` service is used by `vector-retriever` to embed queries at search time.
+    > **Note:** `multimodal-dataprep` embeds in-process (no separate embedding service is required for indexing). The standalone `multimodal-embedding-serving` service is used by `vector-retriever` to embed queries at search time.
 
 13. **Select devices per processing component (Search and Unified UI mode)**:
 
@@ -332,7 +331,7 @@ Before running the application, you need to set several environment variables:
     **Additional vLLM GPU/XPU configuration options:**
 
     | Variable | Description | Default |
-    |----------|-------------|---------|
+    | -------- | ----------- | ------- |
     | `VLLM_XPU_IMAGE` | Docker image for vLLM XPU service | `intel/vllm:0.14.1-xpu` |
     | `VLLM_DTYPE` | Model precision | `bfloat16` |
     | `VLLM_GPU_MEM` | GPU memory utilization (0-1) | `0.8` |
@@ -358,7 +357,7 @@ Before running the application, you need to set several environment variables:
 
     > **Note:** See the [Run the Application](#run-the-application) section below for complete usage examples with `ENABLE_VLLM_GPU=true`.
 
-**🔐 Work with Gated Models**
+**Work with Gated Models**:
 
 To run a **GATED MODEL** like Llama models, you will need to pass your [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). You will need to request for an access to a specific model by going to the respective model page on Hugging Face website.
 
@@ -375,21 +374,21 @@ Once exported, run the setup script as mentioned [here](#run-the-application). S
 
 The Video Search and Summarization application supports multiple deployment modes, each served behind a single nginx reverse proxy on one port. The mode determines which services and UI(s) are brought up.
 
-> **NOTE:** The application runs on port 12345 by default. You can change this by setting `APP_HOST_PORT` environment variable to another port number.
+> **Note:** The application runs on port 12345 by default. You can change this by setting `APP_HOST_PORT` environment variable to another port number.
 
 | Mode | Command Option | UI Instances | Default URL(s) |
-|------|--------|-------------|----------------|
+| ---- | -------------- | ------------ | -------------- |
 | Summary | `--summary` | Single Summary UI | `http://<host-ip>:12345/` |
 | Search | `--search` | Single Search UI | `http://<host-ip>:12345/` |
 | Dual UI | `--summary --search` | Separate Summary and Search UIs | `http://<host-ip>:12345/summary/` and `http://<host-ip>:12345/search/` |
 | Unified UI | `--summary-and-search` | Single unified UI (summary + search) | `http://<host-ip>:12345/` |
 
-> **NOTE:** In `--summary --search` mode, visiting `http://<host-ip>:12345/` redirects to the Video Summarization UI.
+> **Note:** In `--summary --search` mode, visiting `http://<host-ip>:12345/` redirects to the Video Summarization UI.
 
 In modes, where Video Search is available (Search, Dual UI and Unified UI mode), the Vector DB index, the modality of input being used for creating embeddings and the embedding models would differ with modes.
 
 | Mode | Vector-DB Index | Search Modality | Environment Variable Used |
-|------|-----------------|-----------------|--------------------|
+| ---- | --------------- | --------------- | ------------------------- |
 | Search | `video_frame_embeddings` | Multimodal embeddings of video frames | `MULTIMODAL_EMBEDDING_MODEL` |
 | Dual UI | `video_frame_embeddings` | Multimodal embeddings of video frames | `MULTIMODAL_EMBEDDING_MODEL` |
 | Unified UI | `video_summary_embeddings` | Text embeddings of generated summaries | `TEXT_EMBEDDING_MODEL` |
@@ -415,7 +414,7 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 > 2) Final Summary is a method of summarization where it summarizes the whole video.
 > 3) Mixed OVMS+vLLM deployments are not supported in the compose setup. Choose either OVMS-only, vLLM-CPU-only, or vLLM-GPU-only for summarization.
 > 4) `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution.
-> 5) **NPU Support:** Not all models support NPU execution. Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
+> 5) **NPU Support:** Not all models support NPU execution. Verify model compatibility at the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
 > 6) OVMS mode selection is based on effective VLM/LLM settings: if model source, target device, and compression format are all identical, setup uses shared mode; otherwise it uses split mode.
 > 7) For same-source split examples (same model name on different devices/formats), prefer non-`OpenVINO/` source models (for example, `Qwen/Qwen2.5-VL-3B-Instruct`). `OpenVINO/` namespace models are pre-converted and use model-intrinsic/fixed weight formats.
 > 8) **🧪 EXPERIMENTAL - Intel Arc Pro B-series GPU Support:** vLLM on Intel Arc Pro B-series GPUs/XPUs (`ENABLE_VLLM_GPU=true`) is **experimental** and in early development stages. This feature provides GPU-accelerated inference for both VLM captioning and LLM summarization but may have stability issues and requires specific Intel Arc Pro B-series GPU hardware (e.g., B60, B65, B70). When enabled, it automatically disables OVMS and uses vLLM exclusively. Not recommended for production use.
@@ -437,7 +436,7 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 > 2) Each component device defaults to `CPU` and is set independently — there is no "baseline" device.
 > 3) Embedding for indexing runs **in-process** in `multimodal-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`; object detection follows `DATAPREP_DETECTION_DEVICE`.
 > 4) `MME_EMBEDDING_DEVICE` controls `multimodal-embedding-serving`, which `video-search` uses to embed **queries at search time** — set it independently of the indexing devices above.
-> 5) **NPU Support:** Verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU`.
+> 5) **NPU Support:** Verify model compatibility at the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU`.
 > 6) `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`. For NPU, use explicit device variables.
 > 7) **4K/8K videos:** By default the shared-memory block size is sized for 1080p frames, so ingesting 4K/8K video can stall the DataPrep worker. Before ingesting high-resolution content, raise `SDK_VIDEO_SHM_BLOCK_SIZE` as described in [Troubleshooting](./troubleshooting.md#4k8k-video-ingestion-stalls-with-a-worker-timeout).
 
@@ -509,7 +508,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/user-apps/tools/usr/lib/
 
 The same method applies to any other required packages (for example, `git`, `wget`). Refer to the [EMT-S documentation](https://github.com/open-edge-platform/edge-microvisor-toolkit-standalone-node) for further details.
 
-> **For GPU deployments on EMT-S host :** If the host does not include the host OpenCL runtime required by OpenVINO GPU discover, the script uses a conservative integrated-GPU OVMS cache size and continues; inference still runs inside the GPU-enabled OVMS container. Set `OVMS_CACHE_SIZE_GB` before sourcing `setup.sh` if you need an explicit cache size.
+> **For GPU deployments on EMT-S host :** If the host does not include the host OpenCL runtime required by OpenVINO™ GPU discover, the script uses a conservative integrated-GPU OVMS cache size and continues; inference still runs inside the GPU-enabled OVMS container. Set `OVMS_CACHE_SIZE_GB` before sourcing `setup.sh` if you need an explicit cache size.
 
 ## Run the Application
 
@@ -536,9 +535,9 @@ Follow these steps to run the application:
       source setup.sh --stop    # or, `source setup.sh --down`
       ```
 
-      > **IMPORTANT :** You should always run the above command before changing modes _(for example: changing from --summary mode to --search mode)_.
+      > **IMPORTANT:** You should always run the above command before changing modes _(for example: changing from --summary mode to --search mode)_.
 
-      > **💡 Clean-up Tip**: If you encounter issues or want to completely reset the application data, use `source setup.sh --clean-data` to stop all containers and remove all Docker volumes including user data. This provides a fresh start for troubleshooting.
+      > **Clean-up Tip**: If you encounter issues or want to completely reset the application data, use `source setup.sh --clean-data` to stop all containers and remove all Docker volumes including user data. This provides a fresh start for troubleshooting.
 
    - **Summary mode: Setup only video summarization:**
 
@@ -576,7 +575,7 @@ Follow these steps to run the application:
       > ENABLE_METRICS_MANAGER=true source setup.sh --summary-and-search
       > ```
 
-      > **📁 Directory Watcher**: For automated video ingestion into the Search pipeline, see the [Directory Watcher Service Guide](./directory-watcher-guide.md).
+      > **Directory Watcher**: For automated video ingestion into the Search pipeline, see the [Directory Watcher Service Guide](./directory-watcher-guide.md).
 
    - **To run Video Summarization with OVMS using a dedicated LLM for final summary:**
 
@@ -643,7 +642,7 @@ Follow these steps to run the application:
       export VLLM_MAX_MODEL_LEN=32000                 # Maximum sequence length (default: 32000)
       export VLLM_MAX_NUM_SEQS=256                    # Maximum concurrent sequences (default: 256)
       export VLLM_DTYPE=bfloat16                      # Model precision (default: bfloat16)
-      
+
       ENABLE_VLLM_GPU=true source setup.sh --summary
       ```
 
@@ -682,7 +681,7 @@ Follow these steps to run the application:
 
 > **Note:** Offloading models to different devices (e.g., VLM on CPU and LLM on NPU) is only supported with the OVMS backend. The vLLM backend runs a single model on a single device.
 >
-> **⚠️ NPU Support is Experimental:** Running VLM/LLM models on NPU is experimental and may not work with all models or configurations. Not all model architectures are supported on NPU. If you encounter issues, verify model compatibility at the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page and consider falling back to CPU or GPU.
+> **⚠️ NPU Support is Experimental:** Running VLM/LLM models on NPU is experimental and may not work with all models or configurations. Not all model architectures are supported on NPU. If you encounter issues, verify model compatibility at the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page and consider falling back to CPU or GPU.
 
 > **Note:** To bring down a running deployment before re-running with different options, run:
 >
@@ -690,20 +689,20 @@ Follow these steps to run the application:
 > source setup.sh --stop    # or, `source setup.sh --down`
 > ```
 
-#### Use GPU acceleration for VLM inference:
+#### Use GPU acceleration for VLM inference
 
    ```bash
    # for Summary mode
    VLM_TARGET_DEVICE=GPU source setup.sh --summary
-   
+
    # for Dual UI mode
    VLM_TARGET_DEVICE=GPU source setup.sh --summary --search
-   
+
    # for Unified UI mode
    VLM_TARGET_DEVICE=GPU source setup.sh --summary-and-search
    ```
 
-#### Use GPU acceleration for the OVMS final-summary LLM:
+#### Use GPU acceleration for the OVMS final-summary LLM
 
    ```bash
    # for Summary mode
@@ -726,7 +725,7 @@ DATAPREP_EMBEDDING_DEVICE=CPU DATAPREP_DETECTION_DEVICE=GPU source setup.sh --se
 
 To verify the configuration and resolved environment variables without running the application:
 
-#### Use NPU acceleration for the final-summary LLM (split-model mode):
+#### Use NPU acceleration for the final-summary LLM (split-model mode)
 
    ```bash
    # for Summary mode
@@ -739,7 +738,7 @@ To verify the configuration and resolved environment variables without running t
    LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary-and-search
    ```
 
-#### Use GPU acceleration for search-indexing embedding:
+#### Use GPU acceleration for search-indexing embedding
 
    ```bash
    # for Search mode
@@ -754,7 +753,7 @@ To verify the configuration and resolved environment variables without running t
    DATAPREP_EMBEDDING_DEVICE=NPU source setup.sh --search
    ```
 
-#### Verify the configuration and resolved environment variables:
+#### Verify the configuration and resolved environment variables
 
    These commands help to validate the deployment configuration without actually deploying the application.
 
@@ -810,7 +809,7 @@ After successfully starting the application, access the application UI on follow
 
 | UI | URL |
 |----|-----|
-| Video Summarization | `http://<host-ip>:12345/summary/` 
+| Video Summarization | `http://<host-ip>:12345/summary/`
 | Video Search       | `http://<host-ip>:12345/search/` |
 
 Visiting the root URL `http://<host-ip>:12345/` redirects to the Video Summarization UI.
