@@ -76,6 +76,21 @@ async def get_sessions(request: Request, include_pending: bool = False) -> List[
     return [_serialize_session(s, config) for s in sessions.values()]
 
 
+@router.get("/sessions/count")
+async def get_session_count(request: Request) -> Dict[str, Any]:
+    sm = _get_session_manager(request)
+    sessions = sm.get_all_sessions()
+    # Count unique persons per camera (a person on multiple cameras counts once per camera)
+    per_camera: Dict[str, int] = {}
+    for s in sessions.values():
+        for cam in s.current_cameras:
+            per_camera[cam] = per_camera.get(cam, 0) + 1
+    return {
+        "active_sessions": len(sessions),
+        "per_camera": per_camera,
+    }
+
+
 @router.get("/sessions/{object_id}")
 async def get_session_detail(request: Request, object_id: str, scene_id: str = "") -> Dict[str, Any]:
     """Return full detail for a single person session including zone visit history."""
@@ -147,21 +162,6 @@ def _serialize_session(session, config: ConfigService, include_visits: bool = Fa
         ]
 
     return result
-
-
-@router.get("/sessions/count")
-async def get_session_count(request: Request) -> Dict[str, Any]:
-    sm = _get_session_manager(request)
-    sessions = sm.get_all_sessions()
-    # Count unique persons per camera (a person on multiple cameras counts once per camera)
-    per_camera: Dict[str, int] = {}
-    for s in sessions.values():
-        for cam in s.current_cameras:
-            per_camera[cam] = per_camera.get(cam, 0) + 1
-    return {
-        "active_sessions": len(sessions),
-        "per_camera": per_camera,
-    }
 
 
 # ---- Health ------------------------------------------------------------------

@@ -234,33 +234,26 @@ async def lifespan(app: FastAPI):
 
     purge_task = asyncio.create_task(_visit_tracker_purge_loop())
 
-    # Independent image capture loop: send getimage for ALL configured cameras
-    # so the UI always has a live video feed, regardless of session state.
-    # Disabled when ENABLE_UI=false to avoid unnecessary MQTT traffic.
-    enable_ui = os.environ.get("ENABLE_UI", "true").lower() == "true"
-    ui_image_task = None
+    # Frame capture loop: continuously request frames from all cameras
+    # for behavioral analysis and UI display
+    cmd_topic = config.get_cmd_topic_pattern()
+    _all_camera_names = [c["name"] for c in config.get_cameras()]
 
-    if enable_ui:
-        cmd_topic = config.get_cmd_topic_pattern()
-        _all_camera_names = [c["name"] for c in config.get_cameras()]
+    async def _frame_capture_loop():
+        while True:
+            await asyncio.sleep(0.5)  # ~2 FPS
+            if not mqtt_svc.connected:
+                continue
+            for cam in _all_camera_names:
+                try:
+                    mqtt_svc.publish_raw(
+                        cmd_topic.replace("{camera_name}", cam),
+                        "getimage",
+                    )
+                except Exception:
+                    pass
 
-        async def _ui_image_loop():
-            while True:
-                await asyncio.sleep(0.5)  # ~2 FPS for UI feed
-                if not mqtt_svc.connected:
-                    continue
-                for cam in _all_camera_names:
-                    try:
-                        mqtt_svc.publish_raw(
-                            cmd_topic.replace("{camera_name}", cam),
-                            "getimage",
-                        )
-                    except Exception:
-                        pass
-
-        ui_image_task = asyncio.create_task(_ui_image_loop())
-    else:
-        logger.info("UI image loop disabled (ENABLE_UI=false)")
+    frame_capture_task = asyncio.create_task(_frame_capture_loop())
 
     logger.info(
         "Store-wide Loss Prevention started",
@@ -276,8 +269,7 @@ async def lifespan(app: FastAPI):
     await mqtt_svc.stop()
     expiry_task.cancel()
     purge_task.cancel()
-    if ui_image_task is not None:
-        ui_image_task.cancel()
+    frame_capture_task.cancel()
     mqtt_task.cancel()
 
 

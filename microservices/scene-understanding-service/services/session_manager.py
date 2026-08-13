@@ -144,8 +144,21 @@ class SessionManager:
 
     # ---- public accessors ---------------------------------------------------
     def get_session(self, object_id: str, scene_id: str = "") -> Optional[PersonSession]:
-        canonical = self._oid_alias.get((scene_id, object_id), object_id)
-        return self._sessions.get((scene_id, canonical))
+        if scene_id:
+            canonical = self._oid_alias.get((scene_id, object_id), object_id)
+            return self._sessions.get((scene_id, canonical))
+
+        # Scene-agnostic lookup for API callers that only provide object_id.
+        matches = [
+            s for (_sid, oid), s in self._sessions.items()
+            if oid == object_id or s.object_id == object_id
+        ]
+        if not matches:
+            return None
+        if len(matches) == 1:
+            return matches[0]
+        # If duplicated across scenes, return the most recently seen session.
+        return max(matches, key=lambda s: s.last_seen)
 
     def get_all_sessions(self) -> Dict[tuple, PersonSession]:
         return dict(self._sessions)
