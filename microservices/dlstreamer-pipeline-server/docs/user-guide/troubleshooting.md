@@ -27,8 +27,8 @@ Restart the DL Streamer Pipeline Server container with the pipeline that has thi
 
 ### Deploying with Intel GPU K8S Extension
 
-If you're deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`,
-`vah264dec` etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
+If you are deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`,
+`vah264dec`, etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
 with Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
 appropriately in order to utilize the underlying GPU.
 
@@ -43,19 +43,19 @@ gpu:
 
 ### Deploying without Intel GPU K8S Extension
 
-If you're deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`, `vah264dec` etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`) without Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml` appropriately in order to utilize the underlying GPU.
+If you are deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`, `vah264dec`, etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`) without Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml` appropriately in order to utilize the underlying GPU.
 
 ```sh
 privileged_access_required: true
 ```
 
-Keep in mind that without GPU K8S extension gpu.enable must be set to false
+Keep in mind that without GPU K8S extension gpu.enable must be set to false.
 
 ---
 
 ### Deploying with Intel NPU K8S Extension
 
-If you're deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
+If you are deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
 with Intel NPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
 appropriately in order to utilize the underlying NPU.
 
@@ -69,7 +69,7 @@ npu:
 
 ### Deploying without Intel NPU K8S Extension
 
-If you're deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
+If you are deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
 without Intel NPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
 appropriately in order to utilize the underlying NPU.
 
@@ -77,7 +77,7 @@ appropriately in order to utilize the underlying NPU.
 privileged_access_required: true
 ```
 
-Keep in mind that without NPU K8S extension gpu.enable must be set to false
+Keep in mind that without NPU K8S extension npu.enable must be set to false.
 
 ---
 
