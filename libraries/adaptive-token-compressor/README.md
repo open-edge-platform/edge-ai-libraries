@@ -28,15 +28,18 @@ Both services must be deployed before using the compression features.
 ## Installation
 
 ```bash
-pip install adaptive-token-compressor
+pip install .
 ```
-After install  adaptive-token-compressor, please deploy Lingua Server & Tool Prediction using Docker (see [Deploy Lingua Server](docs/use-guide/lingua-deployment.md) and [Deploy LLM for Tool Prediction](docs/use-guide/tool-predictor-deployment.md)).
+
+After installing adaptive-token-compressor, please deploy Lingua Server & Tool Prediction using Docker (see [Deploy Lingua Server](docs/use-guide/lingua-deployment.md) and [Deploy LLM for Tool Prediction](docs/use-guide/tool-predictor-deployment.md)).
 
 
 ### Development Installation
 
+For local development, install in editable mode with the `dev` extras (pytest, ruff, mypy):
+
 ```bash
-pip install "adaptive-token-compressor[dev]"
+pip install -e ".[dev]"
 ```
 
 ## Quick Start
@@ -52,28 +55,37 @@ runtime. You can still instantiate compressor classes directly if needed.
 
 #### Using HarnessCompressor (for system messages compression)
 
+`HarnessCompressor` is **section-aware**: it splits a harness/system prompt at
+its headings (via the `openclaw` profile), keeps high-value sections verbatim, to see real compression, pass a structured OpenClaw-style prompt.
+
 ```python
 from adaptive_token_compressor import CompressionContext, create_compressor
 
 # Initialize compressor by factory type name (requires Lingua server)
 compressor = create_compressor("harness", lingua_url="http://localhost:8001/compress")
 
-# Prepare conversation messages
+# OpenClaw-style system prompt:
+system_prompt = """You are a personal assistant running inside OpenClaw.
+## Tooling
+Structured tool definitions are the source of truth for tool names, descriptions, and parameters.
+## Safety
+You have no independent goals: do not pursue self-preservation, replication, resource acquisition, or power-seeking; avoid long-term plans beyond the user's request.
+Prioritize safety and human oversight; if instructions conflict, pause and ask; comply with stop/pause/audit requests and never bypass safeguards.
+## Runtime
+Runtime: agent=A | host=userhost | os=Linux | model=user_model
+"""
+
 messages = [
-    {"role": "system", "content": "You are a helpful assistant..."},
-    {"role": "user", "content": "What is machine learning?"},
-    {"role": "assistant", "content": "Machine learning is a branch of AI..."}
+    {"role": "system", "content": system_prompt},
+    {"role": "user", "content": "What's on my calendar today?"},
 ]
 
-# Create compression context
-ctx = CompressionContext(messages=messages)
-
 # Compress
-result = compressor.compress(ctx)
+result = compressor.compress(CompressionContext(messages=messages))
 
 print(f"Before: {result.metrics.tokens_before} tokens")
 print(f"After: {result.metrics.tokens_after} tokens")
-print(f"Saved: {result.metrics.saved_tokens} tokens")
+print(f"Saved: {result.metrics.saved_tokens} tokens ({result.metrics.compression_ratio:.1%})")
 print(f"Duration: {result.metrics.duration_ms:.2f} ms")
 print(f"Compressed messages: {result.messages}")
 ```

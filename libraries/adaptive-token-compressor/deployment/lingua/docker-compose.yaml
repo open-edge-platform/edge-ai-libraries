@@ -22,7 +22,7 @@ services:
         - https_proxy=${https_proxy:-}
         - no_proxy=${no_proxy:-}
     ports:
-      - "${LINGUA_PORT:-8001}:8001"
+      - "127.0.0.1:${LINGUA_PORT:-8001}:8001"
     environment:
       - LINGUA_PORT=8001
       - LINGUA_BACKEND=pytorch
@@ -36,7 +36,7 @@ services:
       - https_proxy=${https_proxy:-}
       - no_proxy=${no_proxy:-}
     volumes:
-      - lingua-models:/root/.cache/huggingface
+      - lingua-models:/home/user/.cache/huggingface
     devices:
       # Intel GPU passthrough. Harmless on CPU hosts (LINGUA_DEVICE=cpu skips
       # IPEX/XPU code paths). Comment out only if your docker daemon refuses
@@ -70,7 +70,7 @@ services:
         - https_proxy=${https_proxy:-}
         - no_proxy=${no_proxy:-}
     ports:
-      - "${LINGUA_OV_PORT:-8002}:8001"
+      - "127.0.0.1:${LINGUA_OV_PORT:-8002}:8001"
     environment:
       - LINGUA_PORT=8001
       - LINGUA_BACKEND=ov
@@ -84,7 +84,7 @@ services:
       - https_proxy=${https_proxy:-}
       - no_proxy=${no_proxy:-}
     volumes:
-      - lingua-models:/root/.cache/huggingface
+      - lingua-models:/home/user/.cache/huggingface
     devices:
       # Intel GPU passthrough. Harmless on CPU hosts (LINGUA_DEVICE=cpu skips
       # OpenVINO XPU code paths). Comment out only if your docker daemon refuses

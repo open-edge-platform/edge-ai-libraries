@@ -65,14 +65,18 @@ RUN cd "$(python -c 'import llmlingua, os; print(os.path.dirname(llmlingua.__fil
 # app.py runs both `python -m ...lingua` and `python lingua_server.py`).
 COPY src/adaptive_token_compressor/model_servers/lingua/app.py /app/lingua_server.py
 
-# HuggingFace model cache (mounted as a named volume in compose).
-RUN mkdir -p /root/.cache/huggingface
+# HuggingFace model cache (mounted as a named volume in compose). Lives under
+# the non-root user's home so the mounted volume is writable without root.
+ENV HF_HOME=/home/user/.cache/huggingface
+RUN useradd -m -u 1000 user && mkdir -p ${HF_HOME} && chown -R user:user ${HF_HOME} /app
+USER user
 
 ENV LINGUA_PORT=8001
 ENV LINGUA_BACKEND=ov
 ENV LINGUA_DEVICE=xpu
 ENV LINGUA_MODE=llmlingua2
 ENV LINGUA_MODEL_NAME_ID=""
+ENV LINGUA_OV_CACHE_DIR=/home/user/.cache/huggingface/ov_ir
 
 EXPOSE 8001
 

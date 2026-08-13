@@ -76,7 +76,7 @@ def _parse_args() -> argparse.Namespace:
         help="XPU device index used when --device=xpu",
     )
     parser.add_argument("--port", type=int, default=int(_env_str("LINGUA_PORT", "8001")))
-    parser.add_argument("--host", type=str, default=_env_str("LINGUA_HOST", "0.0.0.0"))
+    parser.add_argument("--host", type=str, default=_env_str("LINGUA_HOST", "localhost"))
     parser.add_argument(
         "--model_name_id",
         type=str,
