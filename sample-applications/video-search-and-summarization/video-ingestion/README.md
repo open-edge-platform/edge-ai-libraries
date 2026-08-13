@@ -31,10 +31,10 @@ This project demonstrates video ingestion and processing using Deep Learning Str
 2. Download and convert the object detection model to OpenVINO IR format.
 
     The model is downloaded and converted in one shot by the [Model Download microservice](../../../microservices/model-download/README.md) running in **ephemeral mode**.
-    
+
     ```bash
     # Fetch the one-shot helper script (downloads the model-download image on first use)
-    curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/model-download/scripts/get_model.sh
+    curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.2.0/microservices/model-download/scripts/get_model.sh
 
     # Download + convert the default object detection model (yolov8l) into ./ov_models
     source ./get_model.sh \

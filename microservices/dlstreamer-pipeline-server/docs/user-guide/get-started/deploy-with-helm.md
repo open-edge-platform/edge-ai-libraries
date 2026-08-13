@@ -13,7 +13,7 @@
 
   ```sh
     cd [WORKDIR]
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
     cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/helm
     ```
 
@@ -23,7 +23,7 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 ### Pull the helm chart (Optional)
 
 > **Note:** The helm chart should be downloaded when you are not using the helm chart provided
-> the DL Streamer Pipeline Server repository's [Helm folder](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/dlstreamer-pipeline-server/helm).
+> the DL Streamer Pipeline Server repository's [Helm folder](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/dlstreamer-pipeline-server/helm).
 
 - Download helm chart with the following command
 

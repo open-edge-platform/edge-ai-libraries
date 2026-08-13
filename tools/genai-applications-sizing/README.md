@@ -6,7 +6,7 @@ The GenAI Applications Sizing Tool is a performance profiling utility for benchm
 
 The GenAI Applications Sizing Tool key features:
 
-- **Mutli application supports** ChatQnA (Modular & Core), Video Summary and Search, live captioning 
+- **Mutli application supports** ChatQnA (Modular & Core), Video Summary and Search, live captioning
 - **Resource Monitoring** including CPU, GPU, and memory consumption
 - **Flexible Configuration** Two layer Yaml based configuration (Profiles and App config)
 - **Comprehensive Reporting** reports with logs, JSON/CSV, plots
@@ -196,7 +196,7 @@ Reports are saved in the `reports/` directory with timestamped folders:
 ```
 reports/
 └── video_summary_search_20260320_134736/
-    ├── perf_tool_logs/           # Metrics Manager logs 
+    ├── perf_tool_logs/           # Metrics Manager logs
     └── video_summary/
         ├── video_summary_metrics_wsf.csv              # metrics for wsf
         ├── video_summary_search_metrics.json          # metrics summary
@@ -413,8 +413,8 @@ Before running a full profiling session:
 - **Chat Question and Answer Core**
   - [Sample Application](../../sample-applications/chat-question-and-answer-core/README.md)
 - **Live Video Captioning**
-  - [Sample Application](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.1.0/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
-- [Metrics Manager Microservice Documentation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/metrics-manager)
+  - [Sample Application](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.2.0/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
+- [Metrics Manager Microservice Documentation](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/metrics-manager)
 - Customize input profiles in `profiles/profiles.yaml` for your use case
 - Enable resource metrics collection for detailed hardware analysis
 
