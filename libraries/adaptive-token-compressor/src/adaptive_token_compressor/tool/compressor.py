@@ -454,7 +454,8 @@ class ToolCompressor:
                 first_user = str(m.get("content", ""))
                 break
         digest = hashlib.sha1(
-            (sys_c + "\x00" + first_user).encode("utf-8", errors="ignore")
+            (sys_c + "\x00" + first_user).encode("utf-8", errors="ignore"),
+            usedforsecurity=False,  # cache key only, not a security/crypto use
         )
         return digest.hexdigest()
 
