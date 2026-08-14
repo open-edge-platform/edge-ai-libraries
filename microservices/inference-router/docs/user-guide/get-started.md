@@ -141,6 +141,19 @@ To use a different host port:
 ROUTER_PORT=9000 bash scripts/deploy_docker.sh
 ```
 
+#### Enable remote access
+
+By default the router binds to `127.0.0.1` (loopback), so it is only reachable
+from the host it runs on. To allow access from **other machines**, export
+`IR_BIND_HOST=0.0.0.0` (or a specific interface IP) before deploying:
+
+```bash
+IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh
+```
+
+Clients on other machines then reach the router at `http://<host-ip>:8000`
+(substitute your `ROUTER_PORT` if you changed it).
+
 ### Step 4: Verify
 
 List available models. The response includes `router` plus your configured
@@ -300,28 +313,14 @@ Notes:
 ## Optional: Compression Plugins
 
 The router can compress prompts before they reach the backend to cut token
-usage, via optional plugins based on
+usage, via plugins based on
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor).
-Use the unified `compressor` node and select the compressor kind with
-`settings.type`:
+Use the unified `compressor` node and select
+the compressor kind with `settings.type`:
 
 - `tool` — filters the request `tools` schema to a relevant subset using a
   **tool predictor** (an OpenAI-compatible LLM endpoint).
 - `harness` — compresses system/developer messages using a **Lingua server**.
-
-
-### Build the compressor-enabled image
-
-The default build in [Step 2](#step-2-build-image) does **not** include the
-compressor library. To use compression plugins, rebuild the image with
-`--with-compressor`:
-
-```bash
-bash scripts/deploy_docker.sh --build --with-compressor
-```
-
-This vendors and installs `adaptive-token-compressor` into the router image so
-the plugins are available at runtime.
 
 These backend services are **not** part of the router. For how to deploy
 the Lingua server and the tool predictor,

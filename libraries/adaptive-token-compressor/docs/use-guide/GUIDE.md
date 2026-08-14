@@ -144,6 +144,7 @@ cost drops while preserving instruction-critical content.
 ToolCompressor reduces tool-schema prompt cost by selecting only likely-needed
 tools for the current request. It uses an external predictor LLM to score tool
 relevance from conversation context, then keeps high-value tools only.
+The ToolCompressor supports configurable tool-injection placements to flexibly trade off token savings against prefix-cache hit rate.
 
 ![ToolCompressor](../assets/tool_compressor.png)
 
@@ -165,7 +166,7 @@ Lingua server uses the `llmlingua2` (LLMLingua-2) compression mode.
 | `LINGUA_MODEL_NAME_ID` | empty | Optional fixed model id. Empty -> mode default |
 | `LINGUA_PORT` | `8001` | Host port mapping for `lingua-pytorch` service |
 | `LINGUA_OV_PORT` | `8002` | Host port mapping for `lingua-ov` service |
-| `LINGUA_HOST` | `0.0.0.0` | Bind address for the container service |
+| `LINGUA_HOST` | `localhost` | Bind address for the container service |
 
 Default model when `LINGUA_MODEL_NAME_ID` is empty:
 

@@ -7,6 +7,15 @@
 #   LINGUA_DEVICE=cpu docker compose up -d --build
 #   LINGUA_PORT=9000  docker compose up -d --build
 #
+# Security — publish bind address (LINGUA_BIND_HOST, default 127.0.0.1):
+#   The port is published to the host loopback ONLY by default, so the server
+#   is reachable from this machine but not from any external network interface.
+#   The container itself must bind 0.0.0.0 (otherwise Docker's port forwarding
+#   can't reach it) — exposure is controlled here, at the publish layer.
+#   Only widen this if you genuinely need cross-host access, and put real
+#   auth/network controls in front of it:
+#     LINGUA_BIND_HOST=0.0.0.0 docker compose up -d --build   # exposes on all NICs
+#
 # Container build context is the repo root (../..), so the Dockerfile's
 # `COPY src/adaptive_token_compressor/model_servers/lingua/app.py` resolves.
 
@@ -22,7 +31,7 @@ services:
         - https_proxy=${https_proxy:-}
         - no_proxy=${no_proxy:-}
     ports:
-      - "${LINGUA_PORT:-8001}:8001"
+      - "${LINGUA_BIND_HOST:-127.0.0.1}:${LINGUA_PORT:-8001}:8001"
     environment:
       - LINGUA_PORT=8001
       - LINGUA_BACKEND=pytorch
@@ -36,7 +45,7 @@ services:
       - https_proxy=${https_proxy:-}
       - no_proxy=${no_proxy:-}
     volumes:
-      - lingua-models:/root/.cache/huggingface
+      - lingua-models:/home/user/.cache/huggingface
     devices:
       # Intel GPU passthrough. Harmless on CPU hosts (LINGUA_DEVICE=cpu skips
       # IPEX/XPU code paths). Comment out only if your docker daemon refuses
@@ -70,7 +79,7 @@ services:
         - https_proxy=${https_proxy:-}
         - no_proxy=${no_proxy:-}
     ports:
-      - "${LINGUA_OV_PORT:-8002}:8001"
+      - "${LINGUA_BIND_HOST:-127.0.0.1}:${LINGUA_OV_PORT:-8002}:8001"
     environment:
       - LINGUA_PORT=8001
       - LINGUA_BACKEND=ov
@@ -84,7 +93,7 @@ services:
       - https_proxy=${https_proxy:-}
       - no_proxy=${no_proxy:-}
     volumes:
-      - lingua-models:/root/.cache/huggingface
+      - lingua-models:/home/user/.cache/huggingface
     devices:
       # Intel GPU passthrough. Harmless on CPU hosts (LINGUA_DEVICE=cpu skips
       # OpenVINO XPU code paths). Comment out only if your docker daemon refuses
