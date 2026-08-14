@@ -219,7 +219,7 @@ subcommand_start () {
 subcommand_stop () {
   local args=("$@")
   [ ${#args[@]} -gt 0 ] || args+=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_stop_" | cut -f4- -d_))
-  act_helpper "stop Stop Stopping Stopped" "-r" "${args[@]}"
+  act_helpper "stop Stop Stopping Stopped" "-r" "${args[@]}" --continue
 }
 
 subcommand_list () {
