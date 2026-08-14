@@ -188,7 +188,13 @@ act_helpper () {
         echo "@@REPORT SYSTEM SUMMARY"
         ${ID_LIKE}_10_${act_name}_pre_system_scan
       fi
-    } > >(ensure_panelled_logs ${act_text//,/ }) 2>&1
+    } > >(
+      LOG_FILE="$(ensure_project_path)/$(basename "$0")/$(date +%Y-%m-%d).logs"
+      mkdir -p "$(dirname "$LOG_FILE")"
+      echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
+      echo "command: $act_name $*" >> "$LOG_FILE"
+      ensure_panelled_logs ${act_text//,/ }
+    ) 2>&1
     # wait for background processes
     wait
     return $rc
@@ -335,7 +341,10 @@ subcommand_bootstrap () {
     if [ -d "$mydir"/common/${ID_LIKE} ]; then
       cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
     fi
-    [ $license_common -eq 0 ] || cat "$mydir"/common/license/license_* >> "$rendered"
+    [ $license_common -eq 0 ] || {
+      cat "$mydir"/license/os-agonostic/license_* >> "$rendered" 2> /dev/null || true
+      cat "$mydir"/license/${ID_LIKE}/license_* >> "$rendered" 2> /dev/null || true
+    }
   fi
 
   for script in "${!scripts[@]}"; do

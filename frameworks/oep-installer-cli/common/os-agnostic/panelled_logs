@@ -32,6 +32,7 @@ ensure_panelled_logs () {(
 #   TICK_SEC=<n>            idle poll interval, seconds (default 0.5)
 #   NARROW_GLYPHS=1         assume all glyphs are 1 cell (disable width table)
 #   FORCE_COLS / FORCE_ROWS override detected geometry
+#   LOG_FILE                save logs to the specified log file
 
 set -o pipefail
 set -u
@@ -918,7 +919,9 @@ _finish() {
 
 # ------------------------------------------------------------------ input
 _handle_line() {
-  local line=$1 key rest target clean plainkey hpay
+  local line="$1" key rest target clean plainkey hpay
+  [ -z "$LOG_FILE" ] || printf "%s\n" "$line" >> "$LOG_FILE"
+
   if (( KEEP_COLOR )); then _sanitize_v "$line" 1; clean=$SGRTEXT
   else _sanitize_v "$line" 0; clean=$PLAIN; fi
 
@@ -991,7 +994,10 @@ _handle_line() {
 }
 
 # ------------------------------------------------------------------ main loop
-  [[ -t 1 ]] || { cat; return; }
+  [[ -t 1 ]] || { 
+    [ -z "$LOG_FILE" ] && cat || tee -a "$LOG_FILE"
+    return
+  }
 
   _open_tty
   _read_geom
