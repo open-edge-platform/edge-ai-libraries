@@ -623,7 +623,7 @@ class ToolCompressor:
                 task_text, system_prompt=system_prompt,
             )
         except PredictorError as e:
-            logger.warning("Predictor failed: %s", e)
+            logger.warning("Predictor failed: %s", type(e).__name__)
             duration_ms = (time.perf_counter() - start) * 1000
             metrics = CompressorMetrics(
                 name=self.name,
@@ -631,7 +631,7 @@ class ToolCompressor:
                 tokens_before=tokens_before,
                 tokens_after=tokens_before,
                 duration_ms=duration_ms,
-                error=str(e),
+                error="tool prediction failed",
                 skip_reason=None,
                 details={
                     "original_tool_count": original_tool_count,

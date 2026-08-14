@@ -10,6 +10,7 @@ backend failure from "no relevant tools predicted".
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -19,6 +20,9 @@ import requests
 
 from ..core.exceptions import PredictorError
 from ..core.health import HealthStatus
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -203,14 +207,16 @@ class HTTPToolPredictor:
             resp = requests.get(self._health_endpoint, timeout=timeout)
             resp.raise_for_status()
         except Exception as e:
-            return HealthStatus.unhealthy(component, str(e))
+            logger.warning("Predictor health check failed for %s: %s", component, type(e).__name__)
+            return HealthStatus.unhealthy(component, "predictor unavailable")
 
         latency_ms = (time.perf_counter() - start) * 1000
         try:
             body = resp.json()
         except ValueError as e:
+            logger.warning("Predictor returned invalid health response for %s: %s", component, type(e).__name__)
             return HealthStatus.degraded(
-                component, f"non-JSON response: {e}", latency_ms=latency_ms,
+                component, "predictor returned invalid response", latency_ms=latency_ms,
             )
 
         # OpenAI /v1/models shape: {"data": [{"id": "...", ...}, ...]}

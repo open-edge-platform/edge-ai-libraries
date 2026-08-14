@@ -50,6 +50,7 @@ lingua-server-xpu = [
     "intel-extension-for-pytorch==2.8.10+xpu",
     "oneccl_bind_pt==2.8.0+xpu",
     "llmlingua>=0.2",
+    "transformers>=5.5.0",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "huggingface-hub>=0.20",
@@ -64,6 +65,7 @@ lingua-server-xpu = [
 lingua-server-cpu = [
     "torch>=2.0",
     "llmlingua>=0.2",
+    "transformers>=5.5.0",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "huggingface-hub>=0.20",
@@ -78,6 +80,7 @@ lingua-server-cpu = [
 lingua-server-ov = [
     "torch==2.8.0",
     "llmlingua>=0.2",
+    "transformers>=5.5.0",
     "openvino>=2024.0",
     "optimum[openvino]>=1.24.0",
     "fastapi>=0.110",

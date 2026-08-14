@@ -204,7 +204,7 @@ def build_app(args: argparse.Namespace) -> Any:
                     else:
                         logger.warning("--device xpu requested, but torch.xpu is not available")
                 except Exception as exc:
-                    logger.warning("Failed to enumerate XPU devices: %s", exc)
+                    logger.warning("Failed to enumerate XPU devices: %s", type(exc).__name__)
 
                 device = torch.device(f"xpu:{xpu_index}")
                 llm_lingua.model = llm_lingua.model.to(device)
@@ -224,7 +224,7 @@ def build_app(args: argparse.Namespace) -> Any:
                 param_device = next(llm_lingua.model.parameters()).device
                 logger.info("Model parameter device: %s", param_device)
             except Exception as exc:
-                logger.warning("Failed to read model parameter device: %s", exc)
+                logger.warning("Failed to read model parameter device: %s", type(exc).__name__)
         else:
             try:
                 import openvino as ov
@@ -309,7 +309,7 @@ def build_app(args: argparse.Namespace) -> Any:
                     llm_lingua.model.save_pretrained(str(ov_model_dir))
                     logger.info("OpenVINO IR persisted to: %s", ov_model_dir)
                 except Exception as exc:
-                    logger.warning("Failed to persist OpenVINO IR cache: %s", exc)
+                    logger.warning("Failed to persist OpenVINO IR cache: %s", type(exc).__name__)
 
             ov_exec_devices = f"{ov_device} ({ov_mapped_full_name})"
             try:
@@ -350,6 +350,18 @@ def build_app(args: argparse.Namespace) -> Any:
         )
 
     app = FastAPI(title="Lingua Server")
+
+    @app.exception_handler(Exception)
+    async def _handle_unexpected_error(request: Request, exc: Exception):
+        logger.error(
+            "Unhandled request error for %s: %s",
+            request.url.path,
+            type(exc).__name__,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "internal server error"},
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _log_invalid_request(request: Request, exc: RequestValidationError):

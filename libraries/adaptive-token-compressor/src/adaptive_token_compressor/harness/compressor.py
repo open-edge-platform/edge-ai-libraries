@@ -299,9 +299,9 @@ class HarnessCompressor:
                     cache_hit=cache_hit,
                 ))
             except BackendError as e:
-                err_msg = f"{section.name}: {e}"
+                err_msg = f"{section.name}: backend compression failed"
                 errors.append(err_msg)
-                logger.warning("Backend failed for section '%s': %s", section.name, e)
+                logger.warning("Backend failed for section '%s': %s", section.name, type(e).__name__)
                 parts.append(section.content)
                 section_details.append(SectionDetail(
                     name=section.name,
@@ -309,7 +309,7 @@ class HarnessCompressor:
                     original_tokens=original_tokens,
                     compressed_tokens=original_tokens,
                     saved_tokens=0,
-                    backend_error=str(e),
+                    backend_error="backend compression failed",
                 ))
 
         final = "".join(parts)

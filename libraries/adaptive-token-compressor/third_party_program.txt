@@ -57,7 +57,8 @@ SOFTWARE.
 -------------------------------------------------------------
 
 3) Apache-2.0-licensed direct dependencies:
-   requests, intel-extension-for-pytorch, optimum, huggingface-hub, openvino
+   requests, intel-extension-for-pytorch, optimum, huggingface-hub, openvino,
+   transformers
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use
 these files except in compliance with the License. You may obtain a copy of the

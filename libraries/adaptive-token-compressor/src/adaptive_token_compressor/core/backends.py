@@ -79,12 +79,14 @@ class LinguaHTTPBackend:
             resp = requests.post(self._lingua_url, json=payload, timeout=self._timeout)
             resp.raise_for_status()
         except requests.RequestException as e:
-            raise BackendError(f"HTTP request failed: {e}", component=component, cause=e) from e
+            logger.warning("Backend request failed for %s: %s", component, type(e).__name__)
+            raise BackendError("backend request failed", component=component, cause=e) from e
 
         try:
             body = resp.json()
         except ValueError as e:
-            raise BackendError(f"Invalid JSON response: {e}", component=component, cause=e) from e
+            logger.warning("Backend returned invalid JSON for %s: %s", component, type(e).__name__)
+            raise BackendError("backend returned invalid response", component=component, cause=e) from e
 
         # Prefer compressed_prompt, fall back to compressed_text.
         result = body.get("compressed_prompt") or body.get("compressed_text")
@@ -105,7 +107,8 @@ class LinguaHTTPBackend:
                 return HealthStatus.healthy(component, **body)
             return HealthStatus.degraded(component, f"status={status_val}", **body)
         except Exception as e:
-            return HealthStatus.unhealthy(component, str(e))
+            logger.warning("Backend health check failed for %s: %s", component, type(e).__name__)
+            return HealthStatus.unhealthy(component, "backend unavailable")
 
 
 class NoopBackend:
