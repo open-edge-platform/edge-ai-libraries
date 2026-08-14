@@ -335,7 +335,7 @@ subcommand_bootstrap () {
     if [ -d "$mydir"/common/${ID_LIKE} ]; then
       cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
     fi
-    [ $license_common -eq 0 ] || cat "$mydir"/license/license_* >> "$rendered"
+    [ $license_common -eq 0 ] || cat "$mydir"/common/license/license_* >> "$rendered"
   fi
 
   for script in "${!scripts[@]}"; do
