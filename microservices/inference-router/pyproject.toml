@@ -44,11 +44,6 @@ ov = [
     "torch==2.13.0"
 ]
 
-compressor = [
-    # Optional: required only when enabling compressor plugins.
-    "adaptive-token-compressor",
-]
-
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",

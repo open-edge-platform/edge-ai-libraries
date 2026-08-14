@@ -11,18 +11,22 @@ Build the Inference Router Docker image.
 Usage:
   ./scripts/build_docker.sh [options]
 
+The adaptive-token-compressor library is a baked-in dependency: the Dockerfile
+fetches and installs it during the build, so `docker build .` works on its own.
+This script is just a convenience wrapper around `docker build`.
+
 Options:
   --image <name>       Image name (default: inference-router)
   --tag <tag>          Image tag (default: latest)
   --no-cache           Build without cache
-  --with-compressor    Include adaptive-token-compressor in image
-  --without-compressor Build image without adaptive-token-compressor (default)
   -h, --help           Show this help message
 
-Environment variable fallbacks:
-  IMAGE_NAME, IMAGE_TAG, INSTALL_COMPRESSOR, COMPRESSOR_REPO, COMPRESSOR_REF
+Environment variables (forwarded to the build as --build-arg if set):
+  IMAGE_NAME, IMAGE_TAG                       image reference
+  COMPRESSOR_REPO, COMPRESSOR_REF, COMPRESSOR_SUBDIR
+                                              override the compressor source
   HTTP_PROXY/http_proxy, HTTPS_PROXY/https_proxy, NO_PROXY/no_proxy
-    are forwarded to the build as --build-arg if set.
+                                              proxy settings
 EOF
 }
 
@@ -31,7 +35,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE_NAME="${IMAGE_NAME:-inference-router}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 NO_CACHE="false"
-INSTALL_COMPRESSOR="${INSTALL_COMPRESSOR:-false}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -45,14 +48,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-cache)
       NO_CACHE="true"
-      shift
-      ;;
-    --with-compressor)
-      INSTALL_COMPRESSOR="true"
-      shift
-      ;;
-    --without-compressor)
-      INSTALL_COMPRESSOR="false"
       shift
       ;;
     -h|--help)
@@ -71,49 +66,32 @@ HTTP_PROXY_VAL="${HTTP_PROXY:-${http_proxy:-}}"
 HTTPS_PROXY_VAL="${HTTPS_PROXY:-${https_proxy:-}}"
 NO_PROXY_VAL="${NO_PROXY:-${no_proxy:-}}"
 
-COMPRESSOR_REPO="${COMPRESSOR_REPO:-https://github.com/open-edge-platform/edge-ai-libraries.git}"
-COMPRESSOR_REF="${COMPRESSOR_REF:-release/2026.2}"
-COMPRESSOR_SUBDIR="${COMPRESSOR_SUBDIR:-libraries/adaptive-token-compressor}"
-VENDOR_DIR="${ROOT_DIR}/vendor/adaptive-token-compressor"
-
-if [[ "${INSTALL_COMPRESSOR}" == "true" ]]; then
-  echo "Vendoring adaptive-token-compressor (${COMPRESSOR_REF}) into ${VENDOR_DIR}"
-  rm -rf "${VENDOR_DIR}"
-  if [[ -n "${COMPRESSOR_SUBDIR}" ]]; then
-    # Library lives inside a larger monorepo; fetch only its subdirectory.
-    TMP_CLONE="$(mktemp -d)"
-    git clone --depth 1 --branch "${COMPRESSOR_REF}" --filter=blob:none --sparse \
-      "${COMPRESSOR_REPO}" "${TMP_CLONE}"
-    git -C "${TMP_CLONE}" sparse-checkout set --no-cone "${COMPRESSOR_SUBDIR}"
-    if [[ ! -d "${TMP_CLONE}/${COMPRESSOR_SUBDIR}" ]]; then
-      echo "Error: ${COMPRESSOR_SUBDIR} not found in ${COMPRESSOR_REPO}" >&2
-      rm -rf "${TMP_CLONE}"
-      exit 1
-    fi
-    mkdir -p "$(dirname "${VENDOR_DIR}")"
-    mv "${TMP_CLONE}/${COMPRESSOR_SUBDIR}" "${VENDOR_DIR}"
-    rm -rf "${TMP_CLONE}"
-  else
-    git clone --depth 1 --branch "${COMPRESSOR_REF}" "${COMPRESSOR_REPO}" "${VENDOR_DIR}"
-    rm -rf "${VENDOR_DIR}/.git"
-  fi
-else
-  rm -rf "${VENDOR_DIR}"
-  mkdir -p "${VENDOR_DIR}"
-  echo "Skipping adaptive-token-compressor vendoring (INSTALL_COMPRESSOR=${INSTALL_COMPRESSOR})"
-fi
-
 IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
 
+# The Dockerfile is self-contained: it fetches (vendors) the
+# adaptive-token-compressor source itself. This script only wraps `docker build`
+# with the usual conveniences (tagging, proxy/override forwarding).
 BUILD_CMD=(
   docker build
   --file "${ROOT_DIR}/Dockerfile"
   --tag "${IMAGE_REF}"
-  --build-arg "INSTALL_COMPRESSOR=${INSTALL_COMPRESSOR}"
 )
 
 if [[ "${NO_CACHE}" == "true" ]]; then
   BUILD_CMD+=(--no-cache)
+fi
+
+# Forward compressor source overrides to the Dockerfile's fetch stage if set.
+if [[ -n "${COMPRESSOR_REPO:-}" ]]; then
+  BUILD_CMD+=(--build-arg "COMPRESSOR_REPO=${COMPRESSOR_REPO}")
+fi
+
+if [[ -n "${COMPRESSOR_REF:-}" ]]; then
+  BUILD_CMD+=(--build-arg "COMPRESSOR_REF=${COMPRESSOR_REF}")
+fi
+
+if [[ -n "${COMPRESSOR_SUBDIR:-}" ]]; then
+  BUILD_CMD+=(--build-arg "COMPRESSOR_SUBDIR=${COMPRESSOR_SUBDIR}")
 fi
 
 if [[ -n "${HTTP_PROXY_VAL}" ]]; then
@@ -130,7 +108,7 @@ fi
 
 BUILD_CMD+=("${ROOT_DIR}")
 
-echo "Building Docker image: ${IMAGE_REF} (INSTALL_COMPRESSOR=${INSTALL_COMPRESSOR})"
+echo "Building Docker image: ${IMAGE_REF}"
 "${BUILD_CMD[@]}"
 
 echo "Build complete: ${IMAGE_REF}"

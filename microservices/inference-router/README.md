@@ -67,20 +67,11 @@ export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
 
 ### Step 2: Build the Image
 
-Build the Docker image (default is without the compressor library):
+Build the Docker image:
 
 ```bash
 bash scripts/deploy_docker.sh --build
 ```
-
-To build with compressor support in one command:
-
-```bash
-bash scripts/deploy_docker.sh --build --with-compressor
-```
-
-`--with-compressor` vendors and installs `adaptive-token-compressor` into the
-router image, so the compression plugins are available at runtime.
 
 ### Step 3: Deploy
 

@@ -194,8 +194,19 @@ app: FastAPI = build_app()
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Inference Router API Server")
-    parser.add_argument("--host", default="0.0.0.0", help="Host to bind")
-    parser.add_argument("--port", type=int, default=8080, help="Port to bind")
+    # Default to loopback (local-only). Export IR_BIND_HOST=0.0.0.0 (or pass
+    # --host explicitly) to expose the router to other machines.
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("IR_BIND_HOST", "127.0.0.1"),
+        help="Host to bind (default: 127.0.0.1; set IR_BIND_HOST to override)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("ROUTER_PORT", "8080")),
+        help="Port to bind (default: 8080; set ROUTER_PORT to override)",
+    )
     parser.add_argument("--config", default="config.yaml", help="Path to config file")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     parser.add_argument(
