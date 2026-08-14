@@ -1,4 +1,5 @@
 
+# Split panel logging
 ensure_panelled_logs () {(
 #
 # Protocol (markers your installer emits on stdout/stderr):
