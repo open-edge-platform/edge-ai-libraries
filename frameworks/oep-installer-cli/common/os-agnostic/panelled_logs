@@ -8,7 +8,6 @@ ensure_panelled_logs () {(
 #   @@HIGHLIGHT  <text>     append a custom line to this component's left-pane
 #                           block; replaces the default log tail, any length
 #   @@HIGHLIGHT             (no argument) clear highlights, revert to log tail
-#   @@HL         ...        short alias for @@HIGHLIGHT
 #   @@REPORT     <name>     start a REPORT section (e.g. a final summary).
 #                           Reports get no left-pane row; the right pane splits
 #                           with failing components CYCLING on top and the
@@ -977,7 +976,7 @@ _handle_line() {
       fi
       _note_width "$target"
       _draw 1; return ;;
-    @@HIGHLIGHT|@@HL)
+    @@HIGHLIGHT)
       if [[ -z $CURRENT ]]; then
         CURRENT="general"; _touch_comp "$CURRENT"; _timer_start "$CURRENT"
       fi
