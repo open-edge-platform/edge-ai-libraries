@@ -17,7 +17,7 @@ ENV VIRTUAL_ENV=/opt/buildenv \
     VLLM_TARGET_DEVICE=xpu \
     WHEELS=/wheels
 
-COPY kv-quant-offload /src/kvweave
+COPY . /src/kvweave
 
 SHELL ["bash", "-c"]
 
@@ -51,6 +51,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     source /opt/intel/oneapi/setvars.sh --force && \
     git clone --depth 1 -b v0.23.0 https://github.com/vllm-project/vllm.git /src/vllm && \
     cd /src/vllm && \
+    # Backport the upstream fix that stores Mamba copy pointers in uint64
+    # staging buffers; int64 overflows when XPU addresses use the high bit.
+    sed -i 's/src_ptrs=make_buffer(n, dtype=torch.int64)/src_ptrs=make_buffer(n, dtype=torch.uint64)/' vllm/v1/worker/mamba_utils.py && \
+    sed -i 's/dst_ptrs=make_buffer(n, dtype=torch.int64)/dst_ptrs=make_buffer(n, dtype=torch.uint64)/' vllm/v1/worker/mamba_utils.py && \
     uv pip install -r requirements/xpu.txt && \
     uv pip install grpcio-tools protobuf nanobind && \
     export CMAKE_PREFIX_PATH="$(python3 -c 'import site; print(site.getsitepackages()[0])'):${CMAKE_PREFIX_PATH:-}" && \
@@ -245,10 +249,17 @@ exec env \
         --max_num_batched_tokens=1024 \
         --max_model_len "${MAX_MODEL_LEN:-8192}" \
         -tp="${TP:-1}" \
+        --quantization fp8 \
         --served-model-name "${SERVE:-Qwen3.5-9B}" \
         --kv-transfer-config "{\"kv_connector\":\"LMCacheMPConnector\",\"kv_role\":\"kv_both\",\"kv_connector_extra_config\":{\"lmcache.mp.host\":\"${LMCACHE_MP_HOST:-tcp://localhost}\",\"lmcache.mp.port\":${LMCACHE_MP_PORT:-6555}}}"
 EOF
 
 RUN chmod +x /usr/local/bin/start-lmcache-vllm.sh
+
+# UID/GID 1000 already exists in the base image (Ubuntu 24.04's default
+# non-root user); reuse it by numeric ID instead of creating a new one.
+RUN chown -R 1000:1000 /opt/kvweave
+
+USER 1000
 
 ENTRYPOINT ["/usr/local/bin/start-lmcache-vllm.sh"]

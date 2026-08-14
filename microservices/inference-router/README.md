@@ -22,6 +22,10 @@ endpoint.
 
 ## Quick Start
 
+This is the minimal path to a running router. For prerequisites, model
+preparation, verification, pass-through services, and compression plugins, see
+the full [Quick Start Guide](docs/user-guide/get-started.md).
+
 If you are cloning from the larger monorepo and only need this service, you
 can use sparse checkout:
 
@@ -32,7 +36,14 @@ git sparse-checkout set microservices/inference-router
 cd microservices/inference-router
 ```
 
-### 1. Configure
+### Prerequisites
+
+- Docker 25.0 or higher ([Installation Guide](https://docs.docker.com/engine/install/ubuntu/)).
+- An OpenAI-compatible inference backend (such as vLLM) reachable from this
+  host, or an API key for a cloud provider supported by LiteLLM. The backend
+  **must be alive before you start the router.**
+
+### Step 1: Configure
 
 Create the runtime workspace folder, copy the example configuration into it,
 and edit it to point at your backend. If your provider needs API keys, also
@@ -44,33 +55,25 @@ cp config.example.yaml workspace/config.yaml
 cp .env.example workspace/.env
 ```
 
-### 2. Build the Image
+Docker Compose deployments also require the OpenVINO classifier model (used by
+intelligent routing) prepared **before starting the router**. Download the
+supported `Qwen3.5-2B-FP16` model and export its path — see
+[Model preparation](docs/user-guide/get-started.md#model-preparation) for the
+full steps:
 
-Build the Docker image (default without compressor):
+```bash
+export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
+```
+
+### Step 2: Build the Image
+
+Build the Docker image:
 
 ```bash
 bash scripts/deploy_docker.sh --build
 ```
 
-To build with compressor support in one command:
-
-```bash
-bash scripts/deploy_docker.sh --build --with-compressor
-```
-
-`--with-compressor` vendors and installs
-`adaptive-token-compressor` into the router image (claw-compactor comes in
-as a regular dependency), so compression plugins are available in the
-container runtime.
-
-### 3. Start the Service
-
-Before starting with Docker Compose, export the path to the OpenVINO classifier
-model on this host (used by intelligent routing).
-
-```bash
-export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
-```
+### Step 3: Deploy
 
 Start the router on port `8000` by default:
 
@@ -78,77 +81,70 @@ Start the router on port `8000` by default:
 bash scripts/deploy_docker.sh
 ```
 
-To stop the service:
+To use a different host port, or to stop the service:
 
 ```bash
+ROUTER_PORT=9000 bash scripts/deploy_docker.sh
 bash scripts/deploy_docker.sh --down
 ```
 
-#### Select the classifier device (Intel GPU / CPU)
+The intelligent-routing classifier **defaults to GPU** and automatically falls
+back to CPU when no Intel GPU is available. Override the device with `IR_DEVICE`
+(e.g. `export IR_DEVICE=CPU` or `IR_DEVICE=GPU.1`) before starting.
 
-Image ships with the Intel GPU runtime built in and the
-intelligent-routing classifier **defaults to GPU**. If no Intel GPU is available
-(or `/dev/dri` is not present on the host), it automatically falls back to CPU.
+### Step 4: Verify
 
-Override the device with the `IR_DEVICE` environment variable — export it before
-starting the router:
-
-```bash
-export IR_DEVICE=CPU
-bash scripts/deploy_docker.sh
-```
-
-To pick a specific device (e.g. a second GPU), set the full device string:
+List available models (the response includes `router` plus your configured
+providers), then send a request:
 
 ```bash
-export IR_DEVICE=GPU.1
-bash scripts/deploy_docker.sh
+curl http://localhost:8000/v1/models
+
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "auto",
+    "messages": [{"role": "user", "content": "hello"}]
+  }'
 ```
 
-Requirements on the host when using a GPU:
+Use `"model": "auto"` to let the router pick the provider by policy, or pass a
+specific model name from `/v1/models`. See
+[Step 4: Verify](docs/user-guide/get-started.md#step-4-verify) for streaming,
+provider targeting, and metrics.
 
-- Intel GPU drivers installed and `/dev/dri/renderD*` present (`ls /dev/dri`).
-- Your user in the `render` group, or run the script with the needed privileges.
-
-### 4. Setup UI
+### Setup UI (optional)
 
 Build and start the UI container with Docker Compose:
 
 ```bash
 cd ui/docker
 
-# Set environment variables:
-
+# Set environment variables
 export SERVER_HOST=<your-server-ip>
 export SERVER_PORT=<your-server-port>
 
-# Build UI image
+# Build and start
 docker compose -f build.yaml build
-
-# Start UI container
 docker compose -f compose.yaml up -d
 ```
 
-By default, the UI will be available at:
-
-```text
-http://<SERVER_HOST>:7010
-```
-
-To stop the UI container:
-
-```bash
-docker compose -f compose.yaml down
-```
+By default the UI is available at `http://<SERVER_HOST>:7010`. Stop it with
+`docker compose -f compose.yaml down`.
 
 ## Optional Compression Plugins
 
-Optional compression plugins (tool + harness) can cut
-prompt tokens before requests reach the backend.
-They need a Lingua server and
-a tool predictor, start those services separately before enabling the
-compression plugins in config. — see [get-started.md](docs/user-guide/get-started.md#optional-compression-plugins)
-for setup and the [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+Optional compression plugins (`tool` and `harness`) can cut prompt tokens
+before requests reach the backend. They need a Lingua server and a tool
+predictor started separately, then enabled under `plugins` in your config. See
+[Optional: Compression Plugins](docs/user-guide/get-started.md#optional-compression-plugins)
+for setup and the
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
 repository for those services.
 
-See [get-started.md](docs/user-guide/get-started.md) for more information.
+## Learn More
+
+- [Quick Start Guide](docs/user-guide/get-started.md) — full walkthrough,
+  pass-through services, and compression plugins.
+- [Plugins guide](docs/user-guide/plugin.md) — the plugin system and built-in plugins.
+- [API Reference](docs/user-guide/api-reference.md) — endpoint details.

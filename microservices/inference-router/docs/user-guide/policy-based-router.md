@@ -20,6 +20,7 @@ Rules are configured in strategy YAML with `type` and `param`.
 
 | Rule type | Purpose | Main params |
 | --- | --- | --- |
+| `ModelNameRule` | Match the request `model` field | `pattern`, `use_regex` |
 | `MessageContentRule` | Match text in messages | `pattern`, `use_regex`, `roles` |
 | `ToolCallsRule` | Require or reject tool definitions | `require_tools` |
 | `MetadataRule` | Match fields in `extra_body` | `key`, `value` |
@@ -125,13 +126,58 @@ strategies:
         1: cloud
 ```
 
-### Model
+### Install
 
-Set `IR_OV_MODEL` to the OpenVINO classifier model directory on the host:
+The classifier and its OpenVINO backend are ordinary dependencies of this
+project. Use the normal project install:
+
+```bash
+pip install -e .
+```
+
+### Model Location
+
+The OpenVINO classifier model is multi-GB and is not shipped in the package.
+Set `IR_OV_MODEL` to the model directory on this host; there is no default
+location.
 
 ```bash
 export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
 ```
+
+`IR_OV_MODEL` must point to the converted OpenVINO IR directory for the
+intelligent classifier, containing the OpenVINO model files (for the vision-
+language export used here, `openvino_language_model.xml` / `.bin`,
+`openvino_vision_embeddings_*`, etc.) and the matching tokenizer/config
+artifacts loadable by `optimum-intel`.
+
+
+Typical preparation flow:
+
+```bash
+optimum-cli export openvino \
+  --model /path/to/qwen3.5-intelligent-classifier-checkpoint \
+  --weight-format fp16 \
+  /opt/models/Qwen3.5-2B-FP16
+
+export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
+```
+
+Docker Compose uses the same variable: `IR_OV_MODEL` is the model path on the
+host, and the compose file mounts it into the container automatically.
+
+```bash
+export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
+bash scripts/deploy_docker.sh
+```
+
+The directory must remain loadable by both
+`AutoTokenizer.from_pretrained(...)` and
+`OVModelForVisualCausalLM.from_pretrained(...)`, so keep the tokenizer,
+chat template, model config, and OpenVINO IR files together in that directory.
+
+The classifier is instantiated and loaded once at engine startup and cached, so
+the first request pays no classifier cold-start penalty.
 
 
 ## Exercise Routing Behavior

@@ -13,6 +13,29 @@ Use this path to run the service in a container. The API is exposed on port
   `scene-config.yaml` point at it.
 - If `mqtt.use_tls: true`, mount your Scenescape CA cert at `/app/secrets`.
 
+## Select the Image (Registry and Tag)
+
+The bundled `docker-compose.yml` resolves the image from two variables:
+
+```yaml
+image: ${REGISTRY:-intel}/scene-understanding-service:${RELEASE_TAG:-latest}
+```
+
+Pin a specific release by setting them in a `.env` file next to
+`docker-compose.yml` (both fall back to `intel` / `latest` when unset):
+
+```bash
+# .env
+REGISTRY=intel
+RELEASE_TAG=2026.2.0-rc1
+```
+
+Compose loads `.env` automatically. Confirm the resolved image before starting:
+
+```bash
+docker compose config | grep image
+```
+
 ## Minimal Compose Service
 
 ```yaml

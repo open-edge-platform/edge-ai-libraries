@@ -51,7 +51,8 @@ class FrameManager:
     ALERTS_BUCKET = "alerts"
 
     def __init__(self, config: ConfigService) -> None:
-        seaweed_cfg = config.get_seaweedfs_config()
+        seaweed_cfg = config.get_seaweedfs_config() or {}
+        self.enabled = bool(seaweed_cfg)
         self.endpoint = seaweed_cfg.get("endpoint", "seaweedfs:8333")
         self.access_key = seaweed_cfg.get("access_key", "")
         self.secret_key = seaweed_cfg.get("secret_key", "")
@@ -65,13 +66,21 @@ class FrameManager:
         # Key = src_prefix (visit path), value = last cutoff_ms copied.
         self._last_alert_cutoff: Dict[str, int] = {}
 
-        self.client: Optional["Minio"] = None
-        if Minio:
+        self.client: Optional[object] = None
+        if self.enabled and Minio:
             self.client = Minio(
                 self.endpoint,
                 access_key=self.access_key,
                 secret_key=self.secret_key,
                 secure=self.secure,
+            )
+        elif not self.enabled:
+            logger.info(
+                "SeaweedFS config not provided — FrameManager running in no-op mode"
+            )
+        else:
+            logger.warning(
+                "minio package not installed — FrameManager will run in no-op mode"
             )
 
         logger.info(
@@ -83,7 +92,7 @@ class FrameManager:
 
     async def ensure_bucket(self) -> None:
         """Create the frame buckets if they don't exist. Retries on connection failure."""
-        if not self.client:
+        if not self.enabled or not self.client:
             return
         import asyncio
         for attempt in range(5):
