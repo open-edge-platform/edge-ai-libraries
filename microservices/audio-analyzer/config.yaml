@@ -6,13 +6,13 @@ app:
 
 models:
   asr:
-    provider: openai # openai | openvino | whispercpp
+    provider: openvino  # openai | openvino | whispercpp
     name: whisper-base  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
-    device: CPU # CPU recommended; CPU only for whispercpp, CPU or GPU for openvino provider
+    device: CPU # CPU | GPU | NPU for openvino; CPU only for openai/whispercpp
     weight_format: null # OpenVINO: int8 | fp16 | null. whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
     temperature: 0.0
-    diarization: False
-    hf_token: None   # needed only if diarization=true
+    diarization: True  # True or False, applicable for provider: openvino
+    hf_token: None  # needed only if diarization=true
     models_base_path: "models"
 
     # Hallucination filtering — openai provider uses native no_speech_prob/avg_logprob.

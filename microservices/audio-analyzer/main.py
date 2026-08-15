@@ -10,7 +10,7 @@ from api.openai_endpoints import router as openai_router
 from api.realtime_endpoints import router as realtime_router
 from utils.config_loader import config
 from utils.ensure_model import ensure_model
-from utils.openvino_runtime_validation import validate_openvino_npu_runtime
+from utils.openvino_runtime_validation import validate_runtime_configuration
 from utils.preload_models import preload_models
 import logging
 import os
@@ -53,7 +53,7 @@ def _clear_storage_on_startup() -> None:
 @app.on_event("startup")
 def startup_event():
     _clear_storage_on_startup()
-    validate_openvino_npu_runtime(config)
+    validate_runtime_configuration(config)
     ensure_model()
     preload_models()
 
