@@ -1,0 +1,64 @@
+
+# Physical AI Studio - the end-to-end Physical AI application (the
+# `physicalai-studio` distribution): a FastAPI backend + web UI for
+# demonstration-data collection (RealSense / USB / GenICam cameras,
+# WebRTC streaming), dataset management, and orchestrating VLA policy
+# training/export on top of the Physical AI Framework. Installed as a uv
+# tool (isolated environment on PATH) with the PyTorch build matched to
+# the local accelerator (Intel XPU, NVIDIA CUDA, or CPU).
+# https://github.com/open-edge-platform/physical-ai-studio
+configure_physical_ai_studio () {
+  pais_pkg="physicalai-studio"
+  pais_bin="$HOME/.local/bin/physicalai-studio"
+  # pick the PyTorch wheel index and package extra for the detected device
+  if command -v nvidia-smi > /dev/null 2>&1; then
+    pais_extra=cuda
+    pais_index="https://download.pytorch.org/whl/cu128"
+  elif [ -e /dev/dri/renderD128 ]; then
+    pais_extra=xpu
+    pais_index="https://download.pytorch.org/whl/xpu"
+  else
+    pais_extra=cpu
+    pais_index="https://download.pytorch.org/whl/cpu"
+  fi
+}
+
+debian_92_profile_physical_ai_studio () {
+  echo "git curl edge_base uv"
+}
+
+verify_physical_ai_studio () {
+  configure_physical_ai_studio "$@"
+  [ -x "$pais_bin" ]
+}
+
+debian_92_install_physical_ai_studio () {
+  configure_physical_ai_studio "$@"
+  configure_uv
+
+  if verify_physical_ai_studio "$@" && [[ " $* " != *" --reset-physical_ai_studio "* ]]; then
+    echo "Physical AI Studio is already installed. Skipping..."
+  else
+    ensure_disk_space 20000
+    # LeRobot / video encoding dependencies require ffmpeg on the host
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y ffmpeg
+    echo "Installing $pais_pkg[$pais_extra] (PyTorch $pais_extra build; this may take a while)..."
+    uv tool install --python 3.12 \
+      --index "$pais_index" --index-strategy unsafe-best-match \
+      "$pais_pkg[$pais_extra]" || {
+      echo "Could not install $pais_pkg." 1>&2
+      return 3
+    }
+  fi
+
+  echo "@@HIGHLIGHT Physical AI Studio installed ($pais_bin)"
+  echo "@@HIGHLIGHT run @physicalai-studio serve   # then open http://localhost:7860"
+  echo "@@HIGHLIGHT docs @https://github.com/open-edge-platform/physical-ai-studio"
+}
+
+debian_92_remove_physical_ai_studio () {
+  configure_physical_ai_studio "$@"
+  configure_uv
+  uv tool uninstall "$pais_pkg" > /dev/null 2>&1 || true
+}
