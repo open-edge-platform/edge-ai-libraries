@@ -66,7 +66,15 @@ debian_10_install_pre_system_scan () {
 }
 
 system_scan_check_membank () {
-  local dmi_out="$(ensure_sudo dmidecode -t memory 2>/dev/null)"
+  local dmi_out dmi_rc
+  dmi_out="$(ensure_sudo dmidecode -t memory 2>/dev/null)"; dmi_rc=$?
+  if [ $dmi_rc -ne 0 ]; then
+    # dmidecode needs root; ensure_sudo could not elevate (no cached sudo
+    # credentials and no SUDO_PASSWORD). Report the real cause rather than
+    # implying the hardware is missing.
+    echo "Requires sudo (set SUDO_PASSWORD)"
+    return
+  fi
   local installed_modules=()
   mapfile -t installed_modules < <(echo "$dmi_out" | awk -v in_dev=0 '
     /^Memory Device$/ {
@@ -75,14 +83,14 @@ system_scan_check_membank () {
       }
       in_dev=1;size="";loc="N/A";bank="N/A"
     }
-    /^\s*Size:/ {
-      size=gensub(/^\s*Size:\s*/,"",1)
+    /^[[:space:]]*Size:/ {
+      tmp=$0; sub(/^[[:space:]]*Size:[[:space:]]*/,"",tmp); size=tmp
     }
-    /^\s*Locator:/ {
-      loc=gensub(/^\s*Locator:\s*/,"",1)
+    /^[[:space:]]*Locator:/ {
+      tmp=$0; sub(/^[[:space:]]*Locator:[[:space:]]*/,"",tmp); loc=tmp
     }
-    /^\s*Bank Locator:/ {
-      bank=gensub(/^\s*Bank Locator:\s*/,"",1)
+    /^[[:space:]]*Bank Locator:/ {
+      tmp=$0; sub(/^[[:space:]]*Bank Locator:[[:space:]]*/,"",tmp); bank=tmp
     }
     END {
       if (in_dev && size !~ /No Module Installed/ && size !~ /Unknown/ && size != "") {
@@ -131,13 +139,17 @@ system_scan_check_network_access () {
     https://apt.repos.intel.com
   ) url
   for url in ${check_urls[@]}; do
-    if ! curl --connect-timeout 1 --head $url > /dev/null 2>&1; then
+    if ! curl --connect-timeout 5 --max-time 10 --head $url > /dev/null 2>&1; then
       echo "$url by $(id -un)"
       return
     fi
-    if ! ensure_sudo curl --connect-timeout 1 --head $url > /dev/null 2>&1; then
-      echo "$url by root"
-      return 
+    # Only verify root connectivity when sudo can run without an interactive
+    # prompt, otherwise skip it to avoid hanging or false negatives.
+    if [ -n "$SUDO_PASSWORD" ] || sudo -n true 2>/dev/null; then
+      if ! ensure_sudo curl --connect-timeout 5 --max-time 10 --head $url > /dev/null 2>&1; then
+        echo "$url by root"
+        return
+      fi
     fi
   done
   echo "registry reachable"
