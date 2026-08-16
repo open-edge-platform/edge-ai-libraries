@@ -19,7 +19,7 @@ websockets==15.0.1
 fsspec>=2023.1.0,<=2025.3.0
 openai-whisper==20250625
 numpy==2.2.6
-optimum==2.1.0
+optimum==2.3.0
 optimum-intel[openvino]==2.1.0
 nncf==3.1.0
 psutil==7.1.3
