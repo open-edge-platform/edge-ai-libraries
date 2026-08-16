@@ -141,7 +141,7 @@ result = backend.compress(
 ## See also
 
 - Docker compose deployment (recommended for production):
-  `deployment/lingua/README.md` —
+  `docs/use-guide/lingua-deployment.md` —
   `cd deployment/lingua && docker compose up -d --build` runs the same
   server inside a container without installing extras locally.
 

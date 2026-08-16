@@ -3,6 +3,10 @@
 
 """API v1 module."""
 
+from src.api.v1 import config
+from src.api.v1 import passthrough
+from src.api.v1 import plugin
+from src.api.v1 import provider
 from src.api.v1 import router
 
-__all__ = ["router"]
+__all__ = ["router", "config", "passthrough", "plugin", "provider"]

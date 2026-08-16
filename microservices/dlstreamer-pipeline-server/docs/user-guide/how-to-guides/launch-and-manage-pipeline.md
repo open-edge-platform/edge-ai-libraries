@@ -6,7 +6,7 @@ where we want to automate the process of running or stopping the pipeline.
 
 ## Steps
 
-1. A sample config has been provided for this tutorial at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. Refer below snippets:
+1. A sample config has been provided for this tutorial at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. Refer to the snippet below:
 
    ```sh
        volumes:
@@ -16,14 +16,14 @@ where we want to automate the process of running or stopping the pipeline.
 
 2. Update environment variables file present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`
 with the following variables. Add the corresponding IP address in place of
-`<MQTT_BROKER_IP_ADDRESS>` below.
+`<MQTT_BROKER_IP_ADDRESS>` below:
 
    ```sh
    MQTT_HOST=<MQTT_BROKER_IP_ADDRESS>
    MQTT_PORT=1883
    ```
 
-3. Start the DL Streamer pipeline server.
+3. Start the DL Streamer pipeline server:
 
    ```sh
    cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
@@ -32,9 +32,9 @@ with the following variables. Add the corresponding IP address in place of
 
 4. Start the pipeline either via a Python snippet or shell script.
 
-   - To use Python snippet, save the below snippet on your system as `start_pipeline.py`.
+   - To use Python snippet, save the below snippet on your system as `start_pipeline.py`:
 
-     > **NOTE:** Please make sure to intall Python libraries "requests" and "json" if not already installed before running the below Python snippet.
+     > **Note:** Please make sure to install Python libraries "requests" and "json" if not already installed before running the below Python snippet.
 
      ```python
      import requests
@@ -77,7 +77,7 @@ with the following variables. Add the corresponding IP address in place of
      python3 start_pipeline.py
      ```
 
-   - To use shell script, save the below script as `start_pipeline.sh`.
+   - To use shell script, save the below script as `start_pipeline.sh`:
 
      ```sh
      #!/bin/bash
@@ -115,9 +115,9 @@ with the following variables. Add the corresponding IP address in place of
    ./start_pipeline.sh
    ```
 
-   `NOTE` Instance ID of the pipeline will be mentioned in the "response" field after successfully running the above snippet. This ID can be used later to stop the pipeline as mentioned in step 7.
+   > **Note:** Instance ID of the pipeline will be mentioned in the "response" field after successfully running the above snippet. This ID can be used later to stop the pipeline as mentioned in step 7.
 
-5. Run the following command to check MQTT messages. Replace `<SYSTEM_IP_ADDRESS>` with corresponding IP address.
+5. Run the following command to check MQTT messages. Replace `<SYSTEM_IP_ADDRESS>` with corresponding IP address:
 
    ```sh
    docker run -it --entrypoint mosquitto_sub eclipse-mosquitto:latest --topic dlstreamer_pipeline_results -p 1883 -h <SYSTEM_IP_ADDRESS>
@@ -127,7 +127,7 @@ with the following variables. Add the corresponding IP address in place of
 
 7. Stop the pipeline either via a Python snippet or shell script. Replace `<instance-id>` with corresponding ID obtained from step 4 below.
 
-   - To use the Python snippet, save the below snippet on your system as `stop_pipeline.py`.
+   - To use the Python snippet, save the below snippet on your system as `stop_pipeline.py`:
 
      ```python
      import requests
@@ -143,7 +143,7 @@ with the following variables. Add the corresponding IP address in place of
      python3 stop_pipeline.py
      ```
 
-   - To use shell script, save the below script as `stop_pipeline.sh`.
+   - To use shell script, save the below script as `stop_pipeline.sh`:
 
      ```sh
      #!/bin/bash

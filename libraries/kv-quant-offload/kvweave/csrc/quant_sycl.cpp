@@ -61,9 +61,9 @@ static sycl::event hadamard_stage_global(
     return q.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
         cgh.parallel_for<HadamardStageKernel>(
-            sycl::nd_range<1>(global_size, WG_SIZE),
+            sycl::nd_range<1>(static_cast<size_t>(global_size), WG_SIZE),
             [=](sycl::nd_item<1> item) {
-                const int64_t idx = item.get_global_id(0);
+                const int64_t idx = static_cast<int64_t>(item.get_global_id(0));
                 if (idx >= num_pairs) return;
                 const int64_t stride = h << 1;
                 int64_t block = idx / h;
@@ -75,21 +75,6 @@ static sycl::event hadamard_stage_global(
                 buf[i + h] = a - b;
             });
     });
-}
-
-// Full Hadamard on global memory buffer (multi-kernel, host-driven stages)
-static void hadamard_global_full(
-    sycl::queue& q,
-    float* buf,
-    int64_t n,
-    sycl::event dep)
-{
-    std::vector<sycl::event> deps = {dep};
-    for (int64_t h = 1; h < n; h <<= 1) {
-        auto ev = hadamard_stage_global(q, buf, n, h, deps);
-        deps = {ev};
-    }
-    deps[0].wait();
 }
 
 // Scale (multiply) a device buffer by a constant
@@ -106,9 +91,9 @@ static sycl::event scale_buffer(
     return q.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
         cgh.parallel_for<ScaleKernel>(
-            sycl::nd_range<1>(global_size, WG_SIZE),
+            sycl::nd_range<1>(static_cast<size_t>(global_size), WG_SIZE),
             [=](sycl::nd_item<1> item) {
-                const int64_t idx = item.get_global_id(0);
+                const int64_t idx = static_cast<int64_t>(item.get_global_id(0));
                 if (idx >= n) return;
                 buf[idx] *= factor;
             });
@@ -161,15 +146,15 @@ sycl::event quantize_block_sycl_impl(
         // Small-chunk path: local memory for data + Hadamard
         return q.submit([&](sycl::handler& cgh) {
             cgh.depends_on(deps);
-            auto local_data = sycl::local_accessor<float, 1>(sycl::range<1>(chunk_size), cgh);
+            auto local_data = sycl::local_accessor<float, 1>(sycl::range<1>(static_cast<size_t>(chunk_size)), cgh);
             auto reduce_mem = sycl::local_accessor<float, 1>(sycl::range<1>(2 * WG_SIZE), cgh);
 
             cgh.parallel_for<QuantizeKernel<KVType, QType>>(
-                sycl::nd_range<1>(num_chunks * WG_SIZE, WG_SIZE),
+                sycl::nd_range<1>(static_cast<size_t>(num_chunks) * WG_SIZE, WG_SIZE),
                 [=](sycl::nd_item<1> item) {
-                    const int chunk_id = item.get_group(0);
-                    const int lid = item.get_local_id(0);
-                    const int wg_size = item.get_local_range(0);
+                    const int chunk_id = static_cast<int>(item.get_group(0));
+                    const int lid = static_cast<int>(item.get_local_id(0));
+                    const int wg_size = static_cast<int>(item.get_local_range(0));
                     float* local_buf = local_data.get_multi_ptr<sycl::access::decorated::no>().get_raw();
                     float* red_buf = reduce_mem.get_multi_ptr<sycl::access::decorated::no>().get_raw();
 
@@ -260,7 +245,7 @@ sycl::event quantize_block_sycl_impl(
     } else {
         // Large-chunk path: use global memory scratch for data + Hadamard.
         // Allocate a float scratch buffer for the entire element_count.
-        float* scratch = sycl::malloc_device<float>(element_count, q);
+        float* scratch = sycl::malloc_device<float>(static_cast<size_t>(element_count), q);
         DeviceScratch<float> scratch_guard(scratch, q);
 
         // Step 1: Load data into scratch (with optional precond gather)
@@ -268,9 +253,9 @@ sycl::event quantize_block_sycl_impl(
             cgh.depends_on(deps);
             const int64_t global_size = ((element_count + WG_SIZE - 1) / WG_SIZE) * WG_SIZE;
             cgh.parallel_for(
-                sycl::nd_range<1>(global_size, WG_SIZE),
+                sycl::nd_range<1>(static_cast<size_t>(global_size), WG_SIZE),
                 [=](sycl::nd_item<1> item) {
-                    const int64_t gid = item.get_global_id(0);
+                    const int64_t gid = static_cast<int64_t>(item.get_global_id(0));
                     if (gid >= element_count) return;
                     // Map flat gid to (chunk_id, i_within_chunk)
                     int64_t chunk_id = gid / chunk_size;
@@ -311,11 +296,11 @@ sycl::event quantize_block_sycl_impl(
             auto reduce_mem = sycl::local_accessor<float, 1>(sycl::range<1>(2 * WG_SIZE), cgh);
 
             cgh.parallel_for<QuantizeKernelLarge<KVType, QType>>(
-                sycl::nd_range<1>(num_chunks * WG_SIZE, WG_SIZE),
+                sycl::nd_range<1>(static_cast<size_t>(num_chunks) * WG_SIZE, WG_SIZE),
                 [=](sycl::nd_item<1> item) {
-                    const int chunk_id = item.get_group(0);
-                    const int lid = item.get_local_id(0);
-                    const int wg_size = item.get_local_range(0);
+                    const int chunk_id = static_cast<int>(item.get_group(0));
+                    const int lid = static_cast<int>(item.get_local_id(0));
+                    const int wg_size = static_cast<int>(item.get_local_range(0));
                     float* red_buf = reduce_mem.get_multi_ptr<sycl::access::decorated::no>().get_raw();
 
                     const int64_t offset = is_per_channel ? chunk_id : chunk_id * chunk_size;
@@ -420,14 +405,14 @@ sycl::event dequantize_block_sycl_impl(
     if (use_local_mem) {
         return q.submit([&](sycl::handler& cgh) {
             cgh.depends_on(deps);
-            auto local_data = sycl::local_accessor<float, 1>(sycl::range<1>(chunk_size), cgh);
+            auto local_data = sycl::local_accessor<float, 1>(sycl::range<1>(static_cast<size_t>(chunk_size)), cgh);
 
             cgh.parallel_for<DequantizeKernel<KVType, QType>>(
-                sycl::nd_range<1>(num_chunks * WG_SIZE, WG_SIZE),
+                sycl::nd_range<1>(static_cast<size_t>(num_chunks) * WG_SIZE, WG_SIZE),
                 [=](sycl::nd_item<1> item) {
-                    const int chunk_id = item.get_group(0);
-                    const int lid = item.get_local_id(0);
-                    const int wg_size = item.get_local_range(0);
+                    const int chunk_id = static_cast<int>(item.get_group(0));
+                    const int lid = static_cast<int>(item.get_local_id(0));
+                    const int wg_size = static_cast<int>(item.get_local_range(0));
                     float* local_buf = local_data.get_multi_ptr<sycl::access::decorated::no>().get_raw();
                     const int64_t offset = is_per_channel ? chunk_id : chunk_id * chunk_size;
                     const float scale = scales_in[chunk_id];
@@ -477,18 +462,18 @@ sycl::event dequantize_block_sycl_impl(
         });
     } else {
         // Large-chunk path: use global memory scratch for Hadamard
-        float* scratch = sycl::malloc_device<float>(element_count, q);
+        float* scratch = sycl::malloc_device<float>(static_cast<size_t>(element_count), q);
         DeviceScratch<float> scratch_guard(scratch, q);
 
         // Step 1: Dequantize into scratch buffer
         auto dequant_event = q.submit([&](sycl::handler& cgh) {
             cgh.depends_on(deps);
             cgh.parallel_for<DequantizeKernelLarge<KVType, QType>>(
-                sycl::nd_range<1>(num_chunks * WG_SIZE, WG_SIZE),
+                sycl::nd_range<1>(static_cast<size_t>(num_chunks) * WG_SIZE, WG_SIZE),
                 [=](sycl::nd_item<1> item) {
-                    const int chunk_id = item.get_group(0);
-                    const int lid = item.get_local_id(0);
-                    const int wg_size = item.get_local_range(0);
+                    const int chunk_id = static_cast<int>(item.get_group(0));
+                    const int lid = static_cast<int>(item.get_local_id(0));
+                    const int wg_size = static_cast<int>(item.get_local_range(0));
                     const int64_t offset = is_per_channel ? chunk_id : chunk_id * chunk_size;
                     const float scale = scales_in[chunk_id];
                     const float zeropoint = zps_in[chunk_id];
@@ -520,9 +505,9 @@ sycl::event dequantize_block_sycl_impl(
         auto write_event = q.submit([&](sycl::handler& cgh) {
             cgh.depends_on({had_event});
             cgh.parallel_for(
-                sycl::nd_range<1>(global_size, WG_SIZE),
+                sycl::nd_range<1>(static_cast<size_t>(global_size), WG_SIZE),
                 [=](sycl::nd_item<1> item) {
-                    const int64_t gid = item.get_global_id(0);
+                    const int64_t gid = static_cast<int64_t>(item.get_global_id(0));
                     if (gid >= element_count) return;
                     int64_t chunk_id = gid / chunk_size;
                     int64_t i = gid % chunk_size;
@@ -568,9 +553,9 @@ sycl::event pack_int4_sycl(
     return q.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
         cgh.parallel_for<PackInt4Kernel>(
-            sycl::nd_range<1>(global_size, WG_SIZE),
+            sycl::nd_range<1>(static_cast<size_t>(global_size), WG_SIZE),
             [=](sycl::nd_item<1> item) {
-                const int64_t idx = item.get_global_id(0);
+                const int64_t idx = static_cast<int64_t>(item.get_global_id(0));
                 if (idx >= packed_count) return;
 
                 int64_t lo_idx = idx * 2;
@@ -601,9 +586,9 @@ sycl::event unpack_int4_sycl(
     return q.submit([&](sycl::handler& cgh) {
         cgh.depends_on(deps);
         cgh.parallel_for<UnpackInt4Kernel>(
-            sycl::nd_range<1>(global_size, WG_SIZE),
+            sycl::nd_range<1>(static_cast<size_t>(global_size), WG_SIZE),
             [=](sycl::nd_item<1> item) {
-                const int64_t idx = item.get_global_id(0);
+                const int64_t idx = static_cast<int64_t>(item.get_global_id(0));
                 if (idx >= logical_count) return;
 
                 int64_t byte_idx = idx / 2;
@@ -636,7 +621,7 @@ sycl::event quantize_kvcache_sycl(
 {
     if (args.qbit == 4) {
         // For 4-bit: quantize to int8 logical values, then pack
-        int8_t* logical_buf = sycl::malloc_device<int8_t>(element_count, q);
+        int8_t* logical_buf = sycl::malloc_device<int8_t>(static_cast<size_t>(element_count), q);
         DeviceScratch<int8_t> logical_guard(logical_buf, q);
 
         auto quant_event = quantize_block_sycl_impl<KVType, int8_t>(
@@ -679,7 +664,7 @@ sycl::event dequantize_kvcache_sycl(
 {
     if (args.qbit == 4) {
         // For 4-bit: unpack to int8 logical values, then dequantize
-        int8_t* logical_buf = sycl::malloc_device<int8_t>(element_count, q);
+        int8_t* logical_buf = sycl::malloc_device<int8_t>(static_cast<size_t>(element_count), q);
         DeviceScratch<int8_t> logical_guard(logical_buf, q);
 
         auto unpack_event = unpack_int4_sycl(

@@ -215,8 +215,8 @@ void quantize_block_rh(kvtype* src, qtype* dst, int64_t element_count, int64_t s
 
 #ifdef USE_MULTITHREADING
     {
-        std::vector<float> p_scales(num_chunks);
-        std::vector<float> p_zps(num_chunks);
+        std::vector<float> p_scales(static_cast<size_t>(num_chunks));
+        std::vector<float> p_zps(static_cast<size_t>(num_chunks));
         int nthreads = (args.num_threads > 0) ? args.num_threads : omp_get_max_threads();
         // Per-channel: dst writes are strided (stride=head_dim). Cap threads so each thread
         // owns at least one cache line worth of chunks, preventing false sharing.
@@ -227,11 +227,11 @@ void quantize_block_rh(kvtype* src, qtype* dst, int64_t element_count, int64_t s
         #pragma omp parallel for schedule(static) num_threads(nthreads) if(nthreads > 1 && num_chunks > 1)
         for (int64_t chunk = 0; chunk < num_chunks; ++chunk) {
             int64_t offset = is_per_channel ? chunk : chunk * chunk_size;
-            std::vector<float> local_buf(chunk_size);
+            std::vector<float> local_buf(static_cast<size_t>(chunk_size));
             for (int64_t i = 0; i < chunk_size; ++i)
-                local_buf[i] = static_cast<float>(src[i * stride + offset]);
+                local_buf[static_cast<size_t>(i)] = static_cast<float>(src[i * stride + offset]);
             {
-                std::vector<float> fused_out(chunk_size);
+                std::vector<float> fused_out(static_cast<size_t>(chunk_size));
                 fast_walsh_hadamard_transform_fused(local_buf.data(), fused_out.data(), chunk_size, args.perm, args.signs);
                 std::copy(fused_out.begin(), fused_out.end(), local_buf.begin());
             }
@@ -247,32 +247,32 @@ void quantize_block_rh(kvtype* src, qtype* dst, int64_t element_count, int64_t s
             } else {
                 scale = std::max(std::abs(min_val), std::abs(max_val)) / qmax_float;
             }
-            p_scales[chunk] = scale;
-            p_zps[chunk] = zeropoint;
+            p_scales[static_cast<size_t>(chunk)] = scale;
+            p_zps[static_cast<size_t>(chunk)] = zeropoint;
             float inv_scale = (scale != 0.0f) ? (1.0f / scale) : 0.0f;
             for (int64_t i = 0; i < chunk_size; ++i) {
-                float q_val = std::clamp(std::round((local_buf[i] - zeropoint) * inv_scale), qmin_float, qmax_float);
+                float q_val = std::clamp(std::round((local_buf[static_cast<size_t>(i)] - zeropoint) * inv_scale), qmin_float, qmax_float);
                 dst[i * stride + offset] = static_cast<qtype>(q_val);
             }
         }
         for (int64_t chunk = 0; chunk < num_chunks; ++chunk) {
             uint64_t scale_key = (static_cast<uint64_t>(scale_id) << 32) | static_cast<uint64_t>(chunk);
-            args.quantize_block_scales[scale_key] = p_scales[chunk];
-            args.quantize_block_zps[scale_key] = p_zps[chunk];
+            args.quantize_block_scales[scale_key] = p_scales[static_cast<size_t>(chunk)];
+            args.quantize_block_zps[scale_key] = p_zps[static_cast<size_t>(chunk)];
         }
     }
 #else
-    std::vector<float> transformed_src(chunk_size);
+    std::vector<float> transformed_src(static_cast<size_t>(chunk_size));
     for (int64_t chunk = 0; chunk < num_chunks; ++chunk) {
         uint64_t scale_key = (static_cast<uint64_t>(scale_id) << 32) | static_cast<uint64_t>(chunk);
         int64_t offset = is_per_channel ? chunk : chunk * chunk_size;
 
         for (int64_t i = 0; i < chunk_size; ++i) {
-            transformed_src[i] = static_cast<float>(src[i * stride + offset]);
+            transformed_src[static_cast<size_t>(i)] = static_cast<float>(src[i * stride + offset]);
         }
 
         {
-            std::vector<float> fused_out(chunk_size);
+            std::vector<float> fused_out(static_cast<size_t>(chunk_size));
             fast_walsh_hadamard_transform_fused(transformed_src.data(), fused_out.data(), chunk_size, args.perm, args.signs);
             std::copy(fused_out.begin(), fused_out.end(), transformed_src.begin());
         }
@@ -299,7 +299,7 @@ void quantize_block_rh(kvtype* src, qtype* dst, int64_t element_count, int64_t s
         float inv_scale = (scale != 0.0f) ? (1.0f / scale) : 0.0f;
 
         for (int64_t i = 0; i < chunk_size; ++i) {
-            float q_val = std::clamp(std::round((transformed_src[i] - zeropoint) * inv_scale), qmin_float, qmax_float);
+            float q_val = std::clamp(std::round((transformed_src[static_cast<size_t>(i)] - zeropoint) * inv_scale), qmin_float, qmax_float);
             dst[i * stride + offset] = static_cast<qtype>(q_val);
         }
     }
@@ -328,8 +328,8 @@ void quantize_block(kvtype* src, qtype* dst, int64_t element_count, int64_t scal
 
 #ifdef USE_MULTITHREADING
     {
-        std::vector<float> p_scales(num_chunks);
-        std::vector<float> p_zps(num_chunks);
+        std::vector<float> p_scales(static_cast<size_t>(num_chunks));
+        std::vector<float> p_zps(static_cast<size_t>(num_chunks));
         int nthreads = (args.num_threads > 0) ? args.num_threads : omp_get_max_threads();
         if (is_per_channel) {
             int cl_chunks = std::max(1, 64 / static_cast<int>(sizeof(qtype)));
@@ -352,8 +352,8 @@ void quantize_block(kvtype* src, qtype* dst, int64_t element_count, int64_t scal
             } else {
                 scale = std::max(std::abs(min_val), std::abs(max_val)) / qmax_float;
             }
-            p_scales[chunk] = scale;
-            p_zps[chunk] = zeropoint;
+            p_scales[static_cast<size_t>(chunk)] = scale;
+            p_zps[static_cast<size_t>(chunk)] = zeropoint;
             float inv_scale = (scale != 0.0f) ? (1.0f / scale) : 0.0f;
             for (int64_t i = 0; i < chunk_size; ++i) {
                 float q_val = std::clamp(std::round((static_cast<float>(src[i * stride + offset]) - zeropoint) * inv_scale), qmin_float, qmax_float);
@@ -362,8 +362,8 @@ void quantize_block(kvtype* src, qtype* dst, int64_t element_count, int64_t scal
         }
         for (int64_t chunk = 0; chunk < num_chunks; ++chunk) {
             uint64_t scale_key = (static_cast<uint64_t>(scale_id) << 32) | static_cast<uint64_t>(chunk);
-            args.quantize_block_scales[scale_key] = p_scales[chunk];
-            args.quantize_block_zps[scale_key] = p_zps[chunk];
+            args.quantize_block_scales[scale_key] = p_scales[static_cast<size_t>(chunk)];
+            args.quantize_block_zps[scale_key] = p_zps[static_cast<size_t>(chunk)];
         }
     }
 #else
@@ -417,12 +417,12 @@ void dequantize_block_rh(qtype* src, kvtype* dst, int64_t element_count, int64_t
 
 #ifdef USE_MULTITHREADING
     {
-        std::vector<float> p_scales(num_chunks);
-        std::vector<float> p_zps(num_chunks);
+        std::vector<float> p_scales(static_cast<size_t>(num_chunks));
+        std::vector<float> p_zps(static_cast<size_t>(num_chunks));
         for (int64_t chunk = 0; chunk < num_chunks; ++chunk) {
             uint64_t scale_key = (static_cast<uint64_t>(scale_id) << 32) | static_cast<uint64_t>(chunk);
-            p_scales[chunk] = args.quantize_block_scales[scale_key];
-            p_zps[chunk] = args.asym ? args.quantize_block_zps[scale_key] : 0.0f;
+            p_scales[static_cast<size_t>(chunk)] = args.quantize_block_scales[scale_key];
+            p_zps[static_cast<size_t>(chunk)] = args.asym ? args.quantize_block_zps[scale_key] : 0.0f;
         }
         int nthreads = (args.num_threads > 0) ? args.num_threads : omp_get_max_threads();
         // dst writes are strided for per_channel; cap to avoid false sharing
@@ -433,22 +433,22 @@ void dequantize_block_rh(qtype* src, kvtype* dst, int64_t element_count, int64_t
         #pragma omp parallel for schedule(static) num_threads(nthreads) if(nthreads > 1 && num_chunks > 1)
         for (int64_t chunk = 0; chunk < num_chunks; ++chunk) {
             int64_t offset = is_per_channel ? chunk : chunk * chunk_size;
-            float scale = p_scales[chunk];
-            float zeropoint = p_zps[chunk];
-            std::vector<float> local_buf(chunk_size);
+            float scale = p_scales[static_cast<size_t>(chunk)];
+            float zeropoint = p_zps[static_cast<size_t>(chunk)];
+            std::vector<float> local_buf(static_cast<size_t>(chunk_size));
             for (int64_t i = 0; i < chunk_size; ++i)
-                local_buf[i] = static_cast<float>(src[i * stride + offset]) * scale + zeropoint;
+                local_buf[static_cast<size_t>(i)] = static_cast<float>(src[i * stride + offset]) * scale + zeropoint;
             {
-                std::vector<float> inv_out(chunk_size);
+                std::vector<float> inv_out(static_cast<size_t>(chunk_size));
                 fast_walsh_hadamard_inverse_fused(local_buf.data(), inv_out.data(), chunk_size, args.perm, args.signs);
                 std::copy(inv_out.begin(), inv_out.end(), local_buf.begin());
             }
             for (int64_t i = 0; i < chunk_size; ++i)
-                dst[i * stride + offset] = static_cast<kvtype>(local_buf[i]);
+                dst[i * stride + offset] = static_cast<kvtype>(local_buf[static_cast<size_t>(i)]);
         }
     }
 #else
-    std::vector<float> transformed_src(chunk_size);
+    std::vector<float> transformed_src(static_cast<size_t>(chunk_size));
 
     for (int64_t chunk = 0; chunk < num_chunks; ++chunk) {
 
@@ -459,16 +459,16 @@ void dequantize_block_rh(qtype* src, kvtype* dst, int64_t element_count, int64_t
         if (args.asym) zeropoint = args.quantize_block_zps[scale_key];
 
         for (int64_t i = 0; i < chunk_size; ++i) {
-            transformed_src[i] = static_cast<float>(src[i * stride + offset]) * scale + zeropoint;
+            transformed_src[static_cast<size_t>(i)] = static_cast<float>(src[i * stride + offset]) * scale + zeropoint;
         }
 
         {
-            std::vector<float> inv_out(chunk_size);
+            std::vector<float> inv_out(static_cast<size_t>(chunk_size));
             fast_walsh_hadamard_inverse_fused(transformed_src.data(), inv_out.data(), chunk_size, args.perm, args.signs);
             std::copy(inv_out.begin(), inv_out.end(), transformed_src.begin());
         }
         for (int64_t i = 0; i < chunk_size; ++i) {
-            dst[i * stride + offset] =  static_cast<kvtype>(transformed_src[i]);
+            dst[i * stride + offset] =  static_cast<kvtype>(transformed_src[static_cast<size_t>(i)]);
         }
     }
 #endif
@@ -491,12 +491,12 @@ void dequantize_block(qtype* src, kvtype* dst, int64_t element_count, int64_t sc
 
 #ifdef USE_MULTITHREADING
     {
-        std::vector<float> p_scales(num_chunks);
-        std::vector<float> p_zps(num_chunks);
+        std::vector<float> p_scales(static_cast<size_t>(num_chunks));
+        std::vector<float> p_zps(static_cast<size_t>(num_chunks));
         for (int64_t chunk = 0; chunk < num_chunks; ++chunk) {
             uint64_t scale_key = (static_cast<uint64_t>(scale_id) << 32) | static_cast<uint64_t>(chunk);
-            p_scales[chunk] = args.quantize_block_scales[scale_key];
-            p_zps[chunk] = args.asym ? args.quantize_block_zps[scale_key] : 0.0f;
+            p_scales[static_cast<size_t>(chunk)] = args.quantize_block_scales[scale_key];
+            p_zps[static_cast<size_t>(chunk)] = args.asym ? args.quantize_block_zps[scale_key] : 0.0f;
         }
         int nthreads = (args.num_threads > 0) ? args.num_threads : omp_get_max_threads();
         if (is_per_channel) {
@@ -506,8 +506,8 @@ void dequantize_block(qtype* src, kvtype* dst, int64_t element_count, int64_t sc
         #pragma omp parallel for schedule(static) num_threads(nthreads) if(nthreads > 1 && num_chunks > 1)
         for (int64_t chunk = 0; chunk < num_chunks; ++chunk) {
             int64_t offset = is_per_channel ? chunk : chunk * chunk_size;
-            float scale = p_scales[chunk];
-            float zeropoint = p_zps[chunk];
+            float scale = p_scales[static_cast<size_t>(chunk)];
+            float zeropoint = p_zps[static_cast<size_t>(chunk)];
 
             if (is_per_channel) {
 
