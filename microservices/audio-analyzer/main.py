@@ -53,7 +53,19 @@ def _clear_storage_on_startup() -> None:
 @app.on_event("startup")
 def startup_event():
     _clear_storage_on_startup()
-    validate_openvino_npu_runtime(config)
+    try:
+        validate_openvino_npu_runtime(config)
+    except RuntimeError as exc:
+        # NPU validation failed (device not present, missing driver, or missing
+        # compiler library). Log a prominent warning and continue — the service
+        # starts healthy and falls back gracefully at request time if inference
+        # is attempted on NPU.  A hard crash here was causing the entire
+        # container to enter an unhealthy/bootloop state whenever any NPU-
+        # related config option was set on a non-NPU host.
+        logger.warning(
+            "NPU runtime validation failed — service will start but NPU inference "
+            "will not be available: %s", exc
+        )
     ensure_model()
     preload_models()
 
