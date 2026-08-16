@@ -316,6 +316,36 @@ class TestRuntimeUrlValidation:
             "raw.githubusercontent.com/myorg/",
         ]
 
+    def test_resolved_config_overrides_env_and_profile(self, monkeypatch):
+        monkeypatch.setenv(
+            "EXTERNAL_SOURCES_URL_ALLOWLIST",
+            "github.com/envorg/",
+        )
+        profile = {"allowed_prefixes": ["github.com/open-edge-platform/edge-ai-resources/"]}
+        resolved_config = {
+            "EXTERNAL_SOURCES_URL_ALLOWLIST": "github.com/reqorg/, raw.githubusercontent.com/reqorg/",
+        }
+        assert ExternalSourcesPlugin._resolve_allowlist(profile, resolved_config) == [
+            "github.com/reqorg/",
+            "raw.githubusercontent.com/reqorg/",
+        ]
+
+    def test_resolved_config_empty_falls_back_to_env(self, monkeypatch):
+        monkeypatch.setenv(
+            "EXTERNAL_SOURCES_URL_ALLOWLIST",
+            "github.com/envorg/",
+        )
+        profile = {"allowed_prefixes": ["github.com/open-edge-platform/edge-ai-resources/"]}
+        # Blank/whitespace override is ignored; env wins.
+        assert ExternalSourcesPlugin._resolve_allowlist(profile, {"EXTERNAL_SOURCES_URL_ALLOWLIST": "   "}) == [
+            "github.com/envorg/",
+        ]
+
+    def test_hub_config_keys_declares_allowlist(self, plugin):
+        keys = {key.name: key for key in plugin.hub_config_keys("remote-url")}
+        assert "EXTERNAL_SOURCES_URL_ALLOWLIST" in keys
+        assert keys["EXTERNAL_SOURCES_URL_ALLOWLIST"].sensitive is False
+
     def test_url_hub_requires_config_url(self, plugin, temp_dir):
         with pytest.raises(ValueError, match="requires 'url'"):
             plugin.download("pkg-a", temp_dir, hub="remote-url")
@@ -341,7 +371,7 @@ class TestOmzDownload:
     ):
         model_name = "some-model"
 
-        def fake_run(command):
+        def fake_run(command, active_processes=None):
             if command[0].endswith("omz_converter"):
                 out_dir = command[command.index("--output_dir") + 1]
                 model_dir = Path(out_dir) / "public" / model_name
@@ -364,7 +394,7 @@ class TestOmzDownload:
     def test_omz_converter_no_output_raises(
         self, plugin, temp_dir, fake_omz_bin, monkeypatch
     ):
-        monkeypatch.setattr(plugin, "_run_omz_tool", lambda command: None)
+        monkeypatch.setattr(plugin, "_run_omz_tool", lambda command, active_processes=None: None)
         monkeypatch.setattr(esp, "_load_omz_rules", lambda: {})
 
         with pytest.raises(FileNotFoundError, match="produced no output"):
@@ -379,29 +409,30 @@ class TestRunOmzTool:
 
         captured = {}
 
-        class FakeCompleted:
+        class FakeProc:
             returncode = 0
-            stdout = ""
-            stderr = ""
+            def communicate(self):
+                return ("", "")
 
-        def fake_run(command, capture_output, text, check, env):
-            captured["env_path"] = env["PATH"]
-            return FakeCompleted()
+        def fake_popen(command, **kwargs):
+            captured["env_path"] = kwargs.get("env", {}).get("PATH", "")
+            return FakeProc()
 
-        monkeypatch.setattr(esp.subprocess, "run", fake_run)
+        monkeypatch.setattr(esp.subprocess, "Popen", fake_popen)
 
         ExternalSourcesPlugin._run_omz_tool(["omz_downloader", "--name", "x"])
 
         assert captured["env_path"].startswith(str(bin_dir) + os.pathsep)
 
     def test_nonzero_return_raises(self, monkeypatch):
-        class FakeCompleted:
+        class FakeProc:
             returncode = 1
-            stdout = ""
-            stderr = "boom"
+            def communicate(self):
+                return ("", "boom")
+            def append(self, *a): pass
 
         monkeypatch.setattr(
-            esp.subprocess, "run", lambda *a, **k: FakeCompleted()
+            esp.subprocess, "Popen", lambda *a, **k: FakeProc()
         )
 
         with pytest.raises(RuntimeError, match="OMZ tool failed"):
@@ -411,7 +442,7 @@ class TestRunOmzTool:
         def raise_fnf(*a, **k):
             raise FileNotFoundError()
 
-        monkeypatch.setattr(esp.subprocess, "run", raise_fnf)
+        monkeypatch.setattr(esp.subprocess, "Popen", raise_fnf)
 
         with pytest.raises(RuntimeError, match="OMZ tool not found"):
             ExternalSourcesPlugin._run_omz_tool(["missing_tool"])

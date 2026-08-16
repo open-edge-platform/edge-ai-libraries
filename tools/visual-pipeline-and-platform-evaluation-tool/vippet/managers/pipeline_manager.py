@@ -14,6 +14,7 @@ from internal_types import (
     InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
     InternalPipelineSource,
+    InternalPipelineType,
     InternalStreamInfo,
     InternalVariant,
 )
@@ -196,6 +197,7 @@ class PipelineManager:
                 name=new_pipeline.name,
                 description=new_pipeline.description,
                 source=new_pipeline.source,
+                type=new_pipeline.type,
                 tags=new_pipeline.tags,
                 variants=variants_with_timestamps,
                 thumbnail=None,  # User-created pipelines do not have thumbnails
@@ -210,6 +212,11 @@ class PipelineManager:
     def get_pipelines(self) -> list[InternalPipeline]:
         with self._pipelines_lock:
             return [deepcopy(p) for p in self.pipelines]
+
+    def get_pipeline_names_by_id(self) -> dict[str, str]:
+        """Return a lightweight mapping of pipeline id to pipeline name."""
+        with self._pipelines_lock:
+            return {pipeline.id: pipeline.name for pipeline in self.pipelines}
 
     def get_model_display_names_used_by_pipelines(self) -> dict[str, list[str]]:
         """
@@ -485,6 +492,18 @@ class PipelineManager:
             if not isinstance(tags, list):
                 tags = []
 
+            # Read type from config, default to vision
+            pipeline_type_str = config.get("type", InternalPipelineType.VISION.value)
+            try:
+                pipeline_type = InternalPipelineType(pipeline_type_str)
+            except ValueError:
+                self.logger.warning(
+                    "Unknown pipeline type '%s' in pipeline '%s', defaulting to 'vision'",
+                    pipeline_type_str,
+                    pipeline_name,
+                )
+                pipeline_type = InternalPipelineType.VISION
+
             # Load thumbnail if specified, using pipelines directory as base path
             thumbnail_path = config.get("thumbnail", "")
             thumbnail_base64 = load_thumbnail_as_base64(
@@ -503,6 +522,7 @@ class PipelineManager:
                     name=pipeline_name,
                     description=pipeline_description,
                     source=InternalPipelineSource.PREDEFINED,
+                    type=pipeline_type,
                     tags=tags,
                     variants=variants_list,
                     thumbnail=thumbnail_base64,

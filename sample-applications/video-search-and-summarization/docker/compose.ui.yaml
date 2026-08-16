@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # UI services required in Dual UI and Unified UI Setup for Video Search and Summarization.
+# If nginx is not used, set UI_PM_ENDPOINT to the complete Pipeline Manager URL.
+# If nginx is not used, set UI_ASSETS_ENDPOINT to the complete MinIO URL.
 services:
   nginx:
     depends_on:
@@ -28,8 +30,8 @@ services:
       no_proxy: ${no_proxy},${HOST_IP},pipeline-manager,minio-service,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      APP_ENDPOINT_URL: ${UI_PM_ENDPOINT}
-      APP_ASSETS_URL: ${UI_ASSETS_ENDPOINT}
+      APP_ENDPOINT_URL: ${UI_PM_ENDPOINT:-/manager}
+      APP_ASSETS_URL: ${UI_ASSETS_ENDPOINT:-/datastore}
       APP_FEATURE_MUX: ATOMIC
       APP_SOCKET_APPEND: ${CONFIG_SOCKET_APPEND:-CONFIG_OFF}
       APP_SUMMARY_FEATURE: FEATURE_ON
@@ -54,8 +56,8 @@ services:
       no_proxy: ${no_proxy},${HOST_IP},pipeline-manager,minio-service,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      APP_ENDPOINT_URL: ${UI_PM_ENDPOINT}
-      APP_ASSETS_URL: ${UI_ASSETS_ENDPOINT}
+      APP_ENDPOINT_URL: ${UI_PM_ENDPOINT:-/manager}
+      APP_ASSETS_URL: ${UI_ASSETS_ENDPOINT:-/datastore}
       APP_FEATURE_MUX: ATOMIC
       APP_SOCKET_APPEND: ${CONFIG_SOCKET_APPEND:-CONFIG_OFF}
       APP_SUMMARY_FEATURE: FEATURE_OFF
@@ -82,8 +84,8 @@ services:
       no_proxy: ${no_proxy},${HOST_IP},pipeline-manager,minio-service,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      APP_ENDPOINT_URL: ${UI_PM_ENDPOINT}
-      APP_ASSETS_URL: ${UI_ASSETS_ENDPOINT}
+      APP_ENDPOINT_URL: ${UI_PM_ENDPOINT:-/manager}
+      APP_ASSETS_URL: ${UI_ASSETS_ENDPOINT:-/datastore}
       APP_FEATURE_MUX: ${APP_FEATURE_MUX:-"ATOMIC"}
       APP_SOCKET_APPEND: ${CONFIG_SOCKET_APPEND:-CONFIG_OFF}
       APP_SUMMARY_FEATURE: ${APP_SUMMARY_FEATURE:-"FEATURE_ON"}

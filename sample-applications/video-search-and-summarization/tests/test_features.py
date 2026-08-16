@@ -16,8 +16,7 @@ Tests in this file:
     T2.2 - test_resolved_config_non_empty
     T2.3 - test_whisper_models_loaded         (auto-skipped in search-only mode)
     T2.4 - test_evam_pipeline_status
-    T2.5 - test_metrics_status
-    T2.6 - test_swagger_docs_accessible
+    T2.5 - test_swagger_docs_accessible
 """
 
 import pytest
@@ -171,27 +170,7 @@ class TestFeatures:
         assert body is not None, "Expected JSON response from /manager/pipeline/evam, got None"
 
     # ──────────────────────────────────────────────────────────────────────────
-    # T2.5 — Telemetry / metrics status endpoint responds
-    # ──────────────────────────────────────────────────────────────────────────
-
-    def test_metrics_status(self, base_url, vss_health):
-        if not vss_health:
-            pytest.fail("VSS stack did not become healthy within the timeout period.")
-
-        response = requests.get(f"{base_url}/manager/metrics/status", timeout=10)
-
-        assert response.status_code == 200, (
-            f"Expected 200 from /manager/metrics/status, got {response.status_code}. "
-            f"Response: {response.text}"
-        )
-
-        body = response.json()
-        assert body is not None, (
-            "Expected JSON response from /manager/metrics/status, got None"
-        )
-
-    # ──────────────────────────────────────────────────────────────────────────
-    # T2.6 — Swagger UI and raw OpenAPI JSON are accessible
+    # T2.5 — Swagger UI and raw OpenAPI JSON are accessible
     # ──────────────────────────────────────────────────────────────────────────
 
     def test_swagger_docs_accessible(self, base_url, vss_health):

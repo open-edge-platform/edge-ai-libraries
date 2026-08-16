@@ -44,6 +44,8 @@ class OllamaPlugin(ModelDownloadPlugin):
             model_name.replace("/", "_") , (f"{revision}" if revision else "")
         )
         model_name = model_name + (f":{revision}" if revision else "")
+        # Register the exact dir so cancellation cleans up only this model.
+        kwargs.get("_model_download_dir", []).append(model_download_path)
         logger.info(f"Waiting for Ollama download lock: {model_name}")
         with _ollama_download_lock:
             try:
@@ -65,7 +67,23 @@ class OllamaPlugin(ModelDownloadPlugin):
                 time.sleep(1)
 
                 logger.info(f"Starting download for Ollama model: {model_name}")
-                subprocess.run(["ollama", "pull", model_name], check=True, env=env)
+                pull_process = subprocess.Popen(
+                    ["ollama", "pull", model_name],
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                # Register for cancellation support
+                active_procs = kwargs.get("_active_processes")
+                if active_procs is not None:
+                    active_procs.append(pull_process)
+                pull_process.wait()
+                rc = pull_process.returncode
+                if rc != 0:
+                    stderr_output = pull_process.stderr.read().decode() if pull_process.stderr else ""
+                    raise RuntimeError(
+                        f"ollama pull exited with code {rc}: {stderr_output}"
+                    )
                 logger.info(f"Ollama model {model_name} downloaded successfully.")
 
                 host_path = hub_dir
@@ -79,7 +97,7 @@ class OllamaPlugin(ModelDownloadPlugin):
                     "success": True
                 }
 
-            except subprocess.CalledProcessError as e:
+            except (subprocess.CalledProcessError, RuntimeError) as e:
                 logger.error(f"Failed to download Ollama model {model_name}: {str(e)}")
                 raise RuntimeError(f"Failed to download Ollama model: {str(e)}")
             finally:

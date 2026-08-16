@@ -45,7 +45,7 @@ model_proc_manager = get_public_model_proc_manager()
 # All elements matching these patterns will be shown in Simple View.
 # All other elements (including caps nodes) will be hidden and their edges reconnected.
 SIMPLE_VIEW_VISIBLE_ELEMENTS = os.environ.get(
-    "SIMPLE_VIEW_VISIBLE_ELEMENTS", "*src,urisourcebin,gva*,*sink,source"
+    "SIMPLE_VIEW_VISIBLE_ELEMENTS", "*src,urisourcebin,gva*,*sink,source,tsam-udf"
 )
 
 # Configuration for Simple View: comma-separated regex patterns for invisible elements.
@@ -3613,6 +3613,15 @@ def _parse_caps_segment(segment: str) -> tuple[str, dict[str, str]] | None:
 
     # Fast path: if there is no comma at all, this cannot be caps by our rules.
     if "," not in text:
+        return None
+
+    # Fast path: GStreamer caps strings never contain quoted values (double or
+    # single quotes).  A segment like
+    #   gvatrack ... deepsort-trck-cfg="a=1,b=2"
+    # contains commas *inside* a quoted property value.  Treating it as caps
+    # would produce a garbage node type.  Bail out early so the segment is
+    # handled by the regular element tokenizer instead.
+    if '"' in text or "'" in text:
         return None
 
     parts = [p.strip() for p in text.split(",")]

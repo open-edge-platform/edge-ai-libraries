@@ -10,12 +10,16 @@ The Model Download is a microservice that downloads models from multiple hubs as
 - Lists available models from supported hubs before download
 - Converts Hugging Face models to OpenVINO model server format
 - Supports multiple model precisions (INT4, INT8, FP16, and FP32)
-- Supports various device targets (CPU, GPU, and NPU)
+- Supports various device targets (CPU, GPU, and NPU), including heterogeneous execution via `HETERO:<dev>[,<dev>...]` (e.g. `HETERO:GPU,CPU`)
 - OpenVINO plugin supports NPU model conversion exclusively in INT4 precision.
 - Models supported for health AI suites(AI-ECG, rPPG and 3D Pose) with HLS plugin.
 - Supports parallel download
 - Supports configurable model caching
+- Optionally schedules configured model downloads when the service starts
 - Supports custom model upload through `POST /models/upload`
+- Supports per-request credential overrides via `override_credentials`
+- Supports pre-download credential validation via `validate_credentials`
+- Supports job cancellation for queued, downloading, or converting jobs
 - Exposes a REST API with OpenAPI documentation
 
 ## Prerequisites
@@ -26,22 +30,17 @@ The Model Download is a microservice that downloads models from multiple hubs as
 
 ## Start with Setup Script
 
-### 1. Clone the repository
+### 1. Clone the Microservice
+Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace main with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/dev/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
 
 ```bash
-# Clone the latest on the mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+git clone --filter=blob:none --sparse --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/
+git sparse-checkout set microservices/model-download/
+cd microservices/model-download/
 ```
 
-### 2. Navigate to the directory
-
-```bash
-cd edge-ai-libraries/microservices/model-download
-```
-
-### 3. Configure the environment variables
+### 2. Configure the environment variables
 
 ```bash
 export REGISTRY="intel/"
@@ -67,7 +66,7 @@ To customize the `remote-url` hub allowlist (optional), set:
 export EXTERNAL_SOURCES_URL_ALLOWLIST=<comma-separated host/path prefixes> # optional; when unset, the default allowlist in src/plugins/external_sources/sources.yaml is used
 ```
 
-### 4. Launch the service and enable the plugins
+### 3. Launch the service and enable the plugins
 
 ```bash
 source scripts/run_service.sh up --plugins all --model-path <host path>
@@ -113,10 +112,17 @@ down                   Stop the services
    - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path tmp/models`
    - Display usage information: `source scripts/run_service.sh --help`
 
-### 5. Access the service
+### 4. Access the service
 
 - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the
   Swagger documentation for the available APIs.
+
+## Download Models at Startup
+
+The service can schedule model downloads and conversions automatically from a configuration file
+
+See [Download Models at Startup](./get-started/startup-models.md) for the full configuration
+schema.
 
 ## Verification
 
@@ -487,10 +493,153 @@ curl -X GET "http://<host-ip>:8200/api/v1/jobs/<job_id>"
 }
 ```
 
+**Download with Override Credentials:**
+
+When using `override_credentials`, the service relies on Base64 encoding to
+obfuscate credential values in the request body and on log redaction to prevent
+credentials from appearing in service logs. Credentials are request-scoped
+(in-memory only) and never persisted. For deployments where the API is exposed
+beyond the local device or Docker network, place the service behind a
+TLS-terminating reverse proxy to encrypt credentials in transit.
+
+The `override_credentials` field lets you pass per-request credentials without
+changing environment variables. All values must be Base64-encoded, regardless of
+whether the key is marked as sensitive. The `sensitive` flag only controls
+whether the value is redacted in service logs — Base64 encoding is required for
+every key. Use `GET /api/v1/plugins` to discover the keys each plugin accepts.
+
+**Encode credentials:**
+
+```bash
+echo -n 'my-secret-token' | base64
+# Output: bXktc2VjcmV0LXRva2Vu
+```
+
+**Download a gated Hugging Face model with per-request token override (`HF_TOKEN`):**
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=hf_gated" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "meta-llama/Llama-3.1-8B-Instruct",
+        "hub": "huggingface",
+        "type": "llm",
+        "override_credentials": {
+          "HF_TOKEN": "<base64_HF_token>"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+**Download a Geti™ model with per-request credentials override (`GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID`):**
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_override" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "yolox-tiny",
+        "hub": "geti",
+        "revision": "1",
+        "override_credentials": {
+          "GETI_HOST": "<base64_GETI_HOST>",
+          "GETI_TOKEN": "<base64_GETI_TOKEN>",
+          "GETI_WORKSPACE_ID": "<base64_GETI_WORKSPACE_ID>"
+        },
+        "config": {
+          "precision": "fp16"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+> **Note:** When overriding a grouped set of keys (for example the `geti` group), all required keys in that group must be provided together. Use `GET /api/v1/plugins` to see which keys belong to each group.
+
+**Download a remote-url model with per-request allowlist override (`EXTERNAL_SOURCES_URL_ALLOWLIST`):**
+
+```bash
+# Base64-encode the full comma-separated allowlist as a single value
+echo -n 'github.com/open-edge-platform/edge-ai-resources/raw/main,example.com/models' | base64
+# Output: Z2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1yZXNvdXJjZXMvcmF3L21haW4sZXhhbXBsZS5jb20vbW9kZWxz
+```
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=remote_override" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "wind-turbine-anomaly-detection",
+        "hub": "remote-url",
+        "override_credentials": {
+          "EXTERNAL_SOURCES_URL_ALLOWLIST": "<base64_comma_separated_prefixes>"
+        },
+        "config": {
+          "url": "https://github.com/open-edge-platform/edge-ai-resources/raw/main/timeseries-udf-deployment-packages/{name}.tar"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+> **Note:** The response format for downloads with `override_credentials` is the same as shown in the response section above for the corresponding hub plugin.
+
+**Pre-validate credentials before download:**
+
+Add `"validate_credentials": true` to any model in the request to perform a fast credential check before the download or conversion begins. If `override_credentials` is present, those values are validated; otherwise the service's environment credentials are checked. This is especially useful for `is_ovms` conversions where invalid credentials would otherwise surface only after minutes of processing.
+
+```json
+{
+  "models": [{
+    "name": "meta-llama/Llama-3.1-8B",
+    "hub": "openvino",
+    "is_ovms": true,
+    "validate_credentials": true,
+    "override_credentials": { "HF_TOKEN": "<base64-token>" }
+  }]
+}
+```
+
+If the credentials are invalid, the request returns `400` immediately without starting the job.
+
+
+**Cancel a running or queued job:**
+
+Use `POST /api/v1/jobs/<job_id>/cancel` to cancel a job that is still in a cancellable state (`queued`, `downloading`, or `converting`). If the job is already in a terminal state (`completed`, `failed`, or `canceled`), the endpoint returns `409`.
+
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/jobs/<job_id>/cancel"
+```
+
+**Sample Response (when the job is cancelled):**
+
+```json
+{
+  "message": "Job 5f0d4eba-c79c-4d02-97a6-43c3d0168ca0 has been cancelled",
+  "job_id": "5f0d4eba-c79c-4d02-97a6-43c3d0168ca0",
+  "status": "canceled"
+}
+```
+
+> **Note:** For hubs that do not support immediate interruption (`huggingface`, `geti`, `openvino`), the response includes an additional `warning` field. The transfer may continue briefly in the background; partial files are cleaned up automatically.
+
 **Upload a custom model ZIP:**
 
 Use this endpoint when user (or another client app) needs to upload a local model directly to model-download.
 The ZIP must contain at least one `.xml` and one `.bin` file.
+
+**Naming rules:**
+
+- `model_name` allows letters, numbers, periods, underscores, hyphens, and spaces. Spaces are converted to underscores. Names must not start or end with a period or contain consecutive periods (`..`).
+- `provider`, `framework`, and `precision` allow only letters, numbers, underscores, and hyphens, and must start with a letter or digit.
 
 ```bash
 curl -X POST "http://<host-ip>:8200/api/v1/models/upload" \
@@ -577,6 +726,34 @@ To validate changes locally before deploying:
 Use `pytest tests/ --cov=src --cov-report=term` if you also need coverage metrics. See
 [docs/user-guide/running-tests.md](./running-tests.md) for advanced filtering options and troubleshooting tips.
 
+## Model Storage Path Layout
+
+When a download completes, the `result.download_path` field in the job response contains the absolute host-mapped path to the model directory. The path is deterministic — downloading the same model with the same parameters always produces the same path.
+
+All hubs follow a common base pattern:
+
+```text
+<download_path>/<hub>/<model_name>/[<hub_specific_folder>/]
+```
+
+Where `<download_path>` is the `download_path` query parameter passed to `POST /api/v1/models/download`, resolved relative to the configured model storage root.
+
+Hubs that support multiple precisions append a `<precision>/` subdirectory. Hubs that do not support precision store files directly under `<model_name>/`:
+
+| Hub | Path layout | Example |
+|-----|------------|---------|
+| `huggingface` | `<download_path>/<hub>/<model_name>` | `models/huggingface/microsoft_Phi-3.5-mini-instruct` |
+| `ollama` | `<download_path>/<hub>/<model_name>` | `models/ollama/tinyllama` |
+| `ultralytics` | `<download_path>/<hub>/<model_name>/<precision>/` | `models/ultralytics/yolov8s/FP16/` |
+| `openvino` | `<download_path>/<hub>/<model_name>/<precision>/` | `models/openvino/BAAI-bge-reranker-base/fp32/` |
+| `geti` | `<download_path>/<hub>/<model_name>/<precision>/` | `models/geti/yolox-tiny/FP32/` |
+| `pipeline-zoo-models` | `<download_path>/<hub>/<model_name>/` | `models/pipeline-zoo-models/dbnet/` |
+| `omz` | `<download_path>/<hub>/<model_name>/` | `models/omz/mobilenet-v2-pytorch/` |
+| `remote-url` | `<download_path>/<hub>/<model_name>/` | `models/remote-url/wind-turbine-anomaly-detection/` |
+| `hls` | `<download_path>/<hub>/<model_name>/` | `models/hls/human-pose-estimation-3d-0001/` |
+
+> **Note:** For model names containing `/` (for example, `microsoft/Phi-3.5-mini-instruct`), the slash is replaced with `_` in the directory name.
+
 ## Best Practices
 
 1. Use parallel downloads with caution because they can consume significant resources.
@@ -593,6 +770,7 @@ See [Deploy with Helm Chart](./get-started/deploy-with-helm-chart.md) for detail
 
 For alternative ways to set up the sample application, see:
 
+- [Download Models at Startup](./get-started/startup-models.md)
 - [Quick start](./get-started/quickstart.md)
 - [How to Build from Source](./get-started/build-from-source.md)
 
@@ -602,6 +780,7 @@ For alternative ways to set up the sample application, see:
 
 Migrate from Model Registry <./get-started/migration.md>
 ./get-started/system-requirements
+Startup<./get-started/startup-models.md>
 Ephemeral Container <./get-started/quickstart.md>
 ./get-started/build-from-source
 ./get-started/deploy-with-helm-chart

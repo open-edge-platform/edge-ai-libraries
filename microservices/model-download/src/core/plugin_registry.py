@@ -115,12 +115,14 @@ class PluginRegistry:
         'external-sources'), so this is a direct membership check.
         """
         hub_lower = hub.lower()
-        if hub_lower not in set(self.supported_hubs()):
+
+        # No activation filter — all loaded plugins are available.
+        if not self.activated_plugins or "all" in self.activated_plugins:
+            if hub_lower in set(self.supported_hubs()):
+                return True, ""
             return False, f"No plugin registered for hub '{hub}'"
 
-        if not self.activated_plugins or "all" in self.activated_plugins:
-            return True, ""
-
+        # Activation filter set — only explicitly activated hubs are available.
         if hub_lower in self.activated_plugins:
             return True, ""
 

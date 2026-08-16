@@ -3,15 +3,18 @@
 
 """Router orchestrator for managing providers and routing requests."""
 
+import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import AsyncIterator, List, Optional, Tuple
 
 from src.config import RouterConfig, ProviderConfig
 from src.models import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk
-from src.providers import create_provider, ProviderAdapter
+from src.providers import create_provider, ProviderAdapter, PassthroughProvider
 from src.plugins import create_plugin_manager
 from src.rsd.decision import DecisionEngine
+from src.rsd.rule import IntelligentRule
 from src.exceptions import ConfigurationError, RoutingError
 
 
@@ -31,6 +34,17 @@ class RouteInfo:
     # ``True`` when ``request.model`` named a configured provider directly,
     # ``False`` when DecisionEngine picked the provider.
     is_direct: bool
+    # The finalized processed request payload, i.e. after prerouting/
+    # postrouting plugins ran and just before invoking the provider.
+    # Surfaced so the API layer can log it alongside the raw one.
+    # ``None`` until routing completes.
+    processed_request: "Optional[ChatCompletionRequest]" = None
+    # Wall-clock (time.time()) captured after prerouting/routing, at the moment
+    # the upstream provider request begins — i.e. excludes the prerouting
+    # compressor/predictor. Lets the API layer report a vLLM-only TTFT
+    # (first_token - forward_time) instead of an end-to-end one. Set on the
+    # first iteration of the streaming path; ``None`` on the non-streaming path.
+    forward_time: "Optional[float]" = None
 
 
 class RouterOrchestrator:
@@ -59,47 +73,81 @@ class RouterOrchestrator:
         # When two providers share a model, the earlier-configured one wins.
         # Routing checks model name first, then provider name (see _select_provider).
         self.model_to_provider = {}  # model_name -> provider
+        # Pass-through providers (ocr/embeddings/...) keyed by service. Kept
+        # separate from the chat maps so they are never routing candidates.
+        # First-match wins when two providers claim the same service.
+        self.passthrough_map: dict[str, PassthroughProvider] = {}
         self.plugin_manager = create_plugin_manager(self.config.plugins)
 
     async def initialize(self) -> None:
         """
         Initialize all configured providers.
 
-        Raises:
-            ConfigurationError: If no providers are configured
+        An empty or all-disabled provider set is not fatal: the router starts
+        with no routing candidates and logs a warning. Chat requests then fail
+        per-request with a :class:`RoutingError` until a provider is enabled
+        (e.g. via the providers API or the ``provider_management`` plugin), which
+        rebuilds the runtime.
         """
-        if not self.config.providers:
-            raise ConfigurationError("No providers configured")
-
         for provider_config in self.config.providers:
             try:
                 provider = create_provider(provider_config)
-                if provider:
-                    self.providers.append(provider)
-                    self.provider_map[provider.name] = provider
-                    # First-match wins: skip if another provider already claimed this model.
-                    if provider_config.model not in self.model_to_provider:
-                        self.model_to_provider[provider_config.model] = provider
+                if provider is None:
+                    logger.info(f"Provider disabled: {provider_config.name}")
+                    continue
+
+                if isinstance(provider, PassthroughProvider):
+                    # Pass-through backend — exposed by service, not routed for chat.
+                    # First-match wins when two providers claim the same service.
+                    if provider.service not in self.passthrough_map:
+                        self.passthrough_map[provider.service] = provider
                     else:
                         logger.info(
-                            f"Model {provider_config.model!r} already mapped to "
-                            f"provider {self.model_to_provider[provider_config.model].name!r}; "
-                            f"{provider.name!r} reachable only by provider name."
+                            f"Service {provider.service!r} already handled by "
+                            f"{self.passthrough_map[provider.service].name!r}; "
+                            f"ignoring {provider.name!r}."
                         )
                     logger.info(
-                        f"Loaded provider: {provider.name} "
-                        f"(type={provider_config.type}, model={provider_config.model})"
+                        f"Loaded pass-through provider: {provider.name} "
+                        f"(service={provider.service}, endpoint={provider.endpoint})"
                     )
+                    continue
+
+                self.providers.append(provider)
+                self.provider_map[provider.name] = provider
+                # First-match wins: skip if another provider already claimed this model.
+                if provider_config.model not in self.model_to_provider:
+                    self.model_to_provider[provider_config.model] = provider
                 else:
-                    logger.info(f"Provider disabled: {provider_config.name}")
+                    logger.info(
+                        f"Model {provider_config.model!r} already mapped to "
+                        f"provider {self.model_to_provider[provider_config.model].name!r}; "
+                        f"{provider.name!r} reachable only by provider name."
+                    )
+                logger.info(
+                    f"Loaded provider: {provider.name} "
+                    f"(type={provider_config.type}, model={provider_config.model})"
+                )
             except Exception as e:
                 logger.error(f"Failed to load provider {provider_config.name}: {e}")
                 raise
 
-        if not self.providers:
-            raise ConfigurationError("No enabled providers found after initialization")
+        if not self.providers and not self.passthrough_map:
+            if not self.config.providers:
+                logger.warning(
+                    "No providers configured; router has no routing candidates. "
+                    "Chat requests will fail until a provider is added and enabled."
+                )
+            else:
+                logger.warning(
+                    "All configured providers are disabled; router has no routing "
+                    "candidates. Chat requests will fail until a provider is enabled."
+                )
 
-        logger.info(f"Initialized {len(self.providers)} provider(s)")
+        logger.info(
+            f"Initialized {len(self.providers)} chat provider(s), "
+            f"{len(self.passthrough_map)} pass-through service(s)"
+        )
         logger.info(
             "Initialized plugins: total=%d, prerouting=%d, postrouting=%d, postresponse=%d",
             len(self.plugin_manager.plugins),
@@ -107,6 +155,17 @@ class RouterOrchestrator:
             len(self.plugin_manager.postrouting_plugins),
             len(self.plugin_manager.postresponse_plugins),
         )
+
+        # Warm up the intelligent-router OV classifier once
+        try:
+            await asyncio.to_thread(IntelligentRule.preload)
+            logger.info("Preloaded IntelligentRule OV classifier")
+        except Exception as e:  # noqa: BLE001 - preload is best-effort
+            logger.warning("Skipped IntelligentRule preload: %s", e)
+
+    def passthrough_for(self, service: str) -> Optional[PassthroughProvider]:
+        """Return the enabled pass-through provider for ``service``, or None."""
+        return self.passthrough_map.get(service)
 
     async def _select_provider(
         self, request: ChatCompletionRequest
@@ -151,6 +210,7 @@ class RouterOrchestrator:
                 provider_name=provider.name,
                 reason="direct_model_selection",
                 is_direct=True,
+                processed_request=request,
             ), request
 
         # Routed path: DecisionEngine picks the provider.
@@ -162,6 +222,7 @@ class RouterOrchestrator:
             provider_name=route_decision.provider.name,
             reason=route_decision.reason,
             is_direct=False,
+            processed_request=request,
         ), request
 
     async def chat(
@@ -196,6 +257,13 @@ class RouterOrchestrator:
         provider, route_info, request = await self._select_provider(request)
 
         async def _iter():
+            # Mark forward time at the last instant before the upstream vLLM
+            # request is issued. _select_provider already ran ALL request-side
+            # processing (prerouting + routing + postrouting), and the API
+            # layer's post-routing work (token breakdown, logging) runs before
+            # this first __anext__ — so this excludes every bit of pre-forward
+            # processing, giving a vLLM-only TTFT (first_token - forward_time).
+            route_info.forward_time = time.time()
             async for chunk in provider.chat_stream(request):
                 yield chunk
             if self.telemetry:
@@ -233,7 +301,7 @@ class RouterOrchestrator:
             Dict with health status for each provider
         """
         health_status = {}
-        for provider in self.providers:
+        for provider in [*self.providers, *self.passthrough_map.values()]:
             try:
                 is_healthy = await provider.health_check()
                 health_status[provider.name] = {"healthy": is_healthy}

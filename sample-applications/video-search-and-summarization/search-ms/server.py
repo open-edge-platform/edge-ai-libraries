@@ -9,10 +9,10 @@ from typing import Optional, List, Tuple, Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_vdms.vectorstores import VDMS
 
 from src.utils.common import logger, settings
-from src.utils.time_filters import build_vdms_time_filter
+from src.utils.retriever_delegate import retrieve_frames_via_service
+from src.utils.time_filters import parse_time_range
 from src.utils.directory_watcher import (
     get_initial_upload_status,
     get_last_updated,
@@ -58,13 +58,6 @@ class QueryRequest(BaseModel):
     )
 
 
-def _build_explicit_time_filter(time_filter: Optional[TimeRange], property_name: str = "created_at") -> Optional[dict]:
-    """Convert explicit start/end into VDMS constraint dict."""
-    if not time_filter or not time_filter.start or not time_filter.end:
-        return None
-    return {property_name: [">=", time_filter.start, "<=", time_filter.end]}
-
-
 def _normalize_tags(tags: Optional[list[str] | str]) -> list[str]:
     """Normalize tags from list/string input and trim whitespace."""
     if not tags:
@@ -74,13 +67,22 @@ def _normalize_tags(tags: Optional[list[str] | str]) -> list[str]:
     return [tag.strip() for tag in raw_tags if isinstance(tag, str) and tag.strip()]
 
 
-def build_combined_vdms_filter(query_request: QueryRequest) -> Optional[dict]:
-    """Return the effective VDMS time filter from explicit or parsed query constraints."""
-    explicit_time_filter = _build_explicit_time_filter(query_request.time_filter)
-    parsed_time_filter = build_vdms_time_filter(query_request.query) if not explicit_time_filter else None
-    effective_time_filter = explicit_time_filter or parsed_time_filter
+def resolve_time_range(query_request: "QueryRequest") -> Optional[Tuple[str, str]]:
+    """Resolve an (start, end) ISO time range for the query, backend-agnostic.
 
-    return effective_time_filter
+    Uses the explicit ``time_filter`` when provided, otherwise falls back to
+    natural-language time parsing of the query text. The range is pushed down to
+    the vector-retriever microservice, which applies it against the stored
+    ``created_at`` metadata.
+    """
+    explicit = query_request.time_filter
+    if explicit and explicit.start and explicit.end:
+        return explicit.start, explicit.end
+
+    start, end = parse_time_range(query_request.query)
+    if start and end:
+        return start.isoformat(), end.isoformat()
+    return None
 
 
 def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
@@ -148,10 +150,7 @@ def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
 @app.post("/query")
 async def query_endpoint(request: list[QueryRequest]):
     try:
-        from src.vdms_retriever.retriever import (
-            get_vectordb,
-            aggregate_frame_results_to_videos,
-        )
+        from src.vdms_retriever.retriever import aggregate_frame_results_to_videos
 
         api_start = time.perf_counter()
         logger.info(f"=== SEARCH API CALLED ===")
@@ -159,14 +158,21 @@ async def query_endpoint(request: list[QueryRequest]):
             f"Received request: {json.dumps([req.dict() for req in request], indent=2)}"
         )
 
-        db: VDMS = get_vectordb()
-        if not db:
+        # All vector similarity search is delegated to the vector-retriever
+        # microservice (vector-DB agnostic: VDMS, Milvus, ...). This service owns
+        # only query orchestration and frame-to-video aggregation.
+        if not settings.RETRIEVER_ENDPOINT:
             logger.error(
-                "VectorDB could not be initialized. Please verify the connection."
+                "RETRIEVER_ENDPOINT is not configured; the vector-retriever "
+                "microservice is required for search."
             )
             raise HTTPException(
-                status_code=500, detail="Some error ocurred at the DataPrep Service."
+                status_code=500,
+                detail="Search backend is not configured (RETRIEVER_ENDPOINT missing).",
             )
+        logger.info(
+            f"Delegating similarity search to vector-retriever at {settings.RETRIEVER_ENDPOINT}"
+        )
 
         async def process_query(query_request):
             """Process a single query request with frame-to-video aggregation."""
@@ -179,10 +185,10 @@ async def query_endpoint(request: list[QueryRequest]):
             )
             logger.debug(f"Query tags: {query_tags}")
 
-            # Build time-based VDMS filter with fallback to NLP time parsing
-            vdms_filter = build_combined_vdms_filter(query_request)
-            if vdms_filter:
-                logger.info(f"Applying time filter to VDMS query: {vdms_filter}")
+            # Resolve an explicit/NLP-derived time range to push to the retriever.
+            time_range = resolve_time_range(query_request)
+            if time_range:
+                logger.info(f"Applying time filter to search: {time_range}")
             else:
                 logger.debug("No explicit or derived time filter applied")
             if query_tags_set:
@@ -194,35 +200,26 @@ async def query_endpoint(request: list[QueryRequest]):
             )  # Get more frame results before aggregation
             logger.debug(f"Searching with initial_k={initial_k}")
 
-            vdms_start = time.perf_counter()
-            vdms_attempt = 1
+            retrieval_start = time.perf_counter()
             try:
-                docs_with_score: List[Tuple[Any, float]] = db.similarity_search_with_score(
-                    query_request.query,
-                    k=initial_k,
-                    fetch_k=initial_k + 1,  # ensure fetch_k > k for langchain_vdms
-                    filter=vdms_filter,
-                    # normalize_distance=True
+                docs_with_score: List[Tuple[Any, float]] = (
+                    await retrieve_frames_via_service(
+                        query_request,
+                        initial_k=initial_k,
+                        time_range=time_range,
+                    )
                 )
-            except Exception as first_error:
-                first_attempt_duration_ms = (time.perf_counter() - vdms_start) * 1000
-                logger.warning(
-                    "VDMS similarity search failed on first attempt after %.2f ms; refreshing client and retrying once. Error: %s",
-                    first_attempt_duration_ms,
-                    first_error,
+            except Exception as retriever_error:
+                logger.error(
+                    f"vector-retriever delegation failed for query {query_request.query_id}: {retriever_error}"
                 )
-                refreshed_db: VDMS = get_vectordb()
-                vdms_attempt = 2
-                vdms_start = time.perf_counter()
-                docs_with_score = refreshed_db.similarity_search_with_score(
-                    query_request.query,
-                    k=initial_k,
-                    fetch_k=initial_k + 1,
-                    filter=vdms_filter,
+                raise HTTPException(
+                    status_code=502,
+                    detail="Failed to retrieve results from the vector-retriever service.",
                 )
-            vdms_duration_ms = (time.perf_counter() - vdms_start) * 1000
+            retrieval_duration_ms = (time.perf_counter() - retrieval_start) * 1000
             logger.info(
-                f"VDMS similarity search (attempt {vdms_attempt}, embedding + retrieval) completed in {vdms_duration_ms:.2f} ms with {len(docs_with_score)} results"
+                f"vector-retriever search (embedding + retrieval) completed in {retrieval_duration_ms:.2f} ms with {len(docs_with_score)} results"
             )
 
             logger.info(f"Raw search returned {len(docs_with_score)} results")
@@ -397,6 +394,9 @@ async def query_endpoint(request: list[QueryRequest]):
         )
 
         return final_response
+
+    except HTTPException:
+        raise
 
     except KeyError as e:
         if str(e) == "'entities'":

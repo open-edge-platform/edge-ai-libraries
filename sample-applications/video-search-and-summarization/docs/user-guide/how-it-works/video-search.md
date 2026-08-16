@@ -11,9 +11,11 @@ The following are the Video Search pipeline's components:
 
 - **Video Search UI**: You can use the reference UI to interact with and raise queries to the Video Search sample application. You can mark a query to run in the background for the current video corpus or all incoming videos.
 
-- **Visual Data Prep. microservice**: The sample Visual Data Prep. microservice allows ingestion of video from the object store. The ingestion process creates embeddings of the videos and stores them in the preferred vector database. The modular architecture allows you to customize the vector database. The sample application uses the [Visual Data Management System (VDMS)](https://github.com/IntelLabs/vdms) database. The raw videos are stored in the MinIO object store, which is also customizable.
+- **Visual Data Prep. microservice**: The sample Visual Data Prep. microservice allows ingestion of video from the object store. The ingestion process creates embeddings of the videos and stores them in the preferred vector database. The modular architecture allows you to customize the vector database; the sample application supports both [Visual Data Management System (VDMS)](https://github.com/IntelLabs/vdms) and Milvus. The raw videos are stored in the MinIO object store, which is also customizable.
 
-- **Video Search backend microservice**: The Video Search backend microservice embeds user queries and generates responses based on the search result. The vector database is queried for a best match in the embedding space.
+- **Video Search backend microservice**: The Video Search backend microservice orchestrates a query. It delegates the vector similarity search to the Vector Retriever microservice and then aggregates the returned frame matches into ranked video segments for the response.
+
+- **Vector Retriever microservice**: The Vector Retriever microservice owns all vector similarity search for the search path. It embeds the user query, retrieves the best-matching frames from the active vector database, and returns them to the Video Search backend. It is vector-database agnostic — the same interface serves both the VDMS and Milvus backends (one backend-flavored image per database), so the Video Search backend holds no vector-database client of its own.
 
 - **Embedding inference microservice**: The OpenVINO™ toolkit-based microservice runs embedding models on the target Intel® hardware.
 
@@ -63,9 +65,9 @@ The Visual Data Prep. microservice ingests common video formats, converts them i
    - **Input a query**: The UI microservice provides a prompt window for user queries that can be saved. You can enable up to eight queries to run in the background continuously on any new video being ingested. This is a critical capability for agentic reasoning.
 
    - **Execute the Video Search pipeline**: The Video Search backend microservice does the following to generate the output response:
-      - Converts the query into an embedding space using the Embeddings microservice.
+      - Delegates the query to the Vector Retriever microservice, which converts the query into an embedding space using the Embeddings microservice.
 
-      - Does a semantic retrieval to fetch the relevant videos from the vector database. Currently, the top-k (with k being configurable) video is used. Does not use a reranker microservice currently.
+      - The Vector Retriever does a semantic retrieval to fetch the relevant frames from the vector database (top-k, with k being configurable) and returns them to the Video Search backend, which aggregates them into ranked video segments. Does not use a reranker microservice currently.
 
 4. **Generate the Output**:
    - **Response**: The application sends the search results, including the retrieved video from object store, to the UI.
@@ -96,11 +98,16 @@ The key components of the Video Search mode are as follows:
    - **Benefits**: The core part of the video ingestion functionality is the vector handling capability that is optimized for the target deployment hardware. You can select the vector database based on performance considerations. You can treat this microservice as a reference implementation.
 
 3. **Video Search backend microservice**:
-   - **What it is**: Video Search backend microservice is a LangChain framework-based implementation of Video Search's Retrieval-Augmented Generation (RAG) pipeline, which handles user queries.
+   - **What it is**: Video Search backend microservice orchestrates Video Search's Retrieval-Augmented Generation (RAG) pipeline, which handles user queries. It delegates vector similarity search to the Vector Retriever microservice and aggregates the returned frame matches into ranked video segments.
    - **How it is used**: The UI frontend uses a REST API endpoint to send user queries and trigger the Video Search pipeline.
-   - **Benefits**: This microservice provides a reference on using the LangChain framework through Intel's Edge AI inference microservices.
+   - **Benefits**: This microservice provides a reference query-orchestration and aggregation layer that stays vector-database agnostic by delegating retrieval.
 
-4. **Video Search UI**:
+4. **Vector Retriever microservice**:
+   - **What it is**: A standalone, vector-database-agnostic retrieval microservice that embeds the query and performs the vector similarity search against the active vector database (VDMS or Milvus).
+   - **How it is used**: The Video Search backend calls its REST `/query` endpoint for every search; the retriever is part of the search stack for every backend. The backend flavor is selected at build time (one image per database), so switching databases needs no change to the Video Search backend.
+   - **Benefits**: Centralizes all vector-database coupling in one reusable microservice, making it easy to add new vector databases without touching the search backend.
+
+5. **Video Search UI**:
    - **What it is**: A reference frontend interface for you to interact with the Video Search pipeline.
    - **How it is used**: The UI microservice runs on the deployed platform on a certain configured port. You can access the specific URL to use the UI.
    - **Benefits**: You can treat this microservice as a reference implementation.

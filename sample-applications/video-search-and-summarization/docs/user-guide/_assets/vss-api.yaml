@@ -1,19 +1,5 @@
 openapi: 3.0.0
 paths:
-  /health:
-    get:
-      operationId: HealthController_check
-      parameters: []
-      responses:
-        '200':
-          description: Health check status
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HealthCheckRO'
-      summary: Check service health status
-      tags:
-        - Health
   /app/config:
     get:
       operationId: AppController_getSystemConfig
@@ -58,20 +44,6 @@ paths:
       summary: Get EVAM pipeline status
       tags:
         - Pipeline
-  /metrics/status:
-    get:
-      operationId: TelemetryController_status
-      parameters: []
-      responses:
-        '200':
-          description: Telemetry collector status
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TelemetryStatusRO'
-      summary: Get telemetry collector connection status
-      tags:
-        - Metrics
   /audio/models:
     get:
       operationId: AudioController_getAudioModels
@@ -86,38 +58,132 @@ paths:
       summary: Get available audio models
       tags:
         - Audio
-  /tags:
+  /search:
     get:
-      operationId: TagsController_getTags
+      operationId: SearchController_getQueries
       parameters: []
       responses:
         '200':
-          description: Returns a list of all tags
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: string
-      summary: Get all tags
+          description: Returns a list of all search queries
+      summary: Get all search queries
       tags:
-        - Tags
-  /tags/{tagId}:
-    delete:
-      operationId: TagsController_removeTag
-      parameters:
-        - name: tagId
-          required: true
-          in: path
-          description: ID of the tag to remove
-          schema:
-            type: number
+        - Search
+    post:
+      operationId: SearchController_addQuery
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchQueryDTO'
+      responses:
+        '201':
+          description: Search query created
+      summary: Add a new search query
+      tags:
+        - Search
+  /search/watched:
+    get:
+      operationId: SearchController_getWatchedQueries
+      parameters: []
       responses:
         '200':
-          description: Tag removed successfully
-      summary: Remove a tag by ID
+          description: Returns a list of watched queries
+      summary: Get all watched search queries
       tags:
-        - Tags
+        - Search
+  /search/{queryId}:
+    get:
+      operationId: SearchController_getQuery
+      parameters:
+        - name: queryId
+          required: true
+          in: path
+          description: ID of the search query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search query details
+      summary: Get a search query by ID
+      tags:
+        - Search
+    delete:
+      operationId: SearchController_deleteQuery
+      parameters:
+        - name: queryId
+          required: true
+          in: path
+          description: ID of the search query to delete
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search query deleted
+      summary: Delete a search query
+      tags:
+        - Search
+  /search/{queryId}/refetch:
+    post:
+      operationId: SearchController_refetchQuery
+      parameters:
+        - name: queryId
+          required: true
+          in: path
+          description: ID of the search query to refetch
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefetchBodyDTO'
+      responses:
+        '200':
+          description: Search query refetched
+      summary: Refetch search results for a query
+      tags:
+        - Search
+  /search/query:
+    post:
+      operationId: SearchController_searchQuery
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchQueryDTO'
+      responses:
+        '201':
+          description: Search results
+      summary: Execute a one-off search query
+      tags:
+        - Search
+  /search/{queryId}/watch:
+    patch:
+      operationId: SearchController_watchQuery
+      parameters:
+        - name: queryId
+          required: true
+          in: path
+          description: ID of the search query
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchBodyDTO'
+      responses:
+        '200':
+          description: Watch status updated
+      summary: Toggle watch status for a search query
+      tags:
+        - Search
   /videos:
     post:
       operationId: VideoController_videoUpload
@@ -169,104 +235,6 @@ paths:
           description: ID of the video to create search embeddings for
           schema:
             type: string
-      responses:
-        '201':
-          description: Search embeddings creation started
-      summary: Create search embeddings for a video
-      tags:
-        - Video
-  /search:
-    get:
-      operationId: SearchController_getQueries
-      parameters: []
-      responses:
-        '200':
-          description: Returns a list of all search queries
-      summary: Get all search queries
-      tags:
-        - Search
-    post:
-      operationId: SearchController_addQuery
-      parameters: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SearchQueryDTO'
-      responses:
-        '201':
-          description: Search query created
-      summary: Add a new search query
-      tags:
-        - Search
-  /search/watched:
-    get:
-      operationId: SearchController_getWatchedQueries
-      parameters: []
-      responses:
-        '200':
-          description: Returns a list of watched queries
-      summary: Get all watched search queries
-      tags:
-        - Search
-  /search/query:
-    post:
-      operationId: SearchController_searchQuery
-      parameters: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SearchQueryDTO'
-      responses:
-        '201':
-          description: Search results
-      summary: Execute a one-off search query
-      tags:
-        - Search
-  /search/{queryId}:
-    get:
-      operationId: SearchController_getQuery
-      parameters:
-        - name: queryId
-          required: true
-          in: path
-          description: ID of the search query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Search query details
-      summary: Get a search query by ID
-      tags:
-        - Search
-    delete:
-      operationId: SearchController_deleteQuery
-      parameters:
-        - name: queryId
-          required: true
-          in: path
-          description: ID of the search query to delete
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Search query deleted
-      summary: Delete a search query
-      tags:
-        - Search
-  /search/{queryId}/refetch:
-    post:
-      operationId: SearchController_refetchQuery
-      parameters:
-        - name: queryId
-          required: true
-          in: path
-          description: ID of the search query to refetch
-          schema:
-            type: string
       requestBody:
         required: false
         content:
@@ -274,42 +242,96 @@ paths:
             schema:
               type: object
               properties:
-                timeFilter:
-                  $ref: '#/components/schemas/TimeFilterSelection'
+                tags:
+                  type: string
+                  example: outdoor,daytime
+                  description: >-
+                    Optional comma-separated tags to merge into existing video
+                    tags before embedding
       responses:
-        '200':
-          description: Search query refetched
-      summary: Refetch search results for a query
+        '201':
+          description: Search embeddings creation started
+      summary: Create search embeddings for a video
       tags:
-        - Search
-  /search/{queryId}/watch:
-    patch:
-      operationId: SearchController_watchQuery
-      parameters:
-        - name: queryId
-          required: true
-          in: path
-          description: ID of the search query
-          schema:
-            type: string
+        - Video
+  /videos/search-embeddings-batch:
+    post:
+      operationId: VideoController_createSearchEmbeddingsBatch
+      parameters: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              properties:
-                watch:
-                  type: boolean
-                  description: Whether to watch this query
               required:
-                - watch
+                - videoIds
+              properties:
+                videoIds:
+                  type: array
+                  items:
+                    type: string
+                  description: IDs of the videos to create search embeddings for
+                tags:
+                  type: string
+                  example: outdoor,daytime
+                  description: >-
+                    Optional comma-separated tags to merge into every video
+                    before embedding
+      responses:
+        '201':
+          description: Batch embeddings job accepted
+      summary: Create search embeddings for several videos in one batch job
+      tags:
+        - Video
+  /videos/search-embeddings-jobs/{jobId}:
+    get:
+      operationId: VideoController_getSearchEmbeddingsJobStatus
+      parameters:
+        - name: jobId
+          required: true
+          in: path
+          description: ID of the batch embeddings job to poll
+          schema:
+            type: string
       responses:
         '200':
-          description: Watch status updated
-      summary: Toggle watch status for a search query
+          description: Batch embeddings job status
+      summary: Get the status of a batch embeddings job
       tags:
-        - Search
+        - Video
+  /tags:
+    get:
+      operationId: TagsController_getTags
+      parameters: []
+      responses:
+        '200':
+          description: Returns a list of all tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+      summary: Get all tags
+      tags:
+        - Tags
+  /tags/{tagId}:
+    delete:
+      operationId: TagsController_removeTag
+      parameters:
+        - name: tagId
+          required: true
+          in: path
+          description: ID of the tag to remove
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Tag removed successfully
+      summary: Remove a tag by ID
+      tags:
+        - Tags
   /summary:
     get:
       operationId: SummaryController_getSummary
@@ -335,7 +357,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SummaryPipelineRO'
+                $ref: '#/components/schemas/SummaryPipelineROSwagger'
       summary: Start a video summary pipeline
       tags:
         - Summary
@@ -357,8 +379,7 @@ paths:
           required: true
           in: path
           description: ID of the summary state
-          schema:
-            type: string
+          schema: {}
       responses:
         '200':
           description: Get UI Friendly summary state by ID
@@ -372,18 +393,10 @@ paths:
           required: true
           in: path
           description: ID of the summary state to delete
-          schema:
-            type: string
+          schema: {}
       responses:
         '200':
           description: Summary state deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
       summary: Delete a summary state
       tags:
         - Summary
@@ -395,82 +408,152 @@ paths:
           required: true
           in: path
           description: ID of the summary state to fetch raw data
-          schema:
-            type: string
+          schema: {}
       responses:
         '200':
           description: Get raw summary state data by ID
       summary: Get raw summary state by ID
       tags:
         - Summary
+  /health:
+    get:
+      operationId: HealthController_check
+      parameters: []
+      responses:
+        '200':
+          description: |-
+            Health check status
+
+            The Health Check is successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  info:
+                    type: object
+                    example:
+                      database:
+                        status: up
+                    additionalProperties:
+                      type: object
+                      required:
+                        - status
+                      properties:
+                        status:
+                          type: string
+                      additionalProperties: true
+                    nullable: true
+                  error:
+                    type: object
+                    example: {}
+                    additionalProperties:
+                      type: object
+                      required:
+                        - status
+                      properties:
+                        status:
+                          type: string
+                      additionalProperties: true
+                    nullable: true
+                  details:
+                    type: object
+                    example:
+                      database:
+                        status: up
+                    additionalProperties:
+                      type: object
+                      required:
+                        - status
+                      properties:
+                        status:
+                          type: string
+                      additionalProperties: true
+        '503':
+          description: The Health Check is not successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: error
+                  info:
+                    type: object
+                    example:
+                      database:
+                        status: up
+                    additionalProperties:
+                      type: object
+                      required:
+                        - status
+                      properties:
+                        status:
+                          type: string
+                      additionalProperties: true
+                    nullable: true
+                  error:
+                    type: object
+                    example:
+                      redis:
+                        status: down
+                        message: Could not connect
+                    additionalProperties:
+                      type: object
+                      required:
+                        - status
+                      properties:
+                        status:
+                          type: string
+                      additionalProperties: true
+                    nullable: true
+                  details:
+                    type: object
+                    example:
+                      database:
+                        status: up
+                      redis:
+                        status: down
+                        message: Could not connect
+                    additionalProperties:
+                      type: object
+                      required:
+                        - status
+                      properties:
+                        status:
+                          type: string
+                      additionalProperties: true
+      summary: Check service health status
+      tags:
+        - Health
 info:
   title: Pipeline Manager
-  description: Pipeline Manager API for Video Search and Summarization
-  version: '1.1'
+  description: Pipeline Manager API
+  version: '1.0'
   contact: {}
 tags:
-  - name: Health
-    description: Service health endpoints
-  - name: App
-    description: Application configuration endpoints
-  - name: Pipeline
-    description: Pipeline status endpoints
-  - name: Metrics
-    description: Telemetry and metrics endpoints
-  - name: Audio
-    description: Audio model endpoints
-  - name: Tags
-    description: Tag management endpoints
-  - name: Video
-    description: Video upload and management endpoints
-  - name: Search
-    description: Video search endpoints
-  - name: Summary
-    description: Video summarization endpoints
-servers: []
+  - name: pipeline
+    description: ''
+servers:
+  - url: /manager
+    description: Nginx manager prefix
 components:
   schemas:
-    HealthCheckRO:
-      type: object
-      properties:
-        status:
-          type: string
-          description: Overall health status
-          enum:
-            - ok
-            - error
-            - shutting_down
-        info:
-          type: object
-          description: Health check details
-        error:
-          type: object
-          description: Error details if any
-        details:
-          type: object
-          description: Detailed health information
     FeaturesRO:
       type: object
       properties:
         summary:
           type: string
-          description: Summary feature status
         search:
           type: string
-          description: Search feature status
           readOnly: true
       required:
         - summary
         - search
-    TelemetryStatusRO:
-      type: object
-      properties:
-        collectorConnected:
-          type: boolean
-          description: Whether the telemetry collector is connected
-        message:
-          type: string
-          description: Status message
     AudioModelSwagger:
       type: object
       properties:
@@ -501,6 +584,66 @@ components:
       required:
         - default_model
         - models
+    TimeFilterSelection:
+      type: object
+      properties:
+        value:
+          type: number
+          description: Relative time value
+          example: 7
+        unit:
+          type: string
+          enum:
+            - minutes
+            - hours
+            - days
+            - weeks
+          description: Time unit for relative filter
+        start:
+          type: string
+          description: Start date (ISO 8601)
+          example: '2025-01-01T00:00:00Z'
+        end:
+          type: string
+          description: End date (ISO 8601)
+          example: '2025-12-31T23:59:59Z'
+        source:
+          type: string
+          description: Filter source identifier
+    SearchQueryDTO:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Search query string
+          example: person walking
+        tags:
+          type: string
+          description: Comma-separated tags to filter by
+          example: outdoor,daytime
+        timeFilter:
+          description: Time range filter
+          nullable: true
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/TimeFilterSelection'
+      required:
+        - query
+    RefetchBodyDTO:
+      type: object
+      properties:
+        timeFilter:
+          description: Optional time filter override
+          allOf:
+            - $ref: '#/components/schemas/TimeFilterSelection'
+    WatchBodyDTO:
+      type: object
+      properties:
+        watch:
+          type: boolean
+          description: Whether to watch this query
+      required:
+        - watch
     VideoDTOSwagger:
       type: object
       properties:
@@ -513,52 +656,9 @@ components:
           description: Name of the video file
         tags:
           type: string
-          description: Tags separated by commas
+          description: Tags seperated by commas
       required:
         - video
-    TimeFilterSelection:
-      type: object
-      properties:
-        type:
-          type: string
-          enum:
-            - relative
-            - absolute
-          description: Type of time filter
-        relative:
-          type: object
-          properties:
-            value:
-              type: number
-            unit:
-              type: string
-              enum:
-                - minutes
-                - hours
-                - days
-                - weeks
-        absolute:
-          type: object
-          properties:
-            start:
-              type: string
-              format: date-time
-            end:
-              type: string
-              format: date-time
-    SearchQueryDTO:
-      type: object
-      properties:
-        query:
-          type: string
-          description: Search query text
-        tags:
-          type: string
-          description: Comma-separated tags to filter by
-        timeFilter:
-          $ref: '#/components/schemas/TimeFilterSelection'
-      required:
-        - query
     SummaryPipelineSamplingSwagger:
       type: object
       properties:
@@ -579,17 +679,14 @@ components:
         - samplingFrame
         - frameOverlap
         - multiFrame
-    EvamPipeline:
-      type: string
-      enum:
-        - object_detection
-        - video_ingestion
-      description: EVAM pipeline type
     SummaryPipelineEvamSwagger:
       type: object
       properties:
         evamPipeline:
-          $ref: '#/components/schemas/EvamPipeline'
+          type: string
+          enum:
+            - object_detection
+            - video_ingestion
       required:
         - evamPipeline
     SummaryPipelinePromptsSwagger:
@@ -597,7 +694,7 @@ components:
       properties:
         framePrompt:
           type: string
-          description: Prompt for frame captioning
+          description: Prompt for frame processing
         summaryMapPrompt:
           type: string
           description: Prompt for summary map processing
@@ -609,25 +706,24 @@ components:
           description: Prompt for single summary processing
         audioSummaryMapPrompt:
           type: string
-          description: Prompt for audio transcript summary map processing
+          description: Prompt for full audio transcript summarization (map stage)
         audioSummaryReducePrompt:
           type: string
-          description: Prompt for audio transcript summary reduce processing
+          description: Prompt for full audio transcript summarization (reduce stage)
         audioSummarySinglePrompt:
           type: string
-          description: Prompt for audio transcript single summary processing
+          description: >-
+            Prompt for full audio transcript summarization (single reduction
+            stage)
     SummaryPipelineAudioSwagger:
       type: object
       properties:
         audioModel:
           type: string
-          description: Audio model ID for transcription
+          description: Audio model configuration
         useFullTranscriptSummary:
           type: boolean
-          description: >-
-            When true, the full audio transcript is summarized by the LLM and
-            included in the final video summary. Overrides the server default
-            set by AUDIO_USE_FULL_TRANSCRIPT_SUMMARY.
+          description: Enable full transcript summarization for audio-dominant videos
       required:
         - audioModel
     SummaryPipelineDTOSwagger:
@@ -635,28 +731,38 @@ components:
       properties:
         videoId:
           type: string
-          description: ID of the video to summarize
+          description: ID of the video
         title:
           type: string
           description: Title for the summary
         sampling:
           description: Sampling configuration for the summary
-          $ref: '#/components/schemas/SummaryPipelineSamplingSwagger'
+          allOf:
+            - $ref: '#/components/schemas/SummaryPipelineSamplingSwagger'
         evam:
           description: EVAM pipeline configuration
-          $ref: '#/components/schemas/SummaryPipelineEvamSwagger'
+          allOf:
+            - $ref: '#/components/schemas/SummaryPipelineEvamSwagger'
         prompts:
-          description: Optional prompts override
-          $ref: '#/components/schemas/SummaryPipelinePromptsSwagger'
+          description: Prompts override
+          allOf:
+            - $ref: '#/components/schemas/SummaryPipelinePromptsSwagger'
         audio:
-          description: Optional audio model configuration
-          $ref: '#/components/schemas/SummaryPipelineAudioSwagger'
+          description: Audio model configuration
+          allOf:
+            - $ref: '#/components/schemas/SummaryPipelineAudioSwagger'
+        produceFinalSummary:
+          type: boolean
+          description: >-
+            When true, chunk-level summaries are combined into a final video
+            summary via LLM map-reduce. When false, only individual chunk
+            summaries are kept.
       required:
         - videoId
         - title
         - sampling
         - evam
-    SummaryPipelineRO:
+    SummaryPipelineROSwagger:
       type: object
       properties:
         summaryPipelineId:

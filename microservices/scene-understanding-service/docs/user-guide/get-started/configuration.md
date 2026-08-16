@@ -80,7 +80,6 @@ These are the only environment variables the service reads directly:
 | `STORE_ID`                | `store_001`          | Identifier included in all alert payloads.                                                            |
 | `SCENESCAPE_API_USER`     | _(empty)_            | Scenescape REST username for zone auto-discovery.                                                     |
 | `SCENESCAPE_API_PASSWORD` | _(empty)_            | Scenescape REST password.                                                                             |
-| `ENABLE_UI`               | `true`               | Enable the Gradio UI integration endpoints.                                                           |
 | `ALERT_SERVICE_URL`       | from `alert_service` | Overrides the downstream alert-service endpoint.                                                      |
 | `MQTT_HOST`               | `mqtt.host`          | MQTT broker host. Overrides `mqtt.host` in `scene-config.yaml`.                                       |
 | `MQTT_PORT`               | `mqtt.port`          | MQTT broker port. Overrides `mqtt.port` in `scene-config.yaml`.                                       |
@@ -111,7 +110,7 @@ docker compose up -d
 Or set them once in the deployment `.env` so both services pick up the same
 values:
 
-```dotenv
+```py
 BA_REQUEST_TOPIC=store_001/ba/requests
 BA_RESULT_TOPIC=store_001/ba/results
 ```

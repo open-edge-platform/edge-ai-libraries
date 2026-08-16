@@ -1,0 +1,34 @@
+{
+    "skill_name": "dlsps-user",
+    "evals": [
+        {
+            "id": 1,
+            "prompt": "Run object detection on a local video file using CPU and stream the results via RTSP. The DL Streamer Pipeline Server repo is already cloned. Show how to start the service and launch a pipeline on a sample video.",
+            "expected_output": "A complete walkthrough covering how to start the DL Streamer Pipeline Server container, send a REST request to launch a CPU-based detection pipeline on a video file, and view the RTSP stream output.",
+            "expectations": [
+                "Shows cd into microservices/dlstreamer-pipeline-server/docker and docker compose up.",
+                "Uses port 8080 for the REST API.",
+                "Sends a POST to /pipelines/user_defined_pipelines/pallet_defect_detection or equivalent pipeline path.",
+                "Includes source.uri with a file:// path and source.type=uri in the request body.",
+                "Sets device to CPU in the parameters.",
+                "Shows RTSP output accessible at rtsp://<host>:8554/<stream-name>.",
+                "Shows how to check pipeline status via GET /pipelines/status or /pipelines/{instance_id}/status.",
+                "Shows how to stop the pipeline via DELETE /pipelines/{instance_id}."
+            ]
+        },
+        {
+            "id": 2,
+            "prompt": "Set up GPU-accelerated inference on a video stream and publish detection metadata to an MQTT broker. The system has an Intel GPU and an MQTT broker is running at 192.168.1.50:1883. Show the full setup.",
+            "expected_output": "A GPU inference walkthrough covering how to configure GPU access, mount the GPU pipeline config, start the service with MQTT environment variables, and launch a pipeline that publishes to MQTT.",
+            "expectations": [
+                "Shows setting RENDER_GID via stat -c %g /dev/dri/render* or equivalent.",
+                "Sets MQTT_HOST and MQTT_PORT environment variables (in .env or exported).",
+                "Mounts the GPU config (configs/sample_gpu_decode_and_inference/config.json) or explains the GPU pipeline string with vah264dec and device=GPU.",
+                "Uses port 8080 for the REST API.",
+                "Sets metadata destination type to mqtt with a topic field in the request body.",
+                "Mentions adding vapostproc ! video/x-raw before appsink for RTSP/MQTT compatibility with GPU pipelines.",
+                "Does not use port 8200 or confuse this with the model-download service."
+            ]
+        }
+    ]
+}

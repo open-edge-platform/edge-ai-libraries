@@ -11,6 +11,7 @@ from internal_types import (
     InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
     InternalPipelineSource,
+    InternalPipelineType,
     InternalVariantCreate,
 )
 from managers.pipeline_manager import PipelineManager, METADATA_DIR
@@ -155,6 +156,7 @@ def create_pipeline_definition(
         name=name,
         description=description,
         source=InternalPipelineSource.USER_CREATED,
+        type=InternalPipelineType.VISION,
         tags=tags,
         variants=variants,
     )
@@ -347,6 +349,23 @@ class TestPipelineManager(unittest.TestCase):
                     self.assertTrue(variant.read_only)
                     self.assertIsInstance(variant.created_at, datetime)
                     self.assertIsInstance(variant.modified_at, datetime)
+
+    def test_get_pipeline_names_by_id_returns_lightweight_mapping(self):
+        manager = PipelineManager()
+        new_pipeline = InternalPipelineDefinition(
+            name="Name Map Test Pipeline",
+            description="Test pipeline for id-name mapping",
+            source=InternalPipelineSource.USER_CREATED,
+            type=InternalPipelineType.VISION,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+
+        added_pipeline = manager.add_pipeline(new_pipeline)
+
+        pipeline_names_by_id = manager.get_pipeline_names_by_id()
+
+        self.assertEqual(pipeline_names_by_id[added_pipeline.id], added_pipeline.name)
 
     def test_build_pipeline_command_single_pipeline_single_stream(self):
         manager = PipelineManager()

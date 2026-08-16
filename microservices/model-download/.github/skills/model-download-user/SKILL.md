@@ -9,10 +9,16 @@ description: >
   conversion job via the REST API; or ask "how do I get model X working with
   OVMS?". Also trigger on phrases like "download model", "download weights",
   "convert to int4", "OVMS-ready model", "prepare model for inference".
-argument-hint: >
-  Describe the model you want (e.g. "download Llama-3.2-1B from HuggingFace
-  and convert to OpenVINO INT4 for CPU with OVMS")
+metadata:
+  argument-hint: >
+    Describe the model you want (e.g. "download Llama-3.2-1B from HuggingFace
+    and convert to OpenVINO INT4 for CPU with OVMS")
 ---
+
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
 
 # Model Download Agent
 
@@ -26,7 +32,7 @@ or converting any supported model using the REST API.
 - User wants to download a model from HuggingFace, Ollama, Ultralytics, Geti, Pipeline Zoo, or HLS
 - User wants to convert a HuggingFace model to OpenVINO IR format for OVMS deployment
 - User asks about model precision conversion (INT4/INT8/FP16/FP32)
-- User needs to target a specific device (CPU, GPU, NPU)
+- User needs to target a specific device (CPU, GPU, NPU, or HETERO combinations like `HETERO:GPU,CPU`)
 - User wants to download healthcare AI models (3D Pose, rPPG, AI-ECG)
 - User is integrating model downloads into a Docker Compose workflow
 
@@ -95,22 +101,6 @@ Read a reference file only when you need the detail it contains:
 | [plugins-guide.md](./references/plugins-guide.md) | Per-plugin request bodies, parameters, and curl examples |
 | [troubleshooting.md](./references/troubleshooting.md) | Auth errors, stuck jobs, plugin not activated, venv failures |
 
-## Example Scenarios
-
-Read these only if the user's request matches:
-
-| File | Covers |
-|------|--------|
-| [examples/huggingface.md](./examples/huggingface.md) | Downloading public and gated HF models |
-| [examples/openvino-llm.md](./examples/openvino-llm.md) | LLM → OpenVINO conversion (INT4/INT8) |
-| [examples/openvino-vlm.md](./examples/openvino-vlm.md) | VLM → OpenVINO conversion |
-| [examples/openvino-embeddings.md](./examples/openvino-embeddings.md) | Embedding model → OpenVINO for OVMS |
-| [examples/ollama.md](./examples/ollama.md) | Pulling Ollama models |
-| [examples/ultralytics-quantized.md](./examples/ultralytics-quantized.md) | YOLO models + INT8 quantization |
-| [examples/geti.md](./examples/geti.md) | Downloading from Intel Geti |
-| [examples/hls-healthcare.md](./examples/hls-healthcare.md) | 3D Pose, rPPG, AI-ECG healthcare models |
-| [examples/pipeline-zoo.md](./examples/pipeline-zoo.md) | DL Streamer pipeline-zoo models |
-
 ---
 
 ## Procedure
@@ -140,12 +130,13 @@ Extract the following from the user's prompt. If anything is missing, ask before
 | **Model name** | Exact model identifier (e.g. `meta-llama/Llama-3.2-1B`) | Must ask |
 | **Hub** | One of: `huggingface`, `openvino`, `ollama`, `ultralytics`, `geti`, `pipeline-zoo-models`, `hls` | Must ask |
 | **Conversion needed?** | User says "OVMS", "OpenVINO format", "convert", "is_ovms" | `false` |
-| **Device** | CPU / GPU / NPU | `CPU` |
+| **Device** | CPU / GPU / NPU / `HETERO:<dev>[,<dev>...]` (e.g. `HETERO:GPU,CPU`) | `CPU` |
 | **Precision** | int4 / int8 / fp16 / fp32 | `int8` for LLMs; `fp16` for others |
 | **Model type** | llm / vlm / embeddings / rerank / text2speech / speech2text / image_generation / vision / 3d-pose / rppg / ai-ecg | Infer from context |
 
 **OpenVINO-specific rules (ask only if the user wants OVMS / OpenVINO conversion):**
-- NPU forces `int4` regardless of other settings
+- NPU forces `int4` regardless of other settings (applies only to the exact `NPU` device, not HETERO combinations such as `HETERO:NPU,CPU`)
+- HETERO devices appear in the output path as a filesystem-safe slug: `HETERO:GPU,CPU` → `openvino_models/hetero_gpu_cpu/`
 - LLM/VLM conversions support `cache_size` (KV cache in GB) — ask if user mentioned memory constraints
 - Embeddings and reranker conversions use `text_generation`/`embeddings_ov`/`rerank_ov` export types internally — these are resolved automatically from `type`
 

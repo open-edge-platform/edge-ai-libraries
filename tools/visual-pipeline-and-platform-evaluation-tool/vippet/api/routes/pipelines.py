@@ -1,11 +1,13 @@
 import logging
 import tempfile
 from typing import List
+import socket
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import api.api_schemas as schemas
+from managers.execution_coordinator import JobExecutionConflictError
 from managers.optimization_manager import OptimizationManager
 from managers.pipeline_manager import PipelineManager
 from managers.validation_manager import ValidationManager
@@ -16,6 +18,7 @@ from internal_types import (
     InternalPipelineDefinition,
     InternalPipelineRequestOptimize,
     InternalPipelineSource,
+    InternalPipelineType,
     InternalPipelineValidation,
     InternalVariant,
     InternalVariantCreate,
@@ -25,6 +28,31 @@ TEMP_DIR = tempfile.gettempdir()
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.pipelines")
+
+
+def _is_timeseries_service_available() -> bool:
+    """
+    Check if the timeseries-analytics-microservice is available.
+
+    Returns True if the service is running and healthy, False otherwise.
+    Attempts a connection to the health endpoint on the service.
+    """
+    try:
+        # Try to connect to the service health endpoint
+        # The service runs on port 9092 and exposes /kapacitor/v1/ping
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)  # 2 second timeout
+        result = sock.connect_ex(("ia-time-series-analytics-microservice", 9092))
+        sock.close()
+        is_available = result == 0
+        if is_available:
+            logger.debug("Timeseries service is available")
+        else:
+            logger.debug("Timeseries service is not available")
+        return is_available
+    except Exception as e:
+        logger.debug(f"Error checking timeseries service availability: {e}")
+        return False
 
 
 @router.post(
@@ -159,6 +187,10 @@ def create_pipeline(body: schemas.PipelineDefinition):
             "description": "Pipeline validation started",
             "model": schemas.ValidationJobResponse,
         },
+        409: {
+            "description": "Only one job can be run at the same time.",
+            "model": schemas.MessageResponse,
+        },
         400: {
             "description": "Invalid validation request",
             "model": schemas.MessageResponse,
@@ -243,6 +275,12 @@ def validate_pipeline(body: schemas.PipelineValidation):
         return JSONResponse(
             content=schemas.ValidationJobResponse(job_id=job_id).model_dump(),
             status_code=202,
+        )
+    except JobExecutionConflictError as e:
+        logger.warning("Pipeline validation start blocked: %s", e)
+        return JSONResponse(
+            content=schemas.MessageResponse(message=str(e)).model_dump(),
+            status_code=409,
         )
     except ValueError as e:
         # ValidationManager uses ValueError for user-level input problems.
@@ -336,6 +374,18 @@ def get_pipelines():
     ```
     """
     internal_pipelines = PipelineManager().get_pipelines()
+
+    # If timeseries service is not available, filter to vision pipelines only
+    if not _is_timeseries_service_available():
+        logger.debug(
+            "Filtering pipelines: returning only vision type (timeseries service unavailable)"
+        )
+        internal_pipelines = [
+            p for p in internal_pipelines if p.type == InternalPipelineType.VISION
+        ]
+    else:
+        logger.debug("Returning all pipelines (timeseries service available)")
+
     return [_internal_pipeline_to_api(p) for p in internal_pipelines]
 
 
@@ -598,6 +648,10 @@ def update_pipeline(pipeline_id: str, body: schemas.PipelineUpdate):
             "description": "Optimization job successfully started",
             "model": schemas.OptimizationJobResponse,
         },
+        409: {
+            "description": "Only one job can be run at the same time.",
+            "model": schemas.MessageResponse,
+        },
         404: {
             "description": "Pipeline or variant not found",
             "model": schemas.MessageResponse,
@@ -650,6 +704,7 @@ def optimize_variant(
     - OptimizationManager starts a background job
 
     ### ❌ Failure
+    - Another execution job is already running → 409
     - Unknown pipeline or variant ID → 404
     - Unhandled exception in pipeline/variant lookup or job creation → 500
 
@@ -686,6 +741,12 @@ def optimize_variant(
         return JSONResponse(
             content=schemas.OptimizationJobResponse(job_id=job_id).model_dump(),
             status_code=202,
+        )
+    except JobExecutionConflictError as e:
+        logger.warning("Optimization start blocked: %s", e)
+        return JSONResponse(
+            content=schemas.MessageResponse(message=str(e)).model_dump(),
+            status_code=409,
         )
     except ValueError as e:
         if "not found" in str(e).lower():
@@ -1593,6 +1654,7 @@ def _internal_pipeline_to_api(pipeline: InternalPipeline) -> schemas.Pipeline:
         name=pipeline.name,
         description=pipeline.description,
         source=schemas.PipelineSource(pipeline.source.value),
+        type=schemas.PipelineType(pipeline.type.value),
         tags=pipeline.tags,
         variants=[_internal_variant_to_api(v) for v in pipeline.variants],
         thumbnail=pipeline.thumbnail,
@@ -1631,6 +1693,7 @@ def _pipeline_definition_to_internal(
         name=api_def.name,
         description=api_def.description,
         source=InternalPipelineSource(api_def.source.value),
+        type=InternalPipelineType(api_def.type.value),
         tags=api_def.tags,
         variants=internal_variants,
     )

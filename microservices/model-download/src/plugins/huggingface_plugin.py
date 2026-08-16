@@ -3,9 +3,11 @@
 
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.utils import HfHubHTTPError, GatedRepoError, RepositoryNotFoundError
-from src.core.interfaces import ListingAuthError, ModelDownloadPlugin, DownloadTask
+from src.core.interfaces import ListingAuthError, ModelDownloadPlugin, DownloadTask, PluginConfigKey
 from src.utils.logging import logger
 import os
+import socket
+from typing import Any, Dict
 
 class HuggingFacePlugin(ModelDownloadPlugin):
     """
@@ -19,9 +21,73 @@ class HuggingFacePlugin(ModelDownloadPlugin):
     def plugin_type(self) -> str:
         return "downloader"
 
+    def hub_config_keys(self, hub: str = "huggingface") -> list:
+        return [
+            PluginConfigKey(
+                name="HF_TOKEN",
+                description=(
+                    "HuggingFace access token. Required only for gated or private "
+                    "models; public models work without authentication."
+                ),
+                sensitive=True,
+            ),
+        ]
+
     @property
     def supports_listing(self) -> bool:
         return True
+
+    def validate_credentials(
+        self, resolved_config: Dict[str, Any], timeout: int = 5
+    ) -> Dict[str, Any]:
+        """Validate HuggingFace credentials with a lightweight API call.
+
+        * Token present → ``whoami()`` (verifies the token is valid).
+        * No token → ``list_models(limit=1)`` (verifies HF Hub is reachable).
+        """
+        token = resolved_config.get("HF_TOKEN")
+        old_timeout = socket.getdefaulttimeout()
+        try:
+            socket.setdefaulttimeout(timeout)
+            api = HfApi(token=token)
+            if token:
+                try:
+                    user_info = api.whoami()
+                    username = user_info.get("name", "unknown")
+                    return {
+                        "name": "hf_auth",
+                        "ok": True,
+                        "message": f"Authenticated as '{username}'",
+                    }
+                except HfHubHTTPError as exc:
+                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                    return {
+                        "name": "hf_auth",
+                        "ok": False,
+                        "message": f"HF_TOKEN is invalid or expired (HTTP {status})",
+                    }
+            else:
+                try:
+                    list(api.list_models(limit=1))
+                    return {
+                        "name": "hf_reachable",
+                        "ok": True,
+                        "message": "HuggingFace Hub is reachable (no token provided)",
+                    }
+                except Exception as exc:
+                    return {
+                        "name": "hf_reachable",
+                        "ok": False,
+                        "message": f"Cannot reach HuggingFace Hub: {exc}",
+                    }
+        except Exception as exc:
+            return {
+                "name": "hf_connectivity",
+                "ok": False,
+                "message": f"Connection failed: {exc}",
+            }
+        finally:
+            socket.setdefaulttimeout(old_timeout)
 
     @property
     def listing_filter_fields(self) -> list[str]:
@@ -31,7 +97,10 @@ class HuggingFacePlugin(ModelDownloadPlugin):
         """List models for an author (user, owner, or organization) on the HuggingFace Hub."""
         filters = filters or {}
         self._validate_listing_filters(filters)
-        token = os.getenv("HF_TOKEN")
+        # Per-request override wins; env HF_TOKEN is the fallback (already applied
+        # by resolve_config when a resolved_config is supplied).
+        resolved_config = kwargs.get("resolved_config") or {}
+        token = resolved_config.get("HF_TOKEN") or os.getenv("HF_TOKEN")
 
         # HuggingFace exposes the repo namespace (a user, owner, or organization) as `author`.
         author = filters.get("author")
@@ -140,16 +209,20 @@ class HuggingFacePlugin(ModelDownloadPlugin):
 
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         return hub.lower() == "huggingface"
-    
 
     def download(self, model_name: str, output_dir: str, **kwargs) -> dict:
-        hf_token = kwargs.get("hf_token")
+        # Per-request override wins; env HF_TOKEN is the fallback (applied by
+        # resolve_config). Fall back to the legacy hf_token kwarg for compatibility.
+        resolved_config = kwargs.get("resolved_config") or {}
+        hf_token = resolved_config.get("HF_TOKEN") or kwargs.get("hf_token")
         revision = kwargs.get("revision")
         
         # Create hub-specific directory under the output directory
         hub_dir = os.path.join(output_dir, "huggingface")
         model_specific_path = os.path.join(hub_dir, model_name.replace("/", "_"))
         os.makedirs(model_specific_path, exist_ok=True)
+        # Register the exact dir so cancellation cleans up only this model.
+        kwargs.get("_model_download_dir", []).append(model_specific_path)
 
         logger.info(f"Downloading HuggingFace model {model_name} to {model_specific_path}")
         # Verify access up-front: a gated/unauthorized repo otherwise surfaces as a

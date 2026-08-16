@@ -27,13 +27,20 @@ from utils.config_loader import config
 from utils.latency_store import asr_latency
 from utils.minio_handler import MinioHandler
 from utils.session_manager import generate_session_id, resolve_requested_session_id
+from utils.storage_manager import StorageManager
+from utils.subtitle_format import format_srt
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# VSS-compatible routes live on their own router so main.py can mount them both
+# unprefixed (legacy/local usage) and under /api/v1 (the prefix VSS's
+# pipeline-manager actually calls). See the VSS section below.
+vss_router = APIRouter()
 
-@router.get("/health")
+
+@vss_router.get("/health", tags=["Health API"])
 def health():
     return JSONResponse(content={"status": "ok"}, status_code=200)
 
@@ -93,18 +100,33 @@ def stream_transcribe_audio(
 #
 # GET /models and POST /transcriptions match the contract exposed by the
 # previous Edge AI Libraries release, which is what VSS's pipeline-manager
-# (sample-applications/video-search-and-summarization) calls. VSS always
-# supplies a MinIO source (minio_bucket/video_id/video_name) rather than a
-# direct file upload, and reads the transcript back out of that same MinIO
-# bucket itself, so this service must push the transcript there too — see
+# (sample-applications/video-search-and-summarization) calls.
+#
+# IMPORTANT — path prefix: VSS builds its URLs as
+# `[AUDIO_HOST, 'api/v1', <endpoint>].join('/')` (see pipeline-manager
+# src/config/configuration.ts and src/audio/services/audio.service.ts), so it
+# calls /api/v1/models and /api/v1/transcriptions. The previous release mounted
+# its router with prefix="/api/v1" to match. These routes therefore live on
+# `vss_router`, which main.py mounts twice: unprefixed (backwards compatibility)
+# and under /api/v1 (the VSS contract).
+#
+# VSS always supplies a MinIO source (minio_bucket/video_id/video_name) rather
+# than a direct file upload, and reads the transcript back out of that same
+# MinIO bucket itself, so this service must push the transcript there too — see
 # utils/minio_handler.py.
+#
+# IMPORTANT — transcript format: VSS parses the stored transcript with
+# `srt-parser-2` (audio.service.ts parseTranscript), so when include_timestamps
+# is set (VSS always sends true) the object uploaded to MinIO must be valid
+# SubRip/SRT, matching the previous release which uploaded a .srt file. Plain
+# text yields zero parsed segments on the VSS side.
 #
 # NOTE: `device`/`model_name` are accepted for request-shape parity but are
 # currently informational only — this service transcribes with its single
 # configured ASR model/device (config.models.asr). Flagged for VSS/infra
 # team coordination if a multi-model picker is required end-to-end.
 
-@router.get("/models", response_model=AvailableModelsResponse, tags=["VSS API"])
+@vss_router.get("/models", response_model=AvailableModelsResponse, tags=["VSS API"])
 def vss_available_models():
     """List ASR model(s) available for VSS transcription requests."""
     model_id = config.models.asr.name
@@ -120,7 +142,7 @@ def vss_available_models():
     )
 
 
-@router.post("/transcriptions", response_model=VssTranscriptionResponse, tags=["VSS API"])
+@vss_router.post("/transcriptions", response_model=VssTranscriptionResponse, tags=["VSS API"])
 async def vss_transcribe(
     request: Annotated[VssTranscriptionForm, Depends()],
     language: Annotated[str | None, Query(description="_(Optional)_ Language hint for transcription.")] = None,
@@ -199,10 +221,19 @@ async def vss_transcribe(
             video_name=filename,
         )
 
-    transcript_path = os.path.join(get_session_dir(job_id), "transcription.txt")
+    session_dir = get_session_dir(job_id)
+    transcript_path = os.path.join(session_dir, "transcription.txt")
+
+    # When timestamps are requested (VSS always sends include_timestamps=true),
+    # publish SubRip/SRT — VSS parses the stored object with srt-parser-2 and
+    # gets zero segments from plain text. This mirrors the previous release,
+    # which uploaded its .srt output whenever include_timestamps was set.
+    if request.include_timestamps:
+        transcript_path = os.path.join(session_dir, "transcription.srt")
+        StorageManager.save(transcript_path, format_srt(result.get("segments", [])), append=False)
 
     if has_minio_source:
-        object_name = f"{safe_video_id}/{Path(filename).stem}.txt"
+        object_name = f"{safe_video_id}/{Path(filename).stem}{Path(transcript_path).suffix}"
         uploaded, upload_error = await run_in_threadpool(
             MinioHandler.save_transcript_to_minio,
             Path(transcript_path),

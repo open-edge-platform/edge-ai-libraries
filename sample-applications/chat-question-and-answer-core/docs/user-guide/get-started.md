@@ -44,17 +44,17 @@ By following this guide, you will learn how to:
 
    ```bash
    export REGISTRY="intel/"
-   export UI_TAG=core_1.3.3
+   export UI_TAG=core_2026.2.0-rc1
 
    # If you prefer to use the default CPU device, set the following:
-   export BACKEND_TAG=core_1.3.3
+   export BACKEND_TAG=core_2026.2.0-rc1
 
    # If you want to utilize GPU device for inferencing, set the following:
    # Note: This image also supports CPU devices.
-   export BACKEND_TAG=core_gpu_1.3.3
+   export BACKEND_TAG=core_gpu_2026.2.0-rc1
 
    # For those who prefer Ollama framework, set the following:
-   export BACKEND_TAG=core_ollama_1.3.3
+   export BACKEND_TAG=core_ollama_2026.2.0-rc1
    ```
 
    Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
@@ -128,8 +128,6 @@ By following this guide, you will learn how to:
      >     RERANKER_DEVICE: "<GPU.0/GPU.1>"
      >     LLM_DEVICE: "<GPU.0/GPU.1>"
      >   ```
-
-   - Refer to and use the same list of models as documented in [Chat Q&A](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/get-started.html#supported-models).
 
 6. **Start the Application**:
 

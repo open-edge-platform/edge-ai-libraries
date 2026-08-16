@@ -1,0 +1,121 @@
+# Lingua server — official docker compose recipe.
+#
+# Usage (from this directory):
+#   docker compose up -d --build
+#
+# Override via env (no .env file required; all vars have :-default fallbacks):
+#   LINGUA_DEVICE=cpu docker compose up -d --build
+#   LINGUA_PORT=9000  docker compose up -d --build
+#
+# Security — publish bind address (LINGUA_BIND_HOST, default 127.0.0.1):
+#   The port is published to the host loopback ONLY by default, so the server
+#   is reachable from this machine but not from any external network interface.
+#   The container itself must bind 0.0.0.0 (otherwise Docker's port forwarding
+#   can't reach it) — exposure is controlled here, at the publish layer.
+#   Only widen this if you genuinely need cross-host access, and put real
+#   auth/network controls in front of it:
+#     LINGUA_BIND_HOST=0.0.0.0 docker compose up -d --build   # exposes on all NICs
+#
+# Container build context is the repo root (../..), so the Dockerfile's
+# `COPY src/adaptive_token_compressor/model_servers/lingua/app.py` resolves.
+
+services:
+  lingua-pytorch:
+    image: adaptive-lingua-pytorch:latest
+    container_name: adaptive-lingua-pytorch
+    build:
+      context: ../..
+      dockerfile: deployment/lingua/Dockerfile.pytorch
+      args:
+        - http_proxy=${http_proxy:-}
+        - https_proxy=${https_proxy:-}
+        - no_proxy=${no_proxy:-}
+    ports:
+      - "${LINGUA_BIND_HOST:-127.0.0.1}:${LINGUA_PORT:-8001}:8001"
+    environment:
+      - LINGUA_PORT=8001
+      - LINGUA_BACKEND=pytorch
+      - LINGUA_DEVICE=${LINGUA_DEVICE:-xpu}
+      - LINGUA_XPU_INDEX=${LINGUA_XPU_INDEX:-0}
+      - LINGUA_MODE=${LINGUA_MODE:-llmlingua2}
+      - LINGUA_MODEL_NAME_ID=${LINGUA_MODEL_NAME_ID:-}
+      - HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-0}
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      - http_proxy=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      - no_proxy=${no_proxy:-}
+    volumes:
+      - lingua-models:/home/user/.cache/huggingface
+    devices:
+      # Intel GPU passthrough. Harmless on CPU hosts (LINGUA_DEVICE=cpu skips
+      # IPEX/XPU code paths). Comment out only if your docker daemon refuses
+      # /dev/dri because the device file does not exist.
+      - /dev/dri:/dev/dri
+    group_add:
+      # Auto-detect on host:
+      #   VIDEO_GID=$(getent group video | cut -d: -f3)
+      #   RENDER_GID=$(getent group render | cut -d: -f3)
+      - "${VIDEO_GID:-44}"
+      - "${RENDER_GID:-992}"
+    profiles:
+      - pytorch
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # First start may need to download ~1-2GB model from HF Hub.
+      start_period: 180s
+
+  lingua-ov:
+    image: adaptive-lingua-ov:latest
+    container_name: adaptive-lingua-ov
+    build:
+      context: ../..
+      dockerfile: deployment/lingua/Dockerfile.ov
+      args:
+        - http_proxy=${http_proxy:-}
+        - https_proxy=${https_proxy:-}
+        - no_proxy=${no_proxy:-}
+    ports:
+      - "${LINGUA_BIND_HOST:-127.0.0.1}:${LINGUA_OV_PORT:-8002}:8001"
+    environment:
+      - LINGUA_PORT=8001
+      - LINGUA_BACKEND=ov
+      - LINGUA_DEVICE=${LINGUA_DEVICE:-xpu}
+      - LINGUA_XPU_INDEX=${LINGUA_XPU_INDEX:-0}
+      - LINGUA_MODE=${LINGUA_MODE:-llmlingua2}
+      - LINGUA_MODEL_NAME_ID=${LINGUA_MODEL_NAME_ID:-}
+      - HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-0}
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      - http_proxy=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      - no_proxy=${no_proxy:-}
+    volumes:
+      - lingua-models:/home/user/.cache/huggingface
+    devices:
+      # Intel GPU passthrough. Harmless on CPU hosts (LINGUA_DEVICE=cpu skips
+      # OpenVINO XPU code paths). Comment out only if your docker daemon refuses
+      # /dev/dri because the device file does not exist.
+      - /dev/dri:/dev/dri
+    group_add:
+      # Auto-detect on host:
+      #   VIDEO_GID=$(getent group video | cut -d: -f3)
+      #   RENDER_GID=$(getent group render | cut -d: -f3)
+      - "${VIDEO_GID:-44}"
+      - "${RENDER_GID:-992}"
+    profiles:
+      - ov
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # First start may need to download ~1-2GB model from HF Hub.
+      start_period: 180s
+
+volumes:
+  lingua-models:
+    name: adaptive-lingua-models

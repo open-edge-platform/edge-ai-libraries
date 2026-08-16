@@ -58,6 +58,7 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
       onRequestSubmit={() => {
         submitSearch();
       }}
+      hasScrollingContent
     >
       <ModalBody>
         <TextArea
@@ -72,6 +73,8 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
 
         {suggestedTags && suggestedTags.length > 0 && (
           <MultiSelect
+            // Let the dropdown menu reposition itself according to the length
+            autoAlign
             helperText={t('tagsHelperText')}
             items={suggestedTags}
             itemToString={(item) => (item ? item : '')}

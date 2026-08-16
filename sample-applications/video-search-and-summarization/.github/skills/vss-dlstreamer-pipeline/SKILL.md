@@ -77,7 +77,7 @@ Before editing, read these repo paths; do not infer pipeline names or payloads f
   },
   "parameters": {
     "detection-properties": {
-      "model": "/home/pipeline-server/models/yoloworld/v2/FP32/yolov8l-worldv2.xml",
+      "model": "/home/pipeline-server/models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml",
       "device": "CPU"
     },
     "publish": {

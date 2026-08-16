@@ -14,19 +14,30 @@ services:
         https_proxy: ${https_proxy:-}
         no_proxy: ${no_proxy:-}
     network_mode: host
+    devices:
+      - ${IR_RENDER_DEVICE:-/dev/null}:${IR_RENDER_DEVICE:-/dev/null}
+    group_add:
+      - "${RENDER_GROUP_ID:-993}"
     volumes:
       - ../../workspace:/app
-    command: ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port 8000"]
+      - ${IR_OV_MODEL}:/models/ov-classifier
+    # Bind host defaults to loopback (local-only). Export IR_BIND_HOST=0.0.0.0
+    # to expose the router to other machines. Compose interpolates these from
+    # the host environment (set by scripts/deploy_docker.sh) at parse time.
+    command: ["sh", "-c", "uvicorn src.main:app --host ${IR_BIND_HOST:-127.0.0.1} --port ${ROUTER_PORT:-8000}"]
     env_file:
       - path: ../../workspace/.env
         required: false
     environment:
+      - IR_BIND_HOST=${IR_BIND_HOST:-127.0.0.1}
       - ROUTER_PORT=${ROUTER_PORT:-8000}
       - GATEWAY_VERBOSE=${GATEWAY_VERBOSE:-}
       - GATEWAY_VERBOSE_FULL=${GATEWAY_VERBOSE_FULL:-}
       - GATEWAY_CONFIG=/app/config.yaml
       - GATEWAY_LOG_DIR=${GATEWAY_LOG_DIR:-/app/logs}
-      - HF_ENDPOINT=https://hf-mirror.com
+      - IR_OV_MODEL=/models/ov-classifier
+      - IR_DEVICE=${IR_DEVICE:-GPU}
+      - HF_ENDPOINT=${HF_ENDPOINT:-}
       - http_proxy=${http_proxy:-}
       - https_proxy=${https_proxy:-}
       - no_proxy=${no_proxy:-}

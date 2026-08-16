@@ -7,8 +7,7 @@ services:
   # integrated GPU (/dev/dri) with shared system RAM.
   vllm-ipex-serving:
     container_name: vllm-ipex-serving
-    image: ${VLLM_IMAGE:-intel/llm-scaler-vllm:0.14.0-b7.1}
-    # image: ${VLLM_IMAGE:-intel/llm-scaler-vllm:0.14.0-b8.3.2}
+    image: ${VLLM_IMAGE:-intel/llm-scaler-vllm:0.14.0-b8.3.2}
     privileged: true
     restart: always
     ports:

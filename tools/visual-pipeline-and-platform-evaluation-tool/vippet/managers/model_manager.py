@@ -563,7 +563,7 @@ class ModelManager:
                     variants=variants,
                     install_status=install_status,
                     used_by_pipelines=used_by,
-                    default=head.default,
+                    default=bool(used_by),
                     unsupported_devices=head.unsupported_devices or None,
                     download_request=self._lookup_download_request(name),
                 )

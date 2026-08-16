@@ -101,7 +101,7 @@ docker compose -f docker/compose.yaml up -d
 
 | Gotcha | Consequence |
 |---|---|
-| `src/wrapper.py` is a **path dependency of vdms-dataprep** (`visual-data-preparation-for-retrieval/vdms`) | API changes there ripple into that service — check its usage before changing signatures |
+| `src/wrapper.py` is a **path dependency of multimodal-dataprep** (`visual-data-preparation-for-retrieval/multimodal-dataprep`) | API changes there ripple into that service — check its usage before changing signatures |
 | Package is built as a wheel (`poetry build`; `packages` maps `src/` → `multimodal_embedding_serving`) | keep new modules importable under the package name; SDK users import from it |
 | `INFER_BATCH_SIZE` compiles OpenVINO models to a fixed batch shape | handler changes must keep the pad/split logic intact |
 | QwenText handlers are text-only by design | don't "fix" the 400 for images; capability flags live on the handler |
