@@ -1377,10 +1377,9 @@ class ModelManager:
             )
             self._fail_job(
                 job_id,
-                f"Model files not found after download reported success. "
-                f"The download may have failed silently "
-                f"(e.g. missing or invalid HF_TOKEN for a gated model). "
-                f"Check the model-download service logs for details.",
+                f"Model was not successfully installed. "
+                f"Check your Hugging Face access token and accept model license if needed. "
+                f"See the model-download service logs for details.",
             )
             return
 
