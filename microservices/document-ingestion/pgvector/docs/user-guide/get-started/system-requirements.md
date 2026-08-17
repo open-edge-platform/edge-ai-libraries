@@ -24,7 +24,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 - Validation on latest version of EMT-S and EMT-D is also done periodically though there could be gaps in validation regression. Raise an issue if any defects are observed.
 
 **Hardware Platforms**
-- The microservice is used in the context of a reference application like chat-question-and-answer. Requirement of respective application overrides the requirement of this microservice.
+- The microservice is used in the context of a reference application. Requirement of respective application overrides the requirement of this microservice.
 
 
 ## Software Requirements

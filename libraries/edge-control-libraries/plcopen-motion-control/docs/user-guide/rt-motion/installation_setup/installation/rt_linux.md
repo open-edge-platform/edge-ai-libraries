@@ -10,11 +10,11 @@ PLCopen Motion Control provides real-time capabilities to the kernel with PREEMP
    sudo apt update
    ```
 
-   ![](../../../assets/images/apt-update-1.png)
+   ![sudo apt update](../../../assets/images/apt-update-1.png)
 
    The APT package manager will download the latest list of packages available for all configured repositories.
 
-   ![](../../../assets/images/apt-update-2.png)
+   ![package download](../../../assets/images/apt-update-2.png)
 
    > **Tip**: If the APT package manager is unable to connect to the repositories, follow these APT troubleshooting tips:
    >
@@ -74,7 +74,7 @@ PLCopen Motion Control provides real-time capabilities to the kernel with PREEMP
 
 ## Verify Benchmark Performance
 
-After installing the real-time Linux kernel, it's a good idea to benchmark the system to establish confidence that the system is properly configured. Perform either of the following commands to install [Cyclictest](https://git.kernel.org/pub/scm/utils/rt-tests/rt-tests.git). Cyclictest is most commonly used for benchmarking real-time systems. It is one of the most frequently used tools for evaluating the relative performance of an RT. Cyclictest accurately and repeatedly measures the difference between a thread's intended wake-up time and the time at which it actually wakes up to provide statistics about the system's latency. It can measure latency in real-time systems caused by the hardware, the firmware, and the operating system.
+After installing the real-time Linux kernel, it is a good idea to benchmark the system to establish confidence that the system is properly configured. Perform either of the following commands to install [Cyclictest](https://git.kernel.org/pub/scm/utils/rt-tests/rt-tests.git). Cyclictest is most commonly used for benchmarking real-time systems. It is one of the most frequently used tools for evaluating the relative performance of an RT. Cyclictest accurately and repeatedly measures the difference between a thread's intended wake-up time and the time at which it actually wakes up to provide statistics about the system's latency. It can measure latency in real-time systems caused by the hardware, the firmware, and the operating system.
 
 Please use `rt-tests v2.6` to collect performance, which support to pin threads to specific isolate core and avoid main thread in same core with the measurement threads.
 
@@ -101,17 +101,17 @@ cyclictest -mp 99 -t1 -a 13 -i 1000 --laptop -D 72h  -N --mainaffinity 12
 
 Default parameters are used unless otherwise specified. Run `cyclictest --help` to list the modifiable arguments.
 
-| option | Explanation |
-|--------|-------------|
-| -p | priority of highest priority thread |
-| -t | one thread per available processor |
-| -a | Run thread #N on processor #N, or if CPUSET given, pin threads to that set of processors in round-robin order |
-| -i | base interval of thread in us default=1000 |
-| -D | specify a length for the test run |
-| -N | print results in ns instead of us (default us) |
-| --mainaffinity | Run the main thread on CPU #N. This only affects the main thread and not the measurement threads |
-| -m | lock current and future memory allocations |
-| --laptop | Not setting `cpu_dma_latency` to save battery, recommend using it when enabling per-core C-state disable. |
+| option         | Explanation                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------- |
+| -p             | priority of highest priority thread                                                                           |
+| -t             | one thread per available processor                                                                            |
+| -a             | Run thread #N on processor #N, or if CPUSET given, pin threads to that set of processors in round-robin order |
+| -i             | base interval of thread in us default=1000                                                                    |
+| -D             | specify a length for the test run                                                                             |
+| -N             | print results in ns instead of us (default us)                                                                |
+| --mainaffinity | Run the main thread on CPU #N. This only affects the main thread and not the measurement threads              |
+| -m             | lock current and future memory allocations                                                                    |
+| --laptop       | Not setting `cpu_dma_latency` to save battery, recommend using it when enabling per-core C-state disable.     |
 
 On a **realtime-enabled** system, the result might be similar to the following:
 
@@ -121,4 +121,4 @@ T: 0 ( 3407) P:99 I:1000 C: 100000 Min:      928 Act:   1376 Avg:   1154 Max:   
 
 This result indicates an apparent short-term worst-case latency of 18 us. According to this, it is important to pay attention to the Max values as these are indicators of outliers. Even if the system has decent Avg (average) values, a single outlier as indicated by Max is enough to break or disturb a real-time system.
 
-If the real-time data is not good by default installation, please refer to [OS Setup](../prerequisites/os_setup.md) for BIOS optimization and [Optimize Performance](https://eci.intel.com/docs/3.3/development/performance.html) to optimize Linux OS and application runtime on Intel® Processors.
+If the real-time data is not good by default installation, refer to [OS Setup](../prerequisites/os_setup.md) for BIOS optimization and [Optimize Performance](https://eci.intel.com/docs/3.3/development/performance.html) to optimize Linux OS and application runtime on Intel® Processors.
