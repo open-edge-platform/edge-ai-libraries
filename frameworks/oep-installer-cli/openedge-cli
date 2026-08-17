@@ -2,10 +2,10 @@
 
 # common variable: ID_LIKE
 . /etc/os-release
-red="\033[31m"
-green="\033[32m"
-yellow="\033[33m"
-reset="\033[0m"
+readonly red="\033[31m"
+readonly green="\033[32m"
+readonly yellow="\033[33m"
+readonly reset="\033[0m"
 
 main () {
   local args=() cmd=""
@@ -105,7 +105,6 @@ act_helpper () {
     if [ ${#components[*]} -gt 0 ]; then
       if [ "${act_name}" = "install" ]; then
         echo "${act_name} options:"
-        echo "  --setup         setup bash."
         echo "  --reset-<name>  force reinstallation of the component if exit."
         echo
       fi
@@ -202,7 +201,6 @@ act_helpper () {
 }
 
 subcommand_install () {
-  
   act_helpper "install,Installation,Installing,Installed" "" "$@"
 }
 
@@ -235,7 +233,8 @@ subcommand_list () {
         local profile_name=$(echo $profiler | cut -f4- -d_)
         [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
         local profile_cmds=()
-        for cmd in ${all_cmds[*]/list/}; do
+        for cmd in ${all_cmds[*]}; do
+          [[ " bootstrap list completion " != *" $cmd "* ]] || continue
           local profile_modules=($($profiler $cmd))
           [ ${#profile_modules[@]} -eq 0 ] || profile_cmds+=($cmd)
         done
@@ -257,6 +256,54 @@ subcommand_list () {
       echo
     fi
   } | ensure_columns
+}
+
+subcommand_completion () {
+  local installer_name=$(basename "$0")
+  local completion_script=~/.local/share/bash-completion/completions/$installer_name
+  mkdir -p "$(dirname "$completion_script")"
+
+  local all_cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+
+  cat > "$completion_script" <<EOF
+#!/bin/bash
+_${installer_name//-/_}_completion () {
+  if (( COMP_CWORD == 1 )); then
+    COMPREPLY=(\$(compgen -W "${all_cmds[*]}" -- "\$2"))
+    return
+  fi
+
+  case "\${COMP_WORDS[1]}" in
+  list|completion)
+    COMPREPLY=()
+    ;;
+$(  
+    for cmd in ${all_cmds[*]}; do
+      [[ " bootstrap list completion " != *" $cmd "* ]] || continue
+      local -A all_comps=()
+      local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${cmd}_" | cut -f4- -d_))
+      for profiler in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f3 -d' '); do
+        local pname=$(echo $profiler | cut -f4- -d_)
+        [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
+        local profile_modules=($($profiler $cmd))
+        [ ${#profile_modules[@]} -eq 0 ] || all_comps[$pname]=1
+      done
+      for mname in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${cmd}_" | cut -f4- -d_); do
+        all_comps[$mname]=1
+      done
+      echo "  $cmd)"
+      echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
+      echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
+      echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
+      echo "    ;;"
+    done
+)
+  esac
+}
+complete -F _${installer_name//-/_}_completion $installer_name
+EOF
+
+  echo "bash completion created at $completion_script"
 }
 
 #### COLLECTION OF MODULES ####
@@ -355,7 +402,7 @@ subcommand_bootstrap () {
   if [[ " $* " != *" --dry-run "* ]]; then
     [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]} || exit" >> "$rendered"
     [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]} || exit" >> "$rendered"
-    echo '[ ${#@} -gt 0 ] || main "$@"' >> "$rendered"
+    echo 'main "$@"' >> "$rendered"
     chmod a+rx "$rendered"
     echo "Rendered to $rendered"
   fi
