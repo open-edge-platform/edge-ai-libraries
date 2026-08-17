@@ -282,6 +282,7 @@ subcommand_bootstrap () {
   # scan for dependencies
   local modules=(${*##-*})
   [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";find profile -name "$ID_LIKE" | cut -f2 -d/))
+  modules=(${modules[*]##*/})
   local -A scripts=()
   local i=0 script license_common=0
   while [ $i -lt ${#modules[*]} ]; do
