@@ -274,18 +274,18 @@ class TestToolCompressorShortCircuit:
 
 
 class TestToolCompressorPredictorFailure:
-    def test_predictor_error_kept_as_metrics_error(self, caplog):
+    def test_predictor_error_is_sanitized_in_metrics(self, caplog):
         comp = ToolCompressor(predictor_url=URL)
         comp._predictor = FakePredictor(
-            raise_exc=PredictorError("boom", component="x"),
+            raise_exc=PredictorError("token=super-secret", component="x"),
         )
         ctx = _make_request()
 
         with caplog.at_level(logging.WARNING):
             result = comp.compress(ctx)
 
-        assert result.metrics.error is not None
-        assert "boom" in result.metrics.error
+        assert result.metrics.error == "tool prediction failed"
+        assert "super-secret" not in result.metrics.error
         assert result.metrics.skip_reason is None
         # Tools untouched on failure.
         assert result.tools == ctx.tools

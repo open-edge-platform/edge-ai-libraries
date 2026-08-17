@@ -18,7 +18,7 @@ continuously, regardless of whether any job is active.
 | `vippet-ui`                                | Subscribes to the SSE stream and renders the dashboard charts.                                                                             |
 
 The Telegraf configuration shipped with ViPPET lives in
-[`vippet-telegraf.conf`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet-telegraf.conf)
+[`vippet-telegraf.conf`](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/tools/visual-pipeline-and-platform-evaluation-tool/vippet-telegraf.conf)
 and is mounted read-only into the `metrics-manager` container.
 
 ## Data flow

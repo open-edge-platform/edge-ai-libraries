@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "kvweave"
+version = "0.1.0"
+description = "KVWeave: near-lossless 4-bit KV-cache quantization for LMCache/vLLM KV-cache offload on Intel edge accelerators."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+dependencies = [
+    "torch==2.11.0+xpu",
+    "numpy",
+]
+
+[project.optional-dependencies]
+# Needed for the lmcache/vLLM integration under integration/vllm/. The L1
+# KVWeave codec itself ships inside integration/lmcache/patches/ (applied to
+# the LMCache source tree), not as part of this package.
+lmcache = ["lmcache"]
+
+[build-system]
+requires = ["setuptools>=61", "wheel", "torch==2.11.0+xpu"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["kvweave"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "perf: performance benchmark (deselected by default)",
+]
+addopts = "-m 'not perf' --tb=short -s"

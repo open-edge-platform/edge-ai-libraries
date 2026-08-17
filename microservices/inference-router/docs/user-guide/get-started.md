@@ -88,6 +88,8 @@ replace `Qwen/Qwen3.5-2B` with that equivalent source:
 pip install -U huggingface_hub
 ```
 
+Note: if you encounter `externally-managed-environment` error, either run the install command with `--break-system-packages`, or create a python virtual environment first.
+
 ```bash
 hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen2.5-2B-FP16
 ```
@@ -138,6 +140,19 @@ To use a different host port:
 ```bash
 ROUTER_PORT=9000 bash scripts/deploy_docker.sh
 ```
+
+#### Enable remote access
+
+By default the router binds to `127.0.0.1` (loopback), so it is only reachable
+from the host it runs on. To allow access from **other machines**, export
+`IR_BIND_HOST=0.0.0.0` (or a specific interface IP) before deploying:
+
+```bash
+IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh
+```
+
+Clients on other machines then reach the router at `http://<host-ip>:8000`
+(substitute your `ROUTER_PORT` if you changed it).
 
 ### Step 4: Verify
 
@@ -298,18 +313,14 @@ Notes:
 ## Optional: Compression Plugins
 
 The router can compress prompts before they reach the backend to cut token
-usage, via optional plugins based on
+usage, via plugins based on
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor).
-Use the unified `compressor` node and select the compressor kind with
-`settings.type`:
+Use the unified `compressor` node and select
+the compressor kind with `settings.type`:
 
 - `tool` — filters the request `tools` schema to a relevant subset using a
   **tool predictor** (an OpenAI-compatible LLM endpoint).
 - `harness` — compresses system/developer messages using a **Lingua server**.
-
-
-The router image already includes the compressor library (installed
-by `scripts/build_docker.sh` at build time).
 
 These backend services are **not** part of the router. For how to deploy
 the Lingua server and the tool predictor,

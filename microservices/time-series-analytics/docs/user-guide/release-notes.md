@@ -1,8 +1,23 @@
 # Release Notes: Time Series Analytics
 
-<!--## Version 2026.2-->
+## Version 2026.2
 
-<!--date TBD-->
+**Release Date:** September 2026
+
+This release introduces **updated Intel GPU driver support**, **removed Model Registry integration**, and **hardened path handling**, along with dependency upgrades and documentation improvements.
+
+**Improved**
+
+- **Intel GPU driver support**: Updated the Intel® GPU driver/compute-runtime stack to version `26.27.39122`, adding the corresponding install script logic for the new driver and IGC packages.
+- **Deployment simplification**: Removed leftover Model Registry integration references (`MODEL_REGISTRY_URL` environment variable and related config) from Docker Compose and Helm deployment artifacts, and updated unit tests to match.
+- **Security**: Bumped Kapacitor to `1.8.6`, `python-multipart` to `0.0.32`, and `setuptools` to `83.0.0` in `requirements.txt`.
+- **Documentation**: Updated release notes structure, GitHub branch references, and Helm deployment links across the user guide.
+
+**Fixed**
+
+- **Path traversal hardening**: Added `sanitize_dir_name()` validation before deriving UDF working directories from configuration/environment input, addressing an SDLe-reported vulnerability in `classifier_startup.py`.
+
+---
 
 ## Version 2026.1
 

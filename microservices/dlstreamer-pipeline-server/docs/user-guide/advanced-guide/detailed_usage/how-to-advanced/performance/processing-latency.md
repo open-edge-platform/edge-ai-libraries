@@ -37,7 +37,7 @@ This guide will help you add environment variables to enable `GST TRACER` logs a
    - The `GST TRACER` logs are written to the `trace.log` file in the `tmp` directory. Since the `tmp` directory in the container is mounted to the local `tmp` directory, you can view the logs on your host machine.
    - To view the contents of the file, use `cat trace.log`
    - To follow the logs being written real-time, use `tail -f trace.log`
-  Latency tracer is the functionality provided by DL Streamer. Please refer to the [DL Streamer Latency Tracer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/latency_tracer.html) documentation for available configuration options and detailed description of latency logs interpretation.
+  Latency tracer is the functionality provided by DL Streamer. Please refer to the [DL Streamer Latency Tracer](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/latency_tracer.html) documentation for available configuration options and detailed description of latency logs interpretation.
 
 ## Learn More
 

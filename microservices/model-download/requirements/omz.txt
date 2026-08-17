@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# OMZ (OpenVINO Model Zoo) plugin dependencies.
+# Installed into /opt/.venv-omz via uv pip install -r (isolated from main lockfile).
+# These packages have known CVEs that cannot be resolved by upgrading due to
+# openvino-dev==2024.6.0 compatibility constraints.
+
+openvino-dev[onnx,pytorch,tensorflow2]==2024.6.0
+openvino==2024.6.0
+# Pin torch < 2.9: torch 2.9 changed torch.onnx.export to default dynamo=True,
+# which pulls in onnxscript -> onnx_ir -> ml_dtypes.float8_e8m0fnu (needs
+# ml_dtypes>=0.5, but TensorFlow caps it at <0.5 in this bucket).
+torch<2.9

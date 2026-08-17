@@ -54,8 +54,10 @@ README.md           @xwu2intel
 /libraries/video-chunking-utils/                       @Johere @zhangcong2019 @llin60 @xwu2intel
 /libraries/video-chunking-utils/docs/                  @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /libraries/video-chunking-utils/README.md              @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
-/libraries/adaptive-token-compressor/                  @mnoiy @myqi @xwu2intel
-/libraries/adaptive-token-compressor/README.md         @mnoiy @myqi @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/kv-quant-offload/                           @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel
+/libraries/kv-quant-offload/README.md                  @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/adaptive-token-compressor/                  @mnoiy @myqi @llin60 @Junyu-B @xwu2intel
+/libraries/adaptive-token-compressor/README.md         @mnoiy @myqi @llin60 @Junyu-B @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 # ============================================================================
 # microservices
@@ -113,10 +115,6 @@ README.md           @xwu2intel
 /microservices/visual-data-preparation-for-retrieval/           @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/visual-data-preparation-for-retrieval/docs/      @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
 /microservices/visual-data-preparation-for-retrieval/README.md  @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
-
-/microservices/vlm-openvino-serving/                            @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
-/microservices/vlm-openvino-serving/docs/                       @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
-/microservices/vlm-openvino-serving/README.md                   @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
 
 
 # ============================================================================

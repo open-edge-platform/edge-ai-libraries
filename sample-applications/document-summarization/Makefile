@@ -17,7 +17,7 @@
 #
 # Configuration:
 #   DEVICE                      - CPU (default)
-#   LLM_MODEL                   - LLM model name (default: microsoft/Phi-3.5-mini-instruct)
+#   LLM_MODEL                   - LLM model name (default: microsoft/Phi-4)
 #   VOLUME_OVMS                 - Path to OVMS model volume (required)
 #   REGISTRY                    - Image registry (default: intel/)
 #   TAG                         - Image tag (default: 1.0.3)
@@ -46,7 +46,7 @@ DEFAULT_TAG := 1.0.3
 # Model Configuration
 # ==============================================================================
 
-LLM_MODEL ?= microsoft/Phi-3.5-mini-instruct
+LLM_MODEL ?= microsoft/Phi-4
 
 # ==============================================================================
 # OVMS Configuration
@@ -670,7 +670,7 @@ help:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "  # Deploy with default settings"
 	@echo "  export VOLUME_OVMS=\$$PWD"
-	@echo "  export LLM_MODEL=microsoft/Phi-3.5-mini-instruct"
+	@echo "  export LLM_MODEL=microsoft/Phi-4"
 	@echo "  make deploy"
 	@echo ""
 	@echo "  # Build and deploy"

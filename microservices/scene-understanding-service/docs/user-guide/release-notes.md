@@ -24,9 +24,9 @@ activity detection, built for edge deployment on Intel hardware.
 - Optional behavioral-analysis escalation (pose + VLM) integrated over the
   `ba/requests` / `ba/results` MQTT topics.
 - Zone auto-discovery from the Scenescape REST API at startup, with on-demand
-  re-discovery via `POST /api/v1/lp/zones/discover`.
+  re-discovery via `POST /api/v1/sus/zones/discover`.
 - Optional SeaweedFS evidence-frame capture and alert-service routing.
-- REST API under `/api/v1/lp` for session, zone, and alert state, plus
+- REST API under `/api/v1/sus` for session, zone, and alert state, plus
   `/health`.
 - Self-contained image with bundled sample config (`scene-config.yaml`,
   `rules.yaml`) that runs standalone; consuming applications override via a
