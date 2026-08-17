@@ -46,7 +46,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 source docker/set_env.sh
 ```
 
-**Key variables**
+**Key variables**:
 
 Model serving (vLLM-IPEX):
 
