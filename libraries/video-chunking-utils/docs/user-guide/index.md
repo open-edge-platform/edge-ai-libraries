@@ -111,6 +111,7 @@ from video_chunking.data import MicroChunkMeta
 :::{toctree}
 :hidden:
 
-release-notes
+Release Notes <./release-notes.md>
+
 :::
 hide_directive-->
