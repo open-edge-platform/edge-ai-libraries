@@ -117,7 +117,7 @@ The pose extraction pipeline is orchestrated by `extract_poses()` in `yolo_pipel
 
 **Processing pipeline:**
 1. **Preprocessing:** Image resized via letterboxing (maintains aspect ratio, pads with 114 gray); converted to float32 [0, 1]
-2. **Inference:** OpenVINO compiled model runs on configured device (CPU/GPU/NPU via `GST_INFERENCE_DEVICE`)
+2. **Inference:** OpenVINO compiled model runs on configured device (CPU/GPU via `GST_INFERENCE_DEVICE`)
 3. **Postprocessing:**
    - NMS (Non-Maximum Suppression) filters overlapping detections
    - Detections with confidence < `POSE_CONFIDENCE_THRESHOLD` (default 0.5) are discarded

@@ -32,9 +32,6 @@
   - Optional (recommended for full experience):
     - Intel integrated or discrete GPU supported by Intel® Graphics Compute
       Runtime — VLM inference `Qwen2.5-VL-7B-Instruct (GPU-backed recommended)`
-    - Intel NPU supported by the `linux-npu-driver` stack — recommended for
-      VLM inference (see [Release Notes](../release-notes.md) for a known
-      issue on systems without NPU).
 
 ---
 ## Required Ports
@@ -73,7 +70,7 @@ The service requires a YOLO26n-pose model in OpenVINO IR format (`.xml` + `.bin`
 
 | Environment Variable | Default | Options |
 |---|---|---|
-| `GST_INFERENCE_DEVICE` | `CPU` | `CPU`, `GPU`, `NPU` (any device supported by the installed OpenVINO Runtime) |
+| `GST_INFERENCE_DEVICE` | `CPU` | `CPU`, `GPU` (any device supported by the installed OpenVINO Runtime) |
 
 ---
 

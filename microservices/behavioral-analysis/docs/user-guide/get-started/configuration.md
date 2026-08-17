@@ -54,7 +54,7 @@ All variables are case-insensitive.
 | Variable | Default | Description |
 |---|---|---|
 | YOLO_POSE_MODEL | /models/yolo_models/yolo26n-pose/yolo26n-pose.xml | Path to YOLO-Pose OpenVINO IR model (.xml) |
-| BA_GST_DEVICE | CPU | OpenVINO inference device: CPU, GPU, NPU. See the accelerator mapping requirement below. |
+| BA_GST_DEVICE | CPU | OpenVINO inference device: CPU, GPU. See the accelerator mapping requirement below. |
 | BA_CONFIDENCE | 0.5 | Minimum keypoint confidence threshold |
 
 Download YOLO26n-pose model:
@@ -71,11 +71,10 @@ Expected output files:
 - `models/yolo_models/yolo26n-pose/yolo26n-pose.xml`
 - `models/yolo_models/yolo26n-pose/yolo26n-pose.bin`
 
-- The host must expose GPU and NPU devices to Docker, and the relevant device entries must be mapped in the `behavioral-analysis` service block in [docker-compose.yml](../../docker-compose.yml), because that container performs the YOLO-Pose OpenVINO inference. For example:
+- The host must expose accelerator devices to Docker, and the relevant device entries must be mapped in the `behavioral-analysis` service block in [docker-compose.yml](../../docker-compose.yml), because that container performs the YOLO-Pose OpenVINO inference. For example:
   - `/dev/dri:/dev/dri` (GPU)
-  - `/dev/accel/accel0:/dev/accel/accel0` (NPU)
 
-> If `BA_GST_DEVICE=GPU` or `BA_GST_DEVICE=NPU` is used in Docker Compose, the same accelerator device must be added under the `behavioral-analysis` service's `devices:` section.
+> If `BA_GST_DEVICE=GPU` is used in Docker Compose, the same accelerator device must be added under the `behavioral-analysis` service's `devices:` section.
 
 GPU example (`docker-compose.yml`):
 
@@ -89,20 +88,6 @@ services:
     group_add:
       - ${RENDERER_GROUP:-992}
 ```
-
-NPU example (`docker-compose.yml`):
-
-```yaml
-services:
-  behavioral-analysis:
-    environment:
-      GST_INFERENCE_DEVICE: NPU
-    devices:
-      - /dev/accel/accel0:/dev/accel/accel0
-    group_add:
-      - ${RENDERER_GROUP:-992}
-```
-
 
 ### Frame Analysis
 
@@ -189,10 +174,9 @@ BA_MAX_FRAMES=30
 BA_POSE_FRAMES=20
 BA_CONFIDENCE=0.5
 BA_GST_DEVICE=CPU
-# For GPU/NPU in Docker Compose, map host devices into the behavioral-analysis service, e.g.:
+# For GPU in Docker Compose, map host devices into the behavioral-analysis service, e.g.:
 # devices:
 #   - /dev/dri:/dev/dri
-#   - /dev/accel/accel0:/dev/accel/accel0
 DOWNLOADED_MODEL_PATH=./models
 ```
 
