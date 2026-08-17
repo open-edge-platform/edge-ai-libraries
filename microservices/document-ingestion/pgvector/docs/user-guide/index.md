@@ -1,4 +1,4 @@
-# Data Ingestion microservice
+# Data Ingestion Microservice
 
 <!--hide_directive
 <div class="component_card_widget">
@@ -27,17 +27,10 @@ vectorDB and minIO is used as the data store.
 3. The selected components to implement the functionality is benchmarked and validated
    for optimal performance.
 
-## Example Use Case
+## High-Level System View Diagram
 
-**Use Case 1**: Refer to the
-[Chat Q&A](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/index.html)
-sample application where this microservice is used.
-
-### High-Level System View Diagram
-
-![system view diagram](./_assets/DataPrep_HL_Arch.png)
-
-   Figure 1: High-level system view demonstrating the microservice in a real-world use case.
+![system view diagram](./_assets/DataPrep_HL_Arch.png)\
+Figure 1: High-level system view demonstrating the microservice in a real-world use case.
 
 ## Key Features
 

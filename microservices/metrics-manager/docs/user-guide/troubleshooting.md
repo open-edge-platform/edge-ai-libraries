@@ -81,7 +81,7 @@ curl -s "http://localhost:9090/api/v1/capabilities?profile=expanded" | jq .devic
 
 ### Custom Metric Not Appearing on `/api/v1/metrics`
 
-**Symptom**: Metric accepted (201 response) but doesn't appear in query.
+**Symptom**: Metric accepted (201 response) but does not appear in query.
 
 **Check:**
 
@@ -110,7 +110,7 @@ curl http://localhost:9090/api/v1/metrics | jq '.metrics | keys'
 
 **Symptom**: Custom metric appears in `/api/v1/metrics` but not in `:9273/metrics`.
 
-**Root cause**: Metric hasn't been persisted to Telegraf yet (debounced 100ms by default).
+**Root cause**: Metric has not been persisted to Telegraf yet (debounced 100ms by default).
 
 **Solution:**
 
@@ -143,6 +143,7 @@ FILE_PERSIST_DEBOUNCE_MS=10 docker compose up
    ```
 
 2. Wait for next polling cycle:
+
    ```bash
    # Default 500ms polling interval
    sleep 1
@@ -186,7 +187,7 @@ docker logs metrics-manager | grep qmassa
 
 ### No NPU Metrics
 
-**Symptom**: No `npu_power`, `npu_frequency`, etc. in `:9273/metrics`.
+**Symptom**: No `npu_power`, `npu_frequency`, etc., in `:9273/metrics`.
 
 **Check:**
 
