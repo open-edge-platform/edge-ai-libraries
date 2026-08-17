@@ -140,7 +140,7 @@ ALL_IMAGES  := $(DEP_IMAGES) $(APP_IMAGES)
 
 TEST_TARGETS := $(addprefix test-,$(TEST_COMPONENTS))
 
-.PHONY: build build-deps push check-docker check-poetry test clean help list \
+.PHONY: build build-deps push check-docker test clean help list \
         shellcheck pylint eslint \
         trivy-scan trivy-scan-fs trivy-scan-image trivy-scan-config \
         clamav-scan bandit-scan gitleaks-scan codeql-scan \
@@ -159,13 +159,7 @@ check-docker:
 	  { echo "docker is not installed or not in PATH."; \
 	    echo "   Install: https://docs.docker.com/get-docker/"; exit 1; }
 
-check-poetry:
-	@command -v poetry >/dev/null 2>&1 || \
-	  { echo "poetry is not installed or not in PATH."; \
-	    echo "   Required to build the multimodal-embedding wheel."; \
-	    echo "   Install: https://python-poetry.org/docs/#installation"; exit 1; }
-
-build: check-docker check-poetry
+build: check-docker
 	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
 	@echo "Building all application services..."
 	@$(foreach component,$(COMPONENTS), \
@@ -177,8 +171,7 @@ build: check-docker check-poetry
 	@echo "All application services built successfully."
 
 # Build external dependency microservices (multimodal-dataprep, multimodal-embedding-serving).
-# Requires poetry to build the multimodal-embedding wheel.
-build-deps: check-docker check-poetry
+build-deps: check-docker
 	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
 	@echo "Building dependency microservices..."
 	@echo "  → Building multimodal-dataprep via upstream build.sh..."
@@ -840,7 +833,7 @@ help:
 	@echo "  build            Build application service images (video-ingestion,"
 	@echo "                   pipeline-manager, video-search, vss-ui)"
 	@echo "  build-deps       Build dependency images (multimodal-dataprep,"
-	@echo "                   multimodal-embedding-serving) — requires poetry"
+	@echo "                   multimodal-embedding-serving)"
 	@echo "  push             Push all built images to the registry"
 	@echo "  test             Run all unit tests"
 	@echo "  test-pipeline-manager   Run pipeline-manager tests (NestJS/Jest)"

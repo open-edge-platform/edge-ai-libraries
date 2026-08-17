@@ -101,7 +101,7 @@ the storage backend with `MM_DATAPREP_STORAGE_BACKEND` (`minio` or `local`).
 - `setup.sh` exports `INDEX_NAME=video-rag`; compose maps it to
   `DB_COLLECTION`.
 - Volumes `dataprep-yolox-models`, `ov-models`, `data-prep` hold model/scratch
-  state; MinIO persists to `MINIO_MOUNT_PATH` (default `/mnt/miniodata`).
+  state; MinIO persists to the named Docker volume `minio_data`.
 - A 413 may come from an upstream proxy/server; the source upload endpoint has
   no implemented size check and buffers the full body. Stage large files in
   MinIO and use `POST /videos/minio`.
