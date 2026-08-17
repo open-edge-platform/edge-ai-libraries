@@ -39,6 +39,10 @@ All environment variables for both the model serving and the microservice live i
 
 ```bash
 cd edge-ai-libraries/microservices/multilevel-video-understanding
+
+# Change to mirror endpoint if you are in China and want to use the mirror site for Hugging Face.
+export HF_ENDPOINT=https://hf-mirror.com
+
 source docker/set_env.sh
 ```
 
