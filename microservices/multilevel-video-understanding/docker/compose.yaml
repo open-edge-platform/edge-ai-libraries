@@ -25,7 +25,7 @@ services:
       no_proxy: ${no_proxy}
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://huggingface.co}
       HF_HOME: /llm/.cache/huggingface
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
       MODEL_PATH: ${LLM_MODEL}
