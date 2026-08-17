@@ -46,7 +46,7 @@ For install an ISV application, you can use the following commands:
 
 ### Download Setup
 
-The bootstrapped installer can be hosted at an URL and make it downloadable. Setup as follows:
+The bootstrapped installer can be hosted at an URL and made downloadable. Users setup the installer script as follows:
 
 ```
 curl -fsSL https://.../openedge-cli -o ~/.local/bin/openedge-cli
