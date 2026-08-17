@@ -44,7 +44,7 @@ Before running the sizing tool, ensure the target application is deployed and ac
 - [Sample Application README](../../sample-applications/chat-question-and-answer-core/README.md)
 
 **Live Video Captioning:**
-- [Sample Application README](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.1.0/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
+- [Sample Application README](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.2.0/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
 
 ## Installation
 

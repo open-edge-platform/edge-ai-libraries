@@ -135,9 +135,9 @@ The key components of Video Search and Summarization mode are as follows:
 
    **Inference microservices**:
 
-    - [Multimodal Embedding](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/index.html) - Creates vector embeddings for semantic search.
+    - [Multimodal Embedding](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/multimodal-embedding-serving/index.html) - Creates vector embeddings for semantic search.
 
-    - [Audio Analyzer](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/audio-analyzer/index.html) - Provides audio transcription capabilities.
+    - [Audio Analyzer](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/audio-analyzer/index.html) - Provides audio transcription capabilities.
 
     - [OpenVINO™ Model Server (OVMS)](https://docs.openvino.ai/nightly/model-server/ovms_what_is_openvino_model_server.html) or [vLLM](https://docs.vllm.ai/en/latest/usage/) - Hosts VLM/LLM models for captioning and summarization.
 
@@ -145,7 +145,7 @@ The key components of Video Search and Summarization mode are as follows:
 
     - [Multimodal data preparation](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/README.md) - Handles vector database storage and retrieval.
 
-    - [Vector Retriever](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/vector-retriever/index.html) - Enables semantic search across the video collection.
+    - [Vector Retriever](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/vector-retriever/index.html) - Enables semantic search across the video collection.
 
    See the respective documentation for details.
 
