@@ -45,9 +45,9 @@ To deploy with Helm chart, you can either install the chart from Docker hub or f
 
    ```bash
    # Clone the latest on the mainline
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
    # Alternatively, clone a specific release branch
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
    ```
 
 2. Navigate to the chart directory:

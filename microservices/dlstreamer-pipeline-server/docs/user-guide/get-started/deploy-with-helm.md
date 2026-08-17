@@ -12,10 +12,10 @@
 - Clone the `Edge-AI-Libraries` repository from Open Edge Platform and change to the Helm directory inside DL Streamer Pipeline Server project.
 
   ```sh
-    cd [WORKDIR]
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
-    cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/helm
-    ```
+  cd [WORKDIR]
+  git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
+  cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/helm
+  ```
 
 ## Quick try out
 Follow the steps in this section to quickly pull the latest pre-built DL Streamer Pipeline Server helm charts followed by running a sample usecase.

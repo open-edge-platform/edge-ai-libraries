@@ -518,9 +518,9 @@ Follow these steps to run the application:
 
    ```bash
    # Clone the latest on mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   # git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Clone the release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
 
    cd edge-ai-libraries/sample-applications/video-search-and-summarization
    ```

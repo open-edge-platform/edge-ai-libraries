@@ -17,9 +17,9 @@ Before you begin, ensure that you have the following prerequisites:
     - Clone the Document Summarization Sample Application repository:
       ```bash
       # Clone the latest on mainline
-      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-      # Alternatively, Clone a specific release branch
-      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+      # git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+      # Clone the release branch
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
       ```
       **Note**: Adjust the repo link appropriately in case of forked repo.
 

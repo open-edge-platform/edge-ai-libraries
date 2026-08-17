@@ -41,7 +41,7 @@ The image is based on `python:3.12-slim` and includes:
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries/metrics-manager
 ```
 

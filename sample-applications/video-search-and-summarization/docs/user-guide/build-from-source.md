@@ -22,9 +22,9 @@ This section shows how to build the Video Search and Summary sample application 
 
    ```bash
    # Clone the latest on mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   # git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Clone the release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
    ```
 
 2. **Navigate to the Directory**:
