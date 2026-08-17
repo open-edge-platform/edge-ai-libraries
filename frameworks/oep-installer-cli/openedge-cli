@@ -266,7 +266,6 @@ subcommand_completion () {
   mkdir -p "$(dirname "$completion_script")"
 
   local all_cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
-
   cat > "$completion_script" <<EOF
 #!/bin/bash
 _${installer_name//-/_}_completion () {
@@ -279,19 +278,18 @@ _${installer_name//-/_}_completion () {
 $(  
     for cmd in ${all_cmds[*]}; do
       [[ " bootstrap list completion " != *" $cmd "* ]] || continue
-      local -A all_comps=(["--continue"]=1)
+      local -A all_comps=(["--continue"]="" ["--dry-run"]="")
       local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${cmd}_" | cut -f4- -d_))
       for profiler in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f3 -d' '); do
         local pname=$(echo $profiler | cut -f4- -d_)
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
         local profile_modules=($($profiler $cmd))
-        [ ${#profile_modules[@]} -eq 0 ] || all_comps[$pname]=1
+        [ ${#profile_modules[@]} -eq 0 ] || all_comps[$pname]=""
       done
       for mname in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${cmd}_" | cut -f4- -d_); do
-        all_comps[$mname]=1
-        [ "$cmd" != "install" ] || all_comps["--reset-$mname"]=1
+        all_comps[$mname]=""
+        [ "$cmd" != "install" ] || all_comps["--reset-$mname"]=""
       done
-      [ "$cmd" != "install" ] || all_comps["--dry-run"]=1
       echo "  $cmd)"
       echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
       echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
