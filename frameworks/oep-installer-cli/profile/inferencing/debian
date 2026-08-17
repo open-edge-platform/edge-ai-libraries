@@ -1,5 +1,5 @@
 
 debian_99_profile_inferencing () {
-  echo "openvino"
+  [ "$1" = "start" ] || echo "openvino"
 }
 

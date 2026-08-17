@@ -1,5 +1,5 @@
 
 debian_99_profile_computer_vision () {
-  echo "dlstreamer vippet geti anomalib"
+  [ "$1" = "start" ] || echo "dlstreamer vippet geti anomalib"
 }
 
