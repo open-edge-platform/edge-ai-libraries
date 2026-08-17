@@ -93,3 +93,16 @@ Key Features:
 - Begin with the [Quick Start Guide](./get-started.md).
 - Read the [Plugins guide](./plugin.md) for the plugin system and built-in plugins.
 - See the [API Reference](./api-reference.md) for endpoint details.
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started.md
+./policy-based-router.md
+./plugin.md
+./api-reference.md
+Release Notes <./release-notes.md>
+
+:::
+hide_directive-->
