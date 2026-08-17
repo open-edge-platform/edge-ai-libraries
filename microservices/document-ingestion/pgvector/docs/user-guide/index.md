@@ -27,7 +27,7 @@ vectorDB and minIO is used as the data store.
 3. The selected components to implement the functionality is benchmarked and validated
    for optimal performance.
 
-### High-Level System View Diagram
+## High-Level System View Diagram
 
 ![system view diagram](./_assets/DataPrep_HL_Arch.png)\
 Figure 1: High-level system view demonstrating the microservice in a real-world use case.
