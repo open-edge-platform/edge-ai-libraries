@@ -1,7 +1,5 @@
 #!/bin/bash
 
-trap "main $*" EXIT
-
 # common variable: ID_LIKE
 . /etc/os-release
 red="\033[31m"
@@ -10,8 +8,6 @@ yellow="\033[33m"
 reset="\033[0m"
 
 main () {
-  trap - EXIT
-
   local args=() cmd=""
   for v in "$@"; do
     case $v in
@@ -109,6 +105,7 @@ act_helpper () {
     if [ ${#components[*]} -gt 0 ]; then
       if [ "${act_name}" = "install" ]; then
         echo "${act_name} options:"
+        echo "  --setup         setup bash."
         echo "  --reset-<name>  force reinstallation of the component if exit."
         echo
       fi
@@ -205,6 +202,7 @@ act_helpper () {
 }
 
 subcommand_install () {
+  
   act_helpper "install,Installation,Installing,Installed" "" "$@"
 }
 
@@ -357,8 +355,10 @@ subcommand_bootstrap () {
   if [[ " $* " != *" --dry-run "* ]]; then
     [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]} || exit" >> "$rendered"
     [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]} || exit" >> "$rendered"
+    echo '[ ${#@} -gt 0 ] || main "$@"' >> "$rendered"
     chmod a+rx "$rendered"
     echo "Rendered to $rendered"
   fi
 }
 
+main "$@"
