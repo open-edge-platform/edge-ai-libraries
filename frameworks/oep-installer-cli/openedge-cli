@@ -312,8 +312,7 @@ subcommand_bootstrap () {
       )
       [ -z "$licenser" ] || license_common=1
     else
-      echo "Unknown component or profile: ${modules[$i]}" 1>&2
-      exit 3
+      echo "Unknown component or profile: ${modules[$i]}. Skipping" 1>&2
     fi
     i=$((i+1))
   done
