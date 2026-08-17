@@ -368,7 +368,7 @@ The updated cache size is applied to the existing model configuration on the nex
    source setup.sh --search
    ```
 
-> **Note:** Always size the block from the **largest** resolution you will ingest — an oversized block only wastes memory, while an undersized one triggers the failure above. For the full explanation, see the DataPrep [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/docs/user-guide/get-started.md#advanced-tuning).
+> **Note:** Always size the block from the **largest** resolution you will ingest — an oversized block only wastes memory, while an undersized one triggers the failure above. For the full explanation, see the DataPrep [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/docs/user-guide/get-started.md#advanced-tuning).
 
 ## Accuracy of search results
 

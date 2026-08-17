@@ -23,7 +23,7 @@ If you are cloning from the larger monorepo and only need this service, you
 can use sparse checkout:
 
 ```bash
-git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries
 git sparse-checkout set microservices/inference-router
 cd microservices/inference-router
@@ -318,7 +318,7 @@ Notes:
 
 The router can compress prompts before they reach the backend to cut token
 usage, via plugins based on the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor).
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor).
 Use the unified `compressor` node and select the compressor type with
 `settings.type`:
 
@@ -330,10 +330,10 @@ Use the unified `compressor` node and select the compressor type with
 These backend services are **not** part of the router. To deploy
 the Lingua server and the tool predictor,
 see the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
-repository. 
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor)
+repository.
 For detailed purpose and behavior of each compressor, see the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor) repository documentation.
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor) repository documentation.
 
 
 ### Configuration
