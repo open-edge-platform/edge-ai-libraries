@@ -183,7 +183,7 @@ For feature overview, see [Key Features: Declarative Pattern Engine](./index.md#
 
 ## VLM Confirmation
 
-When a pose pattern matches and VLM is enabled (globally via `VLM_ENABLED=true` and per-pattern in YAML), the service performs frame-level visual confirmation via an OpenAI-compatible VLM endpoint.
+When a pose pattern matches and the global VLM switch is enabled via `VLM_ENABLED=true`, the service performs frame-level visual confirmation via an OpenAI-compatible VLM endpoint. Individual pattern `vlm.enabled` values may further opt a given pattern in or out when needed.
 
 **Request pipeline:**
 1. **Frame selection:** Samples up to `num_frames` (configurable per-pattern) key frames identified during pose matching

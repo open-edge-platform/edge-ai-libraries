@@ -70,8 +70,8 @@ ls -la ./models/yolo_models/yolo26n-pose/
 **Cause:** VLM is disabled, or the OVMS endpoint is unreachable.
 
 **Resolution:**
-- Check `VLM_ENABLED=true` is set.
-- Verify `vlm_enabled: true` in `config/patterns.yaml` under `vlm_settings` and for the specific pattern.
+- Check whether `VLM_ENABLED=true` is set when you want VLM enabled; this is the global runtime switch.
+- If the global VLM flag is disabled, the service will skip VLM confirmation regardless of pattern-level YAML values. Pattern-level `vlm.enabled` only matters when the service-level flag is already enabled.
 - Confirm the OVMS service is running and responding: `curl http://ovms-vlm:8001/v2/health/ready`.
 - Check `VLM_ENDPOINT` points to the correct host and port.
 - In Docker Compose, `depends_on: ovms-vlm: condition: service_healthy` ensures OVMS is ready before the service starts.
