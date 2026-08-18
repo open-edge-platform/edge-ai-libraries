@@ -46,6 +46,6 @@ debian_90_install_order_accuracy () {
 
 debian_90_remove_order_accuracy () {
   configure_order_accuracy
-  ensure_sudo rm -rf "$workspace"
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 

@@ -41,5 +41,5 @@ debian_90_stop_vippet () {
 
 debian_90_remove_vippet () {
   debian_90_stop_vippet $* || true
-  ensure_sudo rm -rf "$workspace"
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }

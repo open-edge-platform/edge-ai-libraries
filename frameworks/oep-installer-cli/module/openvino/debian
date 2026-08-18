@@ -57,7 +57,7 @@ debian_70_remove_openvino () {
 
   if verify_openvino; then
     ensure_apt autoremove -m -y openvino-${version} openvino || true
-    ensure_sudo rm -rf "$openvino_venv" /etc/apt/sources.list.d/intel-openvino.list
+    ensure_sudo rm -rf "$openvino_venv" /etc/apt/sources.list.d/intel-openvino.list 2> /dev/null || true
   else
     echo "openvino-${version} already removed. Skipping"
   fi

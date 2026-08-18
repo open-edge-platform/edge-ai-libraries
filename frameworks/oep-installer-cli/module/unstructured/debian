@@ -52,6 +52,6 @@ debian_95_stop_unstructured () {
 debian_95_remove_unstructured () {
   configure_unstructured
   docker rm -f "$container_name" 2> /dev/null || true
-  ensure_sudo rm -rf "$workspace"
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 

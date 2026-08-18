@@ -60,5 +60,5 @@ debian_90_stop_pcb_anomaly_detection () {
 
 debian_90_remove_pcb_anomaly_detection () {
   debian_90_stop_pcb_anomaly_detection || true
-  ensure_sudo rm -rf "$workspace"
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }

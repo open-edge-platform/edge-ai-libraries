@@ -47,6 +47,6 @@ debian_90_stop_handheld_multi_modal () {
 
 debian_90_remove_handheld_multi_modal () {
   debian_90_stop_handheld_multi_modal $*
-  ensure_sudo rm -rf "$workspace"
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 

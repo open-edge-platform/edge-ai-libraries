@@ -51,7 +51,7 @@ debian_40_install_npu () {
 debian_40_remove_npu () {
   if verify_npu; then
     ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
-    ensure_sudo rm -rf "$workspace"
+    ensure_sudo rm -rf "$workspace" 2> /dev/null || true
   else
     echo "npu drivers are removed already. Skipping"
   fi

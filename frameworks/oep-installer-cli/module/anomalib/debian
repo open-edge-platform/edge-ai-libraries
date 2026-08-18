@@ -34,6 +34,6 @@ debian_70_install_anomalib () {
 
 debian_70_remove_anomalib () {
   configure_anomalib $*
-  ensure_sudo rm -rf "$workspace"
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
