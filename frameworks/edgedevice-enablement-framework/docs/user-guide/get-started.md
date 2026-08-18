@@ -49,12 +49,12 @@ Before starting the Edge Node deployment, ensure you meet the following prerequi
 
 ## Step 2: Download the Script
 
-1. [Download](https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/frameworks/edgedevice-enablement-framework/base/va_enablement_node_profile/va_enablement_node_profile.sh) the Edge Device Enablement Framework script.
+1. [Download](https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.2.0/frameworks/edgedevice-enablement-framework/base/va_enablement_node_profile/va_enablement_node_profile.sh) the Edge Device Enablement Framework script.
 
 2. Download the file using wget:
 
    ```
-   wget https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/frameworks/edgedevice-enablement-framework/base/va_enablement_node_profile/va_enablement_node_profile.sh
+   wget https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.2.0/frameworks/edgedevice-enablement-framework/base/va_enablement_node_profile/va_enablement_node_profile.sh
    ```
 
 ## Step 3: Run the Script and Configure Command-line Options

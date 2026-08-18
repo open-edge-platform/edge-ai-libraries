@@ -83,6 +83,7 @@ plugins:
 # Routing Configuration
 routing:
   policy: "Balanced"  # Must exist in /workspace/policy.yaml
+  # Set to "Intelligent" to enable the intelligent routing policy
 
 # Telemetry Configuration
 telemetry:

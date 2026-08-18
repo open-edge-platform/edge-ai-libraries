@@ -31,10 +31,10 @@ The Model Download is a microservice that downloads models from multiple hubs as
 ## Start with Setup Script
 
 ### 1. Clone the Microservice
-Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace main with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/dev/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
+Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace `release-2026.2.0` with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/2026.2/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
 
 ```bash
-git clone --filter=blob:none --sparse --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --filter=blob:none --sparse --branch release-2026.2.0 https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries/
 git sparse-checkout set microservices/model-download/
 cd microservices/model-download/
