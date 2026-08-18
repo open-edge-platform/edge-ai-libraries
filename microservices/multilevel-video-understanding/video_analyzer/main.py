@@ -3,6 +3,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from video_analyzer.api.router import api_router
 from video_analyzer.core.settings import settings
@@ -29,6 +30,15 @@ if settings.BACKEND_CORS_ORIGINS:
 
 # Include the API router containing all endpoints
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+
+# The canonical schema lives under API_V1_PREFIX, but tooling (and users) expect
+# FastAPI's default path too — serve the same document from both.
+if app.openapi_url != "/openapi.json":
+
+    @app.get("/openapi.json", include_in_schema=False)
+    def openapi_schema_alias() -> JSONResponse:
+        return JSONResponse(app.openapi())
 
 
 @app.on_event("startup")
