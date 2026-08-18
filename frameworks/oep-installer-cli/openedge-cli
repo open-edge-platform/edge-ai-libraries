@@ -6,6 +6,7 @@ readonly red="\033[31m"
 readonly green="\033[32m"
 readonly yellow="\033[33m"
 readonly reset="\033[0m"
+readonly installer_name=openedge-cli
 
 main () {
   local args=() cmd=""
@@ -164,7 +165,7 @@ act_helpper () {
           echo "Invoke $handler with $invoke_args" 
           echo "@@OK $name1"
         else
-          local state_path="$(ensure_project_path)/$(basename "$0")/states/$name1"
+          local state_path="$(ensure_project_path)/$installer_name/states/$name1"
           [ "$act_name" = "start" ] && mkdir -p "$state_path"
           echo "@@COMP $name1"
           (
@@ -188,7 +189,7 @@ act_helpper () {
         ${ID_LIKE}_10_${act_name}_pre_system_scan
       fi
     } > >(
-      LOG_FILE="$(ensure_project_path)/$(basename "$0")/$(date +%Y-%m-%d).logs"
+      LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
       mkdir -p "$(dirname "$LOG_FILE")"
       echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
       echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
@@ -217,7 +218,7 @@ subcommand_start () {
 
 subcommand_stop () {
   local args=("$@") margs=(${*##-*})
-  local state_path="$(ensure_project_path)/$(basename "$0")/states"
+  local state_path="$(ensure_project_path)/$installer_name/states"
   [ ${#margs[@]} -eq 0 ] && [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
   act_helpper "stop,Stop,Stopping,Stopped" "-r" "${args[@]}" --continue
 }
@@ -265,7 +266,6 @@ subcommand_list () {
 subcommand_completion () {
   [[ " $* " != *" --help "* ]] || return
 
-  local installer_name=$(basename "$0")
   local completion_script=~/.local/share/bash-completion/completions/$installer_name
   mkdir -p "$(dirname "$completion_script")"
 
@@ -375,7 +375,7 @@ subcommand_bootstrap () {
     exit 3
   fi
 
-  local rendered="$(dirname "$0")/rendered/openedge-cli"
+  local rendered="$mydir/rendered/$installer_name"
   local install_modules=() start_modules=()
   if [[ " $* " != *" --dry-run "* ]]; then
     sed '/^#### COLLECTION OF MODULES ####/q' "$0" > "$rendered"
