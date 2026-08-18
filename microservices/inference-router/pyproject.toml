@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=78.1.1", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -35,6 +35,13 @@ dependencies = [
     "requests>=2.31.0",
     "tiktoken>=0.8.0",
     "gunicorn>=21.2.0",
+    # Security pins (Trivy HIGH):
+    #   setuptools<78.1.1 -> CVE-2025-47273 (PackageIndex path traversal)
+    #   msgpack<1.2.1     -> GHSA-6v7p-g79w-8964 (OOB read on Unpacker reuse)
+    # msgpack is a transitive dep; both are pinned here so pip upgrades them in
+    # the runtime image.
+    "setuptools>=78.1.1",
+    "msgpack>=1.2.1",
 ]
 
 [project.optional-dependencies]
