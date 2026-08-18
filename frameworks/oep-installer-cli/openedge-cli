@@ -164,6 +164,8 @@ act_helpper () {
           echo "Invoke $handler with $invoke_args" 
           echo "@@OK $name1"
         else
+          local state_path="$(ensure_project_path)/$(basename "$0")/states/$name1"
+          [ "$act_name" = "start" ] && mkdir -p "$state_path"
           echo "@@COMP $name1"
           (
             set -e
@@ -171,6 +173,7 @@ act_helpper () {
             wait -n
           )
           local rc1=$?
+          [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
           else
@@ -188,7 +191,7 @@ act_helpper () {
       LOG_FILE="$(ensure_project_path)/$(basename "$0")/$(date +%Y-%m-%d).logs"
       mkdir -p "$(dirname "$LOG_FILE")"
       echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
-      echo "command: $act_name $*" >> "$LOG_FILE"
+      echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
       ensure_panelled_logs ${act_text//,/ }
     ) 2>&1
     # wait for background processes
@@ -213,9 +216,10 @@ subcommand_start () {
 }
 
 subcommand_stop () {
-  local args=("$@")
-  [ ${#args[@]} -gt 0 ] || args+=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_stop_" | cut -f4- -d_))
-  act_helpper "stop Stop Stopping Stopped" "-r" "${args[@]}" --continue
+  local args=("$@") margs=(${*##-*})
+  local state_path="$(ensure_project_path)/$(basename "$0")/states"
+  [ ${#margs[@]} -eq 0 ] && [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
+  act_helpper "stop,Stop,Stopping,Stopped" "-r" "${args[@]}" --continue
 }
 
 subcommand_list () {
