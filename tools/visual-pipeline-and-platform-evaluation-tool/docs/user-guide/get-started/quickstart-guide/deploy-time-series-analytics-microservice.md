@@ -10,9 +10,19 @@ detection UDF.
 - `make` available on the host
 - `wget` installed (required to download UDF packages)
 
-## Configure Environment Variables - Build, Start, and Stop
+## Activate the Experimental Time Series stack
 
-### Build
+The Time Series Analytics Microservice is started from the experimental compose stack.
+Use the project Makefile targets from the tool root directory:
+
+```bash
+cd tools/visual-pipeline-and-platform-evaluation-tool
+```
+
+Activation is performed with the
+`build-experimental` and `run-experimental` targets.
+
+### Build the experimental stack
 
 Build all required Docker images:
 
@@ -20,12 +30,23 @@ Build all required Docker images:
 make build-experimental
 ```
 
-### Start
+### Start the experimental stack
 
 Start all services, including the Time Series Analytics Microservice:
 
 ```bash
 make run-experimental
+```
+
+This command enables the Time Series flow using `compose-experimental.yml`, including
+`ia-time-series-analytics-microservice` and `ia-timeseries-ingestion`.
+
+### Verify that Time Series services are active
+
+Check if both Time Series services are running:
+
+```bash
+docker ps --format '{{.Names}}' | grep -E 'ia-time-series-analytics-microservice|ia-timeseries-ingestion'
 ```
 
 ### Stop and Clean
@@ -89,12 +110,18 @@ A successful response returns the message: `Configuration updated successfully.`
 
 ---
 
-### Step 4. Verify the Time Series Analytics Microservice logs
+### Step 4. Verify Time Series logs
 
 Check that processing is running correctly:
 
 ```bash
 docker logs -f ia-time-series-analytics-microservice
+```
+
+In a separate terminal, you can also verify ingestion activity:
+
+```bash
+docker logs -f ia-timeseries-ingestion
 ```
 
 You should see output similar to the following:
