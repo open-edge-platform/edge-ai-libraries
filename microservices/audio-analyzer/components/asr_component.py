@@ -24,6 +24,23 @@ IDENTITY_LOCK_MIN_DURATION_SEC = float(getattr(_identity_cfg, "lock_min_duration
 IDENTITY_SESSION_TTL_SECONDS = float(getattr(_identity_cfg, "session_ttl_seconds", 1800.0))
 
 
+def _is_diarization_auth_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    markers = (
+        "401",
+        "403",
+        "unauthorized",
+        "forbidden",
+        "invalid token",
+        "token",
+        "huggingface",
+        "gated",
+        "access",
+        "permission",
+    )
+    return any(marker in text for marker in markers)
+
+
 class ASRComponent(PipelineComponent):
 
     _model = None
@@ -91,10 +108,11 @@ class ASRComponent(PipelineComponent):
             try:
                 from components.asr.diarization.pyannote_diarizer import PyannoteDiarizer
                 from utils.ensure_model import _resolve_hf_token
+                from utils.openvino_runtime_validation import resolve_diarization_torch_device
 
-                diar_device = str(
-                    getattr(getattr(config.models, "diarization", None), "device", "cpu")
-                ).lower()
+                _diar_cfg_local = getattr(config.models, "diarization", None)
+                _config_diar_device = str(getattr(_diar_cfg_local, "device", "CPU") if _diar_cfg_local else "CPU")
+                diar_device = resolve_diarization_torch_device(_config_diar_device)
 
                 # Reuse a single shared diarizer across all requests so the
                 # pyannote pipeline (weights + embedding model) is loaded once
@@ -105,13 +123,29 @@ class ASRComponent(PipelineComponent):
                     ASRComponent._pyannote_diarizer is None
                     or ASRComponent._pyannote_diarizer_key != diarizer_key
                 ):
-                    ASRComponent._pyannote_diarizer = PyannoteDiarizer(
-                        device=diar_device,
-                        hf_token=_resolve_hf_token(),
-                    )
+                    hf_token = _resolve_hf_token()
+                    if diar_device.upper() in ("GPU", "NPU"):
+                        # OpenVINO-backed diarization: segmentation model runs on
+                        # the requested OV device; embedding + clustering on CPU.
+                        from components.asr.diarization.ov_pyannote_diarizer import (
+                            OVBackedPyannoteDiarizer,
+                        )
+                        from utils.ensure_model import get_diarization_model_path
+
+                        ASRComponent._pyannote_diarizer = OVBackedPyannoteDiarizer(
+                            ov_device=diar_device.upper(),
+                            hf_token=hf_token,
+                            model_dir=get_diarization_model_path(),
+                        )
+                    else:
+                        # CPU path: existing PyannoteDiarizer (PyTorch CPU).
+                        ASRComponent._pyannote_diarizer = PyannoteDiarizer(
+                            device="cpu",
+                            hf_token=hf_token,
+                        )
                     ASRComponent._pyannote_diarizer_key = diarizer_key
                     logger.info(
-                        "[DIARIZATION] PyannoteDiarizer loaded on device=%s",
+                        "[DIARIZATION] Diarizer loaded on device=%s",
                         diar_device,
                     )
                 self.pyannote_diarizer = ASRComponent._pyannote_diarizer
@@ -125,16 +159,22 @@ class ASRComponent(PipelineComponent):
                         session_ttl_seconds=IDENTITY_SESSION_TTL_SECONDS,
                     )
             except Exception as exc:
-                logger.warning(
-                    "[DIARIZATION] ⚠️  Failed to load PyannoteDiarizer — diarization disabled for this session. "
-                    "Cause: %s. "
-                    "If this is a 403 error, accept the model at "
-                    "https://huggingface.co/pyannote/speaker-diarization-community-1 "
-                    "then restart the container.",
-                    exc,
-                )
-                self.enable_diarization = False
-                self.pyannote_diarizer = None
+                # models.asr.diarization=true — never silently disable diarization.
+                # Any failure here is fatal; the service must not start with
+                # diarization requested but non-functional.
+                if _is_diarization_auth_error(exc):
+                    raise RuntimeError(
+                        "Speaker diarization initialization failed due to HF token/access error. "
+                        "Startup aborted: models.asr.diarization=true requires valid credentials. "
+                        "If this is a 403 error, accept the model at "
+                        "https://huggingface.co/pyannote/speaker-diarization-community-1 "
+                        "and restart the container."
+                    ) from exc
+                raise RuntimeError(
+                    "Speaker diarization initialization failed. "
+                    "Startup aborted: models.asr.diarization=true requires successful diarization "
+                    f"initialization. Cause: {exc}"
+                ) from exc
 
     def process(self, input_generator, language: str | None = None):
 

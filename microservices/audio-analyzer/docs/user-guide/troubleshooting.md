@@ -34,6 +34,21 @@ cached artifacts.
   installed on the host (separate from the Python dependencies).
 - For the container, `/dev/dri` must be exposed to the container (default in
   `docker-compose.yml`).
+- **Docker vs host `.venv`:** The Docker Compose environment is the verified
+  configuration for GPU and NPU acceleration. Running directly with the host
+  `.venv` may report only `CPU` in `openvino.Core().available_devices` if the
+  host Intel GPU/NPU runtime stack is not fully installed. In that case, startup
+  fails fast with a message such as:
+
+  ```text
+  RuntimeError: Configured OpenVINO ASR device 'GPU' is not visible in this runtime.
+  OpenVINO available_devices=['CPU'].
+  ```
+
+  This is a host runtime environment limitation, not an application bug. Use the
+  Docker Compose flow (`docker compose up -d --build`) for GPU and NPU
+  acceleration; the container image includes the necessary OpenVINO GPU and NPU
+  runtime libraries and exposes `/dev/dri` by default.
 
 ## NPU Path Is Not Used
 

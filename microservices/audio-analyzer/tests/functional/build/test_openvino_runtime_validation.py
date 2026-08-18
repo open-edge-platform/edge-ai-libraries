@@ -11,6 +11,34 @@ from utils.openvino_runtime_validation import (
     validate_openvino_npu_runtime,
     validate_runtime_configuration,
 )
+from utils.openvino_runtime_validation import (
+    resolve_diarization_torch_device,
+    validate_diarization_device_configuration,
+)
+
+
+def _diar_cfg(
+    *,
+    diarization_enabled: bool = True,
+    diarization_device: str = "CPU",
+    asr_provider: str = "openvino",
+    asr_device: str = "CPU",
+):
+    return SimpleNamespace(
+        models=SimpleNamespace(
+            asr=SimpleNamespace(
+                provider=asr_provider,
+                device=asr_device,
+                name="whisper-base",
+                diarization=diarization_enabled,
+            ),
+            diarization=SimpleNamespace(
+                provider="huggingface",
+                device=diarization_device,
+            ),
+        ),
+        sentiment=SimpleNamespace(enabled=False, provider="openvino", device="CPU"),
+    )
 
 
 def _cfg(asr_provider="openai", asr_device="CPU", asr_model_name="whisper-small", sentiment_enabled=False, sentiment_provider="openvino", sentiment_device="CPU"):
@@ -172,3 +200,129 @@ def test_validate_runtime_configuration_validates_sentiment_npu(monkeypatch):
         )
     )
 
+
+# ---------------------------------------------------------------------------
+# resolve_diarization_torch_device
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# resolve_diarization_torch_device — new OV-based implementation
+# ---------------------------------------------------------------------------
+
+def test_resolve_diarization_torch_device_cpu_returns_cpu():
+    """CPU device maps to 'CPU' (PyTorch CPU path)."""
+    assert resolve_diarization_torch_device("CPU") == "CPU"
+    assert resolve_diarization_torch_device("cpu") == "CPU"
+
+
+def test_resolve_diarization_torch_device_gpu_returns_gpu():
+    """GPU maps to 'GPU' (OpenVINO GPU path — no PyTorch GPU check needed)."""
+    assert resolve_diarization_torch_device("GPU") == "GPU"
+    assert resolve_diarization_torch_device("gpu") == "GPU"
+
+
+def test_resolve_diarization_torch_device_npu_returns_npu():
+    """NPU maps to 'NPU' (OpenVINO NPU path)."""
+    assert resolve_diarization_torch_device("NPU") == "NPU"
+    assert resolve_diarization_torch_device("npu") == "NPU"
+
+
+def test_resolve_diarization_torch_device_invalid_name_raises():
+    """An unrecognised config device name fails fast."""
+    with pytest.raises(RuntimeError, match="Invalid diarization device"):
+        resolve_diarization_torch_device("FPGA")
+
+
+# ---------------------------------------------------------------------------
+# validate_diarization_device_configuration — OV availability checks
+# ---------------------------------------------------------------------------
+
+def test_validate_diarization_device_skips_when_diarization_disabled():
+    """validate_diarization_device_configuration is a no-op when diarization=false."""
+    cfg = _diar_cfg(diarization_enabled=False, diarization_device="GPU")
+    validate_diarization_device_configuration(cfg)  # must not raise
+
+
+def test_validate_diarization_device_accepts_cpu_always():
+    """CPU device is always accepted — no OV probe needed."""
+    cfg = _diar_cfg(diarization_enabled=True, diarization_device="CPU")
+    validate_diarization_device_configuration(cfg)  # must not raise
+
+
+def test_validate_diarization_device_accepts_gpu_when_ov_sees_gpu(monkeypatch):
+    """GPU diarization passes when OpenVINO enumerates GPU."""
+    _install_fake_openvino(monkeypatch, available_devices=["CPU", "GPU"])
+    cfg = _diar_cfg(diarization_enabled=True, diarization_device="GPU")
+    validate_diarization_device_configuration(cfg)  # must not raise
+
+
+def test_validate_diarization_device_rejects_gpu_when_ov_has_no_gpu(monkeypatch):
+    """GPU diarization fails startup when OpenVINO does not enumerate GPU."""
+    _install_fake_openvino(monkeypatch, available_devices=["CPU"])
+    cfg = _diar_cfg(diarization_enabled=True, diarization_device="GPU")
+    with pytest.raises(RuntimeError, match="not visible in this runtime"):
+        validate_diarization_device_configuration(cfg)
+
+
+def test_validate_diarization_device_accepts_npu_when_ov_sees_npu(monkeypatch):
+    """NPU diarization passes when OpenVINO enumerates NPU."""
+    _install_fake_openvino(monkeypatch, available_devices=["CPU", "NPU"])
+    cfg = _diar_cfg(diarization_enabled=True, diarization_device="NPU")
+    validate_diarization_device_configuration(cfg)  # must not raise
+
+
+def test_validate_diarization_device_rejects_npu_when_ov_has_no_npu(monkeypatch):
+    """NPU diarization fails startup when OpenVINO does not enumerate NPU."""
+    _install_fake_openvino(monkeypatch, available_devices=["CPU", "GPU"])
+    cfg = _diar_cfg(diarization_enabled=True, diarization_device="NPU")
+    with pytest.raises(RuntimeError, match="not visible in this runtime"):
+        validate_diarization_device_configuration(cfg)
+
+
+def test_validate_runtime_configuration_rejects_gpu_diarization_without_ov_gpu(monkeypatch):
+    """End-to-end: validate_runtime_configuration propagates OV GPU diarization errors."""
+    _install_fake_openvino(monkeypatch, available_devices=["CPU"])
+    cfg = _diar_cfg(
+        diarization_enabled=True,
+        diarization_device="GPU",
+        asr_provider="openai",
+        asr_device="CPU",
+    )
+    with pytest.raises(RuntimeError, match="not visible in this runtime"):
+        validate_runtime_configuration(cfg)
+
+
+def test_validate_runtime_configuration_accepts_npu_asr_with_cpu_diarization(monkeypatch):
+    """openvino+NPU ASR paired with CPU diarization is a valid combination."""
+    _install_fake_openvino(monkeypatch, available_devices=["CPU", "NPU"])
+    cfg = _diar_cfg(
+        diarization_enabled=True,
+        diarization_device="CPU",
+        asr_provider="openvino",
+        asr_device="NPU",
+    )
+    validate_runtime_configuration(cfg)
+
+
+def test_validate_runtime_configuration_accepts_npu_asr_with_npu_diarization(monkeypatch):
+    """openvino+NPU ASR paired with NPU diarization is a valid combination."""
+    _install_fake_openvino(monkeypatch, available_devices=["CPU", "NPU"])
+    cfg = _diar_cfg(
+        diarization_enabled=True,
+        diarization_device="NPU",
+        asr_provider="openvino",
+        asr_device="NPU",
+    )
+    validate_runtime_configuration(cfg)
+
+
+def test_validate_runtime_configuration_accepts_gpu_asr_with_gpu_diarization(monkeypatch):
+    """openvino+GPU ASR paired with GPU diarization is a valid combination."""
+    _install_fake_openvino(monkeypatch, available_devices=["CPU", "GPU"])
+    cfg = _diar_cfg(
+        diarization_enabled=True,
+        diarization_device="GPU",
+        asr_provider="openvino",
+        asr_device="GPU",
+    )
+    validate_runtime_configuration(cfg)

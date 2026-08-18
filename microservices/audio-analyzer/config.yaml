@@ -51,7 +51,7 @@ models:
   diarization: # Only applicable when models.asr.diarization is set to True
     provider: "huggingface"
     name: "pyannote/speaker-diarization-community-1"
-    device: CPU  # CPU or GPU
+    device: CPU  # CPU | GPU | NPU
     models_base_path: "models"
     min_speakers: 1   # kiosk scenario: at most 1 customer + 1 staff member per chunk
     max_speakers: 2

@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 _SUPPORTED_ASR_PROVIDERS = {"openai", "openvino", "whispercpp"}
 _SUPPORTED_ASR_DEVICES = {"CPU", "GPU", "NPU"}
+_SUPPORTED_DIARIZATION_DEVICES = {"CPU", "GPU", "NPU"}
 _ASR_PROVIDER_DEVICE_MATRIX = {
     "openai": {"CPU"},
     "openvino": {"CPU", "GPU", "NPU"},
@@ -152,8 +153,8 @@ def validate_asr_runtime_configuration(cfg: SimpleNamespace) -> None:
         guidance = (
             "For GPU, ensure /dev/dri is exposed to the container and Intel/OpenVINO host GPU runtime is installed."
             if device == "GPU"
-            else "For NPU, ensure ACCEL_MOUNT_PATH maps the host NPU node into /dev/accel/accel0 and "
-            "ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so is set."
+            else "For NPU, ensure ACCEL_MOUNT_PATH points to your host NPU device node and is mapped into "
+            "/dev/accel/accel0 in the container, and ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so is set."
         )
         raise RuntimeError(
             f"Configured OpenVINO ASR device '{device}' is not visible in this runtime. "
@@ -184,8 +185,81 @@ def validate_openvino_npu_runtime(config: SimpleNamespace) -> None:
     _probe_openvino_npu_runtime()
 
 
+def resolve_diarization_torch_device(config_device: str) -> str:
+    """Map the configured diarization device to the internal device string.
+
+    For CPU: returns ``"cpu"`` (PyTorch CPU path, existing ``PyannoteDiarizer``).
+    For GPU: returns ``"GPU"`` (OpenVINO GPU path, ``OVBackedPyannoteDiarizer``).
+    For NPU: returns ``"NPU"`` (OpenVINO NPU path, ``OVBackedPyannoteDiarizer``).
+
+    Raises ``RuntimeError`` for unrecognised values so the service fails fast.
+
+    Note: the GPU and NPU paths route diarization inference through OpenVINO,
+    not through PyTorch XPU/CUDA.  PyTorch is used only for the embedding model
+    which always runs on CPU.  Actual device availability is validated by
+    ``validate_diarization_device_configuration`` at startup.
+    """
+    upper = str(config_device).strip().upper()
+    if upper in ("CPU", "GPU", "NPU"):
+        return upper
+    raise RuntimeError(
+        f"Invalid diarization device '{config_device}'. "
+        f"Supported values: {sorted(_SUPPORTED_DIARIZATION_DEVICES)}"
+    )
+
+
+def validate_diarization_device_configuration(cfg: SimpleNamespace) -> None:
+    """Validate the diarization device at startup.
+
+    * ``CPU``: always supported (PyTorch CPU path).
+    * ``GPU``: validated via OpenVINO device enumeration (OV GPU path).
+    * ``NPU``: validated via OpenVINO device enumeration (OV NPU path).
+
+    Raises ``RuntimeError`` if the requested device is not available so that the
+    service fails fast rather than silently disabling diarization at request time.
+    """
+    asr_cfg = getattr(getattr(cfg, "models", None), "asr", None)
+    if not getattr(asr_cfg, "diarization", False):
+        return  # diarization disabled — no validation needed
+
+    diar_cfg = getattr(getattr(cfg, "models", None), "diarization", None)
+    raw_device = str(getattr(diar_cfg, "device", "CPU") if diar_cfg else "CPU")
+    device = resolve_diarization_torch_device(raw_device)  # validates device name
+
+    if device == "CPU":
+        return  # CPU is always available
+
+    # GPU and NPU are served via OpenVINO.  Probe OV device availability.
+    try:
+        import openvino as ov
+    except ImportError as exc:
+        raise RuntimeError(
+            "OpenVINO is required for diarization device=GPU/NPU but is not installed."
+        ) from exc
+
+    available = [str(d).upper() for d in ov.Core().available_devices]
+    if device not in available:
+        guidance = (
+            "For GPU: ensure /dev/dri is exposed to the container and "
+            "the host Intel GPU driver stack is installed."
+            if device == "GPU"
+            else "For NPU: set ACCEL_MOUNT_PATH to your host NPU device node and restart. "
+            "Verify Compose maps it to /dev/accel/accel0 and ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so is set in the container."
+        )
+        raise RuntimeError(
+            f"Diarization device={device} is configured but the OpenVINO device "
+            f"'{device}' is not visible in this runtime. "
+            f"OpenVINO available_devices={available}. {guidance}"
+        )
+    logger.info(
+        "[DIARIZATION] OpenVINO device '%s' confirmed available for diarization",
+        device,
+    )
+
+
 def validate_runtime_configuration(config: SimpleNamespace) -> None:
     validate_asr_runtime_configuration(config)
+    validate_diarization_device_configuration(config)
 
     if _sentiment_uses_openvino_npu(config) and not _asr_uses_openvino_npu(config):
         logger.info("NPU device requested by sentiment configuration; validating OpenVINO NPU runtime availability")
