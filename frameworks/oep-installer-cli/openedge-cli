@@ -1,14 +1,13 @@
 #!/bin/bash
 
-# common variable: ID_LIKE
-. /etc/os-release
-readonly red="\033[31m"
-readonly green="\033[32m"
-readonly yellow="\033[33m"
-readonly reset="\033[0m"
-readonly installer_name=openedge-cli
-
 main () {
+  . /etc/os-release
+  red="\033[31m"
+  green="\033[32m"
+  yellow="\033[33m"
+  reset="\033[0m"
+  installer_name=openedge-cli
+
   local args=() cmd=""
   for v in "$@"; do
     case $v in
@@ -35,11 +34,8 @@ main () {
     esac
   done
 
-  # show help if cmd is not specified
-  [ -n "$cmd" ] || main --help
-
   # exec subcommand
-  subcommand_$cmd ${args[*]}
+  [ -z "$cmd" ] || subcommand_$cmd ${args[*]}
 }
 
 act_extract_modules () {
@@ -239,7 +235,7 @@ subcommand_list () {
         [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
         local profile_cmds=()
         for cmd in ${all_cmds[*]}; do
-          [[ " bootstrap list completion " != *" $cmd "* ]] || continue
+          [[ " bootstrap list setup " != *" $cmd "* ]] || continue
           local profile_modules=($($profiler $cmd))
           [ ${#profile_modules[@]} -eq 0 ] || profile_cmds+=($cmd)
         done
@@ -263,9 +259,24 @@ subcommand_list () {
   } | ensure_columns
 }
 
-subcommand_completion () {
+subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
 
+  # reconstruct installer
+  local installer_misc_functions=()
+  if [ ${#installer_misc_functions[@]} -gt 0 ]; then
+    local installer=~/.local/bin/$installer_name
+    cat > "$installer" <<EOF
+#!/bin/bash
+$(declare -f ${installer_misc_functions[*]})
+$(declare -f $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_" | cut -f3 -d' ' | tr '\n' ' '))
+main "\$@"
+EOF
+    chmod a+rx "$installer"
+    echo "Installer reconstructed at $installer"
+  fi
+
+  # reconstruct bash completion
   local completion_script=~/.local/share/bash-completion/completions/$installer_name
   mkdir -p "$(dirname "$completion_script")"
 
@@ -281,7 +292,7 @@ _${installer_name//-/_}_completion () {
   case "\${COMP_WORDS[1]}" in
 $(  
     for cmd in ${all_cmds[*]}; do
-      [[ " bootstrap list completion " != *" $cmd "* ]] || continue
+      [[ " bootstrap list setup " != *" $cmd "* ]] || continue
       local -A all_comps=(["--continue"]="" ["--dry-run"]="")
       local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${cmd}_" | cut -f4- -d_))
       for profiler in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f3 -d' '); do
@@ -309,7 +320,6 @@ $(
 }
 complete -F _${installer_name//-/_}_completion $installer_name
 EOF
-
   echo "bash completion created at $completion_script"
 }
 
@@ -322,6 +332,7 @@ subcommand_bootstrap () {
     echo "bootstrap options:"
     echo "  --install=<name>       set default installation component|profile."
     echo "  --start=<name>         set default start component|profile."
+    echo "  --setup                setup installer."
     echo
     local profiles=($(cd "$mydir";find profile -name "$ID_LIKE" | cut -f2 -d/))
     [ ${#profiles[*]} -eq 0 ] || echo "  list of bootstrap profiles: ${profiles[*]}"
@@ -407,8 +418,19 @@ subcommand_bootstrap () {
   done
 
   if [[ " $* " != *" --dry-run "* ]]; then
-    [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main install ${install_modules[*]} || exit" >> "$rendered"
-    [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 1 ] || main start ${start_modules[*]} || exit" >> "$rendered"
+    if [[ " $* " = *" --setup "* ]]; then
+      local misc_funcs=($(
+        local bfuncs=($(declare -F | grep -v -E " (main|subcommand_.*|act_.*)$" | cut -f3 -d' '))
+        . "$rendered"
+        for f in $(declare -F | grep -v -E "${ID_LIKE}_[0-9]+" | cut -f3 -d' '); do
+          [[ " ${bfuncs[*]} " = *" $f "* ]] || printf "%s " $f
+        done
+      ))
+      sed -i "s|local  *installer_misc_functions=.*|local installer_misc_functions=(${misc_funcs[*]})|" "$rendered"
+      echo "[ \${#@} -gt 0 ] || main setup || exit" >> "$rendered"
+    fi
+    [ ${#install_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 0 ] || main install ${install_modules[*]} || exit" >> "$rendered"
+    [ ${#start_modules[*]} -eq 0 ] || echo "[ \${#@} -gt 0 ] || main start ${start_modules[*]} || exit" >> "$rendered"
     echo 'main "$@"' >> "$rendered"
     chmod a+rx "$rendered"
     echo "Rendered to $rendered"
