@@ -14,7 +14,7 @@ Work on the service's source. **This skill assumes a repo clone** of
 `edge-ai-libraries` with this microservice at
 `microservices/multimodal-embedding-serving/`; if there is no clone, clone the
 repo first (`git clone
-https://github.com/open-edge-platform/edge-ai-libraries.git`) or — if the user
+https://github.com/open-edge-platform/edge-ai-libraries.git -b main`) or — if the user
 only wants to *use* the service — switch to
 [`../multimodal-embedding-serving-user/SKILL.md`](../multimodal-embedding-serving-user/SKILL.md).
 Run all commands from the microservice root.

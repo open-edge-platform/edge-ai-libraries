@@ -48,7 +48,7 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
      ```
 
-     > **Note:**: Adjust the repo link appropriately in case of forked repo.
+     > **Note:** Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
 

@@ -6,7 +6,7 @@ The GenAI Applications Sizing Tool is a performance profiling utility for benchm
 
 The GenAI Applications Sizing Tool key features:
 
-- **Mutli application supports** ChatQnA (Modular & Core), Video Summary and Search, live captioning 
+- **Mutli application supports** ChatQnA (Modular & Core), Video Summary and Search, live captioning
 - **Resource Monitoring** including CPU, GPU, and memory consumption
 - **Flexible Configuration** Two layer Yaml based configuration (Profiles and App config)
 - **Comprehensive Reporting** reports with logs, JSON/CSV, plots
@@ -37,14 +37,11 @@ Before running the sizing tool, ensure the target application is deployed and ac
 - [Get Started](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
 - [System Requirements](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started/system-requirements.md)
 
-**Chat Question and Answer:**
-- [Sample Application README](../../sample-applications/chat-question-and-answer/README.md)
-
 **Chat Question and Answer Core:**
 - [Sample Application README](../../sample-applications/chat-question-and-answer-core/README.md)
 
 **Live Video Captioning:**
-- [Sample Application README](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.1.0/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
+- [Sample Application README](https://github.com/open-edge-platform/edge-ai-suites/blob/main/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
 
 ## Installation
 
@@ -196,7 +193,7 @@ Reports are saved in the `reports/` directory with timestamped folders:
 ```
 reports/
 └── video_summary_search_20260320_134736/
-    ├── perf_tool_logs/           # Metrics Manager logs 
+    ├── perf_tool_logs/           # Metrics Manager logs
     └── video_summary/
         ├── video_summary_metrics_wsf.csv              # metrics for wsf
         ├── video_summary_search_metrics.json          # metrics summary
@@ -229,57 +226,6 @@ Report saved to: reports/video_summary_search_20260320_143044/
 ```
 
 ## Other Application References
-
-### ChatQnA (Modular)
-
-The ChatQnA modular application provides document-based question answering with RAG (Retrieval-Augmented Generation) capabilities.
-
-#### Configuration
-
-Configuration file: `profiles/chatqna-config.yaml`
-
-```yaml
-apis:
-  stream_log:
-    enabled: true
-    service_name: 'chatqna'
-    endpoints:
-      chat: '8101/v1/chatqna/chat'
-      document: '8101/v1/dataprep/documents'
-    input_profile: 'chatqna_wsf'
-```
-
-#### Example Command
-
-```bash
-python profile-runner.py \
-  --app=chatqna \
-  --input=profiles/chatqna-config.yaml \
-  --host_ip=<IP_ADDRESS> \
-  --request_count=10 \
-  --collect_resource_metrics=yes
-```
-
-#### Input Profile
-
-The `chatqna_wsf` profile uses text-based inputs:
-
-```yaml
-chatqna_wsf:
-  input_type: "text"
-  input_size: "small"
-  files:
-    - name: "file1.txt"
-      path: "data/file1.txt"
-  prompt: "Analyze and interpret the sonnet..."
-  max_tokens: "1024"
-```
-
-#### Deployment Reference
-
-- [Chat Question and Answer Sample Application](../../sample-applications/chat-question-and-answer/README.md)
-
----
 
 ### ChatQnA Core
 
@@ -408,14 +354,10 @@ Before running a full profiling session:
 - **Video Search and Summarization**
   - [API Reference](../../sample-applications/video-search-and-summarization/docs/user-guide/api-reference.md)
   - [Get Started Guide](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
-- **Chat Question and Answer**
-  - [Sample Application](../../sample-applications/chat-question-and-answer/README.md)
 - **Chat Question and Answer Core**
   - [Sample Application](../../sample-applications/chat-question-and-answer-core/README.md)
 - **Live Video Captioning**
-  - [Sample Application](https://github.com/open-edge-platform/edge-ai-suites/blob/release-2026.1.0/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
+  - [Sample Application](https://github.com/open-edge-platform/edge-ai-suites/blob/main/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
 - [Metrics Manager Microservice Documentation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/metrics-manager)
 - Customize input profiles in `profiles/profiles.yaml` for your use case
 - Enable resource metrics collection for detailed hardware analysis
-
-
