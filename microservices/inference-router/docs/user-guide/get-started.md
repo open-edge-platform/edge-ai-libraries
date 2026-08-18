@@ -111,13 +111,33 @@ For Docker Compose deployments, export the model path on this host with
 export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
 ```
 
-### Step 2: Build the Image
+### Step 2: Get the Image
 
-Build the Docker image:
+The deploy resolves the image `${REGISTRY}inference-router:${TAG}`. By default
+`REGISTRY` is empty, so a **locally built** image is used. Choose one of the
+following.
+
+#### Option 1: build from source (default)
+
+With no `REGISTRY` set, build the image locally:
 
 ```bash
 bash scripts/deploy_docker.sh --build
 ```
+
+#### Option 2: use a remote prebuilt image
+
+Set a remote registry by exporting environment variables. The deploy then
+**pulls** the prebuilt image instead of building:
+
+```bash
+export REGISTRY="intel/"
+export TAG="latest"
+```
+
+`REGISTRY` is a prefix — include the trailing `/` (e.g. `intel/` or
+`myregistry.example.com:5000/`). Leave it unset/empty to use the local image
+from Option 1.
 
 ### Step 3: Deploy
 
