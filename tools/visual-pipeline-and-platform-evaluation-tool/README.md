@@ -63,6 +63,32 @@ configured to match evaluation needs.
 **Visualization & Analysis**: Real-time performance metrics are displayed on the dashboard to enable comparison of
 configurations and optimization of settings.
 
+## Experimental Time Series setup
+
+The tool also includes an experimental Time Series deployment for testing pipeline variants that are separate from the
+standard application stack. This setup is managed through the Makefile targets shown below:
+
+```make
+build-experimental: env-setup ## Build core images for experimental timeseries setup
+
+run-experimental: env-setup ## Run the docker compose services with experimental timeseries features
+
+stop-experimental: ## Stop experimental docker compose services
+
+clean-experimental: ## Clean experimental setup artifacts
+```
+
+Use this flow when you want to build and start the experimental Time Series environment without affecting the main
+compose stack:
+
+1. Build the experimental images with `make build-experimental`.
+2. Start the services with `make run-experimental`.
+3. Stop them with `make stop-experimental` when testing is complete.
+4. Remove the generated containers and volumes with `make clean-experimental`.
+
+This keeps the experimental Time Series pipeline isolated behind the separate `compose-experimental.yml` definition,
+while still reusing the same hardware-specific profile selection from `setup_env.sh` and `.env`.
+
 ## Learn More
 
 The following resources provide comprehensive guidance on installation, usage, and development of the Visual
