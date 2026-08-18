@@ -283,10 +283,11 @@ $(
       for profiler in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f3 -d' '); do
         local pname=$(echo $profiler | cut -f4- -d_)
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
-        local profile_modules=($($profiler $cmd))
-        [ ${#profile_modules[@]} -eq 0 ] || all_comps[$pname]=""
+        for mname in $($profiler $cmd); do
+          declare -F | grep -q -E " ${ID_LIKE}_[0-9]+_${cmd}_${mname}$" && all_comps[$pname]=""
+        done
       done
-      for mname in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${cmd}_" | cut -f4- -d_); do
+      for mname in ${all_modules[*]}; do
         all_comps[$mname]=""
         [ "$cmd" != "install" ] || all_comps["--reset-$mname"]=""
       done
