@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Accepted-risk suppressions for vlm-openvino-serving.
+#
+# Only findings that cannot be remediated without breaking a required pin are
+# listed here, and each entry records why it is not exploitable in this service.
+# Anything fixable by a dependency bump must be fixed instead of suppressed.
+#
+# Shared context for every entry below:
+#
+# transformers is pinned to 4.51.3 on purpose. OpenVINO's documentation requires
+# this exact version for inference on NPU, so the pin is part of the supported
+# inference configuration rather than a stale dependency:
+# https://docs.openvino.ai/2026/openvino-workflow-generative/inference-with-genai/inference-with-genai-on-npu.html
+#
+# Both CVEs below are only fixed in transformers 5.x. There is no 4.x backport,
+# so remediation would mean a major-version upgrade that drops NPU support and
+# requires full model-accuracy revalidation.
+#
+# The service also loads its model from VLM_MODEL_NAME, which is deployment
+# configuration. No request path forwards a caller-supplied model identifier to
+# from_pretrained(), so a remote caller cannot direct the service at an
+# arbitrary Hugging Face repository. Operators must still only configure models
+# they trust: the service calls from_pretrained() with trust_remote_code=True,
+# which by design executes code shipped with the configured model.
+
+vulnerabilities:
+  - id: CVE-2026-4372
+    statement: >-
+      Remote code execution via a malicious config.json that sets
+      _attn_implementation_internal to an attacker-controlled Hub repository.
+      The affected code path is present in 4.51.3, but exploiting it requires
+      loading an attacker-chosen model. This service resolves the model from the
+      VLM_MODEL_NAME setting at startup and never passes request data to
+      from_pretrained(), so the vulnerability is not reachable by a remote
+      caller. Fixed only in transformers 5.3.0, which is incompatible with the
+      NPU-mandated 4.51.3 pin. Re-evaluate when the NPU guidance moves to 5.x.
+
+  - id: CVE-2026-5241
+    statement: >-
+      Arbitrary code execution during LightGlue model initialisation, where
+      trust_remote_code is overridden by untrusted serialized config data. Not
+      applicable to this image: the LightGlue model was introduced after 4.51.3
+      and is absent from the installed package, so the vulnerable code is not
+      present. Reported only because the advisory range covers all versions
+      below the 5.5.0 fix. Re-evaluate when the transformers pin changes.
