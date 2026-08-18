@@ -24,40 +24,6 @@ async def seed_initial_data(
         default_test_cases = [1, 4, 8, 12]
         suite_specs = [
             {
-                "name": "Test Suite",
-                "description": "Retail benchmark suite covering retail analytics pipelines.",
-                "workloads": [
-                    {
-                        "pipeline_id": "age-gender-recognition",
-                        "variants": [
-                            {"name": "cpu", "test_cases": default_test_cases},
-                            {"name": "gpu", "test_cases": default_test_cases},
-                        ],
-                    },
-                    {
-                        "pipeline_id": "goods-detection",
-                        "variants": [
-                            {"name": "cpu", "test_cases": default_test_cases},
-                            {"name": "gpu", "test_cases": default_test_cases},
-                        ],
-                    },
-                    {
-                        "pipeline_id": "goods-detection-classification",
-                        "variants": [
-                            {"name": "cpu", "test_cases": default_test_cases},
-                            {"name": "gpu", "test_cases": default_test_cases},
-                        ],
-                    },
-                    {
-                        "pipeline_id": "segmentation",
-                        "variants": [
-                            {"name": "cpu", "test_cases": default_test_cases},
-                            {"name": "gpu", "test_cases": default_test_cases},
-                        ],
-                    },
-                ],
-            },
-            {
                 "name": "Retail Suite",
                 "description": "Retail benchmark suite covering retail analytics pipelines.",
                 "workloads": [
