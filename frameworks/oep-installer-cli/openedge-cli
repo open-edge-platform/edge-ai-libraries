@@ -427,10 +427,10 @@ subcommand_bootstrap () {
         done
       ))
       sed -i "s|local  *installer_misc_functions=.*|local installer_misc_functions=(${misc_funcs[*]})|" "$rendered"
-      echo "[ \"\$0\" = bash ] && { main setup || exit }" >> "$rendered"
+      echo "if [ \"\$0\" = bash ]; then main setup || exit; fi" >> "$rendered"
     fi
-    [ ${#install_modules[*]} -eq 0 ] || echo "[ \"\$0\" = bash ] && { main install ${install_modules[*]} || exit }" >> "$rendered"
-    [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" = bash ] && { main start ${start_modules[*]} || exit }" >> "$rendered"
+    [ ${#install_modules[*]} -eq 0 ] || echo "if [ \"\$0\" = bash ]; then main install ${install_modules[*]} || exit; fi" >> "$rendered"
+    [ ${#start_modules[*]} -eq 0 ] || echo "if [ \"\$0\" = bash ]; then main start ${start_modules[*]} || exit; fi" >> "$rendered"
     echo 'main "$@"' >> "$rendered"
     chmod a+rx "$rendered"
     echo "Rendered to $rendered"
