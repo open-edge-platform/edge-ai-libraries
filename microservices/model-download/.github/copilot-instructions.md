@@ -90,9 +90,8 @@ tests, Docker + Helm + Makefile for build and deployment workflows.
 
 ## Skills
 
-Reusable workflow skills live under [`.github/skills/`](skills/). Use
-[`skill-catalog.json`](skills/skill-catalog.json) to pick the relevant skill,
-then read that skill's `SKILL.md`.
+Reusable workflow skills live under [`.github/skills/`](skills/). Pick the
+relevant skill directory and read its `SKILL.md`.
 
 | User intent | Skill |
 |---|---|
