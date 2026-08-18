@@ -30,7 +30,7 @@ class PyannoteDiarizerMapLocationRegressionTests(unittest.TestCase):
             raise RuntimeError("some other load failure unrelated to storage tags")
 
         with patch.object(diarizer_module.Pipeline, "from_pretrained", side_effect=_fail_always):
-            with self.assertRaises(RuntimeError, msg="some other load failure"):
+            with self.assertRaisesRegex(RuntimeError, "some other load failure"):
                 diarizer_module._load_pipeline_with_map_location_fallback(
                     "dummy/model", "hf_token"
                 )

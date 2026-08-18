@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import sys
 import tempfile
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -258,3 +259,45 @@ def test_device_selection_no_silent_fallback():
             ):
                 d = ovd.OVBackedPyannoteDiarizer(ov_device="GPU")
                 assert d._ov_device == "GPU"
+
+
+def test_export_to_onnx_bytes_wraps_missing_onnx_dependency_error():
+    model = torch.nn.Identity()
+    example = torch.zeros(1, 1, 16, dtype=torch.float32)
+
+    with patch.object(torch.onnx, "export", side_effect=ModuleNotFoundError("No module named 'onnx'")):
+        with pytest.raises(RuntimeError, match="optional 'onnx' dependency is required") as exc_info:
+            ovd._export_to_onnx_bytes(
+                model,
+                example_input=example,
+                input_name="waveform",
+                output_name="segmentation",
+                dynamic_axes={"waveform": {0: "batch"}},
+            )
+
+    assert isinstance(exc_info.value.__cause__, ModuleNotFoundError)
+
+
+def test_embedding_head_export_wraps_onnx_export_failure_with_actionable_error():
+    emb_model = _ToyEmbeddingModel()
+
+    fake_openvino = ModuleType("openvino")
+
+    class _FakeCore:
+        pass
+
+    fake_openvino.Core = _FakeCore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        with patch.dict(sys.modules, {"openvino": fake_openvino}):
+            with patch.object(torch.onnx, "export", side_effect=RuntimeError("onnx export backend missing")):
+                with pytest.raises(RuntimeError, match="OpenVINO diarization model export failed during ONNX export") as exc_info:
+                    ovd._build_or_load_ov_embedding_head(
+                        emb_model,
+                        ov_device="CPU",
+                        model_dir=tmp,
+                        example_samples=32,
+                        is_npu=False,
+                    )
+
+    assert isinstance(exc_info.value.__cause__, RuntimeError)

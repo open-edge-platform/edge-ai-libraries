@@ -188,7 +188,7 @@ def validate_openvino_npu_runtime(config: SimpleNamespace) -> None:
 def resolve_diarization_torch_device(config_device: str) -> str:
     """Map the configured diarization device to the internal device string.
 
-    For CPU: returns ``"cpu"`` (PyTorch CPU path, existing ``PyannoteDiarizer``).
+    For CPU: returns ``"CPU"`` (PyTorch CPU path, existing ``PyannoteDiarizer``).
     For GPU: returns ``"GPU"`` (OpenVINO GPU path, ``OVBackedPyannoteDiarizer``).
     For NPU: returns ``"NPU"`` (OpenVINO NPU path, ``OVBackedPyannoteDiarizer``).
 

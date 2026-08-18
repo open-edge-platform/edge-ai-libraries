@@ -232,15 +232,28 @@ def _export_to_onnx_bytes(
     if hasattr(torch_model, "eval"):
         torch_model.eval()
     buf = io.BytesIO()
-    torch.onnx.export(
-        torch_model,
-        example_input,
-        buf,
-        opset_version=17,
-        input_names=[input_name],
-        output_names=[output_name],
-        dynamic_axes=dynamic_axes,
-    )
+    try:
+        torch.onnx.export(
+            torch_model,
+            example_input,
+            buf,
+            opset_version=17,
+            input_names=[input_name],
+            output_names=[output_name],
+            dynamic_axes=dynamic_axes,
+        )
+    except Exception as exc:
+        detail = str(exc)
+        if "onnx" in detail.lower() or isinstance(exc, ModuleNotFoundError):
+            raise RuntimeError(
+                "OpenVINO diarization model export failed during ONNX export. "
+                "The optional 'onnx' dependency is required for torch.onnx.export. "
+                f"Cause: {detail}"
+            ) from exc
+        raise RuntimeError(
+            "OpenVINO diarization model export failed during ONNX export. "
+            f"Cause: {detail}"
+        ) from exc
     return buf.getvalue()
 
 
@@ -375,15 +388,28 @@ def _build_or_load_ov_embedding_head(
             }
 
         buf = io.BytesIO()
-        torch.onnx.export(
-            head,
-            (fbank, weights),
-            buf,
-            opset_version=17,
-            input_names=["fbank", "weights"],
-            output_names=["embedding"],
-            dynamic_axes=dynamic_axes,
-        )
+        try:
+            torch.onnx.export(
+                head,
+                (fbank, weights),
+                buf,
+                opset_version=17,
+                input_names=["fbank", "weights"],
+                output_names=["embedding"],
+                dynamic_axes=dynamic_axes,
+            )
+        except Exception as exc:
+            detail = str(exc)
+            if "onnx" in detail.lower() or isinstance(exc, ModuleNotFoundError):
+                raise RuntimeError(
+                    "OpenVINO diarization model export failed during ONNX export. "
+                    "The optional 'onnx' dependency is required for torch.onnx.export. "
+                    f"Cause: {detail}"
+                ) from exc
+            raise RuntimeError(
+                "OpenVINO diarization model export failed during ONNX export. "
+                f"Cause: {detail}"
+            ) from exc
         ov_model = ov.convert_model(io.BytesIO(buf.getvalue()))
         os.makedirs(model_dir, exist_ok=True)
         ov.save_model(ov_model, xml_path)
