@@ -30,7 +30,7 @@ services:
             - '${MINIO_API_HOST_PORT:-6010}:9000'
             - '${MINIO_CONSOLE_HOST_PORT:-6011}:9001'
         volumes:
-            - 'minio_data:/data'
+            - 'MM_minio_data:/data'
         command: |
             server /data 
             --address ":9000" 
@@ -205,7 +205,7 @@ networks:
         driver: bridge
 
 volumes:
-    minio_data:
+    MM_minio_data:
         driver: local
     dataprep-yolox-models:
         driver: local
