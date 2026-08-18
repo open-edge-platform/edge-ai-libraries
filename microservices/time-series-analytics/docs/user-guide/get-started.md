@@ -1,7 +1,7 @@
 # Get Started
 
 - **Time to Complete:** 30 minutes
-- **Programming Language:**  Python 3
+- **Programming Language:** Python 3
 
 ## Prerequisites
 
@@ -27,6 +27,7 @@
      ```
 
    - Configure the Docker daemon proxy as per [Systemd Unit File](https://docs.docker.com/engine/daemon/proxy/#systemd-unit-file).
+
 3. **Enable Log Rotation**:
    - Add the following configuration to `/etc/docker/daemon.json`:
 
@@ -50,7 +51,7 @@
 ## Clone source code
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries/microservices/time-series-analytics/docker
 ```
 
@@ -74,7 +75,6 @@ docker compose build
 To push images to a Docker registry:
 
 1. Update the following fields in `edge-ai-libraries/microservices/time-series-analytics/docker/.env`:
-
    - `DOCKER_REGISTRY`
    - `DOCKER_USERNAME`
    - `DOCKER_PASSWORD`
@@ -99,17 +99,17 @@ Directory (`edge-ai-libraries/microservices/time-series-analytics/`) details are
 
 ### `config.json`
 
-| Key                     | Description                                                                                     | Example Value                          |
-|-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
-| `udfs`                  | Configuration for the User-Defined Functions (UDFs).                                            | See below for details.                 |
+| Key    | Description                                          | Example Value          |
+| ------ | ---------------------------------------------------- | ---------------------- |
+| `udfs` | Configuration for the User-Defined Functions (UDFs). | See below for details. |
 
 **UDFs Configuration**:
 
 The `udfs` section specifies the details of the UDFs used in the task.
 
-| Key     | Description                                                                 | Example Value                          |
-|---------|-----------------------------------------------------------------------------|----------------------------------------|
-| `name`  | The name of the UDF script.                                                 | `"temperature_classifier"`             |
+| Key    | Description                 | Example Value              |
+| ------ | --------------------------- | -------------------------- |
+| `name` | The name of the UDF script. | `"temperature_classifier"` |
 
 > **Note:** The maximum allowed size for `config.json` is 5 KB.
 
@@ -122,11 +122,11 @@ Please note the MQTT broker needs to be available.
 
 The `mqtt` section specifies the MQTT broker details for sending alerts.
 
-| Key                 | Description                                                                 | Example Value          |
-|---------------------|-----------------------------------------------------------------------------|------------------------|
-| `mqtt_broker_host`  | The hostname or IP address of the MQTT broker.                              | `"ia-mqtt-broker"`     |
-| `mqtt_broker_port`  | The port number of the MQTT broker.                                         | `1883`                 |
-| `name`              | The name of the MQTT broker configuration.                                  | `"my_mqtt_broker"`     |
+| Key                | Description                                    | Example Value      |
+| ------------------ | ---------------------------------------------- | ------------------ |
+| `mqtt_broker_host` | The hostname or IP address of the MQTT broker. | `"ia-mqtt-broker"` |
+| `mqtt_broker_port` | The port number of the MQTT broker.            | `1883`             |
+| `name`             | The name of the MQTT broker configuration.     | `"my_mqtt_broker"` |
 
 ### `config/`
 
@@ -189,7 +189,7 @@ python3 simulator/temperature_input.py --port 5000
 
 Run the following commands to see the filtered temperature results:
 
-``` bash
+```bash
 docker logs -f ia-time-series-analytics-microservice
 ```
 

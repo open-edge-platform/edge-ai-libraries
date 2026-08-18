@@ -22,9 +22,9 @@ This section shows how to build the Video Search and Summary sample application 
 
    ```bash
    # Clone the latest on mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   # git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Clone the release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
    ```
 
 2. **Navigate to the Directory**:
@@ -55,7 +55,7 @@ This section shows how to build the Video Search and Summary sample application 
 
    The Makefile provides targets to build and push images. Use make commands to build the dependent microservices and application microservices.
 
-   The application microservices are: `pipeline-manager`, `vss-ui`, `video-search`, and `video-ingestion`. The dependent microservices are: [Multimodal Embedding Serving](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/multimodal-embedding-serving/), [Multimodal data preparation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep), and [Vector Retriever](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/vector-retriever/vector-retriever) (the search path delegates all vector similarity search to it). `make build-deps` builds the vector-retriever via its own `build.sh`, producing one image per backend flavor bundled into the search stack (`vector-retriever-vdms` and `vector-retriever-milvus`).
+   The application microservices are: `pipeline-manager`, `vss-ui`, `video-search`, and `video-ingestion`. The dependent microservices are: [Multimodal Embedding Serving](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/multimodal-embedding-serving/), [Multimodal data preparation](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep), and [Vector Retriever](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/vector-retriever/vector-retriever) (the search path delegates all vector similarity search to it). `make build-deps` builds the vector-retriever via its own `build.sh`, producing one image per backend flavor bundled into the search stack (`vector-retriever-vdms` and `vector-retriever-milvus`).
 
    ```bash
 

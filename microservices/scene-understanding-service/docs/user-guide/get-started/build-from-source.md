@@ -7,8 +7,11 @@ rebuilding, see [run-container.md](run-container.md).
 ## Prerequisites
 
 - Verify the [system requirements](system-requirements.md).
-- Clone the repository and `cd` into the `scene-understanding-service/`
-  directory.
+- Clone the repository and run:
+
+```bash
+cd microservices/scene-understanding-service/
+```
 
 ## Build the Docker Image
 
