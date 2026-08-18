@@ -54,9 +54,9 @@ Clone the repository containing the Helm chart:
 
 ```bash
 # Clone the latest on mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b 2026.2.0-rc1
+# git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Clone the release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
 ```
 
 ##### Step 2: Change to the Chart Directory
@@ -88,8 +88,8 @@ Update or edit the values in YAML file as follows:
 | `global.huggingfaceToken` | Your Hugging Face API token | `<your-huggingface-token>` |
 | `global.proxy.http_proxy` | HTTP proxy if required | `http://proxy-example.com:000` |
 | `global.proxy.https_proxy` | HTTPS proxy if required | `http://proxy-example.com:000` |
-| `global.vlmName` | VLM model to be used by OVMS or vLLM for captioning and summarization | `Qwen/Qwen2.5-VL-3B-Instruct` (CPU) or `OpenVINO/Phi-3.5-vision-instruct-int8-ov` (GPU) |
-| `global.llmName` | Optional separate LLM model for final summarization (OVMS split-model mode). Leave empty for shared-model mode. | `Intel/neural-chat-7b-v3-3` (CPU) or `Intel/neural-chat-7b-v3-3` (GPU) or `OpenVINO/Qwen3-8B-int4-cw-ov` (NPU) |
+| `global.vlmName` | VLM model to be used by OVMS or vLLM for captioning and summarization | `Qwen/Qwen3-VL-4B-Instruct` (CPU) or `OpenVINO/Phi-3.5-vision-instruct-int8-ov` (GPU) |
+| `global.llmName` | Optional separate LLM model for final summarization (OVMS split-model mode). Leave empty for shared-model mode. | `Qwen/Qwen3-4B-Instruct-2507` (CPU) or `Qwen/Qwen3-4B-Instruct-2507` (GPU) or `OpenVINO/Qwen3-8B-int4-cw-ov` (NPU) |
 | `global.env.POSTGRES_USER` | PostgreSQL user | `<your-postgres-user>` |
 | `global.env.POSTGRES_PASSWORD` | PostgreSQL password | `<your-postgres-password>` |
 | `global.env.MINIO_ROOT_USER` | MinIO server user name | `<your-minio-user>` (at least 3 characters) |
@@ -222,8 +222,8 @@ To use a separate LLM model for final summarization while using VLM for captioni
 
 ```yaml
 global:
-  vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"
-  llmName: "Intel/neural-chat-7b-v3-3"
+  vlmName: "Qwen/Qwen3-VL-4B-Instruct"
+  llmName: "Qwen/Qwen3-4B-Instruct-2507"
 ```
 
 Then deploy:

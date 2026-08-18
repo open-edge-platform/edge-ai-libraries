@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/metrics-manager">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/metrics-manager">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/metrics-manager/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/metrics-manager/README.md">
      Readme
   </a>
 </div>
@@ -38,7 +38,7 @@ hide_directive-->
 
 - **Edge AI Inference**: Monitor model latency, throughput, GPU/NPU utilization in real-time
 - **System Monitoring**: Collect CPU, RAM, temperature from heterogeneous edge nodes (Intel Arc GPU, NPU)
-- **Live Dashboards**: Stream metrics to [ViPPET](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html),
+- **Live Dashboards**: Stream metrics to [ViPPET](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html),
   Grafana, or a custom WebUI without polling
 - **Multi-source Aggregation**: Ingest metrics from Telegraf agents, OpenTelemetry collectors, and custom applications in one place
 - **Telemetry Integration**: Accept metrics from any framework (OTLP) or protocol (InfluxDB Line Protocol) without code changes

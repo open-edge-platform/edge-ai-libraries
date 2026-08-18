@@ -31,7 +31,7 @@ This microservice is designed to work effortlessly with GenAI model servings tha
 
 - Provide at least **32 GB of swap** so the weight load and KV cache can spill under peak pressure without the OOM killer stepping in. If your host lacks enough swap, see [Adding Swap Space](./get-started/add-swap.md).
 - To lower the footprint, reduce `MAX_MODEL_LEN` (e.g. `32768`) or switch `LOAD_QUANTIZATION` to `awq` / `sym_int4` in [set_env.sh](../../docker/set_env.sh).
-- The **first startup takes 3–20 minutes** while the weights are downloaded and compiled. The serving becomes healthy once it answers on `http://<host>:41091/v1/models`.
+- The **first startup takes about 30 minutes** while the weights are downloaded and compiled. The serving becomes healthy once it answers on `http://<host>:41091/v1/models`.
 
 ## Step 1. Configure the environment
 
@@ -39,10 +39,14 @@ All environment variables for both the model serving and the microservice live i
 
 ```bash
 cd edge-ai-libraries/microservices/multilevel-video-understanding
+
+# Change to mirror endpoint if you are in China and want to use the mirror site for Hugging Face.
+export HF_ENDPOINT=https://hf-mirror.com
+
 source docker/set_env.sh
 ```
 
-**Key variables**
+**Key variables**:
 
 Model serving (vLLM-IPEX):
 
@@ -198,7 +202,7 @@ http://localhost:8192/docs
 1. Clone the repository and change directory to the `multilevel-video-understanding` microservice:
 
    ```bash
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b main
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
    cd edge-ai-libraries/microservices/multilevel-video-understanding
    ```
 

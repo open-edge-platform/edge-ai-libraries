@@ -42,8 +42,8 @@ See the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/conce
 ## Step 1: Acquire the Helm Chart
 
 ```bash
-# Clone the main branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b main
+# Clone the release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
 
 # Navigate to the chart directory
 cd edge-ai-libraries/sample-applications/video-search-and-summarization/chart
@@ -65,7 +65,7 @@ nano user_values_override.yaml
 | --- | --- | --- |
 | `global.sharedPvcName` | Name of the shared PVC for all components | `vss-shared-pvc` |
 | `global.huggingfaceToken` | Hugging Face API token for model access | `hf_xxxxxxxxxxxxxxxxxxxx` |
-| `global.vlmName` | Vision Language Model used for video analysis | `Qwen/Qwen2.5-VL-3B-Instruct` |
+| `global.vlmName` | Vision Language Model used for video analysis | `Qwen/Qwen3-VL-4B-Instruct` |
 | `global.env.POSTGRES_USER` | PostgreSQL username | `vsadmin` |
 | `global.env.POSTGRES_PASSWORD` | PostgreSQL password | `<secure-password>` |
 | `global.env.MINIO_ROOT_USER` | MinIO username (min 3 chars) | `minioadmin` |

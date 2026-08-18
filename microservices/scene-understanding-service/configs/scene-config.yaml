@@ -10,6 +10,11 @@
 # scenes, cameras, zones, and broker) via a read-only volume mount, so the
 # placeholder values below are only meant to be replaced.
 #
+# When running in Docker, the service must either share the same Docker network
+# as the SceneScape deployment or have the broker / REST hosts overridden via
+# env vars or a consuming application's real config. The values below are only
+# sample defaults and are not sufficient for a disconnected deployment.
+#
 # It defines how the service connects to SceneScape (MQTT + REST API) and
 # which scenes/cameras/zones it monitors. It is intentionally decoupled
 # from how SceneScape itself is provisioned.
