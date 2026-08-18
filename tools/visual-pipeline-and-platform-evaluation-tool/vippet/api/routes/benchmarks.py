@@ -817,7 +817,7 @@ async def get_benchmark_suite_run_by_id(
             passed_test_cases = sum(
                 1
                 for test_case_run in workload_test_case_runs
-                if test_case_run.status == schemas.BenchmarkTestCaseRunStatus.PASSED
+                if test_case_run.status == schemas.BenchmarkTestCaseRunStatus.COMPLETED
             )
             failed_test_cases = sum(
                 1
