@@ -1,7 +1,7 @@
 
 configure_pcb_anomaly_detection () {
   workspace="$(ensure_project_path)/pcb-anomaly-detection"
-  version=release-2026.1.0
+  version=release-2026.2.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
 }
 

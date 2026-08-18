@@ -5,7 +5,7 @@ configure_dlstreamer () {
   deb_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main"
   repository=https://github.com/open-edge-platform/dlstreamer
   workspace="$(ensure_project_path)/dlstreamer"
-  version=2026.1.0
+  version=2026.2.0-rc1
 }
 
 debian_75_profile_dlstreamer () {
