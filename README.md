@@ -252,7 +252,7 @@ advanced robotic workloads at the edge.
 
   Unified interface library bridging motion control commands
   between AI modules and industrial/robotic devices; simplifies
-  real-time control integration and system interoperability in mixed 
+  real-time control integration and system interoperability in mixed
   hardware environments.
 
 ### Sample Applications and Reference Implementations

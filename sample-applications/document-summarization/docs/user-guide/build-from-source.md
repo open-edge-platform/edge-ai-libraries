@@ -3,6 +3,7 @@
 This section shows how to build the Document Summarization Sample Application from the source.
 
 > **Note:**
+>
 > - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). It is recommended to use prebuilt images on Edge Microvisor Toolkit.
 
 ## Prerequisites
@@ -15,16 +16,20 @@ Before you begin, ensure that you have the following prerequisites:
 
 1. **Clone the Repository**:
     - Clone the Document Summarization Sample Application repository:
+
       ```bash
       # Clone the latest on mainline
       # git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
       # Clone the release branch
       git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
       ```
-      **Note**: Adjust the repo link appropriately in case of forked repo.
+
+      > **Note:** Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
+
     - Go to the directory where the Dockerfile is located:
+
       ```bash
       cd edge-ai-libraries/sample-applications/document-summarization
       ```
@@ -44,7 +49,7 @@ Before you begin, ensure that you have the following prerequisites:
 
       To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.
 
-      _Go to https://huggingface.co/settings/tokens to get your token._
+      _Go to [huggingface tokens page](https://huggingface.co/settings/tokens) to get your token._
 
       ```bash
       # Login using huggingface-cli
@@ -55,7 +60,7 @@ Before you begin, ensure that you have the following prerequisites:
 
       > **Note:**
       > OpenTelemetry and OpenLit Configurations are optional. Set these only if there is an OTLP endpoint available.
-
+      >
       > ```bash
       >  export OTLP_ENDPOINT=<OTLP-endpoint>
       >  export no_proxy=${no_proxy},$OTLP_ENDPOINT,
@@ -68,13 +73,17 @@ Before you begin, ensure that you have the following prerequisites:
         ```
 
 4. **Build the Docker Image**:
+
     - Build the Docker image for the Document Summarization Sample Application:
+
       ```bash
       docker compose build
       ```
 
 5. **Run the Docker Container**:
+
     - Run the Docker container using the built image:
+
       ```bash
       docker compose up
       ```
@@ -95,14 +104,17 @@ Before you begin, ensure that you have the following prerequisites:
 ## Verification
 
 - Ensure that the application is running by checking the Docker container status:
+
   ```bash
   docker ps
   ```
+
 - Access the application dashboard and verify that it is functioning as expected.
 
 ## Troubleshooting
 
 - If you encounter any issues during the build or run process, check the Docker logs for errors:
+
   ```bash
   docker logs <container-id>
   ```
