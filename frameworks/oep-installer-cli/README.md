@@ -10,9 +10,10 @@ In most of the cases, you can use the `curl | bash` pattern to start the install
 By default, the base installer does not contain any installable components. They are located under the directories: `module` or `profile`. Use the `boostrap` command to self-construct the final installer:
 
 ```
-./openedge-cli bootstrap                                            # include all profiles and modules, or
-# ./openedge-cli bootstrap metro_ai_suite                           # include specific profile/module
-# ./openedge-cli bootstrap --install=metro_ai_suite metro_ai_suite  # install metro_ai_suite by default
+./openedge-cli bootstrap                                                    # include all profiles and modules, or
+# ./openedge-cli bootstrap metro_ai_suite                                   # include specific profile/module
+# ./openedge-cli bootstrap --install=metro_ai_suite metro_ai_suite          # install metro_ai_suite by default
+# ./openedge-cli bootstrap --setup --install=metro_ai_suite metro_ai_suite  # setup installer locally and install metro_ai_suite
 ```
 
 After the bootstrap process, the `openedge-cli` shell script includes all the components specified by the `metro_ai_suite` profile and is ready to ship.  
@@ -44,15 +45,21 @@ For install an ISV application, you can use the following commands:
 > If components within a profile are not compatible with each other, you cannot start/stop a profile. You can always start/stop a component directly.  
 > `./rendered/openedge-cli stop` will stop all apps.  
 
-### Download Setup
+### Deployment
 
-The bootstrapped installer can be hosted at an URL and made downloadable. Users setup the installer script as follows:
+The installer can be deployed on a website for click to download. You can then instruct the user to copy and paste the command:
 
 ```
-curl -fsSL https://.../openedge-cli -o ~/.local/bin/openedge-cli
-chmod a+rx ~/.local/bin/openedge-cli
-openedge-cli completion    # optional, setup for bash completion
+# with default command(s)
+curl | bash
+
+# with explicit command
+curl | bash -s -- install smart_parking
 ```
+where you can specify any default commands through the installer bootstrap process.   
+
+If you specify `--setup` in the bootstrap process, the installer will reconstruct itself locally at `~/.local/bin` with bash completion. You can then use the installer locally.
+
 
 
 
