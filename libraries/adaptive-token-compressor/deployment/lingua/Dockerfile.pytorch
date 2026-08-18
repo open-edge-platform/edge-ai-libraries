@@ -80,7 +80,7 @@ COPY src/adaptive_token_compressor/model_servers/lingua/app.py /app/lingua_serve
 # HuggingFace model cache (mounted as a named volume in compose). Lives under
 # the non-root user's home so the mounted volume is writable without root.
 ENV HF_HOME=/home/user/.cache/huggingface
-RUN useradd -m -u 1000 user && mkdir -p ${HF_HOME} && chown -R user:user ${HF_HOME} /app
+RUN useradd -m -u 1000 user && mkdir -p ${HF_HOME} && chown -R user:user ${HF_HOME}
 USER user
 
 ENV LINGUA_PORT=8001
