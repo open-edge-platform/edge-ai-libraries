@@ -22,6 +22,21 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
 
 > For simple system-level packages, for example, `curl`, it is ok to define only an installation function without an uninstaller. The assumption is that `curl` can reside on the system for future use, while uninstalling it everytime is a bit overkill and may cause potentially unintended consequence. For other non-system components, there usually should define both an `install` function and a corresponding `remove` function. 
 
+### Clickthrough License
+
+Components that require explicit license agreement must define a license function:
+
+```
+debian_45_license_my_name () {
+  cat <<EOF
+@@LICENSE-ID <MY-LICENSE-ID>
+@@LICENSE-TITLE <MY-LICENSE-TITLE>
+<MY-LICENSE-TEXT>
+EOF
+}
+```
+where the function must print out license id, title and text. If you must fetch license text from a URL, use `ensure_license_fetch` as `curl` may not be available at the time of the license clickthrough.  
+
 ### Name Convention
 
 Special care must be taken to write the shell functions such that there is no name collusion in both the function names and any used shell variables. 
