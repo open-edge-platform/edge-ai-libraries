@@ -12,3 +12,8 @@ policies:
     criterion: FirstMatch
     strategies:
       - ZeroCost
+
+  - name: Intelligent
+    criterion: FirstMatch
+    strategies:
+      - IntelligentRouting
