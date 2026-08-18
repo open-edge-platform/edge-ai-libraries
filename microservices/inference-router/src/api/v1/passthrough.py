@@ -10,7 +10,7 @@ its response untouched — audio transcription/speech, embeddings, rerank, OCR.
 
 The backing provider is looked up per-request from the live orchestrator
 (``app.state.router``), so enabling/disabling a provider via the ``/v1/providers``
-API takes effect immediately (absent → 503). All routes are gated by
+API takes effect immediately (absent → 404). All routes are gated by
 ``concurrency_guard`` so they share the global ``max_concurrency`` limit with
 ``/v1/chat/completions``. Adding a new service kind is a single registry entry —
 this module needs no change.
@@ -39,7 +39,7 @@ def _make_handler(service: str):
         provider = orchestrator.passthrough_for(service)
         if provider is None:
             raise HTTPException(
-                status_code=503, detail=f"{service} service not configured"
+                status_code=404, detail=f"{service} service not configured"
             )
         return await provider.forward(http_request)
 
