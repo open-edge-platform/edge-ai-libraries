@@ -33,3 +33,6 @@ empty_model_dir
 mock_model_dir
 .coverage
 htmlcov
+
+# Security scan reports (generated locally, never committed or shipped in images)
+reports/

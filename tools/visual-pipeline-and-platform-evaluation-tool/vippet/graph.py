@@ -16,7 +16,7 @@ from resources import (
     get_scripts_manager,
 )
 from utils import slugify_text
-from video_decoder import VideoDecoder
+from video_decoder import VideoDecoder, split_device_target
 from videos import VideosManager
 from images import ImagesManager
 
@@ -199,6 +199,32 @@ _IMAGE_SET_VA_DECODERS: dict[str, list[str]] = {
     "tif": [],
     "tiff": [],
 }
+
+# Pre-process backends that make an inference element attach to a VA display.
+VA_PREPROC_BACKENDS = {
+    "va",
+    "va-surface-sharing",
+    "vaapi",
+    "vaapi-surface-sharing",
+}
+
+
+def _required_va_render_node(device: str) -> Optional[int]:
+    """Render node an inference element pins its VA display to.
+
+    Returns the index relative to ``/dev/dri/renderD128``, or None when the element
+    adopts the display created upstream (bare ``GPU``) and so fits any pipeline.
+    """
+    normalized = (device or "").upper()
+    if normalized == "GPU":
+        return None
+
+    family, index = split_device_target(normalized)
+    if family == "GPU":
+        return index
+
+    # CPU and NPU never inspect the upstream context; they open the first render node.
+    return 0
 
 
 def _image_set_caps_for_extension(extension: str) -> str:
@@ -1726,8 +1752,8 @@ class Graph:
         in order.
 
         Returns:
-            Device name ("CPU", "GPU", "NPU"), or "CPU" as default
-            if no gva* node with device attribute is found.
+            Device name as written on the element ("CPU", "GPU", "GPU.1", "NPU"),
+            or "CPU" as default if no gva* node with device attribute is found.
         """
         # Build adjacency map for forward traversal
         edges_from: dict[str, list[str]] = {}
@@ -1918,7 +1944,10 @@ class Graph:
         Args:
             codec: Input stream codec (e.g., "h264", "h265", "MJPG", "YUYV"),
                 or None if codec cannot be determined (keeps decodebin3 as fallback).
-            target_device: Target device from gvadetect ("CPU", "GPU", "NPU").
+            target_device: Target device from gvadetect ("CPU", "GPU", "GPU.1", "NPU").
+                For an indexed GPU the VA elements bound to the matching render
+                node are used (e.g. varenderD129h264dec for GPU.1), so decoding
+                and inference share the same GPU.
 
         Returns:
             Modified Graph with decodebin3 replaced.
@@ -1985,10 +2014,10 @@ class Graph:
         if replacement_kind == "keep":
             return modified_graph
 
-        # Determine output caps type based on target device.
+        # Determine output caps type based on target device family.
         # VA-API decoders (GPU/NPU) output to VAMemory, CPU decoders output raw.
-        device_upper = target_device.upper()
-        if device_upper in {"GPU", "NPU"}:
+        device_family, _ = split_device_target(target_device)
+        if device_family in {"GPU", "NPU"}:
             output_caps_type = "video/x-raw(memory:VAMemory)"
         else:
             output_caps_type = "video/x-raw"
@@ -2003,7 +2032,7 @@ class Graph:
             n.type == "gvamotiondetect" for n in modified_graph.nodes
         )
         needs_post_decoder_converter = v4l2_caps_node_info is not None or (
-            has_gvamotiondetect and device_upper == "CPU"
+            has_gvamotiondetect and device_family == "CPU"
         )
 
         # Find max existing ID across all nodes and edges for generating new IDs
@@ -2041,8 +2070,8 @@ class Graph:
 
         for db_node_id in decodebin3_node_ids:
             if replacement_kind == "videoconvert":
-                if device_upper in {"GPU", "NPU"}:
-                    element_type = "vapostproc"
+                if device_family in {"GPU", "NPU"}:
+                    element_type = video_decoder.select_postproc(target_device)
                 else:
                     element_type = "videoconvert"
                 replacements.append((db_node_id, element_type, [], []))
@@ -2066,8 +2095,8 @@ class Graph:
                 if needs_post_decoder_converter:
                     converter_node_id = str(next_id)
                     next_id += 1
-                    if device_upper in {"GPU", "NPU"}:
-                        converter_element = "vapostproc"
+                    if device_family in {"GPU", "NPU"}:
+                        converter_element = video_decoder.select_postproc(target_device)
                     else:
                         converter_element = "videoconvert"
                     converter_node = Node(
@@ -2190,14 +2219,16 @@ class Graph:
             if db_node is None:
                 continue
 
-            if kind in {"videoconvert", "vapostproc"}:
+            if kind != "parsebin_decoder":
+                # ``kind`` is the replacement element itself: videoconvert,
+                # vapostproc or its render-node variant (varenderD129postproc).
                 db_node.type = kind
                 logger.debug(
                     f"Replaced decodebin3 (node {db_node_id}) with {kind} "
                     f"for raw format '{codec}'"
                 )
 
-            elif kind == "parsebin_decoder":
+            else:
                 # Rename decodebin3 → parsebin
                 db_node.type = "parsebin"
 
@@ -2419,7 +2450,7 @@ class Graph:
         # node we skip it, so calling ``_adapt_image_set_video_pipeline``
         # twice on the same graph (or running the same conversion
         # repeatedly in the UI) does not stack up adapter pairs.
-        _device_norm_step0 = (target_device or "").upper()
+        _device_norm_step0, _ = split_device_target(target_device)
         _skip_cpu_format_force = _device_norm_step0 in {"GPU", "NPU"}
 
         def _successor_already_forces_format(decoder_id: str) -> bool:
@@ -2627,7 +2658,7 @@ class Graph:
         # ``type`` literally starts with ``video/x-raw(memory:`` —
         # there is no GStreamer element with such a name, so this
         # cannot misfire on a real element.
-        _device_norm_step1b = (target_device or "").upper()
+        _device_norm_step1b, _ = split_device_target(target_device)
         _skip_va_downgrade = _device_norm_step1b in {"GPU", "NPU"}
         for node in self.nodes:
             if _skip_va_downgrade:
@@ -2703,11 +2734,11 @@ class Graph:
             VideoEncoder,
         )
 
-        device_norm = (target_device or "").upper()
+        device_norm, device_gpu_index = split_device_target(target_device)
         wants_va_encoder = device_norm in {"GPU", "NPU"}
         encoder_device = ENCODER_DEVICE_GPU if wants_va_encoder else ENCODER_DEVICE_CPU
         encoder_element_str = VideoEncoder()._select_element(
-            encoder_device, streaming=False
+            encoder_device, streaming=False, gpu_index=device_gpu_index
         )
         # Fallback: if the requested device has no available encoder
         # (e.g. running on a CPU-only host that still requested GPU),
@@ -2992,7 +3023,7 @@ class Graph:
                 ``"NPU"``). NPU is treated like GPU for the purpose of
                 memory hand-off (the VA-API stack handles both).
         """
-        device = (target_device or "").upper()
+        device, _ = split_device_target(target_device)
         wants_va_memory = device in {"GPU", "NPU"}
 
         # Map software decoder name -> image-set node id (the
@@ -3146,7 +3177,11 @@ class Graph:
 
             vapostproc_id = str(next_id_int)
             next_id_int += 1
-            vapostproc_node = Node(id=vapostproc_id, type="vapostproc", data={})
+            vapostproc_node = Node(
+                id=vapostproc_id,
+                type=VideoDecoder().select_postproc(target_device),
+                data={},
+            )
 
             caps_id = str(next_id_int)
             next_id_int += 1
@@ -3394,6 +3429,59 @@ class Graph:
                     f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
                     f"but found '{next_type}' instead"
                 )
+
+    def validate_inference_devices_share_va_display(self) -> None:
+        """Validate that every VA-accelerated inference element can reach the frames.
+
+        Decoded frames live in the memory of one GPU render node, and DL Streamer
+        cannot hand a VA surface from one physical device to another. Each inference
+        element pins its VA display as follows (see ``createVaDisplay`` in DL Streamer's
+        ``inference_impl.cpp``):
+
+        * ``device=GPU.N`` opens ``/dev/dri/renderD(128+N)``
+        * ``device=GPU`` adopts whichever display the upstream decoder created
+        * ``device=NPU`` / ``device=CPU`` always open ``/dev/dri/renderD128``
+
+        So an NPU element only composes with ``GPU``/``GPU.0``, and two different
+        indexed GPUs never compose. Both cases otherwise fail mid-run with an opaque
+        ``vaCreateSurfaces2 ... resource allocation failed``, so reject them up front.
+
+        Raises:
+            ValueError: If a VA-accelerated inference element requires a different
+                render node than the one the pipeline decodes into.
+        """
+        chain_device = self.get_target_device()
+        chain_family, chain_index = split_device_target(chain_device)
+
+        # A CPU-decoded pipeline carries system memory, so there is no VA display to share.
+        if chain_family not in {"GPU", "NPU"}:
+            return
+
+        chain_render_node = chain_index or 0
+
+        for node in self.nodes:
+            if not node.type.startswith("gva"):
+                continue
+            if node.data.get("pre-process-backend") not in VA_PREPROC_BACKENDS:
+                continue
+
+            device = str(node.data.get("device", "")).upper()
+            required_render_node = _required_va_render_node(device)
+            if (
+                required_render_node is None
+                or required_render_node == chain_render_node
+            ):
+                continue
+
+            raise ValueError(
+                f"Cannot run '{node.type}' (node '{node.id}') on {device}: this pipeline "
+                f"decodes into {chain_device.upper()} memory (/dev/dri/renderD{128 + chain_render_node}), "
+                f"while {device} inference needs /dev/dri/renderD{128 + required_render_node}. "
+                "Decoded video frames stay on the accelerator that produced them and cannot be "
+                "moved to another one. Please set every inference element to the same GPU. "
+                "NPU and CPU inference always use the first GPU, so they can only be paired "
+                "with GPU or GPU.0."
+            )
 
     @staticmethod
     def _build_v4l2_caps_node(

@@ -3,7 +3,11 @@
 
 FROM python:3.12-slim AS build
 
-RUN pip install --upgrade --no-cache-dir pip setuptools
+# Only setuptools is upgraded here. Recent pip versions vendor a CycloneDX SBOM
+# that declares setuptools 70.3.0 and msgpack 1.1.2, neither of which is shipped
+# as importable code, and this whole site-packages tree is copied into the final
+# image. Keeping the base image's pip avoids those phantom scanner findings.
+RUN pip install --upgrade --no-cache-dir setuptools
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
     git \
