@@ -4,30 +4,30 @@ workloads:
   - pipeline_id: age-gender-recognition
     variants:
       - name: cpu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
       - name: gpu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
       - name: npu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
   - pipeline_id: goods-detection
     variants:
       - name: cpu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
       - name: gpu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
       - name: npu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
   - pipeline_id: goods-detection-classification
     variants:
       - name: cpu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
       - name: gpu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
       - name: npu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
   - pipeline_id: segmentation
     variants:
       - name: cpu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
       - name: gpu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]

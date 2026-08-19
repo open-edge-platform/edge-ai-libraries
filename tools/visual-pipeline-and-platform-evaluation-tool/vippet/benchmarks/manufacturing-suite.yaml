@@ -4,8 +4,8 @@ workloads:
   - pipeline_id: defect-detection
     variants:
       - name: cpu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
       - name: gpu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
       - name: npu
-        test_cases: [1, 4, 8, 12]
+        number_of_streams: [1, 4, 8, 12]
