@@ -122,8 +122,8 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning(
             "SCENESCAPE_API_USER / SCENESCAPE_API_PASSWORD not set, "
-            "zone discovery skipped. Use POST /api/v1/lp/zones/discover "
-            "or PUT /api/v1/lp/zones/{region_id} to add zones at runtime."
+            "zone discovery skipped. Use POST /api/v1/sus/zones/discover "
+            "or PUT /api/v1/sus/zones/{region_id} to add zones at runtime."
         )
 
     # 2. Frame Manager (SeaweedFS)
@@ -275,14 +275,16 @@ async def lifespan(app: FastAPI):
 
 # ---- App ---------------------------------------------------------------------
 
+API_PREFIX = "/api/v1/sus"
+
 app = FastAPI(
-    title="Store-wide Loss Prevention",
-    description="Store-wide Loss Prevention: Suspicious Activity Detection",
+    title="Scene Understanding Service",
+    description="Scene Understanding Service: Multi-scene behavioral analysis and suspicious activity detection",
     version="0.2.0",
     lifespan=lifespan,
 )
 
-app.include_router(router, prefix="/api/v1/lp")
+app.include_router(router, prefix=API_PREFIX)
 
 
 @app.get("/health")

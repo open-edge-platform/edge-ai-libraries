@@ -24,10 +24,12 @@ services:
     environment:
       # Identity included in alert payloads.
       STORE_ID: ${STORE_ID:-store_001}
-      # MQTT broker. Overrides mqtt.host / mqtt.port in scene-config.yaml.
-      # Must point at the same broker as the behavioral-analysis worker.
-      MQTT_HOST: ${MQTT_HOST:-broker.scenescape.intel.com}
-      MQTT_PORT: ${MQTT_PORT:-1883}
+      # MQTT broker. Explicit values override scene-config.yaml only when set.
+      # Blank/omitted values allow the mqtt.host / mqtt.port from scene-config.yaml
+      # to remain effective, which is required when a consuming application
+      # provides its own broker configuration.
+      MQTT_HOST: ${MQTT_HOST:-}
+      MQTT_PORT: ${MQTT_PORT:-}
       # BA integration contract: MQTT topics shared with the behavioral-analysis
       # worker. Must match on both services. Overrides the mqtt block in
       # scene-config.yaml when set.
@@ -51,11 +53,22 @@ services:
       # - ./secrets:/app/secrets:ro
       # Optional: persisted results/evidence.
       - ${RESULTS_PATH:-./results}:/app/results
+    networks:
+      # The service must resolve the broker and REST hostnames in the same
+      # Docker network as the Scenescape deployment, or the values must be
+      # overridden via env / config. Use the existing network name or set
+      # SCENESCAPE_NETWORK_NAME to the correct shared network.
+      - scenescape
     healthcheck:
       test: ["CMD", "python3", "-c",
-             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/api/v1/lp/status', timeout=5).read()"]
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/api/v1/sus/status', timeout=5).read()"]
       interval: 10s
       timeout: 5s
       start_period: 30s
       retries: 10
     restart: unless-stopped
+
+networks:
+  scenescape:
+    name: ${SCENESCAPE_NETWORK_NAME:-scenescape_scenescape}
+    external: true

@@ -1,7 +1,7 @@
 # API Reference
 
-Base URL: `http://127.0.0.1:8082` (default). All loss-prevention endpoints are
-served under the `/api/v1/lp` prefix and return JSON.
+Base URL: `http://127.0.0.1:8082` (default). Scene Understanding Service endpoints are
+served under the `/api/v1/sus` prefix and return JSON.
 
 ## `GET /health`
 
@@ -13,18 +13,18 @@ Response:
 {"status": "healthy"}
 ```
 
-## `GET /api/v1/lp/status`
+## `GET /api/v1/sus/status`
 
 Service readiness and runtime statistics (active sessions, resolved zones,
 connection state).
 
 ```bash
-curl --noproxy '*' http://127.0.0.1:8082/api/v1/lp/status
+curl --noproxy '*' http://127.0.0.1:8082/api/v1/sus/status
 ```
 
 ## Sessions
 
-### `GET /api/v1/lp/sessions`
+### `GET /api/v1/sus/sessions`
 
 Return active person sessions with a per-zone visit summary. By default, only
 sessions whose Scenescape re-id state has progressed beyond initial collection
@@ -34,11 +34,11 @@ are returned. Pass `?include_pending=true` to include transient tracks.
 | ----------------- | ------- | ---------------------------------------- |
 | `include_pending` | `false` | Include `pending_collection` tracks.     |
 
-### `GET /api/v1/lp/sessions/count`
+### `GET /api/v1/sus/sessions/count`
 
 Count of active sessions.
 
-### `GET /api/v1/lp/sessions/{object_id}`
+### `GET /api/v1/sus/sessions/{object_id}`
 
 Detail for a single person session.
 
@@ -48,29 +48,29 @@ Detail for a single person session.
 
 ## Zones
 
-### `GET /api/v1/lp/zones`
+### `GET /api/v1/sus/zones`
 
 All resolved zones (region UUID → type mapping).
 
-### `GET /api/v1/lp/zones/names`
+### `GET /api/v1/sus/zones/names`
 
 Zone name → type mapping as defined in `scene-config.yaml`.
 
-### `PUT /api/v1/lp/zones/{region_id}`
+### `PUT /api/v1/sus/zones/{region_id}`
 
 Manually register or update a zone mapping at runtime.
 
-### `DELETE /api/v1/lp/zones/{region_id}`
+### `DELETE /api/v1/sus/zones/{region_id}`
 
 Remove a zone mapping.
 
-### `POST /api/v1/lp/zones/discover`
+### `POST /api/v1/sus/zones/discover`
 
 Trigger zone re-discovery from the Scenescape REST API.
 
 ## Alerts
 
-### `GET /api/v1/lp/alerts`
+### `GET /api/v1/sus/alerts`
 
 Recent alerts, proxied from the alert-service.
 
@@ -80,7 +80,7 @@ Recent alerts, proxied from the alert-service.
 | `object_id`  | _(all)_ | Filter by person `object_id`.        |
 | `limit`      | `50`    | Max results (1–500).                 |
 
-### `GET /api/v1/lp/alerts/count`
+### `GET /api/v1/sus/alerts/count`
 
 Total alert count.
 

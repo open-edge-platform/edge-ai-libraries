@@ -1,6 +1,6 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""REST API routes for Store-wide Loss Prevention."""
+"""REST API routes for the Scene Understanding Service."""
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
