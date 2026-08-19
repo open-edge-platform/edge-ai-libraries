@@ -179,8 +179,7 @@ def build_app(args: argparse.Namespace) -> Any:
         "Request-level mode override enabled; supported modes: %s",
         ", ".join(sorted(supported_modes)),
     )
-    logger.info("HF_HUB_OFFLINE=%s  HF_ENDPOINT=%s",
-                os.environ.get("HF_HUB_OFFLINE"), os.environ.get("HF_ENDPOINT"))
+    logger.info("Hugging Face hub configuration loaded")
 
     mode_state: dict[str, dict[str, Any]] = {}
 
@@ -403,18 +402,10 @@ def build_app(args: argparse.Namespace) -> Any:
     @app.exception_handler(RequestValidationError)
     async def _log_invalid_request(request: Request, exc: RequestValidationError):
         # Requirement: log requests with invalid parameters (a burst signals the
-        # interface is under attack). Log only field locations + error types, not
-        # the raw offending values, to avoid injecting attacker-controlled data
-        # into the logs. Response body stays the FastAPI-standard generic 422.
-        summary = "; ".join(
-            f"{'.'.join(str(p) for p in e.get('loc', []))}:{e.get('type', '?')}"
-            for e in exc.errors()
-        )
-        logger.warning(
-            "invalid /compress request rejected (422) from %s: %s",
-            request.client.host if request.client else "unknown",
-            summary,
-        )
+        # interface is under attack). Keep the event message fixed so no
+        # attacker-controlled data can be injected into the logs. Response body
+        # stays the FastAPI-standard generic 422.
+        logger.warning("invalid /compress request rejected (422)")
         # Keep the body generic (no echo of attacker-controlled values) BUT
         # shaped to the published HTTPValidationError schema (detail: array of
         # ValidationError), so the response still conforms to the OpenAPI spec.

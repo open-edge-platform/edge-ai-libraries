@@ -83,7 +83,7 @@ LINGUA_DEVICE=cpu LINGUA_PORT=9000 docker compose up -d --build lingua-pytorch
 | `LINGUA_DEVICE` | `xpu` | `xpu` / `cpu` / `cuda`. xpu requires `/dev/dri` on host. |
 | `LINGUA_XPU_INDEX` | `0` | XPU index when `LINGUA_DEVICE=xpu`. PyTorch uses `xpu:<index>`; OpenVINO prefers `GPU.<index>` and accepts generic `GPU` as fallback for index `0`. |
 | `LINGUA_MODEL_NAME_ID` | (empty) | HF model ID. If empty, defaults to `microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank`. |
-| `HF_HUB_OFFLINE` | `0` | First-run downloads allowed. Set `1` for strict offline. |
+| `HF_HUB_OFFLINE` | `0` | First-run downloads allowed. Set `1` for strict offline. Default is `0` because the image ships no model — a fresh machine must pull it on first start. Once the model is cached (and, for OV, the IR is persisted), prefer `HF_HUB_OFFLINE=1`: with `0`, hf_hub still issues metadata/revalidation calls on every start, `1` trusts the local cache and makes zero network calls, so it is both faster. |
 | `HF_ENDPOINT` | `https://hf-mirror.com` | Mainland China mirror; unset/override for upstream HF. |
 | `http_proxy`/`https_proxy`/`no_proxy` | (unset) | Build-time + runtime proxies. |
 | `VIDEO_GID`/`RENDER_GID` | `44`/`992` | GPU passthrough; detect on host with `getent group`. |
