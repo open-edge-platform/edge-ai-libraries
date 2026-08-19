@@ -274,8 +274,7 @@ FROM dlstreamer-pipeline-server AS dlstreamer-pipeline-server-extended
 USER root
 
 # Base runtime removes pip, so recreate it for extended-stage package installs.
-RUN ${VIRTUAL_ENV}/bin/python3 -m ensurepip --upgrade && \
-    ${VIRTUAL_ENV}/bin/pip3 install --no-cache-dir --upgrade pip
+RUN ${VIRTUAL_ENV}/bin/python3 -m pip install --no-cache-dir --upgrade pip
 
 # Patch and install OpenVINO model api
 COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
