@@ -232,6 +232,8 @@ subcommand_start () {
 }
 
 subcommand_stop () {
+  [[ " $* " != *" --help "* ]] || return
+
   local args=("$@") margs=(${*##-*})
   local state_path="$(ensure_project_path)/$installer_name/states"
   [ ${#margs[@]} -eq 0 ] && [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
