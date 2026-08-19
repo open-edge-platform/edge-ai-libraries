@@ -9,7 +9,7 @@ patching ``httpx.AsyncClient``. Coverage is three layers:
 1. ``create_provider`` dispatch (service type -> PassthroughProvider).
 2. ``PassthroughProvider.forward`` behavior (URL/header/body forwarding,
    binary vs JSON, auth injection, error mapping).
-3. The registry-generated ``/v1`` routes via a TestClient (forwarding, 503 when
+3. The registry-generated ``/v1`` routes via a TestClient (forwarding, 404 when
    unconfigured, exclusion from ``/v1/models``, and the shared concurrency limit).
 """
 
@@ -343,13 +343,14 @@ def test_generated_route_forwards(monkeypatch, service: str, spec) -> None:
         assert resp.json() == {"ok": service}
 
 
-def test_route_returns_503_when_service_not_configured() -> None:
-    # Router has no pass-through providers registered.
+def test_route_returns_404_when_service_not_configured() -> None:
+    # Router has no pass-through providers registered. An unconfigured service is
+    # treated as not available here (404), not transiently down (503).
     client = TestClient(build_app(PassthroughRouterStub({})))
 
     resp = client.post("/v1/ocr", json={"image_path": "/x"})
 
-    assert resp.status_code == 503
+    assert resp.status_code == 404
     assert resp.json()["detail"] == "ocr service not configured"
 
 

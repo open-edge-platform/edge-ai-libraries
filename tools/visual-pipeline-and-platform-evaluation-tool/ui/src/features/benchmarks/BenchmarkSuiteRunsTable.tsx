@@ -143,7 +143,7 @@ export const BenchmarkSuiteRunsTable = ({
                 </TableCell>
                 <TableCell>{renderBenchmarkStatus(run.status)}</TableCell>
                 <TableCell className="text-center">
-                  {run.status === "passed" ? (
+                  {run.status === "completed" ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
