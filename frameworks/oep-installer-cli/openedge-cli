@@ -405,7 +405,7 @@ subcommand_bootstrap () {
       cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
     fi
     [ $license_common -eq 0 ] || {
-      cat "$mydir"/license/os-agonostic/license_* >> "$rendered" 2> /dev/null || true
+      cat "$mydir"/license/os-agnostic/license_* >> "$rendered" 2> /dev/null || true
       cat "$mydir"/license/${ID_LIKE}/license_* >> "$rendered" 2> /dev/null || true
     }
   fi
