@@ -5,11 +5,11 @@ main () {
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
-  local globals=() cmds=() cur=-1 v
+  local globals=() cmds=() args=() cur=-1 v
   for v in "$@"; do
     case $v in
     --help)
-      local cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+      cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
       echo "Usage: <$(IFS='|';echo "${cmds[*]}")> component [component...]"
       echo "common options:"
       echo "  --dry-run       dry-run the subcommand sequence."
@@ -26,25 +26,25 @@ main () {
       ;;
     *)
       if declare -F subcommand_$v > /dev/null; then
-        cmds+=($v); cur=$((cur+1))
+        cmds+=($v); args+=(""); cur=$((cur+1))
       elif [ ${#cmds[@]} -eq 0 ]; then
         echo "Unknown command: $v"
         exit 3
       elif [ $cur -ge 0 ]; then
-        cmds[$cur]="${cmds[$cur]} $v"
+        args[$cur]="${args[$cur]} $v"
       fi
       ;;
     esac
   done
 
   # exec subcommand
-  local rc=0 cmd
-  for cmd in "${cmds[@]}"; do
-    subcommand_${cmd%% *} ${globals[*]} ${cmd#* }
-    rc=$?
-    [ $rc -eq 0 ] || [[ " ${globals[*]} " = *" --continue "* ]] || break
+  local _rc=0 _i
+  for ((_i=0;_i<${#cmds[@]};_i++)); do
+    subcommand_${cmds[$_i]} ${globals[*]} ${args[$_i]}
+    _rc=$?
+    [ $_rc -eq 0 ] || [[ " ${globals[*]} " = *" --continue "* ]] || break
   done
-  return $rc
+  return $_rc
 }
 
 act_extract_modules () {
