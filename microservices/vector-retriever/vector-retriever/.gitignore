@@ -10,3 +10,6 @@ __pycache__/
 .env
 .env.*
 venv/
+
+# Security scan reports (generated locally, never committed or shipped in images)
+reports/

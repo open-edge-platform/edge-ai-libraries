@@ -99,7 +99,9 @@
     "serialize-javascript": "^7.0.4",
     "ajv": "^8.18.0",
     "file-type": "^21.3.1",
-    "picomatch": "^4.0.4"
+    "picomatch": "^4.0.4",
+    "@opentelemetry/core": "^2.10.0",
+    "@opentelemetry/propagator-jaeger": "^2.10.0"
   },
   "jest": {
     "moduleFileExtensions": [
