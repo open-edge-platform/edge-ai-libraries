@@ -43,7 +43,7 @@ in the
 repo. **No clone?** Fetch any of them from GitHub raw:
 
 ```
-https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/multimodal-embedding-serving/<path>
+https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.2.0/microservices/multimodal-embedding-serving/<path>
 ```
 
 Load these existing docs only when needed:
@@ -73,7 +73,7 @@ Load these existing docs only when needed:
   **REPO** → Step 2 from the microservice root. **STANDALONE** → fetch the two
   deploy files, then the exact same Step 2:
   ```bash
-  RAW=https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/multimodal-embedding-serving
+  RAW=https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.2.0/microservices/multimodal-embedding-serving
   mkdir -p embedding-serving/docker && cd embedding-serving
   curl -fsSL $RAW/setup.sh -o setup.sh
   curl -fsSL $RAW/docker/compose.yaml -o docker/compose.yaml

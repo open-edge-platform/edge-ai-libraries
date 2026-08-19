@@ -1,18 +1,21 @@
 # Lingua Server — Docker Compose Deployment
 
 Reference docker compose recipe for the Lingua FastAPI server.
-Default backend is **PyTorch** on **XPU**. You can switch backend with
-`LINGUA_BACKEND` and keep hardware selection via `LINGUA_DEVICE`.
+The PyTorch service uses **XPU** by default. Select the backend by starting
+the corresponding service; use `LINGUA_DEVICE` to choose the hardware.
 
 The deployment now uses two backend-specific Dockerfiles:
 
 - `Dockerfile.pytorch` for PyTorch / IPEX / XPU
 - `Dockerfile.ov` for OpenVINO
 
+These are alternative backends. Start only the server that matches your
+requirements; you do not need to run both services.
+
 The compose file now defines two services:
 
 - `lingua-pytorch` on host port `8001`
-- `lingua-ov` on host port `8002` (opt-in via profile; override with `LINGUA_OV_PORT`)
+- `lingua-ov` on host port `8002` (start explicitly; override with `LINGUA_OV_PORT`)
 
 The server uses the `llmlingua2` (LLMLingua-2) compression mode.
 
@@ -36,17 +39,7 @@ matches out of the box — no config change required.
 To start the OpenVINO service:
 
 ```bash
-docker compose --profile ov up -d --build lingua-ov
-```
-
-Explicit startup examples:
-
-```bash
-# PyTorch / IPEX / XPU
-docker compose up -d --build lingua-pytorch
-
-# OpenVINO / XPU
-docker compose --profile ov up -d --build lingua-ov
+docker compose up -d --build lingua-ov
 ```
 
 Current backend/mode support status:
@@ -66,7 +59,7 @@ inline on the command line:
 LINGUA_DEVICE=cpu docker compose up -d --build lingua-pytorch
 
 # OpenVINO backend on XPU (maps to OV GPU)
-LINGUA_DEVICE=xpu docker compose --profile ov up -d --build lingua-ov
+LINGUA_DEVICE=xpu docker compose up -d --build lingua-ov
 
 # Select XPU index (PyTorch xpu:<index>; OpenVINO prefers GPU.<index>)
 LINGUA_DEVICE=xpu LINGUA_XPU_INDEX=1 docker compose up -d --build lingua-pytorch
@@ -84,14 +77,13 @@ LINGUA_DEVICE=cpu LINGUA_PORT=9000 docker compose up -d --build lingua-pytorch
 
 | Variable | Default | Notes |
 |---|---|---|
+| `LINGUA_BIND_HOST` | `127.0.0.1` | Host bind address for the published port. Setting it to `0.0.0.0` exposes the HTTP service to the network and is generally not recommended without appropriate network and TLS controls. |
 | `LINGUA_PORT` | `8001` | Container always listens on `8001`; this maps host port. |
 | `LINGUA_OV_PORT` | `8002` | Host port for the `lingua-ov` service. |
-| `LINGUA_BACKEND` | `pytorch` | Kept for the server process; compose service selection uses `lingua-pytorch` / `lingua-ov`. |
 | `LINGUA_DEVICE` | `xpu` | `xpu` / `cpu` / `cuda`. xpu requires `/dev/dri` on host. |
 | `LINGUA_XPU_INDEX` | `0` | XPU index when `LINGUA_DEVICE=xpu`. PyTorch uses `xpu:<index>`; OpenVINO prefers `GPU.<index>` and accepts generic `GPU` as fallback for index `0`. |
-| `LINGUA_MODE` | `llmlingua2` | Compression mode: `llmlingua2`. |
 | `LINGUA_MODEL_NAME_ID` | (empty) | HF model ID. If empty, defaults to `microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank`. |
-| `HF_HUB_OFFLINE` | `0` | First-run downloads allowed. Set `1` for strict offline. |
+| `HF_HUB_OFFLINE` | `0` | First-run downloads allowed. Set `1` for strict offline. Default is `0` because the image ships no model — a fresh machine must pull it on first start. Once the model is cached (and, for OV, the IR is persisted), prefer `HF_HUB_OFFLINE=1`: with `0`, hf_hub still issues metadata/revalidation calls on every start, `1` trusts the local cache and makes zero network calls, so it is both faster. |
 | `HF_ENDPOINT` | `https://hf-mirror.com` | Mainland China mirror; unset/override for upstream HF. |
 | `http_proxy`/`https_proxy`/`no_proxy` | (unset) | Build-time + runtime proxies. |
 | `VIDEO_GID`/`RENDER_GID` | `44`/`992` | GPU passthrough; detect on host with `getent group`. |
@@ -141,9 +133,9 @@ curl -X POST http://localhost:8001/compress \
 ## Stop & cleanup
 
 ```bash
-docker compose down                # stop / remove the default service/container
-docker compose --profile ov down   # stop / remove the OpenVINO service/container
-docker compose down -v             # also remove HF model cache volume
+docker compose --profile pytorch down  # stop / remove the PyTorch service/container
+docker compose --profile ov down       # stop / remove the OpenVINO service/container
+docker compose --profile pytorch --profile ov down -v  # remove both services and the HF model cache volume
 ```
 
 ## See also
