@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 
 from src.config import RouterConfig
 from src.router import RouterOrchestrator
-from src.router.logging_utils import log_to_gateway_file
+from src.router.logging_utils import log_to_gateway_file, sanitize_for_log
 from src.observability import Telemetry
 
 from src.api.concurrency import (
@@ -195,24 +195,32 @@ def create_app(
         raw_body = (await request.body()).decode("utf-8", errors="replace")
         error_details = _sanitize_validation_errors(exc.errors())
 
+        # Strip CR/LF from user-controlled values before they reach any log sink
+        # (stdout, gateway.log, logger) so a crafted body/path/errors can't forge
+        # additional log lines (CWE-117). ``error_details`` keeps its structured
+        # form for the JSON response below; only the logged rendering is sanitized.
+        safe_path = f"{sanitize_for_log(request.method)} {sanitize_for_log(request.url.path)}"
+        safe_body = sanitize_for_log(raw_body)
+        safe_errors = sanitize_for_log(error_details)
+
         msg = "❌ Request validation failed"
         print(msg)
         log_to_gateway_file(msg, log_dir)
-        logger.error(f"Request validation failed: {request.method} {request.url.path}")
+        logger.error(f"Request validation failed: {safe_path}")
 
-        msg = f"   Path: {request.method} {request.url.path}"
+        msg = f"   Path: {safe_path}"
         print(msg)
         log_to_gateway_file(msg, log_dir)
 
-        msg = f"   Body: {raw_body}"
+        msg = f"   Body: {safe_body}"
         print(msg)
         log_to_gateway_file(msg, log_dir)
-        logger.debug(f"Request body: {raw_body}")
+        logger.debug(f"Request body: {safe_body}")
 
-        msg = f"   Errors: {error_details}"
+        msg = f"   Errors: {safe_errors}"
         print(msg)
         log_to_gateway_file(msg, log_dir)
-        logger.error(f"Validation errors: {error_details}")
+        logger.error(f"Validation errors: {safe_errors}")
 
         return JSONResponse(
             status_code=422,

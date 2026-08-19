@@ -109,4 +109,4 @@ Wait until the response shows `"status": "completed"`. The `result.download_path
 ### Additional Resources
 
 - [Model Download Documentation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/index.html)
-- [Model Download API Reference](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/index.html) – full OpenAPI spec including upload, conversion, and job management endpoints
+- [Model Download API Reference](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/api-reference.html) – full OpenAPI spec including upload, conversion, and job management endpoints
