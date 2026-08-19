@@ -42,7 +42,7 @@ cp config.example.yaml workspace/config.yaml
 cp .env.example workspace/.env
 ```
 
-A minimal `workspace/config.yaml` with one local vLLM model:
+An example of a minimal `workspace/config.yaml` with one local vLLM model:
 
 ```yaml
 providers:
@@ -111,21 +111,35 @@ For Docker Compose deployments, export the model path on this host with
 export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
 ```
 
-### Step 2: Build the Image
+### Step 2: Deploy
 
-Build the Docker image:
+The deploy resolves the image `${REGISTRY}inference-router:${TAG}`. By default
+`REGISTRY` is empty, so a **locally built** image is used. Choose one of the
+following.
+
+#### Option 1: build from source (default)
+
+With no `REGISTRY` set, build the image locally and deploy:
 
 ```bash
 bash scripts/deploy_docker.sh --build
 ```
 
-### Step 3: Deploy
+`--build` forces a build. If the image already exists, run `bash scripts/deploy_docker.sh`.
 
-Start the router on port `8000` by default:
+#### Option 2: use a remote prebuilt image
+
+Set a remote registry by exporting environment variables. The deploy then
+**pulls** the prebuilt image instead of building:
 
 ```bash
-bash scripts/deploy_docker.sh
+export REGISTRY="intel/"
+export TAG="latest"
 ```
+
+`REGISTRY` is a prefix — include the trailing `/` (e.g. `intel/` or
+`myregistry.example.com:5000/`). Leave it unset/empty to use the local image
+from Option 1.
 
 Check that the container is running:
 
@@ -158,7 +172,7 @@ IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh
 Clients on other machines will then reach the router at `http://<host-ip>:8000`
 (substitute your `ROUTER_PORT` if you changed it).
 
-### Step 4: Verify
+### Step 3: Verify
 
 List available models. The response includes `router` plus your configured
 providers:

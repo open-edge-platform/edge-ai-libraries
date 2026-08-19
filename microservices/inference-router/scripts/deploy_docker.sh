@@ -13,9 +13,19 @@
 # Environment:
 #   IR_BIND_HOST   Interface the router binds to (default: 127.0.0.1, local-only).
 #                  Export IR_BIND_HOST=0.0.0.0 to allow access from other machines.
+#   REGISTRY       Docker registry/namespace prefix for the image (default: empty,
+#                  i.e. use a locally built image). Set e.g. REGISTRY=intel/ to
+#                  pull a prebuilt image from a remote registry instead.
+#   TAG            Image tag (default: latest).
+#
+# With no REGISTRY set the deploy uses the local ${REGISTRY}inference-router:${TAG}
+# image (build it first with --build). When REGISTRY is set the image is pulled
+# from that registry; a failed pull stops with a hint to re-run with --build.
+#
+# Options:
 #   --verbose                 Enable verbose logging
 #   --verbose_full            Enable full verbose logging (requests + responses)
-#   --build                   Build the Docker image with scripts/build_docker.sh
+#   --build                   Force a local build instead of pulling the image
 #   --down                    Stop and remove the router container
 #
 # Examples:
@@ -36,6 +46,10 @@ ROUTER_PORT="${ROUTER_PORT:-8000}"
 # Loopback by default: the router is local-only unless the operator opts in to
 # remote access by exporting IR_BIND_HOST=0.0.0.0 (or a specific LAN interface).
 IR_BIND_HOST="${IR_BIND_HOST:-127.0.0.1}"
+# Image coordinates. Empty REGISTRY -> use a locally built image (the default).
+# Set REGISTRY (e.g. intel/) to pull a prebuilt image from a remote registry.
+REGISTRY="${REGISTRY:-}"
+TAG="${TAG:-latest}"
 FORCE_BUILD=false
 ACTION="up"
 GATEWAY_VERBOSE=""
@@ -127,6 +141,10 @@ export IR_BIND_HOST
 export GATEWAY_VERBOSE
 export GATEWAY_VERBOSE_FULL
 export IR_OV_MODEL
+# Image reference the compose file interpolates: ${REGISTRY}inference-router:${TAG}
+export REGISTRY
+export TAG
+IMAGE_REF="${REGISTRY}inference-router:${TAG}"
 # Proxy settings are forwarded into the container by docker-compose.yml.
 export http_proxy https_proxy no_proxy
 
@@ -135,6 +153,7 @@ echo ""
 echo "Starting Inference Router"
 echo "========================="
 echo "  Compose file:     $COMPOSE_FILE"
+echo "  Image:            $IMAGE_REF"
 echo "  Bind host:        $IR_BIND_HOST"
 echo "  Port:             $ROUTER_PORT"
 [ "$IR_BIND_HOST" = "0.0.0.0" ] && echo "  Access:           EXPOSED to all interfaces (remote access enabled)"
@@ -144,10 +163,35 @@ echo "  OV device:        $IR_DEVICE"
 [ -n "$GATEWAY_VERBOSE_FULL" ]      && echo "  Verbose full:     enabled"
 echo ""
 
-# ---- Build (optional) ----
-if [ "$FORCE_BUILD" = true ]; then
+# ---- Obtain the image: pull, or build when --build is passed ----
+# build_docker.sh reads IMAGE_NAME/IMAGE_TAG so the local build is tagged with the
+# same reference the compose file expects.
+build_image() {
     echo "Building image with scripts/build_docker.sh..."
-    bash "$SCRIPT_DIR/build_docker.sh"
+    IMAGE_NAME="${REGISTRY}inference-router" IMAGE_TAG="$TAG" \
+        bash "$SCRIPT_DIR/build_docker.sh"
+}
+
+if [ "$FORCE_BUILD" = true ]; then
+    build_image
+elif [ -n "$REGISTRY" ]; then
+    # Remote registry configured: pull the prebuilt image.
+    echo "Pulling image: $IMAGE_REF"
+    if ! docker pull "$IMAGE_REF"; then
+        echo "Error: failed to pull $IMAGE_REF"
+        echo "Re-run with --build to build the image from source instead."
+        exit 1
+    fi
+    echo "Pulled $IMAGE_REF"
+else
+    # No registry set: use the locally built image.
+    if ! docker image inspect "$IMAGE_REF" >/dev/null 2>&1; then
+        echo "Error: local image $IMAGE_REF not found."
+        echo "Build it first with:            bash $0 --build"
+        echo "Or pull a prebuilt image with:  export REGISTRY=intel/ && bash $0"
+        exit 1
+    fi
+    echo "Using local image: $IMAGE_REF"
 fi
 
 # ---- Run ----
