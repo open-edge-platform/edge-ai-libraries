@@ -150,9 +150,9 @@ subcommand_bootstrap () {
   if [[ " $* " != *" --dry-run "* ]]; then
     if [[ " $* " = *" --setup "* ]]; then
       local misc_funcs=($(
-        local bfuncs=($(declare -F | grep -v -E " (main|subcommand_.*|act_.*)$" | cut -f3 -d' '))
+        local bfuncs=($(declare -F | cut -f3 -d' '))
         . "$rendered"
-        for f in $(declare -F | grep -v -E "${ID_LIKE}_[0-9]+" | cut -f3 -d' '); do
+        for f in $(declare -F | grep -v -E " (${ID_LIKE}_[0-9]+|ensure_|act_|subcommand_)" | cut -f3 -d' '); do
           [[ " ${bfuncs[*]} " = *" $f "* ]] || printf "%s " $f
         done
       ))
