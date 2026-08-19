@@ -75,6 +75,9 @@ x-vippet: &vippet
     OMZ_VIRTUAL_ENV: ${OMZ_VIRTUAL_ENV:-/home/dlstreamer/.omz-venv}
     TSAM_HOST: ${TSAM_HOST:-ia-time-series-analytics-microservice}
     TSAM_KAPACITOR_PORT: ${TSAM_KAPACITOR_PORT:-9092}
+    # Database configuration (SQLite)
+    DATABASE_URL: "sqlite+aiosqlite:////db/app.db"
+    DB_ECHO: "false"
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download"
@@ -93,6 +96,7 @@ x-vippet: &vippet
     - ./shared/scripts/:/scripts
     - ./shared/onvif/:/onvif
     - ./shared/metadata/:/metadata
+    - ./shared/db:/db
 
 services:
   vippet-ui:
