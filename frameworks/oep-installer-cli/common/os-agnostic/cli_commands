@@ -196,6 +196,7 @@ subcommand_stop () {
 subcommand_list () {
   [[ " $* " != *" --help "* ]] || return
 
+  echo "Mapping profiles and components..." 1>&2
   local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_))
   local all_profiles=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f3 -d' '))
   local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f2,4- -d_ | sort -r | uniq | cut -f2- -d_))
