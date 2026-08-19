@@ -14,7 +14,7 @@ description: >
 Work on the service's source. **This skill assumes a repo clone** of
 `edge-ai-libraries` with this microservice at
 `microservices/vlm-openvino-serving/`; if there is no clone, clone the repo
-first (`git clone https://github.com/open-edge-platform/edge-ai-libraries.git`)
+first (`git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0`)
 or — if the user only wants to *use* the service — switch to
 [`../vlm-openvino-serving-user/SKILL.md`](../vlm-openvino-serving-user/SKILL.md).
 Run all commands from the microservice root.
