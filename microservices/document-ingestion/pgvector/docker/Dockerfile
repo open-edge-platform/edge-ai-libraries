@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=off \
     PIP_DISABLE_PIP_VERSION_CHECK=on \
     PIP_DEFAULT_TIMEOUT=100 \
-    POETRY_VERSION=1.8.3 \
+    POETRY_VERSION=2.4.1 \
     # Poetry installation location
     POETRY_HOME="/opt/poetry" \
     # Create the virtual environment dir .venv in the project's root
@@ -24,8 +24,8 @@ ENV PYTHONUNBUFFERED=1 \
 # Add poetry and venv to path
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
-# Upgrade pip to fix vuln
-RUN /usr/local/bin/pip install --upgrade pip==26.1.2 wheel
+# Upgrade pip and wheel to fix vulns
+RUN /usr/local/bin/pip install --upgrade pip==26.1.2 wheel==0.46.2
 
 # Create a non-root user
 RUN groupadd -g 1001 intelgai && \
@@ -43,7 +43,7 @@ RUN curl -sSL https://install.python-poetry.org | python -
 WORKDIR $SETUP_PATH
 COPY poetry.lock pyproject.toml ./
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
-RUN poetry install --no-dev && \
+RUN poetry install --without dev && \
     rm -rf ~/.cache/pypoetry/* ~/.cache/pip/*
 
 
