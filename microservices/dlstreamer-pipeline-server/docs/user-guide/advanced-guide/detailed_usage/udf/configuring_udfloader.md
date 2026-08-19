@@ -2,7 +2,7 @@
 
 The `udfloader` element has a single configurable property with the name `config`. This field expects a JSON string as an input. They key/value pairs in the JSON string should correspond to the constructor arguments of the UDFs class. Currently only atomic data types are supported.
 
-**Sample UDF config**</br>
+**Sample UDF config**:
 
 The UDF config should be passed to the `udfs` key in the EIS config file. The below example configures the `udfloader` element to load and execute a single UDF, which in this case happens to be the `geti_udf`.
 
@@ -20,7 +20,9 @@ The UDF config should be passed to the `udfs` key in the EIS config file. The be
         ]
   }
   ```
-  In order to chain multiple UDFs, simply provide the configs for UDFs as additional entries in the `udfs` array in the EIS config file as shown below
+
+  In order to chain multiple UDFs, simply provide the configs for UDFs as additional entries in the `udfs` array in the EIS config file as shown below:
+
   ``` json
     {
         "udfs": [
@@ -71,13 +73,11 @@ Refer the below sample configuration to run the Anomalib UDF.
 
 **Note**: `inferencer` config parameter can be used to change b/w the default openvino inferencer provided by anomalib and the openvino_nomask inferencer which inherits from openvino inferencer. -->
 
-
 ## Pallet Defect Detection
 
-This Geti™ udf supports deploying a project for local inference with OpenVINO using Intel® Geti™ SDK Python package. It uses a Geti™ based Pallet Defect Detection model.
+This Geti™ udf supports deploying a project for local inference with OpenVINO™ using Intel® Geti™ SDK Python package. It uses a Geti™ based Pallet Defect Detection model.
 
-
-Refer the below config for the default config used for this Geti udf:
+Refer to the below config for the default config used for this Geti UDF:
 
 ```json
  "udfs": [

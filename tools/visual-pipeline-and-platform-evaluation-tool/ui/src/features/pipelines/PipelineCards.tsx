@@ -32,11 +32,11 @@ import { CARDS_GRID_CLASS, cn } from "@/lib/utils";
 
 const PIPELINE_SAMPLE_APP_LINKS: Record<string, string> = {
   "defect-detection":
-    "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-vision/pallet-defect-detection/index.html",
+    "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-vision/pallet-defect-detection/index.html",
   "smart-nvr":
-    "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-nvr/index.html",
+    "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/smart-nvr/index.html",
   "smart-parking":
-    "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html",
+    "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/smart-parking/index.html",
 };
 
 type PipelineCardsProps = {

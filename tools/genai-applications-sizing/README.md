@@ -37,9 +37,6 @@ Before running the sizing tool, ensure the target application is deployed and ac
 - [Get Started](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
 - [System Requirements](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started/system-requirements.md)
 
-**Chat Question and Answer:**
-- [Sample Application README](../../sample-applications/chat-question-and-answer/README.md)
-
 **Chat Question and Answer Core:**
 - [Sample Application README](../../sample-applications/chat-question-and-answer-core/README.md)
 
@@ -230,57 +227,6 @@ Report saved to: reports/video_summary_search_20260320_143044/
 
 ## Other Application References
 
-### ChatQnA (Modular)
-
-The ChatQnA modular application provides document-based question answering with RAG (Retrieval-Augmented Generation) capabilities.
-
-#### Configuration
-
-Configuration file: `profiles/chatqna-config.yaml`
-
-```yaml
-apis:
-  stream_log:
-    enabled: true
-    service_name: 'chatqna'
-    endpoints:
-      chat: '8101/v1/chatqna/chat'
-      document: '8101/v1/dataprep/documents'
-    input_profile: 'chatqna_wsf'
-```
-
-#### Example Command
-
-```bash
-python profile-runner.py \
-  --app=chatqna \
-  --input=profiles/chatqna-config.yaml \
-  --host_ip=<IP_ADDRESS> \
-  --request_count=10 \
-  --collect_resource_metrics=yes
-```
-
-#### Input Profile
-
-The `chatqna_wsf` profile uses text-based inputs:
-
-```yaml
-chatqna_wsf:
-  input_type: "text"
-  input_size: "small"
-  files:
-    - name: "file1.txt"
-      path: "data/file1.txt"
-  prompt: "Analyze and interpret the sonnet..."
-  max_tokens: "1024"
-```
-
-#### Deployment Reference
-
-- [Chat Question and Answer Sample Application](../../sample-applications/chat-question-and-answer/README.md)
-
----
-
 ### ChatQnA Core
 
 The ChatQnA Core application is a streamlined version optimized for core question-answering functionality.
@@ -408,8 +354,6 @@ Before running a full profiling session:
 - **Video Search and Summarization**
   - [API Reference](../../sample-applications/video-search-and-summarization/docs/user-guide/api-reference.md)
   - [Get Started Guide](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
-- **Chat Question and Answer**
-  - [Sample Application](../../sample-applications/chat-question-and-answer/README.md)
 - **Chat Question and Answer Core**
   - [Sample Application](../../sample-applications/chat-question-and-answer-core/README.md)
 - **Live Video Captioning**
@@ -417,5 +361,3 @@ Before running a full profiling session:
 - [Metrics Manager Microservice Documentation](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/metrics-manager)
 - Customize input profiles in `profiles/profiles.yaml` for your use case
 - Enable resource metrics collection for detailed hardware analysis
-
-

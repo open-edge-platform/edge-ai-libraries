@@ -111,7 +111,7 @@ sequenceDiagram
 
 - **Model:** YOLO26n-pose (OpenVINO IR format); runs without PyTorch dependencies
 - **Keypoints:** COCO 17-point skeletal format (pose coordinates + per-keypoint confidence)
-- **Device support:** CPU, GPU, NPU (configurable via `GST_INFERENCE_DEVICE`)
+- **Device support:** CPU, GPU (configurable via `GST_INFERENCE_DEVICE`)
 - **Configuration:** `POSE_CONFIDENCE_THRESHOLD` (default 0.5) controls detection quality filtering
 
 See [How It Works](./how-it-works.md#pose-extraction) for implementation details (preprocessing, model output format, NMS).
