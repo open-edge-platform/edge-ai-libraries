@@ -24,6 +24,8 @@ ENV PYTHONUNBUFFERED=1 \
 # Add poetry and venv to path
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Upgrade pip and wheel to fix vulns
 RUN /usr/local/bin/pip install --upgrade pip==26.1.2 wheel==0.46.2
 
@@ -43,7 +45,7 @@ RUN curl -sSL https://install.python-poetry.org | python -
 WORKDIR $SETUP_PATH
 COPY poetry.lock pyproject.toml ./
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
-RUN poetry install --without dev && \
+RUN poetry install --no-root --without dev && \
     rm -rf ~/.cache/pypoetry/* ~/.cache/pip/*
 
 
@@ -58,7 +60,7 @@ COPY --from=builder-base $POETRY_HOME $POETRY_HOME
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 # Install dev dependencies. Prod dependencies are already installed.
-RUN poetry install --with dev
+RUN poetry install --no-root --with dev
 
 # Source code will be mounted here
 WORKDIR /app
