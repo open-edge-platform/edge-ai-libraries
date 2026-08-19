@@ -86,8 +86,9 @@ compose stack:
 3. Stop them with `make stop-experimental` when testing is complete.
 4. Remove the generated containers and volumes with `make clean-experimental`.
 
-This keeps the experimental Time Series pipeline isolated behind the separate `compose-experimental.yml` definition,
-while still reusing the same hardware-specific profile selection from `setup_env.sh` and `.env`.
+This keeps the experimental Time Series pipeline isolated behind the `compose.experimental.yml` override,
+layered on top of the standard `compose.yml` stack while still reusing the same hardware-specific profile
+selection from `setup_env.sh` and `.env`.
 
 ## Learn More
 

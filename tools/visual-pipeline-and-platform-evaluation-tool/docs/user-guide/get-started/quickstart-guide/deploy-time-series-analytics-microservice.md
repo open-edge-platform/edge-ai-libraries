@@ -40,8 +40,8 @@ Start all services, including the Time Series Analytics Microservice:
 make run-experimental
 ```
 
-This command enables the Time Series flow using `compose-experimental.yml`, including
-`ia-time-series-analytics-microservice` and `ia-timeseries-ingestion`.
+This command enables the Time Series flow by layering `compose.experimental.yml` on top of the standard
+compose stack, including `ia-time-series-analytics-microservice` and `ia-timeseries-ingestion`.
 
 ### Verify that Time Series services are active
 
