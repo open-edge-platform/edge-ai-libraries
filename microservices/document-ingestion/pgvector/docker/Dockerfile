@@ -26,8 +26,8 @@ ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
 RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip setuptools and wheel to fix vulns
-RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip==26.2.1 "setuptools>=78.1.1" "wheel>=0.46.2"
+# Upgrade pip to fix vuln
+RUN /usr/local/bin/pip install --upgrade pip setuptools wheel
 
 # Create a non-root user
 RUN groupadd -g 1001 intelgai && \
@@ -71,10 +71,22 @@ CMD ["uvicorn", "--host", "0.0.0.0", "--reload", "app.main:app"]
 
 
 # `prod` image used for runtime
-FROM python-base AS prod
-ENV FASTAPI_ENV=production
+FROM python:3.11-slim AS prod
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    FASTAPI_ENV=production \
+    VENV_PATH="/opt/projsetup/.venv"
 
-COPY --from=builder-base $SETUP_PATH $SETUP_PATH
+ENV PATH="$VENV_PATH/bin:$PATH"
+
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    pip uninstall -y setuptools wheel pip
+
+RUN groupadd -g 1001 intelgai && \
+    useradd -m -s /bin/bash -u 1001 -g 1001 intelgai
+
+COPY --from=builder-base /opt/projsetup/.venv /opt/projsetup/.venv
 COPY . /app/
 WORKDIR /app
 
