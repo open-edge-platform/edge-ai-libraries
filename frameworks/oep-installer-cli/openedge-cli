@@ -5,7 +5,7 @@ main () {
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
-  local _globals=() _cmds=() _args=() cur=-1 v
+  local _globals=() _cmds=() _args=() cur=-1 v cmd
   for v in "$@"; do
     case $v in
     --help)
@@ -19,7 +19,7 @@ main () {
       for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
         $cmd --help
       done
-      exit 0
+      return
       ;;
     --dry-run|--continue)
       globals+=($v)
