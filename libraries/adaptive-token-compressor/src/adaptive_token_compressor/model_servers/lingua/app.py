@@ -192,9 +192,10 @@ def build_app(args: argparse.Namespace) -> Any:
         )
         effective_model_name = requested_model_name or default_model_name
 
+        safe_mode = next((m for m in supported_modes if m == selected_mode), "<invalid>")
         logger.info(
             "Initializing mode=%s with model=%s",
-            selected_mode,
+            safe_mode,
             effective_model_name if effective_model_name else "<llmlingua-default>",
         )
 
@@ -432,7 +433,9 @@ def build_app(args: argparse.Namespace) -> Any:
             raise HTTPException(status_code=413, detail="text too large")
         request_mode = ((request.mode or startup_mode).strip().lower() if request.mode else startup_mode)
         if request_mode not in supported_modes:
-            logger.warning("invalid /compress mode rejected (400): %r", request.mode)
+            # Keep the message fixed; the offending mode is attacker-controlled
+            # and must not be echoed into the logs.
+            logger.warning("invalid /compress mode rejected (400)")
             raise HTTPException(
                 status_code=400,
                 detail=(
