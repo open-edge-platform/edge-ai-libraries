@@ -60,6 +60,7 @@ class TestBenchmarkSeedValidation(unittest.TestCase):
         validated = _validate_benchmark_suite_spec(malformed, Path("bad-suite.yaml"))
 
         self.assertIsNotNone(validated)
+        assert validated is not None
         self.assertEqual(len(validated["workloads"]), 1)
         self.assertEqual(validated["workloads"][0]["pipeline_id"], "good")
 
@@ -107,8 +108,11 @@ workloads:
                 suite_specs = db_seed._load_benchmark_suite_specs()
 
             self.assertEqual(len(suite_specs), 1)
+            assert suite_specs
             self.assertEqual(suite_specs[0]["name"], "Valid Suite")
-            self.assertEqual(suite_specs[0]["workloads"][0]["pipeline_id"], "pipeline-a")
+            self.assertEqual(
+                suite_specs[0]["workloads"][0]["pipeline_id"], "pipeline-a"
+            )
 
     def test_load_benchmark_suite_specs_ignores_bad_yaml(self):
         with tempfile.TemporaryDirectory() as temp_dir:
