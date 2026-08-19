@@ -59,7 +59,7 @@ Without a checkout, fetch the setup script and the compose file(s) for the
 selected backend:
 
 ```bash
-RAW='https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep'
+RAW='https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.2.0/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep'
 mkdir -p multimodal-dataprep/docker
 cd multimodal-dataprep
 curl -fsSLo setup.sh "$RAW/setup.sh"

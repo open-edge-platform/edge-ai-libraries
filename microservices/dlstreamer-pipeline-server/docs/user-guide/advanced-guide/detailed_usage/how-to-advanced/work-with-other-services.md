@@ -4,7 +4,7 @@ DL Streamer Pipeline Server can work with following microservices for visualizat
 
 ## Model Download
 
-The [Model Download microservice](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/index.html) provides a REST API to download AI/ML models from multiple hubs (Hugging Face, Ultralytics, Ollama, Geti™ software, and Pipeline Zoo Models) and optionally convert them to OpenVINO™ IR format. By mounting a shared volume between Model Download and DL Streamer Pipeline Server, downloaded models become immediately accessible to DLSPS pipelines without any manual file transfer.
+The [Model Download microservice](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/model-download/index.html) provides a REST API to download AI/ML models from multiple hubs (Hugging Face, Ultralytics, Ollama, Geti™ software, and Pipeline Zoo Models) and optionally convert them to OpenVINO™ IR format. By mounting a shared volume between Model Download and DL Streamer Pipeline Server, downloaded models become immediately accessible to DLSPS pipelines without any manual file transfer.
 
 ### Architecture Overview
 
@@ -108,5 +108,5 @@ Wait until the response shows `"status": "completed"`. The `result.download_path
 
 ### Additional Resources
 
-- [Model Download Documentation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/index.html)
-- [Model Download API Reference](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/index.html) – full OpenAPI spec including upload, conversion, and job management endpoints
+- [Model Download Documentation](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/model-download/index.html)
+- [Model Download API Reference](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/model-download/api-reference.html) – full OpenAPI spec including upload, conversion, and job management endpoints

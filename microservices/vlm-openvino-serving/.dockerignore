@@ -61,3 +61,6 @@ docs/
 .github/
 .gitlab-ci.yml
 Jenkinsfile
+
+# Security scan reports (generated locally, must never enter the build context)
+reports/

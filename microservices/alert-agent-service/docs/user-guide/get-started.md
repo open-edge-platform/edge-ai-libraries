@@ -1,6 +1,6 @@
 # Get Started
 
-The Alert Agent Service is a generic multimodal alert action dispatcher. It accepts alert events from detection pipelines (video analytics, audio sensors, IoT devices, and more), optionally applies LLM-based reasoning via Google ADK and OpenVINO Model Server, and dispatches configurable action tools such as webhook notifications, MQTT publishing, snapshot saving, and structured logging.
+The Alert Agent Service is a generic multimodal alert action dispatcher. It accepts alert events from detection pipelines (video analytics, audio sensors, IoT devices, and more), optionally applies LLM-based reasoning via Google ADK and OpenVINO™ Model Server, and dispatches configurable action tools such as webhook notifications, MQTT publishing, snapshot saving, and structured logging.
 
 ## Features
 
@@ -27,10 +27,10 @@ See [System Requirements](./get-started/system-requirements.md) for full details
 
 ### 1. Clone the Microservice
 
-Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace main with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/2026.2/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
+Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace `release-2026.2.0` with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/2026.2/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
 
 ```bash
-git clone --filter=blob:none --sparse --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --filter=blob:none --sparse --branch release-2026.2.0 https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries/
 git sparse-checkout set microservices/alert-agent-service/
 cd microservices/alert-agent-service/
@@ -88,11 +88,11 @@ docker compose -f docker/docker-compose.yml --profile agent up -d
 
 This starts up to three containers:
 
-| Container             | Description                                                                 |
-| --------------------- | --------------------------------------------------------------------------- |
-| `alert-agent-service` | The alert action dispatcher                                                 |
-| `mqtt`                | Local MQTT broker used by the MQTT action tool                              |
-| `ovms-llm`            | OpenVINO Model Server serving the Phi-4-mini-instruct LLM (agent mode only) |
+| Container             | Description                                                                  |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `alert-agent-service` | The alert action dispatcher                                                  |
+| `mqtt`                | Local MQTT broker used by the MQTT action tool                               |
+| `ovms-llm`            | OpenVINO™ Model Server serving the Phi-4-mini-instruct LLM (agent mode only) |
 
 In agent mode, the `ovms-llm` container is started only when you include `--profile agent`. Initial startup may take 2–5 minutes while the LLM model is downloaded and loaded. During that time, `alert-agent-service` may be up before the LLM is ready.
 

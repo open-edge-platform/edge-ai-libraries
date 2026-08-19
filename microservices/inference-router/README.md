@@ -16,7 +16,7 @@ endpoint.
 - Policy-based routing through strategies and policies in [src/rsd](src/rsd).
 - Pre-routing, post-routing and post-response plugin hooks.
 - Optional prompt-compression plugins (tool-schema filtering and system-prompt
-  compression) backed by [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor).
+  compression) backed by [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor).
 - Per-provider telemetry for requests, tokens, latency, TTFT, and TPOT.
 - Environment variable expansion in configuration values.
 
@@ -30,7 +30,7 @@ If you are cloning from the larger monorepo and only need this service, you
 can use sparse checkout:
 
 ```bash
-git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries
 git sparse-checkout set microservices/inference-router
 cd microservices/inference-router
@@ -67,20 +67,11 @@ export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
 
 ### Step 2: Build the Image
 
-Build the Docker image (default is without the compressor library):
+Build the Docker image:
 
 ```bash
 bash scripts/deploy_docker.sh --build
 ```
-
-To build with compressor support in one command:
-
-```bash
-bash scripts/deploy_docker.sh --build --with-compressor
-```
-
-`--with-compressor` vendors and installs `adaptive-token-compressor` into the
-router image, so the compression plugins are available at runtime.
 
 ### Step 3: Deploy
 
@@ -148,7 +139,7 @@ before requests reach the backend. They need a Lingua server and a tool
 predictor started separately, then enabled under `plugins` in your config. See
 [Optional: Compression Plugins](docs/user-guide/get-started.md#optional-compression-plugins)
 for setup and the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor)
 repository for those services.
 
 ## Learn More

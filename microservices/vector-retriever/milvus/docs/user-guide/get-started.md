@@ -19,7 +19,7 @@
 Clone the source code repository, if you have not done so already.
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries/microservices
 ```
 
@@ -39,7 +39,7 @@ Set a remote registry by exporting environment variables:
 
 ```bash
 export REGISTRY="intel/"
-export TAG="2026.2.0-rc1"
+export TAG="2025.2.0"
 ```
 
 > **Note:** If you are using a release version package, you will have a pre-defined docker compose file where the image registry and tag are already set to the release version. In such case, you do not need to set the environment variables above, simply move forward to the next step. You may refer to the release notes for details on the version number or check the docker compose file that is used in the steps below.
@@ -62,7 +62,7 @@ export TAG="2026.2.0-rc1"
    ```
 
     **Important:** You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
-    See [Supported Models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html)
+    See [Supported Models](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/multimodal-embedding-serving/supported-models.html)
     for Multimodal Embedding Serving for available options.
 
     **Note:** `env.sh` sets `HF_ENDPOINT` to a Hugging Face mirror, which is necessary for users in the PRC to download models. Users in other regions may remove or unset this variable to use the default Hugging Face endpoint:
@@ -109,7 +109,7 @@ export TAG="2026.2.0-rc1"
 
 ## Sample curl commands
 
-> **Note:** This microservice retrieves data from a Milvus database. If there is no data added into the database, the curl commands below will return `collection not found`. To test data retrieval, please insert some data with the [Visual Data Preparation for Retrieval service](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/milvus/docs/user-guide/get-started.md) first. After setting up the data preparation service, you can insert, for example a directory, with the curl command:
+> **Note:** This microservice retrieves data from a Milvus database. If there is no data added into the database, the curl commands below will return `collection not found`. To test data retrieval, please insert some data with the [Visual Data Preparation for Retrieval service](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/visual-data-preparation-for-retrieval/milvus/docs/user-guide/get-started.md) first. After setting up the data preparation service, you can insert, for example a directory, with the curl command:
 >
 > ```console
 > curl -X POST http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
@@ -166,7 +166,7 @@ users outside the PRC.
 ## Learn More
 
 - Check the [API reference](./api-reference.md).
-- This microservice depends on the [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/get-started.html) service for embedding extraction.
+- This microservice depends on the [Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/multimodal-embedding-serving/get-started.html) service for embedding extraction.
 
 <!--hide_directive
 :::{toctree}

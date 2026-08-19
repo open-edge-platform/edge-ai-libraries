@@ -12,7 +12,7 @@ the ViPPET application is **restarted**.
 
 For more information about DL Streamer Optimizer behavior and limitations, see the DL Streamer
 Optimizer limitations section in the DL Streamer documentation:
-[DL Streamer Optimizer limitations](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/optimizer.html#limitations).
+[DL Streamer Optimizer limitations](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/optimizer.html#limitations).
 
 **If ViPPET is restarted while DL Streamer Optimizer is running:**
 
@@ -74,7 +74,7 @@ and rerun the jobs.
 ViPPET currently supports only pipelines and models that are supported by **DL Streamer 2026.0.0**.
 
 For the full list of supported models, elements, and other details, see the DL Streamer release notes:
-[DL Streamer release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/release-notes.html)
+[DL Streamer release notes](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/release-notes.html)
 
 If a custom pipeline works correctly with DL Streamer 2026.0.0, it is expected to also work
 in ViPPET (see also the “Limited validation scope” limitation below).
@@ -124,7 +124,7 @@ Even if some elements are not shown as expected in the UI, the underlying **pipe
 
 ViPPET currently supports only models defined in:
 
-- [supported_models.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml)
+- [supported_models.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml)
 
 A user can try to extend this file with new models, but there is **no guarantee** that
 such models will work out of the box. New entries must point to a `source` that the

@@ -5,33 +5,41 @@
 This tutorial shows how to download YOLO models (YOLOv8, YOLOv9, YOLOv10, YOLO11) and run as
 part of object detection pipeline.
 
-For downloading all supported YOLO models and converting them to OpenVINO IR format, please refer to this [document](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/yolo_models.md).
+For downloading all supported YOLO models and converting them to OpenVINO IR format, refer to
+this [document](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/yolo_models.html).
 
 ### Download
+
 #### Step 1: Create virtual environment
+
 ```sh
 python -m venv ov_env
 ```
 
 #### Step 2: Activate virtual environment
+
 ```sh
 source ov_env/bin/activate
 ```
 
 #### Step 3: Upgrade pip to latest version
+
 ```sh
 python -m pip install --upgrade pip
 ```
 
 #### Step 4: Download and install packages
+
 ```sh
 pip install openvino==2025.0.0 ultralytics
 ```
 
-#### Step 5: Download Yolo11 model
-Run the Python script from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/yolo_models.md) to download and convert yolo11 model to Intel OpenVINO format.
+#### Step 5: Download YOLO11 model
+
+Run the Python script from [here](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/yolo_models.html#ultralytics-model-preparation) to download and convert the YOLO11 model to OpenVINO™ format.
 
 #### Step 6: Deactivate virtual environment
+
 ```sh
 deactivate
 ```
@@ -46,7 +54,7 @@ the following lines to `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pip
       - "[Path to yolo11s model directory on host]:/home/pipeline-server/yolo_models/yolo11s"
 ```
 
-Next, bring up DL Streamer Pipeline Server containers
+Next, bring up DL Streamer Pipeline Server containers:
 
 ```sh
 cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
@@ -56,8 +64,8 @@ cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
 docker compose up
 ```
 
-The below CURL command runs the default pipeline with classroom.avi video as source and the
-downloaded Yolo model for object detection. Metadata is saved to the `/tmp/results.jsonl` file
+The CURL command below runs the default pipeline with `classroom.avi` video as source and the
+downloaded YOLO model for object detection. Metadata is saved to the `/tmp/results.jsonl` file
 and frames are streamed over RTSP accessible at `rtsp://<SYSTEM_IP_ADDRESS>:8554/classroom-video-streaming`.
 
 ```sh

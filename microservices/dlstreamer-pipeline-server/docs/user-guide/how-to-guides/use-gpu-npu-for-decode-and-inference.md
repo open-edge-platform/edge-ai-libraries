@@ -23,19 +23,19 @@ Because Docker Compose does not evaluate shell expressions, you need to determin
 
 Unlike the changes done for the container above, the following requires a modification to the media pipeline itself.
 
-Gstreamer has a variety of hardware specific encoders and decoders elements such as Intel specific VA-API elements that you can benefit from by adding them into your media pipeline. Examples of such elements are `vah264dec`, `vah264enc`, `vajpegdec`, `vajpegdec`, etc.
+Gstreamer has a variety of hardware specific encoders and decoders elements such as Intel specific VA-API elements that you can benefit from by adding them into your media pipeline. Examples of such elements are `vah264dec`, `vah264enc`, `vajpegdec`, etc.
 
 Additionally, you can also enforce zero-copy of buffers using GStreamer capabilities to the pipeline by adding `video/x-raw(memory: VAMemory)` for Intel GPUs (integrated and discrete) or NPU devices.
 
-Read the DL Streamer documentation on [GPU Device Selection](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/gpu_device_selection.md) for more information.
+Read the DL Streamer documentation on [GPU Device Selection](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/gpu_device_selection.html) for more information.
 
 ### GPU/NPU specific element properties
 
-DL Streamer inference elements also provide properties such as `pre-process-backend=va-surface-sharing` or `pre-process-backend=va`and `device=GPU` or `device=NPU` to pre-process and infer on GPU/NPU. Read the DL Streamer documentation on [Model pre- and post-processing](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/model_preparation.md#2-model-pre--and-post-processing) for more details.
+DL Streamer inference elements also provide properties such as `pre-process-backend=va-surface-sharing` or `pre-process-backend=va`and `device=GPU` or `device=NPU` to pre-process and infer on GPU/NPU. Read the DL Streamer documentation on [Model pre- and post-processing](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html#model-pre-and-post-processing) for more details.
 
 ## Tutorial on how to use GPU/NPU specific pipelines
 
-> **Note:** - DL Streamer Pipeline Server already provides a default `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`
+> **Note:** DL Streamer Pipeline Server already provides a default `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`
 > file that includes the necessary GPU/NPU access to the container.
 
 - A sample config for GPU has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_gpu_decode_and_inference/config.json`.
@@ -59,7 +59,7 @@ We need to volume mount the sample config file into dlstreamer-pipeline-server s
       - "../configs/sample_npu_decode_and_inference/config.json:/home/pipeline-server/config.json"
   ```
 
-- Restart DL Streamer pipeline server
+- Restart DL Streamer pipeline server:
 
   ```sh
       cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
@@ -67,7 +67,7 @@ We need to volume mount the sample config file into dlstreamer-pipeline-server s
       docker compose up
   ```
 
-- In the pipeline string in the above config files, we have added GPU/NPU specific elements/properties for decoding and inferencing on GPU/NPU backend. Now, start the pipeline with a curl request
+- In the pipeline string in the above config files, we have added GPU/NPU specific elements/properties for decoding and inferencing on GPU/NPU backend. Now, start the pipeline with a curl request:
 
   ```sh
   curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
@@ -92,4 +92,4 @@ We need to volume mount the sample config file into dlstreamer-pipeline-server s
 
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
-- To perform decode and inference on CPU, see [this document](./use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, see the [Performance Guide](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/performance_guide.md).
+- To perform decode and inference on CPU, see [this document](./use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, see the [Performance Guide](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/performance_guide.html).

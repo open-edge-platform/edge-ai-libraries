@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/text-to-speech">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/text-to-speech">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/text-to-speech/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/text-to-speech/README.md">
      Readme
   </a>
 </div>

@@ -8,24 +8,26 @@ operations. The following sections explain how media analytics
 pipelines are defined and loaded by Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) .
 
 ## Pipeline Definition Files
+
 DL Streamer Pipeline Server exposes multiple application related fields in the config file.
 The default config is present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json`.
 
 The following table describes the essential attributes that are supported in the `config` section.
 
-|      Parameter      |                                                     Description                                                |
-| :-----------------: | -------------------------------------------------------------------------------------------------------------- |
-| `pipelines`         | List of DL Streamer pipelines.                                      |
+|  Parameter  | Description                    |
+| :---------: | ------------------------------ |
+| `pipelines` | List of DL Streamer pipelines. |
 
 The parameters applicable for each pipeline are described below.
-|      Parameter      |                                                     Description                                                |
-| :-----------------: | -------------------------------------------------------------------------------------------------------------- |
-| `name`         | Name of the pipeline.                                      |
-| `pipeline`          | 	DL Streamer pipeline description. |
-| `source`            | Source of the frames. This should be `"gstreamer"` or `"image-ingestor"`.                                              |
-| `parameters`            | Optional JSON object specifying pipeline parameters that can be customized when the pipeline is launched |
-| `auto_start`          | The Boolean flag for whether to start the pipeline on DL Streamer Pipeline Server start up. |
-| `udfs` | UDF config parameters |
+
+|  Parameter   | Description                                                                                              |
+| :----------: | -------------------------------------------------------------------------------------------------------- |
+|    `name`    | Name of the pipeline.                                                                                    |
+|  `pipeline`  | DL Streamer pipeline description.                                                                        |
+|   `source`   | Source of the frames. This should be `"gstreamer"` or `"image-ingestor"`.                                |
+| `parameters` | Optional JSON object specifying pipeline parameters that can be customized when the pipeline is launched |
+| `auto_start` | The Boolean flag for whether to start the pipeline on DL Streamer Pipeline Server start up.              |
+|    `udfs`    | UDF config parameters                                                                                    |
 
 ### How Pipeline Definition Files are Discovered and Loaded
 
@@ -35,6 +37,7 @@ The hierarchical directory structure looks like the below inside the DL Streamer
 `/var/cache/pipeline_root/user_defined_pipelines/<pipeline-name>/pipeline.json`
 
 Here is a sample directory listing:
+
 ```
 /var/cache/pipeline_root
                 ├── user_defined_pipelines
@@ -49,7 +52,7 @@ Here is a sample directory listing:
 
 The pipeline property within a `config.json` file describes the order and type of operations
 in the media analytics pipeline. The syntax of the template property is specific to the
-underlying framework, i.e. `GStreamer`. Pipeline use the `source`, `destination` and
+underlying framework, i.e., `GStreamer`. Pipeline use the `source`, `destination` and
 `parameters` sections of an incoming pipeline `request` to customize the source, destination
 and behavior of a pipeline implemented in an underlying framework.
 
@@ -69,6 +72,7 @@ dynamically defined by the calling application.
 #### Object Detection
 
 **Example:**
+
 ```
 "pipeline": "uridecodebin name=source",
             " ! gvadetect model={models[person_vehicle_bike_detection][1][network]} name=detection",
@@ -77,16 +81,16 @@ dynamically defined by the calling application.
 ```
 
 > **Note:** The model used in the above pipeline is an example of how it can be used from
-> [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/supported_models.md).
+> [here](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/supported_models.html).
 > Refer to the documentation for DL Streamer on how to download any given model for your
-> usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/model_preparation.md).
+> usage [here](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
 
 #### Source Abstraction
 
 `{auto_source}` is a virtual source that is updated with the appropriate GStreamer element and properties at request time.
 The GStreamer element is chosen based on the `type` specified in the source section of the request (shown below), making pipelines flexible as they can be reused for source media of different types.
 
-**Sample video pipeline**
+**Sample video pipeline**:
 
 ```
 "pipeline": "{auto_source}",
@@ -95,11 +99,12 @@ The GStreamer element is chosen based on the `type` specified in the source sect
             " ! appsink name=appsink"
 ```
 
-> **Note:**: The model used in the above pipeline is an example of how it can be used from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/supported_models.md).
+> **Note:** The model used in the above pipeline is an example of how it can be used from the
+> list of [supported models](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/supported_models.html).
 > Refer to the documentation for DL Streamer on how to download any given model for your
-> usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/model_preparation.md).
+> usage [here](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
 
-**Sample audio pipeline**
+**Sample audio pipeline**:
 
 ```
 "pipeline": "{auto_source} ! audioresample ! audioconvert",
@@ -110,9 +115,10 @@ The GStreamer element is chosen based on the `type` specified in the source sect
             " ! appsink name=appsink"
 ```
 
-> **Note:**: The model used in the above pipeline is an example of how it can be used from [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/supported_models.md).
+> **Note:** The model used in the above pipeline is an example of how it can be used from the
+> list of [supported models](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/supported_models.html).
 > Refer to the documentation for DL Streamer on how to download any given model for
-> your usage [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/model_preparation.md).
+> your usage [here](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
 
 
 |    Source    |    GStreamer Element     |      Source section of curl request       |        Source pipeline snippet     | Remarks |
@@ -124,11 +130,13 @@ The GStreamer element is chosen based on the `type` specified in the source sect
 | Web camera | `urisourcebin`	| <pre> "source": { <br>   `"device": "/dev/video0`",<br>   type": "webcam",<br> }<br></pre> | <pre> `v4l2src device=/dev/video0` name=source ! `video/x-raw,format=YUY2` </pre> |         |
 | Custom GStreamer Element | `urisourcebin`	| <pre> "source": { <br>   "element": GStreamer Element name,<br>   "type": "gst"<br> }<br></pre> Example for microphone for an audio pipeline: <br> <pre> "source": { <br>   "element": `"alsasrc"`,<br>   "type": "gst",<br>   properties": { <br>        `"device": "hw:1,0"` <br>}<br></pre> | <pre> `alsasrc device=hw:1,0 name=source`</pre> |         |
 
-> **Note:**: For a `type=gst` request, the container must support the corresponding element.
+> **Note:** For a `type=gst` request, the container must support the corresponding element.
 
 Source request accepts the following optional fields set via the request:
+
 - `capsfilter` if set is applied right after the source element as shown in example below.
   The default value of capsfilter for webcam is `image/jpeg` but it can be set via the request to another valid format.
+
   ```json
     "source": {
         "device": "/dev/video0",
@@ -136,12 +144,16 @@ Source request accepts the following optional fields set via the request:
         "capsfilter": "video/x-h264"
     }
   ```
+
   The source pipeline resolves to:
+
   ```
   v4l2src device=/dev/video0 name=source ! capsfilter caps=video/x-h264 ! ..
   ```
+
 - `postproc` if set is applied _after_ the source and capsfilter element (if specified).
   Below is an example of the use of `capsfilter` and `postproc`
+
   ```json
     "source": {
         "element": "videotestsrc",
@@ -153,7 +165,9 @@ Source request accepts the following optional fields set via the request:
         }
     }
   ```
-    The source pipeline resolves to:
+
+  The source pipeline resolves to:
+
   ```
   videotestsrc name=source ! capsfilter caps=video/x-raw,format=GRAY8 ! rawvideoparse ! ..
   ```
@@ -193,7 +207,7 @@ paths enabling pipeline templates to reference them by name. You can use the `mo
 property to point to custom model-proc by specifying the absolute path. More details are
 provided in the [Deep Learning Models](#deep-learning-models) section.
 
-#### Model Persistance in OpenVINO<sup>&#8482;</sup> GStreamer Elements
+#### Model Persistance in OpenVINO™ GStreamer Elements
 
 `model-instance-id` is an optional property that will hold the model in memory instead
 of releasing it when the pipeline completes. This improves load time and reduces memory
@@ -235,7 +249,7 @@ targets the same hardware device and video format.
 #### More Information
 
 For more information and examples of media analytics pipelines created
-with DL Streamer please see the [tutorial](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/get_started/tutorial.md).
+with DL Streamer please see the [tutorial](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/tutorial.html).
 
 ## Pipeline Parameters
 
@@ -282,15 +296,13 @@ and `width`:
 }
 ```
 
-Once defined these parameters can be used in a pipeline template by
-direct substitution.
+Once defined these parameters can be used in a pipeline template by direct substitution.
 
 ```json
 "pipeline": " urisourcebin name=source ! concat name=c ! decodebin ! videoscale",
                 " ! video/x-raw,height={parameters[height]},width={parameters[width]}",
                 " ! appsink name=appsink"
 ```
-
 
 ### Special Handling for Media Frameworks
 
@@ -301,23 +313,21 @@ frameworks.
 
 #### Parameters and GStreamer Elements
 
-Parameters in GStreamer pipeline definitions can include information
-on how to associate a parameter with one or more GStreamer element
-properties.
+Parameters in GStreamer pipeline definitions can include information on how to associate a
+parameter with one or more GStreamer element properties.
 
-The JSON schema for a GStreamer pipeline parameter can include an
-`element` section in one of the below forms.
+The JSON schema for a GStreamer pipeline parameter can include an `element` section in one of
+the forms below.
 
-1. **Simple String**. <br/> <br/>
-   The string indicates the `name` of an element in
-   the GStreamer pipeline. The property to be set is taken from the
-   parameter name.
+1. **Simple String**.
+
+   The string indicates the `name` of an element in the GStreamer pipeline. The property to be
+   set is taken from the parameter name.
 
    **Example:**
 
-   The following snippet defines the parameter `inference-interval`
-   which sets the `inference-interval` property of the `detection`
-   element.
+   The following snippet defines the parameter `inference-interval` which sets the
+   `inference-interval` property of the `detection` element:
 
    ```json
    "parameters": {
@@ -332,18 +342,18 @@ The JSON schema for a GStreamer pipeline parameter can include an
             }
         }
     }
-    ```
+   ```
 
-1. **Object**. <br/> <br/> The object indicates the element `name`,
-   `property` and `format` for the parameter. The `format` is only
-   required in special cases where the property value has to be
-   formatted as a valid JSON document.
+2. **Object**.
+
+   The object indicates the element `name`, `property` and `format` for the parameter. The
+   `format` is only required in special cases where the property value has to be formatted as
+   a valid JSON document.
 
    **Example:**
 
-   The following snippet defines the parameter `interval`
-   which sets the `inference-interval` property of the `detection`
-   element.
+   The following snippet defines the parameter `interval` which sets the `inference-interval`
+   property of the `detection` element:
 
    ```json
    "parameters": {
@@ -361,17 +371,17 @@ The JSON schema for a GStreamer pipeline parameter can include an
             }
         }
     }
-    ```
+   ```
 
-1. **Array** of Objects or Strings. <br/> <br/> An array specifying
-   multiple element properties to be set by the same pipeline
-   parameter.
+3. **Array** of Objects or Strings.
+
+   An array specifying multiple element properties to be set by the same pipeline parameter.
 
    **Example:**
 
-   The following snippet defines the parameter `interval` which sets
-   the `inference-interval` property of the `detection` element and
-   the `inference-interval` property of the `classification` element.
+   The following snippet defines the parameter `interval` which sets the `inference-interval`
+   property of the `detection` element and the `inference-interval` property of the
+   `classification` element:
 
    ```json
    "parameters": {
@@ -391,54 +401,60 @@ The JSON schema for a GStreamer pipeline parameter can include an
             }
         }
     }
-    ```
+   ```
 
-1. **Object** with dictionary of properties. <br/> <br/> A dictionary specifying properties that apply to a pipeline element by name.
+4. **Object** with dictionary of properties.
 
-    **Example:**
-
-    The following snippet defines `detection-properties` which can be used to pass
-    GStreamer element properties for the `detection` element without explicitly defining each one. This can be enabled by setting `format` as `element-properties` for the parameter.
-    > **Note:** The property names are expected to match the GStreamer properties for the corresponding element.
-
-    ```json
-    "parameters": {
-            "type": "object",
-            "detection-properties" : {
-                "element": {
-                    "name": "detection",
-                    "format": "element-properties"
-                }
-            }
-    }
-    ```
-
-    Pipeline Request
-    ```json
-    "source": {
-        "uri":"file:///temp.mp4",
-        "type": "uri"
-    },
-    "parameters" : {
-        "detection-properties": {
-            "threshold": 0.1,
-            "device": "CPU"
-        }
-    }
-    ```
-
-#### Parameters and default value
-
-Parameters default value in pipeline definitions can be set in section in one of two forms(setting value or by environment variable) below.
-
-1. **Set default value directly**
-
-    A default value can be set for the element property using `default` key.
+   A dictionary specifying properties that apply to a pipeline element by name.
 
    **Example:**
 
-   The following snippet defines the parameter `detection-device`
-   which sets the `device` property of `detection` with default value `GPU`
+   The following snippet defines `detection-properties` which can be used to pass GStreamer
+   element properties for the `detection` element without explicitly defining each one. This
+   can be enabled by setting `format` as `element-properties` for the parameter:
+
+   > **Note:** The property names are expected to match the GStreamer properties for the corresponding element.
+
+   ```json
+   "parameters": {
+           "type": "object",
+           "detection-properties" : {
+               "element": {
+                   "name": "detection",
+                   "format": "element-properties"
+               }
+           }
+   }
+   ```
+
+   Pipeline Request
+
+   ```json
+   "source": {
+       "uri":"file:///temp.mp4",
+       "type": "uri"
+   },
+   "parameters" : {
+       "detection-properties": {
+           "threshold": 0.1,
+           "device": "CPU"
+       }
+   }
+   ```
+
+#### Parameters and default value
+
+Parameters default value in pipeline definitions can be set in section in one of two forms
+(setting value or by environment variable) below.
+
+1. **Set default value directly**.
+
+   A default value can be set for the element property using `default` key.
+
+   **Example:**
+
+   The following snippet defines the parameter `detection-device` which sets the `device`
+   property of `detection` with default value `GPU`:
 
    ```json
    "parameters": {
@@ -454,16 +470,19 @@ Parameters default value in pipeline definitions can be set in section in one of
             }
         }
     }
-    ```
+   ```
 
-2. **Read default value from environment variable**
+2. **Read default value from environment variable**.
 
-    A default value can be set using environment variable for the element property using `default` key.
+   A default value can be set using environment variable for the element property using `default` key.
 
    **Example:**
 
-   The following snippet defines the parameter `detection-device`
-   which sets the `device` property of the `detection` with default value from environment variable `DETECTION_DEVICE`. If the environment variable is not set, pipeline server won't set a default and the element's built-in default will be used by the underlying framework.
+   The following snippet defines the parameter `detection-device` which sets the `device`
+   property of the `detection` with default value from environment variable `DETECTION_DEVICE`:
+
+   > **Note:** If the environment variable is not set, pipeline server will not set a default
+   > and the element's built-in default will be used by the underlying framework.
 
    ```json
    "parameters": {
@@ -479,26 +498,25 @@ Parameters default value in pipeline definitions can be set in section in one of
             }
         }
     }
-    ```
-
+   ```
 
 #### Parameters and FFmpeg Filters
 
-Parameters in FFmpeg pipeline definitions can include information on
-how to associate a parameter with one or more FFmpeg filters.
+Parameters in FFmpeg pipeline definitions can include information on how to associate a
+parameter with one or more FFmpeg filters.
 
-The JSON schema for a FFmpeg pipeline parameter can include a
-`filter` section in one of two forms.
+The JSON schema for a FFmpeg pipeline parameter can include a `filter` section in one of two forms.
 
-1. **Object**. <br/> <br/> The object indicates the filter `name`,
-   `type`, `property`, `index` and `format` for the parameter. The
-   `format` is only required in special cases where the property value
-   has to be formatted as a valid JSON document.
+1. **Object**.
+
+   The object indicates the filter `name`, `type`, `property`, `index` and `format` for the
+   parameter. The `format` is only required in special cases where the property value has to
+   be formatted as a valid JSON document.
 
    **Example:**
 
-   The following snippet defines the parameter `inference-interval` which sets
-   the `interval` property of the first `detect` filter.
+   The following snippet defines the parameter `inference-interval` which sets the `interval`
+   property of the first `detect` filter:
 
    ```json
    "parameters": {
@@ -516,17 +534,16 @@ The JSON schema for a FFmpeg pipeline parameter can include a
             }
         }
     }
-    ```
+   ```
 
-1. **Array** of Objects. <br/> <br/> An array specifying
-   multiple filter properties to be set by the same pipeline
-   parameter.
+2. **Array** of Objects.
+
+   An array specifying multiple filter properties to be set by the same pipeline parameter.
 
    **Example:**
 
-   The following snippet defines the parameter `interval` which sets
-   the `interval` property of the `detect` filter and
-   the `interval` property of the `classify` filter.
+   The following snippet defines the parameter `interval` which sets the `interval` property
+   of the `detect` filter and the `interval` property of the `classify` filter:
 
    ```json
    "parameters": {
@@ -549,19 +566,18 @@ The JSON schema for a FFmpeg pipeline parameter can include a
             }
         }
     }
-    ```
+   ```
 
 ### Parameter Resolution in Pipeline Templates
 
-Parameters passed in through a request are resolved in a pipeline
-template either through direct substitution or through special media
-framework handling.
+Parameters passed in through a request are resolved in a pipeline template either through
+direct substitution or through special media framework handling.
 
 #### Direct Substitution
 
-Wherever a value in a pipeline template is referenced through a key in
-the parameters object its value is taken from the incoming request. If not
-supplied in the request it is set to the specified default value.
+Wherever a value in a pipeline template is referenced through a key in the parameters object
+its value is taken from the incoming request. If not supplied in the request it is set to the
+specified default value.
 
 **Example:**
 
@@ -574,6 +590,7 @@ Pipeline Template:
 ```
 
 Pipeline Parameters:
+
 ```json
 "parameters": {
     "type": "object",
@@ -595,15 +612,16 @@ Pipeline Parameters:
 ```
 
 Pipeline Request:
+
 ```json
 {
   "source": {
-   "type":"uri",
-   "uri":"file:///temp.mp4"
+    "type": "uri",
+    "uri": "file:///temp.mp4"
   },
   "parameters": {
-    "height":300,
-    "width":300
+    "height": 300,
+    "width": 300
   }
 }
 ```
@@ -616,11 +634,10 @@ Parameter Resolution:
 " ! appsink name=appsink"
 ```
 
-
 #### Media Framework Handling
-When a parameter definition contains details on how to set GStreamer
-`element` or FFmpeg `filter` properties, templates do not need to
-explicitly reference the parameter.
+
+When a parameter definition contains details on how to set GStreamer `element` or FFmpeg
+`filter` properties, templates do not need to explicitly reference the parameter.
 
 **Example:**
 
@@ -633,6 +650,7 @@ Pipeline Template:
 ```
 
 Pipeline Parameters:
+
 ```json
 "parameters": {
     "type": "object",
@@ -651,43 +669,42 @@ Pipeline Parameters:
 ```
 
 Pipeline Request:
+
 ```json
 {
- "source": {
-  "type":"uri",
-  "uri":"file:///temp.mp4"
- },
- "parameters": {
-   "scale_method":"nearest-neighbour"
- }
+  "source": {
+    "type": "uri",
+    "uri": "file:///temp.mp4"
+  },
+  "parameters": {
+    "scale_method": "nearest-neighbour"
+  }
 }
 ```
 
 Parameter Resolution:
 
-> **Note:** Parameters defined this way are set via the GStreamer
-> Python API. The following pipeline string is provided for
-> illustrative purposes only.
+> **Note:** Parameters defined this way are set via the GStreamer Python API. The following
+> pipeline string is provided for illustrative purposes only.
 
 ```
 "urisourcebin name=source uri=file:///temp.mp4 ! concat name=c ! decodebin ! videoscale method=nearest-neighbour" \
 " ! video/x-raw,height=300,width=300" \
 " ! appsink name=appsink"
 ```
+
 ### Reserved Parameters
 
-The following parameters have built-in handling within the Pipeline Server modules and should only be included in pipeline
-definitions wishing to trigger that handling.
+The following parameters have built-in handling within the Pipeline Server modules and should
+only be included in pipeline definitions wishing to trigger that handling.
 
 #### bus-messages
 
-A boolean parameter that can be included in GStreamer pipeline
-definitions to trigger additional logging for GStreamer bus messages.
+A boolean parameter that can be included in GStreamer pipeline definitions to trigger
+additional logging for GStreamer bus messages.
 
-If included and set to true, GStreamer bus messages will be logged
-with log-level `info`. This is useful for elements which post messages
-to the bus such as
-[level](https://gstreamer.freedesktop.org/documentation/level/index.html?gi-language=c).
+If included and set to true, GStreamer bus messages will be logged with log-level `info`.
+This is useful for elements which post messages to the bus such as [level](https://gstreamer.freedesktop.org/documentation/level/index.html?gi-language=c).
 
 **Example:**
 
@@ -703,86 +720,79 @@ to the bus such as
 }
 ```
 
-
 ## Deep Learning Models
 
-### OpenVINO<sup>&#8482;</sup> Toolkit's Intermediate Representation
+### OpenVINO™ Toolkit's Intermediate Representation
 
 The Pipeline Server applications and pipelines use deep learning
-models in the OpenVINO<sup>&#8482;</sup> Toolkit's [Intermediate Representation](https://docs.openvino.ai/2025/documentation/openvino-ir-format.html)
+models in the OpenVINO™ Toolkit's [Intermediate Representation](https://docs.openvino.ai/2026/documentation/openvino-ir-format.html)
 format (`IR`). A model in the `IR` format is represented by two files:
 
-* `<model_name>.xml`. An XML file describing the model layers,
+- `<model_name>.xml`. An XML file describing the model layers,
   precision and topology.
 
-* `<model_name>.bin`. A binary file encoding a trained model's weights.
+- `<model_name>.bin`. A binary file encoding a trained model's weights.
 
 #### Converting Models
+
 For more information on converting models from popular frameworks into
-`IR` format please see the OpenVINO<sup>&#8482;</sup> Toolkit
-documentation for [model optimizer](https://docs.openvino.ai/2025/openvino-workflow/model-optimization.html).
+`IR` format please see the OpenVINO™ Toolkit
+documentation for [model optimizer](https://docs.openvino.ai/2026/openvino-workflow/model-optimization.html).
 
 #### Ready To Use Models
 
-For more information on ready to use deep learning models that have
-been converted into the IR format (or include conversion instructions)
-please see the the OpenVINO<sup>&#8482;</sup> Toolkit documentation
-for
-[model_downloader](https://docs.openvino.ai/2023.3/omz_tools_downloader.html)
-and the OpenVINO<sup>&#8482;</sup> Toolkit [Open Model
-Zoo](https://github.com/openvinotoolkit/open_model_zoo).
+For more information on ready to use deep learning models that have been converted into the
+IR format (or include conversion instructions) please see the OpenVINO™ Toolkit documentation
+for [model_downloader](https://docs.openvino.ai/2023.3/omz_tools_downloader.html) and the
+OpenVINO™ Toolkit [Open Model Zoo](https://github.com/openvinotoolkit/open_model_zoo).
 
 ### Model-Proc Files
 
-In addition to the `.xml` and `.bin` files that are part of a model's
-`IR` format, `DL Streamer` elements and `FFmpeg Video Analytics`
-filters make use of an additional JSON file specifying the input and
-output processing instructions for a model. Processing instructions
-include details such as the expected color format and resolution of
-the input as well labels to associate with a models outputs.
-The Pipeline Server automatically looks for this file in the path
-`models/model-alias/model-version/*.json`. Note that the model manager will
-fail to load if there are multiple ".json" model-proc files in this directory.
+In addition to the `.xml` and `.bin` files that are part of a model's `IR` format, DL Streamer
+elements and `FFmpeg Video Analytics` filters make use of an additional JSON file specifying
+the input and output processing instructions for a model. Processing instructions include
+details such as the expected color format and resolution of the input as well labels to
+associate with a model's outputs.
+
+The Pipeline Server automatically looks for this file in the path `models/model-alias/model-version/*.json`.
+Note that the model manager will fail to load if there are multiple `.json` model-proc files in this directory.
 
 Some models might have a separate `.txt` file for `labels`, in addition to or instead of `model-proc`.
 If such a file exists, the Pipeline Server automatically looks for this file in the path
 `models/model-alias/model-version/*.txt`.
 
-For more details on model proc and labels see [Model Proc File](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/model_proc_file.md).
+> **Note:** This DL Streamer functionality is **deprecated**.
+> For more details on model proc and labels see [Model Proc File](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/model_proc_file.html).
 
 #### Deep Learning Streamer (DL Streamer)
 
-For more information on DL Streamer `model-proc` files and samples for
-common models please see the DL Streamer
-[documentation](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/how_to_create_model_proc_file.md#how-to-create-model-proc-file).
-and
-[samples](https://github.com/open-edge-platform/dlstreamer/tree/main/samples).
+For more information on DL Streamer `model-proc` files and samples for common models, see the
+DL Streamer [documentation](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/how_to_create_model_proc_file.html).
+and [samples](https://github.com/open-edge-platform/dlstreamer/tree/main/samples).
 
 #### FFmpeg Video Analytics
 
-For `model-proc` files for use with `FFmpeg Video Analytics` please
-see the following [samples](https://github.com/VCDP/FFmpeg-patch/tree/ffmpeg4.2_va/samples/model_proc)
+For `model-proc` files for use with `FFmpeg Video Analytics`, see the following [samples](https://github.com/VCDP/FFmpeg-patch/tree/ffmpeg4.2_va/samples/model_proc)
 
 ### How Deep Learning Models are Discovered and Referenced
 
-Model files are stored in a hierarchical directory structure that
-determines their name, version and precision.
+Model files are stored in a hierarchical directory structure that determines their name,
+version and precision.
 
-On startup, the Pipeline Server `model_manager` searches
-the configured model directory and creates a dictionary storing the
-location of each model and their associated collateral
-(i.e. `<model-name>.bin`, `<model-name>.xml`, `<model-name>.json`, `<labels>.txt`)
+On startup, the Pipeline Server `model_manager` searches the configured model directory and
+creates a dictionary storing the location of each model and their associated collateral
+(i.e., `<model-name>.bin`, `<model-name>.xml`, `<model-name>.json`, `<labels>.txt`)
 
 The hierarchical directory structure is made up of four levels:
 
 `<model-root-directory>/<model-name>/<version>/<precision>`
 
-> **Note:**: Not all models have a file for labels. In such cases, the labels could be listed
+> **Note:** Not all models have a file for labels. In such cases, the labels could be listed
 > in the `model-proc`file.
 
-Here's a sample directory listing for the `yolo-v3-tf` model:
+Here is a sample directory listing for the `yolo-v3-tf` model:
 
-> **Note:**: The mentioned model is available [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/supported_models.md).
+> **Note:** The model in this example is taken from the list of [supported models](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/supported_models.html).
 
 ```
 models/
@@ -820,11 +830,12 @@ without specifying the precision:
 
 **Examples:**
 
-* `models[object_detection][1][proc]` expands to `models/object_detection/1/yolo-v3-tf.json`
-* `models[object_detection][1][labels]` expands to `models/object_detection/1/coco-80cl.txt`
-* If running on CPU `models[object_detection][1][network]` expands to `models/object_detection/1/FP32/yolo-v3-tf.xml`
-* Running on GPU `models[object_detection][1][network]` expands to `models/object_detection/1/FP16/yolo-v3-tf.xml`
-* `models[object_detection][1][FP16][network]` expands to `models/object_detection/1/FP16/yolo-v3-tf.xml`
+- `models[object_detection][1][proc]` expands to `models/object_detection/1/yolo-v3-tf.json`
+- `models[object_detection][1][labels]` expands to `models/object_detection/1/coco-80cl.txt`
+- If running on CPU `models[object_detection][1][network]` expands to `models/object_detection/1/FP32/yolo-v3-tf.xml`
+- Running on GPU `models[object_detection][1][network]` expands to `models/object_detection/1/FP16/yolo-v3-tf.xml`
+- `models[object_detection][1][FP16][network]` expands to `models/object_detection/1/FP16/yolo-v3-tf.xml`
 
 ---
+
 \* Other names and brands may be claimed as the property of others.

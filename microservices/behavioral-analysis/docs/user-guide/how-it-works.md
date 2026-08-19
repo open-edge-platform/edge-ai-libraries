@@ -117,7 +117,7 @@ The pose extraction pipeline is orchestrated by `extract_poses()` in `yolo_pipel
 
 **Processing pipeline:**
 1. **Preprocessing:** Image resized via letterboxing (maintains aspect ratio, pads with 114 gray); converted to float32 [0, 1]
-2. **Inference:** OpenVINO compiled model runs on configured device (CPU/GPU/NPU via `GST_INFERENCE_DEVICE`)
+2. **Inference:** OpenVINO compiled model runs on configured device (CPU/GPU via `GST_INFERENCE_DEVICE`)
 3. **Postprocessing:**
    - NMS (Non-Maximum Suppression) filters overlapping detections
    - Detections with confidence < `POSE_CONFIDENCE_THRESHOLD` (default 0.5) are discarded
@@ -183,7 +183,7 @@ For feature overview, see [Key Features: Declarative Pattern Engine](./index.md#
 
 ## VLM Confirmation
 
-When a pose pattern matches and VLM is enabled (globally via `VLM_ENABLED=true` and per-pattern in YAML), the service performs frame-level visual confirmation via an OpenAI-compatible VLM endpoint.
+When a pose pattern matches and the global VLM switch is enabled via `VLM_ENABLED=true`, the service performs frame-level visual confirmation via an OpenAI-compatible VLM endpoint. Individual pattern `vlm.enabled` values may further opt a given pattern in or out when needed.
 
 **Request pipeline:**
 1. **Frame selection:** Samples up to `num_frames` (configurable per-pattern) key frames identified during pose matching

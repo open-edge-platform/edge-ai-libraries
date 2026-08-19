@@ -41,7 +41,7 @@ The image is based on `python:3.12-slim` and includes:
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries/metrics-manager
 ```
 
@@ -397,12 +397,12 @@ docker compose down --rmi local
 
 ## Troubleshooting Installation
 
-| Issue                 | Solution                                                 |
-| --------------------- | -------------------------------------------------------- |
-| Port already in use   | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
-| Build fails           | Run `docker builder prune` to clear cache                |
-| Container won't start | Check logs: `docker logs metrics-manager`                |
-| No GPU/NPU metrics    | Expected if hardware not present; other metrics continue |
+| Issue                    | Solution                                                 |
+| ------------------------ | -------------------------------------------------------- |
+| Port already in use      | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
+| Build fails              | Run `docker builder prune` to clear cache                |
+| Container will not start | Check logs: `docker logs metrics-manager`                |
+| No GPU/NPU metrics       | Expected if hardware not present; other metrics continue |
 
 See [Troubleshooting](./troubleshooting.md) for more issues.
 
