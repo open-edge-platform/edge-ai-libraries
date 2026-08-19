@@ -47,6 +47,33 @@ main () {
   return $_rc
 }
 
+# <cmd> <name> [<order-pattern>]
+act_declared_handler () {
+  declare -g _ADH_CACHE
+  if [ -z "$1" ] || [ -z "${_ADH_CACHE:-}" ]; then
+    _ADH_CACHE=$(declare -F | cut -f3 -d' ' | grep -E "^${ID_LIKE}_[0-9]+_" | sort -t_ -k2,2r)
+    [ -n "$1" ] || return 0
+  fi
+  local out=$(echo "$_ADH_CACHE" | grep -E "^${ID_LIKE}_${3:-[0-9]+}_${1//\*/[^_]+}_${2//\*/.+}$")
+  [ -n "$out" ] || return 1
+  echo "$out"
+}
+
+act_expand_modules () {
+  local act_name=$1
+  local -a queue=("${@:2}")
+  local -A seen=()
+  local i=0
+  while [ $i -lt ${#queue[*]} ]; do
+    local n=${queue[$i]}; i=$((i+1))
+    [[ -n "$n" && -z "${seen[$n]:-}" ]] || continue
+    seen[$n]=1
+    local profiler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${n}$" | cut -f3 -d' ')
+    [ -z "$profiler" ] || queue+=($($profiler $act_name))
+  done
+  echo "${!seen[*]}"
+}
+
 act_extract_modules () {
   local act_name=${1%%,*}
   local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_) profile)
@@ -233,7 +260,7 @@ subcommand_list () {
 
   local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_))
   local all_profiles=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f3 -d' '))
-  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f2,4- -d_ | sort -r | uniq | cut -f2- -d_))
+  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f2,4- -d_ | sort -r | awk -F_ '!seen[substr($0, index($0,"_")+1)]++' | cut -f2- -d_))
 
   {
     if [ ${#all_profiles[@]} -gt 0 ]; then
@@ -242,11 +269,15 @@ subcommand_list () {
       for profiler in ${all_profiles[*]}; do
         local profile_name=$(echo $profiler | cut -f4- -d_)
         [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
-        local profile_cmds=()
+        local profile_cmds=() mname
         for cmd in ${all_cmds[*]}; do
           [[ " bootstrap list setup " != *" $cmd "* ]] || continue
-          local profile_modules=($($profiler $cmd))
-          [ ${#profile_modules[@]} -eq 0 ] || profile_cmds+=($cmd)
+          for mname in $(act_expand_modules $cmd $($profiler $cmd)); do
+            if declare -F | grep -q -E " ${ID_LIKE}_[0-9]+_${cmd}_${mname}$"; then
+              profile_cmds+=($cmd)
+              break
+            fi
+          done
         done
         echo "|$profile_name|[${profile_cmds[*]}]"
       done
@@ -255,11 +286,16 @@ subcommand_list () {
   
     if [ ${#all_modules[@]} -gt 0 ]; then
       echo "List of components:"
-      local module_name cmd
+      local module_name cmd mname
       for module_name in ${all_modules[*]}; do
         local module_cmds=()
         for cmd in ${all_cmds[*]/list/}; do
-          declare -F | grep -q -E " ${ID_LIKE}_[0-9]+_${cmd}_${module_name}$" && module_cmds+=($cmd)
+          for mname in $(act_expand_modules $cmd $module_name); do
+            if act_declared_handler $cmd $module_name; then
+              module_cmds+=($cmd)
+              break
+            fi
+          done
         done
         echo "|$module_name|[${module_cmds[*]}]"
       done
