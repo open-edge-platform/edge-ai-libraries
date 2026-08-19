@@ -26,8 +26,8 @@ ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
 RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip and wheel to fix vulns
-RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip==26.1.2 wheel
+# Upgrade pip setuptools and wheel to fix vulns
+RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip==26.2.1 "setuptools>=78.1.1" "wheel>=0.46.2"
 
 # Create a non-root user
 RUN groupadd -g 1001 intelgai && \
