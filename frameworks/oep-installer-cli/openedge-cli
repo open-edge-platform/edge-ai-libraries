@@ -138,7 +138,7 @@ act_helpper () {
         for id1 in ${!licenses[*]}; do
           echo "${licenses_text[$id1]}"
           echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")"
-        done | tee | ensure_license_gate "$@"
+        done | tee | ensure_license_gate $installer_name "$@"
         if [ $? -ne 0 ]; then
           echo "License declined"
           exit 3

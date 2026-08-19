@@ -13,10 +13,13 @@
 #   --accept-license[=ID,...]   non-interactive; bare form accepts everything,
 #                               list form fails if the bundle contains an id
 #                               that was not listed
+#   --reset-license             ignore recorded history; show everything again
 #
 # Exit codes: 0 accepted, 1 declined, 2 error / no terminal.
 #
 ensure_license_gate () {
+  local installer_name="${1:-openedge-cli}"
+  local history_dir="$(ensure_project_path)/$1/licenses"
   local py=$(cat <<'__LICENSE_GATE_PY__'
 import argparse, curses, hashlib, json, os, platform, re, sys, textwrap, time
 
@@ -116,6 +119,47 @@ def parse_bundle(data):
         lic.heads = detect_headings(lic.src)
     return order
 
+def history_dir():
+    return os.environ.get("LICENSE_GATE_HISTORY_DIR", "").strip()
+
+def marker_path(root, lic):
+    _SAFE = re.compile(r"[^A-Za-z0-9._-]")
+    return os.path.join(root, "%s.%s" % (_SAFE.sub("_", lic.lid), lic.sha[:16]))
+
+def already_accepted(lic, root):
+    if not root:
+        return False
+    try:
+        return os.path.exists(marker_path(root, lic))
+    except Exception:
+        return False          # unreadable history: treat as unaccepted
+
+def record_accepted(lics, root):
+    if not root:
+        return
+    try:
+        if not os.path.isdir(root):
+            os.makedirs(root, 0o755)
+    except Exception as e:
+        sys.stderr.write("license-gate: cannot create %s (%s); "
+                         "acceptance not recorded\n" % (root, e))
+        return
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    for lic in lics:
+        try:
+            with open(marker_path(root, lic), "w") as fh:
+                fh.write("%s\t%s\t%s\t%s\n"
+                         % (lic.lid, lic.display(), lic.sha, stamp))
+        except Exception as e:
+            sys.stderr.write("license-gate: cannot record %s (%s)\n"
+                             % (lic.lid, e))
+
+def filter_accepted(lics, root):
+    """Return (remaining, skipped)."""
+    remaining, skipped = [], []
+    for lic in lics:
+        (skipped if already_accepted(lic, root) else remaining).append(lic)
+    return remaining, skipped
 
 # ---------------------------------------------------------------- auto TOC
 
@@ -966,6 +1010,7 @@ def main():
     ap = argparse.ArgumentParser(prog="license-gate", add_help=True)
     ap.add_argument("--accept-license", nargs="?", const="*", default=None)
     ap.add_argument("--no-scroll-gate", action="store_true")
+    ap.add_argument("--reset-license", "--reset-license", dest="relicense", action="store_true")
     args, _ = ap.parse_known_args()
 
     data = sys.stdin.read()
@@ -975,6 +1020,17 @@ def main():
     if not lics:
         return EXIT_OK
 
+    root = "" if args.relicense else history_dir()
+    pending, skipped = filter_accepted(lics, root)
+    # re-record under the current dir even when history was bypassed
+    store = history_dir()
+
+    if not pending:
+        sys.stdout.write("All %d license(s) already accepted. Skipping.\n"
+                         % len(skipped))
+        return EXIT_OK
+    lics = pending
+
     if args.accept_license is not None:
         need = [l.lid for l in lics]
         if args.accept_license != "*":
@@ -982,6 +1038,7 @@ def main():
             missing = [i for i in need if i not in given]
             if missing:
                 die("--accept-license does not cover: %s" % ", ".join(missing))
+        record_accepted(lics, store)
         sys.stdout.write("Accepted licenses: %s\n" % ", ".join(need))
         return EXIT_OK
 
@@ -1007,6 +1064,7 @@ def main():
         return EXIT_ERROR
     if not accepted:
         return EXIT_DECLINED
+    record_accepted(lics, store)
     return EXIT_OK
 
 try:
@@ -1015,5 +1073,6 @@ except KeyboardInterrupt:
   sys.exit(EXIT_DECLINED)
 __LICENSE_GATE_PY__
 )
-  python3 -c "$py" "$@"
+  LICENSE_GATE_HISTORY_DIR="$history_dir" python3 -c "$py" "$@"
 }
+
