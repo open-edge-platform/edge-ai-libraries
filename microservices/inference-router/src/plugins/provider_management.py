@@ -263,7 +263,9 @@ class ProviderManagementPlugin(PluginBaseNode):
                     if warning:
                         logger.warning(
                             "Provider '%s' %s: %s",
-                            sanitize_for_log(name), sanitize_for_log(command), warning,
+                            sanitize_for_log(name),
+                            sanitize_for_log(command),
+                            sanitize_for_log(warning),
                         )
                         if isinstance(upstream_json, dict):
                             upstream_json = {

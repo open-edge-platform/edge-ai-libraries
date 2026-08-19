@@ -70,7 +70,7 @@ async def chat_completions(request: ChatCompletionRequest, http_request: Request
     logger.info(
         f"Request received: request_id={request_id}, "
         f"model={sanitize_for_log(request.model)}, "
-        f"stream={request.stream}"
+        f"stream={sanitize_for_log(request.stream)}"
     )
     logger.debug(
         f"Request details: request_id={request_id}, "
