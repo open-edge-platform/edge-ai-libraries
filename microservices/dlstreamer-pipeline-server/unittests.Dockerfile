@@ -9,7 +9,8 @@ ARG USER
 USER root
 
 COPY ./tests/requirements.txt /home/pipeline-server/tests/requirements.txt
-RUN pip3 install --no-cache-dir -r /home/pipeline-server/tests/requirements.txt
+RUN ${VIRTUAL_ENV}/bin/python3 -m pip install --no-cache-dir --upgrade pip && \
+    ${VIRTUAL_ENV}/bin/python3 -m pip install --no-cache-dir -r /home/pipeline-server/tests/requirements.txt
 
 # Copy unit tests
 COPY ./tests /home/pipeline-server/tests
