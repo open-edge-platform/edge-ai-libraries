@@ -6,7 +6,7 @@
 
 This is the first release for adaptive-token-compressor. It is a pluggable compression library purpose-built for LLM agent systems. Through a single unified compressor interface, it applies tailored compression to each part of an agent — system prompt (harness), context, and tool schemas — to significantly reduce token usage and improve inference efficiency.
 
-**Features**
+### Features
 
 - Unified compressor API with two compression types: conversation messages (harness) and tool descriptions (tool)
 - Factory-based construction for drop-in integration as a plugin in other projects.
