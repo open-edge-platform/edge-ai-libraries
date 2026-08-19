@@ -46,7 +46,7 @@ WORKDIR $SETUP_PATH
 COPY poetry.lock pyproject.toml ./
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
 RUN poetry install --no-root --without dev && \
-    rm -rf ~/.cache/pypoetry/* ~/.cache/pip/*
+    poetry run pip install --no-cache-dir --upgrade pip==26.1.2
 
 
 # `dev` image is used during development / testing
