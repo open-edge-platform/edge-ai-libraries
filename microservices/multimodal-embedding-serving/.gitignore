@@ -28,3 +28,6 @@ env/
 ov-models
 **/checkpoints
 dist
+
+# Security scan reports (generated locally, never committed or shipped in images)
+reports/

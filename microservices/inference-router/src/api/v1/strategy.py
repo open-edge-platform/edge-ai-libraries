@@ -25,6 +25,7 @@ from src.api.v1._rsd_runtime import (
 from src.exceptions import ConfigurationError
 from src.rsd.policy import resolve_policy_file
 from src.rsd.strategy import build_strategy_definition
+from src.router.logging_utils import sanitize_for_log
 
 
 logger = logging.getLogger(__name__)
@@ -157,7 +158,7 @@ async def create_or_update_strategy(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Failed to create/update strategy {name}: {exc}")
+        logger.error(f"Failed to create/update strategy {sanitize_for_log(name)}: {exc}")
         raise HTTPException(status_code=500, detail="Failed to configure strategy")
 
 
@@ -196,5 +197,5 @@ async def delete_strategy(name: str, http_request: Request) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Failed to delete strategy {name}: {exc}")
+        logger.error(f"Failed to delete strategy {sanitize_for_log(name)}: {exc}")
         raise HTTPException(status_code=500, detail="Failed to delete strategy")

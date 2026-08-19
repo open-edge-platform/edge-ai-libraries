@@ -44,6 +44,7 @@ from src.api.v1._config_runtime import (
 from src.models import ChatCompletionRequest
 from src.plugins.base import PluginBaseNode
 from src.plugins.manager import register_plugin
+from src.router.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -260,7 +261,12 @@ class ProviderManagementPlugin(PluginBaseNode):
                 try:
                     warning = await _apply_reaction(http_request, name, command, upstream_json)
                     if warning:
-                        logger.warning("Provider '%s' %s: %s", name, command, warning)
+                        logger.warning(
+                            "Provider '%s' %s: %s",
+                            sanitize_for_log(name),
+                            sanitize_for_log(command),
+                            sanitize_for_log(warning),
+                        )
                         if isinstance(upstream_json, dict):
                             upstream_json = {
                                 **upstream_json,
@@ -272,7 +278,7 @@ class ProviderManagementPlugin(PluginBaseNode):
                     # warning instead of failing the whole call.
                     logger.warning(
                         "Provider '%s' %s succeeded but router registration failed: %s",
-                        name, command, exc.detail,
+                        sanitize_for_log(name), sanitize_for_log(command), exc.detail,
                     )
                     if isinstance(upstream_json, dict):
                         upstream_json = {
@@ -282,12 +288,17 @@ class ProviderManagementPlugin(PluginBaseNode):
                 except Exception as exc:
                     logger.warning(
                         "Provider '%s' %s succeeded but router registration failed: %s",
-                        name, command, exc,
+                        sanitize_for_log(name), sanitize_for_log(command), exc,
                     )
                     if isinstance(upstream_json, dict):
+                        # Don't surface the raw exception text (stack-trace-derived
+                        # internals) to the caller — it's logged above. CWE-209.
                         upstream_json = {
                             **upstream_json,
-                            "router_registration": {"ok": False, "error": str(exc)},
+                            "router_registration": {
+                                "ok": False,
+                                "error": "internal error during router registration",
+                            },
                         }
 
             return JSONResponse(content=upstream_json, status_code=upstream.status_code)
