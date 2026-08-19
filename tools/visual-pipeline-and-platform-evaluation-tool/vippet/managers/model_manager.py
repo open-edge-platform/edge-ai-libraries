@@ -58,7 +58,12 @@ from internal_types import (
     InternalSupportedModel,
 )
 from managers.pipeline_manager import PipelineManager
-from models import MODELS_PATH, SupportedModel, SupportedModelsManager
+from models import (
+    GENAI_SENTINEL_FILE,
+    MODELS_PATH,
+    SupportedModel,
+    SupportedModelsManager,
+)
 
 logger = logging.getLogger("model_manager")
 
@@ -98,12 +103,6 @@ HTTP_REQUEST_TIMEOUT_S: float = float(
 # Upload streaming chunk size.
 UPLOAD_CHUNK_SIZE: int = 8 * 1024 * 1024  # 8 MiB
 
-# Main language model file that every OpenVINO GenAI model must contain.
-# Its presence proves the download completed successfully; a directory that
-# only contains early-stage artefacts (e.g. .cache/ or graph.pbtxt written
-# before the weights are fetched) will not contain this file.
-_GENAI_SENTINEL_FILE: str = "openvino_language_model.xml"
-
 
 def _precision_is_complete(category: str | None, model_path: str) -> bool:
     """Return True only when the model files at *model_path* are complete.
@@ -118,8 +117,9 @@ def _precision_is_complete(category: str | None, model_path: str) -> bool:
     artefact, so a plain existence check is sufficient.
     """
     if category == "genai":
-        return os.path.isfile(os.path.join(model_path, _GENAI_SENTINEL_FILE))
+        return os.path.isfile(os.path.join(model_path, GENAI_SENTINEL_FILE))
     return os.path.exists(model_path)
+
 
 # ----------------------------------------------------------------------
 # OMZ post-processing assets shipped with DLStreamer
@@ -350,7 +350,8 @@ class ModelManager:
                         for p in precisions
                     ):
                         logger.info(
-                            "Pruning stale registry entry '%s' (files missing or incomplete)", name
+                            "Pruning stale registry entry '%s' (files missing or incomplete)",
+                            name,
                         )
                         pruned += 1
                         continue
@@ -1377,8 +1378,8 @@ class ModelManager:
             )
             self._fail_job(
                 job_id,
-                f"Model was not successfully installed. "
-                f"Check your Hugging Face access token and accept model license if needed. ",
+                "Model was not successfully installed. "
+                "Check your Hugging Face access token and accept model license if needed. ",
             )
             return
 

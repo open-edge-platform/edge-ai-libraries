@@ -483,6 +483,7 @@ class TestModels(unittest.TestCase):
 
             # Remove the directory entirely → not installed.
             import shutil
+
             shutil.rmtree(str(model_dir))
             self.assertFalse(genai_model.exists_on_disk())
 
