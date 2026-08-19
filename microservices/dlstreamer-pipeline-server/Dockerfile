@@ -253,6 +253,7 @@ COPY ./configs/default/config.json /home/pipeline-server/config.json
 
 # Drop pip from the base runtime image to avoid Trivy false positives coming
 # from pip vendored metadata inventory.
+USER root
 RUN PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') && \
     rm -rf /usr/local/lib/python${PYTHON_VERSION}/site-packages/pip \
            /usr/local/lib/python${PYTHON_VERSION}/site-packages/pip-*.dist-info \
@@ -260,6 +261,8 @@ RUN PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{s
            ${VIRTUAL_ENV}/lib/python${PYTHON_VERSION}/site-packages/pip \
            ${VIRTUAL_ENV}/lib/python${PYTHON_VERSION}/site-packages/pip-*.dist-info \
            ${VIRTUAL_ENV}/bin/pip ${VIRTUAL_ENV}/bin/pip3
+
+USER ${USER}
 
 ENTRYPOINT ["./run.sh"]
 
