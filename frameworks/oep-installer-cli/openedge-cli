@@ -2,13 +2,10 @@
 
 main () {
   . /etc/os-release
-  red="\033[31m"
-  green="\033[32m"
-  yellow="\033[33m"
-  reset="\033[0m"
+  red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
-  local args=() cmd=""
+  local globals=() cmds=() cur=-1 v
   for v in "$@"; do
     case $v in
     --help)
@@ -24,18 +21,30 @@ main () {
       done
       exit 0
       ;;
+    --dry-run|--continue)
+      globals+=($v)
+      ;;
     *)
       if declare -F subcommand_$v > /dev/null; then
-        cmd=$v
-      else
-        args+=($v)
+        cmds+=($v); cur=$((cur+1))
+      elif [ ${#cmds[@]} -eq 0 ]; then
+        echo "Unknown command: $v"
+        exit 3
+      elif [ $cur -ge 0 ]; then
+        cmds[$cur]="${cmds[$cur]} $v"
       fi
       ;;
     esac
   done
 
   # exec subcommand
-  [ -z "$cmd" ] || subcommand_$cmd ${args[*]}
+  local rc=0 cmd
+  for cmd in "${cmds[@]}"; do
+    subcommand_${cmd%% *} ${globals[*]} ${cmd#* }
+    rc=$?
+    [ $rc -eq 0 ] || [[ " ${globals[*]} " = *" --continue "* ]] || break
+  done
+  return $rc
 }
 
 act_extract_modules () {
@@ -427,10 +436,10 @@ subcommand_bootstrap () {
         done
       ))
       sed -i "s|local  *installer_misc_functions=.*|local installer_misc_functions=(${misc_funcs[*]})|" "$rendered"
-      echo "if [ \"\$0\" = bash ]; then main setup || exit; fi" >> "$rendered"
     fi
-    [ ${#install_modules[*]} -eq 0 ] || echo "if [ \"\$0\" = bash ]; then main install ${install_modules[*]} || exit; fi" >> "$rendered"
-    [ ${#start_modules[*]} -eq 0 ] || echo "if [ \"\$0\" = bash ]; then main start ${start_modules[*]} || exit; fi" >> "$rendered"
+    [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- start ${start_modules[*]} \"\$@\"" >> "$rendered"
+    [ ${#install_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- install ${install_modules[*]} \"\$@\"" >> "$rendered"
+    [[ " $* " != *" --setup "* ]] || echo "[ \"\$0\" != bash ] || set -- setup \"\$@\"" >> "$rendered"
     echo 'main "$@"' >> "$rendered"
     chmod a+rx "$rendered"
     echo "Rendered to $rendered"
