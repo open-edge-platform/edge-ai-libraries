@@ -42,11 +42,11 @@ services:
     networks:
       - app-network
     healthcheck:
-      # First launch downloads + compiles the model (3-20+ min); give it room.
+      # First launch downloads + compiles the model (about 30 mins); give it room.
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/v1/models >/dev/null || exit 1"]
-      start_period: 1800s
+      start_period: 7200s
       start_interval: 10s
-      interval: 24h
+      interval: 5m
       timeout: 5s
       retries: 3
 
@@ -110,9 +110,9 @@ services:
           memory: 1G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
-      start_period: 600s
+      start_period: 7200s
       start_interval: 10s
-      interval: 24h
+      interval: 5m
       timeout: 5s
       retries: 3
 
