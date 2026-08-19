@@ -25,6 +25,7 @@ from utils import (
     load_thumbnail_as_base64,
     make_output_dir,
 )
+from video_decoder import split_device_target
 from video_encoder import VideoEncoder
 from videos import OUTPUT_VIDEO_DIR
 from managers.metadata_manager import METADATA_DIR
@@ -628,6 +629,9 @@ class PipelineManager:
             # Validate camera sources (rtspsrc, v4l2src), if present, are followed by decodebin3
             base_graph.validate_camera_sources_followed_by_decodebin3()
 
+            # Validate all VA-accelerated inference elements share one GPU render node
+            base_graph.validate_inference_devices_share_va_display()
+
             # Validate pipeline has gvametapublish when metadata publishing is enabled
             if (
                 execution_config.metadata_mode != InternalMetadataMode.DISABLED
@@ -653,6 +657,7 @@ class PipelineManager:
             # video-centric templates (parsebin, avdec_h264, container muxers, ...)
             # have to be adapted to the raw-video stream produced by the dedicated
             # image decoder; ``apply_decodebin3_replacement`` handles both cases.
+            _, target_gpu_index = split_device_target(base_graph.get_target_device())
             if base_graph.has_decodebin3() or base_graph.has_image_set_source():
                 codec = base_graph.determine_input_codec()
                 target_device = base_graph.get_target_device()
@@ -674,12 +679,12 @@ class PipelineManager:
                 # Create output subpipeline based on output mode (file or live stream)
                 if output_mode == InternalOutputMode.FILE:
                     output_subpipeline = video_encoder.create_video_output_subpipeline(
-                        video_pipeline_dir, encoder_device
+                        video_pipeline_dir, encoder_device, target_gpu_index
                     )
                 elif output_mode == InternalOutputMode.LIVE_STREAM:
                     output_subpipeline, stream_url = (
                         video_encoder.create_live_stream_output_subpipeline(
-                            pipeline_id, encoder_device, job_id
+                            pipeline_id, encoder_device, job_id, target_gpu_index
                         )
                     )
                     live_stream_urls[pipeline_id] = stream_url
