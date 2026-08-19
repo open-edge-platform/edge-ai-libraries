@@ -16,6 +16,15 @@
 #   auth/network controls in front of it:
 #     LINGUA_BIND_HOST=0.0.0.0 docker compose up -d --build   # exposes on all NICs
 #
+# Transport security (TLS):
+#   The server speaks plain HTTP by design and MUST NOT be exposed off-host in
+#   the clear. For any cross-host access, terminate TLS in a reverse proxy
+#   (nginx / caddy / traefik) that fronts this service, keep the container
+#   published to loopback (default LINGUA_BIND_HOST=127.0.0.1), and point the
+#   proxy upstream at 127.0.0.1:${LINGUA_PORT}. The proxy also carries auth,
+#   rate limiting, and request-size limits. Do not publish plain HTTP on a
+#   routable interface.
+#
 # Container build context is the repo root (../..), so the Dockerfile's
 # `COPY src/adaptive_token_compressor/model_servers/lingua/app.py` resolves.
 

@@ -11,7 +11,32 @@ To rebuild the image from source instead of pulling, see the
 - Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see the [Configuration Guide](./configuration.md).
 - The Compose setup bind-mounts `config.yaml` and stores model, chunk, storage, and Hugging Face cache data in named Docker volumes (`audio_analyzer_models`, `audio_analyzer_chunks`, `audio_analyzer_storage`, `audio_analyzer_cache`). Nothing is written into the source tree.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
-- For Intel NPU acceleration, set `ACCEL_MOUNT_PATH` in `.env` (or export it before running Compose) to the host NPU device node. On Meteor Lake systems this is commonly `/dev/accel/accel0`. Keep `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so` in the container environment.
+- For Intel NPU acceleration, set `ACCEL_MOUNT_PATH` in your local `.env` (or export it before running Compose) to the host NPU device node. The host path is machine-specific; on some Meteor Lake systems it is `/dev/accel/accel0`.
+- Compose maps the configurable host path `${ACCEL_MOUNT_PATH}` to the fixed container path `/dev/accel/accel0` expected by the OpenVINO NPU stack.
+- Keep `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so` in the container environment.
+- CPU/GPU-only users do not need to configure an NPU path.
+
+Example local `.env` entry for hosts that expose that node:
+
+```bash
+ACCEL_MOUNT_PATH=/dev/accel/accel0
+```
+
+Quick verification before `docker compose up`:
+
+```bash
+ls -l /dev/accel/
+docker compose config
+```
+
+In resolved Compose output, confirm device mapping under `services.audio-analyzer.devices`:
+
+- With `ACCEL_MOUNT_PATH` set:
+   - `source: <your host NPU path>`
+   - `target: /dev/accel/accel0`
+- Without `ACCEL_MOUNT_PATH`:
+   - `source: /dev/null`
+   - `target: /dev/accel/accel0`
 - The container runs as UID/GID `1000:1000` (baked into the image). The named volumes are initialized with that ownership, so no host UID/GID configuration is required.
 - The image reference is `${REGISTRY}/audio-analyzer:${RELEASE_TAG}`, both read from `.env`. Defaults are `REGISTRY=intel` and the committed `RELEASE_TAG` pins the current release.
 
@@ -56,6 +81,15 @@ rebuilding.
 docker compose ps
 curl --noproxy '*' http://127.0.0.1:8010/health
 ```
+
+For OpenVINO + NPU, also verify container/runtime visibility:
+
+```bash
+docker compose exec audio-analyzer ls -l /dev/accel/
+docker compose exec audio-analyzer python3 -c "import openvino as ov; print([str(d).upper() for d in ov.Core().available_devices])"
+```
+
+The second command must include `NPU`.
 
 ### Follow Logs
 
