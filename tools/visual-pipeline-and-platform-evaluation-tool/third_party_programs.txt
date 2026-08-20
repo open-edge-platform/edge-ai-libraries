@@ -8,7 +8,8 @@ terms, and open source software license terms. These separate license terms gove
 the third party programs as set forth in this "third_party_programs.txt" file.
 
 Third party programs and their corresponding required notices and/or license terms are listed
-below. The full text of every license referenced in the lists is reproduced in section 8.
+below. Each entry reproduces the copyright notice shipped by the package itself; the full text
+of every license referenced in the lists is reproduced in section 8.
 
 ====================================================================================================
 CONTENTS
@@ -46,6 +47,9 @@ from the manifests alone, so transitive dependencies are included:
     produced from that tree, so the list is inclusive of build-time-only packages; entries
     marked [optional] are optional dependencies that may or may not be installed on a given
     platform.
+  - Copyright notices: extracted from the LICENSE, COPYING and NOTICE files shipped inside each
+    package in the released images and in the npm tree. Where a package ships no copyright
+    notice of its own, the entry says so and the license terms in section 8 still apply.
 
 Operating-system packages inherited from the base container images are covered by the notices
 shipped inside those images (see section 2) and are not repeated here. The only OS packages
@@ -83,123 +87,455 @@ intel/vippet-ui             built FROM node:22 (build stage only) and nginx:alpi
 ====================================================================================================
 
 License-Identifier: 0BSD   (1 package(s))
+
   detect-installer 0.1.0
+      (the package ships no copyright notice of its own)
 
 License-Identifier: Apache-2.0   (13 package(s))
-  importlib_metadata 8.7.1, ml_dtypes 0.6.0, onnx 1.22.0, opencv-python 4.11.0.86, opencv-python-
-  headless 4.13.0.92, openvino 2024.6.0, openvino 2026.1.0, openvino-dev 2024.6.0, openvino-
-  telemetry 2025.2.0, python-multipart 0.0.32, requests 2.34.2, requests-file 3.0.1, requests-
-  toolbelt 1.0.0
+
+  importlib_metadata 8.7.1
+      (the package ships no copyright notice of its own)
+  ml_dtypes 0.6.0
+      (the package ships no copyright notice of its own)
+  onnx 1.22.0
+      Copyright 2017 The Abseil Authors.
+      Copyright 2008 Google Inc.
+      Copyright (c) 2022 Wenzel Jakob <wenzel.jakob@epfl.ch>
+  opencv-python 4.11.0.86
+      Copyright (c) 2010, The WebM Project authors. All rights reserved.
+      Copyright (C) 1991, 1999 Free Software Foundation, Inc.
+      Copyright (c) 1998-2019 The OpenSSL Project. All rights reserved.
+      Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+      Copyright © 2000,2001,2002,2003,2004,2006,2007 Keith Packard
+      Copyright © 2005 Patrick Lam
+  opencv-python-headless 4.13.0.92
+      Copyright (c) 2010, The WebM Project authors. All rights reserved.
+      Copyright (C) 1991, 1999 Free Software Foundation, Inc.
+      Copyright (c) 1998-2019 The OpenSSL Project. All rights reserved.
+      Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+      Copyright © 2000,2001,2002,2003,2004,2006,2007 Keith Packard
+      Copyright © 2005 Patrick Lam
+  openvino 2024.6.0
+      (the package ships no copyright notice of its own)
+  openvino 2026.1.0
+      (the package ships no copyright notice of its own)
+  openvino-dev 2024.6.0
+      (the package ships no copyright notice of its own)
+  openvino-telemetry 2025.2.0
+      (the package ships no copyright notice of its own)
+  python-multipart 0.0.32
+      (the package ships no copyright notice of its own)
+  requests 2.34.2
+      Copyright 2019 Kenneth Reitz
+  requests-file 3.0.1
+      Copyright 2015 Red Hat, Inc.
+  requests-toolbelt 1.0.0
+      Copyright 2014 Ian Cordasco, Cory Benfield
 
 License-Identifier: Apache-2.0 AND BSD-2-Clause   (1 package(s))
+
   prometheus_client 0.25.0
+      Copyright 2015 The Prometheus Authors
 
 License-Identifier: Apache-2.0 AND MIT   (1 package(s))
+
   uvloop 0.22.1
+      Copyright (C) 2016-present the uvloop authors and contributors.
+      Copyright (c) 2015-present MagicStack Inc. http://magic.io
 
 License-Identifier: Apache-2.0 OR BSD-2-Clause   (2 package(s))
-  packaging 26.0, packaging 26.3
+
+  packaging 26.0
+      Copyright (c) Donald Stufft and individual contributors.
+  packaging 26.3
+      Copyright (c) Donald Stufft and individual contributors.
 
 License-Identifier: Artistic-2.0 AND GPL-3.0-or-later AND GPL-2.0-or-later   (1 package(s))
+
   text-unidecode 1.3
+      (the package ships no copyright notice of its own)
 
 License-Identifier: BSD-2-Clause   (1 package(s))
+
   Pygments 2.20.0
+      Copyright (c) 2006-2022 by the respective authors (see AUTHORS file).
 
 License-Identifier: BSD-3-Clause   (22 package(s))
-  click 8.4.2, fastjsonschema 2.17.1, fsspec 2026.7.0, httpcore 1.0.9, httpx 0.28.1, idna 3.18,
-  isodate 0.7.2, Jinja2 3.1.6, lxml 6.1.1, MarkupSafe 3.0.3, mpmath 1.3.0, networkx 3.1, numpy
-  2.2.0, protobuf 7.35.1, psutil 7.2.2, python-dotenv 1.2.2, starlette 1.6.0, sympy 1.14.0, torch
-  2.8.0+cpu, torchvision 0.23.0+cpu, uvicorn 0.48.0, websockets 17.0.1
+
+  click 8.4.2
+      Copyright 2014 Pallets
+  fastjsonschema 2.17.1
+      Copyright (c) 2018, Michal Horejsek
+  fsspec 2026.7.0
+      Copyright (c) 2018, Martin Durant
+  httpcore 1.0.9
+      Copyright © 2020, [Encode OSS Ltd](https://www.encode.io/).
+  httpx 0.28.1
+      Copyright © 2019, [Encode OSS Ltd](https://www.encode.io/).
+  idna 3.18
+      Copyright (c) 2013-2026, Kim Davies and contributors.
+  isodate 0.7.2
+      Copyright (c) 2021, Hugo van Kemenade and contributors
+      Copyright (c) 2009-2018, Gerhard Weis and contributors
+      Copyright (c) 2009, Gerhard Weis
+  Jinja2 3.1.6
+      Copyright 2007 Pallets
+  lxml 6.1.1
+      Copyright (c) 2004 Infrae. All rights reserved.
+  MarkupSafe 3.0.3
+      Copyright 2010 Pallets
+  mpmath 1.3.0
+      Copyright (c) 2005-2021 Fredrik Johansson and mpmath contributors
+  networkx 3.1
+      Copyright (C) 2004-2023, NetworkX Developers
+  numpy 2.2.0
+      Copyright (c) 2005-2024, NumPy Developers.
+      Copyright (c) 2011-2014, The OpenBLAS Project
+      Copyright (c) 1992-2013 The University of Tennessee and The University
+      Copyright (c) 2000-2013 The University of California Berkeley. All
+      Copyright (c) 2006-2013 The University of Colorado Denver. All rights
+      Copyright (C) 2002-2017 Free Software Foundation, Inc.
+  protobuf 7.35.1
+      Copyright 2008 Google Inc. All rights reserved.
+  psutil 7.2.2
+      Copyright (c) 2009, Jay Loden, Dave Daeschler, Giampaolo Rodola
+  python-dotenv 1.2.2
+      Copyright (c) 2014, Saurabh Kumar (python-dotenv), 2013, Ted Tieken (django-dotenv-rw),
+        2013, Jacob Kaplan-Moss (django-dotenv)
+  starlette 1.6.0
+      Copyright © 2018, [Encode OSS Ltd](https://www.encode.io/).
+  sympy 1.14.0
+      Copyright (c) 2006-2023 SymPy Development Team
+      Copyright (c) 2006-2018 SymPy Development Team,
+      Copyright (c) 2014 Matthew Rocklin
+      Copyright (c) 2009-2023, PyDy Authors
+      Copyright 2016, latex2sympy
+  torch 2.8.0+cpu
+      Copyright (c) 2016- Facebook, Inc (Adam Paszke)
+      Copyright (c) 2014- Facebook, Inc (Soumith Chintala)
+      Copyright (c) 2011-2014 Idiap Research Institute (Ronan Collobert)
+      Copyright (c) 2012-2014 Deepmind Technologies (Koray Kavukcuoglu)
+      Copyright (c) 2011-2012 NEC Laboratories America (Koray Kavukcuoglu)
+      Copyright (c) 2011-2013 NYU (Clement Farabet)
+  torchvision 0.23.0+cpu
+      Copyright (c) Soumith Chintala 2016,
+  uvicorn 0.48.0
+      Copyright © 2017-present, [Encode OSS Ltd](https://www.encode.io/).
+  websockets 17.0.1
+      Copyright (c) Aymeric Augustin and contributors
 
 License-Identifier: BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0   (1 package(s))
+
   numpy 2.5.2
+      Copyright (c) 2005-2025, NumPy Developers.
+      Copyright (c) 2011-2014, The OpenBLAS Project
+      Copyright (c) 1992-2013 The University of Tennessee and The University
+      Copyright (c) 2000-2013 The University of California Berkeley. All
+      Copyright (c) 2006-2013 The University of Colorado Denver. All rights
+      Copyright (C) 2002-2017 Free Software Foundation, Inc.
 
 License-Identifier: ISC   (2 package(s))
-  dnspython 2.8.0, shellingham 1.5.4
+
+  dnspython 2.8.0
+      Copyright (C) Dnspython Contributors
+      Copyright (C) 2001-2017 Nominum, Inc.
+      Copyright (C) Google Inc.
+  shellingham 1.5.4
+      Copyright (c) 2018, Tzu-ping Chung <uranusjr@gmail.com>
 
 License-Identifier: LGPL-2.0-or-later   (1 package(s))
+
   PyGObject 3.50.0
+      (the package ships no copyright notice of its own)
 
 License-Identifier: LGPL-2.1-only OR MPL-1.1   (1 package(s))
+
   pycairo 1.29.0
+      (the package ships no copyright notice of its own)
 
 License-Identifier: LGPL-3.0-only   (1 package(s))
+
   autocommand 2.2.2
+      (the package ships no copyright notice of its own)
 
 License-Identifier: MIT   (47 package(s))
-  aiosqlite 0.22.1, annotated-doc 0.0.5, annotated-types 0.8.0, anyio 4.14.2, attrs 26.1.0,
-  backports.tarfile 1.2.0, charset-normalizer 3.4.9, charset-normalizer 3.5.0, fastapi 0.136.3,
-  fastapi-cli 0.0.32, fastapi-cloud-cli 0.23.0, fastar 0.11.0, filelock 3.32.2, h11 0.16.0,
-  httptools 0.8.0, jaraco.context 6.1.0, jaraco.functools 4.4.0, jaraco.text 4.0.0, markdown-it-py
-  4.2.0, mdurl 0.1.2, more-itertools 10.8.0, onvif-zeep 0.2.12, pip 24.0, platformdirs 4.11.0,
-  platformdirs 4.4.0, pydantic 2.13.4, pydantic-extra-types 2.11.1, pydantic-settings 2.15.0,
-  pydantic_core 2.46.4, python-slugify 8.0.4, PyYAML 6.0.3, rich 15.0.0, rich-toolkit 0.20.3,
-  rignore 0.8.1, sentry-sdk 2.68.0, setuptools 82.0.1, setuptools 84.0.0, SQLAlchemy 2.0.51,
-  sshkeyboard 2.3.1, tomli 2.4.0, typer 0.27.1, typing-inspection 0.4.4, urllib3 2.7.0, watchfiles
-  1.2.0, wheel 0.46.3, zeep 4.3.3, zipp 3.23.0
+
+  aiosqlite 0.22.1
+      Copyright (c) 2022 Amethyst Reese
+  annotated-doc 0.0.5
+      Copyright (c) 2025 Sebastián Ramírez
+  annotated-types 0.8.0
+      Copyright (c) 2022 the contributors
+  anyio 4.14.2
+      Copyright (c) 2018 Alex Grönholm
+  attrs 26.1.0
+      Copyright (c) 2015 Hynek Schlawack and the attrs contributors
+  backports.tarfile 1.2.0
+      (the package ships no copyright notice of its own)
+  charset-normalizer 3.4.9
+      Copyright (c) 2025 TAHRI Ahmed R.
+  charset-normalizer 3.5.0
+      Copyright (c) 2025 TAHRI Ahmed R.
+  fastapi 0.136.3
+      Copyright (c) 2018 Sebastián Ramírez
+  fastapi-cli 0.0.32
+      Copyright (c) 2024 Sebastián Ramírez
+  fastapi-cloud-cli 0.23.0
+      Copyright (c) 2024 Sebastián Ramírez
+  fastar 0.11.0
+      Copyright 2025 Jonathan Ehwald
+  filelock 3.32.2
+      Copyright (c) 2025 Bernát Gábor and contributors
+  h11 0.16.0
+      Copyright (c) 2016 Nathaniel J. Smith <njs@pobox.com> and other contributors
+  httptools 0.8.0
+      Copyright (c) 2015 MagicStack Inc. http://magic.io
+      Copyright Joyent, Inc. and other Node contributors.
+      Copyright © 2018 Fedor Indutny
+  jaraco.context 6.1.0
+      (the package ships no copyright notice of its own)
+  jaraco.functools 4.4.0
+      (the package ships no copyright notice of its own)
+  jaraco.text 4.0.0
+      (the package ships no copyright notice of its own)
+  markdown-it-py 4.2.0
+      Copyright (c) 2020 ExecutableBookProject
+      Copyright (c) 2014 Vitaly Puzrin, Alex Kocharin.
+  mdurl 0.1.2
+      Copyright (c) 2015 Vitaly Puzrin, Alex Kocharin.
+      Copyright (c) 2021 Taneli Hukkinen
+      Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+  more-itertools 10.8.0
+      Copyright (c) 2012 Erik Rose
+  onvif-zeep 0.2.12
+      Copyright (c) 2014 Quatanium Co., Ltd.
+  pip 24.0
+      Copyright (c) 2008-present The pip developers (see AUTHORS.txt file)
+  platformdirs 4.11.0
+      Copyright (c) 2010-202x The platformdirs developers
+  platformdirs 4.4.0
+      Copyright (c) 2010-202x The platformdirs developers
+  pydantic 2.13.4
+      Copyright (c) 2017 to present Pydantic Services Inc. and individual contributors.
+  pydantic-extra-types 2.11.1
+      Copyright (c) 2023 Samuel Colvin and other contributors
+  pydantic-settings 2.15.0
+      Copyright (c) 2022 Samuel Colvin and other contributors
+  pydantic_core 2.46.4
+      Copyright (c) 2022 Samuel Colvin
+  python-slugify 8.0.4
+      Copyright (c) Val Neekman @ Neekware Inc. http://neekware.com
+  PyYAML 6.0.3
+      Copyright (c) 2017-2021 Ingy döt Net
+      Copyright (c) 2006-2016 Kirill Simonov
+  rich 15.0.0
+      Copyright (c) 2020 Will McGugan
+  rich-toolkit 0.20.3
+      Copyright (c) 2024 Patrick Arminio
+      Copyright 2014 Pallets
+      Copyright (c) 2023 Textualize Inc.
+  rignore 0.8.1
+      Copyright (c) 2024 Patrick Arminio
+  sentry-sdk 2.68.0
+      Copyright (c) 2018 Functional Software, Inc. dba Sentry
+  setuptools 82.0.1
+      (the package ships no copyright notice of its own)
+  setuptools 84.0.0
+      (the package ships no copyright notice of its own)
+  SQLAlchemy 2.0.51
+      Copyright 2005-2026 SQLAlchemy authors and contributors <see AUTHORS file>.
+  sshkeyboard 2.3.1
+      Copyright (c) 2021 Olli Paloviita
+  tomli 2.4.0
+      Copyright (c) 2021 Taneli Hukkinen
+  typer 0.27.1
+      Copyright (c) 2019 Sebastián Ramírez
+  typing-inspection 0.4.4
+      Copyright (c) Pydantic Services Inc. 2025 to present
+  urllib3 2.7.0
+      Copyright (c) 2008-2020 Andrey Petrov and contributors.
+  watchfiles 1.2.0
+      Copyright (c) 2017 to present Samuel Colvin
+  wheel 0.46.3
+      Copyright (c) 2012 Daniel Holth <dholth@fastmail.fm> and contributors
+  zeep 4.3.3
+      Copyright (c) 2016-2021 Michael van Tellingen
+      Copyright (c) 2011-2021, Soapfish Contributors
+      Copyright (c) 2015 ORCAS, Inc
+  zipp 3.23.0
+      (the package ships no copyright notice of its own)
 
 License-Identifier: MIT AND MPL-2.0   (1 package(s))
+
   tqdm 4.67.1
+      Copyright (c) 2013 noamraph
 
 License-Identifier: MIT AND PSF-2.0   (1 package(s))
+
   greenlet 3.5.5
+      Copyright (c) Armin Rigo, Christian Tismer and contributors
 
 License-Identifier: MIT-CMU   (1 package(s))
+
   pillow 12.3.0
+      Copyright © 1997-2011 by Secret Labs AB
+      Copyright © 1995-2011 by Fredrik Lundh and contributors
+      Copyright © 2010 by Jeffrey 'Alex' Clark and contributors
+      Copyright (c) 2016, Alliance for Open Media. All rights reserved.
+      Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
+      Copyright © 2018-2019, VideoLAN and dav1d authors
 
 License-Identifier: MPL-2.0   (1 package(s))
+
   certifi 2026.7.22
+      (the package ships no copyright notice of its own)
 
 License-Identifier: PSF-2.0   (3 package(s))
-  defusedxml 0.7.1, typing_extensions 4.15.0, typing_extensions 4.16.0
+
+  defusedxml 0.7.1
+      (the package ships no copyright notice of its own)
+  typing_extensions 4.15.0
+      Copyright (c) 1991 - 1995, Stichting Mathematisch Centrum Amsterdam,
+  typing_extensions 4.16.0
+      Copyright (c) 1991 - 1995, Stichting Mathematisch Centrum Amsterdam,
 
 License-Identifier: Unlicense   (1 package(s))
+
   email-validator 2.3.0
+      (the package ships no copyright notice of its own)
 
 ====================================================================================================
 4. vippet-videogenerator - PYTHON PACKAGES
 ====================================================================================================
 
 License-Identifier: Apache-2.0   (5 package(s))
-  importlib_metadata 8.7.1, opencv-python 4.11.0.86, requests 2.34.2, requests-file 3.0.1,
+
+  importlib_metadata 8.7.1
+      (the package ships no copyright notice of its own)
+  opencv-python 4.11.0.86
+      Copyright (c) 2010, The WebM Project authors. All rights reserved.
+      Copyright (C) 1991, 1999 Free Software Foundation, Inc.
+      Copyright (c) 1998-2019 The OpenSSL Project. All rights reserved.
+      Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+      Copyright © 2000,2001,2002,2003,2004,2006,2007 Keith Packard
+      Copyright © 2005 Patrick Lam
+  requests 2.34.2
+      Copyright 2019 Kenneth Reitz
+  requests-file 3.0.1
+      Copyright 2015 Red Hat, Inc.
   requests-toolbelt 1.0.0
+      Copyright 2014 Ian Cordasco, Cory Benfield
 
 License-Identifier: Apache-2.0 AND BSD-2-Clause   (1 package(s))
+
   prometheus_client 0.25.0
+      Copyright 2015 The Prometheus Authors
 
 License-Identifier: Apache-2.0 OR BSD-2-Clause   (1 package(s))
+
   packaging 26.0
+      Copyright (c) Donald Stufft and individual contributors.
 
 License-Identifier: BSD-3-Clause   (4 package(s))
-  idna 3.18, isodate 0.7.2, lxml 6.1.1, numpy 2.2.0
+
+  idna 3.18
+      Copyright (c) 2013-2026, Kim Davies and contributors.
+  isodate 0.7.2
+      Copyright (c) 2021, Hugo van Kemenade and contributors
+      Copyright (c) 2009-2018, Gerhard Weis and contributors
+      Copyright (c) 2009, Gerhard Weis
+  lxml 6.1.1
+      Copyright (c) 2004 Infrae. All rights reserved.
+  numpy 2.2.0
+      Copyright (c) 2005-2024, NumPy Developers.
+      Copyright (c) 2011-2014, The OpenBLAS Project
+      Copyright (c) 1992-2013 The University of Tennessee and The University
+      Copyright (c) 2000-2013 The University of California Berkeley. All
+      Copyright (c) 2006-2013 The University of Colorado Denver. All rights
+      Copyright (C) 2002-2017 Free Software Foundation, Inc.
 
 License-Identifier: LGPL-2.0-or-later   (1 package(s))
+
   PyGObject 3.50.0
+      (the package ships no copyright notice of its own)
 
 License-Identifier: LGPL-2.1-only OR MPL-1.1   (1 package(s))
+
   pycairo 1.29.0
+      (the package ships no copyright notice of its own)
 
 License-Identifier: LGPL-3.0-only   (1 package(s))
+
   autocommand 2.2.2
+      (the package ships no copyright notice of its own)
 
 License-Identifier: MIT   (18 package(s))
-  attrs 26.1.0, backports.tarfile 1.2.0, charset-normalizer 3.4.9, jaraco.context 6.1.0,
-  jaraco.functools 4.4.0, jaraco.text 4.0.0, more-itertools 10.8.0, onvif-zeep 0.2.12, pip 24.0,
-  platformdirs 4.11.0, platformdirs 4.4.0, setuptools 82.0.1, sshkeyboard 2.3.1, tomli 2.4.0,
-  urllib3 2.7.0, wheel 0.46.3, zeep 4.3.3, zipp 3.23.0
+
+  attrs 26.1.0
+      Copyright (c) 2015 Hynek Schlawack and the attrs contributors
+  backports.tarfile 1.2.0
+      (the package ships no copyright notice of its own)
+  charset-normalizer 3.4.9
+      Copyright (c) 2025 TAHRI Ahmed R.
+  jaraco.context 6.1.0
+      (the package ships no copyright notice of its own)
+  jaraco.functools 4.4.0
+      (the package ships no copyright notice of its own)
+  jaraco.text 4.0.0
+      (the package ships no copyright notice of its own)
+  more-itertools 10.8.0
+      Copyright (c) 2012 Erik Rose
+  onvif-zeep 0.2.12
+      Copyright (c) 2014 Quatanium Co., Ltd.
+  pip 24.0
+      Copyright (c) 2008-present The pip developers (see AUTHORS.txt file)
+  platformdirs 4.11.0
+      Copyright (c) 2010-202x The platformdirs developers
+  platformdirs 4.4.0
+      Copyright (c) 2010-202x The platformdirs developers
+  setuptools 82.0.1
+      (the package ships no copyright notice of its own)
+  sshkeyboard 2.3.1
+      Copyright (c) 2021 Olli Paloviita
+  tomli 2.4.0
+      Copyright (c) 2021 Taneli Hukkinen
+  urllib3 2.7.0
+      Copyright (c) 2008-2020 Andrey Petrov and contributors.
+  wheel 0.46.3
+      Copyright (c) 2012 Daniel Holth <dholth@fastmail.fm> and contributors
+  zeep 4.3.3
+      Copyright (c) 2016-2021 Michael van Tellingen
+      Copyright (c) 2011-2021, Soapfish Contributors
+      Copyright (c) 2015 ORCAS, Inc
+  zipp 3.23.0
+      (the package ships no copyright notice of its own)
 
 License-Identifier: MIT AND MPL-2.0   (1 package(s))
+
   tqdm 4.67.1
+      Copyright (c) 2013 noamraph
 
 License-Identifier: MIT-CMU   (1 package(s))
+
   pillow 12.3.0
+      Copyright © 1997-2011 by Secret Labs AB
+      Copyright © 1995-2011 by Fredrik Lundh and contributors
+      Copyright © 2010 by Jeffrey 'Alex' Clark and contributors
+      Copyright (c) 2016, Alliance for Open Media. All rights reserved.
+      Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
+      Copyright © 2018-2019, VideoLAN and dav1d authors
 
 License-Identifier: MPL-2.0   (1 package(s))
+
   certifi 2026.7.22
+      (the package ships no copyright notice of its own)
 
 License-Identifier: PSF-2.0   (2 package(s))
-  defusedxml 0.7.1, typing_extensions 4.15.0
+
+  defusedxml 0.7.1
+      (the package ships no copyright notice of its own)
+  typing_extensions 4.15.0
+      Copyright (c) 1991 - 1995, Stichting Mathematisch Centrum Amsterdam,
 
 ====================================================================================================
 5. vippet-onvif-discovery - PYTHON PACKAGES
@@ -209,124 +545,637 @@ The ONVIF discovery agent uses only the Python standard library. The image conta
 following packaging tooling from the python:3.14-slim base image:
 
 License-Identifier: MIT   (1 package(s))
+
   pip 26.1.1
+      Copyright (c) 2008-present The pip developers (see AUTHORS.txt file)
+      Copyright 2012-2021 Eric Larson
+      Copyright (c) 1991 - 1995, Stichting Mathematisch Centrum Amsterdam,
+      Copyright (c) 2013-2025, Kim Davies and contributors.
+      Copyright (C) 2008-2011 INADA Naoki <songofacandy@gmail.com>
+      Copyright (c) Donald Stufft and individual contributors.
+
+Notes on the identifiers in sections 3 to 5:
+
+  packaging       - declared "Apache-2.0 OR BSD-2-Clause". Intel elects the Apache License 2.0.
+  pycairo         - declared "LGPL-2.1-only OR MPL-1.1". Intel elects the GNU Lesser General
+                    Public License version 2.1.
+  text-unidecode  - the package is offered under the Artistic License 2.0 or, at the
+                    recipient's option, the GNU General Public License. The identifier above is
+                    the PyPI classifier list as recorded by the SBOM tool, which renders a
+                    choice of licenses as a conjunction. Intel elects the Artistic License 2.0.
+  greenlet, numpy, prometheus_client, tqdm, uvloop
+                  - genuine multi-license packages: each listed license applies to a different
+                    portion of the package and every text is reproduced in section 8.
 
 ====================================================================================================
 6. vippet-ui - npm PACKAGES
 ====================================================================================================
 
 License-Identifier: (MIT AND Zlib)   (2 package(s))
-  pako 1.0.11, pako 2.2.0
+
+  pako 1.0.11
+      Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn
+  pako 2.2.0
+      Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn
 
 License-Identifier: (MIT OR GPL-3.0-or-later)   (1 package(s))
+
   jszip 3.10.1
+      Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso
+      copyright on the Program, and are irrevocable provided the stated
 
 License-Identifier: (MPL-2.0 OR Apache-2.0)   (1 package(s))
+
   dompurify 3.4.13 [optional]
+      (the package ships no copyright notice of its own)
 
 License-Identifier: 0BSD   (1 package(s))
+
   tslib 2.8.1
+      Copyright (c) Microsoft Corporation.
 
 License-Identifier: Apache-2.0   (2 package(s))
-  class-variance-authority 0.7.1, detect-libc 2.1.2
+
+  class-variance-authority 0.7.1
+      Copyright 2022 Joe Bell
+  detect-libc 2.1.2
+      (the package ships no copyright notice of its own)
 
 License-Identifier: BSD-3-Clause   (4 package(s))
-  d3-ease 3.0.1, highlight.js 11.11.1, react-transition-group 4.4.5, source-map-js 1.2.1
+
+  d3-ease 3.0.1
+      Copyright 2010-2021 Mike Bostock
+      Copyright 2001 Robert Penner
+  highlight.js 11.11.1
+      Copyright (c) 2006, Ivan Sagalaev.
+  react-transition-group 4.4.5
+      Copyright (c) 2018, React Community
+  source-map-js 1.2.1
+      Copyright (c) 2009-2011, Mozilla Foundation and contributors
 
 License-Identifier: ISC   (20 package(s))
-  d3-array 3.2.4, d3-color 3.1.0, d3-dispatch 3.0.1, d3-drag 3.0.0, d3-format 3.1.0,
-  d3-interpolate 3.0.1, d3-path 3.1.0, d3-scale 4.0.2, d3-selection 3.0.0, d3-shape 3.2.0, d3-time
-  3.1.0, d3-time-format 4.1.0, d3-timer 3.0.1, d3-transition 3.0.1, d3-zoom 3.0.0, graceful-fs
-  4.2.11, inherits 2.0.4, internmap 2.0.3, lucide-react 0.548.0, picocolors 1.1.1
+
+  d3-array 3.2.4
+      Copyright 2010-2023 Mike Bostock
+  d3-color 3.1.0
+      Copyright 2010-2022 Mike Bostock
+  d3-dispatch 3.0.1
+      Copyright 2010-2021 Mike Bostock
+  d3-drag 3.0.0
+      Copyright 2010-2021 Mike Bostock
+  d3-format 3.1.0
+      Copyright 2010-2021 Mike Bostock
+  d3-interpolate 3.0.1
+      Copyright 2010-2021 Mike Bostock
+  d3-path 3.1.0
+      Copyright 2015-2022 Mike Bostock
+  d3-scale 4.0.2
+      Copyright 2010-2021 Mike Bostock
+  d3-selection 3.0.0
+      Copyright 2010-2021 Mike Bostock
+  d3-shape 3.2.0
+      Copyright 2010-2022 Mike Bostock
+  d3-time 3.1.0
+      Copyright 2010-2022 Mike Bostock
+  d3-time-format 4.1.0
+      Copyright 2010-2021 Mike Bostock
+  d3-timer 3.0.1
+      Copyright 2010-2021 Mike Bostock
+  d3-transition 3.0.1
+      Copyright 2010-2021 Mike Bostock
+  d3-zoom 3.0.0
+      Copyright 2010-2021 Mike Bostock
+  graceful-fs 4.2.11
+      Copyright (c) 2011-2022 Isaac Z. Schlueter, Ben Noordhuis, and Contributors
+  inherits 2.0.4
+      Copyright (c) Isaac Z. Schlueter
+  internmap 2.0.3
+      Copyright 2021 Mike Bostock
+  lucide-react 0.548.0
+      Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2023 as part of Feather
+        (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2025.
+      Copyright (c) 2013-2023 Cole Bemis
+  picocolors 1.1.1
+      Copyright (c) 2021-2024 Oleksii Raspopov, Kostiantyn Denysov, Anton Verinov
 
 License-Identifier: MIT   (228 package(s))
-  @babel/runtime 7.29.7, @base-ui-components/react 1.0.0-beta.6, @base-ui-components/utils 0.2.0,
-  @base-ui/react 1.1.0, @base-ui/utils 0.2.4, @emnapi/core 1.10.0 [optional], @emnapi/runtime
-  1.10.0 [optional], @emnapi/wasi-threads 1.2.1 [optional], @floating-ui/core 1.7.3, @floating-
-  ui/dom 1.7.4, @floating-ui/react-dom 2.1.6, @floating-ui/utils 0.2.10, @hookform/resolvers
-  5.2.2, @jridgewell/gen-mapping 0.3.13, @jridgewell/remapping 2.3.5, @jridgewell/resolve-uri
-  3.1.2, @jridgewell/sourcemap-codec 1.5.5, @jridgewell/trace-mapping 0.3.31, @napi-rs/wasm-
-  runtime 1.1.5 [optional], @oxc-project/types 0.133.0, @radix-ui/number 1.1.1, @radix-
-  ui/primitive 1.1.3, @radix-ui/react-accessible-icon 1.1.7, @radix-ui/react-accordion 1.2.12,
-  @radix-ui/react-alert-dialog 1.1.15, @radix-ui/react-arrow 1.1.7, @radix-ui/react-aspect-ratio
-  1.1.7, @radix-ui/react-avatar 1.1.10, @radix-ui/react-checkbox 1.3.3, @radix-ui/react-
-  collapsible 1.1.12, @radix-ui/react-collection 1.1.7, @radix-ui/react-compose-refs 1.1.2,
-  @radix-ui/react-context 1.1.2, @radix-ui/react-context-menu 2.2.16, @radix-ui/react-dialog
-  1.1.15, @radix-ui/react-direction 1.1.1, @radix-ui/react-dismissable-layer 1.1.11, @radix-
-  ui/react-dropdown-menu 2.1.16, @radix-ui/react-focus-guards 1.1.3, @radix-ui/react-focus-scope
-  1.1.7, @radix-ui/react-form 0.1.8, @radix-ui/react-hover-card 1.1.15, @radix-ui/react-id 1.1.1,
-  @radix-ui/react-label 2.1.7, @radix-ui/react-menu 2.1.16, @radix-ui/react-menubar 1.1.16,
-  @radix-ui/react-navigation-menu 1.2.14, @radix-ui/react-one-time-password-field 0.1.8, @radix-
-  ui/react-password-toggle-field 0.1.3, @radix-ui/react-popover 1.1.15, @radix-ui/react-popper
-  1.2.8, @radix-ui/react-portal 1.1.9, @radix-ui/react-presence 1.1.5, @radix-ui/react-primitive
-  2.1.3, @radix-ui/react-progress 1.1.7, @radix-ui/react-radio-group 1.3.8, @radix-ui/react-
-  roving-focus 1.1.11, @radix-ui/react-scroll-area 1.2.10, @radix-ui/react-select 2.2.6, @radix-
-  ui/react-separator 1.1.7, @radix-ui/react-slider 1.3.6, @radix-ui/react-slot 1.2.3, @radix-
-  ui/react-switch 1.2.6, @radix-ui/react-tabs 1.1.13, @radix-ui/react-toast 1.2.15, @radix-
-  ui/react-toggle 1.1.10, @radix-ui/react-toggle-group 1.1.11, @radix-ui/react-toolbar 1.1.11,
-  @radix-ui/react-tooltip 1.2.8, @radix-ui/react-use-callback-ref 1.1.1, @radix-ui/react-use-
-  controllable-state 1.2.2, @radix-ui/react-use-effect-event 0.0.2, @radix-ui/react-use-escape-
-  keydown 1.1.1, @radix-ui/react-use-is-hydrated 0.1.0, @radix-ui/react-use-layout-effect 1.1.1,
-  @radix-ui/react-use-previous 1.1.1, @radix-ui/react-use-rect 1.1.1, @radix-ui/react-use-size
-  1.1.1, @radix-ui/react-visually-hidden 1.2.3, @radix-ui/rect 1.1.1, @reduxjs/toolkit 2.9.2,
-  @rolldown/binding-android-arm64 1.0.3 [optional], @rolldown/binding-darwin-arm64 1.0.3
-  [optional], @rolldown/binding-darwin-x64 1.0.3 [optional], @rolldown/binding-freebsd-x64 1.0.3
-  [optional], @rolldown/binding-linux-arm-gnueabihf 1.0.3 [optional], @rolldown/binding-linux-
-  arm64-gnu 1.0.3 [optional], @rolldown/binding-linux-arm64-musl 1.0.3 [optional],
-  @rolldown/binding-linux-ppc64-gnu 1.0.3 [optional], @rolldown/binding-linux-s390x-gnu 1.0.3
-  [optional], @rolldown/binding-linux-x64-gnu 1.0.3 [optional], @rolldown/binding-linux-x64-musl
-  1.0.3 [optional], @rolldown/binding-openharmony-arm64 1.0.3 [optional], @rolldown/binding-
-  wasm32-wasi 1.0.3 [optional], @rolldown/binding-win32-arm64-msvc 1.0.3 [optional],
-  @rolldown/binding-win32-x64-msvc 1.0.3 [optional], @rolldown/pluginutils 1.0.1, @standard-
-  schema/spec 1.0.0, @standard-schema/utils 0.3.0, @tailwindcss/node 4.3.1, @tailwindcss/oxide
-  4.3.1, @tailwindcss/oxide-android-arm64 4.3.1 [optional], @tailwindcss/oxide-darwin-arm64 4.3.1
-  [optional], @tailwindcss/oxide-darwin-x64 4.3.1 [optional], @tailwindcss/oxide-freebsd-x64 4.3.1
-  [optional], @tailwindcss/oxide-linux-arm-gnueabihf 4.3.1 [optional], @tailwindcss/oxide-linux-
-  arm64-gnu 4.3.1 [optional], @tailwindcss/oxide-linux-arm64-musl 4.3.1 [optional],
-  @tailwindcss/oxide-linux-x64-gnu 4.3.1 [optional], @tailwindcss/oxide-linux-x64-musl 4.3.1
-  [optional], @tailwindcss/oxide-wasm32-wasi 4.3.1 [optional], @tailwindcss/oxide-win32-arm64-msvc
-  4.3.1 [optional], @tailwindcss/oxide-win32-x64-msvc 4.3.1 [optional], @tailwindcss/vite 4.3.1,
-  @tanstack/react-table 8.21.3, @tanstack/table-core 8.21.3, @tybys/wasm-util 0.10.2 [optional],
-  @types/d3-array 3.2.2, @types/d3-color 3.1.3, @types/d3-drag 3.0.7, @types/d3-ease 3.0.2,
-  @types/d3-interpolate 3.0.4, @types/d3-path 3.1.1, @types/d3-scale 4.0.9, @types/d3-selection
-  3.0.11, @types/d3-shape 3.1.7, @types/d3-time 3.0.4, @types/d3-timer 3.0.2, @types/d3-transition
-  3.0.9, @types/d3-zoom 3.0.8, @types/dagre 0.7.53, @types/pako 2.0.4, @types/raf 3.4.3
-  [optional], @types/trusted-types 2.0.7 [optional], @types/use-sync-external-store 0.0.6,
-  @xyflow/react 12.9.2, @xyflow/system 0.0.72, aria-hidden 1.2.6, base64-arraybuffer 1.0.2
-  [optional], canvg 3.0.11 [optional], classcat 5.0.5, clsx 2.1.1, cookie-es 3.1.1, core-js 3.49.0
-  [optional], core-util-is 1.0.3, css-line-break 2.1.0 [optional], csstype 3.1.3, dagre 0.8.5,
-  date-fns 4.1.0, decimal.js-light 2.5.1, detect-node-es 1.1.0, dom-helpers 5.2.1, dom-to-image
-  2.6.0, enhanced-resolve 5.21.6, eventemitter3 4.0.7, fast-equals 5.4.0, fast-png 6.4.0, fdir
-  6.5.0, fflate 0.8.3, fsevents 2.3.3 [optional], get-nonce 1.0.1, graphlib 2.1.8, html2canvas
-  1.4.1 [optional], immediate 3.0.6, immer 10.2.0, iobuffer 5.4.0, isarray 1.0.0, jiti 2.7.0, js-
-  tokens 4.0.0, jspdf 4.2.1, lie 3.3.0, lodash 4.18.1, loose-envify 1.4.0, magic-string 0.30.21,
-  nanoid 3.3.17, next-themes 0.4.6, object-assign 4.1.1, performance-now 2.1.0 [optional],
-  picomatch 4.0.4, postcss 8.5.25, process-nextick-args 2.0.1, prop-types 15.8.1, radix-ui 1.4.3,
-  raf 3.4.1 [optional], react 19.2.8, react-dom 19.2.8, react-hook-form 7.71.1, react-is 16.13.1,
-  react-is 18.3.1, react-redux 9.2.0, react-remove-scroll 2.7.1, react-remove-scroll-bar 2.3.8,
-  react-resizable-panels 4.4.0, react-router 8.3.0, react-smooth 4.0.4, react-style-singleton
-  2.2.3, react-use-websocket 4.13.0, readable-stream 2.3.8, recharts 2.15.4, recharts-scale 0.4.5,
-  redux 5.0.1, redux-persist 6.0.0, redux-thunk 3.1.0, regenerator-runtime 0.13.11 [optional],
-  reselect 5.1.1, rolldown 1.0.3, safe-buffer 5.1.2, scheduler 0.27.0, setimmediate 1.0.5, sonner
-  2.0.7, stackblur-canvas 2.7.0 [optional], string_decoder 1.1.1, svg-pathdata 6.0.3 [optional],
-  tabbable 6.4.0, tailwind-merge 3.3.1, tailwindcss 4.3.1, tapable 2.3.3, text-segmentation 1.0.3
-  [optional], tiny-invariant 1.3.3, tinyglobby 0.2.17, use-callback-ref 1.3.3, use-sidecar 1.1.3,
-  use-sync-external-store 1.6.0, util-deprecate 1.0.2, utrie 1.0.2 [optional], vite 8.0.16, zod
-  4.3.6, zustand 4.5.7
+
+  @babel/runtime 7.29.7
+      Copyright (c) 2014-present Sebastian McKenzie and other contributors
+  @base-ui-components/react 1.0.0-beta.6
+      Copyright (c) 2019 Material-UI SAS
+  @base-ui-components/utils 0.2.0
+      Copyright (c) 2019 Material-UI SAS
+  @base-ui/react 1.1.0
+      Copyright (c) 2019 Material-UI SAS
+  @base-ui/utils 0.2.4
+      Copyright (c) 2019 Material-UI SAS
+  @emnapi/core 1.10.0 [optional]
+      Copyright (c) 2021-present Toyobayashi
+  @emnapi/runtime 1.10.0 [optional]
+      Copyright (c) 2021-present Toyobayashi
+  @emnapi/wasi-threads 1.2.1 [optional]
+      Copyright (c) 2021-present Toyobayashi
+  @floating-ui/core 1.7.3
+      Copyright (c) 2021-present Floating UI contributors
+  @floating-ui/dom 1.7.4
+      Copyright (c) 2021-present Floating UI contributors
+  @floating-ui/react-dom 2.1.6
+      Copyright (c) 2021-present Floating UI contributors
+  @floating-ui/utils 0.2.10
+      Copyright (c) 2021-present Floating UI contributors
+  @hookform/resolvers 5.2.2
+      Copyright (c) 2019-present Beier(Bill) Luo
+  @jridgewell/gen-mapping 0.3.13
+      Copyright 2024 Justin Ridgewell <justin@ridgewell.name>
+  @jridgewell/remapping 2.3.5
+      Copyright 2024 Justin Ridgewell <justin@ridgewell.name>
+  @jridgewell/resolve-uri 3.1.2
+      Copyright 2019 Justin Ridgewell <jridgewell@google.com>
+  @jridgewell/sourcemap-codec 1.5.5
+      Copyright 2024 Justin Ridgewell <justin@ridgewell.name>
+  @jridgewell/trace-mapping 0.3.31
+      Copyright 2024 Justin Ridgewell <justin@ridgewell.name>
+  @napi-rs/wasm-runtime 1.1.5 [optional]
+      (the package ships no copyright notice of its own)
+  @oxc-project/types 0.133.0
+      Copyright (c) 2024-present VoidZero Inc. & Contributors
+      Copyright (c) 2023 Boshen
+  @radix-ui/number 1.1.1
+      (the package ships no copyright notice of its own)
+  @radix-ui/primitive 1.1.3
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-accessible-icon 1.1.7
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-accordion 1.2.12
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-alert-dialog 1.1.15
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-arrow 1.1.7
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-aspect-ratio 1.1.7
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-avatar 1.1.10
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-checkbox 1.3.3
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-collapsible 1.1.12
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-collection 1.1.7
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-compose-refs 1.1.2
+      (the package ships no copyright notice of its own)
+  @radix-ui/react-context 1.1.2
+      (the package ships no copyright notice of its own)
+  @radix-ui/react-context-menu 2.2.16
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-dialog 1.1.15
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-direction 1.1.1
+      (the package ships no copyright notice of its own)
+  @radix-ui/react-dismissable-layer 1.1.11
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-dropdown-menu 2.1.16
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-focus-guards 1.1.3
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-focus-scope 1.1.7
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-form 0.1.8
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-hover-card 1.1.15
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-id 1.1.1
+      (the package ships no copyright notice of its own)
+  @radix-ui/react-label 2.1.7
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-menu 2.1.16
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-menubar 1.1.16
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-navigation-menu 1.2.14
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-one-time-password-field 0.1.8
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-password-toggle-field 0.1.3
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-popover 1.1.15
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-popper 1.2.8
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-portal 1.1.9
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-presence 1.1.5
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-primitive 2.1.3
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-progress 1.1.7
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-radio-group 1.3.8
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-roving-focus 1.1.11
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-scroll-area 1.2.10
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-select 2.2.6
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-separator 1.1.7
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-slider 1.3.6
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-slot 1.2.3
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-switch 1.2.6
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-tabs 1.1.13
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-toast 1.2.15
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-toggle 1.1.10
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-toggle-group 1.1.11
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-toolbar 1.1.11
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-tooltip 1.2.8
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-use-callback-ref 1.1.1
+      (the package ships no copyright notice of its own)
+  @radix-ui/react-use-controllable-state 1.2.2
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-use-effect-event 0.0.2
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-use-escape-keydown 1.1.1
+      (the package ships no copyright notice of its own)
+  @radix-ui/react-use-is-hydrated 0.1.0
+      Copyright (c) 2022 WorkOS
+  @radix-ui/react-use-layout-effect 1.1.1
+      (the package ships no copyright notice of its own)
+  @radix-ui/react-use-previous 1.1.1
+      (the package ships no copyright notice of its own)
+  @radix-ui/react-use-rect 1.1.1
+      (the package ships no copyright notice of its own)
+  @radix-ui/react-use-size 1.1.1
+      (the package ships no copyright notice of its own)
+  @radix-ui/react-visually-hidden 1.2.3
+      Copyright (c) 2022 WorkOS
+  @radix-ui/rect 1.1.1
+      (the package ships no copyright notice of its own)
+  @reduxjs/toolkit 2.9.2
+      Copyright (c) 2018 Mark Erikson
+  @rolldown/binding-android-arm64 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-darwin-arm64 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-darwin-x64 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-freebsd-x64 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-linux-arm-gnueabihf 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-linux-arm64-gnu 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-linux-arm64-musl 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-linux-ppc64-gnu 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-linux-s390x-gnu 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-linux-x64-gnu 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-linux-x64-musl 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-openharmony-arm64 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-wasm32-wasi 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-win32-arm64-msvc 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/binding-win32-x64-msvc 1.0.3 [optional]
+      (the package ships no copyright notice of its own)
+  @rolldown/pluginutils 1.0.1
+      Copyright (c) 2024-present VoidZero Inc. & Contributors
+  @standard-schema/spec 1.0.0
+      Copyright (c) 2024 Colin McDonnell
+  @standard-schema/utils 0.3.0
+      Copyright (c) 2024 Fabian Hiller
+  @tailwindcss/node 4.3.1
+      Copyright (c) Tailwind Labs, Inc.
+  @tailwindcss/oxide 4.3.1
+      Copyright (c) Tailwind Labs, Inc.
+  @tailwindcss/oxide-android-arm64 4.3.1 [optional]
+      (the package ships no copyright notice of its own)
+  @tailwindcss/oxide-darwin-arm64 4.3.1 [optional]
+      (the package ships no copyright notice of its own)
+  @tailwindcss/oxide-darwin-x64 4.3.1 [optional]
+      (the package ships no copyright notice of its own)
+  @tailwindcss/oxide-freebsd-x64 4.3.1 [optional]
+      (the package ships no copyright notice of its own)
+  @tailwindcss/oxide-linux-arm-gnueabihf 4.3.1 [optional]
+      (the package ships no copyright notice of its own)
+  @tailwindcss/oxide-linux-arm64-gnu 4.3.1 [optional]
+      (the package ships no copyright notice of its own)
+  @tailwindcss/oxide-linux-arm64-musl 4.3.1 [optional]
+      (the package ships no copyright notice of its own)
+  @tailwindcss/oxide-linux-x64-gnu 4.3.1 [optional]
+      Copyright (c) Tailwind Labs, Inc.
+  @tailwindcss/oxide-linux-x64-musl 4.3.1 [optional]
+      Copyright (c) Tailwind Labs, Inc.
+  @tailwindcss/oxide-wasm32-wasi 4.3.1 [optional]
+      (the package ships no copyright notice of its own)
+  @tailwindcss/oxide-win32-arm64-msvc 4.3.1 [optional]
+      (the package ships no copyright notice of its own)
+  @tailwindcss/oxide-win32-x64-msvc 4.3.1 [optional]
+      (the package ships no copyright notice of its own)
+  @tailwindcss/vite 4.3.1
+      Copyright (c) Tailwind Labs, Inc.
+  @tanstack/react-table 8.21.3
+      Copyright (c) 2016 Tanner Linsley
+  @tanstack/table-core 8.21.3
+      Copyright (c) 2016 Tanner Linsley
+  @tybys/wasm-util 0.10.2 [optional]
+      (the package ships no copyright notice of its own)
+  @types/d3-array 3.2.2
+      Copyright (c) Microsoft Corporation.
+  @types/d3-color 3.1.3
+      Copyright (c) Microsoft Corporation.
+  @types/d3-drag 3.0.7
+      Copyright (c) Microsoft Corporation.
+  @types/d3-ease 3.0.2
+      Copyright (c) Microsoft Corporation.
+  @types/d3-interpolate 3.0.4
+      Copyright (c) Microsoft Corporation.
+  @types/d3-path 3.1.1
+      Copyright (c) Microsoft Corporation.
+  @types/d3-scale 4.0.9
+      Copyright (c) Microsoft Corporation.
+  @types/d3-selection 3.0.11
+      Copyright (c) Microsoft Corporation.
+  @types/d3-shape 3.1.7
+      Copyright (c) Microsoft Corporation.
+  @types/d3-time 3.0.4
+      Copyright (c) Microsoft Corporation.
+  @types/d3-timer 3.0.2
+      Copyright (c) Microsoft Corporation.
+  @types/d3-transition 3.0.9
+      Copyright (c) Microsoft Corporation.
+  @types/d3-zoom 3.0.8
+      Copyright (c) Microsoft Corporation.
+  @types/dagre 0.7.53
+      Copyright (c) Microsoft Corporation.
+  @types/pako 2.0.4
+      Copyright (c) Microsoft Corporation.
+  @types/raf 3.4.3 [optional]
+      Copyright (c) Microsoft Corporation.
+  @types/trusted-types 2.0.7 [optional]
+      Copyright (c) Microsoft Corporation.
+  @types/use-sync-external-store 0.0.6
+      Copyright (c) Microsoft Corporation.
+  @xyflow/react 12.9.2
+      Copyright (c) 2019-2025 webkid GmbH
+  @xyflow/system 0.0.72
+      Copyright (c) 2019-2025 webkid GmbH
+  aria-hidden 1.2.6
+      Copyright (c) 2017 Anton Korzunov
+  base64-arraybuffer 1.0.2 [optional]
+      Copyright (c) 2012 Niklas von Hertzen
+  canvg 3.0.11 [optional]
+      Copyright (c) 2010 - present Gabe Lerner (gabelerner@gmail.com) -
+        https://github.com/canvg/canvg
+  classcat 5.0.5
+      Copyright © Jorge Bucaran <<https://jorgebucaran.com>>
+  clsx 2.1.1
+      Copyright (c) Luke Edwards <luke.edwards05@gmail.com> (lukeed.com)
+  cookie-es 3.1.1
+      Copyright (c) 2012-2014 Roman Shtylman <shtylman@gmail.com>
+      Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com>
+      Copyright (c) 2015 Nathan Friedly <nathan@nfriedly.com> (http://nfriedly.com/)
+  core-js 3.49.0 [optional]
+      Copyright (c) 2013–2025 Denis Pushkarev (zloirock.ru)
+      Copyright (c) 2025–2026 CoreJS Company (core-js.io)
+  core-util-is 1.0.3
+      Copyright Node.js contributors. All rights reserved.
+  css-line-break 2.1.0 [optional]
+      Copyright (c) 2017 Niklas von Hertzen
+  csstype 3.1.3
+      Copyright (c) 2017-2018 Fredrik Nicol
+  dagre 0.8.5
+      Copyright (c) 2012-2014 Chris Pettitt
+  date-fns 4.1.0
+      Copyright (c) 2021 Sasha Koss and Lesha Koss https://kossnocorp.mit-license.org
+  decimal.js-light 2.5.1
+      Copyright (c) 2020 Michael Mclaughlin
+  detect-node-es 1.1.0
+      Copyright (c) 2017 Ilya Kantor
+  dom-helpers 5.2.1
+      Copyright (c) 2015 Jason Quense
+  dom-to-image 2.6.0
+      Copyright 2015 Anatolii Saienko
+      Copyright 2012 Paul Bakaus
+      Copyright (c) 2011 Carl Sutherland, Humble Software Development
+      copyright on the Program, and are irrevocable provided the stated
+  enhanced-resolve 5.21.6
+      Copyright JS Foundation and other contributors
+  eventemitter3 4.0.7
+      Copyright (c) 2014 Arnout Kazemier
+  fast-equals 5.4.0
+      Copyright (c) 2025 Tony Quetano
+  fast-png 6.4.0
+      Copyright (c) 2015 Michaël Zasso
+      Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn
+  fdir 6.5.0
+      (the package ships no copyright notice of its own)
+  fflate 0.8.3
+      Copyright (c) 2026 Arjun Barrett
+  fsevents 2.3.3 [optional]
+      (the package ships no copyright notice of its own)
+  get-nonce 1.0.1
+      Copyright (c) 2020 Anton Korzunov
+  graphlib 2.1.8
+      Copyright (c) 2012-2014 Chris Pettitt
+  html2canvas 1.4.1 [optional]
+      Copyright (c) 2012 Niklas von Hertzen
+  immediate 3.0.6
+      Copyright (c) 2012 Barnesandnoble.com, llc, Donavon West, Domenic Denicola, Brian Cavalier
+  immer 10.2.0
+      Copyright (c) 2017 Michel Weststrate
+  iobuffer 5.4.0
+      Copyright (c) 2015 Michaël Zasso
+  isarray 1.0.0
+      (the package ships no copyright notice of its own)
+  jiti 2.7.0
+      Copyright (c) Pooya Parsa <pooya@pi0.io>
+  js-tokens 4.0.0
+      Copyright (c) 2014, 2015, 2016, 2017, 2018 Simon Lydell
+  jspdf 4.2.1
+      (the package ships no copyright notice of its own)
+  lie 3.3.0
+      Copyright (c) 2014-2018 Calvin Metcalf, Jordan Harband
+  lodash 4.18.1
+      Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
+  loose-envify 1.4.0
+      Copyright (c) 2015 Andres Suarez <zertosh@gmail.com>
+  magic-string 0.30.21
+      Copyright 2018 Rich Harris
+  nanoid 3.3.17
+      Copyright 2017 Andrey Sitnik <andrey@sitnik.ru>
+  next-themes 0.4.6
+      Copyright (c) 2022 Paco Coursey
+  object-assign 4.1.1
+      Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+  performance-now 2.1.0 [optional]
+      Copyright (c) 2013 Braveg1rl
+  picomatch 4.0.4
+      Copyright (c) 2017-present, Jon Schlinkert.
+  postcss 8.5.25
+      Copyright 2013 Andrey Sitnik <andrey@sitnik.es>
+  process-nextick-args 2.0.1
+      Copyright (c) 2015 Calvin Metcalf
+  prop-types 15.8.1
+      Copyright (c) 2013-present, Facebook, Inc.
+      Copyright (c) Facebook, Inc. and its affiliates.
+  radix-ui 1.4.3
+      Copyright (c) 2022 WorkOS
+  raf 3.4.1 [optional]
+      Copyright 2013 Chris Dickinson <chris@neversaw.us>
+  react 19.2.8
+      Copyright (c) Meta Platforms, Inc. and affiliates.
+  react-dom 19.2.8
+      Copyright (c) Meta Platforms, Inc. and affiliates.
+  react-hook-form 7.71.1
+      Copyright (c) 2019-present Beier(Bill) Luo
+  react-is 16.13.1
+      Copyright (c) Facebook, Inc. and its affiliates.
+  react-is 18.3.1
+      Copyright (c) Facebook, Inc. and its affiliates.
+  react-redux 9.2.0
+      Copyright (c) 2015-present Dan Abramov
+  react-remove-scroll 2.7.1
+      Copyright (c) 2017 Anton Korzunov
+  react-remove-scroll-bar 2.3.8
+      (the package ships no copyright notice of its own)
+  react-resizable-panels 4.4.0
+      Copyright (c) 2018 Brian Vaughn
+  react-router 8.3.0
+      Copyright (c) React Training LLC 2015-2019
+      Copyright (c) Remix Software Inc. 2020-2021
+      Copyright (c) Shopify Inc. 2022-2023
+  react-smooth 4.0.4
+      Copyright (c) 2016 recharts
+  react-style-singleton 2.2.3
+      Copyright (c) 2017 Anton Korzunov
+  react-use-websocket 4.13.0
+      Copyright (c) 2021 Robert Taussig
+  readable-stream 2.3.8
+      Copyright Node.js contributors. All rights reserved.
+      Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+  recharts 2.15.4
+      Copyright (c) 2015-present recharts
+  recharts-scale 0.4.5
+      Copyright (c) 2015 Sen Yang
+  redux 5.0.1
+      Copyright (c) 2015-present Dan Abramov
+  redux-persist 6.0.0
+      Copyright (c) 2017 Zack Story
+  redux-thunk 3.1.0
+      Copyright (c) 2015-present Dan Abramov
+  regenerator-runtime 0.13.11 [optional]
+      Copyright (c) 2014-present, Facebook, Inc.
+  reselect 5.1.1
+      Copyright (c) 2015-2018 Reselect Contributors
+  rolldown 1.0.3
+      Copyright (c) 2024-present VoidZero Inc. & Contributors
+      Copyright (c) 2026-present, rolldown/plugins repository contributors
+  safe-buffer 5.1.2
+      Copyright (c) Feross Aboukhadijeh
+  scheduler 0.27.0
+      Copyright (c) Meta Platforms, Inc. and affiliates.
+  setimmediate 1.0.5
+      Copyright (c) 2012 Barnesandnoble.com, llc, Donavon West, and Domenic Denicola
+  sonner 2.0.7
+      Copyright (c) 2023 Emil Kowalski
+  stackblur-canvas 2.7.0 [optional]
+      Copyright (c) 2010 Mario Klingemann
+  string_decoder 1.1.1
+      Copyright Node.js contributors. All rights reserved.
+      Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+  svg-pathdata 6.0.3 [optional]
+      Copyright © 2017 Nicolas Froidure
+  tabbable 6.4.0
+      Copyright (c) 2015 David Clark
+  tailwind-merge 3.3.1
+      Copyright (c) 2021 Dany Castillo
+  tailwindcss 4.3.1
+      Copyright (c) Tailwind Labs, Inc.
+  tapable 2.3.3
+      Copyright JS Foundation and other contributors
+  text-segmentation 1.0.3 [optional]
+      Copyright (c) 2021 Niklas von Hertzen
+  tiny-invariant 1.3.3
+      Copyright (c) 2019 Alexander Reardon
+  tinyglobby 0.2.17
+      Copyright (c) 2024 Madeline Gurriarán
+      Copyright 2023 Abdullah Atta
+      Copyright (c) 2017-present, Jon Schlinkert.
+  use-callback-ref 1.3.3
+      Copyright (c) 2017 Anton Korzunov
+  use-sidecar 1.1.3
+      Copyright (c) 2017 Anton Korzunov
+  use-sync-external-store 1.6.0
+      Copyright (c) Meta Platforms, Inc. and affiliates.
+  util-deprecate 1.0.2
+      Copyright (c) 2014 Nathan Rajlich <nathan@tootallnate.net>
+  utrie 1.0.2 [optional]
+      Copyright (c) 2021 Niklas von Hertzen
+  vite 8.0.16
+      Copyright (c) 2019-present, VoidZero Inc. and Vite contributors
+      Copyright (c) 2017-present, Jon Schlinkert.
+  zod 4.3.6
+      Copyright (c) 2025 Colin McDonnell
+  zustand 4.5.7
+      Copyright (c) 2019 Paul Henschel
 
 License-Identifier: MIT AND ISC   (1 package(s))
+
   victory-vendor 36.9.2
+      Copyright 2010-2022 Mike Bostock
+      Copyright 2010-2021 Mike Bostock
+      Copyright 2001 Robert Penner
+      Copyright 2015-2021 Mike Bostock
+      Copyright 2010-2016 Mike Bostock
+      Copyright (C) 2010-2013 Raymond Hill
 
 License-Identifier: MIT OR SEE LICENSE IN FEEL-FREE.md   (1 package(s))
+
   rgbcolor 1.0.1 [optional]
+      Copyright (c) 2016 Stoyan Stefanov, http://phpied.com
 
 License-Identifier: MPL-2.0   (12 package(s))
-  lightningcss 1.32.0, lightningcss-android-arm64 1.32.0 [optional], lightningcss-darwin-arm64
-  1.32.0 [optional], lightningcss-darwin-x64 1.32.0 [optional], lightningcss-freebsd-x64 1.32.0
-  [optional], lightningcss-linux-arm-gnueabihf 1.32.0 [optional], lightningcss-linux-arm64-gnu
-  1.32.0 [optional], lightningcss-linux-arm64-musl 1.32.0 [optional], lightningcss-linux-x64-gnu
-  1.32.0 [optional], lightningcss-linux-x64-musl 1.32.0 [optional], lightningcss-win32-arm64-msvc
-  1.32.0 [optional], lightningcss-win32-x64-msvc 1.32.0 [optional]
+
+  lightningcss 1.32.0
+      (the package ships no copyright notice of its own)
+  lightningcss-android-arm64 1.32.0 [optional]
+      (the package ships no copyright notice of its own)
+  lightningcss-darwin-arm64 1.32.0 [optional]
+      (the package ships no copyright notice of its own)
+  lightningcss-darwin-x64 1.32.0 [optional]
+      (the package ships no copyright notice of its own)
+  lightningcss-freebsd-x64 1.32.0 [optional]
+      (the package ships no copyright notice of its own)
+  lightningcss-linux-arm-gnueabihf 1.32.0 [optional]
+      (the package ships no copyright notice of its own)
+  lightningcss-linux-arm64-gnu 1.32.0 [optional]
+      (the package ships no copyright notice of its own)
+  lightningcss-linux-arm64-musl 1.32.0 [optional]
+      (the package ships no copyright notice of its own)
+  lightningcss-linux-x64-gnu 1.32.0 [optional]
+      (the package ships no copyright notice of its own)
+  lightningcss-linux-x64-musl 1.32.0 [optional]
+      (the package ships no copyright notice of its own)
+  lightningcss-win32-arm64-msvc 1.32.0 [optional]
+      (the package ships no copyright notice of its own)
+  lightningcss-win32-x64-msvc 1.32.0 [optional]
+      (the package ships no copyright notice of its own)
 
 Notes on the non-SPDX identifiers above:
 
@@ -349,11 +1198,14 @@ completeness only.
   intel/metrics-manager   - Intel component, distributed separately with its own notices.
   bluenviron/mediamtx     - MIT License, distributed by its upstream project.
 
-The experimental time-series profile (compose.experimental.yml) additionally builds
-intel/ia-timeseries-ingestion from timeseries-ingestion/. It is not part of the default
-deployment. On top of the python:3.13-slim base image it adds one package:
+The experimental time-series profile (compose.experimental.yml) is not part of the default
+deployment. It builds intel/ia-timeseries-ingestion from timeseries-ingestion/, which on top of
+the python:3.13-slim base image adds one package:
 
   requests 2.33.1 - Apache-2.0
+
+and it additionally pulls intel/ia-time-series-analytics-microservice, an Intel component
+distributed separately with its own notices.
 
 Deep learning models are downloaded at run time from their respective model hubs (Open Model
 Zoo, Hugging Face, Intel Geti). They are not redistributed with ViPPET and remain subject to the
