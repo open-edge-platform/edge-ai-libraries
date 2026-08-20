@@ -100,7 +100,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/visual-data-preparation-for-retrieval/milvus"
           report_suffix: "-bandit-dataprep-visualdata-milvus-CT161"
 
@@ -124,7 +124,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/visual-data-preparation-for-retrieval/milvus"
           exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
 
