@@ -11,19 +11,21 @@
 </div>
 hide_directive-->
 
-Semantic Search Agent is a lightweight, production-ready microservice for AI-powered item matching and validation. Built with FastAPI and asyncio, it accepts item comparison requests via REST, runs them through a configurable multi-strategy matching pipeline (exact string, semantic VLM-based, or hybrid), and returns structured match results with confidence scores. The service consolidates semantic matching logic from multiple edge-AI applications into a single extensible microservice.
+Semantic Search Agent is a lightweight, production-ready microservice for AI-powered item matching and validation. Built with FastAPI and asyncio frameworks, it accepts item comparison requests via REST, runs them through a configurable multi-strategy matching pipeline using exact string matching, semantic Vision-Language Model (VLM)-based matching, or hybrid matching, and returns structured match results with confidence scores. The microservice consolidates semantic matching logic from multiple edge-AI applications into a single extensible service.
+
+
 
 ## Use Cases
 
 - **Order Validation at the Edge** — Compare a list of expected grocery or retail items against detected items from a vision pipeline and identify missing, extra, or quantity-mismatched products.
 - **Inventory Verification** — Check whether detected items exist in a configured inventory database, tolerating name variations, abbreviations, and paraphrases using semantic understanding.
 - **Fuzzy Product Matching** — Resolve naming inconsistencies between systems (e.g., "Coca Cola 500ml" vs "cola bottle") using a VLM-backed semantic comparison prompt.
-- **Multi-Backend VLM Flexibility** — Run inference against a remote OpenVINO Model Server (OVMS), a local OpenVINO GenAI model, or the OpenAI cloud API without changing business logic.
+- **Multi-Backend VLM Flexibility** — Run inference against a remote OpenVINO™ model server, a local OpenVINO toolkit's GenAI model, or the OpenAI cloud API without changing business logic.
 
 ## Key Capabilities
 
 - **Three Matching Strategies** — `exact` (fast normalized string comparison), `semantic` (VLM-based reasoning), and `hybrid` (exact fast-path with semantic fallback for unmatched items).
-- **Pluggable VLM Backends** — Supports OVMS (OpenAI-compatible endpoint), OpenVINO GenAI (in-process), and OpenAI API. Selected via a single environment variable.
+- **Pluggable VLM Backends** — Supports OpenVINO model server (OpenAI-compatible endpoint), OpenVINO GenAI (in-process), and OpenAI API. Selected via a single environment variable.
 - **Two-Pass Comparison Engine** — Runs exact matching first for speed, then applies semantic matching only to unmatched items to minimize VLM inference calls.
 - **Response Caching** — In-memory or Redis-backed cache for semantic match results, keyed by normalized input pair and context.
 - **Prometheus Metrics** — Exposes `api_requests_total`, `matches_total`, `request_duration_seconds`, `vlm_inference_duration_seconds`, `cache_hits_total`, and `vlm_backend_available` metrics on a dedicated metrics endpoint.
@@ -31,7 +33,7 @@ Semantic Search Agent is a lightweight, production-ready microservice for AI-pow
 
 ## Next Steps
 
-- [Get Started](./get-started.md) - a step-by-step guide to your first run.
+- [Get Started](./get-started.md) - a step-by-step guide for your first run.
 - [Configuration](./get-started/configuration.md) - how to configure matching strategy, VLM backend, and caching.
 - [How It Works](./how-it-works.md) - learn about the internal request flow and components.
 

@@ -1,17 +1,17 @@
 # Build From Source
 
-This page covers building the Semantic Search Agent from source code. Use this path when you need to apply code modifications or package customized builds.
+This section shows how to build the Semantic Search Agent from source code. Use this path when you need to modify the code or package customized builds.
 
 ## Prerequisites
 
-- Clone the repository and navigate into the `semantic-search-agent/` directory.
-- Verify that [system requirements](system-requirements.md) are met.
+- Clone the repository and navigate to the `semantic-search-agent/` directory.
+- Verify that the [system requirements](system-requirements.md) are met.
 
 ## Build the Docker Image
 
-The repository provides a `docker/Dockerfile` and a `docker/docker-compose.yml`. The Compose configuration builds the image from local source files.
+The repository provides the `docker/Dockerfile` and `docker/docker-compose.yml` files. The Compose configuration builds the image from local source files.
 
-To build using the Makefile from the project root:
+To build using the Makefile from the project root folder:
 
 ```bash
 make docker-build
@@ -28,9 +28,9 @@ docker build \
   .
 ```
 
-This packages the application code, installs Python dependencies, and configures the container to run as a non-root user (UID 1000).
+This packages the application code, installs Python dependencies, and configures the container to run as a non-root user with User Identifier (UID) 1000.
 
-> **Note**: If you are behind a corporate proxy, pass `--build-arg HTTP_PROXY` and `--build-arg HTTPS_PROXY` as shown above so `pip` can reach PyPI during the build.
+> **Note**: If you are behind a corporate proxy, pass `--build-arg HTTP_PROXY` and `--build-arg HTTPS_PROXY` as shown above so `pip` can reach the PyPI repository during the build.
 
 ## Build a Python Environment (Standalone)
 
@@ -46,7 +46,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## Verifying the Build
+## Verify the Build
 
 To test the build locally, run the automated test suite:
 
