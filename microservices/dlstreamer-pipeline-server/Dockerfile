@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=intel/dlstreamer:2026.1.0-ubuntu24
+ARG BASE_IMAGE=intel/dlstreamer:2026.2.0-ubuntu24-rc2
 FROM ${BASE_IMAGE} AS gstudfloader-builder
 
 USER root
