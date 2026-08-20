@@ -33,7 +33,7 @@ COPY requirements.txt ./requirements.txt
 RUN python3 -m venv "$VIRTUAL_ENV" \
     && "$VIRTUAL_ENV/bin/pip" install --upgrade pip \
     && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt \
-    && "$VIRTUAL_ENV/bin/pip" uninstall -y torchcodec || true
+    && ("$VIRTUAL_ENV/bin/pip" uninstall -y torchcodec || true)
 
 COPY . .
 

@@ -16,6 +16,11 @@ ENV PYTHONUNBUFFERED=1 \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
     # Disable interactive prompts
     POETRY_NO_INTERACTION=1 \
+    # Keep pip/setuptools out of the runtime venv: they are only needed at
+    # build time, and pip vendors an SBOM that reports vulnerable versions of
+    # packages it does not actually ship as importable code.
+    POETRY_VIRTUALENVS_OPTIONS_NO_PIP=true \
+    POETRY_VIRTUALENVS_OPTIONS_NO_SETUPTOOLS=true \
     # Location where packages gets installed
     SETUP_PATH="/opt/projsetup" \
     # Location where virtual env is created
@@ -27,9 +32,6 @@ ENV PATH="$PATH:$POETRY_HOME/bin:$VENV_PATH/bin"
 # Create non-root user
 RUN groupadd --gid 1000 appuser && \
     useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
-
-# upgrade pip to the latest version
-RUN pip install --upgrade pip
 
 # `builder-base` image used to install build dependecies and required packages 
 FROM python-base AS builder-base
