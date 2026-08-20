@@ -348,7 +348,9 @@ const NodeDataPanel = ({
               inputType === "select" && propConfig?.options
                 ? keyStr === "tracking-type"
                   ? propConfig.options.filter((option) =>
-                      trackingOptions.includes(getOptionValue(option).toLowerCase()),
+                      trackingOptions.includes(
+                        getOptionValue(option).toLowerCase(),
+                      ),
                     )
                   : propConfig.options
                 : undefined;
