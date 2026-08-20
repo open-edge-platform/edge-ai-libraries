@@ -3,6 +3,7 @@
 import { FC, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import { InlineLoading } from '@carbon/react';
 import { useAppSelector } from '../../redux/store';
 import { ScoreBreakdown, SearchResult } from '../../redux/search/search';
 import { videosSelector } from '../../redux/video/videoSlice';
@@ -289,25 +290,31 @@ const ClipCard: FC<ClipCardProps> = ({ clip, resolvedUrl }) => {
 export const VideoGroupsView: FC = () => {
   const { t } = useTranslation();
   const { getVideoUrl } = useAppSelector(videosSelector);
-  const { selectedResults } = useAppSelector(SearchSelector);
+  const { selectedResults, isSelectedInitialLoading } = useAppSelector(SearchSelector);
 
   // One clip per search result, so hits from the same video at different
   // timestamps are all preserved.
   const searchClips: SearchClip[] = useMemo(() => {
     if (!selectedResults || selectedResults.length === 0) return [];
 
+    // Stable, position-independent keys so refreshing a watched query does not remount
+    // clips that are still in the result set. Identical video/timestamp pairs are rare
+    // but get a suffix so React keys stay unique.
+    const seen = new Map<string, number>();
+
     return selectedResults
-      .map((result: SearchResult, index: number) => {
+      .map((result: SearchResult) => {
         const meta: ClipMetadata = result.metadata ?? {};
         const videoId = meta.video_id || meta.id;
         if (!videoId) return null;
 
         const timestamp = typeof meta.timestamp === 'number' ? meta.timestamp : 0;
+        const baseKey = `${videoId}-${timestamp}`;
+        const occurrence = seen.get(baseKey) ?? 0;
+        seen.set(baseKey, occurrence + 1);
 
         return {
-          // `result.id` is not guaranteed unique per hit, so the array index
-          // anchors identity while video/timestamp keep the key readable.
-          key: `${index}-${videoId}-${timestamp}`,
+          key: occurrence === 0 ? baseKey : `${baseKey}-${occurrence}`,
           videoId,
           name: meta.name ?? meta.title ?? videoId,
           // Fall back to the object store directly. The dataprep download URLs in
@@ -348,6 +355,19 @@ export const VideoGroupsView: FC = () => {
       color: TAG_COLORS[i % TAG_COLORS.length],
     }));
   }, [searchClips]);
+
+  // First run of the query: show placeholders rather than a misleading "no results" state.
+  // A refresh keeps its existing groups mounted and relies on the QueryInfo chip instead.
+  if (isSelectedInitialLoading) {
+    return (
+      <VideoGroupsContainer data-testid='video-groups-skeleton'>
+        <GroupHeader>{t('VideoGroups', 'Video Groups by Tags')}</GroupHeader>
+        <EmptyState>
+          <InlineLoading status='active' description={t('searchRunning')} />
+        </EmptyState>
+      </VideoGroupsContainer>
+    );
+  }
 
   // If no search results, show a helpful empty state
   if (!selectedResults || selectedResults.length === 0) {
