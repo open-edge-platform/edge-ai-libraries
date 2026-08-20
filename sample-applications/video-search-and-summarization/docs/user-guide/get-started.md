@@ -518,9 +518,9 @@ Follow these steps to run the application:
 
    ```bash
    # Clone the latest on mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   # git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Clone the release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
 
    cd edge-ai-libraries/sample-applications/video-search-and-summarization
    ```
@@ -603,7 +603,7 @@ Follow these steps to run the application:
 
     > **Note:**
     > - The vLLM configuration has been tested on Intel® Xeon® 6 processors.
-    > - Review [docker/compose.vllm.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
+    > - Review [docker/compose.vllm.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/sample-applications/video-search-and-summarization/docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
 
    - **🧪 EXPERIMENTAL: Use vLLM with Intel Arc Pro B-series GPU/XPU acceleration:**
 
@@ -650,7 +650,7 @@ Follow these steps to run the application:
     > - When `ENABLE_VLLM_GPU=true`, the application automatically sets `VLLM_HOST=vllm-xpu-service` and disables OVMS completely
     > - The same VLM model is used for both chunk captioning and final summarization (split-model mode is not supported)
     > - Default concurrency is reduced to `PM_VLM_CONCURRENT=1` and `PM_LLM_CONCURRENT=1` to prevent GPU memory pressure
-    > - Review [docker/compose.vllm.xpu.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/docker/compose.vllm.xpu.yaml) to understand the vLLM XPU configuration. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) for parameter details.
+    > - Review [docker/compose.vllm.xpu.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/sample-applications/video-search-and-summarization/docker/compose.vllm.xpu.yaml) to understand the vLLM XPU configuration. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) for parameter details.
     > - For troubleshooting, check container logs: `docker logs vllm-xpu-service`
 
 4. (Optional) Verify the resolved environment variables and setup configurations:
@@ -836,7 +836,7 @@ Key metrics include `ovms_requests_success`, `ovms_inference_time_us`, and `ovms
 
 ## CLI Usage
 
-Refer to [CLI Usage](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/cli/README.md) for details on using the application from a text user interface (terminal-based UI).
+Refer to [CLI Usage](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/sample-applications/video-search-and-summarization/cli/README.md) for details on using the application from a text user interface (terminal-based UI).
 
 ## Running in Kubernetes Cluster
 

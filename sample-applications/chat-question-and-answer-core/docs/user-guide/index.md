@@ -2,24 +2,22 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer-core">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/sample-applications/chat-question-and-answer-core">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/chat-question-and-answer-core/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/sample-applications/chat-question-and-answer-core/README.md">
      Readme
   </a>
 </div>
 hide_directive-->
 
-The Chat Question & Answer (Chat Q&A) sample application is a foundational Retrieval Augmented Generation (RAG) pipeline,
+The Chat Question & Answer Core (Chat Q&A Core) sample application is a foundational Retrieval Augmented Generation (RAG) pipeline,
 enabling users to ask questions and receive answers including on their own private data
 corpus. The sample application demonstrates how to build RAG pipelines.
-Compared to the
-[Chat Q&A](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer)
-implementation, this implementation of Chat Q&A Core is optimized for
-memory footprint, as it is built as a single monolithic application with the entire RAG
-pipeline bundled in a single microservice. The microservice supports a bare metal
-deployment through docker compose installation to emphasize on the monolithic objective.
+Chat Q&A Core is optimized for memory footprint, as it is built as a single monolithic
+application with the entire RAG pipeline bundled in a single microservice. The microservice
+supports a bare metal deployment through docker compose installation to emphasize on the
+monolithic objective.
 
 ![Chat Q&A web interface](./_assets/ChatQnA_Webpage.png)
 
@@ -50,7 +48,7 @@ Key features include:
 ### Technical Architecture
 
 The Chat Q&A Core sample application is implemented as a LangChain
-based RAG pipeline with all the inference models (i.e. LLM, Embedding, and reranker)
+based RAG pipeline with all the inference models (i.e., LLM, Embedding, and reranker)
 executed in the context of a single OpenVINO™ runtime. The approach is documented
 in the OpenVINO™ toolkit
 [documentation](https://blog.openvino.ai/blog-posts/accelerate-inference-of-hugging-face-transformer-models-with-optimum-intel-and-openvino).
@@ -67,8 +65,8 @@ more information on the Ollama framework, visit its
 The Chat Q&A Core sample application consists of two main parts:
 
 1. **Data Ingestion (Knowledge Building)**: This part is responsible for adding
-   documents to the Chat Q&A instance. The data ingestion step allows ingestion of
-   common document formats like pdf and doc. The ingestion process cleans and formats
+   documents to the Chat Q&A Core instance. The data ingestion step allows ingestion of
+   common document formats like PDF and DOCX. The ingestion process cleans and formats
    the input document, creates embeddings of the documents using embedding microservice,
    and stores them in the preferred vector database. CPU version of
    [FAISS](https://faiss.ai/index.html) is used as VectorDB.

@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/dlstreamer-pipeline-server">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/dlstreamer-pipeline-server">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/dlstreamer-pipeline-server/README.md">
      Readme
   </a>
 </div>
@@ -18,7 +18,7 @@ pipelines.
 ## Overview
 
 DL Streamer Pipeline Server microservice is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/)
-and [Deep Learning Streamer (DL Streamer)](https://github.com/open-edge-platform/dlstreamer/tree/main),
+and [Deep Learning Streamer (DL Streamer)](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/index.html),
 providing video ingestion and deep learning inferencing functionalities.
 
 Video analytics involves the conversion of video streams into valuable insights through the
@@ -64,7 +64,7 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
 
 - **DL Streamer Pipeline Server Model Dwonload**
 
-  Supports integration with the [Model Download service](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/index.html) for model download, deployment and management.
+  Supports integration with the [Model Download service](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/model-download/index.html) for model download, deployment and management.
 
 - **Open Telemetry**
 

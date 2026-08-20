@@ -74,7 +74,7 @@ and rerun the jobs.
 ViPPET currently supports only pipelines and models that are supported by **DL Streamer 2026.0.0**.
 
 For the full list of supported models, elements, and other details, see the DL Streamer release notes:
-[DL Streamer release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/release-notes.html)
+[DL Streamer release notes](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/release-notes.html)
 
 If a custom pipeline works correctly with DL Streamer 2026.0.0, it is expected to also work
 in ViPPET (see also the “Limited validation scope” limitation below).

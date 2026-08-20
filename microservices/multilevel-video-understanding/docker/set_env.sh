@@ -21,6 +21,11 @@ export RENDER_GROUP_ID=$(getent group render | awk -F: '{print $3}')
 # Host directory that caches downloaded Hugging Face weights.
 HF_HOME=${HF_HOME:=~/models/huggingface}
 export HF_HOME
+# Create if not exists, so Docker bind-mounts it as a user-owned dir instead of root-owned.
+mkdir -p "${HF_HOME}"
+
+# Change to https://hf-mirror.com if you are in China and want to use the mirror site for Hugging Face.
+export HF_ENDPOINT=${HF_ENDPOINT:-https://huggingface.co}
 
 # Model + context window. Qwen3.5-35B-A3B is a Mixture-of-Experts model
 # (35B total / 3B active) that serves both the VLM (captioning) and LLM
