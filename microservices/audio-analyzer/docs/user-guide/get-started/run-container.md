@@ -96,7 +96,7 @@ docker run -d --name minio-server --network <your-network> \
   -p 9000:9000 -p 9001:9001 \
   -e MINIO_ROOT_USER=<your-access-key> \
   -e MINIO_ROOT_PASSWORD=<your-secret-key> \
-  minio/minio server /data --console-address ":9001"
+  minio/minio:RELEASE.2025-02-07T23-21-09Z-cpuv1 server /data --console-address ":9001"
 ```
 
 ```yaml
