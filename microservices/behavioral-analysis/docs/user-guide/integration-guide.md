@@ -3,34 +3,31 @@
 This guide explains how to integrate the Behavioral Analysis Service into an existing application workflow.
 
 The service is MQTT-driven:
+
 - Your upstream application publishes analysis requests.
 - The service fetches frames from SeaweedFS, runs pose/pattern analysis (and optional VLM confirmation), then publishes results.
 
----
-
 ## Integration Overview
 
-### Data flow
+### Data Flow
 
-1. Upstream application stores frames in SeaweedFS.
-2. Upstream publishes a request message to the BA request topic.
-3. Behavioral Analysis Service consumes the request and fetches frames.
-4. Service evaluates configured patterns.
-5. Service publishes an outcome message to the BA result topic.
-6. Downstream application consumes the result and applies business actions.
-
----
+1. The upstream application stores frames in SeaweedFS.
+2. The upstream application publishes a request message to the BA request topic.
+3. The Behavioral Analysis Service consumes the request and fetches frames.
+4. The service evaluates configured patterns.
+5. The service publishes an outcome message to the BA result topic.
+6. The downstream application consumes the result and applies business actions.
 
 ## Required Changes in Your Application
 
-### 1. Publish requests to MQTT
+### 1. Publish Requests to MQTT
 
 Your application must publish JSON messages to the configured request topic (default: `ba/requests`).
 
 Required/optional request fields:
 
 | Field | Required | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `person_id` | Yes | Tracked entity identifier |
 | `region_id` | No | Region/zone identifier |
 | `entry_timestamp` | No | Used with storage path resolution |
@@ -49,7 +46,7 @@ Example payload:
 }
 ```
 
-### 2. Align SeaweedFS frame path contract
+### 2. Align the SeaweedFS Frame Path Contract
 
 Frames must be readable by the service under:
 
@@ -57,18 +54,19 @@ Frames must be readable by the service under:
 {SEAWEEDFS_BUCKET}/{entity_id}/{region_id}/{entry_timestamp}/frames/{timestamp}.jpg
 ```
 
-Notes:
-- Bucket name is configurable via `SEAWEEDFS_BUCKET`.
-- Filenames should preserve timestamp ordering because the service sorts by timestamp name.
+> **Note:**
+>
+> - Bucket name is configurable via `SEAWEEDFS_BUCKET`.
+> - Filenames should preserve timestamp ordering because the service sorts by timestamp name.
 
-### 3. Consume result messages
+### 3. Consume Result Messages
 
 Your application (or another downstream consumer) must subscribe to the configured result topic (default: `ba/results`).
 
 Typical result fields:
 
 | Field | Notes |
-|---|---|
+| --- | --- |
 | `person_id`, `region_id`, `entry_timestamp`, `scene_id`, `last_frame_ts` | Echo/context fields |
 | `status` | `"no_enough_data"`, `"no_match"`, `"suspicious"` |
 | `confidence` | Detection confidence |
@@ -77,8 +75,6 @@ Typical result fields:
 | `pattern_id` | Present when pattern matched |
 | `description` | Pattern description when available |
 | `vlm_confirmed` | Optional boolean when VLM path is active |
-
----
 
 ## Configuration Mapping Checklist
 
@@ -100,71 +96,78 @@ Ensure your application-side assumptions match service configuration:
 
 Use [Configuration](./get-started/configuration.md) as the source of truth for variable definitions and defaults.
 
----
-
 ## End-to-End Validation
 
 Use this sequence after integration:
 
 1. Confirm connectivity:
-- Service can reach MQTT broker.
-- Service can reach SeaweedFS.
-- If enabled, service can reach OVMS VLM endpoint.
+
+   - Service can reach MQTT broker.
+   - Service can reach SeaweedFS.
+   - If enabled, service can reach OVMS VLM endpoint.
 
 2. Confirm frame availability:
-- Verify frames exist in the expected SeaweedFS path for a known `person_id`/`region_id`/`entry_timestamp`.
+
+   Verify frames exist in the expected SeaweedFS path for a known `person_id`/`region_id`/`entry_timestamp`.
 
 3. Publish one known request:
-- Send a request on the configured BA request topic with matching identifiers.
+
+   Send a request on the configured BA request topic with matching identifiers.
 
 4. Verify service processing logs:
-- Confirm request received, frames fetched, pose analysis executed.
+
+   Confirm request received, frames fetched, pose analysis executed.
 
 5. Verify result publication:
-- Confirm one output event on BA result topic with expected status and metadata.
 
----
+   Confirm one output event on BA result topic with expected status and metadata.
 
 ## Common Integration Pitfalls
 
 ### Topic mismatch
 
 Symptoms:
+
 - Requests are published but never consumed.
 - No BA results observed.
 
 Checks:
+
 - Verify publisher topic equals `BA_REQUEST_TOPIC`.
 - Verify consumer topic equals `BA_RESULT_TOPIC`.
 
 ### Frame path mismatch
 
 Symptoms:
-- Frequent `no_enough_data` status.
+
+- Frequent `no_enough_data` statuses.
 
 Checks:
+
 - Validate bucket and object key structure match service expectations.
 - Validate identifiers in request match identifiers used in stored frame path.
 
 ### Cross-container network isolation
 
 Symptoms:
+
 - Service starts but cannot reach SeaweedFS/MQTT/OVMS.
 
 Checks:
+
 - Ensure services share a reachable Docker network.
 - Ensure endpoint hostnames resolve from the behavioral-analysis container.
 
 ### Configuration drift between environments
 
 Symptoms:
+
 - Works in one environment, fails in another.
 
 Checks:
+
 - Compare `.env`/`.env.local` and runtime variables per environment.
 - Reconfirm topic names, bucket name, and model path.
-
----
 
 ## Related Documentation
 
