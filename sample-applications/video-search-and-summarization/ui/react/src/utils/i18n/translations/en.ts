@@ -23,6 +23,7 @@ export const enTranslations = {
   SearchRerun: 'Re-run search',
   videoSearchStart: 'Video Search Query',
   SearchingForPlaceholder: 'Red bus or white plane...',
+  searchQueryRequired: 'Enter a search query to continue.',
   search: 'Search',
   Queries: 'Previous Search Queries',
   queryDeleteLabel: 'Delete Query',
