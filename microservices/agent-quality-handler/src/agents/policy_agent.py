@@ -44,6 +44,7 @@ def run(
         f"{policy_instructions}\n\n"
         f"{selection_prompt}"
     )
+    log.info("Policy agent User LLM request prepared: %s", user_message)
     raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message, max_tokens=512)
     log.info("Policy agent LLM response received (%d chars)", len(raw))
     return {"policy": raw, "mode": "llm", "summary": summary}
@@ -95,33 +96,22 @@ def _get_priority_thresholds(policy_config: dict) -> dict[str, dict[str, Any]]:
 
 
 def _build_selection_prompt(policy_config: dict, summary: dict | None = None) -> str:
-    """Inject class data with tier and threshold; LLM compares values and selects."""
+    """Inject thresholds and raw summary JSON; LLM applies the evaluation procedure."""
     priority_thresholds = _get_priority_thresholds(policy_config)
 
-    class_to_rule: dict[str, tuple[str, float]] = {}
+    threshold_lines: list[str] = []
     for tier, cfg in priority_thresholds.items():
         if not isinstance(cfg, dict):
             continue
         min_conf = float(cfg.get("min_avg_confidence", 0.0) or 0.0)
-        for cls in cfg.get("classes", []) or []:
-            class_to_rule[str(cls)] = (str(tier).upper(), min_conf)
+        classes = ", ".join(str(cls) for cls in (cfg.get("classes", []) or []))
+        threshold_lines.append(f"  {str(tier).upper()} (min_required={min_conf:.4f}): {classes}")
 
-    rows: list[str] = []
-    if summary:
-        for label, stats in summary.items():
-            if not isinstance(stats, dict) or label not in class_to_rule:
-                continue
-            tier, min_conf = class_to_rule[label]
-            avg_conf = float(stats.get("avg_confidence", 0.0) or 0.0)
-            count = int(stats.get("count", 0) or 0)
-            rows.append(f"  {label:<45} {tier:<10} {min_conf:>8.4f} {avg_conf:>16.10f} {count:>7}")
-
-    lines = [
-        "Data table for evaluation:",
-        f"  {'Class':<45} {'Tier':<10} {'min_req':>8} {'avg_confidence':>16} {'count':>7}",
-        "  " + "-" * 90,
-        *rows,
-    ]
+    lines = ["Threshold rules:"]
+    lines.extend(threshold_lines)
+    lines.append("")
+    lines.append("Detection summary (JSON):")
+    lines.append(json.dumps(summary or {}, indent=2))
     return "\n".join(lines) + "\n\n"
 
 
