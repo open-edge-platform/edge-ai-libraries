@@ -68,7 +68,7 @@ Expected output files:
 - `models/yolo_models/yolo26n-pose/yolo26n-pose.bin`
 
 The host must expose accelerator devices to Docker, and the relevant device entries must be mapped into the `behavioral-analysis` service,
-because that container performs the YOLO-Pose OpenVINO inference. For example `/dev/dri:/dev/dri` (GPU).
+because that container performs the YOLO-Pose OpenVINO inference. For example, `/dev/dri:/dev/dri` (GPU).
 
 > **Note:** If `BA_GST_DEVICE=GPU` is used, the same accelerator device must be added to the
 > `behavioral-analysis` service's `devices:` section. Do this using a Docker Compose override
