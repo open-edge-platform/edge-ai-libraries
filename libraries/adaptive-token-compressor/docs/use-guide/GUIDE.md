@@ -123,7 +123,7 @@ print(f"  Avg duration per request (all): {stats['avg_dur_per_request_all']:.1f}
 This section explains how each compressor works conceptually and what the
 runtime pipeline looks like.
 
-![Overall Workflow](../assets/workflow.png)
+![Overall Workflow](./assets/workflow.png)
 
 ### HarnessCompressor
 
@@ -134,7 +134,7 @@ assembly stage. It combines lightweight rules (message slicing / role-aware
 handling) with Lingua-based lossy compression for long text blocks, so token
 cost drops while preserving instruction-critical content.
 
-![HarnessCompressor](../assets/harness_compressor.png)
+![HarnessCompressor](./assets/harness_compressor.png)
 
 
 ### ToolCompressor
@@ -146,7 +146,7 @@ tools for the current request. It uses an external predictor LLM to score tool
 relevance from conversation context, then keeps high-value tools only.
 The ToolCompressor supports configurable tool-injection placements to flexibly trade off token savings against prefix-cache hit rate.
 
-![ToolCompressor](../assets/tool_compressor.png)
+![ToolCompressor](./assets/tool_compressor.png)
 
 
 ## Configuration Reference
