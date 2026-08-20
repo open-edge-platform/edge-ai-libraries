@@ -603,4 +603,122 @@ describe('VideoGroupsView Component', () => {
       expect(getVideoUrl).toBeDefined();
     });
   });
+
+  describe('Multiple results per video', () => {
+    it('should render every hit when one video matches at several timestamps', () => {
+      const mockResults = [12.26, 33.53, 59.8].map((timestamp, index) =>
+        createMockSearchResult({
+          id: `result-${index + 1}`,
+          metadata: {
+            ...createMockSearchResult().metadata,
+            video_id: 'video-1',
+            tags: 'ceramic',
+            timestamp,
+            relevance_score: 0.9 - index * 0.1,
+          },
+        }),
+      );
+
+      const store = createMockStore(mockResults);
+      const { container } = renderWithProviders(<VideoGroupsView />, store);
+
+      // All three hits must stay visible, not collapse into a single card.
+      expect(container.querySelectorAll('video')).toHaveLength(3);
+      expect(screen.getByText('Relevance Score: 0.900')).toBeInTheDocument();
+      expect(screen.getByText('Relevance Score: 0.800')).toBeInTheDocument();
+      expect(screen.getByText('Relevance Score: 0.700')).toBeInTheDocument();
+
+      // The group is one video but three results.
+      expect(screen.getByRole('heading', { name: /ceramic.*1.*videos.*3.*results/ })).toBeInTheDocument();
+    });
+
+    it('should keep all hits across several videos sharing a tag', () => {
+      const mockResults = [
+        ...[10, 20, 30].map((timestamp, index) =>
+          createMockSearchResult({
+            id: `a-${index}`,
+            metadata: {
+              ...createMockSearchResult().metadata,
+              video_id: 'video-1',
+              tags: 'action',
+              timestamp,
+              relevance_score: 0.9,
+            },
+          }),
+        ),
+        ...[15, 25].map((timestamp, index) =>
+          createMockSearchResult({
+            id: `b-${index}`,
+            metadata: {
+              ...createMockSearchResult().metadata,
+              video_id: 'video-2',
+              tags: 'action',
+              timestamp,
+              relevance_score: 0.8,
+            },
+          }),
+        ),
+      ];
+
+      const store = createMockStore(mockResults);
+      const { container } = renderWithProviders(<VideoGroupsView />, store);
+
+      expect(container.querySelectorAll('video')).toHaveLength(5);
+      expect(screen.getByRole('heading', { name: /action.*2.*videos.*5.*results/ })).toBeInTheDocument();
+    });
+
+    it('should show the timestamp of each hit', () => {
+      const mockResults = [
+        createMockSearchResult({
+          id: 'result-1',
+          metadata: {
+            ...createMockSearchResult().metadata,
+            video_id: 'video-1',
+            tags: 'action',
+            timestamp: 75.5,
+            relevance_score: 0.9,
+          },
+        }),
+        createMockSearchResult({
+          id: 'result-2',
+          metadata: {
+            ...createMockSearchResult().metadata,
+            video_id: 'video-1',
+            tags: 'action',
+            timestamp: 5,
+            relevance_score: 0.8,
+          },
+        }),
+      ];
+
+      const store = createMockStore(mockResults);
+      renderWithProviders(<VideoGroupsView />, store);
+
+      expect(screen.getByText('01:15')).toBeInTheDocument();
+      expect(screen.getByText('00:05')).toBeInTheDocument();
+    });
+
+    it('should sort hits from the same video by relevance descending', () => {
+      const mockResults = [0.5, 0.95, 0.75].map((relevance_score, index) =>
+        createMockSearchResult({
+          id: `result-${index}`,
+          metadata: {
+            ...createMockSearchResult().metadata,
+            video_id: 'video-1',
+            tags: 'action',
+            timestamp: index * 10,
+            relevance_score,
+          },
+        }),
+      );
+
+      const store = createMockStore(mockResults);
+      renderWithProviders(<VideoGroupsView />, store);
+
+      const relevanceScores = screen.getAllByText(/Relevance Score:/);
+      expect(relevanceScores[0]).toHaveTextContent('Relevance Score: 0.950');
+      expect(relevanceScores[1]).toHaveTextContent('Relevance Score: 0.750');
+      expect(relevanceScores[2]).toHaveTextContent('Relevance Score: 0.500');
+    });
+  });
 });
