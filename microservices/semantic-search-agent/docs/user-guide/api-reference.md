@@ -6,7 +6,7 @@ Base URL: `http://localhost:8080/api/v1` (default).
 
 ## `GET /health`
 
-Checks the liveness status of the service and reports the current VLM backend state.
+Checks whether the service is live and reports the current state of the VLM backend.
 
 ### Response
 
