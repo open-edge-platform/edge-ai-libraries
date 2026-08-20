@@ -38,67 +38,15 @@ def run(
     policy_config = config.get("policy", {}) or {}
     non_actionable = _get_non_actionable_classes(policy_config)
     filtered_summary = {k: v for k, v in summary.items() if k not in non_actionable}
-    qualifying_defects = _compute_qualifying_defects(filtered_summary, policy_config)
-    selected_defect = _select_primary_defect(filtered_summary, policy_config)
 
-    if selected_defect is not None:
-        policy_text = _build_policy_output(filtered_summary, policy_config, selected_defect)
-        return {"policy": policy_text, "mode": "llm", "summary": summary, "qualifying_defects": qualifying_defects}
-
-    selection_prompt = _build_selection_prompt(policy_config, selected_defect)
+    selection_prompt = _build_selection_prompt(policy_config, filtered_summary)
     user_message = (
         f"{policy_instructions}\n\n"
         f"{selection_prompt}"
-        f"Detection summary:\n{json.dumps(filtered_summary, indent=2)}"
     )
-
     raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message, max_tokens=512)
     log.info("Policy agent LLM response received (%d chars)", len(raw))
-    return {"policy": raw, "mode": "llm", "summary": summary, "qualifying_defects": qualifying_defects}
-
-
-def _compute_qualifying_defects(summary: dict, policy_config: dict) -> list[dict]:
-    """Return qualifying defect dicts sorted by tier → count desc → confidence desc."""
-    if not isinstance(summary, dict):
-        return []
-
-    policy_config = policy_config or {}
-    non_actionable = set(policy_config.get("non_actionable_classes", []) or [])
-    priority_thresholds = policy_config.get("priority_thresholds", {}) or {}
-    tier_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}\
-
-    class_to_tier: dict[str, tuple[str, float]] = {}
-    for tier, cfg in priority_thresholds.items():
-        if not isinstance(cfg, dict):
-            continue
-        min_conf = float(cfg.get("min_avg_confidence", 0.0) or 0.0)
-        for cls in cfg.get("classes", []) or []:
-            class_to_tier[str(cls)] = (str(tier).upper(), min_conf)
-
-    qualifying = []
-    for label, stats in summary.items():
-        if not isinstance(stats, dict):
-            continue
-        if label in non_actionable or label not in class_to_tier:
-            continue
-        avg_conf = float(stats.get("avg_confidence", 0.0) or 0.0)
-        tier, min_conf = class_to_tier.get(label, (None, 0.0))
-        if tier is None or avg_conf < min_conf:
-            continue
-        qualifying.append({
-            "label": label,
-            "tier": tier,
-            "avg_confidence": avg_conf,
-            "count": int(stats.get("count", 0) or 0),
-        })
-
-    if not qualifying:
-        return []
-
-    top_tier = min(qualifying, key=lambda item: tier_order.get(item["tier"].lower(), 99))["tier"]
-    qualifying = [item for item in qualifying if item["tier"] == top_tier]
-    qualifying.sort(key=lambda item: (-item["avg_confidence"], -item["count"], item["label"]))
-    return qualifying
+    return {"policy": raw, "mode": "llm", "summary": summary}
 
 
 def _get_non_actionable_classes(policy_config: dict) -> set[str]:
@@ -146,86 +94,34 @@ def _get_priority_thresholds(policy_config: dict) -> dict[str, dict[str, Any]]:
     return thresholds
 
 
-def _format_qualifying_prompt(qualifying: list[dict]) -> str:
-    """Format the pre-computed list into a compact prompt block for the policy LLM."""
-    if not qualifying:
-        return "Qualifying defects: none — report No Policy Violation, No Action Required.\n\n"
-
-    lines = ["Qualifying defects (pre-computed — use these values exactly in your output):"]
-    for q in qualifying:
-        lines.append(f"  - {q['label']} | Priority: {q['tier']} | Confidence: {q['avg_confidence']} | Count: {q['count']}")
-    primary = qualifying[0]
-    lines.append(f"Primary Defect: {primary['label']} | Priority: {primary['tier']} | Confidence: {primary['avg_confidence']}")
-    return "\n".join(lines) + "\n\n"
-
-
-def _select_primary_defect(summary: dict, policy_config: dict) -> str | None:
-    """Select the primary defect from the highest active tier by highest avg_confidence."""
-    qualifying = _compute_qualifying_defects(summary, policy_config)
-    if not qualifying:
-        return None
-
-    qualifying.sort(key=lambda item: (-item["avg_confidence"], -item["count"], item["label"]))
-    return qualifying[0]["label"]
-
-
-def _build_policy_output(summary: dict, policy_config: dict, selected_defect: str) -> str:
-    """Build deterministic policy output using the selected defect only."""
-    if not isinstance(summary, dict):
-        summary = {}
-    policy_config = policy_config or {}
+def _build_selection_prompt(policy_config: dict, summary: dict | None = None) -> str:
+    """Inject class data with tier and threshold; LLM compares values and selects."""
     priority_thresholds = _get_priority_thresholds(policy_config)
-    tier_name = None
-    confidence = 0.0
-    selected_stats = summary.get(selected_defect, {}) if isinstance(summary, dict) else {}
 
+    class_to_rule: dict[str, tuple[str, float]] = {}
     for tier, cfg in priority_thresholds.items():
         if not isinstance(cfg, dict):
             continue
-        classes = cfg.get("classes", []) or []
-        if selected_defect in classes:
-            tier_name = str(tier).upper()
-            confidence = float(selected_stats.get("avg_confidence", 0.0) or 0.0)
-            break
+        min_conf = float(cfg.get("min_avg_confidence", 0.0) or 0.0)
+        for cls in cfg.get("classes", []) or []:
+            class_to_rule[str(cls)] = (str(tier).upper(), min_conf)
 
-    if tier_name is None:
-        tier_name = "HIGH"
-        confidence = float(selected_stats.get("avg_confidence", 0.0) or 0.0)
-
-    return (
-        "Policy Status: Policy Violation Detected\n"
-        f"Priority: {tier_name}\n"
-        f"Primary Defect: {selected_defect}\n"
-        f"Reported Confidence: {confidence}\n"
-        "Policy Decision: Action Required"
-    )
-
-
-def _build_selection_prompt(policy_config: dict, selected_defect: str | None) -> str:
-    """Compact fallback prompt directing the model to mirror the selected defect only."""
-    non_actionable = _get_non_actionable_classes(policy_config)
-    priority_thresholds = _get_priority_thresholds(policy_config)
-    lines = [
-        "Selection rule: do not print a Qualifying Defects list.",
-        "Evaluate only actionable classes and exclude configured non-actionable classes before scoring.",
-        "Respect the threshold rules exactly. A class below its tier minimum is not eligible to be selected.",
-        "Output must contain only: Policy Status, Priority, Primary Defect, Reported Confidence, Policy Decision.",
-        "Do not include any Qualifying Defects section, any list of defect names, or any extra summary text.",
-    ]
-    if non_actionable:
-        lines.append(f"Configured non-actionable classes: {', '.join(non_actionable)}")
-    if selected_defect:
-        lines.append(f"The selected primary defect is fixed to: {selected_defect}. Use this exact class name in the output.")
-    else:
-        lines.append("No actionable defect qualifies; return Policy Status: No Policy Violation and Policy Decision: No Action Required.")
-    if priority_thresholds:
-        lines.append("\nPriority thresholds — apply exactly as written:")
-        for tier, cfg in priority_thresholds.items():
-            if not isinstance(cfg, dict):
+    rows: list[str] = []
+    if summary:
+        for label, stats in summary.items():
+            if not isinstance(stats, dict) or label not in class_to_rule:
                 continue
-            min_conf = float(cfg.get("min_avg_confidence", 0.0) or 0.0)
-            classes = ", ".join(str(cls) for cls in (cfg.get("classes", []) or []))
-            lines.append(f"- {str(tier).upper()} (min avg_confidence {min_conf:.2f}): {classes}")
+            tier, min_conf = class_to_rule[label]
+            avg_conf = float(stats.get("avg_confidence", 0.0) or 0.0)
+            count = int(stats.get("count", 0) or 0)
+            rows.append(f"  {label:<45} {tier:<10} {min_conf:>8.4f} {avg_conf:>16.10f} {count:>7}")
+
+    lines = [
+        "Data table for evaluation:",
+        f"  {'Class':<45} {'Tier':<10} {'min_req':>8} {'avg_confidence':>16} {'count':>7}",
+        "  " + "-" * 90,
+        *rows,
+    ]
     return "\n".join(lines) + "\n\n"
 
 
