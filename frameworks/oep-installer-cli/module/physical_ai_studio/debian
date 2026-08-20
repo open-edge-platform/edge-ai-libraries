@@ -10,6 +10,13 @@
 configure_physical_ai_studio () {
   pais_pkg="physicalai-studio"
   pais_bin="$HOME/.local/bin/physicalai-studio"
+  # runtime state for the long-running `serve` process (native, non-docker)
+  pais_run_dir="$(ensure_project_path)/physical-ai-studio"
+  pais_pid_file="$pais_run_dir/physicalai-studio.pid"
+  pais_log_file="$pais_run_dir/physicalai-studio.logs"
+  # the port the app binds to by default (used only for the guard / URL, the
+  # server is launched with its own built-in default and never overridden)
+  pais_port=7860
   # pick the PyTorch wheel index and package extra for the detected device
   if command -v nvidia-smi > /dev/null 2>&1; then
     pais_extra=cuda
@@ -57,8 +64,48 @@ debian_92_install_physical_ai_studio () {
   echo "@@HIGHLIGHT docs @https://github.com/open-edge-platform/physical-ai-studio"
 }
 
+debian_92_start_physical_ai_studio () {
+  configure_physical_ai_studio "$@"
+  # stop any instance already holding the port before starting a new one
+  ensure_ports_open "$pais_port" debian_92_stop_physical_ai_studio
+
+  if ! verify_physical_ai_studio "$@"; then
+    echo "Physical AI Studio is not installed. Run 'install physical_ai_studio' first." 1>&2
+    return 3
+  fi
+
+  mkdir -p "$pais_run_dir"
+  # launch the FastAPI backend + UI detached; let the app choose its own port
+  setsid nohup "$pais_bin" serve > "$pais_log_file" 2>&1 < /dev/null &
+  echo $! > "$pais_pid_file"
+
+  echo "@@HIGHLIGHT Physical AI Studio started (PID $(cat "$pais_pid_file"))"
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):$pais_port"
+  echo "@@HIGHLIGHT logs @$pais_log_file"
+}
+
+debian_92_stop_physical_ai_studio () {
+  configure_physical_ai_studio "$@"
+  [ -f "$pais_pid_file" ] || return 0
+
+  local pid
+  pid="$(cat "$pais_pid_file" 2>/dev/null)"
+  if [ -n "$pid" ] && kill -0 "$pid" > /dev/null 2>&1; then
+    kill "$pid" > /dev/null 2>&1 || true
+    # give it a moment to shut down, then force-kill if still alive
+    for _ in 1 2 3 4 5; do
+      kill -0 "$pid" > /dev/null 2>&1 || break
+      sleep 1
+    done
+    kill -0 "$pid" > /dev/null 2>&1 && kill -9 "$pid" > /dev/null 2>&1 || true
+  fi
+  rm -f "$pais_pid_file"
+}
+
 debian_92_remove_physical_ai_studio () {
   configure_physical_ai_studio "$@"
   configure_uv
+  debian_92_stop_physical_ai_studio "$@" || true
   uv tool uninstall "$pais_pkg" > /dev/null 2>&1 || true
+  ensure_sudo rm -rf "$pais_run_dir"
 }
