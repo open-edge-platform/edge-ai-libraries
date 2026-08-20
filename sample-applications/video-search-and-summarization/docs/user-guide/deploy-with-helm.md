@@ -337,7 +337,7 @@ helm install vss . -f summary_override.yaml -f xeon_vllm_values.yaml -f user_val
 - The vLLM container requires at least 128Gi of memory for typical LLM models
 - Cache storage must be configured (default 80Gi PVC for model cache)
 
-> **Model Selection:** vLLM uses the model specified in `global.vlmName`. Ensure the model is compatible with vLLM and available on Hugging Face. Update `global.huggingfaceToken` if using private models.
+> **Model Selection:** vLLM uses the model specified in `global.vlmName`. Set `global.vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"` for vLLM. Ensure the model is compatible with vLLM and available on Hugging Face. Update `global.huggingfaceToken` if using private models.
 >
 > **Performance Tip:** vLLM's performance scales with available CPU cores. If you have nodes with different CPU counts, consider using node affinity to deploy vLLM on high-CPU nodes.
 
