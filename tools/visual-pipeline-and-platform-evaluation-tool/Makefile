@@ -17,6 +17,7 @@ PROJECT_DIR := $(shell pwd)
 # Docker Compose Variables
 COMPOSE_FILE := compose.yml
 DEV_COMPOSE_FILE := compose.dev.yml
+EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
 
 # Speed up `docker compose build` by skipping provenance/SBOM attestations
 # (saves ~hundreds of ms per build on warm cache, more on cold).
@@ -147,16 +148,16 @@ run-dev: env-setup ## Run the docker compose services for development
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
 
 build-experimental: env-setup ## Build core images for experimental timeseries setup
-	. .env && docker compose -f compose-experimental.yml -f compose.$$COMPOSE_PROFILES.yml build
+	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
 
 run-experimental: env-setup ## Run the docker compose services with experimental timeseries features
-	. .env && docker compose -f compose-experimental.yml -f compose.$$COMPOSE_PROFILES.yml up -d --remove-orphans
+	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d --remove-orphans
 
 stop-experimental: ## Stop experimental docker compose services
-	docker compose -f compose-experimental.yml down
+	docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) down
 
 clean-experimental: ## Clean experimental setup artifacts
-	docker compose -f compose-experimental.yml down -v
+	docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) down -v
 
 # Build the test image only when its inputs change. Source files are
 # bind-mounted at run-time (see `test` target), so changing application

@@ -14,7 +14,7 @@ const DataSrcNode = ({ data }: DataSrcNodeProps) => (
     title="Input"
     nodeType="datasrc"
     roleClasses={PIPELINE_NODE_ROLE_CLASSES.source}
-    minWidthClass="min-w-[17.5rem]"
+    minWidthClass="min-w-[15.5rem]"
     handles="source"
     details={
       <div className="flex items-center gap-1 flex-wrap text-xs text-node-body-text">
@@ -23,7 +23,7 @@ const DataSrcNode = ({ data }: DataSrcNodeProps) => (
           <span className="text-node-separator">•</span>
         )}
         {data.location && (
-          <span className="truncate max-w-[10.625rem]" title={data.location}>
+          <span className="truncate max-w-[4.225rem]" title={data.location}>
             {data.location.split("/").pop() || data.location}
           </span>
         )}

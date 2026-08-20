@@ -10,9 +10,21 @@ detection UDF.
 - `make` available on the host
 - `wget` installed (required to download UDF packages)
 
-## Configure Environment Variables - Build, Start, and Stop
+> Time Series Analytics can run on CPU or GPU, but NPU is not supported.
 
-### Build
+## Activate the Experimental Time Series stack
+
+The Time Series Analytics Microservice is started from the experimental compose stack.
+Use the project Makefile targets from the tool root directory:
+
+```bash
+cd tools/visual-pipeline-and-platform-evaluation-tool
+```
+
+Activation is performed with the
+`build-experimental` and `run-experimental` targets.
+
+### Build the experimental stack
 
 Build all required Docker images:
 
@@ -20,12 +32,23 @@ Build all required Docker images:
 make build-experimental
 ```
 
-### Start
+### Start the experimental stack
 
 Start all services, including the Time Series Analytics Microservice:
 
 ```bash
 make run-experimental
+```
+
+This command enables the Time Series flow by layering `compose.experimental.yml` on top of the standard
+compose stack, including `ia-time-series-analytics-microservice` and `ia-timeseries-ingestion`.
+
+### Verify that Time Series services are active
+
+Check if both Time Series services are running:
+
+```bash
+docker ps --format '{{.Names}}' | grep -E 'ia-time-series-analytics-microservice|ia-timeseries-ingestion'
 ```
 
 ### Stop and Clean
@@ -89,12 +112,18 @@ A successful response returns the message: `Configuration updated successfully.`
 
 ---
 
-### Step 4. Verify the Time Series Analytics Microservice logs
+### Step 4. Verify Time Series logs
 
 Check that processing is running correctly:
 
 ```bash
 docker logs -f ia-time-series-analytics-microservice
+```
+
+In a separate terminal, you can also verify ingestion activity:
+
+```bash
+docker logs -f ia-timeseries-ingestion
 ```
 
 You should see output similar to the following:
@@ -107,3 +136,56 @@ You should see output similar to the following:
 INFO: 172.18.0.7:52784 - "POST /input HTTP/1.1" 200 OK
 INFO: 172.18.0.7:52786 - "POST /input HTTP/1.1" 200 OK
 ```
+
+---
+
+## Step 5. Verify the pipeline in the ViPPET UI
+
+After TSAM services and UDF configuration are ready, verify the full flow in the UI.
+
+### 5.1 Confirm the new pipeline appears on Dashboard
+
+Open ViPPET in the browser and go to **Dashboard**. In the **Pipelines** section,
+you should see the new **Wind Turbine Anomaly Detection** pipeline card.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../../_assets/ViPPET-UI-Time-Series-Pipeline-dark.png">
+  <img src="../../_assets/ViPPET-UI-Time-Series-Pipeline-light.png" alt="Wind Turbine pipeline card on Dashboard">
+</picture>
+
+### 5.2 Open the Wind Turbine pipeline in Pipeline Editor
+
+Click the **Wind Turbine Anomaly Detection** card to open Pipeline Editor.
+You should see the flow:
+
+- **Input**
+- **Anomaly Detection**
+- **Output**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../../_assets/ViPPET-UI-Wind-Turbine-Pipeline-Editor-dark.png">
+  <img src="../../_assets/ViPPET-UI-Wind-Turbine-Pipeline-Editor-light.png" alt="Wind Turbine pipeline in Pipeline Editor">
+</picture>
+
+### 5.3 Run pipeline and inspect runtime data
+
+Click **Run pipeline** in the top-right corner.
+
+In the right panel:
+
+- In the **Performance** tab, verify charts are updating for, among others:
+  - **Inference Time**
+  - **End-to-End Time**
+- In the **Metadata JSON** tab, verify ingestion payload includes values such as:
+  - `grid_active_power`
+  - `wind_speed`
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../../_assets/ViPPET-UI-Wind-Turbine-Charts-dark.png">
+  <img src="../../_assets/ViPPET-UI-Wind-Turbine-Charts-light.png" alt="Wind Turbine pipeline runtime data in Performance tab">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../../_assets/ViPPET-UI-Wind-Turbine-metrics-dark.png">
+  <img src="../../_assets/ViPPET-UI-Wind-Turbine-metrics-light.png" alt="Wind Turbine pipeline runtime data in Metadata JSON tab">
+</picture>
