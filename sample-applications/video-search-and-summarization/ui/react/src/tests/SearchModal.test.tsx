@@ -148,17 +148,102 @@ describe('SearchModal Component test suite', () => {
     });
   });
 
-  it('should handle empty search submission', async () => {
+  it('should not submit or close the modal on empty search submission', async () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
-    
+
     const searchButton = screen.getByText('Search');
     fireEvent.click(searchButton);
-    
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a search query to continue.')).toBeInTheDocument();
+    });
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(closeModalMock).not.toHaveBeenCalled();
+  });
+
+  it('should not submit a whitespace-only query', async () => {
+    const closeModalMock = vi.fn();
+    renderComponent({ closeModal: closeModalMock });
+
+    const textArea = screen.getByRole('textbox');
+    fireEvent.change(textArea, { target: { value: '   ' } });
+    fireEvent.click(screen.getByText('Search'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a search query to continue.')).toBeInTheDocument();
+    });
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(closeModalMock).not.toHaveBeenCalled();
+  });
+
+  it('should clear the empty-query warning once the user types', async () => {
+    renderComponent();
+
+    const textArea = screen.getByRole('textbox');
+    fireEvent.click(screen.getByText('Search'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a search query to continue.')).toBeInTheDocument();
+    });
+
+    fireEvent.change(textArea, { target: { value: 'a query' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Enter a search query to continue.')).not.toBeInTheDocument();
+    });
+  });
+
+  it('should submit the search when Enter is pressed in the textarea', async () => {
+    const closeModalMock = vi.fn();
+    renderComponent({ closeModal: closeModalMock });
+
+    const textArea = screen.getByRole('textbox');
+    fireEvent.change(textArea, { target: { value: 'enter key query' } });
+    fireEvent.keyDown(textArea, { key: 'Enter' });
+
     await waitFor(() => {
       expect(mockDispatch).toHaveBeenCalled();
       expect(closeModalMock).toHaveBeenCalled();
     });
+  });
+
+  it('should not submit when Shift+Enter is pressed', async () => {
+    const closeModalMock = vi.fn();
+    renderComponent({ closeModal: closeModalMock });
+
+    const textArea = screen.getByRole('textbox');
+    fireEvent.change(textArea, { target: { value: 'multi line query' } });
+    fireEvent.keyDown(textArea, { key: 'Enter', shiftKey: true });
+
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(closeModalMock).not.toHaveBeenCalled();
+  });
+
+  it('should not submit on Enter while an IME composition is active', async () => {
+    const closeModalMock = vi.fn();
+    renderComponent({ closeModal: closeModalMock });
+
+    const textArea = screen.getByRole('textbox');
+    fireEvent.change(textArea, { target: { value: 'composing' } });
+    fireEvent.keyDown(textArea, { key: 'Enter', isComposing: true });
+
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(closeModalMock).not.toHaveBeenCalled();
+  });
+
+  it('should warn instead of submitting when Enter is pressed with an empty query', async () => {
+    const closeModalMock = vi.fn();
+    renderComponent({ closeModal: closeModalMock });
+
+    const textArea = screen.getByRole('textbox');
+    fireEvent.keyDown(textArea, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a search query to continue.')).toBeInTheDocument();
+    });
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(closeModalMock).not.toHaveBeenCalled();
   });
 
   it('should respect maxLength attribute on textarea', () => {
