@@ -98,7 +98,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/model-download/"
           report_suffix: "-bandit-model-download-CT161"
           
@@ -122,7 +122,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/model-download/"
           exclude_dirs: ".git,node_modules,venv,ui/test,tests"
           

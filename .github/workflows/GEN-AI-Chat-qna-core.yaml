@@ -137,7 +137,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "sample-applications/chat-question-and-answer-core/"
           report_suffix: "-bandit-chat-qna-core-CT161"
           
@@ -161,7 +161,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "sample-applications/chat-question-and-answer-core/"
           exclude_dirs: ".git,node_modules,venv,ui/test,tests"
           

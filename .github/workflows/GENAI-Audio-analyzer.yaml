@@ -108,7 +108,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/audio-analyzer/"
           report_suffix: "-bandit-audio-analyzer-CT161"
           
@@ -132,7 +132,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/audio-analyzer/"
           exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
           

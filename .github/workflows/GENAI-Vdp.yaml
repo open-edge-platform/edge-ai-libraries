@@ -153,7 +153,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/visual-data-preparation-for-retrieval/"
           report_suffix: "-bandit-visual-data-preparation-CT161"
           
@@ -177,7 +177,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/visual-data-preparation-for-retrieval/"
           exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
           

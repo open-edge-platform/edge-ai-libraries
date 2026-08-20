@@ -54,7 +54,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "libraries/video-chunking-utils"
           report_suffix: "-bandit-video-chunking-utils-CT161"
 
@@ -78,7 +78,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "libraries/video-chunking-utils"
           exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
 
