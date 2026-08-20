@@ -260,11 +260,6 @@ advanced robotic workloads at the edge.
 Ready-to-use example applications demonstrating real-world AI use cases
 to help users get started quickly and understand integration patterns: 
 
-- [Chat Question and Answer](./sample-applications/chat-question-and-answer) 
-
-  Conversational AI application integrating retrieval-augmented generation for
-  question answering. 
-
 - [Chat Question and Answer Core](./sample-applications/chat-question-and-answer-core) 
 
   Conversational AI application integrating retrieval-augmented
@@ -277,7 +272,7 @@ to help users get started quickly and understand integration patterns: 
 - [Video Search and Summarization](./sample-applications/video-search-and-summarization) 
 
   Application combining video content analysis with search and
-  summarization capabilities. 🧪 Now with experimental support for 
+  summarization capabilities. 🧪 Now with experimental support for
   Intel Arc Pro B-series GPUs (B60, B65, B70). 
 
 - [Edge Developer Kit Reference Scripts](https://github.com/open-edge-platform/edge-developer-kit-reference-scripts) 
@@ -382,5 +377,5 @@ The **Edge AI Libraries** project is licensed under the [APACHE 2.0](./LICENSE) 
 | Component | License |
 |:----------|:--------|
 | Dataset Management Framework (Datumaro) | [MIT License](https://github.com/open-edge-platform/datumaro/blob/develop/LICENSE) |
-| Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/main/LICENSE) |
+| Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/develop/LICENSE) |
 | Deep Learning Streamer | [MIT License](https://github.com/open-edge-platform/dlstreamer/blob/main/LICENSE) |

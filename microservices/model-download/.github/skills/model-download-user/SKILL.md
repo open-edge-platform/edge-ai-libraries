@@ -162,7 +162,7 @@ Show the user the service startup command, using only the plugins their request 
 
 ```bash
 # Clone (if not already done)
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries/microservices/model-download
 
 # Set env vars
@@ -264,8 +264,8 @@ After confirming success, tell the user:
 **Important accuracy note for OpenVINO conversions:** Use `hub: "openvino"` with `is_ovms: true`
 for model conversion.
 
-**Quick alternative:** For one-shot, ephemeral container use (CI/CD, scripted workflows), use the `get_model.sh` one-liner 
+**Quick alternative:** For one-shot, ephemeral container use (CI/CD, scripted workflows), use the `get_model.sh` one-liner
 ```bash
-curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/model-download/scripts/get_model.sh
+curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.2.0/microservices/model-download/scripts/get_model.sh
 source ./get_model.sh --model-name <model> --hub <hub> --plugins <plugins>
 ```

@@ -45,7 +45,7 @@ All paths below are relative to `microservices/vlm-openvino-serving/` in the
 repo. **No clone?** Fetch any of them from GitHub raw:
 
 ```
-https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/vlm-openvino-serving/<path>
+https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.2.0/microservices/vlm-openvino-serving/<path>
 ```
 
 Load these existing docs only when needed:
@@ -69,7 +69,7 @@ Load these existing docs only when needed:
 - **STANDALONE** → fetch the two deploy files into a fresh directory, then run
   the exact same Step 2 from there:
   ```bash
-  RAW=https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/vlm-openvino-serving
+  RAW=https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.2.0/microservices/vlm-openvino-serving
   mkdir -p vlm-serving/docker && cd vlm-serving
   curl -fsSL $RAW/setup.sh -o setup.sh
   curl -fsSL $RAW/docker/compose.yaml -o docker/compose.yaml

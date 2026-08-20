@@ -43,12 +43,12 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
 
      ```bash
      # Clone the latest on mainline
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-     # Alternatively, Clone a specific release branch
-     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+     # git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+     # Clone the release branch
+     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
      ```
 
-     > **Note:**: Adjust the repo link appropriately in case of forked repo.
+     > **Note:** Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
 
@@ -136,7 +136,7 @@ Refer to [Deploy with Helm Chart](./deploy-with-helm.md) for the details. Ensure
 
 To run the units tests ensure you follow all the steps from below document
 
-- [How to run Unit Tests](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/document-summarization/tests/unit_tests/README.md)
+- [How to run Unit Tests](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/sample-applications/document-summarization/tests/unit_tests/README.md)
 
 ## Advanced Setup Options
 

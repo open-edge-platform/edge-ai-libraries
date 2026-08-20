@@ -2,16 +2,14 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/model-download">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/model-download">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/model-download/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/model-download/README.md">
      Readme
   </a>
 </div>
 hide_directive-->
-
-**Note: Model Download replaces Model Registry, which will be deprecated soon.**
 
 The Model Download microservice is a centralized model management system that downloads AI or machine learning models from various model hubs while ensuring consistency and simplicity across applications, stores the models, accepts custom model uploads, and handles optional format conversions.
 
@@ -33,7 +31,7 @@ The following are the core components of the plugin-based microservice architect
      - Provides RESTful API endpoints for service operations.
      - Handles incoming request validation, serialization, and routes to the appropriate components.
      - Generates and serves OpenAPI (Swagger suite) documentation for clear, interactive API specifications.
-      - Lists discoverable models from supported hubs through `POST /api/v1/models/list`.
+       - Lists discoverable models from supported hubs through `POST /api/v1/models/list`.
 
 2. **Model Manager**
    - **Description**: The Model Manager is the central orchestration component that directs model download and conversion processes. It coordinates actions between the API layer and the plugin system.

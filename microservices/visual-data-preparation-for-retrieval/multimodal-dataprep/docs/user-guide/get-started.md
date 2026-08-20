@@ -172,7 +172,7 @@ The user has an option to either [build the docker images](./how-to-build-from-s
 1. **Clone the repository and enter the project.**
 
    ```bash
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
    cd edge-ai-libraries/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep
    ```
 
