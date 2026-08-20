@@ -1,25 +1,15 @@
 
 # perform sudo in automation or in tty
 ensure_sudo () {
-  if [ -n "$SUDO_PASSWORD" ]; then
-    # Provide the password via SUDO_ASKPASS instead of stdin, so that stdin
-    # stays available for the invoked command (e.g. `curl ... | ensure_sudo
-    # tee file`, gpg, etc.). Feeding the password through stdin would clobber
-    # such piped input and silently produce empty files.
-    local _ensure_sudo_askpass _ensure_sudo_pwfile _ensure_sudo_rc
-    _ensure_sudo_pwfile="$(mktemp)"
-    _ensure_sudo_askpass="$(mktemp)"
-    printf '%s\n' "$SUDO_PASSWORD" > "$_ensure_sudo_pwfile"
-    printf '#!/bin/sh\ncat %q\n' "$_ensure_sudo_pwfile" > "$_ensure_sudo_askpass"
-    chmod 700 "$_ensure_sudo_askpass"
-    chmod 600 "$_ensure_sudo_pwfile"
-    SUDO_ASKPASS="$_ensure_sudo_askpass" sudo -A "$@"
-    _ensure_sudo_rc=$?
-    rm -f "$_ensure_sudo_askpass" "$_ensure_sudo_pwfile"
-    return $_ensure_sudo_rc
-  elif sudo -n true 2>/dev/null; then
-    # credentials already cached or passwordless sudo
-    sudo -n "$@"
+  if sudo -nv 2>/dev/null; then
+    # cached timestamp still valid or passwordless sudo: no password needed
+    sudo "$@"
+  elif [ -n "$SUDO_PASSWORD" ]; then
+    # Non-interactive password. Feed it on the first stdin line via `sudo -S`
+    # and never write it to disk. `cat` forwards any remaining piped stdin to
+    # the invoked command so constructs like `curl ... | ensure_sudo tee file`
+    # keep working.
+    (echo "$SUDO_PASSWORD"; cat) | sudo -kS "$@"
   elif [ -t 0 ] && [ -t 1 ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo "$@"
