@@ -34,8 +34,7 @@ def run(
     system_prompt = prompt_loader.get_section(use_case_id, "SYSTEM", prompts_dir)
     policy_instructions = prompt_loader.get_section(use_case_id, "POLICY", prompts_dir)
 
-    config = config or {}
-    policy_config = config.get("policy", {}) or {}
+    policy_config = config.get("policy", {})
     non_actionable = _get_non_actionable_classes(policy_config)
     filtered_summary = {k: v for k, v in summary.items() if k not in non_actionable}
 
@@ -44,7 +43,6 @@ def run(
         f"{policy_instructions}\n\n"
         f"{selection_prompt}"
     )
-    log.info("Policy agent User LLM request prepared: %s", user_message)
     raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message, max_tokens=512)
     log.info("Policy agent LLM response received (%d chars)", len(raw))
     return {"policy": raw, "mode": "llm", "summary": summary}
@@ -54,7 +52,7 @@ def _get_non_actionable_classes(policy_config: dict) -> set[str]:
     """Return configured non-actionable labels when present."""
     if not isinstance(policy_config, dict):
         return set()
-    return set(policy_config.get("non_actionable_classes", []) or [])
+    return set(policy_config.get("non_actionable_classes", []))
 
 
 def _get_priority_thresholds(policy_config: dict) -> dict[str, dict[str, Any]]:
@@ -62,13 +60,13 @@ def _get_priority_thresholds(policy_config: dict) -> dict[str, dict[str, Any]]:
     if not isinstance(policy_config, dict):
         return {}
 
-    configured = policy_config.get("priority_thresholds", {}) or {}
+    configured = policy_config.get("priority_thresholds", {})
     if configured:
         return configured
 
-    alert_threshold = float(policy_config.get("alert_threshold", 0.0) or 0.0)
-    defect_classes = list(policy_config.get("defect_classes", []) or [])
-    critical_classes = list(policy_config.get("critical_classes", []) or [])
+    alert_threshold = float(policy_config.get("alert_threshold", 0.0))
+    defect_classes = list(policy_config.get("defect_classes", []))
+    critical_classes = list(policy_config.get("critical_classes", []))
     if not defect_classes and not critical_classes:
         return {}
 
@@ -86,12 +84,6 @@ def _get_priority_thresholds(policy_config: dict) -> dict[str, dict[str, Any]]:
             "classes": remaining,
         }
 
-    if not thresholds and defect_classes:
-        thresholds["high"] = {
-            "min_avg_confidence": alert_threshold,
-            "classes": defect_classes,
-        }
-
     return thresholds
 
 
@@ -103,8 +95,8 @@ def _build_selection_prompt(policy_config: dict, summary: dict | None = None) ->
     for tier, cfg in priority_thresholds.items():
         if not isinstance(cfg, dict):
             continue
-        min_conf = float(cfg.get("min_avg_confidence", 0.0) or 0.0)
-        classes = ", ".join(str(cls) for cls in (cfg.get("classes", []) or []))
+        min_conf = float(cfg.get("min_avg_confidence", 0.0))
+        classes = ", ".join(str(cls) for cls in cfg.get("classes", []))
         threshold_lines.append(f"  {str(tier).upper()} (min_required={min_conf:.4f}): {classes}")
 
     lines = ["Threshold rules:"]
@@ -117,23 +109,22 @@ def _build_selection_prompt(policy_config: dict, summary: dict | None = None) ->
 
 def _fallback_policy(summary: dict, config: dict) -> dict[str, Any]:
     fallback = llm_client.load_fallback_policy() or {}
-    thresholds = fallback.get("thresholds", {}) or {}
-    actions = fallback.get("actions", {}) or {}
+    thresholds = fallback.get("thresholds", {})
+    actions = fallback.get("actions", {})
     action_priority = {
         "MONITOR": 1,
         "SCHEDULE_MAINTENANCE": 2,
         "HALT_PIPELINE": 3,
     }
-    summary = summary or {}
     violations: list[dict] = []
-    for cls_stat in summary.get("by_class", []) or []:
+    for cls_stat in summary.get("by_class", []):
         if not isinstance(cls_stat, dict):
             continue
         label = cls_stat.get("label")
         if not label:
             continue
-        avg_conf = float(cls_stat.get("avg_confidence", 0.0) or 0.0)
-        threshold = float((thresholds.get(label, {}) or {}).get("alert_above", 0.7) or 0.7)
+        avg_conf = float(cls_stat.get("avg_confidence", 0.0))
+        threshold = float(thresholds.get(label, {}).get("alert_above", 0.7))
         if avg_conf >= threshold:
             violations.append({
                 "label": label,
