@@ -1,48 +1,51 @@
 # Dataprep Microservice API Reference
 
 ## Health Check
-Endpoint: 
+
+Endpoint:
 
 ```
 GET /v1/dataprep/health
 ```
 
-Description: 
+Description:
 
 Checks the health status of the microservice.
 
-
 Response:
 
--    200 OK: 
+- 200 OK:
+
 ```
 {
-    "status": "healthy" 
+    "status": "healthy"
 }
 ```
 
--    500 Internal Server Error: 
+- 500 Internal Server Error:
+
 ```
-{ 
-    "detail": "Health check failed: <error_message>" 
+{
+    "detail": "Health check failed: <error_message>"
 }
 ```
 
 ## Info
-Endpoint: 
+
+Endpoint:
 
 ```
 GET /v1/dataprep/info
 ```
 
-Description: 
+Description:
 
 Retrieves the current status of the microservice, including model information and the number of processed files.
 
-
 Response:
 
--    200 OK:
+- 200 OK:
+
 ```
 {
     "model_id": "<model_id>",
@@ -52,27 +55,30 @@ Response:
 }
 ```
 
--    500 Internal Server Error: 
+- 500 Internal Server Error:
+
 ```
-{ 
-    "detail": "Error retrieving status info: <error_message>" 
+{
+    "detail": "Error retrieving status info: <error_message>"
 }
 ```
 
 ## Ingest Files
-Endpoint: 
+
+Endpoint:
+
 ```
 POST /v1/dataprep/ingest
 ```
 
-Description: 
+Description:
 
 Ingests files from a directory or a single file for preprocessing and embedding generation.
 
-
 Request Body:
 
--    For Directory:
+- For Directory:
+
 ```
 {
   "file_dir": "<directory_path>",
@@ -81,7 +87,8 @@ Request Body:
 }
 ```
 
--    For Single File:
+- For Single File:
+
 ```
 {
   "file_path": "<file_path>",
@@ -95,45 +102,50 @@ Request Body:
 
 Response:
 
--    200 OK: 
+- 200 OK:
+
 ```
-{ 
-    "message": "Files successfully processed. db returns <response>" 
+{
+    "message": "Files successfully processed. db returns <response>"
 }
 ```
 
--    400 Bad Request: 
+- 400 Bad Request:
+
 ```
-{ 
-    "detail": "Invalid file path." 
+{
+    "detail": "Invalid file path."
 }
 ```
 
--    500 Internal Server Error: 
+- 500 Internal Server Error:
+
 ```
-{ 
-    "detail": "Error processing files: <error_message>" 
+{
+    "detail": "Error processing files: <error_message>"
 }
 ```
 
 ## Get File Info
-Endpoint: 
+
+Endpoint:
+
 ```
 GET /v1/dataprep/get
 ```
 
-Description: 
+Description:
 
 Retrieves information about a file from the database.
 
-
 Query Parameters:
 
--    file_path: Path to the file.
-
+- file_path: Path to the file.
 
 Response:
--    200 OK:
+
+- 200 OK:
+
 ```
 {
     "file_path": "<file_path>",
@@ -141,37 +153,42 @@ Response:
 }
 ```
 
--    404 Not Found: 
+- 404 Not Found:
+
 ```
-{ 
-    "detail": "File not found." 
+{
+    "detail": "File not found."
 }
 ```
 
--    500 Internal Server Error: 
+- 500 Internal Server Error:
+
 ```
-{ 
-    "detail": "Error retrieving file: <error_message>" 
+{
+    "detail": "Error retrieving file: <error_message>"
 }
 ```
 
 ## Delete File in Database
-Endpoint: 
+
+Endpoint:
+
 ```
 DELETE /v1/dataprep/delete
 ```
 
-Description: 
+Description:
 
 Deletes a file entity from the database. Note: The original file is not deleted.
 
-
 Query Parameters:
 
--    file_path: Path to the file.
+- file_path: Path to the file.
 
 Response:
--    200 OK:
+
+- 200 OK:
+
 ```
 {
     "message": "File successfully deleted. db returns: <response>",
@@ -179,43 +196,48 @@ Response:
 }
 ```
 
--    404 Not Found: 
+- 404 Not Found:
+
 ```
-{ 
-    "detail": "File not found." 
+{
+    "detail": "File not found."
 }
 ```
 
--    500 Internal Server Error: 
+- 500 Internal Server Error:
+
 ```
-{ 
-    "detail": "Error deleting file: <error_message>" 
+{
+    "detail": "Error deleting file: <error_message>"
 }
 ```
 
 ## Clear Database
-Endpoint: 
+
+Endpoint:
+
 ```
 DELETE /v1/dataprep/delete_all
 ```
 
-Description: 
+Description:
 
 Clears all entries in the database. Note: The original files are not deleted.
 
-
 Response:
 
--    200 OK: 
+- 200 OK:
+
 ```
-{ 
-    "message": "Database successfully cleared. db returns: <response>" 
+{
+    "message": "Database successfully cleared. db returns: <response>"
 }
 ```
 
--    500 Internal Server Error: 
+- 500 Internal Server Error:
+
 ```
-{ 
-    "detail": "Error clearing database: <error_message>" 
+{
+    "detail": "Error clearing database: <error_message>"
 }
 ```
