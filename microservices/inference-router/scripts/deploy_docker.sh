@@ -7,29 +7,38 @@
 # Usage:
 #   bash scripts/deploy_docker.sh [OPTIONS]
 #
+# By default this deploys the router *and* the web UI. Pass --standalone to
+# deploy only the router (no UI).
+#
 # Options:
 #   --port PORT               Router port (default: 8000)
+#   --standalone              Deploy the router only, without the web UI
+#   --ui-port PORT            UI port (default: 7010; only with the UI)
 #
 # Environment:
-#   IR_BIND_HOST   Interface the router binds to (default: 127.0.0.1, local-only).
-#                  Export IR_BIND_HOST=0.0.0.0 to allow access from other machines.
-#   REGISTRY       Docker registry/namespace prefix for the image (default: empty,
-#                  i.e. use a locally built image). Set e.g. REGISTRY=intel/ to
-#                  pull a prebuilt image from a remote registry instead.
-#   TAG            Image tag (default: latest).
+#   IR_BIND_HOST   Interface the router binds to. Standalone default: 127.0.0.1
+#                  (local-only). With the UI it defaults to the host LAN IP so
+#                  the UI container can reach the router. Export IR_BIND_HOST to
+#                  override (e.g. 0.0.0.0 to allow access from other machines).
+#   REGISTRY       Docker registry/namespace prefix for both images (default:
+#                  empty, i.e. use locally built images). Set e.g. REGISTRY=intel/
+#                  to pull prebuilt images from a remote registry instead.
+#   TAG            Image tag for both images (default: latest).
 #
 # With no REGISTRY set the deploy uses the local ${REGISTRY}inference-router:${TAG}
 # image (build it first with --build). When REGISTRY is set the image is pulled
 # from that registry; a failed pull stops with a hint to re-run with --build.
+# The UI image is handled the same way: pulled by default, built with --build.
 #
 # Options:
 #   --verbose                 Enable verbose logging
 #   --verbose_full            Enable full verbose logging (requests + responses)
-#   --build                   Force a local build instead of pulling the image
-#   --down                    Stop and remove the router container
+#   --build                   Force a local build instead of pulling the image(s)
+#   --down                    Stop and remove the containers
 #
 # Examples:
-#   bash scripts/deploy_docker.sh
+#   bash scripts/deploy_docker.sh                       # router + UI
+#   bash scripts/deploy_docker.sh --standalone          # router only
 #   bash scripts/deploy_docker.sh --port 9000 --verbose
 #   bash scripts/deploy_docker.sh --build
 #   bash scripts/deploy_docker.sh --down
@@ -39,26 +48,37 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-COMPOSE_FILE="$PROJECT_ROOT/deployment/docker/docker-compose.yml"
+COMPOSE_STANDALONE="$PROJECT_ROOT/deployment/docker/docker-compose.yml"
+COMPOSE_UI="$PROJECT_ROOT/deployment/docker/docker-compose-ui.yml"
 
 # Defaults
 ROUTER_PORT="${ROUTER_PORT:-8000}"
-# Loopback by default: the router is local-only unless the operator opts in to
-# remote access by exporting IR_BIND_HOST=0.0.0.0 (or a specific LAN interface).
-IR_BIND_HOST="${IR_BIND_HOST:-127.0.0.1}"
-# Image coordinates. Empty REGISTRY -> use a locally built image (the default).
-# Set REGISTRY (e.g. intel/) to pull a prebuilt image from a remote registry.
+UI_PORT="${UI_PORT:-7010}"
+# Whether the operator explicitly set IR_BIND_HOST (we honor it in both modes).
+# Otherwise the default depends on the mode: loopback for standalone, host LAN
+# IP for the UI deployment (resolved below once the mode is known).
+IR_BIND_HOST_RAW="${IR_BIND_HOST:-}"
+# Image coordinates. Empty REGISTRY -> use locally built images (the default).
+# Set REGISTRY (e.g. intel/) to pull prebuilt images from a remote registry.
+# The router and UI images share the same REGISTRY prefix and TAG.
 REGISTRY="${REGISTRY:-}"
 TAG="${TAG:-latest}"
 FORCE_BUILD=false
+WITH_UI=true
 ACTION="up"
 GATEWAY_VERBOSE=""
 GATEWAY_VERBOSE_FULL=""
+
+USAGE="Usage: bash scripts/deploy_docker.sh [--port PORT] [--standalone] [--ui-port PORT] [--verbose] [--verbose_full] [--build] [--down]"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --port)
             ROUTER_PORT="$2"; shift 2 ;;
+        --ui-port)
+            UI_PORT="$2"; shift 2 ;;
+        --standalone)
+            WITH_UI=false; shift ;;
         --verbose)
             GATEWAY_VERBOSE=1; shift ;;
         --verbose_full)
@@ -69,10 +89,33 @@ while [[ $# -gt 0 ]]; do
             ACTION="down"; shift ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: bash scripts/deploy_docker.sh [--port PORT] [--verbose] [--verbose_full] [--build] [--down]"
+            echo "$USAGE"
             exit 1 ;;
     esac
 done
+
+# ---- Select compose file and resolve the router bind host per mode ----
+if [ "$WITH_UI" = true ]; then
+    COMPOSE_FILE="$COMPOSE_UI"
+    # The router runs with network_mode: host while the UI is on a bridge
+    # network, so the UI reaches the router via the host's LAN IP. Detect it and
+    # bind the router there (unless the operator overrode IR_BIND_HOST).
+    HOST_IP="$(ip route get 1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')"
+    : "${HOST_IP:=$(hostname -I 2>/dev/null | awk '{print $1}')}"
+    if [ -z "$HOST_IP" ]; then
+        echo "Error: could not determine host IP for the UI to reach the router."
+        echo "Export IR_BIND_HOST and SERVER_HOST to a reachable address and re-run,"
+        echo "or deploy without the UI using --standalone."
+        exit 1
+    fi
+    IR_BIND_HOST="${IR_BIND_HOST_RAW:-$HOST_IP}"
+    SERVER_HOST="$HOST_IP"
+else
+    COMPOSE_FILE="$COMPOSE_STANDALONE"
+    # Loopback by default: the router is local-only unless the operator opts in
+    # to remote access by exporting IR_BIND_HOST=0.0.0.0 (or a LAN interface).
+    IR_BIND_HOST="${IR_BIND_HOST_RAW:-127.0.0.1}"
+fi
 
 # Pick a `docker compose` command (v2 plugin or legacy v1 binary).
 if docker compose version >/dev/null 2>&1; then
@@ -135,7 +178,7 @@ done
 mkdir -p "$PROJECT_ROOT/workspace/logs"
 
 # ---- Export environment for docker compose ----
-# `docker compose` reads these via ${VAR:-} substitution in docker-compose.yml.
+# `docker compose` reads these via ${VAR:-} substitution in the compose file.
 export ROUTER_PORT
 export IR_BIND_HOST
 export GATEWAY_VERBOSE
@@ -145,7 +188,12 @@ export IR_OV_MODEL
 export REGISTRY
 export TAG
 IMAGE_REF="${REGISTRY}inference-router:${TAG}"
-# Proxy settings are forwarded into the container by docker-compose.yml.
+# UI image shares REGISTRY/TAG with the router; the compose file interpolates
+# ${REGISTRY}inference-router-ui:${TAG} the same way.
+UI_IMAGE_REF="${REGISTRY}inference-router-ui:${TAG}"
+export UI_PORT
+export SERVER_HOST
+# Proxy settings are forwarded into the container by the compose file.
 export http_proxy https_proxy no_proxy
 
 # ---- Print summary ----
@@ -161,6 +209,13 @@ echo "  OV model:         $IR_OV_MODEL"
 echo "  OV device:        $IR_DEVICE"
 [ -n "$GATEWAY_VERBOSE" ]           && echo "  Verbose:          enabled"
 [ -n "$GATEWAY_VERBOSE_FULL" ]      && echo "  Verbose full:     enabled"
+if [ "$WITH_UI" = true ]; then
+    echo "  UI image:         $UI_IMAGE_REF"
+    echo "  UI port:          $UI_PORT"
+    echo "  UI -> router:     http://$SERVER_HOST:$ROUTER_PORT"
+else
+    echo "  UI:               disabled (--standalone)"
+fi
 echo ""
 
 # ---- Obtain the image: pull, or build when --build is passed ----
@@ -170,6 +225,13 @@ build_image() {
     echo "Building image with scripts/build_docker.sh..."
     IMAGE_NAME="${REGISTRY}inference-router" IMAGE_TAG="$TAG" \
         bash "$SCRIPT_DIR/build_docker.sh"
+}
+
+# Build the UI image via compose (its build context/args live in the compose
+# file). Compose tags it with ${UI_IMAGE}, exported above.
+build_ui_image() {
+    echo "Building UI image: $UI_IMAGE_REF"
+    "${COMPOSE[@]}" build inference-router-ui
 }
 
 if [ "$FORCE_BUILD" = true ]; then
@@ -194,9 +256,37 @@ else
     echo "Using local image: $IMAGE_REF"
 fi
 
+# ---- Obtain the UI image: same policy as the router image ----
+if [ "$WITH_UI" = true ]; then
+    if [ "$FORCE_BUILD" = true ]; then
+        build_ui_image
+    elif [ -n "$REGISTRY" ]; then
+        # Remote registry configured: pull the prebuilt UI image.
+        echo "Pulling UI image: $UI_IMAGE_REF"
+        if ! docker pull "$UI_IMAGE_REF"; then
+            echo "Error: failed to pull $UI_IMAGE_REF"
+            echo "Re-run with --build to build the UI image from source instead."
+            exit 1
+        fi
+        echo "Pulled $UI_IMAGE_REF"
+    else
+        # No registry set: use the locally built UI image.
+        if ! docker image inspect "$UI_IMAGE_REF" >/dev/null 2>&1; then
+            echo "Error: local UI image $UI_IMAGE_REF not found."
+            echo "Build it first with:            bash $0 --build"
+            echo "Or pull a prebuilt image with:  export REGISTRY=intel/ && bash $0"
+            exit 1
+        fi
+        echo "Using local UI image: $UI_IMAGE_REF"
+    fi
+fi
+
 # ---- Run ----
 "${COMPOSE[@]}" up -d
 
 echo "Router started: http://$IR_BIND_HOST:$ROUTER_PORT"
+if [ "$WITH_UI" = true ]; then
+    echo "UI started:     http://$SERVER_HOST:$UI_PORT"
+fi
 echo "Logs:   ${COMPOSE[*]} logs -f router"
 echo "Stop:   bash $0 --down"
