@@ -38,6 +38,8 @@ For alternative ways to set up the sample application, refer to
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/models
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/videos
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/onvif
+   mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/scripts
+   mkdir -p visual-pipeline-and-platform-evaluation-tool/vippet/api/static
    cd visual-pipeline-and-platform-evaluation-tool
    ```
 
