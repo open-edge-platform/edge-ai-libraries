@@ -120,12 +120,15 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
           />
         )}
 
-        <div style={{ marginTop: '1rem' }}>
+        <div style={{ marginTop: '2rem' }}>
           <TimeFilterControl
             timeFilter={timeFilter}
             onChange={setTimeFilter}
             idPrefix='modal-time-filter'
             size='sm'
+            // Last field in a scrolling modal body: open upwards so the
+            // tooltip is not clipped by the body's bottom edge.
+            tooltipAlign='top-start'
           />
         </div>
       </ModalBody>
