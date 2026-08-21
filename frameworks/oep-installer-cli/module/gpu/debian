@@ -7,6 +7,21 @@ configure_gpu () {
   version=26.2.2
 }
 
+# Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
+# Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
+# intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same
+# repository as $apt_file but with a different Signed-By, apt refuses to update
+# ("Conflicting values set for option Signed-By"). Drop any such stale entry
+# (anything referencing the gpu repo other than our own $apt_file) so the current
+# entry is authoritative.
+cleanup_gpu_apt () {
+  local f
+  for f in $(grep -rlE 'repositories\.intel\.com/gpu' /etc/apt/sources.list.d/ 2>/dev/null); do
+    [ "$f" = "$apt_file" ] || ensure_sudo rm -f "$f"
+  done
+  ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg
+}
+
 verify_gpu () {
   [ -b /dev/render/renderD128 ]
   getent group render >/dev/null 2>&1
@@ -30,6 +45,9 @@ debian_40_install_gpu () {
     # remove legacies
     debian_40_remove_gpu || true
 
+    # drop stale/conflicting gpu apt sources from older installer versions
+    cleanup_gpu_apt
+
     # create the render group
     ensure_group_add render
 
@@ -49,10 +67,14 @@ debian_40_install_gpu () {
 }
 
 debian_40_remove_gpu () {
+  configure_gpu $*
   if verify_gpu; then
     ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   else
     echo "Gpu drivers are removed already. Skipping"
   fi
+  # always drop gpu apt sources/keyrings, including our own, so nothing conflicting is left behind
+  cleanup_gpu_apt
+  ensure_sudo rm -f "$apt_file" "$key_file"
 }
 
