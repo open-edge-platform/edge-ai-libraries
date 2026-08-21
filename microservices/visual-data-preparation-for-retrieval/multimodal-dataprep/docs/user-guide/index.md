@@ -1,4 +1,4 @@
-# Multimodal Data Preparation Microservice
+# Multimodal Data Preparation for Retrieval Microservice
 
 <!--hide_directive
 <div class="component_card_widget">
