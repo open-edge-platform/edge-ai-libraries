@@ -16,15 +16,16 @@
         </div>
       </div>
       <div class="router-module-actions">
-        <button
-          class="router-icon-action"
-          type="button"
+        <a-button
+          type="text"
+          shape="circle"
+          size="small"
           :title="t('router.refresh')"
-          :disabled="isRefreshing"
+          :loading="isRefreshing"
           @click="$emit('refresh')"
         >
-          <ReloadOutlined />
-        </button>
+          <template #icon><ReloadOutlined /></template>
+        </a-button>
       </div>
     </div>
     <div class="router-metrics-stack">
