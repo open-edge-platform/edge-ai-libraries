@@ -1,23 +1,26 @@
 # How to Build from Source
 
-Build the Multimodal DataPrep microservice from source to customize, debug, or extend its functionality. In this guide, you will:
+Build the Multimodal DataPrep microservice from source to customize, debug, or extend its
+functionality. In this guide, you will:
+
 - Set up your development environment.
 - Compile the source code and resolve dependencies.
 - Generate a runnable build for local testing or deployment.
 
 This guide is ideal for developers who want to work directly with the source code.
 
-
 ## Prerequisites
 
 Before you begin, ensure the following:
+
 - **System Requirements**: Verify your system meets the [minimum requirements](./system-requirements.md).
-- This guide assumes basic familiarity with Git commands, Python virtual environments, and terminal usage. If you are new to these concepts, see:
+- This guide assumes basic familiarity with Git commands, Python virtual environments, and
+  terminal usage. If you are new to these concepts, see:
   - [Git Documentation](https://git-scm.com/doc)
   - [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
 
-
 ## Steps to Build
+
 Following options are provided to build the microservice.
 
 ### Setup in a container using Docker Script
@@ -25,10 +28,8 @@ Following options are provided to build the microservice.
 1. Clone the repository and change to project directory:
 
    ```bash
-   # Clone the latest on mainline
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   # Alternatively, Clone a specific release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   # Clone the mainline branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b main
 
    cd edge-ai-libraries/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep
    ```
@@ -39,10 +40,10 @@ Following options are provided to build the microservice.
    # OPTIONAL - If you want to push the built images to a remote container registry, you need to name the images accordingly. For this, image name should include the registry URL as well. To do this, set the following environment variable from shell. Please note that this URL will be prefixed to the application name and tag to form the final image name.
 
    export REGISTRY_URL=<your-registry-url>
-   export TAG=<your-yag> # Default: latest
+   export TAG=<your-tag> # Default: latest
    ```
 
-   Refer to the [environmental variable](./get-started.md#environment-variables) setup section and configure the required variables.
+   Refer to the [environment variables](../get-started.md#environment-variables) setup section and configure the required variables.
 
 3. Build the Multimodal DataPrep Docker image. This uses the `microservices/` build context so the local `multimodal-embedding-serving` source dependency is available during image build.
 
@@ -58,17 +59,23 @@ Following options are provided to build the microservice.
    source ./setup.sh --conf
    ```
 
-   This will output docker compose configs with all the environment variables resolved. You can verify whether they appear as expected.
+   This will output Docker Compose configs with all the environment variables resolved. You can verify whether they appear as expected.
 
-5. Spin up the services. Please go through different ways to spin up the services.
+5. Spin up the services.
 
-```bash
-# Run all services in daemon mode
-source ./setup.sh
+   Run the following command to start all services in daemon mode:
 
-# Run all services in non-daemon mode (logs on STDOUT)
-source ./setup.sh --nd
-```
+   ```bash
+   # Run all services in daemon mode
+   source ./setup.sh
+   ```
+
+   Alternatively, you can run the services in non-daemon mode to see logs on STDOUT:
+
+   ```bash
+   # Run all services in non-daemon mode (logs on STDOUT)
+   source ./setup.sh --nd
+   ```
 
 6. Tear down all the services.
 
@@ -78,14 +85,13 @@ source ./setup.sh --nd
 
 ## Validation
 
-1. **Verify Build Success**:
-
-   Check the logs. Look for confirmation messages indicating the microservice started successfully.
+To verify build success, check the logs. Look for confirmation messages indicating the
+microservice started successfully.
 
 ## Troubleshooting
 
 ## Supporting Resources
 
-- [Overview](Overview.md)
-- [System Requirements](system-requirements.md)
-- [API Reference](api-reference.md)
+- [Overview](../index.md)
+- [System Requirements](./system-requirements.md)
+- [API Reference](../api-reference.md)

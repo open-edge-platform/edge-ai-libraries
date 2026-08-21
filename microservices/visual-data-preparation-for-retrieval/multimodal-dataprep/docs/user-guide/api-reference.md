@@ -1,14 +1,14 @@
 # API Reference
 
+## Swagger Plugin
+
 <!--hide_directive```{eval-rst}
-.. swagger-plugin:: api-docs/openapi.yaml
+.. swagger-plugin:: _assets/openapi.yaml
 ```hide_directive-->
 
 Base URL: `http://localhost:8000/v1/dataprep` (default; the host port is configurable via `MM_DATAPREP_HOST_PORT`).
 
 All endpoints return JSON unless noted. Error responses use the `DataPrepResponse` shape: `{"status": "error", "message": "<detail>"}`.
-
----
 
 ## `GET /health`
 
@@ -48,8 +48,6 @@ reports whether the in-process embedding client has been preloaded.
       "embedding_device": "CPU"
   }
   ```
-
----
 
 ## `POST /summary`
 
@@ -129,8 +127,6 @@ curl -X POST http://localhost:8000/v1/dataprep/summary \
     "tags": ["outdoor", "person"]
   }'
 ```
-
----
 
 ## `POST /media/process`
 
@@ -221,8 +217,6 @@ curl -X POST http://localhost:8000/v1/dataprep/media/process \
   }'
 ```
 
----
-
 ## `POST /media/upload`
 
 Upload a media file (an MP4 video **or** an image), store it, and generate
@@ -304,8 +298,6 @@ curl -X POST "http://localhost:8000/v1/dataprep/media/upload?enable_object_detec
   -F "file=@/path/to/image.jpg"
 ```
 
----
-
 ## Image ingestion by base64 or URL (JSON)
 
 Images can also be ingested without a multipart upload, via a typed JSON body.
@@ -371,9 +363,6 @@ results. Per-item error isolation applies.
   ]
 }
 ```
-
----
-
 
 ## Batch Ingestion (asynchronous)
 
@@ -446,7 +435,7 @@ Mount a host directory to `MM_DATAPREP_INGEST_DATA_ROOT` via
 `MM_DATAPREP_INGEST_DATA_ROOT_HOST` in Docker Compose.
 
 | Field                     | Type    | Required | Default | Description                                                                                     |
-| ------------------------- | ------- | -------- | ------- | ------------------------------------------------------------------------------------------------ |
+| ------------------------- | ------- | -------- | ------- | ----------------------------------------------------------------------------------------------- |
 | `dir_path`                | string  | Yes      | —       | Directory to ingest, relative to (or inside) the ingest data root.                              |
 | `recursive`               | boolean | No       | `false` | Recurse into subdirectories (the `meta` directory is always skipped).                           |
 | `bucket_name`             | string  | No       | config  | Destination bucket.                                                                             |
@@ -542,8 +531,6 @@ array (`identifier`, `video_id`, `status`, `message`, `embeddings_count`).
 Request cooperative cancellation of a pending/running job. Items not yet started
 are marked `skipped`. Returns the current job status.
 
----
-
 ## `GET /media`
 
 List all media (videos and images) known to the service in a bucket.
@@ -557,8 +544,8 @@ actually be downloaded.
 
 **Query Parameters:**
 
-| Parameter     | Type   | Required | Default | Description                                                    |
-| ------------- | ------ | -------- | ------- | -------------------------------------------------------------- |
+| Parameter     | Type   | Required | Default | Description                                                         |
+| ------------- | ------ | -------- | ------- | ------------------------------------------------------------------- |
 | `bucket_name` | string | No       | config  | Minio bucket to list. Falls back to the application default bucket. |
 
 **Response:**
@@ -600,8 +587,6 @@ actually be downloaded.
 curl "http://localhost:8000/v1/dataprep/media?bucket_name=my-bucket"
 ```
 
----
-
 ## `GET /media/download`
 
 Download or stream a media file, whether it was copied into the active storage
@@ -630,8 +615,8 @@ request, so only files inside the mount can ever be served.
 
 **Request Headers:**
 
-| Header  | Description                                                                                     |
-| ------- | ----------------------------------------------------------------------------------------------- |
+| Header  | Description                                                                                       |
+| ------- | ------------------------------------------------------------------------------------------------- |
 | `Range` | Optional single byte range, e.g. `bytes=0-1023`, `bytes=1024-`, or `bytes=-500` (last 500 bytes). |
 
 **Response:**
@@ -665,8 +650,6 @@ curl -O "http://localhost:8000/v1/dataprep/media/download?video_id=video-dir-001
 curl -H "Range: bytes=0-1023" \
   "http://localhost:8000/v1/dataprep/media/download?video_id=video-dir-001"
 ```
-
----
 
 ## `DELETE /media/{bucket_name}`
 
@@ -709,8 +692,6 @@ are never deleted.
 ```bash
 curl -X DELETE "http://localhost:8000/v1/dataprep/media/my-bucket"
 ```
-
----
 
 ## `DELETE /media/{bucket_name}/{video_id}`
 
@@ -759,8 +740,6 @@ first, so a failure never leaves orphaned vectors behind.
 # Delete the video (removes storage object(s) + vector embeddings)
 curl -X DELETE "http://localhost:8000/v1/dataprep/media/my-bucket/video-dir-001"
 ```
-
----
 
 ## `GET /telemetry`
 
@@ -823,8 +802,6 @@ Return the most recent video-processing telemetry records, newest first.
 curl "http://localhost:8000/v1/dataprep/telemetry?limit=10"
 ```
 
----
-
 ## Interactive API Documentation
 
 When the service is running, FastAPI provides interactive docs:
@@ -854,4 +831,3 @@ This file is generated from the FastAPI app and is the recommended source for re
 
 - [Get Started](./get-started.md)
 - [Configuration Guide](./configuration.md)
-

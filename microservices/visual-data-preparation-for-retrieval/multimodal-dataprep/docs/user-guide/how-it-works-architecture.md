@@ -1,4 +1,4 @@
-# Overview and Architecture
+# How It Works: Architecture Overview
 
 Multimodal DataPrep turns raw media — **videos and images** — plus associated
 text summaries into searchable embeddings that conform to the requirements of the
@@ -6,12 +6,13 @@ VSS Search microservice. The architecture is intentionally modular so that each
 stage can scale independently or be swapped out without changing the API surface.
 The service is **vector-database agnostic** and **storage agnostic**: the vector
 store and the object storage are each selected at startup behind a factory (see
-[Pluggable Backends](pluggable-backends.md)).
+[Pluggable Backends](./pluggable-backends.md)).
 
 ## Architecture Overview
 
 ### High-Level Architecture Diagram
-![Architecture Diagram](images/Multimodal_DataPrep.png)
+
+![Architecture Diagram](./_assets/Multimodal_DataPrep.png)
 *Figure 1: High-level system view demonstrating the microservice.*
 
 ### Core Components
@@ -49,8 +50,8 @@ store and the object storage are each selected at startup behind a factory (see
 
 ## Supporting Resources
 
-- [Get Started Guide](get-started.md)
-- [Pluggable Backends](pluggable-backends.md) - Vector-database and storage backend selection
-- [Media Ingestion Flow](./media-ingestion-flow.md) - Detailed flow diagrams of the video and image processing pipelines
-- [API Reference](api-reference.md)
-- [System Requirements](system-requirements.md)
+- [Get Started Guide](./get-started.md)
+  - [System Requirements](./get-started/system-requirements.md)
+- [Pluggable Backends](./pluggable-backends.md) - Vector-database and storage backend selection
+- [How It Works: Media Ingestion Flow](./how-it-works-ingestion-flow.md) - Detailed flow diagrams of the video and image processing pipelines
+- [API Reference](./api-reference.md)
