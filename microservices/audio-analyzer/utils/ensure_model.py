@@ -1,4 +1,4 @@
-import logging, os
+import logging, os, sys
 import yaml
 from typing import Tuple
 from utils.config_loader import config
@@ -301,8 +301,13 @@ def _download_openvino_model(
         logger.info(f"⚡ Using cached export at {output_dir}")
         return True, output_dir
 
+    # Invoke the exporter through the current interpreter instead of the bare
+    # "optimum-cli" console script. A bare command resolves via PATH, which on
+    # Windows can hit a different environment's optimum-cli (e.g. a conda/venv
+    # whose Scripts dir happens to be on PATH) and export with the wrong package
+    # set, producing no IR. sys.executable guarantees this venv's optimum.
     cmd = [
-        "optimum-cli", "export", "openvino",
+        sys.executable, "-m", "optimum.commands.optimum_cli", "export", "openvino",
         "--model", model_name,
         "--trust-remote-code",
         output_dir,
