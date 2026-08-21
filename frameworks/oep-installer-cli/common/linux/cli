@@ -8,10 +8,13 @@ act_get () {
   modules)
     echo "${_act_get_cache_modules[*]}"
     ;;
-  =)
+  test)
+    [[ -v _act_get_cache_funcs[$2] ]]
+    ;;
+  func)
     echo "${_act_get_cache_funcs[$2]:-}"
     ;;
-  ^)
+  prefix)
     local f
     for f in ${!_act_get_cache_funcs[*]}; do
       [[ "$f" = "$2"* ]] && echo "${_act_get_cache_funcs[$f]}"
@@ -43,7 +46,7 @@ act_expand_modules () {
     local n=${q[$i]}; i=$((i+1))
     [ -z "${seen[$n]:-}" ] || continue
     seen[$n]=1
-    local p=$(act_get = profile_${n})
+    local p=$(act_get func profile_${n})
     [ -z "$p" ] || q+=($($p $act_name "${@:3}"))
   done
   echo "${!seen[*]}"
@@ -88,7 +91,7 @@ act_find_deps () {
   local -A handlers=()
   local name handler
   for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}"); do
-    handler=$(act_get = ${act_name}_${name})
+    handler=$(act_get func ${act_name}_${name})
     [ -z "$handler" ] || handlers[$handler]=1
   done
   echo "${!handlers[*]}"
@@ -104,7 +107,7 @@ act_helpper () {
   act_get init > /dev/null
 
   if [[ " $* " = *" --help "* ]]; then
-    local components=($(act_get ^ ${act_name}_))
+    local components=($(act_get prefix ${act_name}_))
     if [ ${#components[*]} -gt 0 ]; then
       if [ "${act_name}" = "install" ]; then
         echo "${act_name} options:"
@@ -120,7 +123,7 @@ act_helpper () {
     act_find_deps $act_name $(
       # always included modules
       for m in pre_system_scan core_types; do 
-        [ -n "$(act_get = ${act_name}_${m})" ] && echo $m
+        act_get test ${act_name}_${m} && echo $m
       done
     ) "$@"
   ))
@@ -135,7 +138,7 @@ act_helpper () {
           local license_text="$($licenser "$@")"
           [ -n "$license_text" ] || continue
           local id1=$(echo "$license_text" | awk '/@@LICENSE-ID/{print$2}')
-          local name1=$(echo $licenser | cut -f4- -d_)
+          local name1=${licenser#*_*_*_}
           licenses[$id1]="${licenses[$id1]:-}$name1,"
           licenses_text[$id1]="$license_text"
         fi
@@ -155,9 +158,9 @@ act_helpper () {
     local rc=0 order=0
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
-        local name1=$(echo $handler | cut -f4- -d_)
+        local name1=${handler#*_*_*_}
         if [ "$act_name" = "remove" ]; then
-          local order1=$(echo $handler | cut -f2 -d_)
+          local order1=${handler#*_};order1=${order1%%_*}
           [ "$order" -gt 0 ] || order=$order1
           [ "$order1" -ge "$order" ] || break
         fi
@@ -234,7 +237,7 @@ subcommand_list () {
 
   echo "Mapping profiles and components..." 1>&2
   local all_cmds=($(act_get cmds))
-  local all_profiles=($(act_get ^ profile_))
+  local all_profiles=($(act_get prefix profile_))
   local all_modules=($(act_get modules))
 
   {
@@ -242,13 +245,13 @@ subcommand_list () {
       echo "List of profiles:"
       local profiler
       for profiler in ${all_profiles[*]}; do
-        local profile_name=$(echo $profiler | cut -f4- -d_)
+        local profile_name=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
         local profile_cmds=() mname cmd
         for cmd in ${all_cmds[*]}; do
           [[ " bootstrap list setup " != *" $cmd "* ]] || continue
           for mname in $(act_expand_modules $cmd "$($profiler $cmd "$@")" "$@"); do
-            if [ -n "$(act_get = ${cmd}_${mname})" ]; then
+            if act_get test ${cmd}_${mname}; then
               profile_cmds+=($cmd)
               break
             fi
@@ -266,7 +269,7 @@ subcommand_list () {
         local module_cmds=() mname cmd
         for cmd in ${all_cmds[*]/list/}; do
           for mname in $(act_expand_modules $cmd $module_name "$@"); do
-            if [ -n "$(act_get = ${cmd}_${mname})" ]; then
+            if act_get test ${cmd}_${mname}; then
               module_cmds+=($cmd)
               break
             fi
@@ -316,13 +319,12 @@ $(
     for cmd in ${all_cmds[*]}; do
       [[ " bootstrap list setup " != *" $cmd "* ]] || continue
       local -A all_comps=(["--continue"]="" ["--dry-run"]="")
-      local all_modules=($(act_get ^ ${cmd}_ | cut -f4- -d_))
-      echo "all_modules=${all_modules[*]}" 1>&2
-      for profiler in $(act_get ^ profile_); do
-        local pname=$(echo $profiler | cut -f4- -d_)
+      local all_modules=($(act_get prefix ${cmd}_)); all_modules=(${all_modules[*]#*_*_*_})
+      for profiler in $(act_get prefix profile_); do
+        local pname=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
         for mname in $($profiler $cmd); do
-          [ -n "$(act_get = ${cmd}_${mname})" ] && all_comps[$pname]=""
+          act_get test ${cmd}_${mname} && all_comps[$pname]=""
         done
       done
       for mname in ${all_modules[*]}; do
