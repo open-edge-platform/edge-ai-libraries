@@ -35,7 +35,7 @@ here does not provide separate requirements.
 - Docker 24.0
 - Python 3.10
 - MinIO server (optional, for object storage)
-- If you are behind a proxy, please make sure `http_proxy`, `https_proxy`, `no_proxy` are properly set on the shell you use.
+- If you are behind a proxy, make sure `http_proxy`, `https_proxy`, and `no_proxy` are properly exported in the shell you use (e.g., `export http_proxy=http://proxy.example.com:8080`).
 
 ## Validation
 
