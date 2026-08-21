@@ -1,7 +1,7 @@
 
 # perform sudo in automation or in tty
 ensure_sudo () {
-  if sudo -nv 2>/dev/null; then
+  if sudo -nv 2>/dev/null || sudo -n true; then
     # cached timestamp still valid or passwordless sudo: no password needed
     sudo "$@"
   elif [ -n "$SUDO_PASSWORD" ]; then
