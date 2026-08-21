@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=intel/dlstreamer-pipeline-server:2026.1.0-ubuntu24
+ARG BASE_IMAGE=intel/dlstreamer-pipeline-server:2026.2.0-ubuntu24-rc2
 
 FROM ${BASE_IMAGE}
 
@@ -9,8 +9,7 @@ ARG USER
 USER root
 
 COPY ./tests/requirements.txt /home/pipeline-server/tests/requirements.txt
-RUN ${VIRTUAL_ENV}/bin/python3 -m pip install --no-cache-dir --upgrade pip && \
-    ${VIRTUAL_ENV}/bin/python3 -m pip install --no-cache-dir -r /home/pipeline-server/tests/requirements.txt
+RUN pip3 install --no-cache-dir -r /home/pipeline-server/tests/requirements.txt
 
 # Copy unit tests
 COPY ./tests /home/pipeline-server/tests
