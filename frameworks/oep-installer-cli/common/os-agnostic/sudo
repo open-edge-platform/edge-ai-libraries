@@ -10,7 +10,7 @@ ensure_sudo () {
     # the invoked command so constructs like `curl ... | ensure_sudo tee file`
     # keep working.
     (echo "$SUDO_PASSWORD"; cat) | sudo -kS "$@"
-  elif [ -t 0 ] && [ -t 1 ]; then
+  elif [ -t 0 ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo "$@"
   else
