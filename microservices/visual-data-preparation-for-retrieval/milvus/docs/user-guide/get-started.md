@@ -122,7 +122,7 @@ multimodal-embedding   gunicorn -b 0.0.0.0:8000 - ...   Up (health: starting)   
 
 ### Info
 
-```curl
+```bash
 curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 ```
 
@@ -132,7 +132,7 @@ curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 
 - For Directory:
 
-  ```curl
+  ```bash
   curl -X POST http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
   -H "Content-Type: application/json" \
   -d '{
@@ -144,7 +144,7 @@ curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 
 - For Single File:
 
-  ```curl
+  ```bash
   curl -X POST http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
   -H "Content-Type: application/json" \
   -d '{
@@ -159,19 +159,19 @@ curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 
 ### Get File Info
 
-```curl
+```bash
 curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/get?file_path=/path/to/file
 ```
 
 ### Delete File in Database
 
-```curl
+```bash
 curl -X DELETE http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/delete?file_path=/path/to/file
 ```
 
 ### Clear Database
 
-```curl
+```bash
 curl -X DELETE http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/delete_all
 ```
 
@@ -199,7 +199,7 @@ This falls back to the default Hugging Face endpoint, which is typically the rig
 :::{toctree}
 :hidden:
 
-./system-requirements.md
+./get-started/system-requirements.md
 
 :::
 hide_directive-->
