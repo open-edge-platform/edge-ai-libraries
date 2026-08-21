@@ -85,7 +85,7 @@ subcommand_bootstrap () {
       :
     elif [ -r "$script" ]; then
       scripts["$script"]=1
-      local script_nos="${script%/*}/os-agnostic"
+      local script_nos="${script%/*}/linux"
       local profiler=$(
         [ ! -r "$script_nos" ] || . "$script_nos"
         . "$script"
@@ -130,12 +130,12 @@ subcommand_bootstrap () {
         ;;
       esac
     done
-    cat "$mydir"/common/os-agnostic/* >> "$rendered"
+    cat "$mydir"/common/linux/* >> "$rendered"
     if [ -d "$mydir"/common/${ID_LIKE} ]; then
       cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
     fi
     [ $license_common -eq 0 ] || {
-      cat "$mydir"/license/os-agnostic/license_* >> "$rendered" 2> /dev/null || true
+      cat "$mydir"/license/linux/license_* >> "$rendered" 2> /dev/null || true
       cat "$mydir"/license/${ID_LIKE}/license_* >> "$rendered" 2> /dev/null || true
     }
   fi
@@ -144,7 +144,7 @@ subcommand_bootstrap () {
     echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
     [[ " $* " != *" --dry-run "* ]] || continue
     cat "$script" >> "$rendered" 2> /dev/null || true
-    cat "${script%/*}/os-agnostic" 2> /dev/null >> "$rendered" || true
+    cat "${script%/*}/linux" 2> /dev/null >> "$rendered" || true
   done
 
   if [[ " $* " != *" --dry-run "* ]]; then
