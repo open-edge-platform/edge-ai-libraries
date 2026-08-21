@@ -246,6 +246,17 @@ describe('SearchModal Component test suite', () => {
     expect(closeModalMock).not.toHaveBeenCalled();
   });
 
+  it('should open the date-added tooltip upwards so it is not clipped by the modal', () => {
+    const { container } = renderComponent();
+
+    // The time filter is the last field in a scrolling modal body, so a
+    // downward tooltip gets cut off by the body's bottom edge.
+    // Scoped to the legend: the modal's close button has its own tooltip.
+    expect(container.querySelector('legend .cds--tooltip')).toHaveClass(
+      'cds--popover--top-start',
+    );
+  });
+
   it('should respect maxLength attribute on textarea', () => {
     renderComponent();
     
