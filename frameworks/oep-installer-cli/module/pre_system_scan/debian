@@ -66,15 +66,7 @@ debian_10_install_pre_system_scan () {
 }
 
 system_scan_check_membank () {
-  local dmi_out dmi_rc
-  dmi_out="$(ensure_sudo dmidecode -t memory 2>/dev/null)"; dmi_rc=$?
-  if [ $dmi_rc -ne 0 ]; then
-    # dmidecode needs root; ensure_sudo could not elevate (no cached sudo
-    # credentials and no SUDO_PASSWORD). Report the real cause rather than
-    # implying the hardware is missing.
-    echo "Requires sudo (set SUDO_PASSWORD)"
-    return
-  fi
+  local dmi_out="$(ensure_sudo dmidecode -t memory 2>/dev/null)"
   local installed_modules=()
   mapfile -t installed_modules < <(echo "$dmi_out" | awk -v in_dev=0 '
     /^Memory Device$/ {
