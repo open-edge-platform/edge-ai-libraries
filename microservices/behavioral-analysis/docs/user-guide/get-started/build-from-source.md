@@ -15,8 +15,6 @@ Model prerequisites:
 - YOLO-Pose OpenVINO IR model files (`.xml` and `.bin`) under `./models/yolo_models/yolo26n-pose/`
 - If VLM is enabled, VLM model files under `./models/vlm_models/` (including OVMS model config)
 
----
-
 ## Repository Structure
 
 ```text
@@ -34,8 +32,6 @@ behavioral-analysis/
 └── tests/
 ```
 
----
-
 ## Deployment Modes (Build-Time Awareness)
 
 Runtime behavior is controlled by `DEPLOYMENT_MODE`:
@@ -44,8 +40,6 @@ Runtime behavior is controlled by `DEPLOYMENT_MODE`:
 - `seaweedfs+mqtt`: storage-backed asynchronous processing mode
 
 In Docker Compose, `ovms-vlm` is started by default and `behavioral-analysis` depends on it being healthy.
-
----
 
 ## Build the Docker Image
 
@@ -67,52 +61,45 @@ Optional: build from root Dockerfile:
 docker build -f Dockerfile -t intel/behavioral-analysis:latest .
 ```
 
----
-
 ## Verify in Docker Compose (Recommended)
 
-1. Prepare env values (default mode is already `standalone+api`):
+1. Prepare environment values (the default mode is already `standalone+api`):
 
-```bash
-cp .env .env.local
-```
+   ```bash
+   cp .env .env.local
+   ```
 
 2. Ensure model paths are populated:
 
-- `${DOWNLOADED_MODEL_PATH}/yolo_models/yolo26n-pose/` exists
-- `${DOWNLOADED_MODEL_PATH}/vlm_models/` exists if `VLM_ENABLED=true`
+   - `${DOWNLOADED_MODEL_PATH}/yolo_models/yolo26n-pose/` exists
+   - `${DOWNLOADED_MODEL_PATH}/vlm_models/` exists if `VLM_ENABLED=true`
 
 3. Build and start:
 
-```bash
-docker compose --env-file .env.local build behavioral-analysis
-docker compose --env-file .env.local up -d
-```
+   ```bash
+   docker compose --env-file .env.local build behavioral-analysis
+   docker compose --env-file .env.local up -d
+   ```
 
 4. Verify health:
 
-```bash
-curl http://localhost:8085/health
-```
+   ```bash
+   curl http://localhost:8085/health
+   ```
 
-5. Verify batch endpoint is reachable (standalone+api mode):
+5. Verify that the batch endpoint is reachable (`standalone+api` mode):
 
-```bash
-curl -X POST "http://localhost:8085/api/v1/analyze/batch" \
-  -F "entity_id=build_check_001" \
-  -F "pattern_id=shelf_to_waist" \
-  -F "frames=@tests/test_frames/frame_000_0.0s.jpg"
-```
-
----
+   ```bash
+   curl -X POST "http://localhost:8085/api/v1/analyze/batch" \
+     -F "entity_id=build_check_001" \
+     -F "pattern_id=shelf_to_waist" \
+     -F "frames=@tests/test_frames/frame_000_0.0s.jpg"
+   ```
 
 ## Local Source Execution (Host)
 
-For host execution without Docker, use the standalone instructions:
-
-- [Run Standalone](./run-standalone.md)
-
----
+For host execution without Docker, use the instructions to
+[Run Standalone](./run-standalone.md).
 
 ## Run Tests
 
@@ -127,8 +114,6 @@ Useful subsets:
 PYTHONPATH=src pytest tests/test_pose_analyzer.py -v
 PYTHONPATH=src pytest tests/test_api_v1_direct.py -v
 ```
-
----
 
 ## Common Build and Startup Issues
 
