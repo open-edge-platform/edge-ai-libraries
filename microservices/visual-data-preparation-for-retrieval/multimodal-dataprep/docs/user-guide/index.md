@@ -64,13 +64,13 @@ The microservice handles multimodal ingestion with a unified media pipeline:
 :hidden:
 
 get-started.md
-pluggable-backends.md
+Pluggable Backends <pluggable-backends.md>
 How It Works: Architecture <how-it-works-architecture.md>
 How It Works: Ingestion Flow <how-it-works-ingestion-flow.md>
 telemetry-metrics.md
 api-reference.md
 troubleshooting.md
-release-notes.md
+Release Notes <release-notes.md>
 
 :::
 hide_directive-->
