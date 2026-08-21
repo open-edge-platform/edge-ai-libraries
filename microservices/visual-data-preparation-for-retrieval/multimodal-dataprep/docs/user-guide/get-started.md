@@ -330,8 +330,8 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 :::{toctree}
 :hidden:
 
-.get-started/system-requirements.md
-.get-started/build-from-source.md
+./get-started/system-requirements.md
+./get-started/build-from-source.md
 
 :::
 hide_directive-->
