@@ -1,4 +1,4 @@
-# Dataprep Microservice API Reference
+# API Reference
 
 ## Health Check
 
