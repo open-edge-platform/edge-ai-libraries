@@ -1,0 +1,91 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Full-stack deployment: the Inference Router plus its web UI.
+#
+# The router runs with network_mode: host, so the UI container (on the default
+# bridge network) cannot reach it via the service name. Instead the UI proxies
+# API traffic to the host's LAN IP, which scripts/deploy_docker.sh detects and
+# exports as SERVER_HOST (with the router bound to that same address via
+# IR_BIND_HOST). Deploy with:  bash scripts/deploy_docker.sh
+
+services:
+  # Inference Router service
+  router:
+    image: ${REGISTRY:-}inference-router:${TAG:-latest}
+    container_name: inference-router
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+        no_proxy: ${no_proxy:-}
+    network_mode: host
+    devices:
+      - ${IR_RENDER_DEVICE:-/dev/null}:${IR_RENDER_DEVICE:-/dev/null}
+    group_add:
+      - "${RENDER_GROUP_ID:-993}"
+    volumes:
+      - ../../workspace:/app
+      - ${IR_OV_MODEL}:/models/ov-classifier
+    # Bind host defaults to loopback (local-only). Export IR_BIND_HOST=0.0.0.0
+    # to expose the router to other machines. Compose interpolates these from
+    # the host environment (set by scripts/deploy_docker.sh) at parse time.
+    command: ["sh", "-c", "uvicorn src.main:app --host ${IR_BIND_HOST:-127.0.0.1} --port ${ROUTER_PORT:-8000}"]
+    env_file:
+      - path: ../../workspace/.env
+        required: false
+    environment:
+      - IR_BIND_HOST=${IR_BIND_HOST:-127.0.0.1}
+      - ROUTER_PORT=${ROUTER_PORT:-8000}
+      - GATEWAY_VERBOSE=${GATEWAY_VERBOSE:-}
+      - GATEWAY_VERBOSE_FULL=${GATEWAY_VERBOSE_FULL:-}
+      - GATEWAY_CONFIG=/app/config.yaml
+      - GATEWAY_LOG_DIR=${GATEWAY_LOG_DIR:-/app/logs}
+      - IR_OV_MODEL=/models/ov-classifier
+      - IR_DEVICE=${IR_DEVICE:-GPU}
+      - HF_ENDPOINT=${HF_ENDPOINT:-}
+      - http_proxy=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      - no_proxy=${no_proxy:-}
+    restart: unless-stopped
+    healthcheck:
+      # Probe the address the router actually binds to (IR_BIND_HOST). In UI
+      # mode deploy_docker.sh binds it to the host LAN IP so the UI can reach it.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://${IR_BIND_HOST:-127.0.0.1}:${ROUTER_PORT:-8000}/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Inference Router web UI (nginx serving the built Vue app + API reverse proxy)
+  inference-router-ui:
+    image: ${REGISTRY:-}inference-router-ui:${TAG:-latest}
+    container_name: inference-router-ui
+    build:
+      context: ../..
+      dockerfile: ./ui/docker/Dockerfile.ui
+      args:
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+        no_proxy: ${no_proxy:-}
+    environment:
+      no_proxy: ${no_proxy:-}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      UI_PORT: ${UI_PORT:-7010}
+      # Host LAN IP + router port that nginx reverse-proxies /v1 and /health to.
+      # Set by scripts/deploy_docker.sh; the router must bind to this address.
+      SERVER_HOST: ${SERVER_HOST:-127.0.0.1}
+      SERVER_PORT: ${ROUTER_PORT:-8000}
+    ports:
+      - "${UI_PORT:-7010}:${UI_PORT:-7010}"
+    depends_on:
+      - router
+    restart: unless-stopped

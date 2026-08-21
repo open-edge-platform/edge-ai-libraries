@@ -15,15 +15,18 @@
           {{ t("router.routerStrategyConfigCaption") }}
         </div>
       </div>
-      <button
-        class="router-icon-action"
-        type="button"
-        :title="t('router.router')"
-        :disabled="isReloading || loading"
-        @click="handleRefreshData"
-      >
-        <ReloadOutlined />
-      </button>
+      <div class="router-module-actions">
+        <a-button
+          type="text"
+          shape="circle"
+          size="small"
+          :title="t('router.refresh')"
+          :loading="isReloading || loading"
+          @click="handleRefreshData"
+        >
+          <template #icon><ReloadOutlined /></template>
+        </a-button>
+      </div>
     </div>
     <div v-if="loading" class="router-loading-state">
       {{ t("common.loading") }}
@@ -86,30 +89,22 @@
           </div>
         </dl>
         <div class="router-strategy-card-actions">
-          <button
-            type="button"
-            class="router-card-action action-detail"
-            @click="handleView(strategy)"
-          >
-            <EyeOutlined />
-            <span>{{ t("common.detail") }}</span>
-          </button>
-          <button
-            type="button"
-            class="router-card-action action-edit"
+          <a-button type="primary" size="small" @click="handleView(strategy)">
+            <template #icon><EyeOutlined /></template>
+            {{ t("common.detail") }}
+          </a-button>
+          <a-button
+            class="intel-btn-warning"
+            size="small"
             @click="handleUpdate(strategy)"
           >
-            <EditOutlined />
-            <span>{{ t("common.edit") }}</span>
-          </button>
-          <button
-            type="button"
-            class="router-card-action action-delete"
-            @click="handleDelete(strategy)"
-          >
-            <DeleteOutlined />
-            <span>{{ t("common.delete") }}</span>
-          </button>
+            <template #icon><EditOutlined /></template>
+            {{ t("common.edit") }}
+          </a-button>
+          <a-button danger size="small" @click="handleDelete(strategy)">
+            <template #icon><DeleteOutlined /></template>
+            {{ t("common.delete") }}
+          </a-button>
         </div>
       </article>
       <div v-if="!loading && !strategyRows.length" class="router-empty-state">
@@ -285,9 +280,6 @@ onMounted(() => {
 </script>
 
 <style scoped lang="less">
-.router-icon-action {
-  margin-left: auto;
-}
 .strategy-name-row {
   display: flex;
   align-items: flex-start;

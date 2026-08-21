@@ -41,15 +41,16 @@
           </span>
         </div>
         <div class="policy-detail-strategies">
-          <button
+          <a-button
             v-for="strategyName in strategies"
             :key="strategyName"
+            type="link"
+            size="small"
             class="policy-detail-strategy-tag"
-            type="button"
             @click="emit('viewStrategy', strategyName)"
           >
             {{ strategyName }}
-          </button>
+          </a-button>
           <span
             v-if="!strategies.length"
             class="policy-detail-strategy-tag is-empty"

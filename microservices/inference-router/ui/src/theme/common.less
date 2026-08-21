@@ -335,8 +335,7 @@
   gap: 6px;
 }
 
-.section-icon,
-.router-icon-action {
+.section-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -350,26 +349,6 @@
   border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
   background: var(--color-primary);
   color: var(--color-white);
-}
-
-.router-icon-action {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
-  border-radius: 7px;
-  background: color-mix(
-    in srgb,
-    var(--color-primary) 8%,
-    var(--surface-panel-bg-strong)
-  );
-  color: var(--color-primary);
-  cursor: pointer;
-}
-
-.router-icon-action:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 
 .section-title {
@@ -431,9 +410,9 @@
 .router-strategy-config-list,
 .router-policy-config-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 320px));
-  justify-content: center;
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 380px));
+  justify-content: start;
+  gap: 16px;
   min-height: 0;
   padding-right: 2px;
   padding-bottom: 2px;
@@ -446,8 +425,8 @@
   gap: 14px;
   min-width: 0;
   width: 100%;
-  max-width: 320px;
-  min-height: 196px;
+  max-width: 380px;
+  min-height: 210px;
   padding: 16px;
   border: 1px solid
     color-mix(in srgb, var(--color-white) 6%, var(--border-main-color));
@@ -606,58 +585,23 @@
 .router-strategy-card-actions,
 .router-policy-card-actions {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: 8px;
   margin-top: auto;
-  padding-top: 4px;
 }
 
-.router-card-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 28px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 9px;
-  color: var(--color-white);
-  font-size: var(--font-size-12);
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
+@media (max-width: 720px) {
+  .router-provider-config-list,
+  .router-strategy-config-list,
+  .router-policy-config-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
 
-.router-card-action .anticon,
-.router-card-action span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-
-.router-card-action.action-detail {
-  background: var(--color-primary);
-}
-
-.router-card-action.action-detail:hover {
-  background: var(--color-primary-hover);
-}
-
-.router-card-action.action-edit {
-  background: var(--color-warning-strong);
-}
-
-.router-card-action.action-edit:hover {
-  background: var(--color-warning-hover);
-}
-
-.router-card-action.action-delete {
-  background: var(--color-error);
-}
-
-.router-card-action.action-delete:hover {
-  background: var(--color-error-hover);
+  .router-provider-config-card,
+  .router-strategy-config-card,
+  .router-policy-config-card {
+    max-width: none;
+  }
 }
