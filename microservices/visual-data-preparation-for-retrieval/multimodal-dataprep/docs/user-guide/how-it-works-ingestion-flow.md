@@ -47,8 +47,10 @@ graph TB
     H --> I
 
 ```
+<!--
     style F fill:#fff9e6
     style I fill:#e8f5e9
+-->
 
 ## Detailed Video Ingestion Flow
 
@@ -76,9 +78,10 @@ flowchart TD
     CONFIG --> FRAME_EXTRACT[Stage 2: Frame Extraction<br/>✓ In-process embeddings<br/>✓ Memory-based processing<br/>✓ OpenVINO optimized]
 
 ```
-
+<!--
     style START fill:#e3f2fd
     style FRAME_EXTRACT fill:#ffe0b2
+-->
 
 **Key Decisions:**
 
@@ -123,13 +126,13 @@ flowchart TD
 
 
 ```
-
+<!--
     style START fill:#ffe0b2
     style CALC fill:#e1f5fe
     style EXTRACT_LOOP fill:#fff9c4
     style COMPLETE fill:#c8e6c9
     style DETECT_STAGE fill:#f8bbd0
-
+-->
 **Optimization Highlights:**
 
 1. **Decord Library**: GPU-capable video reading (though currently using CPU context for reliability)
@@ -196,13 +199,13 @@ flowchart TD
 
 
 ```
-
+<!--
     style START fill:#f8bbd0
     style INIT fill:#e1f5fe
     style PARALLEL_DETECT fill:#fff9c4
     style DETECTION_DONE fill:#c8e6c9
     style BATCH_CREATE fill:#d1c4e9
-
+-->
 **Object Detection Details:**
 
 **Model Specifications:**
@@ -259,13 +262,13 @@ flowchart TD
 
 
 ```
-
+<!--
     style START fill:#d1c4e9
     style CONFIG fill:#e1f5fe
     style CREATE_BATCHES fill:#fff9c4
     style SUBMIT fill:#c8e6c9
     style PARALLEL fill:#ffccbc
-
+-->
 **Pipeline Configuration Logic:**
 
 ```python
@@ -376,12 +379,12 @@ flowchart TD
 
 
 ```
-
+<!--
     style START fill:#ffccbc
     style EMB_LOCAL_PROC fill:#c8e6c9
     style VDB_BULK fill:#e8eaf6
     style BATCH_DONE fill:#c8e6c9
-
+-->
 **Parallel Processing Characteristics:**
 
 **Thread Pool Execution:**
@@ -486,14 +489,14 @@ flowchart TD
 
 
 ```
-
+<!--
     style START fill:#e1bee7
     style COLLECT fill:#e1f5fe
     style TIME_DETAIL fill:#fff9c4
     style FRAME_COUNTS fill:#c8e6c9
     style BATCH_STATS fill:#ffccbc
     style COMPLETE fill:#a5d6a7
-
+-->
 **Performance Metrics Explained:**
 
 **Time Statistics:**
@@ -684,13 +687,13 @@ graph TB
 
 
 ```
-
+<!--
     style C fill:#c8e6c9
     style H fill:#e1f5fe
     style N fill:#ffccbc
     style R fill:#e8f5e9
     style S fill:#a5d6a7
-
+-->
 ## Performance Optimization Summary
 
 ### Critical Optimizations
@@ -778,10 +781,11 @@ graph LR
 
 
 ```
-
+<!--
     style G fill:#c8e6c9
     style H fill:#e8f5e9
     style I fill:#fff3e0
+-->
 
 ### Service Dependencies
 
