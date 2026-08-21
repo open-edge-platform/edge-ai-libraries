@@ -4,7 +4,7 @@ Reference docker compose recipe for the Lingua FastAPI server.
 The PyTorch service uses **XPU** by default. Select the backend by starting
 the corresponding service; use `LINGUA_DEVICE` to choose the hardware.
 
-The deployment now uses two backend-specific Dockerfiles:
+The deployment uses two backend-specific Dockerfiles:
 
 - `Dockerfile.pytorch` for PyTorch / IPEX / XPU
 - `Dockerfile.ov` for OpenVINO
@@ -12,7 +12,7 @@ The deployment now uses two backend-specific Dockerfiles:
 These are alternative backends. Start only the server that matches your
 requirements; you do not need to run both services.
 
-The compose file now defines two services:
+The compose file defines two services:
 
 - `lingua-pytorch` on host port `8001`
 - `lingua-ov` on host port `8002` (start explicitly; override with `LINGUA_OV_PORT`)
@@ -83,7 +83,7 @@ LINGUA_DEVICE=cpu LINGUA_PORT=9000 docker compose up -d --build lingua-pytorch
 | `LINGUA_DEVICE` | `xpu` | `xpu` / `cpu` / `cuda`. xpu requires `/dev/dri` on host. |
 | `LINGUA_XPU_INDEX` | `0` | XPU index when `LINGUA_DEVICE=xpu`. PyTorch uses `xpu:<index>`; OpenVINO prefers `GPU.<index>` and accepts generic `GPU` as fallback for index `0`. |
 | `LINGUA_MODEL_NAME_ID` | (empty) | HF model ID. If empty, defaults to `microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank`. |
-| `HF_HUB_OFFLINE` | `0` | First-run downloads allowed. Set `1` for strict offline. Default is `0` because the image ships no model — a fresh machine must pull it on first start. Once the model is cached (and, for OV, the IR is persisted), prefer `HF_HUB_OFFLINE=1`: with `0`, hf_hub still issues metadata/revalidation calls on every start, `1` trusts the local cache and makes zero network calls, so it is both faster. |
+| `HF_HUB_OFFLINE` | `0` | First-run downloads allowed. Set `1` for strict offline. Default is `0` because the image ships no model — a fresh machine must pull it on first start. Once the model is cached (and, for OV, the IR is persisted), prefer `HF_HUB_OFFLINE=1`: with `0`, hf_hub still issues metadata/revalidation calls on every start, `1` trusts the local cache and makes zero network calls, so it is faster. |
 | `HF_ENDPOINT` | `https://hf-mirror.com` | Mainland China mirror; unset/override for upstream HF. |
 | `http_proxy`/`https_proxy`/`no_proxy` | (unset) | Build-time + runtime proxies. |
 | `VIDEO_GID`/`RENDER_GID` | `44`/`992` | GPU passthrough; detect on host with `getent group`. |
@@ -121,7 +121,7 @@ runtime info, e.g.:
 - `OpenVINO execution devices: ['GPU']` / `GPU.0` (runtime-specific)
 - `Model runtime device: ov:GPU.0` (or `ov:GPU`)
 
-Test the `digit_neighbor_radius` patch is active:
+Test that the `digit_neighbor_radius` patch is active:
 
 ```bash
 curl -X POST http://localhost:8001/compress \
