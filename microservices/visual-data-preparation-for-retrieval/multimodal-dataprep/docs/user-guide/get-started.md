@@ -325,3 +325,13 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 - [Architecture Overview](./how-it-works-architecture.md)
 - [Media Ingestion Flow](./how-it-works-ingestion-flow.md) - Detailed flow diagrams of the video and image processing pipelines
 - [API Reference](./api-reference.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+.get-started/system-requirements.md
+.get-started/build-from-source.md
+
+:::
+hide_directive-->
