@@ -20,7 +20,7 @@ import { formatTimestamp } from "@/lib/timeUtils";
 import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 const TERMINAL_RUN_STATUSES = new Set([
-  "passed",
+  "completed",
   "failed",
   "cancelled",
   "skipped",
@@ -109,7 +109,7 @@ export const BenchmarkRunDetail = () => {
               <RunBenchmarkButton suiteSlug={benchmark.slug} />
             </div>
           ) : (
-            runDetails.status === "passed" && (
+            runDetails.status === "completed" && (
               <BenchmarkExportButton
                 benchmark={benchmark}
                 runDetails={runDetails}
