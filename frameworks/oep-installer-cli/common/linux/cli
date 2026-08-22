@@ -2,35 +2,24 @@
 
 act_get () {
   case "$1" in
-  cmds)
-    echo "${_act_cache_cmds[*]}"
-    ;;
-  modules)
-    echo "${_act_cache_modules[*]}"
-    ;;
-  exist)
-    [[ -v _act_cache_funcs[$2] ]]
-    ;;
-  func)
-    echo "${_act_cache_funcs[$2]:-}"
-    ;;
   prefix)
+    declare -ga _act_reply=()
     local f
-    for f in ${!_act_cache_funcs[*]}; do
-      [[ "$f" = "$2"* ]] && echo "${_act_cache_funcs[$f]}"
+    for f in ${!_act_cache_functions[*]}; do
+      [[ "$f" = "$2"* ]] && _act_reply+=("${_act_cache_functions[$f]}")
     done
     ;;
   init)
     declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_))
     declare -g _act_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'))
-    declare -gA _act_cache_funcs=()
+    declare -gA _act_cache_functions=()
 
     local f rest
     while read -r _ _ f; do
       case $f in
         "${ID_LIKE}_"*)
           rest=${f#"${ID_LIKE}_"}                  # e.g. 10_install_foo
-          _act_cache_funcs[${rest#*_}]=$f      # strip the numeric order -> install_foo
+          _act_cache_functions[${rest#*_}]=$f      # strip the numeric order -> install_foo
           ;;
       esac
     done < <(declare -F)
@@ -47,14 +36,15 @@ act_expand_modules () {
     local n=${q[$i]}; i=$((i+1))
     [ -z "${seen[$n]:-}" ] || continue
     seen[$n]=1
-    act_get exist profile_${n} && q+=($($(act_get func profile_${n}) $act_name "${@:3}"))
+    local p="${_act_cache_functions[profile_$n]:-}"
+    [ -n "$p" ] && q+=($($p $act_name "${@:3}"))
   done
   echo "${!seen[*]}"
 }
 
 act_extract_modules () {
   local act_name=${1%%,*}
-  local all_modules=($(act_get modules))
+  local all_modules=(${_act_cache_modules[*]})
   local all_module_args=" ${all_modules[*]/#/--} "
   local -A modules=()
   local v
@@ -69,7 +59,7 @@ act_extract_args () {
   local act_name=${1%%,*}
   local module_name=$2
   local act_modules="$3"
-  local all_modules=($(act_get modules))
+  local all_modules=(${_act_cache_modules[*]})
   local all_module_args=" ${all_modules[*]/#/--} "
   local args1=() args2=() i j
   for ((i=4;i<=${#@};i++)); do
@@ -91,7 +81,8 @@ act_find_deps () {
   local -A handlers=()
   local name handler
   for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}"); do
-    act_get exist ${act_name}_${name} && handlers[$(act_get func ${act_name}_${name})]=1
+    local p="${_act_cache_functions[${act_name}_${name}]:-}"
+    [ -n "$p" ] && handlers[$p]=1
   done
   echo "${!handlers[*]}"
 }
@@ -104,8 +95,8 @@ act_helpper () {
   shift
 
   if [[ " $* " = *" --help "* ]]; then
-    local components=($(act_get prefix ${act_name}_))
-    if [ ${#components[*]} -gt 0 ]; then
+    act_get prefix ${act_name}_
+    if [ ${#_act_reply[*]} -gt 0 ]; then
       if [ "${act_name}" = "install" ]; then
         echo "${act_name} options:"
         echo "  --reset-<name>  force reinstallation of the component if exit."
@@ -120,7 +111,7 @@ act_helpper () {
     act_find_deps $act_name $(
       # always included modules
       for m in pre_system_scan core_types; do 
-        act_get exist ${act_name}_${m} && echo $m
+        [[ -v _act_cache_functions[${act_name}_${m}] ]] && echo $m
       done
     ) "$@"
   ))
@@ -232,9 +223,9 @@ subcommand_list () {
 
   echo "Mapping profiles and components..." 1>&2
   
-  local all_cmds=($(act_get cmds))
-  local all_profiles=($(act_get prefix profile_))
-  local all_modules=($(act_get modules))
+  local all_cmds=(${_act_cache_cmds[*]})
+  act_get prefix profile_; local all_profiles=(${_act_reply[*]})
+  local all_modules=(${_act_cache_modules[*]})
   local profile_lines=() module_lines=()
 
   local -A module_act_cache=()
@@ -244,7 +235,7 @@ subcommand_list () {
       local module_cmds=() mname cmd
       for cmd in ${all_cmds[*]}; do
         for mname in $(act_expand_modules $cmd $module_name "$@"); do
-          if act_get exist ${cmd}_${mname}; then
+          if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
             module_cmds+=($cmd)
             break
           fi
@@ -269,7 +260,7 @@ subcommand_list () {
           fi
           found=0
           for mname2 in $(act_expand_modules $cmd $mname1 "$@"); do
-            if act_get exist ${cmd}_${mname2}; then
+            if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
               found=1
               break
             fi
@@ -322,7 +313,7 @@ EOF
   local completion_script=~/.local/share/bash-completion/completions/$installer_name
   mkdir -p "$(dirname "$completion_script")"
 
-  local all_cmds=($(act_get cmds))
+  local all_cmds=(${_act_cache_cmds[*]})
   cat > "$completion_script" <<EOF
 #!/bin/bash
 _${installer_name//-/_}_completion () {
@@ -335,12 +326,13 @@ _${installer_name//-/_}_completion () {
 $(  
     for cmd in ${all_cmds[*]}; do
       local -A all_comps=(["--continue"]="" ["--dry-run"]="")
-      local all_modules=($(act_get prefix ${cmd}_)); all_modules=(${all_modules[*]#*_*_*_})
-      for profiler in $(act_get prefix profile_); do
+      act_get prefix ${cmd}_; local all_modules=(${_act_reply[*]#*_*_*_})
+      act_get prefix profile_
+      for profiler in ${_act_reply[*]}; do
         local pname=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
         for mname in $($profiler $cmd); do
-          act_get exist ${cmd}_${mname} && all_comps[$pname]=""
+          [[ -v _act_cache_functions[${cmd}_${mname}] ]] && all_comps[$pname]=""
         done
       done
       for mname in ${all_modules[*]}; do
