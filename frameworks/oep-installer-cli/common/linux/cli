@@ -1,5 +1,42 @@
 #!/bin/bash
 
+act_get () {
+  case "$1" in
+  cmds)
+    echo "${_act_get_cache_cmds[*]}"
+    ;;
+  modules)
+    echo "${_act_get_cache_modules[*]}"
+    ;;
+  exist)
+    [[ -v _act_get_cache_funcs[$2] ]]
+    ;;
+  func)
+    echo "${_act_get_cache_funcs[$2]:-}"
+    ;;
+  prefix)
+    local f
+    for f in ${!_act_get_cache_funcs[*]}; do
+      [[ "$f" = "$2"* ]] && echo "${_act_get_cache_funcs[$f]}"
+    done
+    ;;
+  init)
+    declare -g _act_get_cache_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_))
+    declare -g _act_get_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_get_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort -ru | cut -f2- -d_))
+    declare -gA _act_get_cache_funcs=()
+    local f
+    while read -r _ _ f; do
+      case $f in
+        "${ID_LIKE}_"*)
+          local rest=${f#"${ID_LIKE}_"}            # e.g. 10_install_foo
+          _act_get_cache_funcs[${rest#*_}]=$f      # strip the numeric order -> install_foo
+          ;;
+      esac
+    done < <(declare -F)
+    ;;
+  esac
+}
+
 act_expand_modules () {
   local act_name=${1%%,*}
   local -a q=($2); 
@@ -9,16 +46,14 @@ act_expand_modules () {
     local n=${q[$i]}; i=$((i+1))
     [ -z "${seen[$n]:-}" ] || continue
     seen[$n]=1
-    local p=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${n}$" | cut -f3 -d' ')
-    [ -z "$p" ] || q+=($($p $act_name "${@:3}"))
+    act_get exist profile_${n} && q+=($($(act_get func profile_${n}) $act_name "${@:3}"))
   done
   echo "${!seen[*]}"
 }
 
 act_extract_modules () {
   local act_name=${1%%,*}
-  local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_) profile)
-  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f4- -d_))
+  local all_modules=($(act_get modules))
   local all_module_args=" ${all_modules[*]/#/--} "
   local -A modules=()
   local v
@@ -33,8 +68,7 @@ act_extract_args () {
   local act_name=${1%%,*}
   local module_name=$2
   local act_modules="$3"
-  local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_) profile)
-  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f4- -d_))
+  local all_modules=($(act_get modules))
   local all_module_args=" ${all_modules[*]/#/--} "
   local args1=() args2=() i j
   for ((i=4;i<=${#@};i++)); do
@@ -56,8 +90,7 @@ act_find_deps () {
   local -A handlers=()
   local name handler
   for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}"); do
-    handler=$(declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_${act_name}_${name}$" | cut -f3 -d' ')
-    [ -z "$handler" ] || handlers[$handler]=1
+    act_get exist ${act_name}_${name} && handlers[$(act_get func ${act_name}_${name})]=1
   done
   echo "${!handlers[*]}"
 }
@@ -69,8 +102,10 @@ act_helpper () {
   shift
   shift
 
+  act_get init > /dev/null
+
   if [[ " $* " = *" --help "* ]]; then
-    local components=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${act_name}_" | cut -f4- -d_))
+    local components=($(act_get prefix ${act_name}_))
     if [ ${#components[*]} -gt 0 ]; then
       if [ "${act_name}" = "install" ]; then
         echo "${act_name} options:"
@@ -86,7 +121,7 @@ act_helpper () {
     act_find_deps $act_name $(
       # always included modules
       for m in pre_system_scan core_types; do 
-        declare -F | grep -q -E " ${ID_LIKE}_[0-9]+_${act_name}_${m}$" && echo $m
+        act_get exist ${act_name}_${m} && echo $m
       done
     ) "$@"
   ))
@@ -101,7 +136,7 @@ act_helpper () {
           local license_text="$($licenser "$@")"
           [ -n "$license_text" ] || continue
           local id1=$(echo "$license_text" | awk '/@@LICENSE-ID/{print$2}')
-          local name1=$(echo $licenser | cut -f4- -d_)
+          local name1=${licenser#*_*_*_}
           licenses[$id1]="${licenses[$id1]:-}$name1,"
           licenses_text[$id1]="$license_text"
         fi
@@ -121,9 +156,9 @@ act_helpper () {
     local rc=0 order=0
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
-        local name1=$(echo $handler | cut -f4- -d_)
+        local name1=${handler#*_*_*_}
         if [ "$act_name" = "remove" ]; then
-          local order1=$(echo $handler | cut -f2 -d_)
+          local order1=${handler#*_};order1=${order1%%_*}
           [ "$order" -gt 0 ] || order=$order1
           [ "$order1" -ge "$order" ] || break
         fi
@@ -196,23 +231,25 @@ subcommand_stop () {
 subcommand_list () {
   [[ " $* " != *" --help "* ]] || return
 
+  act_get init > /dev/null
+
   echo "Mapping profiles and components..." 1>&2
-  local all_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_))
-  local all_profiles=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f3 -d' '))
-  local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${all_cmds[*]}"))_" | cut -f2,4- -d_ | sort -r | uniq | cut -f2- -d_))
+  local all_cmds=($(act_get cmds))
+  local all_profiles=($(act_get prefix profile_))
+  local all_modules=($(act_get modules))
 
   {
     if [ ${#all_profiles[@]} -gt 0 ]; then
       echo "List of profiles:"
       local profiler
       for profiler in ${all_profiles[*]}; do
-        local profile_name=$(echo $profiler | cut -f4- -d_)
+        local profile_name=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
         local profile_cmds=() mname cmd
         for cmd in ${all_cmds[*]}; do
           [[ " bootstrap list setup " != *" $cmd "* ]] || continue
           for mname in $(act_expand_modules $cmd "$($profiler $cmd "$@")" "$@"); do
-            if declare -F | grep -q -E " ${ID_LIKE}_[0-9]+_${cmd}_${mname}$"; then
+            if act_get exist ${cmd}_${mname}; then
               profile_cmds+=($cmd)
               break
             fi
@@ -230,7 +267,7 @@ subcommand_list () {
         local module_cmds=() mname cmd
         for cmd in ${all_cmds[*]/list/}; do
           for mname in $(act_expand_modules $cmd $module_name "$@"); do
-            if declare -F | grep -q -E " ${ID_LIKE}_[0-9]+_${cmd}_${mname}$"; then
+            if act_get exist ${cmd}_${mname}; then
               module_cmds+=($cmd)
               break
             fi
@@ -245,6 +282,8 @@ subcommand_list () {
 
 subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
+
+  act_get init
 
   # reconstruct installer
   local installer_misc_functions=()
@@ -264,7 +303,7 @@ EOF
   local completion_script=~/.local/share/bash-completion/completions/$installer_name
   mkdir -p "$(dirname "$completion_script")"
 
-  local all_cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+  local all_cmds=($(act_get cmds))
   cat > "$completion_script" <<EOF
 #!/bin/bash
 _${installer_name//-/_}_completion () {
@@ -278,20 +317,20 @@ $(
     for cmd in ${all_cmds[*]}; do
       [[ " bootstrap list setup " != *" $cmd "* ]] || continue
       local -A all_comps=(["--continue"]="" ["--dry-run"]="")
-      local all_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_${cmd}_" | cut -f4- -d_))
-      for profiler in $(declare -F | grep -E " ${ID_LIKE}_[0-9]+_profile_" | cut -f3 -d' '); do
-        local pname=$(echo $profiler | cut -f4- -d_)
+      local all_modules=($(act_get prefix ${cmd}_)); all_modules=(${all_modules[*]#*_*_*_})
+      for profiler in $(act_get prefix profile_); do
+        local pname=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
         for mname in $($profiler $cmd); do
-          declare -F | grep -q -E " ${ID_LIKE}_[0-9]+_${cmd}_${mname}$" && all_comps[$pname]=""
+          act_get exist ${cmd}_${mname} && all_comps[$pname]=""
         done
       done
       for mname in ${all_modules[*]}; do
         all_comps[$mname]=""
-        [ "$cmd" != "install" ] || all_comps["--reset-$mname"]=""
       done
       echo "  $cmd)"
       echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
+      echo "    for ((i=2;i<COMP_CWORD;i++)); do [[ -v all_comps[\${COMP_WORDS[\$i]}] && \"\${COMP_WORDS[\$i]}\" != --* ]] && all_comps[\"--reset-\${COMP_WORDS[\$i]}\"]=\"\"; done"
       echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
       echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
       echo "    ;;"

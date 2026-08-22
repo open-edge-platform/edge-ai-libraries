@@ -148,16 +148,14 @@ subcommand_bootstrap () {
   done
 
   if [[ " $* " != *" --dry-run "* ]]; then
-    if [[ " $* " = *" --setup "* ]]; then
-      local misc_funcs=($(
-        local bfuncs=($(declare -F | cut -f3 -d' '))
-        . "$rendered"
-        for f in $(declare -F | grep -v -E " (${ID_LIKE}_[0-9]+|ensure_|act_|subcommand_)" | cut -f3 -d' '); do
-          [[ " ${bfuncs[*]} " = *" $f "* ]] || printf "%s " $f
-        done
-      ))
-      sed -i "s|local  *installer_misc_functions=.*|local installer_misc_functions=(${misc_funcs[*]})|" "$rendered"
-    fi
+    local misc_funcs=($(
+      local bfuncs=($(declare -F | cut -f3 -d' '))
+      . "$rendered"
+      for f in $(declare -F | grep -v -E " (${ID_LIKE}_[0-9]+|ensure_|act_|subcommand_)" | cut -f3 -d' '); do
+        [[ " ${bfuncs[*]} " = *" $f "* ]] || printf "%s " $f
+      done
+    ))
+    sed -i "/^subcommand_setup *[(][)] *[{]/,/^[}]/{s|local  *installer_misc_functions=.*|local installer_misc_functions=(${misc_funcs[*]})|}" "$rendered"
     [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- start ${start_modules[*]} \"\$@\"" >> "$rendered"
     [ ${#install_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- install ${install_modules[*]} \"\$@\"" >> "$rendered"
     [[ " $* " != *" --setup "* ]] || echo "[ \"\$0\" != bash ] || set -- setup \"\$@\"" >> "$rendered"
