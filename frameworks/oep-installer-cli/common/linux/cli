@@ -21,7 +21,7 @@ act_get () {
     done
     ;;
   init)
-    declare -g _act_get_cache_cmds=($(declare -F | grep -E " subcommand_" | cut -f2- -d_))
+    declare -g _act_get_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'list|setup' | cut -f2- -d_))
     declare -g _act_get_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_get_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort -ru | cut -f2- -d_))
     declare -gA _act_get_cache_funcs=()
     local f
@@ -247,7 +247,7 @@ subcommand_list () {
     for module_name in ${all_modules[*]}; do
       if [[ ! -v module_act_cache[$module_name] ]]; then
         local module_cmds=() mname cmd
-        for cmd in ${all_cmds[*]/list/}; do
+        for cmd in ${all_cmds[*]}; do
           for mname in $(act_expand_modules $cmd $module_name "$@"); do
             if act_get exist ${cmd}_${mname}; then
               module_cmds+=($cmd)
@@ -270,7 +270,6 @@ subcommand_list () {
       if [[ ! -v module_act_cache[$profile_name] ]]; then
         local profile_cmds=() mname1 mname2 cmd
         for cmd in ${all_cmds[*]}; do
-          [[ " list setup " != *" $cmd "* ]] || continue
           for mname1 in $($profiler $cmd "$@"); do
             if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
               profile_cmds+=($cmd)
@@ -326,14 +325,13 @@ EOF
 #!/bin/bash
 _${installer_name//-/_}_completion () {
   if (( COMP_CWORD == 1 )); then
-    COMPREPLY=(\$(compgen -W "${all_cmds[*]} --help" -- "\$2"))
+    COMPREPLY=(\$(compgen -W "${all_cmds[*]} list setup --help" -- "\$2"))
     return
   fi
 
   case "\${COMP_WORDS[1]}" in
 $(  
     for cmd in ${all_cmds[*]}; do
-      [[ " list setup " != *" $cmd "* ]] || continue
       local -A all_comps=(["--continue"]="" ["--dry-run"]="")
       local all_modules=($(act_get prefix ${cmd}_)); all_modules=(${all_modules[*]#*_*_*_})
       for profiler in $(act_get prefix profile_); do
