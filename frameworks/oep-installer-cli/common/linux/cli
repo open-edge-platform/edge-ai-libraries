@@ -8,7 +8,7 @@ act_get () {
   modules)
     echo "${_act_get_cache_modules[*]}"
     ;;
-  test)
+  exist)
     [[ -v _act_get_cache_funcs[$2] ]]
     ;;
   func)
@@ -46,7 +46,7 @@ act_expand_modules () {
     local n=${q[$i]}; i=$((i+1))
     [ -z "${seen[$n]:-}" ] || continue
     seen[$n]=1
-    act_get test profile_${n} && q+=($($(act_get func profile_${n}) $act_name "${@:3}"))
+    act_get exist profile_${n} && q+=($($(act_get func profile_${n}) $act_name "${@:3}"))
   done
   echo "${!seen[*]}"
 }
@@ -90,7 +90,7 @@ act_find_deps () {
   local -A handlers=()
   local name handler
   for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}"); do
-    act_get test ${act_name}_${name} && handlers[$(act_get func ${act_name}_${name})]=1
+    act_get exist ${act_name}_${name} && handlers[$(act_get func ${act_name}_${name})]=1
   done
   echo "${!handlers[*]}"
 }
@@ -121,7 +121,7 @@ act_helpper () {
     act_find_deps $act_name $(
       # always included modules
       for m in pre_system_scan core_types; do 
-        act_get test ${act_name}_${m} && echo $m
+        act_get exist ${act_name}_${m} && echo $m
       done
     ) "$@"
   ))
@@ -249,7 +249,7 @@ subcommand_list () {
         for cmd in ${all_cmds[*]}; do
           [[ " bootstrap list setup " != *" $cmd "* ]] || continue
           for mname in $(act_expand_modules $cmd "$($profiler $cmd "$@")" "$@"); do
-            if act_get test ${cmd}_${mname}; then
+            if act_get exist ${cmd}_${mname}; then
               profile_cmds+=($cmd)
               break
             fi
@@ -267,7 +267,7 @@ subcommand_list () {
         local module_cmds=() mname cmd
         for cmd in ${all_cmds[*]/list/}; do
           for mname in $(act_expand_modules $cmd $module_name "$@"); do
-            if act_get test ${cmd}_${mname}; then
+            if act_get exist ${cmd}_${mname}; then
               module_cmds+=($cmd)
               break
             fi
@@ -322,7 +322,7 @@ $(
         local pname=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
         for mname in $($profiler $cmd); do
-          act_get test ${cmd}_${mname} && all_comps[$pname]=""
+          act_get exist ${cmd}_${mname} && all_comps[$pname]=""
         done
       done
       for mname in ${all_modules[*]}; do
