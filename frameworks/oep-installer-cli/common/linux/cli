@@ -46,8 +46,7 @@ act_expand_modules () {
     local n=${q[$i]}; i=$((i+1))
     [ -z "${seen[$n]:-}" ] || continue
     seen[$n]=1
-    local p=$(act_get func profile_${n})
-    [ -z "$p" ] || q+=($($p $act_name "${@:3}"))
+    act_get test profile_${n} && q+=($($(act_get func profile_${n}) $act_name "${@:3}"))
   done
   echo "${!seen[*]}"
 }
@@ -91,8 +90,7 @@ act_find_deps () {
   local -A handlers=()
   local name handler
   for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}"); do
-    handler=$(act_get func ${act_name}_${name})
-    [ -z "$handler" ] || handlers[$handler]=1
+    act_get test ${act_name}_${name} && handlers[$(act_get func ${act_name}_${name})]=1
   done
   echo "${!handlers[*]}"
 }
