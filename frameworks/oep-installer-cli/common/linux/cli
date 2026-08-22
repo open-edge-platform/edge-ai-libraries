@@ -270,7 +270,7 @@ subcommand_list () {
       if [[ ! -v module_act_cache[$profile_name] ]]; then
         local profile_cmds=() mname1 mname2 cmd
         for cmd in ${all_cmds[*]}; do
-          [[ " bootstrap list setup " != *" $cmd "* ]] || continue
+          [[ " list setup " != *" $cmd "* ]] || continue
           for mname1 in $($profiler $cmd "$@"); do
             if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
               profile_cmds+=($cmd)
@@ -333,7 +333,7 @@ _${installer_name//-/_}_completion () {
   case "\${COMP_WORDS[1]}" in
 $(  
     for cmd in ${all_cmds[*]}; do
-      [[ " bootstrap list setup " != *" $cmd "* ]] || continue
+      [[ " list setup " != *" $cmd "* ]] || continue
       local -A all_comps=(["--continue"]="" ["--dry-run"]="")
       local all_modules=($(act_get prefix ${cmd}_)); all_modules=(${all_modules[*]#*_*_*_})
       for profiler in $(act_get prefix profile_); do
