@@ -21,9 +21,10 @@ act_get () {
     done
     ;;
   init)
+    declare -gA _act_get_cache_funcs=()
+    [ ${#_act_get_cache_funcs[@]} -eq 0 ] || return 0
     declare -g _act_get_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'list|setup' | cut -f2- -d_))
     declare -g _act_get_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_get_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort -ru | cut -f2- -d_))
-    declare -gA _act_get_cache_funcs=()
     local f
     while read -r _ _ f; do
       case $f in
@@ -268,16 +269,16 @@ subcommand_list () {
       local profile_name=${profiler#*_*_*_}
       [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
       if [[ ! -v module_act_cache[$profile_name] ]]; then
-        local profile_cmds=() mname1 mname2 cmd
+        local profile_cmds=() mname1 mname2 cmd found
         for cmd in ${all_cmds[*]}; do
           for mname1 in $($profiler $cmd "$@"); do
             if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
               profile_cmds+=($cmd)
               break
             fi
-            local found=0
+            found=0
             for mname2 in $(act_expand_modules $cmd $mname1 "$@"); do
-              act_get exist ${cmd}_${mname2} && found=1 && break
+              act_get exist ${cmd}_${mname2} && { found=1; break }
             done
             if [ $found -eq 1 ]; then
               profile_cmds+=($cmd)
