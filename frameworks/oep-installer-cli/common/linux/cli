@@ -272,14 +272,15 @@ subcommand_list () {
         for cmd in ${all_cmds[*]}; do
           [[ " bootstrap list setup " != *" $cmd "* ]] || continue
           for mname1 in $($profiler $cmd "$@"); do
-            if [[ -v module_act_cache[$mname1] ]]; then
+            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
               profile_cmds+=($cmd)
               break
             fi
+            local found=0
             for mname2 in $(act_expand_modules $cmd $mname1 "$@"); do
-              act_get exist ${cmd}_${mname2} && break
+              act_get exist ${cmd}_${mname2} && found=1 && break
             done
-            if act_get exist ${cmd}_${mname2}; then
+            if [ $found -eq 1 ]; then
               profile_cmds+=($cmd)
               break
             fi
@@ -291,11 +292,10 @@ subcommand_list () {
     done
   fi
   
-  (
-    IFS=$'\n'
-    printf "%s\n" "${profile_lines[*]}"
-    printf "%s\n" "${module_lines[*]}"
-  ) | ensure_columns
+  {
+    [ ${#profile_lines[@]} -eq 0 ] || printf "%s\n" "${profile_lines[@]}"
+    [ ${#module_lines[@]} -eq 0 ] || printf "%s\n" "${module_lines[@]}"
+  } | ensure_columns
 }
 
 subcommand_setup () {
