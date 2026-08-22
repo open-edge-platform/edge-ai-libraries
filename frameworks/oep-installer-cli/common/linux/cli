@@ -21,15 +21,15 @@ act_get () {
     done
     ;;
   init)
-    declare -gA _act_get_cache_funcs=()
-    [ ${#_act_get_cache_funcs[@]} -eq 0 ] || return
     declare -g _act_get_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'list|setup' | cut -f2- -d_))
     declare -g _act_get_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_get_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort -ru | cut -f2- -d_))
-    local f
+    declare -gA _act_get_cache_funcs=()
+
+    local f rest
     while read -r _ _ f; do
       case $f in
         "${ID_LIKE}_"*)
-          local rest=${f#"${ID_LIKE}_"}            # e.g. 10_install_foo
+          rest=${f#"${ID_LIKE}_"}                  # e.g. 10_install_foo
           _act_get_cache_funcs[${rest#*_}]=$f      # strip the numeric order -> install_foo
           ;;
       esac
@@ -102,8 +102,6 @@ act_helpper () {
   local sort_options="$2"
   shift
   shift
-
-  act_get init > /dev/null
 
   if [[ " $* " = *" --help "* ]]; then
     local components=($(act_get prefix ${act_name}_))
@@ -232,8 +230,6 @@ subcommand_stop () {
 subcommand_list () {
   [[ " $* " != *" --help "* ]] || return
 
-  act_get init > /dev/null
-
   echo "Mapping profiles and components..." 1>&2
   
   local all_cmds=($(act_get cmds))
@@ -303,8 +299,6 @@ subcommand_list () {
 
 subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
-
-  act_get init
 
   # reconstruct installer
   local installer_misc_functions=()

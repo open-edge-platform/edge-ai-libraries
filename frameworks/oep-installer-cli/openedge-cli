@@ -43,6 +43,9 @@ main () {
     return
   fi
 
+  # initialize act cache
+  declare -F act_get > /dev/null && act_get init
+
   # exec subcommand
   local _rc=0 _i
   for ((_i=0;_i<${#_cmds[@]};_i++)); do
