@@ -155,7 +155,7 @@ subcommand_bootstrap () {
         [[ " ${bfuncs[*]} " = *" $f "* ]] || printf "%s " $f
       done
     ))
-    sed -i "/subcommand_setup *[(][)] *[{]/,/^[}]/{s|local  *installer_misc_functions=.*|local installer_misc_functions=(${misc_funcs[*]})|}" "$rendered"
+    sed -i "/^subcommand_setup *[(][)] *[{]/,/^[}]/{s|local  *installer_misc_functions=.*|local installer_misc_functions=(${misc_funcs[*]})|}" "$rendered"
     [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- start ${start_modules[*]} \"\$@\"" >> "$rendered"
     [ ${#install_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- install ${install_modules[*]} \"\$@\"" >> "$rendered"
     [[ " $* " != *" --setup "* ]] || echo "[ \"\$0\" != bash ] || set -- setup \"\$@\"" >> "$rendered"
