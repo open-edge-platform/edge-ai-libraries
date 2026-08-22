@@ -42,7 +42,7 @@ act_expand_modules () {
   local act_name=${1%%,*}
   local -a q=($2)
   local -A seen=()
-  local i=0 m
+  local i=0
   while [ $i -lt ${#q[*]} ]; do
     local n=${q[$i]}; i=$((i+1))
     [ -z "${seen[$n]:-}" ] || continue
