@@ -39,8 +39,8 @@ act_get () {
 
 act_expand_modules () {
   local act_name=${1%%,*}
-  local -a q=($2); 
-  local -A seen=(); 
+  local -a q=($2)
+  local -A seen=()
   local i=0
   while [ $i -lt ${#q[*]} ]; do
     local n=${q[$i]}; i=$((i+1))
@@ -234,36 +234,18 @@ subcommand_list () {
   act_get init > /dev/null
 
   echo "Mapping profiles and components..." 1>&2
+  
   local all_cmds=($(act_get cmds))
   local all_profiles=($(act_get prefix profile_))
   local all_modules=($(act_get modules))
+  local profile_lines=() module_lines=()
 
-  {
-    if [ ${#all_profiles[@]} -gt 0 ]; then
-      echo "List of profiles:"
-      local profiler
-      for profiler in ${all_profiles[*]}; do
-        local profile_name=${profiler#*_*_*_}
-        [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
-        local profile_cmds=() mname cmd
-        for cmd in ${all_cmds[*]}; do
-          [[ " bootstrap list setup " != *" $cmd "* ]] || continue
-          for mname in $(act_expand_modules $cmd "$($profiler $cmd "$@")" "$@"); do
-            if act_get exist ${cmd}_${mname}; then
-              profile_cmds+=($cmd)
-              break
-            fi
-          done
-        done
-        echo "|$profile_name|[${profile_cmds[*]}]"
-      done
-      echo
-    fi
-  
-    if [ ${#all_modules[@]} -gt 0 ]; then
-      echo "List of components:"
-      local module_name
-      for module_name in ${all_modules[*]}; do
+  local -A module_act_cache=()
+  if [ ${#all_modules[@]} -gt 0 ]; then
+    module_lines+=("List of components:")
+    local module_name
+    for module_name in ${all_modules[*]}; do
+      if [[ ! -v module_act_cache[$module_name] ]]; then
         local module_cmds=() mname cmd
         for cmd in ${all_cmds[*]/list/}; do
           for mname in $(act_expand_modules $cmd $module_name "$@"); do
@@ -273,11 +255,47 @@ subcommand_list () {
             fi
           done
         done
-        echo "|$module_name|[${module_cmds[*]}]"
-      done
-      echo
-    fi
-  } | ensure_columns
+        module_act_cache[$module_name]="${module_cmds[*]}"
+      fi
+      module_lines+=("|$module_name|[${module_act_cache[$module_name]}]")
+    done
+  fi
+
+  if [ ${#all_profiles[@]} -gt 0 ]; then
+    profile_lines+=("List of profiles:")
+    local profiler
+    for profiler in ${all_profiles[*]}; do
+      local profile_name=${profiler#*_*_*_}
+      [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
+      if [[ ! -v module_act_cache[$profile_name] ]]; then
+        local profile_cmds=() mname1 mname2 cmd
+        for cmd in ${all_cmds[*]}; do
+          [[ " bootstrap list setup " != *" $cmd "* ]] || continue
+          for mname1 in $($profiler $cmd "$@"); do
+            if [[ -v module_act_cache[$mname1] ]]; then
+              profile_cmds+=($cmd)
+              break
+            fi
+            for mname2 in $(act_expand_modules $cmd $mname1 "$@"); do
+              act_get exist ${cmd}_${mname2} && break
+            done
+            if act_get exist ${cmd}_${mname2}; then
+              profile_cmds+=($cmd)
+              break
+            fi
+          done
+        done
+        module_act_cache[$profile_name]="${profile_cmds[*]}"
+      fi
+      profile_lines+=("|$profile_name|[${module_act_cache[$profile_name]}]")
+    done
+  fi
+  
+  (
+    IFS=$'\n'
+    printf "%s\n" "${profile_lines[*]}"
+    printf "%s\n" "${module_lines[*]}"
+  ) | ensure_columns
 }
 
 subcommand_setup () {
