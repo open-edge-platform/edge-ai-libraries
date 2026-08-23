@@ -11,6 +11,8 @@ SUPPORTED_MODELS_FILE: str = os.environ.get(
 )
 # Path to the directory where models are stored
 MODELS_PATH: str = os.environ.get("MODELS_PATH", "/models/output")
+# Main language model file that every OpenVINO GenAI model must contain.
+GENAI_SENTINEL_FILE: str = "openvino_language_model.xml"
 
 logger = logging.getLogger("models")
 
@@ -95,18 +97,34 @@ class SupportedModel:
         """
         Checks if the model exists on disk.
 
-        For `genai` models, `model_path` is expected to be a directory.
+        For `genai` models, `model_path` is expected to be a directory that
+        contains the main OpenVINO language model file
+        (``GENAI_SENTINEL_FILE``).  Checking only for the directory is
+        not sufficient: the download process creates the output directory early
+        and may fail part-way through (e.g. due to a missing or invalid
+        HF_TOKEN or a network error), leaving an empty or partial directory
+        behind.  The presence of ``GENAI_SENTINEL_FILE`` confirms that
+        the language model weights were actually downloaded.
 
         Returns:
             bool: True if the model exists, False otherwise.
         """
         if self.model_type == "genai":
-            exists = os.path.isdir(self.model_path_full)
-            if not exists:
+            if not os.path.isdir(self.model_path_full):
                 logger.debug(
                     f"GenAI model directory not found for '{self.display_name}' at path '{self.model_path_full}'"
                 )
-            return exists
+                return False
+            # Require the main language model file to be present so that an
+            # empty or partially-downloaded directory is not treated as installed.
+            main_model_file = os.path.join(self.model_path_full, GENAI_SENTINEL_FILE)
+            if not os.path.isfile(main_model_file):
+                logger.debug(
+                    f"GenAI model directory exists but '{GENAI_SENTINEL_FILE}' is missing "
+                    f"for '{self.display_name}' at '{main_model_file}'"
+                )
+                return False
+            return True
 
         return os.path.isfile(self.model_path_full)
 

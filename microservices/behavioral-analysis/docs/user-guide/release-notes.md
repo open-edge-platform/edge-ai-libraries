@@ -8,7 +8,7 @@
 
 ### Summary
 
-Initial release of the Behavioral Analysis Service — a pose-based suspicious activity detection microservice for retail loss-prevention use cases.
+Initial release of the Behavioral Analysis Service, a pose-based suspicious activity detection microservice for retail loss-prevention use cases.
 
 ### Features
 
@@ -25,7 +25,7 @@ Initial release of the Behavioral Analysis Service — a pose-based suspicious a
 ### Dependency Versions (from `requirements.txt` and `pyproject.toml`)
 
 | Package | Version Constraint |
-|---|---|
+| --- | --- |
 | `fastapi` | `>=0.109.0` |
 | `uvicorn[standard]` | `>=0.27.0` |
 | `pydantic` | `>=2.5.0` |
