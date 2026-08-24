@@ -113,41 +113,53 @@ export IR_OV_MODEL=/opt/models/Qwen3.5-2B-FP16
 
 ### Step 2: Deploy
 
-The deploy resolves the image `${REGISTRY}inference-router:${TAG}`. By default
-`REGISTRY` is empty, so a **locally built** image is used. Choose one of the
-following.
+By default the deploy starts **both** the router and its web UI. The router
+image resolves to `${REGISTRY}inference-router:${TAG}` and the UI image to
+`${REGISTRY}inference-router-ui:${TAG}` — they share the same `REGISTRY` prefix
+and `TAG`. With `REGISTRY` empty (the default), **locally built** images are
+used. Choose one of the following.
+
+To deploy the router **without** the UI, add `--standalone` to any of the
+commands below.
 
 #### Option 1: build from source (default)
 
-With no `REGISTRY` set, build the image locally and deploy:
+With no `REGISTRY` set, build the images locally and deploy:
 
 ```bash
 bash scripts/deploy_docker.sh --build
 ```
 
-`--build` forces a build. If the image already exists, run `bash scripts/deploy_docker.sh`.
+`--build` forces a build of both the router and UI images. If the images
+already exist, run `bash scripts/deploy_docker.sh`.
 
 #### Option 2: use a remote prebuilt image
 
 Set a remote registry by exporting environment variables. The deploy then
-**pulls** the prebuilt image instead of building:
+**pulls** the prebuilt images instead of building:
 
 ```bash
 export REGISTRY="intel/"
-export TAG="2026.2.0"
+export TAG="latest"
 ```
 
 `REGISTRY` is a prefix — include the trailing `/` (e.g. `intel/` or
-`myregistry.example.com:5000/`). Leave it unset/empty to use the local image
+`myregistry.example.com:5000/`). Leave it unset/empty to use the local images
 from Option 1.
 
-Check that the container is running:
+Deploy:
+
+```bash
+bash scripts/deploy_docker.sh
+```
+
+Check that the containers are running:
 
 ```bash
 docker ps --filter name=inference-router
 ```
 
-To stop the router:
+To stop everything:
 
 ```bash
 bash scripts/deploy_docker.sh --down
@@ -159,15 +171,40 @@ To use a different host port:
 ROUTER_PORT=9000 bash scripts/deploy_docker.sh
 ```
 
-#### Enable Remote Access
+#### Web UI
 
-By default, the router binds to `127.0.0.1` (loopback), so it is only reachable
-from the host it runs on. To allow access from **other machines**, export
-`IR_BIND_HOST=0.0.0.0` (or a specific interface IP) before deploying:
+With the UI enabled (the default), open it in a browser at
+`http://<host-ip>:7010`. Because the router runs on the host network while the
+UI runs in a bridge network, the deploy script automatically detects the host's
+LAN IP, binds the router to it, and points the UI there — so the router is
+reachable from other machines on your network in this mode. Use a different UI
+port with `--ui-port`:
 
 ```bash
-IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh
+bash scripts/deploy_docker.sh --ui-port 8080
 ```
+
+To skip the UI and deploy only the router (local-only by default, see
+[Enable Remote Access](#enable-remote-access)):
+
+```bash
+bash scripts/deploy_docker.sh --standalone
+```
+
+#### Enable Remote Access
+
+In `--standalone` mode the router binds to `127.0.0.1` (loopback) by default, so
+it is only reachable from the host it runs on. To allow access from **other
+machines**, export `IR_BIND_HOST=0.0.0.0` (or a specific interface IP) before
+deploying:
+
+```bash
+IR_BIND_HOST=0.0.0.0 bash scripts/deploy_docker.sh --standalone
+```
+
+(When the UI is enabled the router is already bound to the host's LAN IP, so it
+is reachable remotely without this step. Export `IR_BIND_HOST` to override the
+detected address.)
 
 Clients on other machines will then reach the router at `http://<host-ip>:8000`
 (substitute your `ROUTER_PORT` if you changed it).
@@ -345,7 +382,7 @@ These backend services are **not** part of the router. To deploy
 the Lingua server and the tool predictor,
 see the
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor)
-repository.
+repository. 
 For detailed purpose and behavior of each compressor, see the
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor) repository documentation.
 

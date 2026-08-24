@@ -18,24 +18,27 @@
         </div>
       </div>
       <div class="router-module-actions">
-        <button
-          class="router-icon-action"
-          type="button"
+        <a-button
+          type="text"
+          shape="circle"
+          size="small"
           :title="t('router.refresh')"
-          :disabled="drawerData.isMetricsRefreshing"
+          :loading="drawerData.isMetricsRefreshing"
           @click="$emit('refresh')"
         >
-          <ReloadOutlined />
-        </button>
-        <button
-          class="router-icon-action danger"
-          type="button"
+          <template #icon><ReloadOutlined /></template>
+        </a-button>
+        <a-button
+          type="text"
+          shape="circle"
+          size="small"
+          danger
           :title="t('common.reset')"
-          :disabled="drawerData.isResetting"
+          :loading="drawerData.isResetting"
           @click="$emit('reset')"
         >
-          <RedoOutlined />
-        </button>
+          <template #icon><RedoOutlined /></template>
+        </a-button>
       </div>
     </div>
 
@@ -974,7 +977,6 @@ onUnmounted(() => {
 }
 
 .section-icon,
-.router-icon-action,
 .overview-card-icon {
   display: inline-flex;
   align-items: center;
@@ -989,35 +991,6 @@ onUnmounted(() => {
   border-radius: 8px;
   background: var(--color-primary);
   color: var(--color-white);
-}
-
-.router-icon-action {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
-  border-radius: 6px;
-  background: color-mix(
-    in srgb,
-    var(--color-primary) 8%,
-    var(--surface-panel-bg-strong)
-  );
-  color: var(--color-primary);
-  cursor: pointer;
-}
-
-.router-icon-action.danger {
-  color: var(--color-error);
-  background: color-mix(
-    in srgb,
-    var(--color-error, var(--color-errorBg)) 8%,
-    var(--surface-panel-bg-strong)
-  );
-}
-
-.router-icon-action:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 
 .section-title {
