@@ -1,6 +1,15 @@
 # Behavioral Analysis Service
 
-## 1. Overview
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/behavioral-analysis">
+     GitHub
+  </a>
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/behavioral-analysis/README.md">
+     Readme
+  </a>
+</div>
+hide_directive-->
 
 The Behavioral Analysis Service is a reusable Intel-developed microservice that detects pose-based behavioral patterns through a declarative YAML-driven rule engine. New behaviors can be defined without code modification by adding or updating patterns in `config/patterns.yaml`, making the service architecturally extensible to arbitrary domains.
 
@@ -17,7 +26,7 @@ The Behavioral Analysis Service is a reusable Intel-developed microservice that 
 - Event-driven processing via MQTT
 - Stateless design with external frame storage
 
-## 2. Runtime Architecture
+## 1. Runtime Architecture
 
 ### Architecture Diagram
 
@@ -89,7 +98,7 @@ sequenceDiagram
     MQTT->>US: result event
 ```
 
-## 3. Service Components
+## 2. Service Components
 
 | Component | Responsibility |
 | --- | --- |
@@ -101,18 +110,18 @@ sequenceDiagram
 | **Rule Engine** | Evaluates YAML-defined pose conditions and phases |
 | **VLM Client** | OpenAI-compatible HTTP client with circuit breaker |
 
-## 4. Key Features
+## 3. Key Features
 
-### 4.1 Pose Extraction
+### 3.1 Pose Extraction
 
 - **Model:** YOLO26n-pose (OpenVINO IR format); runs without PyTorch dependencies
 - **Keypoints:** COCO 17-point skeletal format (pose coordinates + per-keypoint confidence)
-- **Device support:** CPU, GPU, NPU (configurable via `GST_INFERENCE_DEVICE`)
+- **Device support:** CPU, GPU (configurable via `GST_INFERENCE_DEVICE`)
 - **Configuration:** `POSE_CONFIDENCE_THRESHOLD` (default 0.5) controls detection quality filtering
 
 See [How It Works](./how-it-works.md#pose-extraction) for implementation details (preprocessing, model output format, NMS).
 
-### 4.2 Declarative Pattern Engine
+### 3.2 Declarative Pattern Engine
 
 **Pattern file:** `config/patterns.yaml`
 
@@ -147,7 +156,7 @@ patterns:
               threshold: 0.40
 ```
 
-### 4.3 VLM Confirmation
+### 3.3 VLM Confirmation
 
 - **Capability:** Optional frame-level visual confirmation when pose patterns match
 - **Endpoint:** OpenAI-compatible API (default: OVMS Qwen2.5-VL-7B-Instruct)
@@ -157,15 +166,15 @@ patterns:
 
 See [How It Works](./how-it-works.md#vlm-confirmation) for implementation details (circuit breaker, image encoding, scoring logic).
 
-### 4.4 Entity Deduplication & Backpressure
+### 3.4 Entity Deduplication & Backpressure
 
 - **Dedup:** Skips analysis if the same entity is already in-flight
 - **Max concurrency:** `max_inflight_analyses` (default 3) caps concurrent analysis tasks
 - **Behavior:** Requests exceeding capacity are dropped (logged but not queued)
 
-## 5. Integration
+## 4. Integration
 
-### 5.1 MQTT Interface
+### 4.1 MQTT Interface
 
 **Request Topic:** Configurable (default `ba/requests`)
 
@@ -210,7 +219,7 @@ See [How It Works](./how-it-works.md#vlm-confirmation) for implementation detail
 - `"no_match"` — Sufficient frames analyzed; no pattern matched
 - `"suspicious"` — Pattern matched; entity flagged as suspicious
 
-### 5.2 SeaweedFS Frame Storage
+### 4.2 SeaweedFS Frame Storage
 
 **Expected structure in S3-compatible storage:**
 
@@ -234,7 +243,7 @@ Bucket name is configurable via `SEAWEEDFS_BUCKET` environment variable (default
 - Fetches up to `MAX_FRAMES_TO_FETCH` (default 30) most recent frames
 - Does not create, modify, or delete stored frames
 
-### 5.3 Configuration
+### 4.3 Configuration
 
 **Environment variables:** All settings loaded via Pydantic `BaseSettings` from `config.py`
 
@@ -248,9 +257,9 @@ Bucket name is configurable via `SEAWEEDFS_BUCKET` environment variable (default
 | **MQTT** | `MQTT_HOST`, `MQTT_PORT`, `BA_REQUEST_TOPIC`, `BA_RESULT_TOPIC` |
 | **Patterns** | `PATTERN_CONFIG_PATH` |
 
-## 6. Use Cases
+## 5. Use Cases
 
-### 6.1 Extensible Pattern Framework
+### 5.1 Extensible Pattern Framework
 
 The Behavioral Analysis Service is designed for extensibility through its declarative pattern engine. New behaviors are defined by adding or modifying YAML patterns in `config/patterns.yaml` — no code changes or redeployment required.
 
@@ -268,7 +277,7 @@ The Behavioral Analysis Service is designed for extensibility through its declar
 
 **Deployment:** SeaweedFS + MQTT broker + upstream frame-capture system. VLM/OVMS optional for pose-only analysis.
 
-### 6.2 Example Patterns (Illustrative)
+### 5.2 Example Patterns (Illustrative)
 
 These examples demonstrate how new patterns can be added; they are not included in this release:
 
@@ -325,7 +334,7 @@ patterns:
 
 Restart the service; new patterns activate immediately.
 
-## 7. Dependency on External Services
+## 6. Dependency on External Services
 
 | Service | Purpose | Criticality | Availability Required |
 | --- | --- | --- | --- |
@@ -339,7 +348,7 @@ Restart the service; new patterns activate immediately.
 - [How It Works](./how-it-works.md) — Detailed architecture and request flows
 - [API Reference](./api-reference.md) — HTTP and MQTT endpoint schemas
 - [Configuration](./get-started/configuration.md) — Full environment variable reference
-- [Troubleshooting](./troubleshooting.md) — Common issues and resolutions
+- [Troubleshooting](./troubleshooting.md) — Common issues and resolution paths
 
 <!--hide_directive
 :::{toctree}

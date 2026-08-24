@@ -145,7 +145,7 @@ Symptoms:
 Checks:
 
 - Validate bucket and object key structure match service expectations.
-- Validate identifiers in request match identifiers used in stored frame path.
+- Validate that identifiers in the request match identifiers used in the stored frame path.
 
 ### Cross-container network isolation
 
