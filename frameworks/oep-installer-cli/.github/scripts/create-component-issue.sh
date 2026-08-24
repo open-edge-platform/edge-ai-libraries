@@ -10,7 +10,7 @@ set -euo pipefail
 SPECS_LIST="${1:?Usage: $0 <specs_list_file>}"
 
 # Build list of available helpers once (embedded into every issue body)
-HELPERS_LIST="$(find common/ license/ -type f 2>/dev/null | sort | sed 's|^|  - |')"
+HELPERS_LIST="$(find common/ license/ -type f 2>/dev/null | grep -v -E '/(cli|panelled_logs|license_gate)$' | sort | sed 's|^|  - |')"
 
 while IFS= read -r spec_file; do
   [ -f "$spec_file" ] || continue
@@ -131,8 +131,7 @@ ${HELPERS_LIST}
 
 ### @@HIGHLIGHT guidance
 
-\`@@HIGHLIGHT\` is a protocol consumed by \`ensure_panelled_logs\` in
-\`common/linux/panelled_logs\` to show the user what to do after install or
+\`@@HIGHLIGHT\` is a protocol to show the user what to do after install or
 start.
 
 **When to include it:**
