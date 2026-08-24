@@ -13,7 +13,9 @@ from contextlib import asynccontextmanager
 from io import BytesIO
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import cv2
@@ -141,6 +143,21 @@ app = FastAPI(
 )
 
 
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Normalize FastAPI request validation errors to the API error contract."""
+    return JSONResponse(
+        status_code=400,
+        content={
+            "detail": {
+                "error_code": "INVALID_REQUEST",
+                "message": "Request validation failed",
+                "errors": exc.errors(),
+            }
+        },
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Request/Response Models
 # ─────────────────────────────────────────────────────────────────────────────
@@ -217,14 +234,15 @@ async def health_check():
     pose_analyzer: PoseAnalyzer = app.state.pose_analyzer
     frame_store: SeaweedFSClient = app.state.frame_store
 
-    seaweedfs_ok = False
-    if frame_store and settings.use_seaweedfs:
-        try:
-            seaweedfs_ok = await frame_store.check_connection()
-        except Exception:
-            seaweedfs_ok = False
-    elif not settings.use_seaweedfs:
-        seaweedfs_ok = True  # Not required in standalone mode
+    if not settings.use_seaweedfs:
+        seaweedfs_ok = False
+    else:
+        seaweedfs_ok = False
+        if frame_store:
+            try:
+                seaweedfs_ok = await frame_store.check_connection()
+            except Exception:
+                seaweedfs_ok = False
 
     return HealthResponse(
         status="healthy",
@@ -416,7 +434,7 @@ async def analyze_frames_batch(
     pattern_id: str = Form(default="shelf_to_waist", description="Pattern to detect"),
     vlm_enabled: Optional[bool] = Form(None, description="Override global VLM setting"),
     request_id: Optional[str] = Form(None, description="Request tracking ID"),
-    frames: List[UploadFile] = File(..., description="Frame files (JPEG/PNG/WebP)"),
+    frames: Optional[List[UploadFile]] = File(None, description="Frame files (JPEG/PNG/WebP)"),
 ):
     """
     Analyze frames for suspicious activity using direct multipart frame submission.
@@ -439,6 +457,14 @@ async def analyze_frames_batch(
         Simplified analysis response with pose detection and pattern match results
     """
     pose_analyzer: PoseAnalyzer = app.state.pose_analyzer
+
+    if not frames or len(frames) == 0:
+        req_id = request_id or f"req_{entity_id}_0_frames"
+        logger.warning(f"[{req_id}] No frames provided")
+        raise HTTPException(
+            status_code=400,
+            detail={"error_code": "NO_FRAMES_PROVIDED", "message": "At least 1 frame required"}
+        )
 
     # Use provided request_id or generate one
     req_id = request_id or f"req_{entity_id}_{len(frames)}_frames"
