@@ -7,7 +7,7 @@ version = "2026.1.0"
 description = "Unified metrics collection, ingestion, and relay service with OpenTelemetry support"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi[standard]==0.128.0",
+    "fastapi[standard]==0.141.1",
     "uvicorn==0.40.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
