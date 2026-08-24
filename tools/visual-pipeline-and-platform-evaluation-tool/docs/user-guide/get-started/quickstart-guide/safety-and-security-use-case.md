@@ -41,10 +41,9 @@ Deep SORT parameters used in the predefined variant:
 ## Role of tracking and optional classification
 
 - **Tracking (default):** Deep SORT is responsible for temporal continuity and stable IDs.
-  The Re-ID stage (`mars-small128`) helps preserve identities through short partial obstructions
-  and re-entries.
+  The Re-ID stage (`mars-small128`) helps preserve identities through short brief periods of missing detections.
 - **Optional classification (user extension):** If your use case needs per-person attributes
-  (for example personal protective equipment (PPE) or role labels), add a classification stage after detection/tracking and
+  (for example protective equipment or role labels), add a classification stage after detection/tracking and
   keep `inference-region=roi-list` plus `object-class=person` so only person ROIs are classified.
 
 ## Expected input video characteristics
