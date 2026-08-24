@@ -67,17 +67,16 @@ jobs:
           export C_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
           #pip install --upgrade pip setuptools>=61 wheel packaging --extra-index-url https://download.pytorch.org/whl/xpu
           pip install numpy torch==2.11.0+xpu setuptools>=61 --extra-index-url https://download.pytorch.org/whl/xpu
-          pip install . --extra-index-url https://download.pytorch.org/whl/xpu
+          #pip install . --extra-index-url https://download.pytorch.org/whl/xpu
           BUILDEOF
 
           echo "=== 先测试不带 Coverity 的构建 ==="
-          #bash ./cov-build.sh
-          pip install . --extra-index-url https://download.pytorch.org/whl/xpu
+          chmod +x cov-build.sh
+          bash ./cov-build.sh
           echo "=== 构建测试结果: $? ==="
           
           #pip install . --extra-index-url https://download.pytorch.org/whl/xpu
-          chmod +x cov-build.sh
-          coverity capture --dir cov-int --project-dir . -- ./cov-build.sh || true
+          coverity capture --dir cov-int --project-dir . -- pip install . --extra-index-url https://download.pytorch.org/whl/xpu
           cat /home/runner/work/edge-ai-libraries/edge-ai-libraries/libraries/kv-quant-offload/cov-int/build-log.txt
           
       - name: Create tarball for upload
