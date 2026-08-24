@@ -50,8 +50,61 @@ All variables are case-insensitive.
 | Variable | Default | Description |
 | --- | --- | --- |
 | YOLO_POSE_MODEL | /models/yolo_models/yolo26n-pose/yolo26n-pose.xml | Path to YOLO-Pose OpenVINO IR model (.xml) |
-| BA_GST_DEVICE | CPU | OpenVINO inference device: CPU, GPU, NPU |
+| BA_GST_DEVICE | CPU | OpenVINO inference device: CPU, GPU. See the accelerator mapping requirement below. |
 | BA_CONFIDENCE | 0.5 | Minimum keypoint confidence threshold |
+
+Download YOLO26n-pose model:
+
+Run this before `docker compose up` when using `standalone+api` mode.
+
+```bash
+cd download-model
+./download_yolo_pose.sh
+```
+
+Expected output files:
+
+- `models/yolo_models/yolo26n-pose/yolo26n-pose.xml`
+- `models/yolo_models/yolo26n-pose/yolo26n-pose.bin`
+
+The host must expose accelerator devices to Docker, and the relevant device entries must be mapped into the `behavioral-analysis` service,
+because that container performs the YOLO-Pose OpenVINO inference. For example, `/dev/dri:/dev/dri` (GPU).
+
+> **Note:** If `BA_GST_DEVICE=GPU` is used, the same accelerator device must be added to the
+> `behavioral-analysis` service's `devices:` section. Do this using a Docker Compose override
+> file instead of editing the tracked `docker-compose.yml` directly, so local device mappings
+> survive project updates without merge conflicts.
+
+GPU setup with `docker-compose.override.yml`:
+
+1. Set the device in `.env`:
+
+   ```bash
+   BA_GST_DEVICE=GPU
+   ```
+
+2. Copy the provided GPU template to an override file (gitignored, never committed):
+
+   ```bash
+   cp docker-compose.override.yml.gpu-example docker-compose.override.yml
+   ```
+
+3. Run Docker Compose as usual; `docker-compose.override.yml` is merged automatically:
+
+   ```bash
+   docker compose up
+   ```
+
+The template (`docker-compose.override.yml.gpu-example`) contains:
+
+```yaml
+services:
+  behavioral-analysis:
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${RENDERER_GROUP:-992}
+```
 
 ### Frame Analysis
 
@@ -81,13 +134,13 @@ All variables are case-insensitive.
 
 ### VLM
 
-VLM values can come from environment variables or from config/patterns.yaml under vlm_settings. YAML values take precedence at startup.
+The global VLM switch is controlled exclusively by the environment variable `VLM_ENABLED`. The YAML `vlm_settings` block is used only for connection/model settings and does not control the global enable/disable state.
 
-Important: if VLM is enabled, ensure VLM model artifacts are downloaded before launch. In Docker Compose, `ovms-vlm` mounts models from `${DOWNLOADED_MODEL_PATH}/vlm_models` and expects the model configuration to be available there.
+Important: VLM is disabled by default. Enable it explicitly when the environment is configured for VLM confirmation. Ensure model artifacts are downloaded before launch. In Docker Compose, `ovms-vlm` mounts models from `${DOWNLOADED_MODEL_PATH}/vlm_models` and expects the model configuration to be available there.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| VLM_ENABLED | true | Enable VLM confirmation after pose match |
+| VLM_ENABLED | false | Global master switch for VLM confirmation after pose match |
 | VLM_ENDPOINT | <http://ovms-vlm:8001> | OpenAI-compatible endpoint |
 | VLM_MODEL_NAME | Qwen/Qwen2.5-VL-7B-Instruct | Model name for VLM request |
 | VLM_TIMEOUT | 300.0 | Request timeout in seconds |
@@ -121,7 +174,7 @@ SEAWEEDFS_BUCKET=behavioral-frames
 
 # VLM
 VLM_ENDPOINT=http://ovms-vlm:8001
-VLM_ENABLED=true
+VLM_ENABLED=false
 
 # MQTT (required only for seaweedfs+mqtt mode)
 MQTT_HOST=broker.scenescape.intel.com
@@ -136,6 +189,9 @@ BA_MAX_FRAMES=30
 BA_POSE_FRAMES=20
 BA_CONFIDENCE=0.5
 BA_GST_DEVICE=CPU
+# For GPU, set BA_GST_DEVICE=GPU above and create a docker-compose.override.yml from
+# docker-compose.override.yml.gpu-example to map host devices (e.g. /dev/dri) without
+# editing docker-compose.yml.
 DOWNLOADED_MODEL_PATH=./models
 ```
 
@@ -149,7 +205,6 @@ Behavioral patterns are defined in YAML and loaded from `PATTERN_CONFIG_PATH`.
 vlm_settings:
   endpoint: "http://ovms-vlm:8001"
   model_name: "Qwen/Qwen2.5-VL-7B-Instruct"
-  enabled: true
   timeout: 30.0
   max_tokens: 50
   temperature: 0.1
