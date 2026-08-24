@@ -2,9 +2,9 @@
 
 ## Version 2026.2.0
 
-**Release Date:** August 4, 2026
+**Release Date:** September 9, 2026
 
-**New**
+**New**:
 
 - **Multimodal ingestion:** the service now ingests **images** alongside video. Images are embedded directly (no frame extraction) into the same shared vector space as video frames and text summaries, discriminated by a `content_type` (`video`/`image`/`text`) metadata field, enabling cross-modal search.
 - **Three image transports:** multipart binary (`POST /media/upload`), inline base64 and remote URL (`POST /media/ingest`, typed on a `type` discriminator; batch via `POST /media/ingest/batch`).
@@ -18,7 +18,7 @@
 - Added expanded NPU device support in setup/runtime configuration for per-component execution (`MM_DATAPREP_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`).
 - Added richer API/OpenAPI alignment updates for media processing and management endpoints.
 
-**Improved**
+**Improved**:
 
 - **Endpoints renamed `/videos/*` → `/media/*`** to reflect multimodal functionality (for example `/videos/upload` → `/media/upload`, `/videos/minio` → `/media/process`, `/videos/batch/{job_id}` → `/media/jobs/{job_id}`). Request/response field names (`video_id`, `video_name`, `video_url`) are unchanged for retriever compatibility.
 - **Backend-agnostic:** vector database (`vdms`/`milvus`) and object storage (`minio`/`local`) are each selected at startup behind a factory via `MM_DATAPREP_VECTORDB_BACKEND` / `MM_DATAPREP_STORAGE_BACKEND` — no code changes to switch. See [Pluggable Backends](pluggable-backends.md).
@@ -31,7 +31,7 @@
 - Simplified containerization flow by removing legacy dev/lint/report runtime paths and aligning setup scripts with a production-focused image flow.
 - Updated compose/setup defaults and docs to reflect current accelerator-oriented configuration behavior.
 
-**Fixed**
+**Fixed**:
 
 - Resolved a shared-memory pool deadlock: pool acquisition is now time-bounded and batch size is clamped to the pool capacity.
 - Video processing is offloaded to a worker thread so long ingestions no longer block the event loop and stall `/health`.
@@ -42,16 +42,16 @@
 - Fixed Milvus connection failures on existing collections, plus Milvus compose environment wiring and healthcheck.
 - Fixed request-schema compatibility issue in upload processing parameters for newer FastAPI/Pydantic combinations.
 
-**Upgrade Notes**
+**Upgrade Notes**:
 
 - Consumers of the old `/videos/*` paths must migrate to `/media/*`.
 - Environment variables not already prefixed with `MM_DATAPREP_` must be renamed (for example `MM_EMBEDDING_DEVICE` → `MM_DATAPREP_EMBEDDING_DEVICE`).
 
 ## Version 2026.1.0
 
-**June 17, 2026**
+**Release Date:** June 17, 2026
 
-**New**
+**New**:
 
 - Stage-separated embedding pipeline: decode → detect → embed → store stages run concurrently via bounded queues with back-pressure control.
 - Shared memory Zero-copy frame metadata transport via POSIX shared memory pool between pipeline stages.
@@ -59,7 +59,7 @@
 - Structured per-stream pipeline metrics: stage durations, throughput FPS, concurrency factor, and efficiency %. Runtime stats can be saved as JSON via `MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS=true`.
 - Configurable embedding pipeline via environment variables (seeded by `setup.sh`).
 
-**Improved**
+**Improved**:
 
 - Uploaded video bytes are processed directly from memory; no temp-file re-read after MinIO upload.
 - Batch embedding generation supports `metrics_out=True` to return inference timing alongside results.
@@ -67,12 +67,12 @@
 - Container healthcheck, raised `nofile` ulimits and `ipc: host` added to Docker Compose.
 - `get-started.md` updated with full environment variable reference and setup instructions.
 
-**Upgrade Notes**
+**Upgrade Notes**:
 
 - Telemetry schema: `TelemetryRecord.stages` and `.throughput` replaced by `pipeline_stats`, `stage_duration`, and `stage_throughput` dicts. `batch_index` is now 0-based; `stream_id` field added to `TelemetryBatchDetail` and `TelemetryCounts`. Update downstream telemetry consumers.
 - Docker / Kubernetes deployments must set `ipc: host` / `hostIPC: true` for the shared memory pipeline.
 
-*Validated configuration*
+*Validated configuration*:
 
 - *Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU, Intel® Core™ Ultra Processors (Series 2 and 3)*
 - *Vanilla Kubernetes Cluster*
