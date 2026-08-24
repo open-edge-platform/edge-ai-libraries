@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 **Agents**: Copilot (`claude-sonnet-5`)
 **Grader**: Copilot (`gpt-5.3-codex`)
-**Date**: 2026-08-24T06:38:03Z
+**Date**: 2026-08-24T15:06:34Z
 **Evals**: 1, 2, 3, 4 (1 run per configuration)
 
 ## Summary
@@ -24,19 +24,19 @@ SPDX-License-Identifier: Apache-2.0
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 20% ±0% | 100% ±0% | **+80pp ↑** |
+| Copilot (`claude-sonnet-5`) | 25% ±17% | 100% ±0% | **+75pp ↑** |
 
 ### Time (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 173 s | 134 s | -39 s ↓ |
+| Copilot (`claude-sonnet-5`) | 190 s | 166 s | -24 s ↓ |
 
 ### Tokens (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 124k | 720k | +596k ↓ |
+| Copilot (`claude-sonnet-5`) | 133k | 728k | +595k ↓ |
 
 ## Per-Eval Detail
 
@@ -44,8 +44,8 @@ SPDX-License-Identifier: Apache-2.0
 
 | Eval | Prompt | Copilot (w/) | Copilot (w/o) |
 |---|---|---|---|
-| 1 | I have a fresh Kubernetes cluster with `kubectl` and Helm 3 already working, and... | PASS (5/5) | FAIL (1/5) |
-| 2 | I currently have the `vss` release running in unified mode (`unified_summary_sea... | PASS (5/5) | FAIL (1/5) |
-| 3 | My nodes have Intel GPUs and NPUs available via device plugins. For my VSS summa... | PASS (5/5) | FAIL (1/5) |
-| 4 | I want to install VSS in unified mode with vLLM as the backend instead of OVMS, ... | PASS (5/5) | FAIL (1/5) |
-| | **Mean ±σ** | **100% ±0%** | **20% ±0%** |
+| 1 | Prepare an offline installation plan for VSS summary mode with OVMS in namespace... | PASS (3/3) | FAIL (1/3) |
+| 2 | Document how to replace an existing unified VSS Helm release named `vss` with du... | PASS (3/3) | FAIL (1/3) |
+| 3 | Write an offline values example for VSS summary mode using OVMS with a VLM on an... | PASS (3/3) | FAIL (1/3) |
+| 4 | Prepare a Helm command and user-values checklist for unified VSS with the Xeon v... | PASS (3/3) | FAIL (0/3) |
+| | **Mean ±σ** | **100% ±0%** | **25% ±17%** |

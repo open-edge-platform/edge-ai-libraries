@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 **Agents**: Copilot (`claude-sonnet-5`)
 **Grader**: Copilot (`gpt-5.3-codex`)
-**Date**: 2026-08-24T06:38:03Z
+**Date**: 2026-08-24T15:01:22Z
 **Evals**: 1, 2, 3, 4 (1 run per configuration)
 
 ## Summary
@@ -24,19 +24,19 @@ SPDX-License-Identifier: Apache-2.0
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 15% ±10% | 100% ±0% | **+85pp ↑** |
+| Copilot (`claude-sonnet-5`) | 0% ±0% | 100% ±0% | **+100pp ↑** |
 
 ### Time (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 129 s | 173 s | +44 s ↓ |
+| Copilot (`claude-sonnet-5`) | 117 s | 125 s | +8 s ↓ |
 
 ### Tokens (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 190k | 989k | +799k ↓ |
+| Copilot (`claude-sonnet-5`) | 125k | 435k | +309k ↓ |
 
 ## Per-Eval Detail
 
@@ -44,8 +44,8 @@ SPDX-License-Identifier: Apache-2.0
 
 | Eval | Prompt | Copilot (w/) | Copilot (w/o) |
 |---|---|---|---|
-| 1 | I just uploaded a video called "loading-dock-cam.mp4" to VSS. Can you summarize ... | PASS (5/5) | FAIL (1/5) |
-| 2 | I have a 40-minute warehouse security video already ingested with videoId `vid-7... | PASS (5/5) | FAIL (1/5) |
-| 3 | For videoId `parking-lot-042`, I don't want a single blended summary - I want to... | PASS (5/5) | FAIL (1/5) |
-| 4 | I only have this skills folder on my machine - the VSS application source isn't ... | PASS (5/5) | FAIL (0/5) |
-| | **Mean ±σ** | **100% ±0%** | **15% ±10%** |
+| 1 | Prepare an offline API sequence to summarize an already ingested VSS video with ... | PASS (3/3) | FAIL (0/3) |
+| 2 | Build the summary request for video id `warehouse-88`: title it `Warehouse morni... | PASS (3/3) | FAIL (0/3) |
+| 3 | For VSS video id `yard-cam-17`, document a summary request that skips the final ... | PASS (3/3) | FAIL (0/3) |
+| 4 | Explain the offline Pipeline Manager sequence for summarizing an already uploade... | PASS (3/3) | FAIL (0/3) |
+| | **Mean ±σ** | **100% ±0%** | **0% ±0%** |

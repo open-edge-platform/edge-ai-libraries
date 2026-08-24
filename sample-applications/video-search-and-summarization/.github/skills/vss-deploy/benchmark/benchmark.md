@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 **Agents**: Copilot (`claude-sonnet-5`)
 **Grader**: Copilot (`gpt-5.3-codex`)
-**Date**: 2026-08-24T06:38:03Z
+**Date**: 2026-08-24T15:03:50Z
 **Evals**: 1, 2, 3, 4 (1 run per configuration)
 
 ## Summary
@@ -30,13 +30,13 @@ SPDX-License-Identifier: Apache-2.0
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 357 s | 292 s | -65 s ↓ |
+| Copilot (`claude-sonnet-5`) | 166 s | 187 s | +21 s ↓ |
 
 ### Tokens (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 760k | 1960k | +1200k ↓ |
+| Copilot (`claude-sonnet-5`) | 129k | 863k | +734k ↓ |
 
 ## Per-Eval Detail
 
@@ -44,8 +44,8 @@ SPDX-License-Identifier: Apache-2.0
 
 | Eval | Prompt | Copilot (w/) | Copilot (w/o) |
 |---|---|---|---|
-| 1 | I just cloned the video-search-and-summarization sample app and want to try vide... | PASS (5/5) | FAIL (0/5) |
-| 2 | Before I commit to anything, I want to see which Docker Compose files and profil... | PASS (5/5) | FAIL (0/5) |
-| 3 | Deploy VSS in unified mode (one UI where I can search over the generated summari... | PASS (5/5) | FAIL (0/5) |
-| 4 | I'm done testing VSS for today. Please stop all the containers and also wipe the... | PASS (5/5) | FAIL (0/5) |
+| 1 | I am preparing a machine for VSS summary mode, but I do not want to start servic... | PASS (3/3) | FAIL (0/3) |
+| 2 | Audit the VSS dual-UI configuration without launching containers. Show the confi... | PASS (3/3) | FAIL (0/3) |
+| 3 | Prepare commands for a unified VSS deployment on port 18080. I need one command ... | PASS (3/3) | FAIL (0/3) |
+| 4 | Document the single VSS command that resets application data after testing. Expl... | PASS (3/3) | FAIL (0/3) |
 | | **Mean ±σ** | **100% ±0%** | **0% ±0%** |
