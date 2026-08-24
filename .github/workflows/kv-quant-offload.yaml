@@ -44,8 +44,6 @@ jobs:
           echo "=== 是这里报错吗？！！！！！！！！！！！！！！！！！！！！！！！！！！ ==="
           source /opt/intel/oneapi/setvars.sh || true
           echo "=== 怎么说？ ==="
-          python3 -m venv .venv
-          source .venv/bin/activate
           
           wget --quiet https://scan.coverity.com/download/linux64 \
             --post-data "token=${{ secrets.KV_COVERITY_TOKEN }}&project=${{ secrets.KV_COVERITY_PROJECT }}" \
