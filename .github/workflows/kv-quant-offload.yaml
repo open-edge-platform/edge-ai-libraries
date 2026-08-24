@@ -30,6 +30,7 @@ jobs:
         
       - name: Build with Coverity Analysis
         run: |
+          set -x
           # Add the Intel repository GPG key
           wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
             | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
@@ -69,9 +70,9 @@ jobs:
           pip install . --extra-index-url https://download.pytorch.org/whl/xpu
           BUILDEOF
 
-          #echo "=== 先测试不带 Coverity 的构建 ==="
-          #bash ./cov-build.sh 2>&1 | tee /tmp/build-test.log
-          #echo "=== 构建测试结果: $? ==="
+          echo "=== 先测试不带 Coverity 的构建 ==="
+          bash ./cov-build.sh 2>&1 | tee /tmp/build-test.log
+          echo "=== 构建测试结果: $? ==="
           #pip install . --extra-index-url https://download.pytorch.org/whl/xpu
           chmod +x cov-build.sh
           coverity capture --dir cov-int --project-dir . -- ./cov-build.sh
