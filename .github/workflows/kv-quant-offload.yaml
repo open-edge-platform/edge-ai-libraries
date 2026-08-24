@@ -30,6 +30,8 @@ jobs:
         
       - name: Build with Coverity Analysis
         run: |
+          set -x
+          set +e
           # Add the Intel repository GPG key
           wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
             | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
@@ -41,7 +43,7 @@ jobs:
           # Install the 2025.3 compiler package (icpx is provided by this package)
           sudo -E apt update
           sudo -E apt install -y intel-oneapi-base-toolkit-2025.3
-          sudo -E apt install -y build-essential
+          sudo -E apt install -y build-essential libc6-dev
           source /opt/intel/oneapi/setvars.sh
           
           wget --quiet https://scan.coverity.com/download/linux64 \
@@ -58,9 +60,9 @@ jobs:
           #!/bin/bash
           set -e
           source /opt/intel/oneapi/setvars.sh
-          #export CPATH="/usr/include:/usr/include/x86_64-linux-gnu${CPATH:+:$CPATH}"
-          #export CPLUS_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
-          #export C_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
+          export CPATH="/usr/include:/usr/include/x86_64-linux-gnu${CPATH:+:$CPATH}"
+          export CPLUS_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
+          export C_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
           #pip install --upgrade pip setuptools>=61 wheel packaging --extra-index-url https://download.pytorch.org/whl/xpu
           pip install numpy torch==2.11.0+xpu setuptools>=61 --extra-index-url https://download.pytorch.org/whl/xpu
           pip install . --extra-index-url https://download.pytorch.org/whl/xpu --no-build-isolation
