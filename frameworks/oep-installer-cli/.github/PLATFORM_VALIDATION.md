@@ -1,0 +1,189 @@
+# Platform Validation
+
+This document describes the self-hosted platform-validation system: why it
+exists, how it is secured, and how an admin configures it.
+
+---
+
+## Contents
+
+1. [Threat model and label gate](#threat-model-and-label-gate)
+2. [Orchestrator vs. target](#orchestrator-vs-target)
+3. [Registering the self-hosted runner](#registering-the-self-hosted-runner)
+4. [Preparing a libvirt target VM](#preparing-a-libvirt-target-vm)
+5. [Repository variables and secrets](#repository-variables-and-secrets)
+6. [Driver vs. application targets](#driver-vs-application-targets)
+7. [Apt / registry cache](#apt--registry-cache)
+8. [Trigger warning](#trigger-warning)
+
+---
+
+## Threat model and label gate
+
+The Copilot coding agent produces AI-generated shell scripts committed to a PR
+branch.  Those scripts may be written by an external contributor with no prior
+access to the repository.
+
+The self-hosted runner sits **inside the corporate network** and has SSH
+access to lab hardware.  If the workflow ran on every PR push without approval,
+any contributor could push a `module/evil/debian` that the runner would execute
+inside the firewall.
+
+The **`validate-platform` label** is the human-approval gate.  Only repository
+maintainers can apply it.  The workflow in
+`.github/workflows/platform-validate.yml` checks for the label before doing
+anything:
+
+```yaml
+if: |
+  github.event_name == 'workflow_dispatch' ||
+  (github.event.label.name == 'validate-platform') ||
+  (github.event.action == 'synchronize' &&
+   contains(github.event.pull_request.labels.*.name, 'validate-platform'))
+```
+
+Once a maintainer applies the label (signalling "this code is safe to run in
+the lab"), subsequent pushes to the same PR re-validate automatically because
+the `synchronize` branch checks for the label too.  Removing the label stops
+further automatic runs.
+
+---
+
+## Orchestrator vs. target
+
+The self-hosted runner acts as an **orchestrator only**:
+
+- It checks out the PR head into a local subdirectory.
+- It calls `platform-target.sh` to acquire a **disposable target host** from
+  the pool, reset it to a clean snapshot, sync the repo, and run commands.
+- It never `source`s or directly executes anything from the checked-out repo.
+- All tested code runs on the **target**, not on the runner host.
+
+The target is reset (`virsh snapshot-revert` or equivalent) between runs so
+a badly-behaved component cannot leave residue that affects the next test.
+
+---
+
+## Registering the self-hosted runner
+
+> **Important**: use a **dedicated runner group scoped to this repository
+> only** — never add the runner to a group shared with other repositories.
+
+1. In the repository, go to **Settings → Actions → Runners → New self-hosted
+   runner**.
+2. Follow the installation instructions for your OS (Linux recommended).
+3. When prompted for labels, enter:
+   ```
+   self-hosted,linux,oep-lab
+   ```
+4. Start the runner as a service (e.g. `./svc.sh install && ./svc.sh start`).
+5. In **Settings → Actions → Runner groups**, create a group called
+   `oep-lab`, add the runner to it, and **restrict it to this repository**.
+
+The runner needs:
+- `virsh` (libvirt-client) if using the libvirt backend.
+- `rsync`, `ssh` for syncing and executing on the target.
+- Outbound HTTPS to `github.com` (for the long-poll connection); no inbound
+  ports required.
+
+---
+
+## Preparing a libvirt target VM
+
+1. Create a VM with your base OS (Debian recommended for application
+   components).
+2. Install the OS, add the `oep` user with passwordless sudo, and configure
+   SSH key-based login.
+3. Install any prerequisite packages that are outside the scope of the
+   installer itself (e.g. the kernel headers needed by driver modules).
+4. Pre-seed an apt/registry cache if one is available on your network
+   (see [Apt / registry cache](#apt--registry-cache)).
+5. Take a libvirt snapshot and name it `clean-baseline` (or whatever you set
+   `TARGET_SNAPSHOT` to):
+   ```bash
+   virsh snapshot-create-as my-target-vm clean-baseline \
+     --description "Clean OS baseline for OEP platform validation" \
+     --atomic
+   ```
+6. Verify revert works:
+   ```bash
+   virsh snapshot-revert my-target-vm clean-baseline
+   ```
+
+For **driver / kernel components** (order 00–29, e.g. `gpu`, `npu`,
+`realsense`) you need **bare-metal targets** with the actual accelerator
+hardware.  Use the `ssh` backend (`TARGET_BACKEND=ssh`) and arrange external
+re-imaging (PXE, BMC, etc.) between runs.
+
+---
+
+## Repository variables and secrets
+
+All of these belong to the **`platform-validation` environment** in repository
+settings (**Settings → Environments → platform-validation**).  Set required
+reviewers on the environment for an additional approval layer.
+
+### Secrets
+
+| Secret | Description | Required |
+|--------|-------------|----------|
+| `TARGET_SSH_KEY` | Private SSH key (PEM) for logging in to the target host | Yes |
+
+### Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `TARGET_BACKEND` | Backend to use: `libvirt` or `ssh` | `libvirt` |
+| `TARGET_POOL` | Comma-separated list of VM/host names available as targets | `oep-targets` |
+| `TARGET_SNAPSHOT` | libvirt snapshot name to revert to before each run | `clean-baseline` |
+| `TARGET_SSH_USER` | SSH login user on the target | `oep` |
+| `TARGET_SSH_PORT` | SSH port on the target | `22` |
+| `LIBVIRT_URI` | libvirt connection URI | `qemu:///system` |
+
+All variables are documented in `.github/scripts/platform-target.sh`.
+
+---
+
+## Driver vs. application targets
+
+| Component range | Category | Recommended target |
+|----------------|----------|--------------------|
+| 00–29 | Kernel modules / drivers (e.g. `gpu`, `npu`, `realsense`) | Bare-metal with the physical accelerator; use `TARGET_BACKEND=ssh` |
+| 30–59 | Low-level libraries | Snapshot-revert VM (no special hardware needed) |
+| 60–98 | Middle-level / applications | Snapshot-revert VM |
+
+For driver components, arrange external re-imaging (PXE, BMC reset, etc.)
+before each validation run.  The `ssh` backend simply waits for SSH to come
+up after the external reimaging is assumed to have started.
+
+---
+
+## Apt / registry cache
+
+Several modules download tens of gigabytes of Docker images or apt packages.
+Pre-seeding a mirror or a pull-through cache inside the firewall is strongly
+recommended:
+
+- **apt**: configure an [apt-cacher-ng](https://www.unix-ag.uni-kl.de/~bloch/acng/)
+  or Nexus proxy, then set `Acquire::http::Proxy` in
+  `/etc/apt/apt.conf.d/proxy.conf` on the target VM before taking the clean
+  snapshot.
+- **Docker / OCI registries**: configure a
+  [Docker registry mirror](https://docs.docker.com/registry/recipes/mirror/)
+  or Nexus repository and point `daemon.json` at it on the target VM before
+  taking the clean snapshot.
+
+---
+
+## Trigger warning
+
+The workflow uses `pull_request_target` so that it can access repository
+secrets even for fork PRs.  This trigger is **dangerous without the label
+gate** because it runs with repository context.
+
+**Never change the trigger to plain `pull_request` while self-hosted runners
+are in use.**  A plain `pull_request` trigger also loses access to the
+environment secrets, which would break validation anyway.
+
+See the security comment at the top of
+`.github/workflows/platform-validate.yml` for the full explanation.

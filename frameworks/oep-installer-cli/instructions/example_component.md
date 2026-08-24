@@ -60,6 +60,14 @@ After starting, the install function should run a basic liveness check:
 curl -sf http://localhost:11434/api/tags > /dev/null
 ```
 
+Since this is an order-85 (middle-level library / microservice) component with
+a network endpoint, the `start` function should emit an `@@HIGHLIGHT` line so
+the URL is shown in the installer UI:
+
+```bash
+echo "@@HIGHLIGHT URL: http://$(ensure_ip):11434"
+```
+
 ## Ports
 
 | Port  | Protocol | Purpose                        |

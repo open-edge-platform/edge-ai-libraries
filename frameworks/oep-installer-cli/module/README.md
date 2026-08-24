@@ -42,5 +42,31 @@ where the function must print out license id, title and text. If you must fetch 
 Special care must be taken to write the shell functions such that there is no name collusion in both the function names and any used shell variables. 
 It is a covention to always use local shell variables or prefix or suffix with the compoennt name. 
 
+### @@HIGHLIGHT protocol
 
+`@@HIGHLIGHT` is a marker consumed by `ensure_panelled_logs`
+(`common/linux/panelled_logs`) to display a short hint to the user in the
+left-pane summary after install or start.
 
+**When to use it:**
+- Include `@@HIGHLIGHT` for components that have a workspace, a service, a UI,
+  an environment to source, sample content, or documentation worth surfacing.
+  In practice these are the higher-order components (roughly **60–98**).
+- **Do not** add it for simple stateless utilities (`curl`, `jq`, `gawk`,
+  `unzip`, `make`, `libgl1`, etc.) — there is nothing meaningful to show.
+
+**For `start`**, the highlight should usually show the URL the user must point
+to, built with `ensure_ip`:
+
+```bash
+echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
+```
+
+**Placement**: emit `@@HIGHLIGHT` lines **outside** the "already installed,
+skipping" branch so they are printed on both fresh and skipped installs.
+See `module/openvino/debian` and `module/dlstreamer/debian` for examples.
+
+**Format**:
+- `@@HIGHLIGHT <label>: <value>` — human-readable text
+- `@@HIGHLIGHT <label> @<path-or-command>` — paths and commands
+- Keep each highlight to a single short line.

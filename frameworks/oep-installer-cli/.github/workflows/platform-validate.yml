@@ -1,0 +1,299 @@
+name: Platform Validation
+
+# SECURITY NOTE — why the label gate matters:
+#
+# `pull_request_target` runs in the context of the *base* repository, so it
+# has access to repo secrets and a write-scoped GITHUB_TOKEN even for PRs from
+# forks.  We run on a self-hosted runner that sits inside the corporate
+# firewall and has network access to production-like lab hardware.
+#
+# Executing unreviewed, AI-generated shell on that runner without a human
+# approval step would let any contributor push arbitrary code into our lab.
+#
+# The `validate-platform` label is the approval signal: only maintainers can
+# apply it.  The workflow aborts immediately if the label is absent.
+# DO NOT change the trigger to `pull_request` while self-hosted runners are
+# in use — that would bypass this gate.
+
+on:
+  pull_request_target:
+    types: [labeled, synchronize]
+    paths: ['module/**']
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Component name (e.g. smart_parking)'
+        required: true
+      pr:
+        description: 'PR number to post results to (optional)'
+        required: false
+        default: ''
+      os_like:
+        description: 'OS family to test against'
+        required: false
+        default: 'debian'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+# Prevent two jobs from grabbing the same target host pool simultaneously.
+# cancel-in-progress is intentionally false: a half-torn-down target is worse
+# than a queued run.
+concurrency:
+  group: platform-validation-pool
+  cancel-in-progress: false
+
+jobs:
+  platform-validate:
+    name: Platform validation
+    runs-on: [self-hosted, linux, oep-lab]
+    environment: platform-validation
+    timeout-minutes: 90
+
+    # Label gate:
+    #   - labeled event: only proceed when the applied label is validate-platform.
+    #   - synchronize event: only proceed when the PR already carries the label.
+    #   - workflow_dispatch: always proceed.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request_target' &&
+       github.event.label.name == 'validate-platform') ||
+      (github.event_name == 'pull_request_target' &&
+       github.event.action == 'synchronize' &&
+       contains(github.event.pull_request.labels.*.name, 'validate-platform'))
+
+    steps:
+      # Check out the PR head content so we test what the contributor actually
+      # wrote, not the base branch.  We record the exact SHA so the validation
+      # report is traceable.
+      #
+      # SECURITY: we check out into a subdirectory called `repo` and never
+      # `source` or execute anything from it on the runner host itself.  All
+      # tested code runs on the disposable target via platform-target.sh.
+      - name: Check out PR head
+        uses: actions/checkout@v4
+        with:
+          # For pull_request_target use the merge ref so we test the merged
+          # result; fall back to the head SHA for dispatch runs.
+          ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}
+          path: repo
+
+      - name: Record validated SHA
+        id: sha
+        run: |
+          cd repo
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Determine components to validate
+        id: components
+        env:
+          OS_LIKE: ${{ github.event.inputs.os_like || 'debian' }}
+          COMPONENT_INPUT: ${{ github.event.inputs.component || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr || '' }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$COMPONENT_INPUT" ]; then
+            echo "components=$COMPONENT_INPUT" >> "$GITHUB_OUTPUT"
+            echo "Validating component from workflow_dispatch input: $COMPONENT_INPUT"
+            exit 0
+          fi
+
+          # Compute changed components from the PR diff.
+          # Files matching module/<name>/<os_like> → extract <name>.
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No PR number available; cannot determine changed files."
+            echo "components=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Use git diff to find changed module files
+          cd repo
+          changed=$(git diff --name-only HEAD^1 HEAD 2>/dev/null \
+            | grep -E "^module/[^/]+/${OS_LIKE}$" \
+            | sed -E "s|^module/([^/]+)/.*|\1|" \
+            | sort -u \
+            | tr '\n' ' ' \
+            | sed 's/ *$//' || true)
+
+          if [ -z "$changed" ]; then
+            echo "No module/${OS_LIKE} files changed; nothing to validate."
+            echo "components=" >> "$GITHUB_OUTPUT"
+          else
+            echo "Components to validate: $changed"
+            echo "components=$changed" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Exit early if no components
+        if: steps.components.outputs.components == ''
+        run: |
+          echo "::notice::No components to validate. Exiting cleanly."
+          exit 0
+
+      - name: Make scripts executable
+        run: |
+          chmod +x repo/.github/scripts/platform-target.sh
+          chmod +x repo/.github/scripts/platform-lifecycle.sh
+
+      - name: Run platform lifecycle for each component
+        id: lifecycle
+        env:
+          # Target host configuration — set these in the platform-validation
+          # environment as repository variables / secrets.
+          TARGET_BACKEND: ${{ vars.TARGET_BACKEND || 'libvirt' }}
+          TARGET_POOL: ${{ vars.TARGET_POOL || 'oep-targets' }}
+          TARGET_SNAPSHOT: ${{ vars.TARGET_SNAPSHOT || 'clean-baseline' }}
+          TARGET_SSH_USER: ${{ vars.TARGET_SSH_USER || 'oep' }}
+          TARGET_SSH_KEY: ${{ secrets.TARGET_SSH_KEY }}
+          LIBVIRT_URI: ${{ vars.LIBVIRT_URI || 'qemu:///system' }}
+          OS_LIKE: ${{ github.event.inputs.os_like || 'debian' }}
+          COMPONENTS: ${{ steps.components.outputs.components }}
+          RESULTS_DIR: /tmp/platform-validation-results
+        run: |
+          set -euo pipefail
+          mkdir -p "$RESULTS_DIR"
+
+          # Run lifecycle for each component; collect results.
+          all_passed=true
+          for component in $COMPONENTS; do
+            echo "=== Validating component: $component ==="
+            if ! repo/.github/scripts/platform-lifecycle.sh \
+                  "$component" "$OS_LIKE" "$RESULTS_DIR"; then
+              all_passed=false
+            fi
+          done
+
+          echo "all_passed=$all_passed" >> "$GITHUB_OUTPUT"
+
+      - name: Build step summary
+        if: always()
+        env:
+          COMPONENTS: ${{ steps.components.outputs.components }}
+          RESULTS_DIR: /tmp/platform-validation-results
+          VALIDATED_SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          set -euo pipefail
+
+          {
+            echo "## Platform Validation Results"
+            echo ""
+            echo "**Validated SHA**: \`${VALIDATED_SHA}\`"
+            echo "**Runner**: \`${RUNNER_NAME:-unknown}\`"
+            echo ""
+            echo "| Component | Step | Status | Duration |"
+            echo "|-----------|------|--------|----------|"
+
+            for component in $COMPONENTS; do
+              results_file="$RESULTS_DIR/${component}.results"
+              if [ -f "$results_file" ]; then
+                while IFS='|' read -r step status duration _rest; do
+                  echo "| \`${component}\` | ${step} | ${status} | ${duration} |"
+                done < "$results_file"
+              else
+                echo "| \`${component}\` | (all) | ⚠ NO RESULTS | – |"
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post PR comment
+        if: always() && (github.event.pull_request.number != '' || github.event.inputs.pr != '')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr }}
+          COMPONENTS: ${{ steps.components.outputs.components }}
+          RESULTS_DIR: /tmp/platform-validation-results
+          VALIDATED_SHA: ${{ steps.sha.outputs.sha }}
+          ALL_PASSED: ${{ steps.lifecycle.outputs.all_passed }}
+          RUNNER_NAME: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+
+          # Build comment body
+          COMMENT_BODY_FILE=$(mktemp --suffix=.md)
+
+          {
+            echo "<!-- platform-validation-report -->"
+            echo ""
+
+            if [ "${ALL_PASSED:-false}" = "true" ]; then
+              echo "## ✅ Platform Validation Passed"
+              echo ""
+              echo "All lifecycle steps passed on **${RUNNER_NAME}**."
+              echo ""
+            else
+              echo "## ❌ Platform Validation Failed"
+              echo ""
+              echo "@copilot One or more lifecycle steps failed during platform validation. Please review the failing steps below, fix the issues in \`module/<component>/debian\`, and push to this branch."
+              echo ""
+            fi
+
+            echo "**Validated SHA**: \`${VALIDATED_SHA}\`"
+            echo "**Runner / Target**: \`${RUNNER_NAME}\`"
+            echo ""
+            echo "| Component | Step | Status | Duration |"
+            echo "|-----------|------|--------|----------|"
+
+            has_failures=false
+            for component in $COMPONENTS; do
+              results_file="$RESULTS_DIR/${component}.results"
+              if [ -f "$results_file" ]; then
+                while IFS='|' read -r step status duration _rest; do
+                  echo "| \`${component}\` | ${step} | ${status} | ${duration} |"
+                  [[ "$status" == *FAIL* ]] && has_failures=true
+                done < "$results_file"
+              else
+                echo "| \`${component}\` | (all) | ⚠ NO RESULTS | – |"
+              fi
+            done
+
+            # Append log tails for failing steps
+            if [ "$has_failures" = "true" ]; then
+              echo ""
+              echo "### Failure details"
+              echo ""
+              for component in $COMPONENTS; do
+                results_file="$RESULTS_DIR/${component}.results"
+                [ -f "$results_file" ] || continue
+                while IFS='|' read -r step status _duration _rest; do
+                  if [[ "$status" == *FAIL* ]]; then
+                    log_file="$RESULTS_DIR/${component}.${step}.log"
+                    echo "<details><summary><code>${component}</code> — ${step}</summary>"
+                    echo ""
+                    echo "\`\`\`"
+                    if [ -f "$log_file" ]; then
+                      tail -50 "$log_file"
+                    else
+                      echo "(no log captured)"
+                    fi
+                    echo "\`\`\`"
+                    echo "</details>"
+                    echo ""
+                  fi
+                done < "$results_file"
+              done
+            fi
+          } > "$COMMENT_BODY_FILE"
+
+          # Find and update existing comment, or create a new one
+          EXISTING_COMMENT_ID=$(gh api \
+            "/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq '.[] | select(.body | startswith("<!-- platform-validation-report -->")) | .id' \
+            | head -1 || true)
+
+          if [ -n "$EXISTING_COMMENT_ID" ]; then
+            gh api --method PATCH \
+              "/repos/${GITHUB_REPOSITORY}/issues/comments/${EXISTING_COMMENT_ID}" \
+              --field body="$(cat "$COMMENT_BODY_FILE")"
+          else
+            gh pr comment "$PR_NUMBER" --body-file "$COMMENT_BODY_FILE"
+          fi
+
+          rm -f "$COMMENT_BODY_FILE"
+
+      - name: Fail job if any step failed
+        if: steps.lifecycle.outputs.all_passed == 'false'
+        run: |
+          echo "::error::One or more platform lifecycle steps failed. See the PR comment for details."
+          exit 1

@@ -106,10 +106,60 @@ full text of the license.
    and `shellcheck`, and opens a pull request.
 5. The PR triggers `.github/workflows/validate-modules.yml` which re-validates
    syntax and function naming.
-6. A human reviews and merges the PR.
+6. A maintainer reviews the PR.  When satisfied that the static checks pass,
+   they apply the **`validate-platform`** label.
+7. `.github/workflows/platform-validate.yml` runs on a self-hosted lab runner
+   and posts install → start → stop → remove results as a PR comment.
+8. On success (or after the agent fixes any failures), a maintainer merges.
 
 > **Prerequisite**: the Copilot coding agent must be enabled for the repository
 > or organisation and must be assignable as `copilot-swe-agent`.  If it is not
 > available, the issue-creation step will succeed but no automated PR will be
 > opened; a developer can implement the component manually using the issue body
 > as a detailed specification.
+
+See [`.github/PLATFORM_VALIDATION.md`](../.github/PLATFORM_VALIDATION.md)
+for the threat model and admin setup guide.
+
+---
+
+## @@HIGHLIGHT guidance
+
+`@@HIGHLIGHT` is a protocol consumed by `ensure_panelled_logs` in
+`common/linux/panelled_logs` to show the user what to do after install or
+start.
+
+**Include it** for components that have a workspace, a service, a UI, an
+environment to source, sample content, or docs worth linking — typically
+components in the **60–98** order range.
+
+**Do not add it** for simple utilities such as `curl`, `jq`, `gawk`, `unzip`,
+`make`, or `libgl1` — there is nothing meaningful to say.
+
+For `start`, the most useful highlight is usually the URL the user must point
+to (built with `ensure_ip`):
+
+```bash
+echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
+```
+
+Emit `@@HIGHLIGHT` lines **outside** the "already installed, skipping" branch
+so they print on both fresh and skipped installs:
+
+```bash
+debian_NN_install_myapp () {
+  configure_myapp
+  if verify_myapp && [[ " $* " != *" --reset-myapp "* ]]; then
+    echo "myapp already installed. Skipping."
+  else
+    # ... installation steps ...
+  fi
+  # @@HIGHLIGHT goes here — runs on both fresh and skipped installs
+  echo "@@HIGHLIGHT workspace: $workspace"
+}
+```
+
+Format:
+- `@@HIGHLIGHT <label>: <value>` — human-readable text
+- `@@HIGHLIGHT <label> @<path-or-command>` — paths and commands
+- Keep each highlight to a single short line.

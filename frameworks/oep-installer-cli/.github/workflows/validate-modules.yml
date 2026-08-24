@@ -92,3 +92,36 @@ jobs:
           fi
 
           echo "All function names conform to the naming convention."
+
+  highlight-guidance:
+    name: '@@HIGHLIGHT guidance (non-blocking)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Warn when high-order components omit @@HIGHLIGHT
+        # This check is advisory only — it never fails the workflow.
+        # @@HIGHLIGHT is expected for complex applications in the 60-98 order
+        # range.  Simple utilities (order < 60) legitimately omit it.
+        run: |
+          for dir in module/*/; do
+            name="$(basename "$dir")"
+            for file in "$dir"*; do
+              [ -f "$file" ] || continue
+              [[ "$(basename "$file")" == "README.md" ]] && continue
+
+              # Determine the highest order number used in this file
+              max_order=$(grep -oE '^[a-z]+_([0-9]{2})_(install|start)_'"${name}" "$file" \
+                | grep -oE '[0-9]{2}' | sort -rn | head -1 || true)
+
+              [ -z "$max_order" ] && continue
+
+              # Only warn for components with order >= 60
+              if [ "$max_order" -ge 60 ] 2>/dev/null; then
+                if ! grep -q '@@HIGHLIGHT' "$file"; then
+                  echo "::warning file=${file}::Component '${name}' (order ${max_order}) has no @@HIGHLIGHT lines. Consider adding one to the start or install function."
+                fi
+              fi
+            done
+          done
+          echo "@@HIGHLIGHT check complete (warnings only, non-blocking)."
