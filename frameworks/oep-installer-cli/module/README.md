@@ -22,6 +22,56 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
 
 > For simple system-level packages, for example, `curl`, it is ok to define only an installation function without an uninstaller. The assumption is that `curl` can reside on the system for future use, while uninstalling it everytime is a bit overkill and may cause potentially unintended consequence. For other non-system components, there usually should define both an `install` function and a corresponding `remove` function. 
 
+The following shows a skeleton of a module installation:
+
+```
+# configure variables to be used during start, stop, install and remove
+configure_my_component () {
+}
+
+# check if the component is already installed
+verify_my_component () {
+}
+
+debian_85_install_my_component () {
+  configure_my_component "$@"
+  if verify_my_component && [[ " $* " != *"--reset-my_component"* ]]; then
+    echo "My component is already installed. Skipping"
+    return
+  }
+  # install component
+  ...
+  verify_my_component
+  # For a SDK, application or service, highlight what's next after installation
+  echo "@@HIGHLIGHT next-steps"
+}
+
+# optional function if the component is startable.
+#debian_85_start_my_component () {
+#  configure_my_component "$@"
+#  ensure_ports_open "80 443" debian_85_stop_my_component "$@"
+#  # For an application or service, highlight what's next after starting the application or service.
+#  echo "@@HIGHLIGHT next-steps"
+#}
+
+# optional function if the component is stoppable.
+#debian_85_stop_my_component () {
+#  configure_my_component "$@"
+#}
+
+# optional function if the component is removable.
+#debian_85_remove_my_component () {
+#  debian_85_stop_my_component "$@"
+#}
+
+# optional function if the component requires license click through
+#debian_85_license_my_component () {
+#  echo "@@LICENSE-ID my_component_license_id"
+#  echo "@@LICENSE-TITLE my_component_license_title"
+#  echo "... " # LICENSE-TEXT or $(ensure_license_fetch URL) to fetch license text
+#}
+```
+
 ### Clickthrough License
 
 Components that require explicit license agreement must define a license function:
@@ -40,7 +90,5 @@ where the function must print out license id, title and text. If you must fetch 
 ### Name Convention
 
 Special care must be taken to write the shell functions such that there is no name collusion in both the function names and any used shell variables. 
-It is a covention to always use local shell variables or prefix or suffix with the compoennt name. 
-
-
+It is a convention to always use local shell variables or prefix or suffix with the component name. 
 
