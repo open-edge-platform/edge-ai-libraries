@@ -14,11 +14,8 @@ configure_gpu () {
 # ("Conflicting values set for option Signed-By"). Drop any such stale entry
 # (anything referencing the gpu repo other than our own $apt_file) so the current
 # entry is authoritative.
-cleanup_gpu_apt () {
-  local f
-  for f in $(grep -rlE 'repositories\.intel\.com/gpu' /etc/apt/sources.list.d/ 2>/dev/null); do
-    [ "$f" = "$apt_file" ] || ensure_sudo rm -f "$f"
-  done
+cleanup_gpu () {
+  ensure_rm_apt_source https://repositories.intel.com/gpu
   ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg
 }
 
@@ -46,7 +43,7 @@ debian_40_install_gpu () {
     debian_40_remove_gpu || true
 
     # drop stale/conflicting gpu apt sources from older installer versions
-    cleanup_gpu_apt
+    cleanup_gpu
 
     # create the render group
     ensure_group_add render
@@ -74,7 +71,7 @@ debian_40_remove_gpu () {
     echo "Gpu drivers are removed already. Skipping"
   fi
   # always drop gpu apt sources/keyrings, including our own, so nothing conflicting is left behind
-  cleanup_gpu_apt
+  cleanup_gpu
   ensure_sudo rm -f "$apt_file" "$key_file"
 }
 

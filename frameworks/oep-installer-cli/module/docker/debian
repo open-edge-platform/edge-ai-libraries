@@ -1,5 +1,5 @@
 
-configure_docker_proxies () {
+configure_docker () {
   echo "Configure docker engine proxies..."
   [ -z "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ] || \
     grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
@@ -59,6 +59,6 @@ EOF
     ensure_sudo systemctl daemon-reload
     ensure_sudo systemctl restart docker
   fi
-  configure_docker_proxies
+  configure_docker
 }
 
