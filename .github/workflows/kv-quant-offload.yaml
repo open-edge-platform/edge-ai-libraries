@@ -54,6 +54,7 @@ jobs:
           cat > cov-build.sh << 'BUILDEOF'
           #!/bin/bash
           set -e
+          pip install --upgrade pip setuptools wheel packaging
           pip install numpy torch torchvision torchaudio
           pip install . --extra-index-url https://download.pytorch.org/whl/xpu --no-build-isolation
           BUILDEOF
