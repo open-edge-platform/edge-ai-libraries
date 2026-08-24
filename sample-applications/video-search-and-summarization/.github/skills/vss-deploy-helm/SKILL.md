@@ -76,7 +76,7 @@ global:
   modelDownload:
     image:
       repository: intel/model-download
-      tag: "2026.2.0-ww30"
+      tag: "2026.2.0-rc2"
       pullPolicy: IfNotPresent
     ovmsReleaseTag: "v2026.1"
   proxy:

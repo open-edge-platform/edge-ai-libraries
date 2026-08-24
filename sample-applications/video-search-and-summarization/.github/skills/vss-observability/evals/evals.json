@@ -10,7 +10,7 @@
       "expectations": [
         "Mentions setting ENABLE_METRICS_MANAGER=true before sourcing setup.sh, with a supported mode such as source setup.sh --search or source setup.sh --summary --search.",
         "Names the optional compose overlay file docker/compose.metrics-manager.yaml.",
-        "Identifies the added service/container as metrics-manager and notes it uses docker.io/intel/metrics-manager:2026.2.0-20260715-weekly.",
+        "Identifies the added service/container as metrics-manager and notes it uses docker.io/intel/metrics-manager:2026.2.0-rc2.",
         "References the health and SSE routes through nginx and/or Prometheus output on port 9273.",
         "Explains that traces come from Pipeline Manager via OTLP_TRACE_URL with service name videoSummary, and that the overlay does not deploy an in-repo OTel collector or trace UI/backend."
       ]

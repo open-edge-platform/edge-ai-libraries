@@ -29,7 +29,7 @@ Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs
 | `REGISTRY_URL` | empty | `setup.sh` trims/adds a trailing slash, combines with `PROJECT_NAME`, and exports `REGISTRY`. |
 | `PROJECT_NAME` | empty | Also normalized with trailing slash before composing `${REGISTRY_URL}${PROJECT_NAME}`. |
 | `REGISTRY` | derived | Prefix for images such as `${REGISTRY:-}pipeline-manager:${TAG:-latest}`. |
-| `TAG` | `latest` in `setup.sh`; docs example `2026.1.0-rc1` | Image tag for app images. |
+| `TAG` | `latest` in `setup.sh`; docs example `2026.2.0-rc2` | Image tag for app images. |
 
 ## Model download service
 
