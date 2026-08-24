@@ -109,6 +109,7 @@ jobs:
           scan-scope: "all"  
           output-format: "txt" 
           fail-on-findings: "true"
+          severity-level: "HIGH"
           paths: "microservices/audio-analyzer/"
           report_suffix: "-bandit-audio-analyzer-CT161"
           

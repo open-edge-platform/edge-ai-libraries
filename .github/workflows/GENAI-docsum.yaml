@@ -110,6 +110,7 @@ jobs:
           scan-scope: "all"  
           output-format: "txt" 
           fail-on-findings: "true"
+          severity-level: "HIGH"
           paths: "sample-applications/document-summarization/"
           report_suffix: "-bandit-document-summary-CT161"
           
