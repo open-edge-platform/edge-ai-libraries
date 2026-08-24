@@ -123,7 +123,7 @@ print(f"  Avg duration per request (all): {stats['avg_dur_per_request_all']:.1f}
 This section explains how each compressor works conceptually and what the
 runtime pipeline looks like.
 
-![Overall Workflow](../assets/workflow.png)
+![Overall Workflow](./assets/workflow.png)
 
 ### HarnessCompressor
 
@@ -131,10 +131,10 @@ runtime pipeline looks like.
 
 HarnessCompressor focuses on conversation-message compression for the prompt
 assembly stage. It combines lightweight rules (message slicing / role-aware
-handling) with Lingua-based lossy compression for long text blocks, so token
-cost drops while preserving instruction-critical content.
+handling) with Lingua-based lossy compression for long text blocks, reducing token
+cost while preserving instruction-critical content.
 
-![HarnessCompressor](../assets/harness_compressor.png)
+![HarnessCompressor](./assets/harness_compressor.png)
 
 
 ### ToolCompressor
@@ -146,7 +146,7 @@ tools for the current request. It uses an external predictor LLM to score tool
 relevance from conversation context, then keeps high-value tools only.
 The ToolCompressor supports configurable tool-injection placements to flexibly trade off token savings against prefix-cache hit rate.
 
-![ToolCompressor](../assets/tool_compressor.png)
+![ToolCompressor](./assets/tool_compressor.png)
 
 
 ## Configuration Reference
@@ -161,7 +161,7 @@ Lingua server uses the `llmlingua2` (LLMLingua-2) compression mode.
 |-----------|---------|-----------------|
 | `LINGUA_BACKEND` | `pytorch` | `pytorch` or `ov` |
 | `LINGUA_DEVICE` | `xpu` | `xpu`, `cpu`, `cuda` (`cuda` is PyTorch-only) |
-| `LINGUA_XPU_INDEX` | `0` | Used when `LINGUA_DEVICE=xpu`,specify the XPU index. For OpenVINO, maps to `GPU.<index>`; when index is `0`, generic `GPU` is also accepted as a compatibility fallback |
+| `LINGUA_XPU_INDEX` | `0` | Used when `LINGUA_DEVICE=xpu`, specify the XPU index. For OpenVINO, maps to `GPU.<index>`; when index is `0`, generic `GPU` is also accepted as a compatibility fallback |
 | `LINGUA_MODE` | `llmlingua2` | Compression mode: `llmlingua2` |
 | `LINGUA_MODEL_NAME_ID` | empty | Optional fixed model id. Empty -> mode default |
 | `LINGUA_PORT` | `8001` | Host port mapping for `lingua-pytorch` service |
@@ -212,7 +212,7 @@ compressor = HarnessCompressor(
 
 **Placement modes:**
 - `"schema"` (default, production): predicted subset returned in `result.tools`, rendered inside the system message's `<tools>` block by the chat template.
-- `"user_inline_delta"`: tools appended as a trailing synthetic user message. carrier persisted per-conversation and re-spliced at a fixed offset each turn (prefix-cache stable), but delta-only — appends a carrier only when new tools appear, carrying just the delta over the running union. Requires accumulate=True.
+- `"user_inline_delta"`: tools appended as a trailing synthetic user message. The carrier is persisted per-conversation and re-spliced at a fixed offset each turn (prefix-cache stable), but delta-only — appends a carrier only when new tools appear, carrying just the delta over the running union. Requires accumulate=True.
 
 
 **Note:**

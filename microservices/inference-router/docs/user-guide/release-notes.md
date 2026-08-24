@@ -19,8 +19,7 @@
   - `IntelligentRule`: a model-based classifier (bundled OpenVINO Qwen3.5)
     maps the last user message to an index and routes accordingly (e.g.
     `0 -> local`, `1 -> cloud`). Configure the model with `IR_OV_MODEL`.
-  - See the [Routing Guide](./routing-guide.md) and
-    [Policy Based Router Usage](./policy-based-router.md).
+  - See the [Policy Based Router Usage](./policy-based-router.md).
 
 - Plugin System:
 

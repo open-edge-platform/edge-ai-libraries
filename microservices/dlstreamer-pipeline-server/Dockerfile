@@ -36,7 +36,7 @@ RUN \
 
 RUN \
     python3 -m venv /python3venv && \
-    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip==26.1.2 && \
     /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==82.0.1 numpy==2.2.0 tqdm==4.67.1 opencv-python==4.11.0.86
 
 ENV VIRTUAL_ENV=/python3venv
@@ -166,7 +166,7 @@ RUN \
 
 RUN \
     python3 -m venv --system-site-packages /python3venv && \
-    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip==26.1.2
 
 ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV VIRTUAL_ENV=/python3venv
@@ -251,19 +251,6 @@ COPY ./user_scripts/gvapython/ /home/pipeline-server/gvapython/
 # Copy default config
 COPY ./configs/default/config.json /home/pipeline-server/config.json
 
-# Drop pip from the base runtime image to avoid Trivy false positives coming
-# from pip vendored metadata inventory.
-USER root
-RUN PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') && \
-    rm -rf /usr/local/lib/python${PYTHON_VERSION}/site-packages/pip \
-           /usr/local/lib/python${PYTHON_VERSION}/site-packages/pip-*.dist-info \
-           /usr/local/bin/pip /usr/local/bin/pip3 \
-           ${VIRTUAL_ENV}/lib/python${PYTHON_VERSION}/site-packages/pip \
-           ${VIRTUAL_ENV}/lib/python${PYTHON_VERSION}/site-packages/pip-*.dist-info \
-           ${VIRTUAL_ENV}/bin/pip ${VIRTUAL_ENV}/bin/pip3
-
-USER ${USER}
-
 ENTRYPOINT ["./run.sh"]
 
 
@@ -272,9 +259,6 @@ ENTRYPOINT ["./run.sh"]
 FROM dlstreamer-pipeline-server AS dlstreamer-pipeline-server-extended
 
 USER root
-
-# Base runtime removes pip, so recreate it for extended-stage package installs.
-RUN ${VIRTUAL_ENV}/bin/python3 -m pip install --no-cache-dir --upgrade pip
 
 # Patch and install OpenVINO model api
 COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
@@ -336,23 +320,12 @@ RUN apt update && \
     fi && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
-    
+
 RUN pip3 install --no-cache-dir --upgrade openvino==2026.0.0 openvino-telemetry==2025.2.0 cryptography==50.0.0
 
 RUN . /etc/os-release && \
     if [ "$VERSION_ID" = "22.04" ]; then \
         rm /opt/intel/dlstreamer/gstreamer/lib/libsqlite3.so* ; \
     fi
-
-# Drop pip from the final runtime image. Trivy can report vendored metadata
-# from pip/ensurepip as vulnerable packages even when runtime dependencies are patched.
-RUN PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') && \
-    rm -rf /usr/local/lib/python${PYTHON_VERSION}/site-packages/pip \
-           /usr/local/lib/python${PYTHON_VERSION}/site-packages/pip-*.dist-info \
-           /usr/local/lib/python${PYTHON_VERSION}/ensurepip \
-           /usr/local/bin/pip /usr/local/bin/pip3 \
-           ${VIRTUAL_ENV}/lib/python${PYTHON_VERSION}/site-packages/pip \
-           ${VIRTUAL_ENV}/lib/python${PYTHON_VERSION}/site-packages/pip-*.dist-info \
-           ${VIRTUAL_ENV}/bin/pip ${VIRTUAL_ENV}/bin/pip3
 
 USER ${USER}

@@ -1,6 +1,6 @@
 # Adaptive Token Compressor
 
-Adaptive Token Compressor is a pluggable compression library purpose-built for LLM agent systems. Through a single unified compressor interface, it applies tailored compression to each part of an agent — system prompt (harness), context, and tool schemas — to significantly reduce token usage and improve inference efficiency. 
+Adaptive Token Compressor is a pluggable compression library purpose-built for LLM agent systems. Through a single unified compressor interface, it applies tailored compression to each part of an agent — system prompt (harness), context, and tool schemas — to significantly reduce token usage and improve inference efficiency.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)]()
@@ -31,7 +31,7 @@ Both services must be deployed before using the compression features.
 pip install .
 ```
 
-After installing adaptive-token-compressor, please deploy Lingua Server & Tool Prediction using Docker (see [Deploy Lingua Server](docs/use-guide/lingua-deployment.md) and [Deploy LLM for Tool Prediction](docs/use-guide/tool-predictor-deployment.md)).
+After installing adaptive-token-compressor, please deploy Lingua Server & Tool Prediction using Docker (see [Deploy Lingua Server](docs/user-guide/lingua-deployment.md) and [Deploy LLM for Tool Prediction](docs/user-guide/tool-predictor-deployment.md)).
 
 
 ### Development Installation
@@ -126,4 +126,4 @@ result = tool_compressor.compress(ctx)
 print([t["function"]["name"] for t in result.tools])
 ```
 
-See [GUIDE.md](docs/use-guide/GUIDE.md) for more information — compressor metrics register, multi-compressor usage, compressor principles and workflow, configuration reference, available metrics, testing, FAQ, and resources.
+See [GUIDE.md](docs/user-guide/GUIDE.md) for more information — compressor metrics register, multi-compressor usage, compressor principles and workflow, configuration reference, available metrics, testing, FAQ, and resources.
