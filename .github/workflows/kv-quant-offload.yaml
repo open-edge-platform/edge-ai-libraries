@@ -55,8 +55,8 @@ jobs:
           cat > cov-build.sh << 'BUILDEOF'
           #!/bin/bash
           set -e
-          pip install --upgrade pip setuptools wheel packaging --extra-index-url https://download.pytorch.org/whl/xpu
-          #pip install numpy torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/xpu
+          pip install --upgrade pip setuptools>=61 wheel packaging --extra-index-url https://download.pytorch.org/whl/xpu
+          pip install numpy torch==2.11.0+xpu torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/xpu
           pip install . --extra-index-url https://download.pytorch.org/whl/xpu --no-build-isolation
           BUILDEOF
           chmod +x cov-build.sh
