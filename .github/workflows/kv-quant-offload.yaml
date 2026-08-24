@@ -41,7 +41,7 @@ jobs:
           # Install the 2025.3 compiler package (icpx is provided by this package)
           sudo -E apt update
           sudo -E apt install -y intel-oneapi-base-toolkit-2025.3
-          source /opt/intel/oneapi/setvars.sh
+          source /opt/intel/oneapi/setvars.sh || true
           python3 -m venv .venv
           source .venv/bin/activate
           
