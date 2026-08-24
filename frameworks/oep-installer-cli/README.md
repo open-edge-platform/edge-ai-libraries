@@ -68,6 +68,12 @@ push it to `main`, and a GitHub Actions workflow automatically opens a task
 for the Copilot coding agent which writes `module/<component_name>/debian` and
 opens a pull request.
 
+In this repository, `Generate component from spec` and `Validate modules` run
+on a self-hosted runner (`self-hosted, linux, oep-lab`) because the org IP
+allow list blocks GitHub-hosted runners at `actions/checkout`. The runner is an
+orchestrator-only host and must not be used as a direct install target.
+Required host tooling: `gh`, `git`, `curl`, `jq`, `shellcheck`.
+
 See [`instructions/README.md`](instructions/README.md) for the full workflow
 description, the recommended spec structure, and a worked example.
 
@@ -75,7 +81,6 @@ After a PR is opened, a maintainer applies the `validate-platform` label to
 trigger hardware-in-the-loop testing on a self-hosted lab runner.  See
 [`.github/PLATFORM_VALIDATION.md`](.github/PLATFORM_VALIDATION.md) for the
 threat model, runner setup, and admin configuration guide.
-
 
 
 

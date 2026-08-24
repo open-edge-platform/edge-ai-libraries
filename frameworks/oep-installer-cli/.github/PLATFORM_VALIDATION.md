@@ -9,12 +9,13 @@ exists, how it is secured, and how an admin configures it.
 
 1. [Threat model and label gate](#threat-model-and-label-gate)
 2. [Orchestrator vs. target](#orchestrator-vs-target)
-3. [Registering the self-hosted runner](#registering-the-self-hosted-runner)
-4. [Preparing a libvirt target VM](#preparing-a-libvirt-target-vm)
-5. [Repository variables and secrets](#repository-variables-and-secrets)
-6. [Driver vs. application targets](#driver-vs-application-targets)
-7. [Apt / registry cache](#apt--registry-cache)
-8. [Trigger warning](#trigger-warning)
+3. [Lint/dispatch runner for allow-listed orgs](#lintdispatch-runner-for-allow-listed-orgs)
+4. [Registering the self-hosted runner](#registering-the-self-hosted-runner)
+5. [Preparing a libvirt target VM](#preparing-a-libvirt-target-vm)
+6. [Repository variables and secrets](#repository-variables-and-secrets)
+7. [Driver vs. application targets](#driver-vs-application-targets)
+8. [Apt / registry cache](#apt--registry-cache)
+9. [Trigger warning](#trigger-warning)
 
 ---
 
@@ -61,6 +62,36 @@ The self-hosted runner acts as an **orchestrator only**:
 
 The target is reset (`virsh snapshot-revert` or equivalent) between runs so
 a badly-behaved component cannot leave residue that affects the next test.
+
+---
+
+## Lint/dispatch runner for allow-listed orgs
+
+The repository workflows **`Generate component from spec`** and
+**`Validate modules`** run on `runs-on: [self-hosted, linux, oep-lab]`.
+Reason: the `intel-sandbox` organization uses a GitHub IP allow list, which
+blocks GitHub-hosted runners during `actions/checkout`.
+
+Required tools on the runner host:
+- `gh`
+- `git`
+- `curl`
+- `jq`
+- `shellcheck`
+
+On Ubuntu/Debian hosts:
+```bash
+sudo apt update
+sudo apt install -y gh git curl jq shellcheck
+```
+
+This runner is still an **orchestrator only** and must **never** be used as a
+direct install target. Real component installs/validation belong on disposable
+targets driven by `.github/workflows/platform-validate.yml`.
+
+If your organization later enables GitHub's setting to allow GitHub Actions to
+access allow-listed repositories, these two workflows can be reverted to
+`ubuntu-latest`.
 
 ---
 
