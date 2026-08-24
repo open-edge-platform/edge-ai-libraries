@@ -45,7 +45,12 @@
 
 <!-- Describe how to start and stop the component.
      If it is a stateless system package with no runtime service,
-     note that start/stop are not needed.                             -->
+     note that start/stop are not needed.
+
+     For components with a UI or API (order 60-98), note the URL that should
+     appear in an @@HIGHLIGHT line after start, e.g.:
+       @@HIGHLIGHT URL: http://$(ensure_ip):$port
+     Simple utilities (curl, jq, etc.) do not need @@HIGHLIGHT.           -->
 
 **Start**: <!-- e.g. `docker compose up -d` -->  
 **Stop**:  <!-- e.g. `docker compose down -v` -->  

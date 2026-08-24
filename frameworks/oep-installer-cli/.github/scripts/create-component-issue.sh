@@ -110,7 +110,52 @@ ${HELPERS_LIST}
 
 ---
 
+### @@HIGHLIGHT guidance
+
+\`@@HIGHLIGHT\` is a protocol consumed by \`ensure_panelled_logs\` in
+\`common/linux/panelled_logs\` to show the user what to do after install or
+start.
+
+**When to include it:**
+- Include it for **complex applications** — components that have a workspace,
+  a service, a UI, an environment to source, sample content, or docs worth
+  linking.  These are typically in the **60–98** order range.
+- **Do not** add it for simple utilities such as \`curl\`, \`jq\`, \`gawk\`,
+  \`unzip\`, \`make\`, or \`libgl1\` — there is nothing meaningful to say.
+
+**For \`start\`**, the most useful highlight is usually the UI or API URL:
+\`\`\`bash
+echo "@@HIGHLIGHT URL: http://\$(ensure_ip):\$port"
+\`\`\`
+
+**Placement**: emit \`@@HIGHLIGHT\` lines **outside** the "already installed,
+skipping" branch so they are printed on both fresh and skipped installs:
+\`\`\`bash
+debian_NN_install_${name} () {
+  configure_${name}
+  if verify_${name} && [[ " \$* " != *" --reset-${name} "* ]]; then
+    echo "${name} already installed. Skipping."
+  else
+    # ... installation steps ...
+  fi
+  # @@HIGHLIGHT goes here — runs on both fresh and skipped installs
+  echo "@@HIGHLIGHT workspace: \$workspace"
+}
+\`\`\`
+
+**Format**:
+- \`@@HIGHLIGHT <label>: <value>\` — for human-readable text
+- \`@@HIGHLIGHT <label> @<path-or-command>\` — for paths and commands
+- Keep each highlight to a single short line.
+
+---
+
 ### Validation before opening the PR
+
+Your responsibility before opening the PR is to pass all **static checks**.
+Platform validation on real hardware is performed separately by maintainers
+(see *Platform validation* below) — do not claim that platform validation has
+passed.
 
 Run these checks and fix all issues before pushing:
 
@@ -127,6 +172,42 @@ grep -E '^[a-zA-Z_][a-zA-Z0-9_]* \(\)' module/${name}/debian \
   | grep -vE '^[a-z]+_[0-9]{2}_(profile|license|install|remove|start|stop)_${name} \(\)$' \
   && { echo "Function name violation found"; exit 1; } || echo "Function names OK"
 \`\`\`
+
+In the PR description, include a note such as:
+> "Static checks pass. Awaiting the \`validate-platform\` label for hardware
+> validation."
+
+Do **not** state that platform validation passed — you cannot run it.
+
+---
+
+### Platform validation
+
+Platform validation is performed by a maintainer applying the
+\`validate-platform\` label to the PR.  This triggers
+\`.github/workflows/platform-validate.yml\` on a self-hosted runner inside the
+corporate lab, which runs the following lifecycle on real hardware:
+
+| Step | What is tested |
+|------|---------------|
+| install | \`openedge-cli install ${name}\` must exit 0 |
+| install (again) | Idempotency — must exit 0, must not re-run expensive steps |
+| install --reset-${name} | Forced reinstall must exit 0 |
+| start + port probe | \`openedge-cli start ${name}\` must exit 0; declared ports must be reachable |
+| stop + port probe | \`openedge-cli stop ${name}\` must exit 0; ports must be released |
+| remove + verify | \`openedge-cli remove ${name}\` must exit 0; \`verify_${name}\` must then fail |
+
+**Your component must therefore:**
+- Be fully **idempotent**: the second install must detect the existing state
+  via \`verify_${name}\` and skip gracefully.
+- Support \`--reset-${name}\` for forced reinstallation.
+- Have a \`stop\` that fully releases any bound ports.
+- Have a \`remove\` that leaves \`verify_${name}\` returning non-zero and
+  cleans up the workspace.
+
+If validation fails, you will receive a PR comment addressed to **@copilot**
+with the failing step name and the last ~50 lines of the log.  Fix the issue
+and push to this branch — the workflow will re-run automatically.
 
 ---
 

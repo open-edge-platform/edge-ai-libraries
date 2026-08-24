@@ -71,6 +71,11 @@ opens a pull request.
 See [`instructions/README.md`](instructions/README.md) for the full workflow
 description, the recommended spec structure, and a worked example.
 
+After a PR is opened, a maintainer applies the `validate-platform` label to
+trigger hardware-in-the-loop testing on a self-hosted lab runner.  See
+[`.github/PLATFORM_VALIDATION.md`](.github/PLATFORM_VALIDATION.md) for the
+threat model, runner setup, and admin configuration guide.
+
 
 
 
