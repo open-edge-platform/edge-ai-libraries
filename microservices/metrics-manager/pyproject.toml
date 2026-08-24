@@ -16,6 +16,11 @@ dependencies = [
     "prometheus-client>=0.20.0",
 ]
 
+[project.optional-dependencies]
+openvino = [
+    "openvino>=2026.1.0",
+]
+
 [dependency-groups]
 test = [
     "pytest>=8.0.0",

@@ -13,6 +13,29 @@ Use this path to run the service in a container. The API is exposed on port
   `scene-config.yaml` point at it.
 - If `mqtt.use_tls: true`, mount your Scenescape CA cert at `/app/secrets`.
 
+## Select the Image (Registry and Tag)
+
+The bundled `docker-compose.yml` resolves the image from two variables:
+
+```yaml
+image: ${REGISTRY:-intel}/scene-understanding-service:${RELEASE_TAG:-latest}
+```
+
+Pin a specific release by setting them in a `.env` file next to
+`docker-compose.yml` (both fall back to `intel` / `latest` when unset):
+
+```bash
+# .env
+REGISTRY=intel
+RELEASE_TAG=2026.2.0-rc1
+```
+
+Compose loads `.env` automatically. Confirm the resolved image before starting:
+
+```bash
+docker compose config | grep image
+```
+
 ## Minimal Compose Service
 
 ```yaml
@@ -59,7 +82,7 @@ docker compose up -d
 ```bash
 docker compose ps
 curl --noproxy '*' http://127.0.0.1:8082/health
-curl --noproxy '*' http://127.0.0.1:8082/api/v1/lp/status
+curl --noproxy '*' http://127.0.0.1:8082/api/v1/sus/status
 ```
 
 ### Follow Logs
@@ -95,11 +118,11 @@ For endpoint details and examples, see the [API Reference](../api-reference.md).
 
 ## Notes
 
-- Container host port: `8082`; API base path: `/api/v1/lp`.
+- Container host port: `8082`; API base path: `/api/v1/sus`.
 - The service reads `scene-config.yaml` and `rules.yaml` from `/app/configs`
   (override with `CONFIG_DIR`). A mounted `./configs` volume overrides the
   bundled samples.
 - There is no hard startup dependency on Scenescape — the service starts and
   retries the MQTT connection in the background.
-- Use `GET /api/v1/lp/status` (or `GET /health`) for readiness gating in
+- Use `GET /api/v1/sus/status` (or `GET /health`) for readiness gating in
   `depends_on`.

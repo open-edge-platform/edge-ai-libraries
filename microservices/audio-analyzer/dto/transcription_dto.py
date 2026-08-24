@@ -50,7 +50,5 @@ def validate_transcription_options(
         raise HTTPException(status_code=400, detail="language is too long")
 
     normalized_prompt = _normalize_optional_text(prompt)
-    if normalized_prompt:
-        raise HTTPException(status_code=400, detail="prompt is not currently supported")
-
+    # prompt is accepted but not yet forwarded to the ASR backend (future: initial_prompt)
     return normalized_language, normalized_prompt

@@ -1,3 +1,8 @@
+<!--
+  Copyright (C) 2026 Intel Corporation
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 <template>
   <div class="router-monitor">
     <section class="router-detail-page" :aria-label="t('router.routerTitle')">
@@ -59,24 +64,27 @@
         </aside>
 
         <section class="router-detail-tab-panel">
-          <OverviewTab
+          <Overview
             v-show="activeDetailTab === 'overview'"
             :drawer-data="overviewDrawerData"
             @refresh="handleRefreshMetrics"
             @reset="handleResetMetrics"
           />
-          <RouterProviderConfigTab
-            v-show="activeDetailTab === 'config'"
-            :drawer-data="configDrawerData"
-            @reload="handleReloadConfig"
-          />
-          <TokenOverviewTab
+          <ProviderConfigTab v-if="activeDetailTab === 'providers'" />
+          <PluginsConfigTab v-if="activeDetailTab === 'plugins'" />
+          <PolicyConfigTab v-if="activeDetailTab === 'policies'" />
+          <StrategyConfigTab v-if="activeDetailTab === 'strategies'" />
+          <TokenOverview
             v-show="activeDetailTab === 'tokens'"
             :drawer-data="tokenDrawerData"
+            :is-refreshing="isMetricsRefreshing"
+            @refresh="handleRefreshMetrics"
           />
-          <LatencyOverviewTab
+          <LatencyOverview
             v-show="activeDetailTab === 'latency'"
             :drawer-data="latencyDrawerData"
+            :is-refreshing="isMetricsRefreshing"
+            @refresh="handleRefreshMetrics"
           />
         </section>
       </div>
@@ -91,28 +99,33 @@ import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { Modal } from "ant-design-vue";
 import {
+  AppstoreOutlined,
+  BranchesOutlined,
   ClockCircleOutlined,
+  CloudServerOutlined,
   DatabaseOutlined,
   ExclamationCircleFilled,
+  FileProtectOutlined,
   FundOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  ToolOutlined,
 } from "@ant-design/icons-vue";
 import {
   getRouterHealth,
   getRouterMetrics,
-  reloadRouterConfig,
   resetRouterMetrics,
 } from "@/api/router";
+import { normalizeNumber, normalizeNullableNumber } from "@/utils/common";
 import {
-  LatencyOverviewTab,
-  OverviewTab,
-  RouterProviderConfigTab,
-  TokenOverviewTab,
+  LatencyOverview,
+  Overview,
+  PolicyConfigTab,
+  PluginsConfigTab,
+  ProviderConfigTab,
+  StrategyConfigTab,
+  TokenOverview,
 } from "./components";
 import type {
-  ConfigProviderRow,
   DistributionProviderRow,
   LatencyProviderRow,
   TokenProviderRow,
@@ -124,7 +137,14 @@ interface RouterMonitorData {
   config: any;
 }
 
-type RouterDetailTabKey = "overview" | "tokens" | "latency" | "config";
+type RouterDetailTabKey =
+  | "overview"
+  | "tokens"
+  | "latency"
+  | "providers"
+  | "plugins"
+  | "policies"
+  | "strategies";
 
 interface RouterDetailTab {
   key: RouterDetailTabKey;
@@ -166,7 +186,6 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const isResetting = ref(false);
-const isReloading = ref(false);
 const isMetricsRefreshing = ref(false);
 const isMenuCollapsed = ref(false);
 const routerData = ref<RouterMonitorData>(createInitialData());
@@ -178,11 +197,21 @@ const isRouterDetailTabKey = (value: unknown): value is RouterDetailTabKey =>
   value === "overview" ||
   value === "tokens" ||
   value === "latency" ||
-  value === "config";
+  value === "providers" ||
+  value === "plugins" ||
+  value === "policies" ||
+  value === "strategies";
 
 const parseTabQueryValue = (value: unknown): RouterDetailTabKey | null => {
   const rawValue = Array.isArray(value) ? value[0] : value;
+  if (rawValue === "config") return "providers";
+  if (rawValue === "rsd") return "policies";
   return isRouterDetailTabKey(rawValue) ? rawValue : null;
+};
+
+const getRawTabQueryValue = (value: unknown) => {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  return typeof rawValue === "string" ? rawValue : "";
 };
 
 const routerDetailTabs = computed<RouterDetailTab[]>(() => [
@@ -202,9 +231,24 @@ const routerDetailTabs = computed<RouterDetailTab[]>(() => [
     icon: ClockCircleOutlined,
   },
   {
-    key: "config",
+    key: "providers",
     label: t("router.routerConfigProvidersTitle"),
-    icon: ToolOutlined,
+    icon: CloudServerOutlined,
+  },
+  {
+    key: "plugins",
+    label: t("router.routerPluginConfigTitle"),
+    icon: AppstoreOutlined,
+  },
+  {
+    key: "policies",
+    label: t("router.routerPolicyConfigTitle"),
+    icon: FileProtectOutlined,
+  },
+  {
+    key: "strategies",
+    label: t("router.routerStrategyConfigTitle"),
+    icon: BranchesOutlined,
   },
 ]);
 
@@ -226,7 +270,7 @@ watch(
 watch(
   activeDetailTab,
   (tabKey) => {
-    if (parseTabQueryValue(route.query[tabQueryKey]) === tabKey) return;
+    if (getRawTabQueryValue(route.query[tabQueryKey]) === tabKey) return;
     void router.replace({
       query: {
         ...route.query,
@@ -236,16 +280,6 @@ watch(
   },
   { immediate: true },
 );
-
-const normalizeNumber = (value: unknown) => {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : 0;
-};
-
-const normalizeNullableNumber = (value: unknown) => {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : null;
-};
 
 // Format large numbers in compact notation (e.g. 1200 -> 1.2K).
 const formatCompactNumber = (value: unknown) =>
@@ -286,20 +320,6 @@ const formatMaybeCompact = (value: unknown) => {
   return Number.isFinite(numberValue)
     ? formatCompactNumber(numberValue)
     : t("router.routerEmptyValue");
-};
-
-// Generic display formatter for mixed-value config fields.
-const formatDisplayValue = (value: unknown) => {
-  if (value === null || value === undefined || value === "") return "--";
-  if (typeof value === "boolean")
-    return value ? t("common.yes") : t("common.no");
-  if (typeof value === "object") {
-    if (Array.isArray(value) && !value.length) return "--";
-    if (!Array.isArray(value) && !Object.keys(value as object).length)
-      return "--";
-    return JSON.stringify(value);
-  }
-  return String(value);
 };
 
 const providerPalette = [
@@ -589,11 +609,6 @@ const routerCompressionRestPercent = computed(() =>
     : 0,
 );
 
-const configProviders = computed<ConfigProviderRow[]>(() =>
-  Array.isArray(routerData.value.config?.providers)
-    ? routerData.value.config.providers
-    : [],
-);
 const totalRequestsText = computed(() =>
   formatCompactNumber(routingStats.value.total_requests),
 );
@@ -728,14 +743,6 @@ const overviewDrawerData = computed(() => ({
   isResetting: isResetting.value,
 }));
 
-const configDrawerData = computed(() => ({
-  providers: configProviders.value,
-  latencyProviderRows: latencyProviderRows.value,
-  isReloading: isReloading.value,
-  formatDisplayValue,
-  formatLatencyNullable,
-}));
-
 const tokenDrawerData = computed(() => ({
   providerRows: sortedTokenProviderRows.value,
   totalTokensText: totalTokensText.value,
@@ -766,15 +773,6 @@ const latencyToneClass = (value: number | null) => {
   if (value <= overall * 0.9) return "good";
   if (value >= overall * 1.1) return "bad";
   return "neutral";
-};
-const handleReloadConfig = async () => {
-  if (isReloading.value) return;
-  isReloading.value = true;
-  try {
-    await reloadRouterConfig();
-  } finally {
-    isReloading.value = false;
-  }
 };
 
 const fetchRouterMetrics = async () => {

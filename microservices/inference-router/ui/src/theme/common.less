@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2026 Intel Corporation
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 .card-shadow {
   box-shadow:
     0px 1px 2px -1px var(--bg-box-shadow),
@@ -39,6 +44,7 @@
 }
 .multi-ellipsis {
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -301,5 +307,301 @@
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+.router-detail-module {
+  min-width: 0;
+  min-height: 100%;
+  overflow: visible;
+  padding: 0;
+  background: transparent;
+}
+
+.router-module-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--border-main-color) 78%, transparent);
+}
+
+.router-module-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section-icon {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
+  background: var(--color-primary);
+  color: var(--color-white);
+}
+
+.section-title {
+  font-size: var(--font-size-13);
+  font-weight: 600;
+}
+
+.section-caption {
+  color: var(--font-tip-color);
+  font-size: var(--font-size-11);
+}
+
+.create-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  color: var(--color-primary);
+  font-size: 22px;
+}
+
+.create-card-title {
+  color: var(--font-main-color);
+  font-size: var(--font-size-14);
+  font-weight: 600;
+}
+
+.router-loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  margin-bottom: 10px;
+  border: 1px dashed
+    color-mix(in srgb, var(--border-main-color) 70%, transparent);
+  border-radius: 12px;
+  color: var(--font-tip-color);
+  font-size: var(--font-size-12);
+}
+
+.router-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  width: 100%;
+  border: 1px dashed
+    color-mix(in srgb, var(--border-main-color) 70%, transparent);
+  border-radius: 12px;
+  color: var(--font-tip-color);
+  font-size: var(--font-size-12);
+}
+
+.router-provider-config-list,
+.router-strategy-config-list,
+.router-policy-config-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 380px));
+  justify-content: start;
+  gap: 16px;
+  min-height: 0;
+  padding-right: 2px;
+  padding-bottom: 2px;
+}
+
+.router-provider-config-card,
+.router-strategy-config-card,
+.router-policy-config-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  width: 100%;
+  max-width: 380px;
+  min-height: 210px;
+  padding: 16px;
+  border: 1px solid
+    color-mix(in srgb, var(--color-white) 6%, var(--border-main-color));
+  border-radius: 18px;
+  background: color-mix(
+    in srgb,
+    var(--surface-card-bg) 82%,
+    var(--surface-panel-bg-strong) 18%
+  );
+  box-shadow:
+    0 18px 36px color-mix(in srgb, var(--bg-box-shadow) 72%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-white) 12%, transparent);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.router-provider-config-card:hover,
+.router-strategy-config-card:hover,
+.router-policy-config-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 22px 38px color-mix(in srgb, var(--bg-box-shadow) 86%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-white) 14%, transparent);
+}
+
+.router-provider-create-card,
+.router-strategy-create-card,
+.router-policy-create-card {
+  place-content: center;
+  text-align: center;
+  gap: 12px;
+  cursor: pointer;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+  background:
+    radial-gradient(
+      circle at top,
+      color-mix(in srgb, var(--color-primarySoft) 52%, transparent),
+      transparent 68%
+    ),
+    color-mix(in srgb, var(--surface-card-bg) 82%, var(--color-primarySoft) 18%);
+}
+
+.router-provider-create-card:hover,
+.router-strategy-create-card:hover,
+.router-policy-create-card:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 62%, transparent);
+  box-shadow: 0 8px 22px
+    color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.router-provider-config-header,
+.router-strategy-config-header,
+.router-policy-config-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.router-provider-config-header strong,
+.router-strategy-config-header strong,
+.router-policy-config-header strong {
+  color: var(--font-main-color);
+  font-size: var(--font-size-14);
+  font-weight: 600;
+}
+
+.router-provider-title-wrap,
+.router-strategy-title-wrap,
+.router-policy-title-wrap {
+  display: block;
+  min-width: 0;
+}
+
+.provider-name-main,
+.strategy-name-main,
+.policy-name-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.provider-name-icon,
+.strategy-name-icon,
+.policy-name-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  font-size: 18px;
+}
+
+.router-provider-title-wrap strong,
+.router-strategy-title-wrap strong,
+.router-policy-title-wrap strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-info-grid,
+.strategy-info-grid,
+.policy-info-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.provider-info-item,
+.strategy-info-item,
+.policy-info-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+}
+
+.provider-info-item dt,
+.strategy-info-item dt,
+.policy-info-item dt {
+  flex: 1;
+  min-width: 0;
+  color: var(--font-text-color);
+  font-size: var(--font-size-11);
+  font-weight: 500;
+}
+
+.provider-info-item dd,
+.strategy-info-item dd,
+.policy-info-item dd {
+  margin: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--font-main-color);
+  font-size: var(--font-size-12);
+  font-weight: 500;
+  text-align: right;
+}
+
+.router-provider-card-actions,
+.router-strategy-card-actions,
+.router-policy-card-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+}
+
+@media (max-width: 720px) {
+  .router-provider-config-list,
+  .router-strategy-config-list,
+  .router-policy-config-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .router-provider-config-card,
+  .router-strategy-config-card,
+  .router-policy-config-card {
+    max-width: none;
   }
 }

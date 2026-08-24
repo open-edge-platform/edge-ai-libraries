@@ -48,6 +48,7 @@ OUT_DIR = os.environ["OUT_DIR"]
 WAVE_NAME = os.environ["WAVE_NAME"]
 INPUT_LEN = int(os.environ["INPUT_LEN"])
 NUM_REQUESTS = int(os.environ["NUM_REQUESTS"])
+SEQ = os.environ.get("SEQ", "0") not in {"", "0", "false", "False"}
 
 _tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_PATH, trust_remote_code=True)
 
@@ -99,6 +100,7 @@ def run_one(req_id, prompt):
             "stream": True,
             "stream_options": {"include_usage": True},
             "max_tokens": MAX_TOKENS,
+            "min_tokens": MAX_TOKENS,
         }
     ).encode("utf-8")
     req = urllib.request.Request(
@@ -112,6 +114,8 @@ def run_one(req_id, prompt):
     start = time.perf_counter()
     token_times = []
     cached_tokens = None
+    finish_reason = None
+    generated_text = []
     with urllib.request.urlopen(req) as resp:
         for raw_line in resp:
             line = raw_line.decode("utf-8").strip()
@@ -126,6 +130,9 @@ def run_one(req_id, prompt):
                 delta = choices[0].get("delta") or {}
                 if delta.get("content"):
                     token_times.append(time.perf_counter())
+                    generated_text.append(delta["content"])
+                if choices[0].get("finish_reason"):
+                    finish_reason = choices[0]["finish_reason"]
             usage = chunk.get("usage")
             if usage:
                 details = usage.get("prompt_tokens_details") or {}
@@ -135,18 +142,24 @@ def run_one(req_id, prompt):
             "start": start,
             "token_times": token_times,
             "cached_tokens": cached_tokens,
+            "finish_reason": finish_reason,
+            "generated_text": "".join(generated_text),
         }
 
 
 def main():
-    threads = [
-        threading.Thread(target=run_one, args=(rid, p))
-        for rid, p in PROMPTS.items()
-    ]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    if SEQ:
+        for rid, p in PROMPTS.items():
+            run_one(rid, p)
+    else:
+        threads = [
+            threading.Thread(target=run_one, args=(rid, p))
+            for rid, p in PROMPTS.items()
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
     out = {}
     for req_id, data in results.items():
@@ -158,6 +171,8 @@ def main():
                 "tpot_ms": None,
                 "num_tokens": 0,
                 "cached_tokens": data.get("cached_tokens"),
+                "finish_reason": data.get("finish_reason"),
+                "generated_text": data.get("generated_text"),
             }
             continue
         ttft_ms = (tt[0] - start) * 1000.0
@@ -171,6 +186,8 @@ def main():
             "tpot_ms": tpot_ms,
             "num_tokens": len(tt),
             "cached_tokens": data.get("cached_tokens"),
+            "finish_reason": data.get("finish_reason"),
+            "generated_text": data.get("generated_text"),
         }
 
     os.makedirs(OUT_DIR, exist_ok=True)

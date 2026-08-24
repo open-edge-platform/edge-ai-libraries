@@ -14,7 +14,7 @@ Work on the service's source. **This skill assumes a repo clone** of
 `edge-ai-libraries` with this microservice at
 `microservices/multimodal-embedding-serving/`; if there is no clone, clone the
 repo first (`git clone
-https://github.com/open-edge-platform/edge-ai-libraries.git`) or — if the user
+https://github.com/open-edge-platform/edge-ai-libraries.git -b main`) or — if the user
 only wants to *use* the service — switch to
 [`../multimodal-embedding-serving-user/SKILL.md`](../multimodal-embedding-serving-user/SKILL.md).
 Run all commands from the microservice root.
@@ -101,7 +101,7 @@ docker compose -f docker/compose.yaml up -d
 
 | Gotcha | Consequence |
 |---|---|
-| `src/wrapper.py` is a **path dependency of vdms-dataprep** (`visual-data-preparation-for-retrieval/vdms`) | API changes there ripple into that service — check its usage before changing signatures |
+| `src/wrapper.py` is a **path dependency of multimodal-dataprep** (`visual-data-preparation-for-retrieval/multimodal-dataprep`) | API changes there ripple into that service — check its usage before changing signatures |
 | Package is built as a wheel (`poetry build`; `packages` maps `src/` → `multimodal_embedding_serving`) | keep new modules importable under the package name; SDK users import from it |
 | `INFER_BATCH_SIZE` compiles OpenVINO models to a fixed batch shape | handler changes must keep the pad/split logic intact |
 | QwenText handlers are text-only by design | don't "fix" the 400 for images; capability flags live on the handler |

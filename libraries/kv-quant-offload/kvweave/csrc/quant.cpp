@@ -97,12 +97,12 @@ void fast_walsh_hadamard_transform(float* x, int64_t n) {
 
     const float inv_sqrt_n = 1.0f / std::sqrt(static_cast<float>(n));
 
-    for (std::size_t h = 1; h < n; h <<= 1) {
-        const std::size_t stride = h << 1;
+    for (int64_t h = 1; h < n; h <<= 1) {
+        const int64_t stride = h << 1;
 
-        for (std::size_t i = 0; i < n; i += stride) {
-            std::size_t j = i;
-            std::size_t j_end = i + h;
+        for (int64_t i = 0; i < n; i += stride) {
+            int64_t j = i;
+            int64_t j_end = i + h;
 
 #ifdef __AVX512F__
             for (; j + 16 <= j_end; j += 16) {
@@ -132,7 +132,7 @@ void fast_walsh_hadamard_transform(float* x, int64_t n) {
         }
     }
 
-    std::size_t i = 0;
+    int64_t i = 0;
 #ifdef __AVX512F__
     __m512 inv_sqrt_n_vec = _mm512_set1_ps(inv_sqrt_n);
     for (; i + 16 <= n; i += 16) {
@@ -337,7 +337,7 @@ void fast_walsh_hadamard_inverse_fused(const float* in, float* out, int64_t n,
     // Inverse: out[perm[i]] = tmp[i] * signs[i]  (scatter using forward perm).
     if (perm && signs) {
         for (int64_t i = 0; i < n; ++i) {
-            out[perm[i]] = tmp[i] * signs[i];
+            out[perm[i]] = tmp[static_cast<size_t>(i)] * signs[i];
         }
     } else if (signs) {
         // No permutation, just sign flip
@@ -369,7 +369,7 @@ void fast_walsh_hadamard_inverse_fused(const float* in, float* out, int64_t n,
     } else {
         // Only inverse permutation (scatter), no signs
         for (int64_t i = 0; i < n; ++i) {
-            out[perm[i]] = tmp[i];
+            out[perm[i]] = tmp[static_cast<size_t>(i)];
         }
     }
 }

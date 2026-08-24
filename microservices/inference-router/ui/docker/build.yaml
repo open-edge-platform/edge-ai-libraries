@@ -1,6 +1,9 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   inference-router-ui:
-    image: ${REGISTRY:-opea}/inference-router-ui:${TAG:-latest}
+    image: ${REGISTRY:-intel}/inference-router-ui:${TAG:-latest}
     build:
       context: ../..
       dockerfile: ./ui/docker/Dockerfile.ui

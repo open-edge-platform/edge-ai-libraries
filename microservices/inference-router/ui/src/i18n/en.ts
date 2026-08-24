@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 export default {
   headerTitle: "Inference Router",
   common: {
@@ -101,7 +104,7 @@ export default {
     routerLatencyOverallTitle: "Latency overview",
     routerLatencyOverallCaption:
       "Shows current module latency details (average latency, TTFT, TPOT, and related counts).",
-    routerConfigProvidersTitle: "Provider configuration",
+    routerConfigProvidersTitle: "Providers",
     routerConfigProvidersCaption:
       "Shows current module provider configuration details (name, type, model, enabled state, and settings).",
     routerDetailTabsLabel: "Router detail ",
@@ -124,8 +127,8 @@ export default {
     routerProviderDetailTitle: "Provider details",
     routerProviderBasicInfo: "Basic information",
     routerProviderNamePlaceholder: "Use letters, numbers, or underscores",
-    routerProviderTypePlaceholder: "Select provider type",
-    routerProviderModelPlaceholder: "Select model",
+    routerProviderTypePlaceholder: "Enter provider type",
+    routerProviderModelPlaceholder: "Enter model name",
     routerProviderEnabledTip: "Enable this provider",
     routerProviderJsonPlaceholder: "Enter JSON. Empty value saves as {}",
     routerProviderNameRequired: "Please enter provider name",
@@ -137,6 +140,119 @@ export default {
     routerProviderDeleteConfirmTitle: "Delete provider",
     routerProviderDeleteConfirmContent:
       'Are you sure to delete "{name}"? It cannot be restored after deletion.',
+    routerPluginConfigTitle: "Plugins",
+    routerPluginConfigCaption:
+      "Manage configured plugin instances and inspect registered plugin nodes with their settings schemas.",
+    routerPluginInstancesTab: "Plugin instances",
+    routerPluginNodesTab: "Plugin nodes",
+    routerPluginName: "Instance name",
+    routerPluginNode: "Plugin node",
+    routerPluginGroup: "Plugin group",
+    routerPluginTrigger: "Trigger phase",
+    routerPluginEnabled: "Enabled",
+    routerPluginSettings: "Settings",
+    routerPluginSettingsSchema: "Settings schema",
+    routerPluginMetrics: "Runtime metrics",
+    routerPluginDescription: "Node description",
+    routerPluginNodeRuntimeInfo: "Node runtime information",
+    routerPluginBasicInfo: "Basic information",
+    routerPluginCreate: "Add plugin instance",
+    routerPluginCreateTitle: "Add plugin instance",
+    routerPluginEditTitle: "Edit plugin instance",
+    routerPluginDetailTitle: "Plugin instance details",
+    routerPluginNodeDetailTitle: "Plugin node details",
+    routerPluginNodePlaceholder: "Select a plugin node",
+    routerPluginNamePlaceholder:
+      "Use letters, numbers, dots, hyphens, or underscores",
+    routerPluginSettingsPlaceholder:
+      "Enter a JSON object. Empty value saves as an empty object",
+    routerPluginNodeRequired: "Please select a plugin node",
+    routerPluginNameRequired: "Please enter an instance name",
+    routerPluginNamePattern:
+      "Name can only contain letters, numbers, dots, hyphens, and underscores",
+    routerPluginSettingsRule: "Settings must be a valid JSON object",
+    routerPluginRequiredSettings: "Required settings",
+    routerPluginRequiredSettingsRule: "Missing required settings: {fields}",
+    routerPluginDeleteConfirmContent:
+      'Are you sure to delete plugin instance "{name}"? It cannot be restored after deletion.',
+    routerPluginResetConfirmContent:
+      'Are you sure to reset runtime state for plugin instance "{name}"?',
+    routerPluginNodeResetConfirmContent:
+      'Are you sure to reset global runtime state for plugin node "{node}"?',
+    routerPluginResetDisabledTip:
+      "Only enabled and loaded plugin instances can be reset",
+    routerPluginUngrouped: "Ungrouped",
+    routerPluginNoDescription: "No node description",
+    routerNoPlugins: "No plugin instance configuration",
+    routerNoPluginNodes: "No registered plugin nodes",
+    routerPolicyConfigTitle: "Policies",
+    routerPolicyConfigCaption:
+      "Controls how routing combines strategy results in workspace policy.yaml. Valid updates apply immediately.",
+    routerPolicyName: "Name",
+    routerPolicyCriterion: "Criterion",
+    routerPolicyStrategies: "Associated strategies",
+    routerPolicyAssociatedStrategies: "Associated strategies",
+    routerPolicyAssociatedStrategiesTip: "Click to view strategy details",
+    routerPolicyStrategiesCount: "Strategy count",
+    routerPolicyStrategiesAssociatedCount: "{count} strategies associated",
+    routerPolicyNoStrategies: "No associated strategies",
+    routerPolicyCreate: "Add policy",
+    routerPolicyCreateTitle: "Add policy",
+    routerPolicyEditTitle: "Edit policy",
+    routerPolicyDetailTitle: "Policy details",
+    routerPolicyBasicInfo: "Basic information",
+    routerPolicyNamePlaceholder:
+      "Use letters, numbers, dots, hyphens, or underscores",
+    routerPolicyCriterionPlaceholder: "Select criterion",
+    routerPolicyStrategiesPlaceholder: "Select associated strategies",
+    routerPolicyNameRequired: "Please enter policy name",
+    routerPolicyNamePattern:
+      "Name can only contain letters, numbers, dots, hyphens, and underscores",
+    routerPolicyCriterionRequired: "Please select criterion",
+    routerPolicyStrategiesRequired:
+      "Please select at least one associated strategy",
+    routerPolicyStrategiesEmptyHint:
+      "Please create strategies first, then continue.",
+    routerPolicyDeleteConfirmContent:
+      'Are you sure to delete "{name}"? It cannot be restored after deletion.',
+    routerNoPolicyConfigs: "No policy configuration",
+    routerStrategyConfigTitle: "Strategies",
+    routerStrategyConfigCaption:
+      "Controls request matching and provider selection in workspace strategy.yaml. Valid updates apply immediately.",
+    routerStrategyName: "Name",
+    routerStrategyDescription: "Description",
+    routerStrategyRules: "Rules",
+    routerStrategyProviderSelector: "Provider",
+    routerStrategySort: "Sort",
+    routerStrategyRequireHealthy: "Require healthy",
+    routerStrategyLimit: "Limit",
+    routerStrategyRulesCount: "Rule count",
+    routerStrategyCreate: "Add strategy",
+    routerStrategyCreateTitle: "Add strategy",
+    routerStrategyEditTitle: "Edit strategy",
+    routerStrategyDetailTitle: "Strategy details",
+    routerStrategyBasicInfo: "Basic information",
+    routerStrategyNamePlaceholder:
+      "Use letters, numbers, dots, hyphens, or underscores",
+    routerStrategyDescriptionPlaceholder: "Enter description. Optional",
+    routerStrategyRulesPlaceholder:
+      'Enter a JSON array, such as [{"type":"MessageContentRule","param":{"pattern":"plan","roles":["user"]}}]. Empty value saves as []',
+    routerStrategyProviderSelectorPlaceholder:
+      'Enter a JSON object, such as {"label":"planning","capability":{"complexity":0.7}}',
+    routerStrategySortPlaceholder:
+      'Enter a JSON array, such as [{"provider_attribute":"cost","descending":false}]. Empty value saves as []',
+    routerStrategyLimitPlaceholder: "Leave empty for no limit",
+    routerStrategyNameRequired: "Please enter strategy name",
+    routerStrategyNamePattern:
+      "Name can only contain letters, numbers, dots, hyphens, and underscores",
+    routerStrategyProviderSelectorRequired: "Please enter provider selector",
+    routerStrategyJsonRule: "Please enter valid JSON",
+    routerStrategyJsonArrayRule: "Please enter a JSON array",
+    routerStrategyProviderSelectorRule:
+      "Provider selector must be a JSON object",
+    routerStrategyDeleteConfirmContent:
+      'Are you sure to delete "{name}"? It cannot be restored after deletion.',
+    routerNoStrategyConfigs: "No strategy configuration",
     routerTotalInputTokens: "Input tokens",
     routerTotalOutputTokens: "Output tokens",
     routerAvgTokensPerRequest: "Avg tokens per request",

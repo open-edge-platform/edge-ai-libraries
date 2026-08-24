@@ -125,8 +125,7 @@ indexing, and audio analysis.
   Microservices providing real-time audio transcription and
   intelligence extraction. 
 
-- [VLM Inference Serving](./microservices/vlm-openvino-serving)
-  & [Multimodal Embedding](./microservices/multimodal-embedding-serving)
+- [Multimodal Embedding](./microservices/multimodal-embedding-serving)
 
   Services handling vision-language models and embedding generation
   for multimodal search.
@@ -152,7 +151,7 @@ and scalability. This group offers components for dataset curation,
 vector search, and document ingestion across multimodal data. 
 
 - [Vector Retriever (Milvus)](./microservices/visual-data-preparation-for-retrieval/milvus)
-  & [Visual Data Preparation (Milvus and VDMS)](./microservices/visual-data-preparation-for-retrieval/vdms)
+  & [Visual Data Preparation (Milvus and Multimodal-dataprep)](./microservices/visual-data-preparation-for-retrieval/multimodal-dataprep)
 
   High-performance vector similarity search and visual data indexing. 
 
@@ -259,11 +258,6 @@ advanced robotic workloads at the edge.
 
 Ready-to-use example applications demonstrating real-world AI use cases
 to help users get started quickly and understand integration patterns: 
-
-- [Chat Question and Answer](./sample-applications/chat-question-and-answer) 
-
-  Conversational AI application integrating retrieval-augmented generation for
-  question answering. 
 
 - [Chat Question and Answer Core](./sample-applications/chat-question-and-answer-core) 
 
@@ -383,7 +377,7 @@ The **Edge AI Libraries** project is licensed under the [APACHE 2.0](./LICENSE) 
 | Component | License |
 |:----------|:--------|
 | Dataset Management Framework (Datumaro) | [MIT License](https://github.com/open-edge-platform/datumaro/blob/develop/LICENSE) |
-| Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/main/LICENSE) |
+| Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/develop/LICENSE) |
 | Deep Learning Streamer | [MIT License](https://github.com/open-edge-platform/dlstreamer/blob/main/LICENSE) |
 
 Some of the software maintained under the Edge AI Libraries repository is intended for

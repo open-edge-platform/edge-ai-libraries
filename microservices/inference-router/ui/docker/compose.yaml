@@ -1,13 +1,17 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   inference-router-ui:
-    image: ${REGISTRY:-opea}/inference-router-ui:${TAG:-latest}
+    image: ${REGISTRY:-intel}/inference-router-ui:${TAG:-latest}
     container_name: inference-router-ui
     environment:
       no_proxy: ${no_proxy:-}
       http_proxy: ${http_proxy:-}
       https_proxy: ${https_proxy:-}
       UI_PORT: ${UI_PORT:-7010}
-      SERVER_HOST: ${SERVER_HOST:-127.0.0.1}
+      SERVER_HOST: ${SERVER_HOST:-inference-router}
       SERVER_PORT: ${SERVER_PORT:-8000}
+    ports:
+      - "${UI_PORT:-7010}:${UI_PORT:-7010}"
     restart: always
-    network_mode: host

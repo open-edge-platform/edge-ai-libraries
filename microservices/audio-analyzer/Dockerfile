@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-FROM intel/dlstreamer:2026.1.0-ubuntu24
+FROM intel/dlstreamer:2026.2.0-ubuntu24-rc1
 
 ARG APP_UID=1000
 ARG APP_GID=1000
@@ -33,7 +33,7 @@ COPY requirements.txt ./requirements.txt
 RUN python3 -m venv "$VIRTUAL_ENV" \
     && "$VIRTUAL_ENV/bin/pip" install --upgrade pip \
     && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt \
-    && "$VIRTUAL_ENV/bin/pip" uninstall -y torchcodec || true
+    && ("$VIRTUAL_ENV/bin/pip" uninstall -y torchcodec || true)
 
 COPY . .
 
