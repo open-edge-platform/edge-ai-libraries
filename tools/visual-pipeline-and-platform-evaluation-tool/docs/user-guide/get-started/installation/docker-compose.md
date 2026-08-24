@@ -102,3 +102,18 @@ For alternative ways to set up the sample application, refer to
 > **Note:** On the first start the `model-download` service may take several minutes to become
 > healthy because it provisions its plugin virtual environments. The other services wait for it
 > automatically.
+
+## Stop the application
+
+Stop and remove all running containers:
+
+```bash
+make stop
+```
+
+Downloaded models and videos under `shared/` are preserved. To also remove
+those artifacts, run:
+
+```bash
+make clean
+```
