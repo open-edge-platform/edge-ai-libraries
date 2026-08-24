@@ -30,8 +30,6 @@ jobs:
         
       - name: Build with Coverity Analysis
         run: |
-          set -x
-          set +e
           # Add the Intel repository GPG key
           wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
             | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
@@ -45,6 +43,9 @@ jobs:
           sudo -E apt install -y intel-oneapi-base-toolkit-2025.3
           sudo -E apt install -y build-essential libc6-dev
           source /opt/intel/oneapi/setvars.sh
+          
+          python3 -m venv .venv
+          source .venv/bin/activate
           
           wget --quiet https://scan.coverity.com/download/linux64 \
             --post-data "token=${{ secrets.KV_COVERITY_TOKEN }}&project=${{ secrets.KV_COVERITY_PROJECT }}" \
