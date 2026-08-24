@@ -17,7 +17,7 @@ Failed to ensure bucket after retries: ...
 
 - Ensure the SeaweedFS service is running and healthy before starting the behavioral-analysis service.
 - In Docker Compose, the `depends_on: seaweedfs: condition: service_healthy` setting handles this automatically; verify that the SeaweedFS health check is passing.
-- Check `SEAWEEDFS_ENDPOINT` is correct and reachable from within the container (e.g. `http://seaweedfs:8333`).
+- Check that `SEAWEEDFS_ENDPOINT` is correct and reachable from within the container (e.g., `http://seaweedfs:8333`).
 
 ```bash
 # Verify SeaweedFS is reachable
@@ -55,9 +55,9 @@ ls -la ./models/yolo_models/yolo26n-pose/
 **Resolution:**
 
 - Verify SeaweedFS is running: `curl http://seaweedfs:8333`.
-- Check `SEAWEEDFS_ENDPOINT` and `SEAWEEDFS_BUCKET` environment variables.
+- Check the `SEAWEEDFS_ENDPOINT` and `SEAWEEDFS_BUCKET` environment variables.
 - Verify the MQTT broker is running and accessible.
-- Check `MQTT_HOST` and `MQTT_PORT` environment variables.
+- Check the `MQTT_HOST` and `MQTT_PORT` environment variables.
 - Review logs: `docker logs behavioral-analysis` or application stdout.
 
 ## VLM Analysis Not Running / `vlm_confirmed` Always `null`
@@ -70,7 +70,7 @@ ls -la ./models/yolo_models/yolo26n-pose/
 - Check `VLM_ENABLED=true` is set.
 - Verify `vlm_enabled: true` in `config/patterns.yaml` under `vlm_settings` and for the specific pattern.
 - Confirm the OVMS service is running and responding: `curl http://ovms-vlm:8001/v2/health/ready`.
-- Check `VLM_ENDPOINT` points to the correct host and port.
+- Check that `VLM_ENDPOINT` points to the correct host and port.
 - In Docker Compose, `depends_on: ovms-vlm: condition: service_healthy` ensures OVMS is ready before the service starts.
 
 ## VLM Circuit Breaker Open

@@ -142,7 +142,7 @@ The `PoseRuleEngine` evaluates patterns defined in `config/patterns.yaml`. Patte
 
 - Patterns are organized into **ordered phases** representing temporal stages of behavior
 - Each phase specifies `min_frames`: minimum consecutive frames where all conditions hold
-- Engine performs **sliding-window matching**: seeks best-matching N-frame partition in the pose sequence where all phases satisfy their constraints in order
+- The engine performs **sliding-window matching**: seeks best-matching N-frame partition in the pose sequence where all phases satisfy their constraints in order
 - If `per_side: true` in pattern config: conditions auto-expand into left/right variants (e.g., `elbow_bent` → `left_elbow_bent`, `right_elbow_bent`)
 
 **Example: shelf_to_waist pattern**
@@ -169,9 +169,9 @@ patterns:
               threshold: 0.40  # within 40% of torso length
 ```
 
-When all phases match, engine returns a `PatternResult` with matched frames, confidence, and phase details.
+When all phases match, the engine returns a `PatternResult` with matched frames, confidence, and phase details.
 
-For feature overview, see [Key Features: Declarative Pattern Engine](./index.md#42-declarative-pattern-engine).
+For feature overview, see [Key Features: Declarative Pattern Engine](./index.md#32-declarative-pattern-engine).
 
 ## VLM Confirmation
 
@@ -234,7 +234,7 @@ For feature overview, see [Key Features: VLM Confirmation](./index.md#43-vlm-con
 - **Logic:** When a task would begin:
   - If `_current_analyses >= max_inflight_analyses`: new analysis request is dropped (logged at warning level)
   - Otherwise: task proceeds; counter incremented; decremented upon completion
-- **Purpose:** Caps memory usage and SeaweedFS/YOLO pipeline load; prevents cascade when frame storage is slow
+- **Purpose:** Caps memory usage and SeaweedFS/YOLO pipeline load; prevents a cascade when frame storage is slow
 
 **Dropped request handling:**
 
@@ -242,7 +242,7 @@ For feature overview, see [Key Features: VLM Confirmation](./index.md#43-vlm-con
 - Upstream should implement its own retry logic or buffer management
 - No backpressure signal is sent to MQTT publisher (asynchronous; no ACK mechanism defined)
 
-For feature overview, see [Key Features: Entity Deduplication & Backpressure](./index.md#44-entity-deduplication--backpressure).
+For feature overview, see [Key Features: Entity Deduplication & Backpressure](./index.md#34-entity-deduplication--backpressure).
 
 ## Error Handling
 
@@ -270,9 +270,9 @@ For feature overview, see [Key Features: Entity Deduplication & Backpressure](./
 
 ## Related Documentation
 
-- [Overview](./index.md#1-overview): A high-level introduction to the
+- [Overview](./index.md): A high-level introduction to the
     microservice and its capabilities.
 - [Get Started](./get-started.md) — Step-by-step run instructions
 - [API Reference](./api-reference.md) — HTTP and MQTT endpoint schemas
 - [Configuration](./get-started/configuration.md) — Full environment variable reference
-- [Troubleshooting](./troubleshooting.md) — Common issues and resolutions
+- [Troubleshooting](./troubleshooting.md) — Common issues and resolution paths

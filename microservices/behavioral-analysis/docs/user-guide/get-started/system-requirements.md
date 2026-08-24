@@ -24,7 +24,7 @@
 - **Storage:**
   - Minimum free disk space: 30 GB.
   - Recommended: 60 GB+ to accommodate Docker images, OpenVINO™ models, the
-    VLM weights (Qwen2.5-VL is several GB) and frame storage.
+    VLM weights (Qwen2.5-VL is several GB), and frame storage.
 
 - **Graphics / Accelerators:**
   - Required: Intel CPU.
@@ -80,9 +80,9 @@ The service requires a YOLO26n-pose model in OpenVINO IR format (`.xml` + `.bin`
 
 ## Related Documentation
 
-- [Overview](../index.md#1-overview): A high-level introduction to the
+- [Overview](../index.md): A high-level introduction to the
     microservice and its capabilities.
 - [Get Started](../get-started.md) — Step-by-step run instructions
 - [API Reference](../api-reference.md) — HTTP and MQTT endpoint schemas
 - [Configuration](./configuration.md) — Full environment variable reference
-- [Troubleshooting](../troubleshooting.md) — Common issues and resolutions
+- [Troubleshooting](../troubleshooting.md) — Common issues and resolution paths
