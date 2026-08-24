@@ -41,9 +41,7 @@ $(cat "$spec_file")
 
 ### Implementation requirements
 
-1. **File location**: \`module/${name}/debian\`
-
-2. **Function naming** (see \`module/README.md\`):
+1. **Function naming** (see \`module/README.md\`):
    \`\`\`
    debian_<NN>_profile_${name}
    debian_<NN>_install_${name}
@@ -62,11 +60,15 @@ $(cat "$spec_file")
    99     profiles
    \`\`\`
 
+2. **File location**: \`module/${name}/debian\`. Linux distribution-agnostic functions 
+   can be also defined in \`module/${name}/linux\`, except those interface functions 
+   mentioned in step 1.      
+
 3. **Functions to implement**:
    - Always implement \`install\`, \`remove\`, \`start\`, and \`stop\`.
    - Omit \`start\`/\`stop\` **only** when the spec describes a stateless
-     system package with no runtime service (cite \`module/curl/debian\` as
-     precedent).
+     system package with no runtime service, for example, a library or SDK that has no
+     explicit start/stop operation.   
    - Omit \`remove\` **only** for trivial system packages where removal
      could cause unintended side-effects (cite \`module/curl/debian\`).
    - Add \`debian_<NN>_license_${name}\` if the spec requires a click-through
@@ -76,12 +78,19 @@ $(cat "$spec_file")
 
 4. **Profile function**: \`debian_<NN>_profile_${name}\` must \`echo\` a
    space-separated list of **existing** component names that \`${name}\`
-   depends on. Only list names that actually exist as directories under
-   \`module/\`.
+   depends on. Components that use docker must include `\docker`\ as a
+   dependency. For Edge tools, applications and services that use GPU or NPU,
+   include \`edge_base\` as a dependency, which is a virtual package for 
+   preparing the system for Edge applications. If the component requires
+   to use \`make\` for configuration, list \`make\` as a dependency. List
+   all required dependencies. If some of them are not yet available under \`modules\`, 
+   implement them as part of the commit.    
 
 5. **\`configure_${name}\` / \`verify_${name}\` idiom**:
    - Define a \`configure_${name}\` function that sets local workspace,
      version, and repository variables (no global state).
+   - If a local workspace is required, for example, use the default workspace location
+     `$(ensure_project_path)/${name}`.  
    - Define a \`verify_${name}\` function that returns 0 if the component
      is already correctly installed, non-zero otherwise.
 
@@ -89,21 +98,31 @@ $(cat "$spec_file")
    - Call \`verify_${name}\` at the top of \`install\`; skip if already
      satisfied and \`--reset-${name}\` flag is absent.
    - Support the \`--reset-${name}\` flag to force reinstallation.
+   - The \`install\` function should install the component, configure/setup it up such
+     that it is ready to use, which also includes pulling docker images if the component
+     is a dockerized application.   
 
-7. **\`remove\` robustness**: call \`stop\` first (with \`|| true\`),
+7. **\`start\` robustness**: If a component appears to be running (for example, with
+   occupied ports), the \`start\` function uses \`ensure_ports_open\` to check if the 
+   ports are occupied and if so, stop the component first. 
+
+   The list of required ports can usually be obtained by scanning any docker compose files 
+   in the component repository, if not explicitly specified.   
+
+8. **\`remove\` robustness**: call \`stop\` first (with \`|| true\`) to stop the component,
    then clean up workspace/images/volumes.
 
-8. **Helpers** – only reuse helpers that **actually exist** under \`common/\`
+9. **Helpers** – only reuse helpers that **actually exist** under \`common/\`
    or \`license/\`. Do **not** invent new helpers. Available helpers:
 ${HELPERS_LIST}
 
-9. **Name conventions** (see \`module/README.md\`):
+10. **Name conventions** (see \`module/README.md\`):
    - No global variable name collisions. Use \`local\` variables or
      suffix/prefix with \`_${name}\`.
    - Internal helper functions (if any) must be prefixed with the component
      name, e.g. \`${name}_setup_something\`.
 
-10. **Reference implementations**:
+11. **Reference implementations**:
     - Full app (profile + install + start + stop + remove):
       \`module/loitering_detection/debian\`
     - Minimal package (install only): \`module/curl/debian\`
