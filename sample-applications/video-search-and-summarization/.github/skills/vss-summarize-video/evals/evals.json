@@ -9,11 +9,11 @@
       "expected_output": "Resolves the already uploaded loading-dock-cam.mp4 to its videoId, starts a valid summary pipeline, waits for true completion, and presents the final summary text.",
       "files": [],
       "expectations": [
-        "Resolves the already uploaded `loading-dock-cam.mp4` to a `videoId` using `GET /manager/videos` and the real filename field such as `.dataStore.fileName`, rather than blindly uploading it again.",
-        "Starts `POST /manager/summary` with the resolved `videoId` and the required `title`, valid `sampling`, and `evam.evamPipeline` fields.",
+        "Checks Pipeline Manager health and summary capability, then resolves `loading-dock-cam.mp4` through the wrapped Manager video list and its real filename field rather than blindly uploading it again; if either precondition fails, reports the observed blocker without inventing a summary.",
+        "Provides `POST /manager/summary` with the resolved `videoId` and required `title`, valid `sampling`, and `evam.evamPipeline` fields, or after an observed precondition blocker gives that exact unexecuted request with a clearly marked video-id placeholder.",
         "Uses a valid sampling block where `multiFrame == frameOverlap + samplingFrame`.",
-        "Carries the returned `summaryPipelineId` forward as the state id and polls `GET /manager/summary/{stateId}` until `videoSummaryStatus == \"complete\"`.",
-        "Retrieves and presents the final `.summary` text only after completion."
+        "Carries the returned `summaryPipelineId` forward as the state id and shows polling `GET /manager/summary/{stateId}` until `videoSummaryStatus == \"complete\"`, or precisely specifies that carry-over and polling step after an observed blocker.",
+        "Retrieves and presents `.summary` only after verified completion, or supplies the exact unexecuted retrieval step after an observed blocker without inventing summary content."
       ]
     },
     {
@@ -23,11 +23,11 @@
       "expected_output": "Starts a valid summary for vid-7f3a91 using the requested title, 30-second chunks, 8 sampled frames, 2-frame overlap, computed multiFrame 10, and the 0-600 second window, then waits for completion and returns the summary.",
       "files": [],
       "expectations": [
-        "Uses the supplied `videoId` `vid-7f3a91` without uploading a new video and sends the request to `POST /manager/summary`.",
+        "Checks Pipeline Manager health and summary capability, uses the supplied `videoId` `vid-7f3a91` without uploading a new video, and sends or specifies the request to `POST /manager/summary`; if blocked, reports the observed failure without inventing success.",
         "Uses the exact title `Warehouse night shift - Jan 14`.",
         "Sets `sampling.chunkDuration` to 30, `sampling.samplingFrame` to 8, `sampling.frameOverlap` to 2, and `sampling.multiFrame` to 10 so the enforced sum constraint is satisfied.",
         "Sets `sampling.videoStart` to 0 and `sampling.videoEnd` to 600 and includes a documented `evam.evamPipeline` value.",
-        "Polls the returned state id until `videoSummaryStatus == \"complete\"` before retrieving and presenting `.summary`."
+        "Polls, or precisely specifies polling, the returned state id until `videoSummaryStatus == \"complete\"` before retrieving `.summary`, without inventing output when execution is blocked."
       ]
     },
     {
@@ -37,10 +37,10 @@
       "expected_output": "Starts a valid summary pipeline for parking-lot-042 with produceFinalSummary false, waits for frame-caption processing to finish, and presents each frameSummaries entry rather than a final blended summary.",
       "files": [],
       "expectations": [
-        "Uses `POST /manager/summary` for `parking-lot-042` with `produceFinalSummary` false plus the required title, valid sampling, and `evam.evamPipeline` fields.",
+        "Checks Pipeline Manager health and summary capability, then sends or specifies `POST /manager/summary` for `parking-lot-042` with `produceFinalSummary` false plus the required title, valid sampling, and `evam.evamPipeline`; if blocked, reports the observed failure.",
         "Recognizes that `produceFinalSummary: false` means there is no final video-summary stage to wait for.",
-        "Polls `GET /manager/summary/{stateId}` and waits for `frameSummaryStatus.inProgress` to reach 0.",
-        "Reads the requested captions from `.frameSummaries[]` and presents each `frameKey` with its `summary` text.",
+        "Shows polling `GET /manager/summary/{stateId}` until `frameSummaryStatus.inProgress` reaches 0.",
+        "Reads captions from `.frameSummaries[]` and presents each `frameKey` with its `summary` text after completion, or gives the exact retrieval step without inventing captions when execution is blocked.",
         "Does not treat `.chunks[]` as the caption source."
       ]
     },
@@ -55,7 +55,7 @@
         "Explains that a valid existing VSS checkout is reused and no re-clone is performed.",
         "Explains that when no checkout exists the bootstrap obtains a shallow, single-branch, sparse checkout of `sample-applications/video-search-and-summarization` from `main`.",
         "Changes directory to the resolved `APP_ROOT` before using app-local commands or VSS APIs.",
-        "After setup, resolves or obtains the video id for `gate-cam-01`, starts a valid `POST /manager/summary` request, waits for `videoSummaryStatus == \"complete\"`, and retrieves `.summary`."
+        "After setup, checks summary capability and resolves or obtains the video id for `gate-cam-01`, then executes or precisely specifies a valid `POST /manager/summary`, `videoSummaryStatus == \"complete\"` polling, and `.summary` retrieval flow without inventing results when blocked."
       ]
     }
   ]

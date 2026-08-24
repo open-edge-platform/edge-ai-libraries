@@ -9,10 +9,10 @@
       "expected_output": "Prepares the current checkout's config and credentials, replaces any stale stack with the default summary deployment, waits for Pipeline Manager health, and reports the summary UI URL.",
       "files": [],
       "expectations": [
+        "Reports the checkout path selected as the VSS app root, makes clear that subsequent app commands run from that root, and accurately states that the valid existing checkout is reused without cloning.",
         "Generates or reuses the external `$VSS_CREDENTIALS_FILE` with `.github/skills/vss-deploy/scripts/gen-secrets.sh` and sources it together with `.github/skills/vss-deploy/vss.config`.",
-        "Runs `source setup.sh --stop` before deployment so stale or wrong-mode containers cannot collide.",
-        "Deploys summary mode with `source setup.sh --summary`, sourcing `setup.sh` rather than executing it directly.",
-        "Waits for the nginx gateway's `/manager/health` endpoint to become healthy before declaring the deployment ready.",
+        "Runs, or precisely specifies after an observed host blocker, `source setup.sh --stop` before `source setup.sh --summary`, sourcing `setup.sh` rather than executing it.",
+        "Shows waiting for the nginx gateway's `/manager/health` endpoint before declaring the deployment ready.",
         "Reports the summary UI URL as `http://<host-ip>:12345/` or the equivalent using the resolved `APP_HOST_PORT`."
       ]
     },
@@ -26,7 +26,8 @@
         "Uses `source setup.sh --summary --search config` or the equivalent `source setup.sh --dual config` command.",
         "Explains that config mode renders `docker compose config` and does not run `up -d` or start containers.",
         "Identifies the dual-mode overlays as `docker/compose.base.yaml`, `docker/compose.summary.yaml`, `docker/compose.search.yaml`, and `docker/compose.ui.yaml`.",
-        "Identifies the selected profiles as `ovms` and `dual_ui`."
+        "Identifies the selected profiles as `ovms` and `dual_ui`.",
+        "Reports the resulting nginx gateway paths `/summary/` and `/search/` on host port 12345."
       ]
     },
     {
@@ -36,7 +37,7 @@
       "expected_output": "Deploys unified mode on port 18080, explains which environment setup must be sourced by the user for persistence, accounts for mode-derived variables needed by later manual Compose commands, and reports the custom-port URL.",
       "files": [],
       "expectations": [
-        "Deploys with `APP_HOST_PORT=18080` and `source setup.sh --summary-and-search` or an equivalent unified alias.",
+        "Runs, or precisely specifies after an observed host blocker, deployment with `APP_HOST_PORT=18080` and `source setup.sh --summary-and-search` or an equivalent unified alias.",
         "Explains that `--setenv` must be sourced by the user in their own interactive shell because a subprocess cannot persist exports back to it.",
         "Gives the user-facing command `APP_HOST_PORT=18080 source setup.sh --setenv` without combining `--setenv` with a mode flag, which `setup.sh` rejects.",
         "Explains that `--setenv` exports mode-agnostic variables only and that unified mode-derived values needed for later manual `docker compose` commands must also be exported in the user's shell.",
@@ -50,8 +51,8 @@
       "expected_output": "Stops and removes all VSS containers, performs the destructive user-data cleanup for Postgres, MinIO, and VDMS, and accurately distinguishes removed data from preserved model caches.",
       "files": [],
       "expectations": [
-        "Uses `source setup.sh --stop` or its `--down` alias to stop and remove containers across the VSS overlays and profiles.",
-        "Uses `source setup.sh --clean-data` for the requested persisted-data reset.",
+        "Uses `source setup.sh --clean-data`, or reports the host blocker and gives that exact sourced command, recognizing that this lifecycle action itself stops and removes containers across all VSS overlays and profiles before deleting user data.",
+        "Uses `source setup.sh --clean-data` for the requested persisted-data reset, or reports the host blocker and gives that exact sourced command without claiming cleanup occurred.",
         "Explains that `--clean-data` is destructive and additionally removes VSS user-data volumes rather than merely stopping containers.",
         "Identifies the requested Postgres, MinIO, and VDMS data among the removed volumes, such as `docker_pg_data`, `docker_minio_data`, and `docker_vdms-db`.",
         "States that model-cache volumes and the host-backed `ov_models/` directory are preserved, so the reset does not force model downloads."

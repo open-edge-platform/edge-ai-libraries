@@ -30,6 +30,33 @@ exact command sequence instead: the bootstrap step, the config/secrets step, the
 plus which command the user must run themselves and why. State plainly that the
 commands were not executed. Never end the answer by asking whether to run them.
 
+## Mandatory bootstrap and credential contract
+
+Every deployment answer must run or, after a host blocker, show and report this
+exact setup shape:
+
+```bash
+SKILL_DIR=".github/skills/vss-deploy"
+APP_ROOT="$(bash "$SKILL_DIR/scripts/vss-bootstrap.sh")"
+cd "$APP_ROOT"
+export VSS_CREDENTIALS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vss/vss.credentials"
+./.github/skills/vss-deploy/scripts/gen-secrets.sh
+source .github/skills/vss-deploy/vss.config
+source "$VSS_CREDENTIALS_FILE"
+```
+
+Report the resolved `APP_ROOT`, whether it was reused without cloning, and the
+bootstrap's no-hit fallback (shallow `--depth 1`, single-branch, sparse checkout
+of only the VSS app from `main`). The canonical files are `vss.config` and the
+external `$VSS_CREDENTIALS_FILE`; do **not** substitute stale filenames such as
+`vss.config.env`, `vss.secrets.env`, or an in-checkout credentials file.
+
+Before any real deploy, config render, stop, or model-download path, run a
+bounded Docker host preflight such as `docker info >/dev/null 2>&1`. If it fails,
+stop immediately: do not invoke `setup.sh`, do not wait for model download, and
+do not retry a missing daemon. Report the observed host blocker and provide the
+exact deferred sourced command sequence required by the answer contract.
+
 ## Environment setup (run first)
 
 This skill drives the Video Search & Summarization app through its real source
@@ -166,6 +193,15 @@ If the user is ambiguous, ask which mode; do **not** default silently.
    > `EMBEDDING_MODEL_NAME`. Export those by hand if the user needs full parity for
    > manual `docker compose` calls.
 
+   If the user asks for both a deployment and persistent variables for later
+   manual Compose commands, satisfy both parts separately: first run the real
+   deployment flow with the selected mode and overrides (for example,
+   `APP_HOST_PORT=18080 source setup.sh --summary-and-search` in the deployment
+   subshell), then give the user the interactive
+   `APP_HOST_PORT=18080 source setup.sh --setenv` command plus any required
+   mode-derived exports. `--setenv` prepares their future shell; it is not a
+   substitute for the requested deployment.
+
 5. **Wait for health**, then **print URLs**. Keep the probe in the invoking
    shell so this skill does not ship an executable network helper:
 
@@ -279,6 +315,22 @@ For anything past these basics - model-server crashes, OVMS token/cache/GPU
 errors, host model-cache or model-download permission failures, search returning no results,
 NPU/OpenGL issues - hand off to the installed `vss-troubleshoot` skill by name
 and the canonical guide at `docs/user-guide/troubleshooting.md`.
+
+## Final answer audit trail
+
+Tool arguments may not be visible to the user or evaluator. The final answer
+must therefore report the bootstrap result: resolved `APP_ROOT`, the change to
+that directory, and whether an existing checkout was reused without cloning.
+Also state that a total bootstrap miss falls back to a shallow (`--depth 1`),
+single-branch, sparse checkout of only the VSS app from `main`.
+
+Name every requested `setup.sh` operation exactly, including overrides and mode
+flags, and distinguish commands that completed from commands blocked by the
+host. For a blocked deployment, still provide the exact sourced deploy command,
+health endpoint, and resulting URL. For `--clean-data`, say that it performs the
+stop/removal itself, list the affected user-data volumes, and explicitly state
+that model-cache volumes and the host-backed `ov_models/` directory are
+preserved.
 
 ## References
 

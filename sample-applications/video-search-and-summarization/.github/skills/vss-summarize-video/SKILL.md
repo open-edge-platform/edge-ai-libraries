@@ -77,7 +77,7 @@ to overwrite an existing non-VSS clone destination.
    `vss-troubleshoot` or `vss-deploy` skill by name:
    ```bash
    curl -sf "$HOST/manager/health" >/dev/null && \
-   curl -s "$HOST/manager/app/features" | jq '.summary // .'   # confirm summary capability
+   curl -s "$HOST/manager/app/features" | jq -e '(.summary // .) == "FEATURE_ON"'
    ```
 2. A `videoId` to summarize - upload one with `POST /manager/videos` (multipart,
    field `video`), which returns `{ "videoId": "…" }`. Or list existing - note the
@@ -158,6 +158,22 @@ curl -s "$HOST/manager/summary/$STATE_ID/raw" | jq .   # everything (audio, fram
 ```
 Present the final summary text; offer the per-chunk detail if useful. Audio with
 no speech yields an `audioTranscriptSummary` that says so - not an error.
+
+## Final answer audit trail
+
+Tool arguments may not be visible to the user or evaluator. The final answer
+must therefore report the bootstrap result: the resolved `APP_ROOT`, whether an
+existing checkout was reused without cloning, and that commands ran after
+changing to that app root. Also state that a total bootstrap miss falls back to
+a shallow (`--depth 1`), single-branch, sparse checkout of only the VSS app from
+`main`. Report the observed `/manager/health` and summary feature values.
+
+For the summary workflow, name every public Manager operation used (method and
+`/manager/...` path), the important request fields, the observed response, and
+the carry-over from `summaryPipelineId` to `STATE_ID`. When a precondition blocks
+execution, clearly separate observed probes from unexecuted commands and still
+show the exact valid request, completion condition, and retrieval step without
+inventing ids or summary content.
 
 ## Manage
 

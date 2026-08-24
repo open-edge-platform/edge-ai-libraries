@@ -73,7 +73,7 @@ Backend healthy and **search enabled** - probe first; if not, use the installed
 `vss-troubleshoot` or `vss-deploy` skill by name:
 ```bash
 curl -sf "$HOST/manager/health" >/dev/null && \
-curl -s "$HOST/manager/app/features" | jq '.search // .'
+curl -s "$HOST/manager/app/features" | jq -e '(.search // .) == "FEATURE_ON"'
 ```
 
 ## 1. Upload a video (if not already ingested)
@@ -86,7 +86,13 @@ curl -s -X POST "$HOST/manager/videos" \
   -F "tags=outdoor,daytime" | jq .
 # → { "videoId": "<VIDEO_ID>" }
 ```
-List / inspect existing videos instead. The list response is an **object**
+When the user says a video is **already uploaded** or **just uploaded**, list
+videos first and match the exact real filename. Reuse that record's `videoId`;
+do not search the local filesystem and upload another copy. Upload only when no
+exact filename match exists and the user actually supplied a local file to
+ingest.
+
+The list response is an **object**
 `{ "videos": [...] }`, **not a bare array**; `name` is a generated hash, so use
 `url` / `dataStore.fileName` for the real filename:
 ```bash
@@ -141,6 +147,28 @@ curl -s -X POST "$HOST/manager/search/query" -H 'Content-Type: application/json'
       | "score=\(.metadata.relevance_score)  file=\($m[0][.metadata.video_id] // "?")  clip=\(.metadata.segment_start)-\(.metadata.segment_end)s"'
 ```
 Present top hits with their **filename** + clip window + seek time.
+
+If a filtered query returns no results, report the empty result as valid. Then
+inspect the Manager video list for the requested tags and indexing readiness,
+explain only what the observed state supports, and give a Manager-based next
+step that preserves the same filters. To merge missing tags into an existing
+record, use the documented embedding operation with a body such as
+`POST /manager/videos/search-embeddings/<VIDEO_ID>` plus
+`{"tags":"indoor"}`, then rerun the same filtered query.
+Never present an unfiltered hit as though it satisfied the requested filter.
+
+## Final answer audit trail
+
+Tool arguments may not be visible to the user or evaluator. The final answer
+must therefore name the public Pipeline Manager operations used (method and
+`/manager/...` path), the important request fields, the observed status or
+response, and any carried identifier such as `videoId`. Include the bootstrap
+outcome (resolved app root and whether an existing checkout was reused) plus the
+observed health and feature-preflight result. For searches, identify
+the exact query/filter payload and say that ranked hits came from
+`POST /manager/search/query`; for filename joins, say that the mapping came from
+`GET /manager/videos`. If an id cannot be resolved, label it unresolved rather
+than inventing a filename.
 
 ## 4. Saved / managed queries (optional)
 

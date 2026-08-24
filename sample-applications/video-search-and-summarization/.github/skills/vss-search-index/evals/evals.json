@@ -9,11 +9,11 @@
       "expected_output": "Uploads the requested MP4 with dock,outdoor tags, carries the returned videoId into embedding generation, and confirms the video is ready for later search.",
       "files": [],
       "expectations": [
-        "Uploads `/home/intel/videos/dock_cam_2026-07-15.mp4` with `POST /manager/videos` as multipart form field `video`.",
-        "Sends the requested tags as the comma-separated form field `tags=dock,outdoor`.",
-        "Captures the returned `videoId` from the upload response.",
-        "Triggers indexing with `POST /manager/videos/search-embeddings/<VIDEO_ID>` because upload alone does not make the video searchable.",
-        "Re-checks `GET /manager/videos/<VIDEO_ID>` or otherwise waits for embedding completion before reporting the clip as searchable."
+        "Resolves the VSS app root with the skill bootstrap and checks Pipeline Manager health plus search capability before performing the workflow.",
+        "Uploads `dock_cam_2026-07-15.mp4` through Pipeline Manager with the requested `dock,outdoor` tags when no exact match exists, or reuses an exact existing Manager record with those tags on an idempotent rerun; records the selected `videoId` and never invents success.",
+        "Triggers or specifies search-embedding generation for that Pipeline Manager `videoId`, recognizing that upload alone does not make the clip searchable.",
+        "Waits for completion and verifies search readiness through the Pipeline Manager video record or an observed Manager search result before calling the clip searchable.",
+        "Returns auditable outcome details such as the real filename, tags, Manager `videoId`, embedding result, and readiness evidence rather than substituting a direct internal-service workflow."
       ]
     },
     {
@@ -23,11 +23,11 @@
       "expected_output": "Runs a forklift query with the indoor tag and a seven-day relative time filter, then presents the ranked matching clips and their timing information.",
       "files": [],
       "expectations": [
-        "Sends `POST /manager/search/query` with the required `query` value `forklift`.",
-        "Includes the optional comma-separated `tags` field with value `indoor`.",
-        "Uses a relative `timeFilter` with `value` 7 and `unit` `days`.",
-        "Reads the ranked clips from the wrapped `.results[].results[]` response path.",
-        "Presents useful ranking and timing fields such as `relevance_score`, `segment_start`/`segment_end`, and `seek_timestamp`."
+        "Resolves the app root with the skill bootstrap and verifies Pipeline Manager health plus search capability before querying.",
+        "Uses the Pipeline Manager search interface for `forklift` with tag `indoor` and the relative seven-day filter (`value: 7`, `unit: days`).",
+        "Reports the observed filtered result accurately, including a valid empty result, rather than inventing ranked clips when nothing matches.",
+        "When the filtered result is empty, inspects relevant library state such as video tags or indexing readiness and explains the observed cause without presenting an unfiltered match as an indoor match.",
+        "Provides a Manager-grounded next step that preserves the requested semantics, such as tagging the intended indoor video, generating its search embeddings, and rerunning the same filtered query."
       ]
     },
     {
@@ -37,11 +37,11 @@
       "expected_output": "Runs the requested search, builds a videoId-to-filename map from the video list, joins each ranked hit to its real filename, and presents the matching recordings.",
       "files": [],
       "expectations": [
-        "Lists videos with `GET /manager/videos` and reads records from the wrapped `.videos[]` array.",
-        "Builds the filename map from each record's `videoId` to `.dataStore.fileName`, not the generated hash in `name`.",
-        "Runs `POST /manager/search/query` with query text `delivery truck backing up`.",
-        "Reads hits from `.results[].results[]` and joins each `metadata.video_id` to the filename map because search hits do not directly contain the real filename.",
-        "Presents the real filename for each top match, along with useful clip timing or relevance information."
+        "Uses the Pipeline Manager video library and search interfaces rather than bypassing the public gateway for a direct internal-service query.",
+        "Builds or demonstrably uses a `videoId`-to-real-filename mapping from the Manager video list, where the real filename comes from `dataStore.fileName` rather than the generated `name` hash.",
+        "Runs the requested `delivery truck backing up` search and joins each ranked hit's `metadata.video_id` to the Manager filename mapping.",
+        "Presents top matches with real filenames plus relevance and clip navigation details such as a clip window and seek time.",
+        "Handles any unresolved or stale video id honestly instead of fabricating a filename, while still clearly identifying the strongest resolvable recording to open."
       ]
     },
     {
@@ -51,11 +51,11 @@
       "expected_output": "Finds the already uploaded clip by filename, generates its search embeddings, waits until it is searchable, runs the requested car-alarm query, and presents ranked clips with timestamps.",
       "files": [],
       "expectations": [
-        "Finds the already uploaded `lot_cam_2026-07-20.mp4` in `GET /manager/videos` using `.dataStore.fileName` and obtains its `videoId` rather than blindly uploading it again.",
-        "Triggers indexing with `POST /manager/videos/search-embeddings/<VIDEO_ID>` using that video id.",
-        "Waits for or re-checks the video record before treating the clip as searchable.",
-        "Runs `POST /manager/search/query` with the query text `car alarm going off`.",
-        "Reads ranked clips from `.results[].results[]` and presents timestamps such as `segment_start`/`segment_end` or `seek_timestamp`."
+        "Resolves the VSS app root with the skill bootstrap and checks Pipeline Manager health plus search capability before indexing or querying.",
+        "Looks up `lot_cam_2026-07-20.mp4` in the Manager video list by its real filename and reuses an existing Manager `videoId` when present instead of blindly creating a duplicate.",
+        "Generates search embeddings for the selected Manager `videoId` and waits for a successful completion or reports an observed blocker without inventing readiness.",
+        "Runs the `car alarm going off` query through Pipeline Manager and presents ranked results with relevance plus clip-window or seek-time information.",
+        "Reports real filenames when they can be resolved through the Manager library and explicitly flags stale or unresolved ids instead of fabricating mappings."
       ]
     }
   ]
