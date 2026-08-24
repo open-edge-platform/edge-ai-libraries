@@ -71,7 +71,8 @@ jobs:
           BUILDEOF
 
           echo "=== 先测试不带 Coverity 的构建 ==="
-          bash ./cov-build.sh
+          #bash ./cov-build.sh
+          pip install . --extra-index-url https://download.pytorch.org/whl/xpu
           echo "=== 构建测试结果: $? ==="
           
           #pip install . --extra-index-url https://download.pytorch.org/whl/xpu
