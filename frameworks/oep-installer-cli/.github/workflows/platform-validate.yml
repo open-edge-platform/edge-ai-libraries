@@ -10,7 +10,7 @@ name: Platform Validation
 # Executing unreviewed, AI-generated shell on that runner without a human
 # approval step would let any contributor push arbitrary code into our lab.
 #
-# The `validate-platform` label is the approval signal: only maintainers can
+# The `VALIDATE-PLATFORM` label is the approval signal: only maintainers can
 # apply it.  The workflow aborts immediately if the label is absent.
 # DO NOT change the trigger to `pull_request` while self-hosted runners are
 # in use — that would bypass this gate.
@@ -53,16 +53,16 @@ jobs:
     timeout-minutes: 90
 
     # Label gate:
-    #   - labeled event: only proceed when the applied label is validate-platform.
+    #   - labeled event: only proceed when the applied label is VALIDATE-PLATFORM.
     #   - synchronize event: only proceed when the PR already carries the label.
     #   - workflow_dispatch: always proceed.
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request_target' &&
-       github.event.label.name == 'validate-platform') ||
+       github.event.label.name == 'VALIDATE-PLATFORM') ||
       (github.event_name == 'pull_request_target' &&
        github.event.action == 'synchronize' &&
-       contains(github.event.pull_request.labels.*.name, 'validate-platform'))
+       contains(github.event.pull_request.labels.*.name, 'VALIDATE-PLATFORM'))
 
     steps:
       # Check out the PR head content so we test what the contributor actually
