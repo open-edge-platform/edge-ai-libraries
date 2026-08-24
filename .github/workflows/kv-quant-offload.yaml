@@ -75,7 +75,11 @@ jobs:
           #pip install . --extra-index-url https://download.pytorch.org/whl/xpu
           chmod +x cov-build.sh
           coverity capture --dir cov-int --project-dir . -- ./cov-build.sh
-
+          
+      - name: Create tarball for upload
+        run: |
+          cat /home/runner/work/edge-ai-libraries/edge-ai-libraries/libraries/kv-quant-offload/cov-int/build-log.txt
+          
       - name: Create tarball for upload
         run: |
           cd libraries/kv-quant-offload
