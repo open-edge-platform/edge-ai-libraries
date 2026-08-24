@@ -3,13 +3,13 @@ name: Generate component from spec
 on:
   push:
     branches: [main]
-    paths: ['instructions/**']
+    paths: ['specification/**']
   workflow_dispatch:
     inputs:
       spec_file:
         description: >-
           Path to spec file relative to repo root
-          (e.g. instructions/my_component.md)
+          (e.g. specification/my_component.md)
         required: false
 
 permissions:
@@ -24,7 +24,7 @@ jobs:
     # This workflow now authenticates with a PAT (COPILOT_TASK_TOKEN) because
     # installation tokens cannot assign the Copilot coding agent. Unlike
     # GITHUB_TOKEN, pushes made with a PAT DO trigger workflows -- so a commit
-    # under instructions/** authored by our own automation would re-enter this
+    # under specification/** authored by our own automation would re-enter this
     # workflow and create duplicate agent tasks.
     #
     # Only applied to `push`; workflow_dispatch must always run, otherwise the
@@ -71,10 +71,10 @@ jobs:
                ! git cat-file -e "$BEFORE" 2>/dev/null; then
               # Fall back: files introduced by the head commit
               git diff-tree --no-commit-id -r --name-only --diff-filter=AM \
-                "$SHA" -- 'instructions/*.md' > "$SPECS_FILE"
+                "$SHA" -- 'specification/*.md' > "$SPECS_FILE"
             else
               git diff --name-only --diff-filter=AM "${BEFORE}..${SHA}" \
-                -- 'instructions/*.md' > "$SPECS_FILE"
+                -- 'specification/*.md' > "$SPECS_FILE"
             fi
           fi
 

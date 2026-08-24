@@ -97,7 +97,7 @@ full text of the license.
 
 ## How the workflow works
 
-1. You push `instructions/<component_name>.md` to `main`.
+1. You push `specification/<component_name>.md` to `main`.
 2. The workflow `.github/workflows/instructions-to-component.yml` detects the
    new or modified file.
 3. It creates a GitHub issue titled *"Implement installer component: `<name>`"*
