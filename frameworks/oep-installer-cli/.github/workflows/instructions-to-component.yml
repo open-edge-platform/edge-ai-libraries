@@ -20,7 +20,21 @@ jobs:
   dispatch:
     runs-on: [self-hosted, linux, oep-lab]
     timeout-minutes: 20
-    if: github.actor != 'github-actions[bot]'
+    #
+    # This workflow now authenticates with a PAT (COPILOT_TASK_TOKEN) because
+    # installation tokens cannot assign the Copilot coding agent. Unlike
+    # GITHUB_TOKEN, pushes made with a PAT DO trigger workflows -- so a commit
+    # under instructions/** authored by our own automation would re-enter this
+    # workflow and create duplicate agent tasks.
+    #
+    # Only applied to `push`; workflow_dispatch must always run, otherwise the
+    # token owner could not manually re-run the workflow themselves.
+    if: >-
+      github.event_name != 'push' ||
+      (github.actor != 'github-actions[bot]' &&
+       github.actor != 'copilot-swe-agent[bot]' &&
+       github.actor != 'Copilot' &&
+       github.actor != vars.AUTOMATION_ACTOR)
     steps:
       - name: Verify required tooling
         run: |
@@ -80,7 +94,7 @@ jobs:
       - name: Create a Copilot task issue for each spec
         if: steps.specs.outputs.has_specs == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.COPILOT_TASK_TOKEN }}
         run: |
           chmod +x .github/scripts/create-component-issue.sh
           .github/scripts/create-component-issue.sh \
