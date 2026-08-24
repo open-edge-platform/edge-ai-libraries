@@ -70,7 +70,7 @@ global:
   usePvc: true
   keepPvc: true
   huggingfaceToken: "hf_..."   # needed for gated/private Hugging Face models
-  vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"
+  vlmName: "Qwen/Qwen3-VL-4B-Instruct"
   llmName: ""                  # optional OVMS split-model summarization model
   embeddingModelName: ""       # set per mode below
   modelDownload:

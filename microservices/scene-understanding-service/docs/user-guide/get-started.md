@@ -75,42 +75,33 @@ field list, TLS setup, and how to disable behavioral analysis.
 
 ## Choose Deployment Path
 
-<!--hide_directive::::{tab-set}
-:::{tab-item}hide_directive--> **Run in Docker (Recommended)**
-<!--hide_directive:sync: Docker hide_directive-->
+Use the Docker path for the simplest setup with a released image. For local development or source builds, follow the linked guides below.
 
-The container image exposes the API on host port `8082` and reads its config
-from `/app/configs`. The image bakes in the sample config, so it starts
-out-of-the-box; mount your own `./configs` to override it.
+### Run with a released Docker image
 
-See [Run with Docker Compose](./get-started/run-container.md) for the full step-by-step guide.
-
-Quick start:
+The container exposes the API on host port `8082` and reads config from `/app/configs`.
+Use a versioned image tag instead of `latest` for reproducible deployments.
 
 ```bash
-docker build -t intel/scene-understanding-service:latest .
-docker run -p 8082:8082 \
-  -v ./configs:/app/configs:ro \
-  intel/scene-understanding-service:latest
+docker run --rm -p 8082:8082 \
+  -v "$PWD/configs:/app/configs:ro" \
+  intel/scene-understanding-service:<RELEASE_TAG>
+```
+
+Then verify:
+
+```bash
 curl --noproxy '*' http://127.0.0.1:8082/health
 ```
 
-<!--hide_directive:::
-:::{tab-item}hide_directive--> **Run on the Host**
-<!--hide_directive:sync: Host hide_directive-->
+For compose-based deployments and a complete production setup, see [Run with Docker Compose](./get-started/run-container.md).
 
-Run the service directly with Python. This path is useful for development.
+### For local development and source builds
 
-See [Run on the Host](./get-started/run-standalone.md) for the full step-by-step guide.
+- [Build from Source](./get-started/build-from-source.md)
+- [Run on the Host](./get-started/run-standalone.md)
 
-Quick start:
-
-```bash
-uv sync
-uv run python main.py
-```
-<!--hide_directive:::
-::::hide_directive-->
+Use those guides when you need to work from the repo, run with `uv`, or build a custom image.
 
 ## Verify
 
@@ -129,7 +120,7 @@ Expected response:
 Service readiness (includes runtime stats):
 
 ```bash
-curl --noproxy '*' http://127.0.0.1:8082/api/v1/lp/status
+curl --noproxy '*' http://127.0.0.1:8082/api/v1/sus/status
 ```
 
 ## Next Steps

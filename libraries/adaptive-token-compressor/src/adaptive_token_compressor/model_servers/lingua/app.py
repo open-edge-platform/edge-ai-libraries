@@ -21,7 +21,13 @@ from typing import Any, Literal
 # HF env must be set BEFORE huggingface_hub is imported transitively (it
 # reads HF_ENDPOINT / HF_HUB_OFFLINE on first import). Defaults match
 # router production: hf-mirror endpoint, online so first-run can download.
-os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+# Configurable via LINGUA_HF_ENDPOINT (this module-import path) or the
+# --hf_endpoint CLI flag / HF_ENDPOINT env (server path, applied in build_app
+# before llmlingua is imported).
+DEFAULT_HF_ENDPOINT = "https://hf-mirror.com"
+os.environ.setdefault(
+    "HF_ENDPOINT", os.environ.get("LINGUA_HF_ENDPOINT", DEFAULT_HF_ENDPOINT)
+)
 os.environ.setdefault("HF_HUB_OFFLINE", "0")
 
 # pydantic stays at module scope — FastAPI treats locally-defined BaseModel
@@ -60,18 +66,21 @@ logging.basicConfig(
 )
 logger.setLevel(getattr(logging, _LOG_LEVEL, logging.INFO))
 
-# Optional, deployment-tunable hard ceiling on request `text` length (chars).
-# Unset or <= 0 means "no hard limit" (default) so unknown-large but legitimate
-# contexts are not rejected out of the box. Set LINGUA_MAX_TEXT_CHARS in
-# production once the real upper bound is known to bound worst-case resource use
-# (compression runs a transformer model — oversized input is a cheap DoS vector).
+# Hard ceiling on request `text` length (chars). Non-zero by default (DoS
+# guard); set LINGUA_MAX_TEXT_CHARS<=0 to opt out of the limit.
+DEFAULT_MAX_TEXT_CHARS = 200_000
+
+
 def _parse_max_text_chars() -> int:
-    raw = os.environ.get("LINGUA_MAX_TEXT_CHARS", "0").strip()
+    raw = os.environ.get("LINGUA_MAX_TEXT_CHARS", str(DEFAULT_MAX_TEXT_CHARS)).strip()
     try:
         val = int(raw)
     except ValueError:
-        logger.warning("Invalid LINGUA_MAX_TEXT_CHARS=%r; treating as unset (no limit)", raw)
-        return 0
+        logger.warning(
+            "Invalid LINGUA_MAX_TEXT_CHARS=%r; falling back to default %d",
+            raw, DEFAULT_MAX_TEXT_CHARS,
+        )
+        return DEFAULT_MAX_TEXT_CHARS
     return val if val > 0 else 0
 
 
@@ -121,10 +130,26 @@ def _parse_args() -> argparse.Namespace:
         choices=["llmlingua2"],
         help="Compression mode. Only llmlingua2 (LLMLingua-2 path) is supported.",
     )
+    parser.add_argument(
+        "--hf_endpoint",
+        type=str,
+        default=_env_str("HF_ENDPOINT", _env_str("LINGUA_HF_ENDPOINT", DEFAULT_HF_ENDPOINT)),
+        help=(
+            "HuggingFace Hub endpoint (sets HF_ENDPOINT before model download). "
+            "Defaults to the hf-mirror.com mirror."
+        ),
+    )
     return parser.parse_args()
 
 
 def build_app(args: argparse.Namespace) -> Any:
+    # Apply the configured HF endpoint before any transitive huggingface_hub
+    # import reads it (llmlingua below). --hf_endpoint (or HF_ENDPOINT /
+    # LINGUA_HF_ENDPOINT env) wins over the module-import default at line 24.
+    hf_endpoint = getattr(args, "hf_endpoint", None)
+    if hf_endpoint:
+        os.environ["HF_ENDPOINT"] = hf_endpoint
+
     import torch  # noqa: F401
     from fastapi import FastAPI, HTTPException, Request
     from fastapi.exceptions import RequestValidationError
@@ -154,8 +179,7 @@ def build_app(args: argparse.Namespace) -> Any:
         "Request-level mode override enabled; supported modes: %s",
         ", ".join(sorted(supported_modes)),
     )
-    logger.info("HF_HUB_OFFLINE=%s  HF_ENDPOINT=%s",
-                os.environ.get("HF_HUB_OFFLINE"), os.environ.get("HF_ENDPOINT"))
+    logger.info("Hugging Face hub configuration loaded")
 
     mode_state: dict[str, dict[str, Any]] = {}
 
@@ -168,9 +192,10 @@ def build_app(args: argparse.Namespace) -> Any:
         )
         effective_model_name = requested_model_name or default_model_name
 
+        safe_mode = next((m for m in supported_modes if m == selected_mode), "<invalid>")
         logger.info(
             "Initializing mode=%s with model=%s",
-            selected_mode,
+            safe_mode,
             effective_model_name if effective_model_name else "<llmlingua-default>",
         )
 
@@ -204,7 +229,7 @@ def build_app(args: argparse.Namespace) -> Any:
                     else:
                         logger.warning("--device xpu requested, but torch.xpu is not available")
                 except Exception as exc:
-                    logger.warning("Failed to enumerate XPU devices: %s", exc)
+                    logger.warning("Failed to enumerate XPU devices: %s", type(exc).__name__)
 
                 device = torch.device(f"xpu:{xpu_index}")
                 llm_lingua.model = llm_lingua.model.to(device)
@@ -224,7 +249,7 @@ def build_app(args: argparse.Namespace) -> Any:
                 param_device = next(llm_lingua.model.parameters()).device
                 logger.info("Model parameter device: %s", param_device)
             except Exception as exc:
-                logger.warning("Failed to read model parameter device: %s", exc)
+                logger.warning("Failed to read model parameter device: %s", type(exc).__name__)
         else:
             try:
                 import openvino as ov
@@ -278,7 +303,10 @@ def build_app(args: argparse.Namespace) -> Any:
 
             # Persist OpenVINO IR under mounted cache so restarts can reuse it.
             ov_cache_root = Path(
-                os.environ.get("LINGUA_OV_CACHE_DIR", "/root/.cache/huggingface/ov_ir")
+                os.environ.get(
+                    "LINGUA_OV_CACHE_DIR",
+                    os.path.expanduser("~/.cache/huggingface/ov_ir"),
+                )
             )
             if not effective_model_name:
                 raise RuntimeError(
@@ -309,7 +337,7 @@ def build_app(args: argparse.Namespace) -> Any:
                     llm_lingua.model.save_pretrained(str(ov_model_dir))
                     logger.info("OpenVINO IR persisted to: %s", ov_model_dir)
                 except Exception as exc:
-                    logger.warning("Failed to persist OpenVINO IR cache: %s", exc)
+                    logger.warning("Failed to persist OpenVINO IR cache: %s", type(exc).__name__)
 
             ov_exec_devices = f"{ov_device} ({ov_mapped_full_name})"
             try:
@@ -349,23 +377,36 @@ def build_app(args: argparse.Namespace) -> Any:
             "`python -m adaptive_token_compressor.model_servers.lingua.apply_patch`."
         )
 
-    app = FastAPI(title="Lingua Server")
+    # Introspection endpoints off by default; set LINGUA_ENABLE_DOCS=1 to expose.
+    _docs_enabled = os.environ.get("LINGUA_ENABLE_DOCS", "0").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    app = FastAPI(
+        title="Lingua Server",
+        docs_url="/docs" if _docs_enabled else None,
+        redoc_url="/redoc" if _docs_enabled else None,
+        openapi_url="/openapi.json" if _docs_enabled else None,
+    )
+
+    @app.exception_handler(Exception)
+    async def _handle_unexpected_error(request: Request, exc: Exception):
+        logger.error(
+            "Unhandled request error for %s: %s",
+            request.url.path,
+            type(exc).__name__,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "internal server error"},
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _log_invalid_request(request: Request, exc: RequestValidationError):
         # Requirement: log requests with invalid parameters (a burst signals the
-        # interface is under attack). Log only field locations + error types, not
-        # the raw offending values, to avoid injecting attacker-controlled data
-        # into the logs. Response body stays the FastAPI-standard generic 422.
-        summary = "; ".join(
-            f"{'.'.join(str(p) for p in e.get('loc', []))}:{e.get('type', '?')}"
-            for e in exc.errors()
-        )
-        logger.warning(
-            "invalid /compress request rejected (422) from %s: %s",
-            request.client.host if request.client else "unknown",
-            summary,
-        )
+        # interface is under attack). Keep the event message fixed so no
+        # attacker-controlled data can be injected into the logs. Response body
+        # stays the FastAPI-standard generic 422.
+        logger.warning("invalid /compress request rejected (422)")
         # Keep the body generic (no echo of attacker-controlled values) BUT
         # shaped to the published HTTPValidationError schema (detail: array of
         # ValidationError), so the response still conforms to the OpenAPI spec.
@@ -392,7 +433,9 @@ def build_app(args: argparse.Namespace) -> Any:
             raise HTTPException(status_code=413, detail="text too large")
         request_mode = ((request.mode or startup_mode).strip().lower() if request.mode else startup_mode)
         if request_mode not in supported_modes:
-            logger.warning("invalid /compress mode rejected (400): %r", request.mode)
+            # Keep the message fixed; the offending mode is attacker-controlled
+            # and must not be echoed into the logs.
+            logger.warning("invalid /compress mode rejected (400)")
             raise HTTPException(
                 status_code=400,
                 detail=(

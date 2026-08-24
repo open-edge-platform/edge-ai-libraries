@@ -17,7 +17,7 @@ x-vippet: &vippet
     retries: 3
     start_period: 5s
     start_interval: 1s
-  restart: on-failure:5
+  restart: unless-stopped
   depends_on:
     mediamtx:
       condition: service_started
@@ -111,7 +111,7 @@ services:
     container_name: ui
     ports:
       - "80:80"
-    restart: on-failure:5
+    restart: unless-stopped
     depends_on:
       vippet:
         condition: service_healthy
@@ -126,7 +126,7 @@ services:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
-    image: docker.io/intel/model-download:2026.2.0-rc1
+    image: docker.io/intel/model-download:2026.2.0-rc1-ww34r1
     container_name: model-download
     ports:
       - "8000:8000"
@@ -142,7 +142,7 @@ services:
       retries: 5
       start_period: 60m
       start_interval: 1s
-    restart: on-failure:5
+    restart: unless-stopped
     environment:
       MODELS_DIR: /models/output
       CORS_ALLOW_ORIGINS: "*"
@@ -202,7 +202,7 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
-    restart: on-failure:5
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/health', timeout=8)"]
       interval: 10s
@@ -222,6 +222,7 @@ services:
       - "8554:8554"     # RTSP
       - "8889:8889"     # WebRTC signaling/HTTP
       - "8189:8189/udp" # WebRTC/ICE UDP
+    restart: unless-stopped
   onvif-discovery:
     image: docker.io/intel/vippet-onvif-discovery:${DOCKER_TAG}
     build:
@@ -233,7 +234,7 @@ services:
         no_proxy:
     container_name: onvif-discovery
     network_mode: host
-    restart: on-failure:5
+    restart: unless-stopped
     init: true
     user: "${UID:-1000}:${GID:-1000}"
     environment:

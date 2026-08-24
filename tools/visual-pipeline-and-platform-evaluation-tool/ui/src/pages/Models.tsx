@@ -104,6 +104,19 @@ export const Models = () => {
           <p className="text-muted-foreground mt-2">
             Ready-to-use models available in the platform
           </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Not every uploaded model will work in ViPPET. Check supported
+            models:{" "}
+            <a
+              href="https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium underline underline-offset-2"
+            >
+              DL Streamer supported models
+            </a>
+            .
+          </p>
         </div>
 
         <MultiFileUploader

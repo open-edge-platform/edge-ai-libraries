@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from unittest.mock import patch
 import numpy as np
 import torch
 import soundfile as sf
@@ -12,6 +13,34 @@ from utils.ensure_model import get_diarization_model_path
 from utils.config_loader import config
 
 logger = logging.getLogger(__name__)
+
+
+def _is_gpu_tagged_storage_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "torch.storage.untypedstorage" in text and "tagged with gpu" in text
+
+
+def _load_pipeline_with_map_location_fallback(
+    pipeline_source: str,
+    hf_token: str | None,
+) -> Pipeline:
+    try:
+        return Pipeline.from_pretrained(pipeline_source, token=hf_token)
+    except RuntimeError as exc:
+        if not _is_gpu_tagged_storage_error(exc):
+            raise
+
+        logger.warning(
+            "Detected GPU-tagged torch storage during pyannote load; retrying with map_location='cpu'"
+        )
+        original_torch_load = torch.load
+
+        def _torch_load_cpu_first(*args, **kwargs):
+            kwargs.setdefault("map_location", "cpu")
+            return original_torch_load(*args, **kwargs)
+
+        with patch("torch.load", side_effect=_torch_load_cpu_first):
+            return Pipeline.from_pretrained(pipeline_source, token=hf_token)
 
 
 class PyannoteDiarizer:
@@ -37,9 +66,9 @@ class PyannoteDiarizer:
             Resolution,
             Task,
         ]):
-            self.pipeline = Pipeline.from_pretrained(
+            self.pipeline = _load_pipeline_with_map_location_fallback(
                 pipeline_source,
-                token=hf_token,
+                hf_token,
             )
 
         self.device = torch.device(device)
