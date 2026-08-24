@@ -46,7 +46,9 @@ import VideoScaleNode from "./VideoScaleNode.tsx";
 import VideoXRawNode from "./VideoXRawNode.tsx";
 import VideoXRawWithDimensionsNode from "./VideoXRawWithDimensionsNode.tsx";
 import AvDecH264Node from "./AvDecH264Node.tsx";
-import TsamIngestionNode, { TsamIngestionNodeWidth } from "./TsamIngestionNode.tsx";
+import TsamIngestionNode, {
+  TsamIngestionNodeWidth,
+} from "./TsamIngestionNode.tsx";
 import TsamOutputNode, { TsamOutputNodeWidth } from "./TsamOutputNode.tsx";
 import TsamUdfNode, { TsamUdfNodeWidth } from "./TsamUdfNode.tsx";
 import SourceNode, { SourceNodeWidth } from "./custom/SourceNode.tsx";
