@@ -56,9 +56,8 @@ jobs:
           COV_PATH="$(pwd)/cov-analysis/bin"
           export PATH="$COV_PATH:$PATH"
           cd libraries/kv-quant-offload
-          #coverity capture --dir cov-int --project-dir ./
+
           
-          source /opt/intel/oneapi/setvars.sh
           export CPATH="/usr/include:/usr/include/x86_64-linux-gnu${CPATH:+:$CPATH}"
           export CPLUS_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
           export C_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
