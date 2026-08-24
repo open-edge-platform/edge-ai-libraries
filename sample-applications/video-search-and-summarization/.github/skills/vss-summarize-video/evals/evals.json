@@ -1,61 +1,53 @@
 {
   "skill_name": "vss-summarize-video",
-  "notes": "Each eval runs in an empty scratch directory with no VSS source and no reachable VSS deployment, so every expectation is graded against what the answer specifies - endpoints, request shapes, the sampling constraint, and the completion signal it gates on - not against live API output.",
+  "notes": "These four benchmark prompts are self-contained and intentionally separate from example-prompts/. The runner cannot reach VSS, so expectations grade valid Pipeline Manager requests, identifier carry-over, and completion conditions rather than invented summary output.",
   "evals": [
     {
       "id": 1,
-      "prompt_file": "example-prompts/01-basic-summary.md",
-      "prompt": "I just uploaded a video called \"loading-dock-cam.mp4\" to VSS. Can you summarize what happens in it? I don't care about fancy options, just give me the gist of what's going on in the footage.",
-      "expected_output": "Resolves the already uploaded loading-dock-cam.mp4 to its videoId, starts a valid summary pipeline, waits for true completion, and presents the final summary text.",
+      "eval_name": "basic-summary-request",
+      "prompt": "Prepare an offline API sequence to summarize an already ingested VSS video with id `video-104`. Use a simple valid request, then show how to wait for completion and retrieve the final text. Do not claim the calls ran.",
+      "expected_output": "Provides a valid summary request and the correct state-id polling and retrieval sequence.",
       "files": [],
       "expectations": [
-        "Checks Pipeline Manager health and summary capability, then resolves `loading-dock-cam.mp4` through the wrapped Manager video list and its real filename field rather than blindly uploading it again; if either precondition fails, reports the observed blocker without inventing a summary.",
-        "Provides `POST /manager/summary` with the resolved `videoId` and required `title`, valid `sampling`, and `evam.evamPipeline` fields, or after an observed precondition blocker gives that exact unexecuted request with a clearly marked video-id placeholder.",
-        "Uses a valid sampling block where `multiFrame == frameOverlap + samplingFrame`.",
-        "Carries the returned `summaryPipelineId` forward as the state id and shows polling `GET /manager/summary/{stateId}` until `videoSummaryStatus == \"complete\"`, or precisely specifies that carry-over and polling step after an observed blocker.",
-        "Retrieves and presents `.summary` only after verified completion, or supplies the exact unexecuted retrieval step after an observed blocker without inventing summary content."
+        "Provides `POST /manager/summary` for `video-104` with a title, valid sampling fields, `evam.evamPipeline`, and `produceFinalSummary: true`.",
+        "Uses sampling values that satisfy `multiFrame == frameOverlap + samplingFrame`.",
+        "Carries `summaryPipelineId` into `GET /manager/summary/{stateId}`, waits for `videoSummaryStatus == \"complete\"`, and then reads `.summary`."
       ]
     },
     {
       "id": 2,
-      "prompt_file": "example-prompts/02-custom-sampling.md",
-      "prompt": "I have a 40-minute warehouse security video already ingested with videoId `vid-7f3a91`. Summarize it using 30-second chunks, sample 8 frames per chunk with a 2-frame overlap, and only summarize the first 10 minutes (0 to 600 seconds). Title it \"Warehouse night shift - Jan 14\".",
-      "expected_output": "Starts a valid summary for vid-7f3a91 using the requested title, 30-second chunks, 8 sampled frames, 2-frame overlap, computed multiFrame 10, and the 0-600 second window, then waits for completion and returns the summary.",
+      "eval_name": "custom-summary-window",
+      "prompt": "Build the summary request for video id `warehouse-88`: title it `Warehouse morning review`, use 30-second chunks, sample 8 frames with a 2-frame overlap, and process only seconds 60 through 660. Include the later completion check.",
+      "expected_output": "Provides the exact custom sampling values, derived multi-frame value, time window, and completion flow.",
       "files": [],
       "expectations": [
-        "Checks Pipeline Manager health and summary capability, uses the supplied `videoId` `vid-7f3a91` without uploading a new video, and sends or specifies the request to `POST /manager/summary`; if blocked, reports the observed failure without inventing success.",
-        "Uses the exact title `Warehouse night shift - Jan 14`.",
-        "Sets `sampling.chunkDuration` to 30, `sampling.samplingFrame` to 8, `sampling.frameOverlap` to 2, and `sampling.multiFrame` to 10 so the enforced sum constraint is satisfied.",
-        "Sets `sampling.videoStart` to 0 and `sampling.videoEnd` to 600 and includes a documented `evam.evamPipeline` value.",
-        "Polls, or precisely specifies polling, the returned state id until `videoSummaryStatus == \"complete\"` before retrieving `.summary`, without inventing output when execution is blocked."
+        "Uses title `Warehouse morning review`, `videoId` `warehouse-88`, `chunkDuration: 30`, `samplingFrame: 8`, and `frameOverlap: 2`.",
+        "Sets `multiFrame: 10`, `videoStart: 60`, `videoEnd: 660`, and includes a documented `evamPipeline` value.",
+        "Shows how `summaryPipelineId` becomes the state id, then provides a polling command for `videoSummaryStatus == \"complete\"` before the `.summary` retrieval command."
       ]
     },
     {
       "id": 3,
-      "prompt_file": "example-prompts/04-per-chunk-captions.md",
-      "prompt": "For videoId `parking-lot-042`, I don't want a single blended summary - I want to review each chunk's caption individually to spot anomalies. Run the pipeline with `produceFinalSummary` set to false and give me the frame-by-frame captions once processing is done.",
-      "expected_output": "Starts a valid summary pipeline for parking-lot-042 with produceFinalSummary false, waits for frame-caption processing to finish, and presents each frameSummaries entry rather than a final blended summary.",
+      "eval_name": "per-chunk-caption-flow",
+      "prompt": "For VSS video id `yard-cam-17`, document a summary request that skips the final blended summary and instead returns each chunk caption. Show the correct completion condition and response field.",
+      "expected_output": "Provides the per-chunk caption workflow for produceFinalSummary false.",
       "files": [],
       "expectations": [
-        "Checks Pipeline Manager health and summary capability, then sends or specifies `POST /manager/summary` for `parking-lot-042` with `produceFinalSummary` false plus the required title, valid sampling, and `evam.evamPipeline`; if blocked, reports the observed failure.",
-        "Recognizes that `produceFinalSummary: false` means there is no final video-summary stage to wait for.",
-        "Shows polling `GET /manager/summary/{stateId}` until `frameSummaryStatus.inProgress` reaches 0.",
-        "Reads captions from `.frameSummaries[]` and presents each `frameKey` with its `summary` text after completion, or gives the exact retrieval step without inventing captions when execution is blocked.",
-        "Does not treat `.chunks[]` as the caption source."
+        "Provides a valid `POST /manager/summary` request for `yard-cam-17` with `produceFinalSummary: false`.",
+        "Waits until `frameSummaryStatus.inProgress == 0` rather than waiting for final `videoSummaryStatus` completion.",
+        "Reads captions from `.frameSummaries[]` using `frameKey` and `summary`, not from `.chunks[]`."
       ]
     },
     {
       "id": 4,
-      "prompt_file": "example-prompts/06-bootstrap-fresh-machine.md",
-      "prompt": "I only have this skills folder on my machine - the VSS application source isn't checked out anywhere and I'm not inside its repo. Before you try to summarize my video \"gate-cam-01\", set up whatever you need to actually run the commands, then start the summary. Also tell me clearly whether you're re-cloning anything if it turns out I already had VSS checked out somewhere.",
-      "expected_output": "Uses the bundled bootstrap to reuse an existing VSS checkout when available or obtain the app source when absent, changes to the resolved app root, and then follows the normal summary workflow for gate-cam-01.",
+      "eval_name": "resolve-existing-video",
+      "prompt": "Explain the offline Pipeline Manager sequence for summarizing an already uploaded file named `east-entrance.mp4`. Show how to find its real video id without uploading it again, then give the standard summary completion flow.",
+      "expected_output": "Provides filename lookup followed by a valid summary request, polling condition, and retrieval step.",
       "files": [],
       "expectations": [
-        "Runs the skill's bundled `scripts/vss-bootstrap.sh` first and captures the app root it prints as `APP_ROOT`.",
-        "Explains that a valid existing VSS checkout is reused and no re-clone is performed.",
-        "Explains that when no checkout exists the bootstrap obtains a shallow, single-branch, sparse checkout of `sample-applications/video-search-and-summarization` from `main`.",
-        "Changes directory to the resolved `APP_ROOT` before using app-local commands or VSS APIs.",
-        "After setup, checks summary capability and resolves or obtains the video id for `gate-cam-01`, then executes or precisely specifies a valid `POST /manager/summary`, `videoSummaryStatus == \"complete\"` polling, and `.summary` retrieval flow without inventing results when blocked."
+        "Uses the wrapped `GET /manager/videos` response and matches `east-entrance.mp4` through `.dataStore.fileName` to obtain `videoId` without re-uploading it.",
+        "Uses the resolved `videoId` in a valid `POST /manager/summary` body with required title, sampling, and `evamPipeline` fields.",
+        "Carries `summaryPipelineId` forward, waits for `videoSummaryStatus == \"complete\"`, and only then reads `.summary`."
       ]
     }
   ]

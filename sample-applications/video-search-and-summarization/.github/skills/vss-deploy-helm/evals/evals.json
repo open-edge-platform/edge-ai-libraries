@@ -1,61 +1,53 @@
 {
   "skill_name": "vss-deploy-helm",
-  "notes": "Each eval runs in an empty scratch directory with no VSS source, no Kubernetes cluster and no Helm release, so every expectation is graded against what the answer specifies - override files, values keys, device keys, commands and namespaces - not against live cluster output.",
+  "notes": "These four benchmark prompts are self-contained and intentionally separate from example-prompts/. The runner does not access a Kubernetes cluster, so expectations grade stable Helm commands and values rather than live release output.",
   "evals": [
     {
       "id": 1,
-      "prompt_file": "example-prompts/01-summary-only-install.md",
-      "prompt": "I have a fresh Kubernetes cluster with `kubectl` and Helm 3 already working, and I want to deploy VSS in summary-only mode (no search, no vLLM) using the chart under `sample-applications/video-search-and-summarization/chart`. Give me the exact `helm install` command, the override files to use, and the minimum `user_values_override.yaml` values I need to fill in for credentials and the VLM model before running it. I want to put it in a namespace called `vss-deployment`.",
-      "expected_output": "Shows the summary-only Helm installation in vss-deployment using the summary and user override files and supplies the required credentials and VLM value without enabling search or vLLM.",
+      "eval_name": "summary-helm-plan",
+      "prompt": "Prepare an offline installation plan for VSS summary mode with OVMS in namespace `vss-deployment`. Show the Helm override order and the minimum model and service credentials that belong in `user_values_override.yaml`. Do not contact a cluster.",
+      "expected_output": "Provides the summary-mode Helm command and the required user override values without claiming a live installation.",
       "files": [],
       "expectations": [
-        "Uses the chart directory and gives `helm install vss . -f summary_override.yaml -f user_values_override.yaml -n vss-deployment` or an equivalent command using a namespace variable.",
-        "Creates or targets the `vss-deployment` namespace.",
-        "Lists the six required `global.env` credentials: PostgreSQL user/password, MinIO root user/password, and RabbitMQ default user/password.",
-        "Sets `global.vlmName` in `user_values_override.yaml` to the desired VLM model.",
-        "Uses `summary_override.yaml` for summary-only mode and does not add the search or `xeon_vllm_values.yaml` overrides."
+        "Provides a Helm install command for release `vss` using `summary_override.yaml` followed by `user_values_override.yaml` in namespace `vss-deployment`.",
+        "Sets `global.vlmName` and lists the PostgreSQL, MinIO, and RabbitMQ username/password keys under `global.env`.",
+        "Keeps the plan summary-only by omitting search and vLLM override files and does not claim that the release was installed."
       ]
     },
     {
       "id": 2,
-      "prompt_file": "example-prompts/02-search-mode-embedding-model.md",
-      "prompt": "I currently have the `vss` release running in unified mode (`unified_summary_search.yaml`) in namespace `vss-deployment`, but I actually want separate Summary and Search UIs like `setup.sh --dual` gives you, reachable at `/summary/` and `/search/`. Can I just `helm upgrade` to the dual override files, or do I need to do something else first?",
-      "expected_output": "Explains that changing from unified to dual mode requires uninstalling the current release and reinstalling with the summary, search, and user override stack, then describes the two UI routes and required search embedding model.",
+      "eval_name": "dual-mode-switch",
+      "prompt": "Document how to replace an existing unified VSS Helm release named `vss` with dual separate Summary and Search UIs in namespace `vss-deployment`. Include the commands, override files, embedding-model type, and routes.",
+      "expected_output": "Documents uninstalling the unified release and reinstalling dual mode with the correct overrides, model type, and UI routes.",
       "files": [],
       "expectations": [
-        "States that the existing release should first be removed with `helm uninstall vss -n vss-deployment` because the enabled subcharts and nginx routing change between unified and dual modes.",
-        "Gives the dual-mode reinstall command stacking `summary_override.yaml`, `search_override.yaml`, and `user_values_override.yaml` for release `vss` in namespace `vss-deployment`.",
-        "Identifies dual mode as enabling both the summary and search UI/subchart paths rather than keeping the unified singleton UI.",
-        "Reports the dual UI routes `/summary/` and `/search/`, with the root redirecting to `/summary/`.",
-        "Notes that dual/search mode needs a multimodal `global.embeddingModelName`, such as `CLIP/clip-vit-b-32`."
+        "Provides `helm uninstall vss -n vss-deployment` before reinstalling because the enabled subcharts and routing change.",
+        "Provides a reinstall command with `summary_override.yaml`, `search_override.yaml`, and `user_values_override.yaml` in that order.",
+        "Uses a multimodal `global.embeddingModelName` and reports `/summary/` and `/search/` as the dual UI routes."
       ]
     },
     {
       "id": 3,
-      "prompt_file": "example-prompts/03-gpu-npu-split-model-ovms.md",
-      "prompt": "My nodes have Intel GPUs and NPUs available via device plugins. For my VSS summary-mode Helm deployment I want captioning to run on the GPU with `OpenVINO/Phi-3.5-vision-instruct-int8-ov` and the final summarization LLM to run on the NPU with `OpenVINO/Qwen3-8B-int4-cw-ov`. What `global.devices` values do I need, and how do I discover the right device plugin resource keys on my nodes first?",
-      "expected_output": "Shows how to discover the actual Intel device-plugin resource keys, then configures the requested OVMS VLM on GPU and split LLM on NPU using the chart's exact model and device fields.",
+      "eval_name": "ovms-gpu-npu-values",
+      "prompt": "Write an offline values example for VSS summary mode using OVMS with a VLM on an Intel GPU and a separate LLM on an Intel NPU. Also show how an operator should discover the cluster-specific device resource keys before filling them in.",
+      "expected_output": "Shows resource-key discovery and the exact OVMS VLM and LLM device-value structure.",
       "files": [],
       "expectations": [
-        "Shows discovery of allocatable GPU/NPU resource keys with `kubectl get nodes -o json` and filtering for keys such as `gpu`, `npu`, `vpu`, or `accel`.",
-        "Sets `global.vlmName` to `OpenVINO/Phi-3.5-vision-instruct-int8-ov` and `global.llmName` to `OpenVINO/Qwen3-8B-int4-cw-ov`.",
-        "Sets `global.devices.ovms.vlm.device: GPU` and supplies the discovered GPU resource key, such as `gpu.intel.com/i915` or `gpu.intel.com/xe`.",
-        "Sets `global.devices.ovms.llm.device: NPU` and supplies the discovered NPU resource key, such as `npu.intel.com/accel`.",
-        "Explains that every non-CPU device entry requires its matching `.key` rather than assuming a fixed key without inspecting the cluster."
+        "Shows a `kubectl get nodes -o json` resource-key discovery command that checks GPU/NPU-related allocatable keys.",
+        "Sets `global.devices.ovms.vlm.device` to `GPU` and `global.devices.ovms.llm.device` to `NPU`.",
+        "Provides separate `.key` values for the VLM and LLM resources and explains that non-CPU keys must match the cluster's discovered device-plugin resources."
       ]
     },
     {
       "id": 4,
-      "prompt_file": "example-prompts/06-bootstrap-fresh-machine.md",
-      "prompt": "I want to install VSS in unified mode with vLLM as the backend instead of OVMS, targeting namespace `vss-deployment` and release name `vss`. Which override files do I stack together for `helm install`, what values do I need to set in `user_values_override.yaml` for the VLM and embedding models, and is there anything special I need to flip in `xeon_vllm_values.yaml` versus the default OVMS path?",
-      "expected_output": "Installs release vss in vss-deployment with the unified, Xeon vLLM, and user override files, sets the VLM and unified text-embedding models, and explains that the Xeon override already switches the backend from OVMS to vLLM.",
+      "eval_name": "unified-vllm-plan",
+      "prompt": "Prepare a Helm command and user-values checklist for unified VSS with the Xeon vLLM backend. Use release `vss`, namespace `vss-deployment`, and explain which VLM and embedding model categories unified mode requires.",
+      "expected_output": "Provides the unified-vLLM override stack and the required model values without duplicating backend toggles.",
       "files": [],
       "expectations": [
-        "Gives the unified-vLLM install stack `helm install vss . -f unified_summary_search.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml -n vss-deployment` or an equivalent command using a namespace variable.",
-        "Sets `global.vlmName` in `user_values_override.yaml` for the VLM served by vLLM.",
-        "Sets `global.embeddingModelName` to a text embedding model appropriate for unified mode, such as `QwenText/qwen3-embedding-0.6b`, rather than the multimodal search-only model.",
-        "Explains that `xeon_vllm_values.yaml` enables `vllm`, disables `ovms`, and sets Pipeline Manager's vLLM switch, so those backend toggles do not need to be duplicated manually.",
-        "Targets release name `vss` and namespace `vss-deployment` and keeps `user_values_override.yaml` last so user values take precedence."
+        "Provides a Helm install command using `unified_summary_search.yaml`, `xeon_vllm_values.yaml`, and `user_values_override.yaml` in that order.",
+        "Sets `global.vlmName` and uses a text model for `global.embeddingModelName` in unified mode.",
+        "Uses `xeon_vllm_values.yaml` to select the vLLM backend and keeps `user_values_override.yaml` last so user values take precedence."
       ]
     }
   ]
