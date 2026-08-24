@@ -145,9 +145,12 @@ fi
 
 # ---- Stop ----
 if [ "$ACTION" = "down" ]; then
-    echo "Stopping router..."
+    echo "Stopping..."
+    # IR_OV_MODEL is only needed to bring the stack up; give the volume spec a
+    # placeholder so compose can parse the file during `down` when it is unset.
+    export IR_OV_MODEL="${IR_OV_MODEL:-/dev/null}"
     "${COMPOSE[@]}" down
-    echo "Router stopped."
+    echo "Stopped."
     exit 0
 fi
 
