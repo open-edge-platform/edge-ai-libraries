@@ -20,7 +20,7 @@ Initial release of the Behavioral Analysis Service, a pose-based suspicious acti
 - Async SeaweedFS (S3-compatible) frame retrieval via `aioboto3`
 - Circuit breaker in VLM client (3-failure threshold, 30-second cooldown)
 - Entity deduplication and max-concurrency backpressure in the MQTT consumer
-- Base image: `intel/dlstreamer:2026.1.0-ubuntu24` (Python 3.12)
+- Base image: `intel/dlstreamer:2026.2.0-ubuntu24-rc2` (Python 3.12)
 
 ### Dependency Versions (from `requirements.txt` and `pyproject.toml`)
 
@@ -37,4 +37,4 @@ Initial release of the Behavioral Analysis Service, a pose-based suspicious acti
 | `h2` | `>=4.0` |
 | `pyyaml` | `>=6.0` |
 | `paho-mqtt` | `>=1.6.1,<2.0` |
-| Base image OpenVINO | Provided by `intel/dlstreamer:2026.1.0-ubuntu24` |
+| Base image OpenVINO | Provided by `intel/dlstreamer:2026.2.0-ubuntu24-rc2` |
