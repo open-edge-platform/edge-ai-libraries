@@ -147,6 +147,12 @@ export TAG="latest"
 `myregistry.example.com:5000/`). Leave it unset/empty to use the local images
 from Option 1.
 
+Deploy:
+
+```bash
+bash scripts/deploy_docker.sh
+```
+
 Check that the containers are running:
 
 ```bash
