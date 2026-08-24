@@ -109,7 +109,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "sample-applications/document-summarization/"
           report_suffix: "-bandit-document-summary-CT161"
           
@@ -133,7 +133,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "sample-applications/document-summarization/"
           exclude_dirs: ".git,venv,tests,.pytest_cache,__pycache__"
           

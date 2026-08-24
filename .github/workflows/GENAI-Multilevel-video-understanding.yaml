@@ -102,7 +102,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/multilevel-video-understanding"
           report_suffix: "-bandit-multilevel-video-understanding-CT161"
 
@@ -126,7 +126,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/multilevel-video-understanding"
           exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
 
