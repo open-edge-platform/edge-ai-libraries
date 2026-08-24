@@ -1,0 +1,79 @@
+---
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "[KVWEAVE] SDLe Scans - Scan Coverity"
+run-name: "[KVWEAVE] SDLe Scans - Scan Coverity"
+
+
+#Only run at most 1 workflow concurrently per PR, unlimited for branches
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 0"  # 2 a.m. on Sunday
+
+jobs:   
+  coverity-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:        
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false   
+          
+      - name: Building with icpx
+        run: |
+          # Add the Intel repository GPG key
+          wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+            | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          
+          # Add the repository
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+            | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          
+          # Install the 2025.3 compiler package (icpx is provided by this package)
+          sudo -E apt update
+          sudo -E apt install -y intel-oneapi-base-toolkit-2025.3
+        
+      - name: Build with Coverity Analysis
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          python3 -m venv .venv
+          source .venv/bin/activate
+          wget --quiet https://scan.coverity.com/download/linux64 \
+            --post-data "token=${{ secrets.KV_COVERITY_TOKEN }}&project=${{ secrets.KV_COVERITY_PROJECT }}" \
+            -O coverity_tool.tgz
+          mkdir -p cov-analysis
+          tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
+          COV_PATH="$(pwd)/cov-analysis/bin"
+          export PATH="$COV_PATH:$PATH"
+          cd libraries/kv-quant-offload
+          #coverity capture --dir cov-int --project-dir ./
+          coverity capture --dir cov-int --project-dir . -- \ KVWEAVE_COMPILER=icpx KVWEAVE_XPU=1 pip install . --extra-index-url https://download.pytorch.org/whl/xpu
+          
+      - name: Create tarball for upload
+        run: |
+          cd libraries/kv-quant-offload
+          tar -czvf coverity_output.tgz -C . cov-int
+          # Verify tarball contents
+          echo "=== Tarball Contents ==="
+          tar tzvf coverity_output.tgz
+          echo "=== head ==="
+          tar -tzvf coverity_output.tgz | head
+          
+      - name: Upload to Coverity Scan
+        run: |
+          cd libraries/kv-quant-offload
+          curl --form token=${{ secrets.KV_COVERITY_TOKEN }} \
+               --form email=${{ secrets.KV_COVERITY_EMAIL }} \
+               --form file=@coverity_output.tgz \
+               --form version="`date +%Y%m%d%H%M%S`" \
+               --form description="GitHub Action upload" \
+               https://scan.coverity.com/builds?project=${{ secrets.KV_COVERITY_PROJECT }}
