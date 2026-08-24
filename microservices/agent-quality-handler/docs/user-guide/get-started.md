@@ -22,7 +22,7 @@ cd microservices/agent-quality-handler/
 
 ```bash
 export REGISTRY="intel/"
-export TAG=2026.2.0-rc1
+export TAG=2026.2.0-rc2
 export STORAGE_SERVICE_URL=<storage-wrapper-service-url>    #Check mock service url below for validation
 ```
 
