@@ -4,9 +4,108 @@
  */
 
 .intel-btn {
-  & + .intel-btn {
-    margin-left: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding-inline: 12px;
+  border-radius: 6px;
+  font-size: var(--font-size-12);
+  font-weight: 600;
+  line-height: 1;
+
+  .anticon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
   }
+
+  > .anticon + span {
+    margin-inline-start: 6px;
+  }
+
+  &.intel-btn-sm {
+    min-height: 28px;
+    height: 28px;
+    padding-inline: 10px;
+  }
+
+  &.intel-btn-circle.intel-btn-sm {
+    flex: 0 0 28px;
+    width: 28px;
+    min-width: 28px;
+    padding-inline: 0;
+  }
+
+  &.intel-btn-default:not(.intel-btn-background-ghost):not(:disabled),
+  &.intel-btn-primary:not(.intel-btn-background-ghost):not(:disabled) {
+    border-color: var(--color-primary);
+    background-color: var(--color-primary);
+    color: var(--color-white);
+
+    &:hover {
+      border-color: color-mix(
+        in srgb,
+        var(--color-primary) 78%,
+        var(--color-white)
+      );
+      background-color: color-mix(
+        in srgb,
+        var(--color-primary) 78%,
+        var(--color-white)
+      );
+      color: var(--color-white);
+    }
+  }
+
+  &.intel-btn-default.intel-btn-warning:not(:disabled) {
+    border-color: var(--color-warning-strong);
+    background-color: var(--color-warning-strong);
+    color: var(--color-white);
+
+    &:hover {
+      border-color: color-mix(
+        in srgb,
+        var(--color-warning-strong) 78%,
+        var(--color-white)
+      );
+      background-color: color-mix(
+        in srgb,
+        var(--color-warning-strong) 78%,
+        var(--color-white)
+      );
+      color: var(--color-white);
+    }
+  }
+
+  &.intel-btn-default.intel-btn-dangerous:not(.intel-btn-background-ghost):not(
+      :disabled
+    ) {
+    border-color: var(--color-error);
+    background-color: var(--color-error);
+    color: var(--color-white);
+
+    &:hover {
+      border-color: color-mix(
+        in srgb,
+        var(--color-error) 78%,
+        var(--color-white)
+      );
+      background-color: color-mix(
+        in srgb,
+        var(--color-error) 78%,
+        var(--color-white)
+      );
+      color: var(--color-white);
+    }
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
+
   &.black-primary-button {
     background-color: var(--bg-black-color);
     border: 1px solid var(--border-black-color);
@@ -20,16 +119,23 @@
     background-color: var(--color-primaryBg);
   }
 
-  &.intel-btn-default.intel-btn-dangerous:not(:disabled):hover {
-    background-color: var(--color-errorBg);
-  }
-
   &.intel-btn-success {
-    color: var(--color-success);
     border-color: var(--color-success);
+    background-color: var(--color-success);
+    color: var(--color-white);
 
     &:hover {
-      background-color: var(--color-successBg);
+      border-color: color-mix(
+        in srgb,
+        var(--color-success) 78%,
+        var(--color-white)
+      );
+      background-color: color-mix(
+        in srgb,
+        var(--color-success) 78%,
+        var(--color-white)
+      );
+      color: var(--color-white);
     }
   }
   &.intel-btn-primary-second {
@@ -40,19 +146,10 @@
       background-color: var(--color-primarySoft);
     }
   }
-
-  &.intel-btn-warning {
-    color: var(--color-warning);
-    border-color: var(--color-warning);
-
-    &:hover {
-      background-color: var(--color-warningBg);
-    }
-  }
 }
 
 .intel-btn-sm {
-  font-size: var(--font-size-12) !important;
+  font-size: var(--font-size-12);
 }
 
 .intel-table {
@@ -92,23 +189,15 @@
     }
   }
 }
-.ant-modal {
-  .ant-modal-content {
+.intel-modal {
+  .intel-modal-content {
     .error-icon {
       color: var(--color-error);
     }
-    .ant-btn-dangerous {
-      background-color: var(--color-error);
-      color: var(--color-white);
-      &:hover {
-        background-color: var(--color-error-hover);
-        color: var(--color-white);
-      }
-    }
   }
 }
-.ant-notification {
-  .ant-notification-notice-message {
+.intel-notification {
+  .intel-notification-notice-message {
     font-weight: 600;
   }
 }
