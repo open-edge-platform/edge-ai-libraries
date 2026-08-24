@@ -41,10 +41,7 @@ jobs:
           # Install the 2025.3 compiler package (icpx is provided by this package)
           sudo -E apt update
           sudo -E apt install -y intel-oneapi-base-toolkit-2025.3
-          echo "=== 是这里报错吗？！！！！！！！！！！！！！！！！！！！！！！！！！！ ==="
           source /opt/intel/oneapi/setvars.sh || true
-          echo "=== 怎么说？ ==="
-          
           wget https://scan.coverity.com/download/linux64 \
             --post-data "token=${{ secrets.KV_COVERITY_TOKEN }}&project=${{ secrets.KV_COVERITY_PROJECT }}" \
             -O coverity_tool.tgz
@@ -54,7 +51,8 @@ jobs:
           export PATH="$COV_PATH:$PATH"
           cd libraries/kv-quant-offload
           #coverity capture --dir cov-int --project-dir ./
-          coverity capture --dir cov-int --project-dir . -- \ KVWEAVE_COMPILER=icpx KVWEAVE_XPU=1 pip install . --extra-index-url https://download.pytorch.org/whl/xpu
+          coverity capture --dir cov-int --project-dir . -- \
+            "KVWEAVE_COMPILER=icpx KVWEAVE_XPU=1 pip install . --extra-index-url https://download.pytorch.org/whl/xpu"
           
       - name: Create tarball for upload
         run: |
