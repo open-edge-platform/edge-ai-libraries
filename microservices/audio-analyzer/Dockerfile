@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-FROM intel/dlstreamer:2026.2.0-ubuntu24-rc1
+FROM intel/dlstreamer:2026.2.0-ubuntu24-rc2
 
 ARG APP_UID=1000
 ARG APP_GID=1000
