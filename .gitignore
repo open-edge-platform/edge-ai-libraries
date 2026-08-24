@@ -1,2 +1,5 @@
 .gradio/*
 .idea/*
+
+# Local Docker Compose overrides (e.g. GPU device mappings); see *.gpu-example templates
+docker-compose.override.yml

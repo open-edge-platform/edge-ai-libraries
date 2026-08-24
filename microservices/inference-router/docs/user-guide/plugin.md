@@ -45,7 +45,7 @@ required; everything else has a safe default, so you override only what you need
 
 - `init()` — set up after the plugin instance's `settings` are validated; used to build
   clients, register with shared managers, and etc. (no-op).
-- `process_request(request, **kwargs)` — acts on the request; returns the possibly
+- `process_request(request, **kwargs)` — acts on the request; returns the possibly 
   modified request (passthrough).
 - `process_response(response, **kwargs)` — acts on the response (passthrough).
 - `describe()` — the `GET /v1/plugins/{node}/{name}` payload; folds in
@@ -103,8 +103,8 @@ How it works:
   `overall.*` metrics are exposed via `describe_node()`. See
   [Metrics Checking](./get-started.md#metrics-checking)
   for the metric fields and how to read compression savings.
-
-
+  
+  
 
 Configuration example — a `tool` compressor at the `prerouting` stage and a `harness`
 compressor at the `postrouting` stage. `node` is always `compressor`, `settings.type`

@@ -11,8 +11,8 @@ export const formatBenchmarkScore = (value: number | null | undefined) => {
 };
 
 export const renderBenchmarkStatus = (status: string) => {
-  if (status === "passed") {
-    return <Badge variant="success">Passed</Badge>;
+  if (status === "completed") {
+    return <Badge variant="success">Completed</Badge>;
   }
   if (status === "created") {
     return <Badge variant="outline">Queued</Badge>;
