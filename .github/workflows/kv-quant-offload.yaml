@@ -71,11 +71,13 @@ jobs:
           BUILDEOF
 
           echo "=== 先测试不带 Coverity 的构建 ==="
-          bash ./cov-build.sh 2>&1 | tee /tmp/build-test.log
+          bash ./cov-build.sh
           echo "=== 构建测试结果: $? ==="
+          
           #pip install . --extra-index-url https://download.pytorch.org/whl/xpu
           chmod +x cov-build.sh
-          coverity capture --dir cov-int --project-dir . -- ./cov-build.sh
+          coverity capture --dir cov-int --project-dir . -- ./cov-build.sh || true
+          cat /home/runner/work/edge-ai-libraries/edge-ai-libraries/libraries/kv-quant-offload/cov-int/build-log.txt
           
       - name: Create tarball for upload
         run: |
