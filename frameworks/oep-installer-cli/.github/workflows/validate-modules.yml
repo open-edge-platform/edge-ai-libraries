@@ -1,0 +1,94 @@
+name: Validate modules
+
+on:
+  pull_request:
+    paths:
+      - 'module/**'
+      - 'profile/**'
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Module and profile files are sourced fragments (no shebang).
+      # SC2148 (missing shebang) is disabled accordingly.
+      # All other error-severity findings are treated as failures.
+      - uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: '.'
+          additional_files: 'module profile'
+          severity: error
+          check_together: 'yes'
+          shellcheck_options: '--shell=bash --exclude=SC2148'
+
+  naming-convention:
+    name: Function naming convention
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check function names in module and profile files
+        run: |
+          failed=0
+
+          check_file() {
+            local file="$1"
+            local name="$2"   # parent directory name (component name)
+            local os="$3"     # filename (OS_LIKE, e.g. debian)
+
+            # Extract top-level function definitions: lines of the form
+            #   funcname () {
+            # (the shell function declaration format used across this repo)
+            while IFS= read -r line; do
+              func="${line%% *}"  # strip everything after the first space
+              # Allowed patterns:
+              #   configure_<name>
+              #   verify_<name>
+              #   <os>_<NN>_(profile|license|install|remove|start|stop)_<name>
+              if [[ "$func" == "configure_${name}" ]] || \
+                 [[ "$func" == "verify_${name}" ]] || \
+                 [[ "$func" =~ ^[a-z]+_[0-9]{2}_(profile|license|install|remove|start|stop)_${name}$ ]]; then
+                : # valid
+              else
+                echo "::error file=${file}::Non-conforming function name: ${func} (component=${name}, os=${os})"
+                failed=1
+              fi
+            done < <(grep -E '^[a-zA-Z_][a-zA-Z0-9_]* \(\)' "$file" || true)
+          }
+
+          # Check every file under module/<name>/<os>  (skip README.md)
+          for dir in module/*/; do
+            name="$(basename "$dir")"
+            for file in "$dir"*; do
+              [ -f "$file" ] || continue
+              [[ "$(basename "$file")" == "README.md" ]] && continue
+              os="$(basename "$file")"
+              check_file "$file" "$name" "$os"
+            done
+          done
+
+          # Check every file under profile/<name>/<os>  (skip README.md)
+          for dir in profile/*/; do
+            name="$(basename "$dir")"
+            for file in "$dir"*; do
+              [ -f "$file" ] || continue
+              [[ "$(basename "$file")" == "README.md" ]] && continue
+              os="$(basename "$file")"
+              check_file "$file" "$name" "$os"
+            done
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            echo ""
+            echo "One or more function name violations were found."
+            echo "See the annotations above for details."
+            exit 1
+          fi
+
+          echo "All function names conform to the naming convention."

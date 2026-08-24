@@ -60,6 +60,17 @@ where you can specify any default commands through the installer bootstrap proce
 
 If you specify `--setup` in the bootstrap process, the installer will reconstruct itself locally at `~/.local/bin` with bash completion. You can then use the installer locally.
 
+### AI-assisted module generation
+
+New installer components can be generated with the help of an AI coding agent.
+Drop a Markdown spec file into the [`instructions/`](instructions/) folder,
+push it to `main`, and a GitHub Actions workflow automatically opens a task
+for the Copilot coding agent which writes `module/<component_name>/debian` and
+opens a pull request.
+
+See [`instructions/README.md`](instructions/README.md) for the full workflow
+description, the recommended spec structure, and a worked example.
+
 
 
 
