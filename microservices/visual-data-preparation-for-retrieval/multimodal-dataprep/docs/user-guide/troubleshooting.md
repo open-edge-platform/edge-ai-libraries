@@ -1,5 +1,7 @@
 # Troubleshooting
 
+## Common issues
+
 - **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before launching Docker (required for both SDK and API modes).
 - **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
 - **API mode returns 502:** Verify the multimodal embedding service is healthy at `MULTIMODAL_EMBEDDING_ENDPOINT` (see `docker compose -f docker/compose-with-embedding.yaml ps`).
@@ -41,7 +43,7 @@ highest-resolution source **before** sourcing the setup script (or bring the
 stack down and back up so the new value is applied):
 
 | Source resolution | Pixels (W × H) | Minimum `SDK_VIDEO_SHM_BLOCK_SIZE` (`W × H × 3`) |
-|---|---|---|
+| --- | --- | --- |
 | 1080p (default) | 1920 × 1080 | `6220800` |
 | 4K UHD | 3840 × 2160 | `24883200` |
 | DCI 4K | 4096 × 2160 | `26542080` |
