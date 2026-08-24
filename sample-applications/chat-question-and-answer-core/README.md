@@ -1,4 +1,4 @@
-# Chat Q&A Core Sample Application
+# Chat Q&A Core Sample Application.
 
 Chat Q&A sample application is a foundational Retrieval-Augmented Generation (RAG) pipeline that allows users to ask questions and receive answers, including those based on their own private data corpus.
 
