@@ -103,7 +103,7 @@ None at this release. See GitHub issues for feature requests and discussions.
 ### Current Image
 
 - Intel® Metrics Manager **2026.1.0**
-- Telegraf **1.37.3** (system metrics agent)
+- Telegraf **1.39.3** (system metrics agent)
 - qmassa **1.3.1** (Intel® GPU telemetry via named pipe)
 - qmmd **0.1.1** _(optional)_ — Lightweight Prometheus GPU exporter (bundled but **not started by default**; use only if you need a separate GPU metrics port)
 - Intel® NPU telemetry via bundled `npu_monitor_tool` / `npu_reader`
