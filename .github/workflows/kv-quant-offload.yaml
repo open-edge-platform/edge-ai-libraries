@@ -55,7 +55,7 @@ jobs:
           cat > cov-build.sh << 'BUILDEOF'
           #!/bin/bash
           set -e
-          KVWEAVE_COMPILER=icpx KVWEAVE_XPU=1 pip install . --extra-index-url https://download.pytorch.org/whl/xpu
+          pip install . --extra-index-url https://download.pytorch.org/whl/xpu
           BUILDEOF
           chmod +x cov-build.sh
           coverity capture --dir cov-int --project-dir . -- ./cov-build.sh
