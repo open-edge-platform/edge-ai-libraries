@@ -19,7 +19,7 @@ on:
 
 jobs:   
   coverity-scan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:        
@@ -42,7 +42,7 @@ jobs:
           sudo -E apt update
           sudo -E apt install -y intel-oneapi-base-toolkit-2025.3
           source /opt/intel/oneapi/setvars.sh || true
-          wget https://scan.coverity.com/download/linux64 \
+          wget --quiet https://scan.coverity.com/download/linux64 \
             --post-data "token=${{ secrets.KV_COVERITY_TOKEN }}&project=${{ secrets.KV_COVERITY_PROJECT }}" \
             -O coverity_tool.tgz
           mkdir -p cov-analysis
