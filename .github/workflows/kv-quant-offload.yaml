@@ -27,8 +27,8 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false   
-          
-      - name: Building with icpx
+        
+      - name: Build with Coverity Analysis
         run: |
           # Add the Intel repository GPG key
           wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
@@ -41,12 +41,10 @@ jobs:
           # Install the 2025.3 compiler package (icpx is provided by this package)
           sudo -E apt update
           sudo -E apt install -y intel-oneapi-base-toolkit-2025.3
-        
-      - name: Build with Coverity Analysis
-        run: |
           source /opt/intel/oneapi/setvars.sh
           python3 -m venv .venv
           source .venv/bin/activate
+          
           wget --quiet https://scan.coverity.com/download/linux64 \
             --post-data "token=${{ secrets.KV_COVERITY_TOKEN }}&project=${{ secrets.KV_COVERITY_PROJECT }}" \
             -O coverity_tool.tgz
