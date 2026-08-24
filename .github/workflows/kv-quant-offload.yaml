@@ -32,17 +32,17 @@ jobs:
         run: |
           # Add the Intel repository GPG key
           wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
-            | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null || true
+            | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
           
           # Add the repository
           echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
-            | sudo tee /etc/apt/sources.list.d/oneAPI.list || true
+            | sudo tee /etc/apt/sources.list.d/oneAPI.list
           
           # Install the 2025.3 compiler package (icpx is provided by this package)
           sudo -E apt update
           sudo -E apt install -y intel-oneapi-base-toolkit-2025.3
           sudo -E apt install -y build-essential
-          source /opt/intel/oneapi/setvars.sh || true
+          source /opt/intel/oneapi/setvars.sh
           wget --quiet https://scan.coverity.com/download/linux64 \
             --post-data "token=${{ secrets.KV_COVERITY_TOKEN }}&project=${{ secrets.KV_COVERITY_PROJECT }}" \
             -O coverity_tool.tgz
@@ -52,13 +52,19 @@ jobs:
           export PATH="$COV_PATH:$PATH"
           cd libraries/kv-quant-offload
           #coverity capture --dir cov-int --project-dir ./
+          
           cat > cov-build.sh << 'BUILDEOF'
           #!/bin/bash
           set -e
+          source /opt/intel/oneapi/setvars.sh
+          export CPATH="/usr/include:/usr/include/x86_64-linux-gnu${CPATH:+:$CPATH}"
+          export CPLUS_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
+          export C_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
           pip install --upgrade pip setuptools>=61 wheel packaging --extra-index-url https://download.pytorch.org/whl/xpu
           pip install numpy torch==2.11.0+xpu torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/xpu
           KVWEAVE_COMPILER=icpx KVWEAVE_XPU=1 pip install . --extra-index-url https://download.pytorch.org/whl/xpu --no-build-isolation
           BUILDEOF
+          
           chmod +x cov-build.sh
           coverity capture --dir cov-int --project-dir . -- ./cov-build.sh
           
