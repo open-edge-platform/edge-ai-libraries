@@ -6,35 +6,96 @@ on:
       - 'module/**'
       - 'profile/**'
 
+concurrency:
+  group: validate-modules-${{ github.event.pull_request.head.repo.full_name }}-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   shellcheck:
     name: Shellcheck
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, oep-lab]
+    timeout-minutes: 20
     steps:
+      - name: Verify required tooling
+        run: |
+          set -euo pipefail
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo "::error::Missing required tool: shellcheck. Install shellcheck on the self-hosted runner and retry."
+            exit 1
+          fi
+
+      - name: Clean workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
       - uses: actions/checkout@v4
+        with:
+          clean: true
 
       # Module and profile files are sourced fragments (no shebang).
       # SC2148 (missing shebang) is disabled accordingly.
       # All other error-severity findings are treated as failures.
-      - uses: ludeeus/action-shellcheck@2.0.0
-        with:
-          scandir: '.'
-          additional_files: 'module profile'
-          severity: error
-          check_together: 'yes'
-          shellcheck_options: '--shell=bash --exclude=SC2148'
+      - name: Run shellcheck
+        run: |
+          set -euo pipefail
+
+          mapfile -d '' files < <(
+            find module profile -type f ! -name 'README.md' -print0
+          )
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No module/profile files found to lint."
+            exit 0
+          fi
+
+          if ! output="$(shellcheck \
+            --shell=bash \
+            --exclude=SC2148 \
+            --severity=error \
+            --format=gcc \
+            "${files[@]}" 2>&1)"; then
+            while IFS= read -r line; do
+              [ -z "$line" ] && continue
+              if [[ "$line" =~ ^([^:]+):([0-9]+):([0-9]+):\ (error|warning|info|style):\ (.*)$ ]]; then
+                echo "::error file=${BASH_REMATCH[1]},line=${BASH_REMATCH[2]},col=${BASH_REMATCH[3]}::${BASH_REMATCH[5]}"
+              else
+                echo "::error::${line}"
+              fi
+            done <<< "$output"
+            exit 1
+          fi
+
+          echo "Shellcheck passed."
 
   naming-convention:
     name: Function naming convention
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, oep-lab]
+    timeout-minutes: 20
     steps:
+      - name: Verify required tooling
+        run: |
+          set -euo pipefail
+          if ! command -v git >/dev/null 2>&1; then
+            echo "::error::Missing required tool: git. Install git on the self-hosted runner and retry."
+            exit 1
+          fi
+
+      - name: Clean workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
       - uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Check function names in module and profile files
         run: |
+          set -euo pipefail
           failed=0
 
           check_file() {
@@ -95,15 +156,32 @@ jobs:
 
   highlight-guidance:
     name: '@@HIGHLIGHT guidance (non-blocking)'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, oep-lab]
+    timeout-minutes: 20
     steps:
+      - name: Verify required tooling
+        run: |
+          set -euo pipefail
+          if ! command -v git >/dev/null 2>&1; then
+            echo "::error::Missing required tool: git. Install git on the self-hosted runner and retry."
+            exit 1
+          fi
+
+      - name: Clean workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
       - uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Warn when high-order components omit @@HIGHLIGHT
         # This check is advisory only — it never fails the workflow.
         # @@HIGHLIGHT is expected for complex applications in the 60-98 order
         # range.  Simple utilities (order < 60) legitimately omit it.
         run: |
+          set -euo pipefail
           for dir in module/*/; do
             name="$(basename "$dir")"
             for file in "$dir"*; do

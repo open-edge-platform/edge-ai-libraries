@@ -18,11 +18,28 @@ permissions:
 
 jobs:
   dispatch:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, oep-lab]
+    timeout-minutes: 20
     if: github.actor != 'github-actions[bot]'
     steps:
+      - name: Verify required tooling
+        run: |
+          set -euo pipefail
+          for tool in gh git; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error::Missing required tool: ${tool}. Install ${tool} on the self-hosted runner and retry."
+              exit 1
+            fi
+          done
+
+      - name: Clean workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
       - uses: actions/checkout@v4
         with:
+          clean: true
           fetch-depth: 2
 
       - name: Find changed spec files
