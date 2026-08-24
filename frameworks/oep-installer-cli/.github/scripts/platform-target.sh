@@ -135,6 +135,30 @@ _release_from_pool () {
 }
 
 # ===========================================================================
+# Shared sync and exec helpers (backend-agnostic)
+# ===========================================================================
+
+# _sync <ref> — copy the current working directory to SYNC_DIR on the target.
+# ref is passed for informational purposes; actual content is whatever is in
+# the working directory (already checked out by the workflow).
+_sync () {
+  local ref="${1:?sync requires a ref argument}"
+  echo "Syncing repo (ref=${ref}) to ${TARGET_HOST}:${SYNC_DIR} ..."
+  _ssh "mkdir -p '${SYNC_DIR}'"
+  rsync -az --delete \
+    -e "ssh ${SSH_KEY_ARGS[*]} -p ${TARGET_SSH_PORT} -o StrictHostKeyChecking=no -o BatchMode=yes" \
+    ./ \
+    "${TARGET_SSH_USER}@${TARGET_HOST}:${SYNC_DIR}/"
+  echo "Sync complete"
+}
+
+# _exec <cmd...> — run a command on the target from within SYNC_DIR.
+_exec () {
+  echo "Running on ${TARGET_HOST}: $*"
+  _ssh "cd '${SYNC_DIR}' && $*"
+}
+
+# ===========================================================================
 # libvirt / KVM snapshot-revert backend
 # ===========================================================================
 libvirt_acquire () {
@@ -154,22 +178,11 @@ libvirt_reset () {
 }
 
 libvirt_sync () {
-  # ref is passed for informational purposes (e.g. logging); the actual content
-  # is whatever is in the current working directory, already checked out by the
-  # workflow at the correct ref.
-  local ref="${1:?sync requires a ref argument}"
-  echo "Syncing repo (ref=${ref}) to ${TARGET_HOST}:${SYNC_DIR} ..."
-  _ssh "mkdir -p '${SYNC_DIR}'"
-  rsync -az --delete \
-    -e "ssh ${SSH_KEY_ARGS[*]} -p ${TARGET_SSH_PORT} -o StrictHostKeyChecking=no -o BatchMode=yes" \
-    ./ \
-    "${TARGET_SSH_USER}@${TARGET_HOST}:${SYNC_DIR}/"
-  echo "Sync complete"
+  _sync "$@"
 }
 
 libvirt_exec () {
-  echo "Running on ${TARGET_HOST}: $*"
-  _ssh "cd '${SYNC_DIR}' && $*"
+  _exec "$@"
 }
 
 libvirt_release () {
@@ -200,19 +213,11 @@ ssh_reset () {
 }
 
 ssh_sync () {
-  local ref="${1:?sync requires a ref argument}"
-  echo "Syncing repo (ref=${ref}) to ${TARGET_HOST}:${SYNC_DIR} ..."
-  _ssh "mkdir -p '${SYNC_DIR}'"
-  rsync -az --delete \
-    -e "ssh ${SSH_KEY_ARGS[*]} -p ${TARGET_SSH_PORT} -o StrictHostKeyChecking=no -o BatchMode=yes" \
-    ./ \
-    "${TARGET_SSH_USER}@${TARGET_HOST}:${SYNC_DIR}/"
-  echo "Sync complete"
+  _sync "$@"
 }
 
 ssh_exec () {
-  echo "Running on ${TARGET_HOST}: $*"
-  _ssh "cd '${SYNC_DIR}' && $*"
+  _exec "$@"
 }
 
 ssh_release () {

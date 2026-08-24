@@ -212,7 +212,8 @@ echo "=== Syncing repo to target ==="
 "$TARGET_SH" sync HEAD
 
 # Bootstrap the installer on the target so `openedge-cli` knows about the
-# component under test.
+# component under test.  The rendered installer is placed under rendered/ by
+# the bootstrap command.
 echo "=== Bootstrapping installer on target ==="
 "$TARGET_SH" exec "./openedge-cli bootstrap ${COMPONENT}"
 
@@ -288,9 +289,11 @@ if [ "$has_remove" = "true" ]; then
     "./rendered/openedge-cli remove ${COMPONENT}" \
     || lifecycle_ok=false
 
-  # Confirm verify_<name> no longer succeeds after remove
+  # Confirm verify_<name> no longer succeeds after remove.
+  # Use SYNC_DIR to match the path used by platform-target.sh; default matches
+  # the target.sh default of /opt/oep-installer-cli.
   _step "verify-gone" \
-    "bash -c 'cd /opt/oep-installer-cli && source module/${COMPONENT}/${OS_LIKE} && ! verify_${COMPONENT} 2>/dev/null'" \
+    "bash -c 'cd ${SYNC_DIR:-/opt/oep-installer-cli} && source module/${COMPONENT}/${OS_LIKE} && ! verify_${COMPONENT} 2>/dev/null'" \
     || lifecycle_ok=false
 else
   _step_skip "remove"     "no remove function defined"
