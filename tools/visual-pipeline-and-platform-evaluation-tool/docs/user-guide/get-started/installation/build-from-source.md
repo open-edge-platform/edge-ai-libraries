@@ -64,3 +64,18 @@ Hugging Face Hub.
 
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.
+
+## Stop the application
+
+Stop and remove all running containers:
+
+```bash
+make stop
+```
+
+Downloaded models and videos under `shared/` are preserved. To also remove
+those artifacts, run:
+
+```bash
+make clean
+```
