@@ -1,102 +1,61 @@
 {
   "skill_name": "vss-summarize-video",
+  "notes": "Each eval runs in an empty scratch directory with no VSS source and no reachable VSS deployment, so every expectation is graded against what the answer specifies - endpoints, request shapes, the sampling constraint, and the completion signal it gates on - not against live API output.",
   "evals": [
     {
       "id": 1,
       "prompt_file": "example-prompts/01-basic-summary.md",
       "prompt": "I just uploaded a video called \"loading-dock-cam.mp4\" to VSS. Can you summarize what happens in it? I don't care about fancy options, just give me the gist of what's going on in the footage.",
-      "expected_output": "Uploads the referenced clip with POST /manager/videos when needed, starts a valid POST /manager/summary request with required title, videoId, sampling, and evam fields, polls the returned stateId until videoSummaryStatus is complete, then presents the final non-truncated summary and stateId.",
+      "expected_output": "Resolves the already uploaded loading-dock-cam.mp4 to its videoId, starts a valid summary pipeline, waits for true completion, and presents the final summary text.",
       "files": [],
       "expectations": [
-        "Probes GET /manager/health and GET /manager/app/features before starting the summary workflow.",
-        "Uses POST /manager/videos with multipart field video to obtain a videoId for the uploaded clip.",
-        "Starts POST /manager/summary with required title, videoId, sampling fields, evam.evamPipeline, and produceFinalSummary true or default behavior.",
-        "Polls GET /manager/summary/{stateId} until videoSummaryStatus == \"complete\", not merely until summary text is non-empty.",
-        "Retrieves and presents the final .summary text and keeps the summaryPipelineId/stateId available for reference."
+        "Resolves the already uploaded `loading-dock-cam.mp4` to a `videoId` using `GET /manager/videos` and the real filename field such as `.dataStore.fileName`, rather than blindly uploading it again.",
+        "Starts `POST /manager/summary` with the resolved `videoId` and the required `title`, valid `sampling`, and `evam.evamPipeline` fields.",
+        "Uses a valid sampling block where `multiFrame == frameOverlap + samplingFrame`.",
+        "Carries the returned `summaryPipelineId` forward as the state id and polls `GET /manager/summary/{stateId}` until `videoSummaryStatus == \"complete\"`.",
+        "Retrieves and presents the final `.summary` text only after completion."
       ]
     },
     {
       "id": 2,
       "prompt_file": "example-prompts/02-custom-sampling.md",
       "prompt": "I have a 40-minute warehouse security video already ingested with videoId `vid-7f3a91`. Summarize it using 30-second chunks, sample 8 frames per chunk with a 2-frame overlap, and only summarize the first 10 minutes (0 to 600 seconds). Title it \"Warehouse night shift - Jan 14\".",
-      "expected_output": "Runs a summary for videoId vid-7f3a91 using the requested title and time range, computes multiFrame as frameOverlap + samplingFrame (10), posts the valid summary request, polls the stateId until complete, and returns the final summary for only the 0-600 second window.",
+      "expected_output": "Starts a valid summary for vid-7f3a91 using the requested title, 30-second chunks, 8 sampled frames, 2-frame overlap, computed multiFrame 10, and the 0-600 second window, then waits for completion and returns the summary.",
       "files": [],
       "expectations": [
-        "Confirms health and summary capability before starting the pipeline.",
-        "Does not upload a new video because the prompt provides an existing videoId.",
-        "Uses sampling chunkDuration 30, samplingFrame 8, frameOverlap 2, videoStart 0, videoEnd 600, and multiFrame 10.",
-        "Includes evam.evamPipeline with a documented value such as object_detection.",
-        "Polls GET /manager/summary/{stateId} and gates completion on videoSummaryStatus == \"complete\" before retrieving .summary."
+        "Uses the supplied `videoId` `vid-7f3a91` without uploading a new video and sends the request to `POST /manager/summary`.",
+        "Uses the exact title `Warehouse night shift - Jan 14`.",
+        "Sets `sampling.chunkDuration` to 30, `sampling.samplingFrame` to 8, `sampling.frameOverlap` to 2, and `sampling.multiFrame` to 10 so the enforced sum constraint is satisfied.",
+        "Sets `sampling.videoStart` to 0 and `sampling.videoEnd` to 600 and includes a documented `evam.evamPipeline` value.",
+        "Polls the returned state id until `videoSummaryStatus == \"complete\"` before retrieving and presenting `.summary`."
       ]
     },
     {
       "id": 3,
-      "prompt_file": "example-prompts/03-audio-transcript.md",
-      "prompt": "Summarize the interview clip with videoId `int-2024-05`, and please include an audio transcript summary. Use the \"small.en\" Whisper model if it's available, and use the full transcript rather than chunked audio summaries.",
-      "expected_output": "Checks the available audio models, uses small.en only if listed, starts a valid summary request with the audio block requesting full transcript summary, polls through completion, and returns the visual summary along with audio transcript summary details or a no-speech note.",
+      "prompt_file": "example-prompts/04-per-chunk-captions.md",
+      "prompt": "For videoId `parking-lot-042`, I don't want a single blended summary - I want to review each chunk's caption individually to spot anomalies. Run the pipeline with `produceFinalSummary` set to false and give me the frame-by-frame captions once processing is done.",
+      "expected_output": "Starts a valid summary pipeline for parking-lot-042 with produceFinalSummary false, waits for frame-caption processing to finish, and presents each frameSummaries entry rather than a final blended summary.",
       "files": [],
       "expectations": [
-        "Probes health/features and calls GET /manager/audio/models before choosing the requested Whisper model.",
-        "Starts POST /manager/summary with required title, videoId, sampling, evam.evamPipeline, and audio.useFullTranscriptSummary true.",
-        "Handles unavailable small.en by surfacing the actual available models instead of guessing.",
-        "Tracks audioTranscriptSummaryStatus while still gating final completion on videoSummaryStatus == \"complete\".",
-        "Uses GET /manager/summary/{stateId}/raw or documented fields to expose the audio transcript summary, noting no speech is not an error."
+        "Uses `POST /manager/summary` for `parking-lot-042` with `produceFinalSummary` false plus the required title, valid sampling, and `evam.evamPipeline` fields.",
+        "Recognizes that `produceFinalSummary: false` means there is no final video-summary stage to wait for.",
+        "Polls `GET /manager/summary/{stateId}` and waits for `frameSummaryStatus.inProgress` to reach 0.",
+        "Reads the requested captions from `.frameSummaries[]` and presents each `frameKey` with its `summary` text.",
+        "Does not treat `.chunks[]` as the caption source."
       ]
     },
     {
       "id": 4,
-      "prompt_file": "example-prompts/04-per-chunk-captions.md",
-      "prompt": "For videoId `parking-lot-042`, I don't want a single blended summary - I want to review each chunk's caption individually to spot anomalies. Run the pipeline with `produceFinalSummary` set to false and give me the frame-by-frame captions once processing is done.",
-      "expected_output": "Starts a valid summary pipeline for parking-lot-042 with produceFinalSummary false, polls frameSummaryStatus until no frame summaries are in progress, then returns each .frameSummaries[] entry as frameKey plus summary without treating .chunks[] as the caption source.",
-      "files": [],
-      "expectations": [
-        "Uses POST /manager/summary with required title, videoId, valid sampling satisfying multiFrame == frameOverlap + samplingFrame, evam.evamPipeline, and produceFinalSummary false.",
-        "Recognizes that produceFinalSummary false means there is no final video summary stage to wait for.",
-        "Polls GET /manager/summary/{stateId} using frameSummaryStatus counts and waits for inProgress == 0.",
-        "Retrieves per-chunk captions from .frameSummaries[] and presents frameKey with summary text.",
-        "Does not claim captions live in .chunks[], which SKILL.md says only carries chunkId, duration, and audioTranscripts."
-      ]
-    },
-    {
-      "id": 5,
-      "prompt_file": "example-prompts/05-manage-summaries.md",
-      "prompt": "Can you list all the summary pipelines currently stored in VSS, and then delete the one titled \"test run - ignore\" since it was just a throwaway test?",
-      "expected_output": "Lists stored summary pipelines using GET /manager/summary, finds the stateId whose title is test run - ignore, deletes it with DELETE /manager/summary/{stateId}, and reports the list and deletion confirmation.",
-      "files": [],
-      "expectations": [
-        "Checks GET /manager/health before managing summary state.",
-        "Calls GET /manager/summary and presents each stored summary stateId and title.",
-        "Selects the summary to delete by matching the documented title field, not by guessing an id.",
-        "Deletes the chosen summary with DELETE /manager/summary/{stateId}.",
-        "Confirms the deletion, for example by reporting the delete result or re-listing summaries."
-      ]
-    },
-    {
-      "id": 6,
       "prompt_file": "example-prompts/06-bootstrap-fresh-machine.md",
       "prompt": "I only have this skills folder on my machine - the VSS application source isn't checked out anywhere and I'm not inside its repo. Before you try to summarize my video \"gate-cam-01\", set up whatever you need to actually run the commands, then start the summary. Also tell me clearly whether you're re-cloning anything if it turns out I already had VSS checked out somewhere.",
-      "expected_output": "Runs the bundled vss-bootstrap.sh to resolve the VSS app root, explains reuse versus sparse shallow clone behavior, changes into the app root, then proceeds with the normal summary workflow for gate-cam-01 through health checks, video resolution/upload, POST /manager/summary, polling, and final summary retrieval.",
+      "expected_output": "Uses the bundled bootstrap to reuse an existing VSS checkout when available or obtain the app source when absent, changes to the resolved app root, and then follows the normal summary workflow for gate-cam-01.",
       "files": [],
       "expectations": [
-        "Runs scripts/vss-bootstrap.sh from the skill directory before using app-local commands.",
-        "Explains that an existing VSS checkout is detected and reused without re-cloning.",
-        "Explains that absent source is obtained with a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main.",
-        "Changes directory into the resolved APP_ROOT before probing VSS endpoints.",
-        "After bootstrap, follows the documented summarize flow: health/features, videoId resolution or upload, POST /manager/summary, poll on videoSummaryStatus, and retrieve .summary."
-      ]
-    },
-    {
-      "id": 90,
-      "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
-      "prompt": "I just finished ingesting a video called \"loading-bay-cam-03.mp4\" into VSS and it has videoId `bay03-2026-07`. Please run the summarization pipeline on it with the default settings and let me know once the summary is ready.",
-      "expected_output": "Before running the summary, the skill unconditionally executes its bundled scripts/vss-bootstrap.sh to resolve the VSS app root by checking the enclosing repo's git remotes for the official VSS repo or a fork, reusing an existing checkout if found or otherwise performing a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before starting the summarization pipeline for videoId bay03-2026-07.",
-      "files": [],
-      "expectations": [
-        "Even though the prompt never mentions setup, location, or cloning, the answer runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) unconditionally as its first step, before doing the requested summarization task.",
-        "The bootstrap check determines whether the current location is already a valid clone/checkout (or a fork) of the VSS project by inspecting the enclosing git repository's remote configuration (e.g., `git remote -v` / origin or upstream URL) to see if it points at the official VSS repo (open-edge-platform/edge-ai-libraries) or a fork of it, rather than merely checking for local marker files.",
-        "If that check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the answer reuses it and performs NO re-clone.",
-        "If no valid checkout or matching remote is found, the answer performs a shallow, single-branch, sparse checkout limited to sample-applications/video-search-and-summarization from the main branch.",
-        "The answer changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's real commands for summarizing videoId bay03-2026-07."
+        "Runs the skill's bundled `scripts/vss-bootstrap.sh` first and captures the app root it prints as `APP_ROOT`.",
+        "Explains that a valid existing VSS checkout is reused and no re-clone is performed.",
+        "Explains that when no checkout exists the bootstrap obtains a shallow, single-branch, sparse checkout of `sample-applications/video-search-and-summarization` from `main`.",
+        "Changes directory to the resolved `APP_ROOT` before using app-local commands or VSS APIs.",
+        "After setup, resolves or obtains the video id for `gate-cam-01`, starts a valid `POST /manager/summary` request, waits for `videoSummaryStatus == \"complete\"`, and retrieves `.summary`."
       ]
     }
   ]

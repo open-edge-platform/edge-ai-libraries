@@ -1,6 +1,6 @@
 ---
 name: vss-search-index
-description: Search a video library with natural language via the VSS Pipeline Manager - upload a video (POST /videos), generate its embeddings (POST /videos/search-embeddings/{id}), then run a query (POST /search/query) with optional tag and time filters and read the ranked clip results. Use when the user says "search my videos", "find <thing> in the videos", "when did X happen", or wants to ingest/index a video for search. Requires a search-capable deployment (--search, --dual, or --unified).
+description: Search a video library with natural language via the VSS Pipeline Manager - upload a video (POST /videos), generate its embeddings (POST /videos/search-embeddings/{id}), then run a query (POST /search/query) with optional tag and time filters and read the ranked clip results. Use when the user says "search my videos", "find something in the videos", "when did X happen", or wants to ingest/index a video for search. Requires a search-capable deployment (--search, --dual, or --unified).
 license: Apache-2.0
 metadata:
   version: "1.0.0"
@@ -14,10 +14,20 @@ SPDX-License-Identifier: Apache-2.0
 
 # VSS Search
 
-Natural-language search over the indexed video library. **Run the curl commands
-yourself** and relay results. Endpoints use the nginx `/manager` prefix.
+Natural-language search over the indexed video library. Call the documented API
+yourself and report only observed responses. Endpoints use the nginx `/manager`
+prefix.
 
 Set `HOST=http://${HOST_IP:-localhost}:${APP_HOST_PORT:-12345}`.
+
+## Answer contract when VSS is not reachable
+
+The user may be away from the deployment, or `$HOST` may refuse connections. In
+that case **do not stall and do not invent responses.** Answer with the exact
+call sequence instead: full endpoint paths, request bodies / form fields, the
+field each step carries over from the previous response, and the condition that
+says a step is finished. State plainly that the commands were not executed.
+Never end the answer by asking whether to run them.
 
 ## Environment setup (run first)
 
@@ -26,12 +36,23 @@ files, so the VSS application must be present and you must run commands from its
 app root. **Do this before anything else**, and it works whether or not the VSS
 source is already in your workspace.
 
-Run the bundled bootstrap. It first tries to find an existing VSS checkout -
-walking up from the current directory and inspecting the enclosing git repo - and
-reuses it **without ever re-cloning**. Only when no checkout is found does it do a
-shallow, single-branch, sparse checkout of just
-`sample-applications/video-search-and-summarization` from `main`. It prints the
-resolved app root on stdout:
+Run the bundled bootstrap. It resolves the app root in this order and prints it
+as the only line on stdout:
+
+1. **Walk up from the current directory** looking for a VSS app root - a
+   directory carrying all three markers `setup.sh`, `docker/`, and
+   `pipeline-manager/`.
+2. **Ask git for the enclosing repository** (`git rev-parse --show-toplevel`) and
+   check whether it holds `sample-applications/video-search-and-summarization`,
+   or is itself a VSS app root. This is what makes your own clone - or a fork -
+   work unchanged.
+3. **Reuse a checkout a previous bootstrap already placed** in
+   `${XDG_CACHE_HOME:-$HOME/.cache}/vss-src/edge-ai-libraries`.
+
+If any of those hit, that checkout is **reused and NO clone is performed**. Only
+when all three miss does it clone - and then only a **shallow (`--depth 1`),
+single-branch, sparse** checkout of just
+`sample-applications/video-search-and-summarization` from `main`:
 
 ```bash
 # SKILL_DIR is THIS skill's own directory (shown to you when the skill loads);
@@ -43,12 +64,13 @@ cd "$APP_ROOT"
 
 Every command below assumes the working directory is this `APP_ROOT`. To pull
 from a fork/branch or reuse a specific checkout dir, override `VSS_REPO_URL`,
-`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it.
+`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it. The bootstrap refuses
+to overwrite an existing non-VSS clone destination.
 
 ## Preconditions
 
-Backend healthy and **search enabled** - probe first; if not, use
-[`vss-troubleshoot`](../vss-troubleshoot/SKILL.md) / [`vss-deploy`](../vss-deploy/SKILL.md):
+Backend healthy and **search enabled** - probe first; if not, use the installed
+`vss-troubleshoot` or `vss-deploy` skill by name:
 ```bash
 curl -sf "$HOST/manager/health" >/dev/null && \
 curl -s "$HOST/manager/app/features" | jq '.search // .'
@@ -127,8 +149,8 @@ curl -s -X POST "$HOST/manager/search" -H 'Content-Type: application/json' \
   -d '{"query":"forklift"}' | jq .          # create a persistent query → queryId
 curl -s "$HOST/manager/search/<QUERY_ID>" | jq .          # fetch results
 curl -s -X POST "$HOST/manager/search/<QUERY_ID>/refetch" | jq .   # re-run
-curl -s -X PATCH "$HOST/manager/search/<QUERY_ID>/watch" \
-  -H 'Content-Type: application/json' -d '{"watch":true}'   # auto-refresh
+curl -s --request PATCH --json '{"watch":true}' \
+  "$HOST/manager/search/<QUERY_ID>/watch" | jq .             # auto-refresh
 curl -s "$HOST/manager/search/watched" | jq .
 curl -s -X DELETE "$HOST/manager/search/<QUERY_ID>"
 ```
