@@ -76,7 +76,7 @@ required; everything else has a safe default, so you override only what you need
 Source: [src/plugins/compressor.py](../../src/plugins/compressor.py).
 
 Reduces prompt tokens before the request reaches the backend, using the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor)
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
 library (bundled in the router image). One `compressor` node covers every
 compressor type; the type is chosen per instance through `settings.type`:
 
@@ -141,7 +141,7 @@ plugins:
 
 The backing services, which are the Lingua server and tool predictor, are **not**
 part of the router — deploy them separately. See the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor)
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
 repository for deployment and per-compressor behavior.
 
 ### `provider_management` Plugin
