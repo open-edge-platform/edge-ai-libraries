@@ -41,6 +41,7 @@ jobs:
           # Install the 2025.3 compiler package (icpx is provided by this package)
           sudo -E apt update
           sudo -E apt install -y intel-oneapi-base-toolkit-2025.3
+          sudo -E apt install -y build-essential
           source /opt/intel/oneapi/setvars.sh || true
           wget --quiet https://scan.coverity.com/download/linux64 \
             --post-data "token=${{ secrets.KV_COVERITY_TOKEN }}&project=${{ secrets.KV_COVERITY_PROJECT }}" \
@@ -56,6 +57,8 @@ jobs:
           set -e
           pip install --upgrade pip setuptools wheel packaging
           pip install numpy torch torchvision torchaudio
+          export CXXFLAGS="-isystem /usr/include $CXXFLAGS"
+          export CFLAGS="-isystem /usr/include $CFLAGS"
           pip install . --extra-index-url https://download.pytorch.org/whl/xpu
           BUILDEOF
           chmod +x cov-build.sh
