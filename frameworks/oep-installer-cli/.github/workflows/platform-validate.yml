@@ -69,15 +69,16 @@ jobs:
       # wrote, not the base branch.  We record the exact SHA so the validation
       # report is traceable.
       #
-      # SECURITY: we check out into a subdirectory called `repo` and never
-      # `source` or execute anything from it on the runner host itself.  All
-      # tested code runs on the disposable target via platform-target.sh.
+      # SECURITY: we pin the checkout to the immutable head SHA rather than the
+      # mutable refs/pull/<n>/merge ref, preventing a TOCTOU attack where the
+      # branch is force-pushed after the label gate passes but before checkout.
+      # The checked-out content goes into a subdirectory `repo/`; the scripts
+      # we execute on the runner host come only from this exact SHA.
+      # All tested module code runs on the disposable target, not here.
       - name: Check out PR head
         uses: actions/checkout@v4
         with:
-          # For pull_request_target use the merge ref so we test the merged
-          # result; fall back to the head SHA for dispatch runs.
-          ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: repo
 
       - name: Record validated SHA
