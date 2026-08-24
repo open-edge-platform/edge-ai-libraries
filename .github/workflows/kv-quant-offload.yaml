@@ -32,16 +32,18 @@ jobs:
         run: |
           # Add the Intel repository GPG key
           wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
-            | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+            | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null || true
           
           # Add the repository
           echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
-            | sudo tee /etc/apt/sources.list.d/oneAPI.list
+            | sudo tee /etc/apt/sources.list.d/oneAPI.list || true
           
           # Install the 2025.3 compiler package (icpx is provided by this package)
           sudo -E apt update
           sudo -E apt install -y intel-oneapi-base-toolkit-2025.3
+          echo "=== 是这里报错吗？！！！！！！！！！！！！！！！！！！！！！！！！！！ ==="
           source /opt/intel/oneapi/setvars.sh || true
+          echo "=== 怎么说？ ==="
           python3 -m venv .venv
           source .venv/bin/activate
           
