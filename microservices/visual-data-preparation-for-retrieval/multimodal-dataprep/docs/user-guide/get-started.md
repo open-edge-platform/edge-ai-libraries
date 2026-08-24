@@ -309,15 +309,6 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
    - The MinIO console (`http://localhost:6011`) shows the raw asset, thumbnails, and crops.
 3. Inspect the vector database to verify entries in the `video-rag-test` collection (for the default VDMS backend, use `vdms_cli` or a custom client; for Milvus, use a Milvus client such as `pymilvus` or Attu).
 
-## Troubleshooting
-
-- **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before sourcing `setup.sh` or set `MM_DATAPREP_EMBEDDING_MODEL_NAME` in the container environment before launching Docker.
-- **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
-- **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/media/process` instead.
-- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `GPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`.
-- **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `NPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
-- **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `MM_DATAPREP_OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.
-
 ## Supporting Resources
 
 - [Overview](index.md)
@@ -325,6 +316,7 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
 - [Architecture Overview](./how-it-works-architecture.md)
 - [Media Ingestion Flow](./how-it-works-ingestion-flow.md) - Detailed flow diagrams of the video and image processing pipelines
 - [API Reference](./api-reference.md)
+- [Troubleshooting](./troubleshooting.md)
 
 <!--hide_directive
 :::{toctree}

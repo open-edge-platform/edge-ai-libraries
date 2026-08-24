@@ -830,4 +830,4 @@ This file is generated from the FastAPI app and is the recommended source for re
 ## Supporting Resources
 
 - [Get Started](./get-started.md)
-- [Configuration Guide](./configuration.md)
+- [Telemetry metrics](./telemetry-metrics.md)

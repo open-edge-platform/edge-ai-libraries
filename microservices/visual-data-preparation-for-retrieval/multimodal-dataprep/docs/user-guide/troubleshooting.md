@@ -43,7 +43,7 @@ highest-resolution source **before** sourcing the setup script (or bring the
 stack down and back up so the new value is applied):
 
 | Source resolution | Pixels (W × H) | Minimum `SDK_VIDEO_SHM_BLOCK_SIZE` (`W × H × 3`) |
-|---|---|---|
+| --- | --- | --- |
 | 1080p (default) | 1920 × 1080 | `6220800` |
 | 4K UHD | 3840 × 2160 | `24883200` |
 | DCI 4K | 4096 × 2160 | `26542080` |
