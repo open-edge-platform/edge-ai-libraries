@@ -1,0 +1,70 @@
+name: Generate component from spec
+
+on:
+  push:
+    branches: [main]
+    paths: ['instructions/**']
+  workflow_dispatch:
+    inputs:
+      spec_file:
+        description: >-
+          Path to spec file relative to repo root
+          (e.g. instructions/my_component.md)
+        required: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Find changed spec files
+        id: specs
+        run: |
+          SPECS_FILE="$(mktemp)"
+
+          if [ -n "${{ github.event.inputs.spec_file }}" ]; then
+            echo "${{ github.event.inputs.spec_file }}" > "$SPECS_FILE"
+          else
+            BEFORE="${{ github.event.before }}"
+            SHA="${{ github.sha }}"
+            # Handle zero SHA (branch created) or unreachable before-commit
+            if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]] || \
+               ! git cat-file -e "$BEFORE" 2>/dev/null; then
+              # Fall back: files introduced by the head commit
+              git diff-tree --no-commit-id -r --name-only --diff-filter=AM \
+                "$SHA" -- 'instructions/*.md' > "$SPECS_FILE"
+            else
+              git diff --name-only --diff-filter=AM "${BEFORE}..${SHA}" \
+                -- 'instructions/*.md' > "$SPECS_FILE"
+            fi
+          fi
+
+          # Skip _template.md and README.md
+          grep -v -E '(^|/)(_[^/]*\.md|README\.md)$' "$SPECS_FILE" \
+            > "${SPECS_FILE}.filtered" || true
+          mv "${SPECS_FILE}.filtered" "$SPECS_FILE"
+
+          if [ ! -s "$SPECS_FILE" ]; then
+            echo "No spec files changed – nothing to do."
+            echo "has_specs=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_specs=true" >> "$GITHUB_OUTPUT"
+            echo "specs_file=$SPECS_FILE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create a Copilot task issue for each spec
+        if: steps.specs.outputs.has_specs == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x .github/scripts/create-component-issue.sh
+          .github/scripts/create-component-issue.sh \
+            "${{ steps.specs.outputs.specs_file }}"
