@@ -14,7 +14,7 @@ Deep SORT tracking, FPS reporting, and optional output/metadata publishing.
 
 Use this pipeline when you need to:
 
-- keep persistent track IDs across short occlusions,
+- keep persistent track IDs when people are briefly hidden from view,
 - benchmark person-tracking throughput on Intel GPU with DL Streamer.
 
 It is best suited to fixed-camera or low-motion camera scenes such as entrances,
@@ -24,7 +24,7 @@ store aisles, corridors, and public-area monitoring.
 
 The predefined variant contains this runtime sequence:
 
-1. `gvadetect` with `yolo11s` (`INT8`) on GPU (`threshold=0.5`) finds person ROIs.
+1. `gvadetect` with `yolo11s` (`INT8`) on GPU (`threshold=0.5`) finds person regions of interest (ROIs).
 2. `gvainference` with `mars-small128` (`FP32`) on GPU computes person embeddings for Re-ID.
 3. `gvatrack` with `tracking-type=deep-sort` links detections across frames into stable tracks.
 4. `gvafpscounter` measures throughput after warm-up (`starting-frame=100`).
@@ -41,10 +41,10 @@ Deep SORT parameters used in the predefined variant:
 ## Role of tracking and optional classification
 
 - **Tracking (default):** Deep SORT is responsible for temporal continuity and stable IDs.
-  The Re-ID stage (`mars-small128`) helps preserve identities through short partial occlusions
+  The Re-ID stage (`mars-small128`) helps preserve identities through short partial obstructions
   and re-entries.
 - **Optional classification (user extension):** If your use case needs per-person attributes
-  (for example PPE or role labels), add a classification stage after detection/tracking and
+  (for example personal protective equipment (PPE) or role labels), add a classification stage after detection/tracking and
   keep `inference-region=roi-list` plus `object-class=person` so only person ROIs are classified.
 
 ## Expected input video characteristics
