@@ -56,7 +56,7 @@ jobs:
           set -e
           pip install --upgrade pip setuptools wheel packaging
           pip install numpy torch torchvision torchaudio
-          pip install . --extra-index-url https://download.pytorch.org/whl/xpu --no-build-isolation
+          KVWEAVE_COMPILER=icpx KVWEAVE_XPU=1 pip install . --extra-index-url https://download.pytorch.org/whl/xpu
           BUILDEOF
           chmod +x cov-build.sh
           coverity capture --dir cov-int --project-dir . -- ./cov-build.sh
