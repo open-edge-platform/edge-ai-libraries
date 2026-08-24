@@ -58,6 +58,9 @@ repos to clone, which scripts to run, what environment variables or files are
 configured.  Include the upstream repository URL and the release tag or branch
 if cloning from source.
 
+For a SDK, application or service, highlight what is next for the user. For example,
+go to certain directory and run additional setup. 
+
 ### 5. Verification
 
 Describe a reliable test the agent can use in `verify_<name>()` to confirm
@@ -71,6 +74,9 @@ services, systemd units, scripts, etc.).  If the component is a stateless
 system package with no runtime service (e.g. `curl`, `jq`) you can note that
 `start` and `stop` are not needed.
 
+For a SDK, application or service, highlight what is next for the user after the 
+comonent is started, for example, launching the browser to a specified URL.
+
 ### 7. Ports and network endpoints
 
 List any TCP/UDP ports opened by the component, and note the UI entrypoint URL
@@ -81,12 +87,7 @@ if applicable.
 Describe what `remove` should clean up (Docker images, git workspace, config
 files, apt packages).
 
-### 9. Reset flag
-
-Describe the expected behaviour of `--reset-<name>` (forced reinstall, data
-reset, etc.).
-
-### 10. License requirements
+### 9. License requirements
 
 State whether the component requires the user to accept a click-through license
 before installation.  If yes, provide the license ID, title, and the URL or
@@ -121,45 +122,3 @@ full text of the license.
 See [`.github/PLATFORM_VALIDATION.md`](../.github/PLATFORM_VALIDATION.md)
 for the threat model and admin setup guide.
 
----
-
-## @@HIGHLIGHT guidance
-
-`@@HIGHLIGHT` is a protocol consumed by `ensure_panelled_logs` in
-`common/linux/panelled_logs` to show the user what to do after install or
-start.
-
-**Include it** for components that have a workspace, a service, a UI, an
-environment to source, sample content, or docs worth linking — typically
-components in the **60–98** order range.
-
-**Do not add it** for simple utilities such as `curl`, `jq`, `gawk`, `unzip`,
-`make`, or `libgl1` — there is nothing meaningful to say.
-
-For `start`, the most useful highlight is usually the URL the user must point
-to (built with `ensure_ip`):
-
-```bash
-echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
-```
-
-Emit `@@HIGHLIGHT` lines **outside** the "already installed, skipping" branch
-so they print on both fresh and skipped installs:
-
-```bash
-debian_NN_install_myapp () {
-  configure_myapp
-  if verify_myapp && [[ " $* " != *" --reset-myapp "* ]]; then
-    echo "myapp already installed. Skipping."
-  else
-    # ... installation steps ...
-  fi
-  # @@HIGHLIGHT goes here — runs on both fresh and skipped installs
-  echo "@@HIGHLIGHT workspace: $workspace"
-}
-```
-
-Format:
-- `@@HIGHLIGHT <label>: <value>` — human-readable text
-- `@@HIGHLIGHT <label> @<path-or-command>` — paths and commands
-- Keep each highlight to a single short line.
