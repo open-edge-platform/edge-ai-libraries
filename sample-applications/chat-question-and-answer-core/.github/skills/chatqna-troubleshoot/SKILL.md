@@ -11,9 +11,6 @@ license: Apache-2.0
 metadata:
   version: "1.0.0"
   tags: "chatqna troubleshoot debug diagnostics docker compose helm openvino ollama api health logs"
-argument-hint: >
-  Describe symptom and environment, for example "docker deployment returns 500 on /chat",
-  "helm pods crashloop in namespace chatqna", or "UI not reachable on port 8102".
 ---
 
 <!--

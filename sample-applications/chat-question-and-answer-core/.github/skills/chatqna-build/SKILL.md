@@ -8,8 +8,6 @@ license: Apache-2.0
 metadata:
   version: "1.0.0"
   tags: "chatqna build development docker compose"
-argument-hint: >
-  Describe what images to build and for which runtime (for example "build openvino cpu + ui" or "build ollama backend and ui with tag dev").
 ---
 
 <!--

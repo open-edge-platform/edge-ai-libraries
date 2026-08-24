@@ -8,8 +8,6 @@ license: Apache-2.0
 metadata:
   version: "1.0.0"
   tags: "chatqna api smoke-test curl openapi health chat documents openvino ollama"
-argument-hint: >
-  Describe runtime and scope, for example "smoke test all APIs for openvino", "validate /chat and /documents", or "check ollama model endpoints".
 ---
 
 <!--

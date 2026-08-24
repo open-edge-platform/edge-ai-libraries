@@ -8,8 +8,6 @@ license: Apache-2.0
 metadata:
   version: "1.0.0"
   tags: "chatqna tests unit-tests pytest vitest backend frontend openvino ollama"
-argument-hint: >
-  Describe what to test and scope, for example "run backend openvino tests", "run UI tests with coverage", or "run all unit tests".
 ---
 
 <!--

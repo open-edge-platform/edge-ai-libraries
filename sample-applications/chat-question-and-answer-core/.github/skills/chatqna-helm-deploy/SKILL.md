@@ -10,8 +10,6 @@ license: Apache-2.0
 metadata:
   version: "1.0.0"
   tags: "chatqna kubernetes helm values yaml openvino ollama gpu cpu deploy"
-argument-hint: >
-  Describe runtime, namespace, chart source, and configuration intent, for example "install openvino gpu in namespace ai with custom models" or "convert compose env to helm overrides and deploy ollama".
 ---
 
 <!--
