@@ -50,12 +50,12 @@ jobs:
           COV_PATH="$(pwd)/cov-analysis/bin"
           export PATH="$COV_PATH:$PATH"
           cd libraries/kv-quant-offload
-          pip install numpy torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/xpu
           #coverity capture --dir cov-int --project-dir ./
           cat > cov-build.sh << 'BUILDEOF'
           #!/bin/bash
           set -e
-          pip install . --extra-index-url https://download.pytorch.org/whl/xpu
+          pip install numpy torch torchvision torchaudio
+          KVWEAVE_COMPILER=icpx KVWEAVE_XPU=1 pip install . --extra-index-url https://download.pytorch.org/whl/xpu
           BUILDEOF
           chmod +x cov-build.sh
           coverity capture --dir cov-int --project-dir . -- ./cov-build.sh
