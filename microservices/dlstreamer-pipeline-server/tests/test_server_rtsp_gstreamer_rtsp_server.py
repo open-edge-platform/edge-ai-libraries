@@ -41,7 +41,7 @@ class TestGStreamerRtspServer:
         gstreamer_rtsp_server._mount_points = mock_mount_points
         gstreamer_rtsp_server.add_stream('test_id', '/test', 'caps', 'source',True)
         assert '/test' in gstreamer_rtsp_server._streams
-        mock_stream.assert_called_once_with('source', 'caps',True)
+        mock_stream.assert_called_once_with('source', 'caps',True, None)
         gstreamer_rtsp_server._mount_points.add_factory.assert_called_once_with('/test',gstreamer_rtsp_server._factory)
         mock_logging.get_logger.return_value.info.assert_called_once_with("Created RTSP Stream for instance test_id at rtsp:://<host ip>:8888/test")
 
