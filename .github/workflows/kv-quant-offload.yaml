@@ -57,20 +57,8 @@ jobs:
           export PATH="$COV_PATH:$PATH"
           cd libraries/kv-quant-offload
 
-
-          #export CPATH="/usr/include:/usr/include/x86_64-linux-gnu${CPATH:+:$CPATH}"
-          #export CPLUS_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
-          #export C_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
-          #pip install numpy torch==2.11.0+xpu setuptools>=61 --extra-index-url https://download.pytorch.org/whl/xpu
-          echo "=== 非扫描部署 ==="
-          pip install . --extra-index-url https://download.pytorch.org/whl/xpu
-          echo "=== 非扫描部署结束 ==="
+          echo "=== 扫描部署 ==="
           coverity capture --dir cov-int --project-dir . -- pip install . --extra-index-url https://download.pytorch.org/whl/xpu
-          cat /home/runner/work/edge-ai-libraries/edge-ai-libraries/libraries/kv-quant-offload/cov-int/build-log.txt
-          
-      - name: Create tarball for upload
-        run: |
-          cat /home/runner/work/edge-ai-libraries/edge-ai-libraries/libraries/kv-quant-offload/cov-int/build-log.txt
           
       - name: Create tarball for upload
         run: |
