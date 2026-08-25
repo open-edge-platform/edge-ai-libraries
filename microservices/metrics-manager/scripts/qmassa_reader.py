@@ -18,7 +18,7 @@ import time
 from logging.handlers import RotatingFileHandler
 
 # === Constants ===
-FIFO_FILE = "/app/qmassa.fifo"
+FIFO_FILE = os.environ.get("QMASSA_FIFO_PATH", "/app/qmassa.fifo")
 DEBUG_LOG = os.environ.get("QMASSA_LOG_FILE", "/app/qmassa_reader_trace.log")
 # Hostname used in the `host=` tag of every emitted line. Defaults to the
 # kernel hostname (matches Telegraf's default behaviour) but can be overridden

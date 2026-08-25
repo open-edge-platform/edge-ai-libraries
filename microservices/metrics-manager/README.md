@@ -65,6 +65,7 @@ enumerate render nodes):
 ```bash
 docker run --rm \
   --device /dev/dri \
+  --user 0:0 \
   -p 9090:9090 -p 9273:9273 \
   -v /sys:/sys:ro -v /run:/run:ro \
   --pid host \
@@ -76,6 +77,7 @@ sysfs interface, which requires `--privileged`):
 
 ```bash
 docker run --rm --privileged \
+  --user 0:0 \
   -p 9090:9090 -p 9273:9273 \
   -v /sys:/sys:ro -v /run:/run:ro \
   --pid host \
@@ -116,6 +118,7 @@ docker build -t metrics-manager .
 docker run -d \
   --name metrics-manager \
   --privileged \
+  --user 0:0 \
   -p 9090:9090 \
   -p 9273:9273 \
   -v /sys:/sys \
