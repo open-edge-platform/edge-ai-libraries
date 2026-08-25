@@ -1,11 +1,5 @@
 # Release Notes: Alert Agent Service
 
-## Version 2026.2.0-rc2
-
-**Release date:** 2026-08-25
-
-Release candidate build for the upcoming 2026.2.0 release. Image published as `intel/alert-agent-service:2026.2.0-rc2`.
-
 ## Version 2026.2.0
 
 **Release date:** TBD
