@@ -259,7 +259,14 @@ const PerformanceTestPanel = ({
         return { lines: { ...metadataLines }, entries: [...metadataEntries] };
       });
     }
-  }, [isRunning, startRecording, freezeSnapshot, resultOverrides]);
+  }, [
+    isRunning,
+    startRecording,
+    freezeSnapshot,
+    resultOverrides,
+    metadataLines,
+    metadataEntries,
+  ]);
 
   useEffect(() => {
     if (metadataEntries.length === 0) {
@@ -391,8 +398,7 @@ const PerformanceTestPanel = ({
   const hasOutputVideo =
     !livePreviewEnabled && !isRunning && !!completedVideoPath;
   const showMetadataSection = enableMetadata && showMetadataTab;
-  const visibleTabCount =
-    (hasMediaTab ? 1 : 0) + (showMetadataSection ? 1 : 0);
+  const visibleTabCount = (hasMediaTab ? 1 : 0) + (showMetadataSection ? 1 : 0);
   const effectiveMainTab =
     activeMainTab === "media" && !hasMediaTab
       ? "metadata"
@@ -470,61 +476,10 @@ const PerformanceTestPanel = ({
               </p>
             )}
 
-          {showMetadataTab &&
-            displayEntries.length === 1 &&
-            (() => {
-              const [compositeKey, streamUrl] = displayEntries[0];
-              const lines = displayLines[compositeKey] ?? [];
-              const state = hasStaleMetadata
-                ? "closed"
-                : (connectionStates[compositeKey] ?? "connecting");
-              const error = hasStaleMetadata
-                ? null
-                : connectionErrors[compositeKey];
-              const isStreamActive =
-                !hasStaleMetadata && state !== "error" && state !== "closed";
-              return (
-                <div className="flex flex-col space-y-3 min-w-0">
-                  {isStreamActive && (
-                    <>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                          SSE: {state}
-                        </span>
-                      </div>
-                      <a
-                        href={streamUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                      >
-                        {shortenStreamUrl(streamUrl)}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                      {error && (
-                        <p className="text-xs text-destructive">{error}</p>
-                      )}
-                    </>
-                  )}
-                  <MetadataJsonViewer lines={lines} stale={hasStaleMetadata} />
-                </div>
-              );
-            })()}
-
-          {showMetadataTab && displayEntries.length > 1 && (
-            <Tabs value={metadataTabValue} onValueChange={setActiveMetadataTab}>
-              <TabsList className="w-full h-auto flex-wrap justify-start">
-                {displayEntries.map(([compositeKey]) => {
-                  const [jobId, pipelineId] = compositeKey.split("::");
-                  return (
-                    <TabsTrigger key={compositeKey} value={compositeKey}>
-                      {buildStreamLabel(jobId, pipelineId)}
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
-
-              {displayEntries.map(([compositeKey, streamUrl], index) => {
+            {showMetadataTab &&
+              displayEntries.length === 1 &&
+              (() => {
+                const [compositeKey, streamUrl] = displayEntries[0];
                 const lines = displayLines[compositeKey] ?? [];
                 const state = hasStaleMetadata
                   ? "closed"
@@ -534,24 +489,15 @@ const PerformanceTestPanel = ({
                   : connectionErrors[compositeKey];
                 const isStreamActive =
                   !hasStaleMetadata && state !== "error" && state !== "closed";
-
                 return (
-                  <TabsContent
-                    key={compositeKey}
-                    value={compositeKey}
-                    className="space-y-3 mt-4"
-                  >
+                  <div className="flex flex-col space-y-3 min-w-0">
                     {isStreamActive && (
                       <>
                         <div className="flex items-center justify-between gap-2">
-                          <h3 className="text-sm font-medium text-muted-foreground">
-                            Stream {index + 1}
-                          </h3>
                           <span className="text-xs uppercase tracking-wide text-muted-foreground">
                             SSE: {state}
                           </span>
                         </div>
-
                         <a
                           href={streamUrl}
                           target="_blank"
@@ -561,22 +507,90 @@ const PerformanceTestPanel = ({
                           {shortenStreamUrl(streamUrl)}
                           <ExternalLink className="h-3 w-3" />
                         </a>
-
                         {error && (
                           <p className="text-xs text-destructive">{error}</p>
                         )}
                       </>
                     )}
-
                     <MetadataJsonViewer
                       lines={lines}
                       stale={hasStaleMetadata}
                     />
-                  </TabsContent>
+                  </div>
                 );
-              })}
-            </Tabs>
-          )}
+              })()}
+
+            {showMetadataTab && displayEntries.length > 1 && (
+              <Tabs
+                value={metadataTabValue}
+                onValueChange={setActiveMetadataTab}
+              >
+                <TabsList className="w-full h-auto flex-wrap justify-start">
+                  {displayEntries.map(([compositeKey]) => {
+                    const [jobId, pipelineId] = compositeKey.split("::");
+                    return (
+                      <TabsTrigger key={compositeKey} value={compositeKey}>
+                        {buildStreamLabel(jobId, pipelineId)}
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+
+                {displayEntries.map(([compositeKey, streamUrl], index) => {
+                  const lines = displayLines[compositeKey] ?? [];
+                  const state = hasStaleMetadata
+                    ? "closed"
+                    : (connectionStates[compositeKey] ?? "connecting");
+                  const error = hasStaleMetadata
+                    ? null
+                    : connectionErrors[compositeKey];
+                  const isStreamActive =
+                    !hasStaleMetadata &&
+                    state !== "error" &&
+                    state !== "closed";
+
+                  return (
+                    <TabsContent
+                      key={compositeKey}
+                      value={compositeKey}
+                      className="space-y-3 mt-4"
+                    >
+                      {isStreamActive && (
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="text-sm font-medium text-muted-foreground">
+                              Stream {index + 1}
+                            </h3>
+                            <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                              SSE: {state}
+                            </span>
+                          </div>
+
+                          <a
+                            href={streamUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            {shortenStreamUrl(streamUrl)}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+
+                          {error && (
+                            <p className="text-xs text-destructive">{error}</p>
+                          )}
+                        </>
+                      )}
+
+                      <MetadataJsonViewer
+                        lines={lines}
+                        stale={hasStaleMetadata}
+                      />
+                    </TabsContent>
+                  );
+                })}
+              </Tabs>
+            )}
           </TabsContent>
         )}
       </Tabs>

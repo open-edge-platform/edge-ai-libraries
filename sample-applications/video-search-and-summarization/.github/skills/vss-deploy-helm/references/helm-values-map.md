@@ -57,7 +57,7 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `global.vlmName` | empty | VLM model used by OVMS or vLLM; required in summary/unified. |
 | `global.llmName` | empty | Optional separate OVMS LLM model; empty means shared VLM model. |
 | `global.embeddingModelName` | empty | Required for search/unified; drives embedding service, dataprep, video search. |
-| `global.modelDownload.image.repository/tag/pullPolicy` | `intel/model-download` / `2026.2.0-ww30` / `IfNotPresent` | Image used by model-download init containers for OVMS VLM/LLM and video-ingestion OD models. |
+| `global.modelDownload.image.repository/tag/pullPolicy` | `intel/model-download` / `2026.2.0-rc2` / `IfNotPresent` | Image used by model-download init containers for OVMS VLM/LLM and video-ingestion OD models. |
 | `global.modelDownload.ovmsReleaseTag` | `v2026.1` | OVMS export version used by the model-download OpenVINO plugin. |
 | `global.vdmsIndexName` | empty | Set by search/unified override files to choose VDMS collection. |
 | `global.devices.multimodalEmbedding.device/key` | `CPU` / empty | GPU scheduling for multimodal embedding service. |
@@ -69,7 +69,7 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `global.env.POSTGRES_USER/PASSWORD` | empty | Required credentials. |
 | `global.env.MINIO_ROOT_USER/PASSWORD` | empty | Required credentials. |
 | `global.env.RABBITMQ_DEFAULT_USER/PASS` | empty | Required credentials for summary modes. |
-| `pipelinemanager.image.repository/tag` | `intel/pipeline-manager` / `2026.1.0-rc1` | Main backend image. |
+| `pipelinemanager.image.repository/tag` | `intel/pipeline-manager` / `2026.2.0-rc2` | Main backend image. |
 | `pipelinemanager.env.USE_VLLM` | `CONFIG_OFF` | Must be `CONFIG_ON` when `vllm.enabled=true`; set by `xeon_vllm_values.yaml`. |
 | `pipelinemanager.env.SUMMARY_FEATURE` | `FEATURE_OFF` | Turned on by summary/unified/dual overrides. |
 | `pipelinemanager.env.SEARCH_FEATURE` | `FEATURE_OFF` | Turned on by search/unified/dual overrides. |
@@ -90,15 +90,15 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `vllm.model.tensorParallelSize` | `1` | vLLM tensor parallel size. |
 | `rabbitmq.enabled` | `false` | Enabled by summary/unified. Service name `rabbitmq`. |
 | `audioanalyzer.enabled` | `false` | Enabled by summary/unified. Image `intel/audio-analyzer:1.3.3`. |
-| `videoingestion.enabled` | `false` | Enabled by summary/unified. Image `intel/video-ingestion:2026.1.0-rc1`. |
-| `multimodalembeddingms.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-embedding-serving:2026.1.0-rc1`. |
-| `multimodaldataprep.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-dataprep:2026.1.0-rc1`. |
+| `videoingestion.enabled` | `false` | Enabled by summary/unified. Image `intel/video-ingestion:2026.2.0-rc2`. |
+| `multimodalembeddingms.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-embedding-serving:2026.2.0-rc2`. |
+| `multimodaldataprep.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-dataprep:2026.2.0-rc2`. |
 | `vectorretriever.enabled` | `false` | Enabled by search/unified. Image `intel/vector-retriever-<backend>:<tag>`. |
 | `vdmsvectordb.enabled` | `false` | Enabled by search/unified. Image `intellabs/vdms:v2.12.0`. |
-| `videosearch.enabled` | `false` | Enabled by search/unified. Image `intel/video-search:2026.1.0-rc1`. |
+| `videosearch.enabled` | `false` | Enabled by search/unified. Image `intel/video-search:2026.2.0-rc2`. |
 | `summaryui.enabled`, `searchui.enabled` | `false` | UI aliases. `summaryui` becomes summary or unified UI; `searchui` is separate Search UI in search/dual. |
 | `global.metricsManager.enabled` | `false` | Enables the Metrics Manager subchart, nginx health/SSE routes, and DataPrep publisher environment. |
-| `metricsmanager.image.repository/tag` | `intel/metrics-manager` / `2026.2.0-20260715-weekly` | Metrics Manager runtime image. |
+| `metricsmanager.image.repository/tag` | `intel/metrics-manager` / `2026.2.0-rc2` | Metrics Manager runtime image. |
 
 ## Rendered resource names with release `vss`
 

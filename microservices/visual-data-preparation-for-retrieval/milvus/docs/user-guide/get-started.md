@@ -15,7 +15,7 @@
 
 #### Option 1: build from source
 
-Clone the source code repository if you don't have it
+Clone the source code repository if you do not have it:
 
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
@@ -41,7 +41,7 @@ export REGISTRY="intel/"
 export TAG="2025.2.0"
 ```
 
-**Note**: If you are using a release version package, you will have a pre-defined docker compose file where image registry and tag are already set to the release version. In such case, you do not need to set the environment variables above, simply move forward to the next step. You may refer to the release notes for details on the version number or check the docker compose file that is used in the steps below.
+> **Note:** If you are using a release version package, you will have a pre-defined docker compose file where image registry and tag are already set to the release version. In such case, you do not need to set the environment variables above, simply move forward to the next step. You may refer to the release notes for details on the version number or check the docker compose file that is used in the steps below.
 
 ### Step 2: Prepare host directories for data
 
@@ -51,9 +51,9 @@ mkdir -p $HOME/data
 
 Make sure to put all your data (images and video) in the created data directory (`$HOME/data` in the example commands) BEFORE deploying the service.
 
-Also, make sure the created path matches with the `HOST_DATA_PATH` variable in `deployment/docker-compose/env.sh`.
+Additionally, make sure the created path matches with the `HOST_DATA_PATH` variable in `deployment/docker-compose/env.sh`.
 
-Note: supported media types: jpg, png, mp4
+> **Note:** The supported media types are: jpg, png, mp4.
 
 ### Step 3: Deploy
 
@@ -72,14 +72,14 @@ Note: supported media types: jpg, png, mp4
    source env.sh
    ```
 
-   **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
-   See [Supported Models](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) for Multimodal Embedding Serving for available options.
+   > **Important:** You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
+   > See [Supported Models](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) for Multimodal Embedding Serving for available options.
 
-   **Note**: `env.sh` sets `HF_ENDPOINT` to a Hugging Face mirror, which is necessary for users in the PRC to download models. Users in other regions may remove or unset this variable to use the default Hugging Face endpoint:
-
-   ```bash
-   unset HF_ENDPOINT
-   ```
+   > **Note:** `env.sh` sets `HF_ENDPOINT` to a Hugging Face mirror, which is necessary for users in the PRC to download models. Users in other regions may remove or unset this variable to use the default Hugging Face endpoint:
+   >
+   > ```bash
+   > unset HF_ENDPOINT
+   > ```
 
    <details>
    <summary>For EMT-S platform</summary>
@@ -99,16 +99,17 @@ Note: supported media types: jpg, png, mp4
    docker compose -f compose_milvus.yaml up -d
    ```
 
-It might take a while to start the services for the first time, as there are some models to be prepare.
+It might take some time to start the services for the first time, as the service prepares the models.
 
-Check if all microservices are up and runnning
-`bash
-    docker compose -f compose_milvus.yaml ps
-    `
+Check if all microservices are up and running:
 
-Output
-
+```bash
+docker compose -f compose_milvus.yaml ps
 ```
+
+Example expected output:
+
+```text
 NAME                         COMMAND                  SERVICE                                 STATUS              PORTS
 dataprep-visualdata-milvus   "uvicorn dataprep_vi…"   dataprep-visualdata-milvus              running (healthy)   0.0.0.0:9990->9990/tcp, :::9990->9990/tcp
 milvus-etcd                  "etcd -advertise-cli…"   milvus-etcd                             running (healthy)   2379-2380/tcp
@@ -121,17 +122,17 @@ multimodal-embedding   gunicorn -b 0.0.0.0:8000 - ...   Up (health: starting)   
 
 ### Info
 
-```curl
+```bash
 curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 ```
 
 ### Ingest Files
 
-**Note**: the file directory or single file sent in the request should be under the specific host directory created in Step 2.
+> **Note:** the file directory or single file sent in the request should be under the specific host directory created in Step 2.
 
 - For Directory:
 
-  ```curl
+  ```bash
   curl -X POST http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
   -H "Content-Type: application/json" \
   -d '{
@@ -142,7 +143,8 @@ curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/info
   ```
 
 - For Single File:
-  ```curl
+
+  ```bash
   curl -X POST http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
   -H "Content-Type: application/json" \
   -d '{
@@ -157,19 +159,19 @@ curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 
 ### Get File Info
 
-```curl
+```bash
 curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/get?file_path=/path/to/file
 ```
 
 ### Delete File in Database
 
-```curl
+```bash
 curl -X DELETE http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/delete?file_path=/path/to/file
 ```
 
 ### Clear Database
 
-```curl
+```bash
 curl -X DELETE http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/delete_all
 ```
 
@@ -190,5 +192,14 @@ This falls back to the default Hugging Face endpoint, which is typically the rig
 ## Learn More
 
 - Check the [API reference](./api-reference.md)
-- The visual data preparation microservice usually pairs with a retriever microservice. For more information, check the retriever's [get-started-guide](../../../../vector-retriever/milvus/docs/user-guide/get-started.md)
-- This microservice depends on the [multimodal embedding service](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) for embedding extraction.
+- The visual data preparation microservice usually pairs with a retriever microservice. For more information, check the retriever's [Get Started guide](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/vector-retriever-milvus/get-started.html)
+- This microservice depends on the [Multimodal Embedding Service](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/multimodal-embedding-serving/get-started.html) for embedding extraction.
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started/system-requirements.md
+
+:::
+hide_directive-->

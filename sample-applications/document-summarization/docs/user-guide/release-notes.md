@@ -7,6 +7,7 @@
 **Fixed:**
 
 - Added NLTK_DATA environment variable and improved NLTK corpus download with quiet mode and fail-fast error handling during image builds
+- Fixed security vulnerablity issues
 
 **Known Issues:**
 
