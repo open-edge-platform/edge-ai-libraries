@@ -45,7 +45,7 @@ A comprehensive reference of all VSS skills and their use cases:
 
 | Skill | Persona | Use it when you want to… |
 |---|---|---|
-| [`vss-deploy`](./vss-deploy/SKILL.md) | Ops | Deploy, dry-run, switch modes, inspect config, stop, or clean VSS in any mode (Summary, Search, Dual, Unified); choose OVMS vs vLLM and CPU vs GPU; manage Compose overlays/ports/credentials. Generates secrets, waits for health, prints URLs. Ships `scripts/gen-secrets.sh`, `scripts/wait-health.sh`, and `vss.config.env`. |
+| [`vss-deploy`](./vss-deploy/SKILL.md) | Ops | Deploy, dry-run, switch modes, inspect config, stop, or clean VSS in any mode (Summary, Search, Dual, Unified); choose OVMS vs vLLM and CPU vs GPU; manage Compose overlays/ports/credentials. Generates credentials outside the checkout, waits for health, and prints URLs. Ships `scripts/gen-secrets.sh` and `vss.config`. |
 | [`vss-build`](./vss-build/SKILL.md) | Ops | Build or push the VSS Docker images from source; manage registry/tag and proxy controls. |
 | [`vss-troubleshoot`](./vss-troubleshoot/SKILL.md) | Ops | Check health and which mode is live, then diagnose a broken deployment - containers, OVMS/vLLM load, DLStreamer, RabbitMQ/MinIO/Postgres/VDMS, "no summary", "search returns nothing". Probes Pipeline Manager health/feature endpoints; ships `scripts/triage.sh`. |
 | [`vss-model-onboarding`](./vss-model-onboarding/SKILL.md) | Ops | Bring a new VLM/embedding model into OVMS (OpenVINO IR conversion + model-dir layout). Ships `scripts/prepare_ovms_model.py`. |

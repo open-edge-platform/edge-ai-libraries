@@ -5,10 +5,10 @@ SPDX-License-Identifier: Apache-2.0
 
 # Skill Benchmark: vss-deploy-helm
 
-**Agents**: Copilot (`claude-haiku-4.5`)  
-**Grader**: Copilot (`gpt-5.3-codex`)  
-**Date**: 2026-08-07T09:17:35Z  
-**Evals**: 1, 2, 3, 4, 5, 6, 90 (1 run per configuration)
+**Agents**: Copilot (`claude-sonnet-5`)
+**Grader**: Copilot (`gpt-5.3-codex`)
+**Date**: 2026-08-24T15:06:34Z
+**Evals**: 1, 2, 3, 4 (1 run per configuration)
 
 ## Summary
 
@@ -18,25 +18,25 @@ SPDX-License-Identifier: Apache-2.0
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-haiku-4.5`) | 0 / 7 | 1 / 7 | **+1 ↑** |
+| Copilot (`claude-sonnet-5`) | 0 / 4 | 4 / 4 | **+4 ↑** |
 
 ### Pass rate (avg ± σ across evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-haiku-4.5`) | 3% ±8% | 57% ±31% | **+54pp ↑** |
+| Copilot (`claude-sonnet-5`) | 25% ±17% | 100% ±0% | **+75pp ↑** |
 
 ### Time (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-haiku-4.5`) | 176 s | 238 s | +62 s ↓ |
+| Copilot (`claude-sonnet-5`) | 190 s | 166 s | -24 s ↓ |
 
 ### Tokens (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-haiku-4.5`) | 195k | 1009k | +813k ↓ |
+| Copilot (`claude-sonnet-5`) | 133k | 728k | +595k ↓ |
 
 ## Per-Eval Detail
 
@@ -44,11 +44,8 @@ SPDX-License-Identifier: Apache-2.0
 
 | Eval | Prompt | Copilot (w/) | Copilot (w/o) |
 |---|---|---|---|
-| 1 | I have a fresh Kubernetes cluster with `kubectl` and Helm 3 already working, and... | FAIL (3/5) | FAIL (1/5) |
-| 2 | I currently have the `vss` release running in unified mode (`unified_summary_sea... | FAIL (3/5) | FAIL (0/5) |
-| 3 | My nodes have Intel GPUs and NPUs available via device plugins. For my VSS summa... | FAIL (4/5) | FAIL (0/5) |
-| 4 | I want to run VSS in search-only mode on my cluster (equivalent to `setup.sh --s... | PASS (5/5) | FAIL (0/5) |
-| 5 | I uninstalled and reinstalled the `vss` Helm release in namespace `vss-deploymen... | FAIL (2/5) | FAIL (0/5) |
-| 6 | I uninstalled and reinstalled the `vss` Helm release in namespace `vss-deploymen... | FAIL (3/5) | FAIL (0/5) |
-| 90 | I want to install VSS in unified mode with vLLM as the backend instead of OVMS, ... | FAIL (0/5) | FAIL (0/5) |
-| | **Mean ±σ** | **57% ±31%** | **3% ±8%** |
+| 1 | Prepare an offline installation plan for VSS summary mode with OVMS in namespace... | PASS (3/3) | FAIL (1/3) |
+| 2 | Document how to replace an existing unified VSS Helm release named `vss` with du... | PASS (3/3) | FAIL (1/3) |
+| 3 | Write an offline values example for VSS summary mode using OVMS with a VLM on an... | PASS (3/3) | FAIL (1/3) |
+| 4 | Prepare a Helm command and user-values checklist for unified VSS with the Xeon v... | PASS (3/3) | FAIL (0/3) |
+| | **Mean ±σ** | **100% ±0%** | **25% ±17%** |

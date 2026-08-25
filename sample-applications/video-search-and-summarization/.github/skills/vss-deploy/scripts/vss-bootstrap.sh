@@ -24,6 +24,7 @@
 #   VSS_REPO_BRANCH  Branch to fetch (default: main).
 #   VSS_CLONE_DIR    Where to place the checkout when cloning is required
 #                    (default: ${XDG_CACHE_HOME:-$HOME/.cache}/vss-src/edge-ai-libraries).
+#                    Existing non-VSS paths are never overwritten.
 #   VSS_FORCE_CLONE  If set to 1, skip local detection and always clone.
 #
 # Exit status
@@ -84,8 +85,28 @@ detect_local_vss_root() {
   return 1
 }
 
+# Remove only a staging directory created by this script under clone_parent.
+remove_staging_dir() {
+  local staging_dir="$1"
+  local clone_parent="$2"
+  case "$staging_dir" in
+    "$clone_parent"/.vss-clone.*)
+      if [ -e "$staging_dir" ] || [ -L "$staging_dir" ]; then
+        rm -rf -- "$staging_dir"
+      fi
+      ;;
+    *)
+      log "ERROR: refusing to remove unexpected staging path: $staging_dir"
+      return 1
+      ;;
+  esac
+}
+
 # Sparse, shallow, single-branch clone of just the VSS subtree.
 clone_vss() {
+  local clone_parent
+  local staging_dir
+
   if is_vss_root "$CLONE_DIR/$VSS_SUBPATH"; then
     log "Reusing existing bootstrap checkout at $CLONE_DIR"
     printf '%s\n' "$CLONE_DIR/$VSS_SUBPATH"; return 0
@@ -93,20 +114,38 @@ clone_vss() {
 
   command -v git >/dev/null 2>&1 || { log "ERROR: git is required but not found."; return 1; }
 
+  if [ -e "$CLONE_DIR" ] || [ -L "$CLONE_DIR" ]; then
+    log "ERROR: clone destination already exists and is not a valid VSS checkout: $CLONE_DIR"
+    log "Choose an empty VSS_CLONE_DIR; bootstrap never overwrites existing paths."
+    return 1
+  fi
+
   log "VSS source not found locally; sparse-cloning $VSS_SUBPATH"
   log "  repo=$REPO_URL branch=$REPO_BRANCH dest=$CLONE_DIR"
-  mkdir -p "$(dirname "$CLONE_DIR")"
-  rm -rf "$CLONE_DIR"
+  clone_parent="$(dirname "$CLONE_DIR")"
+  mkdir -p "$clone_parent"
+  staging_dir="$(mktemp -d "$clone_parent/.vss-clone.XXXXXX")"
 
-  git clone --filter=blob:none --no-checkout --depth 1 \
-    --single-branch --branch "$REPO_BRANCH" "$REPO_URL" "$CLONE_DIR" >&2
+  if ! git clone --filter=blob:none --sparse --depth 1 \
+    --single-branch --branch "$REPO_BRANCH" -- "$REPO_URL" "$staging_dir" >&2; then
+    remove_staging_dir "$staging_dir" "$clone_parent"
+    return 1
+  fi
 
-  git -C "$CLONE_DIR" sparse-checkout init --cone >&2
-  git -C "$CLONE_DIR" sparse-checkout set "$VSS_SUBPATH" >&2
-  git -C "$CLONE_DIR" checkout "$REPO_BRANCH" >&2
+  if ! git -C "$staging_dir" sparse-checkout set "$VSS_SUBPATH" >&2; then
+    remove_staging_dir "$staging_dir" "$clone_parent"
+    return 1
+  fi
 
-  if ! is_vss_root "$CLONE_DIR/$VSS_SUBPATH"; then
+  if ! is_vss_root "$staging_dir/$VSS_SUBPATH"; then
     log "ERROR: clone completed but $VSS_SUBPATH does not look like a VSS app root."
+    remove_staging_dir "$staging_dir" "$clone_parent"
+    return 1
+  fi
+
+  if ! mv -T -- "$staging_dir" "$CLONE_DIR"; then
+    log "ERROR: could not move the completed checkout into $CLONE_DIR"
+    remove_staging_dir "$staging_dir" "$clone_parent"
     return 1
   fi
   log "Clone complete."

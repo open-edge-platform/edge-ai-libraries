@@ -5,10 +5,10 @@ SPDX-License-Identifier: Apache-2.0
 
 # Skill Benchmark: vss-summarize-video
 
-**Agents**: Copilot (`claude-haiku-4.5`)  
-**Grader**: Copilot (`gpt-5.3-codex`)  
-**Date**: 2026-08-07T09:25:19Z  
-**Evals**: 1, 2, 3, 4, 5, 6, 90 (1 run per configuration)
+**Agents**: Copilot (`claude-sonnet-5`)
+**Grader**: Copilot (`gpt-5.3-codex`)
+**Date**: 2026-08-24T15:01:22Z
+**Evals**: 1, 2, 3, 4 (1 run per configuration)
 
 ## Summary
 
@@ -18,25 +18,25 @@ SPDX-License-Identifier: Apache-2.0
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-haiku-4.5`) | 0 / 7 | 2 / 7 | **+2 ↑** |
+| Copilot (`claude-sonnet-5`) | 0 / 4 | 4 / 4 | **+4 ↑** |
 
 ### Pass rate (avg ± σ across evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-haiku-4.5`) | 6% ±10% | 51% ±36% | **+46pp ↑** |
+| Copilot (`claude-sonnet-5`) | 0% ±0% | 100% ±0% | **+100pp ↑** |
 
 ### Time (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-haiku-4.5`) | 142 s | 225 s | +83 s ↓ |
+| Copilot (`claude-sonnet-5`) | 117 s | 125 s | +8 s ↓ |
 
 ### Tokens (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-haiku-4.5`) | 191k | 931k | +740k ↓ |
+| Copilot (`claude-sonnet-5`) | 125k | 435k | +309k ↓ |
 
 ## Per-Eval Detail
 
@@ -44,11 +44,8 @@ SPDX-License-Identifier: Apache-2.0
 
 | Eval | Prompt | Copilot (w/) | Copilot (w/o) |
 |---|---|---|---|
-| 1 | I just uploaded a video called "loading-dock-cam.mp4" to VSS. Can you summarize ... | FAIL (2/5) | FAIL (0/5) |
-| 2 | I have a 40-minute warehouse security video already ingested with videoId `vid-7... | PASS (5/5) | FAIL (1/5) |
-| 3 | Summarize the interview clip with videoId `int-2024-05`, and please include an a... | FAIL (2/5) | FAIL (0/5) |
-| 4 | For videoId `parking-lot-042`, I don't want a single blended summary - I want to... | PASS (5/5) | FAIL (1/5) |
-| 5 | Can you list all the summary pipelines currently stored in VSS, and then delete ... | FAIL (0/5) | FAIL (0/5) |
-| 6 | I only have this skills folder on my machine - the VSS application source isn't ... | FAIL (2/5) | FAIL (0/5) |
-| 90 | I just finished ingesting a video called "loading-bay-cam-03.mp4" into VSS and i... | FAIL (2/5) | FAIL (0/5) |
-| | **Mean ±σ** | **51% ±36%** | **6% ±10%** |
+| 1 | Prepare an offline API sequence to summarize an already ingested VSS video with ... | PASS (3/3) | FAIL (0/3) |
+| 2 | Build the summary request for video id `warehouse-88`: title it `Warehouse morni... | PASS (3/3) | FAIL (0/3) |
+| 3 | For VSS video id `yard-cam-17`, document a summary request that skips the final ... | PASS (3/3) | FAIL (0/3) |
+| 4 | Explain the offline Pipeline Manager sequence for summarizing an already uploade... | PASS (3/3) | FAIL (0/3) |
+| | **Mean ±σ** | **100% ±0%** | **0% ±0%** |
