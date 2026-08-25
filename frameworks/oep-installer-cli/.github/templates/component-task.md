@@ -16,7 +16,7 @@ pull request adding `module/{{NAME}}/debian`.
 
 ### Implementation requirements
 
-1. **Function naming** (see `module/README.md`):
+- **Function naming** (see `module/README.md`):
    ```
    debian_<NN>_profile_{{NAME}}
    debian_<NN>_install_{{NAME}}
@@ -35,11 +35,11 @@ pull request adding `module/{{NAME}}/debian`.
    99     profiles (virtual groups of components)
    ```
 
-2. **File location**: `module/{{NAME}}/debian` for debian specific functions and
+- **File location**: `module/{{NAME}}/debian` for debian specific functions and
    `module/{{NAME}}/linux` for distribution agnostic functions. The interface functions mentioned
    above must be defined in `module/{{NAME}}/debian`.        
 
-4. **Functions to implement**:
+- **Functions to implement**:
    - Always implement `install`, `remove`, `start`, and `stop`.
    - Omit `start`/`stop` **only** when the spec describes a stateless
      system package with no runtime service, for example, a library or SDK that has no
@@ -51,7 +51,7 @@ pull request adding `module/{{NAME}}/debian`.
      and the full license text (use `ensure_license_fetch` if fetching
      from a URL).
 
-5. **Profile function**: `debian_<NN>_profile_{{NAME}}` must `echo` a space-separated list of
+- **Profile function**: `debian_<NN>_profile_{{NAME}}` must `echo` a space-separated list of
    **existing** component names that `{{NAME}}` depends on. Components that use docker must
    include `docker`. For Edge tools, applications and services that use GPU or NPU, include
    `edge_base` as a dependency, which is a virtual package for preparing the system for GPU
@@ -63,56 +63,60 @@ pull request adding `module/{{NAME}}/debian`.
    to use. See `module/uv/debian` for an example. The `uv` component provides a public function
    `configure_uv` that can be used by other components, who declares `uv` as a dependent.
    
-7. **`configure_{{NAME}}` / `verify_{{NAME}}` idiom**:
-   - Define a `configure_{{NAME}}` function that sets local workspace, version, and repository
-     variables (no global state). 
-   - If a local workspace is required, use the default workspace location `$(ensure_project_path)/{{NAME}}`.  
+- **`configure_{{NAME}}` idiom**:
+   - If a local workspace is required to store the component source files or configurations, define
+     a `configure_{{NAME}}` function that sets local workspace, version, and repository variables.
+     Use the default workspace location `$(ensure_project_path)/{{NAME}}`.
+
+- **`verify_{{NAME}}` idiom**:
    - Define a `verify_{{NAME}}` function that returns 0 if the component is already correctly
      installed, non-zero otherwise.
-
-8. **Idempotent install**:
-   - Call `verify_{{NAME}}` at the top of `install`; skip if already satisfied and `--reset-{{NAME}}`
+   - The `verify_{{NAME}}` function should verify if the component is completely installed, by
+     checking the workspace existence, important files such as downloaded videos and models and
+     required docker images.
+     
+- **Idempotent `install`**:
+   - Call `verify_{{NAME}}` at the top of the `install_{{NAME}}` function; skip if already satisfied and `--reset-{{NAME}}`
      flag is absent.
    - Support the `--reset-{{NAME}}` flag to force reinstallation.
-   - The `install` function should install the component, configure/setup it up such that it is ready to use,
-     which also includes pulling docker images if the component is a dockerized application.
    - If the component has a RAM or disk size requirement, use `ensure_disk_size` and `ensure_ram_size` to
      check the disk and ram size and exit early if failed. 
+   - The `install_{{NAME}}` function should install the component, configure/setup it up such that it is ready to use,
+     which includes but not limit to downloading any videos or models (if requried), building or pulling docker images.
+     
+- **`start` robustness**:
+   - The start function must robustly launch the component. Use the `ensure_ports_open` to check if required ports are
+     occupied and if so, invoke the `stop_{{NAME}}` function. For containerized applications, check if containers are
+     already running, invoke the `stop_{{NAME}}` function to stop the containers and then restart the component.
 
-9. **`start` robustness**: The start function must robustly launch the component. Use the `ensure_ports_open`
-    to check if required ports are occupied and if so, invoke the stop function. For containerized applications,
-   check if containers are already running, invoke the stop function to stop the containers and then restart
-   the component.
+     The list of required ports can usually be obtained by scanning any docker compose files in the component workspace,
+     if not explicitly specified in the `{{SPEC_FILE}}`.   
 
-   The list of required ports can usually be obtained by scanning any docker compose files in the component
-   repository, if not explicitly specified in the `{{SPEC_FILE}}`.   
+- **`remove` robustness**:
+   - Call the `stop_{{NAME}}` function first (with `|| true`) to stop the component. Then clean up workspace/images/volumes.
 
-11. **`remove` robustness**: call `stop` first (with `|| true`) to stop the component,
-   then clean up workspace/images/volumes.
-
-12. **Helpers** – only reuse helpers that **actually exist** under `common/`
+- **Helpers** – only reuse helpers that **actually exist** under `common/`
    or `license/`. Do **not** invent new helpers. Available helpers:
 {{HELPERS_LIST}}
 
-13. **Name conventions** (see `module/README.md`):
+- **Name conventions** (see `module/README.md`):
    - No global variable name collisions. Use `local` variables or
      suffix/prefix with `_{{NAME}}`.
    - Internal helper functions (if any) must be prefixed with the component
      name, e.g. `{{NAME}}_setup_something`.
 
-11. **Reference implementations**:
-    - Full app (profile + install + start + stop + remove):
-      `module/smart_parking/debian`
+- **Reference implementations**:
+    - Full app (profile + install + start + stop + remove): `module/smart_parking/debian`
     - Minimal package (install only): `module/curl/debian`
 
 ---
 
 ### Device Selection
 
-For applications and tools that can configure GPU/NPU acceleration, during `install` and `start`,
-use the `ensure_select_device` function to retrieve the device selection from the installer command line: `--gpu` or `--npu`.
-The default is `--gpu`. This can then be used to configure the installation or the starting process
-to use GPU or NPU. See `module/smart_parking/debian` for an example.  
+Some applications or tools can configure GPU/NPU acceleration in the `install_{{NAME}}` and `start_{{NAME}}` functions. 
+Use the `ensure_select_device` function to retrieve the device selection from the installer command line: `--gpu` (default) 
+or `--npu`. The returned device (`gpu` or `npu`) can then be used to configure device acceleration the installation or 
+the starting process. See `module/smart_parking/debian` for an example.  
 
 ---
 
@@ -129,8 +133,18 @@ start.
   `unzip`, `make`, or `libgl1` — there is nothing meaningful to say.
 
 **For `start`**, the most useful highlight is usually the UI or API URL:
+
 ```bash
 echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
+```
+
+**For libraries and SDKs**, the most useful highlight is to show the workspace and some hints of operations:
+
+Example only:
+```bash
+echo "@@HIGHLIGHT workspace: $workspace"
+echo "@@HIGHLIGHT setup env: setup-vars.sh"
+echo "@@HIGHLIGHT make help to see full list of build targets"
 ```
 
 **Placement**: emit `@@HIGHLIGHT` lines **outside** the "already installed,
