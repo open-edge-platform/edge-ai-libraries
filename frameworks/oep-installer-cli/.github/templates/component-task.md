@@ -75,7 +75,9 @@ pull request adding `module/{{NAME}}/debian`.
      flag is absent.
    - Support the `--reset-{{NAME}}` flag to force reinstallation.
    - The `install` function should install the component, configure/setup it up such that it is ready to use,
-     which also includes pulling docker images if the component is a dockerized application.   
+     which also includes pulling docker images if the component is a dockerized application.
+   - If the component has a RAM or disk size requirement, use `ensure_disk_size` and `ensure_ram_size` to
+     check the disk and ram size and exit early if failed. 
 
 9. **`start` robustness**: The start function must robustly launch the component. Use the `ensure_ports_open`
     to check if required ports are occupied and if so, invoke the stop function. For containerized applications,
@@ -100,8 +102,17 @@ pull request adding `module/{{NAME}}/debian`.
 
 11. **Reference implementations**:
     - Full app (profile + install + start + stop + remove):
-      `module/loitering_detection/debian`
+      `module/smart_parking/debian`
     - Minimal package (install only): `module/curl/debian`
+
+---
+
+### Device Selection
+
+For applications and tools that can configure GPU/NPU acceleration, during `install` and `start`,
+use the `ensure_select_device` function to retrieve the device selection from the installer command line: `--gpu` or `--npu`.
+The default is `--gpu`. This can then be used to configure the installation or the starting process
+to use GPU or NPU. See `module/smart_parking/debian` for an example.  
 
 ---
 
@@ -179,7 +190,7 @@ Do **not** state that platform validation passed — you cannot run it.
 ### Platform validation
 
 Platform validation is performed by a maintainer applying the
-`validate-platform` label to the PR.  This triggers
+`VALIDATE-PLATFORM` label to the PR.  This triggers
 `.github/workflows/platform-validate.yml` on a self-hosted runner inside the
 corporate lab, which runs the following lifecycle on real hardware:
 
