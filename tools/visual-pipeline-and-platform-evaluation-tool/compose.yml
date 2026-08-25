@@ -51,6 +51,10 @@ x-vippet: &vippet
     UPLOAD_ALLOWED_CODECS: "h264,h265"
     UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
     METADATA_DIR: /metadata
+    # Bytes of padding on the metadata SSE preamble and keepalives. Buffering HTTP
+    # proxies release a response only once their block buffer fills, which a low-rate
+    # metadata stream never does on its own. Raise behind an aggressive proxy.
+    SSE_PADDING_BYTES: ${SSE_PADDING_BYTES:-8192}
     SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark,gvainference"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
