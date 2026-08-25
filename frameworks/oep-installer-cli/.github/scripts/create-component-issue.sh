@@ -4,13 +4,34 @@
 # for each, builds a detailed task-body file, and creates a GitHub issue
 # assigned to copilot-swe-agent.
 #
-# Requires: gh (GitHub CLI) authenticated via GITHUB_TOKEN env var.
+# Environment variables:
+#   FORCE_REGENERATE   Set to "true" to bypass Guards 2 and 3 (module-exists
+#                      and open-issue checks).  Default: unset / false.
+#   MAX_TASKS_PER_RUN  Maximum number of new issues to create in one run.
+#                      Default: 3.  If the number of eligible specs exceeds
+#                      this cap, the job fails loudly and no issues are created.
+#
+# Requires: gh (GitHub CLI) authenticated via GH_TOKEN env var, jq.
 set -euo pipefail
 
 SPECS_LIST="${1:?Usage: $0 <specs_list_file>}"
+FORCE_REGENERATE="${FORCE_REGENERATE:-false}"
+MAX_TASKS_PER_RUN="${MAX_TASKS_PER_RUN:-3}"
+
+# Validate MAX_TASKS_PER_RUN is a positive integer.
+if ! [[ "$MAX_TASKS_PER_RUN" =~ ^[1-9][0-9]*$ ]]; then
+  echo "::error::MAX_TASKS_PER_RUN must be a positive integer, got: '${MAX_TASKS_PER_RUN}'"
+  exit 1
+fi
 
 # Build list of available helpers once (embedded into every issue body)
 HELPERS_LIST="$(find common/ license/ -type f 2>/dev/null | grep -v -E '/(cli|panelled_logs|license_gate)$' | sort | sed 's|^|  - |')"
+
+# ---------------------------------------------------------------------------
+# Pass 1 – collect eligible specs (apply Guards 2 and 3)
+# ---------------------------------------------------------------------------
+eligible_specs=()
+eligible_names=()
 
 while IFS= read -r spec_file; do
   [ -f "$spec_file" ] || continue
@@ -19,6 +40,56 @@ while IFS= read -r spec_file; do
   raw_name="$(basename "$spec_file" .md)"
   name="${raw_name,,}"
   name="${name//-/_}"
+
+  # Guard 2 – skip if module/<name>/ already exists
+  if [[ "$FORCE_REGENERATE" != "true" ]] && [[ -d "module/${name}/" ]]; then
+    echo "::notice::Skipping ${spec_file}: module/${name}/ already exists. Delete the module directory or set FORCE_REGENERATE=true to regenerate."
+    continue
+  fi
+
+  # Guard 3 – skip if an open issue with the same title already exists
+  if [[ "$FORCE_REGENERATE" != "true" ]]; then
+    issue_title="Implement installer component: ${name}"
+    # gh issue list search is fuzzy; filter JSON for an exact title match with jq.
+    existing_number="$(gh issue list \
+      --state open \
+      --search "${issue_title}" \
+      --json number,title \
+      | jq -r --arg title "${issue_title}" \
+          '.[] | select(.title == $title) | .number' \
+      | head -n 1)"
+    if [[ -n "$existing_number" ]]; then
+      echo "::notice::Skipping ${spec_file}: open issue #${existing_number} already exists for '${issue_title}'. Set FORCE_REGENERATE=true to create a new one."
+      continue
+    fi
+  fi
+
+  eligible_specs+=("$spec_file")
+  eligible_names+=("$name")
+done < "$SPECS_LIST"
+
+# Guard 4 – cap tasks per run (pre-flight, all-or-nothing)
+task_count="${#eligible_specs[@]}"
+if (( task_count > MAX_TASKS_PER_RUN )); then
+  echo "::error::${task_count} specs are eligible but MAX_TASKS_PER_RUN is ${MAX_TASKS_PER_RUN}. No issues were created."
+  echo "::error::Eligible specs: ${eligible_specs[*]}"
+  echo "::error::To proceed deliberately, either:"
+  echo "::error::  - Re-run with a higher MAX_TASKS_PER_RUN (workflow_dispatch input 'max_tasks')"
+  echo "::error::  - Dispatch each spec individually via workflow_dispatch with 'spec_file'"
+  exit 1
+fi
+
+if (( task_count == 0 )); then
+  echo "No eligible specs after filtering – nothing to do."
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Pass 2 – create issues for eligible specs
+# ---------------------------------------------------------------------------
+for i in "${!eligible_specs[@]}"; do
+  spec_file="${eligible_specs[$i]}"
+  name="${eligible_names[$i]}"
 
   BODY_FILE="$(mktemp --suffix=.md)"
 
@@ -238,4 +309,4 @@ ENDOFBODY
     --assignee copilot-swe-agent
 
   rm -f "$BODY_FILE"
-done < "$SPECS_LIST"
+done
