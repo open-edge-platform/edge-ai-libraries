@@ -6,6 +6,12 @@ This page tracks releases of the Semantic Search Agent microservice. The most re
 
 <!--date TBD-->
 
+## Version 2026.2.0-rc2
+
+**Release Date:** 2026-08-25
+
+Release candidate build for the upcoming 2026.2.0 release. Image published as `intel/semantic-search-agent:2026.2.0-rc2`.
+
 ## Version 2026.1.0
 
 First release of the Semantic Search Agent as a production-ready, multi-strategy AI comparison microservice.
