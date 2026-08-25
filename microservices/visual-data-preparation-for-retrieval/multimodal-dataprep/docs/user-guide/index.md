@@ -1,5 +1,17 @@
-# Multimodal Data Preparation Microservice
-Multimodal DataPrep is the ingestion and embedding service that powers the Video Search and Summarization (VSS) and Visual Search & Question-Answering (VSQA) flows. It accepts raw media — **videos and images** — orchestrates enrichment (frame sampling for video, direct embedding for images, optional object detection for both), generates embeddings in-process, and stores both the derived embeddings and the original assets in a vector database and object storage. The service is **vector-database agnostic** (VDMS, Milvus) and **storage agnostic** (MinIO, local filesystem); backends are selected at startup with no code changes.
+# Multimodal Data Preparation for Retrieval Microservice
+
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep">
+     GitHub
+  </a>
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/README.md">
+     Readme
+  </a>
+</div>
+hide_directive-->
+
+Multimodal DataPrep is the ingestion and embedding service that powers the [Video Search and Summarization (VSS)](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html) and [Visual Search & Question-Answering (VSQA)](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/visual-search-question-and-answering/index.html) flows. It accepts raw media — **videos and images** — orchestrates enrichment (frame sampling for video, direct embedding for images, optional object detection for both), generates embeddings in-process, and stores both the derived embeddings and the original assets in a vector database and object storage. The service is **vector-database agnostic** (VDMS, Milvus) and **storage agnostic** (MinIO, local filesystem); backends are selected at startup with no code changes.
 
 The FastAPI application is mounted under the `/v1/dataprep` root path and exposes endpoints to ingest videos and images (binary upload, base64, or remote URL), process existing stored content, ingest in batches, attach human-authored summaries, and manage stored media.
 
@@ -17,7 +29,7 @@ The microservice handles multimodal ingestion with a unified media pipeline:
 ## Key Benefits
 
 - **Multimodal ingest:** Video frame-level sampling and image direct-embedding in one API, with optional YOLOX-based object detection for both.
-- **Backend agnostic:** Swap the vector database (`MM_DATAPREP_VECTORDB_BACKEND`: `vdms`/`milvus`) or the object storage (`MM_DATAPREP_STORAGE_BACKEND`: `minio`/`local`) without code changes. See [Pluggable Backends](pluggable-backends.md).
+- **Backend agnostic:** Swap the vector database (`MM_DATAPREP_VECTORDB_BACKEND`: `vdms`/`milvus`) or the object storage (`MM_DATAPREP_STORAGE_BACKEND`: `minio`/`local`) without code changes. See [Pluggable Backends](./pluggable-backends.md).
 - **Flexible runtime:** Runtime toggles for OpenVINO acceleration and device offload (`MM_DATAPREP_EMBEDDING_DEVICE`, `MM_DATAPREP_DETECTION_DEVICE`) without code changes.
 - **Content deduplication:** Optional content-hash dedup (`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS`) rejects byte-identical re-uploads across all transports (multipart, base64, URL).
 - **Consistent metadata model:** Each stored record always references the canonical download URL and includes timestamps, tag lists, `content_type`, and bucket identifiers for frictionless recall.
@@ -42,7 +54,23 @@ The microservice handles multimodal ingestion with a unified media pipeline:
 
 ## Supporting Resources
 
-- [Get Started Guide](get-started.md)
-- [Pluggable Backends](pluggable-backends.md)
-- [API Reference](api-reference.md)
-- [System Requirements](system-requirements.md)
+- [Get Started Guide](./get-started.md)
+  - [System Requirements](./get-started/system-requirements.md)
+- [Pluggable Backends](./pluggable-backends.md)
+- [API Reference](./api-reference.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+get-started.md
+Pluggable Backends <pluggable-backends.md>
+How It Works: Architecture <how-it-works-architecture.md>
+How It Works: Ingestion Flow <how-it-works-ingestion-flow.md>
+telemetry-metrics.md
+api-reference.md
+troubleshooting.md
+Release Notes <release-notes.md>
+
+:::
+hide_directive-->
