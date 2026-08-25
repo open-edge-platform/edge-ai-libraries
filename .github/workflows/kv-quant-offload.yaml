@@ -58,9 +58,9 @@ jobs:
           cd libraries/kv-quant-offload
 
 
-          export CPATH="/usr/include:/usr/include/x86_64-linux-gnu${CPATH:+:$CPATH}"
-          export CPLUS_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
-          export C_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
+          #export CPATH="/usr/include:/usr/include/x86_64-linux-gnu${CPATH:+:$CPATH}"
+          #export CPLUS_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
+          #export C_INCLUDE_PATH="/usr/include:/usr/include/x86_64-linux-gnu${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
           #pip install numpy torch==2.11.0+xpu setuptools>=61 --extra-index-url https://download.pytorch.org/whl/xpu
           echo "=== 非扫描部署 ==="
           pip install . --extra-index-url https://download.pytorch.org/whl/xpu
