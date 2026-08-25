@@ -211,5 +211,5 @@ Read reference files only when needed for advanced configuration details:
 
 **Every final answer must include: startup command, the curl POST with device and frame destination,
 the RTSP URL (`rtsp://host:8554/stream-name`), a status-check command (`GET /pipelines/status`),
-and a stop command (`DELETE /pipelines/{instance_id}`).** Keep responses compact — use single-line
+and a stop command (HTTP `DELETE` on `/pipelines/<instance_id>`).** Keep responses compact — use single-line
 JSON in curl commands when the body is short.
