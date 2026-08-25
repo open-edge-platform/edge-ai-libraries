@@ -37,16 +37,21 @@ fi
 # replacement (no sed/envsubst, safe for multi-line values containing
 # shell-special characters).  SPEC_CONTENT is substituted last so that
 # spec text containing literal "{{NAME}}" etc. is not further expanded.
+# Usage: render_template <template_file> <name> <spec_file> <helpers_list> <spec_content>
 # ---------------------------------------------------------------------------
 render_template () {
   local template="$1"
+  local name="$2"
+  local spec_file="$3"
+  local helpers_list="$4"
+  local spec_content="$5"
   local body
   body="$(<"$template")"
 
-  body="${body//\{\{NAME\}\}/$NAME}"
-  body="${body//\{\{SPEC_FILE\}\}/$SPEC_FILE}"
-  body="${body//\{\{HELPERS_LIST\}\}/$HELPERS_LIST}"
-  body="${body//\{\{SPEC_CONTENT\}\}/$SPEC_CONTENT}"
+  body="${body//\{\{NAME\}\}/$name}"
+  body="${body//\{\{SPEC_FILE\}\}/$spec_file}"
+  body="${body//\{\{HELPERS_LIST\}\}/$helpers_list}"
+  body="${body//\{\{SPEC_CONTENT\}\}/$spec_content}"
 
   printf '%s\n' "$body"
 }
@@ -118,12 +123,8 @@ for i in "${!eligible_specs[@]}"; do
   spec_file="${eligible_specs[$i]}"
   name="${eligible_names[$i]}"
 
-  NAME="$name"
-  SPEC_FILE="$spec_file"
-  SPEC_CONTENT="$(cat "$spec_file")"
-
   BODY_FILE="$(mktemp --suffix=.md)"
-  render_template "$TEMPLATE_FILE" > "$BODY_FILE"
+  render_template "$TEMPLATE_FILE" "$name" "$spec_file" "$HELPERS_LIST" "$(cat "$spec_file")" > "$BODY_FILE"
 
   gh issue create \
     --title "Implement installer component: ${name}" \
