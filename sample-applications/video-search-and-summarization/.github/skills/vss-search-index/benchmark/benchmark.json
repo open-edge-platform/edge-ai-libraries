@@ -1,0 +1,330 @@
+{
+  "metadata": {
+    "skill_name": "vss-search-index",
+    "skill_path": "/home/intel/krishna/oep-eal/sample-applications/video-search-and-summarization/.github/skills/vss-search-index",
+    "executor_model": "claude-sonnet-5",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-08-25T06:44:34Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 40.5,
+        "tokens": 235695,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides `POST /manager/videos` as multipart form data with field `video` and comma-separated `tags`.",
+          "passed": true,
+          "evidence": "response.md states \"POST /manager/videos \u2014 multipart/form-data\" and shows `-F \"video=@/data/cameras/receiving-bay.mp4\"` plus `-F \"tags=receiving,outdoor\"`."
+        },
+        {
+          "text": "Carries the returned `videoId` into `POST /manager/videos/search-embeddings/{videoId}`.",
+          "passed": true,
+          "evidence": "response.md shows upload response `{ \"videoId\": \"<VIDEO_ID>\" }`, then calls `POST \"$HOST/manager/videos/search-embeddings/<VIDEO_ID>\"` and explicitly says `<VIDEO_ID>` is carried from step 1 `videoId`."
+        },
+        {
+          "text": "Includes an embedding-readiness check before the optional search query.",
+          "passed": true,
+          "evidence": "Before step 3 search query, step 2 defines readiness: \"Finished when: re-fetching the video record shows embedding generation succeeded\" with `curl -s \"$HOST/manager/videos/<VIDEO_ID>\" | jq '.video'`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 44.8,
+        "tokens": 236827,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses `POST /manager/search/query` with query `forklift near a loading door` and tags `warehouse`.",
+          "passed": true,
+          "evidence": "In outputs/response.md: \"POST /manager/search/query\" and request body includes \"query\": \"forklift near a loading door\" and \"tags\": \"warehouse\"."
+        },
+        {
+          "text": "Uses the relative time filter `{ \"value\": 48, \"unit\": \"hours\" }`.",
+          "passed": true,
+          "evidence": "In outputs/response.md request body: \"timeFilter\": { \"value\": 48, \"unit\": \"hours\" }."
+        },
+        {
+          "text": "Reads ranked clips from `.results[].results[]` and identifies relevance, video id, and clip or seek timing fields.",
+          "passed": true,
+          "evidence": "In outputs/response.md: ranked clips path is shown as `.results[].results[]`, and fields listed include `metadata.relevance_score`, `metadata.video_id`, `metadata.segment_start`/`metadata.segment_end`, and `metadata.seek_timestamp`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 47.0,
+        "tokens": 286260,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses `GET /manager/videos` to build a mapping from `videoId` to `.dataStore.fileName`.",
+          "passed": true,
+          "evidence": "response.md shows: `curl -s \"$HOST/manager/videos\" | jq '[.videos[] | {key:.videoId, value:.dataStore.fileName}] | from_entries' > /tmp/idmap.json`."
+        },
+        {
+          "text": "Uses `POST /manager/search/query` for `white delivery van` and joins each hit's `metadata.video_id` to that mapping.",
+          "passed": true,
+          "evidence": "response.md shows `POST /manager/search/query` with `-d '{ \"query\": \"white delivery van\" }'` and join logic `jq --slurpfile m /tmp/idmap.json ... \\($m[0][.metadata.video_id] // \"?\")`."
+        },
+        {
+          "text": "Formats each ranked result with the mapped filename, relevance score, and clip or seek timing.",
+          "passed": true,
+          "evidence": "response.md formats ranked hits as `score=... file=... clip=... seek=...`, including mapped filename, relevance score, and timing fields."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 57.8,
+        "tokens": 279100,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses the wrapped `GET /manager/videos` response and matches `north-gate-evening.mp4` through `.dataStore.fileName` to obtain its existing `videoId`.",
+          "passed": true,
+          "evidence": "In outputs/response.md: `curl -s \"$HOST/manager/videos\" | jq '.videos[] | select(.dataStore.fileName == \"north-gate-evening.mp4\") | {videoId, file: .dataStore.fileName}'`, plus explicit note: `GET /manager/videos returns an object { \"videos\": [...] }`."
+        },
+        {
+          "text": "Uses that `videoId` with `POST /manager/videos/search-embeddings/{videoId}` and does not upload another copy.",
+          "passed": true,
+          "evidence": "In outputs/response.md step 2: `curl -s -X POST \"$HOST/manager/videos/search-embeddings/<VIDEO_ID>\" | jq .`; and step 1 states `Because the video is already uploaded... do not ... POST a new upload.` It also says `No clone was performed` and no upload command is present."
+        },
+        {
+          "text": "After embedding readiness, uses `POST /manager/search/query` for `vehicle stopped at gate` and does not fabricate ranked results.",
+          "passed": true,
+          "evidence": "In outputs/response.md step 3: `curl -s -X POST \"$HOST/manager/search/query\" ... -d '{\"query\": \"vehicle stopped at gate\"}'`. The audit trail states it was not executed due unreachable backend and `no scores, clip windows, or filenames are reported \u2014 none should be assumed`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 29.4,
+        "tokens": 128971,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides `POST /manager/videos` as multipart form data with field `video` and comma-separated `tags`.",
+          "passed": false,
+          "evidence": "The output specifies `POST {base_url}/videos` (not `/manager/videos`) and uses `file=@/data/cameras/receiving-bay.mp4` instead of a `video` form field, though it does include `tags=receiving,outdoor`."
+        },
+        {
+          "text": "Carries the returned `videoId` into `POST /manager/videos/search-embeddings/{videoId}`.",
+          "passed": false,
+          "evidence": "The plan carries `video_id` into `POST {base_url}/videos/search-embeddings/{video_id}` but does not use the expected `/manager/...` path or camelCase `videoId`."
+        },
+        {
+          "text": "Includes an embedding-readiness check before the optional search query.",
+          "passed": false,
+          "evidence": "Step 3 says `Once embeddings are generated (and indexed), issue a search query` but does not provide a concrete readiness-check step or polling/check endpoint before search."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 36.3,
+        "tokens": 130913,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses `POST /manager/search/query` with query `forklift near a loading door` and tags `warehouse`.",
+          "passed": false,
+          "evidence": "response.md uses `POST /search/query` and `curl -X POST \"http://localhost:8100/search/query\"` (missing `/manager` prefix), though it does include `\"query\": \"forklift near a loading door\"` and `\"tags\": [\"warehouse\"]`."
+        },
+        {
+          "text": "Uses the relative time filter `{ \"value\": 48, \"unit\": \"hours\" }`.",
+          "passed": false,
+          "evidence": "response.md uses absolute `start_time` and `end_time` timestamps (`\"2026-08-23T12:11:35+05:30\"` to `\"2026-08-25T12:11:35+05:30\"`) and does not use the relative filter object."
+        },
+        {
+          "text": "Reads ranked clips from `.results[].results[]` and identifies relevance, video id, and clip or seek timing fields.",
+          "passed": false,
+          "evidence": "response.md states clips are in a top-level `results` array and shows entries directly under `\"results\": [...]` with `score`, `video_id`, and `start_time_offset`/`end_time_offset`; it does not use or reference nested `.results[].results[]`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.33,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 83.2,
+        "tokens": 565188,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses `GET /manager/videos` to build a mapping from `videoId` to `.dataStore.fileName`.",
+          "passed": false,
+          "evidence": "The output uses `GET /videos` and maps `videoId` to `name` (`return {v[\"videoId\"]: v[\"name\"] for v in resp.json()[\"videos\"]}`), with no `.dataStore.fileName` mapping shown."
+        },
+        {
+          "text": "Uses `POST /manager/search/query` for `white delivery van` and joins each hit's `metadata.video_id` to that mapping.",
+          "passed": false,
+          "evidence": "The output queries `POST /search/query` with `\"query\": \"white delivery van\"` and joins via `video_id = meta[\"video_id\"]`, but does not use the expected `/manager/search/query` endpoint."
+        },
+        {
+          "text": "Formats each ranked result with the mapped filename, relevance score, and clip or seek timing.",
+          "passed": true,
+          "evidence": "The script prints `f\"{filename}  |  score={score:.3f}  |  t={timestamp} ...\"`, and example output shows filename + score + time (e.g., `delivery_dock_cam1.mp4  |  score=0.870  |  t=14:32:05`)."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 40.4,
+        "tokens": 131444,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses the wrapped `GET /manager/videos` response and matches `north-gate-evening.mp4` through `.dataStore.fileName` to obtain its existing `videoId`.",
+          "passed": false,
+          "evidence": "The output uses `GET \"http://<host>:<port>/videos\"` and filters with `select(.file_name == \"north-gate-evening.mp4\")`, with fields like `video_id`/`file_name`; it does not use `/manager/videos` or `.dataStore.fileName`."
+        },
+        {
+          "text": "Uses that `videoId` with `POST /manager/videos/search-embeddings/{videoId}` and does not upload another copy.",
+          "passed": false,
+          "evidence": "It correctly says not to re-upload (`Do not call POST /videos again`), but the endpoint shown is `POST \"http://<host>:<port>/videos/search-embeddings/<VIDEO_ID>\"`, not `/manager/videos/search-embeddings/{videoId}`."
+        },
+        {
+          "text": "After embedding readiness, uses `POST /manager/search/query` for `vehicle stopped at gate` and does not fabricate ranked results.",
+          "passed": false,
+          "evidence": "The query text is present and results are marked illustrative/placeholders, but the request shown is `POST \"http://<host>:<port>/search/query\"` rather than `/manager/search/query`."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 47.525,
+        "stddev": 7.3627,
+        "min": 40.5,
+        "max": 57.8
+      },
+      "tokens": {
+        "mean": 259470.5,
+        "stddev": 26962.9194,
+        "min": 235695,
+        "max": 286260
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0825,
+        "stddev": 0.165,
+        "min": 0.0,
+        "max": 0.33
+      },
+      "time_seconds": {
+        "mean": 47.325,
+        "stddev": 24.3436,
+        "min": 29.4,
+        "max": 83.2
+      },
+      "tokens": {
+        "mean": 239129.0,
+        "stddev": 217375.2656,
+        "min": 128971,
+        "max": 565188
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.92",
+      "time_seconds": "+0.2",
+      "tokens": "+20342"
+    }
+  },
+  "notes": []
+}

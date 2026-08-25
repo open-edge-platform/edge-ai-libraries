@@ -5,9 +5,9 @@ SPDX-License-Identifier: Apache-2.0
 
 # Skill Benchmark: vss-search-index
 
-**Agents**: Copilot (`claude-sonnet-5`)
-**Grader**: Copilot (`gpt-5.3-codex`)
-**Date**: 2026-08-24T14:59:18Z
+**Agents**: Copilot (`claude-sonnet-5`)  
+**Grader**: Copilot (`gpt-5.3-codex`)  
+**Date**: 2026-08-25T06:44:34Z  
 **Evals**: 1, 2, 3, 4 (1 run per configuration)
 
 ## Summary
@@ -24,19 +24,19 @@ SPDX-License-Identifier: Apache-2.0
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 8% ±17% | 100% ±0% | **+92pp ↑** |
+| Copilot (`claude-sonnet-5`) | 8% ±16% | 100% ±0% | **+92pp ↑** |
 
 ### Time (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 142 s | 123 s | -18 s ↓ |
+| Copilot (`claude-sonnet-5`) | 189 s | 190 s | +1 s ↓ |
 
 ### Tokens (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 128k | 500k | +372k ↓ |
+| Copilot (`claude-sonnet-5`) | 957k | 1038k | +81k ↓ |
 
 ## Per-Eval Detail
 
