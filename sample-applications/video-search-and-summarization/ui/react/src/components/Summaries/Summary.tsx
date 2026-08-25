@@ -615,7 +615,7 @@ export const Summary: FC = () => {
                       .map((fs, idx) => (
                       <div key={fs.frameKey} style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--cds-border-subtle)' }}>
                         <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--cds-text-secondary)' }}>
-                          {t('chunkLabel', { defaultValue: 'Chunk' })} {idx + 1} — {t('Frames')} [{fs.startFrame}:{fs.endFrame}]
+                          {t('chunkLabel', { defaultValue: 'Chunk' })} {idx + 1} - {t('Frames')} [{fs.startFrame}:{fs.endFrame}]
                         </h4>
                         <Markdown>{processMD(fs.summary)}</Markdown>
                       </div>

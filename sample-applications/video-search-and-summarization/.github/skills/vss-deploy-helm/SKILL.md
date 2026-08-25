@@ -76,7 +76,7 @@ global:
   modelDownload:
     image:
       repository: intel/model-download
-      tag: "2026.2.0-ww30"
+      tag: "2026.2.0-rc2"
       pullPolicy: IfNotPresent
     ovmsReleaseTag: "v2026.1"
   proxy:
@@ -249,7 +249,7 @@ service, and `global.devices.multimodalDataprep.detection` for DataPrep object
 detection. These settings are independent; every GPU/NPU setting requires its
 own resource `key`.
 
-vLLM tuning keys from the actual `vllm` subchart:
+vLLM tuning keys from the actual `vllm` subchart (set `global.vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"` for vLLM):
 ```yaml
 vllm:
   enabled: true

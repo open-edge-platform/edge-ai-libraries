@@ -22,6 +22,11 @@ This release introduces **configurable external model sources**, **request-scope
 
 - **Uploaded Model Name Validation**: preserves letter case, converts spaces to underscores, and rejects unsafe or malformed names with clearer errors.
 - **Updated the default container UID/GID to 1000**: to align with host user permissions and simplify volume access
+- **Fixed security vulnerability issues**
+
+**Known Issues:**
+
+- **Intermittent curl SSL certificate errors**: Some plugins may intermittently fail with curl: (60) SSL certificate problem: unable to get local issuer certificate during HTTPS requests. The root cause is currently under investigation.
 
 ---
 

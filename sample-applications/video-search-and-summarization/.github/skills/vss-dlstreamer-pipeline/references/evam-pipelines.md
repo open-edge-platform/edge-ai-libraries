@@ -7,7 +7,7 @@ This reference is grounded in the Video Search & Summarization sample applicatio
 | Concern | Repo path | Notes |
 |---|---|---|
 | Pipeline definitions | `video-ingestion/resources/conf/config.json` | Copied into the image as `/home/pipeline-server/config.json`. |
-| Pipeline Server image | `video-ingestion/docker/Dockerfile` | `FROM intel/dlstreamer-pipeline-server:2026.1.0-ubuntu24-rc2`. |
+| Pipeline Server image | `video-ingestion/docker/Dockerfile` | `FROM intel/dlstreamer-pipeline-server:2026.2.0-ubuntu24-rc2`. |
 | Python publisher used by `gvapython` | `video-ingestion/src/publish.py` | Copied to `/home/pipeline-server/gvapython/publisher/`. |
 | EVAM request DTO and pipeline enum | `pipeline-manager/src/evam/models/evam.model.ts` | Defines `ChunkingRequestDTO`, `EVAMPipelines`. |
 | EVAM HTTP client | `pipeline-manager/src/evam/services/evam.service.ts` | Builds POST URL/body and polls status. |
@@ -285,7 +285,7 @@ To add `my_pipeline`:
 6. Update UI/API tests or config docs that enumerate valid EVAM pipelines.
 7. Rebuild `video-ingestion`; its Dockerfile copies the config file into the image.
 
-If a required DL Streamer element, model-proc file, or post-processing setup lives only inside `intel/dlstreamer-pipeline-server:2026.1.0-ubuntu24-rc2`, say so explicitly in docs and use this repo's integration seam (`config.json`, model mount, Python publisher, and request payload) rather than pretending the external image internals are in this repository.
+If a required DL Streamer element, model-proc file, or post-processing setup lives only inside `intel/dlstreamer-pipeline-server:2026.2.0-ubuntu24-rc2`, say so explicitly in docs and use this repo's integration seam (`config.json`, model mount, Python publisher, and request payload) rather than pretending the external image internals are in this repository.
 
 ## Validation commands
 

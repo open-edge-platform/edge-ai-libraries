@@ -168,7 +168,9 @@ ENABLE_EMBEDDING_GPU=true source setup.sh --search                       # GPU f
 
 For vLLM, `setup.sh` adds `docker/compose.vllm.yaml`, starts `vllm-cpu-service`
 (profile `vllm`) on host port `8200`, and uses `VLM_MODEL_NAME` for both
-captioning and final summary. Experimental `ENABLE_VLLM_GPU=true` instead adds
+captioning and final summary (use
+`VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"`).
+Experimental `ENABLE_VLLM_GPU=true` instead adds
 `docker/compose.vllm.xpu.yaml`, selects profile `vllm-xpu`, and disables OVMS.
 For OVMS GPU, `setup.sh` adds
 `docker/compose.gpu_ovms.yaml` and switches `ovms-service` to
