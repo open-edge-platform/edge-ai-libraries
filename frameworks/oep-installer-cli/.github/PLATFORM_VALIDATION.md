@@ -16,6 +16,7 @@ exists, how it is secured, and how an admin configures it.
 7. [Driver vs. application targets](#driver-vs-application-targets)
 8. [Apt / registry cache](#apt--registry-cache)
 9. [Trigger warning](#trigger-warning)
+10. [Dispatch guards and idempotence](#dispatch-guards-and-idempotence)
 
 ---
 
@@ -218,3 +219,79 @@ environment secrets, which would break validation anyway.
 
 See the security comment at the top of
 `.github/workflows/platform-validate.yml` for the full explanation.
+
+---
+
+## Dispatch guards and idempotence
+
+The **`Generate component from spec`** workflow (`.github/workflows/instructions-to-component.yml`)
+and its helper script (`.github/scripts/create-component-issue.sh`) include
+four active guards that prevent accidental or duplicate generation of Copilot
+task issues.
+
+### Guard 1 — added files only (workflow)
+
+Implemented in: `.github/workflows/instructions-to-component.yml`
+
+Push-triggered runs use `--diff-filter=A` (Added), not `--diff-filter=AM`.
+Only a **newly committed** spec file triggers generation.  Bulk edits, typo
+fixes, formatting changes, and rebases on existing specs are silent no-ops.
+
+`workflow_dispatch` with an explicit `spec_file` input is **not** subject to
+this filter — manual dispatch is always intentional.
+
+### Guard 2 — module directory already exists (script)
+
+Implemented in: `.github/scripts/create-component-issue.sh`
+
+If `module/<name>/` already exists in the repository, the spec is skipped with
+a `::notice::` log message and no issue is created.  This makes re-runs safe
+and idempotent.
+
+**To override**: set the `force` workflow input to `true` when using
+`workflow_dispatch` (Actions → Generate component from spec → Run workflow →
+`force: true`).  This sets `FORCE_REGENERATE=true` in the script environment.
+
+### Guard 3 — open issue already exists (script)
+
+Implemented in: `.github/scripts/create-component-issue.sh`
+
+Before creating a new issue, the script searches for an existing **open** issue
+with the exact title `Implement installer component: <name>`.  An exact-match
+filter via `jq` is applied (GitHub's issue search is fuzzy).  If a match is
+found, the spec is skipped and the existing issue number is logged.
+
+**To override**: same as Guard 2 — set `force: true` on `workflow_dispatch`.
+
+### Guard 4 — cap tasks per run (script)
+
+Implemented in: `.github/scripts/create-component-issue.sh`
+
+After Guards 2 and 3 have filtered the eligible specs, the script counts them.
+If the count exceeds `MAX_TASKS_PER_RUN` (default: **3**), the job fails with
+a `::error::` message listing every spec that would have been dispatched, and
+**no issues are created** (all-or-nothing pre-flight).
+
+**To override**: pass a higher value via the `max_tasks` workflow input on
+`workflow_dispatch` (e.g. `max_tasks: 10`).  Alternatively, dispatch each spec
+individually using the `spec_file` input.
+
+### Deliberately regenerating a component
+
+To force regeneration of an already-implemented component (e.g. after improving
+the agent prompt or the spec):
+
+1. Go to **Actions → Generate component from spec → Run workflow**.
+2. Set `spec_file` to the path of the spec (e.g. `specification/mwdd.md`).
+3. Set `force` to `true`.
+4. Click **Run workflow**.
+
+This bypasses Guards 2 and 3 and creates a new issue regardless of whether the
+module directory or an open issue already exists.
+
+### Guard 5 — CODEOWNERS (commented out, inert)
+
+`.github/CODEOWNERS` contains an **entirely commented-out** rule that, once
+uncommented and activated, would require a review from `@intel-sandbox/oep-maintainers`
+before any `specification/` change is merged.  The file is inert as committed.
+See the comments inside the file for activation prerequisites.
