@@ -5,12 +5,12 @@
 # Generate runtime credentials for a local VSS deployment.
 #
 # Per repo policy, credentials must not live in any committed file. This script
-# writes strong random dev credentials into a GITIGNORED `vss.secrets.env` next
-# to vss.config.env, which you then `source` before setup.sh.
+# writes strong random dev credentials outside the checkout, under the user's
+# config directory by default, which you then `source` before setup.sh.
 #
 # Properties:
-#   - Idempotent: if vss.secrets.env already exists it is left untouched, so the
-#     credentials stay stable across restarts (changing them after the first
+#   - Idempotent: if the credentials file already exists it is left untouched,
+#     so the credentials stay stable across restarts (changing them after the first
 #     deploy would invalidate existing Postgres/MinIO/RabbitMQ data volumes).
 #   - Honors pre-set shell vars: any credential already exported is reused
 #     instead of being randomized, so you can inject vault/CI secrets.
@@ -18,23 +18,59 @@
 #
 # Usage:
 #   ./.github/skills/vss-deploy/scripts/gen-secrets.sh            # create if absent
-#   ./.github/skills/vss-deploy/scripts/gen-secrets.sh --force    # rotate (wipes file)
-#   VSS_SECRETS_FILE=/path/to/secrets.env ./...gen-secrets.sh # custom location
+#   ./.github/skills/vss-deploy/scripts/gen-secrets.sh --force    # rotate atomically
+#   VSS_CREDENTIALS_FILE=/path/to/credentials ./...gen-secrets.sh  # custom location
 #
 # Then:
-#   source .github/skills/vss-deploy/vss.config.env
-#   source .github/skills/vss-deploy/vss.secrets.env
+#   source .github/skills/vss-deploy/vss.config
+#   source "${VSS_CREDENTIALS_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/vss/vss.credentials}"
 #   source setup.sh --summary
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SECRETS_FILE="${VSS_SECRETS_FILE:-${SCRIPT_DIR}/../vss.secrets.env}"
+CONFIG_BASE="${XDG_CONFIG_HOME:-${HOME:?HOME is required}/.config}"
+DEFAULT_CREDENTIALS_FILE="$CONFIG_BASE/vss/vss.credentials"
+CREDENTIALS_FILE="${VSS_CREDENTIALS_FILE:-${VSS_SECRETS_FILE:-$DEFAULT_CREDENTIALS_FILE}}"
+CREDENTIALS_DIR="$(dirname "$CREDENTIALS_FILE")"
+CREDENTIALS_NAME="$(basename "$CREDENTIALS_FILE")"
+FORCE=0
+TEMP_FILE=""
 
-if [ "${1:-}" = "--force" ]; then
-  rm -f "$SECRETS_FILE"
-elif [ -f "$SECRETS_FILE" ]; then
-  echo "Secrets already present, reusing: $SECRETS_FILE"
+case "${1:-}" in
+  "") ;;
+  --force) FORCE=1 ;;
+  *)
+    echo "ERROR: unsupported argument: $1" >&2
+    echo "Usage: $0 [--force]" >&2
+    exit 2
+    ;;
+esac
+
+if [ "$#" -gt 1 ]; then
+  echo "ERROR: expected at most one argument." >&2
+  echo "Usage: $0 [--force]" >&2
+  exit 2
+fi
+
+if [ "$CREDENTIALS_FILE" = "$DEFAULT_CREDENTIALS_FILE" ]; then
+  mkdir -p "$CREDENTIALS_DIR"
+elif [ ! -d "$CREDENTIALS_DIR" ]; then
+  echo "ERROR: credentials directory does not exist: $CREDENTIALS_DIR" >&2
+  exit 1
+fi
+
+if [ -L "$CREDENTIALS_FILE" ]; then
+  echo "ERROR: refusing to write credentials through a symbolic link: $CREDENTIALS_FILE" >&2
+  exit 1
+fi
+
+if [ -e "$CREDENTIALS_FILE" ] && [ ! -f "$CREDENTIALS_FILE" ]; then
+  echo "ERROR: credentials destination is not a regular file: $CREDENTIALS_FILE" >&2
+  exit 1
+fi
+
+if [ "$FORCE" -eq 0 ] && [ -f "$CREDENTIALS_FILE" ]; then
+  echo "Credentials already present, reusing: $CREDENTIALS_FILE"
   echo "(use --force to rotate - note this invalidates existing data volumes)"
   exit 0
 fi
@@ -46,23 +82,36 @@ fi
 
 rand() { openssl rand -hex 24; }
 
-umask 077
-cat > "$SECRETS_FILE" <<EOF
-# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-# SPDX-License-Identifier: Apache-2.0
-#
-# AUTO-GENERATED local VSS credentials - DO NOT COMMIT (this file is gitignored).
-# Regenerate with scripts/gen-secrets.sh --force (invalidates existing volumes).
-export MINIO_ROOT_USER="${MINIO_ROOT_USER:-vss_minio}"
-export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-$(rand)}"
-export POSTGRES_USER="${POSTGRES_USER:-vss_pg}"
-export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(rand)}"
-export RABBITMQ_USER="${RABBITMQ_USER:-vss_rmq}"
-export RABBITMQ_PASSWORD="${RABBITMQ_PASSWORD:-$(rand)}"
-export MQTT_USER="${MQTT_USER:-vss_mqtt}"
-export MQTT_PASSWORD="${MQTT_PASSWORD:-$(rand)}"
-EOF
+cleanup() {
+  if [ -n "$TEMP_FILE" ] && { [ -e "$TEMP_FILE" ] || [ -L "$TEMP_FILE" ]; }; then
+    rm -f -- "$TEMP_FILE"
+  fi
+}
 
-chmod 600 "$SECRETS_FILE"
-echo "Generated $SECRETS_FILE (gitignored, mode 600)."
-echo "Next: source vss.config.env, source vss.secrets.env, then setup.sh <mode>."
+umask 077
+TEMP_FILE="$(mktemp "$CREDENTIALS_DIR/.${CREDENTIALS_NAME}.tmp.XXXXXX")"
+trap cleanup EXIT
+
+{
+  printf '%s\n' \
+    '# SPDX-FileCopyrightText: (C) 2026 Intel Corporation' \
+    '# SPDX-License-Identifier: Apache-2.0' \
+    '#' \
+    '# AUTO-GENERATED local VSS credentials - DO NOT COMMIT.' \
+    '# Regenerate with scripts/gen-secrets.sh --force (invalidates existing volumes).'
+  printf 'export MINIO_ROOT_USER=%q\n' "${MINIO_ROOT_USER:-vss_minio}"
+  printf 'export MINIO_ROOT_PASSWORD=%q\n' "${MINIO_ROOT_PASSWORD:-$(rand)}"
+  printf 'export POSTGRES_USER=%q\n' "${POSTGRES_USER:-vss_pg}"
+  printf 'export POSTGRES_PASSWORD=%q\n' "${POSTGRES_PASSWORD:-$(rand)}"
+  printf 'export RABBITMQ_USER=%q\n' "${RABBITMQ_USER:-vss_rmq}"
+  printf 'export RABBITMQ_PASSWORD=%q\n' "${RABBITMQ_PASSWORD:-$(rand)}"
+  printf 'export MQTT_USER=%q\n' "${MQTT_USER:-vss_mqtt}"
+  printf 'export MQTT_PASSWORD=%q\n' "${MQTT_PASSWORD:-$(rand)}"
+} > "$TEMP_FILE"
+
+mv -T -f -- "$TEMP_FILE" "$CREDENTIALS_FILE"
+TEMP_FILE=""
+trap - EXIT
+
+echo "Generated $CREDENTIALS_FILE (mode 600)."
+echo "Next: source vss.config, source the generated credentials file, then setup.sh <mode>."

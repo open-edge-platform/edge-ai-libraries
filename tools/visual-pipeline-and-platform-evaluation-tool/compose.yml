@@ -177,7 +177,7 @@ services:
     ports:
       - "7860:7860"
   metrics-manager:
-    image: docker.io/intel/metrics-manager:2026.2.0-rc1
+    image: docker.io/intel/metrics-manager:2026.2.0-rc2
     container_name: metrics-manager
     init: true
     ports:

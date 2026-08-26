@@ -237,5 +237,5 @@ CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
 5. For deploy requests, response includes raw `docker compose ps` output and
   raw health-check output with `HTTP_STATUS:200` as readiness evidence.
 6. For stop requests, response includes raw `docker ps` output as termination
-  evidence, and a fully stopped state matches:
-  `CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES`
+	evidence, and a fully stopped state matches:
+	`CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES`

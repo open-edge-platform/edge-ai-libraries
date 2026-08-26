@@ -270,7 +270,18 @@ push: check-docker
 #   deploy-clean    → stop all containers and wipe user-data volumes
 # ==============================================================================
 
-WAIT_HEALTH_SCRIPT := .github/skills/vss-deploy/scripts/wait-health.sh
+define WAIT_FOR_VSS_HEALTH
+VSS_BASE="http://$${HOST_IP:-localhost}:$${APP_HOST_PORT:-12345}"; \
+deadline=$$(( $$(date +%s) + 300 )); \
+until curl -sf --max-time 5 "$$VSS_BASE/manager/health" >/dev/null; do \
+	if [ "$$(date +%s)" -ge "$$deadline" ]; then \
+		echo "VSS health check timed out: $$VSS_BASE/manager/health" >&2; \
+		docker compose ps; \
+		exit 1; \
+	fi; \
+	sleep 5; \
+done
+endef
 
 # Load .env into the shell before calling setup.sh.
 # Rules:
@@ -305,25 +316,25 @@ deploy:
 deploy-summary: build build-deps
 	@echo "Deploying VSS in summary mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary'
-	@$(WAIT_HEALTH_SCRIPT)
+	@$(WAIT_FOR_VSS_HEALTH)
 	@echo "VSS summary mode deployed."
 
 deploy-search: build build-deps
 	@echo "Deploying VSS in search mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --search'
-	@$(WAIT_HEALTH_SCRIPT)
+	@$(WAIT_FOR_VSS_HEALTH)
 	@echo "VSS search mode deployed."
 
 deploy-dual: build build-deps
 	@echo "Deploying VSS in dual (summary + search) mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary --search'
-	@$(WAIT_HEALTH_SCRIPT)
+	@$(WAIT_FOR_VSS_HEALTH)
 	@echo "VSS dual mode deployed."
 
 deploy-unified: build build-deps
 	@echo "Deploying VSS in unified mode (search over summaries)..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary-and-search'
-	@$(WAIT_HEALTH_SCRIPT)
+	@$(WAIT_FOR_VSS_HEALTH)
 	@echo "VSS unified mode deployed."
 
 deploy-stop:
@@ -338,7 +349,7 @@ deploy-clean:
 
 health-check:
 	@echo "Checking VSS health..."
-	@$(WAIT_HEALTH_SCRIPT)
+	@$(WAIT_FOR_VSS_HEALTH)
 
 
 # ==============================================================================
