@@ -1,6 +1,12 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Skill Benchmark: chatqna-api-smoke-test
 
 **Model**: gpt-5.6-terra (codex CLI default)
+**Grader**: gpt-5.6-terra (codex CLI default)
 **Date**: 2026-08-03T08:18:19Z
 **Evals**: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 (1 run(s) each per configuration)
 
