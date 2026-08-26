@@ -10,7 +10,7 @@ Benchmark Suites are located on the left menu under "Benchmarks".
 
 ![Benchmark list](../../_assets/benchmarks_list_light.png)
 
-A benchmark suite is a repeatable evaluation plan for a single workload category such as retail, metro, or manufacturing. Each suite contains one or more workloads, and each workload defines a pipeline together with the concrete benchmark variants and stream counts that should be tested. This allows ViPPET to compare the same use case across different hardware configurations and workload intensities.
+A benchmark suite is a repeatable evaluation plan for a single workload category such as retail, metro, or manufacturing. Each suite contains one or more workloads, and each workload defines a pipeline together with the concrete benchmark configurations, including the selected pipeline variant and stream count for each test. This allows ViPPET to compare the same use case across different hardware configurations and workload intensities.
 
 Open the benchmark suite you want to run to see more details:
 
