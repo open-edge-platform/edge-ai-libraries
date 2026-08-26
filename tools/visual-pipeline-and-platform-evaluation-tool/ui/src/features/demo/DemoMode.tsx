@@ -2232,44 +2232,47 @@ const DemoMode = () => {
                                   <div className="space-y-3">
                                     {/* Participation rate per pipeline */}
                                     <div className="space-y-2">
-                                      {pipelineSelections.map((selection, index) => {
-                                        const pipeline = pipelines.find(
-                                          (p) => p.id === selection.pipelineId,
-                                        );
+                                      {pipelineSelections.map(
+                                        (selection, index) => {
+                                          const pipeline = pipelines.find(
+                                            (p) =>
+                                              p.id === selection.pipelineId,
+                                          );
 
-                                        return (
-                                          <div
-                                            key={selection.pipelineId}
-                                            className="rounded-md border border-demo-panel-border bg-demo-preview-card-surface px-3 py-2"
-                                          >
-                                            <div className="flex items-center justify-between gap-2 mb-2">
-                                              <span className="text-xs text-demo-panel-title font-semibold">
-                                                {pipeline?.name
-                                                  ? getBasePipelineName(
-                                                      pipeline.name,
-                                                    )
-                                                  : "Pipeline"}
-                                              </span>
-                                              <span className="text-[0.625rem] text-muted-foreground">
-                                                Participation rate
-                                              </span>
+                                          return (
+                                            <div
+                                              key={selection.pipelineId}
+                                              className="rounded-md border border-demo-panel-border bg-demo-preview-card-surface px-3 py-2"
+                                            >
+                                              <div className="flex items-center justify-between gap-2 mb-2">
+                                                <span className="text-xs text-demo-panel-title font-semibold">
+                                                  {pipeline?.name
+                                                    ? getBasePipelineName(
+                                                        pipeline.name,
+                                                      )
+                                                    : "Pipeline"}
+                                                </span>
+                                                <span className="text-[0.625rem] text-muted-foreground">
+                                                  Participation rate
+                                                </span>
+                                              </div>
+                                              <ParticipationSlider
+                                                value={selection.stream_rate}
+                                                onChange={(val) =>
+                                                  handleStreamRateChange(
+                                                    index,
+                                                    val,
+                                                  )
+                                                }
+                                                min={0}
+                                                max={100}
+                                                disabled={isReadOnly}
+                                                valueInputClassName="rounded-lg border-demo-carousel-button-border bg-demo-panel-menu-surface text-demo-panel-input-text focus-visible:ring-demo-panel-input-focus-ring focus-visible:ring-2"
+                                              />
                                             </div>
-                                            <ParticipationSlider
-                                              value={selection.stream_rate}
-                                              onChange={(val) =>
-                                                handleStreamRateChange(
-                                                  index,
-                                                  val,
-                                                )
-                                              }
-                                              min={0}
-                                              max={100}
-                                              disabled={isReadOnly}
-                                              valueInputClassName="rounded-lg border-demo-carousel-button-border bg-demo-panel-menu-surface text-demo-panel-input-text focus-visible:ring-demo-panel-input-focus-ring focus-visible:ring-2"
-                                            />
-                                          </div>
-                                        );
-                                      })}
+                                          );
+                                        },
+                                      )}
                                     </div>
 
                                     {/* FPS Floor */}

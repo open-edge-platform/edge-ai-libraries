@@ -1,4 +1,4 @@
-# Media Ingestion Flow: From Upload to Vector Database Storage
+# How It Works: Media Ingestion Flow
 
 ## Overview
 
@@ -9,11 +9,12 @@ This document provides a comprehensive visual flow of the media ingestion proces
 
 Both kinds converge on the **same** embedding model, the **same** shared vector collection, and the **same** storage/deduplication/metadata handling; records are distinguished by a `content_type` field (`video` / `image`). Storage and vector backends are pluggable (MinIO/local, VDMS/Milvus); the diagrams below label VDMS/MinIO as the default example.
 
----
-
 ## High-Level Architecture
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 graph TB
     subgraph "Entry Points"
         A1[POST /media/upload<br/>Direct File Upload]
@@ -45,17 +46,16 @@ graph TB
     G --> H
     H --> I
 
-    style F fill:#fff9e6
-    style I fill:#e8f5e9
 ```
-
----
 
 ## Detailed Video Ingestion Flow
 
 ### Stage 1: Video Upload & Initial Processing
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 flowchart TD
     START([Video Upload Request]) --> ENTRY{Entry Point?}
 
@@ -73,8 +73,6 @@ flowchart TD
 
     CONFIG --> FRAME_EXTRACT[Stage 2: Frame Extraction<br/>✓ In-process embeddings<br/>✓ Memory-based processing<br/>✓ OpenVINO optimized]
 
-    style START fill:#e3f2fd
-    style FRAME_EXTRACT fill:#ffe0b2
 ```
 
 **Key Decisions:**
@@ -88,11 +86,12 @@ flowchart TD
 - MinIO upload/download depends on video size and network
 - In-process embedding eliminates network latency
 
----
-
 ### Stage 2: Frame Extraction & Metadata Creation
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 flowchart TD
     START[Frame Extraction Stage] --> VIDEO_INFO[Read Video Information<br/>Using Decord VideoReader]
 
@@ -106,7 +105,7 @@ flowchart TD
 
     SEEK --> CONVERT[Convert Tensor to NumPy<br/>• Handle decord NDArray<br/>• Ensure uint8 format<br/>• Verify shape H,W,C]
 
-    CONVERT --> META[Create Frame Metadata<br/>frame_metadata = <br/>• frame_id: video_id_framenum<br/>• frame_number<br/>• timestamp: frame_idx/fps<br/>• frame_type: 'full_frame'<br/>• content_type: 'video'<br/>• video_id, filename, bucket<br/>• video_url, video_rel_url<br/>• source_path (dir ingest)<br/>• tags, user metadata<br/>• fps, total_frames, duration]
+    CONVERT --> META["Create Frame Metadata<br/>frame_metadata = <br/>• frame_id: video_id_framenum<br/>• frame_number<br/>• timestamp: frame_idx/fps<br/>• frame_type: 'full_frame'<br/>• content_type: 'video'<br/>• video_id, filename, bucket<br/>• video_url, video_rel_url<br/>• source_path (dir ingest)<br/>• tags, user metadata<br/>• fps, total_frames, duration"]
 
     META --> STORE_FRAME[Store Frame Array<br/>frames.append frame_numpy<br/>frames_metadata.append metadata]
 
@@ -117,11 +116,7 @@ flowchart TD
 
     COMPLETE --> DETECT_STAGE[Stage 3: Object Detection]
 
-    style START fill:#ffe0b2
-    style CALC fill:#e1f5fe
-    style EXTRACT_LOOP fill:#fff9c4
-    style COMPLETE fill:#c8e6c9
-    style DETECT_STAGE fill:#f8bbd0
+
 ```
 
 **Optimization Highlights:**
@@ -136,11 +131,12 @@ flowchart TD
 - **Memory Usage**: ~4MB per 1080p frame (uncompressed)
 - **Extraction Rate**: ~30-100 frames/second depending on video resolution
 
----
-
 ### Stage 3: Object Detection (Optional)
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 flowchart TD
     START[Object Detection Stage] --> CHECK{Object Detection<br/>Enabled?}
 
@@ -187,11 +183,7 @@ flowchart TD
     SKIP --> BATCH_CREATE
     DETECTION_DONE --> BATCH_CREATE[Stage 4: Batch Creation]
 
-    style START fill:#f8bbd0
-    style INIT fill:#e1f5fe
-    style PARALLEL_DETECT fill:#fff9c4
-    style DETECTION_DONE fill:#c8e6c9
-    style BATCH_CREATE fill:#d1c4e9
+
 ```
 
 **Object Detection Details:**
@@ -225,11 +217,12 @@ flowchart TD
 - Global detector instance reused (no reload per request)
 - Crops validated (min 10x10px, valid coordinates)
 
----
-
 ### Stage 4: Batch Creation for Parallel Processing
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 flowchart TD
     START[Batch Creation Stage] --> INPUT[Input: List of Images + Metadata<br/><br/>After Detection:<br/>• Full frames: 60<br/>• Detected crops: 180<br/>• Total items: 240]
 
@@ -247,11 +240,7 @@ flowchart TD
 
     SUBMIT --> PARALLEL[Stage 5: Parallel Processing]
 
-    style START fill:#d1c4e9
-    style CONFIG fill:#e1f5fe
-    style CREATE_BATCHES fill:#fff9c4
-    style SUBMIT fill:#c8e6c9
-    style PARALLEL fill:#ffccbc
+
 ```
 
 **Pipeline Configuration Logic:**
@@ -298,11 +287,12 @@ batch_size = 32  # Fixed optimal size
 - **Larger batches**: Higher memory, better throughput
 - **Dynamic adjustment**: Future enhancement based on available memory
 
----
-
 ### Stage 5: Parallel Batch Processing Pipeline
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 flowchart TD
     START[Parallel Processing Stage] --> POOL[Thread Pool Executor<br/>max_workers = pipeline_count<br/><br/>Example: 4 workers<br/>Processing 8 batches]
 
@@ -361,10 +351,7 @@ flowchart TD
 
     AGGREGATE --> FINAL[Stage 6: Final Results]
 
-    style START fill:#ffccbc
-    style EMB_LOCAL_PROC fill:#c8e6c9
-    style VDB_BULK fill:#e8eaf6
-    style BATCH_DONE fill:#c8e6c9
+
 ```
 
 **Parallel Processing Characteristics:**
@@ -379,7 +366,7 @@ flowchart TD
 **Embedding Generation Characteristics:**
 
 | Aspect | In-process pipeline |
-|--------|---------------------|
+| ------ | ------------------- |
 | **Method** | Direct function call |
 | **Network** | None |
 | **Serialization** | None (PIL objects) |
@@ -402,11 +389,12 @@ flowchart TD
 - **Index Efficiency**: VDMS can optimize index updates
 - **Faster Than Individual**: ~10x faster than per-item inserts
 
----
-
 ### Stage 6: Results Aggregation & Performance Metrics
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 flowchart TD
     START[Results Aggregation] --> COLLECT[Collect All Batch Results<br/>From ThreadPoolExecutor.as_completed]
 
@@ -424,11 +412,11 @@ flowchart TD
         subgraph "Time Statistics"
             TIME_DETAIL --> EXTRACT_TIME[Frame Extraction<br/>Total time: e.g., 1.2s<br/>Frames extracted: 60]
 
-            EXTRACT_TIME --> DETECT_TIME[Object Detection<br/>Avg per batch: e.g., 0.8s<br/>Max per batch: e.g., 1.2s<br/>% of batch time: e.g., 25%]
+            EXTRACT_TIME --> DETECT_TIME["Object Detection<br/>Avg per batch: e.g., 0.8s<br/>Max per batch: e.g., 1.2s<br/>% of batch time: e.g., 25%"]
 
-            DETECT_TIME --> EMBED_TIME[Embedding Generation<br/>Avg per batch: e.g., 2.1s<br/>Max per batch: e.g., 3.5s<br/>% of batch time: e.g., 65%]
+            DETECT_TIME --> EMBED_TIME["Embedding Generation<br/>Avg per batch: e.g., 2.1s<br/>Max per batch: e.g., 3.5s<br/>% of batch time: e.g., 65%"]
 
-            EMBED_TIME --> STORE_TIME[Vector DB Storage<br/>Avg per batch: e.g., 0.3s<br/>Max per batch: e.g., 0.5s<br/>% of batch time: e.g., 10%]
+            EMBED_TIME --> STORE_TIME["Vector DB Storage<br/>Avg per batch: e.g., 0.3s<br/>Max per batch: e.g., 0.5s<br/>% of batch time: e.g., 10%"]
 
             STORE_TIME --> TOTAL_TIME[Total Pipeline Time<br/>Wall clock time: e.g., 8.5s<br/>Sequential would be: ~28s<br/>Speedup: 3.3x]
         end
@@ -441,7 +429,7 @@ flowchart TD
 
         INPUT_FRAMES --> POST_DETECT[Post-Detection Items<br/>After object detection: 240<br/>Expansion: 4x]
 
-        POST_DETECT --> STORED_EMBS[Stored Embeddings<br/>Successfully stored: 240<br/>Success rate: 100%]
+        POST_DETECT --> STORED_EMBS["Stored Embeddings<br/>Successfully stored: 240<br/>Success rate: 100%"]
     end
 
     STORED_EMBS --> BATCH_STATS[Batch Statistics]
@@ -453,7 +441,7 @@ flowchart TD
 
         AVG_BATCH --> MAX_BATCH[Max Batch Time<br/>e.g., 4.2s slowest batch]
 
-        MAX_BATCH --> EFFICIENCY[Processing Efficiency<br/>Parallel overhead: ~15%<br/>Resource utilization: 85%]
+        MAX_BATCH --> EFFICIENCY["Processing Efficiency<br/>Parallel overhead: ~15%<br/>Resource utilization: 85%"]
     end
 
     EFFICIENCY --> RETURN_RESULT[Return Final Result]
@@ -468,12 +456,7 @@ flowchart TD
 
     JSON --> COMPLETE([Processing Complete])
 
-    style START fill:#e1bee7
-    style COLLECT fill:#e1f5fe
-    style TIME_DETAIL fill:#fff9c4
-    style FRAME_COUNTS fill:#c8e6c9
-    style BATCH_STATS fill:#ffccbc
-    style COMPLETE fill:#a5d6a7
+
 ```
 
 **Performance Metrics Explained:**
@@ -528,8 +511,6 @@ Efficiency = (Theoretical Sequential / Workers) / Actual
            = (33.6s / 4) / 8.5s = 8.4s / 8.5s = 98.8%
 ```
 
----
-
 ## Image Ingestion Flow
 
 Images take a deliberately **frame-less** path: there is no decode loop and no
@@ -540,7 +521,7 @@ records — tagged with `content_type="image"`.
 ### Entry points and transports
 
 | Endpoint | Content type | Image source |
-|----------|--------------|--------------|
+| -------- | ------------ | ------------ |
 | `POST /media/upload` | `multipart/form-data` | binary file bytes |
 | `POST /media/ingest` | `application/json` | inline base64 (`type=image_base64`) or remote URL (`type=image_url`) |
 | `POST /media/ingest/batch` | `application/json` | list of base64/URL image sources (async job) |
@@ -554,6 +535,9 @@ capped before any processing.
 ### Stage flow
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 graph TB
     subgraph "Entry"
         U1[POST /media/upload<br/>multipart bytes]
@@ -599,7 +583,7 @@ graph TB
 ### How it differs from the video flow
 
 | Aspect | Video | Image |
-|--------|-------|-------|
+| ------ | ----- | ----- |
 | Decode / frame sampling | Yes — every Nth frame (`MM_DATAPREP_FRAME_INTERVAL`) | **None** — single image |
 | Records produced | 1 full frame + N crops **per sampled frame** | 1 full image + optional crops |
 | Timestamp metadata | Per-frame timestamp | Single (upload-time) reference |
@@ -613,11 +597,12 @@ Because images reuse the same embedding model and vector contract as video
 frames, image and video records are directly comparable in a single similarity
 search, enabling cross-modal retrieval.
 
----
-
 ## Complete End-to-End Flow Visualization
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 graph TB
     subgraph "Stage 1: Video Upload"
         A[Video Upload<br/>POST /media/upload or /media/process] --> C[Memory Processing]
@@ -662,14 +647,8 @@ graph TB
         Q --> S[Return Response<br/>Status: 201 CREATED<br/>Details: timing + counts]
     end
 
-    style C fill:#c8e6c9
-    style H fill:#e1f5fe
-    style N fill:#ffccbc
-    style R fill:#e8f5e9
-    style S fill:#a5d6a7
-```
 
----
+```
 
 ## Performance Optimization Summary
 
@@ -702,7 +681,7 @@ graph TB
 ### Configuration Parameters
 
 | Parameter | Default | Impact | Tuning Guide |
-|-----------|---------|--------|--------------|
+| --------- | ------- | ------ | ------------ |
 | `frame_interval` | 15 | Frame extraction density | Lower = more frames (slower, more detail) |
 | `batch_size` | 32 | Items per embedding batch | Fixed optimal value |
 | `pipeline_count` | auto | Parallel workers | CPU cores ÷ 4 (OpenVINO) or ÷ 16 (PyTorch) |
@@ -714,7 +693,7 @@ graph TB
 **Example Video**: 30 seconds, 30fps (900 frames), 1920x1080
 
 | Configuration | Frames Extracted | Items After Detection | Total Time | Speedup |
-|---------------|------------------|----------------------|------------|---------|
+| ------------- | ---------------- | --------------------- | ---------- | ------- |
 | interval=15, detection=ON, in-process | 60 | 240 (avg 3 crops/frame) | 8.5s | 3.95x |
 | interval=15, detection=OFF, in-process | 60 | 60 | 4.2s | 4.2x |
 | interval=30, detection=ON, in-process | 30 | 120 | 4.8s | 3.8x |
@@ -727,13 +706,14 @@ graph TB
 - Vector DB Storage: 0.7s (8%)
 - **Total Pipeline**: 8.5s (100%)
 
----
-
 ## System Architecture Context
 
 ### Component Interaction
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 graph LR
     subgraph "Multimodal DataPrep Microservice"
         A[FastAPI Endpoints] --> B[Video Processing]
@@ -755,9 +735,7 @@ graph LR
     G --> H
     A --> I
 
-    style G fill:#c8e6c9
-    style H fill:#e8f5e9
-    style I fill:#fff3e0
+
 ```
 
 ### Service Dependencies
@@ -780,8 +758,6 @@ graph LR
    - OpenVINO IR format
    - CPU/GPU inference
    - Auto-downloads model files
-
----
 
 ## Troubleshooting & Monitoring
 
@@ -810,7 +786,7 @@ graph LR
 ### Common Performance Issues
 
 | Issue | Symptom | Cause | Solution |
-|-------|---------|-------|----------|
+| ----- | ------- | ----- | -------- |
 | Slow extraction | High frame_extraction_time | Large video, slow storage | Use faster storage, reduce resolution |
 | Detection bottleneck | High detection_time | CPU overload | Enable GPU, reduce confidence threshold |
 | Embedding slowdown | High embedding_time | Model overload | Increase workers, enable OpenVINO |
@@ -837,24 +813,20 @@ graph LR
 "Frame flow summary: extracted=X -> after_detection=Y -> stored=Z"
 ```
 
----
-
 ## Conclusion
 
 The Multimodal DataPrep ingestion pipeline is a highly optimized system that efficiently processes both **video and images** for semantic search. The video path (detailed above) applies frame extraction and parallel batch embedding; the image path embeds directly. Both converge on the same embedding model and shared vector collection. Key achievements:
 
-✅ **Parallel Processing**: 3-4x speedup through multi-threaded execution
-✅ **Batch Storage**: Prevents memory overflow with incremental saves
-✅ **In-process Optimization**: Eliminates HTTP overhead
-✅ **Object Detection**: Expands search coverage with detected crops
-✅ **Memory Efficiency**: Direct memory processing between stages
-✅ **Comprehensive Metrics**: Detailed timing and statistics for optimization
+- **Parallel Processing**: 3-4x speedup through multi-threaded execution
+- **Batch Storage**: Prevents memory overflow with incremental saves
+- **In-process Optimization**: Eliminates HTTP overhead
+- **Object Detection**: Expands search coverage with detected crops
+- **Memory Efficiency**: Direct memory processing between stages
+- **Comprehensive Metrics**: Detailed timing and statistics for optimization
 
 **Total Processing Time**: 8-10 seconds for a 30-second video (detection ON)
 
 **Scalability**: Handles videos up to 500MB, auto-configures workers based on available resources
-
----
 
 ## References
 
@@ -864,5 +836,3 @@ The Multimodal DataPrep ingestion pipeline is a highly optimized system that eff
 - **Core Processing**: `src/core/embedding/embedding_helper.py`
 - **Object Detection**: `src/core/object_detection/detector.py`
 - **Video Utils**: `src/core/utils/video_utils.py`
-
----
