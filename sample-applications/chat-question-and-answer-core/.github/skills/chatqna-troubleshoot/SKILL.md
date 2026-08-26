@@ -197,6 +197,14 @@ kubectl delete pvc <pvc-name> -n <namespace>
 
 ### 3. Gateway and Reachability Diagnostics
 
+For Helm/Kubernetes, always pair `kubectl describe pod` with `kubectl logs` for the
+nginx/UI pod before probing endpoints, even if `kubectl get pods` already showed Running:
+
+```bash
+kubectl describe pod <nginx-or-ui-pod-name> -n <namespace>
+kubectl logs <nginx-or-ui-pod-name> -n <namespace>
+```
+
 Probe gateway endpoints through nginx exposure on port 8102:
 
 ```bash
@@ -212,21 +220,20 @@ If docs/openapi fail but containers are up, check nginx container logs and servi
 
 ### 4. API and Runtime Diagnostics
 
-Validate model and runtime-specific endpoints:
+Always check `/model` first, then the runtime-specific endpoint below it — both are
+required evidence for any 500/model/runtime investigation, not just one of them.
+
+OpenVINO runtime checks (run both together):
 
 ```bash
 curl -sS -w "\nHTTP_STATUS:%{http_code}\n" "${BASE_URL}/model"
-```
-
-OpenVINO runtime checks:
-
-```bash
 curl -sS -w "\nHTTP_STATUS:%{http_code}\n" "${BASE_URL}/devices"
 ```
 
-Ollama runtime checks:
+Ollama runtime checks (run both together):
 
 ```bash
+curl -sS -w "\nHTTP_STATUS:%{http_code}\n" "${BASE_URL}/model"
 curl -sS -w "\nHTTP_STATUS:%{http_code}\n" "${BASE_URL}/ollama-models"
 ```
 

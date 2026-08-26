@@ -1,15 +1,50 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Skill Benchmark: chatqna-troubleshoot
 
-**Model**: gpt-5.6-terra (codex CLI default)
-**Date**: 2026-08-03T08:13:39Z
-**Evals**: 1, 2, 3 (1 run(s) each per configuration)
+**Agents**: Copilot (`claude-sonnet-5`)
+**Grader**: Copilot (`gpt-5.3-codex`)
+**Date**: 2026-08-26T08:36:03Z
+**Evals**: 1, 2, 3 (1 run per configuration)
 
 ## Summary
 
-> **How to read this table** — **Avg** is the mean score across all evals; **Std Dev** (the ± spread) measures how much individual evals varied around that average — small spread means the agent behaved consistently, large spread means results were erratic; **Skill Lift** is the gain from loading the skill (with − without).
+> Skill lift = with skill − without skill. ↑ = better, ↓ = higher cost (expected).
 
-| Metric | Avg ± Std Dev (With Skill) | Avg ± Std Dev (Without Skill) | Skill Lift (Δ) |
-|--------|---------------------------|-------------------------------|----------------|
-| Pass Rate (% correct) | 100% avg, ±0% spread (consistent) | 53% avg, ±12% spread (variable) | +47pp |
-| Time (s / question) | 37.9s avg, ±3.0s spread (consistent) | 46.0s avg, ±12.7s spread (variable) | -8.1s |
-| Tokens (context cost) | 18k avg, ±221 spread (consistent) | 16k avg, ±709 spread (consistent) | +2k |
+### Evals passed
+
+| Agent | w/o skill | w/ skill | Lift |
+|---|---|---|---|
+| Copilot (`claude-sonnet-5`) | 0 / 3 | 3 / 3 | **+3 ↑** |
+
+### Pass rate (avg ± σ across evals)
+
+| Agent | w/o skill | w/ skill | Lift |
+|---|---|---|---|
+| Copilot (`claude-sonnet-5`) | 60% ±35% | 100% ±0% | **+40pp ↑** |
+
+### Time (total across all evals)
+
+| Agent | w/o skill | w/ skill | Lift |
+|---|---|---|---|
+| Copilot (`claude-sonnet-5`) | 91 s | 180 s | +89 s ↓ |
+
+### Tokens (total across all evals)
+
+| Agent | w/o skill | w/ skill | Lift |
+|---|---|---|---|
+| Copilot (`claude-sonnet-5`) | 97k | 877k | +780k ↓ |
+
+## Per-Eval Detail
+
+> Each cell is PASS/FAIL for that run, with the count of expectations met in parentheses (e.g. `PASS (5/5)`); `n/a` means no grading.json was found for that (eval, config, agent) combination.
+
+| Eval | Prompt | Copilot (w/) | Copilot (w/o) |
+|---|---|---|---|
+| 1 | My ChatQnA deployment starts, but POST /v1/chatqna/chat returns 500. I am using OpenVINO on CPU with Docker Compose. Please troubleshoot and give exact checks and fixes. | PASS (5/5) | FAIL (1/5) |
+| 2 | I deployed with Helm and the UI URL does not load. Pods are running in namespace ai-demo. Help me debug and isolate whether this is nginx/service/nodeport related. | PASS (5/5) | FAIL (4/5) |
+| 3 | Document upload fails with 400 and sometimes 500 in ChatQnA. Show me how to troubleshoot request format vs backend ingestion/model errors. | PASS (5/5) | FAIL (4/5) |
+| | **Mean ±σ** | **100% ±0%** | **60% ±35%** |
