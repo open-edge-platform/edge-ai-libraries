@@ -27,10 +27,12 @@ debian_90_install_order_accuracy () {
 
   # setup
   export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+  ensure_hf_token Qwen/Qwen2.5-VL-7B-Instruct openbmb/MiniCPM-V-4_5 
+
   for app in dine-in take-away; do
     cd "$workspace"/$app
     make init-env
-    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$(ensure_hf_token)|" .env
+    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
     cd ../ovms-service
     ./setup_models.sh --app $app
     cd "$workspace"/$app

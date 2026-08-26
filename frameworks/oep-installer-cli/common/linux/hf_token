@@ -1,5 +1,10 @@
 
+# Set HF_TOKEN as an environment variable
+# Verify if model permissions are granted on the token
 ensure_hf_token () {
+  local models=($*)
+
+  export HF_TOKEN
   if [ -z "$HF_TOKEN" ]; then
     if [ -r "$HOME"/.cache/huggingface/token ]; then
       export HF_TOKEN=$(< "$HOME"/.cache/huggingface/token)
@@ -9,6 +14,43 @@ ensure_hf_token () {
       export HF_TOKEN=$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json > /dev/null 2>&1 || true)
     fi
   fi
-  echo "$HF_TOKEN"
+
+  local model f gated=()
+  for model in ${models[*]}; do
+    local probes=()
+    for f in $(curl -s -L "https://huggingface.co/api/models/${model}?full=tree" | tr ',' '\n' | grep -F '"rfilename":' | cut -f4 -d'"'); do
+      case "$f" in
+      *config.yaml|*config.json|*tokenizer.json)
+        probes+=($f)
+        break
+        ;;
+      esac
+    done
+    if [ ${#probes[*]} -eq 0 ]; then
+      echo "No probe found with $model" 1>&2
+      return 3
+    fi
+    for f in ${probes[*]}; do
+      local code=$(curl -s -o /dev/null -w "%{http_code}" -L -r 0-0 -H "Authorization: Bearer $HF_TOKEN" https://huggingface.co/${model}/resolve/main/$f)
+      case "$code" in
+      200|206)
+        continue
+        ;;
+      401|403|404) 
+        gated+=($model)
+        break
+        ;;
+      *)
+        echo "Unknown probe code $code" 1>&2
+        return 3
+        ;;
+      esac
+    done
+  done
+
+  if [ ${#gated[*]} -gt 0 ]; then
+    echo "Gated model(s): ${gated[*]}" 1>&2
+    return 3
+  fi
 }
 
