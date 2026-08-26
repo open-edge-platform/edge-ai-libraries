@@ -49,8 +49,6 @@ For detailed instructions, see:
 
 ./benchmarking/performance-testing
 ./benchmarking/density-testing
-./benchmarking/performance-testing
-./benchmarking/density-testing
 ./benchmarking/managing-jobs
 ./benchmarking/benchmark-export.md
 ./benchmarking/benchmark-suites.md
