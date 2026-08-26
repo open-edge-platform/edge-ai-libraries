@@ -371,6 +371,9 @@
   hub: ultralytics
   type: detection
   precisions:
+    - precision: INT8
+      model_path: ultralytics/public/yolo26s/INT8/yolo26s.xml
+      model_proc: ""
     - precision: FP32
       model_path: ultralytics/public/yolo26s/FP32/yolo26s.xml
       model_proc: ""
@@ -382,6 +385,8 @@
   download_request:
     hub: ultralytics
     name: yolo26s
+    config:
+      quantize: coco128
 
 - name: yolo26n
   display_name: YOLO 26n
@@ -389,6 +394,9 @@
   hub: ultralytics
   type: detection
   precisions:
+    - precision: INT8
+      model_path: ultralytics/public/yolo26n/INT8/yolo26n.xml
+      model_proc: ""
     - precision: FP32
       model_path: ultralytics/public/yolo26n/FP32/yolo26n.xml
       model_proc: ""
@@ -400,6 +408,8 @@
   download_request:
     hub: ultralytics
     name: yolo26n
+    config:
+      quantize: coco128
 
 - name: yolo26s-pose
   display_name: YOLO 26s Pose

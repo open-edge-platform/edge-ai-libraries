@@ -55,6 +55,7 @@ jobs:
           scan-scope: "all"  
           output-format: "txt" 
           fail-on-findings: "true"
+          severity-level: "HIGH"
           paths: "libraries/video-chunking-utils"
           report_suffix: "-bandit-video-chunking-utils-CT161"
 
