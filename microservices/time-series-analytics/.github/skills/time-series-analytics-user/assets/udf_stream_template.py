@@ -10,21 +10,12 @@ Copy this file to udfs/<udf_name>.py and fill in every TODO before packaging.
 See references/patterns.md for the point() body that matches your use case.
 """
 import logging
-import os
 
 from kapacitor.udf.agent import Agent, Handler
 from kapacitor.udf import udf_pb2
 
-log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
-_LOG_LEVELS = {
-    'DEBUG': logging.DEBUG,
-    'INFO': logging.INFO,
-    'WARNING': logging.WARNING,
-    'ERROR': logging.ERROR,
-    'CRITICAL': logging.CRITICAL,
-}
 logging.basicConfig(
-    level=_LOG_LEVELS.get(log_level, logging.INFO),
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 )
 logger = logging.getLogger()
