@@ -1,5 +1,7 @@
 ---
 name: time-series-analytics-user
+permissions:       # shell: chmod+docker; env: os.getenv in udf template
+  - env
 description: >
   Build a new time-series analytics use case on top of the deployed Time
   Series Analytics microservice — bring it up with Docker Compose (from a
@@ -15,8 +17,6 @@ description: >
   streaming or windowed-batch pipeline, or asks to wire up MQTT/OPC UA
   alerting on top of this service. Not for modifying the microservice's
   own source code — that is time-series-analytics-dev.
-permissions:
-  - env
 ---
 
 # Time Series Analytics — User
