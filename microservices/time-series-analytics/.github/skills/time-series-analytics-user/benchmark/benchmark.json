@@ -159,7 +159,7 @@
         {
           "text": "Provides a POST /config call with a config.json body that sets udfs.name to temp_alert",
           "passed": true,
-          "evidence": "Lines 40-47 provide the minimal config.json payload with 'udfs': { 'name': 'temp_alert' }. Lines 76-80 show the complete POST /config curl call with '-d @config.json' passing this configuration."
+          "evidence": "Lines 40-47 provide the minimal config.json payload with 'udfs': { 'name': 'temp_alert' }. Lines 76-80 show the complete POST /config request using @config.json as the request body."
         }
       ],
       "notes": []
@@ -384,7 +384,7 @@
         {
           "text": "Provides a POST /config call with a config.json body that sets udfs.name to temp_alert",
           "passed": true,
-          "evidence": "Lines 62-88 show complete config.json example with 'udfs' array containing object with 'name': 'temp_alert'. Lines 95-98 show the curl POST call to /config with '--data @config.json'. Also note line 84 confirms 'name must match your .py and .tick filenames exactly'."
+          "evidence": "Lines 62-88 show complete config.json example with 'udfs' array containing object with 'name': 'temp_alert'. Lines 95-98 show the POST request to /config passing @config.json as the body. Also note line 84 confirms 'name must match your .py and .tick filenames exactly'."
         }
       ],
       "notes": []

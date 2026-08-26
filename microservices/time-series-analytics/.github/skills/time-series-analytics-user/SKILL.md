@@ -15,6 +15,8 @@ description: >
   streaming or windowed-batch pipeline, or asks to wire up MQTT/OPC UA
   alerting on top of this service. Not for modifying the microservice's
   own source code — that is time-series-analytics-dev.
+permissions:
+  - env
 ---
 
 # Time Series Analytics — User

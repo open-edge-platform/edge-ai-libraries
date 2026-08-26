@@ -49,10 +49,10 @@ jobs:
         id: find-paths
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # Only skill directories touched in this PR
-            paths=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
-              | grep -E '^.*\.github/skills/' \
-              | sed 's|\(.*\.github/skills\)/.*|\1|' \
+            # Only skill directories touched in this PR; sed -nE avoids exit 1 on no match
+            paths=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" \
+              | sed -nE '/\.github\/skills\//p' \
+              | sed -E 's|(.*\.github/skills)/.*|\1|' \
               | sort -u \
               | jq -R -s -c 'split("\n") | map(select(length > 0))')
           else
