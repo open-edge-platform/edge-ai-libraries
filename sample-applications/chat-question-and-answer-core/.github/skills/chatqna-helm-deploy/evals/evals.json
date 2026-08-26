@@ -47,7 +47,7 @@
                 "Creates or describes values-override.yaml as the translation artifact.",
                 "Maps backend to global.MODEL_RUNTIME and registry to image.registry.",
                 "Maps BACKEND_TAG for OpenVINO CPU to image.tags.openvinoCPU.",
-                "Maps UI_TAG to subchart.chatqna-ui.image.tag.",
+                "Maps UI_TAG to the chatqna-ui subchart image tag key (chatqna-ui.image.tags.ui).",
                 "Maps token to global.huggingface.apiToken while keeping secret handling safe.",
                 "Maps proxy values to global.http_proxy, global.https_proxy, and global.no_proxy."
             ]
@@ -105,7 +105,7 @@
             "expected_output": "Returns actionable Helm validation failure guidance tied to the incorrect key and expected correction.",
             "files": [],
             "expectations": [
-                "Reports the exact key causing template validation failure.",
+                "Identifies gpu.key as the values key most likely causing the invalid GPU key failure, since no specific failing value was given in the prompt.",
                 "Proposes corrected key or value based on chart expectations.",
                 "Instructs to rerun helm template after correction."
             ]
