@@ -45,8 +45,8 @@
             "files": [],
             "expectations": [
                 "Includes export REGISTRY=\"intel/\".",
-                "Includes export BACKEND_TAG=\"core_1.3.3\" (or runtime-specific pinned backend tag).",
-                "Includes export UI_TAG=\"core_1.3.3\".",
+                "Includes export BACKEND_TAG=\"core_2026.2.0-rc2\" (or runtime-specific pinned backend tag).",
+                "Includes export UI_TAG=\"core_2026.2.0-rc2\".",
                 "Uses pinned defaults when tags are not provided.",
                 "Does not replace BACKEND_TAG/UI_TAG with a generic TAG variable or latest default."
             ]

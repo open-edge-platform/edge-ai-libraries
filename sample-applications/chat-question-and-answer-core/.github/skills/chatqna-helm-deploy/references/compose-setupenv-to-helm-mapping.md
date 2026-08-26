@@ -45,5 +45,5 @@ gpu:
 image:
   registry: intel/
   tags:
-    openvinoCPU: core_1.3.3
+    openvinoCPU: core_2026.2.0-rc2
 ```
