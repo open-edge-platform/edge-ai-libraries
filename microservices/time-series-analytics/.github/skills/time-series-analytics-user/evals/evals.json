@@ -1,6 +1,6 @@
 {
   "skill_name": "time-series-analytics-user",
-  "notes": "These prompts are self-contained and intentionally deferred — the runner does not start services, so expectations grade the accuracy of artifacts and commands rather than claiming live deployment success. Evals 1, 2, and 5 are artifact-generation tasks with expectations targeting skill-specific details (package structure, API ordering, MODEL_PATH env var) that are not discoverable from general AI knowledge. Evals 3 and 4 follow the vss-deploy knowledge/guidance pattern: prompts ask what to do or how to diagnose, and expectations check exact facts that only exist in the skill's reference files.",
+  "notes": "These prompts are self-contained and intentionally deferred — the runner does not start services, so expectations grade the accuracy of artifacts and commands rather than claiming live deployment success. Evals 1, 2, and 5 are artifact-generation tasks with expectations targeting skill-specific details (package structure, API ordering, MODEL_PATH env var) that are not discoverable from general AI knowledge. Evals 3 and 4 follow the knowledge/guidance pattern: prompts ask what to do or how to diagnose, and expectations check exact facts that only exist in the skill's reference files.",
   "evals": [
     {
       "id": 1,
