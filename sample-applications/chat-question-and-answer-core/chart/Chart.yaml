@@ -1,8 +1,8 @@
 apiVersion: v2
 name: chat-question-and-answer-core
 description: A Helm chart for deploying chatqna-core and its UI
-version: 2026.2.0-rc1-helm
+version: 2026.2.0-rc2-helm
 dependencies:
   - name: chatqna-ui
-    version: 2026.2.0-rc1-helm
+    version: 2026.2.0-rc2-helm
     repository: "file://subchart/chatqna-ui"
