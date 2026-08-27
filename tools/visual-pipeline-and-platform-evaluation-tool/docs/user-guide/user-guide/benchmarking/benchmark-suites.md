@@ -66,11 +66,7 @@ When a benchmark run is completed, ViPPET calculates three scores for each workl
 
 The performance score shows raw throughput: how many frames per second the pipeline can process.
 
-Formula:
-
-$$
-\text{performance} = \text{total\_fps}
-$$
+Formula: performance = total_fps
 
 Higher is better. This answers the question: “How much work is the system doing?”
 
@@ -80,15 +76,11 @@ The efficiency score shows how effectively the system converts compute and power
 
 When power data is available, the score is calculated as:
 
-$$
-\text{efficiency} = \frac{\text{total\_fps}}{\text{power\_watts}}
-$$
+efficiency = total_fps / power_watts
 
 If power is not available, ViPPET falls back to utilization-based efficiency:
 
-$$
-\text{efficiency} = \frac{\text{total\_fps}}{\text{average\_utilization\_percent}}
-$$
+efficiency = total_fps / average_utilization_percent
 
 where the average utilization is computed from the non-zero values of CPU, GPU, NPU, and media usage.
 
@@ -98,9 +90,7 @@ This rewards not only raw speed, but also efficient use of resources.
 
 The overall score combines performance and efficiency into a single balanced value:
 
-$$
-\text{overall} = \sqrt{\text{performance} \times \text{efficiency}}
-$$
+overall = sqrt(performance * efficiency)
 
 This is a geometric mean, which prevents a workload with very high FPS but poor efficiency from dominating the result. It keeps the score balanced between throughput and resource efficiency.
 
