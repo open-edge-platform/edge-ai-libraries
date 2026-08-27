@@ -4,6 +4,10 @@
 Components are installable modules within the OEP installer. Their filenames are in the pattern of `<component-name>/<OS_LIKE>`, where `<OS_LIKE>` is the OS family identifier (from `/etc/os-release`.) 
 The component name should contain no whitespace or special character except '_'.  
 
+To validate a component locally — running the same checks that CI enforces —
+use `.github/scripts/validate-modules.sh module/<component-name>`.  No
+arguments runs the whole tree.
+
 ### Develop a component
 
 A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<profile|install|remove|start|stop>_<component-name>`, where 

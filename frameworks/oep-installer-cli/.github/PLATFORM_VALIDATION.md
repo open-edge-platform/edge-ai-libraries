@@ -26,6 +26,12 @@ exists, how it is secured, and how an admin configures it.
 Three labels govern AI-assisted code generation and platform validation.  All
 three should be restricted to repository maintainers.
 
+> **Static checks vs. hardware validation**: `.github/scripts/validate-modules.sh`
+> covers all static checks (bash syntax, shellcheck, function-name uniqueness,
+> `@@HIGHLIGHT` guidance) and runs automatically on every PR via
+> `validate-modules.yml`.  The labels and workflows below govern the separate
+> concern of hardware lifecycle validation, which requires a real lab target.
+
 | Label | Applied to | Who may apply | Effect |
 |-------|-----------|---------------|--------|
 | `GENERATE-COMPONENT` | Issues | **Maintainers only** | Triggers `.github/workflows/generate-on-label.yml`, which assigns `copilot-swe-agent` to the issue and removes `NEEDS-GENERATION`.  Applying this label is the explicit trust decision that authorises AI code generation for a modified spec. |
