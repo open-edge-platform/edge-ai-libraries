@@ -1,14 +1,16 @@
 {
   "metadata": {
     "skill_name": "time-series-analytics-user",
-    "skill_path": "microservices/time-series-analytics/.github/skills/time-series-analytics-user",
-    "executor_model": "claude-sonnet-5",
+    "skill_path": "/home/ecgd-ts-n1-l3r6/vinod/repos/skills/.agents/skills/time-series-analytics-user",
+    "executor_model": "claude-haiku-4.5",
     "analyzer_model": "<model-name>",
-    "timestamp": "2026-08-25T13:28:58Z",
+    "timestamp": "2026-08-26T09:18:13Z",
     "evals_run": [
       1,
       2,
-      3
+      3,
+      4,
+      5
     ],
     "runs_per_configuration": 1
   },
@@ -19,44 +21,49 @@
       "run_number": 1,
       "result": {
         "pass_rate": 1.0,
-        "passed": 6,
+        "passed": 7,
         "failed": 0,
-        "total": 6,
-        "time_seconds": 101.3,
-        "tokens": 355,
-        "tool_calls": 20,
+        "total": 7,
+        "time_seconds": 164.4,
+        "tokens": 3005,
+        "tool_calls": 26,
         "errors": 0
       },
       "expectations": [
         {
           "text": "A UDF file named pressure_guard.py exists implementing threshold detection logic",
           "passed": true,
-          "evidence": "outputs/udfs/pressure_guard.py exists and implements a Kapacitor Handler with a point() method comparing pressure_bar against LOW=80.0/HIGH=150.0 and emitting flagged points when out of range."
+          "evidence": "File pressure_guard.py exists in outputs/. Contains PressureGuardHandler class implementing stream UDF handler with point() method that detects threshold violations. Low threshold: 80.0, High threshold: 150.0 defined as constants."
         },
         {
           "text": "A tick script named pressure_guard.tick exists and its UDF node invokes @pressure_guard()",
           "passed": true,
-          "evidence": "outputs/tick_scripts/pressure_guard.tick contains: 'data0\\n    @pressure_guard()' wired from a stream sourced from measurement 'point_data'."
+          "evidence": "File pressure_guard.tick exists in outputs/. Line 13 shows: 'data0 @pressure_guard()' which invokes the @pressure_guard() UDF on the data stream."
         },
         {
           "text": "The UDF reads the pressure_bar field specifically, not a different or generic field name",
           "passed": true,
-          "evidence": "Line 59 of pressure_guard.py: 'pressure_bar = point.fieldsDouble.get(\"pressure_bar\")' -- field name is explicit and specific, not generic."
+          "evidence": "In pressure_guard.py line 60: 'pressure_bar = point.fieldsDouble.get(\"pressure_bar\")' explicitly reads the 'pressure_bar' field by name."
         },
         {
           "text": "The UDF logic correctly flags values < 80 or > 150 (the threshold band is [80, 150])",
           "passed": true,
-          "evidence": "Line 24: 'LOW, HIGH = 80.0, 150.0'; line 64: 'if pressure_bar < LOW or pressure_bar > HIGH:' triggers the flagged-point response, matching the required safe band [80, 150] exactly (inclusive bounds, correct comparison direction)."
+          "evidence": "In pressure_guard.py lines 22, 65: 'LOW, HIGH = 80.0, 150.0' sets the threshold band, and 'if pressure_bar < LOW or pressure_bar > HIGH:' correctly identifies values outside [80, 150]."
         },
         {
-          "text": "A tar or zip deployment package is created containing both the UDF and tick script",
+          "text": "The deployment tar or zip archive has no wrapping top-level directory \u2014 the archive root directly contains udfs/ and tick_scripts/ (not a single folder that contains those)",
           "passed": true,
-          "evidence": "outputs/pressure_guard.tar verified via 'tar -tvf' to contain both 'udfs/pressure_guard.py' (2489 bytes) and 'tick_scripts/pressure_guard.tick' (586 bytes)."
+          "evidence": "Tar archive structure verified with 'tar -tf pressure_guard.tar': Contents are 'udfs/', 'udfs/pressure_guard.py', 'tick_scripts/', 'tick_scripts/pressure_guard.tick' \u2014 no wrapping top-level directory."
         },
         {
           "text": "A config.json or equivalent exists specifying udfs.name as pressure_guard",
           "passed": true,
-          "evidence": "outputs/config.json contains: '{\"udfs\": {\"name\": \"pressure_guard\"}}'."
+          "evidence": "File config.json exists in outputs/. Lines 2-3 show: '\"udfs\": { \"name\": \"pressure_guard\", ...' which correctly specifies udfs.name as 'pressure_guard'."
+        },
+        {
+          "text": "deploy.sh (or equivalent curl commands) calls POST /udfs/package to upload the archive before calling POST /config to apply configuration \u2014 not the other way around",
+          "passed": true,
+          "evidence": "In deploy.sh: Step [1/2] on line 43 uploads package via 'curl -s -X POST ... ${SERVICE_URL}/udfs/package'. Step [2/2] on line 64 posts config via 'curl -s -X POST ... ${SERVICE_URL}/config'. Upload happens before config application."
         }
       ],
       "notes": []
@@ -67,49 +74,54 @@
       "run_number": 1,
       "result": {
         "pass_rate": 1.0,
-        "passed": 7,
+        "passed": 8,
         "failed": 0,
-        "total": 7,
-        "time_seconds": 162.8,
-        "tokens": 1092186,
-        "tool_calls": 16,
+        "total": 8,
+        "time_seconds": 221.4,
+        "tokens": 1497,
+        "tool_calls": 18,
         "errors": 0
       },
       "expectations": [
         {
           "text": "A UDF file named vibration_spike_detector.py exists that tracks a previous value across point() calls as instance state",
           "passed": true,
-          "evidence": "outputs/examples/vibration_spike_detector/udfs/vibration_spike_detector.py: `self.previous_value = None` is set in __init__ and updated at the end of point() with `self.previous_value = vibration_mm_s`, persisting across successive point() calls."
+          "evidence": "File exists at udfs/vibration_spike_detector.py. Line 40 shows class VibrationSpikeDetectorHandler with __init__ method initializing self.previous_value = None (line 41). Line 80 updates self.previous_value = vibration, maintaining state across point() calls as required for rate-of-change comparison."
         },
         {
           "text": "A tick script named vibration_spike_detector.tick exists that references the vibration_spike_detector UDF node",
           "passed": true,
-          "evidence": "outputs/examples/vibration_spike_detector/tick_scripts/vibration_spike_detector.tick contains `data0\\n    @vibration_spike_detector()` referencing the UDF node defined in config.json's udfs.name."
+          "evidence": "File exists at tick_scripts/vibration_spike_detector.tick. Line 13 shows the UDF reference: data0 @vibration_spike_detector() exactly matching the UDF name and config.json udfs.name setting."
         },
         {
-          "text": "The tick script chains a Kapacitor |alert() node off the UDF output with a .mqtt('<topic>') call for the MQTT topic and a separate .brokerName('motor_alerts_broker') call, where 'motor_alerts_broker' matches config.json's alerts.mqtt.name",
+          "text": "The tick script chains a Kapacitor |alert() node off the UDF output with a .mqtt('<topic>') call for the MQTT topic and a separate .brokerName('motor_alerts_broker') call",
           "passed": true,
-          "evidence": "Tick script: `@vibration_spike_detector()\\n    |alert()\\n        .message(...)\\n        .crit(lambda: TRUE)\\n        .mqtt('motor/alerts/vibration')\\n        .brokerName('motor_alerts_broker')`. config.json has `\"alerts\": {\"mqtt\": {\"name\": \"motor_alerts_broker\", ...}}`, matching brokerName exactly, with .mqtt() correctly given a topic string rather than the broker name."
+          "evidence": "Lines 14-18 of vibration_spike_detector.tick show: |alert() chained after @vibration_spike_detector(), with .mqtt('motor/alerts/vibration_spike') providing the topic string, and .brokerName('motor_alerts_broker') on a separate line selecting the broker. The broker name 'motor_alerts_broker' matches config.json alerts.mqtt.name (line 9 of config.json)."
+        },
+        {
+          "text": "The |alert() node includes at least one severity-level lambda \u2014 .crit(lambda: TRUE), .warn(...), or .info(...) \u2014 without which every point is implicitly OK and no MQTT message is ever published",
+          "passed": true,
+          "evidence": "Line 16 of vibration_spike_detector.tick shows .crit(lambda: TRUE) which sets the alert severity. This ensures that flagged points will trigger MQTT publication; without it, alerts would be implicitly OK and silent."
         },
         {
           "text": "The UDF implements rate-of-change detection: flags if abs(current - previous) > 5.0 mm/s",
           "passed": true,
-          "evidence": "In point(): `delta = abs(vibration_mm_s - self.previous_value)` and `if delta > SPIKE_THRESHOLD:` where `SPIKE_THRESHOLD = 5.0`, only emitting a response point when the threshold is exceeded."
+          "evidence": "Lines 74-78 of vibration_spike_detector.py show the rate-of-change logic: 'if self.previous_value is not None: delta = abs(vibration - self.previous_value) if delta > SPIKE_THRESHOLD:' where SPIKE_THRESHOLD is set to 5.0 on line 27. This flags points where absolute change exceeds 5.0 mm/s from the previous reading."
         },
         {
           "text": "The rate-of-change threshold used is exactly 5 mm/s as specified",
           "passed": true,
-          "evidence": "`SPIKE_THRESHOLD = 5.0  # mm/s -- flag if |delta| from previous reading exceeds this` is defined and used directly in the comparison, not some other value."
+          "evidence": "Line 27 of vibration_spike_detector.py explicitly sets SPIKE_THRESHOLD = 5.0 with inline comment '# mm/s -- confirmed with task requirements'. Line 78 uses this threshold in the comparison: if delta > SPIKE_THRESHOLD. Response.md line 16 also confirms 'Threshold: SPIKE_THRESHOLD = 5.0  # mm/s' \u2014 matches task requirement exactly."
         },
         {
           "text": "The vibration_mm_s field is read correctly (not a generic or different field name)",
           "passed": true,
-          "evidence": "`vibration_mm_s = point.fieldsDouble[\"vibration_mm_s\"]` reads the exact field name required, and the tick script's alert message also references `{{ index .Fields \"vibration_mm_s\" }}`."
+          "evidence": "Line 71 of vibration_spike_detector.py shows: vibration = point.fieldsDouble.get('vibration_mm_s'). This is the exact field name specified in the task requirements. Config.json line 20 confirms 'fields': ['vibration_mm_s'] and response.md line 14 documents 'Field Access': Reads incoming vibration data from point.fieldsDouble.get('vibration_mm_s') as specified."
         },
         {
           "text": "A config.json or equivalent specifies udfs.name as vibration_spike_detector and includes an alerts.mqtt section with a name field set to motor_alerts_broker",
           "passed": true,
-          "evidence": "config.json: `\"udfs\": {\"name\": \"vibration_spike_detector\", \"device\": \"CPU\"}` and `\"alerts\": {\"mqtt\": {\"name\": \"motor_alerts_broker\", \"mqtt_broker_host\": \"mosquitto\", \"mqtt_broker_port\": 1883, \"default\": true}}`."
+          "evidence": "config.json line 3 shows 'name': 'vibration_spike_detector' under the udfs section. Lines 7-16 show the alerts.mqtt section with line 9 containing 'name': 'motor_alerts_broker'. This matches the .brokerName('motor_alerts_broker') call in the tick script (line 18)."
         }
       ],
       "notes": []
@@ -120,39 +132,110 @@
       "run_number": 1,
       "result": {
         "pass_rate": 1.0,
-        "passed": 5,
+        "passed": 4,
         "failed": 0,
-        "total": 5,
-        "time_seconds": 142.0,
-        "tokens": 1670222,
-        "tool_calls": 28,
+        "total": 4,
+        "time_seconds": 45.1,
+        "tokens": 290843,
+        "tool_calls": 0,
         "errors": 0
       },
       "expectations": [
         {
-          "text": "A UDF file named windturbine_anomaly_detector.py exists that loads the provided .pkl model once in __init__ (or equivalent), not per-point",
+          "text": "Names scripts/package_udf.sh for building the tar, OR describes creating a tar whose archive root directly contains udfs/ and tick_scripts/ with no wrapping top-level directory",
           "passed": true,
-          "evidence": "File outputs/examples/windturbine_anomaly_detector/udfs/windturbine_anomaly_detector.py exists. In WindturbineAnomalyDetectorHandler.__init__: 'self.model = joblib.load(MODEL_PATH)' is called once at handler construction; the point() method only calls 'self.model.predict([[value]])[0]' and never reloads the model."
+          "evidence": "Line 29 names the helper script: '.github/skills/time-series-analytics-user/scripts/package_udf.sh temp_alert .'. Lines 24-26 show the direct tar command: 'tar cf temp_alert.tar udfs/ tick_scripts/'. Line 135 explicitly states: 'The upload tar must contain `udfs/` and `tick_scripts/` at the archive root, with no wrapping top-level folder.'"
         },
         {
-          "text": "The deployment package's models/ directory contains the PROVIDED windturbine_anomaly_detector.pkl file (copied from the input, not retrained or replaced with a different file)",
+          "text": "Calls POST /udfs/package (upload the archive) before POST /config (apply configuration) \u2014 not the other way around",
           "passed": true,
-          "evidence": "outputs/examples/windturbine_anomaly_detector/models/windturbine_anomaly_detector.pkl exists with md5 71d40c29965051409598a75e8babb966. Transcript shows the assistant explicitly checksummed the source and destination files ('Checksums match \u2014 exact copy confirmed') before building the UDF, confirming a copy rather than a retrain."
+          "evidence": "Step 4 (lines 32-36) performs POST /udfs/package upload. Step 6 (lines 74-80) performs POST /config. Upload occurs before config application in the sequence."
         },
         {
-          "text": "The config.json uses the top-level udfs key with udfs.models set to windturbine_anomaly_detector.pkl and udfs.device set to CPU (not a nested model_config or other non-standard structure)",
+          "text": "States or implies that POST /config requires the named package to already exist on disk \u2014 i.e. explains why upload must precede config apply",
           "passed": true,
-          "evidence": "config.json content: { \"udfs\": { \"name\": \"windturbine_anomaly_detector\", \"models\": \"windturbine_anomaly_detector.pkl\", \"device\": \"CPU\" } } \u2014 top-level 'udfs' key with 'models' and 'device' set exactly as required."
+          "evidence": "Line 37 states: 'This must happen **before** config activation.' Line 133 explicitly explains: '`POST /config` fails if `temp_alert` was not uploaded first.'"
         },
         {
-          "text": "The UDF calls model.predict() and checks if the result equals -1 to flag an anomaly (IsolationForest convention) \u2014 it does NOT compute residuals or compare against a numeric threshold",
+          "text": "Provides a POST /config call with a config.json body that sets udfs.name to temp_alert",
           "passed": true,
-          "evidence": "In point(): 'prediction = self.model.predict([[value]])[0]' followed by 'response.point.fieldsDouble[\"anomaly\"] = 1.0 if prediction == -1 else 0.0' and 'if prediction == -1:  # IsolationForest convention: -1 = anomaly'. No residual computation, no numeric threshold comparison against the raw value or decision_function score anywhere in the file."
+          "evidence": "Lines 40-47 provide the minimal config.json payload with 'udfs': { 'name': 'temp_alert' }. Lines 76-80 show the complete POST /config request using @config.json as the request body."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 42.9,
+        "tokens": 716,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Identifies the missing severity lambda: |alert() never fires without at least one of .crit(), .warn(), or .info() being set \u2014 and names .crit(lambda: TRUE) as the correct fix for a UDF that only forwards already-flagged points",
+          "passed": true,
+          "evidence": "Response explicitly addresses 'Missing severity lambda on alert()' and states: 'Kapacitor alert() does not emit anything unless at least one severity level is defined: .info(), .warn(), or .crit().' Provides exact fix: '.crit(lambda: TRUE)' for the common pattern where UDF forwards only already-flagged anomaly points."
         },
         {
-          "text": "The UDF logic correctly: (1) loads the model once at initialization, (2) calls model.predict() per point, (3) interprets -1 as anomaly",
+          "text": "Identifies the .mqtt() / .brokerName() confusion: .mqtt()'s argument is the MQTT topic string, not the broker name \u2014 the configured broker is selected via a separate chained .brokerName('...') call",
           "passed": true,
-          "evidence": "Confirmed by combined evidence above: model loaded once in __init__ via joblib.load, predict() invoked per incoming point in point(), and prediction == -1 branch used to mark 'anomaly' field and log flagged points."
+          "evidence": "Response clearly states: '.mqtt(\\'<value>\\') takes the MQTT topic, NOT the broker name. The broker must be selected separately with .brokerName(\\'<broker_name>\\').' Provides correct TICKscript syntax showing both .mqtt(\\'my_alert_topic\\') and .brokerName(\\'my_mqtt_broker\\') chained together."
+        },
+        {
+          "text": "Does not suggest rewriting the UDF, repackaging, redeploying the container, or checking MQTT broker network connectivity as a primary fix for these two causes",
+          "passed": true,
+          "evidence": "Response explicitly states 'The two most common causes are both in the TICKscript alert chain, not in the UDF or Kapacitor task itself.' Troubleshooting focuses on TICKscript configuration and inspecting the deployed .tick file. No mention of rewriting UDF, container redeployment, or network connectivity as primary causes. Broker validation is mentioned only as a verification step, not as a primary fix."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 146.0,
+        "tokens": 1353,
+        "tool_calls": 22,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "UDF reads the model path via os.environ.get(\"MODEL_PATH\") \u2014 not a hardcoded file path string",
+          "passed": true,
+          "evidence": "Line 27 of pump_anomaly_detector.py shows `MODEL_PATH = os.environ.get(\"MODEL_PATH\")`. Model is loaded with this variable at lines 40-42: `if MODEL_PATH: try: self.model = joblib.load(MODEL_PATH)`. No hardcoded file paths are used."
+        },
+        {
+          "text": "patch_sklearn() is called before any 'from sklearn' or 'import sklearn' line in the UDF file",
+          "passed": true,
+          "evidence": "Line 17-18 of pump_anomaly_detector.py show: `from sklearnex import patch_sklearn` followed immediately by `patch_sklearn()`. No 'from sklearn' or 'import sklearn' statements appear in the file; sklearn is used indirectly through the loaded model's predict method."
+        },
+        {
+          "text": "Model is loaded once in __init__, not inside point()",
+          "passed": true,
+          "evidence": "Lines 37-48 of pump_anomaly_detector.py show model loading in `__init__` method. The `point()` method (lines 75-116) uses `self.model` directly without loading it, confirming model is loaded once at initialization."
+        },
+        {
+          "text": "config.json contains a udfs.models field referencing the model filename (pump_anomaly_detector.pkl)",
+          "passed": true,
+          "evidence": "config.json line 4 shows `\"models\": \"pump_anomaly_detector.pkl\"`. This field is within the 'udfs' object and correctly references the model filename."
+        },
+        {
+          "text": "Deployment package includes the model file under a models/ directory, or explicitly notes it must be placed there before packaging",
+          "passed": true,
+          "evidence": "Tar file contents verified with `tar -tf pump_anomaly_detector.tar` show: `models/pump_anomaly_detector.pkl`. The model file is included under the models/ directory in the deployment package."
         }
       ],
       "notes": []
@@ -162,45 +245,50 @@
       "configuration": "without_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 0.33,
+        "pass_rate": 0.286,
         "passed": 2,
-        "failed": 4,
-        "total": 6,
-        "time_seconds": 117.8,
-        "tokens": 256,
-        "tool_calls": 14,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 99.4,
+        "tokens": 319877,
+        "tool_calls": 0,
         "errors": 0
       },
       "expectations": [
         {
           "text": "A UDF file named pressure_guard.py exists implementing threshold detection logic",
           "passed": false,
-          "evidence": "outputs_dir contains only diagnostics.json, response.md, and metrics.json \u2014 no standalone pressure_guard.py file. The full UDF source is embedded solely as a markdown code block inside response.md (section '2. UDF \u2014 udfs/pressure_guard.py'). metrics.json confirms 'files_created': 0 and the session's codeChanges.filesModified list (in diagnostics.json) shows only response.md was ever written by the executor, despite the task explicitly asking to 'Produce the UDF file, tick script, config.json, and a deployment package'."
+          "evidence": "File created is named udf_pressure_guard.py, not pressure_guard.py. While the implementation does correctly contain threshold detection logic (lines 64-67 check pressure < 80 or > 150), the filename requirement is not met."
         },
         {
           "text": "A tick script named pressure_guard.tick exists and its UDF node invokes @pressure_guard()",
           "passed": false,
-          "evidence": "No pressure_guard.tick file exists in outputs_dir. The TICKscript text (which does contain '@pressure_guard()' under a 'data0' stream node) only appears as a fenced code block inside response.md, section '3. TICKscript \u2014 tick_scripts/pressure_guard.tick'. No actual .tick artifact was persisted."
+          "evidence": "File pressure_guard.tick exists, but lines 17-19 show |eval().as('pressure_guard').keep(...) which uses .eval().as() syntax, not the expected @pressure_guard() UDF invocation syntax. The tick script does not invoke the UDF using the proper function call notation."
         },
         {
           "text": "The UDF reads the pressure_bar field specifically, not a different or generic field name",
           "passed": true,
-          "evidence": "The embedded UDF code in response.md reads: 'if \"pressure_bar\" in point.fieldsDouble: pressure = point.fieldsDouble[\"pressure_bar\"]', explicitly targeting the pressure_bar field rather than a generic/placeholder name. This is a genuine content match, though it exists only as documentation, not a deployable file (see prior two failures)."
+          "evidence": "Line 58 of udf_pressure_guard.py explicitly reads: pressure = point.get('fields', {}).get('pressure_bar'). The field name is correctly specified as pressure_bar."
         },
         {
           "text": "The UDF logic correctly flags values < 80 or > 150 (the threshold band is [80, 150])",
           "passed": true,
-          "evidence": "response.md defines 'PRESSURE_MIN_BAR = 80' and 'PRESSURE_MAX_BAR = 150', and the point() handler condition is 'if pressure < PRESSURE_MIN_BAR or pressure > PRESSURE_MAX_BAR:' before emitting an alert \u2014 this matches the required band exactly. Again, only verifiable from the markdown description, not an executable artifact."
+          "evidence": "Lines 19-20 define MIN_SAFE_PRESSURE=80 and MAX_SAFE_PRESSURE=150. Lines 64-67 implement the logic: if pressure < MIN_SAFE_PRESSURE (80) set alert=1; elif pressure > MAX_SAFE_PRESSURE (150) set alert=1; else alert=0. The threshold logic is correct."
         },
         {
-          "text": "A tar or zip deployment package is created containing both the UDF and tick script",
+          "text": "The deployment tar or zip archive has no wrapping top-level directory \u2014 the archive root directly contains udfs/ and tick_scripts/ (not a single folder that contains those)",
           "passed": false,
-          "evidence": "No pressure_guard.tar or .zip file exists anywhere in outputs_dir. response.md claims 'This was actually built and verified locally; the resulting tar contains: udfs/pressure_guard.py, tick_scripts/pressure_guard.tick' and the transcript shows bash tool calls with an assistant note 'Artifacts built and tar verified,' but the build evidently happened in a scratch/temp location that was never copied into outputs_dir, and metrics.json's files_created:0 corroborates that nothing beyond response.md was persisted as a deliverable."
+          "evidence": "Lines 42-50 of deploy.sh show: mkdir -p '${PACKAGE_NAME}' (creates pressure_guard-udf-1.0.0/), copies files into that directory, then tar -czf '${PACKAGE_NAME}.tar.gz' '${PACKAGE_NAME}'. The archive will have a wrapping directory at the root. Additionally, files are not organized into udfs/ and tick_scripts/ subdirectories as expected; they are directly in the wrapper directory."
         },
         {
           "text": "A config.json or equivalent exists specifying udfs.name as pressure_guard",
           "passed": false,
-          "evidence": "No config.json file exists in outputs_dir. The JSON '{\"udfs\": {\"name\": \"pressure_guard\"}}' only appears as a code block within response.md section '4. config.json' \u2014 it was never written out as an actual config.json file alongside the other artifacts."
+          "evidence": "config.json exists and contains the name 'pressure_guard', but the JSON structure uses 'udf': { 'name': 'pressure_guard' } (line 12-13) rather than the expected 'udfs': { 'name': 'pressure_guard' }. The top-level 'name' field (line 2) is present but the nested structure uses 'udf' not 'udfs'."
+        },
+        {
+          "text": "deploy.sh (or equivalent curl commands) calls POST /udfs/package to upload the archive before calling POST /config to apply configuration \u2014 not the other way around",
+          "passed": false,
+          "evidence": "Lines 68-71 show curl POST to '${SERVICE_URL}/api/udf/upload' (not /udfs/package). Lines 85-94 show curl POST to '${SERVICE_URL}/api/tasks' (not /config). While the order is correct (upload/package before configuration), the endpoint paths do not match the expected /udfs/package and /config endpoints."
         }
       ],
       "notes": []
@@ -210,50 +298,55 @@
       "configuration": "without_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 0.857,
-        "passed": 6,
-        "failed": 1,
-        "total": 7,
-        "time_seconds": 157.2,
-        "tokens": 1189334,
-        "tool_calls": 17,
+        "pass_rate": 0.5,
+        "passed": 4,
+        "failed": 4,
+        "total": 8,
+        "time_seconds": 120.6,
+        "tokens": 528905,
+        "tool_calls": 12,
         "errors": 0
       },
       "expectations": [
         {
           "text": "A UDF file named vibration_spike_detector.py exists that tracks a previous value across point() calls as instance state",
           "passed": true,
-          "evidence": "outputs/udfs/vibration_spike_detector.py defines VibrationSpikeDetectorHandler.__init__ with self._previous_values = {} and point() reads previous = self._previous_values.get(key) then updates self._previous_values[key] = value, persisting across calls to the handler instance (keyed per device tag)."
+          "evidence": "File exists at outputs/vibration_spike_detector.py. The VibrationSpikeDetector class maintains self.previous_value initialized to None in __init__ (line 14) and updates it at line 53 after each point() call. The class is instantiated once per process (line 63: hasattr check) ensuring state persists across calls."
         },
         {
           "text": "A tick script named vibration_spike_detector.tick exists that references the vibration_spike_detector UDF node",
-          "passed": true,
-          "evidence": "outputs/tick_scripts/vibration_spike_detector.tick contains 'data0 @vibration_spike_detector()' wiring the stream through the UDF node before |alert()."
+          "passed": false,
+          "evidence": "File exists at outputs/vibration_spike_detector.tick, but it does NOT reference a UDF node. Instead, the script uses native Kapacitor eval() (line 11-13) and where() functions for spike detection. There is no .udf() or similar call to invoke the vibration_spike_detector.py UDF. The implementation is pure TICKscript, not UDF-based."
         },
         {
-          "text": "The tick script chains a Kapacitor |alert() node off the UDF output with a .mqtt('<topic>') call for the MQTT topic and a separate .brokerName('motor_alerts_broker') call, where 'motor_alerts_broker' matches config.json's alerts.mqtt.name (note: .mqtt() takes a topic string, not the broker name \u2014 the broker is selected via .brokerName())",
+          "text": "The tick script chains a Kapacitor |alert() node off the UDF output with a .mqtt('<topic>') call for the MQTT topic and a separate .brokerName('motor_alerts_broker') call",
           "passed": false,
-          "evidence": "The tick script uses '.mqtt('motor_alerts_broker').topic('motor/vibration_alerts').qos(1)' \u2014 this passes the broker name into .mqtt() and the topic into .topic(), with no .brokerName() call at all. This is the inverse of the expected pattern. The transcript even shows the assistant explicitly reasoning '.mqtt('broker_name')' is the correct usage, confirming the broker/topic argument roles were swapped and .brokerName() was never used."
+          "evidence": "The tick script (lines 25-31) does have an |alert() node, but it uses .mqtt() with chained .broker() and .topic() methods, not separate .mqtt() and .brokerName() calls as specified. The syntax at lines 29-30 shows .mqtt() followed by .broker('motor_alerts_broker').topic('alerts/motor/vibration'), which chains methods under .mqtt() rather than calling .brokerName() separately as expected."
+        },
+        {
+          "text": "The |alert() node includes at least one severity-level lambda \u2014 .crit(lambda: TRUE), .warn(...), or .info(...) \u2014 without which every point is implicitly OK and no MQTT message is ever published",
+          "passed": false,
+          "evidence": "The |alert() node (lines 25-31) lacks any severity-level lambda calls. It contains .id(), .message(), and .mqtt() but no .crit(), .warn(), .info(), or .ok() lambda. Without a severity level, Kapacitor will not generate alerts (every point is treated as OK state)."
         },
         {
           "text": "The UDF implements rate-of-change detection: flags if abs(current - previous) > 5.0 mm/s",
           "passed": true,
-          "evidence": "In point(): 'delta = value - previous' then 'if abs(delta) > SPIKE_THRESHOLD_MM_S:' triggers forwarding the flagged point to the agent."
+          "evidence": "The UDF file (line 46) calculates delta = abs(current_value - self.previous_value) and at line 50 flags the spike with: if delta > self.spike_threshold (where spike_threshold = 5.0 from line 15). The logic correctly implements rate-of-change detection with the exact threshold."
         },
         {
           "text": "The rate-of-change threshold used is exactly 5 mm/s as specified",
           "passed": true,
-          "evidence": "SPIKE_THRESHOLD_MM_S = float(os.getenv('SPIKE_THRESHOLD_MM_S', '5.0')) defaults to 5.0, and the tick script's .crit() guard also uses 'abs(float(\"delta_mm_s\")) > 5.0'."
+          "evidence": "UDF file line 15: self.spike_threshold = 5.0. The comparison at line 50 uses if delta > self.spike_threshold, confirming the threshold is exactly 5.0 mm/s."
         },
         {
           "text": "The vibration_mm_s field is read correctly (not a generic or different field name)",
           "passed": true,
-          "evidence": "FIELD_NAME = 'vibration_mm_s' and 'value = point.fieldsDouble.get(FIELD_NAME)' reads exactly this field; the response also re-emits it under the same key."
+          "evidence": "UDF file line 39: current_value = data_point.get('vibration_mm_s'). Tick script line 14 references 'delta' > 5.0 (computed from vibration_mm_s in the eval). Both correctly use the field name 'vibration_mm_s' as specified."
         },
         {
           "text": "A config.json or equivalent specifies udfs.name as vibration_spike_detector and includes an alerts.mqtt section with a name field set to motor_alerts_broker",
-          "passed": true,
-          "evidence": "outputs/config.json: {\"udfs\": {\"name\": \"vibration_spike_detector\"}, \"alerts\": {\"mqtt\": {\"mqtt_broker_host\": \"ia-mqtt-broker\", \"mqtt_broker_port\": 1883, \"name\": \"motor_alerts_broker\"}}}."
+          "passed": false,
+          "evidence": "config.json exists and includes alerts.mqtt section (lines 20-27) with broker_name: 'motor_alerts_broker' at line 23. However, there is NO 'udfs.name' field in config.json. Line 37 has 'udf_name: vibration_spike_detector' under deployment, not under a udfs.name structure as expected by the requirement."
         }
       ],
       "notes": []
@@ -264,39 +357,110 @@
       "run_number": 1,
       "result": {
         "pass_rate": 1.0,
-        "passed": 5,
+        "passed": 4,
         "failed": 0,
-        "total": 5,
-        "time_seconds": 191.3,
-        "tokens": 2109887,
-        "tool_calls": 0,
+        "total": 4,
+        "time_seconds": 61.2,
+        "tokens": 1276,
+        "tool_calls": 6,
         "errors": 0
       },
       "expectations": [
         {
-          "text": "A UDF file named windturbine_anomaly_detector.py exists that loads the provided .pkl model once in __init__ (or equivalent), not per-point",
+          "text": "Names scripts/package_udf.sh for building the tar, OR describes creating a tar whose archive root directly contains udfs/ and tick_scripts/ with no wrapping top-level directory",
           "passed": true,
-          "evidence": "File deployment_package/udfs/windturbine_anomaly_detector.py exists. In `__init__(self, agent)` (lines 38-48), `self.model = joblib.load(MODEL_PATH)` is called once at handler construction. The `point()` method (lines 75-99) only references `self.model.predict(...)` and never reloads or re-opens the model file, confirming single load at init, not per-point."
+          "evidence": "Step 1 (lines 21, 24-30) names '../scripts/package_udf.sh temp_alert' as the preferred method, and provides manual tar command 'tar cf temp_alert.tar udfs/temp_alert.py tick_scripts/temp_alert.tick' with explicit statement on line 17: 'no wrapping top-level directory'. Both conditions satisfied."
         },
         {
-          "text": "The deployment package's models/ directory contains the PROVIDED windturbine_anomaly_detector.pkl file (copied from the input, not retrained or replaced with a different file)",
+          "text": "Calls POST /udfs/package (upload the archive) before POST /config (apply configuration) \u2014 not the other way around",
           "passed": true,
-          "evidence": "deployment_package/models/windturbine_anomaly_detector.pkl has MD5 71d40c29965051409598a75e8babb966, identical to the reference provided-model copy found elsewhere in the benchmark fixtures (with_skill/run-1/outputs/examples/windturbine_anomaly_detector/models/windturbine_anomaly_detector.pkl, same MD5). Transcript line 74: 'Checksums match \u2014 pkl copied byte-for-byte' and line 99: 'copied byte-for-byte (MD5 verified match, no retraining)' corroborate the file was copied as-is, not retrained."
+          "evidence": "Step 2 (line 34-59) shows POST /udfs/package with instruction 'Make this call FIRST \u2014 before config.' Step 4 (line 90-113) shows POST /config with instruction 'Make this call AFTER uploading the package.' Summary section (lines 176-182) lists calls in correct order: POST /udfs/package first, POST /config second."
         },
         {
-          "text": "The config.json uses the top-level udfs key with udfs.models set to windturbine_anomaly_detector.pkl and udfs.device set to CPU (not a nested model_config or other non-standard structure)",
+          "text": "States or implies that POST /config requires the named package to already exist on disk \u2014 i.e. explains why upload must precede config apply",
           "passed": true,
-          "evidence": "deployment_package/config.json content: {\"udfs\": {\"name\": \"windturbine_anomaly_detector\", \"models\": \"windturbine_anomaly_detector.pkl\", \"device\": \"CPU\"}} \u2014 top-level 'udfs' key with 'models' and 'device' set exactly as required; no nested 'model_config' or other structure present."
+          "evidence": "Lines 109-111 explain the 422 error 'UDF deployment package validation failed for temp_alert' with root cause: 'Package wasn't uploaded yet, or name doesn't match filenames. Go back to Step 2.' This directly implies config requires the uploaded package to exist first."
         },
         {
-          "text": "The UDF calls model.predict() and checks if the result equals -1 to flag an anomaly (IsolationForest convention) \u2014 it does NOT compute residuals or compare against a numeric threshold",
+          "text": "Provides a POST /config call with a config.json body that sets udfs.name to temp_alert",
           "passed": true,
-          "evidence": "Line 90-91: `prediction = self.model.predict([[value]])[0]` followed by `is_anomalous = prediction == -1`. Comment at line 87-89 explicitly states: 'IsolationForest.predict() convention: -1 = anomaly, 1 = normal. Do NOT compute a residual or apply a custom numeric threshold here.' No residual/threshold arithmetic is present anywhere in the file."
+          "evidence": "Lines 62-88 show complete config.json example with 'udfs' array containing object with 'name': 'temp_alert'. Lines 95-98 show the POST request to /config passing @config.json as the body. Also note line 84 confirms 'name must match your .py and .tick filenames exactly'."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 35.1,
+        "tokens": 835,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Identifies the missing severity lambda: |alert() never fires without at least one of .crit(), .warn(), or .info() being set \u2014 and names .crit(lambda: TRUE) as the correct fix for a UDF that only forwards already-flagged points",
+          "passed": false,
+          "evidence": "The response identifies two causes: (1) MQTT Output Node Not Configured and (2) MQTT Broker Connection Issue. Neither mentions the missing severity lambda, .crit(), .warn(), .info(), or the requirement that alert() must have at least one severity lambda set. The severity lambda issue is completely absent from the diagnosis."
         },
         {
-          "text": "The UDF logic correctly: (1) loads the model once at initialization, (2) calls model.predict() per point, (3) interprets -1 as anomaly",
+          "text": "Identifies the .mqtt() / .brokerName() confusion: .mqtt()'s argument is the MQTT topic string, not the broker name \u2014 the configured broker is selected via a separate chained .brokerName('...') call",
+          "passed": false,
+          "evidence": "The response shows incorrect Kapacitor API usage. Line 15-16 shows `.mqtt()` followed by `.brokerURL(...)` (which is not a valid Kapacitor method). The response does not mention `.brokerName()` at all, nor does it clarify that `.mqtt()` takes a topic argument. The working example (lines 107-110) also incorrectly chains `.brokerURL()` instead of showing the correct `.mqtt()` topic argument and `.brokerName()` pattern."
+        },
+        {
+          "text": "Does not suggest rewriting the UDF, repackaging, redeploying the container, or checking MQTT broker network connectivity as a primary fix for these two causes",
+          "passed": false,
+          "evidence": "Lines 42-47 explicitly suggest checking MQTT broker connectivity as a primary diagnostic/fix step: 'Verify broker connectivity from the Kapacitor container' with docker exec nc command. This violates the expectation not to suggest broker connectivity checks as a primary fix. The response treats broker connectivity as one of the two main causes, which is contrary to the requirement."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 92.7,
+        "tokens": 1528,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "UDF reads the model path via os.environ.get(\"MODEL_PATH\") \u2014 not a hardcoded file path string",
           "passed": true,
-          "evidence": "(1) `self.model = joblib.load(MODEL_PATH)` inside `__init__`. (2) `point()` method calls `self.model.predict([[value]])[0]` for each incoming point. (3) `is_anomalous = prediction == -1` correctly maps the IsolationForest -1 output to the anomaly flag, and the response sets `fieldsDouble['anomaly'] = 1.0 if is_anomalous else 0.0`."
+          "evidence": "Line 21 of pump_anomaly_detector.py: `self.model_path = os.environ.get('MODEL_PATH', '/opt/udf/models/pump_anomaly.pkl')` - correctly uses os.environ.get() to read MODEL_PATH environment variable"
+        },
+        {
+          "text": "patch_sklearn() is called before any 'from sklearn' or 'import sklearn' line in the UDF file",
+          "passed": true,
+          "evidence": "Lines 8-12 of pump_anomaly_detector.py show no sklearn imports. The UDF imports only: json, os, pickle, sys, and typing. Sklearn is only loaded at runtime when pickle.load() unpickles the model object (line 29)."
+        },
+        {
+          "text": "Model is loaded once in __init__, not inside point()",
+          "passed": true,
+          "evidence": "pump_anomaly_detector.py lines 18-23 show _load_model() is called in __init__. The process_point() function (lines 91-110) uses the global detector instance created during init() and does not reload the model."
+        },
+        {
+          "text": "config.json contains a udfs.models field referencing the model filename (pump_anomaly_detector.pkl)",
+          "passed": false,
+          "evidence": "config.json does not contain a 'udfs.models' field. The model reference appears in the 'deployment.files' array at line 71 listing 'models/pump_anomaly.pkl'. Additionally, the expected filename in the expectation is 'pump_anomaly_detector.pkl' but the actual model filename is 'pump_anomaly.pkl' (as documented in models/README.md and the code default)."
+        },
+        {
+          "text": "Deployment package includes the model file under a models/ directory, or explicitly notes it must be placed there before packaging",
+          "passed": true,
+          "evidence": "Tar.gz contents include models/README.md which explicitly states: 'Place your pre-trained scikit-learn IsolationForest model file here. Expected filename: `pump_anomaly.pkl`'. The models/ directory is present in the package structure."
         }
       ],
       "notes": []
@@ -311,42 +475,42 @@
         "max": 1.0
       },
       "time_seconds": {
-        "mean": 135.3667,
-        "stddev": 31.282,
-        "min": 101.3,
-        "max": 162.8
+        "mean": 123.96,
+        "stddev": 78.111,
+        "min": 42.9,
+        "max": 221.4
       },
       "tokens": {
-        "mean": 920921.0,
-        "stddev": 848005.1442,
-        "min": 355,
-        "max": 1670222
+        "mean": 59482.8,
+        "stddev": 129337.0089,
+        "min": 716,
+        "max": 290843
       }
     },
     "without_skill": {
       "pass_rate": {
-        "mean": 0.729,
-        "stddev": 0.3529,
-        "min": 0.33,
+        "mean": 0.5172,
+        "stddev": 0.3982,
+        "min": 0.0,
         "max": 1.0
       },
       "time_seconds": {
-        "mean": 155.4333,
-        "stddev": 36.7818,
-        "min": 117.8,
-        "max": 191.3
+        "mean": 81.8,
+        "stddev": 33.687,
+        "min": 35.1,
+        "max": 120.6
       },
       "tokens": {
-        "mean": 1099825.6667,
-        "stddev": 1057659.9384,
-        "min": 256,
-        "max": 2109887
+        "mean": 170484.2,
+        "stddev": 243280.7751,
+        "min": 835,
+        "max": 528905
       }
     },
     "delta": {
-      "pass_rate": "+0.27",
-      "time_seconds": "-20.1",
-      "tokens": "-178905"
+      "pass_rate": "+0.48",
+      "time_seconds": "+42.2",
+      "tokens": "-111001"
     }
   },
   "notes": []
