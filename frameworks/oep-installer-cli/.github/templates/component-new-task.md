@@ -10,8 +10,9 @@ pull request adding `module/{{NAME}}/debian`.
 > `license` contracts, and helper reuse.  The requirements below do **not**
 > restate those rules — they only cover what is not already in those files.
 
-> **Scope fence**: modify only files under `module/{{NAME}}/`.  Do **not**
-> touch `common/`, `license/`, `openedge-cli`, `profile/`, `.github/`, or any
+> **Scope fence**: modify only files under `module/{{NAME}}/` (and the
+> profile files named in the spec's `## Profile membership` section, if any).
+> Do **not** touch `common/`, `license/`, `openedge-cli`, `.github/`, or any
 > other component's directory.  If a needed helper does not exist in `common/`
 > or `license/`, implement the logic locally within the component and note the
 > gap in the PR description for a maintainer to decide.
@@ -57,11 +58,12 @@ pull request adding `module/{{NAME}}/debian`.
    - Reuse common functions actually defined under common/ or license/. Do not invent new helpers. Available helpers: {{HELPERS_LIST}}
 
 - **Profile membership**: the spec's `## Profile membership` section states
-   whether this component should be added to one or more profiles.  Do **not**
-   edit `profile/*/debian` yourself.  Instead, include in the PR description
-   the exact suggested edit — the `profile/<suite>/debian` function name and
-   the component name to append to its return list — so a maintainer can apply
-   it.  If the spec is silent or says "none", note that and take no action.
+   whether this component should be added to one or more profiles.
+   - If the spec names one or more profiles, **update those `profile/*/debian`
+     files directly** in this PR — append the component name to the return
+     value of the corresponding `debian_99_profile_<suite>` function.
+   - If the spec is silent or says "none", do **not** touch `profile/` and
+     note this in the PR description.
 
 - **`set -e` consequence**: all component scripts execute in a `set -e`
    subshell (see `act_helpper` in `common/linux/cli`).  Any command that may
