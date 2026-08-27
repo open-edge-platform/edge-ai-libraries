@@ -15,7 +15,7 @@ enforce any new or changed requirements introduced by the spec edit.
 > restate those rules — they only cover what is not already in those files.
 
 > **Scope fence**: modify only files under `module/{{NAME}}/` (and the
-> profile files named in the spec's `## Profile membership` section, if any).
+> profile files named in the spec, if any).
 > Do **not** touch `common/`, `license/`, `openedge-cli`, `.github/`, or any
 > other component's directory.  If a needed helper does not exist in `common/`
 > or `license/`, implement the logic locally within the component and note the
@@ -126,8 +126,7 @@ If the spec changes a pinned version, tag, or workspace layout, `verify_{{NAME}}
   runtime service.  Omit `remove` only for trivial system packages (cite
   `module/curl/debian`).
 
-- **Profile membership**: the spec's `## Profile membership` section states
-   whether this component should be added to one or more profiles.
+- **Profile membership**: the spec states whether this component should be added to one or more profiles.
    - If the spec names one or more profiles, **update those `profile/*/debian`
      files directly** in this PR — append the component name to the return
      value of the corresponding `debian_99_profile_<suite>` function.
