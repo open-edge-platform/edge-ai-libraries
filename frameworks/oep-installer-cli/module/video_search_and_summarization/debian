@@ -59,7 +59,7 @@ verify_video_search_and_summarization () {
     ov_models/ovms/openvino_models/gpu/int4/config_all.json
     ov_models/ovms/config.json
   )
-  for f in ${files_to_check[@]}; do
+  for f in "${files_to_check[@]}"; do
     [ -e "$workspace"/sample-applications/video-search-and-summarization/$f ] || return 1
   done
 }

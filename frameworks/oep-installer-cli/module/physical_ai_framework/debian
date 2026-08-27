@@ -49,10 +49,10 @@ debian_91_install_physical_ai_framework () {
       echo "Could not create the Physical AI Framework virtual environment." 1>&2
       return 3
     }
-    echo "Installing $paif_pkg[$paif_extra] (PyTorch $paif_extra build; this may take a while)..."
+    echo "Installing ${paif_pkg}[${paif_extra}] (PyTorch ${paif_extra} build; this may take a while)..."
     uv pip install --python "$paif_venv/bin/python" \
       --index "$paif_index" --index-strategy unsafe-best-match \
-      "$paif_pkg[$paif_extra]" || {
+      "${paif_pkg}[${paif_extra}]" || {
       echo "Could not install $paif_pkg." 1>&2
       return 3
     }

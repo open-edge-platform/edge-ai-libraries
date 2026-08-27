@@ -50,10 +50,10 @@ debian_92_install_physical_ai_studio () {
     # LeRobot / video encoding dependencies require ffmpeg on the host
     ensure_apt update
     ensure_apt install --no-install-recommends -y ffmpeg
-    echo "Installing $pais_pkg[$pais_extra] (PyTorch $pais_extra build; this may take a while)..."
+    echo "Installing ${pais_pkg}[${pais_extra}] (PyTorch ${pais_extra} build; this may take a while)..."
     uv tool install --python 3.12 \
       --index "$pais_index" --index-strategy unsafe-best-match \
-      "$pais_pkg[$pais_extra]" || {
+      "${pais_pkg}[${pais_extra}]" || {
       echo "Could not install $pais_pkg." 1>&2
       return 3
     }

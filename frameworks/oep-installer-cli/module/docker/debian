@@ -4,7 +4,7 @@ configure_docker () {
   [ -z "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ] || \
     grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
       ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
-      cat | ensure_sudo tee /etc/systemd/system/docker.service.d/proxy.conf <<EOF
+      ensure_sudo tee /etc/systemd/system/docker.service.d/proxy.conf <<EOF
 [Service]
 Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
 Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
@@ -48,7 +48,7 @@ debian_20_install_docker () {
     DAEMON_JSON="/etc/docker/daemon.json"
     if [ ! -f "$DAEMON_JSON" ]; then
       ensure_sudo mkdir -p /etc/docker
-      cat | ensure_sudo tee $DAEMON_JSON <<EOF
+      ensure_sudo tee "$DAEMON_JSON" <<EOF
 {
    "exec-opts": [
         "native.cgroupdriver=systemd"
