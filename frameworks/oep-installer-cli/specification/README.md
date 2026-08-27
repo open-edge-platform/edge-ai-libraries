@@ -1,9 +1,10 @@
 # Adding new installer components via AI
 
-Drop a Markdown spec file named `<component_name>.md` into this folder, commit
-it to `main`, and a GitHub Actions workflow automatically creates a GitHub
-issue assigned to the Copilot coding agent.  The agent reads the spec, writes
-`module/<component_name>/debian`, and opens a pull request.
+Drop a Markdown spec file named `<component_name>.md` into this folder and
+commit it to `main`. A GitHub Actions workflow creates a GitHub issue for the
+component; assignment to the Copilot coding agent depends on dispatch rules
+below (status-based with maintainer gating for modified/rejected-prior-art
+cases).
 
 All generated PRs require a human review before merging.
 
@@ -118,7 +119,8 @@ full text of the license.
 2. The workflow `.github/workflows/instructions-to-component.yml` detects the
    **new** file (git status `A`).
 3. It creates a GitHub issue titled *"Implement installer component: `<name>`"*
-   and **immediately assigns it to the Copilot coding agent**.
+   and **immediately assigns it to the Copilot coding agent** unless a recent
+   rejected prior attempt is detected, in which case it is label-gated.
 4. The agent reads the issue (which embeds the full spec and detailed
    implementation requirements), writes `module/<name>/debian`, runs
    `.github/scripts/validate-modules.sh module/<name>` — the same script that
@@ -178,4 +180,3 @@ components:
 The naming rule "Do not use a name that already exists under `module/`" applies
 only to **new** spec files.  Editing an existing spec is expected and supported
 via this label-gated flow.
-

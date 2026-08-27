@@ -13,9 +13,10 @@ on:
         required: false
       mode:
         description: >-
-          Mode override: 'auto' (default) infers from whether module/<name>/
-          already exists; 'new' forces new-component behaviour; 'modified'
-          forces update behaviour.
+          Spec status override: 'auto' (default) infers from whether
+          module/<name>/ already exists; 'new' maps to status A and
+          'modified' maps to status M. Dispatch defaults from status only
+          (A auto-assign, M label-gated).
         required: false
         default: 'auto'
         type: choice
@@ -86,8 +87,8 @@ jobs:
 
           if [ -n "${{ github.event.inputs.spec_file }}" ]; then
             # workflow_dispatch with an explicit spec_file is always intentional.
-            # Infer mode from whether module/<name>/ already exists unless the
-            # caller explicitly set the mode input.
+            # Infer spec status from whether module/<name>/ already exists
+            # unless the caller explicitly set the mode input.
             SPEC="${{ github.event.inputs.spec_file }}"
             OVERRIDE_MODE="${{ github.event.inputs.mode }}"
             if [[ "$OVERRIDE_MODE" == "auto" || -z "$OVERRIDE_MODE" ]]; then

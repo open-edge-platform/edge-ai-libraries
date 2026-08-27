@@ -17,6 +17,16 @@ pull request adding `module/{{NAME}}/debian`.
 > or `license/`, implement the logic locally within the component and note the
 > gap in the PR description for a maintainer to decide.
 
+> **Branch/source of truth rule**: start from the current `main`. Do **not**
+> resume, cherry-pick from, or otherwise reuse branches belonging to closed
+> pull requests. The only authoritative requirement sources are the spec
+> embedded below, `module/README.md`, `profile/README.md`, and current `main`.
+> If a closed, unmerged PR exists for this component, treat it as **rejected
+> prior art** and do not reproduce it. If you reference it, explain in your PR
+> description how your implementation differs and why.
+
+{{REJECTED_PRIOR_ART}}
+
 ---
 
 ### Spec
