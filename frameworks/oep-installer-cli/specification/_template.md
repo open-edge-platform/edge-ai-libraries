@@ -26,6 +26,19 @@
 - `<dependency_1>`
 - `<dependency_2>`
 
+## Profile membership
+
+<!-- State whether this component should be added to one or more profiles.
+     List the exact profile directory names under profile/ that should include
+     this component, or write "none" if it is a standalone utility.
+     A maintainer will apply the profile/ edit; the agent only proposes it.
+
+     Available profiles: computer_vision, federal_and_aerospace_ai_suite,
+     health_and_life_science_ai_suite, inferencing, manufacturing_ai_suite,
+     metro_ai_suite, retail_ai_suite, robotics_ai_suite               -->
+
+**Add to profiles**: <!-- e.g. manufacturing_ai_suite, metro_ai_suite — or "none" -->
+
 ## Installation steps
 
 **Upstream repository**: `<https://github.com/...>`  
