@@ -8,6 +8,18 @@ enforce any new or changed requirements introduced by the spec edit.
 > this task.  Do **not** rewrite the implementation from scratch — edit only
 > what the spec change requires.
 
+> **Before writing any code**, read `module/README.md` and `profile/README.md`
+> in full.  They are the normative reference for function naming, order ranges,
+> the `@@HIGHLIGHT` protocol, the `install`/`remove`/`start`/`stop`/`profile`/
+> `license` contracts, and helper reuse.  The requirements below do **not**
+> restate those rules — they only cover what is not already in those files.
+
+> **Scope fence**: modify only files under `module/{{NAME}}/`.  Do **not**
+> touch `common/`, `license/`, `openedge-cli`, `profile/`, `.github/`, or any
+> other component's directory.  If a needed helper does not exist in `common/`
+> or `license/`, implement the logic locally within the component and note the
+> gap in the PR description for a maintainer to decide.
+
 ---
 
 ### Updated spec
@@ -75,7 +87,9 @@ If the spec changes a pinned version, tag, or workspace layout, `verify_{{NAME}}
 
 ### Implementation reference rules (unchanged from new-component requirements)
 
-- **Function naming** (see `module/README.md`):
+#### Naming
+
+   The six interface functions **must** follow the exact pattern:
 
    ```
    debian_<NN>_profile_{{NAME}}
@@ -97,6 +111,12 @@ If the spec changes a pinned version, tag, or workspace layout, `verify_{{NAME}}
    99     profiles
    ```
 
+   `configure_{{NAME}}` and `verify_{{NAME}}` are **conventions, not
+   requirements**.  Additional helper functions are allowed; the real
+   constraint is **global uniqueness across all installer scripts** (CI
+   enforces this).  Suffixing helpers with `_{{NAME}}` is the recommended
+   way to ensure uniqueness.
+
 - **File location**: `module/{{NAME}}/debian` for Debian-specific functions;
   `module/{{NAME}}/linux` for distribution-agnostic functions.
 
@@ -104,6 +124,18 @@ If the spec changes a pinned version, tag, or workspace layout, `verify_{{NAME}}
   Omit `start`/`stop` only when the spec describes a stateless package with no
   runtime service.  Omit `remove` only for trivial system packages (cite
   `module/curl/debian`).
+
+- **Profile membership**: the spec's `## Profile membership` section states
+   whether this component should be added to one or more profiles.  Do **not**
+   edit `profile/*/debian` yourself.  Instead, include in the PR description
+   the exact suggested edit — the `profile/<suite>/debian` function name and
+   the component name to append to its return list — so a maintainer can apply
+   it.  If the spec is silent or says "none", note that and take no action.
+
+- **`set -e` consequence**: all component scripts execute in a `set -e`
+   subshell (see `act_helpper` in `common/linux/cli`).  Any command that may
+   legitimately fail must be guarded with `|| true`, as done in
+   `module/smart_parking/debian`'s `remove` function.
 
 - **`configure_{{NAME}}` idiom**: set local workspace, version, and repository
   variables.  Default workspace: `$(ensure_project_path)/{{NAME}}`.
@@ -127,17 +159,31 @@ If the spec changes a pinned version, tag, or workspace layout, `verify_{{NAME}}
 Run these static checks and fix all issues before pushing:
 
 ```bash
-# 1. Bash syntax check
-bash -n module/{{NAME}}/debian
+# 1. Bash syntax check — covers both debian and linux files if present
+for f in module/{{NAME}}/*; do [ -f "$f" ] || continue; bash -n "$f"; done
 
 # 2. Shellcheck (sourced fragment – disable SC2148 missing-shebang)
-shellcheck --shell=bash --exclude=SC2148 module/{{NAME}}/debian
+for f in module/{{NAME}}/*; do
+  [ -f "$f" ] || continue
+  shellcheck --shell=bash --exclude=SC2148 "$f"
+done
 
-# 3. Verify all public function names match the allowed pattern
-grep -E '^[a-zA-Z_][a-zA-Z0-9_]* \(\)' module/{{NAME}}/debian \
-  | grep -vE '^(configure|verify)_{{NAME}} \(\)$' \
-  | grep -vE '^[a-z]+_[0-9]{2}_(profile|license|install|remove|start|stop)_{{NAME}} \(\)$' \
-  && { echo "Function name violation found"; exit 1; } || echo "Function names OK"
+# 3. Check that every function defined in this component is globally unique
+# (no other installer script in module/, profile/, common/, or license/ defines
+# the same name).  CI enforces this via validate-modules.yml.
+for f in module/{{NAME}}/*; do
+  [ -f "$f" ] || continue
+  while IFS= read -r func; do
+    matches="$(grep -rlE "^${func} *\(\)" module/ profile/ common/ license/ \
+      2>/dev/null | grep -v "^module/{{NAME}}/" || true)"
+    if [[ -n "$matches" ]]; then
+      echo "Function name collision: '${func}' in ${f} is also defined in: ${matches}"
+      exit 1
+    fi
+  done < <(grep -oE '^[a-zA-Z_][a-zA-Z0-9_]+' "$f" \
+    < <(grep -E '^[a-zA-Z_][a-zA-Z0-9_]* *\(\)' "$f" || true))
+done
+echo "Function names are globally unique."
 ```
 
 In the PR description:

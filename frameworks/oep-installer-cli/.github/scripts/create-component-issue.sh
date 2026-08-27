@@ -83,8 +83,17 @@ render_template () {
   printf '%s\n' "$body"
 }
 
-# Build list of available helpers once (embedded into every issue body)
-HELPERS_LIST="$(find common/ license/ -type f ! -name cli ! -name panelled_logs ! -name license_gate 2>/dev/null | sort | sed 's|^|  - |')"
+# Build list of available helpers once (embedded into every issue body).
+# Extract real callable function symbols from common/ and license/, annotated
+# with their source file.  Exclude framework-internal functions (act_*, _*,
+# subcommand_*, ensure_panelled_logs, ensure_license_gate) that components
+# must not call directly.
+HELPERS_LIST="$(
+  grep -roE '^ensure_[a-z0-9_]+' common/ license/ 2>/dev/null \
+    | grep -Ev ':(ensure_panelled_logs|ensure_license_gate)$' \
+    | sed 's/^\(.*\):\(.*\)/  - \2  (\1)/' \
+    | sort -u
+)"
 
 # ---------------------------------------------------------------------------
 # Pass 1 – collect eligible specs (apply Guards 2 and 3)

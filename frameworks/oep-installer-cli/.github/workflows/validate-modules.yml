@@ -94,55 +94,59 @@ jobs:
         with:
           clean: true
 
-      - name: Check function names in module and profile files
+      - name: Check function name uniqueness across all installer scripts
         run: |
           set -euo pipefail
+          # openedge-cli's subcommand_bootstrap concatenates every selected module/profile
+          # fragment plus common/ and license/ into one rendered script.  If two files
+          # define the same function name the last one cat-ed silently wins.  Collisions
+          # must be detected here, before the rendered script is produced.
           failed=0
+          tmpfile="$(mktemp)"
+          trap 'rm -f "$tmpfile"' EXIT
 
-          check_file() {
-            local file="$1"
-            local name="$2"   # parent directory name (component name)
-            local os="$3"     # filename (OS_LIKE, e.g. debian)
-
-            # Extract top-level function definitions: lines of the form
-            #   funcname () {
-            # (the shell function declaration format used across this repo)
-            while IFS= read -r line; do
-              func="${line%% *}"  # strip everything after the first space
-              # Allowed patterns:
-              #   configure_<name>
-              #   verify_<name>
-              #   <os>_<NN>_(profile|license|install|remove|start|stop)_<name>
-              if [[ "$func" == "configure_${name}" ]] || \
-                 [[ "$func" == "verify_${name}" ]] || \
-                 [[ "$func" =~ ^[a-z]+_[0-9]{2}_(profile|license|install|remove|start|stop)_${name}$ ]]; then
-                : # valid
-              else
-                echo "::error file=${file}::Non-conforming function name: ${func} (component=${name}, os=${os})"
-                failed=1
-              fi
-            done < <(grep -E '^[a-zA-Z_][a-zA-Z0-9_]* \(\)' "$file" || true)
-          }
-
-          # Check every file under module/<name>/<os>  (skip README.md)
-          for dir in module/*/; do
-            name="$(basename "$dir")"
-            for file in "$dir"*; do
-              [ -f "$file" ] || continue
-              [[ "$(basename "$file")" == "README.md" ]] && continue
-              os="$(basename "$file")"
-              check_file "$file" "$name" "$os"
+          # Collect all top-level function definitions across the whole tree.
+          # Pattern is tolerant of zero or more spaces before (): funcname() or funcname ()
+          # Each output line: funcname:file:lineno
+          find module profile common license -type f ! -name '*.md' | sort | \
+          while IFS= read -r f; do
+            grep -nE '^[a-zA-Z_][a-zA-Z0-9_]* *\(\)' "$f" 2>/dev/null | \
+            while IFS=: read -r lineno decl; do
+              func="$(printf '%s' "$decl" | grep -oE '^[a-zA-Z_][a-zA-Z0-9_]+')"
+              [[ -n "$func" ]] && printf '%s:%s:%s\n' "$func" "$f" "$lineno"
             done
-          done
+          done > "$tmpfile"
 
-          # Check every file under profile/<name>/<os>  (skip README.md)
-          for dir in profile/*/; do
+          # Report any function name defined in more than one file.
+          while IFS= read -r func; do
+            mapfile -t defs < <(grep "^${func}:" "$tmpfile")
+            for def in "${defs[@]}"; do
+              f="${def#*:}"; f="${f%:*}"
+              ln="${def##*:}"
+              others="$(printf '%s\n' "${defs[@]}" | grep -Fv "${func}:${f}:" \
+                | sed "s|^${func}:||;s|:[0-9]*$||" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+              echo "::error file=${f},line=${ln}::Duplicate function '${func}'; also defined in: ${others}"
+              failed=1
+            done
+          done < <(cut -d: -f1 "$tmpfile" | sort | uniq -d)
+
+          # Interface functions must carry a suffix matching their component directory name,
+          # since act_find_deps dispatches by that suffix.
+          # e.g. debian_90_install_smart_parking must be inside module/smart_parking/
+          for dir in module/*/ profile/*/; do
             name="$(basename "$dir")"
-            for file in "$dir"*; do
+            for file in "${dir}"*; do
               [ -f "$file" ] || continue
-              [[ "$(basename "$file")" == "README.md" ]] && continue
-              os="$(basename "$file")"
-              check_file "$file" "$name" "$os"
+              [[ "$(basename "$file")" == *.md ]] && continue
+              while IFS=: read -r lineno decl; do
+                func="$(printf '%s' "$decl" | grep -oE '^[a-zA-Z_][a-zA-Z0-9_]+')"
+                [[ -z "$func" ]] && continue
+                if [[ "$func" =~ ^[a-z]+_[0-9]{2}_(profile|license|install|remove|start|stop)_ ]] && \
+                   [[ "$func" != *_${name} ]]; then
+                  echo "::error file=${file},line=${lineno}::Interface function '${func}' suffix does not match component name '${name}'"
+                  failed=1
+                fi
+              done < <(grep -nE '^[a-zA-Z_][a-zA-Z0-9_]* *\(\)' "$file" || true)
             done
           done
 
@@ -153,7 +157,7 @@ jobs:
             exit 1
           fi
 
-          echo "All function names conform to the naming convention."
+          echo "All function names are globally unique and interface functions are correctly named."
 
   highlight-guidance:
     name: '@@HIGHLIGHT guidance (non-blocking)'

@@ -51,7 +51,22 @@ List every other component that must be installed first.  Only name components
 that actually exist under `module/`.  The agent will echo these from
 `debian_<NN>_profile_<name>`.
 
-### 4. Installation steps
+### 4. Profile membership
+
+State whether this component should be added to one or more profiles under
+`profile/`.  Profiles are virtual groups that install a set of components
+together (e.g. `metro_ai_suite`, `manufacturing_ai_suite`).
+
+- If yes, name the exact profile directories (e.g. `manufacturing_ai_suite`).
+  The agent will **propose** the profile edit in its PR description; a
+  maintainer applies the actual change to `profile/*/debian`.
+- If the component is a standalone utility or library that no suite depends on,
+  write "none".
+- A note on helper function uniqueness: function names in component scripts
+  must be globally unique across all installer scripts.  CI enforces this in
+  `.github/workflows/validate-modules.yml`.
+
+### 5. Installation steps
 
 Describe what the install procedure does: which packages to install, which
 repos to clone, which scripts to run, what environment variables or files are
@@ -61,13 +76,13 @@ if cloning from source.
 For a SDK, application or service, highlight what is next for the user. For example,
 go to certain directory and run additional setup. 
 
-### 5. Verification
+### 6. Verification
 
 Describe a reliable test the agent can use in `verify_<name>()` to confirm
 the component is correctly installed (e.g. presence of a specific file or
 binary, a version check, a health-check URL).
 
-### 6. Start / stop behaviour
+### 7. Start / stop behaviour
 
 Describe how to start and stop the component at runtime (Docker Compose
 services, systemd units, scripts, etc.).  If the component is a stateless
@@ -77,17 +92,17 @@ system package with no runtime service (e.g. `curl`, `jq`) you can note that
 For a SDK, application or service, highlight what is next for the user after the 
 comonent is started, for example, launching the browser to a specified URL.
 
-### 7. Ports and network endpoints
+### 8. Ports and network endpoints
 
 List any TCP/UDP ports opened by the component, and note the UI entrypoint URL
 if applicable.
 
-### 8. Removal
+### 9. Removal
 
 Describe what `remove` should clean up (Docker images, git workspace, config
 files, apt packages).
 
-### 9. License requirements
+### 10. License requirements
 
 State whether the component requires the user to accept a click-through license
 before installation.  If yes, provide the license ID, title, and the URL or

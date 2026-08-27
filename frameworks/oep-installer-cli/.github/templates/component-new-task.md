@@ -4,6 +4,18 @@ A new spec file `{{SPEC_FILE}}` was pushed to `main`. Implement the
 corresponding installer component following the rules below, then open a
 pull request adding `module/{{NAME}}/debian`.
 
+> **Before writing any code**, read `module/README.md` and `profile/README.md`
+> in full.  They are the normative reference for function naming, order ranges,
+> the `@@HIGHLIGHT` protocol, the `install`/`remove`/`start`/`stop`/`profile`/
+> `license` contracts, and helper reuse.  The requirements below do **not**
+> restate those rules — they only cover what is not already in those files.
+
+> **Scope fence**: modify only files under `module/{{NAME}}/`.  Do **not**
+> touch `common/`, `license/`, `openedge-cli`, `profile/`, `.github/`, or any
+> other component's directory.  If a needed helper does not exist in `common/`
+> or `license/`, implement the logic locally within the component and note the
+> gap in the PR description for a maintainer to decide.
+
 ---
 
 ### Spec
@@ -16,8 +28,9 @@ pull request adding `module/{{NAME}}/debian`.
 
 ### Implementation requirements
 
-- **Function naming** (See `module/README.md`):
+- **Function naming** (see `module/README.md`):
 
+   The six interface functions **must** follow the exact pattern:
    ```
    debian_<NN>_profile_{{NAME}}
    debian_<NN>_install_{{NAME}}
@@ -25,18 +38,12 @@ pull request adding `module/{{NAME}}/debian`.
    debian_<NN>_start_{{NAME}}
    debian_<NN>_stop_{{NAME}}
    debian_<NN>_license_{{NAME}}   # only if the spec requires a click-through license
-
    ```
-
-   Use the **same two-digit order number** `<NN>` across all functions in
-   this component, chosen from the documented ranges:
-   ```
-   00-29  kernel modules/drivers or system utilities
-   30-59  low-level libraries
-   60-89  middle-level libraries, SDK, and services including microservices
-   90-98  applications, tools, 
-   99     profiles (virtual groups of components)
-   ```
+   `configure_{{NAME}}` and `verify_{{NAME}}` are **conventions, not
+   requirements** — they are not enforced by the naming check.  Additional
+   helper functions are allowed; the real constraint is **global uniqueness
+   across all installer scripts** (CI enforces this).  Suffixing helpers with
+   `_{{NAME}}` is the recommended way to ensure uniqueness.
 
 - **File location**: `module/{{NAME}}/debian` for debian specific functions and
    `module/{{NAME}}/linux` for distribution agnostic functions. The interface functions mentioned
@@ -48,6 +55,18 @@ pull request adding `module/{{NAME}}/debian`.
    - Omit `remove` **only** for trivial system packages where removal could cause unintended side-effects (cite `module/curl/debian`).
    - Add `debian_<NN>_license_{{NAME}}` if the spec requires a click-through license; the function must print `@@LICENSE-ID`, `@@LICENSE-TITLE`, and the full license text (use `ensure_license_fetch` if fetching from a URL).
    - Reuse common functions actually defined under common/ or license/. Do not invent new helpers. Available helpers: {{HELPERS_LIST}}
+
+- **Profile membership**: the spec's `## Profile membership` section states
+   whether this component should be added to one or more profiles.  Do **not**
+   edit `profile/*/debian` yourself.  Instead, include in the PR description
+   the exact suggested edit — the `profile/<suite>/debian` function name and
+   the component name to append to its return list — so a maintainer can apply
+   it.  If the spec is silent or says "none", note that and take no action.
+
+- **`set -e` consequence**: all component scripts execute in a `set -e`
+   subshell (see `act_helpper` in `common/linux/cli`).  Any command that may
+   legitimately fail must be guarded with `|| true`, as done in
+   `module/smart_parking/debian`'s `remove` function.
 
 - **`configure_{{NAME}}` idiom**:
    - If a local workspace is required to store the component source files or configurations, define
@@ -75,17 +94,31 @@ passed.
 Run these checks and fix all issues before pushing:
 
 ```bash
-# 1. Bash syntax check
-bash -n module/{{NAME}}/debian
+# 1. Bash syntax check — covers both debian and linux files if present
+for f in module/{{NAME}}/*; do [ -f "$f" ] || continue; bash -n "$f"; done
 
 # 2. Shellcheck (sourced fragment – disable SC2148 missing-shebang)
-shellcheck --shell=bash --exclude=SC2148 module/{{NAME}}/debian
+for f in module/{{NAME}}/*; do
+  [ -f "$f" ] || continue
+  shellcheck --shell=bash --exclude=SC2148 "$f"
+done
 
-# 3. Verify all public function names match the allowed pattern
-grep -E '^[a-zA-Z_][a-zA-Z0-9_]* \(\)' module/{{NAME}}/debian \
-  | grep -vE '^(configure|verify)_{{NAME}} \(\)$' \
-  | grep -vE '^[a-z]+_[0-9]{2}_(profile|license|install|remove|start|stop)_{{NAME}} \(\)$' \
-  && { echo "Function name violation found"; exit 1; } || echo "Function names OK"
+# 3. Check that every function defined in this component is globally unique
+# (no other installer script in module/, profile/, common/, or license/ defines
+# the same name).  CI enforces this via validate-modules.yml.
+for f in module/{{NAME}}/*; do
+  [ -f "$f" ] || continue
+  while IFS= read -r func; do
+    matches="$(grep -rlE "^${func} *\(\)" module/ profile/ common/ license/ \
+      2>/dev/null | grep -v "^module/{{NAME}}/" || true)"
+    if [[ -n "$matches" ]]; then
+      echo "Function name collision: '${func}' in ${f} is also defined in: ${matches}"
+      exit 1
+    fi
+  done < <(grep -oE '^[a-zA-Z_][a-zA-Z0-9_]+' "$f" \
+    < <(grep -E '^[a-zA-Z_][a-zA-Z0-9_]* *\(\)' "$f" || true))
+done
+echo "Function names are globally unique."
 ```
 
 In the PR description, include a note such as:
