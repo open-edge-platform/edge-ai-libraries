@@ -5,10 +5,10 @@ SPDX-License-Identifier: Apache-2.0
 
 # Skill Benchmark: time-series-analytics-user
 
-**Agents**: Copilot (`claude-sonnet-5`)  
-**Grader**: Copilot (`claude-sonnet-5`)  
-**Date**: 2026-08-25T13:28:58Z  
-**Evals**: 1, 2, 3 (1 run per configuration)
+**Agents**: Copilot (`claude-haiku-4.5`)  
+**Grader**: Copilot (`claude-haiku-4.5`)  
+**Date**: 2026-08-26T09:18:13Z  
+**Evals**: 1, 2, 3, 4, 5 (1 run per configuration)
 
 ## Summary
 
@@ -18,25 +18,25 @@ SPDX-License-Identifier: Apache-2.0
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 1 / 3 | 3 / 3 | **+2 ↑** |
+| Copilot (`claude-haiku-4.5`) | 1 / 5 | 5 / 5 | **+4 ↑** |
 
 ### Pass rate (avg ± σ across evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 73% ±35% | 100% ±0% | **+27pp ↑** |
+| Copilot (`claude-haiku-4.5`) | 52% ±40% | 100% ±0% | **+48pp ↑** |
 
 ### Time (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 466 s | 406 s | -60 s ↓ |
+| Copilot (`claude-haiku-4.5`) | 409 s | 620 s | +211 s ↓ |
 
 ### Tokens (total across all evals)
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| Copilot (`claude-sonnet-5`) | 4222k | 3998k | -224k ↓ |
+| Copilot (`claude-haiku-4.5`) | 1547k | 3864k | +2317k ↓ |
 
 ## Per-Eval Detail
 
@@ -44,7 +44,9 @@ SPDX-License-Identifier: Apache-2.0
 
 | Eval | Prompt | Copilot (w/) | Copilot (w/o) |
 |---|---|---|---|
-| 1 | Build a UDF that flags hydraulic pressure readings outside a safe operating band... | PASS (6/6) | FAIL (2/6) |
-| 2 | Build a UDF that detects sudden vibration spikes on a motor and publishes an MQT... | PASS (7/7) | FAIL (6/7) |
-| 3 | Deploy a pretrained anomaly-detection model for wind turbine sensor data through... | PASS (5/5) | PASS (5/5) |
-| | **Mean ±σ** | **100% ±0%** | **73% ±35%** |
+| 1 | Build a UDF that flags hydraulic pressure readings outside a safe operating band... | PASS (7/7) | FAIL (2/7) |
+| 2 | Build a UDF that detects sudden vibration spikes on a motor and publishes an MQT... | PASS (8/8) | FAIL (4/8) |
+| 3 | I have a UDF named `temp_alert` — the files `udfs/temp_alert.py` and `tick_scrip... | PASS (4/4) | PASS (4/4) |
+| 4 | My MQTT alert is not working. I deployed a temperature UDF successfully — POST /... | PASS (3/3) | FAIL (0/3) |
+| 5 | Build a UDF that uses a pre-trained scikit-learn IsolationForest model file `pum... | PASS (5/5) | FAIL (4/5) |
+| | **Mean ±σ** | **100% ±0%** | **52% ±40%** |

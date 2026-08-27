@@ -45,17 +45,27 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Find all .github/skills directories
+      - name: Find skill paths
         id: find-paths
         run: |
-          paths=$(find . -path '*/.github/skills' -type d \
-            | sed 's|^\./||' \
-            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # Only skill directories touched in this PR; sed -nE avoids exit 1 on no match
+            paths=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" \
+              | sed -nE '/\.github\/skills\//p' \
+              | sed -E 's|(.*\.github/skills)/.*|\1|' \
+              | sort -u \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          else
+            paths=$(find . -path '*/.github/skills' -type d \
+              | sed 's|^\./||' \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
           echo "matrix=$paths" >> "$GITHUB_OUTPUT"
 
-  skillspector-scan:
-    name: SkillSpector security scan (${{ matrix.skills-path }})
+  scan:
+    name: Scan (${{ matrix.skills-path }})
     needs: discover-skills
+    if: needs.discover-skills.outputs.matrix != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -77,24 +87,7 @@ jobs:
           skills-path: ${{ matrix.skills-path }}
           severity-level: ${{ github.event_name == 'pull_request' && 'HIGH' || github.event.inputs.severity || 'LOW' }}
           fail-on-findings: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
-
-  skill-validator-scan:
-    name: skill-validator scan (${{ matrix.skills-path }})
-    needs: discover-skills
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        skills-path: ${{ fromJson(needs.discover-skills.outputs.matrix) }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-          fetch-depth: 0
+          version: v2.9.6
 
       - name: Run skill-validator
         uses: open-edge-platform/geti-ci/actions/skill-validator@3fd1ebf48e46ec6584850e20616763e73ddf94e9 # skill-validator/v0.2.2
