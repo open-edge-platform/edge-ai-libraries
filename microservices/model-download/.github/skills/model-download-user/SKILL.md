@@ -9,10 +9,16 @@ description: >
   conversion job via the REST API; or ask "how do I get model X working with
   OVMS?". Also trigger on phrases like "download model", "download weights",
   "convert to int4", "OVMS-ready model", "prepare model for inference".
-argument-hint: >
-  Describe the model you want (e.g. "download Llama-3.2-1B from HuggingFace
-  and convert to OpenVINO INT4 for CPU with OVMS")
+metadata:
+  argument-hint: >
+    Describe the model you want (e.g. "download Llama-3.2-1B from HuggingFace
+    and convert to OpenVINO INT4 for CPU with OVMS")
 ---
+
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
 
 # Model Download Agent
 
@@ -94,22 +100,6 @@ Read a reference file only when you need the detail it contains:
 | [service-setup.md](./references/service-setup.md) | Starting the service, Docker Compose, plugin flags, env vars |
 | [plugins-guide.md](./references/plugins-guide.md) | Per-plugin request bodies, parameters, and curl examples |
 | [troubleshooting.md](./references/troubleshooting.md) | Auth errors, stuck jobs, plugin not activated, venv failures |
-
-## Example Prompts
-
-Read these only if the user's request matches:
-
-| File | Covers |
-|------|--------|
-| [examples-prompts/huggingface.md](./examples-prompts/huggingface.md) | Downloading public and gated HF models |
-| [examples-prompts/openvino-llm.md](./examples-prompts/openvino-llm.md) | LLM to OpenVINO conversion (INT4/INT8) |
-| [examples-prompts/openvino-vlm.md](./examples-prompts/openvino-vlm.md) | VLM to OpenVINO conversion |
-| [examples-prompts/openvino-embeddings.md](./examples-prompts/openvino-embeddings.md) | Embedding model to OpenVINO for OVMS |
-| [examples-prompts/ollama.md](./examples-prompts/ollama.md) | Pulling Ollama models |
-| [examples-prompts/ultralytics-quantized.md](./examples-prompts/ultralytics-quantized.md) | YOLO models with INT8 quantization |
-| [examples-prompts/geti.md](./examples-prompts/geti.md) | Downloading from Intel Geti |
-| [examples-prompts/hls-healthcare.md](./examples-prompts/hls-healthcare.md) | 3D Pose, rPPG, AI-ECG healthcare models |
-| [examples-prompts/pipeline-zoo.md](./examples-prompts/pipeline-zoo.md) | DL Streamer pipeline-zoo models |
 
 ---
 

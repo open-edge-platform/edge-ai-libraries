@@ -9,6 +9,15 @@ Use this workflow for the VSS sample app Helm chart at `sample-applications/vide
 
 If the user asks to map Compose or `setup.sh` settings to Helm values, read `references/helm-values-map.md`.
 
+## Answer contract when the cluster is not reachable
+
+The user may be planning ahead, or `kubectl`/the cluster/the chart may be
+unavailable here. In that case **do not stall and do not invent output.** Answer
+with the exact command sequence instead: the bootstrap step, the override files
+to stack in order, the values the operator must fill in, the `helm install` /
+`helm upgrade` command with its namespace, and how to verify. State plainly that
+the commands were not executed. Never end the answer by asking whether to run them.
+
 ## Environment setup (run first)
 
 This skill drives the Video Search & Summarization app through its real source
@@ -16,12 +25,23 @@ files, so the VSS application must be present and you must run commands from its
 app root. **Do this before anything else**, and it works whether or not the VSS
 source is already in your workspace.
 
-Run the bundled bootstrap. It first tries to find an existing VSS checkout -
-walking up from the current directory and inspecting the enclosing git repo - and
-reuses it **without ever re-cloning**. Only when no checkout is found does it do a
-shallow, single-branch, sparse checkout of just
-`sample-applications/video-search-and-summarization` from `main`. It prints the
-resolved app root on stdout:
+Run the bundled bootstrap. It resolves the app root in this order and prints it
+as the only line on stdout:
+
+1. **Walk up from the current directory** looking for a VSS app root - a
+   directory carrying all three markers `setup.sh`, `docker/`, and
+   `pipeline-manager/`.
+2. **Ask git for the enclosing repository** (`git rev-parse --show-toplevel`) and
+   check whether it holds `sample-applications/video-search-and-summarization`,
+   or is itself a VSS app root. This is what makes your own clone - or a fork -
+   work unchanged.
+3. **Reuse a checkout a previous bootstrap already placed** in
+   `${XDG_CACHE_HOME:-$HOME/.cache}/vss-src/edge-ai-libraries`.
+
+If any of those hit, that checkout is **reused and NO clone is performed**. Only
+when all three miss does it clone - and then only a **shallow (`--depth 1`),
+single-branch, sparse** checkout of just
+`sample-applications/video-search-and-summarization` from `main`:
 
 ```bash
 # SKILL_DIR is THIS skill's own directory (shown to you when the skill loads);
@@ -33,7 +53,8 @@ cd "$APP_ROOT"
 
 Every command below assumes the working directory is this `APP_ROOT`. To pull
 from a fork/branch or reuse a specific checkout dir, override `VSS_REPO_URL`,
-`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it.
+`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it. The bootstrap refuses
+to overwrite an existing non-VSS clone destination.
 
 ## Prerequisites
 

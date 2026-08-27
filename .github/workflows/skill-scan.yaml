@@ -11,7 +11,7 @@ on:
       - "**/.github/skills/**"
       - ".github/workflows/skill-scan.yaml"
   push:
-    branches: ["main"]
+    branches: ["main", "release-*"]
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
@@ -45,17 +45,27 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Find all .github/skills directories
+      - name: Find skill paths
         id: find-paths
         run: |
-          paths=$(find . -path '*/.github/skills' -type d \
-            | sed 's|^\./||' \
-            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # Only skill directories touched in this PR; sed -nE avoids exit 1 on no match
+            paths=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" \
+              | sed -nE '/\.github\/skills\//p' \
+              | sed -E 's|(.*\.github/skills)/.*|\1|' \
+              | sort -u \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          else
+            paths=$(find . -path '*/.github/skills' -type d \
+              | sed 's|^\./||' \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
           echo "matrix=$paths" >> "$GITHUB_OUTPUT"
 
-  skillspector-scan:
-    name: SkillSpector security scan (${{ matrix.skills-path }})
+  scan:
+    name: Scan (${{ matrix.skills-path }})
     needs: discover-skills
+    if: needs.discover-skills.outputs.matrix != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -72,34 +82,17 @@ jobs:
           fetch-depth: 0
 
       - name: Run SkillSpector scan
-        uses: open-edge-platform/geti-ci/actions/skill-scan@78e175e3e91f997e168a09aadd1933da95c1ac98 # skill-scan/v0.1.0
+        uses: open-edge-platform/geti-ci/actions/skill-scan@0745e2b1612e4c25c3e83eb37bddeba8743a2439 # skill-scan/v0.1.1
         with:
           skills-path: ${{ matrix.skills-path }}
           severity-level: ${{ github.event_name == 'pull_request' && 'HIGH' || github.event.inputs.severity || 'LOW' }}
           fail-on-findings: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
-
-  skill-validator-scan:
-    name: skill-validator scan (${{ matrix.skills-path }})
-    needs: discover-skills
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        skills-path: ${{ fromJson(needs.discover-skills.outputs.matrix) }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-          fetch-depth: 0
+          version: v2.9.6
 
       - name: Run skill-validator
-        uses: open-edge-platform/geti-ci/actions/skill-validator@c64543e05e9f84c7c4ef212666c3ea5fc869e55a # skill-validator/v0.2.0
+        uses: open-edge-platform/geti-ci/actions/skill-validator@3fd1ebf48e46ec6584850e20616763e73ddf94e9 # skill-validator/v0.2.2
         with:
           skills-path: ${{ matrix.skills-path }}
           strict: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
           fail-on-findings: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
-          allow-dirs: "evals,example-prompts"
+          allow-dirs: "evals,example-prompts,benchmark"
