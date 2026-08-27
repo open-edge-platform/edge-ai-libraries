@@ -120,8 +120,9 @@ full text of the license.
 3. It creates a GitHub issue titled *"Implement installer component: `<name>`"*
    and **immediately assigns it to the Copilot coding agent**.
 4. The agent reads the issue (which embeds the full spec and detailed
-   implementation requirements), writes `module/<name>/debian`, runs `bash -n`
-   and `shellcheck`, and opens a pull request.
+   implementation requirements), writes `module/<name>/debian`, runs
+   `.github/scripts/validate-modules.sh module/<name>` — the same script that
+   CI invokes, so a local pass means CI will pass — and opens a pull request.
 5. The PR triggers `.github/workflows/validate-modules.yml` which re-validates
    syntax and function naming.
 6. A maintainer reviews the PR.  When satisfied that the static checks pass,

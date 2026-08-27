@@ -157,35 +157,14 @@ If the spec changes a pinned version, tag, or workspace layout, `verify_{{NAME}}
 
 ### Validation before opening the PR
 
-Run these static checks and fix all issues before pushing:
+Run the shared validation script and fix every reported issue before pushing:
 
 ```bash
-# 1. Bash syntax check — covers both debian and linux files if present
-for f in module/{{NAME}}/*; do [ -f "$f" ] || continue; bash -n "$f"; done
-
-# 2. Shellcheck (sourced fragment – disable SC2148 missing-shebang)
-for f in module/{{NAME}}/*; do
-  [ -f "$f" ] || continue
-  shellcheck --shell=bash --exclude=SC2148 "$f"
-done
-
-# 3. Check that every function defined in this component is globally unique
-# (no other installer script in module/, profile/, common/, or license/ defines
-# the same name).  CI enforces this via validate-modules.yml.
-for f in module/{{NAME}}/*; do
-  [ -f "$f" ] || continue
-  while IFS= read -r func; do
-    matches="$(grep -rlE "^${func} *\(\)" module/ profile/ common/ license/ \
-      2>/dev/null | grep -v "^module/{{NAME}}/" || true)"
-    if [[ -n "$matches" ]]; then
-      echo "Function name collision: '${func}' in ${f} is also defined in: ${matches}"
-      exit 1
-    fi
-  done < <(grep -oE '^[a-zA-Z_][a-zA-Z0-9_]+' "$f" \
-    < <(grep -E '^[a-zA-Z_][a-zA-Z0-9_]* *\(\)' "$f" || true))
-done
-echo "Function names are globally unique."
+.github/scripts/validate-modules.sh module/{{NAME}}
 ```
+
+This is the same script CI runs (`.github/workflows/validate-modules.yml`), so
+a local pass means CI will pass.
 
 In the PR description:
 
