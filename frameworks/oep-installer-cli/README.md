@@ -68,7 +68,7 @@ spec file into the [`specification/`](specification/) directory, push it to `mai
 automatically opens a task for the Copilot coding agent which writes `module/<component>` and opens a pull request.
 
 For **new** spec files the agent is dispatched automatically.  For **modified** spec files an issue is created but the
-agent is held until a maintainer explicitly adds the `generate-component` label to the issue — this ensures a human
+agent is held until a maintainer explicitly adds the `GENERATE-COMPONENT` label to the issue — this ensures a human
 reviews the spec change before AI code generation begins.
 
 See [SPEC](specification/README.md) for instructions of how to write a spec file.   

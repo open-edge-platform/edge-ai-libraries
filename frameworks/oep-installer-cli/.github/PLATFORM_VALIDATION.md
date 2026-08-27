@@ -28,19 +28,19 @@ three should be restricted to repository maintainers.
 
 | Label | Applied to | Who may apply | Effect |
 |-------|-----------|---------------|--------|
-| `generate-component` | Issues | **Maintainers only** | Triggers `.github/workflows/generate-on-label.yml`, which assigns `copilot-swe-agent` to the issue and removes `needs-generation`.  Applying this label is the explicit trust decision that authorises AI code generation for a modified spec. |
-| `needs-generation` | Issues | Automation (created by `create-component-issue.sh`) | Signals that the issue was created from a modified spec and is waiting for a maintainer to authorise agent dispatch via `generate-component`.  Maintainers should not add this label manually. |
+| `GENERATE-COMPONENT` | Issues | **Maintainers only** | Triggers `.github/workflows/generate-on-label.yml`, which assigns `copilot-swe-agent` to the issue and removes `NEEDS-GENERATION`.  Applying this label is the explicit trust decision that authorises AI code generation for a modified spec. |
+| `NEEDS-GENERATION` | Issues | Automation (created by `create-component-issue.sh`) | Signals that the issue was created from a modified spec and is waiting for a maintainer to authorise agent dispatch via `GENERATE-COMPONENT`.  Maintainers should not add this label manually. |
 | `validate-platform` | Pull requests | **Maintainers only** | Triggers `.github/workflows/platform-validate.yml` to run the install/start/stop/remove lifecycle on real lab hardware.  Applying this label is the explicit trust decision that authorises executing PR code on the self-hosted runner. |
 
-### Trust boundary: `generate-component`
+### Trust boundary: `GENERATE-COMPONENT`
 
-Applying `generate-component` to an issue is what authorises the Copilot
+Applying `GENERATE-COMPONENT` to an issue is what authorises the Copilot
 coding agent to generate code for a **modified** spec.  Only repository
 maintainers should have this power.  Before applying the label:
 
 1. Review the spec diff to confirm the changes are intentional and safe.
 2. Check that the issue title and body correctly describe the expected change.
-3. Apply `generate-component`.  The agent will be assigned automatically.
+3. Apply `GENERATE-COMPONENT`.  The agent will be assigned automatically.
 
 The `generate-on-label.yml` workflow guards against bot actors (actor checks
 for `github-actions[bot]`, `copilot-swe-agent[bot]`, `Copilot`, and

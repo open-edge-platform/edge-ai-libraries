@@ -1,4 +1,4 @@
-name: Dispatch agent on generate-component label
+name: Dispatch agent on GENERATE-COMPONENT label
 
 on:
   issues:
@@ -9,9 +9,9 @@ permissions:
 
 jobs:
   dispatch:
-    # Only act when the label just added is 'generate-component'.
+    # Only act when the label just added is 'GENERATE-COMPONENT'.
     if: >-
-      github.event.label.name == 'generate-component' &&
+      github.event.label.name == 'GENERATE-COMPONENT' &&
       github.actor != 'github-actions[bot]' &&
       github.actor != 'copilot-swe-agent[bot]' &&
       github.actor != 'Copilot' &&
@@ -29,7 +29,7 @@ jobs:
             fi
           done
 
-      - name: Guard — issue must carry needs-generation or match known title patterns
+      - name: Guard — issue must carry NEEDS-GENERATION or match known title patterns
         env:
           GH_TOKEN: ${{ secrets.COPILOT_TASK_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -38,14 +38,14 @@ jobs:
           ISSUE_JSON="$(gh issue view "$ISSUE_NUMBER" --json title,labels)"
           TITLE="$(printf '%s' "$ISSUE_JSON" | jq -r '.title')"
           HAS_NEEDS_GEN="$(printf '%s' "$ISSUE_JSON" | \
-            jq -r '.labels[].name' | grep -c '^needs-generation$' || true)"
+            jq -r '.labels[].name' | grep -c '^NEEDS-GENERATION$' || true)"
 
           if [[ "$HAS_NEEDS_GEN" -gt 0 ]]; then
-            echo "Issue #${ISSUE_NUMBER} carries needs-generation — proceeding."
+            echo "Issue #${ISSUE_NUMBER} carries NEEDS-GENERATION — proceeding."
           elif echo "$TITLE" | grep -qE '^(Implement|Update) installer component:'; then
             echo "Issue #${ISSUE_NUMBER} title matches known pattern — proceeding."
           else
-            echo "::notice::Issue #${ISSUE_NUMBER} does not carry needs-generation and title does not match known patterns. Skipping."
+            echo "::notice::Issue #${ISSUE_NUMBER} does not carry NEEDS-GENERATION and title does not match known patterns. Skipping."
             exit 0
           fi
 
@@ -60,11 +60,11 @@ jobs:
           # Assign copilot-swe-agent to the issue.
           gh issue edit "$ISSUE_NUMBER" --add-assignee copilot-swe-agent
 
-          # Remove needs-generation label (best-effort; may already be absent).
-          gh issue edit "$ISSUE_NUMBER" --remove-label "needs-generation" 2>/dev/null || true
+          # Remove NEEDS-GENERATION label (best-effort; may already be absent).
+          gh issue edit "$ISSUE_NUMBER" --remove-label "NEEDS-GENERATION" 2>/dev/null || true
 
           # Post a comment recording who authorised dispatch.
           gh issue comment "$ISSUE_NUMBER" \
-            --body "🤖 **Agent dispatched** by @${ACTOR}: \`copilot-swe-agent\` has been assigned to this issue. The \`needs-generation\` label has been removed."
+            --body "🤖 **Agent dispatched** by @${ACTOR}: \`copilot-swe-agent\` has been assigned to this issue. The \`NEEDS-GENERATION\` label has been removed."
 
           echo "::notice::Dispatched copilot-swe-agent on issue #${ISSUE_NUMBER} (authorised by ${ACTOR})."

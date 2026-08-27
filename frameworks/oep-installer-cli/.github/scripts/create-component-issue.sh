@@ -19,7 +19,7 @@ set -euo pipefail
 
 SPECS_LIST="${1:?Usage: $0 <specs_list_file>}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEMPLATE_NEW="${SCRIPT_DIR}/../templates/component-task.md"
+TEMPLATE_NEW="${SCRIPT_DIR}/../templates/component-new-task.md"
 TEMPLATE_UPDATE="${SCRIPT_DIR}/../templates/component-update-task.md"
 FORCE_REGENERATE="${FORCE_REGENERATE:-false}"
 MAX_TASKS_PER_RUN="${MAX_TASKS_PER_RUN:-3}"
@@ -45,12 +45,12 @@ fi
 # Ensure required labels exist (idempotent via --force).
 # ---------------------------------------------------------------------------
 ensure_labels () {
-  gh label create "needs-generation" \
+  gh label create "NEEDS-GENERATION" \
     --description "Modified-spec issue awaiting maintainer dispatch of the Copilot coding agent" \
     --color "FBCA04" \
     --force 2>/dev/null || true
-  gh label create "generate-component" \
-    --description "Apply to a needs-generation issue to dispatch the Copilot coding agent" \
+  gh label create "GENERATE-COMPONENT" \
+    --description "Apply to a NEEDS-GENERATION issue to dispatch the Copilot coding agent" \
     --color "0E8A16" \
     --force 2>/dev/null || true
 }
@@ -224,8 +224,8 @@ for i in "${!eligible_specs[@]}"; do
       issue_url="$(gh issue create \
         --title "$issue_title" \
         --body-file "$BODY_FILE" \
-        --label "needs-generation")"
-      echo "::notice::Created issue (mode=modified, awaiting generate-component label): ${issue_url}"
+        --label "NEEDS-GENERATION")"
+      echo "::notice::Created issue (mode=modified, awaiting GENERATE-COMPONENT label): ${issue_url}"
     fi
   else
     issue_title="Implement installer component: ${name}"
@@ -242,8 +242,8 @@ for i in "${!eligible_specs[@]}"; do
       issue_url="$(gh issue create \
         --title "$issue_title" \
         --body-file "$BODY_FILE" \
-        --label "needs-generation")"
-      echo "::notice::Created issue (mode=new, awaiting generate-component label): ${issue_url}"
+        --label "NEEDS-GENERATION")"
+      echo "::notice::Created issue (mode=new, awaiting GENERATE-COMPONENT label): ${issue_url}"
     fi
   fi
 

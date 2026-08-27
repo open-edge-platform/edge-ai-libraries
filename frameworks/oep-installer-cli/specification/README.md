@@ -120,11 +120,11 @@ full text of the license.
 1. You push a change to an existing `specification/<component_name>.md` on `main`.
 2. The same workflow detects the **modified** file (git status `M`).
 3. It creates a GitHub issue titled *"Update installer component: `<name>`"*
-   **without** assigning the agent.  The issue is labelled `needs-generation`.
+   **without** assigning the agent.  The issue is labelled `NEEDS-GENERATION`.
 4. A maintainer reviews the spec diff and, when satisfied, applies the
-   **`generate-component`** label to the issue.
+   **`GENERATE-COMPONENT`** label to the issue.
 5. `.github/workflows/generate-on-label.yml` fires: it assigns
-   `copilot-swe-agent`, removes `needs-generation`, and posts a comment
+   `copilot-swe-agent`, removes `NEEDS-GENERATION`, and posts a comment
    recording who authorised dispatch.
 6. The agent reads the update issue (which embeds the spec, detailed update
    rules, and the existing implementation as a baseline), edits
@@ -149,13 +149,13 @@ Editing a spec file that already has a corresponding `module/<name>/` triggers
 the **label-gated** path described above.  The key difference from new
 components:
 
-- **No auto-dispatch**: the issue is created with `needs-generation` and
+- **No auto-dispatch**: the issue is created with `NEEDS-GENERATION` and
   awaits a maintainer decision.
 - **Incremental update**: the agent is instructed to modify the existing
   `module/<name>/debian` in place, not rewrite it.  It must enumerate every
   new or changed requirement in the spec diff and implement or justify each
   one.
-- **Label to dispatch**: a maintainer applies `generate-component` to the
+- **Label to dispatch**: a maintainer applies `GENERATE-COMPONENT` to the
   issue to start the agent.  This is an explicit trust decision — the label
   signals "I have reviewed the spec change and authorise code generation."
 

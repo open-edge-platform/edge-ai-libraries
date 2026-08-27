@@ -4,7 +4,7 @@ The spec file `{{SPEC_FILE}}` was modified in `main`.  The existing
 implementation in `module/{{NAME}}/debian` must be **updated in place** to
 enforce any new or changed requirements introduced by the spec edit.
 
-> **Note**: A maintainer added the `generate-component` label to authorise
+> **Note**: A maintainer added the `GENERATE-COMPONENT` label to authorise
 > this task.  Do **not** rewrite the implementation from scratch — edit only
 > what the spec change requires.
 
