@@ -204,7 +204,7 @@ find_rejected_prior_art () {
       REJECTED_PRIOR_ART_BLOCK="$(cat <<EOF
 ## ⚠️ Rejected prior attempt
 
-A previous implementation attempt for this component was closed without merging (${REJECTED_PRIOR_ART_REF}). Treat that work as **rejected prior art**, not a baseline.
+      A previous implementation attempt for this component was closed without merging (${REJECTED_PRIOR_ART_REF}). Treat that work as **rejected prior art**, not a baseline.
 
 - Start strictly from the current \`main\` branch.
 - Do **not** resume, cherry-pick from, or otherwise reuse a branch from a closed PR.
@@ -216,7 +216,7 @@ EOF
       REJECTED_PRIOR_ART_BLOCK="$(cat <<EOF
 ## ⚠️ Rejected prior attempt
 
-A previous implementation attempt for this component was closed without merging (${REJECTED_PRIOR_ART_REF}). Treat that work as **rejected prior art**, not a baseline.
+A previous implementation attempt for this component was previously closed (${REJECTED_PRIOR_ART_REF}). Treat that work as **rejected prior art**, not a baseline.
 
 - Start strictly from the current \`main\` branch.
 - Do **not** resume, cherry-pick from, or otherwise reuse a branch from a closed PR.
