@@ -1,0 +1,78 @@
+{
+  "skill_name": "time-series-analytics-user",
+  "notes": "These prompts are self-contained and intentionally deferred — the runner does not start services, so expectations grade the accuracy of artifacts and commands rather than claiming live deployment success. Evals 1, 2, and 5 are artifact-generation tasks with expectations targeting skill-specific details (package structure, API ordering, MODEL_PATH env var) that are not discoverable from general AI knowledge. Evals 3 and 4 follow the knowledge/guidance pattern: prompts ask what to do or how to diagnose, and expectations check exact facts that only exist in the skill's reference files.",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "pressure-guard-artifact",
+      "prompt": "Build a UDF that flags hydraulic pressure readings outside a safe operating band, using the Time Series Analytics microservice. Field `pressure_bar` arrives via POST /input; flag any reading below 80 or above 150. Name the UDF `pressure_guard`.\n\nProduce the UDF file, tick script, config.json, a deployment package (tar or zip), and a deploy.sh with the curl commands to package and deploy it to a running service. Do not start the service or execute any REST calls — produce the artifacts only; I will run the deployment myself.",
+      "expected_output": "A pressure_guard UDF, tick script, config.json, deployment package, and deploy.sh with the correct curl command sequence — without claiming a live deployment ran.",
+      "files": [],
+      "expectations": [
+        "A UDF file named pressure_guard.py exists implementing threshold detection logic",
+        "A tick script named pressure_guard.tick exists and its UDF node invokes @pressure_guard()",
+        "The UDF reads the pressure_bar field specifically, not a different or generic field name",
+        "The UDF logic correctly flags values < 80 or > 150 (the threshold band is [80, 150])",
+        "The deployment tar or zip archive has no wrapping top-level directory — the archive root directly contains udfs/ and tick_scripts/ (not a single folder that contains those)",
+        "A config.json or equivalent exists specifying udfs.name as pressure_guard",
+        "deploy.sh (or equivalent curl commands) calls POST /udfs/package to upload the archive before calling POST /config to apply configuration — not the other way around"
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "vibration-spike-detector-artifact",
+      "prompt": "Build a UDF that detects sudden vibration spikes on a motor and publishes an MQTT alert when one occurs, using the Time Series Analytics microservice. Field `vibration_mm_s` arrives via POST /input; flag a point if it jumps more than 5 mm/s from the previous reading. Wire the flagged output to Kapacitor's native MQTT alert node in the tick script, using broker name `motor_alerts_broker` (matching the name field set in config.json's alerts.mqtt section). Name the UDF `vibration_spike_detector`.\n\nProduce the UDF file, tick script, config.json, and a deployment package. Do not start the service or execute any REST calls — produce the artifacts only; I will run the deployment myself.",
+      "expected_output": "A vibration_spike_detector UDF with stateful rate-of-change logic, a tick script wired to the MQTT alert node, config.json with the correct broker name, and a deployment package — without claiming a live run.",
+      "files": [],
+      "expectations": [
+        "A UDF file named vibration_spike_detector.py exists that tracks a previous value across point() calls as instance state",
+        "A tick script named vibration_spike_detector.tick exists that references the vibration_spike_detector UDF node",
+        "The tick script chains a Kapacitor |alert() node off the UDF output with a .mqtt('<topic>') call for the MQTT topic and a separate .brokerName('motor_alerts_broker') call, where 'motor_alerts_broker' matches config.json's alerts.mqtt.name (note: .mqtt() takes a topic string, not the broker name — the broker is selected via .brokerName())",
+        "The |alert() node includes at least one severity-level lambda — .crit(lambda: TRUE), .warn(...), or .info(...) — without which every point is implicitly OK and no MQTT message is ever published",
+        "The UDF implements rate-of-change detection: flags if abs(current - previous) > 5.0 mm/s",
+        "The rate-of-change threshold used is exactly 5 mm/s as specified",
+        "The vibration_mm_s field is read correctly (not a generic or different field name)",
+        "A config.json or equivalent specifies udfs.name as vibration_spike_detector and includes an alerts.mqtt section with a name field set to motor_alerts_broker"
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "udf-deployment-sequence",
+      "prompt": "I have a UDF named `temp_alert` — the files `udfs/temp_alert.py` and `tick_scripts/temp_alert.tick` are already written. Walk me through the exact sequence of steps and REST calls to deploy it to an already-running Time Series Analytics service. I will run the commands myself — just tell me what to do.",
+      "expected_output": "An accurate, ordered deployment sequence: build the package, upload via POST /udfs/package, then apply config via POST /config — naming the packaging tool or archive structure, the upload endpoint, and providing a config.json body with udfs.name set correctly.",
+      "files": [],
+      "expectations": [
+        "Names scripts/package_udf.sh for building the tar, OR describes creating a tar whose archive root directly contains udfs/ and tick_scripts/ with no wrapping top-level directory",
+        "Calls POST /udfs/package (upload the archive) before POST /config (apply configuration) — not the other way around",
+        "States or implies that POST /config requires the named package to already exist on disk — i.e. explains why upload must precede config apply",
+        "Provides a POST /config call with a config.json body that sets udfs.name to temp_alert"
+      ]
+    },
+    {
+      "id": 4,
+      "eval_name": "mqtt-alert-silent-failure-diagnosis",
+      "prompt": "My MQTT alert is not working. I deployed a temperature UDF successfully — POST /udfs/package and POST /config both returned success, the Kapacitor task is enabled, and container logs confirm my UDF is receiving and forwarding flagged points. But no messages ever arrive at the MQTT broker. What are the two most common causes of this silent failure, and how do I fix each one?",
+      "expected_output": "Identifies the two documented silent causes: missing severity lambda on |alert(), and .mqtt() receiving the broker name instead of the topic. Does not suggest rewriting the UDF or redeploying containers as the fix.",
+      "files": [],
+      "expectations": [
+        "Identifies the missing severity lambda: |alert() never fires without at least one of .crit(), .warn(), or .info() being set — and names .crit(lambda: TRUE) as the correct fix for a UDF that only forwards already-flagged points",
+        "Identifies the .mqtt() / .brokerName() confusion: .mqtt()'s argument is the MQTT topic string, not the broker name — the configured broker is selected via a separate chained .brokerName('...') call",
+        "Does not suggest rewriting the UDF, repackaging, redeploying the container, or checking MQTT broker network connectivity as a primary fix for these two causes"
+      ]
+    },
+    {
+      "id": 5,
+      "eval_name": "pretrained-model-env-var",
+      "prompt": "Build a UDF that uses a pre-trained scikit-learn IsolationForest model file `pump_anomaly_detector.pkl` to flag anomalies from `flow_lpm` and `pressure_bar` fields. UDF name: `pump_anomaly_detector`. Produce the UDF file, tick script, config.json, and a deployment package. Do not start the service or execute any REST calls — produce the artifacts only; I will run the deployment myself.",
+      "expected_output": "A pump_anomaly_detector UDF that loads the model via the MODEL_PATH env var (not a hardcoded path), calls patch_sklearn() before sklearn imports, loads the model in __init__, and a config.json with udfs.models set — without claiming a live run.",
+      "files": [],
+      "expectations": [
+        "UDF reads the model path via os.environ.get(\"MODEL_PATH\") — not a hardcoded file path string",
+        "patch_sklearn() is called before any 'from sklearn' or 'import sklearn' line in the UDF file",
+        "Model is loaded once in __init__, not inside point()",
+        "config.json contains a udfs.models field referencing the model filename (pump_anomaly_detector.pkl)",
+        "Deployment package includes the model file under a models/ directory, or explicitly notes it must be placed there before packaging"
+      ]
+    }
+  ]
+}
