@@ -1,5 +1,5 @@
 debian_95_license_unstructured () {
-  cat <<EOF
+  cat <<'EOF'
 @@LICENSE-ID unstructured_platform
 @@LICENSE-TITLE UNSTRUCTURED TECHNOLOGIES, INC. PLATFORM TERMS OF SERVICE
 

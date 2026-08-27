@@ -130,7 +130,7 @@ system_scan_check_network_access () {
     http://ubuntu.com
     https://apt.repos.intel.com
   ) url
-  for url in ${check_urls[@]}; do
+  for url in "${check_urls[@]}"; do
     if ! curl --connect-timeout 5 --max-time 10 --head $url > /dev/null 2>&1; then
       echo "$url by $(id -un)"
       return
@@ -166,7 +166,7 @@ system_scan_check_docker () {
 system_scan_check_cpu_instructions () {
   local cpu_accels=("vnni" "avx2" "sse2")
   local detected=() missed=()
-  for accel in ${cpu_accels[@]}; do
+  for accel in "${cpu_accels[@]}"; do
     if grep -q -F $accel /proc/cpuinfo > /dev/null; then
       detected+=($accel)
     else

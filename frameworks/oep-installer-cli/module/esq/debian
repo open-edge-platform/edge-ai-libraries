@@ -36,7 +36,7 @@ debian_85_start_esq () {
   local options=(${cmdline_str#* -- })
   [ ${#options[@]} -gt 0 ] || options=(-qo)
 
-  esq run ${options[@]} -v -f && esq summary && esq report
+  esq run "${options[@]}" -v -f && esq summary && esq report
   echo "@@HIGHLIGHT workspace @$workspace"
 }
 
