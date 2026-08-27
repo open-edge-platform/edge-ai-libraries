@@ -8,9 +8,9 @@
             "files": [],
             "expectations": [
                 "Defaults scope to both backend and ui when the user asks to run unit tests generally.",
-                "Runs backend tests before UI tests according to decision logic.",
-                "Includes explicit commands executed for each scope.",
-                "Reports pass or fail status and failing tests if any."
+                "Presents backend commands before UI commands, consistent with the skill's decision logic (real execution is disallowed in this sandboxed environment, so the commands may be given as guidance rather than actually run).",
+                "Includes explicit commands for each scope (backend pytest and UI npm test/vitest).",
+                "Describes what would be reported (e.g., a labeled template, or at least the failing-test/traceback reporting format), since real command execution is disallowed in this environment."
             ]
         },
         {
@@ -21,8 +21,8 @@
             "expectations": [
                 "Selects backend scope only.",
                 "Uses uv run pytest with --model-runtime=openvino.",
-                "Does not run UI test commands for this request.",
-                "Provides command evidence and outcome summary."
+                "Does not include UI test commands for this request.",
+                "Provides the exact backend command as evidence and describes the expected outcome/reporting format, since real execution is disallowed in this environment."
             ]
         },
         {
@@ -33,7 +33,7 @@
             "expectations": [
                 "Uses uv run pytest with --model-runtime=ollama.",
                 "Keeps scope to backend only unless user asks for ui too.",
-                "Reports pass or fail with failing test identifiers if present."
+                "Describes how pass/fail status and failing test identifiers would be reported, since real execution is disallowed in this environment."
             ]
         },
         {
@@ -42,10 +42,10 @@
             "expected_output": "Executes vitest command flow in the ui directory without backend test execution.",
             "files": [],
             "expectations": [
-                "Changes into ui directory context.",
+                "Includes a command to change into the ui directory context.",
                 "Uses npm run test for UI unit tests.",
-                "Does not run backend pytest commands for this request.",
-                "Reports test result summary with evidence."
+                "Does not include backend pytest commands for this request.",
+                "Describes the expected UI test result reporting format, since real execution is disallowed in this environment."
             ]
         },
         {
@@ -56,7 +56,7 @@
             "expectations": [
                 "Uses backend coverage flags --cov=app --cov-report=term-missing with selected runtime.",
                 "Uses npm run coverage for UI coverage.",
-                "Reports both backend and UI coverage execution outcomes."
+                "Describes the expected reporting format for both backend and UI coverage outcomes, since real execution is disallowed in this environment."
             ]
         },
         {
@@ -65,7 +65,7 @@
             "expected_output": "Honors narrowed scope and runs backend tests only while reporting commands and results.",
             "files": [],
             "expectations": [
-                "Runs backend test workflow only.",
+                "Includes only backend test workflow commands, with no UI test commands, honoring the narrowed scope.",
                 "Selects default backend runtime openvino when not provided.",
                 "Includes uv run pytest --model-runtime=openvino or equivalent explicit default runtime command."
             ]
@@ -78,7 +78,7 @@
             "expectations": [
                 "Uses uv run pytest tests/test_server.py --model-runtime=openvino or equivalent targeted command.",
                 "Keeps output focused on requested file run.",
-                "Reports targeted pass or fail evidence."
+                "Describes what would be reported for the requested file (e.g., a labeled template, or at least the failing-test/traceback reporting format), since real execution is disallowed in this environment."
             ]
         },
         {
@@ -89,7 +89,7 @@
             "expectations": [
                 "Uses npm run test with pattern pass-through argument, such as npm run test -- Conversation.",
                 "Keeps scope to UI tests only.",
-                "Reports matched test results."
+                "Describes the expected reporting format for the matched test results, since real execution is disallowed in this environment."
             ]
         },
         {
@@ -100,7 +100,7 @@
             "expectations": [
                 "Recognizes explicit opt-out language and does not run tests.",
                 "States tests were skipped by user request.",
-                "Avoids issuing pytest or vitest execution commands."
+                "Does not claim to have executed pytest or vitest commands, and only offers them (if at all) as optional reference for later use rather than as an action taken now."
             ]
         },
         {
@@ -122,7 +122,7 @@
             "expectations": [
                 "Runs or suggests npm install in ui directory.",
                 "Retries npm run test after dependency setup.",
-                "Reports failing tests and first actionable error if still failing."
+                "Describes how failing tests and the first actionable error would be reported if the retry still fails, since real execution is disallowed in this environment."
             ]
         },
         {
@@ -131,9 +131,9 @@
             "expected_output": "Returns concise pass or fail evidence with failing test identifiers and actionable next step.",
             "files": [],
             "expectations": [
-                "Includes exact commands used in the run.",
-                "Includes failing test names or identifiers.",
-                "Includes first actionable traceback or error lines.",
+                "Includes the exact commands that would need to be run to obtain the failure information (e.g., pytest and/or npm test invocations).",
+                "Describes the expected format for failing test names or identifiers (e.g., a clearly-labeled template or example), since no real tests were executed in this environment.",
+                "Describes the expected format for a first actionable traceback/error line (e.g., a clearly-labeled template or example), since no real tests were executed in this environment.",
                 "Provides a clear next debugging step."
             ]
         }
