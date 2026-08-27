@@ -32,7 +32,7 @@ def test_unexpected_error_response_is_generic(monkeypatch):
         argparse.Namespace(
             backend="pytorch",
             device="cpu",
-            xpu_index=0,
+            device_index=0,
             model_name_id="",
             mode="llmlingua2",
         )
