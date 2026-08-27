@@ -309,6 +309,7 @@ if run_check highlight; then
     for file in "${dir}"*; do
       [[ -f "$file" ]] || continue
       [[ "$(basename "$file")" == "README.md" ]] && continue
+      in_filter "$file" || continue
 
       # Determine the highest order number used in this file
       max_order=$(grep -oE "^[a-z]+_([0-9]{2})_(install|start)_${name}" "$file" \
