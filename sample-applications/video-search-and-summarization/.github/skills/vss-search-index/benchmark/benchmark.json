@@ -141,7 +141,7 @@
         {
           "text": "After embedding readiness, uses `POST /manager/search/query` for `vehicle stopped at gate` and does not fabricate ranked results.",
           "passed": true,
-          "evidence": "In outputs/response.md step 3: `curl -s -X POST \"$HOST/manager/search/query\" ... -d '{\"query\": \"vehicle stopped at gate\"}'`. The audit trail states it was not executed due unreachable backend and `no scores, clip windows, or filenames are reported \u2014 none should be assumed`."
+          "evidence": "In outputs/response.md step 3: `POST /manager/search/query` on the local Pipeline Manager (`$HOST`) with body `{ \"query\": \"vehicle stopped at gate\" }`. The audit trail states it was not executed because the backend was unreachable, and `no scores, clip windows, or filenames are reported \u2014 none should be assumed`."
         }
       ],
       "notes": []
