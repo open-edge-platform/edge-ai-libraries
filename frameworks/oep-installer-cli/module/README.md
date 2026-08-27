@@ -18,57 +18,89 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
 99      profiles
 ```
 
-- `<start|stop|install|remove|profile>`: The `profile` function works similarly to a profile, which specifies the component dependencies, and the `install/remove/start/stop` functions perform their corresponding functions. At least one of thoses functions must be defined for the compoenent. Others are optional.
+- `<start|stop|install|remove|profile>`: The `profile` function works similarly to a profile, which specifies the component dependencies, and the `install/remove/start/stop` functions perform their corresponding functions. At least one of thoses functions must be defined for the component. Others are optional.
 
-> For simple system-level packages, for example, `curl`, it is ok to define only an installation function without an uninstaller. The assumption is that `curl` can reside on the system for future use, while uninstalling it everytime is a bit overkill and may cause potentially unintended consequence. For other non-system components, there usually should define both an `install` function and a corresponding `remove` function. 
+  - For simple system-level packages, for example, `curl`, it is ok to define only an installation function without an uninstaller. The assumption is that `curl` can reside on the system for future use, while uninstalling it everytime is a bit overkill and may cause potentially unintended consequence. For other non-system components, there usually should define both an `install` function and a corresponding `remove` function.
+  - The function argument is as follows: `<action> <complete list of component names> -- <this component specific arguments>`, where `<action>` is one of `install`, `start`, `stop`, or `remove`. The list of installed components is useful to resolve any dependency issues. For example, `openvino` can use a newer version when installed standalone but a different version when installed together with `dlstreamer`. The arguments of this component can be used for component specific configurations, for example, selecting accelerator devices ([`ensure_select_device`](../common/linux/select_device).   
+  - All component shell scripts run with `set -e` to terminate early on any errors.
+  - It is highly recommended to reuse common functions defined under the [`debian`](../common/debian) and [`linux`](../common/linux) folders. Do not reinvent the wheels. 
 
-The following shows a skeleton of a module installation:
+- `profile`: The optional `profile` function returns the list of dependent components, separated by white space.
+  - The dependency component name must be valid components under the `module` or `profile` directory.  
+  - Applications, services and SDKs that use GPU or NPU should in general include [`edge_base`](edge_base) as a dependency, which is a virtual package for preparing the system for GPU and NPU acceleration. A similar [`edge_base_rt`](edge_base_rt) profile is available for physical AI deployment.  
+  - Once a dependency component is resolved, all shell functions defined by the component are included in the finalized installer and can be utilized by parent components. See [`uv`](uv/debian) for an example. The `uv` component provides a public function `configure_uv` that can be used by other components.  
+
+- `install`: The `install` function installs and configures the component.  
+  - The `install` function should cover the following conditions: (1) The component is not yet installed. (2) The component is previously installed but misconfigured. (3) The component of an older version is installed. After installation, it is assumed that the component is fully configured to be launched (`start`).
+  - If the component (of the same version) is already installed, the `install` function should skip the installation unless `--reset-<component_name>` is specified, in which case, the `install` function should reinstall the component cleanly.    
+  - For components that support multiple device accelerations, the `install` function must use the [`ensure_select_device`](../common/linux/select_device) function to take user input and configure the component accordingly.  
+  - For components that require certain memory size or disk space, use the [`ensure_disk_size`](../common/linux/disk_size) and [`ensure_ram_size`](../common/linux/ram_size) functions to enforce the requirements and exit early.
+  - For components that install to a custom location, the default workspace path is `$(ensure_project_path)/<component_name>`.
+  - For components that need to download AI models from huggingface, use the [`ensure_hf_token`](../common/linux/hf_token) function to set `HF_TOKEN`. The `ensure_hf_token` function can be used to check model access permissions for gated models.   
+  - For libraries, SDKs, applications or tools, after installation, the `install` function should highlight what is next to the users. For example, for SDKs, show the workspace location and instructions of how to configure and play with samples included in the SDKs. See the [`@@HIGHLIGH`](#highlight-protocol) section for more details.  
+
+- `remove`: The `remove` function removes the component from the system. If the component has a `stop` function, the `remove` function usually invokes the `stop` function to terminate the component before physically remove the component from the system.
+
+- `start`: The `start` function launches the component.
+  - The `start` function should check the system to make sure the system meet the launch criteria. Use the [`ensure_ports_open`](../common/linux/ports_open) function to ensure required TCP or UDP ports are not occupied. The `ensure_ports_open` function invokes the component `stop` function to stop the component if a previous run occupies the ports.  
+  - After the launch, the `start` function should highlight what is next to the users. For example, for web services, the function should show the URL. If there are any generated usernames/passwords, show those as well. See the [`@@HIGHLIGH`](#highlight-protocol) section for more details.  
+
+- `stop`: The `stop` function stops a launched component and restores the component state for next launch.  
+
+- Helper functions: A component can provide any number of helper functions. The function names must be unique across all installer scripts. A convention is to suffix the helper functions with the component name. If the component is declared as a dependency by other components, these helper functions are available to those components.  
+  
+The following shows a skeleton of a component installation:
 
 ```
-# configure variables to be used during start, stop, install and remove
+# configure global variables to be used during start, stop, install and remove
 configure_my_component () {
+...
 }
 
 # check if the component is already installed
 verify_my_component () {
+...
 }
 
 debian_85_install_my_component () {
   configure_my_component "$@"
-  if verify_my_component && [[ " $* " != *"--reset-my_component"* ]]; then
+  if verify_my_component "$@" && [[ " $* " != *"--reset-my_component"* ]]; then
     echo "My component is already installed. Skipping"
-    return
-  }
-  # install component
-  ...
-  verify_my_component
+  else
+    # install component
+    ...
+    verify_my_component "$@"   # final check after installation
+  fi
   # For a SDK, application or service, highlight what's next after installation
   echo "@@HIGHLIGHT next-steps"
 }
 
-# optional function if the component is startable.
+# optional function if the component is start-able.
 #debian_85_start_my_component () {
 #  configure_my_component "$@"
 #  ensure_ports_open "80 443" debian_85_stop_my_component "$@"
+#  ...
 #  # For an application or service, highlight what's next after starting the application or service.
-#  echo "@@HIGHLIGHT next-steps"
+#  echo "@@HIGHLIGHT next-steps"    # ex. echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
 #}
 
 # optional function if the component is stoppable.
 #debian_85_stop_my_component () {
 #  configure_my_component "$@"
+#  ...
 #}
 
 # optional function if the component is removable.
 #debian_85_remove_my_component () {
-#  debian_85_stop_my_component "$@"
+#  debian_85_stop_my_component "$@" || true
+#  ...
 #}
 
 # optional function if the component requires license click through
 #debian_85_license_my_component () {
 #  echo "@@LICENSE-ID my_component_license_id"
 #  echo "@@LICENSE-TITLE my_component_license_title"
-#  echo "... " # LICENSE-TEXT or $(ensure_license_fetch URL) to fetch license text
+#  echo "..." # LICENSE-TEXT or $(ensure_license_fetch <URL>) to fetch license text
 #}
 ```
 
@@ -87,36 +119,15 @@ EOF
 ```
 where the function must print out license id, title and text. If you must fetch license text from a URL, use `ensure_license_fetch` as `curl` may not be available at the time of the license clickthrough.  
 
-### Name Convention
-
-Special care must be taken to write the shell functions such that there is no name collusion in both the function names and any used shell variables. 
-It is a covention to always use local shell variables or prefix or suffix with the compoennt name. 
-
 ### @@HIGHLIGHT protocol
 
-`@@HIGHLIGHT` is a marker consumed by `ensure_panelled_logs`
-(`common/linux/panelled_logs`) to display a short hint to the user in the
-left-pane summary after install or start.
+`@@HIGHLIGHT` is a marker to display a short hint to the user in the left-pane summary after installation or component launch.  
 
 **When to use it:**
-- Include `@@HIGHLIGHT` for components that have a workspace, a service, a UI,
-  an environment to source, sample content, or documentation worth surfacing.
-  In practice these are the higher-order components (roughly **60–98**).
-- **Do not** add it for simple stateless utilities (`curl`, `jq`, `gawk`,
-  `unzip`, `make`, `libgl1`, etc.) — there is nothing meaningful to show.
-
-**For `start`**, the highlight should usually show the URL the user must point
-to, built with `ensure_ip`:
-
-```bash
-echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
-```
-
-**Placement**: emit `@@HIGHLIGHT` lines **outside** the "already installed,
-skipping" branch so they are printed on both fresh and skipped installs.
-See `module/openvino/debian` and `module/dlstreamer/debian` for examples.
+- Include `@@HIGHLIGHT` for components that have a workspace, a service, a UI, an environment to source, sample content, or documentation worth surfacing. In practice these are the higher-order components (roughly **60–98**).
+- **Do not** add it for simple stateless utilities (`curl`, `jq`, `gawk`, `unzip`, `make`, `libgl1`, etc.) — there is nothing meaningful to show.
 
 **Format**:
 - `@@HIGHLIGHT <label>: <value>` — human-readable text
-- `@@HIGHLIGHT <label> @<path-or-command>` — paths and commands
+- `@@HIGHLIGHT <label> @<path-or-command>` — human-readable paths and commands
 - Keep each highlight to a single short line.
