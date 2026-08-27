@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-BUILD_CONTEXT="$(cd "${REPO_ROOT}/.." && pwd)"
+BUILD_CONTEXT="${REPO_ROOT}"
 DOCKERFILE_PATH="${SCRIPT_DIR}/docker/Dockerfile"
 
 IMAGE_NAME="${IMAGE_NAME:-kv-quant-offload-vllm-xpu:latest}"
