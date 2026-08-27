@@ -129,3 +129,19 @@ debian_85_install_my_component () {
 - `@@HIGHLIGHT <label>: <value>` — human-readable text
 - `@@HIGHLIGHT <label> @<path-or-command>` — human-readable paths and commands
 - Keep each highlight to a single short line.
+
+**Examples**:
+
+- For `start`, the most useful highlight is usually the UI or API URL:
+
+```bash
+echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
+```
+
+- For libraries and SDKs, the most useful highlight is to show the workspace and some hints of operations:
+
+```bash
+echo "@@HIGHLIGHT workspace: $workspace"
+echo "@@HIGHLIGHT setup env: setup-vars.sh"
+echo "@@HIGHLIGHT make help to see full list of build targets"
+```
