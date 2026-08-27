@@ -1,0 +1,103 @@
+{
+  "skill_name": "vss-pipeline-config",
+  "evals": [
+    {
+      "id": 1,
+      "prompt_file": "example-prompts/01-diagnose-slow-processing.md",
+      "prompt": "Processing my 2-hour surveillance video takes forever in the VSS summary flow. I'm using the UI today but could also hit `POST /summary` or change compose env vars directly. Which parameters should I reduce to speed this up, and what are the exact fields/defaults I need to know so I don't break the pipeline?",
+      "expected_output": "Explains the main latency knobs for faster processing, names the exact UI/API/env locations, and describes the quality trade-offs and backend invariant that constrain the settings.",
+      "files": [],
+      "expectations": [
+        "Recommends increasing sampling.chunkDuration above the UI default of 8 seconds to reduce the number of chunks, and identifies the UI field as NumberInput id=chunkDuration with a UI minimum of 2 seconds.",
+        "Recommends reducing sampling.samplingFrame from the default 8 (UI label Frame per chunk, NumberInput id=sampleFrame, UI minimum 2) because EVAM receives it as parameters.frame and more frames increase VLM work and payload size.",
+        "Recommends keeping sampling.frameOverlap at the default 0 unless boundary misses matter, and notes it is set in the UI advanced field NumberInput id=overrideMultiFrame and duplicates frames across adjacent captioning windows when increased.",
+        "Explains that sampling.multiFrame must equal sampling.samplingFrame + sampling.frameOverlap and must stay within the server maximum MULTI_FRAME_COUNT, which defaults to 12 in setup.sh/chart values (with some OVMS paths using 6).",
+        "Mentions optional audio cost controls: omit audio.audioModel to skip transcription when audio is irrelevant, and/or disable audio.useFullTranscriptSummary or PRODUCE_FINAL_SUMMARY because AUDIO_USE_FULL_TRANSCRIPT_SUMMARY and PRODUCE_FINAL_SUMMARY both default to true and add extra downstream work."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt_file": "example-prompts/02-improve-summary-quality-short-events.md",
+      "prompt": "My VSS summaries keep missing short forklift movements that only last a couple of seconds. I want better coverage — which parameters should I tighten or increase, and what extra compute/latency will each change cost? Please use the real parameter names and tell me whether each lives in the UI, the API body, or env config.",
+      "expected_output": "Recommends quality-oriented tuning changes using the real VSS parameters, and ties each recommendation to concrete compute and latency costs plus the exact configuration location.",
+      "files": [],
+      "expectations": [
+        "Recommends decreasing sampling.chunkDuration below the default 8 seconds when short events are being missed, and explains that shorter chunks improve temporal precision but create more chunks and more downstream summary work.",
+        "Recommends increasing sampling.samplingFrame above the default 8 through the UI Frame per chunk field or the API field sampling.samplingFrame, and explains that higher frame counts increase ingestion output, image payload size, and VLM latency/cost.",
+        "Recommends adding a small positive sampling.frameOverlap from the default 0 to reduce boundary misses, and explains that overlap repeats frames across adjacent VLM windows, increasing multimodal payload size and latency.",
+        "Explains the multi-frame constraint: sampling.multiFrame is the batch size shown as a read-only UI value computed from samplingFrame + frameOverlap, must equal that sum in POST /summary, and cannot exceed the configured MULTI_FRAME_COUNT maximum (default 12).",
+        "Mentions audio-side quality knobs for speech-heavy videos: include audio.audioModel to enable transcript snippets, while noting the added Whisper/audio job latency."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt_file": "example-prompts/03-enable-audio-transcript.md",
+      "prompt": "How do I enable audio transcript in my VSS summary, and where exactly do I set that? I need the transcript snippets to influence each chunk's caption, and I also want the final summary to include a condensed version of the whole transcript if that's a separate switch.",
+      "expected_output": "Shows exactly how to enable audio transcription and full transcript summarization in VSS, with the precise UI controls, API fields, env defaults, and the behavior each switch enables.",
+      "files": [],
+      "expectations": [
+        "Explains that chunk-level audio transcription is enabled by sending an audio.audioModel value in SummaryPipelineDTO, because transcription only starts when audioModel is present; in the UI this corresponds to the Use Audio Transcription checkbox (id=audiocheckBox) and Audio Models selector (id=audioModelsSelector).",
+        "Explains that full transcript summarization for the final summary is controlled separately by audio.useFullTranscriptSummary in the API and the UI checkbox id=useAudioSummaryCheckbox labeled Summarize audio transcript for final summary.",
+        "States the real defaults: the UI audio toggle starts true when audio models are available, the selected audio model defaults to systemConfig.meta.defaultAudioModel, and AUDIO_USE_FULL_TRANSCRIPT_SUMMARY defaults to true when not overridden.",
+        "Names the exact deployment-level locations for the final-summary transcript toggle: env var AUDIO_USE_FULL_TRANSCRIPT_SUMMARY, compose/setup variable PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY, and Helm value pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY.",
+        "Notes the dependency on the final summary switch: produceFinalSummary / PRODUCE_FINAL_SUMMARY must remain enabled for the full transcript summary to be used, because the UI forces audio.useFullTranscriptSummary to false when produceFinalSummary is false."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt_file": "example-prompts/04-fix-multiframe-validation-error.md",
+      "prompt": "I'm calling `POST /summary` directly with `sampling.samplingFrame: 10`, `sampling.frameOverlap: 4`, and `sampling.multiFrame: 12`, and the pipeline manager rejects it with a BadRequestException. My compose deployment has `PM_MULTI_FRAME_COUNT=12`. Why is this failing and what values should I use instead?",
+      "expected_output": "Diagnoses the BadRequestException as a multiFrame sum mismatch that also exceeds the configured maximum, and gives concrete corrected sampling values or deployment-level max changes.",
+      "files": [],
+      "expectations": [
+        "States that the backend requires sampling.multiFrame to exactly equal sampling.samplingFrame + sampling.frameOverlap, so 10 + 4 = 14 does not match the submitted multiFrame value of 12.",
+        "Explains that changing sampling.multiFrame to 14 would still be rejected because the deployment ceiling PM_MULTI_FRAME_COUNT / MULTI_FRAME_COUNT is 12.",
+        "Gives a corrected payload that fits the ceiling, such as samplingFrame 10 with frameOverlap 2 and multiFrame 12, or samplingFrame 8 with frameOverlap 4 and multiFrame 12.",
+        "Mentions that ChunkingService uses windowLength = multiFrame - frameOverlap, so overlap changes how frame windows slide and repeats frames across captioning calls.",
+        "Says that a larger accepted batch requires raising PM_MULTI_FRAME_COUNT in compose/setup or pipelinemanager.env.MULTI_FRAME_COUNT in Helm, with heavier multimodal requests and latency/cost risk."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt_file": "example-prompts/05-chunk-duration-tradeoffs-by-content-type.md",
+      "prompt": "I run VSS on two very different video types: 60-minute conference lectures and 5-minute action-camera clips from a warehouse floor. Should I use the same `chunkDuration` for both, or does it make sense to tune it per content type? Walk me through the trade-offs and where I'd change the value for each.",
+      "expected_output": "Explains how chunkDuration should vary by content type, where it is set, and how it affects temporal precision, transcript/window mapping, and latency.",
+      "files": [],
+      "expectations": [
+        "Identifies sampling.chunkDuration as the per-request API field and UI chunk Duration (secs) NumberInput id=chunkDuration, with UI default 8, UI minimum 2, and no explicit backend maximum.",
+        "Explains that chunkDuration is sent to EVAM as parameters.chunk_duration and is used for transcript/search time-window mapping.",
+        "Recommends longer chunks around 30-60 seconds for slower lecture or conference content to reduce orchestration overhead while accepting broader caption windows.",
+        "Recommends shorter chunks around 5-15 seconds for short action-camera or warehouse events to improve temporal precision, while warning this creates more chunks and downstream work.",
+        "Clarifies that chunkDuration can be set per POST /summary request or UI upload rather than as a global env setting, and notes samplingFrame/frameOverlap/multiFrame may need coordinated tuning under the multiFrame invariant."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt_file": "example-prompts/06-bootstrap-fresh-machine.md",
+      "prompt": "I only have this skills folder on a fresh machine — the VSS application source isn't in my current directory and I'm not inside its repo. Before we tune any summarization parameters, walk me through exactly how you make the VSS source available and get into the right working directory. Also, if I were already sitting inside an existing VSS checkout, would you clone it again?",
+      "expected_output": "Explains using the bundled scripts/vss-bootstrap.sh to resolve APP_ROOT, reuse an existing VSS checkout without cloning, or perform the documented shallow sparse checkout before changing into the app root.",
+      "files": [],
+      "expectations": [
+        "Runs or describes running APP_ROOT=\"$(bash \"$SKILL_DIR/scripts/vss-bootstrap.sh\")\" from the vss-pipeline-config skill directory before citing or tuning VSS source files.",
+        "States that an existing VSS checkout is detected by walking up from the current directory and inspecting the enclosing git repo, and is reused without re-cloning.",
+        "States that when no checkout is found, the bootstrap performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main.",
+        "Says to cd into the resolved APP_ROOT before running pipeline-config commands or inspecting source files.",
+        "Mentions override variables VSS_REPO_URL, VSS_REPO_BRANCH, and VSS_CLONE_DIR for a fork, branch, or specific checkout directory."
+      ]
+    },
+    {
+      "id": 90,
+      "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
+      "prompt": "I'm getting choppy summaries on a warehouse forklift video — the chunks feel too coarse and I think we're missing quick movements between frames. Can you tune the frames-per-chunk and chunk duration so we catch more of these short events, and let me know if I should also turn on the audio transcript for this one?",
+      "expected_output": "Runs the bundled scripts/vss-bootstrap.sh unconditionally as a first step, even though the prompt never mentioned setup or cloning, using the enclosing git repo's remote to detect and reuse an existing VSS checkout or fork, or otherwise performing a shallow single-branch sparse checkout of sample-applications/video-search-and-summarization from main, then cd's into the resolved app root before tuning frames-per-chunk, chunk duration, or audio transcript settings.",
+      "files": [],
+      "expectations": [
+        "The answer runs the bundled bootstrap helper (scripts/vss-bootstrap.sh) first, before doing any of the requested pipeline-tuning work, even though the prompt never asked about setup, location, or cloning.",
+        "The bootstrap check determines whether the current location is already a valid VSS checkout by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, origin/upstream URL) to see if it points at open-edge-platform/edge-ai-libraries or a fork of it, rather than merely checking for local marker files.",
+        "If that remote check finds a valid existing checkout (the user's own clone or a fork whose remote traces back to the official repo), the answer states it is reused as-is with NO re-clone performed.",
+        "If no valid checkout or matching remote is found, the answer performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from main.",
+        "The answer changes directory into the resolved app root (cd \"$APP_ROOT\") before running any of the skill's real commands for tuning frames-per-chunk, chunk duration, or audio transcript."
+      ]
+    }
+  ]
+}

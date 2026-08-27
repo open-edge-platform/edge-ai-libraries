@@ -1,0 +1,80 @@
+[tool.poetry]
+name = "multimodal-dataprep"
+version = "2.0.0"
+description = "A vector-DB-agnostic microservice for data preparation from text, video and image sources"
+authors = []
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+python-multipart = ">=0.0.30,<1.0.0"
+langchain = "^1.3.2"
+langchain-core = "^1.4.0"
+langchain-vdms = ">=0.2.0,<1.0.0"
+langchain-milvus = "^0.3.3"
+pymilvus = "^2.6.0"
+tzlocal = "^5.3.1"
+decord = ">=0.6.0,<1.0.0"
+minio = "^7.2.20"
+httpx = ">=0.28.1,<1.0.0"
+
+# Multimodal Embedding Service from local sibling microservice
+multimodal-embedding-serving = { path = "../../multimodal-embedding-serving" }
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.3"
+pytest-mock = "^3.15.1"
+coverage = "^7.14.1"
+pytest-asyncio = "^1.4.0"
+black = "^26.5.1"
+isort = "^8.0.1"
+
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "module"
+
+[tool.black]
+line-length = 100
+exclude = "(/(.git | .venv | venv | .pytest_cache)/)"
+
+[tool.isort]
+py_version = 311
+profile = "black"
+line_length = 100
+indent = "    "
+multi_line_output = 3
+include_trailing_comma = true
+src_paths = ["src", "tests"]
+
+[tool.coverage]
+[tool.coverage.run]
+branch = false
+source = ["src", "tests"]
+
+[tool.coverage.report]
+ignore_errors = true
+show_missing = true
+exclude_lines = [
+    "# noqa",
+    "# notest",
+    "#notest",
+    "# testfree",
+    "#testfree",
+    "raise NotImplementedError",
+]
+
+[tool.coverage.html]
+directory = ".coverage-report"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

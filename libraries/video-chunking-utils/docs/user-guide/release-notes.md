@@ -1,10 +1,10 @@
-# Release Notes
+# Release Notes: Video Chunking Utilities
 
 ## Current Release
 
 **Version**: 2025.2
 
-This is the first release for video-chunking-utils. It is a Python module designed for video chunking. It allows users to split video files into smaller, manageable segments. The module is designed to be easily installable via pip and can be used in various applications such as video processing, analysis, and content delivery.
+This is the first release for `video-chunking-utils`. It is a Python module designed for video chunking. It allows users to split video files into smaller, manageable segments. The module is designed to be easily installable via pip and can be used in various applications such as video processing, analysis, and content delivery.
 
 **Features**
 

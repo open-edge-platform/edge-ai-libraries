@@ -20,7 +20,7 @@ Additional command line parameters are not required.
 ```bash
 ./va_enablement_node_profile.sh vpro
 ```
-- Input parameter to configure the prerequisite tools for 'Magic-9' on the target edge node.
+- Input parameter to configure the prerequisite tools for Edge Workloads and Benchmarks on the target edge node.
 ```bash
 ./va_enablement_node_profile.sh magic9
 ```

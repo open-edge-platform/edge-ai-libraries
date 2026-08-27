@@ -155,6 +155,18 @@ class RequestCompletedEvent(Event):
     ttft_ms: float | None = None  # Time To First Token
     tpot_ms: float | None = None  # Time Per Output Token
 
+    # Token breakdown BEFORE router plugins (raw request) and AFTER (compressed
+    # request forwarded to the backend). Same tiktoken unit → before/after are
+    # directly comparable to see how much the compressors actually saved.
+    before_router_system_tokens: int = 0
+    before_router_tool_tokens: int = 0
+    before_router_context_tokens: int = 0
+    before_router_overall_tokens: int = 0
+    after_router_system_tokens: int = 0
+    after_router_tool_tokens: int = 0
+    after_router_context_tokens: int = 0
+    after_router_overall_tokens: int = 0
+
     def __post_init__(self):
         self.event_type = "request_completed"
 

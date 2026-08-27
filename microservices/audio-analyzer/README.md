@@ -3,8 +3,11 @@
 This repository provides a FastAPI-based microservice for audio transcription
 and optional voice-sentiment analysis. It accepts an uploaded audio file,
 chunks it with FFmpeg, runs ASR on each chunk, and returns either a single
-transcription response or a streaming NDJSON event stream. When sentiment is
-enabled, it also returns a session-level sentiment summary.
+transcription response, an OpenAI-compatible Server-Sent Events stream, or a
+streaming NDJSON event stream. It also exposes an OpenAI Realtime-shaped
+WebSocket endpoint (`/v1/realtime`) for continuous, live audio streaming,
+where server-side voice activity detection segments the feed into utterances.
+When sentiment is enabled, it also returns a session-level sentiment summary.
 
 Below, you'll find links to detailed documentation to help you get started,
 configure, and deploy the microservice.

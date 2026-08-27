@@ -413,9 +413,9 @@ describe('VideoGroupsView Component', () => {
             video_id: '201f002c-74f1-4cd8-bf69-210980e444dc',
             tags: 'livingroom',
             video_url:
-              'http://vdms-dataprep:8000/v1/dataprep/videos/download?video_id=201f002c-74f1-4cd8-bf69-210980e444dc&bucket_name=video-summary',
+              'http://multimodal-dataprep:8000/v1/dataprep/media/download?video_id=201f002c-74f1-4cd8-bf69-210980e444dc&bucket_name=video-summary',
             video_rel_url:
-              '/v1/dataprep/videos/download?video_id=201f002c-74f1-4cd8-bf69-210980e444dc&bucket_name=video-summary',
+              '/v1/dataprep/media/download?video_id=201f002c-74f1-4cd8-bf69-210980e444dc&bucket_name=video-summary',
             bucket_name: 'video-summary',
           },
           video: {

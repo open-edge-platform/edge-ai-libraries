@@ -10,11 +10,13 @@ collapsed into this single adapter, since DecisionEngine now handles routing.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
 from typing import Any, AsyncIterator, Dict, Iterator, List
 
+import httpx
 import litellm
 
 from src.config.base import ProviderConfig
@@ -31,6 +33,12 @@ from src.providers.base import ProviderAdapter, ProviderMetadata
 
 
 logger = logging.getLogger(__name__)
+
+# Sane request-timeout default (seconds) when a provider omits ``timeout``.
+DEFAULT_REQUEST_TIMEOUT = 600.0  # connect + first byte, passed to litellm
+
+# Short timeout for the liveness probe — it must not stall health reporting.
+_HEALTH_PROBE_TIMEOUT = 5.0
 
 # Preserve pass-through of provider-specific extension params (e.g. vLLM's
 # best_of, repetition_penalty, guided_json). Without this, litellm would
@@ -57,7 +65,19 @@ class LitellmProvider(ProviderAdapter):
         # `model` is the backend model identifier passed to litellm
         self.model = provider_config.model
         self.endpoint = settings.get("endpoint")
-        self.timeout = settings.get("timeout")
+        # Per-request timeout (connect + first byte), in seconds, passed to
+        # litellm on every call. Defaults to DEFAULT_REQUEST_TIMEOUT when unset.
+        _timeout = settings.get("timeout")
+        self.timeout = float(_timeout) if _timeout else DEFAULT_REQUEST_TIMEOUT
+        # Stream idle timeout: max seconds to wait between two SSE chunks. The
+        # per-request `timeout` only covers connect + first byte; once litellm
+        # returns the stream iterator it no longer applies, so a backend that
+        # hangs mid-stream (vLLM stall / dropped connection) would block a
+        # worker forever. This guards each `next(chunk)` with wait_for. Defaults
+        # to `timeout` — set it explicitly only to detect a mid-stream stall
+        # faster than the (often generous, cold-start) connect timeout.
+        _idle = settings.get("stream_idle_timeout")
+        self.stream_idle_timeout = float(_idle) if _idle else self.timeout
         # Auth: scheme ∈ {"bearer" (default), "api_key", "none"}.
         # For "none" we explicitly drop any api_key so we never authenticate.
         self.auth_scheme = (auth.get("scheme") or "bearer").lower()
@@ -81,7 +101,13 @@ class LitellmProvider(ProviderAdapter):
     ) -> AsyncIterator[ChatCompletionStreamChunk]:
         messages, kwargs = self._prepare_call(request)
         try:
-            stream_iter = self._call_litellm(messages, stream=True, **kwargs)
+            # Connecting + waiting for the first byte is synchronous inside
+            # litellm; run it off the event loop so a slow-to-connect backend
+            # can't freeze the gateway. (Chunk iteration below is already
+            # offloaded + idle-timeout guarded.)
+            stream_iter = await asyncio.to_thread(
+                self._call_litellm, messages, stream=True, **kwargs
+            )
         except Exception as exc:
             logger.error(f"litellm stream failed for provider={self.name}: {exc}")
             raise ProviderError(
@@ -89,7 +115,37 @@ class LitellmProvider(ProviderAdapter):
                 status_code=getattr(exc, "status_code", None),
             ) from exc
 
-        for chunk in stream_iter:
+        # litellm returns a *synchronous* iterator. Iterating it with a plain
+        # `for` would (a) block the event loop and (b) hang forever if the
+        # backend stalls mid-stream. Pull each chunk in a worker thread guarded
+        # by an idle timeout so a stalled stream fails fast instead of pinning
+        # a concurrency slot indefinitely.
+        it = iter(stream_iter)
+        idle = self.stream_idle_timeout
+        loop = asyncio.get_running_loop()
+        _DONE = object()
+
+        def _next_chunk():
+            try:
+                return next(it)
+            except StopIteration:
+                return _DONE
+
+        while True:
+            try:
+                chunk = await asyncio.wait_for(
+                    loop.run_in_executor(None, _next_chunk), timeout=idle
+                )
+            except asyncio.TimeoutError as exc:
+                logger.error(
+                    "stream idle timeout (%.0fs) for provider=%s; aborting stalled stream",
+                    idle, self.name,
+                )
+                raise ProviderError(
+                    f"Stream idle timeout after {idle:.0f}s (provider={self.name})"
+                ) from exc
+            if chunk is _DONE:
+                break
             yield self._to_stream_chunk(chunk)
 
     async def list_models(self) -> List[Dict[str, Any]]:
@@ -101,6 +157,34 @@ class LitellmProvider(ProviderAdapter):
                 "owned_by": self.name,
             }
         ]
+
+    async def health_check(self) -> bool:
+        """Probe the backend for real reachability.
+
+        Overrides the base default (which would call our static ``list_models``
+        and thus always report healthy). GETs the configured ``endpoint``: any
+        HTTP response — even 401/404 — means the server is up; only a transport
+        error (connection refused, DNS, timeout) is unhealthy.
+
+        When no ``endpoint`` is configured (e.g. a cloud provider litellm routes
+        by built-in base URL), there is nothing to probe: log a warning and skip
+        the check rather than fabricate a healthy verdict.
+        """
+        if not self.endpoint:
+            logger.warning(
+                "no health check probe available for provider '%s' (no endpoint to probe); skipping",
+                self.name,
+            )
+            return True
+        try:
+            async with httpx.AsyncClient(timeout=_HEALTH_PROBE_TIMEOUT) as client:
+                await client.get(self.endpoint)
+            return True
+        except Exception as exc:
+            logger.debug(
+                "health probe failed for provider '%s' at %s: %s", self.name, self.endpoint, exc
+            )
+            return False
 
     def _call_litellm(
         self, messages: list[dict], *, stream: bool, **kwargs
@@ -133,9 +217,8 @@ class LitellmProvider(ProviderAdapter):
             completion_kwargs["api_base"] = api_base
         if api_key:
             completion_kwargs["api_key"] = api_key
-        if self.timeout is not None:
-            # litellm reads ``timeout`` (seconds) per request.
-            completion_kwargs.setdefault("timeout", self.timeout)
+        # litellm reads ``timeout`` (seconds) per request; always set (defaulted).
+        completion_kwargs.setdefault("timeout", self.timeout)
         if self.custom_headers:
             # Merge configured auth headers with any caller-supplied extra_headers.
             existing = completion_kwargs.get("extra_headers") or {}

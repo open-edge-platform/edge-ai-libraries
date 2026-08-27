@@ -4,12 +4,12 @@ The GenAI Applications Sizing Tool is a performance profiling utility for benchm
 
 ## Overview
 
-The GenAI Applications Sizing Tool helps you:
+The GenAI Applications Sizing Tool key features:
 
-- **Measure performance metrics** such as response times, throughput, and latency
-- **Profile resource utilization** including CPU, GPU, and memory consumption
-- **Generate detailed reports** for capacity planning and optimization
-- **Execute warmup cycles** to ensure accurate performance measurements
+- **Mutli application supports** ChatQnA (Modular & Core), Video Summary and Search, live captioning
+- **Resource Monitoring** including CPU, GPU, and memory consumption
+- **Flexible Configuration** Two layer Yaml based configuration (Profiles and App config)
+- **Comprehensive Reporting** reports with logs, JSON/CSV, plots
 
 ### Supported Applications
 
@@ -19,6 +19,7 @@ The GenAI Applications Sizing Tool helps you:
 | `chatqna` | ChatQnA modular application | `profiles/chatqna-config.yaml` |
 | `chatqna_core` | ChatQnA core application | `profiles/chatqna-core-config.yaml` |
 | `live_caption` | Live video captioning | `profiles/live-video-caption-config.yaml` |
+
 
 ## Prerequisites
 
@@ -33,14 +34,11 @@ The GenAI Applications Sizing Tool helps you:
 Before running the sizing tool, ensure the target application is deployed and accessible. Refer to the deployment guides for each application:
 
 **Video Search and Summarization:**
-- [Get Started](../../../main/sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
-- [System Requirements](../../../main/sample-applications/video-search-and-summarization/docs/user-guide/get-started/system-requirements.md)
-
-**Chat Question and Answer:**
-- [Sample Application README](../../../main/sample-applications/chat-question-and-answer/README.md)
+- [Get Started](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
+- [System Requirements](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started/system-requirements.md)
 
 **Chat Question and Answer Core:**
-- [Sample Application README](../../../main/sample-applications/chat-question-and-answer-core/README.md)
+- [Sample Application README](../../sample-applications/chat-question-and-answer-core/README.md)
 
 **Live Video Captioning:**
 - [Sample Application README](https://github.com/open-edge-platform/edge-ai-suites/blob/main/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
@@ -89,7 +87,6 @@ The tool uses YAML configuration files to define API endpoints and input profile
 global:
   report_dir: 'reports'
   input_profiles_path: 'profiles/profiles.yaml'
-  perf_tool_repo: 'https://github.com/intel-retail/performance-tools.git'
 
 apis:
   video_summary:
@@ -111,10 +108,10 @@ Input profiles define the test data and parameters. Video summary profiles are d
 profiles:
   video_summary_wsf:
     input_type: "video"
-    input_size: "medium" 
+    input_size: "medium"
     files:
       - name: "one-by-one-person-detection.mp4"
-        path: "data/one-by-one-person-detection.mp4"    
+        path: "data/one-by-one-person-detection.mp4"
     payload:
       # Sampling and prompt configuration
       ...
@@ -196,11 +193,11 @@ Reports are saved in the `reports/` directory with timestamped folders:
 ```
 reports/
 └── video_summary_search_20260320_134736/
-    ├── perf_tool_logs/           # Performance tool logs
+    ├── perf_tool_logs/           # Metrics Manager logs
     └── video_summary/
-        ├── video_summary_metrics_wsf.csv              # Summary metrics
-        ├── video_summary_search_metrics.json          # Detailed metrics
-        ├── video_summary_search_telemetry_details.json # Telemetry data
+        ├── video_summary_metrics_wsf.csv              # metrics for wsf
+        ├── video_summary_search_metrics.json          # metrics summary
+        ├── video_summary_search_telemetry_details.json # Detailed Telemetry data
         └── video_response_*.txt                       # Video response details
 ```
 
@@ -229,57 +226,6 @@ Report saved to: reports/video_summary_search_20260320_143044/
 ```
 
 ## Other Application References
-
-### ChatQnA (Modular)
-
-The ChatQnA modular application provides document-based question answering with RAG (Retrieval-Augmented Generation) capabilities.
-
-#### Configuration
-
-Configuration file: `profiles/chatqna-config.yaml`
-
-```yaml
-apis:
-  stream_log:
-    enabled: true
-    service_name: 'chatqna'
-    endpoints:
-      chat: '8101/v1/chatqna/chat'
-      document: '8101/v1/dataprep/documents'
-    input_profile: 'chatqna_wsf'
-```
-
-#### Example Command
-
-```bash
-python profile-runner.py \
-  --app=chatqna \
-  --input=profiles/chatqna-config.yaml \
-  --host_ip=<IP_ADDRESS> \
-  --request_count=10 \
-  --collect_resource_metrics=yes
-```
-
-#### Input Profile
-
-The `chatqna_wsf` profile uses text-based inputs:
-
-```yaml
-chatqna_wsf:
-  input_type: "text"
-  input_size: "small"
-  files:
-    - name: "file1.txt"
-      path: "data/file1.txt"
-  prompt: "Analyze and interpret the sonnet..."
-  max_tokens: "1024"
-```
-
-#### Deployment Reference
-
-- [Chat Question and Answer Sample Application](../../../main/sample-applications/chat-question-and-answer/README.md)
-
----
 
 ### ChatQnA Core
 
@@ -313,7 +259,7 @@ python profile-runner.py \
 
 #### Deployment Reference
 
-- [Chat Question and Answer Core Sample Application](../../../main/sample-applications/chat-question-and-answer-core/README.md)
+- [Chat Question and Answer Core Sample Application](../../sample-applications/chat-question-and-answer-core/README.md)
 
 ---
 
@@ -406,16 +352,12 @@ Before running a full profiling session:
 ## Supporting Resources
 
 - **Video Search and Summarization**
-  - [API Reference](../../../main/sample-applications/video-search-and-summarization/docs/user-guide/api-reference.md)
-  - [Get Started Guide](../../../main/sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
-- **Chat Question and Answer**
-  - [Sample Application](../../../main/sample-applications/chat-question-and-answer/README.md)
+  - [API Reference](../../sample-applications/video-search-and-summarization/docs/user-guide/api-reference.md)
+  - [Get Started Guide](../../sample-applications/video-search-and-summarization/docs/user-guide/get-started.md)
 - **Chat Question and Answer Core**
-  - [Sample Application](../../../main/sample-applications/chat-question-and-answer-core/README.md)
+  - [Sample Application](../../sample-applications/chat-question-and-answer-core/README.md)
 - **Live Video Captioning**
   - [Sample Application](https://github.com/open-edge-platform/edge-ai-suites/blob/main/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
-- [Performance Tools Documentation](https://github.com/intel-retail/performance-tools)
+- [Metrics Manager Microservice Documentation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/metrics-manager)
 - Customize input profiles in `profiles/profiles.yaml` for your use case
 - Enable resource metrics collection for detailed hardware analysis
-
-

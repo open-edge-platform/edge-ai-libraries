@@ -156,14 +156,14 @@ def check_ready(
     """Execute readiness callable for the selected backend."""
     selected_backend = get_backend_name(backend_name)
     spec = get_backend_spec(selected_backend, registry=registry)
-    logger.info("Checking readiness for retriever backend '%s'", selected_backend)
+    logger.debug("Checking readiness for retriever backend '%s'", selected_backend)
     ready_fn = _load_callable(spec.backend_module_path, spec.check_ready_attr)
     try:
         ready = bool(ready_fn())
     except Exception:
         logger.exception("Retriever backend '%s' readiness check failed", selected_backend)
         raise
-    logger.info("Retriever backend '%s' readiness result: %s", selected_backend, ready)
+    logger.debug("Retriever backend '%s' readiness result: %s", selected_backend, ready)
     return ready
 
 

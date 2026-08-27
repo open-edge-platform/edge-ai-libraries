@@ -11,6 +11,7 @@ from graph import Graph
 from internal_types import (
     InternalPipeline,
     InternalPipelineSource,
+    InternalPipelineType,
     InternalPipelineValidation,
     InternalVariant,
 )
@@ -97,6 +98,7 @@ class TestPipelinesAPI(unittest.TestCase):
         name: str = "test-pipeline",
         description: str = "Test Pipeline Description",
         source: InternalPipelineSource = InternalPipelineSource.USER_CREATED,
+        type: InternalPipelineType = InternalPipelineType.VISION,
         tags: Optional[list] = None,
         variants: Optional[list] = None,
         thumbnail: Optional[str] = None,
@@ -112,6 +114,7 @@ class TestPipelinesAPI(unittest.TestCase):
             name=name,
             description=description,
             source=source,
+            type=type,
             tags=tags,
             variants=variants,
             thumbnail=thumbnail,

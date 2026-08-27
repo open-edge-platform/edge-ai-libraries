@@ -82,7 +82,7 @@ const ExportPipelineButton = ({
           title="Export Pipeline"
           icon={<Download className="w-5 h-5" />}
           label={<span>Export</span>}
-          variant="accent-outline"
+          variant="outline"
         />
       </PopoverTrigger>
       <PopoverContent className="w-64">

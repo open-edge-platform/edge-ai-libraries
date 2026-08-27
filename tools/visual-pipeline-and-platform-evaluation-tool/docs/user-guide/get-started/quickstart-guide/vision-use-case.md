@@ -7,7 +7,7 @@ The application is served with several predefined pipelines that cover different
   on the selected model.
 - **Smart Parking** - A cloud-native, microservices-based video analytics pipeline that uses
   pre-trained deep learning models to detect parking-space occupancy.
-- **Smart VNR** - Processes video streams with AI-based analytics, including object detection,
+- **Smart NVR** - Processes video streams with AI-based analytics, including object detection,
   tracking, and classification. Outputs include video recording, metadata, and processed video frames.
 - **Motion Detection** - Identifies regions of motion, then runs object detection restricted to those
   motion ROIs.

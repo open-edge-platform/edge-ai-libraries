@@ -5,10 +5,17 @@
 
 This module inspects local host/container-visible interfaces (/proc, /sys) and
 returns a JSON-serializable snapshot suitable for REST responses.
+
+Unified Intel GPU Device Registry (source-of-truth for all Intel GPUs):
+This registry covers Intel discrete/integrated GPU generations and is used for
+PCI ID classification and software capability inference (OpenVINO support,
+media/rendering capability).
 """
 
 from __future__ import annotations
 
+import importlib
+import importlib.util as importlib_util
 import json
 import os
 import platform
@@ -19,20 +26,662 @@ from pathlib import Path
 from time import time
 from typing import Any, Literal
 
-# Best-effort PCI ID branding fallback used when lspci/pci.ids is unavailable.
-_GPU_MODEL_FALLBACK_BY_PCI_ID: dict[str, str] = {
-    "8086:a780": "Intel UHD Graphics 770",
-    # DG2 desktop Arc (Alchemist)
-    "8086:56a0": "Intel Arc A770",
-    "8086:56a1": "Intel Arc A750",
-    "8086:56a2": "Intel Arc A580",
-    # Battlemage G21 desktop/workstation Arc
-    "8086:e20b": "Intel Arc B580",
-    "8086:e20c": "Intel Arc B570",
-    "8086:e211": "Intel Arc Pro B60",
-    "8086:e212": "Intel Arc Pro B50",
+# ============================================================================
+# Unified Intel GPU Device Registry (Single Source of Truth)
+# ============================================================================
+# Map: pci_id (lowercase "vendor:device" hex) -> device_info dict
+# device_info includes: name, architecture, pci_id, sw_capabilities_template
+# sw_capabilities_template guides OpenVINO/inference support classification
+_INTEL_GPU_DEVICE_REGISTRY: dict[str, dict[str, Any]] = {
+    # ========== Xe2 Architecture (Latest, Full OpenVINO GPU Support) ==========
+    "8086:e212": {"name": "Intel Arc B50", "arch": "Xe2", "category": "dgpu", "min_kernel": "6.14"},
+    "8086:e211": {"name": "Intel Arc B60", "arch": "Xe2", "category": "dgpu", "min_kernel": "6.14"},
+    "8086:e20b": {"name": "Intel Arc B580", "arch": "Xe2", "category": "dgpu", "min_kernel": "6.11"},
+    "8086:e20c": {"name": "Intel Arc B570", "arch": "Xe2", "category": "dgpu", "min_kernel": "6.11"},
+    "8086:6420": {"name": "Intel Graphics (Lunar Lake)", "arch": "Xe2", "category": "igpu", "min_kernel": "6.10"},
+    "8086:6422": {"name": "Intel Graphics (Lunar Lake)", "arch": "Xe2", "category": "igpu", "min_kernel": "6.10"},
+    # ========== Xe-LPG Architecture (Arrow Lake, Meteor Lake, Full OV GPU) ==========
+    "8086:7d51": {"name": "Intel Graphics (Arrow Lake-H)", "arch": "Xe-LPG", "category": "igpu", "min_kernel": "6.9"},
+    "8086:7d67": {"name": "Intel Graphics (Arrow Lake-S)", "arch": "Xe-LPG", "category": "igpu", "min_kernel": "6.7"},
+    "8086:7d41": {"name": "Intel Graphics (Arrow Lake-U)", "arch": "Xe-LPG", "category": "igpu", "min_kernel": "6.9"},
+    "8086:7dd5": {"name": "Intel Graphics (Meteor Lake-G)", "arch": "Xe-LPG", "category": "igpu", "min_kernel": "6.6"},
+    "8086:7d55": {"name": "Intel Graphics (Meteor Lake-H)", "arch": "Xe-LPG", "category": "igpu", "min_kernel": "6.6"},
+    "8086:7d60": {"name": "Intel Graphics (Meteor Lake-S)", "arch": "Xe-LPG", "category": "igpu", "min_kernel": "6.6"},
+    "8086:7d45": {"name": "Intel Graphics (Meteor Lake-U)", "arch": "Xe-LPG", "category": "igpu", "min_kernel": "6.6"},
+    "8086:7d40": {"name": "Intel Graphics (Meteor Lake-P)", "arch": "Xe-LPG", "category": "igpu", "min_kernel": "6.6"},
+    # ========== Xe-HPG Architecture (Arc A/Pro Series, Full OpenVINO GPU) ==========
+    "8086:56a0": {"name": "Intel Arc A770", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:56a1": {"name": "Intel Arc A750", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:56a2": {"name": "Intel Arc A580", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:56a3": {"name": "Intel Arc A380", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:56a4": {"name": "Intel Arc A310", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:56a5": {"name": "Intel Arc Pro A60", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:56a6": {"name": "Intel Arc Pro A60M", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:5690": {"name": "Intel Arc A370M", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:5691": {"name": "Intel Arc A350M", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:5692": {"name": "Intel Arc A550M", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:5693": {"name": "Intel Arc A370M", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:5694": {"name": "Intel Arc A350M", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:5695": {"name": "Intel Arc A730M", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:5696": {"name": "Intel Arc A550M", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:5697": {"name": "Intel Arc A770M", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:56b0": {"name": "Intel Arc Pro A40", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:56b1": {"name": "Intel Arc Pro A50", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:56b2": {"name": "Intel Arc Pro A30M", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    "8086:56b3": {"name": "Intel Arc Pro A40", "arch": "Xe-HPG", "category": "dgpu", "min_kernel": "6.2"},
+    # ========== Xe Architecture (Raptor Lake, Alder Lake, Tiger Lake) ==========
+    "8086:a788": {"name": "Intel UHD Graphics 770", "arch": "Xe", "category": "igpu", "min_kernel": "6.7"},
+    "8086:a789": {"name": "Intel UHD Graphics 750", "arch": "Xe", "category": "igpu", "min_kernel": "6.7"},
+    "8086:a78a": {"name": "Intel UHD Graphics 730", "arch": "Xe", "category": "igpu", "min_kernel": "6.7"},
+    "8086:a78b": {"name": "Intel UHD Graphics 710", "arch": "Xe", "category": "igpu", "min_kernel": "6.7"},
+    "8086:a780": {"name": "Intel UHD Graphics 770", "arch": "Xe", "category": "igpu", "min_kernel": "6.7"},
+    "8086:a720": {"name": "Intel Iris Xe Graphics", "arch": "Xe", "category": "igpu", "min_kernel": "6.7"},
+    "8086:a721": {"name": "Intel Iris Xe Graphics", "arch": "Xe", "category": "igpu", "min_kernel": "6.7"},
+    "8086:a7a0": {"name": "Intel Iris Xe Graphics", "arch": "Xe", "category": "igpu", "min_kernel": "6.7"},
+    "8086:a7a1": {"name": "Intel Iris Xe Graphics", "arch": "Xe", "category": "igpu", "min_kernel": "6.7"},
+    "8086:a7ac": {"name": "Intel Graphics", "arch": "Xe", "category": "igpu", "min_kernel": "6.7"},
+    "8086:a7ad": {"name": "Intel Graphics", "arch": "Xe", "category": "igpu", "min_kernel": "6.7"},
+    # DG1 discrete
+    "8086:4905": {"name": "Intel Iris Xe MAX Graphics", "arch": "Xe", "category": "dgpu", "min_kernel": "5.16"},
+    "8086:4907": {"name": "Intel Server GPU", "arch": "Xe", "category": "dgpu", "min_kernel": "5.16"},
+    "8086:4908": {"name": "Intel Iris Xe MAX Graphics", "arch": "Xe", "category": "dgpu", "min_kernel": "5.16"},
+    "8086:4909": {"name": "Intel Iris Xe MAX Graphics", "arch": "Xe", "category": "dgpu", "min_kernel": "5.16"},
+    # Alder Lake
+    "8086:4680": {"name": "Intel UHD Graphics 770", "arch": "Xe", "category": "igpu", "min_kernel": "5.17"},
+    "8086:4682": {"name": "Intel UHD Graphics 730", "arch": "Xe", "category": "igpu", "min_kernel": "5.17"},
+    "8086:4690": {"name": "Intel UHD Graphics 770", "arch": "Xe", "category": "igpu", "min_kernel": "5.17"},
+    "8086:4692": {"name": "Intel UHD Graphics 730", "arch": "Xe", "category": "igpu", "min_kernel": "5.17"},
+    "8086:4693": {"name": "Intel UHD Graphics 710", "arch": "Xe", "category": "igpu", "min_kernel": "5.17"},
+    # Tiger Lake
+    "8086:9a49": {"name": "Intel Iris Xe Graphics", "arch": "Xe", "category": "igpu", "min_kernel": "5.9"},
+    "8086:9a40": {"name": "Intel Iris Xe Graphics", "arch": "Xe", "category": "igpu", "min_kernel": "5.9"},
+    "8086:9a60": {"name": "Intel UHD Graphics", "arch": "Xe", "category": "igpu", "min_kernel": "5.9"},
+    "8086:9a68": {"name": "Intel UHD Graphics", "arch": "Xe", "category": "igpu", "min_kernel": "5.9"},
+    # Gen12 (Rocket Lake)
+    "8086:4c80": {"name": "Intel UHD Graphics 750", "arch": "Gen12", "category": "igpu", "min_kernel": "5.11"},
+    "8086:4c8a": {"name": "Intel UHD Graphics 730", "arch": "Gen12", "category": "igpu", "min_kernel": "5.11"},
+    # Gen11 (Ice Lake, Elkhart Lake)
+    "8086:8a50": {"name": "Intel Iris Plus Graphics", "arch": "Gen11", "category": "igpu", "min_kernel": "5.2"},
+    "8086:8a56": {"name": "Intel UHD Graphics", "arch": "Gen11", "category": "igpu", "min_kernel": "5.2"},
+    "8086:4551": {"name": "Intel UHD Graphics (Elkhart Lake)", "arch": "Gen11", "category": "igpu", "min_kernel": "5.8"},
+    # Gen9.5 (Coffee Lake)
+    "8086:3e90": {"name": "Intel UHD Graphics 610", "arch": "Gen9.5", "category": "igpu", "min_kernel": "4.20"},
+    "8086:3e91": {"name": "Intel UHD Graphics 630", "arch": "Gen9.5", "category": "igpu", "min_kernel": "4.20"},
 }
 
+# Best-effort PCI ID branding fallback used when lspci/pci.ids is unavailable.
+_GPU_MODEL_FALLBACK_BY_PCI_ID: dict[str, str] = {
+    pci_id: info["name"] for pci_id, info in _INTEL_GPU_DEVICE_REGISTRY.items()
+}
+
+
+def _detect_inference_runtimes() -> dict[str, bool]:
+    """Detect available inference runtimes on the system.
+
+    Returns a dict mapping runtime names to availability (bool).
+    Checks for Python packages and binary tools.
+    """
+
+    # Capability reporting prioritizes lightweight functional probes grouped by
+    # runtime API family over static lookup-table assumptions.
+
+    def _module_or_none(module_name: str) -> Any | None:
+        try:
+            if importlib_util.find_spec(module_name) is None:
+                return None
+            return importlib.import_module(module_name)
+        except (ImportError, ModuleNotFoundError, ValueError):
+            return None
+
+    def _probe_openvino() -> bool:
+        ov_mod = _module_or_none("openvino")
+        if ov_mod is None:
+            return False
+
+        core_cls = getattr(ov_mod, "Core", None)
+        if core_cls is None:
+            runtime_mod = _module_or_none("openvino.runtime")
+            core_cls = getattr(runtime_mod, "Core", None) if runtime_mod else None
+        if core_cls is None:
+            return False
+
+        try:
+            core = core_cls()
+            _ = list(getattr(core, "available_devices", []) or [])
+            return True
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def _probe_tensorflow() -> bool:
+        tf_mod = _module_or_none("tensorflow")
+        if tf_mod is None:
+            return False
+        try:
+            _ = tf_mod.config.list_physical_devices()
+            return True
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def _probe_pytorch() -> bool:
+        torch_mod = _module_or_none("torch")
+        if torch_mod is None:
+            return False
+        try:
+            _ = getattr(torch_mod, "__version__", None)
+            cuda_ns = getattr(torch_mod, "cuda", None)
+            if cuda_ns is not None and hasattr(cuda_ns, "is_available"):
+                _ = cuda_ns.is_available()
+            return True
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def _probe_onnxruntime() -> bool:
+        ort_mod = _module_or_none("onnxruntime")
+        if ort_mod is None:
+            return False
+        try:
+            providers = ort_mod.get_available_providers()
+            return len(providers) > 0
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def _probe_tflite() -> bool:
+        tflite_mod = _module_or_none("tensorflow.lite")
+        if tflite_mod is None:
+            return False
+        try:
+            _ = tflite_mod.Interpreter
+            return True
+        except AttributeError:
+            return False
+
+    def _probe_llama_cpp() -> bool:
+        if shutil.which("llama-cli") is not None or shutil.which("llama-server") is not None:
+            return True
+        llama_mod = _module_or_none("llama_cpp")
+        if llama_mod is None:
+            return False
+        return hasattr(llama_mod, "Llama")
+
+    runtimes = {
+        "openvino": _probe_openvino(),
+        "tensorflow": _probe_tensorflow(),
+        "pytorch": _probe_pytorch(),
+        "onnx_runtime": _probe_onnxruntime(),
+        "tflite": _probe_tflite(),
+        "llama_cpp": _probe_llama_cpp(),
+    }
+
+    return runtimes
+
+
+def _detect_openvino_available_devices() -> set[str]:
+    """Detect OpenVINO-exposed logical device classes.
+
+    Returns a normalized set like {"CPU", "GPU", "NPU"} when available.
+    """
+    ov_mod: Any | None = None
+    try:
+        if importlib_util.find_spec("openvino") is None:
+            return set()
+        ov_mod = importlib.import_module("openvino")
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return set()
+
+    core_cls = getattr(ov_mod, "Core", None)
+    if core_cls is None:
+        try:
+            runtime_mod = importlib.import_module("openvino.runtime")
+            core_cls = getattr(runtime_mod, "Core", None)
+        except (ImportError, ModuleNotFoundError, ValueError):
+            return set()
+    if core_cls is None:
+        return set()
+
+    try:
+        core = core_cls()
+        devices = list(getattr(core, "available_devices", []) or [])
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return set()
+
+    normalized: set[str] = set()
+    for device in devices:
+        value = str(device).upper()
+        if value.startswith("CPU"):
+            normalized.add("CPU")
+        elif value.startswith("GPU"):
+            normalized.add("GPU")
+        elif value.startswith(("NPU", "VPU")):
+            normalized.add("NPU")
+    return normalized
+
+
+def _detect_runtime_media_codecs() -> dict[str, list[str]]:
+    """Best-effort media codec capability probe from runtime tooling.
+
+    Uses `vainfo` when available and maps supported profiles/entry points
+    to normalized capability strings used by this service.
+    """
+    by_category: dict[str, list[str]] = {
+        "cpu": [],
+        "igpu": [],
+        "dgpu": [],
+        "npu": [],
+    }
+
+    if shutil.which("vainfo") is None:
+        return by_category
+
+    # In a container/headless environment there is no X/Wayland display.
+    # vainfo falls through to DRM mode automatically, but the iHD driver
+    # needs a concrete render node.  Prefer LIBVA_DRM_DEVICE already set
+    # in the environment; otherwise probe renderD128 then renderD129.
+    env = dict(os.environ)
+    if not env.get("LIBVA_DRM_DEVICE") and not env.get("DISPLAY") and not env.get("WAYLAND_DISPLAY"):
+        for node in ("/dev/dri/renderD128", "/dev/dri/renderD129"):
+            if Path(node).exists():
+                env["LIBVA_DRM_DEVICE"] = node
+                break
+
+    try:
+        result = subprocess.run(
+            ["vainfo"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+            env=env,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return by_category
+
+    text = f"{result.stdout}\n{result.stderr}".upper()
+    if "VA_PROFILE" not in text:
+        return by_category
+
+    caps: set[str] = set()
+    if "H264" in text or "AVC" in text:
+        caps.add("h264_decode")
+        if "ENC" in text:
+            caps.add("h264_encode")
+    if "HEVC" in text or "H265" in text:
+        caps.add("h265_decode")
+        if "ENC" in text:
+            caps.add("h265_encode")
+    if "VP9" in text:
+        caps.add("vp9_support")
+    if "AV1" in text:
+        caps.add("av1_support")
+    if "JPEG" in text:
+        caps.add("jpeg_accelerated")
+
+    # VAAPI data represents accelerator/video blocks and is GPU-facing.
+    resolved = sorted(caps)
+    by_category["igpu"] = resolved
+    by_category["dgpu"] = resolved
+    return by_category
+
+
+def _detect_runtime_precision_support(
+    openvino_devices: set[str],
+    available_runtimes: dict[str, bool] | None = None,
+) -> dict[str, list[str]]:
+    """Best-effort precision capability probe per device category.
+
+    Priority:
+    1) OpenVINO optimization capabilities per logical device class
+    2) CPU ISA flags from /proc/cpuinfo for CPU-only fallback
+    """
+    by_category: dict[str, set[str]] = {
+        "cpu": set(),
+        "igpu": set(),
+        "dgpu": set(),
+        "npu": set(),
+    }
+
+    cpuinfo_text = (_read_text("/proc/cpuinfo") or "").lower()
+    cpu_caps = by_category["cpu"]
+    cpu_caps.add("fp32_compute")
+    if any(flag in cpuinfo_text for flag in (" f16c", " avx512_fp16", " avx512fp16")):
+        cpu_caps.add("fp16_compute")
+    if any(flag in cpuinfo_text for flag in (" avx2", " avx512_vnni", " amx_int8")):
+        cpu_caps.add("int8_compute")
+    if any(flag in cpuinfo_text for flag in (" avx512_bf16", " amx_bf16", " bf16")):
+        cpu_caps.add("bfloat16_compute")
+
+    if "CPU" not in openvino_devices and cpu_caps == {"fp32_compute"}:
+        # Keep pragmatic baseline when ISA flag extraction is inconclusive.
+        cpu_caps.update({"fp16_compute", "int8_compute", "bfloat16_compute"})
+
+    if not (available_runtimes or {}).get("openvino") or not openvino_devices:
+        return {k: sorted(v) for k, v in by_category.items()}
+
+    try:
+        ov_mod = importlib.import_module("openvino")
+        core_cls = getattr(ov_mod, "Core", None)
+        if core_cls is None:
+            runtime_mod = importlib.import_module("openvino.runtime")
+            core_cls = getattr(runtime_mod, "Core", None)
+        if core_cls is None:
+            return {k: sorted(v) for k, v in by_category.items()}
+        core = core_cls()
+    except (ImportError, ModuleNotFoundError, ValueError, AttributeError):
+        return {k: sorted(v) for k, v in by_category.items()}
+
+    def _map_ov_caps(tokens: list[str]) -> set[str]:
+        mapped: set[str] = set()
+        upper_tokens = {str(token).upper() for token in tokens}
+        if "FP32" in upper_tokens:
+            mapped.add("fp32_compute")
+        if "FP16" in upper_tokens:
+            mapped.add("fp16_compute")
+        if "INT8" in upper_tokens:
+            mapped.add("int8_compute")
+        if "BF16" in upper_tokens:
+            mapped.add("bfloat16_compute")
+        if "INT4" in upper_tokens:
+            mapped.add("int4_compute")
+        return mapped
+
+    for logical in ("CPU", "GPU", "NPU"):
+        if logical not in openvino_devices:
+            continue
+        try:
+            raw = core.get_property(logical, "OPTIMIZATION_CAPABILITIES")
+            caps = _map_ov_caps(list(raw) if isinstance(raw, (list, tuple, set)) else [])
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            caps = set()
+
+        if logical == "CPU":
+            by_category["cpu"].update(caps)
+        elif logical == "GPU":
+            by_category["igpu"].update(caps)
+            by_category["dgpu"].update(caps)
+        elif logical == "NPU":
+            by_category["npu"].update(caps)
+
+    return {k: sorted(v) for k, v in by_category.items()}
+
+
+def _get_media_codecs(
+    category: str,
+    pci_id: str | None,
+    runtime_media_codecs: dict[str, list[str]] | None = None,
+) -> list[str]:
+    """Detect supported media codecs for a device.
+
+    Args:
+        category: Device category ("cpu", "igpu", "dgpu", "npu")
+        pci_id: PCI ID like "8086:a780" or None
+    Returns:
+        List of supported media codec strings
+    """
+    if runtime_media_codecs:
+        runtime_caps = runtime_media_codecs.get(category, [])
+        if runtime_caps:
+            return list(runtime_caps)
+    codecs: list[str] = []
+
+    # CPU rarely has hardware codecs unless it's a special SKU
+    if category == "cpu":
+        return codecs
+
+    # GPU codec support based on architecture
+    if category in ("igpu", "dgpu"):
+        if pci_id and pci_id in _INTEL_GPU_DEVICE_REGISTRY:
+            arch = _INTEL_GPU_DEVICE_REGISTRY[pci_id].get("arch")
+
+            # Xe2 (Battlemage, Lunar Lake): Full modern codec support
+            if arch == "Xe2":
+                codecs.extend([
+                    "h264_encode", "h264_decode",
+                    "h265_encode", "h265_decode",
+                    "vp9_support", "av1_support",
+                    "jpeg_accelerated"
+                ])
+
+            # Xe-LPG (Arrow Lake, Meteor Lake): Modern codec support
+            elif arch == "Xe-LPG":
+                codecs.extend([
+                    "h264_encode", "h264_decode",
+                    "h265_encode", "h265_decode",
+                    "vp9_support", "av1_support",
+                    "jpeg_accelerated"
+                ])
+
+            # Xe-HPG (Arc A/B, Alchemist): Modern codec support
+            elif arch == "Xe-HPG":
+                codecs.extend([
+                    "h264_encode", "h264_decode",
+                    "h265_encode", "h265_decode",
+                    "vp9_support",
+                    "jpeg_accelerated"
+                ])
+
+            # Older Xe (Raptor Lake, Alder Lake, Tiger Lake): Limited codec support
+            elif arch == "Xe":
+                codecs.extend([
+                    "h264_encode", "h264_decode",
+                    "h265_decode",  # Decode only
+                    "jpeg_accelerated"
+                ])
+
+            # Gen12, Gen11, Gen9.5: Very limited legacy support
+            elif arch in ("Gen12", "Gen11", "Gen9.5"):
+                codecs.extend([
+                    "h264_encode", "h264_decode",
+                    "jpeg_accelerated"
+                ])
+
+    # NPU typically doesn't handle media codecs (inference-focused)
+    # but may have some decode assist in integrated platforms
+    elif category == "npu":
+        pass
+
+    return codecs
+
+def _get_precision_support(
+    category: str,
+    pci_id: str | None,
+    runtime_precisions: dict[str, list[str]] | None = None,
+) -> list[str]:
+    """Detect supported compute precisions for a device.
+
+    Args:
+        category: Device category ("cpu", "igpu", "dgpu", "npu")
+        pci_id: PCI ID like "8086:a780" or None
+
+    Returns:
+        List of supported precision strings
+    """
+    if runtime_precisions:
+        runtime_caps = runtime_precisions.get(category, [])
+        if runtime_caps:
+            return list(runtime_caps)
+
+    precisions: list[str] = []
+
+    if category == "cpu":
+        # All CPUs support fp32
+        precisions.append("fp32_compute")
+        # Modern x86-64 CPUs support fp16 and int8 (via AVX-512 or other SIMD)
+        # For simplicity, always report these as available on modern systems
+        precisions.extend(["fp16_compute", "int8_compute"])
+        # bfloat16 support is CPU-model dependent but increasingly common
+        precisions.append("bfloat16_compute")
+
+    elif category == "igpu":
+        # Integrated GPU precision support
+        if pci_id and pci_id in _INTEL_GPU_DEVICE_REGISTRY:
+            arch = _INTEL_GPU_DEVICE_REGISTRY[pci_id].get("arch")
+
+            # All modern Xe architectures support fp32, fp16, int8
+            if arch in ("Xe2", "Xe-LPG", "Xe-HPG"):
+                precisions.extend([
+                    "fp32_compute", "fp16_compute", "int8_compute"
+                ])
+
+            # Older Xe: fp32 and fp16 support, limited int8
+            elif arch == "Xe":
+                precisions.extend(["fp32_compute", "fp16_compute"])
+
+            # Gen12 and older: fp32 only
+            elif arch in ("Gen12", "Gen11", "Gen9.5"):
+                precisions.append("fp32_compute")
+
+    elif category == "dgpu":
+        # Discrete Arc GPUs support full modern precision
+        precisions.extend([
+            "fp32_compute", "fp16_compute", "int8_compute", "bfloat16_compute"
+        ])
+
+        # Xe2/Xe-LPG also support int4 for extreme quantization
+        if pci_id and pci_id in _INTEL_GPU_DEVICE_REGISTRY:
+            arch = _INTEL_GPU_DEVICE_REGISTRY[pci_id].get("arch")
+            if arch in ("Xe2", "Xe-LPG"):
+                precisions.append("int4_compute")
+
+    elif category == "npu":
+        # NPU typically supports fp32 and int8 at minimum
+        precisions.extend(["fp32_compute", "int8_compute"])
+
+    return precisions
+
+def _get_realtime_capabilities(category: str) -> list[str]:
+    """Detect real-time inference capabilities for a device.
+    Args:
+        category: Device category ("cpu", "igpu", "dgpu", "npu")
+
+    Returns:
+        List of real-time capability strings
+    """
+    capabilities: list[str] = []
+
+    # All devices support batch inference (throughput-oriented)
+    capabilities.append("batch_inference_capable")
+    # All devices can support streaming (frame-by-frame)
+    capabilities.append("streaming_inference_capable")
+
+    # Only GPU/NPU can provide real-time inference guarantees
+    # (CPU-only systems are constrained by sequential processing)
+    if category in ("igpu", "dgpu", "npu"):
+        capabilities.append("real_time_inference")
+
+    return capabilities
+
+def _get_device_sw_capabilities(
+    category: str,
+    pci_id: str | None,
+    available_runtimes: dict[str, bool],
+    openvino_devices: set[str] | None = None,
+    runtime_media_codecs: dict[str, list[str]] | None = None,
+    runtime_precisions: dict[str, list[str]] | None = None,
+) -> list[str]:
+    """Classify software functional capabilities for a device.
+
+    Args:
+        category: Device category ("cpu", "igpu", "dgpu", "npu")
+        pci_id: PCI ID like "8086:a780" or None
+        available_runtimes: Dict from _detect_inference_runtimes()
+        openvino_devices: Set from _detect_openvino_available_devices()
+    Returns:
+        List of capability strings (e.g., ["openvino_gpu_inference", "media"])
+    """
+    capabilities: list[str] = []
+    ov_devices = openvino_devices or set()
+    has_openvino_cpu = "CPU" in ov_devices
+    has_openvino_gpu = "GPU" in ov_devices
+    has_openvino_npu = "NPU" in ov_devices
+
+    if category == "cpu":
+        # CPU inference support
+        # Always expose baseline CPU inference capability so schedulers have a
+        # deterministic fallback even when framework-specific checks are false.
+        capabilities.append("cpu_inference")
+        if has_openvino_cpu or (available_runtimes.get("openvino") and not ov_devices):
+            capabilities.append("openvino_cpu_inference")
+        if available_runtimes.get("tensorflow"):
+            capabilities.append("tensorflow_cpu_inference")
+        if available_runtimes.get("pytorch"):
+            capabilities.append("pytorch_cpu_inference")
+        if available_runtimes.get("onnx_runtime"):
+            capabilities.append("onnx_cpu_inference")
+        if available_runtimes.get("llama_cpp"):
+            capabilities.append("llama_cpp_inference")
+        capabilities.append("general_compute")
+        # Add precision and real-time capabilities
+        capabilities.extend(_get_precision_support(category, pci_id, runtime_precisions))
+        capabilities.extend(_get_realtime_capabilities(category))
+
+    elif category == "igpu":
+        # Integrated GPU: media/rendering always, inference depends on architecture
+        capabilities.append("media")
+        capabilities.append("rendering")
+
+        # openvino_gpu_inference reflects hardware capability (arch support), not
+        # whether OpenVINO is installed.  OpenVINO Core.available_devices is used
+        # as the primary confirmation when available; otherwise architecture from
+        # the device registry is the fallback signal for schedulers.
+        if has_openvino_gpu:
+            capabilities.append("openvino_gpu_inference")
+        elif pci_id and pci_id in _INTEL_GPU_DEVICE_REGISTRY:
+            arch = _INTEL_GPU_DEVICE_REGISTRY[pci_id].get("arch")
+            if arch in ("Xe2", "Xe-LPG", "Xe-HPG", "Xe"):
+                capabilities.append("openvino_gpu_inference")
+
+        # Other inference runtimes (CPU fallback on integrated GPU)
+        if available_runtimes.get("tensorflow"):
+            capabilities.append("tensorflow_gpu_compute")  # May use GPU or fallback to CPU
+        if available_runtimes.get("pytorch"):
+            capabilities.append("pytorch_gpu_compute")
+
+        # Add media codecs, precision support, and real-time capabilities
+        capabilities.extend(_get_media_codecs(category, pci_id, runtime_media_codecs))
+        capabilities.extend(_get_precision_support(category, pci_id, runtime_precisions))
+        capabilities.extend(_get_realtime_capabilities(category))
+
+    elif category == "dgpu":
+        # Discrete GPU: full capabilities (media, rendering, inference)
+        capabilities.append("media")
+        capabilities.append("rendering")
+        capabilities.append("gpu_compute")
+
+        # dGPU Arc/Battlemage support full OpenVINO GPU inference
+        # All Arc/Battlemage dGPUs support OpenVINO GPU inference by architecture.
+        if has_openvino_gpu:
+            capabilities.append("openvino_gpu_inference")
+        elif pci_id and pci_id in _INTEL_GPU_DEVICE_REGISTRY:
+            arch = _INTEL_GPU_DEVICE_REGISTRY[pci_id].get("arch")
+            if arch in ("Xe2", "Xe-LPG", "Xe-HPG", "Xe"):
+                capabilities.append("openvino_gpu_inference")
+        elif not pci_id:
+            capabilities.append("openvino_gpu_inference")
+        if available_runtimes.get("tensorflow"):
+            capabilities.append("tensorflow_gpu_inference")
+        if available_runtimes.get("pytorch"):
+            capabilities.append("pytorch_gpu_inference")
+        if available_runtimes.get("onnx_runtime"):
+            capabilities.append("onnx_gpu_inference")
+
+        # Add media codecs, precision support, and real-time capabilities
+        capabilities.extend(_get_media_codecs(category, pci_id, runtime_media_codecs))
+        capabilities.extend(_get_precision_support(category, pci_id, runtime_precisions))
+        capabilities.extend(_get_realtime_capabilities(category))
+
+    elif category == "npu":
+        # Intel NPU: inference acceleration primarily
+        capabilities.append("inference_acceleration")
+        capabilities.append("telemetry_sysfs")
+
+        # NPU vendor-specific inference (Intel VPU driver)
+        if has_openvino_npu or (available_runtimes.get("openvino") and not ov_devices):
+            capabilities.append("openvino_npu_inference")
+
+        # Add precision support and real-time capabilities
+        capabilities.extend(_get_precision_support(category, pci_id, runtime_precisions))
+        capabilities.extend(_get_realtime_capabilities(category))
+
+    return capabilities
 
 def _read_text(path: str) -> str | None:
     """Read a text file and return stripped contents, or None if unavailable."""
@@ -502,7 +1151,12 @@ def _gpu_model_by_pci_id() -> dict[str, str]:
     return models
 
 
-def _gpu_devices() -> list[dict[str, Any]]:
+def _gpu_devices(
+    available_runtimes: dict[str, bool] | None = None,
+    openvino_devices: set[str] | None = None,
+    runtime_media_codecs: dict[str, list[str]] | None = None,
+    runtime_precisions: dict[str, list[str]] | None = None,
+) -> list[dict[str, Any]]:
     """Discover GPUs via /sys/class/drm/card*.
 
     Classification heuristic:
@@ -511,7 +1165,16 @@ def _gpu_devices() -> list[dict[str, Any]]:
 
     Note: Only enumerates actual GPU devices (card0, card1, etc.),
     not display connectors (card0-DP-1, card0-HDMI-A-1, etc.).
+
+    Args:
+        available_runtimes: Dict from _detect_inference_runtimes(), or None to detect on-demand
+        openvino_devices: Set from _detect_openvino_available_devices(), or None to detect on-demand
     """
+    if available_runtimes is None:
+        available_runtimes = _detect_inference_runtimes()
+    if openvino_devices is None:
+        openvino_devices = _detect_openvino_available_devices()
+
     devices: list[dict[str, Any]] = []
     gpu_models = _gpu_model_by_pci_id()
 
@@ -537,6 +1200,7 @@ def _gpu_devices() -> list[dict[str, Any]]:
 
         # Lookup GPU model by vendor:device PCI ID
         model: str | None = None
+        pci_id: str | None = None
         if vendor and pci_device:
             pci_id = f"{vendor[2:].lower()}:{pci_device[2:].lower()}"
             model = gpu_models.get(pci_id)
@@ -567,12 +1231,23 @@ def _gpu_devices() -> list[dict[str, Any]]:
         else:
             category = "igpu" if boot_vga == "1" else "dgpu"
 
+        # Classify software capabilities based on device category and available runtimes
+        sw_capabilities = _get_device_sw_capabilities(
+            category,
+            pci_id,
+            available_runtimes,
+            openvino_devices,
+            runtime_media_codecs,
+            runtime_precisions,
+        )
+
         devices.append(
             {
                 "id": card.name,
                 "category": category,
                 "present": True,
                 "model": model,
+                "commercial_reference": _device_commercial_reference({"category": category, "model": model}),
                 "vendor": vendor,
                 "vendor_name": _vendor_name(vendor),
                 "pci_device": pci_device,
@@ -582,6 +1257,7 @@ def _gpu_devices() -> list[dict[str, Any]]:
                     "compute",
                     "media",
                 ],
+                "sw_functional_capabilities": sw_capabilities,
                 "specs": {
                     "memory": {
                         "type": "vram" if vram_total_bytes is not None else "shared_or_unknown",
@@ -599,8 +1275,23 @@ def _gpu_devices() -> list[dict[str, Any]]:
     return devices
 
 
-def _npu_device() -> dict[str, Any]:
-    """Discover Intel NPU capabilities via intel_vpu sysfs driver path."""
+def _npu_device(
+    available_runtimes: dict[str, bool] | None = None,
+    openvino_devices: set[str] | None = None,
+    runtime_media_codecs: dict[str, list[str]] | None = None,
+    runtime_precisions: dict[str, list[str]] | None = None,
+) -> dict[str, Any]:
+    """Discover Intel NPU capabilities via intel_vpu sysfs driver path.
+
+    Args:
+        available_runtimes: Dict from _detect_inference_runtimes(), or None to detect on-demand
+        openvino_devices: Set from _detect_openvino_available_devices(), or None to detect on-demand
+    """
+    if available_runtimes is None:
+        available_runtimes = _detect_inference_runtimes()
+    if openvino_devices is None:
+        openvino_devices = _detect_openvino_available_devices()
+
     driver_root = Path("/sys/bus/pci/drivers/intel_vpu")
     if not driver_root.exists():
         return {
@@ -612,6 +1303,7 @@ def _npu_device() -> dict[str, Any]:
             "pci_device": None,
             "driver": "intel_vpu",
             "capabilities": [],
+            "sw_functional_capabilities": [],
             "specs": {
                 "memory": {
                     "type": "unknown",
@@ -634,6 +1326,7 @@ def _npu_device() -> dict[str, Any]:
             "pci_device": None,
             "driver": "intel_vpu",
             "capabilities": [],
+            "sw_functional_capabilities": [],
             "specs": {
                 "memory": {
                     "type": "unknown",
@@ -649,11 +1342,22 @@ def _npu_device() -> dict[str, Any]:
 
     vendor = _read_text(str(bdf_path / "vendor"))
 
+    # Classify software capabilities for NPU
+    sw_capabilities = _get_device_sw_capabilities(
+        "npu",
+        None,
+        available_runtimes,
+        openvino_devices,
+        runtime_media_codecs,
+        runtime_precisions,
+    )
+
     return {
         "id": bdf_path.name,
         "category": "npu",
         "present": True,
         "model": None,
+        "commercial_reference": _device_commercial_reference({"category": "npu", "model": None}),
         "vendor": vendor,
         "vendor_name": _vendor_name(vendor),
         "pci_device": _read_text(str(bdf_path / "device")),
@@ -662,6 +1366,7 @@ def _npu_device() -> dict[str, Any]:
             "inference_acceleration",
             "telemetry_sysfs",
         ],
+        "sw_functional_capabilities": sw_capabilities,
         "specs": {
             "memory": {
                 "type": "on_device_or_shared_unknown",
@@ -679,12 +1384,30 @@ def _expanded_capabilities_snapshot() -> dict[str, Any]:
     """Build an expanded platform/device capabilities snapshot."""
     cpu_specs = _cpu_specs()
     system_identity = _system_identity()
+
+    # Detect inference runtimes once and pass to all device discovery functions
+    available_runtimes = _detect_inference_runtimes()
+    openvino_devices = _detect_openvino_available_devices()
+    runtime_media_codecs = _detect_runtime_media_codecs()
+    runtime_precisions = _detect_runtime_precision_support(openvino_devices, available_runtimes)
+
+    # Classify CPU software capabilities
+    cpu_sw_capabilities = _get_device_sw_capabilities(
+        "cpu",
+        None,
+        available_runtimes,
+        openvino_devices,
+        runtime_media_codecs,
+        runtime_precisions,
+    )
+
     devices: list[dict[str, Any]] = [
         {
             "id": "cpu",
             "category": "cpu",
             "present": True,
             "model": cpu_specs.get("model"),
+            "commercial_reference": _device_commercial_reference({"category": "cpu", "model": cpu_specs.get("model")}),
             "vendor": cpu_specs.get("vendor"),
             "vendor_name": _vendor_name(cpu_specs.get("vendor")),
             "pci_device": None,
@@ -693,6 +1416,7 @@ def _expanded_capabilities_snapshot() -> dict[str, Any]:
                 "general_purpose_compute",
                 "simd_extensions_unknown",
             ],
+            "sw_functional_capabilities": cpu_sw_capabilities,
             "specs": {
                 "topology": {
                     "logical_cores": cpu_specs.get("logical_cores"),
@@ -711,8 +1435,8 @@ def _expanded_capabilities_snapshot() -> dict[str, Any]:
         }
     ]
 
-    devices.extend(_gpu_devices())
-    devices.append(_npu_device())
+    devices.extend(_gpu_devices(available_runtimes, openvino_devices, runtime_media_codecs, runtime_precisions))
+    devices.append(_npu_device(available_runtimes, openvino_devices, runtime_media_codecs, runtime_precisions))
 
     igpu_count = sum(1 for d in devices if d.get("category") == "igpu" and d.get("present"))
     dgpu_count = sum(1 for d in devices if d.get("category") == "dgpu" and d.get("present"))
@@ -757,6 +1481,7 @@ def _expanded_capabilities_snapshot() -> dict[str, Any]:
             },
         },
         "devices": devices,
+        "inference_runtimes": available_runtimes,
     }
 
 
@@ -777,10 +1502,27 @@ def _device_commercial_reference(device: dict[str, Any]) -> str:
     return "Unknown device"
 
 
+def _device_name_pair(device: dict[str, Any]) -> tuple[str | None, str | None]:
+    """Return normalized model and commercial reference values for output."""
+    model = device.get("model")
+    commercial_reference = device.get("commercial_reference")
+
+    if model and commercial_reference:
+        return str(model), str(commercial_reference)
+
+    resolved = commercial_reference or model or _device_commercial_reference(device)
+    if resolved is None:
+        return None, None
+
+    resolved_text = str(resolved)
+    return resolved_text, resolved_text
+
+
 def _minimal_from_expanded(expanded: dict[str, Any]) -> dict[str, Any]:
     """Create a categorized high-level minimal capability response."""
     minimal_devices: list[dict[str, Any]] = []
     for device in expanded.get("devices", []):
+        model, commercial_reference = _device_name_pair(device)
         category = device.get("category")
         specs = device.get("specs", {})
         details = {}
@@ -810,9 +1552,11 @@ def _minimal_from_expanded(expanded: dict[str, Any]) -> dict[str, Any]:
                 "id": device.get("id"),
                 "category": category,
                 "present": device.get("present"),
-                "commercial_reference": _device_commercial_reference(device),
+                "model": model,
+                "commercial_reference": commercial_reference,
                 "vendor": device.get("vendor"),
                 "vendor_name": device.get("vendor_name"),
+                "sw_functional_capabilities": device.get("sw_functional_capabilities", []),
                 "details": details,
             }
         )
@@ -838,6 +1582,7 @@ def _minimal_from_expanded(expanded: dict[str, Any]) -> dict[str, Any]:
             "device_summary": platform.get("device_summary"),
         },
         "devices": minimal_devices,
+        "inference_runtimes": expanded.get("inference_runtimes", {}),
     }
 
 

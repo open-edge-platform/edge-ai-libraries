@@ -70,11 +70,11 @@ RUN cargo install --locked --git https://github.com/ulissesf/qmassa --tag qmassa
 # -----------------------------------------------------------------------------
 # Built from source (instead of the upstream .deb) to patch known CVEs in
 # bundled Go dependencies:
-# Using golang:1.26 (1.26.3+) also resolves stdlib CVEs fixed in Go 1.26.3.
+# Using golang:1.26 (1.26.6+) also resolves stdlib CVEs fixed in Go 1.26.6.
 # Digest pinned for reproducible builds — decoupled from Docker Hub tag updates.
-FROM golang:1.26.4@sha256:68cb6d68bed024785b69195b89af7ac7a444f27791435f98647edff595aa0479 AS telegraf-builder
+FROM golang:1.26.6@sha256:0d1d3a794be25f809dd2cb3160d8c73276c4056a9f8242a138e908ddeee7b6b6 AS telegraf-builder
 
-ARG TELEGRAF_VERSION=1.38.4
+ARG TELEGRAF_VERSION=1.39.3
 
 ARG http_proxy
 ARG HTTP_PROXY
@@ -103,25 +103,8 @@ WORKDIR /telegraf
 # Cache Go module downloads across builds to avoid re-fetching on every run.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go get github.com/rclone/rclone@v1.73.5 && \
-    go get github.com/go-git/go-billy/v5@v5.9.0 && \
+    go get github.com/moby/go-archive@v0.3.0 && \
     go mod tidy
-# NOTE: CVE-2026-34040 (HIGH) and CVE-2026-33997 (MEDIUM) in github.com/docker/docker
-# cannot be patched yet — fix requires v29.3.1 which does not exist in the Go
-# module proxy (latest: v28.5.2+incompatible). Transitive Telegraf dependency.
-# Revisit when moby/moby v29.3.1 is published to the Go module registry.
-
-# fs.LogOutput was removed from rclone/fs in rclone 1.71+; the remotefile
-# plugin used it only for trace logging so dropping the assignment is safe.
-# The outer `if` is a no-op if a future Telegraf release already adapts to
-# the new API; the inner grep catches a block size change at build time.
-RUN if grep -q 'fs\.LogOutput = func' plugins/outputs/remotefile/remotefile.go; then \
-        sed -i '/fs\.LogOutput = func/,+2d' plugins/outputs/remotefile/remotefile.go; \
-        if grep -q 'fs\.LogOutput' plugins/outputs/remotefile/remotefile.go; then \
-            echo "ERROR: sed patch incomplete — fs.LogOutput block may have changed size in this Telegraf version" >&2; \
-            exit 1; \
-        fi; \
-    fi
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -163,7 +146,12 @@ COPY uv.lock* ./
 RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 ENV UV_PROJECT_ENVIRONMENT="/opt/venv"
-RUN uv sync --no-group test --no-group dev --no-install-project
+ARG INSTALL_OPENVINO=false
+RUN if [ "$INSTALL_OPENVINO" = "true" ]; then \
+        uv sync --extra openvino --no-group test --no-group dev --no-install-project; \
+    else \
+        uv sync --no-group test --no-group dev --no-install-project; \
+    fi
 
 # -----------------------------------------------------------------------------
 # Stage 3: Test image
@@ -196,6 +184,8 @@ CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS production
 
+ARG INSTALL_OPENVINO=false
+
 # Proxy settings (passed from docker-compose build args)
 ARG http_proxy
 ARG HTTP_PROXY
@@ -223,17 +213,30 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install capabilities-required system tools.
 # - dmidecode: memory technology discovery (DDR4/DDR5/etc.)
 # - pciutils: lspci-based PCI/GPU branding discovery
+# - libva-utils: vainfo for runtime VAAPI codec capability detection
+# - util-linux: lsblk for storage device enumeration
+# - hwinfo: extended hardware information probing
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends dmidecode pciutils && \
-    pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
+    packages="dmidecode pciutils util-linux hwinfo"; \
+    if [ "$INSTALL_OPENVINO" = "true" ]; then \
+        packages="$packages vainfo intel-media-va-driver"; \
+    fi; \
+    apt-get install --yes --no-install-recommends $packages && \
+    pip install --no-cache-dir pip==26.2.1 supervisor==4.3.0 && \
+    rm -rf /usr/local/lib/python3.12/site-packages/pip \
+        /usr/local/lib/python3.12/site-packages/pip-*.dist-info \
+        /usr/local/lib/python3.12/site-packages/setuptools* \
+        /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.12 && \
     (dpkg -s perl-base >/dev/null 2>&1 && dpkg --purge --force-remove-essential perl-base || true) && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Create Telegraf config directories
-RUN mkdir -p /etc/telegraf /etc/telegraf/telegraf.d /var/log/telegraf
+RUN mkdir -p /etc/telegraf /etc/telegraf/telegraf.d /var/log/telegraf \
+        /etc/supervisor/conf.d && \
+    touch /etc/supervisor/conf.d/placeholder.conf
 
 # Clear proxy from final image (not needed at runtime, set via environment)
 ENV http_proxy= \

@@ -1,0 +1,348 @@
+Third Party Programs File
+
+This file contains the list of third party software ("third party programs")
+contained in the Intel software and their required notices and/or license terms.
+The third party programs and their corresponding required notices and/or license
+terms are listed below.
+
+Image: suspicious-activity-detection/behavioral-analysis/Dockerfile
+Base image (intel/dlstreamer:latest) is pulled from Docker Hub and is NOT
+redistributed.
+
+-------------------------------------------------------------
+1. Software released under the Apache License 2.0
+
+aioboto3 15.5.0
+Copyright (c) 2017 Terry Cain
+https://github.com/terrycain/aioboto3
+
+aiobotocore 2.25.1
+Copyright (c) 2016 Nikolay Sokolov
+https://github.com/aio-libs/aiobotocore
+
+aiofiles 25.1.0
+Copyright (c) 2016 Tin Tvrtković and contributors
+https://github.com/Tinche/aiofiles
+
+aiohttp 3.13.5
+Copyright (c) 2013-2023 aiohttp contributors
+https://github.com/aio-libs/aiohttp
+
+aiosignal 1.4.0
+Copyright (c) 2019 Andrew Svetlov and aio-libs contributors
+https://github.com/aio-libs/aiosignal
+
+behavioral-analysis 1.0.0 (internal package)
+Copyright (c) 2024-2026 Intel Corporation
+
+boto3 1.40.61
+Copyright (c) Amazon.com, Inc. or its affiliates. All rights reserved.
+https://github.com/boto/boto3
+
+botocore 1.40.61
+Copyright (c) Amazon.com, Inc. or its affiliates. All rights reserved.
+https://github.com/boto/botocore
+
+fastapi 0.136.1
+Copyright (c) 2018 Sebastián Ramírez
+https://github.com/fastapi/fastapi
+
+frozenlist 1.8.0
+Copyright (c) 2013-2022 Nikolay Kim and Andrew Svetlov
+https://github.com/aio-libs/frozenlist
+
+multidict 6.7.1
+Copyright (c) 2016-2022 aiohttp contributors
+https://github.com/aio-libs/multidict
+
+openvino 2026.1.0
+Copyright (c) 2018-2026 Intel Corporation
+https://github.com/openvinotoolkit/openvino
+
+openvino-telemetry 2025.2.0
+Copyright (c) 2021-2026 Intel Corporation
+https://github.com/openvinotoolkit/telemetry
+
+opencv-python-headless 4.13.0.92
+Copyright (c) 2015-2026 OpenCV contributors
+https://github.com/opencv/opencv-python
+
+propcache 0.5.2
+Copyright (c) 2019 Andrew Svetlov and aio-libs contributors
+https://github.com/aio-libs/propcache
+
+s3transfer 0.14.0
+Copyright (c) Amazon.com, Inc. or its affiliates. All rights reserved.
+https://github.com/boto/s3transfer
+
+yarl 1.23.0
+Copyright (c) 2016-2022 Andrew Svetlov and aio-libs contributors
+https://github.com/aio-libs/yarl
+
+Apache License
+Version 2.0, January 2004
+http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Definitions.
+
+"License" shall mean the terms and conditions for use, reproduction, and
+distribution as defined by Sections 1 through 9 of this document.
+
+"Licensor" shall mean the copyright owner or entity authorized by the
+copyright owner that is granting the License.
+
+"Legal Entity" shall mean the union of the acting entity and all other entities
+that control, are controlled by, or are under common control with that entity.
+
+"You" (or "Your") shall mean an individual or Legal Entity exercising
+permissions granted by this License.
+
+"Source" form shall mean the preferred form for making modifications.
+
+"Object" form shall mean any form resulting from mechanical transformation or
+translation of a Source form.
+
+"Work" shall mean the work of authorship made available under the License.
+
+"Derivative Works" shall mean any work based on (or derived from) the Work for
+which modifications represent an original work of authorship.
+
+"Contribution" shall mean any work of authorship submitted to the Licensor for
+inclusion in the Work.
+
+"Contributor" shall mean Licensor and any Legal Entity on behalf of whom a
+Contribution has been received and incorporated within the Work.
+
+2. Grant of Copyright License. Each Contributor grants a perpetual, worldwide,
+non-exclusive, no-charge, royalty-free, irrevocable copyright license to
+reproduce, prepare Derivative Works, publicly display, publicly perform,
+sublicense, and distribute the Work and Derivative Works in Source or Object form.
+
+3. Grant of Patent License. Each Contributor grants a perpetual, worldwide,
+non-exclusive, no-charge, royalty-free, irrevocable patent license to make,
+have made, use, offer to sell, sell, import, and otherwise transfer the Work.
+
+4. Redistribution. You may reproduce and distribute copies of the Work or
+Derivative Works in any medium, with or without modifications, provided that
+You meet the following conditions: (a) provide a copy of this License;
+(b) cause modified files to carry prominent notices; (c) retain all notices
+from the Source form.
+
+5. Submission of Contributions shall be under the terms of this License.
+
+6. Trademarks. This License does not grant permission to use trade names or
+trademarks of the Licensor.
+
+7. Disclaimer of Warranty. Work provided on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND.
+
+8. Limitation of Liability. No Contributor shall be liable for damages.
+
+9. Accepting Warranty or Additional Liability per conditions stated herein.
+
+END OF TERMS AND CONDITIONS
+
+-------------------------------------------------------------
+2. Software released under the MIT License
+
+aiohappyeyeballs 2.6.1
+Copyright (c) 2024 J. Nick Koston and contributors
+https://github.com/aio-libs/aiohappyeyeballs
+
+aioitertools 0.13.0
+Copyright (c) 2018 John Reese and contributors
+https://github.com/omnilib/aioitertools
+
+annotated-doc 0.0.4
+Copyright (c) 2022 annotated-doc contributors
+https://pypi.org/project/annotated-doc/
+
+annotated-types 0.7.0
+Copyright (c) 2022 the python-annotated-types authors
+https://github.com/annotated-types/annotated-types
+
+anyio 4.13.0
+Copyright (c) 2018 Alex Grönholm
+https://github.com/agronholm/anyio
+
+click 8.3.3
+Copyright (c) 2014 Pallets
+https://github.com/pallets/click
+
+h11 0.16.0
+Copyright (c) 2016 Nathaniel J. Smith and other contributors
+https://github.com/python-hyper/h11
+
+httptools 0.7.1
+Copyright (c) 2017-present MagicStack Inc. and contributors
+https://github.com/MagicStack/httptools
+
+jmespath 1.1.0
+Copyright (c) 2013-2022 Amazon.com, Inc.
+https://github.com/jmespath/jmespath.py
+
+numpy 2.4.4
+Copyright (c) 2005-2026 NumPy Developers. All rights reserved.
+https://github.com/numpy/numpy
+
+paho-mqtt 1.6.1
+Copyright (c) 2013-2024 Eclipse Foundation (dual EPL-2.0/EDL-1.0; MIT
+selected as most permissive component)
+https://github.com/eclipse-paho/paho.mqtt.python
+
+pillow 12.2.0
+Copyright (c) 1997-2011 by Secret Labs AB
+Copyright (c) 1995-2011 by Fredrik Lundh and contributors
+https://github.com/python-pillow/Pillow
+
+pydantic 2.13.4
+Copyright (c) 2017 Samuel Colvin and other contributors
+https://github.com/pydantic/pydantic
+
+pydantic-core 2.46.4
+Copyright (c) 2022 Samuel Colvin and other contributors
+https://github.com/pydantic/pydantic-core
+
+pydantic-settings 2.14.1
+Copyright (c) 2022 Samuel Colvin and other contributors
+https://github.com/pydantic/pydantic-settings
+
+python-dotenv 1.2.2
+Copyright (c) 2014 Saurabh Kumar and others
+https://github.com/theskumar/python-dotenv
+
+pyyaml 6.0.3
+Copyright (c) 2017-2021 Ingy döt Net
+Copyright (c) 2006-2016 Kirill Simonov
+https://github.com/yaml/pyyaml
+
+six 1.17.0
+Copyright (c) 2010-2024 Benjamin Peterson
+https://github.com/benjaminp/six
+
+starlette 1.0.0
+Copyright (c) 2018 Tom Christie
+https://github.com/encode/starlette
+
+typing-inspection 0.4.2
+Copyright (c) 2024 typing-inspection contributors
+https://github.com/pydantic/typing-inspection
+
+urllib3 2.7.0
+Copyright (c) 2008-2020 Andrey Petrov and contributors
+https://github.com/urllib3/urllib3
+
+uvicorn 0.46.0
+Copyright (c) 2017 Tom Christie
+https://github.com/encode/uvicorn
+
+uvloop 0.22.1
+Copyright (c) 2015-2021 MagicStack Inc. and contributors
+https://github.com/MagicStack/uvloop
+
+watchfiles 1.1.1
+Copyright (c) 2019 Samuel Colvin
+https://github.com/samuelcolvin/watchfiles
+
+websockets 16.0
+Copyright (c) 2013 Aymeric Augustin and contributors
+https://github.com/python-websockets/websockets
+
+wrapt 1.17.3
+Copyright (c) 2013-2022 Graham Dumpleton
+https://github.com/GrahamDumpleton/wrapt
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-------------------------------------------------------------
+3. Software released under the BSD 3-Clause "New" or "Revised" License
+
+httpcore 1.0.9
+Copyright (c) 2019 Tom Christie
+https://github.com/encode/httpcore
+
+httpx 0.28.1
+Copyright (c) 2019 Tom Christie
+https://github.com/encode/httpx
+
+idna 3.13
+Copyright (c) 2013-2024 Kim Davies and contributors
+https://github.com/kjd/idna
+
+numpy 2.4.4 (BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0)
+Copyright (c) 2005-2026 NumPy Developers. All rights reserved.
+
+BSD 3-Clause License
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-------------------------------------------------------------
+4. Software released under the Mozilla Public License 2.0 (MPL-2.0)
+
+certifi 2026.4.22
+Copyright (c) 2011 Kenneth Reitz. All rights reserved.
+https://github.com/certifi/python-certifi
+
+NOTE (MPL-2.0 obligation): The source code of MPL-licensed components is
+available from their respective upstream repositories listed above. Intel does
+not modify these components.
+
+Mozilla Public License Version 2.0 is available at:
+https://www.mozilla.org/en-US/MPL/2.0/
+
+-------------------------------------------------------------
+5. Software released under the Python Software Foundation License version 2
+   (PSF-2.0)
+
+aiohappyeyeballs 2.6.1
+Copyright (c) 2001 Python Software Foundation; All Rights Reserved.
+
+typing-extensions 4.15.0
+Copyright (c) 2001 Python Software Foundation; All Rights Reserved.
+https://github.com/python/typing_extensions
+
+Python Software Foundation License version 2 is available at:
+https://docs.python.org/3/license.html

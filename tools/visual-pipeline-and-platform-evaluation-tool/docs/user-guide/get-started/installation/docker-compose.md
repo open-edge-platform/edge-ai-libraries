@@ -16,7 +16,7 @@ Before starting, ensure the following:
 
 For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
 script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
-[Install Guide Ubuntu - Prerequisites](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/get_started/install/install_guide_ubuntu.html#prerequisites)
+[Install Guide Ubuntu - Prerequisites](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
 
 This guide assumes basic familiarity with terminal usage.
 
@@ -38,6 +38,8 @@ For alternative ways to set up the sample application, refer to
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/models
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/videos
    mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/onvif
+   mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/scripts
+   mkdir -p visual-pipeline-and-platform-evaluation-tool/vippet/api/static
    cd visual-pipeline-and-platform-evaluation-tool
    ```
 
@@ -100,3 +102,18 @@ For alternative ways to set up the sample application, refer to
 > **Note:** On the first start the `model-download` service may take several minutes to become
 > healthy because it provisions its plugin virtual environments. The other services wait for it
 > automatically.
+
+## Stop the application
+
+Stop and remove all running containers:
+
+```bash
+make stop
+```
+
+Downloaded models and videos under `shared/` are preserved. To also remove
+those artifacts, run:
+
+```bash
+make clean
+```

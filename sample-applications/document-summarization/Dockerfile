@@ -8,11 +8,13 @@ FROM python:3.11-slim AS builder
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    NLTK_DATA="/opt/share/nltk_data"
 
-RUN apt-get update && apt-get install -y --no-install-recommends python3-dev \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir poetry==2.3.2
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip setuptools and wheel to fix vulns
+RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip==26.1.2 setuptools wheel poetry
 
 WORKDIR /app
 
@@ -24,7 +26,7 @@ RUN poetry config virtualenvs.create false \
 
 # Download NLTK corpora (stopwords + punkt)
 RUN mkdir -p /opt/share/nltk_data \
- && python -m nltk.downloader -d /opt/share/nltk_data stopwords punkt
+ && python -m nltk.downloader --quiet --exit-on-error -d /opt/share/nltk_data stopwords punkt
 
 FROM python:3.11-slim AS runtime
 
@@ -36,7 +38,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     NLTK_DATA="/opt/share/nltk_data"
 
 # Install only runtime system dependenciesAdd commentMore actions
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     # Required for document processing
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
@@ -55,7 +57,7 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Upgrade vulnerable build-time packages to patched versions
-RUN /usr/local/bin/pip install --upgrade pip setuptools wheel jaraco.context
+RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip==26.1.2 setuptools wheel jaraco.context
 
 # Set working directory
 WORKDIR /app

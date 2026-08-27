@@ -1,0 +1,43 @@
+# VIPPET Benchmark Suite - Full Configuration
+# Comprehensive benchmark with maximum coverage
+
+vippet:
+  base_url: "http://localhost/api/v1"
+  timeout: 600
+  poll_interval: 2
+  max_job_duration: 600
+
+benchmark:
+  # Test all available pipelines
+  pipelines: "*"
+
+  # Test all device variants
+  variants:
+    - cpu
+    - gpu
+    - npu
+    - gpu_npu
+
+  # Test multiple stream counts for scalability analysis
+  stream_counts:
+    - 1
+    - 3
+    - 5
+    - 10
+
+  execution:
+    max_retries: 2
+    retry_delay_seconds: 5
+    output_mode: "disabled"
+
+  filters:
+    skip_pipelines: []
+    skip_variants: []
+    require_models: true
+
+results:
+  output_dir: "./results"
+  formats:
+    - json
+    - csv
+  create_latest_link: true

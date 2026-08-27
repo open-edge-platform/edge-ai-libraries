@@ -4,7 +4,7 @@ Use this path to run the service in a container using the prebuilt image
 published on Docker Hub. The API is exposed on port `8011`.
 
 To rebuild the image from source instead of pulling, see the
-[Build From Source](./build-from-source.md) guide.
+[Build From Source](../how-to-guides/build-from-source.md) guide.
 
 ## Before You Start
 

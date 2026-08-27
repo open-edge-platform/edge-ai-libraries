@@ -1,0 +1,50 @@
+[
+    {
+        "query": "Deploy chatqna core with docker compose using openvino cpu profile.",
+        "should_trigger": true
+    },
+    {
+        "query": "Start chatqna containers from prebuilt intel images and verify health endpoint.",
+        "should_trigger": true
+    },
+    {
+        "query": "Run chatqna with openvino gpu using setup_env.sh and docker compose up -d.",
+        "should_trigger": true
+    },
+    {
+        "query": "Deploy chatqna ollama backend with docker compose and show access URL.",
+        "should_trigger": true
+    },
+    {
+        "query": "I need the exact docker compose down command and docker ps evidence to stop chatqna.",
+        "should_trigger": true
+    },
+    {
+        "query": "My chatqna gpu deploy is failing because /dev/dri/render nodes are missing. How should I proceed?",
+        "should_trigger": true
+    },
+    {
+        "query": "Show the docker compose profile selection commands for openvino cpu, openvino gpu, and ollama.",
+        "should_trigger": true
+    },
+    {
+        "query": "Deploy chatqna core to kubernetes using helm in namespace ai.",
+        "should_trigger": false
+    },
+    {
+        "query": "Translate setup_env.sh variables into helm values-override.yaml for chatqna.",
+        "should_trigger": false
+    },
+    {
+        "query": "Build chatqna backend and ui images from source.",
+        "should_trigger": false
+    },
+    {
+        "query": "Fix a failing Python unit test in tests/test_server.py.",
+        "should_trigger": false
+    },
+    {
+        "query": "Configure nginx ingress TLS for multiple kubernetes apps.",
+        "should_trigger": false
+    }
+]

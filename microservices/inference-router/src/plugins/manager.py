@@ -8,13 +8,14 @@ from __future__ import annotations
 import importlib
 import logging
 import pkgutil
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Any, Dict, List, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
 from src.config import PluginConfig
 from src.exceptions import ConfigurationError
 from src.models import ChatCompletionRequest, ChatCompletionResponse
-from src.plugins.base import PluginSchemaError, RequestPlugin
+from src.plugins.base import PluginSchemaError, PluginBaseNode
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +24,28 @@ logger = logging.getLogger(__name__)
 _DISCOVERY_SKIP = {"base", "manager"}
 
 
+# Per-request id for the current task; set by the API layer, read by plugins.
+_REQUEST_ID: ContextVar[Optional[str]] = ContextVar("plugin_request_id", default=None)
+
+
+def set_request_id(request_id: Optional[str]) -> None:
+    """Set the current request id."""
+    _REQUEST_ID.set(request_id)
+
+
+def get_request_id() -> Optional[str]:
+    """Current request id, or None outside a request scope."""
+    return _REQUEST_ID.get()
+
+
 class PluginManager:
     """Runs request plugins in configured order."""
 
     def __init__(
         self,
-        prerouting_plugins: List[RequestPlugin],
-        postrouting_plugins: List[RequestPlugin],
-        postresponse_plugins: List[RequestPlugin],
+        prerouting_plugins: List[PluginBaseNode],
+        postrouting_plugins: List[PluginBaseNode],
+        postresponse_plugins: List[PluginBaseNode],
     ):
         self.prerouting_plugins = prerouting_plugins
         self.postrouting_plugins = postrouting_plugins
@@ -38,51 +53,57 @@ class PluginManager:
         self.plugins = prerouting_plugins + postrouting_plugins + postresponse_plugins
 
     async def process_prerouting_request(
-        self, request: ChatCompletionRequest
+        self, request: ChatCompletionRequest, **kwargs: Any
     ) -> ChatCompletionRequest:
         """Run prerouting plugins sequentially in configured order."""
         current = request
         for plugin in self.prerouting_plugins:
-            current = await plugin.process_request(current)
+            current = await plugin.process_request(current, **kwargs)
         return current
 
     async def process_postrouting_request(
-        self, request: ChatCompletionRequest
+        self, request: ChatCompletionRequest, **kwargs: Any
     ) -> ChatCompletionRequest:
         """Run postrouting plugins sequentially in configured order."""
         current = request
         for plugin in self.postrouting_plugins:
-            current = await plugin.process_request(current)
+            current = await plugin.process_request(current, **kwargs)
         return current
 
     async def process_postresponse_response(
-        self, response: ChatCompletionResponse
+        self, response: ChatCompletionResponse, **kwargs: Any
     ) -> ChatCompletionResponse:
         """Run postresponse plugins sequentially in configured order."""
         current = response
         for plugin in self.postresponse_plugins:
-            current = await plugin.process_response(current)
+            current = await plugin.process_response(current, **kwargs)
         return current
 
-    async def process_request(self, request: ChatCompletionRequest) -> ChatCompletionRequest:
+    async def process_request(
+        self, request: ChatCompletionRequest, **kwargs: Any
+    ) -> ChatCompletionRequest:
         """Run prerouting then postrouting plugins."""
-        current = await self.process_prerouting_request(request)
-        current = await self.process_postrouting_request(current)
+        current = await self.process_prerouting_request(request, **kwargs)
+        current = await self.process_postrouting_request(current, **kwargs)
         return current
 
-    def get_plugin_by_name(self, name: str) -> RequestPlugin | None:
+    def get_plugin_by_name(self, name: str) -> PluginBaseNode | None:
         """Get plugin by name. Returns first match if name exists in multiple lists."""
         for plugin in self.plugins:
             if plugin.name == name:
                 return plugin
         return None
 
-    def get_plugin_by_name_and_node(self, name: str, node: str) -> RequestPlugin | None:
+    def get_plugin_by_name_and_node(self, name: str, node: str) -> PluginBaseNode | None:
         """Get plugin by name and node type."""
         for plugin in self.plugins:
             if plugin.name == name and plugin.plugin_type() == node:
                 return plugin
         return None
+
+    def get_plugins_by_group(self, group: str) -> List[PluginBaseNode]:
+        """All loaded plugins sharing the given ``plugin_group``."""
+        return [p for p in self.plugins if p.plugin_group == group]
 
     def get_all_plugins_config(self) -> List[Dict[str, Any]]:
         """Get all plugins with their configuration."""
@@ -125,15 +146,35 @@ class PluginManager:
         return True
 
 
-_PLUGIN_REGISTRY: Dict[str, Type[RequestPlugin]] = {}
+_PLUGIN_REGISTRY: Dict[str, Type[PluginBaseNode]] = {}
 _DISCOVERED = False
 
+# node key → finalizer run once with all instances of that node.
+_NODE_FINALIZERS: Dict[str, Callable[[List[PluginBaseNode]], None]] = {}
 
-def register_plugin(plugin_cls: Type[RequestPlugin]) -> Type[RequestPlugin]:
+
+def register_plugin(plugin_cls: Type[PluginBaseNode]) -> Type[PluginBaseNode]:
     """Register a plugin class for factory lookup."""
     plugin_type = plugin_cls.plugin_type()
+    existing_cls = _PLUGIN_REGISTRY.get(plugin_type)
+    if existing_cls is not None and existing_cls is not plugin_cls:
+        raise RuntimeError(
+            f"Duplicate plugin type '{plugin_type}' registered by "
+            f"{plugin_cls.__module__}.{plugin_cls.__name__}; already registered by "
+            f"{existing_cls.__module__}.{existing_cls.__name__}"
+        )
     _PLUGIN_REGISTRY[plugin_type] = plugin_cls
     return plugin_cls
+
+
+def register_node_finalizer(node: str) -> Callable:
+    """Decorator: register a finalizer run once with all instances of ``node``."""
+
+    def _decorator(fn: Callable[[List[PluginBaseNode]], None]):
+        _NODE_FINALIZERS[node] = fn
+        return fn
+
+    return _decorator
 
 
 def _discover_plugin_modules() -> None:
@@ -159,7 +200,43 @@ def _discover_plugin_modules() -> None:
     _DISCOVERED = True
 
 
-def build_plugin(plugin_config: PluginConfig) -> RequestPlugin:
+def get_registered_plugin_class(node: str) -> Optional[Type[PluginBaseNode]]:
+    """Registered plugin class for ``node`` (a plugin type key), or ``None``.
+
+    Triggers module discovery so the full registry is populated before lookup.
+    """
+    _discover_plugin_modules()
+    return _PLUGIN_REGISTRY.get(node)
+
+
+def iter_registered_plugin_classes() -> List[Type[PluginBaseNode]]:
+    """Every registered plugin *class*, sorted by node key (after discovery).
+
+    Triggers module discovery so the registry is fully populated. Used by the
+    app factory to collect plugin-contributed routers (see
+    :meth:`PluginBaseNode.routes`).
+    """
+    _discover_plugin_modules()
+    return [plugin_cls for _, plugin_cls in sorted(_PLUGIN_REGISTRY.items())]
+
+
+def list_registered_plugin_nodes() -> List[Dict[str, Any]]:
+    """Metadata for every registered plugin *type* (node), sorted by node key.
+
+    Triggers module discovery so the full registry is populated, then reports
+    each type's :meth:`PluginBaseNode.node_metadata`. This describes the plugin
+    types available in code, independent of which instances are configured.
+    Kept lightweight — it does not call ``describe_node()``, so node-level
+    aggregate overrides never run on the list endpoint.
+    """
+    _discover_plugin_modules()
+    return [
+        plugin_cls.node_metadata()
+        for _, plugin_cls in sorted(_PLUGIN_REGISTRY.items())
+    ]
+
+
+def build_plugin(plugin_config: PluginConfig) -> PluginBaseNode:
     """Build a plugin instance from config."""
     plugin_node = plugin_config.node
     plugin_cls = _PLUGIN_REGISTRY.get(plugin_node)
@@ -173,7 +250,6 @@ def build_plugin(plugin_config: PluginConfig) -> RequestPlugin:
             name=plugin_config.name,
             settings=plugin_config.settings,
             trigger=plugin_config.trigger,
-            nodes=plugin_config.nodes,
         )
     except PluginSchemaError as exc:
         raise ConfigurationError(str(exc)) from exc
@@ -184,9 +260,9 @@ def build_plugin(plugin_config: PluginConfig) -> RequestPlugin:
 def create_plugin_manager(plugin_configs: List[PluginConfig]) -> PluginManager:
     """Create plugin manager from config while preserving list order."""
     _discover_plugin_modules()
-    prerouting_plugins: List[RequestPlugin] = []
-    postrouting_plugins: List[RequestPlugin] = []
-    postresponse_plugins: List[RequestPlugin] = []
+    prerouting_plugins: List[PluginBaseNode] = []
+    postrouting_plugins: List[PluginBaseNode] = []
+    postresponse_plugins: List[PluginBaseNode] = []
     for plugin_config in plugin_configs:
         if not plugin_config.enabled:
             logger.info("Plugin disabled: %s", plugin_config.name)
@@ -205,5 +281,19 @@ def create_plugin_manager(plugin_configs: List[PluginConfig]) -> PluginManager:
             plugin_config.node,
             plugin_config.trigger,
         )
+
+    # Run each node's finalizer once with all instances of that node.
+    all_plugins = prerouting_plugins + postrouting_plugins + postresponse_plugins
+    by_node: Dict[str, List[PluginBaseNode]] = {}
+    for plugin in all_plugins:
+        by_node.setdefault(plugin.plugin_type(), []).append(plugin)
+    for node, members in by_node.items():
+        fn = _NODE_FINALIZERS.get(node)
+        if fn is None:
+            continue
+        try:
+            fn(members)
+        except Exception as exc:
+            logger.warning("Node finalizer failed for %r: %s", node, exc)
 
     return PluginManager(prerouting_plugins, postrouting_plugins, postresponse_plugins)

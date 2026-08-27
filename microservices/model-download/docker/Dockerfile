@@ -8,7 +8,7 @@ FROM python:3.12-slim AS python-base
 WORKDIR /opt
 
 # Install system dependencies required for uv and the application
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libgl1 \
     libsm6 \
     curl \
@@ -26,12 +26,12 @@ COPY pyproject.toml uv.lock /opt/
 # ---- Stage 2: Final slim image ----
 FROM python:3.12-slim
 
-ARG UID=1001
-ARG GID=1001
+ARG UID=1000
+ARG GID=1000
 ENV PYTHONPATH=/opt
 ENV MODELS_DIR=/opt/models
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends \
+RUN apt-get update -y && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libmagic-dev \
     libglib2.0-0 \
     libgl1 \
@@ -50,6 +50,7 @@ COPY --from=python-base /usr/local/bin /usr/local/bin
 
 COPY src /opt/src
 COPY scripts /opt/scripts
+COPY requirements /opt/requirements
 COPY pyproject.toml /opt/
 COPY docs/user-guide/_assets/openapi.yaml /opt/docs/user-guide/_assets/openapi.yaml
 

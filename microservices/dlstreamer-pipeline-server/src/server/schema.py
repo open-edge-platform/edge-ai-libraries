@@ -300,6 +300,10 @@ destination = {
               "overlay": {
                 "type": "boolean",
                 "default": True
+              },
+              "overlay-properties": {
+                "type": "object",
+                "default": {}
               }
             },
             "required": [
@@ -334,6 +338,10 @@ destination = {
               "overlay": {
                 "type": "boolean",
                 "default": True
+              },
+              "overlay-properties": {
+                "type": "object",
+                "default": {}
               }
             },
             "required": [
@@ -381,6 +389,10 @@ destination = {
                 "overlay": {
                   "type": "boolean",
                   "default": True
+                },
+                "overlay-properties": {
+                  "type": "object",
+                  "default": {}
                 }
               },
               "required": [
@@ -414,6 +426,10 @@ destination = {
                 },
                 "overlay": {
                   "type": "boolean"
+                },
+                "overlay-properties": {
+                  "type": "object",
+                  "default": {}
                 }
               },
               "required": [

@@ -1,0 +1,54 @@
+{
+  "skill_name": "vss-search-index",
+  "notes": "These four benchmark prompts are self-contained and intentionally separate from example-prompts/. The runner cannot reach VSS, so expectations grade public Pipeline Manager request sequences and response handling rather than fabricated live results.",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "upload-and-index-plan",
+      "prompt": "Give me an offline API plan to upload `/data/cameras/receiving-bay.mp4` to VSS with tags `receiving,outdoor` and make it searchable. Include the public endpoints and the identifier carried between steps, but do not claim the calls ran.",
+      "expected_output": "Provides the Pipeline Manager upload and embedding sequence with the correct fields and identifier carry-over.",
+      "files": [],
+      "expectations": [
+        "Provides `POST /manager/videos` as multipart form data with field `video` and comma-separated `tags`.",
+        "Carries the returned `videoId` into `POST /manager/videos/search-embeddings/{videoId}`.",
+        "Includes an embedding-readiness check before the optional search query."
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "filtered-search-request",
+      "prompt": "Construct an offline Pipeline Manager request that searches for `forklift near a loading door`, limits results to videos tagged `warehouse`, and covers the previous 48 hours. Show where ranked clips are found in the response.",
+      "expected_output": "Provides the filtered search request and correctly explains the wrapped result shape.",
+      "files": [],
+      "expectations": [
+        "Uses `POST /manager/search/query` with query `forklift near a loading door` and tags `warehouse`.",
+        "Uses the relative time filter `{ \"value\": 48, \"unit\": \"hours\" }`.",
+        "Reads ranked clips from `.results[].results[]` and identifies relevance, video id, and clip or seek timing fields."
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "resolve-search-filenames",
+      "prompt": "Explain how to search VSS for `white delivery van` and print real source filenames with each ranked clip instead of returning only video UUIDs. Use only public Pipeline Manager endpoints.",
+      "expected_output": "Explains how to join the video library's real filenames to ranked search hits.",
+      "files": [],
+      "expectations": [
+        "Uses `GET /manager/videos` to build a mapping from `videoId` to `.dataStore.fileName`.",
+        "Uses `POST /manager/search/query` for `white delivery van` and joins each hit's `metadata.video_id` to that mapping.",
+        "Formats each ranked result with the mapped filename, relevance score, and clip or seek timing."
+      ]
+    },
+    {
+      "id": 4,
+      "eval_name": "reuse-uploaded-video",
+      "prompt": "A video named `north-gate-evening.mp4` is already uploaded. Document how to locate its existing VSS record, index it without uploading a duplicate, and then search for `vehicle stopped at gate`. Do not assume any live response values.",
+      "expected_output": "Provides an idempotent lookup, indexing, and search sequence using the existing video record.",
+      "files": [],
+      "expectations": [
+        "Uses the wrapped `GET /manager/videos` response and matches `north-gate-evening.mp4` through `.dataStore.fileName` to obtain its existing `videoId`.",
+        "Uses that `videoId` with `POST /manager/videos/search-embeddings/{videoId}` and does not upload another copy.",
+        "After embedding readiness, uses `POST /manager/search/query` for `vehicle stopped at gate` and does not fabricate ranked results."
+      ]
+    }
+  ]
+}

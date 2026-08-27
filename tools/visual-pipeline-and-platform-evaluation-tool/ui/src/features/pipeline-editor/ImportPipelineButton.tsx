@@ -157,7 +157,7 @@ const ImportPipelineButton = ({ onImport }: ImportPipelineButtonProps) => {
             title="Import Pipeline"
             icon={<Upload className="w-5 h-5" />}
             label={<span>Import</span>}
-            variant="accent-outline"
+            variant="outline"
           />
         </PopoverTrigger>
         <PopoverContent className="w-64">

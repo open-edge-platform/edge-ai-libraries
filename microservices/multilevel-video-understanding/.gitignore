@@ -13,3 +13,4 @@ workspace
 .env
 .coverage
 **/outputs
+*.xlsx

@@ -34,13 +34,13 @@ FROM python:3.12-slim
 
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
-ARG INSTALL_DRIVER_VERSION="26.09.37435"
+ARG INSTALL_DRIVER_VERSION="26.18.38308"
 ENV INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
 # NPU user-space stack versions (declared once, interpolated into the download URLs below).
-ARG NPU_DRIVER_VERSION="1.33.0"
-ARG NPU_DRIVER_BUILD="v1.33.0.20260529-26625960453-ubuntu2404"
-ARG LEVEL_ZERO_VERSION="1.27.0-1~24.04~ppa2"
-ARG LEVEL_ZERO_PPA_SNAPSHOT="20260324T100000Z"
+ARG NPU_DRIVER_VERSION="1.35.0"
+ARG NPU_DRIVER_BUILD="v1.35.0.20260722-29947505341-ubuntu2404"
+ARG LEVEL_ZERO_VERSION="1.28.2-1~24.04~ppa1"
+ARG LEVEL_ZERO_PPA_SNAPSHOT="20260606T100000Z"
 ARG COPYLEFT_SOURCES=false
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -130,7 +130,6 @@ RUN mkdir -p /tmp/dataprep/video /home/appuser/.cache/huggingface /app/ov_models
     chown -R appuser:appuser /home/appuser/.cache /app/ov_models /tmp/dataprep
 
 USER appuser
-
 EXPOSE 8000
 
 CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.app:app", "--timeout", "300", "--log-level", "debug"]

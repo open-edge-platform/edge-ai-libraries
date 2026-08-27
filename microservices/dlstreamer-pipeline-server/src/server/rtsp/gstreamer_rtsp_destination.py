@@ -44,13 +44,14 @@ class GStreamerRtspDestination(AppDestination):
         self._sync_with_destination = request.get("sync-with-destination", True)
         self._encode_quality = request.get("encode-quality", 85)
         self.overlay = request.get("overlay", True)
+        self.overlay_properties = request.get("overlay-properties", request.get("gvawatermark", {}))
 
     def _init_stream(self, sample):
         self._frame_size = sample.get_buffer().get_size()
         caps = sample.get_caps()
         self._pipeline.appsink_element.props.caps = caps
         self._need_data = False
-        self._rtsp_server.add_stream(self._identifier, self._rtsp_path, caps, self,self.overlay)
+        self._rtsp_server.add_stream(self._identifier, self._rtsp_path, caps, self, self.overlay, self.overlay_properties)
         self._last_timestamp = self._clock.get_time()
         if self._sync_with_source is not None:
             self._pipeline.appsink_element.set_property("sync", self._sync_with_source)

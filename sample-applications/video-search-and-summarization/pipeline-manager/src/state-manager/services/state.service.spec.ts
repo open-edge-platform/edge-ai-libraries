@@ -29,7 +29,9 @@ import {
 import * as uuid from 'uuid';
 import { EVAMPipelines } from 'src/evam/models/evam.model';
 
-jest.mock('uuid');
+jest.mock('uuid', () => ({
+  v4: jest.fn(),
+}));
 
 describe('StateService', () => {
   jest.useFakeTimers();
@@ -339,6 +341,26 @@ describe('StateService', () => {
       expect(state?.audio?.status).toBe(StateActionStatus.COMPLETE);
       expect(state?.audio?.transcriptPath).toBe(audioResult.transcriptPath);
       expect(state?.audio?.transcript).toEqual(audioResult.transcripts);
+    });
+
+    it('should mark audio unavailable when transcription fails', () => {
+      const audioRequest: AudioTranscriptDTO = {
+        device: AudioDevice.CPU,
+        model_name: 'test-model',
+        video_id: mockStateId,
+        include_timestamps: true,
+        video_name: 'original.mp4',
+        minio_bucket: 'test-bucket',
+      };
+      service.audioTrigger(mockStateId, audioRequest);
+
+      service.audioError(mockStateId);
+
+      const state = service.fetch(mockStateId);
+      expect(state?.audio?.status).toBe(StateActionStatus.NA);
+      expect(state?.audio?.transcriptSummaryStatus).toBe(
+        StateActionStatus.NA,
+      );
     });
 
     it('should not update audio state for non-existent state', () => {

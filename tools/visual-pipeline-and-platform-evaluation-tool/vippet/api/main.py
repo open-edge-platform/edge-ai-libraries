@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 
 from api.middleware import InitializationMiddleware
 from api.routes import health
+from database import close_db, init_db
 from images import ImagesManager
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
@@ -105,6 +106,7 @@ def register_routers(app: FastAPI) -> None:
     """
     # Import routers here to avoid early initialization of VideosManager
     from api.routes import (
+        benchmarks,
         convert,
         devices,
         images,
@@ -113,11 +115,13 @@ def register_routers(app: FastAPI) -> None:
         pipeline_templates,
         pipelines,
         tests,
+        timeseries,
         videos,
         cameras,
     )
 
     # Include routers from different modules
+    app.include_router(benchmarks.router, prefix="/benchmarks", tags=["benchmarks"])
     app.include_router(convert.router, prefix="/convert", tags=["convert"])
     app.include_router(devices.router, prefix="/devices", tags=["devices"])
     app.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
@@ -129,6 +133,7 @@ def register_routers(app: FastAPI) -> None:
     )
     app.include_router(pipelines.router, prefix="/pipelines", tags=["pipelines"])
     app.include_router(tests.router, prefix="/tests", tags=["tests"])
+    app.include_router(timeseries.router, prefix="/timeseries", tags=["timeseries"])
     app.include_router(videos.router, prefix="/videos", tags=["videos"])
     app.include_router(images.router, prefix="/images", tags=["images"])
     app.include_router(cameras.router, prefix="/cameras", tags=["cameras"])
@@ -146,6 +151,9 @@ async def lifespan(app: FastAPI):
     app_state_manager = AppStateManager()
     app_state_manager.set_status(InternalAppStatus.STARTING)
 
+    # Initialize database before serving requests that depend on sessions.
+    await init_db()
+
     # Start initialization in background thread
     init_thread = threading.Thread(
         target=_initialize_in_background,
@@ -159,6 +167,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Application shutting down...")
+    await close_db()
     app_state_manager.set_status(InternalAppStatus.SHUTDOWN)
 
 

@@ -7,8 +7,11 @@ rebuilding, see [run-container.md](run-container.md).
 ## Prerequisites
 
 - Verify the [system requirements](system-requirements.md).
-- Clone the repository and `cd` into the `scene-understanding-service/`
-  directory.
+- Clone the repository and run:
+
+```bash
+cd microservices/scene-understanding-service/
+```
 
 ## Build the Docker Image
 
@@ -20,10 +23,12 @@ external source dependencies.
 docker build -t intel/scene-understanding-service:latest .
 ```
 
-To build a locally tagged image for Compose:
+To build an image the bundled `docker-compose.yml` picks up via `.env`, tag it
+to match the `REGISTRY` / `RELEASE_TAG` values you set there (see
+[run-container.md](run-container.md)):
 
 ```bash
-docker build -t scene-understanding-service:local .
+docker build -t intel/scene-understanding-service:2026.2.0-rc1 .
 ```
 
 The `Dockerfile` copies the whole service into `/app` (including the sample

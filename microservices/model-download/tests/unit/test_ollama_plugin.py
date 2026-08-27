@@ -63,16 +63,17 @@ class TestOllamaPlugin:
         assert ollama_plugin.can_handle(model_name, "huggingface") == False
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
     @patch('os.getenv')
-    def test_download_success(self, mock_getenv, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin, temp_dir):
+    def test_download_success(self, mock_getenv, mock_sleep, mock_makedirs, mock_popen, ollama_plugin, temp_dir):
         """Test successful model download"""
         # Setup mocks
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
-        mock_run.return_value = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b""
         mock_getenv.return_value = "/host/models"
 
         result = ollama_plugin.download(
@@ -86,9 +87,9 @@ class TestOllamaPlugin:
 
         # Verify calls
         mock_makedirs.assert_called_once_with(expected_model_dir, exist_ok=True)
-        mock_popen.assert_called_once_with(["ollama", "serve"])
+        assert mock_popen.call_args_list[0][0][0] == ["ollama", "serve"]
         mock_sleep.assert_called_once_with(1)
-        mock_run.assert_called_once_with(["ollama", "pull", "llama2"], check=True)
+        assert mock_popen.call_args_list[1][0][0] == ["ollama", "pull", "llama2"]
         mock_process.terminate.assert_called_once()
 
         # Verify result
@@ -98,14 +99,15 @@ class TestOllamaPlugin:
         assert "ollama" in result["download_path"]
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
-    def test_download_with_revision(self, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin, temp_dir):
+    def test_download_with_revision(self, mock_sleep, mock_makedirs, mock_popen, ollama_plugin, temp_dir):
         """Test model download with revision specified"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
-        mock_run.return_value = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b""
 
         result = ollama_plugin.download(
             model_name="llama2",
@@ -118,7 +120,7 @@ class TestOllamaPlugin:
         expected_model_dir = os.path.join(expected_hub_dir, "llama2", "7b")
 
         mock_makedirs.assert_called_once_with(expected_model_dir, exist_ok=True)
-        mock_run.assert_called_once_with(["ollama", "pull", "llama2:7b"], check=True)
+        assert mock_popen.call_args_list[1][0][0] == ["ollama", "pull", "llama2:7b"]
         mock_process.terminate.assert_called_once()
 
         assert result["model_name"] == "llama2:7b"
@@ -126,14 +128,15 @@ class TestOllamaPlugin:
         assert result["success"] == True
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
-    def test_download_with_slash_in_model_name(self, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin, temp_dir):
+    def test_download_with_slash_in_model_name(self, mock_sleep, mock_makedirs, mock_popen, ollama_plugin, temp_dir):
         """Test model download with slash in model name"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
-        mock_run.return_value = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b""
 
         result = ollama_plugin.download(
             model_name="user/model",
@@ -145,19 +148,20 @@ class TestOllamaPlugin:
         expected_model_dir = os.path.join(expected_hub_dir, "user_model", "")
 
         mock_makedirs.assert_called_once_with(expected_model_dir, exist_ok=True)
-        mock_run.assert_called_once_with(["ollama", "pull", "user/model"], check=True)
+        assert mock_popen.call_args_list[1][0][0] == ["ollama", "pull", "user/model"]
 
         assert result["model_name"] == "user/model"
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
-    def test_download_subprocess_error(self, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin, temp_dir):
+    def test_download_subprocess_error(self, mock_sleep, mock_makedirs, mock_popen, ollama_plugin, temp_dir):
         """Test download failure due to subprocess error"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
-        mock_run.side_effect = subprocess.CalledProcessError(1, ["ollama", "pull"], "Model not found")
+        mock_process.returncode = 1
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b"Model not found"
 
         with pytest.raises(RuntimeError, match="Failed to download Ollama model"):
             ollama_plugin.download(
@@ -169,13 +173,13 @@ class TestOllamaPlugin:
         mock_process.terminate.assert_called_once()
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
-    def test_download_makedirs_error(self, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin, temp_dir):
+    def test_download_makedirs_error(self, mock_sleep, mock_makedirs, mock_popen, ollama_plugin, temp_dir):
         """Test download failure due to directory creation error"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
+        mock_process.returncode = 0
         mock_makedirs.side_effect = OSError("Permission denied")
 
         with pytest.raises(RuntimeError, match="Failed to create model directory"):
@@ -189,15 +193,16 @@ class TestOllamaPlugin:
         # Therefore, terminate should not be called either since process was never created
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
     @patch('os.getenv')
-    def test_download_path_replacement(self, mock_getenv, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin, temp_dir):
+    def test_download_path_replacement(self, mock_getenv, mock_sleep, mock_makedirs, mock_popen, ollama_plugin, temp_dir):
         """Test host path replacement in download results"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
-        mock_run.return_value = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b""
         mock_getenv.return_value = "/host/models"
 
         # Create a hub directory that starts with /opt/models/
@@ -214,15 +219,16 @@ class TestOllamaPlugin:
         assert result["download_path"] == expected_path
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
     @patch('os.getenv')
-    def test_download_no_path_replacement(self, mock_getenv, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin, temp_dir):
+    def test_download_no_path_replacement(self, mock_getenv, mock_sleep, mock_makedirs, mock_popen, ollama_plugin, temp_dir):
         """Test no path replacement when not needed"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
-        mock_run.return_value = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b""
         mock_getenv.return_value = "/host/models"
 
         result = ollama_plugin.download(
@@ -235,14 +241,15 @@ class TestOllamaPlugin:
         assert result["download_path"] == expected_hub_dir
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
-    def test_environment_variable_setting(self, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin, temp_dir):
+    def test_environment_variable_setting(self, mock_sleep, mock_makedirs, mock_popen, ollama_plugin, temp_dir):
         """Test that OLLAMA_MODELS environment variable is set correctly"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
-        mock_run.return_value = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b""
 
         with patch.dict('os.environ', {}, clear=True):
             ollama_plugin.download(
@@ -252,7 +259,9 @@ class TestOllamaPlugin:
 
             # The plugin adds an empty string to the path when no revision, resulting in trailing slash
             expected_model_dir = os.path.join(temp_dir, "ollama", "llama2", "")
-            assert os.environ.get("OLLAMA_MODELS") == expected_model_dir
+            # Check env was passed to the pull Popen call (second call)
+            env_used = mock_popen.call_args_list[1][1]["env"]
+            assert env_used["OLLAMA_MODELS"] == expected_model_dir
 
     def test_get_download_tasks_not_implemented(self, ollama_plugin):
         """Test that get_download_tasks raises NotImplementedError"""
@@ -280,14 +289,15 @@ class TestOllamaPlugin:
         assert result["success"] == True
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
-    def test_server_cleanup_on_exception(self, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin, temp_dir):
+    def test_server_cleanup_on_exception(self, mock_sleep, mock_makedirs, mock_popen, ollama_plugin, temp_dir):
         """Test that ollama server is properly terminated even when exception occurs"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
-        mock_run.side_effect = subprocess.CalledProcessError(1, ["ollama", "pull"])
+        mock_process.returncode = 1
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b""
 
         with pytest.raises(RuntimeError):
             ollama_plugin.download(
@@ -327,14 +337,15 @@ class TestOllamaPluginIntegration:
         return OllamaPlugin()
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
-    def test_end_to_end_download_workflow(self, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin):
+    def test_end_to_end_download_workflow(self, mock_sleep, mock_makedirs, mock_popen, ollama_plugin):
         """Test complete download workflow"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
-        mock_run.return_value = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b""
         
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test the complete workflow
@@ -373,15 +384,16 @@ class TestOllamaPluginIntegration:
         ("user/model", "v1", "user/model:v1", "user_model"),
     ])
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
-    def test_model_name_and_revision_handling(self, mock_sleep, mock_makedirs, mock_run, mock_popen, 
+    def test_model_name_and_revision_handling(self, mock_sleep, mock_makedirs, mock_popen, 
                                             ollama_plugin, model_name, revision, expected_pull_cmd, expected_dir):
         """Test various model name and revision combinations"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
-        mock_run.return_value = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b""
         
         with tempfile.TemporaryDirectory() as temp_dir:
             kwargs = {}
@@ -395,7 +407,7 @@ class TestOllamaPluginIntegration:
             )
             
             # Verify pull command
-            mock_run.assert_called_once_with(["ollama", "pull", expected_pull_cmd], check=True)
+            assert mock_popen.call_args_list[1][0][0] == ["ollama", "pull", expected_pull_cmd]
             
             # Verify directory creation - account for empty string when no revision
             if revision:
@@ -405,13 +417,15 @@ class TestOllamaPluginIntegration:
             mock_makedirs.assert_called_once_with(expected_model_dir, exist_ok=True)
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
-    def test_error_handling_workflow(self, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin):
+    def test_error_handling_workflow(self, mock_sleep, mock_makedirs, mock_popen, ollama_plugin):
         """Test error handling during complete workflow"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
+        mock_process.returncode = 0
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b""
         
         # First test: makedirs failure
         mock_makedirs.side_effect = OSError("Permission denied")
@@ -429,8 +443,10 @@ class TestOllamaPluginIntegration:
 
         # Reset mocks for second test
         mock_process.reset_mock()
+        mock_popen.reset_mock()
         mock_makedirs.side_effect = None  # Reset to not raise exception
-        mock_run.side_effect = subprocess.CalledProcessError(1, ["ollama", "pull"], "Network error")
+        mock_process.returncode = 1
+        mock_process.stderr.read.return_value = b"Network error"
         
         with tempfile.TemporaryDirectory() as temp_dir:
             with pytest.raises(RuntimeError) as exc_info:
@@ -444,14 +460,15 @@ class TestOllamaPluginIntegration:
             mock_process.terminate.assert_called_once()
 
     @patch('subprocess.Popen')
-    @patch('subprocess.run')
     @patch('os.makedirs')
     @patch('time.sleep')
-    def test_concurrent_operations_simulation(self, mock_sleep, mock_makedirs, mock_run, mock_popen, ollama_plugin):
+    def test_concurrent_operations_simulation(self, mock_sleep, mock_makedirs, mock_popen, ollama_plugin):
         """Test behavior that simulates concurrent operations"""
         mock_process = MagicMock()
         mock_popen.return_value = mock_process
-        mock_run.return_value = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = b""
         
         with tempfile.TemporaryDirectory() as temp_dir:
             # Simulate multiple downloads (though they'd be sequential in this test)
@@ -472,6 +489,6 @@ class TestOllamaPluginIntegration:
                 assert result["success"] == True
                 assert result["source"] == "ollama"
             
-            # Verify server was started and stopped for each download
-            assert mock_popen.call_count == 3
+            # Verify server was started and pull was called for each download (2 Popen calls per download)
+            assert mock_popen.call_count == 6
             assert mock_process.terminate.call_count == 3

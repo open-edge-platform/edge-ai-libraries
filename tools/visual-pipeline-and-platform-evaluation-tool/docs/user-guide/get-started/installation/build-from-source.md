@@ -21,7 +21,7 @@ Before starting, ensure the following:
 
 For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
 script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
-[Install Guide Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/get_started/install/install_guide_ubuntu.html#prerequisites)
+[Install Guide Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
 
 This guide assumes basic familiarity with Git commands and terminal usage. For more information, see
 [Git Documentation](https://git-scm.com/doc).
@@ -64,3 +64,18 @@ Hugging Face Hub.
 
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.
+
+## Stop the application
+
+Stop and remove all running containers:
+
+```bash
+make stop
+```
+
+Downloaded models and videos under `shared/` are preserved. To also remove
+those artifacts, run:
+
+```bash
+make clean
+```

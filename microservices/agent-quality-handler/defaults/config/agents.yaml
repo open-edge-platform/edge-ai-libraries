@@ -1,0 +1,25 @@
+use_case_id: pipeline-defect-detection
+
+analysis:
+  min_confidence: 0.5
+  max_detections_per_run: 500
+
+policy:
+  defect_classes:
+    - Rupture
+    - Deformation
+    - Disconnect
+    - Obstacle
+  alert_threshold: 0.7
+  critical_classes:
+    - Rupture
+    - Disconnect
+
+evidence:
+  retention_frames: 1000
+
+ticketing:
+  priority_rules:
+    high: [Rupture, Disconnect]
+    medium: [Deformation]
+    low: [Obstacle]

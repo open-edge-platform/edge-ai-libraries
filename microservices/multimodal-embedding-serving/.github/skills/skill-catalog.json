@@ -1,0 +1,47 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "schemaVersion": "1.0",
+  "description": "Harness-neutral discovery catalog for Multimodal Embedding Serving workflow skills. Paths are relative to the microservice root.",
+  "skillsRoot": ".github/skills",
+  "skills": [
+    {
+      "name": "multimodal-embedding-serving-user",
+      "path": ".github/skills/multimodal-embedding-serving-user/SKILL.md",
+      "description": "Deploy and consume the multimodal embedding service: bring it up from a repo clone (setup.sh + compose) or standalone (prebuilt intel/multimodal-embedding-serving image), embed text/images/videos over REST on port 9777, pick the right model, or integrate in-process via the Python SDK wheel. Not for modifying the service's source (use multimodal-embedding-serving-dev).",
+      "triggers": [
+        "generate embeddings",
+        "embed text",
+        "embed an image",
+        "embed a video",
+        "similarity search embeddings",
+        "clip embeddings",
+        "run the embedding service",
+        "embedding sdk or rest",
+        "which embedding model"
+      ],
+      "requires": [
+        "docker",
+        "curl"
+      ]
+    },
+    {
+      "name": "multimodal-embedding-serving-dev",
+      "path": ".github/skills/multimodal-embedding-serving-dev/SKILL.md",
+      "description": "Develop the multimodal embedding service itself: Poetry install, run the existing tests, navigate the wrapper/registry/handler architecture, add a new model family, and build the image from source. Not for merely deploying or calling the API (use multimodal-embedding-serving-user).",
+      "triggers": [
+        "add a model handler",
+        "add an embedding model family",
+        "run the embedding tests",
+        "debug the embedding service code",
+        "build embedding service from source",
+        "mobileclip import fails"
+      ],
+      "requires": [
+        "repo clone",
+        "poetry",
+        "docker"
+      ]
+    }
+  ]
+}

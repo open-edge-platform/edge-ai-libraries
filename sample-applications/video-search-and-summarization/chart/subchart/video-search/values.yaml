@@ -7,11 +7,8 @@ videosearch:
     pullPolicy: IfNotPresent
   resources: {}
   env:
-    VDMS_VDB_HOST: "vdms-vectordb"
-    VDMS_VDB_PORT: "55555"
     EMBEDDINGS_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
-    SEARCH_ENGINE: "FaissFlat"
-    DISTANCE_STRATEGY: "IP"
+    RETRIEVER_ENDPOINT: "http://vector-retriever:8000/query"
     VS_WATCHER_DIR: "/tmp/watcher-dir"
     WATCH_DIRECTORY_CONTAINER_PATH: "/tmp/watcher-dir"
     WATCH_DIRECTORY_RECURSIVE: "false"
@@ -19,12 +16,17 @@ videosearch:
     VS_DELETE_PROCESSED_FILES: "false"
     VS_INITIAL_DUMP: "false"  # Set to true if you want to dump existing videos on startup
     VIDEO_UPLOAD_ENDPOINT: "http://pipeline-manager:3000"
+    WATCH_BATCH_SIZE: "10"
+    BATCH_JOB_POLL_INTERVAL_SECONDS: "0.5"
+    BATCH_JOB_TIMEOUT_SECONDS: "3600"
     AGGREGATION_ENABLED: "true"
     AGGREGATION_SEGMENT_DURATION: "8"
     AGGREGATION_MIN_GAP: "0"
     AGGREGATION_MAX_RESULTS: "20"
     AGGREGATION_INITIAL_K: "1000"
     AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: "0.0"
+    AGGREGATION_PREFER_FULL_FRAME_SEEK: "true"
+    AGGREGATION_FULL_FRAME_SEEK_BAND: "0.06"
     AGGREGATION_QUAL_MAX_WEIGHT: "0.65"
     AGGREGATION_QUAL_TOP_WEIGHT: "0.35"
     AGGREGATION_QUAL_TOP_RATIO: "0.35"
@@ -58,6 +60,13 @@ global:
 mmEmbeddingingMs:
   enabled: true
   name: multimodal-embedding-ms
+  service:
+    type: ClusterIP
+    port: 8000
+
+vectorRetriever:
+  enabled: true
+  name: vector-retriever
   service:
     type: ClusterIP
     port: 8000

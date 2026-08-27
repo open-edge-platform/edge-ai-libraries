@@ -15,6 +15,7 @@ global:
   # llmName is optional when OVMS serves a separate summarization model.
   llmName: ""
 
+
   proxy:
     no_proxy:
     http_proxy:
@@ -58,8 +59,6 @@ ovms:
     VLM_WEIGHT_FORMAT: ""
     ALLOWED_MEDIA_DOMAINS: "minio-server,localhost"
     model_directory_name: "converted_model"
-  script:
-    name: "ovms-model-preparation"
 
 livenessProbe:
   httpGet:

@@ -14,7 +14,7 @@
 
 ## No Sessions / No Alerts Appear
 
-This usually means the service is running but not receiving SceneScape events.
+This usually means the service is running but not receiving Scenescape events.
 
 - Verify the MQTT broker is reachable and that `mqtt.host` / `mqtt.port` in
   `scene-config.yaml` are correct.
@@ -24,23 +24,23 @@ This usually means the service is running but not receiving SceneScape events.
   docker compose logs -f scene-understanding-service
   ```
 
-- Confirm the SceneScape topic patterns in `scene-config.yaml` match your
-  SceneScape deployment.
-- Confirm the configured `cameras` match the camera names SceneScape
+- Confirm the Scenescape topic patterns in `scene-config.yaml` match your
+  Scenescape deployment.
+- Confirm the configured `cameras` match the camera names Scenescape
   publishes — persons seen only on non-configured cameras are not tracked.
 
 ## Zones Not Resolving
 
-Zone auto-discovery runs at startup against the SceneScape REST API.
+Zone auto-discovery runs at startup against the Scenescape REST API.
 
 - Confirm `scenescape_api.base_url` is correct and reachable.
 - Provide `SCENESCAPE_API_USER` / `SCENESCAPE_API_PASSWORD`.
-- The zone **names** in `scene-config.yaml` must match the SceneScape region
+- The zone **names** in `scene-config.yaml` must match the Scenescape region
   names exactly.
 - Re-trigger discovery without restarting:
 
   ```bash
-  curl --noproxy '*' -X POST http://127.0.0.1:8082/api/v1/lp/zones/discover
+  curl --noproxy '*' -X POST http://127.0.0.1:8082/api/v1/sus/zones/discover
   ```
 
 ## MQTT TLS Connection Fails
@@ -67,7 +67,7 @@ Zone auto-discovery runs at startup against the SceneScape REST API.
 - Alerts are forwarded to the alert-service at `ALERT_SERVICE_URL` (or
   `alert_service.base_url`). Confirm that service is reachable.
 - If `alert_service.enabled` is `false`, alerts are generated but not
-  forwarded. The `/api/v1/lp/alerts` endpoints will then return empty.
+  forwarded. The `/api/v1/sus/alerts` endpoints will then return empty.
 
 ## Behavioral Analysis Not Triggering
 

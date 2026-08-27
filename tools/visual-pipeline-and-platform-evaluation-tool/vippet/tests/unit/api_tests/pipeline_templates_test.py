@@ -11,6 +11,7 @@ from graph import Graph
 from internal_types import (
     InternalPipeline,
     InternalPipelineSource,
+    InternalPipelineType,
     InternalVariant,
 )
 
@@ -85,6 +86,7 @@ class TestPipelineTemplatesAPI(unittest.TestCase):
             name=name,
             description=description,
             source=InternalPipelineSource.TEMPLATE,
+            type=InternalPipelineType.VISION,
             tags=tags,
             variants=variants,
             thumbnail=None,

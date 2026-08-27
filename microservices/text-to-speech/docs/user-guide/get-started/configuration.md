@@ -39,6 +39,7 @@ TEXT_TO_SPEECH__MODELS__TTS__DEVICE=GPU python main.py
 - `models.tts.device`: `CPU` or `GPU` depending on model/runtime support
 - `models.tts.dtype`: `int8`, `int4`, `fp16`, `fp32`
 - `models.tts.model_variant`: `custom_voice` or `voice_design` for Qwen variants
+- `models.tts.default_speaker`: for SpeechT5 one of `Ryan`, `Miles`, `Aaron`, `Nora`, `Elena`, `Kabir`, `Angus` (CMU Arctic ids `bdl`/`jmk`/`rms`/`clb`/`slt`/`ksp`/`awb` are accepted as aliases); for Qwen `custom_voice` a speaker name the model supports
 - `models.tts.default_language`: keep this at `English`; other languages are not currently supported by the service API
 - `audio.output_format`: typically `wav`
 

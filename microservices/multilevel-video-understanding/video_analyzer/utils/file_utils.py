@@ -59,29 +59,63 @@ def is_video_file(file_name: str) -> bool:
 
 def robust_video_reader(url, ctx=cpu(0), width=-1, height=-1, num_threads=0, verify_ssl=True):
     """
-    Robust video loading functions, supporting HTTPS.
+    Robust video loading function supporting local files, HTTP, and HTTPS URLs.
+
+    decord's VideoReader cannot reliably open HTTP/HTTPS URLs directly
+    (FFmpeg filter graph creation fails), so remote videos are downloaded
+    to a temporary file first.
     """
-    # For local file and HTTP files, directly use decord
-    if not urlparse(url).scheme in ['https']:
-        return VideoReader(url, ctx=ctx, width=width, height=height, num_threads=num_threads)
-    
-    # For HTTPS URL, download first
-    response = requests.get(url, stream=True, verify=verify_ssl, timeout=30)
+    scheme = urlparse(url).scheme.lower()
+
+    # Local files: open directly with decord
+    if scheme in ("", "file"):
+        local_path = urlparse(url).path if scheme == "file" else url
+        return VideoReader(local_path, ctx=ctx, width=width, height=height, num_threads=num_threads)
+
+    # HTTP / HTTPS: download to temp file first
+    if scheme in ("http", "https"):
+        logger.info("Downloading video from %s ...", url)
+        response = requests.get(url, stream=True, verify=(verify_ssl if scheme == "https" else True), timeout=60)
+        response.raise_for_status()
+
+        suffix = os.path.splitext(urlparse(url).path)[1] or ".mp4"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    temp_file.write(chunk)
+            temp_path = temp_file.name
+
+        logger.info("Downloaded to temp file: %s", temp_path)
+        vr = VideoReader(temp_path, ctx=ctx, width=width, height=height, num_threads=num_threads)
+        os.unlink(temp_path)
+        return vr
+
+    raise ValueError(f"Unsupported URL scheme: {scheme}")
+
+def download_to_temp(video_path: str) -> str | None:
+    """Download a remote (HTTP/HTTPS) video to a local temp file.
+
+    Returns the temp file path, or None if video_path is already local.
+    Caller is responsible for deleting the temp file after use.
+    """
+    scheme = urlparse(video_path).scheme.lower()
+    if scheme not in ("http", "https"):
+        return None
+
+    logger.info("Downloading remote video to temp file: %s", video_path)
+    response = requests.get(video_path, stream=True, timeout=60)
     response.raise_for_status()
-    
-    # Create temporary files
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
+
+    suffix = os.path.splitext(urlparse(video_path).path)[1] or ".mp4"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
         for chunk in response.iter_content(chunk_size=8192):
             if chunk:
-                temp_file.write(chunk)
-        temp_path = temp_file.name
-    
-    vr = VideoReader(temp_path, ctx=ctx, width=width, height=height, num_threads=num_threads)
-    
-    # Clean up temporary files
-    os.unlink(temp_path)
-    
-    return vr
+                f.write(chunk)
+        temp_path = f.name
+
+    logger.info("Downloaded to: %s", temp_path)
+    return temp_path
+
 
 def validate_video_path(raw: str) -> str:
     """

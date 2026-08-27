@@ -69,23 +69,29 @@ def check_and_convert_openvino_models(
         logger.info(
             f"OpenVINO models not found for {model_key}. Converting to OpenVINO format..."
         )
-        
+
         # Handle the case where model and tokenizer loaders are None
         # This happens when using Optimum Intel which handles loading internally
         if model_loader is not None and tokenizer_loader is not None:
             # Load model and tokenizer for conversion
             model, _, _ = model_loader()
             tokenizer = tokenizer_loader()
-            
+
             # Call the convert function with the loaded model and tokenizer
             convert_func(ov_models_dir, model, tokenizer)
-            
+
             del model
             gc.collect()
         else:
             # For Optimum Intel conversion, pass None for model and tokenizer
             # The conversion function will handle model loading internally
             convert_func(ov_models_dir, None, None)
+
+    if not image_encoder_path.exists() or not text_encoder_path.exists():
+        raise RuntimeError(
+            f"OpenVINO conversion did not produce expected IR files for {model_key}: "
+            f"{image_encoder_path}, {text_encoder_path}"
+        )
     return str(image_encoder_path), str(text_encoder_path)
 
 

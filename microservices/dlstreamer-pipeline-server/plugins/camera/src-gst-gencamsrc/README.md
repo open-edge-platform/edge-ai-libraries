@@ -61,13 +61,14 @@ If it returns information about the plugin it is installed successfully and can 
 3. **Git** — [git-scm.com](https://git-scm.com/)
 4. **PowerShell** >= 7 — [github.com/PowerShell/PowerShell/releases](https://github.com/PowerShell/PowerShell/releases)
 5. **GStreamer MSVC x86_64** — install both the *runtime* and *development* packages from [gstreamer.freedesktop.org](https://gstreamer.freedesktop.org/download/)
-6. **DLStreamer runtime environment** — Follow the [Windows installation guide](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/get_started/install/install_guide_windows.md) to install the latest dlstreamer.
+6. **DL Streamer runtime environment** — Follow the [Windows installation guide](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/install/install_guide_windows.md) to install the latest version of Deep Learning Streamer (DL Streamer).
 
-   > **Note:** Set `$dlsRoot` once to your DLStreamer installation root before running any of the commands below. The default path is shown; adjust if you installed elsewhere:
+   > **Note:** Set `$dlsRoot` once to your DL Streamer installation root before running any of the commands below. The default path is shown; adjust if you installed elsewhere:
    >
    > ```powershell
    > $dlsRoot = "C:\Program Files\Intel\dlstreamer"  # adjust if installed elsewhere
    > ```
+
 7. **Camera vendor GenTL producer** — install the SDK for your camera (e.g. Basler pylon, Balluff Impact Acquire, or HikRobot MVS). The installer registers the GenTL producer path.
 
 The GenICam SDK is **not** a prerequisite — the build script downloads it automatically.
@@ -96,7 +97,7 @@ cd C:\p\gencamsrc
 .\build_gencamsrc.ps1 -FetchGenicamSdk
 ```
 
-If you clone directly to a short path (e.g. `git clone <url> C:\p\gencamsrc`), steps 1-3 are unnecessary - just `git pull` and run the script.
+If you clone directly to a short path (e.g., `git clone <url> C:\p\gencamsrc`), steps 1-3 are unnecessary - just `git pull` and run the script.
 
 #### Build
 
@@ -108,7 +109,7 @@ From the source directory, run in PowerShell:
 
 On first run the script downloads the EMVA GenICam SDK v3.1 (VC120 binaries) automatically and places it under `plugins\genicam-core\genicam_win\`. Subsequent runs reuse the cached folder without re-downloading.
 
-To force a fresh download (e.g. after deleting the folder):
+To force a fresh download (e.g., after deleting the folder):
 
 ```powershell
 .\build_gencamsrc.ps1 -FetchGenicamSdk
@@ -119,7 +120,6 @@ If you already have the GenICam SDK installed system-wide (via Basler pylon, Bal
 The GStreamer installation is located automatically via the Windows registry, the `GSTREAMER_1_0_ROOT_MSVC_X86_64` environment variable (set by the official installer), or the default path `C:\Program Files\gstreamer\1.0\msvc_x86_64`.
 
 The built DLL will be at `build\bin\Release\gstgencamsrc.dll`.
-
 
 ### Windows Runtime Setup
 
@@ -132,7 +132,7 @@ $genicamRuntime = "C:\p\gencamsrc\plugins\genicam-core\genicam_win\Runtime\bin\W
 # GStreamer MSVC x86_64 installation
 $gstRoot = "C:\Program Files\gstreamer\1.0\msvc_x86_64"
 
-# DLStreamer plugin directory (uses $dlsRoot declared in Prerequisites)
+# DL Streamer plugin directory (uses $dlsRoot declared in Prerequisites)
 $dls = "$dlsRoot\bin"
 
 $env:PATH = "$genicamRuntime;$gstRoot\bin;$dls;" + $env:PATH
@@ -197,13 +197,14 @@ ls /usr/local/lib/libGenApi*.so
 
 ### GenTL producer error
 
-If the pipeline returns error similar below, then GenTL producer is not found.
+If the pipeline returns an error similar to the one below, then GenTL producer is not found.
 
-```
+```text
 No transport layers found in path
 ```
 
-In that case, set GENICAM_GENTL64_PATH environment variable to the GenTL producer installation path. Please install the compatible GenTL producer for the camera if not already done.
+In that case, set the `GENICAM_GENTL64_PATH` environment variable to the GenTL producer
+installation path, and install the compatible GenTL producer for the camera if not already done.
 
 Install the GenTL producer for your camera vendor:
 
@@ -221,7 +222,8 @@ Add this to `~/.bashrc` so it persists across terminal sessions.
 
 ### Windows: No such element 'gencamsrc'
 
-GStreamer caches plugin scan results in a registry file. A stale cache causes this error even when the DLL is valid. Always delete the registry before testing:
+GStreamer caches plugin scan results in a registry file. A stale cache causes this error even
+when the DLL is valid. Always delete the registry before testing:
 
 ```powershell
 Remove-Item "C:\Temp\gst-registry-clean.bin" -ErrorAction SilentlyContinue
@@ -231,7 +233,8 @@ gst-inspect-1.0 gencamsrc
 
 ### Windows: No transport layers found in path
 
-The `GENICAM_GENTL64_PATH` environment variable is not set or does not point to a valid GenTL producer `.cti` file. Set it to the vendor SDK path before launching — see [Windows Runtime Setup](#windows-runtime-setup) above.
+The `GENICAM_GENTL64_PATH` environment variable is not set or does not point to a valid GenTL
+producer `.cti` file. Set it to the vendor SDK path before launching — see [Windows Runtime Setup](#windows-runtime-setup) above.
 
 ### Generic Plugin Element Properties
 
@@ -257,7 +260,7 @@ The following are the list of properties supported by the `gencamsrc` gstreamer 
 18. exposure-auto       : Sets the automatic exposure mode when ExposureMode is Timed. Possible values(off/once/continuous)
 19. exposure-mode       : Sets the operation mode of the Exposure. Possible values (off/timed/trigger-width/trigger-controlled)
 20. exposure-time       : Sets the Exposure time (in us) when ExposureMode is Timed and ExposureAuto is Off. This controls the duration where the photosensitive cells are exposed to light.
-21.  exposure-time-selector: Selects which exposure time is controlled by the ExposureTime feature. This allows for independent control over the exposure components. Possible values(common/red/green/stage1/...)
+21. exposure-time-selector: Selects which exposure time is controlled by the ExposureTime feature. This allows for independent control over the exposure components. Possible values(common/red/green/stage1/...)
 22. frame-rate          : Controls the acquisition rate (in Hertz) at which the frames are captured.
 23. gain                : Controls the selected gain as an absolute value. This is an amplification factor applied to video signal. Values are device specific.
 24. gain-auto           : Sets the automatic gain control (AGC) mode. Possible values (off/once/continuous)
@@ -273,7 +276,7 @@ The following are the list of properties supported by the `gencamsrc` gstreamer 
 34. offset-y            : Vertical offset from the origin to the region of interest (in pixels).
 35. packet-delay        : Controls the delay (in GEV timestamp counter unit) to insert between each packet for this stream channel. This can be used as a crude flow-control mechanism if the application or the network infrastructure cannot keep up with the packets coming from the device.
 36. packet-size         : Specifies the stream packet size, in bytes, to send on the selected channel for a Transmitter or specifies the maximum packet size supported by a receiver.
-37.  parent              : The parent of the object
+37. parent              : The parent of the object
                         Object of type "GstObject"
 38. pixel-format        : Format of the pixels provided by the device. It represents all the information provided by PixelSize, PixelColorFilter combined in a single feature. Possible values (mono8/ycbcr411_8/ycbcr422_8/rgb8/bgr8/bayerbggr/bayerrggb/bayergrbg/bayergbrg)
 39. reset               : Resets the device to its power up state. After reset, the device must be rediscovered. Do not use unless absolutely required.
@@ -292,24 +295,25 @@ The following are the list of properties supported by the `gencamsrc` gstreamer 
 
 **Notes:**
 
-* `serial` property is not mandatory to use if only a single camera is connected to the system. In case multiple cameras are connected to the system and the `serial` property is not used then the plugin will connect to the camera which is connected first in the device index list.
+- `serial` property is not mandatory to use if only a single camera is connected to the system. In case multiple cameras are connected to the system and the `serial` property is not used then the plugin will connect to the camera which is connected first in the device index list.
 
-* If `width` and `height` properties are not specified then the plugin will set to the maximum resolution supported by the camera.
+- If `width` and `height` properties are not specified then the plugin will set to the maximum resolution supported by the camera.
 
-* `hw-trigger-timeout` is the time for which the plugin waits for the H/W trigger. The reason this time-out value is in multiple of 5 sec is because the maximum grab timeout for each frame is 5 secs. Hence even if `hw-trigger-timeout=1` is set, the plugin will wait for 5 secs.
+- `hw-trigger-timeout` is the time for which the plugin waits for the H/W trigger. The reason this time-out value is in multiple of 5 sec is because the maximum grab timeout for each frame is 5 secs. Hence even if `hw-trigger-timeout=1` is set, the plugin will wait for 5 secs.
 
-* In case frame capture is failing when multiple basler cameras are used, use the `packet-delay` property to increase the delay between the transmission of each packet for the selected stream channel. Depending on the number of cameras appropriate delay can be set. Increasing the `packet-delay` will decrease the frame rate.
+- In case frame capture is failing when multiple basler cameras are used, use the `packet-delay` property to increase the delay between the transmission of each packet for the selected stream channel. Depending on the number of cameras appropriate delay can be set. Increasing the `packet-delay` will decrease the frame rate.
 
-* The default values for `exposure-auto` and `exposure-mode` properties are `once` and `timed` respectively. To set the Exposure Time using `exposure-time` property, the values for `exposure-auto` and `exposure-mode` must be set to `off` and `timed` respectively. Refer the below example pipeline to set Exposure time (in us).
+- The default values for `exposure-auto` and `exposure-mode` properties are `once` and `timed` respectively. To set the Exposure Time using `exposure-time` property, the values for `exposure-auto` and `exposure-mode` must be set to `off` and `timed` respectively. Refer the below example pipeline to set Exposure time (in us).
 
   $ gst-launch-1.0 gencamsrc exposure-time=1000 exposure-mode=timed exposure-auto=off ! videoconvert ! ximagesink
 
-* If `pixel-format` is set to any of the Bayer formats(bayerbggr/bayerrggb/bayergrbg/bayergbrg) then `bayer2rgb` gstreamer plugin must be used to convert raw Bayer to RGB. Refer below example for usage of `bayer2rgb` plugin.
+- If `pixel-format` is set to any of the Bayer formats(bayerbggr/bayerrggb/bayergrbg/bayergbrg) then `bayer2rgb` gstreamer plugin must be used to convert raw Bayer to RGB. Refer below example for usage of `bayer2rgb` plugin.
 
   $ gst-launch-1.0 gencamsrc pixel-format=bayerrggb ! bayer2rgb ! videoconvert ! ximagesink
 
   Typically bayerbggr/bayerrggb/bayergrbg/bayergbrg pixel-formats are used with cameras that support BayerBG8/BayerRG8/BayerGR8/BayerGB8 respectively.
 
-* The maximum grab delay is set to 5 seconds after which the plugin would timeout and throw "No frame received from the camera" exception. This error be caused by performance problems of the network hardware used, i.e. network adapter, switch, or ethernet cable. Make sure the camera is and the system are connected to the same gigabit switch or try increasing the camera's interpacket delay using `packet-delay` property.
+- The maximum grab delay is set to 5 seconds after which the plugin would timeout and throw "No frame received from the camera" exception. This error can be caused by performance problems of the network hardware used, i.e., network adapter, switch, or ethernet cable. Make sure the camera is and the system are connected to the same gigabit switch or try increasing the camera's interpacket delay using `packet-delay` property.
 
-> The sample pipelines mentioned in this readme were tested using gst-launch-1.0 tool. For working with DLStreamer Pipeline Server service refer [DLStreamer Pipeline Server-README](../../../docs/user-guide/advanced-guide/detailed_usage/camera/genicam.md#genicam-gige-or-usb3-cameras) for the ingestor configurations.
+> **Note:** The sample pipelines mentioned in this readme were tested using gst-launch-1.0 tool.
+> For working with DLStreamer Pipeline Server service refer to the [DL Streamer Pipeline Server README](../../../docs/user-guide/advanced-guide/detailed_usage/camera/genicam.md#genicam-gige-or-usb3-cameras) for the ingestor configurations.

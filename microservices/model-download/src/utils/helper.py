@@ -10,27 +10,56 @@ from fastapi import HTTPException
 from .logging import logger
 
 
-def sanitize_path_part(value: str, field_name: str) -> str:
-    lowered = value.lower()
+def sanitize_path_part(value: str, field_name: str, strict: bool = False) -> str:
+    """Validate and sanitize a user-supplied value that will be used as a
+    directory name.
 
-    # Reject if contains invalid characters
-    if not re.match(r"^[a-z0-9_\-\s]+$", lowered):
+    strict=False (default): For model name field. Allows letters, numbers, periods,
+    underscores, hyphens, and spaces. Spaces are normalized to underscores.
+
+    strict=True: For technical identifiers (provider, framework, precision).
+    Allows only letters, numbers, underscores, and hyphens, and must start
+    with a letter or digit.
+    """
+    stripped = value.strip()
+
+    if not stripped:
         raise HTTPException(
             status_code=400,
-            detail=f"{field_name} contains invalid characters. Only alphanumeric, spaces, underscores, and hyphens allowed.",
+            detail=f"{field_name} must not be empty.",
         )
 
-    # Sanitize: strip and replace spaces with underscores
-    sanitized_value = lowered.strip()
-    sanitized_value = sanitized_value.replace(" ", "_")
+    if strict:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", stripped):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{field_name} may contain only letters, numbers, "
+                    "underscores, and hyphens, and must start with a letter or digit."
+                ),
+            )
+        return stripped
 
-    if not sanitized_value:
+    if not re.fullmatch(r"[A-Za-z0-9._ -]+", stripped):
         raise HTTPException(
             status_code=400,
-            detail=f"{field_name} is empty or invalid.",
+            detail=(
+                f"{field_name} may contain only letters, numbers, periods, "
+                "underscores, hyphens, and spaces."
+            ),
         )
 
-    return sanitized_value
+    if (stripped.startswith(".") or stripped.endswith(".") or ".." in stripped):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{field_name} must not start or end with a period "
+                "or contain consecutive periods."
+            ),
+        )
+
+    # Normalize spaces for filesystem-friendly directory names.
+    return stripped.replace(" ", "_")
 
 
 def validate_zip_file(content: bytes) -> None:
@@ -90,3 +119,29 @@ def validate_zip_contents_within_target(zf: zipfile.ZipFile, target_dir: str) ->
     # Check format requirements
     if not has_xml or not has_bin:
         raise ValueError("ZIP must contain at least one .xml and one .bin file (OpenVINO IR format).")
+
+def get_hub_config_keys(plugin, hub: str) -> list[dict]:
+        """
+        Extract and serialize configuration keys for a given hub/plugin directly via hub_config_keys(hub).
+        """
+        hub_config_fn = getattr(plugin, "hub_config_keys", None)
+        if not callable(hub_config_fn):
+            return []
+        try:
+            # Connection/configuration keys the plugin understands. These can be
+            # overridden per request via the 'override_credentials' field of
+            # POST /models/download; environment variables remain the fallback default.
+            raw_keys = hub_config_fn(hub)
+            return [
+                {
+                    "name": key.name,
+                    "description": getattr(key, "description", ""),
+                    "sensitive": getattr(key, "is_sensitive", getattr(key, "sensitive", False)),
+                    "required": getattr(key, "required", False),
+                    "group": getattr(key, "group", None),
+                }
+                for key in raw_keys
+            ]
+        except Exception:
+            # Handles mocks or unconfigured test plugins gracefully
+            return []

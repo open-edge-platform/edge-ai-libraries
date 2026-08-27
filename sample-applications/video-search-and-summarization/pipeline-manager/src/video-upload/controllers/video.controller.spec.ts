@@ -1,13 +1,18 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { AxiosError } from 'axios';
 import { VideoController } from './video.controller';
 import { VideoService } from '../services/video.service';
 import { FeaturesService } from '../../features/features.service';
 import { VideoValidatorService } from '../services/video-validator.service';
 import { FEATURE_STATE } from '../../features/features.model';
 import { VideoDTO } from '../models/video.model';
+
+jest.mock('uuid', () => ({
+  v4: jest.fn(() => 'mock-video-id'),
+}));
 
 describe('VideoController', () => {
   let controller: VideoController;
@@ -48,6 +53,7 @@ describe('VideoController', () => {
             getVideos: jest.fn().mockResolvedValue(mockVideos),
             getVideo: jest.fn().mockResolvedValue(mockVideo),
             uploadVideo: jest.fn().mockResolvedValue('test-video-123'),
+            cleanupFailedDuplicateVideo: jest.fn().mockResolvedValue(undefined),
             createSearchEmbeddings: jest.fn().mockResolvedValue({
               data: { status: 'success', embeddings: [] }
             })
@@ -273,6 +279,28 @@ describe('VideoController', () => {
 
       await expect(controller.createSearchEmbeddings({ videoId }))
         .rejects.toThrow('Embedding service error');
+    });
+
+    it('should cleanup orphan tile and return conflict on duplicate-content rejection', async () => {
+      const videoId = 'dup-video-123';
+      const duplicateError = new AxiosError(
+        'Request failed with status code 409',
+        'ERR_BAD_REQUEST',
+        undefined,
+        undefined,
+        {
+          status: 409,
+          statusText: 'Conflict',
+          headers: {},
+          config: { headers: {} } as any,
+          data: { message: 'A video with identical content already exists' },
+        },
+      );
+      videoService.createSearchEmbeddings.mockRejectedValueOnce(duplicateError);
+
+      await expect(controller.createSearchEmbeddings({ videoId }))
+        .rejects.toThrow(ConflictException);
+      expect(videoService.cleanupFailedDuplicateVideo).toHaveBeenCalledWith(videoId);
     });
 
     it('should handle null data response', async () => {

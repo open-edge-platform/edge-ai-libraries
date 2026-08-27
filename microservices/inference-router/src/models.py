@@ -178,7 +178,7 @@ class ModelListResponse(BaseModel):
 class PluginSettingsResponse(BaseModel):
     """Plugin settings response."""
 
-    extra_config: Dict[str, Any] = Field(default_factory=dict)
+    model_config = ConfigDict(extra="allow")
 
 
 class PluginResponse(BaseModel):
@@ -201,9 +201,125 @@ class PluginListResponse(BaseModel):
     data: List[PluginResponse]
 
 
+class PluginNodeResponse(BaseModel):
+    """A registered plugin type (node) available in code."""
+
+    node: str = Field(..., description="Plugin type key (plugin_type())")
+    plugin_group: str = Field(default="", description="Plugin family/group key")
+    description: str = Field(default="", description="Plugin class docstring")
+    settings_schema: Dict[str, Any] = Field(
+        default_factory=dict, description="JSON schema for this node's settings"
+    )
+
+
+class PluginNodeListResponse(BaseModel):
+    """Response for the registered plugin nodes endpoint."""
+
+    object: Literal["list"] = "list"
+    data: List[PluginNodeResponse]
+
+
 class PluginConfigUpdateRequest(BaseModel):
-    """Request to update plugin configuration."""
+    """Request to update plugin configuration.
+
+    ``extra="ignore"`` so the body returned by ``GET /plugins/{node}/{name}``
+    round-trips as a ``POST`` payload: the extra keys a GET carries (``name``,
+    ``node``, ``metrics``, ...) are silently dropped rather than rejected.
+    """
+
+    model_config = ConfigDict(extra="ignore")
 
     enabled: Optional[bool] = None
-    trigger: Optional[str] = None
+    trigger: Optional[Literal["prerouting", "postrouting", "postresponse"]] = None
     settings: Optional[PluginSettingsResponse] = None
+
+
+class ProviderSettingsResponse(BaseModel):
+    """Provider settings response (endpoint, timeout, auth, ...)."""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ProviderMetadataResponse(BaseModel):
+    """Provider metadata response (labels, cost, performance, capability, ...)."""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ProviderResponse(BaseModel):
+    """Response for a single provider configuration."""
+
+    name: str = Field(..., description="Provider name (unique identifier)")
+    type: str = Field(..., description="Provider type, e.g. 'hosted_vllm', 'openai'")
+    model: str = Field(..., description="Backend model identifier")
+    enabled: bool = Field(default=True, description="Whether provider is enabled")
+    metadata: ProviderMetadataResponse = Field(default_factory=ProviderMetadataResponse)
+    settings: ProviderSettingsResponse = Field(default_factory=ProviderSettingsResponse)
+    extra: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Generic passthrough config (e.g. extra.management_endpoint)",
+    )
+
+
+class ProviderListResponse(BaseModel):
+    """Response for list providers endpoint."""
+
+    object: Literal["list"] = "list"
+    data: List[ProviderResponse]
+
+
+class ProviderConfigUpdateRequest(BaseModel):
+    """Request to create or update provider configuration.
+
+    ``type`` and ``model`` are optional here so partial updates (e.g. toggling
+    ``enabled``) need not resend them, but they are required when creating a
+    brand new provider — the endpoint enforces that.
+
+    ``extra="ignore"`` so the body returned by ``GET /providers/{name}``
+    round-trips as a ``POST`` payload: the extra ``name`` key (and any others)
+    a GET carries are silently dropped rather than rejected. Note ``GET``
+    redacts secrets (``api_key: "***REDACTED***"``), so on round-trip omit or
+    re-supply secret fields — re-POSTing verbatim would persist the mask.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    type: Optional[str] = None
+    model: Optional[str] = None
+    enabled: Optional[bool] = None
+    metadata: Optional[ProviderMetadataResponse] = None
+    settings: Optional[ProviderSettingsResponse] = None
+    # Replaced wholesale (like ``settings``/``metadata``) when present.
+    extra: Optional[Dict[str, Any]] = None
+
+
+class ConfigResponse(BaseModel):
+    """Response for configuration management endpoints."""
+
+    object: Literal["config"] = "config"
+    data: Dict[str, Any]
+    path: Optional[str] = None
+    warnings: List[str] = Field(default_factory=list)
+
+
+class RoutingConfigResponse(BaseModel):
+    """Response for the routing section of the configuration.
+
+    Only ``policy`` is exposed: it is the documented routing knob (must name an
+    entry in ``policy.yaml``). The lower-level ``strategy`` fallback is preserved
+    on disk but not managed through this API.
+    """
+
+    policy: Optional[str] = Field(default=None, description="Routing policy name (must exist in policy.yaml)")
+
+
+class RoutingConfigUpdateRequest(BaseModel):
+    """Request to update the routing policy.
+
+    ``extra="ignore"`` so the body returned by ``GET /routing`` round-trips as a
+    ``POST`` payload.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    policy: Optional[str] = None

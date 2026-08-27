@@ -131,4 +131,8 @@ export class DatastoreService {
 
     return filePath;
   }
+
+  async deleteObject(objectName: string): Promise<void> {
+    await this.client.removeObject(this.bucket, objectName);
+  }
 }

@@ -3,12 +3,15 @@
 
 """Unit tests for plugin system."""
 
+import asyncio
+
 from typing import Any, Dict
 
 import pytest
 from pydantic import BaseModel, Field, StrictStr
 
 from src.config import PluginConfig
+from src.config.loader import _build_router_config
 from src.models import (
     ChatCompletionRequest,
     ChatCompletionMessage,
@@ -16,7 +19,7 @@ from src.models import (
     ChatCompletionChoice,
     ChatCompletionUsage,
 )
-from src.plugins.base import RequestPlugin
+from src.plugins.base import PluginBaseNode
 from src.plugins.manager import create_plugin_manager, register_plugin
 from src.exceptions import ConfigurationError
 
@@ -30,7 +33,7 @@ class SamplePluginSettings(BaseModel):
 
 
 @register_plugin
-class SamplePlugin(RequestPlugin):
+class SamplePlugin(PluginBaseNode):
     """Test plugin used by plugin manager unit tests."""
 
     @classmethod
@@ -56,8 +59,7 @@ class SamplePlugin(RequestPlugin):
         return request
 
 
-@pytest.mark.asyncio
-async def test_plugins_run_by_trigger_around_rsd():
+def test_plugins_run_by_trigger_around_rsd():
     """Plugins should run in trigger buckets around the RSD step."""
     plugin_manager = create_plugin_manager(
         [
@@ -81,8 +83,8 @@ async def test_plugins_run_by_trigger_around_rsd():
         messages=[ChatCompletionMessage(role="user", content="hello")],
     )
 
-    after_pre = await plugin_manager.process_prerouting_request(request)
-    processed = await plugin_manager.process_postrouting_request(after_pre)
+    after_pre = asyncio.run(plugin_manager.process_prerouting_request(request))
+    processed = asyncio.run(plugin_manager.process_postrouting_request(after_pre))
 
     assert processed.extra_body is not None
     assert "plugins" in processed.extra_body
@@ -91,8 +93,7 @@ async def test_plugins_run_by_trigger_around_rsd():
     assert plugin_keys == ["pre-one", "post-one"]
 
 
-@pytest.mark.asyncio
-async def test_plugin_schema_validation_per_plugin():
+def test_plugin_schema_validation_per_plugin():
     """Each plugin validates settings by its own schema."""
     with pytest.raises(ConfigurationError):
         create_plugin_manager(
@@ -106,8 +107,7 @@ async def test_plugin_schema_validation_per_plugin():
         )
 
 
-@pytest.mark.asyncio
-async def test_unknown_plugin_node_rejected():
+def test_unknown_plugin_node_rejected():
     """Unknown plugin nodes should fail fast during config load."""
     with pytest.raises(ConfigurationError):
         create_plugin_manager(
@@ -121,8 +121,60 @@ async def test_unknown_plugin_node_rejected():
         )
 
 
-@pytest.mark.asyncio
-async def test_plugin_extra_config_is_exposed_in_output():
+def test_config_rejects_unknown_plugin_section():
+    """Unknown plugin trigger sections should fail instead of being ignored."""
+    with pytest.raises(ConfigurationError, match="Invalid plugin section"):
+        _build_router_config(
+            {
+                "providers": [
+                    {"name": "provider", "type": "openai", "model": "model"}
+                ],
+                "plugins": {
+                    "not_a_trigger": [
+                        {"name": "ignored", "node": "test-plugin", "settings": {}}
+                    ]
+                },
+            }
+        )
+
+
+def test_config_rejects_duplicate_plugin_identity():
+    """A plugin instance is uniquely identified by node + name."""
+    with pytest.raises(ConfigurationError, match="Duplicate plugin instance"):
+        _build_router_config(
+            {
+                "providers": [
+                    {"name": "provider", "type": "openai", "model": "model"}
+                ],
+                "plugins": {
+                    "prerouting": [
+                        {"name": "same", "node": "test-plugin", "settings": {}},
+                    ],
+                    "postrouting": [
+                        {"name": "same", "node": "test-plugin", "settings": {}},
+                    ],
+                },
+            }
+        )
+
+
+def test_register_plugin_rejects_duplicate_type():
+    """A node key must map to exactly one plugin class."""
+
+    class DuplicateTypePlugin(PluginBaseNode):
+        @classmethod
+        def plugin_type(cls) -> str:
+            return "test-plugin"
+
+        @classmethod
+        def settings_model(cls):
+            return SamplePluginSettings
+
+    with pytest.raises(RuntimeError, match="Duplicate plugin type"):
+        register_plugin(DuplicateTypePlugin)
+
+
+def test_plugin_extra_config_is_exposed_in_output():
     """Plugin extra_config should be preserved in plugin annotation output."""
     plugin_manager = create_plugin_manager(
         [
@@ -144,7 +196,7 @@ async def test_plugin_extra_config_is_exposed_in_output():
         messages=[ChatCompletionMessage(role="user", content="hello")],
     )
 
-    processed = await plugin_manager.process_prerouting_request(request)
+    processed = asyncio.run(plugin_manager.process_prerouting_request(request))
 
     assert processed.extra_body is not None
     plugin_payload = processed.extra_body["plugins"]["test-plugin-pre"]
@@ -152,8 +204,7 @@ async def test_plugin_extra_config_is_exposed_in_output():
     assert plugin_payload["extra_config"] == {"feature_flag": True, "priority": 1}
 
 
-@pytest.mark.asyncio
-async def test_plugin_extra_config_validation_rejects_non_mapping():
+def test_plugin_extra_config_validation_rejects_non_mapping():
     """extra_config must be a mapping according to plugin settings schema."""
     with pytest.raises(ConfigurationError):
         create_plugin_manager(
@@ -171,8 +222,7 @@ async def test_plugin_extra_config_validation_rejects_non_mapping():
         )
 
 
-@pytest.mark.asyncio
-async def test_postresponse_plugins_are_loaded_and_executed():
+def test_postresponse_plugins_are_loaded_and_executed():
     """Postresponse plugins should be bucketed and invoked after provider response."""
     plugin_manager = create_plugin_manager(
         [
@@ -206,5 +256,5 @@ async def test_postresponse_plugins_are_loaded_and_executed():
         usage=ChatCompletionUsage(prompt_tokens=1, completion_tokens=1, total_tokens=2),
     )
 
-    processed = await plugin_manager.process_postresponse_response(response)
+    processed = asyncio.run(plugin_manager.process_postresponse_response(response))
     assert processed == response

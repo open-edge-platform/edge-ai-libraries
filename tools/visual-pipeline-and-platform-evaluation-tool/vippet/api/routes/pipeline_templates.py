@@ -248,6 +248,7 @@ def _internal_pipeline_to_api(pipeline: InternalPipeline) -> schemas.Pipeline:
         name=pipeline.name,
         description=pipeline.description,
         source=schemas.PipelineSource(pipeline.source.value),
+        type=schemas.PipelineType(pipeline.type.value),
         tags=pipeline.tags,
         variants=[_internal_variant_to_api(v) for v in pipeline.variants],
         thumbnail=pipeline.thumbnail,

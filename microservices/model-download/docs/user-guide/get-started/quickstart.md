@@ -68,12 +68,12 @@ curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 | Argument | Description | Required |
 |----------|-------------|----------|
 | `--model-name <name>` | Model identifier (e.g. `meta-llama/Llama-3.2-1B`) | Yes |
-| `--hub <hub>` | Source hub: `huggingface`, `ultralytics`, `ollama`, `openvino`, `geti`, `hls` | Yes |
+| `--hub <hub>` | Source hub: `huggingface`, `ultralytics`, `pipeline-zoo-models`, `remote-url`, `omz`, `ollama`, `openvino`, `geti`, `hls` | Yes |
 | `--type <type>` | Model type: `llm`, `vlm`, `embeddings`, `rerank`, `vision`, `3d-pose`, `rppg`, `ai-ecg` | No |
 | `--revision <rev>` | Branch, tag, or commit hash | No |
 | `--is-ovms` | Convert to OpenVINO format after downloading | No |
 | `--precision <prec>` | Weight precision: `int4`, `int8`, `fp16`, `fp32` (default: `int8`) | No |
-| `--device <dev>` | Target device: `CPU`, `GPU`, `NPU` (default: `CPU`) | No |
+| `--device <dev>` | Target device: `CPU`, `GPU`, `NPU`, or `HETERO:<dev>[,<dev>...]` for heterogeneous execution, e.g. `HETERO:GPU,CPU` (default: `CPU`) | No |
 | `--cache-size <gb>` | KV cache size in GB (for LLM/VLM conversion) | No |
 | `--download-path <path>` | Sub-directory under models dir for downloads | No |
 | `--config-json <json>`  | Additional config as inline JSON string which needed like `quantize`,`extra_quantization_params` etc | No |

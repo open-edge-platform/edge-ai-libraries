@@ -99,7 +99,15 @@ This ensures consistent score ranges across queries while preserving relative or
 | `contextual_weight` | Gaussian weight in $[0,1]$ describing proximity to the global best frame. |
 | `contextual_boost_factor` | The configured `boost_strength`. |
 | `raw_score` | Pre-normalization score $s_{\text{raw}}$ before min-max scaling. |
+| `raw_score_min` | Lowest raw score across all segments scored for this query. |
+| `raw_score_max` | Highest raw score across all segments scored for this query. |
 | `score` | Final normalized value $s_{\text{final}} \in [0,1]$ used for ranking. |
+
+> `raw_score_min` / `raw_score_max` describe the query-local range used for
+> normalization. They make an individual `raw_score` interpretable — the UI uses
+> them to show where a result sits within the spread of the current query.
+> Because both `raw_score` and `score` are query-relative, `max_frame_score` is
+> the only near-absolute signal of whether a clip genuinely matches.
 
 ---
 

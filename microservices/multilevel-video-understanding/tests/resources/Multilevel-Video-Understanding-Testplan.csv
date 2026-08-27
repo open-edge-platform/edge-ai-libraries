@@ -1,0 +1,208 @@
+S.No,Requirement,Testcase Name,Test Steps,Expected Result,Actual Result,Test Result,Comments
+Multi-vs-01,Check System requirements,Check System requirements,"Reference: docs/user-guide/get-started/system-requirements.md
+Operating Systems
+- Ubuntu 24.04 LTS or later
+Hardware Platforms (on-device: integrated GPU shares system RAM; no discrete accelerator or remote inference cluster required)
+- Intel® Core™ Ultra processor with integrated GPU (validated on Panther Lake, PTL 358H)
+- At least 64 GB RAM (default target for Qwen3.5-35B-A3B FP8, 60k context)
+- At least 32 GB swap (so the weight load and KV cache can spill under peak memory pressure)
+- At least 128 GB disk space (model weights + Hugging Face cache)
+Software
+- Docker 24.0
+- Python 3.10",Meet system requirements,,,
+Multi-vs-02,Docker Image Build	,Build docker container from source code	,"1.  Enter the folder: 
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/microservices/multilevel-video-understanding",Docker image builds successfully from source,,,
+,,,2. Follow the user guide: docs/user-guide/get-started/build-from-source.md#steps-to-build to build the docker image,,,,
+Multi-vs-03,VLM Model Serving Deployment,Deploy and verify Vision-Language Model serving on Intel PTL,1. Follow the user guide: docs/user-guide/get-started.md#step-3-launch to start the on-device vLLM-IPEX model serving. A single Qwen3.5-35B-A3B endpoint fills both the VLM and LLM roles; it is ready once it answers on http://<host>:41091/v1/models.,"The VLM model serving is running well, and the curl response can be parsed with valid image description: response.choices[0].message.content",,,
+,,,2. Check container status: docker ps,,,,
+,,,"3. Curl with multimodal requests:
+curl http://<model-serving-ip-address>:41091/v1/chat/completions -XPOST -H ""Content-Type: application/json"" -d '{
+    ""model"": ""Qwen/Qwen3.5-35B-A3B"",
+    ""messages"": [
+      {
+        ""role"": ""user"",
+        ""content"": [
+          {
+            ""type"": ""text"",
+            ""text"": ""Describe the image.""
+          },
+          {
+            ""type"": ""image_url"",
+            ""image_url"": {
+              ""url"": ""http://farm6.staticflickr.com/5268/5602445367_3504763978_z.jpg""
+            }
+          }
+        ]
+      }
+    ],
+    ""max_tokens"": 512
+  }'",,,,
+Multi-vs-04,LLM Model Serving Deployment,Deploy and verify Large-Language Model serving on Intel PTL,1. The LLM role is served by the SAME on-device endpoint as the VLM — a single Qwen3.5-35B-A3B vLLM-IPEX serving fills both roles; no separate LLM serving is deployed. See docs/user-guide/get-started.md#on-device-ai-services.,"The LLM model serving is running well, and the curl response can be parsed with valid content: response.choices[0].message.content",,,
+,,,2. Check container status: docker ps,,,,
+,,,"3. Curl with pure language requests:
+curl http://<model-serving-ip-address>:41091/v1/chat/completions -XPOST -H ""Content-Type: application/json"" -d '{
+    ""model"": ""Qwen/Qwen3.5-35B-A3B"",
+    ""messages"": [
+      {
+        ""role"": ""user"",
+        ""content"": ""What is Deep Learning?""
+      }
+    ],
+    ""max_tokens"": 512
+  }'",,,,
+Multi-vs-05,Microservice Deployment	,Verify microservice startup and health check	,"1. Deploy the microservice using Docker, following docs/user-guide/get-started.md#step-3-launch (Option 1 for the bundled on-device model serving, or Option 2 to reuse an existing serving).","Multilevel Video Understanding Microservice starts successfully, health endpoint returns 200 OK status, and service is accessible on configured port without errors",,,
+,,,2. Check container status: docker ps,,,,
+,,,"3. Send GET request to health endpoint:
+curl -X GET ""http://localhost:8192/v1/health""",,,,
+,,,"4. Send GET request to list models:
+curl -X GET ""http://localhost:8192/v1/models""",,,,
+Multi-vs-06,Basic Video Summarization	,Generate summary for standard video input,1. Prepare a test video reachable by an HTTPS URL (the public sample used below is fine): https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4,"Video is successfully processed and returns a coherent summary, processing completes within reasonable time, and summary accurately represents main content",,,
+,,,"2. Send POST request to the /v1/summary endpoint:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{
+    ""video"": ""https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4"",
+    ""method"": ""SIMPLE"",
+    ""processor_kwargs"": {""process_fps"": 1}
+  }' ",,,,
+,,,3. Monitor processing status via container log: docker logs -f docker-multilevel-video-understanding-1,,,,
+Multi-vs-07,Multi-level Architecture Configuration	,Test configurable analysis levels	,1. Prepare a test video reachable by an HTTPS URL (the public sample used below is fine): https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4,"Video is successfully processed and returns a coherent summary, processing completes within reasonable time, and summary accurately represents main content",,,
+,,,"2. Send POST request to the /v1/summary endpoint, enable configured levels:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{                                                                                                       ""video"": ""https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4"",
+    ""method"": ""SIMPLE"",
+    ""processor_kwargs"": {""levels"": 4, ""level_sizes"": [1,6,8,-1]}
+  }'",,,,
+,,,3. Monitor processing status via container log: docker logs -f docker-multilevel-video-understanding-1,,,,
+Multi-vs-08,Enhanced Temporal Modeling	,Validate temporal enhancement,1. Prepare a test video with HTTPS URL as input: https://example.com/video.mp4,"Video is successfully processed and returns a coherent summary, processing completes within reasonable time, and summary accurately represents main content",,,
+,,,"2. Send POST request to /summarize endpoint, enable both VLM and LLM with temporal enhancement:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{                                                                                                       ""video"": ""https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4"",
+    ""method"": ""USE_ALL_T-1"",
+    ""processor_kwargs"":{""process_fps"": 1}
+  }'",,,,
+,,,"3. Send POST request to /summarize endpoint, , enable only VLM with temporal enhancement:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{                                                                                                       ""video"": ""https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4"",
+    ""method"": ""USE_VLM_T-1"",
+    ""processor_kwargs"":{""process_fps"": 1}
+  }'",,,,
+,,,"4. Send POST request to /summarize endpoint, enable only LLM with temporal enhancement:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{                                                                                                       ""video"": ""https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4"",
+    ""method"": ""USE_LLM_T-1"",
+    ""processor_kwargs"":{""process_fps"": 1}
+  }'",,,,
+,,,5. Monitor processing status via container log: docker logs -f docker-multilevel-video-understanding-1,,,,
+Multi-vs-09,Change video chunking method,Select video chunking method via request,1. Prepare a test video with HTTPS URL as input: https://example.com/video.mp4,"Video is successfully processed and returns a coherent summary, processing completes within reasonable time, and summary accurately represents main content",,,
+,,,"2. Send POST request to /summarize endpoint, choose video chunking method as `uniform`:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{                                                                                                       ""video"": ""https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4"",
+    ""method"": ""USE_ALL_T-1"",
+    ""processor_kwargs"":{""process_fps"": 1, ""chunking_method"": ""uniform""}
+  }'",,,,
+,,,"3. Send POST request to /summarize endpoint, choose video chunking method as `pelt`:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{                                                                                                       ""video"": ""https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4"",
+    ""method"": ""USE_ALL_T-1"",
+    ""processor_kwargs"":{""process_fps"": 1, ""chunking_method"": ""pelt""}
+  }'",,,,
+,,,4. Monitor processing status via container log: docker logs -f docker-multilevel-video-understanding-1,,,,
+Multi-vs-10,Local File for Video Summarization	,Generate summary for local video file,1. Prepare a test video with local path on your host: /path/to/your/video.mp4,"Video is successfully processed and returns a coherent summary, processing completes within reasonable time, and summary accurately represents main content",,,
+,,,2. Transfer to running docker container: docker cp /path/to/your/video.mp4 docker-multilevel-video-understanding-1:/app/video.mp4,,,,
+,,,"2. Send POST request to /summarize endpoint:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{
+    ""video"": ""/app/video.mp4"",
+    ""method"": ""SIMPLE"",
+    ""processor_kwargs"": {""process_fps"": 1}
+  }' ",,,,
+,,,3. Monitor processing status via container log: docker logs -f docker-multilevel-video-understanding-1,,,,
+Multi-vs-11,Error Handling and Recovery	,Validate robust error handling mechanisms	,1. Submit non-existing video file,"Service returns appropriate HTTP status codes and error messages, corrupted files are handled gracefully, processing failures don't crash the service, and comprehensive error logging is maintained",,,
+,,,2. Send malformed API requests with invalid parameters,,,,
+,,,"3. Test with unsupported ""method""",,,,
+,,,"4. Test with unsupported ""video_chunking_method"" in ""processor_kwargs""",,,,
+,,,5. Verify error response formats and logging,,,,
+Multi-vs-12,Long Videos Handling,Support to process long video,1. Prepare a long test video with HTTPS URL as input that  >1hour,"Video is successfully processed and returns a coherent summary, processing completes within reasonable time, and summary accurately represents main content",,,
+,,,"2. Send POST request to /summarize endpoint, enable configured levels:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{                                                                                                       ""video"": ""https://test_1hour.mp4"",
+    ""method"": ""SIMPLE"",
+    ""processor_kwargs"": {""levels"": 4, ""level_sizes"": [1,6,8,-1]}
+  }'",,,,
+,,,"3. Monitor processing status via container log: docker logs -f docker-multilevel-video-understanding-1 (may wait for a while, e.g., 45 mins for an 1-hour video)",,,,
+,,,,,,,
+Multi-vs-13,Caption-only Summarization,Generate a report from subtitles only (no VLM),"1. Prepare an event log in SubRip (.srt) format (e.g. a day of motion events) as input, and set ""video"" to ""none"".",The VLM is skipped; each subtitle segment becomes a chunk description and the LLM aggregates them into a coherent summary/report. Response returns 200 with a non-empty summary.,,,New in 2026.2
+,,,"2. Send POST request to /v1/summary with caption-only input:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{
+    ""video"": ""none"",
+    ""video_subtitles"": {""text"": ""1\n00:00:00,000 --> 00:00:05,000\n[motion] fridge opened, milk taken out\n\n2\n00:05:00,000 --> 00:05:04,000\n[static] idle\n""},
+    ""task"": ""summary"",
+    ""method"": ""SIMPLE""
+  }'",,,,
+,,,3. Monitor processing status via container log: docker logs -f docker-multilevel-video-understanding-1,,,,
+Multi-vs-14,Local SRT File for Caption-only Summarization,Generate a report from a local .srt file copied into the container,1. Prepare an .srt event log file on your host (e.g. tests/resources/caption_only_fridge_day.srt).,"The service reads subtitles directly from the local file path and produces a coherent summary; response status is 200 with a non-empty summary. This mirrors Multi-vs-10 (local video via docker cp) — video_subtitles now accepts {""path"": ...} in addition to url/text/b64gzip.",,,New in 2026.2
+,,,2. Transfer to the running docker container: docker cp tests/resources/caption_only_fridge_day.srt docker-multilevel-video-understanding-1:/app/subs.srt,,,,
+,,,"3. Send POST request to /v1/summary referencing the file by path:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{
+    ""video"": ""none"",
+    ""video_subtitles"": {""path"": ""/app/subs.srt""},
+    ""task"": ""summary"",
+    ""method"": ""SIMPLE""
+  }'",,,,
+,,,4. Monitor processing status via container log: docker logs -f docker-multilevel-video-understanding-1,,,,
+Multi-vs-15,Chinese Built-in Task,Summarize with the Chinese built-in prompt task,1. Prepare a test video with HTTPS URL as input: https://example.com/video.mp4,Video is processed and a coherent summary is returned in Chinese; response status is 200.,,,New in 2026.2
+,,,"2. Send POST request to /v1/summary selecting the Chinese task:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{
+    ""video"": ""https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4"",
+    ""task"": ""summary_zh"",
+    ""method"": ""SIMPLE"",
+    ""processor_kwargs"": {""process_fps"": 1}
+  }'",,,,
+,,,3. Verify the returned summary text is written in Chinese.,,,,
+Multi-vs-16,Prompt Task Discovery,List and inspect prompt tasks,"1. Send GET request to list tasks:
+curl -X GET ""http://localhost:8192/v1/tasks""","Listing returns exactly two built-in tasks (summary, summary_zh) plus any registered dynamic tasks, each with name/source/description. Task detail returns the four anchor sections as round-trip content. An unknown name returns 404.",,,New in 2026.2
+,,,"2. Send GET request for a built-in task detail:
+curl -X GET ""http://localhost:8192/v1/tasks/summary""",,,,
+,,,"3. Send GET request for an unknown task:
+curl -X GET ""http://localhost:8192/v1/tasks/does_not_exist""","Expect 404. 
+{""detail"":{""error"":""not_found"",""task_name"":""does_not_exist""}}",,,
+Multi-vs-17,Register Dynamic Task (full mode),Register a custom task from anchor content,1. Use the example anchor content shipped with the tests as-is: tests/resources/task_playground_safety.txt (GLOBAL_PROMPT / MACRO_CHUNK_PROMPT / LOCAL_PROMPT / T_MINUS_1_PROMPT).,Registration returns 201 with the task detail; the task appears as source=dynamic in GET /v1/tasks and is persisted under VIDEO_SUMMARY_CACHE. GET /v1/tasks/{name} round-trips the content.,,,New in 2026.2
+,,,"2. Register the task:
+jq -Rs '{task_name: ""playground_safety"", mode: ""full"", content: {text: .}}' \
+  tests/resources/task_playground_safety.txt \
+| curl http://localhost:8192/v1/tasks -H ""Content-Type: application/json"" --data-binary @-",,,,
+,,,"3. Send GET request to confirm round-trip:
+curl -X GET ""http://localhost:8192/v1/tasks/playground_safety""",,,,
+Multi-vs-18,Forgiving Task Registration,Auto-fill / literal-brace fallbacks reduce avoidable errors,"1. Register with only the two REQUIRED anchors (GLOBAL_PROMPT + LOCAL_PROMPT); MACRO/T_MINUS_1 and missing time placeholders are auto-filled:
+jq -Rs '{task_name: ""minimal_report"", mode: ""full"", content: {text: .}}' \
+  tests/resources/task_minimal_report.txt \
+| curl http://localhost:8192/v1/tasks -H ""Content-Type: application/json"" --data-binary @-",Avoidable errors are auto-fixed: MACRO/T_MINUS_1 are auto-filled from generic defaults and missing time/context placeholders are scaffolded (201). Non-placeholder braces (example JSON/code) are treated as literal text. {chunk_subtitle} is accepted as optional. A genuinely missing required anchor returns 422 missing_anchors with a hint that only GLOBAL_PROMPT and LOCAL_PROMPT are required.,,,New in 2026.2
+,,,"2. Prompt embedding literal example JSON (unrecognized braces rendered verbatim) still registers (expect 201):
+jq -Rs '{task_name: ""literal_json_task"", mode: ""full"", content: {text: .}}' \
+  tests/resources/task_forgiving_literal_json.txt \
+| curl http://localhost:8192/v1/tasks -H ""Content-Type: application/json"" --data-binary @-",,,,
+,,,"3. Prompt referencing the optional {chunk_subtitle} placeholder in LOCAL_PROMPT registers (expect 201):
+jq -Rs '{task_name: ""subtitle_ref_task"", mode: ""full"", content: {text: .}}' \
+  tests/resources/task_forgiving_subtitle.txt \
+| curl http://localhost:8192/v1/tasks -H ""Content-Type: application/json"" --data-binary @-",,,,
+,,,"4. Omitting the required GLOBAL_PROMPT is rejected (expect 422, error=missing_anchors, with hint):
+jq -Rs '{task_name: ""missing_global_task"", mode: ""full"", content: {text: .}}' \
+  tests/resources/task_forgiving_missing_global.txt \
+| curl -sw ""\nHTTP %{http_code}\n"" http://localhost:8192/v1/tasks -H ""Content-Type: application/json"" --data-binary @-",,,,
+,,,"5. Clean up the tasks registered in steps 1-3:
+for t in minimal_report literal_json_task subtitle_ref_task; do curl -X DELETE ""http://localhost:8192/v1/tasks/$t""; done",,,,
+Multi-vs-19,Autogen Task Registration,Draft a task from a natural-language description,"1. Send POST request in autogen mode:
+curl http://localhost:8192/v1/tasks -H ""Content-Type: application/json"" -d '{
+    ""task_name"": ""scene_watch"",
+    ""mode"": ""autogen"",
+    ""description"": ""Detect unsafe playground behavior for toddlers.""
+  }'",The service LLM drafts all four prompt sections; registration returns 201 with the task detail. GET /v1/tasks/scene_watch shows the four sections and the task is usable in /v1/summary.,,,New in 2026.2
+,,,"2. Send GET request to inspect the generated sections:
+curl -X GET ""http://localhost:8192/v1/tasks/scene_watch""",,,,
+Multi-vs-20,Task Lifecycle & Immutability,Rename / delete dynamic tasks; built-ins protected,"1. Rename a dynamic task:
+curl -X PATCH ""http://localhost:8192/v1/tasks/playground_safety"" -H ""Content-Type: application/json"" -d '{""new_task_name"": ""playground_safety_v2""}'","Dynamic tasks can be renamed (200) and deleted (204, then GET returns 404). Built-in tasks are immutable: PATCH/DELETE on summary or summary_zh returns 403 builtin_immutable.",,,New in 2026.2
+,,,"2. Delete a dynamic task:
+curl -X DELETE ""http://localhost:8192/v1/tasks/playground_safety_v2""",Expect 204,,,
+,,,"3. Attempt to delete a built-in task:
+curl -X DELETE ""http://localhost:8192/v1/tasks/summary""",Expect 403,,,
+Multi-vs-21,Summarize with a Registered Dynamic Task,End-to-end custom-task video summarization,"1. Register the dynamic task (see Multi-vs-16), then reference it by name in a summarization request.",The summary is produced using the custom prompt sections of the registered dynamic task; response status is 200 with a non-empty summary.,,,New in 2026.2
+,,,"2. Send POST request to /v1/summary using the dynamic task:
+curl http://localhost:8192/v1/summary -H ""Content-Type: application/json"" -d '{
+    ""video"": ""https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4"",
+    ""task"": ""playground_safety"",
+    ""method"": ""SIMPLE"",
+    ""processor_kwargs"": {""process_fps"": 1}
+  }'",,,,
+,,,3. Monitor processing status via container log: docker logs -f docker-multilevel-video-understanding-1,,,,

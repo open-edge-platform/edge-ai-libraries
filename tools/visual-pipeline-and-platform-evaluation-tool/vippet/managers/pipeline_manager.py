@@ -14,6 +14,7 @@ from internal_types import (
     InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
     InternalPipelineSource,
+    InternalPipelineType,
     InternalStreamInfo,
     InternalVariant,
 )
@@ -24,6 +25,7 @@ from utils import (
     load_thumbnail_as_base64,
     make_output_dir,
 )
+from video_decoder import split_device_target
 from video_encoder import VideoEncoder
 from videos import OUTPUT_VIDEO_DIR
 from managers.metadata_manager import METADATA_DIR
@@ -196,6 +198,7 @@ class PipelineManager:
                 name=new_pipeline.name,
                 description=new_pipeline.description,
                 source=new_pipeline.source,
+                type=new_pipeline.type,
                 tags=new_pipeline.tags,
                 variants=variants_with_timestamps,
                 thumbnail=None,  # User-created pipelines do not have thumbnails
@@ -210,6 +213,11 @@ class PipelineManager:
     def get_pipelines(self) -> list[InternalPipeline]:
         with self._pipelines_lock:
             return [deepcopy(p) for p in self.pipelines]
+
+    def get_pipeline_names_by_id(self) -> dict[str, str]:
+        """Return a lightweight mapping of pipeline id to pipeline name."""
+        with self._pipelines_lock:
+            return {pipeline.id: pipeline.name for pipeline in self.pipelines}
 
     def get_model_display_names_used_by_pipelines(self) -> dict[str, list[str]]:
         """
@@ -485,6 +493,18 @@ class PipelineManager:
             if not isinstance(tags, list):
                 tags = []
 
+            # Read type from config, default to vision
+            pipeline_type_str = config.get("type", InternalPipelineType.VISION.value)
+            try:
+                pipeline_type = InternalPipelineType(pipeline_type_str)
+            except ValueError:
+                self.logger.warning(
+                    "Unknown pipeline type '%s' in pipeline '%s', defaulting to 'vision'",
+                    pipeline_type_str,
+                    pipeline_name,
+                )
+                pipeline_type = InternalPipelineType.VISION
+
             # Load thumbnail if specified, using pipelines directory as base path
             thumbnail_path = config.get("thumbnail", "")
             thumbnail_base64 = load_thumbnail_as_base64(
@@ -503,6 +523,7 @@ class PipelineManager:
                     name=pipeline_name,
                     description=pipeline_description,
                     source=InternalPipelineSource.PREDEFINED,
+                    type=pipeline_type,
                     tags=tags,
                     variants=variants_list,
                     thumbnail=thumbnail_base64,
@@ -608,6 +629,9 @@ class PipelineManager:
             # Validate camera sources (rtspsrc, v4l2src), if present, are followed by decodebin3
             base_graph.validate_camera_sources_followed_by_decodebin3()
 
+            # Validate all VA-accelerated inference elements share one GPU render node
+            base_graph.validate_inference_devices_share_va_display()
+
             # Validate pipeline has gvametapublish when metadata publishing is enabled
             if (
                 execution_config.metadata_mode != InternalMetadataMode.DISABLED
@@ -633,6 +657,7 @@ class PipelineManager:
             # video-centric templates (parsebin, avdec_h264, container muxers, ...)
             # have to be adapted to the raw-video stream produced by the dedicated
             # image decoder; ``apply_decodebin3_replacement`` handles both cases.
+            _, target_gpu_index = split_device_target(base_graph.get_target_device())
             if base_graph.has_decodebin3() or base_graph.has_image_set_source():
                 codec = base_graph.determine_input_codec()
                 target_device = base_graph.get_target_device()
@@ -654,12 +679,12 @@ class PipelineManager:
                 # Create output subpipeline based on output mode (file or live stream)
                 if output_mode == InternalOutputMode.FILE:
                     output_subpipeline = video_encoder.create_video_output_subpipeline(
-                        video_pipeline_dir, encoder_device
+                        video_pipeline_dir, encoder_device, target_gpu_index
                     )
                 elif output_mode == InternalOutputMode.LIVE_STREAM:
                     output_subpipeline, stream_url = (
                         video_encoder.create_live_stream_output_subpipeline(
-                            pipeline_id, encoder_device, job_id
+                            pipeline_id, encoder_device, job_id, target_gpu_index
                         )
                     )
                     live_stream_urls[pipeline_id] = stream_url

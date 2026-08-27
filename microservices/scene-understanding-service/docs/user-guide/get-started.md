@@ -7,8 +7,8 @@ Pick one of the two deployment paths and follow the linked guide.
 
 - Confirm that your machine meets the
   [System Requirements](./get-started/system-requirements.md).
-- Make sure you have a reachable **SceneScape** deployment (MQTT broker + REST
-  API). The service is an event consumer — it needs SceneScape to produce
+- Make sure you have a reachable **Scenescape** deployment (MQTT broker + REST
+  API). The service is an event consumer — it needs Scenescape to produce
   meaningful output.
 - Prepare your two config files (`scene-config.yaml` and `rules.yaml`). The
   service ships with samples under `configs/`; review the
@@ -22,14 +22,14 @@ samples so it starts out-of-the-box; supply your own files via a read-only
 volume mount (e.g. `-v ./configs:/app/configs:ro`) to override them — **no code
 changes required**.
 
-1. **`scene-config.yaml`** — how the service connects to SceneScape and what it
+1. **`scene-config.yaml`** — how the service connects to Scenescape and what it
    watches:
 
-   - `scenescape_api` — SceneScape REST base URL (used for zone auto-discovery).
-   - `mqtt` — broker host/port, TLS, and the SceneScape topic patterns to
+   - `scenescape_api` — Scenescape REST base URL (used for zone auto-discovery).
+   - `mqtt` — broker host/port, TLS, and the Scenescape topic patterns to
      subscribe to.
    - `scenes` — the scenes/cameras to track, and a mapping of zone **names**
-     (must match SceneScape region names) to zone **types**
+     (must match Scenescape region names) to zone **types**
      (`HIGH_VALUE`, `CHECKOUT`, `EXIT`, `RESTRICTED`).
    - `seaweedfs` / `alert_service` *(optional)* — evidence-frame storage and
      the downstream alert endpoint.
@@ -67,7 +67,7 @@ mqtt:
 
 A few identity/credential settings are supplied via environment variables
 (`STORE_ID`, `SCENESCAPE_API_USER`, `SCENESCAPE_API_PASSWORD`, `ALERT_SERVICE_URL`).
-MQTT and the SceneScape API URL are configured in `scene-config.yaml`, **not**
+MQTT and the Scenescape API URL are configured in `scene-config.yaml`, **not**
 through environment variables.
 
 See the [Configuration Guide](./get-started/configuration.md) for the full
@@ -75,42 +75,33 @@ field list, TLS setup, and how to disable behavioral analysis.
 
 ## Choose Deployment Path
 
-<!--hide_directive::::{tab-set}
-:::{tab-item}hide_directive--> **Run in Docker (Recommended)**
-<!--hide_directive:sync: Docker hide_directive-->
+Use the Docker path for the simplest setup with a released image. For local development or source builds, follow the linked guides below.
 
-The container image exposes the API on host port `8082` and reads its config
-from `/app/configs`. The image bakes in the sample config, so it starts
-out-of-the-box; mount your own `./configs` to override it.
+### Run with a released Docker image
 
-See [Run with Docker Compose](./get-started/run-container.md) for the full step-by-step guide.
-
-Quick start:
+The container exposes the API on host port `8082` and reads config from `/app/configs`.
+Use a versioned image tag instead of `latest` for reproducible deployments.
 
 ```bash
-docker build -t intel/scene-understanding-service:latest .
-docker run -p 8082:8082 \
-  -v ./configs:/app/configs:ro \
-  intel/scene-understanding-service:latest
+docker run --rm -p 8082:8082 \
+  -v "$PWD/configs:/app/configs:ro" \
+  intel/scene-understanding-service:<RELEASE_TAG>
+```
+
+Then verify:
+
+```bash
 curl --noproxy '*' http://127.0.0.1:8082/health
 ```
 
-<!--hide_directive:::
-:::{tab-item}hide_directive--> **Run on the Host**
-<!--hide_directive:sync: Host hide_directive-->
+For compose-based deployments and a complete production setup, see [Run with Docker Compose](./get-started/run-container.md).
 
-Run the service directly with Python. This path is useful for development.
+### For local development and source builds
 
-See [Run on the Host](./get-started/run-standalone.md) for the full step-by-step guide.
+- [Build from Source](./get-started/build-from-source.md)
+- [Run on the Host](./get-started/run-standalone.md)
 
-Quick start:
-
-```bash
-uv sync
-uv run python main.py
-```
-<!--hide_directive:::
-::::hide_directive-->
+Use those guides when you need to work from the repo, run with `uv`, or build a custom image.
 
 ## Verify
 
@@ -129,7 +120,7 @@ Expected response:
 Service readiness (includes runtime stats):
 
 ```bash
-curl --noproxy '*' http://127.0.0.1:8082/api/v1/lp/status
+curl --noproxy '*' http://127.0.0.1:8082/api/v1/sus/status
 ```
 
 ## Next Steps

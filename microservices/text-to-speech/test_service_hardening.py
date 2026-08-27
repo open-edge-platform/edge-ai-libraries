@@ -33,6 +33,14 @@ class ServiceHardeningTests(unittest.TestCase):
         }
 
     @staticmethod
+    def _synth_result(speaker="Ryan"):
+        """A pipeline result complete enough for the /v1/audio/speech response."""
+        result = ServiceHardeningTests._warmup_result()
+        result["speaker"] = speaker
+        result["session_id"] = "test-session"
+        return result
+
+    @staticmethod
     def _openai_error(message, error_type, *, param=None, code=None):
         return {
             "error": {
@@ -182,12 +190,48 @@ class ServiceHardeningTests(unittest.TestCase):
         self.assertEqual(
             response.json(),
             self._openai_error(
-                "SpeechT5 currently supports only the configured voice 'Ryan'.",
+                "Unsupported voice 'NotRyan'. "
+                "Supported voices: Ryan, Miles, Aaron, Nora, Elena, Kabir, Angus.",
                 "invalid_request_error",
                 code="invalid_request",
             ),
         )
         mock_pipeline.assert_not_called()
+
+    def test_generate_speech_accepts_speecht5_alternate_bundled_voice(self):
+        """A bundled voice other than the configured default must reach the pipeline."""
+        with patch("main.ensure_model"), patch("main.preload_models"), patch("main.Pipeline") as warmup_pipeline, patch("api.openai_endpoints.Pipeline") as mock_pipeline:
+            warmup_pipeline.return_value.synthesize.return_value = self._warmup_result()
+            mock_pipeline.return_value.synthesize.return_value = self._synth_result("Nora")
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/v1/audio/speech",
+                    json={
+                        "model": "microsoft/speecht5_tts",
+                        "input": "hello",
+                        "voice": "Nora",
+                        "response_format": "wav",
+                    },
+                )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_pipeline.return_value.synthesize.call_args.kwargs["speaker"], "Nora")
+
+    def test_generate_speech_accepts_speecht5_cmu_arctic_alias(self):
+        """CMU Arctic ids are accepted as aliases for the display names."""
+        with patch("main.ensure_model"), patch("main.preload_models"), patch("main.Pipeline") as warmup_pipeline, patch("api.openai_endpoints.Pipeline") as mock_pipeline:
+            warmup_pipeline.return_value.synthesize.return_value = self._warmup_result()
+            mock_pipeline.return_value.synthesize.return_value = self._synth_result("Ryan")
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/v1/audio/speech",
+                    json={
+                        "model": "microsoft/speecht5_tts",
+                        "input": "hello",
+                        "voice": "bdl",
+                        "response_format": "wav",
+                    },
+                )
+        self.assertEqual(response.status_code, 200)
 
     def test_generate_speech_rejects_non_english_language(self):
         with patch("main.ensure_model"), patch("main.preload_models"), patch("main.Pipeline") as warmup_pipeline, patch("api.openai_endpoints.Pipeline") as mock_pipeline:

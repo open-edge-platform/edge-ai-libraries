@@ -8,6 +8,7 @@ definition: >
 tags:
   - Smart Cities
 thumbnail: images/human-pose.png
+type: vision
 variants:
   - name: CPU
     pipeline_description: >-

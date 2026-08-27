@@ -39,6 +39,7 @@ services:
         HTTPS_PROXY: ${HTTPS_PROXY:-}
         no_proxy: ${no_proxy:-}
         NO_PROXY: ${NO_PROXY:-}
+        INSTALL_OPENVINO: ${INSTALL_OPENVINO:-false}
     container_name: metrics-manager
 
     # Environment configuration
@@ -136,6 +137,7 @@ services:
         HTTPS_PROXY: ${HTTPS_PROXY:-}
         no_proxy: ${no_proxy:-}
         NO_PROXY: ${NO_PROXY:-}
+        INSTALL_OPENVINO: ${INSTALL_OPENVINO:-false}
     container_name: metrics-manager-test
     restart: "no"
     profiles:

@@ -47,19 +47,6 @@ updates:
           - "*"
 
   - package-ecosystem: "pip"
-    directory: "/microservices/vlm-openvino-serving"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-    open-pull-requests-limit: 5
-    groups:
-      python-deps:
-        applies-to: version-updates
-        patterns:
-          - "*"
-
-  - package-ecosystem: "pip"
     directory: "/microservices/multimodal-embedding-serving"
     schedule:
       interval: "weekly"
@@ -76,6 +63,7 @@ updates:
     directory: "/microservices/document-ingestion/pgvector"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -86,9 +74,10 @@ updates:
           - "*"
 
   - package-ecosystem: "pip"
-    directory: "/microservices/visual-data-preparation-for-retrieval/vdms"
+    directory: "/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -102,6 +91,7 @@ updates:
     directory: "/microservices/model-download"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -115,22 +105,10 @@ updates:
   # Python (pip) — Sample Applications
   # ─────────────────────────────────────────
   - package-ecosystem: "pip"
-    directory: "/sample-applications/chat-question-and-answer"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-    open-pull-requests-limit: 5
-    groups:
-      python-deps:
-        applies-to: version-updates
-        patterns:
-          - "*"
-
-  - package-ecosystem: "pip"
     directory: "/sample-applications/chat-question-and-answer-core"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -144,6 +122,7 @@ updates:
     directory: "/sample-applications/document-summarization"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -157,6 +136,7 @@ updates:
     directory: "/sample-applications/video-search-and-summarization/mcp"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -170,6 +150,7 @@ updates:
     directory: "/sample-applications/video-search-and-summarization/search-ms"
     schedule:
       interval: "weekly"
+    versioning-strategy: lockfile-only
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -213,19 +194,6 @@ updates:
   # ─────────────────────────────────────────
   - package-ecosystem: "npm"
     directory: "/sample-applications/chat-question-and-answer-core/ui"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-    open-pull-requests-limit: 5
-    groups:
-      npm-deps:
-        applies-to: version-updates
-        patterns:
-          - "*"
-
-  - package-ecosystem: "npm"
-    directory: "/sample-applications/chat-question-and-answer/ui/react"
     schedule:
       interval: "weekly"
     cooldown:

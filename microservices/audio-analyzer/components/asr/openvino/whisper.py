@@ -3,13 +3,23 @@ import soundfile as sf
 import librosa, time
 import numpy as np
 import json
+import threading
 import whisper
 from openvino import Core
 import logging
 from utils.ensure_model import get_asr_model_path
 
-logger = logging.getLogger(__name__)  
- 
+logger = logging.getLogger(__name__)
+
+# OpenVINO compiled models / infer requests are not thread-safe when reused
+# concurrently: calling create_infer_request()/infer() on the same compiled
+# model from multiple threads at once raises "RuntimeError: Infer Request is
+# busy". ASRComponent shares a single Whisper instance (class-level
+# singleton) across all HTTP requests, so this lock serialises transcribe()
+# calls to prevent concurrent access to the shared encoder/decoder models —
+# mirroring the fix applied to the openai-whisper backend.
+_TRANSCRIBE_LOCK = threading.Lock()
+
 class Whisper(BaseASR):
     def __init__(self, model_name="whisper-small", device="CPU", revision=None):
         logger.info(f"Loading Model: model name={model_name}, device={device}")
@@ -55,7 +65,7 @@ class Whisper(BaseASR):
         logger.info(f"OpenVINO Whisper models loaded successfully. Decoder inputs: {self.decoder_input_names}")
  
     def transcribe(self, audio_path: str, temperature: float = 0.0, language: str | None = None) -> dict:
-        
+
         # --- Load audio ---
         audio, sr = self._load_wav_mono_16k(audio_path)
 
@@ -64,42 +74,43 @@ class Whisper(BaseASR):
         audio = audio.astype(np.float32)
         mel = whisper.log_mel_spectrogram(audio).numpy()[None, :]
 
-        # --- Encoder ---
-        encoder_output = self.encoder([mel])[0]
+        with _TRANSCRIBE_LOCK:
+            # --- Encoder ---
+            encoder_output = self.encoder([mel])[0]
 
-        # --- Decode ---
-        tokens = [
-            self.SOT,
-            self._tok(f"<|{language or 'en'}|>"),
-            self._tok("<|transcribe|>"),
-            self.TIMESTAMP_BEGIN
-        ]
+            # --- Decode ---
+            tokens = [
+                self.SOT,
+                self._tok(f"<|{language or 'en'}|>"),
+                self._tok("<|transcribe|>"),
+                self.TIMESTAMP_BEGIN
+            ]
 
-        for step in range(448):
-            inp = np.array(tokens, dtype=np.int64)[None, :]
-            seq_len = inp.shape[1]
+            for step in range(448):
+                inp = np.array(tokens, dtype=np.int64)[None, :]
+                seq_len = inp.shape[1]
 
-            # Prepare all possible inputs
-            possible_inputs = {
-                "input_ids": inp,
-                "encoder_hidden_states": encoder_output,
-                "cache_position": np.arange(seq_len, dtype=np.int64),
-                "beam_idx": np.zeros((1,), dtype=np.int32),
-            }
-            # Only include those supported by the model
-            inputs_map = {k: v for k, v in possible_inputs.items() if k in self.decoder_input_names}
+                # Prepare all possible inputs
+                possible_inputs = {
+                    "input_ids": inp,
+                    "encoder_hidden_states": encoder_output,
+                    "cache_position": np.arange(seq_len, dtype=np.int64),
+                    "beam_idx": np.zeros((1,), dtype=np.int32),
+                }
+                # Only include those supported by the model
+                inputs_map = {k: v for k, v in possible_inputs.items() if k in self.decoder_input_names}
 
-            req = self.decoder.create_infer_request()
-            req.infer(inputs_map)
+                req = self.decoder.create_infer_request()
+                req.infer(inputs_map)
 
-            logits = req.get_output_tensor(0).data
-            next_logits = logits[0, -1] if logits.ndim == 3 else logits[-1]
+                logits = req.get_output_tensor(0).data
+                next_logits = logits[0, -1] if logits.ndim == 3 else logits[-1]
 
-            next_token = int(np.argmax(next_logits))
-            tokens.append(next_token)
+                next_token = int(np.argmax(next_logits))
+                tokens.append(next_token)
 
-            if next_token == self.EOT:
-                break
+                if next_token == self.EOT:
+                    break
 
         # --- Clean output ---
         return self._clean_and_segment(tokens)

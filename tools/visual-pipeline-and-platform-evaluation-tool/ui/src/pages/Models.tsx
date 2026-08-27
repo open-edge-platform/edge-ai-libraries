@@ -12,6 +12,7 @@ import { useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 import { ModelsTable } from "@/features/models/ModelsTable.tsx";
+import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 const REQUIRED_MODEL_FILES = ["model.bin", "model.xml"];
 const ALLOWED_CATEGORIES = ["classification", "detection", "genai"] as const;
@@ -97,11 +98,24 @@ export const Models = () => {
 
   if (models.length > 0) {
     return (
-      <div className="container pl-16 mx-auto py-10">
+      <div className={CONTENT_CONTAINER_CLASS}>
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Models</h1>
           <p className="text-muted-foreground mt-2">
             Ready-to-use models available in the platform
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Not every uploaded model will work in ViPPET. Check supported
+            models:{" "}
+            <a
+              href="https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium underline underline-offset-2"
+            >
+              DL Streamer supported models
+            </a>
+            .
           </p>
         </div>
 

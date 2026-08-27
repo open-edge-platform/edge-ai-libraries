@@ -24,7 +24,7 @@ docker pull intel/metrics-manager:2026.1.0
 
 The image is based on `python:3.12-slim` and includes:
 
-- Telegraf 1.37.3 (system metrics agent)
+- Telegraf 1.39.3 (system metrics agent)
 - qmassa 1.3.1 (Intel® GPU telemetry)
 - Intel® NPU reader (`npu_reader.py`)
 - Python 3.12 runtime with FastAPI
@@ -88,7 +88,7 @@ This passes proxy settings both to the Docker build and to the running container
 docker compose up --build
 ```
 
-First build takes 3–10 minutes (downloads Rust toolchain to compile qmassa, Telegraf .deb, Python packages). Subsequent builds are cached and take under a minute.
+First build takes 3–10 minutes (compiles qmassa and Telegraf, then installs Python packages). Subsequent builds are cached and take under a minute.
 
 To run in the background:
 
@@ -397,12 +397,12 @@ docker compose down --rmi local
 
 ## Troubleshooting Installation
 
-| Issue                 | Solution                                                 |
-| --------------------- | -------------------------------------------------------- |
-| Port already in use   | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
-| Build fails           | Run `docker builder prune` to clear cache                |
-| Container won't start | Check logs: `docker logs metrics-manager`                |
-| No GPU/NPU metrics    | Expected if hardware not present; other metrics continue |
+| Issue                    | Solution                                                 |
+| ------------------------ | -------------------------------------------------------- |
+| Port already in use      | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
+| Build fails              | Run `docker builder prune` to clear cache                |
+| Container will not start | Check logs: `docker logs metrics-manager`                |
+| No GPU/NPU metrics       | Expected if hardware not present; other metrics continue |
 
 See [Troubleshooting](./troubleshooting.md) for more issues.
 

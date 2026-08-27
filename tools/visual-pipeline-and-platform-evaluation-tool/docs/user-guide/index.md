@@ -50,21 +50,54 @@ you to configure custom inputs, models, and execution paths for your own evaluat
 **Built-In Performance Visibility**: Throughput, latency, and system utilization metrics are collected
 in one place, making it easier to identify bottlenecks and compare platform behavior.
 
-## Resources
-
-- [Get Started](./get-started.md)
-- [User Guide](./user-guide.md)
-- [Developer Guide](./developer-guide.md)
-
 <!--hide_directive
+
 :::{toctree}
 :hidden:
 
-./get-started
-./user-guide
-./developer-guide
-./troubleshooting
-Release Notes <./release-notes.md>
+Go back to Libraries <https://docs.openedgeplatform.intel.com/dev/ai-libraries.html>
 
 :::
+
+:::{toctree}
+:hidden:
+:caption: Get Started
+
+ViPPET Overview <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html>
+./get-started/installation
+./get-started/quickstart
+
+:::
+
+:::{toctree}
+:hidden:
+:caption: User Guide
+
+./user-guide/input-management
+./user-guide/model-management
+./user-guide/pipeline-management
+./user-guide/benchmarking
+
+:::
+
+:::{toctree}
+:hidden:
+:caption: Developer Guide
+
+Architecture <./developer-guide/architecture>
+Performance Metrics <./developer-guide/metrics>
+./developer-guide/contributing-guide
+./troubleshooting
+
+:::
+
+:::{toctree}
+:hidden:
+:caption: ----------------------
+
+Release Notes <./release-notes>
+./get-started/support
+
+:::
+
 hide_directive-->

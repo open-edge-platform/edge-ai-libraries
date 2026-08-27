@@ -125,7 +125,7 @@ helm dependency build
 
 ### Step 5: Deploy the Helm Chart
 
-Deploy the Chat Question-and-Answer Core Helm chart:
+Deploy the Chat Q&A Core Helm chart:
 
 - Deploy with OpenVINO toolkit:
 

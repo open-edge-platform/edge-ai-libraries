@@ -1,0 +1,140 @@
+{
+    "skill_name": "chatqna-build",
+    "evals": [
+        {
+            "id": 1,
+            "prompt": "Build chatqna backend and ui images from source with default tags.",
+            "expected_output": "Provides direct docker build commands for backend and UI from the sample root with default tag behavior.",
+            "files": [],
+            "expectations": [
+                "Runs from sample-applications/chat-question-and-answer-core or equivalent project root context.",
+                "Uses docker build -f docker/Dockerfile for OpenVINO backend image.",
+                "Uses docker build -f ui/Dockerfile ui/ for UI image.",
+                "Uses resulting image names chatqna and chatqna-ui with default latest tags when not overridden."
+            ]
+        },
+        {
+            "id": 2,
+            "prompt": "Build OpenVINO GPU backend variant for chatqna.",
+            "expected_output": "Uses the OpenVINO Dockerfile with USE_GPU build argument for the GPU variant and preserves canonical image naming.",
+            "files": [],
+            "expectations": [
+                "Uses docker build with --build-arg USE_GPU=true.",
+                "Builds with docker/Dockerfile as source of truth for OpenVINO backend.",
+                "Tags resulting backend image as ${REGISTRY}chatqna:${BACKEND_TAG}.",
+                "Mentions that reusing the same BACKEND_TAG can overwrite local variant tags."
+            ]
+        },
+        {
+            "id": 3,
+            "prompt": "Build Ollama backend image and UI image with tag dev.",
+            "expected_output": "Provides commands to export tags and build the Ollama backend from the dedicated Dockerfile plus UI image.",
+            "files": [],
+            "expectations": [
+                "Uses docker/Dockerfile.ollama for backend build path.",
+                "Includes BACKEND_TAG and UI_TAG exports or equivalent explicit tags set to dev.",
+                "Builds backend image as ${REGISTRY}chatqna:${BACKEND_TAG} and UI image as ${REGISTRY}chatqna-ui:${UI_TAG}.",
+                "Includes docker build -f ui/Dockerfile ui/ for UI image build."
+            ]
+        },
+        {
+            "id": 4,
+            "prompt": "Build using docker compose for the active runtime profile only.",
+            "expected_output": "Uses setup_env profile selection and compose build-only workflow without starting containers.",
+            "files": [],
+            "expectations": [
+                "Uses source scripts/setup_env.sh with optional -d gpu or -b ollama profile selection.",
+                "Uses docker compose -f docker/compose.yaml build.",
+                "Keeps action in build-only mode and does not switch to compose up unless explicitly requested.",
+                "Treats docker/compose.yaml as canonical for image names and build contexts."
+            ]
+        },
+        {
+            "id": 5,
+            "prompt": "Set custom registry prefix intel/ and build tags before building images.",
+            "expected_output": "Configures REGISTRY and tags before build, and reflects resulting canonical image names.",
+            "files": [],
+            "expectations": [
+                "Includes export REGISTRY with a prefix such as intel/.",
+                "Includes export BACKEND_TAG and export UI_TAG before build commands.",
+                "States final backend image name pattern ${REGISTRY}chatqna:${BACKEND_TAG}.",
+                "States final UI image name pattern ${REGISTRY}chatqna-ui:${UI_TAG}."
+            ]
+        },
+        {
+            "id": 6,
+            "prompt": "I only want OpenVINO CPU backend image build, not GPU or Ollama.",
+            "expected_output": "Provides a CPU-only OpenVINO backend build command and avoids GPU or Ollama build paths.",
+            "files": [],
+            "expectations": [
+                "Uses docker build -t ${REGISTRY}chatqna:${BACKEND_TAG} -f docker/Dockerfile . for CPU path.",
+                "Does not include --build-arg USE_GPU=true for this request.",
+                "Does not switch to docker/Dockerfile.ollama for this request."
+            ]
+        },
+        {
+            "id": 7,
+            "prompt": "Verify that requested chatqna images were built correctly.",
+            "expected_output": "Provides post-build verification commands to confirm images and compose service definitions.",
+            "files": [],
+            "expectations": [
+                "Includes docker images with filtering for chatqna and chatqna-ui.",
+                "Includes docker compose -f docker/compose.yaml config --services.",
+                "Reports resulting local tags against requested REGISTRY and tags."
+            ]
+        },
+        {
+            "id": 8,
+            "prompt": "Build with proxy settings inherited from environment.",
+            "expected_output": "Preserves proxy environment usage for Docker builds and compose builds without introducing unrelated deployment actions.",
+            "files": [],
+            "expectations": [
+                "References use of http_proxy, https_proxy, and no_proxy as build-time inherited variables.",
+                "Keeps commands focused on build workflow.",
+                "Does not require Helm or runtime deployment commands for this request."
+            ]
+        },
+        {
+            "id": 9,
+            "prompt": "Are Makefile targets the source of truth for this build flow?",
+            "expected_output": "Clarifies that Dockerfiles and docker/compose.yaml are the build source of truth for this skill.",
+            "files": [],
+            "expectations": [
+                "States that docker/Dockerfile, docker/Dockerfile.ollama, ui/Dockerfile, and docker/compose.yaml are the canonical build sources.",
+                "Avoids treating Makefile as source of truth for this skill behavior."
+            ]
+        },
+        {
+            "id": 10,
+            "prompt": "What are prerequisites before running chatqna image builds?",
+            "expected_output": "Lists core prerequisites and runtime caveats relevant to build and subsequent usage.",
+            "files": [],
+            "expectations": [
+                "Requires Docker engine availability.",
+                "Requires Docker Compose plugin availability.",
+                "Mentions GPU host or runtime support caveat for later /dev/dri usage when building GPU variants."
+            ]
+        },
+        {
+            "id": 11,
+            "prompt": "Build OpenVINO GPU and then Ollama backend using the same BACKEND_TAG=latest.",
+            "expected_output": "Warns about local tag overwrite behavior when building multiple backend variants with the same tag.",
+            "files": [],
+            "expectations": [
+                "Explicitly warns that latest build can overwrite the local backend tag if BACKEND_TAG is reused.",
+                "Suggests using distinct backend tags when keeping multiple variants side by side."
+            ]
+        },
+        {
+            "id": 12,
+            "prompt": "After build, summarize what was built and suggest next actions.",
+            "expected_output": "Reports built image results and provides clear next actions aligned to deploy or push workflows.",
+            "files": [],
+            "expectations": [
+                "Summarizes which runtime or images were built successfully.",
+                "Reports resulting image tags.",
+                "Provides practical next action such as deploy with docker compose or push to registry."
+            ]
+        }
+    ]
+}

@@ -1,0 +1,141 @@
+{
+    "skill_name": "chatqna-run-unit-tests",
+    "evals": [
+        {
+            "id": 1,
+            "prompt": "I changed backend endpoints and UI components. Run unit tests.",
+            "expected_output": "Runs both backend and UI unit tests by default and reports command evidence with pass or fail summary.",
+            "files": [],
+            "expectations": [
+                "Defaults scope to both backend and ui when the user asks to run unit tests generally.",
+                "Runs backend tests before UI tests according to decision logic.",
+                "Includes explicit commands executed for each scope.",
+                "Reports pass or fail status and failing tests if any."
+            ]
+        },
+        {
+            "id": 2,
+            "prompt": "Run backend tests only for openvino runtime.",
+            "expected_output": "Executes backend-only pytest flow using openvino runtime selection.",
+            "files": [],
+            "expectations": [
+                "Selects backend scope only.",
+                "Uses uv run pytest with --model-runtime=openvino.",
+                "Does not run UI test commands for this request.",
+                "Provides command evidence and outcome summary."
+            ]
+        },
+        {
+            "id": 3,
+            "prompt": "Run backend unit tests for ollama runtime.",
+            "expected_output": "Executes backend tests with explicit ollama runtime and reports test outcomes.",
+            "files": [],
+            "expectations": [
+                "Uses uv run pytest with --model-runtime=ollama.",
+                "Keeps scope to backend only unless user asks for ui too.",
+                "Reports pass or fail with failing test identifiers if present."
+            ]
+        },
+        {
+            "id": 4,
+            "prompt": "Run UI unit tests only.",
+            "expected_output": "Executes vitest command flow in the ui directory without backend test execution.",
+            "files": [],
+            "expectations": [
+                "Changes into ui directory context.",
+                "Uses npm run test for UI unit tests.",
+                "Does not run backend pytest commands for this request.",
+                "Reports test result summary with evidence."
+            ]
+        },
+        {
+            "id": 5,
+            "prompt": "Run all unit tests with coverage.",
+            "expected_output": "Runs backend and UI coverage flows using the skill-defined coverage commands.",
+            "files": [],
+            "expectations": [
+                "Uses backend coverage flags --cov=app --cov-report=term-missing with selected runtime.",
+                "Uses npm run coverage for UI coverage.",
+                "Reports both backend and UI coverage execution outcomes."
+            ]
+        },
+        {
+            "id": 6,
+            "prompt": "I changed app code, run tests, but skip UI.",
+            "expected_output": "Honors narrowed scope and runs backend tests only while reporting commands and results.",
+            "files": [],
+            "expectations": [
+                "Runs backend test workflow only.",
+                "Selects default backend runtime openvino when not provided.",
+                "Includes uv run pytest --model-runtime=openvino or equivalent explicit default runtime command."
+            ]
+        },
+        {
+            "id": 7,
+            "prompt": "Run a targeted backend test file tests/test_server.py with openvino.",
+            "expected_output": "Uses targeted pytest invocation for the requested file with explicit runtime.",
+            "files": [],
+            "expectations": [
+                "Uses uv run pytest tests/test_server.py --model-runtime=openvino or equivalent targeted command.",
+                "Keeps output focused on requested file run.",
+                "Reports targeted pass or fail evidence."
+            ]
+        },
+        {
+            "id": 8,
+            "prompt": "Run only tests matching Conversation in UI.",
+            "expected_output": "Runs a narrowed UI test pattern using npm test pass-through arguments.",
+            "files": [],
+            "expectations": [
+                "Uses npm run test with pattern pass-through argument, such as npm run test -- Conversation.",
+                "Keeps scope to UI tests only.",
+                "Reports matched test results."
+            ]
+        },
+        {
+            "id": 9,
+            "prompt": "I changed code but do not run tests.",
+            "expected_output": "Acknowledges explicit user opt-out and skips unit-test execution.",
+            "files": [],
+            "expectations": [
+                "Recognizes explicit opt-out language and does not run tests.",
+                "States tests were skipped by user request.",
+                "Avoids issuing pytest or vitest execution commands."
+            ]
+        },
+        {
+            "id": 10,
+            "prompt": "uv is missing when trying to run backend tests. What should happen?",
+            "expected_output": "Provides actionable remediation for missing uv and then resumes backend test workflow.",
+            "files": [],
+            "expectations": [
+                "Detects uv availability issue.",
+                "Advises installing uv and re-running sync or tests.",
+                "Continues with backend test command after remediation guidance."
+            ]
+        },
+        {
+            "id": 11,
+            "prompt": "UI tests fail due to missing node_modules.",
+            "expected_output": "Recommends npm dependency installation in ui and retries test execution.",
+            "files": [],
+            "expectations": [
+                "Runs or suggests npm install in ui directory.",
+                "Retries npm run test after dependency setup.",
+                "Reports failing tests and first actionable error if still failing."
+            ]
+        },
+        {
+            "id": 12,
+            "prompt": "Some tests are failing. Give me the result summary.",
+            "expected_output": "Returns concise pass or fail evidence with failing test identifiers and actionable next step.",
+            "files": [],
+            "expectations": [
+                "Includes exact commands used in the run.",
+                "Includes failing test names or identifiers.",
+                "Includes first actionable traceback or error lines.",
+                "Provides a clear next debugging step."
+            ]
+        }
+    ]
+}

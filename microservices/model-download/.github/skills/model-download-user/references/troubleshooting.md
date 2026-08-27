@@ -96,6 +96,7 @@ docker logs model-download 2>&1 | grep -A 20 "ERROR\|Traceback\|Exception"
   "name": "meta-llama/Llama-3.2-1B",
   "hub": "openvino",
   "type": "llm",
+  "is_ovms": true,
   "config": {
     "precision": "int4",
     "device": "NPU"

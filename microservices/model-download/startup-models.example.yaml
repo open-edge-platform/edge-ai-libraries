@@ -1,0 +1,21 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+download_path: loadup/
+parallel_downloads: false
+models:
+  - name: <Model-name>
+    hub: huggingface
+    type: embeddings
+  - name: <Model-name>
+    hub: ultralytics
+    type: vision
+    download_path: vision
+  - name: <Model-name>
+    hub: openvino
+    type: llm
+    is_ovms: true
+    config:
+      precision: int8
+      device: CPU
+      cache_size: 10

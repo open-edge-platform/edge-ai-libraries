@@ -1,0 +1,50 @@
+[
+    {
+        "query": "Build chatqna backend and ui images from source.",
+        "should_trigger": true
+    },
+    {
+        "query": "Rebuild OpenVINO CPU image with BACKEND_TAG=dev and UI_TAG=dev.",
+        "should_trigger": true
+    },
+    {
+        "query": "Build OpenVINO GPU backend image using docker build args.",
+        "should_trigger": true
+    },
+    {
+        "query": "Build Ollama backend plus UI image for local testing.",
+        "should_trigger": true
+    },
+    {
+        "query": "Use docker compose build only for the active chatqna profile.",
+        "should_trigger": true
+    },
+    {
+        "query": "Prepare chatqna images with registry prefix intel/ before deployment.",
+        "should_trigger": true
+    },
+    {
+        "query": "Show me docker build commands for chatqna and chatqna-ui images.",
+        "should_trigger": true
+    },
+    {
+        "query": "Deploy chatqna core with docker compose and verify health endpoint.",
+        "should_trigger": false
+    },
+    {
+        "query": "Deploy chatqna core to kubernetes using helm in namespace ai.",
+        "should_trigger": false
+    },
+    {
+        "query": "Uninstall chatqna-core helm release from namespace rag.",
+        "should_trigger": false
+    },
+    {
+        "query": "Fix a failing Python unit test in tests/test_server.py.",
+        "should_trigger": false
+    },
+    {
+        "query": "Configure nginx ingress TLS for Kubernetes workloads.",
+        "should_trigger": false
+    }
+]

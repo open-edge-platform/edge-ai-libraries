@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Service
+metadata:
+  name: "vector-retriever"
+  labels:
+    {{- include "vector-retriever.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 8000
+      protocol: TCP
+      name: {{ .Values.service.portName }}
+  selector:
+    app.kubernetes.io/name: {{ include "vector-retriever.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}

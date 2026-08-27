@@ -50,7 +50,7 @@ class ConfigService:
         self._config_dir = Path(os.environ.get("CONFIG_DIR", "/app/configs"))
         if not self._config_dir.exists():
             # Fallback for local development: configs/ next to src/
-            self._config_dir = Path(__file__).resolve().parent.parent.parent / "configs"
+            self._config_dir = Path(__file__).resolve().parent.parent / "configs"
         _cfg = self._load_yaml("scene-config.yaml")
         self._app_cfg = _cfg
         self._zone_cfg = _cfg
@@ -167,14 +167,16 @@ class ConfigService:
         return self._app_cfg.get("mqtt", {})
 
     def get_mqtt_host(self) -> str:
-        return os.environ.get(
-            "MQTT_HOST", self.get_mqtt_config().get("host", "localhost")
-        )
+        env_value = os.environ.get("MQTT_HOST")
+        if env_value and env_value.strip():
+            return env_value.strip()
+        return self.get_mqtt_config().get("host", "localhost")
 
     def get_mqtt_port(self) -> int:
-        return int(
-            os.environ.get("MQTT_PORT", self.get_mqtt_config().get("port", 1883))
-        )
+        env_value = os.environ.get("MQTT_PORT")
+        if env_value and env_value.strip():
+            return int(env_value.strip())
+        return int(self.get_mqtt_config().get("port", 1883))
 
     def get_scene_name(self) -> Optional[str]:
         """Return first configured scene name (backward compat). Use get_scene_names() for multi-scene."""
@@ -252,7 +254,7 @@ class ConfigService:
         )
 
     def get_alert_topic_prefix(self) -> str:
-        return self.get_mqtt_config().get("alert_topic_prefix", "lp/alerts")
+        return self.get_mqtt_config().get("alert_topic_prefix", "sus/alerts")
 
     def get_ba_request_topic(self) -> str:
         return os.environ.get(
@@ -268,7 +270,19 @@ class ConfigService:
 
     # ---- seaweedfs ----
     def get_seaweedfs_config(self) -> dict:
-        return self._app_cfg.get("seaweedfs", {})
+        """Return SeaweedFS config from YAML or environment variables."""
+        cfg = self._app_cfg.get("seaweedfs", {})
+        # If not in YAML, check environment variables
+        if not cfg:
+            endpoint = os.environ.get("SEAWEEDFS_ENDPOINT", "")
+            bucket = os.environ.get("SEAWEEDFS_BUCKET", "")
+            if endpoint:
+                cfg = {
+                    "endpoint": endpoint.replace("http://", "").replace("https://", ""),
+                    "bucket": bucket or "behavioral-frames",
+                    "secure": endpoint.startswith("https://"),
+                }
+        return cfg
 
     # ---- external services ----
     def get_behavioral_analysis_config(self) -> dict:

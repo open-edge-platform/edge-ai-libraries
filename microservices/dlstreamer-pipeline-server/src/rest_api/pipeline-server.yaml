@@ -210,42 +210,6 @@ paths:
                 $ref: '#/components/schemas/PipelineInstanceSummary'
           description: Success
       x-openapi-router-controller: src.rest_api.endpoints.Endpoints
-  /pipelines/{name}/{version}/{instance_id}/models:
-    post:
-      description: Download files from the model registry microservice associated with a specific model.
-      operationId: pipelines_name_version_instance_id_models_files_post
-      parameters:
-        - explode: false
-          in: path
-          name: name
-          required: true
-          schema:
-            type: string
-          style: simple
-        - explode: false
-          in: path
-          name: version
-          required: true
-          schema:
-            type: string
-          style: simple
-        - explode: false
-          in: path
-          name: instance_id
-          required: true
-          schema:
-            type: string
-          style: simple
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ModelQueryParams'
-        required: true
-      responses:
-        200:
-          description: Success
-      x-openapi-router-controller: src.rest_api.endpoints.Endpoints
   /pipelines/{instance_id}:
     delete:
       description: Stop pipeline instance.
@@ -811,37 +775,6 @@ components:
         - name
         - type
         - version
-      type: object
-    ModelQueryParams:
-      example:
-        project_name: person-detection
-        version: v1
-        category: Detection
-        architecture: YOLO
-        precision: FP32
-        deploy: true
-      properties:
-        name:
-          type: string
-          description: The name associated to a model.
-        category:
-          type: string
-          description: The category associated to a model.
-        architecture:
-          type: string
-          description: The architecture associated to a model.
-        precision:
-          type: string
-          description: The precision associated to a model.
-        project_name:
-          type: string
-          description: The name of the project associated to a model.
-        version:
-          type: string
-          description: The version of a model.
-        deploy:
-          type: boolean
-          description: Indicates whether to start a new pipeline instance using the specified model and stop the current pipeline instance.
       type: object
     Pipeline_parameters:
       example:

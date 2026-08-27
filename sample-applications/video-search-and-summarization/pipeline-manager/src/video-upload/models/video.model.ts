@@ -33,3 +33,8 @@ export interface VideoRO {
 export interface SearchEmbeddingsDTO {
   tags?: string;
 }
+
+export interface SearchEmbeddingsBatchDTO {
+  videoIds: string[];
+  tags?: string;
+}

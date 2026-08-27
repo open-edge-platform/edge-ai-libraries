@@ -10,6 +10,11 @@ from internal_types import (
     InternalValidationJobStatus,
     InternalValidationJobSummary,
 )
+from managers.execution_coordinator import (
+    ExecutionCoordinator,
+    ExecutionLease,
+    PIPELINE_EXECUTION_GROUP,
+)
 from pipeline_runner import PipelineRunner
 
 logger = logging.getLogger("validation_manager")
@@ -113,30 +118,48 @@ class ValidationManager:
         hard_timeout = max_runtime + 60
 
         job_id = self._generate_job_id()
-        job = InternalValidationJob(
-            id=job_id,
-            request=validation_request,
-            state=InternalValidationJobState.RUNNING,
-            start_time=int(time.time() * 1000),  # milliseconds
-            pipeline_description=pipeline_description,
+        execution_lease = ExecutionCoordinator().acquire(
+            job_id=job_id,
+            job_kind="validation",
+            groups=[PIPELINE_EXECUTION_GROUP],
         )
 
-        with self._jobs_lock:
-            self.jobs[job_id] = job
+        try:
+            job = InternalValidationJob(
+                id=job_id,
+                request=validation_request,
+                state=InternalValidationJobState.RUNNING,
+                start_time=int(time.time() * 1000),  # milliseconds
+                pipeline_description=pipeline_description,
+            )
 
-        self.logger.info(
-            "Validation started for job %s with max-runtime=%s, hard-timeout=%s",
-            job_id,
-            max_runtime,
-            hard_timeout,
-        )
+            with self._jobs_lock:
+                self.jobs[job_id] = job
 
-        thread = threading.Thread(
-            target=self._execute_validation,
-            args=(job_id, pipeline_description, max_runtime, hard_timeout),
-            daemon=True,
-        )
-        thread.start()
+            self.logger.info(
+                "Validation started for job %s with max-runtime=%s, hard-timeout=%s",
+                job_id,
+                max_runtime,
+                hard_timeout,
+            )
+
+            thread = threading.Thread(
+                target=self._execute_validation,
+                args=(
+                    job_id,
+                    pipeline_description,
+                    max_runtime,
+                    hard_timeout,
+                    execution_lease,
+                ),
+                daemon=True,
+            )
+            thread.start()
+        except Exception:
+            with self._jobs_lock:
+                self.jobs.pop(job_id, None)
+            ExecutionCoordinator().release(execution_lease)
+            raise
 
         return job_id
 
@@ -146,6 +169,7 @@ class ValidationManager:
         pipeline_description: str,
         max_runtime: int,
         hard_timeout: int,
+        execution_lease: ExecutionLease | None = None,
     ) -> None:
         """
         Execute the validation process in a background thread.
@@ -214,6 +238,9 @@ class ValidationManager:
         except Exception as e:
             # Any unexpected exception is treated as a FAILED state
             self._update_job_error(job_id, str(e))
+        finally:
+            if execution_lease is not None:
+                ExecutionCoordinator().release(execution_lease)
 
     def _update_job_error(self, job_id: str, error_message: str) -> None:
         """

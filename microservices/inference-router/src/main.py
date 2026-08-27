@@ -99,6 +99,18 @@ def build_app() -> FastAPI:
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
+    # Crash recovery: an interrupted config write (see ``_atomic_write_yaml``)
+    # can leave a stale ``<config>.tmp`` sibling. The real config was never
+    # touched — ``os.replace`` is atomic — so it is safe to just remove the
+    # leftover so it can't be mistaken for live state or block a later rename.
+    stale_tmp = config_path.with_name(f"{config_path.name}.tmp")
+    if stale_tmp.exists():
+        try:
+            stale_tmp.unlink()
+            logger.warning("Removed stale config temp file from an interrupted write: %s", stale_tmp)
+        except OSError as exc:
+            logger.warning("Could not remove stale config temp file %s: %s", stale_tmp, exc)
+
     logger.info(f"Loading config from {config_path}")
     config = load_config(str(config_path))
     setup_logging(config)
@@ -117,6 +129,7 @@ def build_app() -> FastAPI:
         router,
         config,
         telemetry,
+        config_path=config_path,
         max_concurrency=max_concurrency,
         verbose=verbose,
         verbose_full=verbose_full,
@@ -181,8 +194,19 @@ app: FastAPI = build_app()
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Inference Router API Server")
-    parser.add_argument("--host", default="0.0.0.0", help="Host to bind")
-    parser.add_argument("--port", type=int, default=8080, help="Port to bind")
+    # Default to loopback (local-only). Export IR_BIND_HOST=0.0.0.0 (or pass
+    # --host explicitly) to expose the router to other machines.
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("IR_BIND_HOST", "127.0.0.1"),
+        help="Host to bind (default: 127.0.0.1; set IR_BIND_HOST to override)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("ROUTER_PORT", "8080")),
+        help="Port to bind (default: 8080; set ROUTER_PORT to override)",
+    )
     parser.add_argument("--config", default="config.yaml", help="Path to config file")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     parser.add_argument(

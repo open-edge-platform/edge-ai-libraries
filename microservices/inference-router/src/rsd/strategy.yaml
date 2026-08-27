@@ -38,3 +38,12 @@ strategies:
     description: "Routes requests based on no cost provider."
     provider_selector:
       cost: 0
+
+  - name: IntelligentRouting
+    description: "Routes with the intelligent model-based classifier (0 -> local, 1 -> cloud)."
+    rules:
+      - type: IntelligentRule
+    provider_selector:
+      label:
+        0: local
+        1: cloud

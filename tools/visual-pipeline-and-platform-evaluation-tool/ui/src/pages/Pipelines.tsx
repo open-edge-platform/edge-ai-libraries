@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   useConvertSimpleToAdvancedMutation,
   useGetPerformanceJobStatusQuery,
@@ -13,7 +13,7 @@ import {
   type Node as ReactFlowNode,
   type Viewport,
 } from "@xyflow/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PipelineEditorCanvas, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
@@ -24,6 +24,7 @@ import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
 import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButton.tsx";
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
+import TimeseriesOutputPanel from "@/features/pipeline-editor/TimeseriesOutputPanel.tsx";
 import { aggregateLatencyTracerMetrics } from "@/hooks/useFrozenMetrics";
 import { toast } from "@/lib/toast";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
@@ -53,8 +54,8 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { BackButton } from "@/components/shared/BackButton";
 import {
-  ArrowLeft,
   Braces,
   Eye,
   Film,
@@ -66,6 +67,10 @@ import {
   Undo2,
 } from "lucide-react";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
+import { NavigationGuard } from "@/components/shared/NavigationGuard";
+import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog.tsx";
+import { extractModelNamesFromNodes } from "@/features/models/modelNames.ts";
+import { useRequiredModelsStatus } from "@/features/models/useRequiredModelsStatus.ts";
 type UrlParams = {
   id: string;
   variant: string;
@@ -160,11 +165,13 @@ export const Pipelines = () => {
   );
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
+  const [timeseriesStarted, setTimeseriesStarted] = useState(false);
   const nodeDetailsPanelSizeRef = useRef(24);
   const runPanelSizeRef = useRef(35);
   const detailsPanelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const pipelineEditorRef = useRef<PipelineEditorHandle>(null);
+  const startedToastJobIdRef = useRef<string | null>(null);
 
   const {
     currentNodes,
@@ -194,9 +201,25 @@ export const Pipelines = () => {
   const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
   const [updateVariant] = useUpdateVariantMutation();
 
+  const requiredModels = useMemo(() => {
+    const variantData = data?.variants.find((v) => v.id === variant);
+    return extractModelNamesFromNodes(variantData?.pipeline_graph.nodes);
+  }, [data, variant]);
+
+  const {
+    modelStatuses: pipelineModelStatuses,
+    isDialogOpen: modelStatusDialogOpen,
+    setIsDialogOpen: setModelStatusDialogOpen,
+    refresh: refreshRequiredModels,
+  } = useRequiredModelsStatus(requiredModels, {
+    skip: !data || !variant,
+    errorMessage: "Failed to check models used in pipeline",
+  });
+
   const {
     execute: runPipeline,
     isLoading: isPipelineRunning,
+    isPolling: isPipelinePolling,
     isJobCancelled,
     jobId,
     jobStatus,
@@ -206,6 +229,17 @@ export const Pipelines = () => {
   });
 
   useActiveJobSync(jobId);
+
+  useEffect(() => {
+    if (!jobId || startedToastJobIdRef.current === jobId) {
+      return;
+    }
+
+    startedToastJobIdRef.current = jobId;
+    toast.success("Pipeline run started", {
+      description: new Date().toISOString(),
+    });
+  }, [jobId]);
 
   // Reset editor state when variant changes
   useEffect(() => {
@@ -276,12 +310,15 @@ export const Pipelines = () => {
   };
 
   const handleNodeSelect = (node: ReactFlowNode | null) => {
-    if (jobStatus?.state === "RUNNING") {
+    if (
+      jobStatus?.state === "RUNNING" &&
+      !data?.tags?.includes("Time Series")
+    ) {
       return;
     }
 
     setSelectedNode(node);
-    setShowDetailsPanel(!!node);
+    setShowDetailsPanel(!!node || timeseriesStarted);
 
     if (node) {
       setCompletedVideoPath(null);
@@ -307,6 +344,14 @@ export const Pipelines = () => {
 
   const handleRunPipeline = async () => {
     if (!id || !variant) return;
+
+    // Time Series pipelines don't use GStreamer — just show the output panel
+    if (data?.tags?.includes("Time Series")) {
+      setTimeseriesStarted(true);
+      setShowDetailsPanel(true);
+      setSelectedNode(null);
+      return;
+    }
 
     setCompletedVideoPath(null);
     setShowDetailsPanel(true);
@@ -345,10 +390,6 @@ export const Pipelines = () => {
         (n) => n.type === "gvametapublish",
       );
 
-      toast.success("Pipeline run started", {
-        description: new Date().toISOString(),
-      });
-
       const status = await runPipeline({
         performanceTestSpec: {
           pipeline_performance_specs: [
@@ -363,8 +404,7 @@ export const Pipelines = () => {
           execution_config: {
             output_mode: outputMode,
             max_runtime: maxRuntimeSeconds,
-            metadata_mode:
-              hasMetadata && metadataEnabled ? "file" : "disabled",
+            metadata_mode: hasMetadata && metadataEnabled ? "file" : "disabled",
             enable_latency_metrics: latencyMetricsEnabled,
           },
         },
@@ -463,15 +503,21 @@ export const Pipelines = () => {
   }, [showDetailsPanel, jobStatus?.state, completedVideoPath]);
 
   if (isSuccess && data) {
-    const detailsPanelType: "node" | "run" | null = showDetailsPanel
-      ? selectedNode
-        ? "node"
-        : "run"
-      : null;
+    const isTimeSeriesPipeline = data.tags?.includes("Time Series") ?? false;
+    const detailsPanelType: "node" | "run" | "timeseries" | null =
+      showDetailsPanel
+        ? selectedNode
+          ? "node"
+          : isTimeSeriesPipeline && timeseriesStarted
+            ? "timeseries"
+            : isTimeSeriesPipeline
+              ? null
+              : "run"
+        : null;
     const activePanelSize =
       detailsPanelType === "node"
         ? nodeDetailsPanelSizeRef.current
-        : detailsPanelType === "run"
+        : detailsPanelType === "run" || detailsPanelType === "timeseries"
           ? runPanelSizeRef.current
           : 0;
     const currentVariantData = data.variants.find((v) => v.id === variant);
@@ -480,6 +526,12 @@ export const Pipelines = () => {
       currentVariantData?.pipeline_graph.nodes.some(
         (n) => n.type === "gvametapublish",
       ) ?? false;
+    const hasMissingRequiredModels = pipelineModelStatuses.some(
+      (item) => item.installStatus !== "installed",
+    );
+    const missingRequiredModels = pipelineModelStatuses
+      .filter((item) => item.installStatus !== "installed")
+      .map((item) => item.model);
 
     const editorContent = (
       <div className="w-full h-full relative">
@@ -502,7 +554,9 @@ export const Pipelines = () => {
             shouldFitView={shouldFitView}
             isSimpleGraph={isSimpleMode}
             showDetailsPanel={showDetailsPanel}
-            detailsPanelType={detailsPanelType}
+            detailsPanelType={
+              detailsPanelType === "timeseries" ? "run" : detailsPanelType
+            }
           />
         </div>
       </div>
@@ -510,14 +564,14 @@ export const Pipelines = () => {
 
     return (
       <div className="flex flex-col h-full w-full">
+        <NavigationGuard
+          when={isPipelinePolling}
+          title="Pipeline run in progress"
+          description="This page is still polling the active pipeline run. Stop the run or wait for it to finish before leaving this page."
+        />
         <header className="flex h-[3.75rem] shrink-0 items-center gap-2 justify-between transition-[width,height] ease-linear border-b">
           <div className="flex flex-wrap items-center gap-2 px-2">
-            <Link
-              to={source === "dashboard" ? "/" : "/pipelines"}
-              className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent/50 transition-colors"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
+            <BackButton to={source === "dashboard" ? "/" : "/pipelines"} />
             {id && <PipelineName pipelineId={id} />}
             {id && variant && (
               <PipelineVariantSelect
@@ -861,6 +915,26 @@ export const Pipelines = () => {
                 isStopping={isStopping}
                 onStop={handleStopPipeline}
               />
+            ) : hasMissingRequiredModels ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <RunPipelineButton
+                      onRun={handleRunPipeline}
+                      isRunning={isPipelineRunning}
+                      disabled
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-80">
+                  <p>Install all required models first.</p>
+                  {missingRequiredModels.length > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground break-words">
+                      Missing: {missingRequiredModels.join(", ")}
+                    </p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
             ) : (
               <RunPipelineButton
                 onRun={handleRunPipeline}
@@ -914,9 +988,7 @@ export const Pipelines = () => {
                   defaultSize={runPanelSizeRef.current}
                   minSize={640}
                   onResize={(size) => {
-                    if (typeof size === "number") {
-                      runPanelSizeRef.current = size;
-                    }
+                    runPanelSizeRef.current = size.asPercentage;
                   }}
                 >
                   <div
@@ -950,6 +1022,24 @@ export const Pipelines = () => {
               </>
             )}
 
+            {detailsPanelType === "timeseries" && (
+              <>
+                <ResizableHandle withHandle />
+
+                <ResizablePanel
+                  defaultSize={runPanelSizeRef.current}
+                  minSize={640}
+                  onResize={(size) => {
+                    runPanelSizeRef.current = size.asPercentage;
+                  }}
+                >
+                  <div className="w-full h-full bg-background overflow-y-auto overflow-x-hidden relative [scrollbar-gutter:stable]">
+                    <TimeseriesOutputPanel />
+                  </div>
+                </ResizablePanel>
+              </>
+            )}
+
             {detailsPanelType === "node" && (
               <>
                 <ResizableHandle withHandle />
@@ -958,9 +1048,7 @@ export const Pipelines = () => {
                   defaultSize={nodeDetailsPanelSizeRef.current}
                   minSize={400}
                   onResize={(size) => {
-                    if (typeof size === "number") {
-                      nodeDetailsPanelSizeRef.current = size;
-                    }
+                    nodeDetailsPanelSizeRef.current = size.asPercentage;
                   }}
                 >
                   <div
@@ -969,6 +1057,7 @@ export const Pipelines = () => {
                   >
                     <NodeDataPanel
                       selectedNode={selectedNode}
+                      pipelineId={data?.id}
                       onNodeDataUpdate={handleNodeDataUpdate}
                     />
                   </div>
@@ -977,6 +1066,12 @@ export const Pipelines = () => {
             )}
           </ResizablePanelGroup>
         </div>
+        <PipelineModelsRequiredDialog
+          open={modelStatusDialogOpen}
+          onOpenChange={setModelStatusDialogOpen}
+          models={pipelineModelStatuses}
+          onModelsChanged={refreshRequiredModels}
+        />
       </div>
     );
   }

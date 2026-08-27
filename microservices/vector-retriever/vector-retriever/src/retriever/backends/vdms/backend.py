@@ -46,6 +46,39 @@ class VDMSBackend(VDMS):
             metadatas = [self._encode_list_metadata(m) for m in metadatas]
         return super().add_texts(texts, metadatas=metadatas, **kwargs)
 
+    def _refresh_collection_properties(self) -> None:
+        """Re-sync the cached descriptor-set property list from VDMS.
+
+        ``langchain-vdms`` snapshots the collection's property names when the
+        store is constructed and only refreshes them after a write (guarded by
+        its ``updated_properties_flag``). A read-only retriever whose store was
+        created *before* any data was ingested therefore keeps an empty/stale
+        property list, and because the query builder only requests the
+        properties it knows about (``results={"list": self.collection_properties}``)
+        every hit comes back with empty ``metadata``. This forces a refresh so
+        results carry the metadata persisted by the writer (``multimodal-dataprep``)
+        even when the collection was empty at startup or gained new fields after
+        the store was cached.
+        """
+        try:
+            self.updated_properties_flag = True
+            super().check_and_update_properties()
+        except Exception as exc:  # pragma: no cover - defensive, non-fatal
+            logger.warning("Failed to refresh VDMS collection properties: %s", exc)
+
+    def check_and_update_properties(self) -> None:
+        """Always re-read the descriptor-set properties from VDMS.
+
+        ``query_by_embeddings`` (the shared code path for every similarity
+        search, text or vector) calls this at the start of each query, but the
+        base implementation is a no-op unless ``updated_properties_flag`` is set
+        — a flag only raised by the write path. Overriding here (rather than the
+        ``similarity_search_*`` methods) keeps those methods' signatures intact
+        so the service's ``inspect.signature`` based ``fetch_k`` dispatch keeps
+        working, while still guaranteeing metadata is populated on read.
+        """
+        self._refresh_collection_properties()
+
 
 @lru_cache(maxsize=1)
 def get_vectordb() -> VectorStoreBackend:

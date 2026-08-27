@@ -20,6 +20,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { toast } from "sonner";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
+import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 export const Videos = () => {
   const { data: videos, isSuccess, isLoading } = useGetVideosQuery();
@@ -85,7 +86,7 @@ export const Videos = () => {
   }
 
   return (
-    <div className="container pl-16 mx-auto py-10">
+    <div className={CONTENT_CONTAINER_CLASS}>
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Videos</h1>
         <p className="text-muted-foreground mt-2">
@@ -106,7 +107,7 @@ export const Videos = () => {
       />
 
       {filteredVideos.length > 0 ? (
-        <Table>
+        <Table className="mb-10">
           <TableCaption>A list of loaded videos.</TableCaption>
           <TableHeader>
             <TableRow>

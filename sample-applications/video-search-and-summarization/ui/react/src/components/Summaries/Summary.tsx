@@ -5,7 +5,7 @@ import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { SummaryActions, SummarySelector } from '../../redux/summary/summarySlice';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { StateActionStatus, SystemConfigWithMeta, UIState } from '../../redux/summary/summary';
+import { EVAMPipelines, StateActionStatus, SystemConfigWithMeta, UIState } from '../../redux/summary/summary';
 import { AILabel, AILabelContent, IconButton, Modal, ModalBody, Tag } from '@carbon/react';
 
 import { Renew, Download, Headphones } from '@carbon/icons-react';
@@ -357,6 +357,8 @@ export const Summary: FC = () => {
       content += `|------------|-------|--------|\n`;
       if (selectedSummary.inferenceConfig?.objectDetection) {
         content += `| Object Detection | ${selectedSummary.inferenceConfig.objectDetection.model} | ${selectedSummary.inferenceConfig.objectDetection.device} |\n`;
+      } else {
+        content += `| Object Detection | Disabled | - |\n`;
       }
       if (selectedSummary.inferenceConfig?.imageInference) {
         content += `| VLM | ${selectedSummary.inferenceConfig.imageInference.model} | ${selectedSummary.inferenceConfig.imageInference.device} |\n`;
@@ -400,6 +402,13 @@ export const Summary: FC = () => {
 
   const SummaryHero = () => {
     const summaryData = selectedSummary!;
+    // Simple ingestion runs no detection model, so the configured object
+    // detection model must not be advertised for those pipelines. Fall back to
+    // the reported inference config so summaries persisted before this
+    // distinction existed still render their recorded model.
+    const objectDetectionEnabled =
+      summaryData.systemConfig.evamPipeline === EVAMPipelines.OBJECT_DETECTION ||
+      !!summaryData.inferenceConfig?.objectDetection;
     return (
       <SummaryTitle>
         <div className='video-container'>
@@ -433,16 +442,22 @@ export const Summary: FC = () => {
                       })}
                     </li>
                   )}
-                  <li>
-                    {t('aiModel', {
-                      model: summaryData.inferenceConfig?.objectDetection?.model ?? 'N/A',
-                    })}
-                  </li>
-                  <li>
-                    {t('runningOn', {
-                      device: summaryData.inferenceConfig?.objectDetection?.device ?? 'N/A',
-                    })}
-                  </li>
+                  {objectDetectionEnabled ? (
+                    <>
+                      <li>
+                        {t('aiModel', {
+                          model: summaryData.inferenceConfig?.objectDetection?.model ?? 'N/A',
+                        })}
+                      </li>
+                      <li>
+                        {t('runningOn', {
+                          device: summaryData.inferenceConfig?.objectDetection?.device ?? 'N/A',
+                        })}
+                      </li>
+                    </>
+                  ) : (
+                    <li>{t('objectDetectionDisabled')}</li>
+                  )}
                 </ul>
                 <hr />
                 <h5 className='secondary bold'>Frame Captioning</h5>

@@ -1,12 +1,12 @@
 # How It Works
 
-This page describes the architecture and the internal flow of a SceneScape
+This page describes the architecture and the internal flow of a Scenescape
 event through the microservice.
 
 ## Architecture
 
 At a high level, the Scene Understanding Service is a FastAPI service that
-subscribes to SceneScape MQTT topics, maintains a per-person session state
+subscribes to Scenescape MQTT topics, maintains a per-person session state
 machine, evaluates a declarative rule engine against each event, and acts on
 the rule output by firing alerts and/or escalating to behavioral analysis.
 
@@ -32,8 +32,8 @@ the rule output by firing alerts and/or escalating to behavioral analysis.
   }
 }}%%
 flowchart LR
-    Scene([SceneScape<br/>MQTT Broker])
-    SceneAPI([SceneScape<br/>REST API])
+    Scene([Scenescape<br/>MQTT Broker])
+    SceneAPI([Scenescape<br/>REST API])
 
     subgraph Service["Scene Understanding Service (FastAPI, :8082)"]
         MQTT["MQTT Subscriber<br/>(scene/region/image topics)"]
@@ -41,7 +41,7 @@ flowchart LR
         RA["Rule Adapter<br/>(sessions → rule engine)"]
         RE["Rule Engine<br/>(rules.yaml)"]
         BA["BA Orchestrator<br/>(escalate action)"]
-        API["REST API<br/>(/api/v1/lp/*)"]
+        API["REST API<br/>(/api/v1/sus/*)"]
     end
 
     SeaweedFS[("SeaweedFS<br/>frame storage")]
@@ -77,7 +77,7 @@ flowchart LR
 
 **Key planes:**
 
-- **MQTT subscriber** — consumes SceneScape scene-data, region-event,
+- **MQTT subscriber** — consumes Scenescape scene-data, region-event,
   region-data, and camera-image topics; the connection details and topic
   patterns come from `scene-config.yaml`.
 - **Session manager** — keeps a per-person session (zone visits, dwell time,
@@ -87,14 +87,14 @@ flowchart LR
 - **BA orchestrator** — handles `escalate` actions: captures frames to
   SeaweedFS and drives behavioral analysis over the `ba/requests` /
   `ba/results` MQTT topics.
-- **REST API** — exposes session, zone, and alert state under `/api/v1/lp`.
+- **REST API** — exposes session, zone, and alert state under `/api/v1/sus`.
 
 ## Event Flow
 
-1. **Startup zone discovery** — The service authenticates to the SceneScape
+1. **Startup zone discovery** — The service authenticates to the Scenescape
    REST API (`scenescape_api`) and resolves each configured zone name to its
    region UUID. Scene names are likewise resolved to scene UUIDs.
-2. **MQTT subscribe** — The service subscribes to the SceneScape topics
+2. **MQTT subscribe** — The service subscribes to the Scenescape topics
    defined in `scene-config.yaml` (`scene_data_topic_pattern`,
    `region_event_topic_pattern`, etc.) and retries in the background until the
    broker is reachable.
@@ -118,9 +118,9 @@ flowchart LR
 ## Components
 
 - `main.py` — FastAPI app entry point and startup wiring.
-- `api/routes.py` — REST routes under `/api/v1/lp`.
+- `api/routes.py` — REST routes under `/api/v1/sus`.
 - `services/config.py` — loads `scene-config.yaml` + `rules.yaml`.
-- `services/mqtt_service.py` — SceneScape MQTT subscriber.
+- `services/mqtt_service.py` — Scenescape MQTT subscriber.
 - `services/session_manager.py` — per-person session state machine.
 - `services/rule_adapter.py` — bridges sessions to the rule engine and acts on
   rule output.
@@ -129,7 +129,7 @@ flowchart LR
 - `services/frame_capture.py`, `services/frame_manager.py` — SeaweedFS evidence
   frames.
 - `services/alert_service_client.py` — HTTP client for the alert-service.
-- `services/scenescape_client.py` — SceneScape REST client (zone discovery).
+- `services/scenescape_client.py` — Scenescape REST client (zone discovery).
 - `rule_engine/` — bundled, generic YAML rule evaluator.
 
 ## Configuration Surface

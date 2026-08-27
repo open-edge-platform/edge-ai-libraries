@@ -114,7 +114,7 @@ show_usage() {
     echo -e "  ${CYAN}--revision${NC} <rev>           Model revision (branch, tag, or commit hash)"
     echo -e "  ${CYAN}--is-ovms${NC}                  Convert to OpenVINO format after downloading"
     echo -e "  ${CYAN}--precision${NC} <prec>         Weight precision: int4, int8, fp16, fp32 (default: int8)"
-    echo -e "  ${CYAN}--device${NC} <dev>             Target device: CPU, GPU, NPU (default: CPU)"
+    echo -e "  ${CYAN}--device${NC} <dev>             Target device: CPU, GPU, NPU, or HETERO:<dev>[,<dev>...] e.g. HETERO:GPU,CPU (default: CPU)"
     echo -e "  ${CYAN}--cache-size${NC} <gb>          KV cache size in GB (for LLM/VLM conversion)"
     echo -e "  ${CYAN}--config-json${NC} <json>       Additional config as inline JSON string\n"
     echo -e "${BOLD}Docker Options:${NC}"

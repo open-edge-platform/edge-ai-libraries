@@ -18,11 +18,11 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
     _RtspVideoPipeline_withjpeginput = " ! rtpjpegpay name=pay0"  # removed gvawatermark to avoid duplicate overlay assuming DLStreamer pipeline server pipeline already has gvawatermark
         # ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0"
 
-    _RtspVideoPipeline_withjpeginput_overlay = " ! jpegdec ! videoconvert  \
-        ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0" 
+    _RtspVideoPipeline_withjpeginput_overlay = " ! jpegdec ! videoconvert {gvawatermark} \
+        ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0"
 
-    _RtspVideoPipeline = " ! videoconvert  \
-        ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0"
+    _RtspVideoPipeline = " ! videoconvert {gvawatermark} \
+        ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0"
     
     # GPU pipeline variants for hardware-accelerated buffers
     # _RtspVideoPipeline_GPU_VASurface = " ! vaapipostproc ! vaapijpegenc ! rtpjpegpay name=pay0"
@@ -89,6 +89,18 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
             # System memory (CPU)
             return False, "System"
 
+    def _build_gvawatermark_stage(self, overlay, overlay_properties):
+        if overlay is False:
+            return ""
+        if not isinstance(overlay_properties, dict) or not overlay_properties:
+            return " ! gvawatermark"
+        properties = [
+            "{}={}".format(key, str(value).lower() if isinstance(value, bool) else value)
+            for key, value in overlay_properties.items()
+            if value is not None
+        ]
+        return " ! gvawatermark" if not properties else " ! gvawatermark displ-cfg={}".format(",".join(properties))
+
     def do_create_element(self, url):
         # pylint: disable=arguments-differ
         # pylint disable added as pylint comparing do_create_element with some other method with same name.
@@ -102,6 +114,8 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
         source = stream.source
         caps = stream.caps
         overlay = stream.overlay
+        overlay_properties = stream.overlay_properties
+        watermark_stage = self._build_gvawatermark_stage(overlay, overlay_properties)
         new_caps = self._select_caps(caps.to_string())
         s_src = "{} caps=\"{}\"".format(GStreamerRtspFactory._source, ','.join(new_caps))
         
@@ -115,8 +129,7 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
                 media_pipeline = GStreamerRtspFactory._RtspVideoPipeline_withjpeginput
         else:
             media_pipeline = GStreamerRtspFactory._RtspVideoPipeline
-            if overlay is False:
-                media_pipeline = media_pipeline.replace("gvawatermark ! ", "")
+        media_pipeline = media_pipeline.format(gvawatermark=watermark_stage)
 
         if is_gpu and buffer_type == "VAMemory":
             self._logger.debug("Using GPU pipeline for caps: {} (type: {})".format(caps.to_string(), buffer_type))

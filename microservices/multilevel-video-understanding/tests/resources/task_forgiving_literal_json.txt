@@ -1,0 +1,28 @@
+# Forgiving-registration case: the prompt embeds literal example JSON.
+# Braces that are NOT recognized placeholders — e.g. {"severity": "high"} — are
+# treated as literal text and rendered as-is; they must NOT break registration
+# or the render smoke-test. Only {question}{st_tm}{end_tm}{dur}{past_summary}
+# {chunk_subtitle} are treated as placeholders.
+
+GLOBAL_PROMPT = '''
+##Task:
+You are a home-safety assistant. Summarize the whole session into a short report.
+User prompt: {question}
+
+##Output a JSON object exactly like this example (literal braces, not placeholders):
+{"severity": "high", "events": ["fall", "climb"], "advice": "supervise closely"}
+
+##Content to Summarize:
+The following period summaries are separated by ">|<".
+'''
+
+
+LOCAL_PROMPT = '''
+##Task:
+Describe what happens in this short clip in one or two sentences.
+Start time: {st_tm} seconds
+End time: {end_tm} seconds
+
+##If unsafe, note it using this schema (literal example, keep the braces verbatim):
+{"unsafe": true, "reason": "..."}
+'''

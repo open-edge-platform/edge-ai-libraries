@@ -12,6 +12,7 @@ import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
 import { Folder } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card.tsx";
 import { Link } from "react-router";
+import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 export const ImageSets = () => {
   const { data: imageSets, isSuccess, isLoading } = useGetImageSetsQuery();
@@ -76,7 +77,7 @@ export const ImageSets = () => {
   }
 
   return (
-    <div className="container pl-16 mx-auto py-10">
+    <div className={CONTENT_CONTAINER_CLASS}>
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Images</h1>
         <p className="text-muted-foreground mt-2">

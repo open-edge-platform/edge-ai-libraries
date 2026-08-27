@@ -41,6 +41,8 @@ class ProviderConfig:
     enabled: bool = True
     metadata: Dict[str, Any] = field(default_factory=dict)
     settings: Dict[str, Any] = field(default_factory=dict)
+    # Generic passthrough mapping for integrations that are not part of the core provider contract
+    extra: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -65,10 +67,9 @@ class PluginConfig:
     """Generic plugin configuration."""
 
     name: str
-    node: str  # plugin selector key
+    node: str  # plugin type key (a PluginBaseNode subclass); config name = instance
     enabled: bool = True
     trigger: str = "prerouting"  # 'prerouting', 'postrouting', or 'postresponse'
-    nodes: List[Dict[str, Any]] = field(default_factory=list)
     settings: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -82,6 +83,7 @@ class RouterConfig:
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     log_level: str = "INFO"
     cors_origins: List[str] = field(default_factory=lambda: ["*"])
+
     class Config:
         """Dataclass config."""
 

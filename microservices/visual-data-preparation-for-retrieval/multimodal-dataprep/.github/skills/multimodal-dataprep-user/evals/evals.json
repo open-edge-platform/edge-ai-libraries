@@ -1,0 +1,73 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "skill_name": "multimodal-dataprep-user",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bringup-and-health",
+      "prompt": "Give me an exact runbook to start Intel Multimodal DataPrep with the default prebuilt VDMS and MinIO stack and verify readiness. Do not launch containers.",
+      "expected_output": "Exports placeholder MinIO credentials and an embedding model, sources setup.sh --nosetup, starts docker/compose.yaml with --no-build, requires embedding_client_status=preloaded, and checks MinIO and VDMS separately.",
+      "expectations": [
+        "Uses the intel/multimodal-dataprep prebuilt image through setup.sh --nosetup and docker compose --no-build",
+        "Uses placeholder values for MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, and EMBEDDING_MODEL_NAME",
+        "Checks GET /v1/dataprep/health for embedding_client_status=preloaded",
+        "Separately checks MinIO and VDMS reachability"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "choose-milvus",
+      "prompt": "I want Multimodal DataPrep to store vectors in Milvus while keeping raw media in MinIO. Which deployment artifact and settings should I use?",
+      "expected_output": "Uses docker/compose-milvus.yaml, explains MM_DATAPREP_VECTORDB_BACKEND=milvus and MM_DATAPREP_STORAGE_BACKEND=minio, uses a Milvus-safe collection name, and verifies Milvus plus media MinIO separately.",
+      "expectations": [
+        "Selects docker/compose-milvus.yaml",
+        "Names the vector and storage backend selector values",
+        "Warns that Milvus collection names cannot use the default hyphenated VDMS name"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "upload-video",
+      "prompt": "The service is healthy on localhost:6007. Give me the exact request to ingest /data/forklift.mp4 while sampling every 10th frame; do not claim it was uploaded.",
+      "expected_output": "Uses multipart POST /v1/dataprep/media/upload with file=@/data/forklift.mp4 and frame_interval=10 as a query parameter.",
+      "expectations": [
+        "Posts multipart data to /v1/dataprep/media/upload",
+        "Uses frame_interval=10 as a query parameter",
+        "Uses the /v1/dataprep prefix on port 6007"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "ingest-image-url",
+      "prompt": "Show me how to ingest https://example.com/camera.jpg as a remote image and tag it camera-2 without downloading it locally first.",
+      "expected_output": "Posts JSON to /v1/dataprep/media/ingest using type=image_url, image_url, and tags.",
+      "expectations": [
+        "Uses POST /v1/dataprep/media/ingest with Content-Type application/json",
+        "Uses the typed image_url discriminator and includes the tag"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "delete-media-safely",
+      "prompt": "Delete the ingested media item video-summary/dp_video_1730000000 and its embeddings. Explain the scope before giving the request; do not call the API.",
+      "expected_output": "Warns that the operation deletes the whole media directory and matching vectors, then gives DELETE /v1/dataprep/media/video-summary/dp_video_1730000000. It does not invent a video_name query option.",
+      "expectations": [
+        "Explains that deletion covers storage objects and vector records for the bucket/video_id",
+        "Uses DELETE /v1/dataprep/media/video-summary/dp_video_1730000000",
+        "Does not claim single-file deletion through video_name is supported"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "directory-batch",
+      "prompt": "I mounted a camera drop directory into the DataPrep container. Submit it as an asynchronous batch and show how to poll the job.",
+      "expected_output": "Uses POST /v1/dataprep/media/ingest-dir with a dir_path constrained beneath MM_DATAPREP_INGEST_DATA_ROOT, captures job_id, and polls GET /v1/dataprep/media/jobs/{job_id}.",
+      "expectations": [
+        "Uses /media/ingest-dir and /media/jobs/{job_id}",
+        "Mentions the configured ingest root and path traversal restriction",
+        "Treats the operation as asynchronous"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+global:
+  report_dir: 'reports'
+  input_profiles_path: 'profiles/profiles.yaml'  # Reference to external input profiles file
+  metrics_collector: 'intel/metrics-manager:2026.1.0'  # Metrics Manager image used as the resource-metrics collector
+
+apis:
+  live_caption_rag:
+    enabled: true
+    service_name: 'live_caption_rag'
+    endpoints:
+      runs: '4173/api/generate_captions_alerts'
+      metadata: '4173/api/generate_captions_alerts/metadata-stream'
+      chat: '4172/api/chat'
+    captioning_time: 120 
+    input_profile: 'live_video_caption_rag_wsf'  

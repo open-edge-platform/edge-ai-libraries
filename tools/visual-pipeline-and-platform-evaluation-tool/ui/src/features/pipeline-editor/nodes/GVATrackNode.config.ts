@@ -2,6 +2,7 @@ export const GVA_TRACKING_TYPES = [
   "zero-term",
   "short-term-imageless",
   "zero-term-imageless",
+  "deep-sort",
 ] as const;
 
 export const gvaTrackConfig = {

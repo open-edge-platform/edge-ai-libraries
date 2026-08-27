@@ -1,0 +1,54 @@
+{
+  "skill_name": "vss-deploy",
+  "notes": "These four benchmark prompts are self-contained and intentionally separate from example-prompts/. The runner does not start services, so expectations grade the accuracy of the commands and explanations rather than claiming live deployment success.",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "summary-deployment-plan",
+      "prompt": "I am preparing a machine for VSS summary mode, but I do not want to start services during this review. Give me the exact setup, deployment, health-check, and UI commands I should run later with the default settings.",
+      "expected_output": "Provides an accurate deferred command sequence for a default summary deployment, followed by the gateway health check and UI URL.",
+      "files": [],
+      "expectations": [
+        "Provides the VSS bootstrap plus config and external credentials setup using `vss-bootstrap.sh`, `gen-secrets.sh`, `vss.config`, and `$VSS_CREDENTIALS_FILE`.",
+        "Provides `source setup.sh --stop` followed by `source setup.sh --summary` and does not claim that the deferred deployment completed.",
+        "Provides the `/manager/health` check and the default UI URL on port 12345."
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "dual-mode-dry-run",
+      "prompt": "Audit the VSS dual-UI configuration without launching containers. Show the config-only setup.sh command, the core Compose overlays and profiles it selects, and the two gateway URLs.",
+      "expected_output": "Explains the dual-mode config-only path, its core overlays and profiles, and the summary and search URLs.",
+      "files": [],
+      "expectations": [
+        "Provides `source setup.sh --summary --search config` or `source setup.sh --dual config` and says that it renders configuration without starting containers.",
+        "Names the core dual-mode overlays `compose.base.yaml`, `compose.summary.yaml`, `compose.search.yaml`, and `compose.ui.yaml`, plus profiles `ovms` and `dual_ui`.",
+        "Reports `/summary/` and `/search/` through the nginx gateway on port 12345."
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "unified-custom-port-environment",
+      "prompt": "Prepare commands for a unified VSS deployment on port 18080. I need one command for the actual unified deployment and a separate command that I can source in my interactive shell before later manual Docker Compose work.",
+      "expected_output": "Separates the unified deployment command from interactive environment persistence and reports the custom-port URL.",
+      "files": [],
+      "expectations": [
+        "Provides a unified deployment command using `APP_HOST_PORT=18080` with `source setup.sh --summary-and-search` or an equivalent unified alias.",
+        "Separately provides `APP_HOST_PORT=18080 source setup.sh --setenv` without a mode flag and explains why the user must source it in the interactive shell.",
+        "Explains that `--setenv` is mode-agnostic, notes that manual unified Compose work also needs mode-derived variables, and reports the UI on port 18080."
+      ]
+    },
+    {
+      "id": 4,
+      "eval_name": "clean-user-data",
+      "prompt": "Document the single VSS command that resets application data after testing. Explain whether it also stops the stack, which Postgres, MinIO, and VDMS volumes it removes, and which model caches remain.",
+      "expected_output": "Documents the clean-data lifecycle operation and clearly distinguishes removed user data from preserved model assets.",
+      "files": [],
+      "expectations": [
+        "Provides `source setup.sh --clean-data` and explains that it stops and removes the VSS stack before deleting user-data volumes.",
+        "Names `docker_pg_data`, `docker_minio_data`, and `docker_vdms-db` as removed volumes.",
+        "States that model-cache volumes and the host-backed `ov_models/` directory are preserved."
+      ]
+    }
+  ]
+}

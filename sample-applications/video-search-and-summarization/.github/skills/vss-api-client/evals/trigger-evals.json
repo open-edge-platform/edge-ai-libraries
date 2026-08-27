@@ -1,0 +1,23 @@
+[
+  {"query": "How do I upload a video file to the VSS API programmatically using multipart/form-data?", "should_trigger": true},
+  {"query": "Show me a curl command to POST a video to /manager/videos and extract the videoId from the response", "should_trigger": true},
+  {"query": "Write Python code to call POST /manager/summary with a videoId, title, and sampling config to start a summarization job", "should_trigger": true},
+  {"query": "How do I poll GET /manager/summary/{stateId} until videoSummaryStatus is 'complete'?", "should_trigger": true},
+  {"query": "I need to subscribe to Socket.IO progress events for a running summarization - how do I join the room with the summaryPipelineId and listen for summary:sync events?", "should_trigger": true},
+  {"query": "Write a JavaScript snippet that connects to the VSS Socket.IO endpoint at path /ws/ and streams frameSummary and summaryStream events", "should_trigger": true},
+  {"query": "Walk me through the full VSS API lifecycle - from health check to uploading a video, triggering summarization, and fetching the final summary", "should_trigger": true},
+  {"query": "How do I run a natural-language search query against the VSS Pipeline Manager using POST /manager/search/query with a timeFilter?", "should_trigger": true},
+  {"query": "Write an integration test in Python that uploads sample.mp4, starts processing, waits for the summary pipeline to finish, and asserts the summary is non-empty", "should_trigger": true},
+  {"query": "How do I send a search request directly to the VSS search microservice at port 7890 with a query_id, tags, and a start/end time_filter?", "should_trigger": true},
+
+  {"query": "How do I configure nginx routing so that /manager requests are proxied to the Pipeline Manager container?", "should_trigger": false},
+  {"query": "What source setup.sh command do I run to start VSS in dual-UI mode with both summarization and search?", "should_trigger": false},
+  {"query": "How do I check whether all the VSS Docker containers are healthy and running after deployment?", "should_trigger": false},
+  {"query": "How do I build and push the VSS Docker images from source using build.sh?", "should_trigger": false},
+  {"query": "How do I use the VSS MCP server to let an AI agent query VSS search results?", "should_trigger": false},
+  {"query": "Where in the pipeline-manager NestJS source code is the video upload endpoint defined, and how does it persist the file to MinIO?", "should_trigger": false},
+  {"query": "How do I summarize a video using the VSS Go CLI instead of the web API?", "should_trigger": false},
+  {"query": "How do I tune the search-ms embedding model or change the vector index configuration?", "should_trigger": false},
+  {"query": "What Socket.IO events does the pipeline-manager emit internally between services over RabbitMQ?", "should_trigger": false},
+  {"query": "How do I add a brand-new REST endpoint to the Pipeline Manager NestJS controller?", "should_trigger": false}
+]

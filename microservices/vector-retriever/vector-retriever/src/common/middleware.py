@@ -19,7 +19,7 @@ async def request_id_middleware(request: Request, call_next):
     """
     request_id = request.headers.get("x-request-id") or str(uuid4())
     request.state.request_id = request_id
-    logger.info(
+    logger.debug(
         "Received request request_id=%s method=%s path=%s",
         request_id,
         request.method,

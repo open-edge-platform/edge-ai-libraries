@@ -31,9 +31,9 @@ jobs:
       
       - name: Build Docker images
         run: |          
-          # Build VDMS dataprep microservice (Poetry-based FastAPI)
-          cd microservices/visual-data-preparation-for-retrieval/vdms/
-          docker build -f ./docker/Dockerfile -t vdms-dataprep:latest .
+          # Build multimodal dataprep via build.sh (uses microservices/ build context)
+          cd microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/
+          bash ./build.sh
           
           # Build Milvus dataprep microservice (requirements.txt-based)
           # Note: Build context must be microservices/ to access both visual-data-preparation-for-retrieval and vector-retriever
@@ -43,7 +43,7 @@ jobs:
       - name: Verify Docker images
         run: |
           echo "=== Built Docker Images ==="
-          docker images | grep -E "(vdms-dataprep|milvus-dataprep)"
+          docker images | grep -E "(multimodal-dataprep|milvus-dataprep)"
           echo "=== Image Build Verification Complete ==="
       
       - name: Run Trivy Filesystem Scan
@@ -58,29 +58,29 @@ jobs:
           report_suffix: "-fs-visual-data-preparation-CT7"
       
          
-      - name: Run trivy Scan - vdms-dataprep (HTML Report)
+      - name: Run trivy Scan - multimodal-dataprep (HTML Report)
         uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        id: vdms-dataprep-html
+        id: multimodal-dataprep-html
         with:
           scan_type: "image"  
           scan-scope: "all"
-          scan_target: "vdms-dataprep:latest"  
+          scan_target: "multimodal-dataprep:latest"  
           severity: "HIGH,CRITICAL"  
           format: "table"
-          report_suffix: "-image-vdms-dataprep-html-CT248"
+          report_suffix: "-image-multimodal-dataprep-html-CT248"
           generate_sbom: "false"
 
-      - name: Run trivy Scan - vdms-dataprep (SPDX SBOM)
+      - name: Run trivy Scan - multimodal-dataprep (SPDX SBOM)
         uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
-        id: vdms-dataprep-spdx
+        id: multimodal-dataprep-spdx
         with:
           scan_type: "image"  
           scan-scope: "all"
-          scan_target: "vdms-dataprep:latest"  
+          scan_target: "multimodal-dataprep:latest"  
           severity: "HIGH,CRITICAL"  
           format: "spdx-json"
           scanners: "vuln"
-          report_suffix: "-image-vdms-dataprep-spdx-CT248"
+          report_suffix: "-image-multimodal-dataprep-spdx-CT248"
           generate_sbom: "false"
 
       - name: Run trivy Scan - milvus-dataprep (HTML Report)
@@ -108,15 +108,15 @@ jobs:
           report_suffix: "-image-milvus-dataprep-spdx-CT249"
           generate_sbom: "false"
 
-      - name: Scan VDMS Dockerfile with Trivy
+      - name: Scan multimodal-dataprep Dockerfile with Trivy
         uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
         with:
           scan_type: "config"
-          scan_target: "microservices/visual-data-preparation-for-retrieval/vdms/docker/"
+          scan_target: "microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/docker/"
           severity: "HIGH,CRITICAL"
           format: "json"
           misconfig_scanners: "dockerfile"
-          report_suffix: "-config-vdms-dockerfile-CT222"
+          report_suffix: "-config-multimodal-dataprep-dockerfile-CT222"
 
       - name: Scan Milvus Dockerfile with Trivy
         uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
@@ -153,7 +153,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/visual-data-preparation-for-retrieval/"
           report_suffix: "-bandit-visual-data-preparation-CT161"
           
@@ -177,7 +177,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/visual-data-preparation-for-retrieval/"
           exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
           
@@ -224,8 +224,8 @@ jobs:
           name: gitleaks-report-visual-data-preparation-${{ steps.timestamp.outputs.time }}
           path: gitleaks-visual-data-preparation.json
 
-  # Python linting with pylint - VDMS DataPrep (Poetry-based)
-  pylint-scan-vdms-dataprep:
+  # Python linting with pylint - multimodal-dataprep (Poetry-based)
+  pylint-scan-multimodal-dataprep:
     runs-on: ubuntu-22.04-32core-128GB
     permissions:
       contents: read
@@ -243,18 +243,18 @@ jobs:
           
       - name: Install dependencies and pylint
         run: |
-          cd microservices/visual-data-preparation-for-retrieval/vdms/
+          cd microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/
           poetry lock --no-update
           poetry install --with dev || true
           poetry add --group dev pylint || true
       
       - name: Run pylint
         run: |
-          cd microservices/visual-data-preparation-for-retrieval/vdms/
+          cd microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/
           mkdir -p security-results
-          echo "=== Pylint Scan Results - VDMS DataPrep ===" > security-results/pylint-report-vdms-dataprep.txt
-          echo "Scan Date: $(date)" >> security-results/pylint-report-vdms-dataprep.txt
-          echo "" >> security-results/pylint-report-vdms-dataprep.txt
+          echo "=== Pylint Scan Results - multimodal-dataprep ===" > security-results/pylint-report-multimodal-dataprep.txt
+          echo "Scan Date: $(date)" >> security-results/pylint-report-multimodal-dataprep.txt
+          echo "" >> security-results/pylint-report-multimodal-dataprep.txt
           
           # Create a basic pylint config
           cat > .pylintrc << EOF
@@ -270,15 +270,15 @@ jobs:
           EOF
           
           # Find all Python files and lint them
-          find src/ -type f -name "*.py" -exec poetry run pylint --rcfile=.pylintrc {} + >> security-results/pylint-report-vdms-dataprep.txt 2>&1 || true
+          find src/ -type f -name "*.py" -exec poetry run pylint --rcfile=.pylintrc {} + >> security-results/pylint-report-multimodal-dataprep.txt 2>&1 || true
           
           echo "Pylint scan completed"
       
       - name: Upload pylint Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: pylint-report-vdms-dataprep
-          path: microservices/visual-data-preparation-for-retrieval/vdms/security-results/pylint-report-vdms-dataprep.txt
+          name: pylint-report-multimodal-dataprep
+          path: microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/security-results/pylint-report-multimodal-dataprep.txt
 
   # Python linting with pylint - Milvus DataPrep (requirements.txt-based)
   pylint-scan-milvus-dataprep:
@@ -331,8 +331,8 @@ jobs:
           name: pylint-report-milvus-dataprep
           path: microservices/visual-data-preparation-for-retrieval/milvus/src/security-results/pylint-report-milvus-dataprep.txt
 
-  # Black code formatting check - VDMS
-  black-check-vdms:
+  # Black code formatting check - multimodal-dataprep
+  black-check-multimodal-dataprep:
     runs-on: ubuntu-22.04-32core-128GB
     permissions:
       contents: read
@@ -350,28 +350,28 @@ jobs:
           
       - name: Install dependencies
         run: |
-          cd microservices/visual-data-preparation-for-retrieval/vdms/
+          cd microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/
           poetry lock --no-update
           poetry install --with dev || true
       
       - name: Run Black formatting check
         run: |
-          cd microservices/visual-data-preparation-for-retrieval/vdms/
+          cd microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/
           mkdir -p security-results
-          echo "=== Black Code Formatting Check Results - VDMS ===" > security-results/black-check-report-vdms.txt
-          echo "Scan Date: $(date)" >> security-results/black-check-report-vdms.txt
-          echo "" >> security-results/black-check-report-vdms.txt
+          echo "=== Black Code Formatting Check Results - multimodal-dataprep ===" > security-results/black-check-report-multimodal-dataprep.txt
+          echo "Scan Date: $(date)" >> security-results/black-check-report-multimodal-dataprep.txt
+          echo "" >> security-results/black-check-report-multimodal-dataprep.txt
           
           # Run black check
-          poetry run black --check --diff src/ tests/ >> security-results/black-check-report-vdms.txt 2>&1 || true
+          poetry run black --check --diff src/ tests/ >> security-results/black-check-report-multimodal-dataprep.txt 2>&1 || true
           
           echo "Black formatting check completed"
       
       - name: Upload Black Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: black-check-report-vdms
-          path: microservices/visual-data-preparation-for-retrieval/vdms/security-results/black-check-report-vdms.txt
+          name: black-check-report-multimodal-dataprep
+          path: microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/security-results/black-check-report-multimodal-dataprep.txt
 
   # Black code formatting check - Milvus
   black-check-milvus:
@@ -411,8 +411,8 @@ jobs:
           name: black-check-report-milvus
           path: microservices/visual-data-preparation-for-retrieval/milvus/src/security-results/black-check-report-milvus.txt
 
-  # isort import sorting check - VDMS
-  isort-check-vdms:
+  # isort import sorting check - multimodal-dataprep
+  isort-check-multimodal-dataprep:
     runs-on: ubuntu-22.04-32core-128GB
     permissions:
       contents: read
@@ -430,28 +430,28 @@ jobs:
           
       - name: Install dependencies
         run: |
-          cd microservices/visual-data-preparation-for-retrieval/vdms/
+          cd microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/
           poetry lock --no-update
           poetry install --with dev || true
       
       - name: Run isort import sorting check
         run: |
-          cd microservices/visual-data-preparation-for-retrieval/vdms/
+          cd microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/
           mkdir -p security-results
-          echo "=== isort Import Sorting Check Results - VDMS ===" > security-results/isort-check-report-vdms.txt
-          echo "Scan Date: $(date)" >> security-results/isort-check-report-vdms.txt
-          echo "" >> security-results/isort-check-report-vdms.txt
+          echo "=== isort Import Sorting Check Results - multimodal-dataprep ===" > security-results/isort-check-report-multimodal-dataprep.txt
+          echo "Scan Date: $(date)" >> security-results/isort-check-report-multimodal-dataprep.txt
+          echo "" >> security-results/isort-check-report-multimodal-dataprep.txt
           
           # Run isort check
-          poetry run isort --check-only --diff src/ tests/ >> security-results/isort-check-report-vdms.txt 2>&1 || true
+          poetry run isort --check-only --diff src/ tests/ >> security-results/isort-check-report-multimodal-dataprep.txt 2>&1 || true
           
           echo "isort import sorting check completed"
       
       - name: Upload isort Report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: isort-check-report-vdms
-          path: microservices/visual-data-preparation-for-retrieval/vdms/security-results/isort-check-report-vdms.txt
+          name: isort-check-report-multimodal-dataprep
+          path: microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/security-results/isort-check-report-multimodal-dataprep.txt
 
   # isort import sorting check - Milvus
   isort-check-milvus:

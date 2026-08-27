@@ -1,3 +1,4 @@
+{{- $odModelName := include "video-summarization.objectDetectionModel" .Values.odModelName | trim -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,39 +26,45 @@ spec:
           {{- toYaml . | nindent 10 }}
       {{- end }}
       initContainers:
-        - name: model-converter
-          image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" .Values.videoingestion.image.repository "tag" (.Values.global.tag | default .Values.videoingestion.image.tag)) }}"
-          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.videoingestion.image.pullPolicy }}
+        # Download the object detection model via the model-download microservice
+        # REST API. The script lives in the vss-model-download-helper ConfigMap
+        # (chart/templates/model-download-helper.yaml) to keep this template clean.
+        - name: od-model-downloader
+          image: "{{ .Values.global.modelDownload.image.repository }}:{{ .Values.global.modelDownload.image.tag }}"
+          imagePullPolicy: {{ .Values.global.modelDownload.image.pullPolicy }}
           command: ["/bin/bash", "-c"]
           args:
             - |
-              # Check if model directory exists but is incomplete
-              if [ -d "${OD_MODEL_OUTPUT_DIR}" ] && ( [ ! -d "${OD_MODEL_OUTPUT_DIR}/FP32" ] || [ ! -d "${OD_MODEL_OUTPUT_DIR}/FP16" ] ); then
+              OD_MODEL_OUTPUT_DIR="/opt/models/object-detection/ultralytics/public/${MODEL_NAME}"
+              OD_MODEL_XML="${OD_MODEL_OUTPUT_DIR}/FP32/${MODEL_NAME}.xml"
+              OD_MODEL_BIN="${OD_MODEL_OUTPUT_DIR}/FP32/${MODEL_NAME}.bin"
+              # Video ingestion consumes FP32; remove incomplete output so it can be recreated.
+              if [ -d "${OD_MODEL_OUTPUT_DIR}" ] && ( [ ! -f "${OD_MODEL_XML}" ] || [ ! -f "${OD_MODEL_BIN}" ] ); then
                 echo "Model directory exists but appears incomplete. Removing it to trigger fresh conversion."
                 rm -rf "${OD_MODEL_OUTPUT_DIR}"
               fi
               # Run the original conversion script
-              /scripts/model-converter.sh
+              /scripts/download-od-model.sh
           env:
-            - name: OD_MODEL_OUTPUT_DIR
-              value: /models/yoloworld/v2
-            - name: OD_MODEL_NAME
-              value: {{ required "Value for odModelName is required!" .Values.odModelName | quote }}
-            - name: OD_MODEL_TYPE
-              value: {{ required "Value for odModelType is required!" .Values.odModelType | quote }}
+            - name: MODEL_NAME
+              value: {{ $odModelName | quote }}
+            - name: MODEL_PATH
+              value: /opt/models
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,multimodal-dataprep,vdms-vectordb,vector-retriever,videosearch,.svc.cluster.local"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
               value: "{{ .Values.global.proxy.https_proxy }}"
           volumeMounts:
-            - name: model-converter-scripts
-              mountPath: /scripts
             - name: models-volume
-              mountPath: /models
+              mountPath: /opt/models
               subPath: ov-models/videoingestion
+            - name: model-download-scripts
+              mountPath: /scripts
           securityContext:
+            runAsUser: 0
+            runAsGroup: 0
             privileged: true
       containers:
         - name: {{ .Chart.Name }}
@@ -86,7 +93,7 @@ spec:
             - name: MINIO_ROOT_PASSWORD
               value: "{{ .Values.global.env.MINIO_ROOT_PASSWORD }}"
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,pipelinemanager,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,multimodal-dataprep,vdms-vectordb,vector-retriever,videosearch,.svc.cluster.local"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
@@ -109,6 +116,10 @@ spec:
               value: "{{ .Values.videoingestion.env.APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC }}"
             - name: REST_SERVER_PORT
               value: "{{ .Values.videoingestion.env.REST_SERVER_PORT }}"
+            - name: EVAM_DETECTION_MODEL
+              value: {{ $odModelName | quote }}
+            - name: EVAM_DETECTION_MODEL_PATH
+              value: "/home/pipeline-server/models/object-detection/ultralytics/public/{{ $odModelName }}/FP32/{{ $odModelName }}.xml"
           volumeMounts:
           - mountPath: /var/cache/pipeline_root
             name: vol-pipeline-root-tmpfs0
@@ -143,10 +154,6 @@ spec:
       - name: run-udev
         hostPath:
           path: /run/udev
-      - name: model-converter-scripts
-        configMap:
-          name: {{ include "videoingestion.fullname" . }}-model-converter
-          defaultMode: 0755
       - name: models-volume
         {{- if .Values.global.usePvc }}
         persistentVolumeClaim:
@@ -158,4 +165,8 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
+      - name: model-download-scripts
+        configMap:
+          name: vss-model-download-helper
+          defaultMode: 0755
       restartPolicy: Always

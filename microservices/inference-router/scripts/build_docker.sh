@@ -11,16 +11,22 @@ Build the Inference Router Docker image.
 Usage:
   ./scripts/build_docker.sh [options]
 
+The adaptive-token-compressor library is a baked-in dependency: the Dockerfile
+fetches and installs it during the build, so `docker build .` works on its own.
+This script is just a convenience wrapper around `docker build`.
+
 Options:
   --image <name>       Image name (default: inference-router)
   --tag <tag>          Image tag (default: latest)
   --no-cache           Build without cache
   -h, --help           Show this help message
 
-Environment variable fallbacks:
-  IMAGE_NAME, IMAGE_TAG
+Environment variables (forwarded to the build as --build-arg if set):
+  IMAGE_NAME, IMAGE_TAG                       image reference
+  COMPRESSOR_REPO, COMPRESSOR_REF, COMPRESSOR_SUBDIR
+                                              override the compressor source
   HTTP_PROXY/http_proxy, HTTPS_PROXY/https_proxy, NO_PROXY/no_proxy
-    are forwarded to the build as --build-arg if set.
+                                              proxy settings
 EOF
 }
 
@@ -62,6 +68,9 @@ NO_PROXY_VAL="${NO_PROXY:-${no_proxy:-}}"
 
 IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
 
+# The Dockerfile is self-contained: it fetches (vendors) the
+# adaptive-token-compressor source itself. This script only wraps `docker build`
+# with the usual conveniences (tagging, proxy/override forwarding).
 BUILD_CMD=(
   docker build
   --file "${ROOT_DIR}/Dockerfile"
@@ -70,6 +79,19 @@ BUILD_CMD=(
 
 if [[ "${NO_CACHE}" == "true" ]]; then
   BUILD_CMD+=(--no-cache)
+fi
+
+# Forward compressor source overrides to the Dockerfile's fetch stage if set.
+if [[ -n "${COMPRESSOR_REPO:-}" ]]; then
+  BUILD_CMD+=(--build-arg "COMPRESSOR_REPO=${COMPRESSOR_REPO}")
+fi
+
+if [[ -n "${COMPRESSOR_REF:-}" ]]; then
+  BUILD_CMD+=(--build-arg "COMPRESSOR_REF=${COMPRESSOR_REF}")
+fi
+
+if [[ -n "${COMPRESSOR_SUBDIR:-}" ]]; then
+  BUILD_CMD+=(--build-arg "COMPRESSOR_SUBDIR=${COMPRESSOR_SUBDIR}")
 fi
 
 if [[ -n "${HTTP_PROXY_VAL}" ]]; then

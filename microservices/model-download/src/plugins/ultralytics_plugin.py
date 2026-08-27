@@ -24,6 +24,34 @@ class UltralyticsDownloader(ModelDownloadPlugin):
     @property
     def plugin_type(self) -> str:
         return "downloader"
+
+    @property
+    def supports_listing(self) -> bool:
+        return True
+
+    @property
+    def listing_filter_fields(self) -> List[str]:
+        return ["search"]
+
+    def list_models(self, filters=None, limit=50, offset=0, **kwargs) -> dict:
+        """List the statically supported Ultralytics model names."""
+        self._validate_listing_filters(filters)
+        models = [m for m in self.get_supported_models() if m not in ("all", "yolo_all")]
+
+        search_term = str((filters or {}).get("search", "")).lower()
+        if search_term:
+            models = [m for m in models if search_term in m.lower()]
+
+        total = len(models)
+        page = models[offset: offset + limit]
+        items = [
+            {
+                "name": name,
+                "owner": "ultralytics",
+            }
+            for name in page
+        ]
+        return {"items": items, "total": total}
     
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         """Check if this plugin can handle the given model"""
@@ -60,10 +88,12 @@ class UltralyticsDownloader(ModelDownloadPlugin):
         
         # Create hub-specific directory under the output directory
         hub_dir = os.path.join(output_dir, "ultralytics")
+        kwargs.get("_model_download_dir", []).append(hub_dir)
         
         # Call the download script
+        active_processes = kwargs.get("_active_processes")
         with self._script_lock:
-            return_code = self._call_bash_script(model=model_name, quantize=quantize, models_path=hub_dir)
+            return_code = self._call_bash_script(model=model_name, quantize=quantize, models_path=hub_dir, active_processes=active_processes)
 
         if int8_requested and return_code == 0:
             int8_artifacts = self._find_int8_artifacts(hub_dir, model_name)
@@ -183,7 +213,7 @@ class UltralyticsDownloader(ModelDownloadPlugin):
         
         return datasets
     
-    def _call_bash_script(self, model: str = "all", quantize: str = "", models_path: str = "") -> int:
+    def _call_bash_script(self, model: str = "all", quantize: str = "", models_path: str = "", active_processes=None) -> int:
         """Call the download_public_models.sh bash script with arguments"""
         # Find script path relative to this file
         script_path = str(Path(__file__).parent.parent.parent / "scripts" / "download_public_models.sh")
@@ -212,6 +242,9 @@ class UltralyticsDownloader(ModelDownloadPlugin):
             text=True,
             env=env
         )
+        # Register for cancellation support
+        if active_processes is not None:
+            active_processes.append(process)
         
         # Stream output in real-time
         while True:

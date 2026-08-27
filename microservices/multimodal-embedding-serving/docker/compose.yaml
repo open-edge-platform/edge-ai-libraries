@@ -12,8 +12,8 @@ services:
       - "${EMBEDDING_SERVER_PORT}:8000"
     ipc: host
     environment:
-      no_proxy: ${no_proxy_env},vdms-dataprep-ms,localhost
-      no_proxy_env: ${no_proxy_env},vdms-dataprep-ms,localhost
+      no_proxy: ${no_proxy_env},multimodal-dataprep-ms,localhost
+      no_proxy_env: ${no_proxy_env},multimodal-dataprep-ms,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       # New unified model configuration
@@ -54,7 +54,7 @@ services:
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
       - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
     networks:
-      - my_network
+      - mme_network
     volumes:
       - ov-models:/home/appuser/.cache/huggingface
       - data-prep:/tmp/dataprep
@@ -65,5 +65,5 @@ volumes:
   ov-models:
     external: true
 networks:
-  my_network:
+  mme_network:
     driver: bridge

@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[tool.poetry]
+name = "vss-test-functional"
+version = "0.1.0"
+description = "Functional tests for Video Search and Summarization"
+authors = []
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+pytest = ">=8.0"
+requests = ">=2.31"
+pytest-html = ">=4.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

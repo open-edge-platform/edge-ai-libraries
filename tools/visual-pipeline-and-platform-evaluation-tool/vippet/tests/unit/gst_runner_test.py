@@ -420,6 +420,93 @@ class TestPipelineRunner(unittest.TestCase):
             self.assertTrue(runner._state.max_runtime_triggered)
             self.assertEqual(runner._state.reason, "max_runtime")
 
+    def test_pipeline_runner_sigint_during_get_state_returns_early(self) -> None:
+        """SIGINT (KeyboardInterrupt) during the initial get_state() call should
+        skip the main loop entirely, clean up immediately, and report success.
+        """
+        fake_pipeline = mock.create_autospec(gst_runner.Gst.Pipeline)
+        fake_bus = mock.Mock()
+        fake_pipeline.get_bus.return_value = fake_bus
+        fake_bus.pop.return_value = None
+
+        # Simulate SIGINT interrupting the blocking get_state() call.
+        fake_pipeline.get_state.side_effect = KeyboardInterrupt
+
+        with mock.patch.object(gst_runner, "GLib") as mock_glib:
+            mock_loop = mock.Mock()
+            mock_glib.MainLoop.return_value = mock_loop
+
+            runner = gst_runner._PipelineRunner(
+                fake_pipeline, max_run_time_sec=0.1, mode="normal"
+            )
+            ok, reason = runner.run()
+
+        self.assertTrue(ok)
+        self.assertIsNone(reason)
+        # The main loop must never be entered.
+        mock_loop.run.assert_not_called()
+        # _cleanup() must still transition the pipeline to NULL.
+        fake_pipeline.set_state.assert_any_call(gst_runner.Gst.State.NULL)
+        self.assertTrue(runner._state.shutdown_in_progress)
+        self.assertEqual(runner._state.reason, "sigint")
+
+    def test_pipeline_runner_sigint_early_exit_still_detects_bus_error(self) -> None:
+        """The early-exit path (SIGINT during get_state()) must still observe
+        an ERROR posted on the bus while _cleanup() transitions the pipeline
+        to NULL, instead of unconditionally reporting success.
+        """
+        fake_pipeline = mock.create_autospec(gst_runner.Gst.Pipeline)
+        fake_bus = mock.Mock()
+        fake_pipeline.get_bus.return_value = fake_bus
+
+        fake_error_message = mock.Mock()
+        fake_error_message.type = gst_runner.Gst.MessageType.ERROR
+        fake_error = mock.Mock()
+        fake_error.message = "simulated-teardown-error"
+        fake_error_message.parse_error.return_value = (fake_error, "debug-info")
+
+        # One ERROR message is sitting on the bus when _finalize() drains it,
+        # simulating an error posted while set_state(NULL) ran in _cleanup().
+        fake_bus.pop.side_effect = [fake_error_message, None]
+
+        fake_pipeline.get_state.side_effect = KeyboardInterrupt
+
+        with mock.patch.object(gst_runner, "GLib") as mock_glib:
+            mock_loop = mock.Mock()
+            mock_glib.MainLoop.return_value = mock_loop
+
+            runner = gst_runner._PipelineRunner(
+                fake_pipeline, max_run_time_sec=0.1, mode="normal"
+            )
+            ok, reason = runner.run()
+
+        self.assertFalse(ok)
+        self.assertEqual(reason, "error")
+        mock_loop.run.assert_not_called()
+
+    def test_finalize_reports_error_drained_from_bus(self) -> None:
+        """_finalize should surface an ERROR message drained from the bus even
+        if no error had previously been recorded on _RunState.
+        """
+        fake_pipeline = mock.create_autospec(gst_runner.Gst.Pipeline)
+        fake_bus = mock.Mock()
+
+        fake_error_message = mock.Mock()
+        fake_error_message.type = gst_runner.Gst.MessageType.ERROR
+        fake_error = mock.Mock()
+        fake_error.message = "late-error"
+        fake_error_message.parse_error.return_value = (fake_error, "debug-info")
+        fake_bus.pop.side_effect = [fake_error_message, None]
+
+        runner = gst_runner._PipelineRunner(
+            fake_pipeline, max_run_time_sec=0.0, mode="normal"
+        )
+
+        ok, reason = runner._finalize(fake_bus)
+
+        self.assertFalse(ok)
+        self.assertEqual(reason, "error")
+
 
 class TestMain(unittest.TestCase):
     """Tests for the main CLI entry point using dependency injection.

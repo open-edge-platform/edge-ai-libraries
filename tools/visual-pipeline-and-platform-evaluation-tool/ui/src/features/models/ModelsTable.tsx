@@ -7,60 +7,21 @@ import {
   TableRow,
 } from "@/components/ui/table.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { Badge } from "@/components/ui/badge.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import { selectPipelinesMap } from "@/store/reducers/pipelines";
-import {
-  api,
-  type ModelInstallStatus,
-  useLazyGetModelDownloadJobStatusQuery,
-  useStartModelDownloadMutation,
-} from "@/api/api.generated.ts";
-import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import {
-  handleApiError,
-  handleAsyncJobError,
-  isAsyncJobError,
-} from "@/lib/apiUtils.ts";
-import { formatErrorMessage } from "@/lib/utils.ts";
-
-const formatInstallStatus = (status: ModelInstallStatus): string =>
-  status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-
-const STATUS_BADGE_VARIANT: Record<
-  ModelInstallStatus,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
-  installed: "default",
-  installing: "secondary",
-  not_installed: "outline",
-  failed: "destructive",
-};
+import { useModelInstall } from "@/features/models/useModelInstall";
+import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
+import { ModelInstallButtonSlot } from "@/features/models/ModelInstallButtonSlot";
 
 export const ModelsTable = () => {
   const models = useAppSelector(selectModels);
   const pipelinesMap = useAppSelector(selectPipelinesMap);
-  const dispatch = useAppDispatch();
-  const { execute: runInstallation } = useAsyncJob({
-    asyncJobHook: useStartModelDownloadMutation,
-    multiple: true,
-    pollingInterval: 2000,
-    statusCheckHook: useLazyGetModelDownloadJobStatusQuery, // lazy version needed here
-    onJobComplete: useCallback(() => {
-      dispatch(api.util.invalidateTags(["models"]));
-    }, [dispatch]),
-  });
-  const [pendingDownloads, setPendingDownloads] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
+  const { pendingDownloads, installModels: runModelInstall } =
+    useModelInstall();
   const [selectedNames, setSelectedNames] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -121,69 +82,27 @@ export const ModelsTable = () => {
     [installableNames],
   );
 
-  const installModels = useCallback(
+  const installSelectedModels = useCallback(
     async (names: readonly string[]) => {
       if (names.length === 0) return;
-      setPendingDownloads((prev) => {
+      await runModelInstall(names);
+      setSelectedNames((prev) => {
         const next = new Set(prev);
-        for (const n of names) next.add(n);
+        for (const n of names) next.delete(n);
         return next;
       });
-
-      try {
-        const result = await runInstallation({
-          modelDownloadRequest: { names: [...names] },
-        });
-
-        if (result.completed.length > 0) {
-          toast.success(
-            result.completed.length === 1
-              ? "Model installed successfully."
-              : `${result.completed.length} models installed successfully.`,
-          );
-        }
-        if (result.failed.length > 0 || result.rejected.length > 0) {
-          const messages = [
-            ...result.rejected.map((r) => `${r.name}: ${r.message}`),
-            ...result.failed.map(
-              (f) => `${f.model_name}: ${formatErrorMessage(f.details)}`,
-            ),
-          ];
-          toast.error(
-            messages.length === 1 ? messages[0] : messages.join("\n"),
-          );
-        }
-      } catch (error) {
-        if (isAsyncJobError(error)) {
-          handleAsyncJobError(error, "Model installation");
-        } else {
-          handleApiError(error, "Failed to install model");
-        }
-        console.error("Failed to install model:", error);
-      } finally {
-        setPendingDownloads((prev) => {
-          const next = new Set(prev);
-          for (const n of names) next.delete(n);
-          return next;
-        });
-        setSelectedNames((prev) => {
-          const next = new Set(prev);
-          for (const n of names) next.delete(n);
-          return next;
-        });
-      }
     },
-    [runInstallation],
+    [runModelInstall],
   );
 
   const handleInstall = useCallback(
-    (modelName: string) => installModels([modelName]),
-    [installModels],
+    (modelName: string) => installSelectedModels([modelName]),
+    [installSelectedModels],
   );
 
   const handleInstallSelected = useCallback(
-    () => installModels([...effectiveSelection]),
-    [effectiveSelection, installModels],
+    () => installSelectedModels([...effectiveSelection]),
+    [effectiveSelection, installSelectedModels],
   );
 
   return (
@@ -266,16 +185,7 @@ export const ModelsTable = () => {
                 <TableCell>{model.category ?? "-"}</TableCell>
                 <TableCell>{model.source}</TableCell>
                 <TableCell>
-                  {model.install_status === "installing" ? (
-                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Loader2 className="size-3.5 animate-spin" />
-                      Installing
-                    </span>
-                  ) : (
-                    <Badge variant={STATUS_BADGE_VARIANT[model.install_status]}>
-                      {formatInstallStatus(model.install_status)}
-                    </Badge>
-                  )}
+                  <ModelInstallStatusIndicator status={model.install_status} />
                 </TableCell>
                 <TableCell>
                   {Array.from(
@@ -295,21 +205,10 @@ export const ModelsTable = () => {
                     .join("\n") || "-"}
                 </TableCell>
                 <TableCell className="text-right">
-                  {canInstall && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={isPending}
-                      onClick={() => handleInstall(model.name)}
-                    >
-                      {isPending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Download className="size-4" />
-                      )}
-                      Install
-                    </Button>
-                  )}
+                  <ModelInstallButtonSlot
+                    showButton={canInstall && !isPending}
+                    onInstall={() => handleInstall(model.name)}
+                  />
                 </TableCell>
               </TableRow>
             );

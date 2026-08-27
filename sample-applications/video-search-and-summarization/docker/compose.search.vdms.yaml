@@ -1,0 +1,52 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# VDMS vector-DB backend overlay for the Video Search Application.
+#
+# Applied on top of docker/compose.search.yaml when VECTORDB_BACKEND=vdms
+# (the default). Mirrors docker/compose.search.milvus.yaml: the base compose
+# defines an always-on vector-retriever whose image and backend env are driven
+# by RETRIEVER_BACKEND (set to "vdms" by setup.sh), so this overlay only ADDS
+# the VDMS vector database and the depends_on edges to it. multimodal-dataprep
+# writes embeddings into VDMS and vector-retriever reads them back.
+#
+# Keeping VDMS in its own overlay is what allows the Milvus deployment to run
+# without a VDMS container: Compose overlays can only add depends_on edges,
+# never remove them, so a vdms-vector-db dependency declared in the base file
+# would force the container up for every backend.
+services:
+    vdms-vector-db:
+        image: intellabs/vdms:v2.12.0
+        ipc: host
+        environment:
+            - OVERRIDE_db_root_path=/db
+            - OVERRIDE_images_path=/db/images
+            - OVERRIDE_descriptors_path=/db/descriptors
+            - OVERRIDE_blobs_path=/db/blobs
+            - OVERRIDE_pmgd_path=/db/graph
+        ports:
+            - '${VDMS_VDB_HOST_PORT:-55555}:55555'
+        volumes:
+            - vdms-db:/db
+        networks:
+            - vs_network
+
+    # Dependency edges only; image/env come from the base definitions.
+    pipeline-manager:
+        depends_on:
+            vdms-vector-db:
+                condition: service_started
+
+    multimodal-dataprep:
+        depends_on:
+            vdms-vector-db:
+                condition: service_started
+
+    vector-retriever:
+        depends_on:
+            vdms-vector-db:
+                condition: service_started
+
+volumes:
+    vdms-db:
+        driver: local

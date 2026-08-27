@@ -45,6 +45,7 @@ Following options are provided to build the microservice.
 
    ```bash
    cd edge-ai-libraries/microservices/multilevel-video-understanding
+   source docker/set_env.sh
    chmod +x ./setup_docker.sh
    ./setup_docker.sh --build
    ```
@@ -65,6 +66,7 @@ Usage: ./setup_docker.sh [options]
 
 Options:
   --prod                Create and start production containers only
+  --light               Reuse an existing serving at VLM_BASE_URL/LLM_BASE_URL if healthy; start multilevel only"
   --build               Build production Docker image only
   --build-prod          Build and then run production Docker images
   --down                Stop and remove all containers, networks, and volumes
@@ -73,6 +75,7 @@ Options:
 Examples:
   ./setup_docker.sh                    Create and start production containers only
   ./setup_docker.sh --prod             Create and start production containers only
+  ./setup_docker.sh --light            Use existing serving: start multilevel only when the serving is already healthy"
   ./setup_docker.sh --build            Build production Docker image only
   ./setup_docker.sh --build-prod       Build and then run production Docker images
   ./setup_docker.sh --down             Stop and remove all containers

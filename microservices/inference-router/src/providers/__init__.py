@@ -3,21 +3,34 @@
 
 """Provider registry and factory."""
 
-from typing import Optional
+from typing import Optional, Union
 
 from src.config import ProviderConfig
 from src.providers.base import ProviderAdapter, ProviderMetadata
 from src.providers.litellm_provider import LitellmProvider
+from src.providers.passthrough_provider import (
+    PASSTHROUGH_SERVICES,
+    PASSTHROUGH_TYPES,
+    PassthroughProvider,
+    PassthroughSpec,
+)
 from src.exceptions import ConfigurationError
 
 
-def create_provider(provider_config: ProviderConfig) -> Optional[ProviderAdapter]:
+def create_provider(
+    provider_config: ProviderConfig,
+) -> Optional[Union[ProviderAdapter, PassthroughProvider]]:
     """
-    Create a provider adapter instance from configuration.
+    Create a provider instance from configuration.
 
-    All provider types are routed through ``LitellmProvider``, which delegates
-    to litellm. Set ``type`` in config.yaml to a value litellm recognises
-    (``hosted_vllm``, ``openai``, ``ollama``, ``minimax``, ``anthropic``, ...).
+    Dispatch is by ``type``:
+
+    - A ``type`` in :data:`PASSTHROUGH_TYPES` (``transcription``, ``tts``,
+      ``embeddings``, ``rerank``, ``ocr``) builds a :class:`PassthroughProvider`,
+      which forwards requests verbatim to a backing service.
+    - Any other ``type`` builds a :class:`LitellmProvider`, which delegates to
+      litellm (set ``type`` to a value litellm recognises: ``hosted_vllm``,
+      ``openai``, ``ollama``, ``minimax``, ``anthropic``, ...).
 
     Returns None if the provider is disabled.
     """
@@ -29,6 +42,9 @@ def create_provider(provider_config: ProviderConfig) -> Optional[ProviderAdapter
             f"Provider '{provider_config.name}' missing required 'type' field"
         )
 
+    if provider_config.type in PASSTHROUGH_TYPES:
+        return PassthroughProvider(provider_config)
+
     return LitellmProvider(provider_config)
 
 
@@ -36,5 +52,9 @@ __all__ = [
     "ProviderAdapter",
     "ProviderMetadata",
     "LitellmProvider",
+    "PassthroughProvider",
+    "PassthroughSpec",
+    "PASSTHROUGH_SERVICES",
+    "PASSTHROUGH_TYPES",
     "create_provider",
 ]

@@ -12,7 +12,7 @@ services:
       - "${VLLM_HOST_PORT:-8200}:8000"
     ipc: "host"
     environment:
-      no_proxy: ${no_proxy},${MINIO_HOST},localhost
+      no_proxy: ${no_proxy},minio-service,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       HUGGING_FACE_HUB_TOKEN: ${HUGGINGFACE_TOKEN:-}
@@ -71,9 +71,9 @@ services:
       vllm-xpu-service:
         condition: service_healthy
     environment:
-      no_proxy: ${no_proxy},${EVAM_HOST},${VLM_HOST},${AUDIO_HOST},${RABBITMQ_HOST},${MINIO_HOST},${POSTGRES_HOST},${OVMS_HOST},${VDMS_DATAPREP_HOST},${VS_HOST},${VLLM_HOST},localhost
-      LLM_SUMMARIZATION_API: ${VLLM_ENDPOINT}
-      VLM_CAPTIONING_API: ${VLLM_ENDPOINT}
+      no_proxy: ${no_proxy},${EVAM_HOST:-video-ingestion},${VLM_HOST:-ovms-service},${AUDIO_HOST:-audio-analyzer},${RABBITMQ_HOST:-rabbitmq-service},${MINIO_HOST:-minio-service},${POSTGRES_HOST:-postgres-service},${OVMS_HOST:-ovms-service},${MM_DATAPREP_HOST:-multimodal-dataprep},${VS_HOST:-video-search},${VLLM_HOST:-vllm-xpu-service},localhost
+      LLM_SUMMARIZATION_API: ${VLLM_ENDPOINT:-http://vllm-xpu-service:8000/v1}
+      VLM_CAPTIONING_API: ${VLLM_ENDPOINT:-http://vllm-xpu-service:8000/v1}
       USE_VLLM: "CONFIG_ON"
 
 volumes:

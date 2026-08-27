@@ -2,6 +2,8 @@
 
 Version: 1.0.0
 
+## Swagger Plugin
+
 <!--hide_directive```{eval-rst}
 .. swagger-plugin:: api-docs/openapi.yaml
 ```hide_directive-->
@@ -36,7 +38,7 @@ Batch query endpoint. Accepts a list of `QueryRequest` objects and returns per-q
     "query": "red car",
     "where": {
       "all": [
-        {"field": "tags", "op": "contains_any", "value": ["traffic"]},
+        { "field": "tags", "op": "contains_any", "value": ["traffic"] },
         {
           "field": "created_at",
           "op": "between",
@@ -92,14 +94,14 @@ Base64-encoded image input:
 ]
 ```
 
-> **_NOTE:_** `query` and `image` are mutually exclusive. Providing both in the same query block returns a `422` validation error. When using `image`, the response `query` field is set to `[image_url]` or `[image_base64]` to indicate the input modality.
+> **Note:** `query` and `image` are mutually exclusive. Providing both in the same query block returns a `422` validation error. When using `image`, the response `query` field is set to `[image_url]` or `[image_base64]` to indicate the input modality.
 
 ### Quick contract reference
 
 Top-level request fields:
 
 | Field | Type | Required | Notes |
-| --- | --- | --- | --- |
+| ----- | ---- | -------- | ----- |
 | `query_id` | string | No | Optional per-query identifier. Defaults to the `query` text when omitted. |
 | `query` | string | Conditional | User search text. Required unless `image` is provided. Mutually exclusive with `image`. |
 | `image` | object | Conditional | Image input for visual similarity search. Required unless `query` is provided. Mutually exclusive with `query`. Uses discriminated union with `type` field (`image_url` or `image_base64`). |
@@ -112,11 +114,11 @@ Top-level request fields:
 
 Safety limits:
 
-| Limit | Value | Why it exists |
-| --- | --- | --- |
-| `max_where_depth` | 5 | Prevents deeply nested trees that are expensive and hard to debug. |
-| `max_where_clauses` | 50 | Prevents oversized expressions from consuming excessive compute. |
-| `max_where_list_size` | 100 | Prevents very large list scans for `in` and array operators. |
+| Limit                 | Value | Why it exists                                                      |
+| --------------------- | ----- | ------------------------------------------------------------------ |
+| `max_where_depth`     | 5     | Prevents deeply nested trees that are expensive and hard to debug. |
+| `max_where_clauses`   | 50    | Prevents oversized expressions from consuming excessive compute.   |
+| `max_where_list_size` | 100   | Prevents very large list scans for `in` and array operators.       |
 
 ### Supported filter operators
 
@@ -165,7 +167,7 @@ Safety limits:
       "applied_filters": {
         "normalized_where": {
           "all": [
-            {"field": "tags", "op": "contains_any", "value": ["traffic"]},
+            { "field": "tags", "op": "contains_any", "value": ["traffic"] },
             {
               "field": "created_at",
               "op": "between",
@@ -195,12 +197,12 @@ or rewritten for that query.
 
 Explain behavior summary:
 
-| Response field | Populated when | Meaning |
-| --- | --- | --- |
-| `applied_filters.normalized_where` | Always when any filter input is present | Final interpreted `where` tree used for evaluation. |
-| `applied_filters.warnings` | When normalization or pushdown notes exist | Human-readable notes about alias rewrites and pushdown limits. |
-| `applied_filters.compiled_backend_filter` | `explain_filters=true` | Backend-native filter payload sent to vector store. |
-| `applied_filters.dropped_or_rewritten_clauses` | `explain_filters=true` | Clauses rewritten from aliases or evaluated only in fallback path. |
+| Response field                                 | Populated when                             | Meaning                                                            |
+| ---------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------ |
+| `applied_filters.normalized_where`             | Always when any filter input is present    | Final interpreted `where` tree used for evaluation.                |
+| `applied_filters.warnings`                     | When normalization or pushdown notes exist | Human-readable notes about alias rewrites and pushdown limits.     |
+| `applied_filters.compiled_backend_filter`      | `explain_filters=true`                     | Backend-native filter payload sent to vector store.                |
+| `applied_filters.dropped_or_rewritten_clauses` | `explain_filters=true`                     | Clauses rewritten from aliases or evaluated only in fallback path. |
 
 ### Pushdown, fallback, and over-fetch behavior
 
@@ -241,7 +243,21 @@ Optional query parameter:
       "backend": "vdms",
       "top_level_fields": ["query", "image", "top_k", "where"],
       "logical_blocks": ["all", "any", "not"],
-      "supported_operators": ["eq", "in", "contains", "starts_with", "gt", "gte", "lt", "lte", "between", "contains_any", "contains_all", "exists", "missing"],
+      "supported_operators": [
+        "eq",
+        "in",
+        "contains",
+        "starts_with",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "between",
+        "contains_any",
+        "contains_all",
+        "exists",
+        "missing"
+      ],
       "pushdown_operators": ["gte"],
       "known_fields": {
         "tags": "array<string>",
@@ -266,12 +282,12 @@ The API surface is uniform, but translation is backend-specific:
 
 ## Supporting Resources
 
-- [Overview](Overview.md)
-- [Overview and Architecture](overview-architecture.md)
-- [Get Started](get-started.md)
-- [How to Build from Source](how-to-build-from-source.md)
-- [Filter Grammar](filter-grammar.md)
-- [OpenAPI Specification](api-docs/openapi.yaml)
-- [System Requirements](system-requirements.md)
-- [Add New Retriever Backend](add-new-retriever-backend.md)
-- [Release Notes](release-notes.md)
+- [Overview](./index.md)
+- [How It Works](./how-it-works.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [Get Started](./get-started.md)
+- [How to Build from Source](./get-started/build-from-source.md)
+- [How To Add New Retriever Backend](./add-new-retriever-backend.md)
+- [Filter Grammar Reference](./filter-grammar.md)
+- [Download OpenAPI Specification](./api-docs/openapi.yaml)
+- [Release Notes](./release-notes.md)

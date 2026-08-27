@@ -1,0 +1,144 @@
+{
+    "skill_name": "chatqna-docker-deploy",
+    "evals": [
+        {
+            "id": 1,
+            "prompt": "Deploy chatqna core with docker compose. I did not provide runtime or device.",
+            "expected_output": "Defaults to OpenVINO CPU profile and provides a valid deployment command sequence from preflight to health verification.",
+            "files": [],
+            "expectations": [
+                "Defaults runtime and device to openvino plus cpu when not provided.",
+                "Uses source scripts/setup_env.sh for default OpenVINO CPU selection.",
+                "Includes docker compose -f docker/compose.yaml up -d to start services.",
+                "Includes health validation at /v1/chatqna/health."
+            ]
+        },
+        {
+            "id": 2,
+            "prompt": "Deploy OpenVINO GPU profile for chatqna with docker compose.",
+            "expected_output": "Uses the GPU profile command path and includes fallback behavior when render nodes are unavailable.",
+            "files": [],
+            "expectations": [
+                "Uses source scripts/setup_env.sh -d gpu for GPU profile selection.",
+                "Checks or references /dev/dri/render availability for GPU support.",
+                "Explains fallback to OpenVINO CPU when GPU render devices are missing.",
+                "Starts deployment with docker compose -f docker/compose.yaml up -d."
+            ]
+        },
+        {
+            "id": 3,
+            "prompt": "Deploy chatqna with ollama backend using docker compose.",
+            "expected_output": "Selects Ollama CPU profile and provides the compose startup and verification flow.",
+            "files": [],
+            "expectations": [
+                "Uses source scripts/setup_env.sh -b ollama.",
+                "States that Ollama path is CPU-only in this skill.",
+                "Includes docker compose -f docker/compose.yaml up -d.",
+                "Includes health check for /v1/chatqna/health."
+            ]
+        },
+        {
+            "id": 4,
+            "prompt": "Use prebuilt images but I did not provide tags. What should I export before deploy?",
+            "expected_output": "Provides pinned default image tag exports for prebuilt images before startup.",
+            "files": [],
+            "expectations": [
+                "Includes export REGISTRY=\"intel/\".",
+                "Includes BACKEND_TAG pinned defaults for runtime path, such as core_1.3.3.",
+                "Includes export UI_TAG=\"core_1.3.3\".",
+                "States that user-provided registry or tags override pinned defaults."
+            ]
+        },
+        {
+            "id": 5,
+            "prompt": "Run preflight checks for docker deployment first.",
+            "expected_output": "Includes Docker and Docker Compose version checks before running deployment commands.",
+            "files": [],
+            "expectations": [
+                "Includes docker --version.",
+                "Includes docker compose version.",
+                "Keeps deployment workflow in Docker Compose context."
+            ]
+        },
+        {
+            "id": 6,
+            "prompt": "After startup, provide readiness evidence for chatqna docker deployment.",
+            "expected_output": "Provides evidence commands and expects running services plus HTTP 200 health status.",
+            "files": [],
+            "expectations": [
+                "Includes docker compose -f docker/compose.yaml ps output evidence.",
+                "Includes docker compose -f docker/compose.yaml logs --tail=150 or similar evidence.",
+                "Includes curl health probe with HTTP status formatting for /v1/chatqna/health.",
+                "Requires or references HTTP_STATUS:200 in readiness evidence."
+            ]
+        },
+        {
+            "id": 7,
+            "prompt": "Give me the access URLs after successful docker compose deploy.",
+            "expected_output": "Returns both UI and API docs URLs using the documented host and port.",
+            "files": [],
+            "expectations": [
+                "Provides UI URL using http://<HOST_IP>:8102.",
+                "Provides docs URL ending with /v1/chatqna/docs.",
+                "References gateway entrypoint on port 8102."
+            ]
+        },
+        {
+            "id": 8,
+            "prompt": "Stop chatqna deployment and provide proof containers are terminated.",
+            "expected_output": "Uses docker compose down and includes docker ps evidence of stopped state.",
+            "files": [],
+            "expectations": [
+                "Includes docker compose -f docker/compose.yaml down.",
+                "Includes docker ps output as termination evidence.",
+                "Can include optional deep cleanup down -v --remove-orphans only when requested."
+            ]
+        },
+        {
+            "id": 9,
+            "prompt": "setup_env.sh returned an unsupported backend or device value. How should this be handled?",
+            "expected_output": "Corrects invalid runtime parameters to supported values and proceeds with valid profile selection.",
+            "files": [],
+            "expectations": [
+                "Restricts backend to openvino or ollama.",
+                "Restricts device to cpu or gpu where valid.",
+                "Provides corrected setup_env.sh invocation for a supported profile."
+            ]
+        },
+        {
+            "id": 10,
+            "prompt": "Containers failed to start after docker compose up. Provide troubleshooting workflow.",
+            "expected_output": "Gives actionable startup failure diagnosis using compose logs and service-focused error reporting.",
+            "files": [],
+            "expectations": [
+                "Collects docker compose -f docker/compose.yaml logs --tail=200 or similar.",
+                "Reports failing service name.",
+                "Includes first actionable error from logs."
+            ]
+        },
+        {
+            "id": 11,
+            "prompt": "Health endpoint is failing right after startup. What should I check?",
+            "expected_output": "Provides post-start health troubleshooting tied to backend logs, host configuration, and model startup timing.",
+            "files": [],
+            "expectations": [
+                "Checks backend container logs.",
+                "Validates HOST_IP and selected runtime profile.",
+                "Mentions first startup can take longer due to model download or conversion.",
+                "Re-checks /v1/chatqna/health after stabilization."
+            ]
+        },
+        {
+            "id": 12,
+            "prompt": "Deploy with a custom model config and Hugging Face token for gated model access.",
+            "expected_output": "Includes secure environment exports for model config and token without hardcoding secrets.",
+            "files": [],
+            "expectations": [
+                "Includes export MODEL_CONFIG_PATH with an absolute config path.",
+                "Includes export HUGGINGFACEHUB_API_TOKEN as an environment variable.",
+                "Avoids hardcoding real token values in commands or files.",
+                "Continues with a valid setup_env.sh profile selection and compose startup."
+            ]
+        }
+    ]
+}

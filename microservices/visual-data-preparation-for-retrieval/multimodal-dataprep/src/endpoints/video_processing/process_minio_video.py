@@ -1,0 +1,271 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+import datetime
+import pathlib
+import shutil
+import time
+import uuid
+from http import HTTPStatus
+from typing import Annotated, List
+
+from fastapi import APIRouter, Body, HTTPException
+
+from src.common import DataPrepException, Strings, logger, settings
+from src.common.api_responses import INGEST_ERRORS, error_responses
+from src.common.schema import DataPrepResponse, VideoRequest
+from src.core.dedup import check_and_register_upload, compute_content_hash, find_duplicate_video_id
+from src.core.embedding import generate_image_embedding_from_content, generate_video_embedding
+from src.core.media import detect_media_kind
+from src.core.utils.common_utils import get_minio_client
+from src.core.utils.video_utils import get_video_from_minio
+from src.core.utils.config_utils import get_config, read_config
+from src.core.validation import sanitize_model
+
+router = APIRouter(tags=["Media Processing APIs"])
+
+
+def _resolve_stored_video_name(bucket_name: str, video_id: str) -> str:
+    """Resolve the single stored video's filename for a ``video_id`` directory.
+
+    Each ``video_id`` directory holds exactly one video file, so the lookup is
+    unambiguous. Raises :class:`DataPrepException` if parameters are missing or
+    no video exists in the directory.
+    """
+
+    # Validate required parameters
+    if not bucket_name or not video_id:
+        raise DataPrepException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            msg="Both bucket_name and video_id must be provided.",
+        )
+
+    # Get the Minio client and ensure the bucket exists
+    minio_client = get_minio_client()
+    minio_client.ensure_bucket_exists(bucket_name)
+
+    object_name = minio_client.get_video_in_directory(bucket_name, video_id)
+    if not object_name:
+        raise DataPrepException(
+            status_code=HTTPStatus.NOT_FOUND,
+            msg=f"No video found in directory '{video_id}' in bucket '{bucket_name}'",
+        )
+    video_name = pathlib.Path(object_name).name
+    logger.debug(f"Found video: {video_name} in directory {video_id}")
+    return video_name
+
+
+@router.post(
+    "/media/process",
+    summary="Process media (video or image) already stored in object storage for embedding generation.",
+    operation_id="processStoredMedia",
+    status_code=HTTPStatus.CREATED,
+    response_model=DataPrepResponse,
+    response_model_exclude_none=True,
+    responses=error_responses(*INGEST_ERRORS),
+)
+async def process_minio_video(
+    video_request: Annotated[VideoRequest, Body(description="Video processing parameters")],
+) -> DataPrepResponse:
+    """
+    ### Processes stored media using frame-based processing with optional object detection.
+
+    Video is processed by extracting individual frames at regular intervals (every Nth frame).
+    Each frame generates its own embedding. When object detection is enabled, detected objects
+    are cropped and embedded as separate entities, providing enhanced semantic coverage.
+
+    ***For example:** Given a video of 30s at 30fps (900 frames total), with frame_interval = 15,
+    60 frames will be extracted and embedded (every 15th frame). If object detection is enabled
+    and 3 objects are detected per frame on average, this results in approximately 240 embeddings
+    (60 frames + 180 object crops).**
+
+    #### Body Params:
+    - **video_request (VideoRequest) :** Contains processing parameters:
+       - **bucket_name (str) :** The bucket name where the video is stored (If not provided, a default bucket name will be used based on application config.)
+       - **video_id (str) :** The video ID (directory) containing the video (required)
+       - **frame_interval (int) :** Extract every Nth frame for processing (range: 1-60; defaults to the service's configured frame_interval, 15 unless overridden)
+       - **enable_object_detection (bool) :** Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)
+       - **detection_confidence (float) :** Confidence threshold for object detection (range: 0.1-1.0; defaults to the service's configured threshold, 0.85 unless overridden)
+       - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
+
+    #### Raises:
+    - **400 Bad Request :** If required parameters are missing or invalid.
+    - **404 Not Found :** If the specified media cannot be found, or no media exists in the specified directory.
+    - **409 Conflict :** If the media duplicates an existing item and duplicate uploads are disabled.
+    - **502 Bad Gateway :** When the configured storage backend or vector database cannot be reached.
+    - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
+
+    Returns:
+    - **response (json) :** A response JSON containing status and message.
+    """
+
+    try:
+        raw_config = read_config(settings.CONFIG_FILEPATH, type="yaml")
+
+        # Not able to read config file is a fatal error.
+        if raw_config is None:
+            raise Exception(Strings.config_error)
+
+        try:
+            effective_config = get_config()
+        except ValueError as cfg_err:
+            logger.error(f"Failed to load effective configuration: {cfg_err}")
+            raise
+
+        # Get directory paths from config file
+        videos_temp_dir = pathlib.Path(raw_config.get("videos_local_temp_dir", "/tmp/dataprep/videos"))
+        metadata_temp_dir = pathlib.Path(
+            raw_config.get("metadata_local_temp_dir", "/tmp/dataprep/metadata")
+        )
+
+        # Sanitize the video request model
+        video_request = sanitize_model(video_request)
+
+        # Get parameters from video_request, fall back to config for some, if not specified
+        bucket_name = video_request.bucket_name
+        video_id = video_request.video_id
+        frame_interval = video_request.frame_interval or effective_config.get("frame_interval", 15)
+        if video_request.enable_object_detection is not None:
+            enable_object_detection = bool(video_request.enable_object_detection)
+        else:
+            enable_object_detection = effective_config.get("enable_object_detection")
+            if enable_object_detection is None:
+                enable_object_detection = settings.ENABLE_OBJECT_DETECTION
+        detection_confidence = (
+            video_request.detection_confidence
+            or effective_config.get("detection_confidence", 0.85)
+        )
+        tags: List[str] = video_request.tags or []
+        video_name = video_request.video_name
+
+        # Validate the provided minio parameters and resolve the stored video name
+        video_name = _resolve_stored_video_name(
+            bucket_name=bucket_name,
+            video_id=video_id,
+        )
+        object_name = f"{video_id}/{video_name}"
+        minio_client = get_minio_client()
+
+        # Create a unique subdirectory for this request using video_id to avoid conflicts
+        request_timestamp = int(datetime.datetime.now().timestamp())
+        request_id = f"{video_id}_{request_timestamp}"
+        videos_temp_dir = videos_temp_dir / request_id
+        metadata_temp_dir = metadata_temp_dir / request_id
+
+        # create the temp directories
+        videos_temp_dir.mkdir(parents=True, exist_ok=True)
+        metadata_temp_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            # Download video from Minio to process it
+            logger.info(
+                f"Retrieving video from Minio at bucket: {bucket_name}, video_id: {video_id}"
+            )
+            video_data, filename = get_video_from_minio(bucket_name, video_id)
+
+            # Keep the raw bytes in memory: the image path embeds directly from
+            # bytes, while the video path additionally needs a temp file.
+            media_content = video_data.read()
+
+            # Save video to temporary location for processing
+            temp_video_path = videos_temp_dir / filename
+            with open(temp_video_path, "wb") as f:
+                f.write(media_content)
+
+            logger.info(f"Retrieved media {filename} from {bucket_name}/{video_id}")
+
+        except Exception as ex:
+            logger.error(f"Error retrieving video from Minio: {ex}")
+            raise DataPrepException(status_code=HTTPStatus.BAD_GATEWAY, msg=Strings.minio_error)
+
+        # /media/process works on media that is already stored in object
+        # storage. For strict duplicate-upload mode, reject duplicate content
+        # here too. If the duplicate owner is the same video_id, do not delete
+        # that existing object.
+        existing_owner = None
+        if not settings.ALLOW_DUPLICATE_UPLOADS:
+            content_hash = compute_content_hash(media_content)
+            existing_owner = find_duplicate_video_id(minio_client, bucket_name, content_hash)
+            if existing_owner is not None:
+                if existing_owner != video_id:
+                    try:
+                        minio_client.delete_object(bucket_name, object_name)
+                    except Exception as cleanup_ex:  # noqa: BLE001
+                        logger.warning("Failed to roll back duplicate stored object: %s", cleanup_ex)
+                raise DataPrepException(
+                    status_code=HTTPStatus.CONFLICT,
+                    msg=f"{Strings.duplicate_upload} (existing video_id: '{existing_owner}').",
+                )
+
+        # Register dedup markers after passing strict duplicate checks.
+        check_and_register_upload(minio_client, bucket_name, video_id, media_content)
+
+        # Process media and generate embeddings
+        telemetry_context = {
+            "request_id": str(uuid.uuid4()),
+            "source": "/media/process",
+            "requested_at": time.time(),
+        }
+
+        if detect_media_kind(filename) == "image":
+            ids = await generate_image_embedding_from_content(
+                image_content=media_content,
+                bucket_name=bucket_name,
+                video_id=video_id,
+                filename=filename,
+                video_name=video_name,
+                enable_object_detection=enable_object_detection,
+                detection_confidence=detection_confidence,
+                tags=tags,
+                telemetry_context=telemetry_context,
+            )
+        else:
+            ids = await generate_video_embedding(
+                bucket_name=bucket_name,
+                video_id=video_id,
+                filename=filename,
+                video_name=video_name,
+                temp_video_path=temp_video_path,
+                metadata_temp_path=metadata_temp_dir,
+                frame_interval=frame_interval,
+                enable_object_detection=enable_object_detection,
+                detection_confidence=detection_confidence,
+                tags=tags,
+                telemetry_context=telemetry_context,
+            )
+
+        # logger.debug(f"Frame-based embeddings created for videos: {ids}")
+        return DataPrepResponse(message=Strings.embedding_success)
+
+    except DataPrepException as ex:
+        logger.error(ex)
+        raise HTTPException(status_code=ex.status_code, detail=ex.message)
+
+    except ValueError as ex:
+        logger.error(ex)
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail=str(ex))
+
+    except Exception as ex:
+        logger.error(ex)
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=Strings.server_error
+        )
+
+    finally:
+        # Clean up unique request directory if it exists
+        try:
+            # Only remove specific request directories we created, not the base directories
+            if (
+                "request_id" in locals()
+                and "videos_temp_dir" in locals()
+                and videos_temp_dir.exists()
+            ):
+                shutil.rmtree(videos_temp_dir, ignore_errors=True)
+            if (
+                "request_id" in locals()
+                and "metadata_temp_dir" in locals()
+                and metadata_temp_dir.exists()
+            ):
+                shutil.rmtree(metadata_temp_dir, ignore_errors=True)
+        except Exception as ex:
+            logger.error(f"Error cleaning up temporary directories: {ex}")

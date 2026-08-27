@@ -131,6 +131,8 @@ def wait_for_video_summary_complete(url):
         tuple: (completion_status, response) where completion_status is True if
                video summary completed successfully, False otherwise.
     """
+    chunking_time = 0
+    chunking_time_captured = False
     video_summary_complete = False
     response = ""
     must_end = time.time() + 3600 # Set a maximum wait time of 1 hour for video summary completion
@@ -150,6 +152,10 @@ def wait_for_video_summary_complete(url):
             if json_response.get("videoSummaryStatus") == "complete":
                 video_summary_complete = True
                 break
+
+            if not chunking_time_captured and json_response.get("chunkingStatus") == "complete":
+                chunking_time = time.time()
+                chunking_time_captured = True
             
             time.sleep(10)
 
@@ -166,7 +172,7 @@ def wait_for_video_summary_complete(url):
     
     if not video_summary_complete:
         print("Video summarization failed.")
-    return video_summary_complete, response
+    return video_summary_complete, chunking_time, response
 
 
 def get_video_summary(report_dir, response, summary_id):
@@ -350,7 +356,7 @@ def get_live_caption_metadata(url, duration_seconds=120):
         try:
             for line in response.iter_lines(decode_unicode=True):
                 if time.time() >= end_time:
-                    print(f"\nCollection complete. Collected {len(collected_data)} data entries.")
+                    print(f"Collection complete. Collected {len(collected_data)} data entries.")
                     break
                 if line and "data" in line:
                     collected_data.append(line)

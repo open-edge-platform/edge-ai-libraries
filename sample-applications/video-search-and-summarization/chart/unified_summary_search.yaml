@@ -1,8 +1,10 @@
 multimodalembeddingms:
   enabled: true
-vdmsdataprep:
+multimodaldataprep:
   enabled: true
 vdmsvectordb:
+  enabled: true
+vectorretriever:
   enabled: true
 videosearch:
   enabled: true

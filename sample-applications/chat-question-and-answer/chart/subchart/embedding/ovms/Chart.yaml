@@ -1,4 +1,0 @@
-apiVersion: v2
-name: ovmsEmbeddingService
-description: A Helm chart for deploying OpenVINO Model Server
-version: 0.1.1

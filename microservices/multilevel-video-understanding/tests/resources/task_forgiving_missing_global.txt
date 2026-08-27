@@ -1,0 +1,11 @@
+# Forgiving-registration NEGATIVE case: GLOBAL_PROMPT is deliberately omitted.
+# GLOBAL_PROMPT and LOCAL_PROMPT are the only two REQUIRED anchors, so this
+# content must be rejected with 422 missing_anchors and a hint saying only
+# GLOBAL_PROMPT and LOCAL_PROMPT are required (MACRO/T_MINUS_1 are optional).
+
+LOCAL_PROMPT = '''
+##Task:
+Describe what happens in this short clip in one or two sentences.
+Start time: {st_tm} seconds
+End time: {end_tm} seconds
+'''

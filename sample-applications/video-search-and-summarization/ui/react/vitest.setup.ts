@@ -9,6 +9,15 @@ afterEach(() => {
   cleanup();
 });
 
+// Provide a no-op stub for carbon React components as jsdom does not provide ResizeObserver.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 // Global axios mock to prevent network calls in all tests
 vi.mock('axios', () => ({
   default: {

@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[tool.poetry]
+name = "audio-analyzer"
+version = "2026.2.0"
+description = "Intel Audio Analyzer — voice transcription and speaker diarization microservice"
+authors = ["Intel Corporation"]
+readme = "README.md"
+# Application code is not installed as a package; it runs directly from the repo root.
+packages = []
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+# Runtime dependencies are managed via requirements.txt and installed inside the
+# Docker image.  Only dev-tooling is declared here so `poetry install --with dev`
+# gives CI linting jobs a consistent, reproducible environment.
+
+[tool.poetry.group.dev.dependencies]
+black   = ">=24.0,<25"
+isort   = ">=5.13,<6"
+pylint  = ">=3.0,<4"
+flake8  = ">=7.0,<8"
+
+[build-system]
+requires      = ["poetry-core>=1.8"]
+build-backend = "poetry.core.masonry.api"
+
+# ---------------------------------------------------------------------------
+# Tool configuration
+# ---------------------------------------------------------------------------
+
+[tool.black]
+line-length    = 120
+target-version = ["py311", "py312"]
+
+[tool.isort]
+profile     = "black"
+line_length = 120
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore   = ["E203", "W503"]
+exclude         = [".venv", "__pycache__", ".git", "models", "storage", "chunks"]

@@ -18,22 +18,16 @@ global:
     MINIO_ROOT_USER: ""
     MINIO_ROOT_PASSWORD: ""
 
+
 # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
 pvcName: ""
 
-# odModelName defines the name of Object Detection Model
+# odModelName defines the name of Object Detection Model (ultralytics hub id)
 odModelName: ""
-# odModelType defines the type of Object Detection Model. e.g., 'yolo_v8', 'YOLOv8-SEG'
-odModelType: ""
 
 # claimSize is the storage size claimed by PVC if usePvc is set to true.
 # claimSize should be set based on the size of models and files expected to be stored.
 claimSize: ""
-
-# odModelName defines the name of Object Detection Model
-odModelName: ""
-# odModelType defines the type of Object Detection Model. e.g., 'yolo_v8', 'YOLOv8-SEG'
-odModelType: ""
 
 videoingestion:
   name: videoingestion

@@ -1,7 +1,7 @@
 global:
   report_dir: 'reports'
   input_profiles_path: 'profiles/profiles.yaml'  # Reference to external input profiles file
-  perf_tool_repo: 'https://github.com/intel-retail/performance-tools.git'
+  metrics_collector: 'intel/metrics-manager:2026.1.0'  # Metrics Manager image used as the resource-metrics collector
 
 
 apis:
@@ -13,6 +13,6 @@ apis:
       summary: '12345/manager/summary'
       states: '12345/manager/states'
       telemetry: '9766/v1/telemetry'
-    input_profile: 'video_summary_wsf'  # Reference to input profile
+    input_profile: 'video_summary_injection'  # Reference to input profile
   
 

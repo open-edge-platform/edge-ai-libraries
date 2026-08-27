@@ -1,10 +1,16 @@
+import logging
 import threading
 
 import numpy as np
 
+from components.tts import speecht5_voices
 from components.tts.base import BaseTTSService, TTSServiceConfig, model_name_matches, normalize_model_name
 from components.tts.openvino import normalize_device
+from components.tts.text_normalizer import normalize_for_speech
 from utils.ensure_model import ensure_model, resolve_tts_model_source
+
+
+logger = logging.getLogger(__name__)
 
 
 IMPLEMENTATION_NAME = "speecht5"
@@ -57,6 +63,19 @@ class OpenVinoSpeechT5Service(BaseTTSService):
         self._inference_lock = self._get_inference_lock(IMPLEMENTATION_NAME)
         self.sample_rate = int(getattr(self.model, "sampling_rate", self._default_sample_rate))
 
+    def _speaker_embedding_tensor(self, speaker: str):
+        """Build the OpenVINO tensor carrying the requested voice's x-vector.
+
+        Without this the pipeline silently falls back to CMU Arctic vector
+        7306, which is the thin default the kiosk used to ship.
+        """
+        import openvino as ov
+
+        embedding = speecht5_voices.load_embedding(speaker)
+        # ov.Tensor does not copy, and the cached array is read-only, so hand
+        # over a writable copy the runtime can own.
+        return ov.Tensor(np.array(embedding, dtype=np.float32))
+
     def synthesize(
         self,
         text: str,
@@ -65,28 +84,40 @@ class OpenVinoSpeechT5Service(BaseTTSService):
         instructions: str | None = None,
     ) -> dict:
         normalized_text = self._validate_text(text)
+        # SpeechT5's character vocabulary has no digits or currency symbols, so
+        # they are tokenised as <unk> and dropped from the audio entirely
+        # ("open 8 AM to 11 PM" is spoken as "open AM to PM"). Expand them to
+        # words before synthesis.
+        spoken_text = normalize_for_speech(normalized_text)
+        if not spoken_text:
+            raise ValueError("Input text contains no pronounceable characters")
+        if spoken_text != normalized_text:
+            logger.debug(
+                "[SPEECHT5] Normalised text for synthesis: %r -> %r",
+                normalized_text, spoken_text,
+            )
         chosen_language, chosen_speaker = self._resolve_voice_request(language, speaker)
 
         if chosen_language and chosen_language.lower() != self.config.default_language.lower():
             raise ValueError(
                 f"Only {self.config.default_language} is currently supported for speech synthesis."
             )
-        if chosen_speaker and chosen_speaker.lower() != self.config.default_speaker.lower():
-            raise ValueError(
-                f"SpeechT5 currently supports only the configured voice '{self.config.default_speaker}'."
-            )
         if instructions:
             raise ValueError("SpeechT5 does not support free-form voice instructions.")
 
+        voice = speecht5_voices.resolve_voice(chosen_speaker)
+        speaker_embedding = self._speaker_embedding_tensor(voice.name)
+
         with self._inference_lock:
-            result = self.model.generate(normalized_text)
+            result = self.model.generate(spoken_text, speaker_embedding)
         audio = _speech_tensor_to_numpy(result.speeches[0])
-        return self._build_result(audio, self.sample_rate, chosen_speaker, chosen_language, instructions)
+        return self._build_result(audio, self.sample_rate, voice.name, chosen_language, instructions)
 
     def get_model_info(self) -> dict:
         info = self._build_model_info(IMPLEMENTATION_NAME, self.model)
         info["supported_languages"] = [self.config.default_language]
-        info["supported_speakers"] = [self.config.default_speaker]
+        info["supported_speakers"] = speecht5_voices.supported_speakers()
+        info["voices"] = speecht5_voices.describe_speakers()
         return info
 
 

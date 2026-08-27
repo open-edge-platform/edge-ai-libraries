@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
+import api.api_schemas as schemas
 from benchmark import (
     Benchmark,
     BenchmarkResult,
@@ -144,6 +145,10 @@ class TestBenchmark(unittest.TestCase):
             )
 
             self.assertEqual(result, expected_result)
+
+    def test_benchmark_completion_status_uses_completed(self):
+        self.assertEqual(schemas.BenchmarkTestCaseRunStatus.COMPLETED.value, "completed")
+        self.assertNotIn("passed", [status.value for status in schemas.BenchmarkTestCaseRunStatus])
 
     def test_invalid_ratio_raises_value_error(self):
         # Set stream rates to create an invalid ratio

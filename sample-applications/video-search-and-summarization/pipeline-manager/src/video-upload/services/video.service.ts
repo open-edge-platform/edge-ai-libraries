@@ -15,10 +15,20 @@ import { VideoDbService } from './video-db.service';
 import { lastValueFrom } from 'rxjs';
 import { TagsService } from './tags.service';
 import { DataPrepShimService } from 'src/data-prep/services/data-prep-shim.service';
-import { DataPrepMinioDTO } from 'src/data-prep/models/data-prep.models';
+import {
+  DataPrepBatchJobStatusRO,
+  DataPrepBatchProcessDTO,
+  DataPrepBatchSubmitRO,
+  DataPrepMinioDTO,
+} from 'src/data-prep/models/data-prep.models';
 
 @Injectable()
 export class VideoService {
+  // Matches the data-prep duplicate-content rejection message
+  // (Strings.duplicate_upload: "A video with identical content already exists").
+  private static readonly DUPLICATE_CONTENT_PATTERN =
+    /identical content|duplicate/i;
+
   private videoMap: Map<string, Video> = new Map();
 
   constructor(
@@ -39,22 +49,17 @@ export class VideoService {
     );
   }
 
-  private getStorageObjectFileName(video: Video): string {
-    // Prefer persisted object path so downstream lookup uses the real object-store filename.
-    const objectPath = video.url || '';
-    const objectFileName = objectPath.split('/').pop()?.trim();
-    if (objectFileName) {
-      return objectFileName;
-    }
-
-    return video.dataStore?.fileName || '';
-  }
-
   isStreamable(videoPath: string) {
     return this.$validator.isStreamable(videoPath);
   }
 
-  async createSearchEmbeddings(videoId: string, tagsToMerge: string[] = []) {
+  // Resolve a video, merge any new tags, and build the data-prep request DTO.
+  // Shared by the single-video and batch embedding paths so tag-merge + DTO
+  // construction stays consistent.
+  private async prepareVideoForEmbedding(
+    videoId: string,
+    tagsToMerge: string[] = [],
+  ): Promise<DataPrepMinioDTO> {
     let video = await this.getVideo(videoId);
 
     if (!video) {
@@ -85,15 +90,106 @@ export class VideoService {
       await this.$tags.addTags(normalizedTagsToMerge);
     }
 
-    const storageFileName = this.getStorageObjectFileName(video);
-    const videoData: DataPrepMinioDTO = {
+    return {
       bucket_name: dataStore.bucket,
       video_id: dataStore.objectName,
-      video_name: storageFileName,
+      video_name: dataStore.fileName || video.name,
       tags: video.tags || [],
     };
+  }
+
+  async createSearchEmbeddings(videoId: string, tagsToMerge: string[] = []) {
+    const videoData = await this.prepareVideoForEmbedding(videoId, tagsToMerge);
 
     return await lastValueFrom(this.$dataprep.createEmbeddings(videoData));
+  }
+
+  // Remove a video row/object that was just uploaded but failed embedding due to
+  // duplicate-content rejection in data-prep. Best-effort cleanup.
+  async cleanupFailedDuplicateVideo(videoId: string): Promise<void> {
+    const video = await this.getVideo(videoId);
+    if (!video) {
+      return;
+    }
+
+    if (video.dataStore?.objectName) {
+      try {
+        await this.$datastore.deleteObject(video.dataStore.objectName);
+      } catch (error) {
+        Logger.warn(
+          `Best-effort object cleanup failed for duplicate video ${videoId}: ${String(error)}`,
+        );
+      }
+    }
+
+    try {
+      await this.$videoDb.remove(videoId);
+      this.videoMap.delete(videoId);
+    } catch (error) {
+      Logger.warn(
+        `Best-effort DB cleanup failed for duplicate video ${videoId}: ${String(error)}`,
+      );
+    }
+  }
+
+  // Submit an async batch job to create search embeddings for several videos in
+  // a single data-prep request. Returns { job_id, accepted } immediately; the
+  // caller polls getSearchEmbeddingsJobStatus() until the job reaches a terminal
+  // state.
+  async createSearchEmbeddingsBatch(
+    videoIds: string[],
+    tagsToMerge: string[] = [],
+  ): Promise<DataPrepBatchSubmitRO> {
+    const items: DataPrepMinioDTO[] = [];
+    for (const videoId of videoIds) {
+      items.push(await this.prepareVideoForEmbedding(videoId, tagsToMerge));
+    }
+
+    const payload: DataPrepBatchProcessDTO = { items };
+    const response = await lastValueFrom(
+      this.$dataprep.createEmbeddingsBatch(payload),
+    );
+    return response.data;
+  }
+
+  async getSearchEmbeddingsJobStatus(
+    jobId: string,
+  ): Promise<DataPrepBatchJobStatusRO> {
+    const response = await lastValueFrom(
+      this.$dataprep.getBatchJobStatus(jobId),
+    );
+    const status = response.data;
+
+    // The batch job answers 202 up-front, so a duplicate-content rejection can
+    // only surface here as a per-item failure. Mirror what the single-video path
+    // does on a synchronous 409: drop the row/object we optimistically created,
+    // otherwise the rejected video lingers as an orphan the UI can never play.
+    // cleanupFailedDuplicateVideo is idempotent, so repeated polling is safe.
+    await this.cleanupDuplicateBatchFailures(status);
+
+    return status;
+  }
+
+  // Best-effort cleanup of items a batch job rejected as duplicate content.
+  // Never throws: polling must keep working even if cleanup fails.
+  private async cleanupDuplicateBatchFailures(
+    status: DataPrepBatchJobStatusRO,
+  ): Promise<void> {
+    for (const item of status?.items ?? []) {
+      if (item.status !== 'error' || !item.video_id) {
+        continue;
+      }
+      if (!VideoService.DUPLICATE_CONTENT_PATTERN.test(item.message ?? '')) {
+        continue;
+      }
+      try {
+        await this.cleanupFailedDuplicateVideo(item.video_id);
+      } catch (error) {
+        Logger.warn(
+          `Best-effort cleanup failed for duplicate batch item ${item.video_id}: ${String(error)}`,
+        );
+      }
+    }
   }
 
   async uploadVideo(

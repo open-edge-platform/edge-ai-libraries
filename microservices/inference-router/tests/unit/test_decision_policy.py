@@ -3,6 +3,8 @@
 
 """Unit tests for decision policy loading and routing."""
 
+import asyncio
+
 import pytest
 
 from src.models import ChatCompletionMessage, ChatCompletionRequest, ChatCompletionRole
@@ -44,8 +46,7 @@ def test_load_decision_policies(tmp_path):
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_decision_engine_follows_policy_strategy_order():
+def test_decision_engine_follows_policy_strategy_order():
     """DecisionEngine should try policy strategies in order until one matches."""
     request = ChatCompletionRequest(
         model="test-model",
@@ -64,55 +65,54 @@ async def test_decision_engine_follows_policy_strategy_order():
     ]
     engine = DecisionEngine(policy_name="Balanced")
 
-    decision = await engine.route(request, providers)
+    decision = asyncio.run(engine.route(request, providers))
 
     assert decision.provider.name == "policy-provider"
     assert decision.metadata["policy_name"] == "Balanced"
     assert decision.metadata["criterion"] == "FirstMatch"
-    assert decision.metadata["strategy_name"] == "QueryComplexity"
+    assert decision.metadata["strategy_name"] == "ContextLengthQuality"
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
-async def test_decision_engine_all_match_selects_common_provider():
+def test_decision_engine_all_match_selects_common_provider():
     """AllMatch should select the first provider present in every strategy candidate list."""
     request = ChatCompletionRequest(
         model="test-model",
         messages=[
             ChatCompletionMessage(
                 role=ChatCompletionRole.USER,
-                content="explain routing tradeoffs",
+                content="help me plan routing tradeoffs",
             )
         ],
     )
     providers = [
         MockProvider(
             "context-only-provider",
-            metadata=ProviderMetadata(capability={"complexity": 0.4}),
+            metadata=ProviderMetadata(labels=["general"], capability={"complexity": 0.4}),
         ),
         MockProvider(
             "shared-provider",
-            metadata=ProviderMetadata(capability={"complexity": 0.8}),
+            metadata=ProviderMetadata(labels=["planning"], capability={"complexity": 0.8}),
         ),
     ]
     engine = DecisionEngine(policy_name="Balanced")
     engine.policy = DecisionPolicy(
         name="AllMatchPolicy",
         criterion="AllMatch",
-        strategies=["QueryComplexity", "ContextLengthQuality"],
+        strategies=["Planning", "ContextLengthQuality"],
     )
     engine.strategy_names = engine.policy.strategies
 
-    decision = await engine.route(request, providers)
+    decision = asyncio.run(engine.route(request, providers))
 
     assert decision.provider.name == "shared-provider"
     assert decision.metadata["policy_name"] == "AllMatchPolicy"
     assert decision.metadata["criterion"] == "AllMatch"
     assert decision.metadata["strategy_names"] == [
-        "QueryComplexity",
+        "Planning",
         "ContextLengthQuality",
     ]
     assert decision.metadata["candidate_counts"] == {
-        "QueryComplexity": 1,
+        "Planning": 1,
         "ContextLengthQuality": 2,
     }

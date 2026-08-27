@@ -196,6 +196,7 @@ class FramesBatchInput(BaseModel):
     @field_validator("frames_manifest_path")
     @classmethod
     def validate_frames_manifest_path(cls, value):
+        logger.info(f"Validating frames manifest path: {value}")
         return validate_manifest_artifact_reference(value)
 
 

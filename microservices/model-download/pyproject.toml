@@ -8,20 +8,20 @@ readme = "README.md"
 requires-python = "==3.12.*"
 
 dependencies = [
-    "fastapi==0.121.3",
+    "fastapi>=0.121.3",
     "pydantic==2.12.4",
     "python-multipart>=0.0.9",
     "structlog==25.1.0",
     "uvicorn==0.38.0",
     "PyYAML==6.0.2",
-    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.1",
+    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.2",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.0,<8.0.0",
+    "pytest>=9.0.3",
     "pytest-cov>=4.1.0,<5.0.0",
-    "pytest-asyncio>=0.21.1,<1.0.0",
+    "pytest-asyncio>=0.24.0",
     "httpx>=0.24.1,<1.0.0",
     "pytest-mock>=3.11.1,<4.0.0",
     "pytest-env>=1.1.0,<2.0.0",
@@ -35,7 +35,6 @@ cpu = [
 ]
 
 huggingface = [
-    "transformers<4.58",
     "torch==2.9.1+cpu",
     "torchvision==0.24.1+cpu",
 ]
@@ -71,7 +70,31 @@ pipeline-zoo-models = [
     # when ENABLED_PLUGINS is set to pipeline-zoo-models.
 ]
 
+remote-url = [
+    # Intentionally empty: plugin uses Python stdlib only.
+]
+
+omz = [
+    # OMZ dependencies are installed via requirements/omz.txt into /opt/.venv-omz
+    # (not resolved in uv.lock) to avoid CVE scanner findings for pinned legacy
+    # packages (onnx, openvino-dev==2024.6.0) that cannot be upgraded.
+    # Keep this extra empty so `uv sync --extra omz` still creates a valid venv
+    # with the base project deps; the actual OMZ packages are layered on top via
+    # uv pip install -r requirements/omz.txt in the entrypoint.
+]
+
 [tool.uv]
+# Each plugin/hub kind installs into its own venv (/opt/.venv-{plugin}), so
+# conflicting extras never co-exist at runtime. Declaring conflicts tells uv to
+# resolve them in separate buckets during `uv lock` instead of failing to
+# satisfy both at once. OMZ and geti can still be enabled together because they
+# are isolated into separate venvs at runtime.
+conflicts = [
+    [{ extra = "omz" }, { extra = "geti" }],  # kept for documentation: omz pins openvino==2024.6.0; geti requires openvino>=2025.2
+]
+override-dependencies = [
+    "cryptography>=50.0.0"
+]
 index-url = "https://pypi.org/simple"
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
