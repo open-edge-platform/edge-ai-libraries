@@ -269,25 +269,24 @@ Implemented in: `.github/workflows/instructions-to-component.yml`
 
 Push-triggered runs use `--diff-filter=AM` (Added and Modified) so that both
 new and edited spec files are picked up.  The status letter (`A` or `M`) is
-passed to the script as `<status>\t<path>` lines so the script can derive the
-correct `mode` (`new` vs `modified`) for each spec.
+passed to the script as `<status>\t<path>` lines and remains the sole default
+input for auto-dispatch (`A` auto-assigns, `M` is label-gated).
 
 `workflow_dispatch` with an explicit `spec_file` input is **not** subject to
 this filter — manual dispatch is always intentional.  The `mode` input
-(`auto` / `new` / `modified`) lets you override the inferred mode.
+(`auto` / `new` / `modified`) still exists for manual runs, but selecting
+`modified` never auto-dispatches the agent by default.
 
-### Guard 2 — module directory already exists (script, mode-aware)
+### Guard 2 — module directory already exists (script, added-spec guard)
 
 Implemented in: `.github/scripts/create-component-issue.sh`
 
-Behaviour depends on the detected mode:
+Only newly added specs (`A`) are skipped when `module/<name>/` already exists.
+Modified specs (`M`) are never demoted for dispatch purposes.
 
-- **mode=new**: if `module/<name>/` already exists, the spec is skipped with a
-  `::notice::`.  This is unchanged from before.
-- **mode=modified**: the module directory is expected to exist — no skip.  If
-  `module/<name>/` does *not* exist (module was never generated or was deleted),
-  the script demotes the mode to `new` with a `::notice::` and proceeds as a
-  new component.
+Template selection is independent: if `module/<name>/` exists, the update
+template is used; otherwise, the new-component template is used.  This fallback
+must never escalate privilege.
 
 **To override**: set the `force` workflow input to `true` when using
 `workflow_dispatch` (Actions → Generate component from spec → Run workflow →
@@ -298,10 +297,11 @@ Behaviour depends on the detected mode:
 Implemented in: `.github/scripts/create-component-issue.sh`
 
 Before creating a new issue, the script searches for an existing **open** issue
-with the exact mode-appropriate title: `Implement installer component: <name>`
-for new specs, `Update installer component: <name>` for modified specs.  An
-exact-match filter via `jq` is applied (GitHub's issue search is fuzzy).  If a
-match is found, the spec is skipped and the existing issue number is logged.
+with the exact template-appropriate title: `Implement installer component:
+<name>` when no baseline exists, `Update installer component: <name>` when a
+baseline exists.  An exact-match filter via `jq` is applied (GitHub's issue
+search is fuzzy).  If a match is found, the spec is skipped and the existing
+issue number is logged.
 
 **To override**: same as Guard 2 — set `force: true` on `workflow_dispatch`.
 
@@ -318,6 +318,26 @@ a `::error::` message listing every spec that would have been dispatched, and
 `workflow_dispatch` (e.g. `max_tasks: 10`).  Alternatively, dispatch each spec
 individually using the `spec_file` input.
 
+### Guard 5 — rejected prior attempt forces label gate (script)
+
+Implemented in: `.github/scripts/create-component-issue.sh`
+
+Before issue creation, the script checks recent repository history for rejected
+prior art for the same component:
+
+- a **closed, unmerged PR** matching the component name in head branch, title,
+  or body; and
+- a **closed issue** titled `Implement installer component: <name>` or
+  `Update installer component: <name>`.
+
+If found, dispatch is always label-gated (`NEEDS-GENERATION`, no assignee),
+even for status `A`.  The issue body includes a rejected-prior-art warning
+block, and logs emit a `::notice::` with the reason.
+
+Lookback is bounded by `REJECTED_LOOKBACK_DAYS` (default `30`).
+If `gh` history queries fail, the check fails open to normal status-based
+dispatch and logs a notice; dispatch is not crashed by this check alone.
+
 ### Deliberately regenerating a component
 
 To force regeneration of an already-implemented component (e.g. after improving
@@ -331,7 +351,7 @@ the agent prompt or the spec):
 This bypasses Guards 2 and 3 and creates a new issue regardless of whether the
 module directory or an open issue already exists.
 
-### Guard 5 — CODEOWNERS (commented out, inert)
+### Guard 6 — CODEOWNERS (commented out, inert)
 
 `.github/CODEOWNERS` contains an **entirely commented-out** rule that, once
 uncommented and activated, would require a review from `@intel-sandbox/oep-maintainers`

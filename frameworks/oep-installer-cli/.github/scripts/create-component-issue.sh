@@ -12,7 +12,11 @@
 #                      Default: 3.
 #   ASSIGN_AGENT       Override agent assignment: "true" to always assign,
 #                      "false" to never assign, "auto" (default) to derive from
-#                      mode (new→assign, modified→label-gate).
+#                      spec status only (A→assign, M→label-gate).
+#   REJECTED_LOOKBACK_DAYS
+#                      Look back this many days for a closed-unmerged PR or
+#                      closed issue for the same component. If found, always
+#                      force label-gated dispatch. Default: 30.
 #
 # Requires: gh (GitHub CLI) authenticated via GH_TOKEN env var, jq.
 set -euo pipefail
@@ -24,10 +28,15 @@ TEMPLATE_UPDATE="${SCRIPT_DIR}/../templates/component-update-task.md"
 FORCE_REGENERATE="${FORCE_REGENERATE:-false}"
 MAX_TASKS_PER_RUN="${MAX_TASKS_PER_RUN:-3}"
 ASSIGN_AGENT="${ASSIGN_AGENT:-auto}"
+REJECTED_LOOKBACK_DAYS="${REJECTED_LOOKBACK_DAYS:-30}"
 
 # Validate MAX_TASKS_PER_RUN is a positive integer.
 if ! [[ "$MAX_TASKS_PER_RUN" =~ ^[1-9][0-9]*$ ]]; then
   echo "::error::MAX_TASKS_PER_RUN must be a positive integer, got: '${MAX_TASKS_PER_RUN}'"
+  exit 1
+fi
+if ! [[ "$REJECTED_LOOKBACK_DAYS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "::error::REJECTED_LOOKBACK_DAYS must be a positive integer, got: '${REJECTED_LOOKBACK_DAYS}'"
   exit 1
 fi
 
@@ -62,15 +71,16 @@ ensure_labels () {
 # substituted last so spec text containing literal "{{NAME}}" etc. is not
 # further expanded.
 # Usage: render_template <template_file> <name> <spec_file> <helpers_list> \
-#                        <spec_content> [<current_impl>]
+#                        <rejected_prior_art> <spec_content> [<current_impl>]
 # ---------------------------------------------------------------------------
 render_template () {
   local template="$1"
   local name="$2"
   local spec_file="$3"
   local helpers_list="$4"
-  local spec_content="$5"
-  local current_impl="${6:-}"
+  local rejected_prior_art="$5"
+  local spec_content="$6"
+  local current_impl="${7:-}"
   local body
   body="$(<"$template")"
 
@@ -78,6 +88,7 @@ render_template () {
   body="${body//\{\{SPEC_FILE\}\}/$spec_file}"
   body="${body//\{\{HELPERS_LIST\}\}/$helpers_list}"
   body="${body//\{\{CURRENT_IMPLEMENTATION\}\}/$current_impl}"
+  body="${body//\{\{REJECTED_PRIOR_ART\}\}/$rejected_prior_art}"
   body="${body//\{\{SPEC_CONTENT\}\}/$spec_content}"
 
   printf '%s\n' "$body"
@@ -95,12 +106,135 @@ HELPERS_LIST="$(
     | sort -u
 )"
 
+# Rejected-prior-art discovery outputs.
+REJECTED_PRIOR_ART_BLOCK=""
+REJECTED_PRIOR_ART_REF=""
+
+find_rejected_prior_art () {
+  local name="$1"
+  local spec_file="$2"
+  local since_date
+  local search_q
+  local prs_json
+  local issues_json
+  local hit
+  local hit_kind
+  local hit_number
+  local hit_title
+
+  REJECTED_PRIOR_ART_BLOCK=""
+  REJECTED_PRIOR_ART_REF=""
+
+  since_date="$(date -u -d "-${REJECTED_LOOKBACK_DAYS} days" +%Y-%m-%d 2>/dev/null || true)"
+  if [[ -n "$since_date" ]]; then
+    search_q="updated:>=${since_date}"
+  else
+    search_q=""
+  fi
+
+  if ! prs_json="$(gh pr list \
+    --state closed \
+    --limit 200 \
+    --search "$search_q" \
+    --json number,title,mergedAt,headRefName,body,updatedAt 2>/dev/null)"; then
+    echo "::notice::${spec_file}: rejected-prior-art PR check could not be completed; continuing with normal spec-status dispatch rule."
+    prs_json="[]"
+  fi
+
+  if ! issues_json="$(gh issue list \
+    --state closed \
+    --limit 200 \
+    --search "$search_q" \
+    --json number,title,updatedAt 2>/dev/null)"; then
+    echo "::notice::${spec_file}: rejected-prior-art issue check could not be completed; continuing with normal spec-status dispatch rule."
+    issues_json="[]"
+  fi
+
+  hit="$(jq -rn \
+    --arg name "$name" \
+    --arg needle "${name,,}" \
+    --argjson prs "$prs_json" \
+    --argjson issues "$issues_json" \
+    '
+      ($prs
+        | map(
+            select(.mergedAt == null)
+            | select(
+                ([
+                   (.headRefName // ""),
+                   (.title // ""),
+                   (.body // "")
+                 ]
+                 | map(ascii_downcase)
+                 | join("\n")
+                ) | contains($needle)
+              )
+            | {
+                kind: "pr",
+                number: .number,
+                title: (.title // ""),
+                updatedAt: (.updatedAt // "")
+              }
+          )) as $pr_hits
+      | ($issues
+          | map(
+              select(
+                (.title // "") == ("Implement installer component: " + $name)
+                or
+                (.title // "") == ("Update installer component: " + $name)
+              )
+              | {
+                  kind: "issue",
+                  number: .number,
+                  title: (.title // ""),
+                  updatedAt: (.updatedAt // "")
+                }
+            )) as $issue_hits
+      | ($pr_hits + $issue_hits | sort_by(.updatedAt) | last) as $hit
+      | if $hit == null
+        then ""
+        else "\($hit.kind)\t\($hit.number)\t\($hit.title)"
+        end
+    ')"
+
+  if [[ -n "$hit" ]]; then
+    IFS=$'\t' read -r hit_kind hit_number hit_title <<< "$hit"
+    if [[ "$hit_kind" == "pr" ]]; then
+      REJECTED_PRIOR_ART_REF="PR #${hit_number}"
+      REJECTED_PRIOR_ART_BLOCK="$(cat <<EOF
+## ⚠️ Rejected prior attempt
+
+      A previous implementation attempt for this component was closed without merging (${REJECTED_PRIOR_ART_REF}). Treat that work as **rejected prior art**, not a baseline.
+
+- Start strictly from the current \`main\` branch.
+- Do **not** resume, cherry-pick from, or otherwise reuse a branch from a closed PR.
+- In your PR description, explain how your approach differs from ${REJECTED_PRIOR_ART_REF} and why.
+EOF
+)"
+    else
+      REJECTED_PRIOR_ART_REF="issue #${hit_number}"
+      REJECTED_PRIOR_ART_BLOCK="$(cat <<EOF
+## ⚠️ Rejected prior attempt
+
+A previous implementation attempt for this component was previously closed (${REJECTED_PRIOR_ART_REF}). Treat that work as **rejected prior art**, not a baseline.
+
+- Start strictly from the current \`main\` branch.
+- Do **not** resume, cherry-pick from, or otherwise reuse a branch from a closed PR.
+- In your PR description, explain how your approach differs from the rejected attempt and why.
+EOF
+)"
+    fi
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Pass 1 – collect eligible specs (apply Guards 2 and 3)
 # ---------------------------------------------------------------------------
 eligible_specs=()
 eligible_names=()
-eligible_modes=()
+eligible_statuses=()
+eligible_templates=()
+eligible_has_baselines=()
 
 while IFS= read -r raw_line; do
   # Parse optional "<status>\t<path>" format; default status to A (new).
@@ -114,11 +248,11 @@ while IFS= read -r raw_line; do
 
   [ -f "$spec_file" ] || continue
 
-  # Map status letter to mode.
+  # Map status letter to normalized spec status.
   if [[ "$status" == "M" ]]; then
-    mode="modified"
+    spec_status="M"
   else
-    mode="new"
+    spec_status="A"
   fi
 
   # Derive component name: strip directory + .md suffix, lowercase, dashes → underscores
@@ -126,28 +260,28 @@ while IFS= read -r raw_line; do
   name="${raw_name,,}"
   name="${name//-/_}"
 
-  # Guard 2 – behaviour depends on mode:
-  #   mode=new      → skip if module/<name>/ exists (original behaviour).
-  #   mode=modified → module/<name>/ is expected to exist; proceed.
-  #                   If it does NOT exist, demote to new (with a notice).
+  if [[ -d "module/${name}/" ]]; then
+    has_baseline="true"
+    template_kind="update"
+    issue_title="Update installer component: ${name}"
+  else
+    has_baseline="false"
+    template_kind="new"
+    issue_title="Implement installer component: ${name}"
+  fi
+
+  # Guard 2 – newly added specs still skip when the module directory exists.
+  # NOTE: template selection and dispatch gating are intentionally decoupled:
+  # demotion or template fallback must NEVER escalate privilege.
   if [[ "$FORCE_REGENERATE" != "true" ]]; then
-    if [[ "$mode" == "new" ]] && [[ -d "module/${name}/" ]]; then
+    if [[ "$spec_status" == "A" ]] && [[ "$has_baseline" == "true" ]]; then
       echo "::notice::Skipping ${spec_file}: module/${name}/ already exists. Delete the module directory or set FORCE_REGENERATE=true to regenerate."
       continue
-    fi
-    if [[ "$mode" == "modified" ]] && [[ ! -d "module/${name}/" ]]; then
-      echo "::notice::${spec_file}: mode=modified but module/${name}/ does not exist — treating as new."
-      mode="new"
     fi
   fi
 
   # Guard 3 – skip if an open issue with the same mode-appropriate title exists.
   if [[ "$FORCE_REGENERATE" != "true" ]]; then
-    if [[ "$mode" == "modified" ]]; then
-      issue_title="Update installer component: ${name}"
-    else
-      issue_title="Implement installer component: ${name}"
-    fi
     existing_number="$(gh issue list \
       --state open \
       --search "${issue_title}" \
@@ -163,7 +297,9 @@ while IFS= read -r raw_line; do
 
   eligible_specs+=("$spec_file")
   eligible_names+=("$name")
-  eligible_modes+=("$mode")
+  eligible_statuses+=("$spec_status")
+  eligible_templates+=("$template_kind")
+  eligible_has_baselines+=("$has_baseline")
 done < "$SPECS_LIST"
 
 # Guard 4 – cap tasks per run (pre-flight, all-or-nothing)
@@ -191,25 +327,37 @@ ensure_labels
 for i in "${!eligible_specs[@]}"; do
   spec_file="${eligible_specs[$i]}"
   name="${eligible_names[$i]}"
-  mode="${eligible_modes[$i]}"
+  spec_status="${eligible_statuses[$i]}"
+  template_kind="${eligible_templates[$i]}"
+  has_baseline="${eligible_has_baselines[$i]}"
 
   # Determine whether to assign the Copilot coding agent immediately.
+  # Default dispatch decision is derived from spec status only:
+  #   A (added) -> assign immediately
+  #   M (modified) -> label-gate
   if [[ "$ASSIGN_AGENT" == "true" ]]; then
     assign_now="true"
   elif [[ "$ASSIGN_AGENT" == "false" ]]; then
     assign_now="false"
   else
-    # auto: new → assign immediately; modified → label-gate
-    if [[ "$mode" == "new" ]]; then
+    if [[ "$spec_status" == "A" ]]; then
       assign_now="true"
     else
       assign_now="false"
     fi
   fi
 
+  find_rejected_prior_art "$name" "$spec_file"
+  rejected_prior_art_forced="false"
+  if [[ -n "$REJECTED_PRIOR_ART_BLOCK" ]]; then
+    assign_now="false"
+    rejected_prior_art_forced="true"
+    echo "::notice::${spec_file}: forcing NEEDS-GENERATION because rejected prior attempt detected (${REJECTED_PRIOR_ART_REF})."
+  fi
+
   BODY_FILE="$(mktemp --suffix=.md)"
 
-  if [[ "$mode" == "modified" ]]; then
+  if [[ "$template_kind" == "update" ]]; then
     # Gather current implementation for the update template.
     current_impl=""
     if [[ -f "module/${name}/debian" ]]; then
@@ -221,7 +369,7 @@ for i in "${!eligible_specs[@]}"; do
 
     issue_title="Update installer component: ${name}"
     render_template "$TEMPLATE_UPDATE" "$name" "$spec_file" "$HELPERS_LIST" \
-      "$(cat "$spec_file")" "$current_impl" > "$BODY_FILE"
+      "$REJECTED_PRIOR_ART_BLOCK" "$(cat "$spec_file")" "$current_impl" > "$BODY_FILE"
 
     if [[ "$assign_now" == "true" ]]; then
       issue_url="$(gh issue create \
@@ -234,12 +382,12 @@ for i in "${!eligible_specs[@]}"; do
         --title "$issue_title" \
         --body-file "$BODY_FILE" \
         --label "NEEDS-GENERATION")"
-      echo "::notice::Created issue (mode=modified, awaiting GENERATE-COMPONENT label): ${issue_url}"
+      echo "::notice::Created issue (template=update, awaiting GENERATE-COMPONENT label): ${issue_url}"
     fi
   else
     issue_title="Implement installer component: ${name}"
     render_template "$TEMPLATE_NEW" "$name" "$spec_file" "$HELPERS_LIST" \
-      "$(cat "$spec_file")" > "$BODY_FILE"
+      "$REJECTED_PRIOR_ART_BLOCK" "$(cat "$spec_file")" > "$BODY_FILE"
 
     if [[ "$assign_now" == "true" ]]; then
       issue_url="$(gh issue create \
@@ -252,9 +400,11 @@ for i in "${!eligible_specs[@]}"; do
         --title "$issue_title" \
         --body-file "$BODY_FILE" \
         --label "NEEDS-GENERATION")"
-      echo "::notice::Created issue (mode=new, awaiting GENERATE-COMPONENT label): ${issue_url}"
+      echo "::notice::Created issue (template=new, awaiting GENERATE-COMPONENT label): ${issue_url}"
     fi
   fi
+
+  echo "::notice::dispatch decision: spec=${spec_file}; spec_status=${spec_status}; has_baseline=${has_baseline}; template=${template_kind}; dispatched=${assign_now}; rejected_prior_art=${rejected_prior_art_forced}"
 
   rm -f "$BODY_FILE"
 done
