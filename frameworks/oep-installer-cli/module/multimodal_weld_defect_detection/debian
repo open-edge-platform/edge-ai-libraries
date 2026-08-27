@@ -1,0 +1,155 @@
+
+configure_multimodal_weld_defect_detection () {
+  workspace="$(ensure_project_path)/multimodal_weld_defect_detection"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  source_dir="$workspace/manufacturing-ai-suite/industrial-edge-insights-multimodal"
+  env_file="$source_dir/.env"
+  tsam_config="$source_dir/configs/time-series-analytics-microservice/config.json"
+  pipeline_config="$source_dir/configs/dlstreamer-pipeline-server/config.json"
+  pipeline_request="$source_dir/configs/dlstreamer-pipeline-server/pipeline-request-cpu.json"
+  selected_device_file="$source_dir/.oep_device"
+  used_ports="3000 3478"
+}
+
+generate_multimodal_weld_defect_detection_username () {
+  tr -dc 'a-z' < /dev/urandom | head -c 8
+  echo
+}
+
+generate_multimodal_weld_defect_detection_password () {
+  printf '%s%s\n' \
+    "$(tr -dc 'a-z' < /dev/urandom | head -c 8)" \
+    "$(tr -dc '0-9' < /dev/urandom | head -c 4)"
+}
+
+current_multimodal_weld_defect_detection_device () {
+  local configured_device=gpu
+  [ ! -e "$selected_device_file" ] || configured_device="$(cat "$selected_device_file")"
+  echo "$configured_device"
+}
+
+configure_multimodal_weld_defect_detection_env () {
+  local host_ip="$1"
+  sed -i \
+    -e "s|^INFLUXDB_USERNAME=.*|INFLUXDB_USERNAME=$(generate_multimodal_weld_defect_detection_username)|" \
+    -e "s|^INFLUXDB_PASSWORD=.*|INFLUXDB_PASSWORD=$(generate_multimodal_weld_defect_detection_password)|" \
+    -e "s|^VISUALIZER_GRAFANA_USER=.*|VISUALIZER_GRAFANA_USER=$(generate_multimodal_weld_defect_detection_username)|" \
+    -e "s|^VISUALIZER_GRAFANA_PASSWORD=.*|VISUALIZER_GRAFANA_PASSWORD=$(generate_multimodal_weld_defect_detection_password)|" \
+    -e "s|^MTX_WEBRTCICESERVERS2_0_USERNAME=.*|MTX_WEBRTCICESERVERS2_0_USERNAME=$(generate_multimodal_weld_defect_detection_username)|" \
+    -e "s|^MTX_WEBRTCICESERVERS2_0_PASSWORD=.*|MTX_WEBRTCICESERVERS2_0_PASSWORD=$(generate_multimodal_weld_defect_detection_password)|" \
+    -e "s|^HOST_IP=.*|HOST_IP=$host_ip|" \
+    -e "s|^S3_STORAGE_USERNAME=.*|S3_STORAGE_USERNAME=$(generate_multimodal_weld_defect_detection_username)|" \
+    -e "s|^S3_STORAGE_PASSWORD=.*|S3_STORAGE_PASSWORD=$(generate_multimodal_weld_defect_detection_password)|" \
+    "$env_file"
+}
+
+configure_multimodal_weld_defect_detection_device () {
+  local device="$1"
+  local tsam_device="${device^^}"
+  local pipeline_device="${device^^}"
+
+  [ "$device" != "npu" ] || tsam_device=CPU
+
+  for file in "$tsam_config" "$pipeline_config" "$pipeline_request"; do
+    [ -e "$file.orig" ] || cp -f "$file" "$file.orig"
+  done
+
+  cp -f "$tsam_config.orig" "$tsam_config"
+  cp -f "$pipeline_config.orig" "$pipeline_config"
+  cp -f "$pipeline_request.orig" "$pipeline_request"
+
+  sed -i "s|\"device\": \"[A-Z]*\"|\"device\": \"$tsam_device\"|" "$tsam_config"
+  sed -i "s|\"device\": \"[A-Z]*\"|\"device\": \"$pipeline_device\"|" "$pipeline_config" "$pipeline_request"
+  echo "$device" > "$selected_device_file"
+}
+
+verify_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+
+  local file
+  for file in \
+    "$env_file" \
+    "$source_dir/Makefile" \
+    "$tsam_config" \
+    "$pipeline_config" \
+    "$pipeline_request" \
+    "$source_dir/weld-data-simulator/simulation-data/good_weld_02-16-23-0081-00.csv"; do
+    [ -e "$file" ] || return 1
+  done
+
+  . "$env_file"
+  [ -n "${INFLUXDB_USERNAME:-}" ] &&
+    [ -n "${INFLUXDB_PASSWORD:-}" ] &&
+    [ -n "${VISUALIZER_GRAFANA_USER:-}" ] &&
+    [ -n "${VISUALIZER_GRAFANA_PASSWORD:-}" ] &&
+    [ -n "${MTX_WEBRTCICESERVERS2_0_USERNAME:-}" ] &&
+    [ -n "${MTX_WEBRTCICESERVERS2_0_PASSWORD:-}" ] &&
+    [ -n "${HOST_IP:-}" ] &&
+    [ -n "${S3_STORAGE_USERNAME:-}" ] &&
+    [ -n "${S3_STORAGE_PASSWORD:-}" ]
+}
+
+debian_90_profile_multimodal_weld_defect_detection () {
+  echo "git curl make docker edge_base"
+}
+
+debian_90_install_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+  if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reset-multimodal_weld_defect_detection "* ]]; then
+    echo "Multimodal weld defect detection is already installed. Skipping"
+  else
+    local device
+    device="$(ensure_select_device "$@")"
+
+    ensure_disk_space 64000
+    ensure_ram_size 16000000
+    debian_90_stop_multimodal_weld_defect_detection "$@" || true
+    ensure_git_clone "$workspace" "$version" "$repository" manufacturing-ai-suite/industrial-edge-insights-multimodal
+
+    configure_multimodal_weld_defect_detection_env "$(ensure_ip)"
+    configure_multimodal_weld_defect_detection_device "$device"
+    verify_multimodal_weld_defect_detection
+  fi
+
+  echo "@@HIGHLIGHT workspace @$source_dir"
+  echo "@@HIGHLIGHT start command @cd $source_dir && make up"
+  echo "@@HIGHLIGHT device: $(current_multimodal_weld_defect_detection_device)"
+}
+
+debian_90_start_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+  verify_multimodal_weld_defect_detection || {
+    echo "Multimodal weld defect detection is not installed. Run install first." 1>&2
+    return 3
+  }
+
+  ensure_ports_open "$used_ports" debian_90_stop_multimodal_weld_defect_detection "$@"
+  case " $* " in
+  *" --cpu "*|*" --gpu "*|*" --npu "*)
+    configure_multimodal_weld_defect_detection_device "$(ensure_select_device "$@")"
+    ;;
+  esac
+
+  cd "$source_dir"
+  make up
+
+  . "$env_file"
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip):3000"
+  echo "@@HIGHLIGHT Grafana login: ${VISUALIZER_GRAFANA_USER:-unset}/${VISUALIZER_GRAFANA_PASSWORD:-unset}"
+  echo "@@HIGHLIGHT device: $(current_multimodal_weld_defect_detection_device)"
+}
+
+debian_90_stop_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+  [ ! -d "$source_dir" ] || {
+    cd "$source_dir"
+    make down || true
+  }
+}
+
+debian_90_remove_multimodal_weld_defect_detection () {
+  debian_90_stop_multimodal_weld_defect_detection "$@" || true
+  configure_multimodal_weld_defect_detection
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
