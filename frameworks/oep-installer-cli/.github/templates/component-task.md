@@ -47,6 +47,7 @@ pull request adding `module/{{NAME}}/debian`.
    - Omit `start`/`stop` **only** when the spec describes a stateless system package with no runtime service, for example, a library or SDK that has no explicit start/stop operation.   
    - Omit `remove` **only** for trivial system packages where removal could cause unintended side-effects (cite `module/curl/debian`).
    - Add `debian_<NN>_license_{{NAME}}` if the spec requires a click-through license; the function must print `@@LICENSE-ID`, `@@LICENSE-TITLE`, and the full license text (use `ensure_license_fetch` if fetching from a URL).
+   - Reuse common functions actually defined under common/ or license/. Do not invent new helpers. Available helpers: {{HELPERS_LIST}}
 
 - **`configure_{{NAME}}` idiom**:
    - If a local workspace is required to store the component source files or configurations, define
@@ -59,7 +60,7 @@ pull request adding `module/{{NAME}}/debian`.
    - The `verify_{{NAME}}` function should verify if the component is completely installed, by
      checking the workspace existence, important files such as downloaded videos and models and
      required docker images.
-     
+
 - **Reference implementations**:
     - Full app (profile + install + start + stop + remove): `module/smart_parking/debian`
     - Minimal package (install only): `module/curl/debian`
