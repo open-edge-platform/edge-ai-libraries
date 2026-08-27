@@ -485,5 +485,5 @@ Response includes one `job_id` per model:
 Before submitting a job, verify which plugins are active:
 
 ```bash
-curl -s http://localhost:8200/api/v1/plugins | python3 -m json.tool
+curl -s http://localhost:8200/api/v1/plugins | jq .
 ```
