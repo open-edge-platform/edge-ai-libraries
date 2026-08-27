@@ -11,6 +11,15 @@ on:
           Path to spec file relative to repo root
           (e.g. specification/my_component.md)
         required: false
+      mode:
+        description: >-
+          Mode override: 'auto' (default) infers from whether module/<name>/
+          already exists; 'new' forces new-component behaviour; 'modified'
+          forces update behaviour.
+        required: false
+        default: 'auto'
+        type: choice
+        options: [auto, new, modified]
       force:
         description: >-
           Set to true to bypass the "module already exists" and "issue already
@@ -76,29 +85,45 @@ jobs:
           SPECS_FILE="$(mktemp)"
 
           if [ -n "${{ github.event.inputs.spec_file }}" ]; then
-            # workflow_dispatch with an explicit spec_file is always intentional;
-            # include the file regardless of whether it is new or modified.
-            echo "${{ github.event.inputs.spec_file }}" > "$SPECS_FILE"
+            # workflow_dispatch with an explicit spec_file is always intentional.
+            # Infer mode from whether module/<name>/ already exists unless the
+            # caller explicitly set the mode input.
+            SPEC="${{ github.event.inputs.spec_file }}"
+            OVERRIDE_MODE="${{ github.event.inputs.mode }}"
+            if [[ "$OVERRIDE_MODE" == "auto" || -z "$OVERRIDE_MODE" ]]; then
+              raw_name="$(basename "$SPEC" .md)"
+              name="${raw_name,,}"
+              name="${name//-/_}"
+              if [[ -d "module/${name}/" ]]; then
+                STATUS="M"
+              else
+                STATUS="A"
+              fi
+            elif [[ "$OVERRIDE_MODE" == "modified" ]]; then
+              STATUS="M"
+            else
+              STATUS="A"
+            fi
+            printf '%s\t%s\n' "$STATUS" "$SPEC" > "$SPECS_FILE"
           else
             BEFORE="${{ github.event.before }}"
             SHA="${{ github.sha }}"
-            # Push-triggered paths use --diff-filter=A (Added only) so that
-            # bulk edits, typo fixes, and reformatting of existing specs are
-            # no-ops.  Only a genuinely new file triggers generation.
+            # Pick up both Added (A) and Modified (M) spec files so that
+            # edits to existing specs also create issues (label-gated dispatch).
             if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]] || \
                ! git cat-file -e "$BEFORE" 2>/dev/null; then
-              # Fall back: files introduced by the head commit
-              git diff-tree --no-commit-id -r --name-only --diff-filter=A \
+              # Fall back: files introduced by the head commit, all treated as Added.
+              git diff-tree --no-commit-id -r --name-status --diff-filter=AM \
                 "$SHA" -- 'specification/*.md' > "$SPECS_FILE"
             else
-              git diff --name-only --diff-filter=A "${BEFORE}..${SHA}" \
+              git diff --name-status --diff-filter=AM "${BEFORE}..${SHA}" \
                 -- 'specification/*.md' > "$SPECS_FILE"
             fi
           fi
 
-          # Skip _template.md and README.md
-          grep -v -E '(^|/)(_[^/]*\.md|README\.md)$' "$SPECS_FILE" \
-            > "${SPECS_FILE}.filtered" || true
+          # Skip _template.md and README.md (match on the path column, field 2)
+          awk -F'\t' '{ if ($2 !~ /(^|\/)(_[^\/]*\.md|README\.md)$/) print }' \
+            "$SPECS_FILE" > "${SPECS_FILE}.filtered" || true
           mv "${SPECS_FILE}.filtered" "$SPECS_FILE"
 
           if [ ! -s "$SPECS_FILE" ]; then

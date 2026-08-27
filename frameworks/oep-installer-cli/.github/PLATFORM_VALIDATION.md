@@ -8,15 +8,43 @@ exists, how it is secured, and how an admin configures it.
 ## Contents
 
 1. [Threat model and label gate](#threat-model-and-label-gate)
-2. [Orchestrator vs. target](#orchestrator-vs-target)
-3. [Lint/dispatch runner for allow-listed orgs](#lintdispatch-runner-for-allow-listed-orgs)
-4. [Registering the self-hosted runner](#registering-the-self-hosted-runner)
-5. [Preparing a libvirt target VM](#preparing-a-libvirt-target-vm)
-6. [Repository variables and secrets](#repository-variables-and-secrets)
-7. [Driver vs. application targets](#driver-vs-application-targets)
-8. [Apt / registry cache](#apt--registry-cache)
-9. [Trigger warning](#trigger-warning)
-10. [Dispatch guards and idempotence](#dispatch-guards-and-idempotence)
+2. [Issue labels and their trust boundaries](#issue-labels-and-their-trust-boundaries)
+3. [Orchestrator vs. target](#orchestrator-vs-target)
+4. [Lint/dispatch runner for allow-listed orgs](#lintdispatch-runner-for-allow-listed-orgs)
+5. [Registering the self-hosted runner](#registering-the-self-hosted-runner)
+6. [Preparing a libvirt target VM](#preparing-a-libvirt-target-vm)
+7. [Repository variables and secrets](#repository-variables-and-secrets)
+8. [Driver vs. application targets](#driver-vs-application-targets)
+9. [Apt / registry cache](#apt--registry-cache)
+10. [Trigger warning](#trigger-warning)
+11. [Dispatch guards and idempotence](#dispatch-guards-and-idempotence)
+
+---
+
+## Issue labels and their trust boundaries
+
+Three labels govern AI-assisted code generation and platform validation.  All
+three should be restricted to repository maintainers.
+
+| Label | Applied to | Who may apply | Effect |
+|-------|-----------|---------------|--------|
+| `generate-component` | Issues | **Maintainers only** | Triggers `.github/workflows/generate-on-label.yml`, which assigns `copilot-swe-agent` to the issue and removes `needs-generation`.  Applying this label is the explicit trust decision that authorises AI code generation for a modified spec. |
+| `needs-generation` | Issues | Automation (created by `create-component-issue.sh`) | Signals that the issue was created from a modified spec and is waiting for a maintainer to authorise agent dispatch via `generate-component`.  Maintainers should not add this label manually. |
+| `validate-platform` | Pull requests | **Maintainers only** | Triggers `.github/workflows/platform-validate.yml` to run the install/start/stop/remove lifecycle on real lab hardware.  Applying this label is the explicit trust decision that authorises executing PR code on the self-hosted runner. |
+
+### Trust boundary: `generate-component`
+
+Applying `generate-component` to an issue is what authorises the Copilot
+coding agent to generate code for a **modified** spec.  Only repository
+maintainers should have this power.  Before applying the label:
+
+1. Review the spec diff to confirm the changes are intentional and safe.
+2. Check that the issue title and body correctly describe the expected change.
+3. Apply `generate-component`.  The agent will be assigned automatically.
+
+The `generate-on-label.yml` workflow guards against bot actors (actor checks
+for `github-actions[bot]`, `copilot-swe-agent[bot]`, `Copilot`, and
+`vars.AUTOMATION_ACTOR`) to prevent label-triggered loops.
 
 ---
 
@@ -229,24 +257,31 @@ and its helper script (`.github/scripts/create-component-issue.sh`) include
 four active guards that prevent accidental or duplicate generation of Copilot
 task issues.
 
-### Guard 1 — added files only (workflow)
+### Guard 1 — added and modified files (workflow)
 
 Implemented in: `.github/workflows/instructions-to-component.yml`
 
-Push-triggered runs use `--diff-filter=A` (Added), not `--diff-filter=AM`.
-Only a **newly committed** spec file triggers generation.  Bulk edits, typo
-fixes, formatting changes, and rebases on existing specs are silent no-ops.
+Push-triggered runs use `--diff-filter=AM` (Added and Modified) so that both
+new and edited spec files are picked up.  The status letter (`A` or `M`) is
+passed to the script as `<status>\t<path>` lines so the script can derive the
+correct `mode` (`new` vs `modified`) for each spec.
 
 `workflow_dispatch` with an explicit `spec_file` input is **not** subject to
-this filter — manual dispatch is always intentional.
+this filter — manual dispatch is always intentional.  The `mode` input
+(`auto` / `new` / `modified`) lets you override the inferred mode.
 
-### Guard 2 — module directory already exists (script)
+### Guard 2 — module directory already exists (script, mode-aware)
 
 Implemented in: `.github/scripts/create-component-issue.sh`
 
-If `module/<name>/` already exists in the repository, the spec is skipped with
-a `::notice::` log message and no issue is created.  This makes re-runs safe
-and idempotent.
+Behaviour depends on the detected mode:
+
+- **mode=new**: if `module/<name>/` already exists, the spec is skipped with a
+  `::notice::`.  This is unchanged from before.
+- **mode=modified**: the module directory is expected to exist — no skip.  If
+  `module/<name>/` does *not* exist (module was never generated or was deleted),
+  the script demotes the mode to `new` with a `::notice::` and proceeds as a
+  new component.
 
 **To override**: set the `force` workflow input to `true` when using
 `workflow_dispatch` (Actions → Generate component from spec → Run workflow →
@@ -257,9 +292,10 @@ and idempotent.
 Implemented in: `.github/scripts/create-component-issue.sh`
 
 Before creating a new issue, the script searches for an existing **open** issue
-with the exact title `Implement installer component: <name>`.  An exact-match
-filter via `jq` is applied (GitHub's issue search is fuzzy).  If a match is
-found, the spec is skipped and the existing issue number is logged.
+with the exact mode-appropriate title: `Implement installer component: <name>`
+for new specs, `Update installer component: <name>` for modified specs.  An
+exact-match filter via `jq` is applied (GitHub's issue search is fuzzy).  If a
+match is found, the spec is skipped and the existing issue number is logged.
 
 **To override**: same as Guard 2 — set `force: true` on `workflow_dispatch`.
 

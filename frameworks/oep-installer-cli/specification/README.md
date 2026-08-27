@@ -16,7 +16,7 @@ All generated PRs require a human review before merging.
 | Filename must use only `a-z`, `0-9`, and `_`; no spaces or special characters | `smart_parking.md` |
 | `_` may be used as a word separator | `loss_prevention.md` |
 | The filename (without `.md`) becomes the component name verbatim | `my_app.md` → `module/my_app/debian` |
-| Do **not** use a name that already exists under `module/` | – |
+| Do **not** use a name that already exists under `module/` for a **new** spec; editing an existing spec is supported via the label-gated update flow | – |
 
 Files whose names start with `_` (like `_template.md`) or `README.md` are
 ignored by the dispatch workflow.
@@ -97,11 +97,13 @@ full text of the license.
 
 ## How the workflow works
 
+### New spec file (automatic dispatch)
+
 1. You push `specification/<component_name>.md` to `main`.
 2. The workflow `.github/workflows/instructions-to-component.yml` detects the
-   new or modified file.
+   **new** file (git status `A`).
 3. It creates a GitHub issue titled *"Implement installer component: `<name>`"*
-   and assigns it to the Copilot coding agent.
+   and **immediately assigns it to the Copilot coding agent**.
 4. The agent reads the issue (which embeds the full spec and detailed
    implementation requirements), writes `module/<name>/debian`, runs `bash -n`
    and `shellcheck`, and opens a pull request.
@@ -113,6 +115,23 @@ full text of the license.
    and posts install → start → stop → remove results as a PR comment.
 8. On success (or after the agent fixes any failures), a maintainer merges.
 
+### Modified spec file (label-gated dispatch)
+
+1. You push a change to an existing `specification/<component_name>.md` on `main`.
+2. The same workflow detects the **modified** file (git status `M`).
+3. It creates a GitHub issue titled *"Update installer component: `<name>`"*
+   **without** assigning the agent.  The issue is labelled `needs-generation`.
+4. A maintainer reviews the spec diff and, when satisfied, applies the
+   **`generate-component`** label to the issue.
+5. `.github/workflows/generate-on-label.yml` fires: it assigns
+   `copilot-swe-agent`, removes `needs-generation`, and posts a comment
+   recording who authorised dispatch.
+6. The agent reads the update issue (which embeds the spec, detailed update
+   rules, and the existing implementation as a baseline), edits
+   `module/<name>/debian` in place, and opens a pull request.
+7. Steps 5–8 from the new-spec path apply (validate-modules, platform
+   validation, human review, merge).
+
 > **Prerequisite**: the Copilot coding agent must be enabled for the repository
 > or organisation and must be assignable as `copilot-swe-agent`.  If it is not
 > available, the issue-creation step will succeed but no automated PR will be
@@ -121,4 +140,26 @@ full text of the license.
 
 See [`.github/PLATFORM_VALIDATION.md`](../.github/PLATFORM_VALIDATION.md)
 for the threat model and admin setup guide.
+
+---
+
+## Updating an existing component
+
+Editing a spec file that already has a corresponding `module/<name>/` triggers
+the **label-gated** path described above.  The key difference from new
+components:
+
+- **No auto-dispatch**: the issue is created with `needs-generation` and
+  awaits a maintainer decision.
+- **Incremental update**: the agent is instructed to modify the existing
+  `module/<name>/debian` in place, not rewrite it.  It must enumerate every
+  new or changed requirement in the spec diff and implement or justify each
+  one.
+- **Label to dispatch**: a maintainer applies `generate-component` to the
+  issue to start the agent.  This is an explicit trust decision — the label
+  signals "I have reviewed the spec change and authorise code generation."
+
+The naming rule "Do not use a name that already exists under `module/`" applies
+only to **new** spec files.  Editing an existing spec is expected and supported
+via this label-gated flow.
 
