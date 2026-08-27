@@ -5,9 +5,11 @@ ensure_select_device () {
   *" --npu "*)
     echo npu
     ;;
+  *" --cpu "*)
+    echo cpu
+    ;;
   *)
     echo gpu
     ;;
   esac
 }
-
