@@ -9,7 +9,8 @@ configure_multimodal_weld_defect_detection () {
   pipeline_config="$source_dir/configs/dlstreamer-pipeline-server/config.json"
   pipeline_request="$source_dir/configs/dlstreamer-pipeline-server/pipeline-request-cpu.json"
   selected_device_file="$source_dir/.oep_device"
-  used_ports="3000 3478"
+  ui_port=3000
+  used_ports="$ui_port 3478"
 }
 
 generate_multimodal_weld_defect_detection_username () {
@@ -18,30 +19,66 @@ generate_multimodal_weld_defect_detection_username () {
 }
 
 generate_multimodal_weld_defect_detection_password () {
-  printf '%s%s\n' \
-    "$(tr -dc 'a-z' < /dev/urandom | head -c 8)" \
-    "$(tr -dc '0-9' < /dev/urandom | head -c 4)"
+  local password
+  while :; do
+    password="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 16)"
+    case "$password" in
+    *[[:alpha:]]*[[:digit:]]*|*[[:digit:]]*[[:alpha:]]*)
+      echo "$password"
+      return
+      ;;
+    esac
+  done
 }
 
 current_multimodal_weld_defect_detection_device () {
-  local configured_device=gpu
-  [ ! -e "$selected_device_file" ] || configured_device="$(cat "$selected_device_file")"
+  local configured_device
+  if [ -e "$selected_device_file" ]; then
+    configured_device="$(cat "$selected_device_file")"
+  elif [ -e "$pipeline_config" ]; then
+    configured_device="$(sed -n 's|.*"device": "\([A-Z]*\)".*|\1|p' "$pipeline_config" | head -n 1 | tr '[:upper:]' '[:lower:]')"
+  fi
+  configured_device="${configured_device:-cpu}"
   echo "$configured_device"
 }
 
 configure_multimodal_weld_defect_detection_env () {
   local host_ip="$1"
+  local influxdb_username
+  local influxdb_password
+  local grafana_username
+  local grafana_password
+  local webrtc_username
+  local webrtc_password
+  local s3_username
+  local s3_password
+
+  influxdb_username="$(generate_multimodal_weld_defect_detection_username)"
+  influxdb_password="$(generate_multimodal_weld_defect_detection_password)"
+  grafana_username="$(generate_multimodal_weld_defect_detection_username)"
+  grafana_password="$(generate_multimodal_weld_defect_detection_password)"
+  webrtc_username="$(generate_multimodal_weld_defect_detection_username)"
+  webrtc_password="$(generate_multimodal_weld_defect_detection_password)"
+  s3_username="$(generate_multimodal_weld_defect_detection_username)"
+  s3_password="$(generate_multimodal_weld_defect_detection_password)"
+
   sed -i \
-    -e "s|^INFLUXDB_USERNAME=.*|INFLUXDB_USERNAME=$(generate_multimodal_weld_defect_detection_username)|" \
-    -e "s|^INFLUXDB_PASSWORD=.*|INFLUXDB_PASSWORD=$(generate_multimodal_weld_defect_detection_password)|" \
-    -e "s|^VISUALIZER_GRAFANA_USER=.*|VISUALIZER_GRAFANA_USER=$(generate_multimodal_weld_defect_detection_username)|" \
-    -e "s|^VISUALIZER_GRAFANA_PASSWORD=.*|VISUALIZER_GRAFANA_PASSWORD=$(generate_multimodal_weld_defect_detection_password)|" \
-    -e "s|^MTX_WEBRTCICESERVERS2_0_USERNAME=.*|MTX_WEBRTCICESERVERS2_0_USERNAME=$(generate_multimodal_weld_defect_detection_username)|" \
-    -e "s|^MTX_WEBRTCICESERVERS2_0_PASSWORD=.*|MTX_WEBRTCICESERVERS2_0_PASSWORD=$(generate_multimodal_weld_defect_detection_password)|" \
+    -e "s|^INFLUXDB_USERNAME=.*|INFLUXDB_USERNAME=$influxdb_username|" \
+    -e "s|^INFLUXDB_PASSWORD=.*|INFLUXDB_PASSWORD=$influxdb_password|" \
+    -e "s|^VISUALIZER_GRAFANA_USER=.*|VISUALIZER_GRAFANA_USER=$grafana_username|" \
+    -e "s|^VISUALIZER_GRAFANA_PASSWORD=.*|VISUALIZER_GRAFANA_PASSWORD=$grafana_password|" \
+    -e "s|^MTX_WEBRTCICESERVERS2_0_USERNAME=.*|MTX_WEBRTCICESERVERS2_0_USERNAME=$webrtc_username|" \
+    -e "s|^MTX_WEBRTCICESERVERS2_0_PASSWORD=.*|MTX_WEBRTCICESERVERS2_0_PASSWORD=$webrtc_password|" \
     -e "s|^HOST_IP=.*|HOST_IP=$host_ip|" \
-    -e "s|^S3_STORAGE_USERNAME=.*|S3_STORAGE_USERNAME=$(generate_multimodal_weld_defect_detection_username)|" \
-    -e "s|^S3_STORAGE_PASSWORD=.*|S3_STORAGE_PASSWORD=$(generate_multimodal_weld_defect_detection_password)|" \
+    -e "s|^S3_STORAGE_USERNAME=.*|S3_STORAGE_USERNAME=$s3_username|" \
+    -e "s|^S3_STORAGE_PASSWORD=.*|S3_STORAGE_PASSWORD=$s3_password|" \
     "$env_file"
+  chmod 600 "$env_file"
+}
+
+multimodal_weld_defect_detection_env_value () {
+  local key="$1"
+  sed -n "s|^${key}=||p" "$env_file" | head -n 1
 }
 
 configure_multimodal_weld_defect_detection_device () {
@@ -78,16 +115,15 @@ verify_multimodal_weld_defect_detection () {
     [ -e "$file" ] || return 1
   done
 
-  . "$env_file"
-  [ -n "${INFLUXDB_USERNAME:-}" ] &&
-    [ -n "${INFLUXDB_PASSWORD:-}" ] &&
-    [ -n "${VISUALIZER_GRAFANA_USER:-}" ] &&
-    [ -n "${VISUALIZER_GRAFANA_PASSWORD:-}" ] &&
-    [ -n "${MTX_WEBRTCICESERVERS2_0_USERNAME:-}" ] &&
-    [ -n "${MTX_WEBRTCICESERVERS2_0_PASSWORD:-}" ] &&
-    [ -n "${HOST_IP:-}" ] &&
-    [ -n "${S3_STORAGE_USERNAME:-}" ] &&
-    [ -n "${S3_STORAGE_PASSWORD:-}" ]
+  [ -n "$(multimodal_weld_defect_detection_env_value INFLUXDB_USERNAME)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value INFLUXDB_PASSWORD)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value VISUALIZER_GRAFANA_USER)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value VISUALIZER_GRAFANA_PASSWORD)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value MTX_WEBRTCICESERVERS2_0_USERNAME)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value MTX_WEBRTCICESERVERS2_0_PASSWORD)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value HOST_IP)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value S3_STORAGE_USERNAME)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value S3_STORAGE_PASSWORD)" ]
 }
 
 debian_90_profile_multimodal_weld_defect_detection () {
@@ -103,7 +139,7 @@ debian_90_install_multimodal_weld_defect_detection () {
     device="$(ensure_select_device "$@")"
 
     ensure_disk_space 64000
-    ensure_ram_size 16000000
+    ensure_ram_size 16777216 # 16 GiB
     debian_90_stop_multimodal_weld_defect_detection "$@" || true
     ensure_git_clone "$workspace" "$version" "$repository" manufacturing-ai-suite/industrial-edge-insights-multimodal
 
@@ -134,9 +170,8 @@ debian_90_start_multimodal_weld_defect_detection () {
   cd "$source_dir"
   make up
 
-  . "$env_file"
-  echo "@@HIGHLIGHT URL: https://$(ensure_ip):3000"
-  echo "@@HIGHLIGHT Grafana login: ${VISUALIZER_GRAFANA_USER:-unset}/${VISUALIZER_GRAFANA_PASSWORD:-unset}"
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip):$ui_port"
+  echo "@@HIGHLIGHT Grafana login: $(multimodal_weld_defect_detection_env_value VISUALIZER_GRAFANA_USER)/$(multimodal_weld_defect_detection_env_value VISUALIZER_GRAFANA_PASSWORD)"
   echo "@@HIGHLIGHT device: $(current_multimodal_weld_defect_detection_device)"
 }
 
