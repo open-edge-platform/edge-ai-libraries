@@ -29,6 +29,7 @@ class Whisper(BaseASR):
             gen_kwargs["language"] = language if language.startswith("<|") else f"<|{language}|>"
         with _TRANSCRIBE_LOCK:
             result = self.model.generate(audio, **gen_kwargs)
+        text = result.texts[0] if getattr(result, "texts", None) else ""
         segments = []
         if hasattr(result, "chunks") and result.chunks is not None:
             for seg in result.chunks:
@@ -38,8 +39,17 @@ class Whisper(BaseASR):
                     "text": seg.text
                 })
 
+        # OpenVINO GenAI can return text with no chunk timestamps for short
+        # clips. kiosk-core's cumulative-session dedup keys off segments; with
+        # none it falls back to the analyzer's cumulative flat text and
+        # re-appends it on every chunk (transcript written twice). Guarantee a
+        # segment whenever there is text so that dedup always applies.
+        if not segments and text.strip():
+            duration = (len(audio) / float(sr)) if sr else 0.0
+            segments.append({"start": 0.0, "end": duration, "text": text})
+
         return {
-            "text": result.texts[0],
+            "text": text,
             "segments": segments
         }
    
