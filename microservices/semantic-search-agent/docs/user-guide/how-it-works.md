@@ -98,7 +98,7 @@ flowchart TD
 1. **Validate** — The FastAPI framework validates the request body against `OrderValidationRequest`. Each item must have a `name` (string) and `quantity` (integer ≥ 1).
 2. **Pass 1 — Exact Matching** — For every expected item, the engine normalizes its name and searches detected items for an exact normalized match. On a match, the item is added to `matched` and the detected slot is reserved. If quantities differ, the item is added to `quantity_mismatch`.
 3. **Pass 2 — Semantic Matching** — For each expected item still unmatched after Pass 1, the engine iterates over unreserved detected items and calls `matcher.match(expected_name, detected_name)`. If `MatchResult.match` is `True`, the item pair is added to `matched` with the semantic confidence. Unmatched expected items become `missing`; unreserved detected items become `extra`.
-4. **Respond** — Returns an `OrderValidationResponse` containing `status` (`validated` or `mismatch`), a full `validation` breakdown, and `metrics` (exact and semantic match counts, processing time).
+4. **Respond** — Returns an `OrderValidationResponse` containing `status` (`validated` or `mismatch`), a full `validation` breakdown, and `metrics` (exact and semantic match counts, processing time, total expected items, and total detected items).
 
 ### Inventory Validation (`POST /api/v1/compare/inventory`)
 
