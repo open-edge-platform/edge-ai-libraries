@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_client import make_asgi_app
+from prometheus_client import make_asgi_app, start_http_server
 
 from app.api.routes import router
 from app.core.config import settings
@@ -21,6 +21,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Application lifespan manager."""
     setup_logging(settings.log_level)
     logger.info(f"Starting {settings.service_name} v{settings.service_version}")
+
+    # Start a dedicated Prometheus HTTP server on the configured metrics port
+    # (default 9090).  docker-compose maps ${METRICS_PORT:-9090}:9090, so this
+    # must be a standalone server — mounting /metrics on the FastAPI app at
+    # port 8080 would not be reachable via the docker-compose port mapping.
+    if settings.prometheus_enabled:
+        try:
+            start_http_server(settings.metrics_port)
+            logger.info(
+                "Prometheus metrics server started on port %d", settings.metrics_port
+            )
+        except OSError as exc:
+            logger.warning(
+                "Could not start Prometheus metrics server on port %d: %s",
+                settings.metrics_port, exc,
+            )
     
     # Initialize VLM backend only if matching strategy requires it
     if settings.default_matching_strategy in ("semantic", "hybrid"):

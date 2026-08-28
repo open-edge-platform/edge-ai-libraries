@@ -160,8 +160,8 @@ Lingua server uses the `llmlingua2` (LLMLingua-2) compression mode.
 | Parameter | Default | Allowed / Notes |
 |-----------|---------|-----------------|
 | `LINGUA_BACKEND` | `pytorch` | `pytorch` or `ov` |
-| `LINGUA_DEVICE` | `xpu` | `xpu`, `cpu`, `cuda` (`cuda` is PyTorch-only) |
-| `LINGUA_XPU_INDEX` | `0` | Used when `LINGUA_DEVICE=xpu`, specify the XPU index. For OpenVINO, maps to `GPU.<index>`; when index is `0`, generic `GPU` is also accepted as a compatibility fallback |
+| `LINGUA_DEVICE` | `xpu` (pytorch) / `gpu` (ov) | Lowercase, shared by both services. PyTorch: `cpu`, `cuda`, `xpu`. OpenVINO: `cpu`, `gpu` (default `gpu`). Don't pass `xpu` to the ov profile |
+| `LINGUA_DEVICE_INDEX` | `0` | Index within the device class. PyTorch `xpu:<index>`; OpenVINO `GPU.<index>` (generic `GPU` fallback for index `0`). Ignored for `cpu` |
 | `LINGUA_MODE` | `llmlingua2` | Compression mode: `llmlingua2` |
 | `LINGUA_MODEL_NAME_ID` | empty | Optional fixed model id. Empty -> mode default |
 | `LINGUA_PORT` | `8001` | Host port mapping for `lingua-pytorch` service |

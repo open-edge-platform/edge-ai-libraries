@@ -7,8 +7,6 @@ description: >
 metadata:
   version: "1.0.0"
   tags: "chatqna deploy docker compose openvino ollama gpu cpu"
-argument-hint: >
-  Describe runtime and image source, for example "deploy openvino cpu from prebuilt intel images" or "deploy ollama from local builds with custom model config".
 ---
 
 <!--

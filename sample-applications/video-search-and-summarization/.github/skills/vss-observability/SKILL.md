@@ -28,7 +28,7 @@ VSS has two independent paths:
 1. Live system and dataprep metrics use Metrics Manager. Set
    `ENABLE_METRICS_MANAGER=true` in a search-enabled Compose deployment.
    `docker/compose.metrics-manager.yaml` starts
-   `docker.io/intel/metrics-manager:2026.2.0-20260715-weekly`. DataPrep sends
+   `docker.io/intel/metrics-manager:2026.2.0-rc2`. DataPrep sends
    `dataprep_embeddings_per_second` to its simple-metrics REST API, and the UI
    consumes its SSE stream through nginx.
 2. Pipeline Manager traces use the Node OpenTelemetry SDK. `OTLP_TRACE_URL`

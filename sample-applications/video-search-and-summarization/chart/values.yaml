@@ -136,7 +136,7 @@ pipelinemanager:
     runAsGroup: 0
   image:
     repository: intel/pipeline-manager
-    tag: "2026.2.0-rc1"
+    tag: "2026.2.0-rc2"
     pullPolicy: IfNotPresent
   containerPortName: videosumm-port # Optional name to refer containerPort
   # Readiness gating mirrors the Compose healthcheck for pipeline-manager
@@ -327,7 +327,7 @@ metricsmanager:
   coLocateWithDataPrep: true
   image:
     repository: intel/metrics-manager
-    tag: "2026.2.0-rc1"
+    tag: "2026.2.0-rc2"
     pullPolicy: IfNotPresent
 
 # VSS UI subchart alias conditions. Detailed defaults come from subchart/vss-ui/values.yaml.

@@ -1,12 +1,21 @@
 from components.asr.base_asr import BaseASR
 import soundfile as sf
 import librosa, time
+import threading
 import openvino_genai as ov_genai
 import logging
 from utils.ensure_model import get_asr_model_path
 
-logger = logging.getLogger(__name__)  
- 
+logger = logging.getLogger(__name__)
+
+# openvino_genai's WhisperPipeline wraps native OpenVINO infer requests that
+# are not safe to reuse concurrently: parallel calls to generate() on the
+# same pipeline instance raise "RuntimeError: Infer Request is busy".
+# ASRComponent shares a single Whisper instance (class-level singleton)
+# across all HTTP requests, so this lock serialises generate() calls —
+# mirroring the fix applied to the openai-whisper backend.
+_TRANSCRIBE_LOCK = threading.Lock()
+
 class Whisper(BaseASR):
    def __init__(self, model_name="whisper-small", device="CPU", revision=None):
         logger.info(f"Loading Model: model name={model_name}, device={device}")
@@ -18,7 +27,8 @@ class Whisper(BaseASR):
         gen_kwargs = {"return_timestamps": True}
         if language:
             gen_kwargs["language"] = language if language.startswith("<|") else f"<|{language}|>"
-        result = self.model.generate(audio, **gen_kwargs)
+        with _TRANSCRIBE_LOCK:
+            result = self.model.generate(audio, **gen_kwargs)
         segments = []
         if hasattr(result, "chunks") and result.chunks is not None:
             for seg in result.chunks:
