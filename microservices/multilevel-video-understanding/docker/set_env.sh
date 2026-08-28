@@ -8,9 +8,9 @@
 #
 # Usage:   source docker/set_env.sh      # before ./setup_docker.sh / docker compose up
 
-# Auto-detect the host IP (used for no_proxy and the model-serving base URLs).
-HOST_IP=$(ip route get 1 2>/dev/null | awk '{print $7; exit}')
-export no_proxy=localhost,127.0.0.1,vllm-ipex-serving,multilevel-video-understanding,${HOST_IP}
+# Everything in the stack is reached over loopback or by compose service name, so
+# these are the only hosts that must bypass the proxy.
+export no_proxy=localhost,127.0.0.1,vllm-ipex-serving,multilevel-video-understanding
 
 # =========================================================================
 # vLLM-IPEX model serving
@@ -70,6 +70,8 @@ export ENABLE_THINKING=false
 export VIDEO_FRAME_HEIGHT=378
 export VIDEO_FRAME_WIDTH=504
 export DEFAULT_TEMPERATURE=0.0
+# JSON array of media directories readable by the service container.
+export VIDEO_ALLOWED_PATHS=${VIDEO_ALLOWED_PATHS:-'["/app","/tmp"]'}
 
 # Runtime prompt-registry cache. Must exist as a user-owned dir BEFORE
 # `docker compose up`, otherwise Docker creates it as root.

@@ -55,7 +55,7 @@ class LLM:
         self.total_completion_tokens = 0  # Completion tokens (accumulated)
         self.total_image_tokens = 0  # Image tokens calculated internally (accumulated)
 
-        logger.debug(f"Using remote inference serving with model: {model_name} from endpoint: {self.base_url}")
+        logger.debug("Remote LLM inference serving configured")
     
     def infer(self, content: str|List[Dict[str, Any]]) -> str:
         """
@@ -175,7 +175,7 @@ class LLM:
 
         while retry_count < self.max_retries:
             try:
-                logger.debug(f"Sending async request to remote LLM: {self.model_name} (attempt {retry_count+1}/{self.max_retries})")
+                logger.debug("Sending async request to remote LLM (attempt %d/%d)", retry_count + 1, self.max_retries)
 
                 # Call the API
                 response = await self.async_client.chat.completions.create(

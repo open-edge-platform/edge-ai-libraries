@@ -66,7 +66,7 @@ class VLM(LLM):
             msgs = self._prepare_qwen_format(frames, content)
             logger.debug("Using Qwen format for API request")
 
-        logger.debug(f"Sending request with {len(frames)} frames to model: {self.model_name}")
+        logger.debug("Sending request with %d frames to vision-language model", len(frames))
         logger.debug(f"Sending request with messages: {redact_base64(msgs)}")
         logger.debug(f"API base URL: {self.client.base_url}")
 
@@ -105,7 +105,7 @@ class VLM(LLM):
             msgs = self._prepare_qwen_format(frames, content)
             logger.debug("Using Qwen format for API request")
 
-        logger.debug(f"Sending request with {len(frames)} frames to model: {self.model_name}")
+        logger.debug("Sending request with %d frames to vision-language model", len(frames))
         logger.debug(f"Sending request with messages: {redact_base64(msgs)}")
         logger.debug(f"API base URL: {self.client.base_url}")
 

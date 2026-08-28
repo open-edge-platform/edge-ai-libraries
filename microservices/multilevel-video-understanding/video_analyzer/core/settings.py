@@ -53,6 +53,10 @@ class Settings(BaseSettings):
 
     # Summarizer configs
     DEFAULT_SUMMARIZATION_METHOD: str = "USE_ALL_T-1"
+    VIDEO_ALLOWED_PATHS: List[str] = Field(
+        default_factory=lambda: ["/app", "/tmp"],
+        env="VIDEO_ALLOWED_PATHS",
+    )
     ## Default levels for multi-level description
     DEFAULT_LEVELS: int = 3                                 # Details: level 0: micro_chunks, level 2~(N-1): macro_chunks, level N: global
     DEFAULT_LEVEL_SIZES: List = [1, 6, -1]                  # chunk group size for each level, -1 means use single group

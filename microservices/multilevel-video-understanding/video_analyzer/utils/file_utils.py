@@ -4,15 +4,82 @@
 import traceback
 from pathlib import Path
 import os
+import ipaddress
+import socket
 from urllib.parse import urlparse
 import requests
 import tempfile
 import pathlib
 from fastapi import HTTPException, status
 from decord import VideoReader, cpu
+from video_analyzer.core.settings import settings
 from video_analyzer.schemas.summarization import ErrorResponse
 
 from video_analyzer.utils.logger import logger
+
+
+def validate_remote_url(raw: str, allowed_schemes: tuple[str, ...] = ("http", "https")) -> str:
+    """Validate a remote URL before it is passed to an HTTP client."""
+    parsed = urlparse(raw)
+    scheme = parsed.scheme.lower()
+    if scheme not in allowed_schemes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_message="Unsupported URI scheme",
+                details=f"Allowed schemes: {', '.join(allowed_schemes)}",
+            ).model_dump(),
+        )
+    if not parsed.hostname or parsed.username or parsed.password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_message="Invalid URL",
+                details="A host without user credentials is required",
+            ).model_dump(),
+        )
+    try:
+        addresses = socket.getaddrinfo(parsed.hostname, parsed.port or 443)
+    except (socket.gaierror, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error_message="Invalid URL", details=str(exc)).model_dump(),
+        ) from exc
+    for address in addresses:
+        try:
+            if not ipaddress.ip_address(address[4][0]).is_global:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ErrorResponse(
+                        error_message="Invalid URL",
+                        details="URLs resolving to non-public addresses are not allowed",
+                    ).model_dump(),
+                )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse(error_message="Invalid URL", details=str(exc)).model_dump(),
+            ) from exc
+    return raw
+
+
+def validate_local_file_path(raw: str) -> str:
+    """Return an existing local file only when it is under an allowed directory."""
+    local_path = Path(os.path.expanduser(raw)).resolve(strict=True)  # lgtm [py/path-injection]
+    allowed_paths = [  # lgtm [py/path-injection]
+        Path(path).expanduser().resolve() for path in settings.VIDEO_ALLOWED_PATHS
+    ]
+    if not local_path.is_file() or not any(
+        local_path.is_relative_to(allowed_path) for allowed_path in allowed_paths
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_message="Invalid local file path",
+                details="The file must be in an allowed media directory",
+            ).model_dump(),
+        )
+    return str(local_path)
 
 
 def get_file_duration(file_path: Path) -> float:
@@ -70,15 +137,28 @@ def robust_video_reader(url, ctx=cpu(0), width=-1, height=-1, num_threads=0, ver
     # Local files: open directly with decord
     if scheme in ("", "file"):
         local_path = urlparse(url).path if scheme == "file" else url
-        return VideoReader(local_path, ctx=ctx, width=width, height=height, num_threads=num_threads)
+        return VideoReader(
+            validate_local_file_path(local_path),
+            ctx=ctx,
+            width=width,
+            height=height,
+            num_threads=num_threads,
+        )
 
     # HTTP / HTTPS: download to temp file first
     if scheme in ("http", "https"):
-        logger.info("Downloading video from %s ...", url)
-        response = requests.get(url, stream=True, verify=(verify_ssl if scheme == "https" else True), timeout=60)
+        safe_url = validate_remote_url(url)
+        logger.info("Downloading remote video to a temporary file")
+        response = requests.get(  # lgtm [py/full-ssrf]
+            safe_url,
+            stream=True,
+            verify=(verify_ssl if scheme == "https" else True),
+            timeout=60,
+            allow_redirects=False,
+        )
         response.raise_for_status()
 
-        suffix = os.path.splitext(urlparse(url).path)[1] or ".mp4"
+        suffix = os.path.splitext(urlparse(url).path)[1] or ".mp4"  # lgtm [py/path-injection]
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
@@ -102,11 +182,17 @@ def download_to_temp(video_path: str) -> str | None:
     if scheme not in ("http", "https"):
         return None
 
-    logger.info("Downloading remote video to temp file: %s", video_path)
-    response = requests.get(video_path, stream=True, timeout=60)
+    safe_url = validate_remote_url(video_path)
+    logger.info("Downloading remote video to a temporary file")
+    response = requests.get(  # lgtm [py/full-ssrf]
+        safe_url,
+        stream=True,
+        timeout=60,
+        allow_redirects=False,
+    )
     response.raise_for_status()
 
-    suffix = os.path.splitext(urlparse(video_path).path)[1] or ".mp4"
+    suffix = os.path.splitext(urlparse(video_path).path)[1] or ".mp4"  # lgtm [py/path-injection]
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
         for chunk in response.iter_content(chunk_size=8192):
             if chunk:
@@ -137,16 +223,16 @@ def validate_video_path(raw: str) -> str:
 
     if scheme in ("", "file"):
         local_path = parsed.path if scheme == "file" else raw
-        local_path = os.path.abspath(os.path.expanduser(local_path))
-        if not os.path.isfile(local_path):
+        try:
+            return validate_local_file_path(local_path)
+        except FileNotFoundError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorResponse(
                     error_message="Local file not found",
-                    details=f"{local_path}"
+                    details="The requested local file does not exist",
                 ).model_dump()
             )
-        return local_path
 
     if scheme in ("http", "https"):
         # Simple syntax / extension check
@@ -169,7 +255,7 @@ def validate_video_path(raw: str) -> str:
                     details=f"{ext}"
                 ).model_dump()
             )
-        return raw
+        return validate_remote_url(raw)
 
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
