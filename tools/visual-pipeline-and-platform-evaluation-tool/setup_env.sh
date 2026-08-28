@@ -13,7 +13,7 @@ TIMESERIES_ANALYTICS_MICROSERVICE_WEEKLY_BUILD_DATE="20260721"
 HOST_IPS="$(hostname -I | xargs | tr ' ' ',')"
 
 # Check for NPU device
-if compgen -G "/dev/accel*" > /dev/null; then
+if compgen -G "/dev/accel/accel*" > /dev/null; then
     # NPU device found, using NPU profile and render group
     COMPOSE_PROFILES="npu"
     RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
