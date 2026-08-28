@@ -1369,7 +1369,7 @@ index 44873cf4ff0e3718cbb9bbe823dddb2f7bcd9e88..314d9263ec62d3e8f2eea9fae4f570d0
      @enable_tracing()
      def reserve_write(
 diff --git a/lmcache/v1/gpu_connector/utils.py b/lmcache/v1/gpu_connector/utils.py
-index a2729939d0e44d3ed46e3864a6f4bfec3a23022c..dd29ce1f3c8ada69db8b7104ec7601707cd7b509 100644
+index a2729939d0e44d3ed46e3864a6f4bfec3a23022c..6843b4f87e8b5e4eca3592b70eea02ae66ab60bc 100644
 --- a/lmcache/v1/gpu_connector/utils.py
 +++ b/lmcache/v1/gpu_connector/utils.py
 @@ -495,8 +495,8 @@ def legible_print_gpu_kv_format(gpu_kv_format: "lmc_ops.GPUKVFormat"):
@@ -1401,6 +1401,15 @@ index a2729939d0e44d3ed46e3864a6f4bfec3a23022c..dd29ce1f3c8ada69db8b7104ec760170
  
      detected_format = None
  
+@@ -665,7 +665,7 @@ def normalize_kv_and_discover_format(
+                 "No KV Cache Layout hint provided when using vLLM, defaulting to NHD"
+             )
+             kv_layout = "NHD"
+-        logger.info("vLLM KV cache layout: %s", kv_layout)
++        logger.debug("vLLM KV cache layout: %s", kv_layout)
+         is_hnd = kv_layout == "HND"
+         if list_depth == 0:
+             # vllm cross layer
 diff --git a/lmcache/v1/mp_observability/subscribers/logging/l2.py b/lmcache/v1/mp_observability/subscribers/logging/l2.py
 index ff1683822465e6b7d5b14c0e189aec92ca73fad3..ce66152447a5f32fcba184df28b5da0a0fa6e46c 100644
 --- a/lmcache/v1/mp_observability/subscribers/logging/l2.py
