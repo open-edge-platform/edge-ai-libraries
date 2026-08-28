@@ -108,9 +108,13 @@ ENV PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/xpu" \
     TP=1 \
     GPU_MEM_UTIL=0.5 \
     MAX_MODEL_LEN=8192 \
+    DTYPE=float16 \
+    QUANTIZATION=fp8 \
+    DEBUG=False \
     LMCACHE_MP_HOST=tcp://localhost \
     LMCACHE_MP_PORT=6555 \
     LMCACHE_MP_HTTP_PORT=8090 \
+    LMCACHE_MP_L2_ENABLE=true \
     LMCACHE_MP_L1_SIZE_GB=5 \
     LMCACHE_MP_EVICTION_POLICY=LRU \
     LMCACHE_MP_EVICTION_TRIGGER_WATERMARK=0.7 \
@@ -204,15 +208,28 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+lmcache_args=(
+    --port "${LMCACHE_MP_PORT:-6555}"
+    --http-port "${LMCACHE_MP_HTTP_PORT:-8090}"
+    --l1-size-gb "${LMCACHE_MP_L1_SIZE_GB:-1}"
+    --eviction-policy "${LMCACHE_MP_EVICTION_POLICY:-LRU}"
+    --eviction-trigger-watermark "${LMCACHE_MP_EVICTION_TRIGGER_WATERMARK:-0.7}"
+    --eviction-ratio "${LMCACHE_MP_EVICTION_RATIO:-0.3}"
+    --chunk-size 1024
+)
+l2_enable="${LMCACHE_MP_L2_ENABLE:-true}"
+if [[ "${l2_enable,,}" == "true" ]]; then
+    lmcache_args+=(--l2-adapter '{"type": "fs", "base_path": "/lmcache_disk"}')
+fi
+
+vllm_env=()
+debug_enabled="${DEBUG:-False}"
+if [[ "${debug_enabled,,}" == "true" ]]; then
+    vllm_env+=(VLLM_SERVER_DEV_MODE=1)
+fi
+
 LMCACHE_LOG_LEVEL="${LMCACHE_LOG_LEVEL:-INFO}" \
-lmcache server \
-    --port "${LMCACHE_MP_PORT:-6555}" \
-    --http-port "${LMCACHE_MP_HTTP_PORT:-8090}" \
-    --l1-size-gb "${LMCACHE_MP_L1_SIZE_GB:-1}" \
-    --eviction-policy "${LMCACHE_MP_EVICTION_POLICY:-LRU}" \
-    --eviction-trigger-watermark "${LMCACHE_MP_EVICTION_TRIGGER_WATERMARK:-0.7}" \
-    --eviction-ratio "${LMCACHE_MP_EVICTION_RATIO:-0.3}" \
-    --chunk-size 1024 &
+lmcache server "${lmcache_args[@]}" &
 lmcache_pid=$!
 
 ready=0
@@ -230,6 +247,7 @@ if [[ "${ready}" != "1" ]]; then
 fi
 
 exec env \
+    "${vllm_env[@]}" \
     VLLM_OFFLOAD_WEIGHTS_BEFORE_QUANT="${VLLM_OFFLOAD_WEIGHTS_BEFORE_QUANT:-1}" \
     TORCH_LLM_ALLREDUCE="${TORCH_LLM_ALLREDUCE:-1}" \
     VLLM_USE_V1="${VLLM_USE_V1:-1}" \
@@ -238,7 +256,7 @@ exec env \
     LMCACHE_LOG_LEVEL="${LMCACHE_LOG_LEVEL:-INFO}" \
     python3 -m vllm.entrypoints.openai.api_server \
         --model "${MODEL:-Qwen3.5-9B}" \
-        --dtype=float16 \
+        --dtype "${DTYPE:-float16}" \
         --enforce-eager \
         --port 8000 \
         --block-size 1024 \
@@ -249,7 +267,7 @@ exec env \
         --max_num_batched_tokens=1024 \
         --max_model_len "${MAX_MODEL_LEN:-8192}" \
         -tp="${TP:-1}" \
-        --quantization fp8 \
+        --quantization "${QUANTIZATION:-fp8}" \
         --served-model-name "${SERVE:-Qwen3.5-9B}" \
         --kv-transfer-config "{\"kv_connector\":\"LMCacheMPConnector\",\"kv_role\":\"kv_both\",\"kv_connector_extra_config\":{\"lmcache.mp.host\":\"${LMCACHE_MP_HOST:-tcp://localhost}\",\"lmcache.mp.port\":${LMCACHE_MP_PORT:-6555}}}"
 EOF
