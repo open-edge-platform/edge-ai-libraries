@@ -19,6 +19,7 @@ import requests
 
 from helpers.api_helpers import (
     JsonDict,
+    drain_job,
     run_job_with_retry,
     start_density_job,
     start_performance_job,
@@ -269,6 +270,7 @@ def test_performance_metadata_snapshot_for_job_with_disabled_metadata_returns_40
 
     job_id = start_performance_job(http_client, payload)
     logger.info("Started non-metadata performance job %s", job_id)
+    drain_job(http_client, f"{BASE_URL}/jobs/tests/performance/{job_id}/status")
 
     response = http_client.get(
         f"{BASE_URL}/jobs/tests/performance/{job_id}/metadata/some-pipeline/0",

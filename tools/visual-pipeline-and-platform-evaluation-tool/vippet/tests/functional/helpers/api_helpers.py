@@ -416,6 +416,15 @@ def wait_for_job_completion(
     )
 
 
+def drain_job(session: requests.Session, status_url: str) -> None:
+    """Wait for a started job to finish, whatever state it ends in.
+
+    The backend runs at most one job at a time, so a test that starts a job and
+    walks away leaves the next submission failing with ``409``.
+    """
+    wait_for_job_completion(session, status_url, assert_initial_running=False)
+
+
 def run_job_with_retry(
     attempt_fn: JobAttemptFn,
     *,
