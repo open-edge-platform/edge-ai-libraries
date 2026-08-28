@@ -2,7 +2,7 @@
 
 ## Version 2026.2.0
 
-**TBD**
+**Release Date:** September 9, 2026
 
 This release introduces **configurable external model sources**, **request-scoped credential overrides and startup model preloading**, **OpenVINO HETERO device conversion**, and **job cancellation**, along with validation, AI skill, and documentation improvements.
 
@@ -21,7 +21,7 @@ This release introduces **configurable external model sources**, **request-scope
 **Fixed**
 
 - **Uploaded Model Name Validation**: preserves letter case, converts spaces to underscores, and rejects unsafe or malformed names with clearer errors.
-- **Updated the default container UID/GID to 1000**: to align with host user permissions and simplify volume access
+- **Updated the default container UID/GID to 1000**: aligns with host user permissions and simplifies volume access
 - **Fixed security vulnerability issues**
 
 **Known Issues:**
