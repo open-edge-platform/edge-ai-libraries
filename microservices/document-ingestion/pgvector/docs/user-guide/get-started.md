@@ -127,8 +127,6 @@ This method provides the fastest way to get started with the microservice.
    Run the following command to clone the repository:
 
    ```bash
-   # Clone the latest on mainline
-   # git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b main
    # Clone the release branch
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
    ```

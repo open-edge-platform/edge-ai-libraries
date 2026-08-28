@@ -5,7 +5,7 @@
   <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0//libraries/adaptive-token-compressor/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/libraries/adaptive-token-compressor/README.md">
      Readme
   </a>
 </div>

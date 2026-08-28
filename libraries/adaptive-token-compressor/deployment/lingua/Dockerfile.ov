@@ -5,7 +5,7 @@
 # Build context is the repo root (set in deployment/lingua/docker-compose.yaml
 # as `build.context: ../..`), so `COPY src/.../app.py` resolves correctly.
 #
-# Defaults: --backend ov, --device xpu, --port 8001.
+# Defaults: --backend ov, --device gpu, --port 8001 (ov devices: cpu/gpu).
 
 FROM python:3.13-slim
 
@@ -82,7 +82,9 @@ USER user
 
 ENV LINGUA_PORT=8001
 ENV LINGUA_BACKEND=ov
-ENV LINGUA_DEVICE=xpu
+# ov devices: cpu / gpu (lowercase). Default gpu; override at run time
+# (compose sets LINGUA_DEVICE). Must NOT be pytorch's "xpu" — ov rejects it.
+ENV LINGUA_DEVICE=gpu
 ENV LINGUA_MODE=llmlingua2
 ENV LINGUA_MODEL_NAME_ID=""
 ENV LINGUA_OV_CACHE_DIR=/home/user/.cache/huggingface/ov_ir
