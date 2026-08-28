@@ -28,8 +28,8 @@ The following network ports are used by default:
 
 | Port   | Service                       | Configurable via                 |
 | ------ | ----------------------------- | -------------------------------- |
-| `9001` | Alert Agent Service REST API  | `PORT` environment variable      |
-| `8001` | OVMS LLM server (host-mapped) | `LLM_PORT` environment variable  |
+| `8000` | Alert Agent Service REST API  | `PORT` environment variable      |
+| `9001` | OVMS LLM server (host-mapped) | `LLM_PORT` environment variable  |
 | `1883` | MQTT broker (if used)         | `MQTT_PORT` environment variable |
 
 ## Proxy Settings
