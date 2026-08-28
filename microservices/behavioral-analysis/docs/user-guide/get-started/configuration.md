@@ -138,6 +138,8 @@ The global VLM switch is controlled exclusively by the environment variable `VLM
 
 Important: VLM is disabled by default. Enable it explicitly when the environment is configured for VLM confirmation. Ensure model artifacts are downloaded before launch. In Docker Compose, `ovms-vlm` mounts models from `${DOWNLOADED_MODEL_PATH}/vlm_models` and expects the model configuration to be available there.
 
+In Docker Compose, `ovms-vlm` is defined under the `vlm` profile and its `depends_on` from `behavioral-analysis` is optional (`required: false`). This means `ovms-vlm` only starts when the `vlm` profile is active. When `VLM_ENABLED=true`, activate the profile with `docker compose --profile vlm up -d` (or set `COMPOSE_PROFILES=vlm` in your env file); otherwise `ovms-vlm` never starts and VLM confirmation will not work even though the flag is enabled.
+
 | Variable | Default | Description |
 | --- | --- | --- |
 | VLM_ENABLED | false | Global master switch for VLM confirmation after pose match |
@@ -148,6 +150,8 @@ Important: VLM is disabled by default. Enable it explicitly when the environment
 | VLM_TEMPERATURE | 0.1 | Sampling temperature |
 | VLM_MAX_IMAGE_SIZE | 256 | Maximum frame size for VLM |
 | VLM_MAX_CONCURRENCY | 1 | Maximum concurrent VLM requests |
+
+To download the VLM model, follow the instructions in the [model-download microservice](../../../../model-download/README.md).
 
 ### Pattern Config Path
 
@@ -173,6 +177,10 @@ SEAWEEDFS_ENDPOINT=http://seaweedfs:8333
 SEAWEEDFS_BUCKET=behavioral-frames
 
 # VLM
+# ovms-vlm is behind the "vlm" Compose profile; add --profile vlm (or set
+# COMPOSE_PROFILES=vlm below) whenever VLM_ENABLED=true, otherwise ovms-vlm
+# won't start and VLM confirmation will be skipped.
+#COMPOSE_PROFILES=vlm
 VLM_ENDPOINT=http://ovms-vlm:8001
 VLM_ENABLED=false
 

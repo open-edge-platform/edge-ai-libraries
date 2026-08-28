@@ -18,9 +18,10 @@ services:
       timeout: 5s
       retries: 10
       start_period: 60s
-    depends_on:      
+    depends_on:
       ovms-vlm:
         condition: service_healthy
+        required: false
     environment:
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-standalone+api}
       LOG_LEVEL: ${LOG_LEVEL:-DEBUG}
@@ -51,6 +52,7 @@ services:
   ovms-vlm:
     image: openvino/model_server:${OVMS_IMAGE_TAG}
     container_name: ovms-vlm
+    profiles: ["vlm"]
     volumes:
       - ${DOWNLOADED_MODEL_PATH:-./models}/vlm_models:/models:ro
       - ovms-cache:/cache
