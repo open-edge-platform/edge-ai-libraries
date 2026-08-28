@@ -1,0 +1,330 @@
+{
+  "metadata": {
+    "skill_name": "vss-summarize-video",
+    "skill_path": "/home/intel/krishna/oep-eal/sample-applications/video-search-and-summarization/.github/skills/vss-summarize-video",
+    "executor_model": "claude-sonnet-5",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-08-25T06:42:41Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 66.2,
+        "tokens": 492135,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides `POST /manager/summary` for `video-104` with a title, valid sampling fields, `evam.evamPipeline`, and `produceFinalSummary: true`.",
+          "passed": true,
+          "evidence": "In outputs/response.md Step 1: `POST /manager/summary` includes `\"title\": \"video-104 summary\"`, `\"videoId\": \"video-104\"`, `\"sampling\": { \"chunkDuration\": 20, \"samplingFrame\": 5, \"frameOverlap\": 0, \"multiFrame\": 5 }`, `\"evam\": { \"evamPipeline\": \"object_detection\" }`, and `\"produceFinalSummary\": true`."
+        },
+        {
+          "text": "Uses sampling values that satisfy `multiFrame == frameOverlap + samplingFrame`.",
+          "passed": true,
+          "evidence": "outputs/response.md explicitly states: `sampling.multiFrame must equal sampling.frameOverlap + sampling.samplingFrame (here 0 + 5 = 5)` and the request body uses `multiFrame: 5`, `frameOverlap: 0`, `samplingFrame: 5`."
+        },
+        {
+          "text": "Carries `summaryPipelineId` into `GET /manager/summary/{stateId}`, waits for `videoSummaryStatus == \"complete\"`, and then reads `.summary`.",
+          "passed": true,
+          "evidence": "outputs/response.md shows expected start response `{ \"summaryPipelineId\": \"<STATE_ID>\" }`, then uses `STATE_ID=<STATE_ID>` in `GET /manager/summary/$STATE_ID`, waits with `until ... | jq -e '.videoSummaryStatus == \"complete\"'`, and finally retrieves text with `curl -s \"$HOST/manager/summary/$STATE_ID\" | jq -r '.summary'`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 63.9,
+        "tokens": 392719,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses title `Warehouse morning review`, `videoId` `warehouse-88`, `chunkDuration: 30`, `samplingFrame: 8`, and `frameOverlap: 2`.",
+          "passed": true,
+          "evidence": "In outputs/response.md POST body: \"title\": \"Warehouse morning review\", \"videoId\": \"warehouse-88\", and sampling includes \"chunkDuration\": 30, \"samplingFrame\": 8, \"frameOverlap\": 2."
+        },
+        {
+          "text": "Sets `multiFrame: 10`, `videoStart: 60`, `videoEnd: 660`, and includes a documented `evamPipeline` value.",
+          "passed": true,
+          "evidence": "In outputs/response.md POST body: \"multiFrame\": 10, \"videoStart\": 60, \"videoEnd\": 660, and \"evam\": { \"evamPipeline\": \"object_detection\" }; field notes explicitly document evam.evamPipeline."
+        },
+        {
+          "text": "Shows how `summaryPipelineId` becomes the state id, then provides a polling command for `videoSummaryStatus == \"complete\"` before the `.summary` retrieval command.",
+          "passed": true,
+          "evidence": "outputs/response.md states \"The response's `summaryPipelineId` becomes the `STATE_ID` used below,\" then gives `until ... | jq -e '.videoSummaryStatus == \"complete\"'` polling, and only afterward shows `curl ... | jq -r '.summary'` retrieval."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 52.2,
+        "tokens": 285990,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides a valid `POST /manager/summary` request for `yard-cam-17` with `produceFinalSummary: false`.",
+          "passed": true,
+          "evidence": "In outputs/response.md: `curl -s -X POST \"$HOST/manager/summary\" ... \"videoId\": \"yard-cam-17\" ... \"produceFinalSummary\": false` with required body fields shown."
+        },
+        {
+          "text": "Waits until `frameSummaryStatus.inProgress == 0` rather than waiting for final `videoSummaryStatus` completion.",
+          "passed": true,
+          "evidence": "In outputs/response.md polling step: `jq -e '.frameSummaryStatus.inProgress == 0'` and explicit note: `not \\`videoSummaryStatus == \"complete\"\\``."
+        },
+        {
+          "text": "Reads captions from `.frameSummaries[]` using `frameKey` and `summary`, not from `.chunks[]`.",
+          "passed": true,
+          "evidence": "In outputs/response.md: `jq -r '.frameSummaries[] | \"[\\(.frameKey)] \\(.summary)\"'` and explanation that captions are in `.frameSummaries[]`, not `.chunks[]`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 61.6,
+        "tokens": 394354,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses the wrapped `GET /manager/videos` response and matches `east-entrance.mp4` through `.dataStore.fileName` to obtain `videoId` without re-uploading it.",
+          "passed": true,
+          "evidence": "response.md shows wrapped access and filename match: `curl -s \"$HOST/manager/videos\" | jq -r '.videos[] | select(.dataStore.fileName == \"east-entrance.mp4\") | .videoId'`, and explicitly states \"Do not `POST /manager/videos` again\"."
+        },
+        {
+          "text": "Uses the resolved `videoId` in a valid `POST /manager/summary` body with required title, sampling, and `evamPipeline` fields.",
+          "passed": true,
+          "evidence": "response.md includes `POST /manager/summary` JSON with `\"title\": \"East entrance review\"`, `\"videoId\": \"<VIDEO_ID>\"`, `\"sampling\": { ... }`, and `\"evam\": { \"evamPipeline\": \"object_detection\" }`, and notes these are required."
+        },
+        {
+          "text": "Carries `summaryPipelineId` forward, waits for `videoSummaryStatus == \"complete\"`, and only then reads `.summary`.",
+          "passed": true,
+          "evidence": "response.md says `summaryPipelineId` becomes `stateId`, provides `until ... | jq -e '.videoSummaryStatus == \"complete\"'` polling, then retrieves summary with `curl -s \"$HOST/manager/summary/$STATE_ID\" | jq -r '.summary'`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 31.9,
+        "tokens": 129071,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides `POST /manager/summary` for `video-104` with a title, valid sampling fields, `evam.evamPipeline`, and `produceFinalSummary: true`.",
+          "passed": false,
+          "evidence": "outputs/response.md uses `curl -s -X POST \"http://localhost:8090/summary\"` (no `/manager`), and request body only has `video_id`, `chunk_duration`, `chunk_overlap_duration`, `summarize`, `enable_chat`, `is_live` with no `title`, sampling fields, `evam.evamPipeline`, or `produceFinalSummary`."
+        },
+        {
+          "text": "Uses sampling values that satisfy `multiFrame == frameOverlap + samplingFrame`.",
+          "passed": false,
+          "evidence": "No `multiFrame`, `frameOverlap`, or `samplingFrame` fields appear in outputs/response.md, so the required relation cannot be verified."
+        },
+        {
+          "text": "Carries `summaryPipelineId` into `GET /manager/summary/{stateId}`, waits for `videoSummaryStatus == \"complete\"`, and then reads `.summary`.",
+          "passed": false,
+          "evidence": "outputs/response.md stores `STATE_ID` from a mocked `stateId` and polls `GET \"http://localhost:8090/summary/${STATE_ID}\"` on `.state` (`SUCCESSFUL`/`COMPLETE`), then calls `GET /summary/${STATE_ID}/raw`; it does not use `summaryPipelineId`, does not call `/manager/summary/{stateId}`, does not check `videoSummaryStatus == \"complete\"`, and does not read `.summary` from that status response."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 32.6,
+        "tokens": 129616,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses title `Warehouse morning review`, `videoId` `warehouse-88`, `chunkDuration: 30`, `samplingFrame: 8`, and `frameOverlap: 2`.",
+          "passed": false,
+          "evidence": "response.md includes \"title\": \"Warehouse morning review\", \"id\": \"warehouse-88\", \"chunk_duration\": 30, \"num_frames_per_chunk\": 8, and \"chunk_overlap_duration\": 2, but does not use the expected fields `videoId`, `chunkDuration`, `samplingFrame`, and `frameOverlap`."
+        },
+        {
+          "text": "Sets `multiFrame: 10`, `videoStart: 60`, `videoEnd: 660`, and includes a documented `evamPipeline` value.",
+          "passed": false,
+          "evidence": "response.md sets only \"start_time\": 60 and \"end_time\": 660. No `multiFrame: 10` or `evamPipeline` value is provided."
+        },
+        {
+          "text": "Shows how `summaryPipelineId` becomes the state id, then provides a polling command for `videoSummaryStatus == \"complete\"` before the `.summary` retrieval command.",
+          "passed": false,
+          "evidence": "response.md shows `stateId` in an example response and polls `.state` for `SUCCESSFUL`/`COMPLETED`, then retrieves via `GET /summary/{stateId}/raw`; it does not show `summaryPipelineId` mapping, does not poll `videoSummaryStatus == \"complete\"`, and does not provide a `.summary` retrieval command."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333333333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 103.3,
+        "tokens": 841127,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides a valid `POST /manager/summary` request for `yard-cam-17` with `produceFinalSummary: false`.",
+          "passed": false,
+          "evidence": "The request includes `\"videoId\": \"yard-cam-17\"` and `\"produceFinalSummary\": false`, but uses `curl -X POST http://<pipeline-manager-host>:<port>/summary` (missing `/manager` prefix), so it does not provide the expected `/manager/summary` request."
+        },
+        {
+          "text": "Waits until `frameSummaryStatus.inProgress == 0` rather than waiting for final `videoSummaryStatus` completion.",
+          "passed": false,
+          "evidence": "The completion check is described as `status.chunking === \"complete\"`, `status.videoChunking === \"complete\"`, and all `frameSummaries[*].status === \"complete\"`; there is no `frameSummaryStatus.inProgress == 0` condition shown."
+        },
+        {
+          "text": "Reads captions from `.frameSummaries[]` using `frameKey` and `summary`, not from `.chunks[]`.",
+          "passed": true,
+          "evidence": "The response explicitly says to use `frameSummaries` and shows entries keyed by frame ids (e.g., `\"frame_0000\"`) with each entry containing `\"summary\"`; `.chunks[]` is not used for caption extraction."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 70.2,
+        "tokens": 633931,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses the wrapped `GET /manager/videos` response and matches `east-entrance.mp4` through `.dataStore.fileName` to obtain `videoId` without re-uploading it.",
+          "passed": false,
+          "evidence": "The response uses `curl -s http://<host>:<port>/videos` and matches `.name` (`jq '.videos[] | select(.name == \"east-entrance.mp4\")'`), not a wrapped `/manager/videos` response or `.dataStore.fileName`."
+        },
+        {
+          "text": "Uses the resolved `videoId` in a valid `POST /manager/summary` body with required title, sampling, and `evamPipeline` fields.",
+          "passed": false,
+          "evidence": "The body includes `\"videoId\": \"'$VIDEO_ID'\"`, `\"title\"`, `\"sampling\"`, and `\"evam\": { \"evamPipeline\": ... }`, but the endpoint shown is `POST http://<host>:<port>/summary` rather than `POST /manager/summary`."
+        },
+        {
+          "text": "Carries `summaryPipelineId` forward, waits for `videoSummaryStatus == \"complete\"`, and only then reads `.summary`.",
+          "passed": false,
+          "evidence": "It sets `STATE_ID=$(... | jq -r '.summaryPipelineId')` and later reads `.summary`, but polling guidance only says to wait until status is 'analogous to complete' and does not require/check `videoSummaryStatus == \"complete\"` explicitly."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 60.975,
+        "stddev": 6.144,
+        "min": 52.2,
+        "max": 66.2
+      },
+      "tokens": {
+        "mean": 391299.5,
+        "stddev": 84200.6211,
+        "min": 285990,
+        "max": 492135
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0833,
+        "stddev": 0.1667,
+        "min": 0.0,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 59.5,
+        "stddev": 34.2457,
+        "min": 31.9,
+        "max": 103.3
+      },
+      "tokens": {
+        "mean": 433436.25,
+        "stddev": 361180.8606,
+        "min": 129071,
+        "max": 841127
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.92",
+      "time_seconds": "+1.5",
+      "tokens": "-42137"
+    }
+  },
+  "notes": []
+}

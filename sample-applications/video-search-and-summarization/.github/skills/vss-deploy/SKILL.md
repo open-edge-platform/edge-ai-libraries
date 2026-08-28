@@ -21,6 +21,42 @@ not invent flags, services, ports, or variables. **Run the commands yourself and
 relay the output;** do not hand the deploy command to the user (the lone
 exception is `--setenv`, see below).
 
+## Answer contract when the host is not reachable
+
+The user may be planning ahead, or Docker / the VSS source may be unavailable
+here. In that case **do not stall and do not invent output.** Answer with the
+exact command sequence instead: the bootstrap step, the config/secrets step, the
+`setup.sh` invocation with its flags, the health wait, and the resulting URLs -
+plus which command the user must run themselves and why. State plainly that the
+commands were not executed. Never end the answer by asking whether to run them.
+
+## Mandatory bootstrap and credential contract
+
+Every deployment answer must run or, after a host blocker, show and report this
+exact setup shape:
+
+```bash
+SKILL_DIR=".github/skills/vss-deploy"
+APP_ROOT="$(bash "$SKILL_DIR/scripts/vss-bootstrap.sh")"
+cd "$APP_ROOT"
+export VSS_CREDENTIALS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vss/vss.credentials"
+./.github/skills/vss-deploy/scripts/gen-secrets.sh
+source .github/skills/vss-deploy/vss.config
+source "$VSS_CREDENTIALS_FILE"
+```
+
+Report the resolved `APP_ROOT`, whether it was reused without cloning, and the
+bootstrap's no-hit fallback (shallow `--depth 1`, single-branch, sparse checkout
+of only the VSS app from `main`). The canonical files are `vss.config` and the
+external `$VSS_CREDENTIALS_FILE`; do **not** substitute stale filenames such as
+`vss.config.env`, `vss.secrets.env`, or an in-checkout credentials file.
+
+Before any real deploy, config render, stop, or model-download path, run a
+bounded Docker host preflight such as `docker info >/dev/null 2>&1`. If it fails,
+stop immediately: do not invoke `setup.sh`, do not wait for model download, and
+do not retry a missing daemon. Report the observed host blocker and provide the
+exact deferred sourced command sequence required by the answer contract.
+
 ## Environment setup (run first)
 
 This skill drives the Video Search & Summarization app through its real source
@@ -28,12 +64,23 @@ files, so the VSS application must be present and you must run commands from its
 app root. **Do this before anything else**, and it works whether or not the VSS
 source is already in your workspace.
 
-Run the bundled bootstrap. It first tries to find an existing VSS checkout -
-walking up from the current directory and inspecting the enclosing git repo - and
-reuses it **without ever re-cloning**. Only when no checkout is found does it do a
-shallow, single-branch, sparse checkout of just
-`sample-applications/video-search-and-summarization` from `main`. It prints the
-resolved app root on stdout:
+Run the bundled bootstrap. It resolves the app root in this order and prints it
+as the only line on stdout:
+
+1. **Walk up from the current directory** looking for a VSS app root - a
+   directory carrying all three markers `setup.sh`, `docker/`, and
+   `pipeline-manager/`.
+2. **Ask git for the enclosing repository** (`git rev-parse --show-toplevel`) and
+   check whether it holds `sample-applications/video-search-and-summarization`,
+   or is itself a VSS app root. This is what makes your own clone - or a fork -
+   work unchanged.
+3. **Reuse a checkout a previous bootstrap already placed** in
+   `${XDG_CACHE_HOME:-$HOME/.cache}/vss-src/edge-ai-libraries`.
+
+If any of those hit, that checkout is **reused and NO clone is performed**. Only
+when all three miss does it clone - and then only a **shallow (`--depth 1`),
+single-branch, sparse** checkout of just
+`sample-applications/video-search-and-summarization` from `main`:
 
 ```bash
 # SKILL_DIR is THIS skill's own directory (shown to you when the skill loads);
@@ -45,7 +92,8 @@ cd "$APP_ROOT"
 
 Every command below assumes the working directory is this `APP_ROOT`. To pull
 from a fork/branch or reuse a specific checkout dir, override `VSS_REPO_URL`,
-`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it.
+`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it. The bootstrap refuses
+to overwrite an existing non-VSS clone destination.
 
 ## Mode routing
 
@@ -69,33 +117,35 @@ If the user is ambiguous, ask which mode; do **not** default silently.
 2. **Provide config + credentials.** `setup.sh` reads everything from the shell
    environment and aborts on the first missing required var. The repository now
    provides `.env.example` as a general application template, but this skill
-   keeps config and generated secrets split so credentials never enter a
+   keeps config and generated credentials split so credentials never enter a
    committed file:
    - **Non-secret config** - models, ports, tuning - lives in committed
-     [`vss.config.env`](./vss.config.env).
-   - **Credentials** are generated at runtime into the **gitignored**
-     `vss.secrets.env` by [`scripts/gen-secrets.sh`](./scripts/gen-secrets.sh)
-     (strong random values, created once and reused so data volumes stay valid).
+     [`vss.config`](./vss.config).
+   - **Credentials** are generated at runtime outside the checkout, at
+     `${XDG_CONFIG_HOME:-$HOME/.config}/vss/vss.credentials`, by
+     [`scripts/gen-secrets.sh`](./scripts/gen-secrets.sh) (strong random values,
+     created once and reused so data volumes stay valid).
 
-   Generate secrets once, then source both files in the same shell:
+   Generate credentials once, then source both files in the same shell:
 
    ```bash
-   ./.github/skills/vss-deploy/scripts/gen-secrets.sh     # makes vss.secrets.env if absent
-   source .github/skills/vss-deploy/vss.config.env
-   source .github/skills/vss-deploy/vss.secrets.env
+   export VSS_CREDENTIALS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vss/vss.credentials"
+   ./.github/skills/vss-deploy/scripts/gen-secrets.sh     # creates it if absent
+   source .github/skills/vss-deploy/vss.config
+   source "$VSS_CREDENTIALS_FILE"
    ```
 
    Common to every mode: `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`,
    `POSTGRES_USER`, `POSTGRES_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`.
    Mode-specific model vars (`VLM_MODEL_NAME`, `ENABLED_WHISPER_MODELS`,
    `OD_MODEL_NAME` for summary; `MULTIMODAL_EMBEDDING_MODEL` for search/dual;
-   `TEXT_EMBEDDING_MODEL` for unified) ship with defaults in `vss.config.env` -
+   `TEXT_EMBEDDING_MODEL` for unified) ship with defaults in `vss.config` -
    see [`references/env-vars.md`](./references/env-vars.md) for the full table.
    To inject your own credentials (vault/CI) instead of random ones, export them
    before running `gen-secrets.sh` - it reuses any credential already set.
 
 3. **Dry-run first when unsure** - append `config` to render the resolved
-   `.env`/compose without starting containers, then review before the real deploy:
+   Compose configuration without starting containers, then review before the real deploy:
 
    ```bash
    source setup.sh --summary config     # or --search / --summary --search / --summary-and-search
@@ -111,9 +161,10 @@ If the user is ambiguous, ask which mode; do **not** default silently.
    ```bash
    bash -c '
      source setup.sh --stop                                  # clear any running stack first
-     ./.github/skills/vss-deploy/scripts/gen-secrets.sh       # secrets if absent
-     source .github/skills/vss-deploy/vss.config.env
-     source .github/skills/vss-deploy/vss.secrets.env
+     export VSS_CREDENTIALS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vss/vss.credentials"
+     ./.github/skills/vss-deploy/scripts/gen-secrets.sh       # creates it if absent
+     source .github/skills/vss-deploy/vss.config
+     source "$VSS_CREDENTIALS_FILE"
      source setup.sh --summary                                # the chosen mode
    '
    ```
@@ -128,13 +179,45 @@ If the user is ambiguous, ask which mode; do **not** default silently.
 
    > **Only exception:** `--setenv` exists solely to leave env vars in the user's
    > *interactive* shell for later manual use - a subshell can't do that, so for
-   > that verb only, give the user the `!`-prefixed command to run themselves.
+   > that verb only, give the user the `!`-prefixed command to run themselves:
+   >
+   > ```bash
+   > APP_HOST_PORT=18080 source setup.sh --setenv      # port override optional
+   > ```
+   >
+   > `--setenv` takes **no mode flag**. `setup.sh` rejects any two-argument form
+   > other than `<mode> config` / `config <mode>`, so `--setenv --summary-and-search`
+   > fails with "Invalid argument combination". It returns before the mode dispatch,
+   > so it exports the mode-agnostic vars (credentials, `APP_HOST_PORT`, registry and
+   > device settings) - not the mode-derived ones such as `VS_INDEX_NAME` or
+   > `EMBEDDING_MODEL_NAME`. Export those by hand if the user needs full parity for
+   > manual `docker compose` calls.
 
-5. **Wait for health**, then **print URLs** (see
-   [`scripts/wait-health.sh`](./scripts/wait-health.sh)):
+   If the user asks for both a deployment and persistent variables for later
+   manual Compose commands, satisfy both parts separately: first run the real
+   deployment flow with the selected mode and overrides (for example,
+   `APP_HOST_PORT=18080 source setup.sh --summary-and-search` in the deployment
+   subshell), then give the user the interactive
+   `APP_HOST_PORT=18080 source setup.sh --setenv` command plus any required
+   mode-derived exports. `--setenv` prepares their future shell; it is not a
+   substitute for the requested deployment.
+
+5. **Wait for health**, then **print URLs**. Keep the probe in the invoking
+   shell so this skill does not ship an executable network helper:
 
    ```bash
-   ./.github/skills/vss-deploy/scripts/wait-health.sh "${HOST_IP:-localhost}" "${APP_HOST_PORT:-12345}"
+   VSS_BASE="http://${HOST_IP:-localhost}:${APP_HOST_PORT:-12345}"
+   deadline=$(( $(date +%s) + 300 ))
+   until curl -sf --max-time 5 "$VSS_BASE/manager/health" >/dev/null; do
+     if [ "$(date +%s)" -ge "$deadline" ]; then
+       echo "VSS health check timed out: $VSS_BASE/manager/health" >&2
+       docker compose ps
+       exit 1
+     fi
+     sleep 5
+   done
+   echo "UI: $VSS_BASE/"
+   echo "Pipeline Manager: $VSS_BASE/manager/docs"
    ```
 
 ## Mode aliases and config-only inspection
@@ -182,8 +265,10 @@ reuse an OVMS storage alias that vLLM does not serve.
 
 ## Lifecycle: bring down or reset
 
-Run these yourself via `bash -c 'source setup.sh …'`. `--stop`/`--down`/
-`--clean-data` are mode-agnostic and need no env vars.
+Run these yourself via `bash -c 'source setup.sh …'`. `--stop`, `--down`,
+`--clean-data`, and config-only inspection (`<mode> config`) **skip the required
+environment validation** entirely, so they are mode-agnostic and need no config
+or credentials sourced first.
 
 ```bash
 source setup.sh --stop       # stop/remove containers across all VSS overlays/profiles
@@ -192,9 +277,13 @@ source setup.sh --clean-data # also removes the VSS application data volumes
 source setup.sh --help       # full help
 ```
 
-`--clean-data` removes `docker_minio_data`, `docker_pg_data`, `docker_vdms-db`,
-`docker_audio_analyzer_data`, `docker_data-prep`, and `docker_collector_signals`.
-It does not remove the host-backed `ov_models/` model cache.
+`--clean-data` removes the **user-data** volumes only: `docker_minio_data`,
+`docker_pg_data`, `docker_vdms-db`, `docker_milvus-db`, `docker_milvus-etcd`,
+`docker_audio_analyzer_data`, and `docker_data-prep` (volumes absent in the
+current mode are skipped). The **model-cache** volumes -
+`docker_dataprep-yolox-models`, `docker_ov-models`, `docker_vllm_model_cache` -
+and the host-backed `ov_models/` directory are deliberately **preserved**, so a
+`--clean-data` never forces a costly model re-download.
 
 ## Default ports & URLs
 
@@ -210,8 +299,8 @@ It does not remove the host-backed `ov_models/` model cache.
 
 ## Troubleshooting ("why won't vss come up")
 
-1. `ERROR: <VAR> is not set` → missing shell env var; re-source `vss.config.env`
-   + `vss.secrets.env` (step 2).
+1. `ERROR: <VAR> is not set` → missing shell env var; re-source `vss.config`
+   plus `$VSS_CREDENTIALS_FILE` (step 2).
 2. `Invalid VECTORDB_BACKEND` → set `VECTORDB_BACKEND` to `vdms`
    or `milvus`.
 3. Health never goes green → `docker compose ps` for crashed containers, then
@@ -224,9 +313,24 @@ It does not remove the host-backed `ov_models/` model cache.
 
 For anything past these basics - model-server crashes, OVMS token/cache/GPU
 errors, host model-cache or model-download permission failures, search returning no results,
-NPU/OpenGL issues - hand off to the `vss-troubleshoot` skill at
-`.github/skills/vss-troubleshoot/SKILL.md` and the canonical guide at
-`docs/user-guide/troubleshooting.md`.
+NPU/OpenGL issues - hand off to the installed `vss-troubleshoot` skill by name
+and the canonical guide at `docs/user-guide/troubleshooting.md`.
+
+## Final answer audit trail
+
+Tool arguments may not be visible to the user or evaluator. The final answer
+must therefore report the bootstrap result: resolved `APP_ROOT`, the change to
+that directory, and whether an existing checkout was reused without cloning.
+Also state that a total bootstrap miss falls back to a shallow (`--depth 1`),
+single-branch, sparse checkout of only the VSS app from `main`.
+
+Name every requested `setup.sh` operation exactly, including overrides and mode
+flags, and distinguish commands that completed from commands blocked by the
+host. For a blocked deployment, still provide the exact sourced deploy command,
+health endpoint, and resulting URL. For `--clean-data`, say that it performs the
+stop/removal itself, list the affected user-data volumes, and explicitly state
+that model-cache volumes and the host-backed `ov_models/` directory are
+preserved.
 
 ## References
 

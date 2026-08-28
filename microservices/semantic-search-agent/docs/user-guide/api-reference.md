@@ -6,7 +6,7 @@ Base URL: `http://localhost:8080/api/v1` (default).
 
 ## `GET /health`
 
-Checks the liveness status of the service and reports the current VLM backend state.
+Checks whether the service is live and reports the current state of the VLM backend.
 
 ### Response
 
@@ -235,7 +235,7 @@ curl -X POST http://localhost:8080/api/v1/compare/semantic \
 | ------------ | ------- | ----------------------------------------------------------------------- |
 | `match`      | boolean | `true` if the VLM determined the texts refer to the same item.          |
 | `confidence` | float   | Confidence score between 0.0 and 1.0.                                   |
-| `reasoning`  | string  | Raw VLM response (`YES` or `NO`) or cache/error details.                |
+| `reasoning`  | string  | Formatted matcher result: successful VLM output, cached prior result, or error status text. |
 | `match_type` | string  | Always `"semantic"` for this endpoint.                                  |
 
 ---

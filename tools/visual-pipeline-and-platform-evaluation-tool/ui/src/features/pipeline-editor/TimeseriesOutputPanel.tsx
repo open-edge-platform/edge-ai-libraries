@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useMemo, useState } from "react";
-import { MetricChart, type MetricDataPoint } from "@/features/metrics/MetricChart";
+import {
+  MetricChart,
+  type MetricDataPoint,
+} from "@/features/metrics/MetricChart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { highlightJson } from "@/lib/jsonUtils";
 import { useMetricHistory } from "@/hooks/useMetricHistory";
@@ -36,8 +39,13 @@ interface TimestampedAnalytics {
 }
 
 const TimeseriesOutputPanel = () => {
-  const [data, setData] = useState<TimeseriesData>({ ingestion: [], analytics: [] });
-  const [analyticsHistory, setAnalyticsHistory] = useState<TimestampedAnalytics[]>([]);
+  const [data, setData] = useState<TimeseriesData>({
+    ingestion: [],
+    analytics: [],
+  });
+  const [analyticsHistory, setAnalyticsHistory] = useState<
+    TimestampedAnalytics[]
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("charts");
   const metricHistory = useMetricHistory();
@@ -59,11 +67,14 @@ const TimeseriesOutputPanel = () => {
             const now = Date.now();
             setAnalyticsHistory((prev) => {
               const cutoff = now - MAX_WINDOW_MS;
-              return [...prev, {
-                timestamp: now,
-                inference_time_ms: latest.inference_time_ms,
-                end_to_end_time_ms: latest.end_to_end_time_ms,
-              }].filter((p) => p.timestamp >= cutoff);
+              return [
+                ...prev,
+                {
+                  timestamp: now,
+                  inference_time_ms: latest.inference_time_ms,
+                  end_to_end_time_ms: latest.end_to_end_time_ms,
+                },
+              ].filter((p) => p.timestamp >= cutoff);
             });
           }
         }
@@ -81,19 +92,29 @@ const TimeseriesOutputPanel = () => {
   }, []);
 
   const inferenceChart: MetricDataPoint[] = useMemo(
-    () => analyticsHistory.map((r) => ({ timestamp: r.timestamp, value: r.inference_time_ms })),
+    () =>
+      analyticsHistory.map((r) => ({
+        timestamp: r.timestamp,
+        value: r.inference_time_ms,
+      })),
     [analyticsHistory],
   );
 
   const e2eChart: MetricDataPoint[] = useMemo(
-    () => analyticsHistory.map((r) => ({ timestamp: r.timestamp, value: r.end_to_end_time_ms })),
+    () =>
+      analyticsHistory.map((r) => ({
+        timestamp: r.timestamp,
+        value: r.end_to_end_time_ms,
+      })),
     [analyticsHistory],
   );
 
-  const yMax = (pts: MetricDataPoint[]) => Math.ceil(Math.max(...pts.map((p) => p.value ?? 0), 1) * 1.2);
+  const yMax = (pts: MetricDataPoint[]) =>
+    Math.ceil(Math.max(...pts.map((p) => p.value ?? 0), 1) * 1.2);
 
   const cpuChart: MetricDataPoint[] = useMemo(
-    () => metricHistory.map((p) => ({ timestamp: p.timestamp, value: p.cpu ?? 0 })),
+    () =>
+      metricHistory.map((p) => ({ timestamp: p.timestamp, value: p.cpu ?? 0 })),
     [metricHistory],
   );
 
@@ -104,7 +125,13 @@ const TimeseriesOutputPanel = () => {
       const maxUsage = Math.max(
         ...gpuIds.map((id) => {
           const g = p.gpus[id];
-          return Math.max(g.compute ?? 0, g.render ?? 0, g.copy ?? 0, g.video ?? 0, g.videoEnhance ?? 0);
+          return Math.max(
+            g.compute ?? 0,
+            g.render ?? 0,
+            g.copy ?? 0,
+            g.video ?? 0,
+            g.videoEnhance ?? 0,
+          );
         }),
       );
       return { timestamp: p.timestamp, value: maxUsage };
@@ -113,7 +140,10 @@ const TimeseriesOutputPanel = () => {
 
   const latestIngestion = data.ingestion[data.ingestion.length - 1];
   const ingestionHtml = useMemo(
-    () => (latestIngestion ? highlightJson(JSON.stringify(latestIngestion, null, 2)) : ""),
+    () =>
+      latestIngestion
+        ? highlightJson(JSON.stringify(latestIngestion, null, 2))
+        : "",
     [latestIngestion],
   );
 
@@ -127,10 +157,14 @@ const TimeseriesOutputPanel = () => {
         {error && <span className="text-destructive">{error}</span>}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col min-w-0">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="flex flex-col min-w-0"
+      >
         <TabsList>
           <TabsTrigger value="metadata">Metadata JSON</TabsTrigger>
-          <TabsTrigger value="charts">Performance</TabsTrigger>          
+          <TabsTrigger value="charts">Performance</TabsTrigger>
         </TabsList>
 
         <TabsContent value="charts" className="space-y-4 mt-2">
@@ -191,16 +225,20 @@ const TimeseriesOutputPanel = () => {
 
         <TabsContent value="metadata" className="space-y-4 mt-2">
           <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Ingestion (latest)</h3>
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Ingestion (latest)
+            </h3>
             {ingestionHtml ? (
               <pre className="max-h-[30vh] overflow-auto border p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-zinc-100 dark:bg-zinc-900/80">
-                <code className="hljs" dangerouslySetInnerHTML={{ __html: ingestionHtml }} />
+                <code
+                  className="hljs"
+                  dangerouslySetInnerHTML={{ __html: ingestionHtml }}
+                />
               </pre>
             ) : (
               <p className="text-sm text-muted-foreground">No data yet.</p>
             )}
           </div>
-
         </TabsContent>
       </Tabs>
     </div>

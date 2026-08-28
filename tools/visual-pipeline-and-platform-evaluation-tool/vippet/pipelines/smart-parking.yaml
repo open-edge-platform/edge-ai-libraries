@@ -16,6 +16,7 @@ variants:
         model=/models/output/public/yolo11s/INT8/yolo11s.xml
         pre-process-backend=opencv
         device=CPU
+        batch-size=2
         threshold=0.7
         inference-interval=3
         inference-region=full-frame
@@ -27,6 +28,7 @@ variants:
         model=/models/output/public/colorcls2/colorcls2.xml
         pre-process-backend=opencv
         device=CPU
+        batch-size=2
         inference-interval=3
         model-instance-id=inst1-cpu
         inference-region=roi-list !
