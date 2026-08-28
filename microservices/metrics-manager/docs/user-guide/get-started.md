@@ -134,7 +134,6 @@ Add `--device /dev/dri` so qmassa can access GPU devices:
 ```bash
 docker run --rm \
   --device /dev/dri \
-  --user 0:0 \
   -p 9090:9090 \
   -p 9273:9273 \
   -v /sys:/sys:ro \
@@ -155,7 +154,6 @@ Run in privileged mode to access `/sys/class/intel_pmt`:
 
 ```bash
 docker run --rm --privileged \
-  --user 0:0 \
   -p 9090:9090 \
   -p 9273:9273 \
   -v /sys:/sys:ro \
@@ -175,7 +173,6 @@ curl -s http://localhost:9273/metrics | grep npu
 ```bash
 docker run --rm --privileged \
   --device /dev/dri \
-  --user 0:0 \
   -p 9090:9090 \
   -p 9273:9273 \
   -v /sys:/sys:ro \

@@ -300,7 +300,8 @@ ENV TELEGRAF_CONFIG_PATH=/etc/telegraf/telegraf.conf
 # 8186 - Telegraf HTTP listener (InfluxDB Line Protocol)
 EXPOSE 9090 9273 8186
 
-USER ${METRICS_MANAGER_UID}:${METRICS_MANAGER_GID}
+# No USER directive: host telemetry (PMT sysfs, dmidecode) is readable only by
+# root, so the image defaults to root; override with CONTAINER_USER to opt out.
 
 # OCI image metadata - version is read from the VERSION file at build time
 # (single source of truth used by Makefile / docker compose).
