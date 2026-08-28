@@ -4,7 +4,8 @@ These tests validate:
 * Jobs submitted with ``metadata_mode=file`` complete successfully and include
   ``metadata_stream_urls`` in the status response.
 * The metadata snapshot endpoint returns a JSON array of records.
-* The metadata SSE stream endpoint responds with the correct headers.
+* The metadata SSE stream endpoint reports 204 once the job has finished, so an
+  EventSource client stops reconnecting.
 * Error paths: unknown job, pipeline without ``gvametapublish``, density test
   with metadata enabled, and job with metadata disabled all return 404 / 400 /
   FAILED as appropriate.
@@ -143,8 +144,7 @@ def test_performance_metadata_file_mode_job(
     1. Job reaches COMPLETED state with a non-empty ``metadata_stream_urls`` dict.
     2. Each metadata snapshot endpoint (snapshot URL derived by stripping ``/stream``)
        returns HTTP 200 with a non-empty JSON array of records.
-    3. Each metadata SSE stream endpoint returns HTTP 200 with
-       ``Content-Type: text/event-stream``.
+    3. Each metadata SSE stream endpoint returns HTTP 204 for the finished job.
 
     Only (pipeline, variant) pairs whose advanced graph contains a
     ``gvametapublish`` node are included in the parametrize set.
@@ -211,31 +211,36 @@ def test_performance_metadata_file_mode_job(
                 len(records),
             )
 
-    # --- 3. SSE stream headers ---
+    # --- 3. SSE stream endpoint after the job finished ---
+    # Tailing stops when the job leaves RUNNING, so the endpoint answers 204 to
+    # tell an EventSource client not to reconnect. A 200 is only possible in the
+    # narrow window before tailing is torn down, and must still be a real stream.
     for pipeline_key, stream_urls in metadata_stream_urls.items():
         for file_index, stream_url in enumerate(stream_urls):
             response = http_client.get(
                 f"{BASE_URL}{stream_url}", stream=True, timeout=30
             )
             try:
-                assert response.status_code == 200, (
-                    f"Expected 200 from metadata SSE stream endpoint "
-                    f"(pipeline_key={pipeline_key!r}, file_index={file_index}), "
-                    f"got {response.status_code}"
+                assert response.status_code in (200, 204), (
+                    f"Expected 204 (or 200 while still tailing) from metadata SSE "
+                    f"stream endpoint (pipeline_key={pipeline_key!r}, "
+                    f"file_index={file_index}), got {response.status_code}"
                 )
-                content_type = response.headers.get("Content-Type", "")
-                assert "text/event-stream" in content_type, (
-                    f"Expected 'text/event-stream' Content-Type from SSE stream endpoint "
-                    f"(pipeline_key={pipeline_key!r}, file_index={file_index}), "
-                    f"got {content_type!r}"
-                )
+                if response.status_code == 200:
+                    content_type = response.headers.get("Content-Type", "")
+                    assert "text/event-stream" in content_type, (
+                        f"Expected 'text/event-stream' Content-Type from SSE stream "
+                        f"endpoint (pipeline_key={pipeline_key!r}, "
+                        f"file_index={file_index}), got {content_type!r}"
+                    )
             finally:
                 response.close()
             logger.info(
-                "%s SSE stream pipeline_key=%s file_index=%d → 200 text/event-stream",
+                "%s SSE stream pipeline_key=%s file_index=%d → %d",
                 pipeline_label,
                 pipeline_key,
                 file_index,
+                response.status_code,
             )
 
 
