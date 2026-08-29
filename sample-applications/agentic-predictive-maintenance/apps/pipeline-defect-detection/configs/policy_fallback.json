@@ -1,0 +1,27 @@
+{
+  "thresholds": {
+    "Rupture": {
+      "alert_above": 0.6,
+      "description": "Pipeline wall rupture — immediate shutdown risk"
+    },
+    "Deformation": {
+      "alert_above": 0.7,
+      "description": "Structural deformation — schedule inspection"
+    },
+    "Disconnect": {
+      "alert_above": 0.65,
+      "description": "Pipeline segment disconnection — high risk"
+    },
+    "Obstacle": {
+      "alert_above": 0.8,
+      "description": "Foreign obstacle in pipeline — monitor"
+    }
+  },
+  "actions": {
+    "Rupture":     "HALT_PIPELINE",
+    "Disconnect":  "HALT_PIPELINE",
+    "Deformation": "SCHEDULE_MAINTENANCE",
+    "Obstacle":    "MONITOR"
+  },
+  "default_action": "MONITOR"
+}
