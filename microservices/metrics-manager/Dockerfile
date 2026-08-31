@@ -186,6 +186,9 @@ FROM python:3.12-slim AS production
 
 ARG INSTALL_OPENVINO=false
 
+ARG METRICS_MANAGER_UID=10001
+ARG METRICS_MANAGER_GID=10001
+
 # Proxy settings (passed from docker-compose build args)
 ARG http_proxy
 ARG HTTP_PROXY
@@ -272,11 +275,20 @@ RUN sed -i 's/\r$//' /entrypoint.sh /etc/telegraf/telegraf.conf /etc/supervisor/
 # Make scripts executable
 RUN chmod +x /entrypoint.sh && \
     find /app/scripts -name "*.sh" -exec chmod +x {} + && \
-    find /app/scripts -name "*.py" -exec chmod +x {} +
+    find /app/scripts -name "*.py" -exec chmod +x {} + && \
+    groupadd --gid ${METRICS_MANAGER_GID} metrics-manager && \
+    useradd --uid ${METRICS_MANAGER_UID} --gid ${METRICS_MANAGER_GID} \
+        --create-home --shell /usr/sbin/nologin metrics-manager && \
+    chown -R ${METRICS_MANAGER_UID}:${METRICS_MANAGER_GID} \
+        /app /tmp /var/log/telegraf /etc/telegraf /etc/supervisor
 
 # Environment variables with defaults
 ENV METRICS_PORT=9090
 ENV TELEGRAF_PORT=9273
+ENV HARDWARE_TELEMETRY_ENABLED=false
+ENV QMASSA_FIFO_PATH=/app/qmassa.fifo
+ENV QMASSA_LOG_TO_STDERR=false
+ENV NPU_READER_LOG_FILE=/app/npu_reader_trace.log
 ENV LOG_LEVEL=INFO
 ENV CORS_ORIGINS="*"
 ENV CUSTOM_METRICS_DIR=/app/custom-metrics
@@ -287,6 +299,9 @@ ENV TELEGRAF_CONFIG_PATH=/etc/telegraf/telegraf.conf
 # 9273 - Telegraf Prometheus metrics
 # 8186 - Telegraf HTTP listener (InfluxDB Line Protocol)
 EXPOSE 9090 9273 8186
+
+# No USER directive: host telemetry (PMT sysfs, dmidecode) is readable only by
+# root, so the image defaults to root; override with CONTAINER_USER to opt out.
 
 # OCI image metadata - version is read from the VERSION file at build time
 # (single source of truth used by Makefile / docker compose).
