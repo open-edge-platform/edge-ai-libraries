@@ -1974,10 +1974,10 @@ index 7d5ff8d8f3efba01312a37c8b91c8f9634443c4d..7993dd476143db8baf0449c04eb4fb99
          if mp_config.supported_transfer_mode == "non_gpu":
 diff --git a/lmcache/v1/multiprocess/transfer_context/mamba_quant.py b/lmcache/v1/multiprocess/transfer_context/mamba_quant.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..e6e27962926f2da33e5b686cf44ebea2763be552
+index 0000000000000000000000000000000000000000..e6189a894c92917a2221ed14f6bdcab12657b5e1
 --- /dev/null
 +++ b/lmcache/v1/multiprocess/transfer_context/mamba_quant.py
-@@ -0,0 +1,619 @@
+@@ -0,0 +1,653 @@
 +# SPDX-License-Identifier: Apache-2.0
 +"""Per-tensor/per-channel 4-bit quantization for Mamba ``conv_state``/``ssm_state``.
 +
@@ -2066,6 +2066,7 @@ index 0000000000000000000000000000000000000000..e6e27962926f2da33e5b686cf44ebea2
 +# scale/zeropoint bytes produced by ``kvweave_quant.get_scales_for_id``
 +# (length-prefixed), then the packed qbit-wide values.
 +_MAGIC = b"MQ01"
++_RAW_MAGIC = b"MR01"
 +_DTYPE_TO_CODE = {torch.float16: 0, torch.float32: 1, torch.bfloat16: 2}
 +_CODE_TO_DTYPE = {v: k for k, v in _DTYPE_TO_CODE.items()}
 +_QBIT = 4
@@ -2188,9 +2189,10 @@ index 0000000000000000000000000000000000000000..e6e27962926f2da33e5b686cf44ebea2
 +            # its own independently-scaled position.
 +            token_blocks_num = num_blocks * middle_numel
 +            return token_blocks_num, 1, real_head_dim, token_blocks_num
-+        # ssm: num_heads/head_v_dim are head-like, shared under one scale
-+        # per (block, head) position -- fold into head_num, not blocks_num.
-+        return num_blocks, middle_numel, real_head_dim, num_blocks
++        # ssm: fold num_heads/head_v_dim into blocks_num so each contiguous
++        # row along the true last dimension gets its own scale.
++        row_blocks = num_blocks * middle_numel
++        return row_blocks, 1, real_head_dim, row_blocks
 +    # per_tensor: num_chunks == 1, blocks_num/head_num/head_dim are unused by
 +    # the native kernel but must still multiply out to numel_per_layer.
 +    blocks_num = max(numel_per_layer // (middle_numel * real_head_dim), 1)
@@ -2487,6 +2489,17 @@ index 0000000000000000000000000000000000000000..e6e27962926f2da33e5b686cf44ebea2
 +    )
 +
 +
++def serialize_mamba_substate_raw(tensor: torch.Tensor) -> bytes:
++    """Serialize one Mamba sub-state without quantization."""
++    if tensor.dtype not in _DTYPE_TO_CODE:
++        raise ValueError(f"unsupported dtype for raw Mamba payload: {tensor.dtype}")
++    tensor = tensor.detach().to("cpu").contiguous()
++    shape = tuple(int(dim) for dim in tensor.shape)
++    header = _RAW_MAGIC + struct.pack(">BB", _DTYPE_TO_CODE[tensor.dtype], len(shape))
++    header += struct.pack(">" + "i" * len(shape), *shape)
++    return header + bytes(tensor.view(torch.uint8).numpy().tobytes())
++
++
 +def dequantize_mamba_substate_4bit(payload: bytes) -> torch.Tensor:
 +    """Invert :func:`quantize_mamba_substate_4bit`.
 +
@@ -2505,6 +2518,27 @@ index 0000000000000000000000000000000000000000..e6e27962926f2da33e5b686cf44ebea2
 +        ValueError: If ``payload``'s magic, qbit, dtype code, scaling
 +            method code, or substate code is unrecognized.
 +    """
++    if payload[:4] == _RAW_MAGIC:
++        dtype_code, ndim = struct.unpack(">BB", payload[4:6])
++        if dtype_code not in _CODE_TO_DTYPE:
++            raise ValueError(f"unrecognized raw dtype code: {dtype_code}")
++        offset = 6
++        shape = struct.unpack(">" + "i" * ndim, payload[offset : offset + 4 * ndim])
++        offset += 4 * ndim
++        dtype = _CODE_TO_DTYPE[dtype_code]
++        numel = 1
++        for dim in shape:
++            numel *= dim
++        expected_nbytes = numel * torch.empty((), dtype=dtype).element_size()
++        raw_bytes = payload[offset : offset + expected_nbytes]
++        if len(raw_bytes) != expected_nbytes:
++            raise ValueError(
++                f"raw Mamba payload truncated: got {len(raw_bytes)} bytes, "
++                f"expected {expected_nbytes}"
++            )
++        return torch.frombuffer(
++            bytearray(raw_bytes), dtype=dtype
++        ).reshape(shape).clone()
 +    if payload[:4] != _MAGIC:
 +        raise ValueError(f"unrecognized payload magic: {payload[:4]!r}")
 +    qbit, dtype_code, flags, scaling_method_code, substate_code, ndim = (
@@ -2598,10 +2632,18 @@ index 0000000000000000000000000000000000000000..e6e27962926f2da33e5b686cf44ebea2
 +    ssm_payload = blob[4 + conv_len :]
 +    return conv_payload, ssm_payload
 diff --git a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py b/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
-index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea20b8e4e30 100644
+index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..9cca187f12ef50744acc341660423813ae205018 100644
 --- a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
 +++ b/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
-@@ -16,10 +16,22 @@ from lmcache import torch_dev
+@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
+ from collections.abc import Sequence
+ from enum import Enum
+ from typing import Any, Callable, Protocol
++import json
+ import os
+ 
+ # Third Party
+@@ -16,10 +17,23 @@ from lmcache import torch_dev
  from lmcache.utils import EngineType, init_logger
  from lmcache.v1.distributed.api import MemoryLayoutDesc
  from lmcache.v1.gpu_connector.utils import LayoutHints, is_mla
@@ -2619,13 +2661,14 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
 +    merge_mamba_chunk,
 +    pack_mamba_payloads,
 +    quantize_mamba_substate_4bit,
++    serialize_mamba_substate_raw,
 +    split_mamba_chunk,
 +    unpack_mamba_payloads,
 +)
  from lmcache.v1.multiprocess.protocol import RequestType
  from lmcache.v1.multiprocess.protocols.engine import RegisterNonGpuContextResponse
  from lmcache.v1.multiprocess.transfer_context.base import (
-@@ -34,11 +46,43 @@ from lmcache.v1.platform import _registry as platform_registry
+@@ -34,12 +48,81 @@ from lmcache.v1.platform import _registry as platform_registry
  
  logger = init_logger(__name__)
  
@@ -2645,13 +2688,13 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
  # ``data``); ``auto`` reproduces the historical device-type-based dispatch.
  ENV_MP_TRANSFER_MODE = "LMCACHE_MP_TRANSFER_MODE"
 +ENV_MP_L1_KVWEAVE_QUANT = "LMCACHE_MP_L1_KVWEAVE_QUANT"
-+ENV_MP_KVWEAVE_NUM_KV_HEADS = "LMCACHE_MP_KVWEAVE_NUM_KV_HEADS"
-+ENV_MP_KVWEAVE_HEAD_DIM = "LMCACHE_MP_KVWEAVE_HEAD_DIM"
 +ENV_MP_KVWEAVE_PRECOND = "LMCACHE_MP_KVWEAVE_PRECOND"
 +ENV_MP_KVWEAVE_NUM_THREADS = "LMCACHE_MP_KVWEAVE_NUM_THREADS"
 +ENV_MP_KVWEAVE_SCALING_METHOD = "LMCACHE_MP_KVWEAVE_SCALING_METHOD"
 +ENV_MP_KVWEAVE_LINEAR_MAX_SIZE_RATIO = "LMCACHE_MP_KVWEAVE_LINEAR_MAX_SIZE_RATIO"
 +ENV_MP_KVWEAVE_LINEAR_QUANT_ENABLED = "LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED"
++ENV_MP_KVWEAVE_CONV_QUANT_ENABLED = "LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED"
++ENV_MP_KVWEAVE_SSM_QUANT_ENABLED = "LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED"
 +ENV_MP_KVWEAVE_LINEAR_RH = "LMCACHE_MP_KVWEAVE_LINEAR_RH"
 +ENV_MP_KVWEAVE_LINEAR_ASYM = "LMCACHE_MP_KVWEAVE_LINEAR_ASYM"
 +ENV_MP_KVWEAVE_LINEAR_PRECOND = "LMCACHE_MP_KVWEAVE_LINEAR_PRECOND"
@@ -2666,10 +2709,48 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
 +# mamba_quant._UNSUPPORTED_CONV_RH_METHODS): conv_state has no real head
 +# axis, so rh is only supported for conv with per_token scaling.
 +_UNSUPPORTED_CONV_RH_SCALING_METHODS = frozenset({"per_tensor", "per_channel"})
++
++_DEFAULT_KVWEAVE_NUM_KV_HEADS = 4
++_DEFAULT_KVWEAVE_HEAD_DIM = 256
++
++
++def _load_kvweave_model_dims() -> tuple[int, int]:
++    """Load attention KV dimensions from the serving model config."""
++    model = os.environ.get("MODEL", "")
++    model_path = os.environ.get("MODEL_PATH", "")
++    config_paths = []
++    if model:
++        config_paths.append(os.path.join(model, "config.json"))
++    if model_path and model:
++        config_paths.append(os.path.join(model_path, model, "config.json"))
++
++    for config_path in config_paths:
++        try:
++            with open(config_path, encoding="utf-8") as config_file:
++                config = json.load(config_file)
++            text_config = config.get("text_config", config)
++            num_kv_heads = int(text_config["num_key_value_heads"])
++            head_dim = int(text_config["head_dim"])
++            logger.info(
++                "Loaded KVWeave dimensions from %s: num_kv_heads=%d, head_dim=%d",
++                config_path,
++                num_kv_heads,
++                head_dim,
++            )
++            return num_kv_heads, head_dim
++        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
++            continue
  
++    logger.info(
++        "Using default KVWeave dimensions: num_kv_heads=%d, head_dim=%d",
++        _DEFAULT_KVWEAVE_NUM_KV_HEADS,
++        _DEFAULT_KVWEAVE_HEAD_DIM,
++    )
++    return _DEFAULT_KVWEAVE_NUM_KV_HEADS, _DEFAULT_KVWEAVE_HEAD_DIM
  
  class MPTransferMode(str, Enum):
-@@ -57,6 +101,40 @@ class MPTransferMode(str, Enum):
+     """Routing mode used by :func:`create_transfer_context`.
+@@ -57,6 +140,40 @@ class MPTransferMode(str, Enum):
      DATA = "data"
  
  
@@ -2710,7 +2791,7 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
  def _resolve_mode(mode: "str | MPTransferMode | None") -> MPTransferMode:
      """Coerce ``mode`` into :class:`MPTransferMode`, falling back to env."""
      raw = (
-@@ -305,12 +383,259 @@ class HandleTransferContext(TransferContext):
+@@ -305,12 +422,271 @@ class HandleTransferContext(TransferContext):
  class DataTransferContext(TransferContext):
      """Data transfer context for non-CUDA workers."""
  
@@ -2725,6 +2806,8 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
 +        kvweave_num_threads: int = 8,
 +        kvweave_scaling_method: str = "per_channel",
 +        kvweave_linear_quant_enabled: bool = True,
++        kvweave_conv_quant_enabled: bool = True,
++        kvweave_ssm_quant_enabled: bool = True,
 +        kvweave_linear_rh: bool = False,
 +        kvweave_linear_asym: bool = True,
 +        kvweave_linear_precond: bool = False,
@@ -2746,6 +2829,8 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
 +        self._kvweave_num_threads = kvweave_num_threads
 +        self._kvweave_scaling_method = kvweave_scaling_method
 +        self._kvweave_linear_quant_enabled = kvweave_linear_quant_enabled
++        self._kvweave_conv_quant_enabled = kvweave_conv_quant_enabled
++        self._kvweave_ssm_quant_enabled = kvweave_ssm_quant_enabled
 +        self._kvweave_linear_rh = kvweave_linear_rh
 +        self._kvweave_linear_asym = kvweave_linear_asym
 +        self._kvweave_linear_precond = kvweave_linear_precond
@@ -2877,19 +2962,27 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
 +            (num_layers, blocks_in_chunk, *ssm_layout.shape),
 +            dtype=state_dtype(ssm_layout),
 +        )
-+        conv_payload = quantize_mamba_substate_4bit(
-+            conv,
-+            substate="conv",
-+            scaling_method=self._kvweave_conv_scaling_method,
-+            rh=self._kvweave_conv_rh,
-+            asym=self._kvweave_linear_asym,
++        conv_payload = (
++            quantize_mamba_substate_4bit(
++                conv,
++                substate="conv",
++                scaling_method=self._kvweave_conv_scaling_method,
++                rh=self._kvweave_conv_rh,
++                asym=self._kvweave_linear_asym,
++            )
++            if self._kvweave_conv_quant_enabled
++            else serialize_mamba_substate_raw(conv)
 +        )
-+        ssm_payload = quantize_mamba_substate_4bit(
-+            ssm,
-+            substate="ssm",
-+            scaling_method=self._kvweave_ssm_scaling_method,
-+            rh=self._kvweave_ssm_rh,
-+            asym=self._kvweave_linear_asym,
++        ssm_payload = (
++            quantize_mamba_substate_4bit(
++                ssm,
++                substate="ssm",
++                scaling_method=self._kvweave_ssm_scaling_method,
++                rh=self._kvweave_ssm_rh,
++                asym=self._kvweave_linear_asym,
++            )
++            if self._kvweave_ssm_quant_enabled
++            else serialize_mamba_substate_raw(ssm)
 +        )
 +        payload_size = len(pack_mamba_payloads(conv_payload, ssm_payload))
 +        return int(payload_size * 1.02) + 4096
@@ -2971,7 +3064,28 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
  
      def _kv_caches_for_group(
          self,
-@@ -434,6 +759,80 @@ class DataTransferContext(TransferContext):
+@@ -421,6 +797,20 @@ class DataTransferContext(TransferContext):
+         self._layout_hints = layout_hints
+         self._gpu_kv_format = gpu_kv_format
+         self._engine_group_infos = list(engine_group_infos)
++        logger.debug(
++            "KVWeave group layout: group_count=%d, groups=%s",
++            len(self._engine_group_infos),
++            [
++                {
++                    "engine_group_id": info.engine_group_id,
++                    "category": info.cache_category,
++                    "layers": info.layer_indices,
++                    "tokens_per_block": info.tokens_per_block,
++                    "mamba_real_layout": info.mamba_real_layout,
++                }
++                for info in self._engine_group_infos
++            ],
++        )
+         self._chunk_size_tokens = blocks_in_chunk * block_size
+ 
+         use_mla_flag = is_mla(gpu_kv_format)
+@@ -434,6 +824,80 @@ class DataTransferContext(TransferContext):
          dtype = getattr(torch, dtype_str)
          layout_desc = MemoryLayoutDesc(shapes=[shape], dtypes=[dtype])
  
@@ -3052,7 +3166,7 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
          future = send_request(
              mq_client,
              RequestType.REGISTER_KV_CACHE_NON_GPU_CONTEXT,
-@@ -448,6 +847,15 @@ class DataTransferContext(TransferContext):
+@@ -448,6 +912,15 @@ class DataTransferContext(TransferContext):
                      dtype_str=dtype_str,
                      use_mla=use_mla_flag,
                      engine_group_infos=list(engine_group_infos),
@@ -3068,7 +3182,7 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
                  )
              ],
          )
-@@ -498,15 +906,33 @@ class DataTransferContext(TransferContext):
+@@ -498,15 +971,33 @@ class DataTransferContext(TransferContext):
          out_buffers, chunk_indices = result if result is not None else (None, None)
          # All chunks already in cache — nothing to gather or commit.
          if chunk_indices is not None and len(chunk_indices) == 0:
@@ -3107,7 +3221,7 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
              if chunk_indices is None:
                  group_chunk_indices = None
                  group_out_buffers = None
-@@ -523,31 +949,124 @@ class DataTransferContext(TransferContext):
+@@ -523,31 +1014,132 @@ class DataTransferContext(TransferContext):
                      else None
                  )
              if chunk_indices is None or group_chunk_indices:
@@ -3167,19 +3281,27 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
 +                                _group_info.tokens_per_block,
 +                            )
 +                            return pack_mamba_payloads(
-+                                quantize_mamba_substate_4bit(
++                                (
++                                    quantize_mamba_substate_4bit(
 +                                    split.conv,
 +                                    substate="conv",
 +                                    scaling_method=self._kvweave_conv_scaling_method,
 +                                    rh=self._kvweave_conv_rh,
 +                                    asym=self._kvweave_linear_asym,
++                                    )
++                                    if self._kvweave_conv_quant_enabled
++                                    else serialize_mamba_substate_raw(split.conv)
 +                                ),
-+                                quantize_mamba_substate_4bit(
++                                (
++                                    quantize_mamba_substate_4bit(
 +                                    split.ssm,
 +                                    substate="ssm",
 +                                    scaling_method=self._kvweave_ssm_scaling_method,
 +                                    rh=self._kvweave_ssm_rh,
 +                                    asym=self._kvweave_linear_asym,
++                                    )
++                                    if self._kvweave_ssm_quant_enabled
++                                    else serialize_mamba_substate_raw(split.ssm)
 +                                ),
 +                            )
 +                        return self._kvweave_codec.serialize_tensor(
@@ -3244,7 +3366,7 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
  
      def submit_retrieve(
          self,
-@@ -571,16 +1090,67 @@ class DataTransferContext(TransferContext):
+@@ -571,16 +1163,67 @@ class DataTransferContext(TransferContext):
          if src_buffers is not None:
              try:
                  group_offset = 0
@@ -3318,7 +3440,7 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
                      scatter_cpu_to_paged_kv(
                          group_kv_caches,
                          group_block_ids,
-@@ -599,9 +1169,7 @@ class DataTransferContext(TransferContext):
+@@ -599,9 +1242,7 @@ class DataTransferContext(TransferContext):
              torch_dev.synchronize()
          self._non_gpu_context.commit_retrieve(key, instance_id)
  
@@ -3329,7 +3451,7 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
  
      def close(self) -> None:
          if self._non_gpu_context is not None:
-@@ -612,7 +1180,7 @@ class DataTransferContext(TransferContext):
+@@ -612,7 +1253,7 @@ class DataTransferContext(TransferContext):
  def create_transfer_context(
      kv_caches: dict[str, torch.Tensor],
      mode: "str | MPTransferMode | None" = None,
@@ -3338,7 +3460,7 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
  ) -> TransferContext:
      """Create a transfer context from KV cache device type.
  
-@@ -651,9 +1219,165 @@ def create_transfer_context(
+@@ -651,9 +1292,174 @@ def create_transfer_context(
      )
      if resolved_mode is MPTransferMode.HANDLE:
          return _build_handle_context(device_type)
@@ -3351,18 +3473,11 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
 +            ),
 +        )
 +    )
++    model_num_kv_heads, model_head_dim = _load_kvweave_model_dims()
 +    kvweave_num_kv_heads = int(
-+        kwargs.get(
-+            "kvweave_num_kv_heads",
-+            os.environ.get(ENV_MP_KVWEAVE_NUM_KV_HEADS, "4"),
-+        )
++        kwargs.get("kvweave_num_kv_heads", model_num_kv_heads)
 +    )
-+    kvweave_head_dim = int(
-+        kwargs.get(
-+            "kvweave_head_dim",
-+            os.environ.get(ENV_MP_KVWEAVE_HEAD_DIM, "256"),
-+        )
-+    )
++    kvweave_head_dim = int(kwargs.get("kvweave_head_dim", model_head_dim))
 +    kvweave_precond = _parse_flag_value(
 +        kwargs.get(
 +            "kvweave_precond",
@@ -3385,6 +3500,18 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
 +        kwargs.get(
 +            "kvweave_linear_quant_enabled",
 +            _parse_env_flag(ENV_MP_KVWEAVE_LINEAR_QUANT_ENABLED, default=True),
++        )
++    )
++    kvweave_conv_quant_enabled = _parse_flag_value(
++        kwargs.get(
++            "kvweave_conv_quant_enabled",
++            _parse_env_flag(ENV_MP_KVWEAVE_CONV_QUANT_ENABLED, default=True),
++        )
++    )
++    kvweave_ssm_quant_enabled = _parse_flag_value(
++        kwargs.get(
++            "kvweave_ssm_quant_enabled",
++            _parse_env_flag(ENV_MP_KVWEAVE_SSM_QUANT_ENABLED, default=True),
 +        )
 +    )
 +    kvweave_linear_rh = _parse_flag_value(
@@ -3476,6 +3603,8 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
 +            kvweave_num_threads=kvweave_num_threads,
 +            kvweave_scaling_method=kvweave_scaling_method,
 +            kvweave_linear_quant_enabled=kvweave_linear_quant_enabled,
++            kvweave_conv_quant_enabled=kvweave_conv_quant_enabled,
++            kvweave_ssm_quant_enabled=kvweave_ssm_quant_enabled,
 +            kvweave_linear_rh=kvweave_linear_rh,
 +            kvweave_linear_asym=kvweave_linear_asym,
 +            kvweave_linear_precond=kvweave_linear_precond,
@@ -3497,6 +3626,8 @@ index 75bc7e37cf1561c1a4989865539c4b2e2b6ae8a0..97771c9175395adca284120cad409ea2
 +        kvweave_num_threads=kvweave_num_threads,
 +        kvweave_scaling_method=kvweave_scaling_method,
 +        kvweave_linear_quant_enabled=kvweave_linear_quant_enabled,
++        kvweave_conv_quant_enabled=kvweave_conv_quant_enabled,
++        kvweave_ssm_quant_enabled=kvweave_ssm_quant_enabled,
 +        kvweave_linear_rh=kvweave_linear_rh,
 +        kvweave_linear_asym=kvweave_linear_asym,
 +        kvweave_linear_precond=kvweave_linear_precond,
