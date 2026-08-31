@@ -120,6 +120,29 @@ VLM circuit breaker open — skipping analysis (cooldown: 30s remaining)
 - Verify the model is loaded: `curl http://ovms-vlm:8001/v2/models`.
 - Once OVMS recovers, the circuit breaker automatically probes after 30 seconds.
 
+## NPU Compilation Error: `Unrecognized device ID`
+
+**Symptom:**
+
+```text
+[NPU_VCL] Unrecognized device ID! 0x0x0
+Compilation failed. vclAllocatedExecutableCreate3 result: 0x78000004
+```
+
+**Cause:** `BA_GST_DEVICE=NPU` is set but the `/dev/accel` device is not mapped into the container, so the OpenVINO NPU plugin cannot find the hardware.
+
+**Resolution:**
+
+- Create a `docker-compose.override.yml` from the NPU template:
+
+  ```bash
+  cp docker-compose.override.yml.npu-example docker-compose.override.yml
+  ```
+
+- Verify the host has an NPU device: `ls -l /dev/accel/`.
+- Recreate the container: `docker compose --env-file .env.local up -d --no-build --force-recreate behavioral-analysis`.
+- If no NPU hardware is available, set `BA_GST_DEVICE=CPU` (or `GPU`) in `.env.local` and restart.
+
 ## MQTT Consumer Not Receiving Messages
 
 **Symptom:** Service starts but no analyses are triggered from `ba/requests`.
