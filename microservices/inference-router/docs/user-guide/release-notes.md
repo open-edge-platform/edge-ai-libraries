@@ -49,7 +49,7 @@
     reset via `/v1/plugins` (see the [API Reference](./api-reference.md#list-plugins)).
   - Policies: `/v1/policies` Create, Read, Update, Delete (CRUD).
   - Strategies: `/v1/strategies` CRUD.
-  - Configuration and routing: `GET /v1/config` and `GET/PUT /v1/routing`.
+  - Configuration and routing: `GET /v1/config` and `GET/POST /v1/routing`.
   - Changes persist to the on-disk configuration and take effect immediately.
 
 - Web UI Dashboard:

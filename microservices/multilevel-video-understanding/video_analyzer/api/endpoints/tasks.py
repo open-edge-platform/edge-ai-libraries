@@ -120,7 +120,7 @@ def get_task(name: str) -> TaskDetailResponse:
         try:
             return _builtin_task_detail(name)
         except Exception as e:
-            logger.warning("Failed to introspect built-in task %s: %s", name, e)
+            logger.warning("Failed to introspect built-in task")
             raise HTTPException(
                 status_code=500,
                 detail={"error": "introspection_failed", "detail": str(e)},
@@ -150,7 +150,7 @@ async def register_task(request: RegisterTaskRequest) -> TaskDetailResponse:
     except RegistryError as e:
         raise _http_from_registry_error(e)
 
-    logger.info("Registered dynamic task '%s' (mode=%s)", request.task_name, request.mode)
+    logger.info("Registered dynamic task")
     return _build_detail_response(rec.name, "dynamic", rec.description, rec.sections)
 
 

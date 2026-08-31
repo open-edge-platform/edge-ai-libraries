@@ -55,7 +55,9 @@ All variables are case-insensitive.
 
 Download YOLO26n-pose model:
 
-Run this before `docker compose up` when using `standalone+api` mode.
+Run this before `docker compose up` when using `standalone+api` mode. This script
+also downloads the default VLM model (`Qwen/Qwen2.5-VL-7B-Instruct`) and creates
+the OVMS config required for VLM serving.
 
 ```bash
 cd download-model
@@ -66,34 +68,22 @@ Expected output files:
 
 - `models/yolo_models/yolo26n-pose/yolo26n-pose.xml`
 - `models/yolo_models/yolo26n-pose/yolo26n-pose.bin`
+- `models/vlm_models/config.json`
+- `models/vlm_models/Qwen/Qwen2.5-VL-7B-Instruct/` (OpenVINO IR model files)
 
 The host must expose accelerator devices to Docker, and the relevant device entries must be mapped into the `behavioral-analysis` service,
-because that container performs the YOLO-Pose OpenVINO inference. For example, `/dev/dri:/dev/dri` (GPU).
+because that container performs the YOLO-Pose OpenVINO inference. For example, `/dev/dri:/dev/dri` (GPU) or `/dev/accel:/dev/accel` (NPU).
 
-> **Note:** If `BA_GST_DEVICE=GPU` is used, the same accelerator device must be added to the
+> **Note:** If `BA_GST_DEVICE` is set to `GPU` or `NPU`, the corresponding accelerator device must be added to the
 > `behavioral-analysis` service's `devices:` section. Do this using a Docker Compose override
 > file instead of editing the tracked `docker-compose.yml` directly, so local device mappings
 > survive project updates without merge conflicts.
 
 GPU setup with `docker-compose.override.yml`:
 
-1. Set the device in `.env`:
-
-   ```bash
-   BA_GST_DEVICE=GPU
-   ```
-
-2. Copy the provided GPU template to an override file (gitignored, never committed):
-
-   ```bash
-   cp docker-compose.override.yml.gpu-example docker-compose.override.yml
-   ```
-
-3. Run Docker Compose as usual; `docker-compose.override.yml` is merged automatically:
-
-   ```bash
-   docker compose up
-   ```
+1. Set `BA_GST_DEVICE=GPU` in `.env`.
+2. Copy the GPU template: `cp docker-compose.override.yml.gpu-example docker-compose.override.yml`
+3. Start with [Run with Docker Compose](run-container.md).
 
 The template (`docker-compose.override.yml.gpu-example`) contains:
 
@@ -105,6 +95,26 @@ services:
     group_add:
       - ${RENDERER_GROUP:-992}
 ```
+
+NPU setup with `docker-compose.override.yml`:
+
+1. Set `BA_GST_DEVICE=NPU` in `.env`.
+2. Copy the NPU template: `cp docker-compose.override.yml.npu-example docker-compose.override.yml`
+3. Start with [Run with Docker Compose](run-container.md).
+
+The template (`docker-compose.override.yml.npu-example`) contains:
+
+```yaml
+services:
+  behavioral-analysis:
+    devices:
+      - /dev/accel:/dev/accel
+    group_add:
+      - ${RENDER_GROUP_ID:-992}
+```
+
+> **Note:** Only one `docker-compose.override.yml` can be active at a time. If switching
+> between GPU and NPU, replace the override file with the appropriate template.
 
 ### Frame Analysis
 
@@ -151,7 +161,6 @@ In Docker Compose, `ovms-vlm` is defined under the `vlm` profile and its `depend
 | VLM_MAX_IMAGE_SIZE | 256 | Maximum frame size for VLM |
 | VLM_MAX_CONCURRENCY | 1 | Maximum concurrent VLM requests |
 
-To download the VLM model, follow the instructions in the [model-download microservice](../../../../model-download/README.md).
 
 ### Pattern Config Path
 
@@ -198,8 +207,9 @@ BA_POSE_FRAMES=20
 BA_CONFIDENCE=0.5
 BA_GST_DEVICE=CPU
 # For GPU, set BA_GST_DEVICE=GPU above and create a docker-compose.override.yml from
-# docker-compose.override.yml.gpu-example to map host devices (e.g. /dev/dri) without
-# editing docker-compose.yml.
+# docker-compose.override.yml.gpu-example to map host devices (e.g. /dev/dri).
+# For NPU, set BA_GST_DEVICE=NPU above and create a docker-compose.override.yml from
+# docker-compose.override.yml.npu-example to map host devices (e.g. /dev/accel).
 DOWNLOADED_MODEL_PATH=./models
 ```
 

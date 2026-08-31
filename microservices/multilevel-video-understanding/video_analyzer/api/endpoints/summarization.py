@@ -93,8 +93,7 @@ async def summarize_video(
                 video_path = temp_video_path
 
         processor_kwargs = request.processor_kwargs
-        logger.debug(f"Summarization parameters: task={task}, video={video_path}, method={method}, processor_kwargs:\n"
-                     f"{processor_kwargs}")
+        logger.debug("Validated summarization request parameters")
 
         # Create a VideoSummarizer instance
         summarizer = VideoSummarizer(
@@ -147,8 +146,7 @@ async def summarize_video(
 
     except Exception as e:
         error_details = traceback.format_exc()
-        logger.error(f"Summarization failed: {str(e)}")
-        logger.error(f"Error details: {error_details}")
+        logger.exception("Summarization failed")
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

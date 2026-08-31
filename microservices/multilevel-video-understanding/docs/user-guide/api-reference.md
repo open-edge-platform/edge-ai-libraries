@@ -82,7 +82,8 @@ The endpoint accepts three input combinations:
 **Request Parameters**
 Request parameters for the summarization endpoint
 
-- **video**: *Required.*. Path to the video file, support 'file:/', 'http://', 'https://' and local path. Set to the string `"none"` for caption-only mode (requires `video_subtitles`).
+- **video**: *Required.*. Path to the video file, support 'file:/', 'http://', 'https://' and local path. Local paths must be within one of the JSON-array directories configured by `VIDEO_ALLOWED_PATHS` (default: `[/app, /tmp]`). Set to the string `"none"` for caption-only mode (requires `video_subtitles`).
+- **PROMPT_URL_ALLOWLIST**: Deployment environment variable containing a JSON array of exact HTTPS prompt URLs permitted for dynamic-task `content.url` input. It defaults to `[]`; configure each permitted URL explicitly.
 - **video_subtitles**: *Optional*. Subtitles in SubRip (.srt) format, as one of `{"path": "/app/subs.srt"}` (a local .srt file readable by the service, e.g. after `docker cp` — mirrors the local-path support of `video`), `{"url": "https://..."}`, `{"text": "<srt>"}`, or `{"b64gzip": "<base64 of gzipped srt>"}`. Required when `video` is `"none"`. Local file, inline text and `b64gzip` inputs are capped by `MAX_SUBTITLE_BYTES`.
 - **task**: *Optional*. Prompt task selecting the summarization flavor. Built-in values: `"summary"` (English, default) and `"summary_zh"` (Chinese). Any other value must be a dynamic task registered via the Prompt Tasks API (see section 4); unknown names are rejected.
 - **prompt**: *Optional*. User prompt to guide summarization details.
