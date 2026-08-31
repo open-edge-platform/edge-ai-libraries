@@ -5,21 +5,28 @@ recent release is listed first; older entries are preserved for history.
 
 ## Version 1.5.0
 
-**Release Date:** August 2026
+**Release Date:** September 9, 2026
 
 **New:**
 
-- OpenAI-compatible streaming transcription over Server-Sent Events, in
-  addition to the existing NDJSON `/stream` variant.
-- Realtime transcription support over a WebSocket endpoint for
-  low-latency, bidirectional audio streaming.
-- Video Summarization Service (VSS) compatibility for the transcription
-  API response shape.
+- OpenAI-compatible streaming transcription over Server-Sent Events (SSE),
+  including incremental transcript events and completion signaling.
+- Realtime WebSocket transcription API for low-latency, bidirectional PCM16
+  audio streaming with server-side VAD and incremental transcription events.
+- VSS-compatible transcription APIs and response formats, including `/models`
+  and `/transcriptions` compatibility routes.
+- OpenVINO NPU support for ASR, validated with Whisper Tiny and Whisper Base,
+  with CPU, GPU, and NPU device selection.
+- OpenVINO-backed speaker diarization with GPU and NPU support.
 
 **Improved:**
 
-- Speaker diarization now splits merged segments by voice and persists
-  enrolment data across restarts.
+- Multi-speaker detection now independently analyzes Whisper segments,
+  improving secondary-speaker detection in single-microphone kiosk scenarios.
+- Speaker enrollment persistence using `speaker_scope_id`, allowing speaker
+  identity to persist across requests and service restarts.
+- Documented and standardized the supported ASR provider/device matrix across
+  OpenAI, Whisper.cpp, and OpenVINO providers.
 
 ## Version 1.4.0
 

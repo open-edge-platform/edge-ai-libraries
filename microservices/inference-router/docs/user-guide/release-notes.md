@@ -2,7 +2,7 @@
 
 ## Version 2026.2.0
 
-**August, 2026**
+**Release Date:** September 9, 2026
 
 **New**
 
@@ -56,7 +56,7 @@
 
   - A Vue-based dashboard for managing providers and monitoring telemetry,
     including latency and token metrics. Supports light and dark themes, and English
-	and Chinese locales.
+    and Chinese locales.
   - Build and run with Docker Compose tool from `ui/docker`.
 
 - Intel® GPU Support:
