@@ -26,6 +26,7 @@ debian_90_install_loitering_detection () {
 
   # setup
   cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+  sed -i 's|curl |curl -f |' loitering-detection/install.sh
   ./install.sh loitering-detection $(ensure_ip)
   verify_loitering_detection
 }

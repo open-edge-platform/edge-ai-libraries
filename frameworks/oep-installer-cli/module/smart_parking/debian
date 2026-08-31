@@ -26,6 +26,7 @@ debian_90_install_smart_parking () {
 
   # setup
   cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+  sed -i 's|curl | curl -f |' smart-parking/install.sh
   ./install.sh smart-parking $(ensure_ip)
   verify_smart_parking
 }

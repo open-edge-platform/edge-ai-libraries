@@ -26,7 +26,8 @@ debian_90_install_smart_intersection () {
 
   # setup
   cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
-  sed -i 's|sudo chown|#sudo chown|' smart_intersection/install.sh
+  sed -i 's|sudo chown|#sudo chown|' smart-intersection/install.sh
+  sed -i 's|curl -k |curl -f |' smart-intersection/init.sh
   ./install.sh smart-intersection $(ensure_ip)
   verify_smart_intersection
 }
