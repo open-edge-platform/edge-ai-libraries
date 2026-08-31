@@ -55,7 +55,7 @@ class LLM:
         self.total_completion_tokens = 0  # Completion tokens (accumulated)
         self.total_image_tokens = 0  # Image tokens calculated internally (accumulated)
 
-        logger.debug(f"Using remote inference serving with model: {model_name} from endpoint: {self.base_url}")
+        logger.debug("Configured remote inference serving")
     
     def infer(self, content: str|List[Dict[str, Any]]) -> str:
         """
@@ -75,8 +75,6 @@ class LLM:
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": content}
         ]
-        print(msgs)
-        
         response = self._remote_infer(msgs)
         
         if self.remove_thinking:
@@ -140,7 +138,7 @@ class LLM:
                         }
                     },
                 )
-                logger.debug(f"API call successful, response:{response}")
+                logger.debug("API call successful")
 
                 # Extract and accumulate token usage from vllm-ipex-serving
                 if hasattr(response, 'usage') and response.usage:
@@ -154,11 +152,11 @@ class LLM:
                 return content
 
             except Exception as e:
-                logger.error(f"ERROR in API call(URL: {self.base_url}) (attempt {retry_count+1}): {str(e)}")
+                logger.warning("API call failed (attempt %s)", retry_count + 1)
                 retry_count += 1
                 if retry_count >= self.max_retries:
-                    error_msg = f"Error: API call(URL: {self.base_url}) failed after {self.max_retries} attempts. Last error: {str(e)}"
-                    logger.error(error_msg)
+                    error_msg = "Error: API call failed after configured retries."
+                    logger.error("API call failed after configured retries")
                     return error_msg
                 
     async def _async_remote_infer(self, messages: List[Dict[str, Any]]) -> str:
@@ -175,7 +173,7 @@ class LLM:
 
         while retry_count < self.max_retries:
             try:
-                logger.debug(f"Sending async request to remote LLM: {self.model_name} (attempt {retry_count+1}/{self.max_retries})")
+                logger.debug("Sending async request to remote LLM")
 
                 # Call the API
                 response = await self.async_client.chat.completions.create(
@@ -190,25 +188,24 @@ class LLM:
                         }
                     },
                 )
-                logger.debug(f"API call successful, response:{response}")
+                logger.debug("API call successful")
 
                 # Extract and accumulate token usage from vllm-ipex-serving
                 if hasattr(response, 'usage') and response.usage:
                     self.total_prompt_tokens += response.usage.prompt_tokens
                     self.total_completion_tokens += response.usage.completion_tokens
-                    logger.debug(f"Token usage this call: {response.usage.prompt_tokens} input, "
-                                f"{response.usage.completion_tokens} output")
+                    logger.debug("Recorded token usage for async request")
 
                 content = response.choices[0].message.content.strip()
-                logger.debug(f"Successfully received async response from remote LLM")
+                logger.debug("Successfully received async response from remote LLM")
                 return content
 
-            except Exception as e:
-                logger.error(f"ERROR in async API call (attempt {retry_count+1}): {str(e)}")
+            except Exception:
+                logger.warning("Async API call failed (attempt %s)", retry_count + 1)
                 retry_count += 1
                 if retry_count >= self.max_retries:
-                    error_msg = f"Error: API call failed after {self.max_retries} attempts. Last error: {str(e)}"
-                    logger.error(error_msg)
+                    error_msg = "Error: API call failed after configured retries."
+                    logger.error("Async API call failed after configured retries")
                     return error_msg
                 # Wait before retrying
                 await asyncio.sleep(1)

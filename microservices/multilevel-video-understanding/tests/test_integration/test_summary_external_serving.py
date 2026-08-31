@@ -226,4 +226,5 @@ def test_summary_with_registered_dynamic_task(test_client):
         assert "summary" in data
         assert data["video_duration"] is not None
     finally:
-        assert test_client.delete(f"/v1/tasks/{task_name}").status_code in (204, 404)
+        delete_response = test_client.delete(f"/v1/tasks/{task_name}")
+        assert delete_response.status_code in (204, 404)

@@ -29,8 +29,12 @@ RUN groupadd appuser && useradd -m -s /bin/bash -g appuser appuser
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 ENV HOME=/home/appuser
 
-# Install dependencies to be used in final stages
-RUN apt update -y && apt install -y curl
+# Install runtime dependencies and available Debian security updates in all image stages.
+RUN apt-get update -y \
+    && apt-get upgrade -y \
+    && apt-get install --no-install-recommends -y curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip to the latest version
 RUN pip install --upgrade pip 

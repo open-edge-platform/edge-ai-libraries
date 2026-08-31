@@ -78,7 +78,7 @@ class VideoSummarizer:
         self.subtitles = None
         self.user_prompt = user_prompt
         self.task = task
-        logger.info(f"Start video understanding with task: {self.task}")
+        logger.info("Start video understanding")
 
         # Multi-level configurations
         self.total_levels = levels
@@ -107,7 +107,7 @@ class VideoSummarizer:
 
         # Parse subtitles (if has)
         if video_subtitles is not None:
-            logger.debug(f"Received video subtitles from request: {video_subtitles}")
+            logger.debug("Received video subtitles from request")
             try:
                 # size guard
                 max_bytes = settings.MAX_SUBTITLE_BYTES
@@ -115,7 +115,7 @@ class VideoSummarizer:
             except HTTPException:
                 raise
             except Exception as e:
-                logger.error(f"Failed to load subtitles: {e}")
+                logger.exception("Failed to load subtitles")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=ErrorResponse(
@@ -142,7 +142,7 @@ class VideoSummarizer:
         else:
             # Caption-only mode: process_fps not used, set to dummy value
             if self.process_fps <= 0:
-                logger.debug(f"Caption-only mode: process_fps={self.process_fps} (ignored)")
+                logger.debug("Caption-only mode ignores process FPS")
                 self.process_fps = 1.0  # Dummy value
 
         # Summarization method
@@ -181,7 +181,7 @@ class VideoSummarizer:
                 self.length = max(sub['end'] for sub in self.subtitles) if self.subtitles else 60.0
             else:
                 self.length = 60.0  # Default 1 minute if no subtitles
-            logger.info(f"Estimated duration from subtitles: {self.length:.2f} seconds")
+            logger.info("Estimated duration from subtitles")
             
         if self.total_levels == 1:
             logger.warning("Received only 1 level in configuration, will be degraded to a generic single level video summarization method that only"
@@ -202,17 +202,10 @@ class VideoSummarizer:
         logging.getLogger("video_chunking.uniform_chunk").setLevel(logger.level)
         
         # Log key parameters
-        logger.info(f"Video path: {self.video_path}")
-        logger.debug(f"Video frames: {self.numFrame}")
-        logger.debug(f"Video length: {self.length} seconds")
-        logger.debug(f"Video fps: {self.origin_fps}, will extract frames for summary at FPS: {self.process_fps}")
-        logger.debug(f"Vision-language model: {vlm_model_name}, base URL: {vlm_base_url}")
-        logger.debug(f"Language model: {llm_model_name}, base URL: {llm_base_url}")
-        logger.debug(f"Concurrent processing: {'Enabled' if self.use_concurrent else 'Disabled'}")
-        logger.debug(f"Summarization method: {self.method}")
-        logger.debug(f"\t[VLM] T-1 promote: {'Enabled' if self.use_t_minus_1_for_vlm else 'Disabled'}")
-        logger.debug(f"\t[LLM] T-1 promote: {'Enabled' if self.use_t_minus_1_for_llm else 'Disabled'}")
-        logger.debug(f"Total levels: {self.total_levels}, with each level group size: {self.level_sizes}")
+        logger.info("Video input validated")
+        logger.debug("Video metadata loaded")
+        logger.debug("Model serving configuration loaded")
+        logger.debug("Summarization configuration loaded")
         
         # Initialize video chunking method (skip in caption-only mode)
         if not self.caption_only:
@@ -286,7 +279,7 @@ class VideoSummarizer:
                 micro_chunk.desc = ""
                 listMicroChunk.append(micro_chunk)
                 self.chunk_dict[(micro_chunk.level, micro_chunk.id)] = micro_chunk
-            logger.info(f"Created {len(listMicroChunk)} chunks from subtitles with multi-level settings: {self.level_sizes}.")
+            logger.info("Created chunks from subtitles")
             chunk_level0_fps = 1.0
         else:
             # Normal video mode: use video chunker
@@ -358,7 +351,7 @@ class VideoSummarizer:
         Returns:
             Tuple containing the job ID and final video summary results dict.
         """
-        logger.info(f"Starting summarization for video: {self.video_path}")        
+        logger.info("Starting summarization")
         
         try:
             job_id = str(uuid.uuid4())[-8:]
@@ -380,7 +373,7 @@ class VideoSummarizer:
                 single_summary = self.chunklist_dict[0][0].desc
                 # Check for errors in single-level result
                 if single_summary.startswith("Error:"):
-                    logger.error(f"Single-level summarization failed: {single_summary}")
+                    logger.error("Single-level summarization failed")
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail=ErrorResponse(
@@ -446,7 +439,7 @@ class VideoSummarizer:
             summary = self.rootChunk.desc
             # Check for errors — propagate as HTTP 500 so callers can retry or mark as failed
             if summary.startswith("Error:"):
-                logger.error(f"Summarization failed: {summary}")
+                logger.error("Summarization failed due to a model error")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=ErrorResponse(
@@ -479,8 +472,7 @@ class VideoSummarizer:
             # Re-raise HTTPException as-is (already has proper status code)
             raise
         except Exception as e:
-            logger.error(f"Summarization failed: {e}")
-            logger.error(f"Error details: {traceback.format_exc()}")
+            logger.exception("Summarization failed")
 
             # Provide detailed error response based on exception type
             error_details = str(e)
@@ -542,7 +534,7 @@ class VideoSummarizer:
                 else:
                     chunk.desc = "无事件描述"
                 logger.debug(f"Caption-only mode: using subtitle text for chunk {chunk.id}")
-                logger.debug(f"Subtitle content: {chunk.desc[:100]}...")
+                logger.debug("Subtitle content assigned to micro chunk")
                 return
 
             # Normal video mode: extract frames and use VLM
@@ -575,22 +567,22 @@ class VideoSummarizer:
 
             # Log input prompt
             logger.debug("<#####> micro chunk input")
-            logger.debug(redact_base64(question))
+            logger.debug("Micro chunk prompt prepared")
 
             # Run inference
             answer = await self.vlm.async_infer(frames=frames, content=question)
 
             # Check for errors
             if chunk.desc.startswith("Error:"):
-                logger.error(f"ERROR in model response: {answer}")
+                logger.error("Model response reported an error")
             else:
-                logger.debug(f"Raw answer from model: {answer}")
+                logger.debug("Model response received for micro chunk")
             chunk.desc = remove_brackets(answer)
 
             # Log output
             logger.debug("<#####> micro chunk output")
             logger.debug(chunk.get_timestamp_desc())
-            logger.debug(chunk.desc)
+            logger.debug("Micro chunk description generated")
 
             # Check for empty descriptions
             if not chunk.desc or chunk.desc.isspace():
@@ -617,16 +609,16 @@ class VideoSummarizer:
 
             # Log input prompt
             logger.debug("<#####> macro chunk input")
-            logger.debug(redact_base64(prompt))
+            logger.debug("Macro chunk prompt prepared")
 
             # Run inference
             answer = await self.llm.async_infer(prompt)
 
             # Check for errors
             if chunk.desc.startswith("Error:"):
-                logger.error(f"ERROR in model response: {answer}")
+                logger.error("Model response reported an error")
             else:
-                logger.debug(f"Raw answer from model: {answer}")
+                logger.debug("Model response received for macro chunk")
             chunk.desc = remove_brackets(answer)
 
             # Log output
@@ -634,7 +626,7 @@ class VideoSummarizer:
             logger.debug(chunk.get_timestamp_desc())
             if self.rootLevel == chunk.level:
                 logger.debug("Final summary:\n")
-            logger.debug(chunk.desc)
+            logger.debug("Macro chunk description generated")
           
     async def encode_chunk(self, chunk: ChunkMeta) -> List[Image.Image]:
         """
@@ -717,23 +709,20 @@ class VideoSummarizer:
         # is_global_level: bool
         is_global_level = (self.rootLevel == chunk.level)
 
-        match is_global_level:
-            # Global level
-            case True:
-                full_summ_prompt = assign_global_prompt(
-                    task=self.task,
-                    question=self.user_prompt,
-                    chunk_subtitle=subtitle
-                )
-            # Macro level (non-global)
-            case False:
-                full_summ_prompt = assign_macro_prompt(
-                    task=self.task,
-                    st_tm=round(chunk.time_st),
-                    end_tm=round(chunk.time_end),
-                    question=self.user_prompt,
-                    chunk_subtitle=subtitle
-                )
+        if is_global_level:
+            full_summ_prompt = assign_global_prompt(
+                task=self.task,
+                question=self.user_prompt,
+                chunk_subtitle=subtitle,
+            )
+        else:
+            full_summ_prompt = assign_macro_prompt(
+                task=self.task,
+                st_tm=round(chunk.time_st),
+                end_tm=round(chunk.time_end),
+                question=self.user_prompt,
+                chunk_subtitle=subtitle,
+            )
 
         # Attach subchunk summaries
         full_summ_prompt += '\n\n>|<\n{}\n>|<'

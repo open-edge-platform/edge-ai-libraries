@@ -97,6 +97,8 @@ services:
       - VIDEO_FRAME_HEIGHT=${VIDEO_FRAME_HEIGHT:-270}
       - VIDEO_FRAME_WIDTH=${VIDEO_FRAME_WIDTH:-480}
       - DEFAULT_TEMPERATURE=${DEFAULT_TEMPERATURE:-0.2}
+      - VIDEO_ALLOWED_PATHS=${VIDEO_ALLOWED_PATHS:-["/app","/tmp"]}
+      - PROMPT_URL_ALLOWLIST=${PROMPT_URL_ALLOWLIST:-[]}
     restart: unless-stopped
     security_opt:
       - apparmor=docker-default
