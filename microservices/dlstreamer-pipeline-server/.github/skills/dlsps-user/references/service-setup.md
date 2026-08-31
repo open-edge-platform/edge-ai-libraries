@@ -24,6 +24,7 @@ cd microservices/dlstreamer-pipeline-server/docker
 
 # 2. (GPU/NPU only) Set render group ID
 export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)
+
 # Or add RENDER_GID=<id> to the .env file
 
 # 3. Pull the pre-built image

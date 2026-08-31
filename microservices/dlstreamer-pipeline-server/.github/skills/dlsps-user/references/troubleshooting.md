@@ -15,6 +15,7 @@ Common issues with DL Streamer Pipeline Server and their solutions.
 ```bash
 export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)
 # Or add to .env file: RENDER_GID=<group_id>
+
 docker compose up
 ```
 
