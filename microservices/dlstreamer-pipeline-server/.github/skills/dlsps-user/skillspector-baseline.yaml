@@ -3,7 +3,7 @@
 version: 2
 scanner_version: 2.9.6
 rules:
-  - id: "RP1"
+  - id: "RP9"
     path: "**/*.md"
     reason: >-
       Reviewed: intel/dlstreamer-pipeline-server:latest is the documented default image tag
