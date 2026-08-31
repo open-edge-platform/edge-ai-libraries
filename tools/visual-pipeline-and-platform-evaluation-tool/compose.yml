@@ -215,7 +215,7 @@ services:
       start_period: 15s
       start_interval: 1s
   mediamtx:
-    image: bluenviron/mediamtx:1.15.6
+    image: bluenviron/mediamtx:1.20.1
     container_name: mediamtx
     environment:
       - MTX_LOGLEVEL=info
