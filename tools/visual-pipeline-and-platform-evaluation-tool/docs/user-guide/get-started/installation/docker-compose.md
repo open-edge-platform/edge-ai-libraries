@@ -34,7 +34,7 @@ For alternative ways to set up the sample application, refer to
 1. Clone the repository:
 
    ```bash
-   git clone -b main --sparse --filter=blob:none https://github.com/open-edge-platform/edge-ai-libraries.git
+   git clone -b release-2026.2.0 --sparse --filter=blob:none https://github.com/open-edge-platform/edge-ai-libraries.git
    cd edge-ai-libraries
    git sparse-checkout set tools/visual-pipeline-and-platform-evaluation-tool
    cd tools/visual-pipeline-and-platform-evaluation-tool
