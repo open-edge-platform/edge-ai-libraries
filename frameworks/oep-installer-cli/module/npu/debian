@@ -35,7 +35,7 @@ debian_40_install_npu () {
     cd "$workspace"
 
     # download deb packages
-    local packages=($(curl -sL $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url"))
+    local packages=($(set -o pipefail;curl -sL $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url"))
     [ ${#packages[*]} -gt 0 ] || return 3
 
     for p in ${packages[*]}; do
