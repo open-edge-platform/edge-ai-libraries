@@ -12,6 +12,7 @@ import tempfile
 import pathlib
 from fastapi import HTTPException, status
 from decord import VideoReader, cpu
+from video_analyzer.core.settings import settings
 from video_analyzer.schemas.summarization import ErrorResponse
 
 from video_analyzer.utils.logger import logger
