@@ -40,6 +40,10 @@ fi
 # mount (a `cp`/`mv` there would crash the container). Every collector also
 # idles gracefully on hardware that lacks its source, so a wrong toggle degrades
 # to "no data", never a crash.
+# IMPORTANT: toggling any ENABLE_* variable requires a container restart to
+# take effect. The active.d directory is rebuilt from scratch on every start;
+# there is NO hot-reload — changing an env var without restarting the container
+# has no effect. Use `docker compose up -d` to recreate the container.
 TELEGRAF_D_SRC=/etc/telegraf/telegraf.d
 TELEGRAF_D=/etc/telegraf/active.d
 
@@ -74,31 +78,16 @@ enable_conf() {
     fi
 }
 
-# enable_example ENV_VALUE BASENAME — activate an opt-in drop-in by copying
-# <BASENAME>.conf.example into the active dir as <BASENAME>.conf when enabled.
-enable_example() {
-    local value="$1" base="$2"
-    if is_enabled "$value"; then
-        if [ -f "$TELEGRAF_D_SRC/$base.conf.example" ]; then
-            cp "$TELEGRAF_D_SRC/$base.conf.example" "$TELEGRAF_D/$base.conf"
-            echo "[INFO]   $base: ENABLED (from .example)"
-        else
-            echo "[WARN]  $base: enabled but $base.conf.example not found — skipping"
-        fi
-    else
-        echo "[INFO]   $base: disabled"
-    fi
-}
-
 echo "[INFO] Configuring hardware-telemetry collectors:"
-enable_conf    "${ENABLE_RAPL_POWER:-true}"  "10-power"
-enable_conf    "${ENABLE_DRAM_BW:-auto}"     "20-dram-bw"
-enable_conf    "${ENABLE_DISK_IO:-true}"     "30-disk"
-enable_conf    "${ENABLE_NET_IO:-true}"      "40-net"
-enable_conf    "${ENABLE_INTERRUPTS:-true}"  "50-interrupts"
-enable_conf    "${ENABLE_PSYS_POWER:-true}"  "90-tcmi-execd"
+enable_conf    "${ENABLE_RAPL_POWER:-false}"  "10-power"
+enable_conf    "${ENABLE_DRAM_BW:-auto}"      "20-dram-bw"
+enable_conf    "${ENABLE_DISK_IO:-true}"      "30-disk"
+enable_conf    "${ENABLE_NET_IO:-true}"       "40-net"
+enable_conf    "${ENABLE_INTERRUPTS:-false}"  "50-interrupts"
+enable_conf    "${ENABLE_PSYS_POWER:-false}"    "90-tcmi-execd"
+enable_conf    "${ENABLE_GPU_THROTTLE:-false}"  "91-gpu-throttle"
 # Opt-in engineering diagnostics (ship disabled; default off).
-enable_example "${ENABLE_TURBOSTAT:-false}"  "60-turbostat"
+enable_conf    "${ENABLE_TURBOSTAT:-false}"   "60-turbostat"
 
 echo "[INFO] Initialization complete"
 echo "       - Metrics API port: ${METRICS_PORT:-9090}"

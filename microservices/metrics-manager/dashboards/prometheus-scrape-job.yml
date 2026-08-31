@@ -23,9 +23,13 @@
 - job_name: metrics-manager
   # MM's :9273 endpoint already serves /metrics in Prometheus format.
   metrics_path: /metrics
-  # 2s matches the reference stack's other jobs; the RAPL/DRAM readers emit at
-  # ~1s cadence, so 2s captures every sample without over-scraping.
-  scrape_interval: 2s
+  # Keep this <= the Metrics Manager's Telegraf [agent] interval (1s by
+  # default). Telegraf's prometheus_client output serves only the LAST
+  # collected value, so a slower scrape silently discards every sample in
+  # between -- at 2s against a 1s emit cadence, exactly half are lost and
+  # sub-2s transients never reach Grafana. Over-scraping is safe: repeats are
+  # rejected as duplicate timestamps, not stored as fabricated points.
+  scrape_interval: 1s
   static_configs:
     - targets:
         - host.docker.internal:9273

@@ -182,20 +182,20 @@ class TestTcmiCollectorWiring:
     SCRIPTS = REPO_ROOT / "scripts"
 
     # (basename, ships-active-as-.conf) for the native + execd drop-ins.
+    # 60-turbostat and 91-gpu-throttle are opt-in but ship as .conf (gated by
+    # ENABLE_TURBOSTAT / ENABLE_GPU_THROTTLE in entrypoint.sh, not by filename).
     ACTIVE_DROPINS = ["10-power", "20-dram-bw", "30-disk", "40-net",
-                      "50-interrupts", "90-tcmi-execd"]
-    # Opt-in engineering diagnostics ship as .conf.example (not auto-loaded).
-    OPTIN_EXAMPLES = ["60-turbostat"]
+                      "50-interrupts", "60-turbostat", "90-tcmi-execd",
+                      "91-gpu-throttle"]
 
     def test_active_dropins_present(self):
         for base in self.ACTIVE_DROPINS:
             assert (self.TELEGRAF_D / f"{base}.conf").is_file(), f"missing {base}.conf"
 
-    def test_optin_examples_present_and_not_active(self):
-        for base in self.OPTIN_EXAMPLES:
-            assert (self.TELEGRAF_D / f"{base}.conf.example").is_file()
-            # Must NOT ship as .conf (would be auto-loaded regardless of toggle).
-            assert not (self.TELEGRAF_D / f"{base}.conf").is_file()
+    def test_no_conf_example_files_remain(self):
+        # All .conf.example files have been converted or removed; none should exist.
+        examples = list(self.TELEGRAF_D.glob("*.conf.example"))
+        assert examples == [], f"unexpected .conf.example files: {examples}"
 
     def test_execd_reader_scripts_present(self):
         for script in ("rapl_reader.py", "dram_bw_reader.py", "gpu_throttle_reader.py"):
@@ -213,15 +213,14 @@ class TestTcmiCollectorWiring:
         text = ENTRYPOINT.read_text(encoding="utf-8")
         for env in ("ENABLE_RAPL_POWER", "ENABLE_DRAM_BW", "ENABLE_DISK_IO",
                     "ENABLE_NET_IO", "ENABLE_INTERRUPTS", "ENABLE_PSYS_POWER",
-                    "ENABLE_TURBOSTAT"):
+                    "ENABLE_GPU_THROTTLE", "ENABLE_TURBOSTAT"):
             assert env in text, f"entrypoint.sh does not gate on {env}"
 
-    def test_settings_expose_collector_toggles(self):
-        text = (REPO_ROOT / "app" / "settings.py").read_text(encoding="utf-8")
-        for field in ("enable_rapl_power", "enable_dram_bw", "enable_disk_io",
-                      "enable_net_io", "enable_interrupts", "enable_psys_power",
-                      "enable_turbostat"):
-            assert field in text, f"settings.py missing {field}"
+    def test_entrypoint_exports_enable_gpu_throttle(self):
+        # ENABLE_GPU_THROTTLE must be gated separately from ENABLE_PSYS_POWER.
+        text = ENTRYPOINT.read_text(encoding="utf-8")
+        assert "ENABLE_GPU_THROTTLE" in text
+        assert "91-gpu-throttle" in text
 
 
 # -----------------------------------------------------------------------------

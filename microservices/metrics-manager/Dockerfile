@@ -225,13 +225,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 # - dmidecode: memory technology discovery (DDR4/DDR5/etc.)
 # - pciutils: lspci-based PCI/GPU branding discovery
 # - linux-perf: `perf stat` on the IMC free-running counters for DRAM bandwidth
-#   (scripts/dram_bw_reader.py). Model-independent — works on masked-model PTL
-#   silicon where the native intel_pmu named-event path fails. If unavailable
-#   for the base image's arch, the reader idles gracefully (no data, no crash).
+#   (scripts/dram_bw_reader.py). Opt-in via build arg INSTALL_PERF (default false)
+#   to avoid the ~40-90 MB size and CVE impact on deployments that don't use
+#   DRAM bandwidth collection. Set INSTALL_PERF=true when ENABLE_DRAM_BW=auto.
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
+ARG INSTALL_PERF=false
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends dmidecode pciutils linux-perf && \
+    apt-get install --yes --no-install-recommends dmidecode pciutils && \
+    if [ "$INSTALL_PERF" = "true" ]; then \
+        apt-get install --yes --no-install-recommends linux-perf; \
+    fi && \
     pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
     (dpkg -s perl-base >/dev/null 2>&1 && dpkg --purge --force-remove-essential perl-base || true) && \
     apt-get clean && \

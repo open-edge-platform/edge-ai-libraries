@@ -138,6 +138,22 @@ config:
   # Optional: stable host label for Telegraf, qmassa_reader and npu_reader.
   # Empty -> kernel hostname (default Telegraf behaviour).
   hostnameOverride: ""
+
+  # Hardware-telemetry collector toggles (gate telegraf.d/*.conf drop-ins).
+  # A restart is required for any change to take effect (no hot-reload).
+  # ENABLE_DISK_IO and ENABLE_NET_IO are cheap and universally useful; the rest
+  # default off because they add privileged access, high cardinality, or
+  # platform-specific dependencies.
+  enableRaplPower: "false"
+  enableDramBw: "auto"
+  enableDiskIo: "true"
+  enableNetIo: "true"
+  enableInterrupts: "false"
+  enablePsysPower: "false"
+  enableGpuThrottle: "false"
+  enableTurbostat: "false"
+  turbostatInterval: "5"
+
   # Free-form extra environment variables. Use this for any setting not
   # surfaced as a typed value above (e.g. RATE_LIMIT_*, TRUST_FORWARDED_*).
   # Each item must be a {name, value} pair.
