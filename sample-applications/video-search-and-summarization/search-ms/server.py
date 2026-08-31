@@ -18,7 +18,7 @@ from src.utils.directory_watcher import (
     get_last_updated,
     start_watcher,
 )
-from pydantic import BaseModel, Field, AliasChoices, ConfigDict
+from pydantic import BaseModel, Field, AliasChoices, ConfigDict, model_validator
 
 app = FastAPI()
 app.add_middleware(
@@ -50,12 +50,23 @@ class QueryRequest(BaseModel):
     query_id: str = Field(
         validation_alias=AliasChoices("query_id", "queryId")
     )
-    query: str
+    query: Optional[str] = None
+    image_base64: Optional[str] = None
     tags: Optional[list[str] | str] = None
     time_filter: Optional[TimeRange] = Field(
         default=None,
         validation_alias=AliasChoices("time_filter", "timeFilter"),
     )
+
+    @model_validator(mode="after")
+    def _require_text_or_image(self) -> "QueryRequest":
+        has_text = bool(self.query and self.query.strip())
+        has_image = bool(self.image_base64 and self.image_base64.strip())
+        if has_text == has_image:
+            raise ValueError(
+                "Provide exactly one of 'query' (text) or 'image_base64' (image)."
+            )
+        return self
 
 
 def _normalize_tags(tags: Optional[list[str] | str]) -> list[str]:
@@ -180,8 +191,12 @@ async def query_endpoint(request: list[QueryRequest]):
             query_start = time.perf_counter()
             query_tags = _normalize_tags(query_request.tags)
             query_tags_set = set(query_tags)
+            is_image_query = bool(
+                query_request.image_base64 and query_request.image_base64.strip()
+            )
+            query_desc = "<image>" if is_image_query else query_request.query
             logger.info(
-                f"Processing query: {query_request.query} (ID: {query_request.query_id})"
+                f"Processing query: {query_desc} (ID: {query_request.query_id})"
             )
             logger.debug(f"Query tags: {query_tags}")
 

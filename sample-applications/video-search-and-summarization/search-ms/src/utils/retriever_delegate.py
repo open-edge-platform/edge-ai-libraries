@@ -39,14 +39,30 @@ def _build_retriever_payload(
 ) -> list[dict]:
     """Build the vector-retriever ``/query`` request body for a single query.
 
+    Supports both text queries (``query``) and image queries (``image_base64``);
+    exactly one of the two is expected to be set on ``query_request``. Image
+    embedding is performed by the vector-retriever microservice itself, which
+    natively accepts a discriminated ``image`` input (``image_base64``/``image_url``).
+
     Tags are intentionally NOT pushed down; the caller keeps its own tag
     post-filtering to preserve exact "match any" subset semantics across backends.
     """
     item: dict[str, Any] = {
         "query_id": query_request.query_id,
-        "query": query_request.query,
         "top_k": initial_k,
     }
+
+    image_base64 = getattr(query_request, "image_base64", None)
+    if image_base64 and image_base64.strip():
+        # Accept either a raw base64 string or a full ``data:image/...;base64,``
+        # data URL; strip the prefix so any caller can be tolerant.
+        raw_image = image_base64.strip()
+        if "," in raw_image and raw_image.lower().startswith("data:"):
+            raw_image = raw_image.split(",", 1)[1]
+        item["image"] = {"type": "image_base64", "image_base64": raw_image}
+    else:
+        item["query"] = query_request.query
+
     if time_range is not None:
         start, end = time_range
         item["time_filter"] = {"start": start, "end": end}
