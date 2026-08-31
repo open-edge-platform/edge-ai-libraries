@@ -240,7 +240,7 @@ services:
     network_mode: host
     restart: unless-stopped
     init: true
-    user: "${UID:-1000}:${GID:-1000}"
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     environment:
       OUTPUT_FILE: /out/onvif_cameras.json
       DISCOVERY_INTERVAL: 20
