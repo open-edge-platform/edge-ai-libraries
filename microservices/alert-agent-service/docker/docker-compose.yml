@@ -25,6 +25,10 @@ services:
     volumes:
       - ovms-models:/models
     entrypoint: ["/bin/sh", "-c"]
+    devices:
+      - "/dev/dri:/dev/dri"
+    group_add:
+      - ${RENDER_DEVICE_GID:-992}
     command:
       - |
         model_name="$${LLM_MODEL##*/}"
@@ -36,7 +40,7 @@ services:
           --target_device "$${TARGET_DEVICE}" \
           --task text_generation
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/v1/config"]
+      test: ["CMD-SHELL", "model_name=$${LLM_MODEL##*/}; curl -f http://localhost:9000/v3/models/$${model_name}"]
       interval: 10s
       timeout: 5s
       retries: 5

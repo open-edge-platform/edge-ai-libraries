@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Optional, List
 
 from graph import Graph, OUTPUT_PLACEHOLDER, graph_is_metadata_only
+from device import is_variant_supported
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
@@ -457,6 +458,14 @@ class PipelineManager:
                     raise ValueError(
                         f"Variant name cannot be empty in pipeline '{pipeline_name}'"
                     )
+
+                if not is_variant_supported(variant_name):
+                    self.logger.info(
+                        "Skipping variant '%s' of pipeline '%s': not supported on this platform",
+                        variant_name,
+                        pipeline_name,
+                    )
+                    continue
 
                 variant_pipeline_desc = variant_config.get(
                     "pipeline_description", ""

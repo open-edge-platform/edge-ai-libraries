@@ -108,9 +108,13 @@ ENV PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/xpu" \
     TP=1 \
     GPU_MEM_UTIL=0.5 \
     MAX_MODEL_LEN=8192 \
+    DTYPE=float16 \
+    QUANTIZATION=fp8 \
+    DEBUG=False \
     LMCACHE_MP_HOST=tcp://localhost \
     LMCACHE_MP_PORT=6555 \
     LMCACHE_MP_HTTP_PORT=8090 \
+    LMCACHE_MP_L2_ENABLE=true \
     LMCACHE_MP_L1_SIZE_GB=5 \
     LMCACHE_MP_EVICTION_POLICY=LRU \
     LMCACHE_MP_EVICTION_TRIGGER_WATERMARK=0.7 \
@@ -122,9 +126,11 @@ ENV PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/xpu" \
     LMCACHE_MP_KVWEAVE_PRECOND=1 \
     LMCACHE_MP_KVWEAVE_SCALING_METHOD=per_channel \
     LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED=1 \
+    LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED=1 \
     LMCACHE_MP_KVWEAVE_CONV_SCALING_METHOD=per_token \
     LMCACHE_MP_KVWEAVE_CONV_RH=0 \
-    LMCACHE_MP_KVWEAVE_SSM_SCALING_METHOD=per_channel \
+    LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED=1 \
+    LMCACHE_MP_KVWEAVE_SSM_SCALING_METHOD=per_token \
     LMCACHE_MP_KVWEAVE_SSM_RH=1 \
     LMCACHE_MP_KVWEAVE_LINEAR_ASYM=0
 
@@ -204,15 +210,48 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+if block_size_output="$(python3 /opt/kvweave/kvweave/tests/calc_vllm_block_size.py \
+    "${MODEL:-Qwen3.5-9B}" \
+    --dtype "${DTYPE:-float16}" \
+    --tp-size "${TP:-1}" \
+    --block-size "${VLLM_INITIAL_BLOCK_SIZE:-64}" \
+    --ma-mode align \
+    --enable-prefix-caching)"; then
+    block_size="$(printf '%s\n' "${block_size_output}" \
+        | awk -F': ' '/^vLLM block size[[:space:]]*:/ {print $2}' \
+        | awk '{print $1}')"
+else
+    block_size=""
+fi
+if [[ ! "${block_size}" =~ ^[0-9]+$ ]] || (( block_size <= 0 )); then
+    echo "WARNING: failed to obtain vLLM block size; using default 1024" >&2
+    printf '%s\n' "${block_size_output:-}" >&2
+    block_size=1024
+fi
+echo "Using calculated vLLM block size: ${block_size} tokens"
+
+lmcache_args=(
+    --port "${LMCACHE_MP_PORT:-6555}"
+    --http-port "${LMCACHE_MP_HTTP_PORT:-8090}"
+    --l1-size-gb "${LMCACHE_MP_L1_SIZE_GB:-1}"
+    --eviction-policy "${LMCACHE_MP_EVICTION_POLICY:-LRU}"
+    --eviction-trigger-watermark "${LMCACHE_MP_EVICTION_TRIGGER_WATERMARK:-0.7}"
+    --eviction-ratio "${LMCACHE_MP_EVICTION_RATIO:-0.3}"
+    --chunk-size "${block_size}"
+)
+l2_enable="${LMCACHE_MP_L2_ENABLE:-true}"
+if [[ "${l2_enable,,}" == "true" ]]; then
+    lmcache_args+=(--l2-adapter '{"type": "fs", "base_path": "/lmcache_disk"}')
+fi
+
+vllm_env=()
+debug_enabled="${DEBUG:-False}"
+if [[ "${debug_enabled,,}" == "true" ]]; then
+    vllm_env+=(VLLM_SERVER_DEV_MODE=1)
+fi
+
 LMCACHE_LOG_LEVEL="${LMCACHE_LOG_LEVEL:-INFO}" \
-lmcache server \
-    --port "${LMCACHE_MP_PORT:-6555}" \
-    --http-port "${LMCACHE_MP_HTTP_PORT:-8090}" \
-    --l1-size-gb "${LMCACHE_MP_L1_SIZE_GB:-1}" \
-    --eviction-policy "${LMCACHE_MP_EVICTION_POLICY:-LRU}" \
-    --eviction-trigger-watermark "${LMCACHE_MP_EVICTION_TRIGGER_WATERMARK:-0.7}" \
-    --eviction-ratio "${LMCACHE_MP_EVICTION_RATIO:-0.3}" \
-    --chunk-size 1024 &
+lmcache server "${lmcache_args[@]}" &
 lmcache_pid=$!
 
 ready=0
@@ -230,6 +269,7 @@ if [[ "${ready}" != "1" ]]; then
 fi
 
 exec env \
+    "${vllm_env[@]}" \
     VLLM_OFFLOAD_WEIGHTS_BEFORE_QUANT="${VLLM_OFFLOAD_WEIGHTS_BEFORE_QUANT:-1}" \
     TORCH_LLM_ALLREDUCE="${TORCH_LLM_ALLREDUCE:-1}" \
     VLLM_USE_V1="${VLLM_USE_V1:-1}" \
@@ -238,18 +278,18 @@ exec env \
     LMCACHE_LOG_LEVEL="${LMCACHE_LOG_LEVEL:-INFO}" \
     python3 -m vllm.entrypoints.openai.api_server \
         --model "${MODEL:-Qwen3.5-9B}" \
-        --dtype=float16 \
+        --dtype "${DTYPE:-float16}" \
         --enforce-eager \
         --port 8000 \
-        --block-size 1024 \
+        --block-size "${block_size}" \
         --gpu-memory-util "${GPU_MEM_UTIL:-0.5}" \
         --trust-remote-code \
         --enable-prefix-caching \
         --mamba-cache-mode align \
-        --max_num_batched_tokens=1024 \
+        --max_num_batched_tokens="${block_size}" \
         --max_model_len "${MAX_MODEL_LEN:-8192}" \
         -tp="${TP:-1}" \
-        --quantization fp8 \
+        --quantization "${QUANTIZATION:-fp8}" \
         --served-model-name "${SERVE:-Qwen3.5-9B}" \
         --kv-transfer-config "{\"kv_connector\":\"LMCacheMPConnector\",\"kv_role\":\"kv_both\",\"kv_connector_extra_config\":{\"lmcache.mp.host\":\"${LMCACHE_MP_HOST:-tcp://localhost}\",\"lmcache.mp.port\":${LMCACHE_MP_PORT:-6555}}}"
 EOF

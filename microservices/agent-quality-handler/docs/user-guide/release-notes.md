@@ -2,7 +2,7 @@
 
 ## Version 2026.2.0
 
-**TBD**
+**Release Date:** September 9, 2026
 
 **New**
 
