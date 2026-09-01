@@ -285,7 +285,9 @@ RUN chmod +x /entrypoint.sh && \
 # Environment variables with defaults
 ENV METRICS_PORT=9090
 ENV TELEGRAF_PORT=9273
-ENV HARDWARE_TELEMETRY_ENABLED=false
+# Gates the qmassa GPU collector in supervisord. Set to false for deployments
+# that cannot grant /dev/dri access (the Helm chart does this explicitly).
+ENV HARDWARE_TELEMETRY_ENABLED=true
 ENV QMASSA_FIFO_PATH=/app/qmassa.fifo
 ENV QMASSA_LOG_TO_STDERR=false
 ENV NPU_READER_LOG_FILE=/app/npu_reader_trace.log
