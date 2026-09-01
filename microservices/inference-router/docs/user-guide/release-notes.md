@@ -2,7 +2,7 @@
 
 ## Version 2026.2.0
 
-**August, 2026**
+**Release Date:** September 9, 2026
 
 **New**
 
@@ -49,14 +49,14 @@
     reset via `/v1/plugins` (see the [API Reference](./api-reference.md#list-plugins)).
   - Policies: `/v1/policies` Create, Read, Update, Delete (CRUD).
   - Strategies: `/v1/strategies` CRUD.
-  - Configuration and routing: `GET /v1/config` and `GET/PUT /v1/routing`.
+  - Configuration and routing: `GET /v1/config` and `GET/POST /v1/routing`.
   - Changes persist to the on-disk configuration and take effect immediately.
 
 - Web UI Dashboard:
 
   - A Vue-based dashboard for managing providers and monitoring telemetry,
     including latency and token metrics. Supports light and dark themes, and English
-	and Chinese locales.
+    and Chinese locales.
   - Build and run with Docker Compose tool from `ui/docker`.
 
 - Intel® GPU Support:

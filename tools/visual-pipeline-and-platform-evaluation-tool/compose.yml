@@ -130,7 +130,7 @@ services:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
-    image: docker.io/intel/model-download:2026.2.0-rc1-ww34r1
+    image: docker.io/intel/model-download:2026.2.0-rc2
     container_name: model-download
     ports:
       - "8000:8000"
@@ -215,7 +215,7 @@ services:
       start_period: 15s
       start_interval: 1s
   mediamtx:
-    image: bluenviron/mediamtx:1.15.6
+    image: bluenviron/mediamtx:1.20.1
     container_name: mediamtx
     environment:
       - MTX_LOGLEVEL=info
@@ -240,7 +240,7 @@ services:
     network_mode: host
     restart: unless-stopped
     init: true
-    user: "${UID:-1000}:${GID:-1000}"
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     environment:
       OUTPUT_FILE: /out/onvif_cameras.json
       DISCOVERY_INTERVAL: 20

@@ -95,7 +95,7 @@ either run the install command with `--break-system-packages`, or create
 a Python virtual environment first.
 
 ```bash
-hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen2.5-2B-FP16
+hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen3.5-2B-FP16
 ```
 
 > **Note**: **`/opt` permissions:** the default `/opt/models` is typically root-owned.
@@ -127,6 +127,7 @@ commands below.
 With no `REGISTRY` set, build the images locally and deploy:
 
 ```bash
+export TAG="2026.2.0"
 bash scripts/deploy_docker.sh --build
 ```
 
@@ -140,7 +141,7 @@ Set a remote registry by exporting environment variables. The deploy then
 
 ```bash
 export REGISTRY="intel/"
-export TAG="latest"
+export TAG="2026.2.0"
 ```
 
 `REGISTRY` is a prefix — include the trailing `/` (e.g. `intel/` or
@@ -362,7 +363,7 @@ Notes:
 - **Dynamic control.** Because they are ordinary providers, you can enable,
   disable, update, or delete them at runtime through the `/v1/providers` API; the
   change takes effect immediately. Disabling or removing the provider makes its
-  endpoint return `503`.
+  endpoint return `404`.
 - The backing services are **not** part of the router. Deploy them separately.
 
 ## Optional: Compression Plugins

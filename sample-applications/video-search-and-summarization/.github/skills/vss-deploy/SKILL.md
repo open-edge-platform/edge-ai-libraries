@@ -48,8 +48,8 @@ source "$VSS_CREDENTIALS_FILE"
 Report the resolved `APP_ROOT`, whether it was reused without cloning, and the
 bootstrap's no-hit fallback (shallow `--depth 1`, single-branch, sparse checkout
 of only the VSS app from `main`). The canonical files are `vss.config` and the
-external `$VSS_CREDENTIALS_FILE`; do **not** substitute stale filenames such as
-`vss.config.env`, `vss.secrets.env`, or an in-checkout credentials file.
+external `$VSS_CREDENTIALS_FILE`; do **not** substitute variant filenames for
+either of them, and never write credential material into the checkout.
 
 Before any real deploy, config render, stop, or model-download path, run a
 bounded Docker host preflight such as `docker info >/dev/null 2>&1`. If it fails,
