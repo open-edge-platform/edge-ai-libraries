@@ -19,7 +19,7 @@ See [System Requirements](./get-started/system-requirements.md) for detailed har
 Instead of building from source, you can pull the pre-built Docker image from the registry:
 
 ```bash
-docker pull intel/metrics-manager:2026.1.0
+docker pull intel/metrics-manager:2026.2.0
 ```
 
 The image is based on `python:3.12-slim` and includes:
@@ -117,7 +117,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Then verify:
@@ -139,7 +139,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Verify GPU metrics:
@@ -159,7 +159,7 @@ docker run --rm --privileged \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Verify NPU metrics:
@@ -178,7 +178,7 @@ docker run --rm --privileged \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 ### With Custom Ports
@@ -192,7 +192,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Then access on the new ports:
@@ -215,7 +215,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 See [Environment Variables](./get-started/environment-variables.md) for all available variables.
@@ -234,7 +234,7 @@ docker run --rm \
   -v /run:/run:ro \
   -v ./my-scripts:/app/custom-metrics \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Drop your scripts in `./my-scripts/` (they must be executable: `chmod +x script.sh`).
@@ -251,7 +251,7 @@ docker run -d \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Stop it:

@@ -3,7 +3,7 @@
 
 [project]
 name = "metrics-manager"
-version = "2026.1.0"
+version = "2026.2.0"
 description = "Unified metrics collection, ingestion, and relay service with OpenTelemetry support"
 requires-python = ">=3.12"
 dependencies = [
