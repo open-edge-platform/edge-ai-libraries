@@ -48,36 +48,6 @@ or converting any supported model using the REST API.
 | Pipeline Zoo | `pipeline-zoo-models` | Downloads DL Streamer pipeline-zoo models | — |
 | HLS | `hls` | Downloads healthcare AI models (3d-pose, rppg, ai-ecg) | — |
 
-## Ollama Quick-Reference
-
-> **Always use these exact field names for Ollama requests — the API differs from what
-> generic model-download documentation implies.**
-
-```json
-{
-  "models": [
-    {
-      "hub": "ollama",
-      "name": "<model-family>",
-      "revision": "<tag>"
-    }
-  ]
-}
-```
-
-- **`hub`** must be `"ollama"` (not `model_hub`, not `type`)
-- **`name`** is the base model family: `"llama3.2"`, `"mistral"`, `"gemma2"` (no tag suffix)
-- **`revision`** is the tag: `"3b"`, `"7b"`, `"latest"` (separate field, not `model_name`)
-- **Port is always `8200`** (not 8080, not 8000)
-- **Plugin flag**: `source scripts/run_service.sh up --plugins ollama`
-
-Example — download llama3.2:3b:
-```bash
-curl -s -X POST "http://localhost:8200/api/v1/models/download?download_path=ollama-models" \
-  -H "Content-Type: application/json" \
-  -d '{"models": [{"hub": "ollama", "name": "llama3.2", "revision": "3b"}]}'
-```
-
 ## Common Mistakes to Avoid
 
 | Mistake | Correct |
@@ -91,14 +61,14 @@ curl -s -X POST "http://localhost:8200/api/v1/models/download?download_path=olla
 
 ---
 
-## Reference Lookup
+## Reference Files at a Glance
 
-Read a reference file only when you need the detail it contains:
+Detailed instructions are in [Step 1](#step-1--read-reference-files-mandatory) below — this is just a lookup table.
 
 | Reference | When to read |
 |-----------|-------------|
+| [plugins-guide.md](./references/plugins-guide.md) | **Always** — read the section for the user's hub before composing the API call |
 | [service-setup.md](./references/service-setup.md) | Starting the service, Docker Compose, plugin flags, env vars |
-| [plugins-guide.md](./references/plugins-guide.md) | Per-plugin request bodies, parameters, and curl examples |
 | [troubleshooting.md](./references/troubleshooting.md) | Auth errors, stuck jobs, plugin not activated, venv failures |
 
 ---
@@ -107,16 +77,15 @@ Read a reference file only when you need the detail it contains:
 
 ### Execution Overview
 
-After Step 0 (gather requirements), start the service setup in parallel with composing the API call.
-
 ```
 Step 0 (gather requirements — interactive)
+Step 1 (read reference files — MANDATORY)
   │
-  ├──► Step 1 (service setup — may require user action)
-  └──► Step 2 (compose API call body — reasoning)
+  ├──► Step 2 (service setup — may require user action)
+  └──► Step 3 (compose API call body)
          │
-         ├──► Step 3 (submit job + poll status)
-         └──► Step 4 (verify result + next steps)
+         ├──► Step 4 (submit job + poll status)
+         └──► Step 5 (verify result + next steps)
 ```
 
 ---
@@ -144,9 +113,26 @@ Extract the following from the user's prompt. If anything is missing, ask before
 
 ---
 
-### Step 1 — Service Setup
+### Step 1 — Read Reference Files (MANDATORY)
 
-Read [service-setup.md](./references/service-setup.md) for full details.
+**Do not skip this step.** Before composing any response, read the reference files relevant to the user's request:
+
+1. **Always read** [plugins-guide.md](./references/plugins-guide.md) — find the section for the user's hub and extract, **carrying every item below into your final answer, not just reading it internally**:
+   - Exact request body fields and which are required
+   - Authentication requirements (token required vs optional — state which applies)
+   - Serialization or ordering constraints (e.g. "downloads are serialized")
+   - Available model types or variants (state the other options that exist, not only the one requested)
+   - Output path format
+2. **Read** [service-setup.md](./references/service-setup.md) — for the startup command, plugin flags, and env vars
+3. **Read** [troubleshooting.md](./references/troubleshooting.md) — if the user reports an error or a job failure
+
+The plugins guide is the source of truth for every hub's API contract. Use its exact field names, constraints, and notes in your response — any "Note" or caveat documented under the user's hub section is part of the answer, not background reading.
+
+---
+
+### Step 2 — Service Setup
+
+Use the details from [service-setup.md](./references/service-setup.md) read in Step 1.
 
 Show the user the service startup command, using only the plugins their request requires:
 
@@ -183,9 +169,9 @@ curl http://localhost:8200/api/v1/health
 right `--plugins` list) and the port `8200`** — not just the request payload. Users copy
 answers piecemeal, so a payload without its startup command or port is easy to misapply.
 
-### Step 2 — Compose the API Request
+### Step 3 — Compose the API Request
 
-Read [plugins-guide.md](./references/plugins-guide.md) for the exact request body for each plugin.
+Use the facts you read from [plugins-guide.md](./references/plugins-guide.md) in Step 1.
 
 The general request shape for `POST /api/v1/models/download?download_path=<subdir>` is:
 
@@ -211,7 +197,7 @@ Key rules:
 
 ---
 
-### Step 3 — Submit Job and Poll Status
+### Step 4 — Submit Job and Poll Status
 
 ```bash
 # 1. Submit download job
@@ -236,7 +222,7 @@ If status is `failed`, read the `error` field and check [troubleshooting.md](./r
 
 ---
 
-### Step 4 — Verify and Next Steps
+### Step 5 — Verify and Next Steps
 
 ```bash
 # List all completed downloads
