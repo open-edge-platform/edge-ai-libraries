@@ -6,7 +6,7 @@ and the profile name should contain no space or special character except `_`.
 
 ### Develop a Profile
 
-A profile specifies the list of required components in a single shell function: `<OS_LIKE>_<order>_<name>`, where `<order>` specifies the installation order. Since profiles are virtual groups, they always use order `99` to install the latest. 
+A profile specifies the list of required components in a single shell function: `<OS_LIKE>_<order>_profile_<name>`, where `<order>` specifies the installation order. Since profiles are virtual groups, they always use order `99` to install the latest. 
 
 A profile can be as simple as follows:
 
@@ -28,4 +28,4 @@ debian_99_profile_metro_ai_suites () {
   esac
 }
 ```
-where the `_profile_` function arguments are as follows: `<subcommands> [global options] [list of components] -- [component specific options]`.  
+where the `_profile_` function arguments are as follows: `<subcommand> [global options] [list of components] -- [component specific options]`.  
