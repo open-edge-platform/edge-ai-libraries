@@ -11,7 +11,7 @@ A profile specifies the list of required components in a single shell function: 
 A profile can be as simple as follows:
 
 ```
-debian_99_metro_ai_suites () {
+debian_99_profile_metro_ai_suites () {
   echo "smart_parking smart_intersection loitering_detection"
 }
 ```
@@ -20,7 +20,7 @@ where each component is listed at the output.
 In the above sample, if we want to specify that the components can install/remove togeher but not start/stop together, we can make it conditioned on the installer subcommand:
 
 ```
-debian_99_metro_ai_suites () {
+debian_99_profile_metro_ai_suites () {
   case "$1" in
   install/remove)
     echo "smart_parking smart_intersection loitering_detection"
@@ -28,3 +28,4 @@ debian_99_metro_ai_suites () {
   esac
 }
 ```
+where the `_profile_` function arguments are as follows: `<subcommands> [global options] [list of components] -- [component specific options]`.  
