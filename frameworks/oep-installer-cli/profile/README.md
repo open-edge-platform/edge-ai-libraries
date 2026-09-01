@@ -22,7 +22,7 @@ In the above sample, if we want to specify that the components can install/remov
 ```
 debian_99_profile_metro_ai_suites () {
   case "$1" in
-  install/remove)
+  install|remove)
     echo "smart_parking smart_intersection loitering_detection"
     ;;
   esac
