@@ -3,72 +3,48 @@
 
 # Model Download MCP Server
 
-The Model Download microservice can be deployed as an **MCP (Model Context Protocol) server**, enabling LLM agents (Claude Desktop, GitHub Copilot, custom AI agents) to download, convert, and manage AI models through the standardised MCP interface.
+Every Model Download deployment exposes an **MCP (Model Context Protocol) server** at `/mcp` alongside the REST API. LLM agents (Claude Desktop, GitHub Copilot, and custom AI agents) can therefore download, convert, and manage AI models through MCP without deploying a second service.
 
 ## Quick Start
 
 ### Local (without Docker)
 
-#### Install the MCP dependency
+#### Install dependencies
 
 ```bash
-uv sync --extra mcp
+uv sync
 ```
 
-#### Run the server
+#### Run only the MCP server
 
 ```bash
 # stdio transport (default — for Claude Desktop, Copilot CLI, local agents)
-python -m src.mcp
+uv run python -m src.mcp
 
 # HTTP transport (for remote MCP clients)
-python -m src.mcp --transport http --port 8080
+uv run python -m src.mcp --transport http --port 8080
 
 # FastMCP CLI
-fastmcp run src/mcp/server.py:mcp --transport http --port 8080
+uv run fastmcp run src/mcp/server.py:mcp --transport http --port 8080
 ```
 
 ### Container Deployment
 
-The same Docker image supports both REST API and MCP modes. Pass `--mcp` to switch.
+The default container serves both interfaces on the same port:
+
+| Interface | Default URL |
+|---|---|
+| REST API | Existing REST endpoints on `http://localhost:8200` |
+| MCP server | `http://localhost:8200/mcp` |
 
 #### Using run_service.sh
 
 ```bash
-# REST API (default)
+# REST API and MCP server
 source scripts/run_service.sh --plugins huggingface,openvino
-
-# MCP server
-source scripts/run_service.sh --plugins huggingface,openvino --mcp
 ```
 
-#### Using Docker Compose directly
-
-```bash
-# REST API (default)
-docker compose -f docker/compose.yaml up -d
-
-# MCP server (uses the "mcp" profile)
-docker compose -f docker/compose.yaml --profile mcp up -d model_download_mcp
-```
-
-#### Using Docker run
-
-```bash
-docker run -e ENABLED_PLUGINS=all \
-  -v ~/models:/opt/models \
-  -p 8200:8000 \
-  model-download:latest \
-  --plugins all --mcp
-```
-
-#### Environment Variables for MCP mode
-
-| Variable | Description | Default |
-|---|---|---|
-| `MCP_TRANSPORT` | Transport protocol (`http` or `stdio`) | `http` |
-| `MCP_HOST` | Host to bind (container mode) | `0.0.0.0` |
-| `MCP_PORT` | Port for HTTP transport | `8000` |
+Connect remote MCP clients to `http://localhost:8200/mcp`.
 
 ## Available MCP Tools
 
@@ -103,13 +79,108 @@ Add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "model-download": {
-      "command": "python",
-      "args": ["-m", "src.mcp"],
-      "cwd": "/path/to/model-download"
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/absolute/path/to/model-download",
+        "python",
+        "-m",
+        "src.mcp"
+      ]
     }
   }
 }
 ```
+
+### GitHub Copilot
+
+Add to `~/.copilot/mcp-config.json`:
+
+```json
+{
+  "mcpServers": {
+    "model-download": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/absolute/path/to/model-download",
+        "python",
+        "-m",
+        "src.mcp"
+      ],
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+Use an absolute project path. MCP clients execute `command` directly, so shell
+operators such as `cd` and `|` must not be included in `args`. The standalone
+server writes application logs to stderr to keep stdout reserved for stdio
+JSON-RPC messages.
+
+## Verify the MCP Connection
+
+After adding or changing the configuration, restart the MCP client or reload
+its MCP servers. Then use the client's tool view or chat interface to perform
+these checks:
+
+1. Confirm that the `model-download` server is connected and exposes the nine
+  tools listed in [Available MCP Tools](#available-mcp-tools).
+2. Ask the client to call `health_check` from the `model-download` server.
+  A working server returns:
+
+  ```json
+  {"status": "ok"}
+  ```
+
+3. Ask the client to call `list_plugins`. Check that `available_count` is
+  greater than zero and that the required hub has `"available": true`.
+4. Optionally call `list_jobs`. A new installation normally returns an empty
+  list:
+
+  ```json
+  {"jobs": []}
+  ```
+
+For example, in GitHub Copilot chat, ask:
+
+```text
+Use the model-download MCP server to run health_check, then list the available plugins.
+```
+
+### End-to-End Download Check
+
+This check requires network access and an available `huggingface` plugin. It
+downloads a small test model into `MODELS_DIR`:
+
+1. Call `download_model` with:
+
+  ```json
+  {
+    "name": "hf-internal-testing/tiny-random-bert",
+    "hub": "huggingface",
+    "download_path": "mcp-smoke-test"
+  }
+  ```
+
+2. Copy a returned ID from `job_ids` and call `get_job_status` with:
+
+  ```json
+  {"job_id": "<returned-job-id>"}
+  ```
+
+3. Poll `get_job_status` until the status is `completed` or `failed`. On
+  success, call `get_model_results` and verify that the model path exists
+  under `MODELS_DIR/mcp-smoke-test`.
+
+If the server does not connect, run the configured `uv run --directory ...`
+command in a terminal to expose startup errors. If health succeeds but a model
+operation fails, use `list_plugins` to check plugin activation and availability,
+then inspect the error returned by `get_job_status`.
 
 ### Remote HTTP Client (Python)
 
@@ -117,7 +188,7 @@ Add to `claude_desktop_config.json`:
 import asyncio
 from fastmcp import Client
 
-client = Client("http://localhost:8080/mcp")
+client = Client("http://localhost:8200/mcp")
 
 async def main():
     async with client:
@@ -151,9 +222,9 @@ The MCP server uses the same environment variables as the REST API:
 
 Both modes share the same core logic (`ModelManager`, `PluginRegistry`). Choose based on your use case:
 
-| | REST API (FastAPI) | MCP Server |
+| | Default deployment | Standalone MCP |
 |---|---|---|
-| **Use when** | Building web apps, CI/CD pipelines | LLM agent integration |
-| **Transport** | HTTP REST | stdio or Streamable HTTP |
-| **Client** | Any HTTP client | MCP-compatible LLM client |
-| **Run command** | `uvicorn src.api.main:app` | `python -m src.mcp` |
+| **Use when** | Applications need REST and MCP | An MCP client needs only MCP |
+| **Transport** | REST and Streamable HTTP | stdio or Streamable HTTP |
+| **Client** | HTTP and MCP clients | MCP-compatible clients |
+| **Run command** | `uvicorn src.api.main:app` | `uv run python -m src.mcp` |

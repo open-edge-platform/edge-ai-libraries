@@ -1192,9 +1192,6 @@ huggingface = [
     { name = "torch" },
     { name = "torchvision" },
 ]
-mcp = [
-    { name = "fastmcp" },
-]
 ultralytics = [
     { name = "torch" },
     { name = "torchvision" },
@@ -1232,7 +1229,7 @@ requires-dist = [
     { name = "ultralytics", marker = "extra == 'ultralytics'", specifier = "==8.2.3" },
     { name = "uvicorn", specifier = "==0.38.0" },
 ]
-provides-extras = ["dev", "mcp", "cpu", "huggingface", "ultralytics", "openvino", "ollama", "geti", "hls", "pipeline-zoo-models", "remote-url", "omz"]
+provides-extras = ["dev", "cpu", "huggingface", "ultralytics", "openvino", "ollama", "geti", "hls", "pipeline-zoo-models", "remote-url", "omz"]
 
 [[package]]
 name = "more-itertools"

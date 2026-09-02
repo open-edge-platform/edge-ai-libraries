@@ -381,17 +381,6 @@ if ! uv sync --no-dev; then
 fi
 print_success "Base dependencies synced successfully"
 
-# Install MCP dependencies if MCP mode is enabled
-if [ "$MCP_MODE" = true ]; then
-    print_info "MCP mode enabled — installing fastmcp..."
-    if uv sync --extra mcp --no-dev; then
-        print_success "MCP dependencies installed"
-    else
-        print_error "Failed to install MCP dependencies"
-        exit 1
-    fi
-fi
-
 # Create a dedicated venv for each activated plugin
 print_header "Creating per-plugin virtual environments"
 echo "# Plugin venv paths — written by entrypoint.sh" > "${PLUGIN_VENVS_FILE}"
