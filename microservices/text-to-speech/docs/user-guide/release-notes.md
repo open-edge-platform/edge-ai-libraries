@@ -3,7 +3,7 @@
 This page tracks releases of the Text To Speech microservice. The most
 recent release is listed first; older entries are preserved for history.
 
-## v1.1.0
+## Version 2026.2.0
 
 **Release Date:** September 9, 2026
 
