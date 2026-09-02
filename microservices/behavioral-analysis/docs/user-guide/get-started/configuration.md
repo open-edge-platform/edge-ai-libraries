@@ -172,46 +172,8 @@ In Docker Compose, `ovms-vlm` is defined under the `vlm` profile and its `depend
 
 The project .env file controls Docker Compose substitution defaults.
 
-```bash
-# Release
-RELEASE_TAG=latest
+Please refer [environment file](../../../.env) for more details.
 
-# Deployment mode
-# Options: seaweedfs+mqtt, standalone+api
-DEPLOYMENT_MODE=standalone+api
-LOG_LEVEL=DEBUG
-
-# SeaweedFS (required only for seaweedfs+mqtt mode)
-SEAWEEDFS_ENDPOINT=http://seaweedfs:8333
-SEAWEEDFS_BUCKET=behavioral-frames
-
-# VLM
-# ovms-vlm is behind the "vlm" Compose profile; add --profile vlm (or set
-# COMPOSE_PROFILES=vlm below) whenever VLM_ENABLED=true, otherwise ovms-vlm
-# won't start and VLM confirmation will be skipped.
-#COMPOSE_PROFILES=vlm
-VLM_ENDPOINT=http://ovms-vlm:8001
-VLM_ENABLED=false
-
-# MQTT (required only for seaweedfs+mqtt mode)
-MQTT_HOST=broker.scenescape.intel.com
-MQTT_PORT=1883
-BA_REQUEST_TOPIC=ba/requests
-BA_RESULT_TOPIC=ba/results
-
-# Behavioral Analysis service
-BA_SERVICE_PORT=8085
-BA_MIN_FRAMES=3
-BA_MAX_FRAMES=30
-BA_POSE_FRAMES=20
-BA_CONFIDENCE=0.5
-BA_GST_DEVICE=CPU
-# For GPU, set BA_GST_DEVICE=GPU above and create a docker-compose.override.yml from
-# docker-compose.override.yml.gpu-example to map host devices (e.g. /dev/dri).
-# For NPU, set BA_GST_DEVICE=NPU above and create a docker-compose.override.yml from
-# docker-compose.override.yml.npu-example to map host devices (e.g. /dev/accel).
-DOWNLOADED_MODEL_PATH=./models
-```
 
 ## Pattern Configuration (config/patterns.yaml)
 
