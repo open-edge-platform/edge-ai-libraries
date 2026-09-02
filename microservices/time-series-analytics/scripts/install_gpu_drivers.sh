@@ -27,83 +27,82 @@ apt-get update && apt-get install -y libnuma1 ocl-icd-libopencl1 --no-install-re
 case $INSTALL_DRIVER_VERSION in \
 "24.26.30049") \
         mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
-        curl -L -O https://github.com/intel/compute-runtime/releases/download/24.26.30049.6/intel-level-zero-gpu_1.3.30049.6_amd64.deb ; \
-        curl -L -O https://github.com/intel/compute-runtime/releases/download/24.26.30049.6/intel-opencl-icd_24.26.30049.6_amd64.deb ; \
-        curl -L -O https://github.com/intel/compute-runtime/releases/download/24.26.30049.6/libigdgmm12_22.3.20_amd64.deb ; \
-        curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17193.4/intel-igc-core_1.0.17193.4_amd64.deb ; \
-        curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17193.4/intel-igc-opencl_1.0.17193.4_amd64.deb ; \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.26.30049.6/intel-level-zero-gpu_1.3.30049.6_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.26.30049.6/intel-opencl-icd_24.26.30049.6_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.26.30049.6/libigdgmm12_22.3.20_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc1.0.17193.4/intel-igc-core_1.0.17193.4_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc1.0.17193.4/intel-igc-opencl_1.0.17193.4_amd64.deb || exit 1 ; \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "24.39.31294") \
         mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
-        curl -L -O https://github.com/intel/compute-runtime/releases/download/24.39.31294.12/intel-level-zero-gpu_1.6.31294.12_amd64.deb ; \
-        curl -L -O https://github.com/intel/compute-runtime/releases/download/24.39.31294.12/intel-opencl-icd_24.39.31294.12_amd64.deb ; \
-        curl -L -O https://github.com/intel/compute-runtime/releases/download/24.39.31294.12/libigdgmm12_22.5.2_amd64.deb ; \
-        curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17791.9/intel-igc-core_1.0.17791.9_amd64.deb ; \
-        curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17791.9/intel-igc-opencl_1.0.17791.9_amd64.deb ; \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.39.31294.12/intel-level-zero-gpu_1.6.31294.12_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.39.31294.12/intel-opencl-icd_24.39.31294.12_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.39.31294.12/libigdgmm12_22.5.2_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc1.0.17791.9/intel-igc-core_1.0.17791.9_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc1.0.17791.9/intel-igc-opencl_1.0.17791.9_amd64.deb || exit 1 ; \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "24.52.32224") \
         mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
-        curl -L -O https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/intel-level-zero-gpu_1.6.32224.5_amd64.deb ; \
-        curl -L -O https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/intel-opencl-icd_24.52.32224.5_amd64.deb ; \
-        curl -L -O https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/libigdgmm12_22.5.5_amd64.deb ; \
-        curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.5.6/intel-igc-core-2_2.5.6+18417_amd64.deb ; \
-        curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.5.6/intel-igc-opencl-2_2.5.6+18417_amd64.deb ; \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/intel-level-zero-gpu_1.6.32224.5_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/intel-opencl-icd_24.52.32224.5_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/libigdgmm12_22.5.5_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.5.6/intel-igc-core-2_2.5.6+18417_amd64.deb || exit 1 ; \
+        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.5.6/intel-igc-opencl-2_2.5.6+18417_amd64.deb || exit 1 ; \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "25.31.34666") \
 	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.31.34666.3/libze-intel-gpu1_25.31.34666.3-0_amd64.deb; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.31.34666.3/intel-opencl-icd_25.31.34666.3-0_amd64.deb; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.31.34666.3/libigdgmm12_22.8.1_amd64.deb; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.31.34666.3/intel-ocloc_25.31.34666.3-0_amd64.deb; \
-	curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.16.0/intel-igc-core-2_2.16.0+19683_amd64.deb; \
-	curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.16.0/intel-igc-opencl-2_2.16.0+19683_amd64.deb; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.31.34666.3/libze-intel-gpu1_25.31.34666.3-0_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.31.34666.3/intel-opencl-icd_25.31.34666.3-0_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.31.34666.3/libigdgmm12_22.8.1_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.31.34666.3/intel-ocloc_25.31.34666.3-0_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.16.0/intel-igc-core-2_2.16.0+19683_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.16.0/intel-igc-opencl-2_2.16.0+19683_amd64.deb || exit 1; \
 	dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "25.35.35096") \
 	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/libze-intel-gpu1_25.35.35096.9-0_amd64.deb; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/intel-opencl-icd_25.35.35096.9-0_amd64.deb; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/libigdgmm12_22.8.1_amd64.deb; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/intel-ocloc_25.35.35096.9-0_amd64.deb; \
-	curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.18.5/intel-igc-core-2_2.18.5+19820_amd64.deb; \
-	curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.18.5/intel-igc-opencl-2_2.18.5+19820_amd64.deb; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/libze-intel-gpu1_25.35.35096.9-0_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/intel-opencl-icd_25.35.35096.9-0_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/libigdgmm12_22.8.1_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/intel-ocloc_25.35.35096.9-0_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.18.5/intel-igc-core-2_2.18.5+19820_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.18.5/intel-igc-opencl-2_2.18.5+19820_amd64.deb || exit 1; \
 	dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "25.48.36300") \
 	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.48.36300.8/libze-intel-gpu1_25.48.36300.8-0_amd64.deb; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.48.36300.8/intel-opencl-icd_25.48.36300.8-0_amd64.deb; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.48.36300.8/libigdgmm12_22.8.2_amd64.deb; \
-	curl -L -O https://github.com/intel/compute-runtime/releases/download/25.48.36300.8/intel-ocloc_25.48.36300.8-0_amd64.deb; \
-	curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.24.8/intel-igc-core-2_2.24.8+20344_amd64.deb; \
-	curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.24.8/intel-igc-opencl-2_2.24.8+20344_amd64.deb; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.48.36300.8/libze-intel-gpu1_25.48.36300.8-0_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.48.36300.8/intel-opencl-icd_25.48.36300.8-0_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.48.36300.8/libigdgmm12_22.8.2_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.48.36300.8/intel-ocloc_25.48.36300.8-0_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.24.8/intel-igc-core-2_2.24.8+20344_amd64.deb || exit 1; \
+	curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.24.8/intel-igc-opencl-2_2.24.8+20344_amd64.deb || exit 1; \
 	dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "26.14.37833") \
 	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps && \
-        curl --fail -L -O  https://github.com/intel/intel-graphics-compiler/releases/download/v2.32.7/intel-igc-core-2_2.32.7+21184_amd64.deb && \
-        curl --fail -L -O  https://github.com/intel/intel-graphics-compiler/releases/download/v2.32.7/intel-igc-opencl-2_2.32.7+21184_amd64.deb && \
-        curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/intel-ocloc_26.14.37833.4-0_amd64.deb && \
-        curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/intel-opencl-icd_26.14.37833.4-0_amd64.deb && \
-        curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/libigdgmm12_22.9.0_amd64.deb && \
-        curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/libze-intel-gpu1_26.14.37833.4-0_amd64.deb && \
+        curl --fail -L -O  https://github.com/intel/intel-graphics-compiler/releases/download/v2.32.7/intel-igc-core-2_2.32.7+21184_amd64.deb || exit 1 && \
+        curl --fail -L -O  https://github.com/intel/intel-graphics-compiler/releases/download/v2.32.7/intel-igc-opencl-2_2.32.7+21184_amd64.deb || exit 1 && \
+        curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/intel-ocloc_26.14.37833.4-0_amd64.deb || exit 1 && \
+        curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/intel-opencl-icd_26.14.37833.4-0_amd64.deb || exit 1 && \
+        curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/libigdgmm12_22.9.0_amd64.deb || exit 1 && \
+        curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/libze-intel-gpu1_26.14.37833.4-0_amd64.deb || exit 1 && \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "26.27.39122") \
 	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps && \
-        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.38.2/intel-igc-core-2_2.38.2+22051_amd64.deb  && \
-        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.38.2/intel-igc-opencl-2_2.38.2+22051_amd64.deb  && \
-        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/intel-ocloc-dbgsym_26.27.39122.11-0_amd64.ddeb && \
-        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/intel-ocloc_26.27.39122.11-0_amd64.deb  && \
-        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/intel-opencl-icd_26.27.39122.11-0_amd64.deb  && \
-        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/libigdgmm12_22.10.0_amd64.deb  && \
-        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/libze-intel-gpu1_26.27.39122.11-0_amd64.deb  && \
+        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.38.2/intel-igc-core-2_2.38.2+22051_amd64.deb || exit 1 && \
+        curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.38.2/intel-igc-opencl-2_2.38.2+22051_amd64.deb || exit 1 && \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/intel-ocloc_26.27.39122.11-0_amd64.deb || exit 1 && \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/intel-opencl-icd_26.27.39122.11-0_amd64.deb || exit 1 && \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/libigdgmm12_22.10.0_amd64.deb || exit 1 && \
+        curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/libze-intel-gpu1_26.27.39122.11-0_amd64.deb || exit 1 && \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
-*) \
+*) \ddeb 
         dpkg -P intel-gmmlib intel-igc-core intel-igc-opencl intel-level-zero-gpu intel-ocloc intel-opencl intel-opencl-icd && \
         apt-get update && apt-get -y --no-install-recommends install dpkg-dev && rm -rf /var/lib/apt/lists/* && \
         cd /drivers/${INSTALL_DRIVER_VERSION} && \
