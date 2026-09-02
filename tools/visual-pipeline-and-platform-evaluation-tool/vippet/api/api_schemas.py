@@ -445,6 +445,13 @@ class MessageResponse(BaseModel):
     )
 
 
+class UdfDeploymentResponse(BaseModel):
+    """Result of deploying a Time Series UDF package to TSAM."""
+
+    udf_name: str = Field(..., description="Validated UDF name from config.json.")
+    message: str = Field(..., description="Deployment result reported by TSAM.")
+
+
 class PipelineCreationResponse(BaseModel):
     """
     **Response body returned after a new pipeline is created.**

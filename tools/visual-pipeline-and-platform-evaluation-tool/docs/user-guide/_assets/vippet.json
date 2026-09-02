@@ -3292,6 +3292,77 @@
         }
       }
     },
+    "/timeseries/udfs/deploy": {
+      "post": {
+        "tags": [
+          "timeseries"
+        ],
+        "summary": "Deploy a Time Series UDF",
+        "description": "Deploy a local UDF tarball or retrieve a known package through model-download.\n\nThe archive is validated before it is sent to TSAM. Its ``config.json`` is\nthen applied only after TSAM accepts the package.",
+        "operationId": "deploy_timeseries_udf",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_deploy_timeseries_udf"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UdfDeploymentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid UDF package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "UDF package too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "TSAM or model-download unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/timeseries/data": {
       "get": {
         "tags": [
@@ -4909,6 +4980,40 @@
         ],
         "title": "BenchmarkWorkloadRun",
         "description": "Historical run record for one workload within a suite run."
+      },
+      "Body_deploy_timeseries_udf": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "upload"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "title": "Body_deploy_timeseries_udf"
       },
       "Body_upload_image_archive": {
         "properties": {
@@ -7241,6 +7346,27 @@
         ],
         "title": "USBCameraDetails",
         "description": "**USB camera details including the best capture configuration.**\n\nSelected by the scoring algorithm from available V4L2 formats.\n\n## Attributes\n- `device_path` - System device path (e.g., /dev/video0)\n- `best_capture` - Best capture configuration selected by scoring algorithm (optional)"
+      },
+      "UdfDeploymentResponse": {
+        "properties": {
+          "udf_name": {
+            "type": "string",
+            "title": "Udf Name",
+            "description": "Validated UDF name from config.json."
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Deployment result reported by TSAM."
+          }
+        },
+        "type": "object",
+        "required": [
+          "udf_name",
+          "message"
+        ],
+        "title": "UdfDeploymentResponse",
+        "description": "Result of deploying a Time Series UDF package to TSAM."
       },
       "V4L2BestCapture": {
         "properties": {

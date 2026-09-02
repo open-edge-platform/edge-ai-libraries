@@ -64,55 +64,27 @@ make clean-experimental
 
 ## Deploy the Wind Turbine anomaly detection UDF
 
-Once the services are running, follow the steps below to deploy the Wind Turbine anomaly detection UDF into the TSAM.
+Once the services are running, deploy the Wind Turbine anomaly detection UDF through ViPPET.
+This flow downloads the package through `model-download`, validates it, uploads it to
+TSAM, and applies the UDF name and model file found in the package. The device
+is selected by the active pipeline variant.
 
-The TSAM Swagger UI is available at **[http://localhost:5000/docs](http://localhost:5000/docs)**.
+1. Open ViPPET and select the **Wind Turbine Anomaly Detection** pipeline.
+2. Click **Deploy UDF** in the Pipeline Editor toolbar.
+3. Leave **Package source** set to **Model download**. ViPPET downloads the
+  `wind-turbine-anomaly-detection` package automatically.
+4. Click **Deploy**.
 
-### Step 1. Download the UDF package
+For a custom package, select **Local tar package** and choose the `.tar` archive instead.
+The archive must contain exactly one Python UDF file under `udfs/` and exactly one
+model file under `models/`. ViPPET derives the UDF name and model file from these
+entries. When an optional `config.json` is included, its UDF name and model file
+must match the archive entries or deployment fails with a validation error.
 
-Download the pre-built Wind Turbine UDF tar archive:
+After successful deployment, ViPPET applies the configuration automatically. You do
+not need to upload the archive or call `POST /config` through TSAM Swagger UI.
 
-```bash
-wget https://raw.githubusercontent.com/open-edge-platform/edge-ai-resources/main/timeseries-udf-deployment-packages/wind-turbine-anomaly-detection.tar
-```
-
-### Step 2. Upload the UDF package
-
-1. Open **[http://localhost:5000/docs](http://localhost:5000/docs)** in a browser.
-2. Navigate to **POST /udfs/package**.
-3. Click **Try it out**.
-4. Under **Choose File**, select the downloaded `wind-turbine-anomaly-detection.tar` file.
-  ![UDF Upload Diagram](../../_assets/udf_upload.png)
-5. Click **Execute**.
-
-A successful response returns the message: `UDF deployment package 'wind-turbine-anomaly-detection.tar' uploaded successfully.`
-
-### Step 3. Apply the configuration
-
-1. Open **[http://localhost:5000/docs](http://localhost:5000/docs)** in a browser.
-2. Navigate to **POST /config**.
-3. Click **Try it out**.
-4. In the **Request Body** field, paste the following configuration:
-
-```json
-{
-    "udfs": {
-        "name": "windturbine_anomaly_detector",
-        "models": "windturbine_anomaly_detector.pkl",
-        "device": "cpu"
-    }
-}
-```
-
-  ![UDF configuration Diagram](../../_assets/config_udf.png)
-
-1. Click **Execute**.
-
-A successful response returns the message: `Configuration updated successfully.`
-
----
-
-### Step 4. Verify Time Series logs
+### Verify Time Series logs
 
 Check that processing is running correctly:
 
@@ -139,11 +111,11 @@ INFO: 172.18.0.7:52786 - "POST /input HTTP/1.1" 200 OK
 
 ---
 
-## Step 5. Verify the pipeline in the ViPPET UI
+## Verify the pipeline in the ViPPET UI
 
 After TSAM services and UDF configuration are ready, verify the full flow in the UI.
 
-### 5.1 Confirm the new pipeline appears on Dashboard
+### Confirm the new pipeline appears on Dashboard
 
 Open ViPPET in the browser and go to **Dashboard**. In the **Pipelines** section,
 you should see the new **Wind Turbine Anomaly Detection** pipeline card.
@@ -153,7 +125,7 @@ you should see the new **Wind Turbine Anomaly Detection** pipeline card.
   <img src="../../_assets/ViPPET-UI-Time-Series-Pipeline-light.png" alt="Wind Turbine pipeline card on Dashboard">
 </picture>
 
-### 5.2 Open the Wind Turbine pipeline in Pipeline Editor
+### Open the Wind Turbine pipeline in Pipeline Editor
 
 Click the **Wind Turbine Anomaly Detection** card to open Pipeline Editor.
 You should see the flow:
@@ -167,7 +139,7 @@ You should see the flow:
   <img src="../../_assets/ViPPET-UI-Wind-Turbine-Pipeline-Editor-light.png" alt="Wind Turbine pipeline in Pipeline Editor">
 </picture>
 
-### 5.3 Run pipeline and inspect runtime data
+### Run pipeline and inspect runtime data
 
 Click **Run pipeline** in the top-right corner.
 
