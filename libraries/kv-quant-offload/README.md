@@ -20,6 +20,9 @@ memory pressure.
   optional standalone SYCL/DPC++ kernel for Intel XPUs.
 - Drop-in codec for LMCache's serde interface — stays
   transparent to vLLM's serving path.
+- Per-sub-state control over what gets quantized, so hybrid (Mamba /
+  linear-attention) models can keep selected states at full precision — see
+  [KV cache quantization](docs/configuration.md#kv-cache-quantization).
 
 
 ## Prerequisites
@@ -108,6 +111,12 @@ MODEL=model_name SERVE=model_name MODEL_PATH=/path/to/models bash integration/lm
 See [docs/configuration.md](docs/configuration.md#deployment-environment-variables-integrationlmcachevllmvllm-startsh)
 for the full list of environment variables `vllm-start.sh` accepts (model
 path, ports, LMCache sizing, `FORCE_BUILD`, and Docker build/run passthroughs).
+
+KV cache quantization is enabled by default. See
+[KV cache quantization](docs/configuration.md#kv-cache-quantization) for the
+switches that control it — the master switch plus per-sub-state overrides for
+hybrid (Mamba / linear-attention) models — and for how to store the KV cache
+uncompressed.
 
 Then test the running server, setting `TOKENIZER_PATH` to a model path your
 host can load with `AutoTokenizer` (e.g. the same `${MODEL_PATH}/${MODEL}`

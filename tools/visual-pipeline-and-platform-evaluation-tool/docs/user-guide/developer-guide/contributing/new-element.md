@@ -91,3 +91,4 @@ in the *Key Environment Variables* table of
 
 - [How to add a new pipeline](./new-pipeline.md)
 - [Backend contributing guide](./backend.md)
+- [Add an element that is not in the base image](https://github.com/staszczuk/edge-ai-libraries/blob/add-basler-support/tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/developer-guide/contributing/new-element.md#add-an-element-that-is-not-in-the-base-image)

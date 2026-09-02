@@ -7,7 +7,7 @@ LICENSE             @xwu2intel
 CONTRIBUTING.md     @xwu2intel
 CODE_OF_CONDUCT.md  @xwu2intel
 SECURITY.md         @xwu2intel
-README.md           @xwu2intel
+README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 # GitHub Workflows
 /.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo @yangjianfeng1208
@@ -15,7 +15,7 @@ README.md           @xwu2intel
 # ============================================================================
 # Libraries
 # ============================================================================
- 
+
 /libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
 /libraries/edge-control-libraries/**/*.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
 
@@ -106,7 +106,7 @@ README.md           @xwu2intel
 /sample-applications/chat-question-and-answer-core/           @bharagha @hteeyeoh @madhuri-rai07
 /sample-applications/chat-question-and-answer-core/docs/      @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
 /sample-applications/chat-question-and-answer-core/README.md  @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
-        
+
 /sample-applications/document-summarization/                 @bharagha @hteeyeoh @madhuri-rai07
 /sample-applications/document-summarization/docs/            @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
 /sample-applications/document-summarization/README.md        @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
