@@ -34,6 +34,8 @@
 **Fixed**:
 
 - Resolved a shared-memory pool deadlock: pool acquisition is now time-bounded and batch size is clamped to the pool capacity.
+- Fixed file-descriptor exhaustion (`[Errno 24] Too many open files`) in the shared-memory pool: each block held two open descriptors, so the frame and detected-crop pools together needed roughly 3000 and failed under a 1024-descriptor limit. Blocks now release their descriptor after allocation.
+- Fixed shared-memory segments leaking into `/dev/shm` when pool teardown hit an already-unlinked block; blocks are now unlinked independently.
 - Video processing is offloaded to a worker thread so long ingestions no longer block the event loop and stall `/health`.
 - Duplicate-upload policy is now enforced per item for batch-processed media (`POST /media/process/batch`), matching the single-media path.
 - Duplicate-upload conflicts no longer leave orphan tiles behind.
