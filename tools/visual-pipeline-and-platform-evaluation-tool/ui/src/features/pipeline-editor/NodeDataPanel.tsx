@@ -387,7 +387,7 @@ const NodeDataPanel = ({
 
             return (
               <div
-                key={keyStr}
+                key={`${selectedNode.id}:${keyStr}`}
                 className="border-l-2 border-brand-accent/20 pl-3"
               >
                 <label className="text-xs font-medium text-muted-foreground block mb-1">
@@ -415,12 +415,11 @@ const NodeDataPanel = ({
                     </SelectTrigger>
                     <SelectContent>
                       {models
-                        .filter((model) => {
-                          const expectedCategory = propConfig?.params?.filter;
-                          return expectedCategory
-                            ? model.category === expectedCategory
-                            : true;
-                        })
+                        .filter(
+                          (model) =>
+                            !propConfig?.params?.filter ||
+                            model.category === propConfig.params.filter,
+                        )
                         .flatMap((model) =>
                           (model.variants ?? [])
                             .filter(

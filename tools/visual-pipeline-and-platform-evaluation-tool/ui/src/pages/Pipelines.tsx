@@ -476,6 +476,7 @@ export const Pipelines = () => {
       "[data-resize-handle]",
       "[data-resize-handle-active]",
       '[role="separator"]',
+      ".react-flow__node",
     ],
     shouldIgnore: () => isResizingRef.current,
     onDismiss: () => {
