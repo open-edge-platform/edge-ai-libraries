@@ -12,7 +12,7 @@ the rule output by firing alerts and/or escalating to behavioral analysis.
 
 ```mermaid
 ---
-config: {"theme": "dark", "markdownAutoWrap": "false"}
+config: {"theme": "dark"}
 ---
 %%{init: {
   'theme': 'base',
@@ -34,11 +34,11 @@ config: {"theme": "dark", "markdownAutoWrap": "false"}
     'noteTextColor': '#3A3A3A'
   }
 }}%%
-flowchart TB
+flowchart LR
     Scene([Scenescape<br/>MQTT Broker])
     SceneAPI([Scenescape<br/>REST API])
 
-    subgraph Service["Scene Understanding Service (FastAPI, :8082)<br/>"]
+    subgraph Service["Scene Understanding Service (FastAPI, :8082)"]
 
         MQTT["MQTT Subscriber<br/>(scene/region/image topics)"]
         SM["Session Manager<br/>(per-person state machine)"]
