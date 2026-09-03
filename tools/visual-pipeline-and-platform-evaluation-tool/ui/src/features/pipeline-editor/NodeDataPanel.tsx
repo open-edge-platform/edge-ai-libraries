@@ -76,7 +76,6 @@ const getSelectItemValue = (option: SelectOption): string =>
 const isSelectOptionDisabled = (option: SelectOption): boolean =>
   Boolean(option.disabled) || !option.value;
 
-// Shared sizing for the compact controls rendered inside this panel.
 const FIELD_CONTROL_CLASS = "w-full bg-background text-xs md:text-xs";
 const FIELD_TRIGGER_CLASS = FIELD_CONTROL_CLASS;
 const FIELD_INPUT_CLASS = `h-8 ${FIELD_CONTROL_CLASS}`;

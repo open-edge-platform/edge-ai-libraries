@@ -470,7 +470,7 @@ export const Pipelines = () => {
   useDismissOnOutsidePointerDown({
     ref: detailsPanelRef,
     enabled: showDetailsPanel,
-    // Chrome around the details panel that must not dismiss it.
+    enabled: showDetailsPanel,
     ignoreSelectors: [
       "header",
       "[data-resize-handle]",
