@@ -104,12 +104,6 @@ function SelectItem({
   description,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Item> & {
-  /**
-   * Optional secondary line rendered below the item label. It is deliberately
-   * kept outside of `ItemText` so that it does not appear in the collapsed
-   * trigger (Radix mirrors only `ItemText` into `SelectValue`) and is ignored
-   * by typeahead matching.
-   */
   description?: React.ReactNode;
 }) {
   return (
