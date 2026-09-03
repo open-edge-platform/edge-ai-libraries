@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
+import {
+  MetricChart,
+  type MetricDataPoint,
+} from "@/features/metrics/MetricChart.tsx";
+import {
+  CHART_MAX_DATA_POINTS,
+  getRecentYAxisMax,
+} from "@/features/metrics/charts";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 import {
   useFrozenMetrics,
@@ -13,14 +21,33 @@ import {
   ChevronRight,
   ChevronsRight,
   ExternalLink,
+  MoreHorizontal,
 } from "lucide-react";
 import { highlightJson } from "@/lib/jsonUtils";
 import "@/lib/hljs-theme.css";
 
 const MAX_JSON_LINES_PER_PIPELINE = 400;
 const METADATA_POLL_INTERVAL = 3000;
+const PRIMARY_GENAI_METRIC_KEYS = [
+  "num_input_tokens",
+  "num_generated_tokens",
+  "ttft_mean",
+  "ttft_std",
+  "tpot_mean",
+  "tpot_std",
+  "generate_duration_mean",
+  "generate_duration_std",
+  "throughput_mean",
+  "throughput_std",
+] as const;
 
 type ConnectionState = "connecting" | "open" | "error" | "closed";
+
+interface GenAIMetricsPoint extends MetricDataPoint {
+  ttft: number;
+  tpot: number;
+  totalLatency: number;
+}
 
 type PerformanceJobStatusWithMetadata = {
   metadata_stream_urls?: Record<string, string[]> | null;
@@ -39,6 +66,113 @@ const shortenStreamUrl = (url: string): string => {
   return segments.length > 2 ? `…/${segments.slice(-2).join("/")}` : url;
 };
 
+const collapseGenAIMetrics = (
+  raw: string,
+): { record?: Record<string, unknown>; canExpand: boolean } => {
+  try {
+    const record = JSON.parse(raw) as Record<string, unknown>;
+    const metrics = record.metrics;
+    if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) {
+      return { canExpand: false };
+    }
+
+    const metricRecord = metrics as Record<string, unknown>;
+    const collapsedMetrics: Record<string, unknown> = {};
+
+    PRIMARY_GENAI_METRIC_KEYS.forEach((key) => {
+      if (key in metricRecord) {
+        collapsedMetrics[key] = metricRecord[key];
+      }
+    });
+
+    const hiddenCount = Object.keys(metricRecord).filter(
+      (key) => !(PRIMARY_GENAI_METRIC_KEYS as readonly string[]).includes(key),
+    ).length;
+
+    if (hiddenCount === 0) {
+      return { record, canExpand: false };
+    }
+
+    return {
+      record: { ...record, metrics: collapsedMetrics },
+      canExpand: true,
+    };
+  } catch {
+    return { canExpand: false };
+  }
+};
+
+const formatJsonValue = (value: unknown): string =>
+  JSON.stringify(value, null, 2).replace(/\n/g, "\n  ");
+
+const HighlightedJsonFragment = ({ children }: { children: string }) => (
+  <span dangerouslySetInnerHTML={{ __html: highlightJson(children) }} />
+);
+
+const InlineMetadataJsonViewer = ({
+  record,
+  showAllMetrics,
+  onToggleMetrics,
+}: {
+  record: Record<string, unknown>;
+  showAllMetrics: boolean;
+  onToggleMetrics: () => void;
+}) => {
+  const entries = Object.entries(record);
+
+  return (
+    <pre className="p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-transparent">
+      <code className="hljs">
+        <HighlightedJsonFragment>{"{\n"}</HighlightedJsonFragment>
+        {entries.map(([key, value], index) => {
+          const comma = index < entries.length - 1 ? "," : "";
+
+          if (key !== "metrics" || typeof value !== "object" || !value) {
+            return (
+              <HighlightedJsonFragment key={key}>
+                {`  ${JSON.stringify(key)}: ${formatJsonValue(value)}${comma}\n`}
+              </HighlightedJsonFragment>
+            );
+          }
+
+          const metrics = Object.entries(value as Record<string, unknown>);
+
+          return (
+            <span key={key}>
+              <HighlightedJsonFragment>{`  ${JSON.stringify(key)}: {\n`}</HighlightedJsonFragment>
+              {metrics.map(([metricKey, metricValue], metricIndex) => {
+                const metricComma = metricIndex < metrics.length - 1 ? "," : "";
+                return (
+                  <HighlightedJsonFragment key={metricKey}>
+                    {`    ${JSON.stringify(metricKey)}: ${formatJsonValue(metricValue)}${metricComma}\n`}
+                  </HighlightedJsonFragment>
+                );
+              })}
+              <span className="inline-flex pl-8">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={onToggleMetrics}
+                  className="h-4 w-5 rounded-sm p-0 text-muted-foreground hover:text-foreground"
+                  aria-label={
+                    showAllMetrics ? "Collapse metrics" : "Expand metrics"
+                  }
+                  title={showAllMetrics ? "Collapse metrics" : "Expand metrics"}
+                >
+                  <MoreHorizontal className="h-3 w-3" />
+                </Button>
+              </span>
+              <HighlightedJsonFragment>{"\n"}</HighlightedJsonFragment>
+              <HighlightedJsonFragment>{`  }${comma}\n`}</HighlightedJsonFragment>
+            </span>
+          );
+        })}
+        <HighlightedJsonFragment>{"}"}</HighlightedJsonFragment>
+      </code>
+    </pre>
+  );
+};
+
 const MetadataJsonViewer = ({
   lines,
   stale = false,
@@ -48,6 +182,7 @@ const MetadataJsonViewer = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(lines.length - 1);
   const [followLatest, setFollowLatest] = useState(true);
+  const [showAllMetrics, setShowAllMetrics] = useState(false);
 
   useEffect(() => {
     if (followLatest && lines.length > 0) {
@@ -78,10 +213,24 @@ const MetadataJsonViewer = ({
       ? Math.max(0, Math.min(currentIndex, lines.length - 1))
       : 0;
   const currentLine = lines[safeIndex] ?? "";
+  const collapsedLine = useMemo(
+    () => collapseGenAIMetrics(currentLine),
+    [currentLine],
+  );
+  const displayedRecord = showAllMetrics
+    ? (() => {
+        try {
+          return JSON.parse(currentLine) as Record<string, unknown>;
+        } catch {
+          return undefined;
+        }
+      })()
+    : collapsedLine.record;
   const highlightedHtml = useMemo(
     () => (currentLine ? highlightJson(currentLine) : ""),
     [currentLine],
   );
+  const canToggleMetrics = collapsedLine.canExpand;
 
   if (lines.length === 0) {
     return (
@@ -129,14 +278,149 @@ const MetadataJsonViewer = ({
           Follow
         </Button>
       </div>
-      <pre
-        className={`min-h-[100px] max-h-[40vh] overflow-auto border p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-zinc-100 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 ${stale ? "border-2 dark:border-energy-blue/40 dark:shadow-energy-blue/20 dark:ring-1 dark:ring-energy-blue/20 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20 shadow-lg" : ""}`}
+      <div
+        className={`min-h-[100px] border bg-zinc-100 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 ${showAllMetrics ? "overflow-visible" : "max-h-[40vh] overflow-auto"} ${stale ? "border-2 dark:border-energy-blue/40 dark:shadow-energy-blue/20 dark:ring-1 dark:ring-energy-blue/20 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20 shadow-lg" : ""}`}
       >
-        <code
-          className="hljs"
-          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-        />
-      </pre>
+        {canToggleMetrics && displayedRecord ? (
+          <InlineMetadataJsonViewer
+            record={displayedRecord}
+            showAllMetrics={showAllMetrics}
+            onToggleMetrics={() => setShowAllMetrics((expanded) => !expanded)}
+          />
+        ) : (
+          <pre className="p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-transparent">
+            <code
+              className="hljs"
+              dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+            />
+          </pre>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const getNumericField = (
+  source: Record<string, unknown>,
+  key: string,
+): number | null => {
+  const value = source[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+};
+
+const buildGenAIMetricsPoints = (lines: string[]): GenAIMetricsPoint[] => {
+  const points: GenAIMetricsPoint[] = [];
+
+  lines.forEach((line, index) => {
+    try {
+      const record = JSON.parse(line) as Record<string, unknown>;
+      const metrics = record.metrics;
+      if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) {
+        return;
+      }
+
+      const metricRecord = metrics as Record<string, unknown>;
+      const ttft = getNumericField(metricRecord, "ttft_mean");
+      const tpot = getNumericField(metricRecord, "tpot_mean");
+      const totalLatency = getNumericField(
+        metricRecord,
+        "generate_duration_mean",
+      );
+
+      if (ttft === null && tpot === null && totalLatency === null) {
+        return;
+      }
+
+      const timestampSeconds = getNumericField(record, "timestamp_seconds");
+      const timestampNs = getNumericField(record, "timestamp");
+      const timestamp =
+        timestampSeconds !== null
+          ? timestampSeconds * 1000
+          : timestampNs !== null
+            ? timestampNs / 1_000_000
+            : index * 1000;
+
+      points.push({
+        timestamp,
+        ttft: ttft ?? 0,
+        tpot: tpot ?? 0,
+        totalLatency: totalLatency ?? 0,
+      });
+    } catch {
+      return;
+    }
+  });
+
+  return points;
+};
+
+const getGenAIYAxisMax = (
+  data: GenAIMetricsPoint[],
+  key: keyof Pick<GenAIMetricsPoint, "ttft" | "tpot" | "totalLatency">,
+) =>
+  Math.ceil(
+    getRecentYAxisMax(
+      data.map((point) => point[key]),
+      CHART_MAX_DATA_POINTS,
+      100,
+    ) * 1.15,
+  );
+
+const GenAIMetricsCharts = ({
+  data,
+  isSummary = false,
+}: {
+  data: GenAIMetricsPoint[];
+  isSummary?: boolean;
+}) => {
+  if (data.length === 0) {
+    return (
+      <div className="min-h-[100px] flex items-center justify-center border bg-muted/20 p-3">
+        <p className="text-sm text-muted-foreground">
+          Waiting for VLM metrics...
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 min-w-0">
+      <MetricChart
+        title="VLM TTFT Over Time"
+        data={data}
+        dataKeys={["ttft"]}
+        colors={["var(--color-orange-chart)"]}
+        unit=" ms"
+        yAxisDomain={[0, getGenAIYAxisMax(data, "ttft")]}
+        showLegend={false}
+        labels={["TTFT"]}
+        maxDataPoints={CHART_MAX_DATA_POINTS}
+        isSummary={isSummary}
+      />
+      <MetricChart
+        title="VLM TPOT Over Time"
+        data={data}
+        dataKeys={["tpot"]}
+        colors={["var(--color-green-chart)"]}
+        unit=" ms"
+        yAxisDomain={[0, getGenAIYAxisMax(data, "tpot")]}
+        showLegend={false}
+        labels={["TPOT"]}
+        maxDataPoints={CHART_MAX_DATA_POINTS}
+        isSummary={isSummary}
+      />
+      <MetricChart
+        title="VLM Total Latency Over Time"
+        data={data}
+        dataKeys={["totalLatency"]}
+        colors={["var(--color-red-chart)"]}
+        unit=" ms"
+        yAxisDomain={[0, getGenAIYAxisMax(data, "totalLatency")]}
+        showLegend={false}
+        labels={["Generation"]}
+        maxDataPoints={CHART_MAX_DATA_POINTS}
+        isSummary={isSummary}
+      />
     </div>
   );
 };
@@ -386,9 +670,18 @@ const PerformanceTestPanel = ({
   const displayEntries = hasMetadataStreams
     ? metadataEntries
     : (frozenMetadata?.entries ?? []);
-  const displayLines = hasMetadataStreams
-    ? metadataLines
-    : (frozenMetadata?.lines ?? {});
+  const displayLines = useMemo(
+    () => (hasMetadataStreams ? metadataLines : (frozenMetadata?.lines ?? {})),
+    [frozenMetadata?.lines, hasMetadataStreams, metadataLines],
+  );
+
+  const genAIMetricsData = useMemo(
+    () =>
+      Object.values(displayLines)
+        .flatMap((lines) => buildGenAIMetricsPoints(lines))
+        .sort((a, b) => a.timestamp - b.timestamp),
+    [displayLines],
+  );
 
   const metadataTabValue = activeMetadataTab ?? displayEntries[0]?.[0] ?? "";
 
@@ -398,15 +691,32 @@ const PerformanceTestPanel = ({
   const hasOutputVideo =
     !livePreviewEnabled && !isRunning && !!completedVideoPath;
   const showMetadataSection = enableMetadata && showMetadataTab;
-  const visibleTabCount = (hasMediaTab ? 1 : 0) + (showMetadataSection ? 1 : 0);
+  const showGenAIMetricsTab = genAIMetricsData.length > 0;
+  const showSummaryStyles = !isRunning && frozenSummary !== null;
+  const visibleTabCount =
+    (hasMediaTab ? 1 : 0) +
+    (showMetadataSection ? 1 : 0) +
+    (showGenAIMetricsTab ? 1 : 0);
   const effectiveMainTab =
     activeMainTab === "media" && !hasMediaTab
-      ? "metadata"
+      ? showMetadataSection
+        ? "metadata"
+        : showGenAIMetricsTab
+          ? "genai-metrics"
+          : "metadata"
       : activeMainTab === "metadata" && !showMetadataSection
         ? hasMediaTab
           ? "media"
-          : "metadata"
-        : activeMainTab;
+          : showGenAIMetricsTab
+            ? "genai-metrics"
+            : "metadata"
+        : activeMainTab === "genai-metrics" && !showGenAIMetricsTab
+          ? hasMediaTab
+            ? "media"
+            : showMetadataSection
+              ? "metadata"
+              : "metadata"
+          : activeMainTab;
 
   return (
     <div className="flex flex-col w-full h-full bg-background p-4 space-y-4 overflow-y-auto overflow-x-hidden min-w-0">
@@ -424,6 +734,9 @@ const PerformanceTestPanel = ({
             )}
             {showMetadataSection && (
               <TabsTrigger value="metadata">Metadata JSON</TabsTrigger>
+            )}
+            {showGenAIMetricsTab && (
+              <TabsTrigger value="genai-metrics">VLM Metrics</TabsTrigger>
             )}
           </TabsList>
         )}
@@ -591,6 +904,15 @@ const PerformanceTestPanel = ({
                 })}
               </Tabs>
             )}
+          </TabsContent>
+        )}
+
+        {showGenAIMetricsTab && (
+          <TabsContent value="genai-metrics" className="space-y-4 mt-2">
+            <GenAIMetricsCharts
+              data={genAIMetricsData}
+              isSummary={showSummaryStyles}
+            />
           </TabsContent>
         )}
       </Tabs>
