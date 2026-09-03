@@ -11,6 +11,9 @@ machine, evaluates a declarative rule engine against each event, and acts on
 the rule output by firing alerts and/or escalating to behavioral analysis.
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 %%{init: {
   'theme': 'base',
   'themeVariables': {
@@ -31,7 +34,7 @@ the rule output by firing alerts and/or escalating to behavioral analysis.
     'noteTextColor': '#3A3A3A'
   }
 }}%%
-flowchart LR
+flowchart TB
     Scene([Scenescape<br/>MQTT Broker])
     SceneAPI([Scenescape<br/>REST API])
 
