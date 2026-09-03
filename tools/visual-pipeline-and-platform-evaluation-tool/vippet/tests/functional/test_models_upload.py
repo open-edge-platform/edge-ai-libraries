@@ -63,6 +63,7 @@ def test_uploaded_models_appear_in_models_list(
             f"{entry.get('category')!r}, expected "
             f"{expected_categories[source_name]!r}"
         )
+        assert entry.get("description") == f"Uploaded {source_name} model"
 
 
 @pytest.mark.full
