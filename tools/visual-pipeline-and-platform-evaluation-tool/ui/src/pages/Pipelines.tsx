@@ -470,7 +470,6 @@ export const Pipelines = () => {
   useDismissOnOutsidePointerDown({
     ref: detailsPanelRef,
     enabled: showDetailsPanel,
-    enabled: showDetailsPanel,
     ignoreSelectors: [
       "header",
       "[data-resize-handle]",
