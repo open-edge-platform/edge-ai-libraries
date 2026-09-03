@@ -12,6 +12,15 @@ import { gvaGenAIConfig } from "@/features/pipeline-editor/nodes/GVAGenAINode.co
 import { gvaMotionDetectConfig } from "@/features/pipeline-editor/nodes/GVAMotionDetectNode.config.ts";
 import { sourceNodeConfig } from "./nodes/custom/SourceNode.config.ts";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import DeviceSelect from "@/components/shared/DeviceSelect";
@@ -50,6 +59,27 @@ type SelectOption = {
   value: string;
   disabled?: boolean;
 };
+
+/**
+ * Radix Select forbids empty item values (an empty string is reserved for
+ * "no value selected"). The only options that can lack a value are camera
+ * sources: an unauthorized network camera has no `rtsp_url`, and a USB camera
+ * may be missing its `device_path`. Those entries are still listed - so the
+ * user can see the camera and why it is unusable - but they get a sentinel
+ * value and are always disabled, so the sentinel can never be committed.
+ */
+const UNAVAILABLE_OPTION_PREFIX = "__unavailable__:";
+
+const getSelectItemValue = (option: SelectOption): string =>
+  option.value || `${UNAVAILABLE_OPTION_PREFIX}${option.label}`;
+
+const isSelectOptionDisabled = (option: SelectOption): boolean =>
+  Boolean(option.disabled) || !option.value;
+
+// Shared sizing for the compact controls rendered inside this panel.
+const FIELD_CONTROL_CLASS = "w-full bg-background text-xs md:text-xs";
+const FIELD_TRIGGER_CLASS = FIELD_CONTROL_CLASS;
+const FIELD_INPUT_CLASS = `h-8 ${FIELD_CONTROL_CLASS}`;
 
 type NodeDataPanelProps = {
   selectedNode: Node | null;
@@ -374,87 +404,113 @@ const NodeDataPanel = ({
                 )}
 
                 {keyStr === "model" ? (
-                  <select
+                  <Select
                     value={String(value ?? "")}
-                    onChange={(e) => handleInputChange(keyStr, e.target.value)}
-                    className="w-full bg-background text-xs border border-input px-2 py-1"
+                    onValueChange={(val) => handleInputChange(keyStr, val)}
                   >
-                    <option value="">Select {propConfig?.label}</option>
-                    {models
-                      .filter((model) => {
-                        const expectedCategory = propConfig?.params?.filter;
-                        return expectedCategory
-                          ? model.category === expectedCategory
-                          : true;
-                      })
-                      .flatMap((model) =>
-                        (model.variants ?? [])
-                          .filter((variant) => variant.installed)
-                          .map((variant) => (
-                            <option
-                              key={variant.display_name}
-                              value={variant.display_name}
-                            >
-                              {variant.display_name}
-                            </option>
-                          )),
-                      )}
-                  </select>
+                    <SelectTrigger size="sm" className={FIELD_TRIGGER_CLASS}>
+                      <SelectValue
+                        placeholder={`Select ${propConfig?.label ?? keyStr}`}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {models
+                        .filter((model) => {
+                          const expectedCategory = propConfig?.params?.filter;
+                          return expectedCategory
+                            ? model.category === expectedCategory
+                            : true;
+                        })
+                        .flatMap((model) =>
+                          (model.variants ?? [])
+                            .filter(
+                              (variant) =>
+                                variant.installed && variant.display_name,
+                            )
+                            .map((variant) => (
+                              <SelectItem
+                                key={`${model.name}:${variant.name}`}
+                                value={variant.display_name}
+                                className="text-xs"
+                                description={model.description ?? undefined}
+                              >
+                                {variant.display_name}
+                              </SelectItem>
+                            )),
+                        )}
+                    </SelectContent>
+                  </Select>
                 ) : keyStr === "device" ? (
                   <DeviceSelect
                     value={String(value ?? "")}
                     onChange={(val) => handleInputChange(keyStr, val)}
-                    className="w-full bg-background text-xs border border-input px-2 py-1"
+                    className={FIELD_TRIGGER_CLASS}
                   />
                 ) : (selectedNode.type === "source" && keyStr === "source") ||
                   (selectedNode.type === "filesrc" && keyStr === "location") ? (
-                  <select
+                  <Select
                     value={sourceSelectValue}
-                    onChange={(e) => handleInputChange(keyStr, e.target.value)}
-                    className="w-full bg-background text-xs border border-input px-2 py-1"
+                    onValueChange={(val) => handleInputChange(keyStr, val)}
                   >
-                    {ensureCurrentSourceOption(
-                      selectedNode.type === "filesrc"
-                        ? videoOptions
-                        : getSourceOptionsForKind(editableData.kind),
-                      sourceSelectValue,
-                    ).map((option) => (
-                      <option
-                        key={(option.value || option.label) as string}
-                        value={option.value}
-                        disabled={Boolean(option.disabled)}
-                        className={
-                          option.disabled ? "text-muted-foreground" : ""
-                        }
-                      >
-                        {option.label}
-                        {option.disabled ? " (Not authorized)" : ""}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger size="sm" className={FIELD_TRIGGER_CLASS}>
+                      <SelectValue
+                        placeholder={`Select ${propConfig?.label ?? keyStr}`}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ensureCurrentSourceOption(
+                        selectedNode.type === "filesrc"
+                          ? videoOptions
+                          : getSourceOptionsForKind(editableData.kind),
+                        sourceSelectValue,
+                      ).map((option) => (
+                        <SelectItem
+                          key={getSelectItemValue(option)}
+                          value={getSelectItemValue(option)}
+                          disabled={isSelectOptionDisabled(option)}
+                          className="text-xs"
+                        >
+                          {option.label}
+                          {option.disabled ? " (Not authorized)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 ) : inputType === "select" && selectOptions ? (
-                  <select
+                  <Select
                     value={
                       keyStr === "kind"
                         ? normalizeKindValue(value)
                         : String(value ?? "")
                     }
-                    onChange={(e) => handleInputChange(keyStr, e.target.value)}
-                    className="w-full bg-background text-xs border border-input px-2 py-1"
+                    onValueChange={(val) => handleInputChange(keyStr, val)}
                   >
-                    {selectOptions.map((option) => {
-                      const optionValue = getOptionValue(option);
-                      const optionLabel = getOptionLabel(option);
-                      return (
-                        <option key={optionValue} value={optionValue}>
-                          {keyStr === "kind"
-                            ? optionLabel.charAt(0).toUpperCase() +
-                              optionLabel.slice(1)
-                            : optionLabel}
-                        </option>
-                      );
-                    })}
-                  </select>
+                    <SelectTrigger size="sm" className={FIELD_TRIGGER_CLASS}>
+                      <SelectValue
+                        placeholder={`Select ${propConfig?.label ?? keyStr}`}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectOptions
+                        .filter((option) => getOptionValue(option) !== "")
+                        .map((option) => {
+                          const optionValue = getOptionValue(option);
+                          const optionLabel = getOptionLabel(option);
+                          return (
+                            <SelectItem
+                              key={optionValue}
+                              value={optionValue}
+                              className="text-xs"
+                            >
+                              {keyStr === "kind"
+                                ? optionLabel.charAt(0).toUpperCase() +
+                                  optionLabel.slice(1)
+                                : optionLabel}
+                            </SelectItem>
+                          );
+                        })}
+                    </SelectContent>
+                  </Select>
                 ) : inputType === "boolean" ? (
                   <div className="flex items-center gap-2">
                     <Checkbox
@@ -466,7 +522,7 @@ const NodeDataPanel = ({
                     <span className="text-xs">{value ? "True" : "False"}</span>
                   </div>
                 ) : inputType === "number" ? (
-                  <input
+                  <Input
                     type="number"
                     value={String(value ?? "")}
                     onChange={(e) =>
@@ -475,11 +531,11 @@ const NodeDataPanel = ({
                         e.target.value ? Number(e.target.value) : "",
                       )
                     }
-                    className="w-full text-xs border border-input bg-background px-2 py-1"
+                    className={FIELD_INPUT_CLASS}
                     placeholder={`Enter ${propConfig?.label ?? keyStr}`}
                   />
                 ) : inputType === "textarea" ? (
-                  <textarea
+                  <Textarea
                     value={
                       typeof value === "object"
                         ? JSON.stringify(value, null, 2)
@@ -497,15 +553,15 @@ const NodeDataPanel = ({
                         handleInputChange(keyStr, e.target.value);
                       }
                     }}
-                    className="w-full text-xs border border-input bg-background px-2 py-1 font-mono resize-none"
+                    className={`${FIELD_CONTROL_CLASS} font-mono resize-none`}
                     rows={3}
                   />
                 ) : (
-                  <input
+                  <Input
                     type="text"
                     value={String(value ?? "")}
                     onChange={(e) => handleInputChange(keyStr, e.target.value)}
-                    className="w-full text-xs border border-input bg-background px-2 py-1"
+                    className={FIELD_INPUT_CLASS}
                     placeholder={`Enter ${propConfig?.label ?? keyStr}`}
                   />
                 )}

@@ -101,13 +101,23 @@ function SelectLabel({
 function SelectItem({
   className,
   children,
+  description,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) {
+}: React.ComponentProps<typeof SelectPrimitive.Item> & {
+  /**
+   * Optional secondary line rendered below the item label. It is deliberately
+   * kept outside of `ItemText` so that it does not appear in the collapsed
+   * trigger (Radix mirrors only `ItemText` into `SelectValue`) and is ignored
+   * by typeahead matching.
+   */
+  description?: React.ReactNode;
+}) {
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
         "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        description && "items-start",
         className,
       )}
       {...props}
@@ -120,7 +130,22 @@ function SelectItem({
           <CheckIcon className="size-4" />
         </SelectPrimitive.ItemIndicator>
       </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      {description ? (
+        <div
+          data-slot="select-item-body"
+          className="flex min-w-0 flex-col gap-0.5"
+        >
+          <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+          <span
+            data-slot="select-item-description"
+            className="text-muted-foreground text-xs leading-snug font-normal"
+          >
+            {description}
+          </span>
+        </div>
+      ) : (
+        <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      )}
     </SelectPrimitive.Item>
   );
 }
