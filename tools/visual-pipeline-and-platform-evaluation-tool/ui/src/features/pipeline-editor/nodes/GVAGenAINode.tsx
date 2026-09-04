@@ -20,7 +20,10 @@ const GVAGenAINode = ({ data }: GVAGenAINodeProps) => {
   const modelValue = data.model ?? "";
 
   return (
-    <div className="p-4 rounded shadow-md bg-background border border-l-4 border-l-teal-400 min-w-[280px]">
+    <div
+      className="p-4 rounded shadow-md bg-background border border-l-4 border-l-teal-400"
+      style={{ width: GVAGenAINodeWidth }}
+    >
       <div className="flex gap-3">
         <div className="shrink-0 w-10 h-10 rounded bg-teal-100 dark:bg-teal-900 flex items-center justify-center self-center">
           <svg
