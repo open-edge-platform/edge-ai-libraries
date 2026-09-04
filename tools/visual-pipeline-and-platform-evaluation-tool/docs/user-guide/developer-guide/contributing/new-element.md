@@ -62,7 +62,7 @@ configured on the `vippet` service in `compose.yml`:
 
 | Variable                         | Default                                                    | Meaning                                                                                                              |
 |----------------------------------|------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | `*src,urisourcebin,gva*,*sink,source`                      | Comma-separated wildcard patterns. An element is a candidate for the Simple view only if its type matches one entry. |
+| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | `*src,urisourcebin,gva*,*sink,source,videoscale`           | Comma-separated wildcard patterns. An element is a candidate for the Simple view only if its type matches one entry. |
 | `SIMPLE_VIEW_INVISIBLE_ELEMENTS` | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` | Comma-separated wildcard patterns. Matches are removed from the Simple view even if they also match the visible set. |
 
 Evaluation order is **VISIBLE first, then INVISIBLE exclusions**. Caps nodes
