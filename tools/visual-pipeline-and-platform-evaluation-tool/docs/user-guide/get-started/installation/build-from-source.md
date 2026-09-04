@@ -28,6 +28,10 @@ For GPU and/or NPU usage, appropriate drivers must be installed. The recommended
 script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
 [Install Guide Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
 
+> **Note:** The same steps apply to Ubuntu 24.04 running under WSL 2 on Windows - run all commands
+> inside the WSL distribution. On WSL, only the CPU and GPU (WSL) variants are supported. See
+> [System Requirements](./system-requirements.md#windows-subsystem-for-linux-wsl).
+
 This guide assumes basic familiarity with Git commands and terminal usage. For more information, see
 [Git Documentation](https://git-scm.com/doc).
 
