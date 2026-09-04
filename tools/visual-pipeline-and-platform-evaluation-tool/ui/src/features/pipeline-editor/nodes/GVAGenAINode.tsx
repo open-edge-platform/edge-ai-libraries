@@ -23,7 +23,7 @@ const GVAGenAINode = ({ data }: GVAGenAINodeProps) => {
     <PipelineNodeCard
       title={simpleGraph ? "Video Captioning VLM" : "GVAGenAI"}
       nodeType="gvagenai"
-      roleClasses={PIPELINE_NODE_ROLE_CLASSES.buffer}
+      roleClasses={PIPELINE_NODE_ROLE_CLASSES.aiTrack}
       minWidthClass="min-w-[22.9375rem]"
       details={
         <div className="flex items-center gap-1 flex-wrap text-xs text-node-body-text">
