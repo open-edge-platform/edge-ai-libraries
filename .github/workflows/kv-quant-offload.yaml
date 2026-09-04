@@ -2,8 +2,8 @@
 # SPDX-FileCopyrightText: (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-name: "[KVWEAVE] SDLe Scans - Scan Coverity"
-run-name: "[KVWEAVE] SDLe Scans - Scan Coverity"
+name: "[kv-quant-offload] SDLe Scans - Scan Coverity"
+run-name: "[kv-quant-offload] SDLe Scans - Scan Coverity"
 
 
 #Only run at most 1 workflow concurrently per PR, unlimited for branches
