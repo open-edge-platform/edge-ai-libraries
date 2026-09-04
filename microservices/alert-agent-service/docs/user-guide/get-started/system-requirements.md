@@ -28,9 +28,11 @@ The following network ports are used by default:
 
 | Port   | Service                       | Configurable via                 |
 | ------ | ----------------------------- | -------------------------------- |
-| `8000` | Alert Agent Service REST API  | `PORT` environment variable      |
-| `9001` | OVMS LLM server (host-mapped) | `LLM_PORT` environment variable  |
-| `1883` | MQTT broker (if used)         | `MQTT_PORT` environment variable |
+| `8000` | Alert Agent Service REST API  | `PORT` environment variable           |
+| `9001` | OVMS LLM server (host-mapped) | `LLM_PORT` environment variable       |
+| `1883` | MQTT broker (host-mapped)     | `MQTT_HOST_PORT` environment variable |
+
+Within the Compose network, OVMS listens on port `9000` and the bundled MQTT broker listens on port `1883`. `LLM_PORT` and `MQTT_HOST_PORT` only control how those ports are published on the host. `MQTT_PORT` specifies the destination port used by the Alert Agent Service when connecting to an MQTT broker.
 
 ## Proxy Settings
 
