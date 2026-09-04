@@ -3,7 +3,7 @@
 **Version: 1.0.0**
 
 The Alert Agent Service exposes a REST API at `http://<host>:<PORT>` (default port: `8000`).
-Interactive API documentation (Swagger UI) is available at `http://<host>:8000/docs`.
+Interactive API documentation (Swagger UI) is available at `http://<host>:<PORT>/docs`.
 
 ---
 
