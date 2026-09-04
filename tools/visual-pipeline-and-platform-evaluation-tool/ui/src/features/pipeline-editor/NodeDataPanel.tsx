@@ -57,24 +57,9 @@ type NodeConfig = {
 type SelectOption = {
   label: string;
   value: string;
+  id: string;
   disabled?: boolean;
 };
-
-/**
- * Radix Select forbids empty item values (an empty string is reserved for
- * "no value selected"). The only options that can lack a value are camera
- * sources: an unauthorized network camera has no `rtsp_url`, and a USB camera
- * may be missing its `device_path`. Those entries are still listed - so the
- * user can see the camera and why it is unusable - but they get a sentinel
- * value and are always disabled, so the sentinel can never be committed.
- */
-const UNAVAILABLE_OPTION_PREFIX = "__unavailable__:";
-
-const getSelectItemValue = (option: SelectOption): string =>
-  option.value || `${UNAVAILABLE_OPTION_PREFIX}${option.label}`;
-
-const isSelectOptionDisabled = (option: SelectOption): boolean =>
-  Boolean(option.disabled) || !option.value;
 
 const FIELD_CONTROL_CLASS = "w-full bg-background text-xs md:text-xs";
 const FIELD_TRIGGER_CLASS = FIELD_CONTROL_CLASS;
@@ -106,7 +91,7 @@ const NodeDataPanel = ({
     () =>
       cameras.map((camera) => {
         const details = camera.details as Record<string, unknown> | undefined;
-        let value;
+        let value: string;
         let disabled = false;
 
         if (camera.device_type === "USB") {
@@ -139,9 +124,12 @@ const NodeDataPanel = ({
           value = typeof rtspUrl === "string" ? rtspUrl : "";
         }
 
+        disabled ||= !value;
+
         return {
           label: camera.device_name,
           value,
+          id: camera.device_id,
           disabled,
         };
       }),
@@ -153,6 +141,7 @@ const NodeDataPanel = ({
       filterOutTransportStreams(videos).map((video) => ({
         label: video.filename,
         value: video.filename,
+        id: video.filename,
       })),
     [videos],
   );
@@ -162,6 +151,7 @@ const NodeDataPanel = ({
       imageSets.map((set) => ({
         label: set.name,
         value: set.name,
+        id: set.name,
       })),
     [imageSets],
   );
@@ -245,7 +235,10 @@ const NodeDataPanel = ({
       return options;
     }
 
-    return [{ label: currentSource, value: currentSource }, ...options];
+    return [
+      { label: currentSource, value: currentSource, id: currentSource },
+      ...options,
+    ];
   };
 
   const normalizeKindValue = (kind: unknown): string =>
@@ -256,6 +249,10 @@ const NodeDataPanel = ({
 
   const isImageSetKind = (kind: unknown): boolean =>
     normalizeKindValue(kind) === "image_set";
+
+  const hasAvailableCamera = cameraOptions.some(
+    (option) => !option.disabled && option.value,
+  );
 
   const getSourceOptionsForKind = (kind: unknown): SelectOption[] => {
     if (isCameraKind(kind)) {
@@ -446,34 +443,62 @@ const NodeDataPanel = ({
                   />
                 ) : (selectedNode.type === "source" && keyStr === "source") ||
                   (selectedNode.type === "filesrc" && keyStr === "location") ? (
-                  <Select
-                    value={sourceSelectValue}
-                    onValueChange={(val) => handleInputChange(keyStr, val)}
-                  >
-                    <SelectTrigger size="sm" className={FIELD_TRIGGER_CLASS}>
-                      <SelectValue
-                        placeholder={`Select ${propConfig?.label ?? keyStr}`}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ensureCurrentSourceOption(
-                        selectedNode.type === "filesrc"
-                          ? videoOptions
-                          : getSourceOptionsForKind(editableData.kind),
-                        sourceSelectValue,
-                      ).map((option) => (
-                        <SelectItem
-                          key={getSelectItemValue(option)}
-                          value={getSelectItemValue(option)}
-                          disabled={isSelectOptionDisabled(option)}
-                          className="text-xs"
+                  (() => {
+                    const sourceOptions = ensureCurrentSourceOption(
+                      selectedNode.type === "filesrc"
+                        ? videoOptions
+                        : getSourceOptionsForKind(editableData.kind),
+                      sourceSelectValue,
+                    );
+                    // The Select is controlled by the always-non-empty `id`,
+                    // not by `value` (which can be empty) - see the
+                    // `SelectOption.id` doc comment.
+                    const selectedId =
+                      sourceOptions.find(
+                        (option) => option.value === sourceSelectValue,
+                      )?.id ?? "";
+
+                    return (
+                      <Select
+                        value={selectedId}
+                        onValueChange={(id) => {
+                          const option = sourceOptions.find(
+                            (candidate) => candidate.id === id,
+                          );
+                          if (option) {
+                            handleInputChange(keyStr, option.value);
+                          }
+                        }}
+                        disabled={
+                          selectedNode.type === "source" &&
+                          isCameraKind(editableData.kind) &&
+                          !hasAvailableCamera
+                        }
+                      >
+                        <SelectTrigger
+                          size="sm"
+                          className={FIELD_TRIGGER_CLASS}
                         >
-                          {option.label}
-                          {option.disabled ? " (Not authorized)" : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                          <SelectValue
+                            placeholder={`Select ${propConfig?.label ?? keyStr}`}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sourceOptions.map((option) => (
+                            <SelectItem
+                              key={option.id}
+                              value={option.id}
+                              disabled={option.disabled}
+                              className="text-xs"
+                            >
+                              {option.label}
+                              {option.disabled ? " (Not authorized)" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  })()
                 ) : inputType === "select" && selectOptions ? (
                   <Select
                     value={
