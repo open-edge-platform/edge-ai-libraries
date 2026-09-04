@@ -20,7 +20,7 @@
 | Docker Engine  | 24.0 or later | [Install Docker](https://docs.docker.com/engine/install/) |
 | Docker Compose | v2 plugin     | Bundled with Docker Desktop; install separately on Linux  |
 | Python         | 3.12 or later | Required only for running tests locally                   |
-| `uv`           | Latest        | Required only for local development; `pip install uv`     |
+| `uv`           | 0.12.9        | Required only for local development; `pip install uv`     |
 
 ## Network Requirements
 
