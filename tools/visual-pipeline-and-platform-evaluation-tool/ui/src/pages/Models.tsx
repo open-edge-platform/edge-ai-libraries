@@ -146,6 +146,12 @@ export const Models = () => {
               type: "combobox" as const,
               options: [...ALLOWED_CATEGORIES],
             },
+            {
+              name: "description",
+              label: "Description",
+              placeholder: "Optional description of what the model does",
+              required: false,
+            },
           ]}
           className="mb-8"
         />

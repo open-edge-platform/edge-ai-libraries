@@ -202,6 +202,7 @@ class _InstalledModelRecord:
     source: InternalModelSource
     category: InternalModelCategory | None
     precisions: list[InternalModelPrecision] = field(default_factory=list)
+    description: str | None = None
 
 
 # ----------------------------------------------------------------------
@@ -365,6 +366,7 @@ class ModelManager:
                             else None
                         ),
                         precisions=precisions,
+                        description=entry.get("description"),
                     )
                 except Exception:
                     logger.warning(
@@ -397,6 +399,7 @@ class ModelManager:
                         {"precision": p.precision, "model_path": p.model_path}
                         for p in r.precisions
                     ],
+                    "description": r.description,
                 }
                 for r in self._registry.values()
             ]
@@ -594,6 +597,7 @@ class ModelManager:
                     default=bool(used_by),
                     unsupported_devices=head.unsupported_devices or None,
                     download_request=self._lookup_download_request(name),
+                    description=getattr(head, "description", None),
                 )
             )
 
@@ -617,6 +621,7 @@ class ModelManager:
                     default=False,
                     unsupported_devices=None,
                     download_request=None,
+                    description=record.description,
                 )
             )
 
@@ -1462,6 +1467,7 @@ class ModelManager:
             source=InternalModelSource.CUSTOM,
             category=spec.category,
             precisions=precisions,
+            description=spec.description,
         )
         self._upsert_registry_record(record)
 
@@ -1477,6 +1483,7 @@ class ModelManager:
             default=False,
             unsupported_devices=None,
             download_request=None,
+            description=record.description,
         )
         return model, 201, "Model uploaded successfully"
 

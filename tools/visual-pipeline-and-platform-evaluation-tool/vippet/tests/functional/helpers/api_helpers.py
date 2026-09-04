@@ -555,6 +555,7 @@ def upload_model_file(
     *,
     filename: str | None = None,
     content_type: str = "application/zip",
+    description: str | None = None,
 ) -> requests.Response:
     """POST a multipart upload to ``/models/upload``.
 
@@ -564,6 +565,8 @@ def upload_model_file(
     """
     files = {"file": (filename or f"{model_name}.zip", payload, content_type)}
     data = {"model_name": model_name, "category": category}
+    if description is not None:
+        data["description"] = description
     response = session.post(
         f"{BASE_URL}/models/upload", data=data, files=files, timeout=120
     )

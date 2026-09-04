@@ -37,6 +37,7 @@ class SupportedModel:
         hub: str | None = None,
         canonical_name: str | None = None,
         canonical_display_name: str | None = None,
+        description: str | None = None,
     ) -> None:
         """
         Initializes the SupportedModel instance.
@@ -55,6 +56,7 @@ class SupportedModel:
         """
         self.name: str = name
         self.display_name: str = display_name
+        self.description: str | None = description
         # Canonical (YAML-level) identifiers. For model-proc variants
         # ``name``/``display_name`` carry suffixes such as
         # ``_preproc-aspect-ratio`` / ``[model-proc: ...]`` while the
@@ -204,6 +206,12 @@ class SupportedModelsManager:
                     # Validate and extract top-level required fields
                     name = require_str_field(entry, "name", idx)
                     display_name = require_str_field(entry, "display_name", idx)
+                    description_raw = entry.get("description")
+                    description = (
+                        description_raw
+                        if isinstance(description_raw, str) and description_raw.strip()
+                        else None
+                    )
                     source = require_str_field(entry, "source", idx)
                     hub_raw = entry.get("hub")
                     hub = (
@@ -214,7 +222,6 @@ class SupportedModelsManager:
                     model_type = require_str_field(entry, "type", idx)
                     unsupported_devices = entry.get("unsupported_devices", None)
                     extra_model_procs = entry.get("extra_model_procs", None)
-
                     # Validate precisions list
                     precisions = entry.get("precisions")
                     if not isinstance(precisions, list) or len(precisions) == 0:
@@ -269,6 +276,7 @@ class SupportedModelsManager:
                                 hub=hub,
                                 canonical_name=name,
                                 canonical_display_name=display_name,
+                                description=description,
                             )
                         )
 
@@ -301,6 +309,7 @@ class SupportedModelsManager:
                                             hub=hub,
                                             canonical_name=name,
                                             canonical_display_name=display_name,
+                                            description=description,
                                         )
                                     )
 

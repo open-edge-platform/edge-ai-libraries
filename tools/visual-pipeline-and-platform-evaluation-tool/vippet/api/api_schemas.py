@@ -2282,6 +2282,13 @@ class Model(BaseModel):
 
     name: str = Field(..., description="Internal model identifier.")
     display_name: str = Field(..., description="Human-readable model name.")
+    description: Optional[str] = Field(
+        default=None,
+        description=(
+            "Human-readable explanation of what the model "
+            "detects or classifies, or null when not provided."
+        ),
+    )
     category: Optional[ModelCategory] = Field(
         default=None,
         description="Logical model category, or null when unknown.",
