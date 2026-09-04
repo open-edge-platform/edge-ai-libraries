@@ -39,7 +39,7 @@ class TestGStreamerWebRTCManager:
         gstreamer_webrtc_manager.add_stream("peer1", mock_frame, mock_destination, True)
         gstreamer_webrtc_manager._select_caps.assert_called_once_with(mock_frame.to_string())
         gstreamer_webrtc_manager._peerid_in_use.assert_called_once_with("peer1")
-        gstreamer_webrtc_manager._get_launch_string.assert_called_once_with("video/x-raw", "peer1",True)
+        gstreamer_webrtc_manager._get_launch_string.assert_called_once_with("video/x-raw", "peer1",True, None)
         mock_stream.assert_any_call("peer1", "video/x-raw", "launch_string", mock_destination, "http://10.10.10.10:8889")
         gstreamer_webrtc_manager._streams['peer1'].start.assert_called_once()
 
@@ -51,12 +51,22 @@ class TestGStreamerWebRTCManager:
     def test_get_launch_string(self, gstreamer_webrtc_manager):
         mock_caps = ['video/x-raw', 'width=1920', 'height=1080']
         result2 = gstreamer_webrtc_manager._get_launch_string(mock_caps, "peer1",True)
-        assert result2 == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="video/x-raw,width=1920,height=1080"  ! videoconvert ! gvawatermark  ! openh264enc complexity=low name=h264enc ! video/x-h264,profile=baseline  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
+        assert result2 == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="video/x-raw,width=1920,height=1080"  ! videoconvert ! video/x-raw,format=I420 ! gvawatermark  ! vp9enc name=vp9enc cpu-used=4 lag-in-frames=0  ! video/x-vp9  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
         result = gstreamer_webrtc_manager._get_launch_string(mock_caps, "peer1",False)
-        assert result == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="video/x-raw,width=1920,height=1080"  ! videoconvert  ! openh264enc complexity=low name=h264enc ! video/x-h264,profile=baseline  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
+        assert result == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="video/x-raw,width=1920,height=1080"  ! videoconvert ! video/x-raw,format=I420   ! vp9enc name=vp9enc cpu-used=4 lag-in-frames=0  ! video/x-vp9  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
         mock_caps = ['image/jpeg', 'width=1920', 'height=1080']
         result_jpeg = gstreamer_webrtc_manager._get_launch_string(mock_caps, "peer1",True)
-        assert result_jpeg == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="image/jpeg,width=1920,height=1080"  ! jpegdec ! videoconvert ! gvawatermark  ! openh264enc complexity=low name=h264enc  ! video/x-h264,profile=baseline  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
+        assert result_jpeg == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="image/jpeg,width=1920,height=1080"  ! jpegdec ! videoconvert ! video/x-raw,format=I420 ! gvawatermark  ! vp9enc name=vp9enc cpu-used=4 lag-in-frames=0  ! video/x-vp9  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
+
+    def test_build_gvawatermark_stage_with_properties(self, gstreamer_webrtc_manager):
+        result = gstreamer_webrtc_manager._build_gvawatermark_stage(True, {"show-time": True, "line-thickness": 2, "unused": None})
+        assert result == "! gvawatermark displ-cfg=show-time=true,line-thickness=2"
+
+    def test_select_webrtcvideo_pipeline_cpu_fallback(self, gstreamer_webrtc_manager):
+        result = gstreamer_webrtc_manager._select_webrtcvideo_pipeline_cpu(False)
+        assert result == gstreamer_webrtc_manager._WebRTCVideoPipeline
+        result_jpeg = gstreamer_webrtc_manager._select_webrtcvideo_pipeline_cpu(False, jpeg=True)
+        assert result_jpeg == gstreamer_webrtc_manager._WebRTCVideoPipeline_jpeg
     
     def test_remove_stream(self, gstreamer_webrtc_manager):
         mock_stream = MagicMock()
