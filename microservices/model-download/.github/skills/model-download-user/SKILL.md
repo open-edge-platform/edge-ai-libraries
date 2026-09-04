@@ -9,10 +9,16 @@ description: >
   conversion job via the REST API; or ask "how do I get model X working with
   OVMS?". Also trigger on phrases like "download model", "download weights",
   "convert to int4", "OVMS-ready model", "prepare model for inference".
-argument-hint: >
-  Describe the model you want (e.g. "download Llama-3.2-1B from HuggingFace
-  and convert to OpenVINO INT4 for CPU with OVMS")
+metadata:
+  argument-hint: >
+    Describe the model you want (e.g. "download Llama-3.2-1B from HuggingFace
+    and convert to OpenVINO INT4 for CPU with OVMS")
 ---
+
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
 
 # Model Download Agent
 
@@ -95,22 +101,6 @@ Read a reference file only when you need the detail it contains:
 | [plugins-guide.md](./references/plugins-guide.md) | Per-plugin request bodies, parameters, and curl examples |
 | [troubleshooting.md](./references/troubleshooting.md) | Auth errors, stuck jobs, plugin not activated, venv failures |
 
-## Example Prompts
-
-Read these only if the user's request matches:
-
-| File | Covers |
-|------|--------|
-| [examples-prompts/huggingface.md](./examples-prompts/huggingface.md) | Downloading public and gated HF models |
-| [examples-prompts/openvino-llm.md](./examples-prompts/openvino-llm.md) | LLM to OpenVINO conversion (INT4/INT8) |
-| [examples-prompts/openvino-vlm.md](./examples-prompts/openvino-vlm.md) | VLM to OpenVINO conversion |
-| [examples-prompts/openvino-embeddings.md](./examples-prompts/openvino-embeddings.md) | Embedding model to OpenVINO for OVMS |
-| [examples-prompts/ollama.md](./examples-prompts/ollama.md) | Pulling Ollama models |
-| [examples-prompts/ultralytics-quantized.md](./examples-prompts/ultralytics-quantized.md) | YOLO models with INT8 quantization |
-| [examples-prompts/geti.md](./examples-prompts/geti.md) | Downloading from Intel Geti |
-| [examples-prompts/hls-healthcare.md](./examples-prompts/hls-healthcare.md) | 3D Pose, rPPG, AI-ECG healthcare models |
-| [examples-prompts/pipeline-zoo.md](./examples-prompts/pipeline-zoo.md) | DL Streamer pipeline-zoo models |
-
 ---
 
 ## Procedure
@@ -162,13 +152,13 @@ Show the user the service startup command, using only the plugins their request 
 
 ```bash
 # Clone (if not already done)
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries/microservices/model-download
 
 # Set env vars
 export HUGGINGFACEHUB_API_TOKEN=<your-hf-token>   # mapped into the container as HF_TOKEN
 export REGISTRY="intel/"
-export TAG=2026.2.0-rc1
+export TAG=2026.2.0-rc2
 
 # Start service (adjust --plugins to match what you need)
 source scripts/run_service.sh up --plugins <comma-separated-list> --model-path $PWD/models
@@ -234,10 +224,10 @@ echo "$JOB_RESPONSE"
 # Response: {"job_ids": ["<uuid>"]}
 
 # 2. Extract job ID
-JOB_ID=$(echo "$JOB_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_ids'][0])")
+JOB_ID=$(echo "$JOB_RESPONSE" | jq -r '.job_ids[0]')
 
 # 3. Poll until completed or failed
-watch -n 5 "curl -s http://localhost:8200/api/v1/jobs/$JOB_ID | python3 -m json.tool"
+watch -n 5 "curl -s http://localhost:8200/api/v1/jobs/$JOB_ID | jq ."
 ```
 
 Job status values: `queued` → `downloading` / `converting` → `completed` / `failed`
@@ -250,10 +240,10 @@ If status is `failed`, read the `error` field and check [troubleshooting.md](./r
 
 ```bash
 # List all completed downloads
-curl -s http://localhost:8200/api/v1/models/results | python3 -m json.tool
+curl -s http://localhost:8200/api/v1/models/results | jq .
 
 # Check a specific model's jobs
-curl -s "http://localhost:8200/api/v1/models/jobs?model_name=<model-name>" | python3 -m json.tool
+curl -s "http://localhost:8200/api/v1/models/jobs?model_name=<model-name>" | jq .
 ```
 
 After confirming success, tell the user:
@@ -264,8 +254,8 @@ After confirming success, tell the user:
 **Important accuracy note for OpenVINO conversions:** Use `hub: "openvino"` with `is_ovms: true`
 for model conversion.
 
-**Quick alternative:** For one-shot, ephemeral container use (CI/CD, scripted workflows), use the `get_model.sh` one-liner 
+**Quick alternative:** For one-shot, ephemeral container use (CI/CD, scripted workflows), use the `get_model.sh` one-liner
 ```bash
-curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/model-download/scripts/get_model.sh
+curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.2.0/microservices/model-download/scripts/get_model.sh
 source ./get_model.sh --model-name <model> --hub <hub> --plugins <plugins>
 ```

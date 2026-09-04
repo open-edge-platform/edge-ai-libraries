@@ -254,7 +254,7 @@ class ConfigService:
         )
 
     def get_alert_topic_prefix(self) -> str:
-        return self.get_mqtt_config().get("alert_topic_prefix", "lp/alerts")
+        return self.get_mqtt_config().get("alert_topic_prefix", "sus/alerts")
 
     def get_ba_request_topic(self) -> str:
         return os.environ.get(

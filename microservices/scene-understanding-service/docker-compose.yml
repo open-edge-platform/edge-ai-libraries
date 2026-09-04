@@ -58,7 +58,7 @@ services:
       # Docker network as the Scenescape deployment, or the values must be
       # overridden via env / config. Use the existing network name or set
       # SCENESCAPE_NETWORK_NAME to the correct shared network.
-      - scenescape_scenescape
+      - scenescape
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/api/v1/sus/status', timeout=5).read()"]

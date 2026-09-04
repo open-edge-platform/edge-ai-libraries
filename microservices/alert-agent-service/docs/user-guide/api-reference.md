@@ -2,8 +2,8 @@
 
 **Version: 1.0.0**
 
-The Alert Agent Service exposes a REST API at `http://<host>:<PORT>` (default port: `9001`).
-Interactive API documentation (Swagger UI) is available at `http://<host>:9001/docs`.
+The Alert Agent Service exposes a REST API at `http://<host>:<PORT>` (default port: `8000`).
+Interactive API documentation (Swagger UI) is available at `http://<host>:8000/docs`.
 
 ---
 
@@ -77,7 +77,7 @@ Any JSON object. The following fields are recognised and mapped:
 ### Example Request
 
 ```bash
-curl -X POST http://localhost:9001/api/v1/alerts \
+curl -X POST http://localhost:8000/api/v1/alerts \
   -H "Content-Type: application/json" \
   -d '{
     "alert_type": "fire_detection",

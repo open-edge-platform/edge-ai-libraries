@@ -81,7 +81,7 @@ Before running the application, you need to set several environment variables:
 
    ```bash
    export REGISTRY_URL=intel
-   export TAG=2026.2.0-rc1
+   export TAG=2026.2.0-rc2
    ```
 
 2. **Set required credentials for some services**:
@@ -325,7 +325,7 @@ Before running the application, you need to set several environment variables:
     export ENABLE_VLLM_GPU=true
 
     # Set the VLM model for vLLM GPU inference
-    export VLM_MODEL_NAME="Qwen/Qwen3-VL-4B-Instruct"
+    export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"
     ```
 
     **Additional vLLM GPU/XPU configuration options:**
@@ -405,8 +405,8 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 | OVMS split-model GPU/CPU | OVMS-hosted VLM on GPU | OVMS-hosted LLM on CPU | `VLM_MODEL_NAME=Qwen/Qwen3-VL-4B-Instruct` + `VLM_TARGET_DEVICE=GPU` + `LLM_TARGET_DEVICE=CPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `Qwen/Qwen3-VL-4B-Instruct` (or dedicated `OVMS_LLM_MODEL_NAME`) | Use GPU for captioning while keeping final summary on CPU; also supports same-source split by device/weight. |
 | OVMS split-model CPU/GPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on GPU | `VLM_MODEL_NAME=Qwen/Qwen3-VL-4B-Instruct` + `LLM_TARGET_DEVICE=GPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `Qwen/Qwen3-VL-4B-Instruct` (or dedicated `OVMS_LLM_MODEL_NAME`) | Use GPU for final summary while keeping captioning on CPU; also supports same-source split by device/weight. |
 | OVMS split-model CPU/NPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on NPU | `LLM_TARGET_DEVICE=NPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>` for a dedicated LLM) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `OpenVINO/Qwen3-8B-int4-cw-ov` | Use NPU for the final-summary LLM while keeping captioning on CPU. |
-| vLLM-only CPU | vLLM-hosted VLM on CPU | Same vLLM-hosted VLM on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen3-VL-4B-Instruct` | All-vLLM mode for CPU-only deployments. |
-| 🧪 vLLM-only GPU/XPU (**EXPERIMENTAL**) | vLLM-hosted VLM on Intel Arc Pro B-series GPU | Same vLLM-hosted VLM on Intel Arc Pro B-series GPU | `ENABLE_VLLM_GPU=true` | VLM: `Qwen/Qwen3-VL-4B-Instruct` | **EXPERIMENTAL**: All-vLLM mode with Intel Arc Pro B-series GPU/XPU acceleration. Early-stage feature. |
+| vLLM-only CPU | vLLM-hosted VLM on CPU | Same vLLM-hosted VLM on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | All-vLLM mode for CPU-only deployments. |
+| 🧪 vLLM-only GPU/XPU (**EXPERIMENTAL**) | vLLM-hosted VLM on Intel Arc Pro B-series GPU | Same vLLM-hosted VLM on Intel Arc Pro B-series GPU | `ENABLE_VLLM_GPU=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | **EXPERIMENTAL**: All-vLLM mode with Intel Arc Pro B-series GPU/XPU acceleration. Early-stage feature. |
 
 > **Note:**
 >

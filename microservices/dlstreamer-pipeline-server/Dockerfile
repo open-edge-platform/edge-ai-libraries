@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=intel/dlstreamer:2026.1.0-ubuntu24
+ARG BASE_IMAGE=intel/dlstreamer:2026.2.0-ubuntu24-rc2
 FROM ${BASE_IMAGE} AS gstudfloader-builder
 
 USER root
@@ -36,7 +36,7 @@ RUN \
 
 RUN \
     python3 -m venv /python3venv && \
-    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip==26.1.2 && \
     /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==82.0.1 numpy==2.2.0 tqdm==4.67.1 opencv-python==4.11.0.86
 
 ENV VIRTUAL_ENV=/python3venv
@@ -166,7 +166,7 @@ RUN \
 
 RUN \
     python3 -m venv --system-site-packages /python3venv && \
-    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip==26.1.2
 
 ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV VIRTUAL_ENV=/python3venv
@@ -320,8 +320,8 @@ RUN apt update && \
     fi && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
-    
-RUN pip3 install --no-cache-dir --upgrade openvino==2026.0.0 openvino-telemetry==2025.2.0 cryptography==48.0.1
+
+RUN pip3 install --no-cache-dir --upgrade openvino==2026.0.0 openvino-telemetry==2025.2.0 cryptography==50.0.0
 
 RUN . /etc/os-release && \
     if [ "$VERSION_ID" = "22.04" ]; then \

@@ -65,7 +65,7 @@ nano user_values_override.yaml
 | --- | --- | --- |
 | `global.sharedPvcName` | Name of the shared PVC for all components | `vss-shared-pvc` |
 | `global.huggingfaceToken` | Hugging Face API token for model access | `hf_xxxxxxxxxxxxxxxxxxxx` |
-| `global.vlmName` | Vision Language Model used for video analysis | `Qwen/Qwen3-VL-4B-Instruct` |
+| `global.vlmName` | Vision Language Model used for video analysis | `Qwen/Qwen2.5-VL-3B-Instruct` |
 | `global.env.POSTGRES_USER` | PostgreSQL username | `vsadmin` |
 | `global.env.POSTGRES_PASSWORD` | PostgreSQL password | `<secure-password>` |
 | `global.env.MINIO_ROOT_USER` | MinIO username (min 3 chars) | `minioadmin` |

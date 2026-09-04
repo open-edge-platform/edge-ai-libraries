@@ -17,7 +17,7 @@ source, and configuring environment variables.
 
 ```bash
 # 1. Sparse checkout only the pipeline server component
-git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries
 git sparse-checkout set microservices/dlstreamer-pipeline-server
 cd microservices/dlstreamer-pipeline-server/docker

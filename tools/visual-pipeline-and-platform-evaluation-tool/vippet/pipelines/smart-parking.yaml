@@ -1,5 +1,5 @@
 # Reference: This is the official reference for Smart Parking pipeline
-# https://github.com/open-edge-platform/edge-ai-suites/tree/main/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking
+# https://github.com/open-edge-platform/edge-ai-suites/tree/release-2026.2.0/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking
 name: Smart Parking
 definition: >
   Smart Parking is a cloud-native, microservices-based video analytics pipeline that uses pre-trained deep learning models to detect parking-space occupancy.
@@ -16,6 +16,7 @@ variants:
         model=/models/output/public/yolo11s/INT8/yolo11s.xml
         pre-process-backend=opencv
         device=CPU
+        batch-size=2
         threshold=0.7
         inference-interval=3
         inference-region=full-frame
@@ -27,6 +28,7 @@ variants:
         model=/models/output/public/colorcls2/colorcls2.xml
         pre-process-backend=opencv
         device=CPU
+        batch-size=2
         inference-interval=3
         model-instance-id=inst1-cpu
         inference-region=roi-list !

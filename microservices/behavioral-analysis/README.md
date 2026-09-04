@@ -24,7 +24,7 @@ configure, and deploy the microservice.
 
 - Overview
 
-  - [Overview](./docs/user-guide/index.md#1-overview): A high-level introduction to the
+  - [Overview](./docs/user-guide/index.md): A high-level introduction to the
     microservice and its capabilities.
   - [How It Works](./docs/user-guide/how-it-works.md): Internal event flow and the main
     components of the service.
@@ -67,7 +67,7 @@ configure, and deploy the microservice.
 - Do not use this page as the run guide; use the linked docs above.
 - The service is an event consumer/producer; it requires a reachable SceneScape
   deployment (MQTT broker + Seaweedfs) to produce meaningful output.
-  
+
 ## License
 
 Copyright (C) 2026 Intel Corporation. SPDX-License-Identifier: Apache-2.0

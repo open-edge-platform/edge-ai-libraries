@@ -26,3 +26,6 @@ docs/implementation-history
 # .github is tracked: it holds the agent scaffolding (copilot-instructions.md, skills/)
 docker/ingest-data/
 ingest-data
+
+# Security scan reports (generated locally, never committed or shipped in images)
+reports/

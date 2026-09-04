@@ -12,7 +12,7 @@ The Compose deployment builds the standalone agent service from `docker/Dockerfi
 ## Clone and Build
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries/microservices/agent-quality-handler
 
 docker compose -f docker/compose.yaml build aqh-agent

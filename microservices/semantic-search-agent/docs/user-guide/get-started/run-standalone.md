@@ -1,10 +1,10 @@
-# Run On the Host
+# Run on the Host
 
-Use this path when you want to run the Semantic Search Agent directly on the host machine using Python.
+Use this path when you want to run the Semantic Search Agent directly on the host machine using the Python interpreter.
 
 ## Prerequisites
 
-### Python Setup
+### Python Environment Setup
 
 From the `semantic-search-agent/` directory, create a virtual environment and install the required dependencies:
 
@@ -12,10 +12,10 @@ From the `semantic-search-agent/` directory, create a virtual environment and in
 # Create venv
 python -m venv venv
 
-# Activate venv (Linux/macOS)
+# Activate venv (Linux OS or macOS OS)
 source venv/bin/activate
 
-# On Windows (PowerShell):
+# On Windows OS (PowerShell):
 # venv\Scripts\Activate.ps1
 
 # Upgrade pip and install requirements
@@ -23,7 +23,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Config Setup
+### Configuration Setup
 
 - Create a local `.env` file:
   ```bash
@@ -33,11 +33,11 @@ pip install -r requirements.txt
 - Review `config/inventory.json` and `config/orders.json` and update them as needed. The service reads these at startup and caches them in memory.
 - If running standalone with `CACHE_BACKEND=redis`, you will need a running Redis instance on the configured host and port (default: `localhost:6379`).
 
-## Running the Service
+## Run the Service
 
 ### Start
 
-Activate your virtual environment and run the FastAPI app using `uvicorn`:
+Activate your virtual environment and run the FastAPI application using the `uvicorn` server:
 
 ```bash
 source venv/bin/activate
@@ -62,7 +62,7 @@ make run
 
 ### Verify
 
-With the service running, hit the health endpoint:
+With the service running, verify its status by sending a request to the health endpoint:
 
 ```bash
 curl http://localhost:8080/api/v1/health
@@ -82,7 +82,7 @@ Expected response:
 
 ## API Documentation
 
-The service exposes interactive Swagger UI documentation while running:
+The service exposes the interactive Swagger UI documentation while running:
 
 ```
 http://localhost:8080/docs

@@ -25,6 +25,7 @@ from src.api.v1._rsd_runtime import (
 from src.exceptions import ConfigurationError
 from src.rsd.policy import build_decision_policy
 from src.rsd.strategy import load_strategy_definitions, resolve_strategy_file
+from src.router.logging_utils import sanitize_for_log
 
 
 logger = logging.getLogger(__name__)
@@ -139,7 +140,7 @@ async def create_or_update_policy(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Failed to create/update policy {name}: {exc}")
+        logger.error(f"Failed to create/update policy {sanitize_for_log(name)}: {exc}")
         raise HTTPException(status_code=500, detail="Failed to configure policy")
 
 
@@ -177,5 +178,5 @@ async def delete_policy(name: str, http_request: Request) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Failed to delete policy {name}: {exc}")
+        logger.error(f"Failed to delete policy {sanitize_for_log(name)}: {exc}")
         raise HTTPException(status_code=500, detail="Failed to delete policy")

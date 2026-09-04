@@ -77,10 +77,10 @@ class OllamaPlugin(ModelDownloadPlugin):
                 active_procs = kwargs.get("_active_processes")
                 if active_procs is not None:
                     active_procs.append(pull_process)
-                pull_process.wait()
+                stdout, stderr = pull_process.communicate()
                 rc = pull_process.returncode
                 if rc != 0:
-                    stderr_output = pull_process.stderr.read().decode() if pull_process.stderr else ""
+                    stderr_output = stderr.decode(errors="replace") if stderr else ""
                     raise RuntimeError(
                         f"ollama pull exited with code {rc}: {stderr_output}"
                     )

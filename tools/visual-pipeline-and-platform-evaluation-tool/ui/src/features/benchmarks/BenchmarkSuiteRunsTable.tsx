@@ -63,6 +63,7 @@ export const BenchmarkSuiteRunsTable = ({
       const filename = formatBenchmarkExportFilename(
         run.suite_slug,
         run.start_time,
+        run.id,
         "csv",
       );
       const response: ExportBenchmarkSuiteRunCsvDownload =
@@ -143,7 +144,7 @@ export const BenchmarkSuiteRunsTable = ({
                 </TableCell>
                 <TableCell>{renderBenchmarkStatus(run.status)}</TableCell>
                 <TableCell className="text-center">
-                  {run.status === "passed" ? (
+                  {run.status === "completed" ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button

@@ -304,7 +304,7 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
           open={showAudioModal}
           modalHeading={t('chunkAudioTranscriptHeading', {
             chunkId: uiChunkData?.chunkId,
-            defaultValue: `Audio Transcript — Chunk ${uiChunkData?.chunkId}`,
+            defaultValue: `Audio Transcript - Chunk ${uiChunkData?.chunkId}`,
           })}
           passiveModal
         >

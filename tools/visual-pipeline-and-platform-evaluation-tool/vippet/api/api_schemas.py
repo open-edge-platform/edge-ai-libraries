@@ -91,7 +91,7 @@ class BenchmarkTestCaseRunStatus(str, Enum):
 
     CREATED = "created"
     RUNNING = "running"
-    PASSED = "passed"
+    COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
     SKIPPED = "skipped"

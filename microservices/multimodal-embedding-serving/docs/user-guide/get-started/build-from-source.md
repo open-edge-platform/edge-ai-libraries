@@ -39,7 +39,7 @@ If variables are not set, in that case, the `TAG` will have default value as _la
 
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
-cd edge-ai-libraries/microservices/multimodal-embedding-service
+cd edge-ai-libraries/microservices/multimodal-embedding-serving
 ```
 
 2. **Set up environment values**:

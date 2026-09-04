@@ -15,8 +15,7 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 
-RUN pip install --upgrade pip && \
-    pip install poetry==2.3.3 && \
+RUN pip install poetry==2.3.3 && \
     poetry config virtualenvs.create false && \
         case "${RETRIEVER_BACKEND}" in \
             vdms|faiss|pgvector|milvus) ;; \

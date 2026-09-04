@@ -43,7 +43,7 @@ If variables are not set, `TAG` defaults to `latest`.
 - Clone the repository:
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
 cd edge-ai-libraries/microservices/vector-retriever/vector-retriever
 ```
 

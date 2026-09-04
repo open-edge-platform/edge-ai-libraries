@@ -17,12 +17,12 @@ variables, and enabling the right plugins for your use case.
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries/microservices/model-download
 
 # 2. Set environment variables
 export REGISTRY="intel/"
-export TAG=2026.2.0-rc1
+export TAG=2026.2.0-rc2
 export HUGGINGFACEHUB_API_TOKEN=<your-hf-token>   # optional, mapped into the container as HF_TOKEN
 
 # 3. Start the service

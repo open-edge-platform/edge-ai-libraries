@@ -1,4 +1,3 @@
-import type { ModelInstallStatus } from "@/api/api.generated.ts";
 import { Button } from "@/components/ui/button.tsx";
 import {
   Dialog,
@@ -11,6 +10,7 @@ import {
 import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
 import { ModelInstallButtonSlot } from "@/features/models/ModelInstallButtonSlot";
 import { useModelInstall } from "@/features/models/useModelInstall.ts";
+import type { PipelineModelStatusItem } from "@/features/models/useRequiredModelsStatus.ts";
 import { useAppSelector } from "@/store/hooks.ts";
 import { selectModels } from "@/store/reducers/models.ts";
 import { useMemo } from "react";
@@ -20,12 +20,11 @@ type PipelineModelsRequiredDialogProps = {
   onOpenChange: (open: boolean) => void;
   models: PipelineModelStatusItem[];
   onModelsChanged?: () => void | Promise<void>;
+  title?: string;
+  description?: string;
 };
 
-export type PipelineModelStatusItem = {
-  model: string;
-  installStatus: ModelInstallStatus;
-};
+export type { PipelineModelStatusItem };
 
 const toModelLabel = (value: string): string => value.split("/").pop() || value;
 
@@ -34,6 +33,8 @@ export const PipelineModelsRequiredDialog = ({
   onOpenChange,
   models,
   onModelsChanged,
+  title = "Required models are missing",
+  description = "This pipeline uses one or more models that are not installed.",
 }: PipelineModelsRequiredDialogProps) => {
   const availableModels = useAppSelector(selectModels);
   const { installModel, isPending } = useModelInstall();
@@ -51,10 +52,8 @@ export const PipelineModelsRequiredDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl" showCloseButton>
         <DialogHeader>
-          <DialogTitle>Required models are missing</DialogTitle>
-          <DialogDescription>
-            This pipeline uses one or more models that are not installed.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-80 overflow-y-auto rounded border">

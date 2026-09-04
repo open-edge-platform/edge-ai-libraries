@@ -15,15 +15,18 @@
           {{ t("router.routerPolicyConfigCaption") }}
         </div>
       </div>
-      <button
-        class="router-icon-action"
-        type="button"
-        :title="t('router.router')"
-        :disabled="isReloading || loading"
-        @click="handleRefreshData"
-      >
-        <ReloadOutlined />
-      </button>
+      <div class="router-module-actions">
+        <a-button
+          type="text"
+          shape="circle"
+          size="small"
+          :title="t('router.refresh')"
+          :loading="isReloading || loading"
+          @click="handleRefreshData"
+        >
+          <template #icon><ReloadOutlined /></template>
+        </a-button>
+      </div>
     </div>
     <div v-if="loading" class="router-loading-state">
       {{ t("common.loading") }}
@@ -78,15 +81,16 @@
             {{ t("router.routerPolicyStrategies") }}
           </div>
           <div class="policy-strategy-tags">
-            <button
+            <a-button
               v-for="strategyName in getStrategyNames(policy.strategies)"
               :key="strategyName"
+              type="link"
+              size="small"
               class="policy-strategy-tag"
-              type="button"
               @click="handleViewStrategy(strategyName)"
             >
               {{ strategyName }}
-            </button>
+            </a-button>
             <span
               v-if="!getStrategyNames(policy.strategies).length"
               class="policy-strategy-tag is-empty"
@@ -96,30 +100,22 @@
           </div>
         </div>
         <div class="router-policy-card-actions">
-          <button
-            type="button"
-            class="router-card-action action-detail"
-            @click="handleView(policy)"
-          >
-            <EyeOutlined />
-            <span>{{ t("common.detail") }}</span>
-          </button>
-          <button
-            type="button"
-            class="router-card-action action-edit"
+          <a-button type="primary" size="small" @click="handleView(policy)">
+            <template #icon><EyeOutlined /></template>
+            {{ t("common.detail") }}
+          </a-button>
+          <a-button
+            class="intel-btn-warning"
+            size="small"
             @click="handleUpdate(policy)"
           >
-            <EditOutlined />
-            <span>{{ t("common.edit") }}</span>
-          </button>
-          <button
-            type="button"
-            class="router-card-action action-delete"
-            @click="handleDelete(policy)"
-          >
-            <DeleteOutlined />
-            <span>{{ t("common.delete") }}</span>
-          </button>
+            <template #icon><EditOutlined /></template>
+            {{ t("common.edit") }}
+          </a-button>
+          <a-button danger size="small" @click="handleDelete(policy)">
+            <template #icon><DeleteOutlined /></template>
+            {{ t("common.delete") }}
+          </a-button>
         </div>
       </article>
       <div v-if="!loading && !policyRows.length" class="router-empty-state">
@@ -345,9 +341,6 @@ onMounted(() => {
 </script>
 
 <style scoped lang="less">
-.router-icon-action {
-  margin-left: auto;
-}
 .policy-name-row {
   display: flex;
   align-items: center;

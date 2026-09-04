@@ -35,35 +35,16 @@
           />
         </a-form-item>
         <a-form-item :label="t('router.routerProviderType')" name="type">
-          <a-select
+          <a-input
             v-model:value="formModel.type"
             :placeholder="t('router.routerProviderTypePlaceholder')"
-          >
-            <a-select-option
-              v-for="typeOption in typeOptions"
-              :key="typeOption"
-              :value="typeOption"
-            >
-              {{ typeOption }}
-            </a-select-option>
-          </a-select>
+          />
         </a-form-item>
         <a-form-item :label="t('router.routerProviderModel')" name="model">
-          <a-select
+          <a-input
             v-model:value="formModel.model"
-            show-search
-            :loading="isLoadingModels"
-            @dropdownVisibleChange="handleModelVisible"
             :placeholder="t('router.routerProviderModelPlaceholder')"
-          >
-            <a-select-option
-              v-for="model in modelOptions"
-              :key="model.id"
-              :value="model.id"
-            >
-              {{ model.id }}
-            </a-select-option>
-          </a-select>
+          />
         </a-form-item>
         <a-form-item :label="t('router.routerProviderEnabled')" name="enabled">
           <a-radio-group v-model:value="formModel.enabled" button-style="solid">
@@ -97,14 +78,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { getRouterModels, updateRouterProvider } from "@/api/router";
+import { updateRouterProvider } from "@/api/router";
 import { formatJsonText, parseJsonText } from "@/utils/common";
 import type {
   ConfigProviderRow,
   RouterProviderDialogType,
-  RouterProviderPayload,
 } from "@/views/home/type";
 
 interface RouterProviderFormModel {
@@ -114,10 +94,6 @@ interface RouterProviderFormModel {
   enabled: boolean;
   metadataText: string;
   settingsText: string;
-}
-
-interface RouterProviderModelRow {
-  id?: unknown;
 }
 
 const props = withDefaults(
@@ -137,11 +113,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const validPattern = /^[a-zA-Z0-9_]+$/;
-const typeOptions = ["hosted_vllm", "openai"];
 const formRef = ref<{ validate: () => Promise<void> }>();
 const submitting = ref(false);
-const isLoadingModels = ref(false);
-const modelOptions = ref<string[]>([]);
 const formModel = reactive<RouterProviderFormModel>({
   name: "",
   type: undefined,
@@ -186,12 +159,22 @@ const rules: FormRules = reactive({
       message: t("router.routerProviderTypeRequired"),
       trigger: "change",
     },
+    {
+      pattern: validPattern,
+      message: t("router.routerProviderNamePattern"),
+      trigger: "blur",
+    },
   ],
   model: [
     {
       required: true,
       message: t("router.routerProviderModelRequired"),
       trigger: "change",
+    },
+    {
+      pattern: validPattern,
+      message: t("router.routerProviderNamePattern"),
+      trigger: "blur",
     },
   ],
   enabled: [
@@ -204,41 +187,22 @@ const rules: FormRules = reactive({
   settingsText: [{ validator: validateJson, trigger: "blur" }],
 });
 
-const handleModelVisible = async (visible: boolean) => {
-  if (visible) {
-    try {
-      await loadModels();
-    } catch (err) {
-      console.error(err);
-    }
-  }
-};
-const loadModels = async () => {
-  isLoadingModels.value = true;
-  try {
-    const response = await getRouterModels();
-    modelOptions.value = response.data || [];
-    if (formModel.model && !modelOptions.value.includes(formModel.model)) {
-      modelOptions.value = [formModel.model, ...modelOptions.value];
-    }
-  } finally {
-    isLoadingModels.value = false;
-  }
-};
-
 const syncFormModel = () => {
-  const provider = props.dialogData || {};
-  formModel.name = typeof provider.name === "string" ? provider.name : "";
-  formModel.type =
-    typeof provider.type === "string" ? provider.type : undefined;
-  formModel.model =
-    typeof provider.model === "string" ? provider.model : undefined;
-  formModel.enabled = Boolean(provider.enabled);
-  formModel.metadataText = formatJsonText(provider.metadata, { fallback: "" });
-  formModel.settingsText = formatJsonText(provider.settings, { fallback: "" });
-  if (formModel.model && !modelOptions.value.includes(formModel.model)) {
-    modelOptions.value = [formModel.model, ...modelOptions.value];
-  }
+  const {
+    name,
+    type,
+    model,
+    enabled = false,
+    metadata,
+    settings,
+  } = props.dialogData || {};
+
+  formModel.name = typeof name === "string" ? name : "";
+  formModel.type = typeof type === "string" ? type : undefined;
+  formModel.model = typeof model === "string" ? model : undefined;
+  formModel.enabled = Boolean(enabled);
+  formModel.metadataText = formatJsonText(metadata, { fallback: "" });
+  formModel.settingsText = formatJsonText(settings, { fallback: "" });
 };
 
 const formatFormParam = () => {
@@ -275,13 +239,6 @@ const handleSubmit = async () => {
 };
 
 watch(() => props.dialogData, syncFormModel, { immediate: true, deep: true });
-
-onMounted(() => {
-  if (isEdit.value) {
-    loadModels();
-  }
-  loadModels();
-});
 </script>
 
 <style scoped lang="less">

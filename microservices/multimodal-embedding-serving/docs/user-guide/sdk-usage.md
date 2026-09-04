@@ -30,7 +30,7 @@ pip install dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl
 ### Option 2: Install from Source (Development)
 
 ```bash
-git clone https://github.com/intel/edge-ai-libraries
+git clone https://github.com/open-edge-platform/edge-ai-libraries -b release-2026.2.0
 cd edge-ai-libraries/microservices/multimodal-embedding-serving
 pip install -e .
 ```

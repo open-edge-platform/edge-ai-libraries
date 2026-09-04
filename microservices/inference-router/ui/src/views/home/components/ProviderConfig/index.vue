@@ -16,24 +16,26 @@
         </div>
       </div>
       <div class="router-module-actions">
-        <button
-          class="router-icon-action"
-          type="button"
+        <a-button
+          type="text"
+          shape="circle"
+          size="small"
           :title="t('router.routerReloadConfig')"
           :disabled="isReloading || loading"
           @click="handleReloadConfig"
         >
-          <ReloadOutlined />
-        </button>
-        <button
-          class="router-icon-action"
-          type="button"
+          <template #icon><ReloadOutlined /></template>
+        </a-button>
+        <a-button
+          type="text"
+          shape="circle"
+          size="small"
           :title="t('router.refresh')"
-          :disabled="isReloading || loading"
+          :loading="isReloading || loading"
           @click="handleRefreshData"
         >
-          <SyncOutlined />
-        </button>
+          <template #icon><SyncOutlined /></template>
+        </a-button>
       </div>
     </div>
     <div v-if="loading" class="router-loading-state">
@@ -95,34 +97,37 @@
           </div>
           <div class="provider-info-item">
             <dt>{{ t("router.routerProviderEnabled") }}</dt>
-            <dd>{{ provider.enabled }}</dd>
+            <dd>
+              <span
+                class="provider-enabled-badge"
+                :class="
+                  isProviderEnabled(provider) ? 'is-active' : 'is-inactive'
+                "
+              >
+                {{
+                  isProviderEnabled(provider) ? t("common.yes") : t("common.no")
+                }}
+              </span>
+            </dd>
           </div>
         </dl>
         <div class="router-provider-card-actions">
-          <button
-            type="button"
-            class="router-card-action action-detail"
-            @click="handleView(provider)"
-          >
-            <EyeOutlined />
-            <span>{{ t("common.detail") }}</span>
-          </button>
-          <button
-            type="button"
-            class="router-card-action action-edit"
+          <a-button type="primary" size="small" @click="handleView(provider)">
+            <template #icon><EyeOutlined /></template>
+            {{ t("common.detail") }}
+          </a-button>
+          <a-button
+            class="intel-btn-warning"
+            size="small"
             @click="handleUpdate(provider)"
           >
-            <EditOutlined />
-            <span>{{ t("common.edit") }}</span>
-          </button>
-          <button
-            type="button"
-            class="router-card-action action-delete"
-            @click="handleDelete(provider)"
-          >
-            <DeleteOutlined />
-            <span>{{ t("common.delete") }}</span>
-          </button>
+            <template #icon><EditOutlined /></template>
+            {{ t("common.edit") }}
+          </a-button>
+          <a-button danger size="small" @click="handleDelete(provider)">
+            <template #icon><DeleteOutlined /></template>
+            {{ t("common.delete") }}
+          </a-button>
         </div>
       </article>
       <div v-if="!loading && !providerRows.length" class="router-empty-state">
@@ -319,23 +324,6 @@ onMounted(() => {
 .router-module-actions {
   gap: 6px;
 }
-.router-primary-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
-  border-radius: 7px;
-  background: var(--color-primary);
-  color: var(--color-white);
-  font-size: var(--font-size-12);
-  cursor: pointer;
-}
-.router-primary-action + .router-icon-action {
-  margin-left: 0;
-}
 .router-provider-config-card.enabled {
   border-color: color-mix(
     in srgb,
@@ -379,6 +367,23 @@ onMounted(() => {
 .provider-state-icon.is-inactive,
 .provider-enabled-value.is-inactive {
   background: color-mix(in srgb, var(--font-tip-color) 14%, transparent);
+  color: var(--font-tip-color);
+}
+.provider-enabled-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: var(--font-size-11);
+  font-weight: 600;
+}
+.provider-enabled-badge.is-active {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success);
+}
+.provider-enabled-badge.is-inactive {
+  background: color-mix(in srgb, var(--font-tip-color) 12%, transparent);
   color: var(--font-tip-color);
 }
 </style>

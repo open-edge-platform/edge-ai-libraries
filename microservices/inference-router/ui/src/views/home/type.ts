@@ -87,6 +87,31 @@ export interface RouterProviderPayload {
   settings: unknown;
 }
 
+export interface ConfigPluginRow {
+  name: string;
+  node: string;
+  enabled: boolean;
+  trigger: "prerouting" | "postrouting" | "postresponse";
+  settings: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface PluginNodeRow {
+  node: string;
+  plugin_group: string;
+  description: string;
+  settings_schema: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export type RouterPluginDialogType = "create" | "edit";
+
+export interface RouterPluginPayload {
+  enabled: boolean;
+  trigger: ConfigPluginRow["trigger"];
+  settings: Record<string, unknown>;
+}
+
 export type PolicyConfigRow = Record<string, unknown>;
 
 export type PolicyConfigDialogType = "create" | "edit";

@@ -35,7 +35,7 @@ videoingestion:
   fullname: videoingestion
   image:
     repository: intel/video-ingestion
-    tag: "2026.2.0-rc1"
+    tag: "2026.2.0-rc2"
     pullPolicy: IfNotPresent
 
   containerPort: 8080  # Port on which container application listens internally

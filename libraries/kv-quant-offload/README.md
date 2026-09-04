@@ -114,7 +114,9 @@ host can load with `AutoTokenizer` (e.g. the same `${MODEL_PATH}/${MODEL}`
 passed to `vllm-start.sh` above):
 
 ```bash
-MODEL=model_name SERVE=model_name TOKENIZER_PATH=/path/to/models bash tests/vllm-bench-two-waves.sh
+docker exec -it vllm-kvweave bash
+cd /opt/kvweave/kvweave
+MODEL=model_name SERVE=model_name TOKENIZER_PATH=/models bash tests/vllm-bench-two-waves.sh
 ```
 
 If you meet error about memory after build iamge, use:

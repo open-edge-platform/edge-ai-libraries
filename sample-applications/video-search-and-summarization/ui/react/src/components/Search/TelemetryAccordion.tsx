@@ -96,7 +96,7 @@ export type MetricState = {
 };
 
 const formatNumber = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || Number.isNaN(value)) return '—';
+  if (value === null || value === undefined || Number.isNaN(value)) return '-';
   return `${value.toFixed(1)}%`;
 };
 
@@ -443,7 +443,7 @@ const TelemetryAccordion = (): JSX.Element | null => {
                 <MetricValue>
                   {metrics.embeddingsPerSecond !== undefined && metrics.embeddingsPerSecond !== null
                     ? metrics.embeddingsPerSecond.toFixed(1)
-                    : '—'}
+                    : '-'}
                 </MetricValue>
                 <div style={{ height: '180px' }}>
                   <canvas ref={epsCanvasRef} aria-label='embeddings-chart'></canvas>

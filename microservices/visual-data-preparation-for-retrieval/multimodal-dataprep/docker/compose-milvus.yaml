@@ -22,7 +22,7 @@
 services:
     # ---- Storage backend used by the dataprep service (media + artifacts) ----
     minio-server:
-        image: coollabsio/minio:RELEASE.2025-10-15T17-29-55Z
+        image: chainguard/minio@sha256:cb84dfa704c648c4b14858aa288576bb1cf756a9b326112a0934db00e87d0bb8
         environment:
             - MINIO_ROOT_USER=${MINIO_ROOT_USER}
             - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
@@ -30,7 +30,7 @@ services:
             - '${MINIO_API_HOST_PORT:-6010}:9000'
             - '${MINIO_CONSOLE_HOST_PORT:-6011}:9001'
         volumes:
-            - 'minio_data:/data'
+            - 'MM_minio_data:/data'
         command: |
             server /data 
             --address ":9000" 
@@ -205,7 +205,7 @@ networks:
         driver: bridge
 
 volumes:
-    minio_data:
+    MM_minio_data:
         driver: local
     dataprep-yolox-models:
         driver: local

@@ -2,6 +2,7 @@ import csv
 import io
 import logging
 import time
+from datetime import datetime
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, Response
@@ -643,7 +644,14 @@ async def export_benchmark_suite_run_csv(
 
             writer.writerow([])
 
-        filename = f"{suite.slug}-run-{suite_run.id}.csv"
+        timestamp = (
+            datetime.fromtimestamp(suite_run.start_time / 1000).strftime(
+                "%Y-%m-%d-%H-%M-%S"
+            )
+            if suite_run.start_time is not None
+            else "unknown"
+        )
+        filename = f"{suite.slug}-results-{timestamp}-{suite_run.id}.csv"
         return Response(
             content=output.getvalue(),
             media_type="text/csv",
@@ -817,7 +825,7 @@ async def get_benchmark_suite_run_by_id(
             passed_test_cases = sum(
                 1
                 for test_case_run in workload_test_case_runs
-                if test_case_run.status == schemas.BenchmarkTestCaseRunStatus.PASSED
+                if test_case_run.status == schemas.BenchmarkTestCaseRunStatus.COMPLETED
             )
             failed_test_cases = sum(
                 1

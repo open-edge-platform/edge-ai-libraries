@@ -45,7 +45,7 @@ Export variables with the required configuration:
 export PORT=8000
 export LOG_LEVEL=INFO
 export REGISTRY="intel/"
-export TAG=2026.2.0-rc1
+export TAG=2026.2.0-rc2
 
 # ----- ADK / LLM -----
 export AGENT_MODE=true
@@ -53,6 +53,7 @@ export LLM_URL=http://ovms-llm:9000/v3
 export LLM_MODEL=OpenVINO/Phi-4-mini-instruct-int4-ov
 export LLM_TIMEOUT=10.0
 export TARGET_DEVICE=GPU          # GPU (default) or CPU
+export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render*)   #run this when deploying for GPU
 # ----- Webhook action tool (optional) -----
 export WEBHOOK_URL=https://your-webhook-endpoint.example.com/hook
 export WEBHOOK_SECRET=                # leave empty to skip HMAC signing

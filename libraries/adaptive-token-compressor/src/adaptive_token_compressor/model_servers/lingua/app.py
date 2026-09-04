@@ -5,6 +5,8 @@
 
   - Module:     python -m adaptive_token_compressor.model_servers.lingua
     - Standalone: python lingua_server.py --backend pytorch --device xpu --port 8001  (Docker)
+      OpenVINO:   python lingua_server.py --backend ov --device gpu --port 8001
+                  (ov devices: cpu / gpu, lowercase; default gpu)
 
 Heavy deps (torch / llmlingua / fastapi / IPEX) are deferred into
 ``build_app`` so module import from a client doesn't pull them in.
@@ -21,7 +23,13 @@ from typing import Any, Literal
 # HF env must be set BEFORE huggingface_hub is imported transitively (it
 # reads HF_ENDPOINT / HF_HUB_OFFLINE on first import). Defaults match
 # router production: hf-mirror endpoint, online so first-run can download.
-os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+# Configurable via LINGUA_HF_ENDPOINT (this module-import path) or the
+# --hf_endpoint CLI flag / HF_ENDPOINT env (server path, applied in build_app
+# before llmlingua is imported).
+DEFAULT_HF_ENDPOINT = "https://hf-mirror.com"
+os.environ.setdefault(
+    "HF_ENDPOINT", os.environ.get("LINGUA_HF_ENDPOINT", DEFAULT_HF_ENDPOINT)
+)
 os.environ.setdefault("HF_HUB_OFFLINE", "0")
 
 # pydantic stays at module scope — FastAPI treats locally-defined BaseModel
@@ -60,18 +68,21 @@ logging.basicConfig(
 )
 logger.setLevel(getattr(logging, _LOG_LEVEL, logging.INFO))
 
-# Optional, deployment-tunable hard ceiling on request `text` length (chars).
-# Unset or <= 0 means "no hard limit" (default) so unknown-large but legitimate
-# contexts are not rejected out of the box. Set LINGUA_MAX_TEXT_CHARS in
-# production once the real upper bound is known to bound worst-case resource use
-# (compression runs a transformer model — oversized input is a cheap DoS vector).
+# Hard ceiling on request `text` length (chars). Non-zero by default (DoS
+# guard); set LINGUA_MAX_TEXT_CHARS<=0 to opt out of the limit.
+DEFAULT_MAX_TEXT_CHARS = 200_000
+
+
 def _parse_max_text_chars() -> int:
-    raw = os.environ.get("LINGUA_MAX_TEXT_CHARS", "0").strip()
+    raw = os.environ.get("LINGUA_MAX_TEXT_CHARS", str(DEFAULT_MAX_TEXT_CHARS)).strip()
     try:
         val = int(raw)
     except ValueError:
-        logger.warning("Invalid LINGUA_MAX_TEXT_CHARS=%r; treating as unset (no limit)", raw)
-        return 0
+        logger.warning(
+            "Invalid LINGUA_MAX_TEXT_CHARS=%r; falling back to default %d",
+            raw, DEFAULT_MAX_TEXT_CHARS,
+        )
+        return DEFAULT_MAX_TEXT_CHARS
     return val if val > 0 else 0
 
 
@@ -94,14 +105,21 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--device",
         type=str,
-        default=_env_str("LINGUA_DEVICE", "xpu"),
-        choices=["xpu", "cpu", "cuda"],
+        default=_env_str("LINGUA_DEVICE", ""),
+        help=(
+            "Execution device, lowercase (case-insensitive). "
+            "pytorch: cpu / cuda / xpu; ov: cpu / gpu. "
+            "If omitted, defaults to xpu (pytorch) or gpu (ov)."
+        ),
     )
     parser.add_argument(
-        "--xpu_index",
+        "--device_index",
         type=int,
-        default=int(_env_str("LINGUA_XPU_INDEX", "0")),
-        help="XPU device index used when --device=xpu",
+        default=int(_env_str("LINGUA_DEVICE_INDEX", "0")),
+        help=(
+            "Index within the selected device class (e.g. GPU.1, xpu:1). "
+            "Ignored for CPU; it does not accept an index."
+        ),
     )
     parser.add_argument("--port", type=int, default=int(_env_str("LINGUA_PORT", "8001")))
     parser.add_argument("--host", type=str, default=_env_str("LINGUA_HOST", "localhost"))
@@ -121,10 +139,66 @@ def _parse_args() -> argparse.Namespace:
         choices=["llmlingua2"],
         help="Compression mode. Only llmlingua2 (LLMLingua-2 path) is supported.",
     )
+    parser.add_argument(
+        "--hf_endpoint",
+        type=str,
+        default=_env_str("HF_ENDPOINT", _env_str("LINGUA_HF_ENDPOINT", DEFAULT_HF_ENDPOINT)),
+        help=(
+            "HuggingFace Hub endpoint (sets HF_ENDPOINT before model download). "
+            "Defaults to the hf-mirror.com mirror."
+        ),
+    )
     return parser.parse_args()
 
 
+# Canonical device names per backend. pytorch uses lowercase torch device
+# strings; OpenVINO uses uppercase native device names (CPU/GPU).
+_VALID_DEVICES = {
+    "pytorch": {"cpu", "cuda", "xpu"},
+    "ov": {"CPU", "GPU"},
+}
+# Device class used when --device is omitted, per backend.
+_DEFAULT_DEVICE = {"pytorch": "xpu", "ov": "GPU"}
+
+
+def _resolve_device(backend: str, raw: str) -> str:
+    """Normalize --device to the backend's canonical form and validate it.
+
+    Case-insensitive: ov -> uppercase, pytorch -> lowercase. An empty value
+    falls back to the per-backend default. Raises SystemExit(2) (matching
+    argparse's own choices behavior) on an unknown device, listing the valid
+    values for the active backend.
+    """
+    dev = (raw or "").strip()
+    if not dev:
+        dev = _DEFAULT_DEVICE[backend]
+    # Internal canonical form: ov must be uppercase for the OpenVINO API and to
+    # match core.available_devices; pytorch must be lowercase for torch.device.
+    dev = dev.upper() if backend == "ov" else dev.lower()
+    base = dev.split(".", 1)[0]
+    valid = _VALID_DEVICES[backend]
+    if base not in valid:
+        # Present valid values in lowercase — the input surface is uniformly
+        # lowercase across both backends to avoid casing confusion.
+        raise SystemExit(
+            f"--device {raw!r} is not valid for --backend {backend}. "
+            f"Valid devices: {sorted(v.lower() for v in valid)}"
+        )
+    return dev
+
+
 def build_app(args: argparse.Namespace) -> Any:
+    # Apply the configured HF endpoint before any transitive huggingface_hub
+    # import reads it (llmlingua below). --hf_endpoint (or HF_ENDPOINT /
+    # LINGUA_HF_ENDPOINT env) wins over the module-import default at line 24.
+    hf_endpoint = getattr(args, "hf_endpoint", None)
+    if hf_endpoint:
+        os.environ["HF_ENDPOINT"] = hf_endpoint
+
+    # Resolve/normalize/validate the requested device up front so both the
+    # pytorch and ov paths below can assume a canonical value.
+    args.device = _resolve_device(args.backend, args.device)
+
     import torch  # noqa: F401
     from fastapi import FastAPI, HTTPException, Request
     from fastapi.exceptions import RequestValidationError
@@ -154,8 +228,7 @@ def build_app(args: argparse.Namespace) -> Any:
         "Request-level mode override enabled; supported modes: %s",
         ", ".join(sorted(supported_modes)),
     )
-    logger.info("HF_HUB_OFFLINE=%s  HF_ENDPOINT=%s",
-                os.environ.get("HF_HUB_OFFLINE"), os.environ.get("HF_ENDPOINT"))
+    logger.info("Hugging Face hub configuration loaded")
 
     mode_state: dict[str, dict[str, Any]] = {}
 
@@ -168,9 +241,10 @@ def build_app(args: argparse.Namespace) -> Any:
         )
         effective_model_name = requested_model_name or default_model_name
 
+        safe_mode = next((m for m in supported_modes if m == selected_mode), "<invalid>")
         logger.info(
             "Initializing mode=%s with model=%s",
-            selected_mode,
+            safe_mode,
             effective_model_name if effective_model_name else "<llmlingua-default>",
         )
 
@@ -185,28 +259,28 @@ def build_app(args: argparse.Namespace) -> Any:
 
         if args.backend == "pytorch":
             if args.device == "xpu":
-                xpu_index = args.xpu_index
+                device_index = args.device_index
                 try:
                     if hasattr(torch, "xpu") and torch.xpu.is_available():
                         xpu_count = torch.xpu.device_count()
                         logger.info("Detected XPU devices: %d", xpu_count)
                         for idx in range(xpu_count):
                             logger.info("XPU[%d] name: %s", idx, torch.xpu.get_device_name(idx))
-                        if xpu_index < 0 or xpu_index >= xpu_count:
+                        if device_index < 0 or device_index >= xpu_count:
                             raise RuntimeError(
-                                f"Invalid --xpu_index={xpu_index}; available range is 0..{xpu_count - 1}."
+                                f"Invalid --device_index={device_index}; available range is 0..{xpu_count - 1}."
                             )
                         logger.info(
                             "Selecting xpu:%d (%s). Note: index alone cannot guarantee iGPU vs dGPU.",
-                            xpu_index,
-                            torch.xpu.get_device_name(xpu_index),
+                            device_index,
+                            torch.xpu.get_device_name(device_index),
                         )
                     else:
                         logger.warning("--device xpu requested, but torch.xpu is not available")
                 except Exception as exc:
                     logger.warning("Failed to enumerate XPU devices: %s", type(exc).__name__)
 
-                device = torch.device(f"xpu:{xpu_index}")
+                device = torch.device(f"xpu:{device_index}")
                 llm_lingua.model = llm_lingua.model.to(device)
                 llm_lingua.device = device
                 runtime_device = str(device)
@@ -238,26 +312,39 @@ def build_app(args: argparse.Namespace) -> Any:
             core = ov.Core()
             available_devices = list(core.available_devices)
 
-            if args.device == "xpu":
-                preferred_ov_gpu = f"GPU.{args.xpu_index}"
+            # args.device is already normalized to CPU / GPU (or GPU.N).
+            device_index = args.device_index
+            if args.device == "GPU":
+                preferred_ov_gpu = f"GPU.{device_index}"
                 if preferred_ov_gpu in available_devices:
                     ov_device = preferred_ov_gpu
-                elif args.xpu_index == 0 and "GPU" in available_devices:
+                elif device_index == 0 and "GPU" in available_devices:
                     # Some OV runtimes expose a generic GPU device without index.
                     ov_device = "GPU"
                 else:
                     gpu_like = [d for d in available_devices if d.startswith("GPU")]
                     raise RuntimeError(
-                        "--backend ov with --device xpu could not map "
-                        f"--xpu_index={args.xpu_index}. Requested {preferred_ov_gpu!r}, "
+                        "--backend ov with --device GPU could not map "
+                        f"--device_index={device_index}. Requested {preferred_ov_gpu!r}, "
                         f"available OV GPU devices: {gpu_like or 'none'}"
                     )
-            elif args.device == "cpu":
-                ov_device = "CPU"
             else:
+                # CPU: no device index. Reject a non-zero index rather
+                # than silently ignoring it.
+                if device_index != 0:
+                    raise RuntimeError(
+                        f"--device {args.device} does not accept --device_index "
+                        f"(got {device_index}); only GPU supports an index."
+                    )
+                ov_device = args.device
+
+            # Fail fast if the resolved device is not actually present, instead
+            # of letting OpenVINO raise a less obvious error at compile time.
+            resolved_bases = {d.split(".", 1)[0] for d in available_devices}
+            if ov_device not in available_devices and ov_device.split(".", 1)[0] not in resolved_bases:
                 raise RuntimeError(
-                    "--backend ov does not support --device cuda. "
-                    "Use --device xpu (maps to OV GPU) or --device cpu."
+                    f"--device {args.device} maps to OV device {ov_device!r}, "
+                    f"which OpenVINO does not report as available: {available_devices}"
                 )
 
             logger.info("OpenVINO requested device=%s mapped device=%s", args.device, ov_device)
@@ -278,7 +365,10 @@ def build_app(args: argparse.Namespace) -> Any:
 
             # Persist OpenVINO IR under mounted cache so restarts can reuse it.
             ov_cache_root = Path(
-                os.environ.get("LINGUA_OV_CACHE_DIR", "/root/.cache/huggingface/ov_ir")
+                os.environ.get(
+                    "LINGUA_OV_CACHE_DIR",
+                    os.path.expanduser("~/.cache/huggingface/ov_ir"),
+                )
             )
             if not effective_model_name:
                 raise RuntimeError(
@@ -349,7 +439,16 @@ def build_app(args: argparse.Namespace) -> Any:
             "`python -m adaptive_token_compressor.model_servers.lingua.apply_patch`."
         )
 
-    app = FastAPI(title="Lingua Server")
+    # Introspection endpoints off by default; set LINGUA_ENABLE_DOCS=1 to expose.
+    _docs_enabled = os.environ.get("LINGUA_ENABLE_DOCS", "0").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    app = FastAPI(
+        title="Lingua Server",
+        docs_url="/docs" if _docs_enabled else None,
+        redoc_url="/redoc" if _docs_enabled else None,
+        openapi_url="/openapi.json" if _docs_enabled else None,
+    )
 
     @app.exception_handler(Exception)
     async def _handle_unexpected_error(request: Request, exc: Exception):
@@ -366,18 +465,10 @@ def build_app(args: argparse.Namespace) -> Any:
     @app.exception_handler(RequestValidationError)
     async def _log_invalid_request(request: Request, exc: RequestValidationError):
         # Requirement: log requests with invalid parameters (a burst signals the
-        # interface is under attack). Log only field locations + error types, not
-        # the raw offending values, to avoid injecting attacker-controlled data
-        # into the logs. Response body stays the FastAPI-standard generic 422.
-        summary = "; ".join(
-            f"{'.'.join(str(p) for p in e.get('loc', []))}:{e.get('type', '?')}"
-            for e in exc.errors()
-        )
-        logger.warning(
-            "invalid /compress request rejected (422) from %s: %s",
-            request.client.host if request.client else "unknown",
-            summary,
-        )
+        # interface is under attack). Keep the event message fixed so no
+        # attacker-controlled data can be injected into the logs. Response body
+        # stays the FastAPI-standard generic 422.
+        logger.warning("invalid /compress request rejected (422)")
         # Keep the body generic (no echo of attacker-controlled values) BUT
         # shaped to the published HTTPValidationError schema (detail: array of
         # ValidationError), so the response still conforms to the OpenAPI spec.
@@ -404,7 +495,9 @@ def build_app(args: argparse.Namespace) -> Any:
             raise HTTPException(status_code=413, detail="text too large")
         request_mode = ((request.mode or startup_mode).strip().lower() if request.mode else startup_mode)
         if request_mode not in supported_modes:
-            logger.warning("invalid /compress mode rejected (400): %r", request.mode)
+            # Keep the message fixed; the offending mode is attacker-controlled
+            # and must not be echoed into the logs.
+            logger.warning("invalid /compress mode rejected (400)")
             raise HTTPException(
                 status_code=400,
                 detail=(

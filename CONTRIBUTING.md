@@ -28,13 +28,13 @@ Clone the repository and follow the [`README`](README.md) or
 applications.
 
 ```
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
     cd edge-ai-libraries
 ```
 
 Note that you do not need to clone the entire repository. You can clone just the portion you
 are interested with. To see how ti do it, check out the
-[Contributing to Open Edge Platform](https://docs.openedgeplatform.intel.com/canonical/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning)
+[Contributing to Open Edge Platform](https://docs.openedgeplatform.intel.com/2026.2/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning)
 article.
 
 
