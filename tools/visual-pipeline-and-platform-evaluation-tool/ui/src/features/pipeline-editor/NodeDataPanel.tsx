@@ -450,9 +450,6 @@ const NodeDataPanel = ({
                         : getSourceOptionsForKind(editableData.kind),
                       sourceSelectValue,
                     );
-                    // The Select is controlled by the always-non-empty `id`,
-                    // not by `value` (which can be empty) - see the
-                    // `SelectOption.id` doc comment.
                     const selectedId =
                       sourceOptions.find(
                         (option) => option.value === sourceSelectValue,

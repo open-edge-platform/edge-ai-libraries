@@ -45,18 +45,10 @@ const isPointInsideElement = (
 };
 
 type UseDismissOnOutsidePointerDownOptions = {
-  /** Element that defines the "inside" area. */
   ref: RefObject<HTMLElement | null>;
-  /** Whether the listener is active. */
   enabled: boolean;
-  /** Called when a genuine outside interaction happened. */
   onDismiss: () => void;
-  /**
-   * Extra CSS selectors that should be treated as "inside". An interaction
-   * starting on an element matching (or nested in) one of them is ignored.
-   */
   ignoreSelectors?: string[];
-  /** Escape hatch for transient states such as an in-progress resize drag. */
   shouldIgnore?: () => boolean;
 };
 
@@ -83,7 +75,6 @@ export const useDismissOnOutsidePointerDown = ({
   ignoreSelectors,
   shouldIgnore,
 }: UseDismissOnOutsidePointerDownOptions): void => {
-  // Kept in refs so that changing callbacks does not re-bind the listener.
   const onDismissRef = useRef(onDismiss);
   const shouldIgnoreRef = useRef(shouldIgnore);
   const ignoreSelector = ignoreSelectors?.join(",") ?? "";
@@ -102,8 +93,6 @@ export const useDismissOnOutsidePointerDown = ({
       const element = ref.current;
       if (!element) return;
 
-      // An interaction that merely dismisses an open overlay (select, menu,
-      // popover, dialog) must never dismiss the element behind it.
       if (isOverlayLayerOpen()) return;
 
       if (isPointInsideElement(element, event.clientX, event.clientY)) return;
