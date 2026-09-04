@@ -3804,6 +3804,39 @@ class TestToSimpleView(unittest.TestCase):
                         f"Edge {i} ID should be sequential: expected {str(i)}, got {actual_edge.id}",
                     )
 
+    def test_simple_view_includes_videoscale(self):
+        """Test that videoscale is retained as a user-facing simple-view step."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="videoscale", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        with patch(
+            "graph._COMPILED_VISIBLE_PATTERNS",
+            [
+                re.compile("^.*src$"),
+                re.compile("^videoscale$"),
+                re.compile("^.*sink$"),
+            ],
+        ):
+            simple_view = graph.to_simple_view()
+
+        self.assertEqual(
+            [node.type for node in simple_view.nodes],
+            ["source", "videoscale", "fakesink"],
+        )
+        self.assertEqual(
+            [(edge.source, edge.target) for edge in simple_view.edges],
+            [("0", "1"), ("1", "2")],
+        )
+
     @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gvafpscounter,gvametapublish")
     def test_simple_view_with_invisible_elements(self):
         """
