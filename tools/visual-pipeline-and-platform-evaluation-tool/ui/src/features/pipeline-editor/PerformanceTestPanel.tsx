@@ -13,6 +13,7 @@ import {
   useFrozenMetrics,
   type FrozenSnapshotOverrides,
 } from "@/hooks/useFrozenMetrics";
+import { useMetricHistory } from "@/hooks/useMetricHistory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
 import { Button } from "@/components/ui/button";
@@ -300,60 +301,6 @@ const MetadataJsonViewer = ({
   );
 };
 
-const getNumericField = (
-  source: Record<string, unknown>,
-  key: string,
-): number | null => {
-  const value = source[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-};
-
-const buildGenAIMetricsPoints = (lines: string[]): GenAIMetricsPoint[] => {
-  const points: GenAIMetricsPoint[] = [];
-
-  lines.forEach((line, index) => {
-    try {
-      const record = JSON.parse(line) as Record<string, unknown>;
-      const metrics = record.metrics;
-      if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) {
-        return;
-      }
-
-      const metricRecord = metrics as Record<string, unknown>;
-      const ttft = getNumericField(metricRecord, "ttft_mean");
-      const tpot = getNumericField(metricRecord, "tpot_mean");
-      const totalLatency = getNumericField(
-        metricRecord,
-        "generate_duration_mean",
-      );
-
-      if (ttft === null && tpot === null && totalLatency === null) {
-        return;
-      }
-
-      const timestampSeconds = getNumericField(record, "timestamp_seconds");
-      const timestampNs = getNumericField(record, "timestamp");
-      const timestamp =
-        timestampSeconds !== null
-          ? timestampSeconds * 1000
-          : timestampNs !== null
-            ? timestampNs / 1_000_000
-            : index * 1000;
-
-      points.push({
-        timestamp,
-        ttft: ttft ?? 0,
-        tpot: tpot ?? 0,
-        totalLatency: totalLatency ?? 0,
-      });
-    } catch {
-      return;
-    }
-  });
-
-  return points;
-};
-
 const getGenAIYAxisMax = (
   data: GenAIMetricsPoint[],
   key: keyof Pick<GenAIMetricsPoint, "ttft" | "tpot" | "totalLatency">,
@@ -468,6 +415,7 @@ const PerformanceTestPanel = ({
 }: PerformanceTestPanelProps) => {
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
+  const liveHistory = useMetricHistory();
   const prevIsRunningRef = useRef(false);
   const metadataSourcesRef = useRef<Record<string, EventSource>>({});
   const metadataSourceUrlsRef = useRef<Record<string, string>>({});
@@ -677,10 +625,20 @@ const PerformanceTestPanel = ({
 
   const genAIMetricsData = useMemo(
     () =>
-      Object.values(displayLines)
-        .flatMap((lines) => buildGenAIMetricsPoints(lines))
-        .sort((a, b) => a.timestamp - b.timestamp),
-    [displayLines],
+      (isRunning ? liveHistory : frozenHistory)
+        .filter(
+          (point) =>
+            point.vlmTtftMs !== undefined ||
+            point.vlmTpotMs !== undefined ||
+            point.vlmGenerateDurationMs !== undefined,
+        )
+        .map((point) => ({
+          timestamp: point.timestamp,
+          ttft: point.vlmTtftMs ?? 0,
+          tpot: point.vlmTpotMs ?? 0,
+          totalLatency: point.vlmGenerateDurationMs ?? 0,
+        })),
+    [frozenHistory, isRunning, liveHistory],
   );
 
   const metadataTabValue = activeMetadataTab ?? displayEntries[0]?.[0] ?? "";
