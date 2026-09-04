@@ -158,7 +158,7 @@ The Multimodal DataPrep microservice uses the registry URL and tag to pull the r
 
     ```bash
     export REGISTRY_URL=intel
-    export TAG=2026.2.0-rc2
+    export TAG=2026.2.0-rc3
     ```
 
 1. **Clone the repository and enter the project.**
