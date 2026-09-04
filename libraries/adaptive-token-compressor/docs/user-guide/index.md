@@ -74,9 +74,9 @@ and additional resources.
 :::{toctree}
 :hidden:
 
+get-started
 lingua-deployment
 tool-predictor-deployment
-GUIDE
 release-notes
 :::
 hide_directive-->
