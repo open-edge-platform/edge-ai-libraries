@@ -9,7 +9,12 @@ for evaluation, demos, and API exploration.
 Before starting, ensure the following:
 
 - **System requirements**: The system meets the [minimum requirements](./system-requirements.md).
-- **Docker platform**: Docker is installed. For details, see the [Docker installation guide](https://docs.docker.com/get-docker/).
+- **Docker platform**: **Docker Engine** is installed. On Linux, install it from the Docker apt repository, see
+  [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/), then complete the
+  [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run Docker as a non-root user.
+
+  > **Note:** Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU device on Linux (yet).
+
 - **Dependencies installed**:
   - **Make**: Standard build tool, typically provided by the `build-essential` (or equivalent) package on Linux.
   - **curl**: Command-line tool for transferring data with URLs, typically provided by the `curl` package on Linux.
