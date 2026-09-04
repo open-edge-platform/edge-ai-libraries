@@ -50,6 +50,15 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SummaryRequest'
+            example:
+              video: none
+              video_subtitles:
+                text: |-
+                  1
+                  00:00:00,000 --> 00:00:05,000
+                  A person opened the refrigerator.
+              task: summary
+              method: SIMPLE
       responses:
         '200':
           description: Summarization completed successfully
@@ -92,6 +101,23 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RegisterTaskRequest'
+            examples:
+              autogen:
+                summary: Draft a task from a natural-language description
+                value:
+                  task_name: scene_watch
+                  mode: autogen
+                  description: Detect unsafe playground behavior for toddlers.
+              full:
+                summary: Register a task from anchor content
+                value:
+                  task_name: restler_fuzz_task
+                  mode: full
+                  content:
+                    text: |-
+                      GLOBAL_PROMPT='''Summarize the events into a short report.'''
+
+                      LOCAL_PROMPT='''Describe what happens in this clip.'''
       responses:
         '201':
           description: Task registered
@@ -146,6 +172,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PatchTaskRequest'
+            example:
+              description: Updated by RESTler fuzz testing
       responses:
         '200':
           description: Updated task detail
@@ -328,21 +356,38 @@ components:
 
     # --- Prompt Tasks API Schemas ---
     PromptContent:
-      type: object
       description: Exactly one of text or url.
-      properties:
-        text:
-          type: string
-          description: Inline prompt text containing all four anchors.
-        url:
-          type: string
-          description: HTTPS URL fetched by the service (Content-Length <= 256 KB).
+      oneOf:
+        - type: object
+          required:
+            - text
+          properties:
+            text:
+              type: string
+              description: Inline prompt text containing all four anchors.
+          additionalProperties: false
+        - type: object
+          required:
+            - url
+          properties:
+            url:
+              type: string
+              format: uri
+              description: HTTPS URL fetched by the service (Content-Length <= 256 KB).
+          additionalProperties: false
 
     RegisterTaskRequest:
+      description: Register either an autogen task (description-only) or a full task (content-only).
+      oneOf:
+        - $ref: '#/components/schemas/AutogenTaskRequest'
+        - $ref: '#/components/schemas/FullTaskRequest'
+
+    AutogenTaskRequest:
       type: object
       required:
         - task_name
         - mode
+        - description
       properties:
         task_name:
           type: string
@@ -352,12 +397,30 @@ components:
           type: string
           enum:
             - autogen
-            - full
         description:
           type: string
-          description: Required when mode=autogen.
+          minLength: 1
+          description: Short natural-language description of the use case.
+      additionalProperties: false
+
+    FullTaskRequest:
+      type: object
+      required:
+        - task_name
+        - mode
+        - content
+      properties:
+        task_name:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{1,63}$'
+          description: Lowercase ascii, 2-64 chars. Must not collide with a built-in task.
+        mode:
+          type: string
+          enum:
+            - full
         content:
           $ref: '#/components/schemas/PromptContent'
+      additionalProperties: false
 
     PatchTaskRequest:
       type: object

@@ -7,6 +7,9 @@ This section describes the architecture and internal request flow for comparison
 At a high level, the Semantic Search Agent accepts item comparison payloads via REST, passes them through a configured matching strategy, and returns structured results. The matching pipeline uses a two-pass approach to minimize latency and inference costs: fast exact normalization first, followed by VLM-based semantic reasoning for any remaining unmatched items.
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 %%{init: {
   'theme': 'base',
   'themeVariables': {
