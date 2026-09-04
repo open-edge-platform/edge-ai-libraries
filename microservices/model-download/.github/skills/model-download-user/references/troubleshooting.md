@@ -183,9 +183,22 @@ source scripts/run_service.sh down
 **Fix for other plugins:** Remove the partially downloaded model directory and
 re-submit the job. This deletion is irreversible, so print the resolved path and
 get the user's explicit confirmation before running it, and never widen the path
-beyond the single model directory:
+beyond the single model directory. Quote every path, resolve it, and refuse
+anything that escapes the service's model root:
 ```bash
-rm -rf $PWD/models/huggingface/model_name/
+MODEL_ROOT="$(cd "$PWD/models" && pwd -P)"
+TARGET="$(readlink -f "$MODEL_ROOT/huggingface/<model_name>")"
+
+# Refuse symlinks, the model root itself, and any path outside it.
+case "$TARGET" in
+  "$MODEL_ROOT"/?*) : ;;
+  *) echo "refusing to delete '$TARGET': outside $MODEL_ROOT" >&2; exit 1 ;;
+esac
+[ -L "$TARGET" ] && { echo "refusing to delete symlink '$TARGET'" >&2; exit 1; }
+
+# Show the exact impact, then delete only after the user confirms.
+du -sh -- "$TARGET"
+rm -rf -- "$TARGET"
 ```
 
 ---
