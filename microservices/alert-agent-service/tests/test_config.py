@@ -62,3 +62,10 @@ def test_settings_agent_mode_honors_env_override(monkeypatch):
 
     assert reloaded.settings.AGENT_MODE is False
 
+
+def test_settings_llm_url_defaults_to_ovms_internal_port(monkeypatch):
+    monkeypatch.delenv("LLM_URL", raising=False)
+    reloaded = importlib.reload(config_module)
+
+    assert reloaded.settings.LLM_URL == "http://ovms-llm:9000/v3"
+

@@ -56,7 +56,7 @@ services:
     container_name: alert-agent-service
     restart: unless-stopped
     ports:
-      - ${PORT:-8000}:8000
+      - "${PORT:-8000}:${PORT:-8000}"
     environment:
       # ---- server ----
       - PORT=${PORT:-8000}
@@ -104,7 +104,7 @@ services:
     image: eclipse-mosquitto:2
     container_name: alert-agent-mqtt
     ports:
-      - "1883:1883"
+      - "${MQTT_HOST_PORT:-1883}:1883"
     volumes:
       - ../mosquitto/config:/mosquitto/config:ro
       - mosquitto-data:/mosquitto/data
