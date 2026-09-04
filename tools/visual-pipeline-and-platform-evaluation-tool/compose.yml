@@ -51,6 +51,10 @@ x-vippet: &vippet
     UPLOAD_ALLOWED_CODECS: "h264,h265"
     UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
     METADATA_DIR: /metadata
+    # Bytes of padding on the metadata SSE preamble and keepalives. Buffering HTTP
+    # proxies release a response only once their block buffer fills, which a low-rate
+    # metadata stream never does on its own. Raise behind an aggressive proxy.
+    SSE_PADDING_BYTES: ${SSE_PADDING_BYTES:-8192}
     SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source"
     SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark,gvainference"
     LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-mediamtx}
@@ -126,7 +130,7 @@ services:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
-    image: docker.io/intel/model-download:2026.2.0-rc1-ww34r1
+    image: docker.io/intel/model-download:2026.2.0-rc2
     container_name: model-download
     ports:
       - "8000:8000"
@@ -177,7 +181,7 @@ services:
     ports:
       - "7860:7860"
   metrics-manager:
-    image: docker.io/intel/metrics-manager:2026.2.0-rc1
+    image: docker.io/intel/metrics-manager:2026.2.0-rc2
     container_name: metrics-manager
     init: true
     ports:
@@ -211,7 +215,7 @@ services:
       start_period: 15s
       start_interval: 1s
   mediamtx:
-    image: bluenviron/mediamtx:1.15.6
+    image: bluenviron/mediamtx:1.20.1
     container_name: mediamtx
     environment:
       - MTX_LOGLEVEL=info
@@ -236,7 +240,7 @@ services:
     network_mode: host
     restart: unless-stopped
     init: true
-    user: "${UID:-1000}:${GID:-1000}"
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     environment:
       OUTPUT_FILE: /out/onvif_cameras.json
       DISCOVERY_INTERVAL: 20

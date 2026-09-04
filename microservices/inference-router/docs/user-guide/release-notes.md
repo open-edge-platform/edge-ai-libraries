@@ -2,7 +2,7 @@
 
 ## Version 2026.2.0
 
-**August, 2026**
+**Release Date:** September 9, 2026
 
 **New**
 
@@ -19,8 +19,7 @@
   - `IntelligentRule`: a model-based classifier (bundled OpenVINO Qwen3.5)
     maps the last user message to an index and routes accordingly (e.g.
     `0 -> local`, `1 -> cloud`). Configure the model with `IR_OV_MODEL`.
-  - See the [Routing Guide](./routing-guide.md) and
-    [Policy Based Router Usage](./policy-based-router.md).
+  - See the [Policy Based Router Usage](./policy-based-router.md).
 
 - Plugin System:
 
@@ -57,7 +56,7 @@
 
   - A Vue-based dashboard for managing providers and monitoring telemetry,
     including latency and token metrics. Supports light and dark themes, and English
-	and Chinese locales.
+    and Chinese locales.
   - Build and run with Docker Compose tool from `ui/docker`.
 
 - Intel® GPU Support:

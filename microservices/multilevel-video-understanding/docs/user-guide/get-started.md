@@ -43,6 +43,7 @@ cd edge-ai-libraries/microservices/multilevel-video-understanding
 # Change to mirror endpoint if you are in China and want to use the mirror site for Hugging Face.
 export HF_ENDPOINT=https://hf-mirror.com
 
+export TAG=2026.2.0
 source docker/set_env.sh
 ```
 
@@ -90,6 +91,8 @@ chmod +x ./setup_docker.sh
 Start **both** the on-device model serving and the microservice together. This is the default. Compose pulls the `vllm-ipex-serving` image (`intel/llm-scaler-vllm`) automatically, and the microservice `depends_on` the serving being **healthy**, so on the first run Compose waits while the model downloads and compiles (the 3–20 minute step).
 
 ```bash
+export TAG=2026.2.0
+source docker/set_env.sh
 ./setup_docker.sh            # or: ./setup_docker.sh --prod
 ```
 
@@ -102,6 +105,7 @@ If you already have an OpenAI-compatible serving running — a **warm local `vll
 export VLM_BASE_URL=http://<serving-host>:41091/v1
 export LLM_BASE_URL=http://<serving-host>:41091/v1
 
+export TAG=2026.2.0
 source docker/set_env.sh
 ./setup_docker.sh --light
 ```

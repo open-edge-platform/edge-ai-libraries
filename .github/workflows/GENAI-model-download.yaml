@@ -99,6 +99,7 @@ jobs:
           scan-scope: "all"  
           output-format: "txt" 
           fail-on-findings: "true"
+          severity-level: "HIGH"
           paths: "microservices/model-download/"
           report_suffix: "-bandit-model-download-CT161"
           

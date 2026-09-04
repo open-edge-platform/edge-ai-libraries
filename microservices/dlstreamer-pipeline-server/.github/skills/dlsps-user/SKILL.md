@@ -194,7 +194,7 @@ Read the matching example file — it contains the exact compact response format
 ### Execution Overview
 
 1. Gather requirements from user prompt (source, device, output type)
-2. Start the service (`cd .../docker && docker compose up`)
+2. Start the service (`cd microservices/dlstreamer-pipeline-server/docker && docker compose up`)
 3. POST to `/pipelines/{name}/{version}` with source + destination + parameters
 4. Show RTSP URL, status-check command, and stop command
 
@@ -211,5 +211,5 @@ Read reference files only when needed for advanced configuration details:
 
 **Every final answer must include: startup command, the curl POST with device and frame destination,
 the RTSP URL (`rtsp://host:8554/stream-name`), a status-check command (`GET /pipelines/status`),
-and a stop command (`DELETE /pipelines/{instance_id}`).** Keep responses compact — use single-line
+and a stop command (HTTP `DELETE` on `/pipelines/<instance_id>`).** Keep responses compact — use single-line
 JSON in curl commands when the body is short.

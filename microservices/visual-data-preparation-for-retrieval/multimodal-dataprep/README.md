@@ -7,28 +7,26 @@ The microservice is **vector-database and storage agnostic**: the vector store
 startup behind a factory, using [VDMS](https://github.com/IntelLabs/vdms) and
 Milvus LangChain integrations. See [Pluggable Backends](docs/user-guide/pluggable-backends.md).
 
-_Note_: Videos must be MP4. Supported image formats are JPG/JPEG, PNG, WEBP, BMP, and GIF.
+> **Note:** Videos must be MP4. Supported image formats are JPG/JPEG, PNG, WEBP, BMP, and GIF.
 
-Below, you'll find links to detailed documentation to help you get started, configure, and deploy the microservice.
+Follow the links below to the detailed documentation to help you get started, configure, and deploy the microservice.
 
 ## Documentation
 
 - **Overview**
-  - [Overview](docs/user-guide/Overview.md): A high-level introduction to the microservice.
-  - [Overview Architecture](docs/user-guide/overview-architecture.md): Detailed architecture.
+  - [Overview](./docs/user-guide/index.md): A high-level introduction to the microservice.
+  - [Architecture Overview](docs/user-guide/how-it-works-architecture.md): Detailed architecture.
   - [Pluggable Backends](docs/user-guide/pluggable-backends.md): Vector-database (VDMS/Milvus) and storage (MinIO/local) selection, configuration, and how to add a new backend.
 
 - **Getting Started**
   - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to getting started with the microservice.
-  - [System Requirements](docs/user-guide/system-requirements.md): Hardware and software requirements for running the microservice.
+  - [System Requirements](./docs/user-guide/get-started/system-requirements.md): Hardware and software requirements for running the microservice.
 
 - **Deployment**
-  - [How to Build from Source](docs/user-guide/how-to-build-from-source.md): Instructions for building the microservice from source code.
+  - [Build from Source](./docs/user-guide/get-started/build-from-source.md): Instructions for building the microservice from source code.
 
 - **API Reference**
   - [API Reference](docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.
 
 - **Release Notes**
   - [Release Notes](docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.
-
-
