@@ -1,6 +1,6 @@
 # API Reference
 
-**Version: 2026.1.0**
+**Version: 2026.2.0**
 
 This document describes all REST API endpoints, request/response formats, and examples.
 
@@ -17,7 +17,7 @@ curl http://localhost:9090/health
 ```json
 {
   "status": "healthy",
-  "version": "2026.1.0",
+  "version": "2026.2.0",
   "uptime_seconds": 3600.5,
   "checks": { "store": true }
 }
@@ -32,7 +32,7 @@ curl http://localhost:9090/api/health
 ```json
 {
   "status": "healthy",
-  "version": "2026.1.0",
+  "version": "2026.2.0",
   "uptime_seconds": 3600.5,
   "checks": { "store": true },
   "metrics_store": {
