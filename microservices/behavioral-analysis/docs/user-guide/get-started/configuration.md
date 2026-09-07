@@ -151,7 +151,7 @@ In Docker Compose, `ovms-vlm` is defined under the `vlm` profile and its `depend
 | VLM_MAX_IMAGE_SIZE | 256 | Maximum frame size for VLM |
 | VLM_MAX_CONCURRENCY | 1 | Maximum concurrent VLM requests |
 
-To download the VLM model, follow the instructions in the [model-download microservice](../../../../model-download/README.md).
+To download the VLM model, follow the instructions in the [model-download microservice](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/model-download/README.md).
 
 ### Pattern Config Path
 

@@ -14,7 +14,12 @@ This guide is intended for developers working directly with the source code.
 Before starting, ensure the following:
 
 - **System requirements**: The system meets the [minimum requirements](./system-requirements.md).
-- **Docker platform**: Docker is installed. For details, see the [Docker installation guide](https://docs.docker.com/get-docker/).
+- **Docker platform**: **Docker Engine** is installed. On Linux, install it from the Docker apt repository, see
+  [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/), then complete the
+  [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run Docker as a non-root user.
+
+  > **Note:** Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU device on Linux (yet).
+
 - **Dependencies installed**:
   - **Git**: [Install Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
   - **Make**: Standard build tool, typically provided by the `build-essential` (or equivalent) package on Linux.

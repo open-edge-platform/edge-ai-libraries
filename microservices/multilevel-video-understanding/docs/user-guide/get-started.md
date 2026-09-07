@@ -30,12 +30,12 @@ This microservice is designed to work effortlessly with GenAI model servings tha
 `Qwen3.5-35B-A3B` in FP8 with a 60k context window is memory-hungry on a shared-RAM host. The default configuration targets a **64 GB system**:
 
 - Provide at least **32 GB of swap** so the weight load and KV cache can spill under peak pressure without the OOM killer stepping in. If your host lacks enough swap, see [Adding Swap Space](./get-started/add-swap.md).
-- To lower the footprint, reduce `MAX_MODEL_LEN` (e.g. `32768`) or switch `LOAD_QUANTIZATION` to `awq` / `sym_int4` in [set_env.sh](../../docker/set_env.sh).
+- To lower the footprint, reduce `MAX_MODEL_LEN` (e.g. `32768`) or switch `LOAD_QUANTIZATION` to `awq` / `sym_int4` in [set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/set_env.sh).
 - The **first startup takes about 30 minutes** while the weights are downloaded and compiled. The serving becomes healthy once it answers on `http://<host>:41091/v1/models`.
 
 ## Step 1. Configure the environment
 
-All environment variables for both the model serving and the microservice live in one file, [docker/set_env.sh](../../docker/set_env.sh). Source it in your shell before starting anything:
+All environment variables for both the model serving and the microservice live in one file, [docker/set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/set_env.sh). Source it in your shell before starting anything:
 
 ```bash
 cd edge-ai-libraries/microservices/multilevel-video-understanding
@@ -80,7 +80,7 @@ Provide the `multilevel-video-understanding` image in one of two ways:
 
 ## Step 3. Launch
 
-The Compose file ([docker/compose.yaml](../../docker/compose.yaml)) defines both services on a shared network: `vllm-ipex-serving` (the model serving) and `multilevel-video-understanding`. Choose one of the two deployment options below.
+The Compose file ([docker/compose.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/compose.yaml)) defines both services on a shared network: `vllm-ipex-serving` (the model serving) and `multilevel-video-understanding`. Choose one of the two deployment options below.
 
 ```bash
 chmod +x ./setup_docker.sh
@@ -98,7 +98,7 @@ source docker/set_env.sh
 
 ### Option 2 — Use an existing model serving
 
-If you already have an OpenAI-compatible serving running — a **warm local `vllm-ipex-serving`** (fast iteration on the same host) or a **remote** endpoint — point the microservice at it in [docker/set_env.sh](../../docker/set_env.sh) and start with `--light`:
+If you already have an OpenAI-compatible serving running — a **warm local `vllm-ipex-serving`** (fast iteration on the same host) or a **remote** endpoint — point the microservice at it in [docker/set_env.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multilevel-video-understanding/docker/set_env.sh) and start with `--light`:
 
 ```bash
 # in docker/set_env.sh (or your shell), set the endpoint(s), e.g. a remote host:
