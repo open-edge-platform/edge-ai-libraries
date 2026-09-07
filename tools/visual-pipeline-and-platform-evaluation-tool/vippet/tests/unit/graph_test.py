@@ -3818,15 +3818,7 @@ class TestToSimpleView(unittest.TestCase):
             ],
         )
 
-        with patch(
-            "graph._COMPILED_VISIBLE_PATTERNS",
-            [
-                re.compile("^.*src$"),
-                re.compile("^videoscale$"),
-                re.compile("^.*sink$"),
-            ],
-        ):
-            simple_view = graph.to_simple_view()
+        simple_view = graph.to_simple_view()
 
         self.assertEqual(
             [node.type for node in simple_view.nodes],

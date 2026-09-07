@@ -80,7 +80,7 @@ references it):
   view, add it to `SIMPLE_VIEW_INVISIBLE_ELEMENTS` in `compose.yml`.
 - If your element name does not match any of the existing patterns
   (for example it is not `*src` / `gva*` / `*sink` / `urisourcebin` /
-  `source`) and should be exposed, extend `SIMPLE_VIEW_VISIBLE_ELEMENTS`
+  `source` / `videoscale`) and should be exposed, extend `SIMPLE_VIEW_VISIBLE_ELEMENTS`
   accordingly. Keep the patterns broad and named, not pipeline-specific.
 
 Any change to these variables must also be documented in the README and
