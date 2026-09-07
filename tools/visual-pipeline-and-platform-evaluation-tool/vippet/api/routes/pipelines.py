@@ -34,15 +34,15 @@ def _is_timeseries_service_available() -> bool:
     """
     Check if the timeseries-analytics-microservice is available.
 
-    Returns True if the service is running and healthy, False otherwise.
-    Attempts a connection to the health endpoint on the service.
+    Returns True if the TSAM deployment API is reachable, False otherwise.
+    The API must be available before UDF configuration starts Kapacitor.
     """
     try:
-        # Try to connect to the service health endpoint
-        # The service runs on port 9092 and exposes /kapacitor/v1/ping
+        # TSAM accepts UDF packages on port 5000. Kapacitor on 9092 starts
+        # only after a UDF configuration has been applied.
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)  # 2 second timeout
-        result = sock.connect_ex(("ia-time-series-analytics-microservice", 9092))
+        result = sock.connect_ex(("ia-time-series-analytics-microservice", 5000))
         sock.close()
         is_available = result == 0
         if is_available:

@@ -6,6 +6,8 @@ services:
       SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
       TSAM_HOST: ${TSAM_HOST:-ia-time-series-analytics-microservice}
       TSAM_KAPACITOR_PORT: ${TSAM_KAPACITOR_PORT:-9092}
+      no_proxy: "ia-time-series-analytics-microservice,model-download,${no_proxy}"
+      NO_PROXY: "ia-time-series-analytics-microservice,model-download,${NO_PROXY}"
     depends_on:
       model-download:
         condition: service_healthy
