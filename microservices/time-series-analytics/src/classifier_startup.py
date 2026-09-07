@@ -86,14 +86,20 @@ class KapacitorClassifier():
         """ Check if UDF deployment package is present in the container
         """
         logger.info("Checking if UDF deployment package is present in the container...")
-        path = secure_temp_path(dir_name)
-        udf_dir = secure_temp_path(dir_name, "udfs")
-        model_dir = secure_temp_path(dir_name, "models")
-        tick_scripts_dir = secure_temp_path(dir_name, "tick_scripts")
+        udf_name = config["udfs"]["name"]
+        try:
+            path = secure_temp_path(dir_name)
+            udf_dir = secure_temp_path(dir_name, "udfs")
+            model_dir = secure_temp_path(dir_name, "models")
+            tick_scripts_dir = secure_temp_path(dir_name, "tick_scripts")
+            udf_path = secure_temp_path(dir_name, "udfs", udf_name + ".py")
+            tick_script_path = secure_temp_path(dir_name, "tick_scripts", udf_name + ".tick")
+        except ValueError as err:
+            self.logger.error("Invalid UDF deployment package path: %s", err)
+            return False
         found_udf = False
         found_tick_scripts = False
         found_model = False
-        udf_name = config["udfs"]["name"]
 
 
         if not os.path.isdir(path):
@@ -103,12 +109,9 @@ class KapacitorClassifier():
                 udf_name
             )
             return False
-        if os.path.isdir(udf_dir) and os.path.isfile(secure_temp_path(
-                dir_name, "udfs", config['udfs']["name"] + ".py")):
+        if os.path.isdir(udf_dir) and os.path.isfile(udf_path):
             found_udf = True
 
-        tick_script_path = secure_temp_path(
-            dir_name, "tick_scripts", config['udfs']["name"] + ".tick")
         if os.path.isdir(tick_scripts_dir) and os.path.isfile(tick_script_path):
             found_tick_scripts = True
 
@@ -319,6 +322,7 @@ class KapacitorClassifier():
         retry = 0
         kap_connectivity_retry = 10
         kap_retry = 0
+        task_enabled = False
         while not self.kapacitor_port_open(host_name):
             time.sleep(5)
             kap_retry = kap_retry + 1
@@ -328,11 +332,15 @@ class KapacitorClassifier():
 
         self.logger.info("Kapacitor Port is Open for Communication....")
 
-        path = secure_temp_path(dir_name, "tick_scripts")
+        try:
+            tick_script_path = secure_temp_path(dir_name, "tick_scripts", tick_script)
+        except ValueError as err:
+            self.logger.error("Invalid TICK script path: %s", err)
+            return False
         while retry < retry_count:
             define_pointcl_cmd = ["kapacitor", "-skipVerify", "define",
                                   task_name, "-tick",
-                                  secure_temp_path(dir_name, "tick_scripts", tick_script)]
+                                  tick_script_path]
 
             if subprocess.check_call(define_pointcl_cmd) == SUCCESS:
                 define_pointcl_cmd = ["kapacitor", "-skipVerify", "enable",
@@ -341,6 +349,7 @@ class KapacitorClassifier():
                     self.logger.info("Kapacitor Tasks Enabled Successfully")
                     self.logger.info("Kapacitor Initialized Successfully. "
                                      "Ready to Receive the Data....")
+                    task_enabled = True
                     break
 
                 self.logger.info("ERROR:Cannot Communicate to Kapacitor.")
@@ -349,6 +358,7 @@ class KapacitorClassifier():
             self.logger.info("Retrying Kapacitor Connection")
             time.sleep(0.0001)
             retry = retry + 1
+        return task_enabled
 
     def check_config(self, config):
         """Starting the udf based on the config
@@ -377,10 +387,11 @@ class KapacitorClassifier():
 
         if kapacitor_started:
             self.logger.info("Enabling %s", tick_script)
-            self.enable_classifier_task(kapacitor_url_hostname,
-                                        tick_script,
-                                        dir_name,
-                                        task_name)
+            if not self.enable_classifier_task(kapacitor_url_hostname,
+                                               tick_script,
+                                               dir_name,
+                                               task_name):
+                return "Failed to enable classifier task", FAILURE
         while True:
             time.sleep(1)
 
