@@ -97,6 +97,22 @@ def test_get_benchmark_suite_by_slug_returns_suite(
 
 
 @pytest.mark.smoke
+def test_run_benchmark_suite_for_nonexistent_slug_returns_400(
+    http_client: requests.Session,
+) -> None:
+    """Calls POST /benchmarks/{suite_slug}/run with a non-existent suite slug."""
+    suite_slug = "does-not-exist"
+
+    response = http_client.post(f"{BASE_URL}/benchmarks/{suite_slug}/run", timeout=30)
+
+    assert response.status_code == 400, (
+        f"Expected 400 for unknown benchmark suite slug={suite_slug!r}, "
+        f"got {response.status_code}, body={response.text}"
+    )
+    assert "message" in response.json(), "Error response must contain 'message'"
+
+
+@pytest.mark.smoke
 def test_get_benchmark_suite_runs_returns_list(
     http_client: requests.Session,
 ) -> None:
