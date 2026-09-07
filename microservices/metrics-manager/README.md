@@ -5,7 +5,7 @@ A unified metrics collection, ingestion, and relay service that combines Telegra
 - **Get Started:** [Get Started Guide](docs/user-guide/get-started.md) — install and run in 5 minutes
 - **Full Documentation:** [Documentation](docs/user-guide/index.md)
 - **Issues / feature requests:** [Edge AI Libraries Issues Page](https://github.com/open-edge-platform/edge-ai-libraries/issues) (use the `metrics-manager` label)
-- **Container image (Docker Hub):** [`intel/metrics-manager`](https://hub.docker.com/r/intel/metrics-manager) - tagged `intel/metrics-manager:<VERSION>` (e.g. `intel/metrics-manager:2026.1.0`)
+- **Container image (Docker Hub):** [`intel/metrics-manager`](https://hub.docker.com/r/intel/metrics-manager) - tagged `intel/metrics-manager:<VERSION>` (e.g. `intel/metrics-manager:2026.2.0`)
 - **Helm chart (OCI):** `oci://registry-1.docker.io/intel/metrics-manager:<VERSION>-helm` (see [Helm Deployment Guide](./docs/user-guide/get-started/deploy-with-helm.md))
 
 ## Features
@@ -44,7 +44,7 @@ cd siv-telemetry/metrics-manager
 Released images are published to Docker Hub as `intel/metrics-manager`:
 
 ```bash
-docker pull intel/metrics-manager:2026.1.0
+docker pull intel/metrics-manager:2026.2.0
 ```
 
 Pick the run invocation that matches your hardware:
@@ -56,7 +56,7 @@ docker run --rm \
   -p 9090:9090 -p 9273:9273 \
   -v /sys:/sys:ro -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 **With Intel® GPU telemetry** (adds `--device /dev/dri` so qmassa can
@@ -68,7 +68,7 @@ docker run --rm \
   -p 9090:9090 -p 9273:9273 \
   -v /sys:/sys:ro -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 **With Intel® NPU telemetry** (NPU readings come from the `intel_pmt`
@@ -79,7 +79,7 @@ docker run --rm --privileged \
   -p 9090:9090 -p 9273:9273 \
   -v /sys:/sys:ro -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 > **Note:** On hosts that have **both** an Intel® GPU and NPU, add `--device
@@ -131,7 +131,7 @@ distinguished by the `-helm` tag suffix:
 ```bash
 helm install metrics-manager \
   oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --namespace observability --create-namespace
 ```
 
@@ -143,15 +143,15 @@ complete reference.
 ## Building the Image
 
 The image version is the **single source of truth** in [`VERSION`](VERSION) (currently
-`2026.1.0`). Locally-built images are tagged `metrics-manager:<VERSION>` (no
+`2026.2.0`). Locally-built images are tagged `metrics-manager:<VERSION>` (no
 registry prefix); the **official released image** on Docker Hub is
 `intel/metrics-manager:<VERSION>`. Neither tag is `:latest` by default.
 
 ### With Make (recommended)
 
 ```bash
-make version            # → 2026.1.0
-make build              # → metrics-manager:2026.1.0    (local build)
+make version            # → 2026.2.0
+make build              # → metrics-manager:2026.2.0    (local build)
 make up                 # docker compose up -d
 make logs               # tail container logs
 make down               # stop & remove
@@ -170,13 +170,13 @@ make helm-push          # push the packaged chart to oci://registry-1.docker.io/
 make build TAG=dev      # → metrics-manager:dev
 
 # Build with the published Docker Hub naming (matches what we release)
-REGISTRY=intel/ make build              # → intel/metrics-manager:2026.1.0
+REGISTRY=intel/ make build              # → intel/metrics-manager:2026.2.0
 ```
 
 ### With Docker Compose directly
 
 ```bash
-# Uses the TAG from .env (defaults to 2026.1.0)
+# Uses the TAG from .env (defaults to 2026.2.0)
 docker compose build metrics-manager
 
 # Override on the command line
