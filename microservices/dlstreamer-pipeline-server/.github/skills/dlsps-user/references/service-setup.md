@@ -24,10 +24,9 @@ cd microservices/dlstreamer-pipeline-server/docker
 
 # 2. (GPU/NPU only) Set render group ID
 export RENDER_GID=$(stat -c "%g" /dev/dri/render* | head -1)
-# Or add RENDER_GID=<id> to the .env file
 
 # 3. Pull the pre-built image
-docker pull "$(grep ^DLSTREAMER_PIPELINE_SERVER_IMAGE= .env | cut -d= -f2-)"
+docker pull intel/dlstreamer-pipeline-server:latest
 
 # 4. Start the service
 docker compose up
