@@ -129,7 +129,8 @@ If the spec changes a pinned version, tag, or workspace layout, `verify_{{NAME}}
    way to ensure uniqueness.
 
 - **File location**: `module/{{NAME}}/debian` for Debian-specific functions;
-  `module/{{NAME}}/linux` for distribution-agnostic functions.
+  `module/{{NAME}}/linux` for distribution-agnostic functions. The location of the functions does not
+  make a difference but at least a `module/{{NAME}}/<ID_LIKE>` file must exist for the OEP bootstrapper to recognize the module.
 
 - **Functions**: always implement `install`, `remove`, `start`, and `stop`.
   Omit `start`/`stop` only when the spec describes a stateless package with no
