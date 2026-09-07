@@ -40,6 +40,18 @@ def kapacitor_classifier():
     logger = DummyLogger()
     return cs.KapacitorClassifier(logger)
 
+def test_secure_temp_path_rejects_directory_traversal(monkeypatch, tmp_path):
+    monkeypatch.setattr(cs, "SECURE_TEMP_DIR", str(tmp_path))
+
+    with pytest.raises(ValueError, match="must remain within"):
+        cs.secure_temp_path("../outside")
+
+def test_secure_temp_path_resolves_package_path(monkeypatch, tmp_path):
+    monkeypatch.setattr(cs, "SECURE_TEMP_DIR", str(tmp_path))
+
+    assert cs.secure_temp_path("package", "udfs", "model.py") == str(
+        tmp_path / "package" / "udfs" / "model.py")
+
 def test_write_cert_creates_file_and_sets_permissions(tmp_path, kapacitor_classifier):
     src_file = tmp_path / "src_cert"
     dst_file = tmp_path / "dst_cert"
