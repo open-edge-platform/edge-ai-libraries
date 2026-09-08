@@ -16,6 +16,7 @@ import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 const REQUIRED_MODEL_FILES = ["model.bin", "model.xml"];
 const ALLOWED_CATEGORIES = ["classification", "detection", "genai"] as const;
+const MAX_DESCRIPTION_LENGTH = 200;
 
 const validateModelArchive = async (
   file: File,
@@ -151,6 +152,7 @@ export const Models = () => {
               label: "Description",
               placeholder: "Optional description of what the model does",
               required: false,
+              maxLength: MAX_DESCRIPTION_LENGTH,
             },
           ]}
           className="mb-8"

@@ -62,7 +62,6 @@ type SelectOption = {
 };
 
 const FIELD_CONTROL_CLASS = "w-full bg-background text-xs md:text-xs";
-const FIELD_TRIGGER_CLASS = FIELD_CONTROL_CLASS;
 const FIELD_INPUT_CLASS = `h-8 ${FIELD_CONTROL_CLASS}`;
 
 type NodeDataPanelProps = {
@@ -404,7 +403,7 @@ const NodeDataPanel = ({
                     value={String(value ?? "")}
                     onValueChange={(val) => handleInputChange(keyStr, val)}
                   >
-                    <SelectTrigger size="sm" className={FIELD_TRIGGER_CLASS}>
+                    <SelectTrigger size="sm" className={FIELD_CONTROL_CLASS}>
                       <SelectValue
                         placeholder={`Select ${propConfig?.label ?? keyStr}`}
                       />
@@ -439,7 +438,7 @@ const NodeDataPanel = ({
                   <DeviceSelect
                     value={String(value ?? "")}
                     onChange={(val) => handleInputChange(keyStr, val)}
-                    className={FIELD_TRIGGER_CLASS}
+                    className={FIELD_CONTROL_CLASS}
                   />
                 ) : (selectedNode.type === "source" && keyStr === "source") ||
                   (selectedNode.type === "filesrc" && keyStr === "location") ? (
@@ -474,7 +473,7 @@ const NodeDataPanel = ({
                       >
                         <SelectTrigger
                           size="sm"
-                          className={FIELD_TRIGGER_CLASS}
+                          className={FIELD_CONTROL_CLASS}
                         >
                           <SelectValue
                             placeholder={`Select ${propConfig?.label ?? keyStr}`}
@@ -505,7 +504,7 @@ const NodeDataPanel = ({
                     }
                     onValueChange={(val) => handleInputChange(keyStr, val)}
                   >
-                    <SelectTrigger size="sm" className={FIELD_TRIGGER_CLASS}>
+                    <SelectTrigger size="sm" className={FIELD_CONTROL_CLASS}>
                       <SelectValue
                         placeholder={`Select ${propConfig?.label ?? keyStr}`}
                       />

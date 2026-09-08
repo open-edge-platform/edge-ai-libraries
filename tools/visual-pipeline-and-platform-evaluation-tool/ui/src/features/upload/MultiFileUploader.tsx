@@ -66,6 +66,8 @@ export interface MultiFileUploaderProps {
           type?: "input";
           regex?: RegExp | string;
           regexMessage?: string;
+          maxLength?: number;
+          maxLengthMessage?: string;
           options?: never;
         }
       | {
@@ -789,9 +791,18 @@ export const MultiFileUploader = ({
                                     "Value does not match the required format",
                                 }
                               : undefined,
+                            maxLength: field.maxLength
+                              ? {
+                                  value: field.maxLength,
+                                  message:
+                                    field.maxLengthMessage ??
+                                    `Must be ${field.maxLength} characters or fewer`,
+                                }
+                              : undefined,
                           },
                         )}
                         placeholder={field.placeholder}
+                        maxLength={field.maxLength}
                         className="mt-1"
                       />
                     )}
