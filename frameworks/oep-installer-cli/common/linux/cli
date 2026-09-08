@@ -123,25 +123,31 @@ act_helpper () {
       local -A licenses=() licenses_text=()
       for licenser in ${handles[*]/_install_/_license_}; do
         if declare -F $licenser > /dev/null 2>&1; then
-          local name1=${licenser#*_*_*_} license_line license_id=""
+          local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0
           while IFS= read -r license_line; do
             case "$license_line" in
             "@@LICENSE-ID "*)
               license_id="${license_line#* }"
               [ -z "$license_id" ] || licenses[$license_id]="${licenses[$license_id]:-}$name1,"
+              [[ -v licenses_text[$license_id] ]] && license_keep=0 || license_keep=1
               ;;
             esac
-            [ -z "$license_id" ] || licenses_text[$license_id]="${licenses_text[$license_id]:-}${license_line%\n}\n"
+            [ $license_keep -eq 1 ] && licenses_text[$license_id]+="${license_line}"$'\n'
           done < <($licenser "$@")
         fi
       done
       if [ ${#licenses[*]} -gt 0 ]; then
+        local id1 rc
         for id1 in ${!licenses[*]}; do
           echo "${licenses_text[$id1]}"
           echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")"
-        done | tee | ensure_license_gate $installer_name "$@"
-        if [ $? -ne 0 ]; then
+        done | ensure_license_gate $installer_name "$@"
+        rc=$?
+        if [ $rc -eq 1 ]; then
           echo "License declined"
+          exit 3
+        elif [ $rc -ne 0 ]; then
+          echo "License gate failed (no terminal or parse error)"
           exit 3
         fi
       fi
