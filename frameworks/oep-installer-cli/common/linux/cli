@@ -123,12 +123,31 @@ act_helpper () {
       local -A licenses=() licenses_text=()
       for licenser in ${handles[*]/_install_/_license_}; do
         if declare -F $licenser > /dev/null 2>&1; then
-          local license_text="$($licenser "$@")"
-          [ -n "$license_text" ] || continue
-          local id1=$(echo "$license_text" | awk '/@@LICENSE-ID/{print$2}')
-          local name1=${licenser#*_*_*_}
-          licenses[$id1]="${licenses[$id1]:-}$name1,"
-          licenses_text[$id1]="$license_text"
+          local name1=${licenser#*_*_*_} license_line license_id="" license_title="" license_text=""
+          while IFS= read -r license_line; do
+            case "$license_line" in
+            "@@LICENSE-ID "*)
+              if [ -n "$license_id" ]; then
+                licenses[$license_id]="${licenses[$license_id]:-}$name1,"
+                licenses_text[$license_id]="$license_text"
+              fi
+              license_id="${license_line#* }"
+              license_title=""
+              license_text=""
+              ;;
+            "@@LICENSE-TITLE "*)
+              license_title="${license_line#* }"
+              license_text=""
+              ;;
+            *)
+              license_text="$license_text${license_line%\n}\n"
+              ;;
+            esac
+          done < <($licenser "$@")
+          if [ -n "$license_id" ]; then
+            licenses[$license_id]="${licenses[$license_id]:-}$name1,"
+            licenses_text[$license_id]="$license_text"
+          fi
         fi
       done
       if [ ${#licenses[*]} -gt 0 ]; then
