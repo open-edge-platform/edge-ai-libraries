@@ -11,3 +11,4 @@ python-multipart==0.0.32
 python-slugify==8.0.4
 SQLAlchemy==2.0.51
 aiosqlite==0.22.1
+tritonclient[grpc]==2.72.0

@@ -45,7 +45,7 @@ USER dlstreamer
 ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/
 
 # Add DLSOptimizer scripts to PYTHONPATH
-ENV PYTHONPATH=$PYTHONPATH:/opt/intel/dlstreamer/scripts/optimizer/
+ENV PYTHONPATH=$PYTHONPATH:/opt/intel/dlstreamer/scripts/optimizer/:/scripts
 
 # Set the working directory inside the container
 WORKDIR /home/dlstreamer/vippet

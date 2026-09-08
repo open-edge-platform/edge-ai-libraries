@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: OVMS Goods Detection & Classification
+definition: >
+  POC: YOLO11n and EfficientNet B0 inference runs remotely in OVMS.
+tags:
+  - Retail
+thumbnail: images/goods-detection-and-classification.png
+type: vision
+variants:
+  - name: CPU
+    pipeline_description: >-
+      filesrc location=/videos/input/obj_classification.mp4 !
+      decodebin3 !
+      videoconvert !
+      video/x-raw,format=BGR !
+      gvapython module=ovms_detection.py !
+      queue !
+      gvatrack tracking-type=short-term-imageless !
+      queue !
+      gvapython module=ovms_classification.py !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      gvametaconvert add-empty-results=true !
+      queue !
+      gvametapublish file-format=json-lines file-path=/dev/null !
+      videoconvert !
+      video/x-raw,format=I420 !
+      fakesink name=default_output_sink sync=false async=false
