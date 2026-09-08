@@ -9,7 +9,7 @@ global:
 
 image:
   repository: intel/metrics-manager
-  tag: "2026.2.0-rc1"
+  tag: "2026.2.0-rc2"
   pullPolicy: IfNotPresent
 
 nameOverride: ""

@@ -5,16 +5,31 @@ recent release is listed first; older entries are preserved for history.
 
 ## v1.1.0
 
-**Release Date:** August 2026
+**Release Date:** September 9, 2026
 
 **New:**
 
-- Named voices selectable via the `voice` parameter, replacing raw
-  speaker index selection with human-readable identifiers.
+- Named voice selection through the `voice` parameter, replacing speaker-index
+  based selection with human-readable voice identifiers.
+- Voice discovery API (`GET /v1/audio/voices`), including available voices and
+  descriptions.
+- Configurable default voice support via `models.tts.default_speaker`.
+- Speaking-style instructions for Qwen3-TTS through the `instructions` request
+  field.
 
 **Improved:**
 
-- Faster synthesis with more natural prosody across supported voices.
+- Synthesis performance and speech quality: faster generation with more natural
+  prosody across supported voices.
+- OpenAI API compatibility retained for supported request fields and voice
+  handling.
+
+**Known Issues:**
+
+- English-only synthesis; unsupported languages return HTTP `400`.
+- The `model` request parameter is accepted for API compatibility but the
+  configured service model is always used.
+- Unknown voice names return HTTP `400`.
 
 ## v1.0.0
 

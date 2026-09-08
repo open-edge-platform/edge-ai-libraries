@@ -1,14 +1,14 @@
 # Get Started
 
-This page is the entry point for running the Semantic Search Agent microservice. Pick one of the two deployment paths and follow the linked guide.
+This section shows how to run the Semantic Search Agent microservice. Pick one of the two deployment paths and follow the linked guide.
 
 ## Before You Begin
 
 - Confirm that your machine meets the [System Requirements](./get-started/system-requirements.md).
 - Review the [Configuration Guide](./get-started/configuration.md) to understand matching strategies, VLM backends, and caching options.
 - Decide whether you need VLM support:
-  - For **exact matching only**, no external model server is needed.
-  - For **semantic or hybrid matching**, you need a configured VLM backend (OVMS, OpenVINO local, or OpenAI).
+  - For **exact matching only**, you do not need an external model server.
+  - For **semantic or hybrid matching**, you need a configured VLM backend: OpenVINO model server, OpenVINO local GenAI model, or OpenAI cloud API.
 
 ## Choose Deployment Path
 
@@ -16,7 +16,7 @@ This page is the entry point for running the Semantic Search Agent microservice.
 :::{tab-item}hide_directive--> **Run in Docker (Recommended)**
 <!--hide_directive:sync: Docker hide_directive-->
 
-The container setup exposes the API on host port `8080` and Prometheus metrics on port `9090`. An optional Redis container is included in the Compose file for persistent caching.
+The container setup exposes the API on host port `8080`, and Prometheus metrics on port `9090`. The Compose file includes an optional Redis container for persistent caching.
 
 See [Run with Docker Compose](./get-started/run-container.md) for the full step-by-step guide.
 
@@ -34,7 +34,7 @@ curl http://localhost:8080/api/v1/health
 :::{tab-item}hide_directive--> **Run on the Host**
 <!--hide_directive:sync: Host hide_directive-->
 
-Run the service directly with Python. This path is useful for local development, debugging, and running tests.
+Run the service directly as a local Python process. This path is useful for local development, debugging, and tests.
 
 See [Run on the Host](./get-started/run-standalone.md) for the full step-by-step guide.
 
@@ -73,9 +73,9 @@ Expected response:
 
 ## Next Steps
 
-- [API Reference](./api-reference.md) for endpoint details and payload examples.
-- [Configuration Guide](./get-started/configuration.md) to customize matching strategies and VLM backends.
-- [Troubleshooting](./troubleshooting.md) for common startup or VLM connectivity issues.
+- See [API Reference](./api-reference.md) for endpoint details and payload examples.
+- See [Configuration Guide](./get-started/configuration.md) to customize matching strategies and VLM backends.
+- See [Troubleshooting](./troubleshooting.md) for common startup or VLM connectivity issues.
 
 <!--hide_directive
 :::{toctree}

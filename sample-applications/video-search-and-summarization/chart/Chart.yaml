@@ -1,7 +1,7 @@
 apiVersion: v2
 name: video-search-and-summarization
 description: A helm chart for deploying Intel Video Search and Summarization sample application
-version: 2026.2.0-rc1-helm
+version: 2026.2.0-rc2-helm
 dependencies:
   - name: ovms
     version: 2026.2.0-helm

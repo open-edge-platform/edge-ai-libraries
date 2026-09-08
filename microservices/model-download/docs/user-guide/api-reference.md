@@ -497,7 +497,7 @@ curl http://localhost:8200/api/v1/plugins
 | `GET /api/v1/models/results`          | Get completed model operations                 |
 | `GET /api/v1/models/jobs`             | Get jobs for a specific model                  |
 
-### Jobs
+### Jobs (Endpoints)
 
 | Endpoint                              | Description                                    |
 | ------------------------------------- | ---------------------------------------------- |

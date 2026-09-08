@@ -34,7 +34,7 @@ the REST API.
 
 > **Not this skill:** If the user wants to *write new* DL Streamer applications,
 > create custom GStreamer pipelines from scratch, or develop Python/C++ video analytics
-> code, use the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/main/.github/skills/dlstreamer-coding-agent) skill instead.
+> code, use the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/v2026.2.0/.github/skills/dlstreamer-coding-agent) skill instead.
 
 ## Architecture at a Glance
 
@@ -155,7 +155,7 @@ Pipeline definitions live in a `config.json` mounted into the container:
 | `udfloader` | Load Python User Defined Functions |
 | `appsink` | Application sink (required, `name=appsink`) |
 
-For DL Streamer inference, decode and metadata conversion and publishing elements see the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/main/.github/skills/dlstreamer-coding-agent) skill.
+For DL Streamer inference, decode and metadata conversion and publishing elements see the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/v2026.2.0/.github/skills/dlstreamer-coding-agent) skill.
 
 ## Common Mistakes to Avoid
 
@@ -194,12 +194,12 @@ Read the matching example file — it contains the exact compact response format
 ### Execution Overview
 
 1. Gather requirements from user prompt (source, device, output type)
-2. Start the service (`cd .../docker && docker compose up`)
+2. Start the service (`cd microservices/dlstreamer-pipeline-server/docker && docker compose up`)
 3. POST to `/pipelines/{name}/{version}` with source + destination + parameters
 4. Show RTSP URL, status-check command, and stop command
 
 **GPU/NPU rules:**
-For GPU/NPU inference or decodeing devices see the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/main/.github/skills/dlstreamer-coding-agent) skill.
+For GPU/NPU inference or decodeing devices see the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/v2026.2.0/.github/skills/dlstreamer-coding-agent) skill.
 - RTSP/MQTT with GPU: add `vapostproc ! video/x-raw` before `appsink`
 
 Read reference files only when needed for advanced configuration details:
@@ -211,5 +211,5 @@ Read reference files only when needed for advanced configuration details:
 
 **Every final answer must include: startup command, the curl POST with device and frame destination,
 the RTSP URL (`rtsp://host:8554/stream-name`), a status-check command (`GET /pipelines/status`),
-and a stop command (`DELETE /pipelines/{instance_id}`).** Keep responses compact — use single-line
+and a stop command (HTTP `DELETE` on `/pipelines/<instance_id>`).** Keep responses compact — use single-line
 JSON in curl commands when the body is short.

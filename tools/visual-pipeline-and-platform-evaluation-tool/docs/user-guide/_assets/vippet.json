@@ -1008,7 +1008,7 @@
           "jobs"
         ],
         "summary": "Stream metadata from a running performance test job via SSE",
-        "description": "**Stream live metadata records from gvametapublish via Server-Sent Events.**\n\n## Operation\n\nOpens a persistent HTTP connection and pushes each new JSON record emitted\nby the ``gvametapublish`` GStreamer element as an SSE ``data:`` event.\nThe stream terminates automatically when the pipeline finishes.\nA ``\": keepalive\"`` comment is sent every 30 s to prevent proxy timeouts.\n\n## Path Parameters\n\n- `job_id`: Identifier of the performance job to stream metadata from\n\n## Response Format\n\n``text/event-stream`` \u2014 each event is:\n```\ndata: {<json record>}\n\n\n```\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | SSE stream opened |\n| 404  | Job id is unknown or no metadata is available for this job |",
+        "description": "**Stream live metadata records from gvametapublish via Server-Sent Events.**\n\n## Operation\n\nOpens a persistent HTTP connection and pushes each new JSON record emitted\nby the ``gvametapublish`` GStreamer element as an SSE ``data:`` event.\nThe stream terminates automatically when the pipeline finishes.\nA padding comment is sent on connect and a ``\": keepalive\"`` comment every\n10 s, so buffering proxies release the response instead of holding it until\nthe stream closes.\n\n## Path Parameters\n\n- `job_id`: Identifier of the performance job to stream metadata from\n\n## Response Format\n\n``text/event-stream`` \u2014 each event is:\n```\ndata: {<json record>}\n\n\n```\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | SSE stream opened |\n| 204  | Job has finished; the client should not reconnect |\n| 404  | Job id is unknown or no metadata is available for this job |",
         "operationId": "stream_performance_job_metadata",
         "parameters": [
           {
@@ -1048,6 +1048,9 @@
               },
               "text/event-stream": {}
             }
+          },
+          "204": {
+            "description": "Job finished; no further metadata will be produced"
           },
           "404": {
             "description": "Job not found",

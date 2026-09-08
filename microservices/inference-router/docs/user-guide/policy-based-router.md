@@ -20,7 +20,7 @@ available provider.
 
 ## Built-in Rules
 
-Rules are configured in [src/rsd/strategy.yaml](../../src/rsd/strategy.yaml)
+Rules are configured in [src/rsd/strategy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/inference-router/src/rsd/strategy.yaml)
 with the `type` and `param` fields.
 
 | Rule Type | Purpose | Main Parameters |
@@ -39,7 +39,7 @@ of `score_range`, so it does not yet vary with request content.
 
 ## Built-in Strategies and Policies
 
-The default strategies are defined in [src/rsd/strategy.yaml](../../src/rsd/strategy.yaml):
+The default strategies are defined in [src/rsd/strategy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/inference-router/src/rsd/strategy.yaml):
 
 | Strategy | Trigger | Provider Selector |
 | --- | --- | --- |
@@ -48,7 +48,7 @@ The default strategies are defined in [src/rsd/strategy.yaml](../../src/rsd/stra
 | `ZeroCost` | Always matches | `cost <= 0` |
 | `IntelligentRouting` | Classifier maps the last user message to index `0` or `1` | Index-based `label` (`0: local`, `1: cloud`) |
 
-The default policies are defined in [src/rsd/policy.yaml](../../src/rsd/policy.yaml):
+The default policies are defined in [src/rsd/policy.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/inference-router/src/rsd/policy.yaml):
 
 | Policy | Criterion | Strategy Order |
 | --- | --- | --- |
@@ -112,7 +112,7 @@ Use the `CostFirst` routing policy when you prefer free or local providers.
 ## Intelligent Routing
 
 `IntelligentRule` routes with the intelligent model-based classifier. It uses
-the bundled [src/rsd/tools](../../src/rsd/tools/) Qwen3.5 classifier: the last
+the bundled [src/rsd/tools](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/inference-router/src/rsd/tools/) Qwen3.5 classifier: the last
 user message is mapped to index `0` or `1`. A strategy's index-keyed
 `provider_selector` then picks a provider. For example, index `0` can require a
 provider labelled `local`, and index `1` can require a provider labelled `cloud`.

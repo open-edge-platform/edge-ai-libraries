@@ -40,7 +40,7 @@ const GVAGenAINode = ({ data }: GVAGenAINodeProps) => {
 
         <div className="flex-1 flex flex-col">
           <div className="text-xl font-bold text-teal-700 dark:text-teal-300">
-            {simpleGraph ? "Video Summarization VLM" : "GVAGenAI"}
+            {simpleGraph ? "Video Captioning VLM" : "GVAGenAI"}
           </div>
 
           <div className="flex items-center gap-1 flex-wrap text-xs text-gray-700 dark:text-gray-300">

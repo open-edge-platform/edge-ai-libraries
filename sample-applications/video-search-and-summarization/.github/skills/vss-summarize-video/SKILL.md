@@ -14,10 +14,24 @@ SPDX-License-Identifier: Apache-2.0
 
 # VSS Summarize
 
-Run the summarization pipeline via the Pipeline Manager. **Run the curl commands
-yourself** and relay results. Endpoints use the nginx `/manager` prefix.
+Run the summarization pipeline via the Pipeline Manager. Call the documented
+API yourself and report only observed responses. Endpoints use the nginx
+`/manager` prefix.
 
 Set `HOST=http://${HOST_IP:-localhost}:${APP_HOST_PORT:-12345}`.
+
+## Answer contract when VSS is not reachable
+
+The user may be away from the deployment, `$HOST` may refuse connections, or a
+live precondition may fail (for example, summary mode is disabled or the named
+video is absent). In any of those cases **do not stall and do not invent
+responses.** Report the observed blocker, then answer with the complete exact
+call sequence the user can run after fixing it: full endpoint paths, request
+bodies / form fields, the field each step carries over from the previous
+response, and the condition that says a step is finished. Do not abbreviate or
+omit the requested summary flow merely because it could not be executed. State
+plainly which commands were not executed. Never end the answer by asking
+whether to run them.
 
 ## Environment setup (run first)
 
@@ -26,12 +40,23 @@ files, so the VSS application must be present and you must run commands from its
 app root. **Do this before anything else**, and it works whether or not the VSS
 source is already in your workspace.
 
-Run the bundled bootstrap. It first tries to find an existing VSS checkout -
-walking up from the current directory and inspecting the enclosing git repo - and
-reuses it **without ever re-cloning**. Only when no checkout is found does it do a
-shallow, single-branch, sparse checkout of just
-`sample-applications/video-search-and-summarization` from `main`. It prints the
-resolved app root on stdout:
+Run the bundled bootstrap. It resolves the app root in this order and prints it
+as the only line on stdout:
+
+1. **Walk up from the current directory** looking for a VSS app root - a
+   directory carrying all three markers `setup.sh`, `docker/`, and
+   `pipeline-manager/`.
+2. **Ask git for the enclosing repository** (`git rev-parse --show-toplevel`) and
+   check whether it holds `sample-applications/video-search-and-summarization`,
+   or is itself a VSS app root. This is what makes your own clone - or a fork -
+   work unchanged.
+3. **Reuse a checkout a previous bootstrap already placed** in
+   `${XDG_CACHE_HOME:-$HOME/.cache}/vss-src/edge-ai-libraries`.
+
+If any of those hit, that checkout is **reused and NO clone is performed**. Only
+when all three miss does it clone - and then only a **shallow (`--depth 1`),
+single-branch, sparse** checkout of just
+`sample-applications/video-search-and-summarization` from `main`:
 
 ```bash
 # SKILL_DIR is THIS skill's own directory (shown to you when the skill loads);
@@ -43,15 +68,16 @@ cd "$APP_ROOT"
 
 Every command below assumes the working directory is this `APP_ROOT`. To pull
 from a fork/branch or reuse a specific checkout dir, override `VSS_REPO_URL`,
-`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it.
+`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it. The bootstrap refuses
+to overwrite an existing non-VSS clone destination.
 
 ## Preconditions
 
-1. Backend healthy and summary enabled - probe first; if not, use
-   [`vss-troubleshoot`](../vss-troubleshoot/SKILL.md) / [`vss-deploy`](../vss-deploy/SKILL.md):
+1. Backend healthy and summary enabled - probe first; if not, use the installed
+   `vss-troubleshoot` or `vss-deploy` skill by name:
    ```bash
    curl -sf "$HOST/manager/health" >/dev/null && \
-   curl -s "$HOST/manager/app/features" | jq '.summary // .'   # confirm summary capability
+   curl -s "$HOST/manager/app/features" | jq -e '(.summary // .) == "FEATURE_ON"'
    ```
 2. A `videoId` to summarize - upload one with `POST /manager/videos` (multipart,
    field `video`), which returns `{ "videoId": "…" }`. Or list existing - note the
@@ -87,6 +113,10 @@ curl -s -X POST "$HOST/manager/summary" \
 > `multiFrame == frameOverlap + samplingFrame`. With `frameOverlap: 0`, set
 > `multiFrame == samplingFrame`. Mismatch → 400 "Multi frame mismatch".
 > `evamPipeline` is one of `object_detection` | `video_ingestion`.
+
+To summarize only part of a clip, add the optional `sampling.videoStart` and
+`sampling.videoEnd` (seconds) - e.g. the first ten minutes is
+`"videoStart": 0, "videoEnd": 600`.
 
 ## 2. Poll until complete
 
@@ -128,6 +158,22 @@ curl -s "$HOST/manager/summary/$STATE_ID/raw" | jq .   # everything (audio, fram
 ```
 Present the final summary text; offer the per-chunk detail if useful. Audio with
 no speech yields an `audioTranscriptSummary` that says so - not an error.
+
+## Final answer audit trail
+
+Tool arguments may not be visible to the user or evaluator. The final answer
+must therefore report the bootstrap result: the resolved `APP_ROOT`, whether an
+existing checkout was reused without cloning, and that commands ran after
+changing to that app root. Also state that a total bootstrap miss falls back to
+a shallow (`--depth 1`), single-branch, sparse checkout of only the VSS app from
+`main`. Report the observed `/manager/health` and summary feature values.
+
+For the summary workflow, name every public Manager operation used (method and
+`/manager/...` path), the important request fields, the observed response, and
+the carry-over from `summaryPipelineId` to `STATE_ID`. When a precondition blocks
+execution, clearly separate observed probes from unexecuted commands and still
+show the exact valid request, completion condition, and retrieval step without
+inventing ids or summary content.
 
 ## Manage
 

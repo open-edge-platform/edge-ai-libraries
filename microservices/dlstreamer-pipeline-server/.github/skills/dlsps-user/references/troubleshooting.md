@@ -26,7 +26,7 @@ The default `docker-compose.yml` already includes device rules for `/dev/dri` (G
 ### NPU Inference Not Working
 
 **Pre-requisites:** Intel NPU drivers must be installed on the host. Refer to
-[DL Streamer NPU driver docs](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/advanced_install/advanced_install_guide_prerequisites.md#optional-prerequisite-2---install-intel-npu-drivers).
+[DL Streamer NPU driver docs](https://github.com/open-edge-platform/dlstreamer/blob/docs-release/2026.2/docs/user-guide/dev_guide/advanced_install/advanced_install_guide_prerequisites.md#optional-prerequisite-2---install-intel-npu-drivers).
 
 
 ---

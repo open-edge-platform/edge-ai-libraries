@@ -5,18 +5,25 @@
 The Behavioral Analysis Service is a single-process Python microservice that combines three distinct AI capabilities: skeletal pose extraction (YOLO-Pose via OpenVINO), declarative pattern matching (rule engine), and optional visual confirmation (VLM via OVMS). It is fully event-driven; processing is triggered by MQTT messages.
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 graph TD
-    A[upstream service<br/>e.g. swlp-service] -- MQTT ba/requests --> B[BAQueueConsumer]
+    A[upstream service<br/>e.g., swlp-service] -- MQTT ba/requests --> B[BAQueueConsumer]
+    subgraph Service["Behavioral Analysis Service"]
+    direction LR
     B --> C[SeaweedFSClient<br/>fetch frames]
     C --> D[YOLOPipelineRunner<br/>extract_poses]
     D --> E[PoseRuleEngine<br/>evaluate patterns]
     E -->|pattern matched| F[VLMClient<br/>visual confirmation]
     E -->|no match| G[publish result]
     F --> G
+    end
     G -- MQTT ba/results --> H[downstream consumer]
 ```
 
----
+> **Note:** The `swlp-service` mentioned above as an example upstream service refers to
+> [Store-Wide Loss Prevention](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html). Follow the link for more details.
 
 ## Component Responsibilities
 
@@ -52,6 +59,9 @@ src/
 ## Request Lifecycle (MQTT Path)
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 sequenceDiagram
     participant US as Upstream Service
     participant MQ as MQTT Broker
@@ -101,7 +111,7 @@ The pose extraction pipeline is orchestrated by `extract_poses()` in `yolo_pipel
 **Model Architecture:**
 
 - OpenVINO IR format (no PyTorch at runtime): XML model definition + BIN weights
-- Input: Letterboxed 640×640 float32 tensor normalized to [0, 1]
+- Input: Letterboxed 640×640 float32 tensor normalized to `[0, 1]`
 - Output shape: `(1, 300, 57)` — up to 300 detections per image
   - 4 values: bounding box (x_center, y_center, width, height)
   - 1 value: detection confidence score
@@ -110,7 +120,7 @@ The pose extraction pipeline is orchestrated by `extract_poses()` in `yolo_pipel
 
 **Processing pipeline:**
 
-1. **Preprocessing:** Image resized via letterboxing (maintains aspect ratio, pads with 114 gray); converted to float32 [0, 1]
+1. **Preprocessing:** Image resized via letterboxing (maintains aspect ratio, pads with 114 gray); converted to float32 `[0, 1]`
 2. **Inference:** OpenVINO compiled model runs on configured device (CPU/GPU via `GST_INFERENCE_DEVICE`)
 3. **Postprocessing:**
    - NMS (Non-Maximum Suppression) filters overlapping detections
@@ -121,7 +131,7 @@ The pose extraction pipeline is orchestrated by `extract_poses()` in `yolo_pipel
 **COCO 17-keypoint format** (indexes 0–16):
 Nose, Left Eye, Right Eye, Left Ear, Right Ear, Left Shoulder, Right Shoulder, Left Elbow, Right Elbow, Left Wrist, Right Wrist, Left Hip, Right Hip, Left Knee, Right Knee, Left Ankle, Right Ankle
 
-For feature overview, see [Key Features: Pose Extraction](./index.md#41-pose-extraction).
+For feature overview, see [Key Features: Pose Extraction](./index.md#31-pose-extraction).
 
 ## Pattern Rule Engine
 
@@ -213,7 +223,7 @@ When a pose pattern matches and the global VLM switch is enabled via `VLM_ENABLE
 - **Concurrency semaphore:** `vlm_max_concurrency` (default 1) limits concurrent VLM requests (Semaphore-based) to prevent unbounded fan-in
 - **Timeout handling:** `VLM_TIMEOUT` (configurable) aborts slow requests
 
-For feature overview, see [Key Features: VLM Confirmation](./index.md#43-vlm-confirmation).
+For feature overview, see [Key Features: VLM Confirmation](./index.md#33-vlm-confirmation).
 
 ## Entity Deduplication and Backpressure
 
@@ -261,7 +271,7 @@ For feature overview, see [Key Features: Entity Deduplication & Backpressure](./
 - Standard Python `logging` module used throughout.
 - Log level defaults to `INFO`; configurable via `LOG_LEVEL` environment variable.
 - Key events logged: service startup, frame counts, pose extraction results, pattern match outcomes, VLM calls and results, MQTT connection events, bucket creation, and analysis errors.
-- Structured log extras (e.g. `person_id`, `status`) are added to MQTT-related log events.
+- Structured log extras (e.g., `person_id`, `status`) are added to MQTT-related log events.
 
 ## Monitoring / Observability
 

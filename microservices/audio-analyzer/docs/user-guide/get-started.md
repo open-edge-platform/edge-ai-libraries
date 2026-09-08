@@ -46,6 +46,22 @@ If you hit permission errors on `models/`, `chunks/`, `storage/`, or
 `.cache/huggingface/`, see
 [Troubleshooting](./troubleshooting.md#permission-errors-on-mounted-folders).
 
+> **Device visibility note:** The Docker Compose flow is the verified path for GPU and NPU
+> acceleration. The container image includes the OpenVINO GPU and NPU runtime libraries and
+> exposes `/dev/dri` by default, so `openvino.Core().available_devices` inside the container
+> reports `CPU`, `GPU`, and `NPU` (when the host drivers are present).
+>
+> When running directly from the host `.venv` without the full Intel GPU/NPU runtime stack
+> installed on the host, OpenVINO may report only `CPU`. In that case, starting the service
+> with `device: GPU` or `device: NPU` fails fast with:
+>
+> ```text
+> RuntimeError: Configured OpenVINO ASR device 'GPU' is not visible in this runtime.
+> ```
+>
+> This is a host runtime environment limitation — no application or configuration change is
+> required. Use Docker Compose for the accelerator-enabled setup.
+
 <!--hide_directive:::
 :::{tab-item}hide_directive--> **Run on the Host**
 <!--hide_directive:sync: Host hide_directive-->

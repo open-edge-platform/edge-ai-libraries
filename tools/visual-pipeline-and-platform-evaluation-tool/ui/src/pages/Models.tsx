@@ -108,7 +108,7 @@ export const Models = () => {
             Not every uploaded model will work in ViPPET. Check supported
             models:{" "}
             <a
-              href="https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html"
+              href="https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/supported_models.html"
               target="_blank"
               rel="noreferrer"
               className="font-medium underline underline-offset-2"

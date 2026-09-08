@@ -32,7 +32,7 @@ dependencies = [
 # Lingua server extras — three variants:
 #   * lingua-server-xpu  -> PyTorch backend on Intel XPU (IPEX)
 #   * lingua-server-cpu  -> PyTorch backend on CPU
-#   * lingua-server-ov   -> OpenVINO backend (xpu or cpu)
+#   * lingua-server-ov   -> OpenVINO backend (device cpu / gpu)
 #
 # lingua-server-xpu needs two --extra-index-url flags (pyproject can't encode
 # index URLs); torch/torchvision/torchaudio versions must move together (IPEX ABI):
@@ -70,7 +70,7 @@ lingua-server-cpu = [
     "uvicorn[standard]>=0.27",
     "huggingface-hub>=0.20",
 ]
-# OpenVINO backend (`--backend ov`, device xpu or cpu). OV drives the Intel GPU
+# OpenVINO backend (`--backend ov`, device cpu / gpu). OV drives the Intel GPU
 # via its own runtime (not torch), so plain CPU torch is enough — no IPEX/XPU
 # wheels. Install from the CPU wheel index to get the lean CPU-only torch build
 # and avoid the heavy accelerator runtime packages the default PyPI wheel pulls

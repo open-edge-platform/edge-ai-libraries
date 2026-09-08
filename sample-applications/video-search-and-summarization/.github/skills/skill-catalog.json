@@ -8,7 +8,7 @@
     {
       "name": "vss-build",
       "path": ".github/skills/vss-build/SKILL.md",
-      "description": "Build and optionally push VSS Docker images from source using build.sh.",
+      "description": "Build and optionally push VSS Docker images from source with `make build`, `make build-deps`, and `make push`.",
       "triggers": [
         "build vss",
         "rebuild images",
@@ -18,7 +18,8 @@
       ],
       "requires": [
         ".github/skills/vss-build/scripts/vss-bootstrap.sh",
-        "build.sh",
+        "Makefile",
+        "make",
         "docker"
       ]
     },
@@ -46,7 +47,7 @@
         "setup.sh",
         "docker/compose.*.yaml",
         "docker compose",
-        ".github/skills/vss-deploy/vss.config.env",
+        ".github/skills/vss-deploy/vss.config",
         ".github/skills/vss-deploy/scripts/gen-secrets.sh"
       ]
     },

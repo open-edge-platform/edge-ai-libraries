@@ -286,7 +286,7 @@ The router can expose additional OpenAI- and Cohere-compatible endpoints that
 response untouched. Each is enabled by adding a **provider** whose `type` names
 the service (see [Create or Update Provider](#create-or-update-provider) and the
 [Get Started](./get-started.md#optional-pass-through-services)) sections. If
-there is no such provider configured for a service, that endpoint returns `503`.
+there is no such provider configured for a service, that endpoint returns `404`.
 
 | Provider `type` | Endpoint                        | Body / Response                       |
 | --------------- | ------------------------------- | ------------------------------------- |
@@ -357,10 +357,10 @@ curl http://localhost:8000/v1/ocr \
 
 **Errors:**
 
+- 404 Not Found: no provider configured for this optional service.
 - 429 Too Many Requests: concurrency limit reached.
 - 502 Bad Gateway: could not reach the backing service.
-- 503 Service Unavailable: no provider configured for this service, or router
-  not initialized.
+- 503 Service Unavailable: router not initialized.
 - 504 Gateway Timeout: the backing service did not respond within
   `settings.timeout`.
 

@@ -95,12 +95,17 @@ argument it only exports defaults; it does not start containers.
 Wait for the in-process embedding client:
 
 ```bash
-until curl -fsS http://localhost:6007/v1/dataprep/health \
-  | python3 -c 'import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if d.get("status") == "ok" and d.get("embedding_client_status") == "preloaded" else 1)'
+HEALTH_JSON="$(mktemp)"
+until curl -fsS -o "$HEALTH_JSON" http://localhost:6007/v1/dataprep/health \
+  && python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); raise SystemExit(0 if d.get("status") == "ok" and d.get("embedding_client_status") == "preloaded" else 1)' "$HEALTH_JSON"
 do
   sleep 10
 done
+rm -f "$HEALTH_JSON"
 ```
+
+The response is saved and then parsed from that file; never pipe a fetched
+response into a shell or interpreter.
 
 The current fields are `embedding_client_status`, `model_name`,
 `embedding_device`, `use_openvino`, `detection_model`, and
@@ -149,10 +154,12 @@ Asynchronous workflows:
   `metadata` / `meta/<basename>.json` sidecars for user-defined filterable
   fields)
 - `GET /media/jobs/{job_id}`
-- `DELETE /media/jobs/{job_id}` to request cancellation
+- `DELETE` on `/media/jobs/{job_id}` to request cancellation
 
-Clean-up: `DELETE /media/{bucket_name}/{video_id}` removes one item,
-`DELETE /media/{bucket_name}` clears a whole bucket (storage + embeddings).
+Clean-up calls are destructive and irreversible, so confirm the exact target
+with the user before issuing either one: `DELETE` on
+`/media/{bucket_name}/{video_id}` removes a single item, and `DELETE` on
+`/media/{bucket_name}` clears a whole bucket (storage + embeddings).
 
 Read the API reference for exact request schemas and configured batch limits.
 
@@ -206,7 +213,7 @@ the direct source for detailed per-ingestion stage timings.
 |---|---|
 | API is unavailable | Inspect `docker compose ... ps` and DataPrep logs; initial model/YOLOX downloads can take time |
 | `embedding_client_status` is `not_loaded` or `error` | Verify `EMBEDDING_MODEL_NAME`, model compatibility, device access, and startup logs |
-| Dimension mismatch | Use a fresh collection compatible with the selected model; never wipe an existing collection without confirmation |
+| Dimension mismatch | Use a fresh collection compatible with the selected model; ask the user to approve before replacing an existing collection |
 | Milvus connection failure behind a proxy | Use `docker/compose-milvus.yaml` and ensure Milvus/etcd/in-cluster addresses bypass proxies |
 | MinIO authentication failure | Verify the effective `MM_DATAPREP_MINIO_*` values and reuse the same credentials across restarts |
 | Large upload returns 413 | Identify the rejecting proxy/server from headers and logs; stage media in storage and call `/media/process` |

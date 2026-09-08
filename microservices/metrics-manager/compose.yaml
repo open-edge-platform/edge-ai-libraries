@@ -41,6 +41,7 @@ services:
         NO_PROXY: ${NO_PROXY:-}
         INSTALL_OPENVINO: ${INSTALL_OPENVINO:-false}
     container_name: metrics-manager
+    user: ${CONTAINER_USER:-0:0}
 
     # Environment configuration
     environment:
@@ -69,6 +70,7 @@ services:
       - TELEGRAF_CONFIG_PATH=/etc/telegraf/telegraf.conf
       - METRICS_RETENTION_SECONDS=${METRICS_RETENTION_SECONDS:-300}
       - MAX_METRICS_BATCH_SIZE=${MAX_METRICS_BATCH_SIZE:-1000}
+      - HARDWARE_TELEMETRY_ENABLED=${HARDWARE_TELEMETRY_ENABLED:-true}
 
     # Port mappings (external:internal - internal ports are fixed)
     ports:
@@ -78,6 +80,8 @@ services:
 
     # Device access for system metrics
     privileged: ${PRIVILEGED:-true}
+    group_add:
+      - ${GPU_RENDER_GID:-992}
 
     # Security: Disable AppArmor (required when /proc is read-only or in nested containers)
     security_opt:

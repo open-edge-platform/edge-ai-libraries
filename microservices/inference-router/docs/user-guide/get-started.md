@@ -23,7 +23,7 @@ If you are cloning from the larger monorepo and only need this service, you
 can use sparse checkout:
 
 ```bash
-git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git -b release-2026.2.0
 cd edge-ai-libraries
 git sparse-checkout set microservices/inference-router
 cd microservices/inference-router
@@ -95,7 +95,7 @@ either run the install command with `--break-system-packages`, or create
 a Python virtual environment first.
 
 ```bash
-hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen2.5-2B-FP16
+hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen3.5-2B-FP16
 ```
 
 > **Note**: **`/opt` permissions:** the default `/opt/models` is typically root-owned.
@@ -127,6 +127,7 @@ commands below.
 With no `REGISTRY` set, build the images locally and deploy:
 
 ```bash
+export TAG="2026.2.0"
 bash scripts/deploy_docker.sh --build
 ```
 
@@ -140,12 +141,18 @@ Set a remote registry by exporting environment variables. The deploy then
 
 ```bash
 export REGISTRY="intel/"
-export TAG="latest"
+export TAG="2026.2.0"
 ```
 
 `REGISTRY` is a prefix — include the trailing `/` (e.g. `intel/` or
 `myregistry.example.com:5000/`). Leave it unset/empty to use the local images
 from Option 1.
+
+Deploy:
+
+```bash
+bash scripts/deploy_docker.sh
+```
 
 Check that the containers are running:
 
@@ -356,14 +363,14 @@ Notes:
 - **Dynamic control.** Because they are ordinary providers, you can enable,
   disable, update, or delete them at runtime through the `/v1/providers` API; the
   change takes effect immediately. Disabling or removing the provider makes its
-  endpoint return `503`.
+  endpoint return `404`.
 - The backing services are **not** part of the router. Deploy them separately.
 
 ## Optional: Compression Plugins
 
 The router can compress prompts before they reach the backend to cut token
 usage, via plugins based on the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor).
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor).
 Use the unified `compressor` node and select the compressor type with
 `settings.type`:
 
@@ -375,10 +382,10 @@ Use the unified `compressor` node and select the compressor type with
 These backend services are **not** part of the router. To deploy
 the Lingua server and the tool predictor,
 see the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor)
 repository. 
 For detailed purpose and behavior of each compressor, see the
-[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor) repository documentation.
+[adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor) repository documentation.
 
 
 ### Configuration

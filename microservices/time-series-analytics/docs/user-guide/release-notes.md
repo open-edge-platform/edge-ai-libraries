@@ -2,7 +2,7 @@
 
 ## Version 2026.2
 
-**Release Date:** September 2026
+**Release Date:** September 9, 2026
 
 This release introduces **updated Intel GPU driver support**, **removed Model Registry integration**, and **hardened path handling**, along with dependency upgrades and documentation improvements.
 

@@ -99,8 +99,12 @@ class SharedMemoryPool:
         self.in_use = set()
         self._lock = threading.Lock()
 
+        # An open handle costs 2 fds for the pool's lifetime. This pipeline
+        # builds two pools (frames plus twice as many crops), which would pin
+        # ~3000 fds. The segment lives until unlink() and is attached by name.
         for _ in range(max_blocks):
             shm = shared_memory.SharedMemory(create=True, size=block_size)
+            shm.close()
             self.blocks.append(shm)
             self.free.put(shm.name)
 
@@ -160,12 +164,12 @@ class SharedMemoryPool:
             shm.close()
 
     def unlink(self):
-        try:
-            for shm in self.blocks:
+        # Unlink per block so one missing segment cannot leak the rest.
+        for shm in self.blocks:
+            try:
                 shm.unlink()
-        except FileNotFoundError:
-            logger.info("Shared memory already unlinked")
-            pass
+            except FileNotFoundError:
+                logger.debug(f"Shared memory {shm.name} already unlinked")
 
     def shutdown(self):
         self.close()

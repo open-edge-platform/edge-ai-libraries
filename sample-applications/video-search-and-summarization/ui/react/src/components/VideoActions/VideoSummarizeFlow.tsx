@@ -546,7 +546,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
   const handleSummaryPipelineResult = async (pipelineRes: unknown) => {
     const summaryPipelineId = resolveSummaryPipelineId(pipelineRes);
     if (!summaryPipelineId) {
-      setProgressText(t('errorFetchingSummary', 'Unable to start summary – missing pipeline identifier.'));
+      setProgressText(t('errorFetchingSummary', 'Unable to start summary - missing pipeline identifier.'));
       console.error('Missing summary pipeline identifier in response:', pipelineRes);
       return;
     }

@@ -1,9 +1,9 @@
 ---
 name: vss-build
-description: Build (and optionally push) the VSS Docker images from source using build.sh - the application services, the pre-built dependency services, or both, with registry/tag and proxy controls. Use when the user says "build vss", "rebuild the images", "build from source", "build the dependencies", or "push the vss images". build.sh is the source of truth for builds, not the Makefile.
+description: Build (and optionally push) the VSS Docker images from source with `make build`, `make build-deps`, and `make push` - the application services, the dependency microservices, or both, with registry/tag, proxy, and copyleft controls. Use when the user says "build vss", "rebuild the images", "build from source", "build the dependencies", or "push the vss images". The Makefile is the source of truth for builds; there is no build.sh at the app root.
 license: Apache-2.0
 metadata:
-  version: "1.0.0"
+  version: "2.0.0"
   tags: "vss build development"
 ---
 
@@ -14,9 +14,14 @@ SPDX-License-Identifier: Apache-2.0
 
 # VSS Build
 
-Build VSS container images with **`build.sh`** - the true source for builds in
-this repo. Do **not** drive builds via the Makefile here. Run the commands
-yourself and relay output.
+Build VSS container images with the **Makefile** - the source of truth for
+builds in this repo. There is **no `build.sh`** at the app root; the only
+`build.sh` scripts left are upstream ones inside `microservices/`, which
+`make build-deps` calls for you. Run the commands yourself and relay output.
+
+The canonical human-readable guide is
+[`docs/user-guide/build-from-source.md`](../../../docs/user-guide/build-from-source.md);
+keep answers consistent with it and with the Makefile itself.
 
 ## Environment setup (run first)
 
@@ -40,68 +45,114 @@ APP_ROOT="$(bash "$SKILL_DIR/scripts/vss-bootstrap.sh")"
 cd "$APP_ROOT"
 ```
 
-Every command below assumes the working directory is this `APP_ROOT`. To pull
-from a fork/branch or reuse a specific checkout dir, override `VSS_REPO_URL`,
-`VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before running it.
+Every command below assumes the working directory is this `APP_ROOT` (the
+Makefile lives there). To pull from a fork/branch or reuse a specific checkout
+dir, override `VSS_REPO_URL`, `VSS_REPO_BRANCH`, or `VSS_CLONE_DIR` before
+running it.
 
-## What build.sh does
+## What the build targets do
 
 | Command | Builds |
 |---|---|
-| `./build.sh` | Application services: `video-ingestion`, `pipeline-manager`, `search-ms`, UI |
-| `./build.sh --dependencies` | Dependency services: `multimodal-dataprep`, `vector-retriever`, `multimodal-embedding-serving` (needs **poetry** for the embedding wheel) |
-| `./build.sh --push` | Push all built images to the configured registry |
-| `./build.sh --help` | Usage |
+| `make build` | Application services: `pipeline-manager`, `vss-ui`, `video-search` (from `search-ms/`), `video-ingestion` |
+| `make build-deps` | Dependency microservices: `multimodal-dataprep`, `multimodal-embedding-serving`, and `vector-retriever-vdms` + `vector-retriever-milvus` (one image per backend) |
+| `make push` | Push every app **and** dependency image to the configured registry |
+| `make list` | Print the resolved tag, registry prefix, and the exact image names - use it to confirm config before building |
+| `make clean` | Remove the locally built **application** images (not the dependency ones) |
+| `make help` | All targets, including test/scan/deploy |
 
-Run `--dependencies` before the plain build the first time, or when those
-upstream services changed; otherwise the plain `./build.sh` is enough for
-day-to-day app changes.
+Run `make build-deps` the first time, or when those upstream microservices
+changed; otherwise plain `make build` is enough for day-to-day app changes.
+Order between the two does not matter - they are independent.
 
-## Controls (env vars)
+The `make deploy-*` targets already declare `build build-deps` as prerequisites,
+so a deploy through [`vss-deploy`](../vss-deploy/SKILL.md)'s Makefile path
+rebuilds first; a separate build is only needed when you want images without
+deploying.
 
-`build.sh` reads these from the shell (it does not read a `.env`):
+## Controls (registry, tag, proxy, copyleft)
 
 | Var | Effect | Default |
 |---|---|---|
-| `REGISTRY_URL` | registry host prefix (trailing `/` auto-added) | empty (local tags) |
-| `PROJECT_NAME` | project/namespace segment after the registry | empty |
-| `TAG` | image tag | `latest` |
-| `http_proxy` / `https_proxy` / `no_proxy` | passed through as Docker `--build-arg`s | inherited |
-| `COPYLEFT_SOURCES` | if set, builds with `--build-arg COPYLEFT_SOURCES=true` | unset |
+| `REGISTRY_URL` | registry host prefix (one trailing `/` normalised) | `.env` value, shipped as `intel/` |
+| `PROJECT_NAME` | project/namespace segment after the registry | `.env` value, shipped empty |
+| `REGISTRY` | the whole prefix at once; overrides the two above | `$(REGISTRY_URL)$(PROJECT_NAME)` |
+| `TAG` | image tag | `.env` value, else `latest` |
+| `http_proxy` / `https_proxy` / `no_proxy` | passed through as Docker `--build-arg`s; omitted entirely when unset | inherited |
+| `ADD_COPYLEFT_SOURCES=true` | builds with `--build-arg COPYLEFT_SOURCES=true` | unset |
 
-With no `REGISTRY_URL` you get local image names (fine for local deploy via
-`setup.sh`). Final image prefix is `${REGISTRY_URL}/${PROJECT_NAME}/`.
+Every image is named `<REGISTRY_URL><PROJECT_NAME>/<service>:<TAG>`.
 
-Reuse the same values you deploy with - see
-[`vss-deploy/vss.config.env`](../vss-deploy/vss.config.env) (`REGISTRY_URL`, `TAG`).
+**Where the values come from, highest precedence first:**
+
+1. `make build TAG=dev REGISTRY_URL=...` - command-line variables win over everything.
+2. Exported shell variables (`export TAG=dev`).
+3. `.env` at the app root, which the Makefile reads at parse time. It is
+   **auto-created from `.env.example`** on the first `make build` / `build-deps` /
+   `push`, so with no overrides you get the shipped `intel/` prefix - **not**
+   bare local names.
+
+To build genuinely un-prefixed local images, clear the prefix explicitly:
+
+```bash
+make build REGISTRY_URL= PROJECT_NAME=      # → pipeline-manager:latest, …
+```
+
+Build and deploy must agree: `setup.sh` composes `REGISTRY` from
+`REGISTRY_URL`/`PROJECT_NAME` the same way, so Compose only finds your images if
+the prefix and `TAG` match what you built. See
+[`vss-deploy/vss.config`](../vss-deploy/vss.config) (`REGISTRY_URL`, `TAG`) and keep
+the two in sync.
+
+## `make build-deps` needs the sibling `microservices/` tree
+
+`build-deps` reaches out to `../../microservices` for the dataprep,
+embedding-serving, and vector-retriever sources, and fails fast if they are
+missing. A bootstrap clone is **sparse** - it contains only
+`sample-applications/video-search-and-summarization` - so widen it before
+building dependencies:
+
+```bash
+[ -d ../../microservices ] || \
+  git -C "$(git rev-parse --show-toplevel)" sparse-checkout add microservices
+```
+
+No-op in a full clone (the directory is already there). `make build` alone does
+not need this.
 
 ## Typical flows
 
 ```bash
-# Local app rebuild (no registry), then deploy:
-./build.sh
-#   ! ./.github/skills/vss-deploy/scripts/gen-secrets.sh && source .github/skills/vss-deploy/vss.config.env && source .github/skills/vss-deploy/vss.secrets.env && source setup.sh --summary
+# Local app rebuild, then deploy:
+make build
+#   ! export VSS_CREDENTIALS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vss/vss.credentials" && ./.github/skills/vss-deploy/scripts/gen-secrets.sh && source .github/skills/vss-deploy/vss.config && source "$VSS_CREDENTIALS_FILE" && source setup.sh --summary
 
 # First-time / dependency refresh:
-./build.sh --dependencies && ./build.sh
+make build-deps && make build
 
 # Build for a registry and push:
-export REGISTRY_URL=intel TAG=dev
-./build.sh && ./build.sh --push
+make build build-deps push REGISTRY_URL=registry.example.com PROJECT_NAME=vss-team TAG=v0.9.2
+
+# Compliance build with copyleft sources, no push:
+make build-deps build ADD_COPYLEFT_SOURCES=true TAG=compliance-2026-07
 ```
 
 ## Prerequisites & gotchas
 
-- **Docker** required for any build; **poetry** also required for
-  `--dependencies` (builds the multimodal-embedding wheel) - build.sh aborts
-  early with an install hint if missing.
+- **Docker** and **make** required. Poetry is *not* needed on the host - the
+  embedding-serving image installs it inside the build.
+- `make push` **refuses to run with an empty prefix** rather than pushing
+  un-namespaced images to docker.io; set `REGISTRY_URL`(+`PROJECT_NAME`) or
+  `REGISTRY`. It skips images that are not present locally, so build first.
 - Behind a corporate proxy, export `http_proxy`/`https_proxy`/`no_proxy` before
-  building so they reach the image builds.
+  building so they reach the image builds as build args.
+- `make clean` only removes the four application images; dependency images stay.
 - After building locally, deploy with [`vss-deploy`](../vss-deploy/SKILL.md); `setup.sh`
   uses the images you just built (match `TAG`/`REGISTRY_URL`).
 
 ## Verify
 
 ```bash
-docker images | grep -E 'pipeline-manager|search|video-ingestion|vss|embedding|dataprep'
+make list      # expected image names for the current config
+docker images | grep -E 'pipeline-manager|vss-ui|video-search|video-ingestion|multimodal-|vector-retriever'
 ```

@@ -55,7 +55,6 @@ export const SearchSlice = createSlice({
       state.searchQueries = state.searchQueries.filter((query) => query.queryId !== action.payload.queryId);
     },
     updateSearchQuery: (state: SearchState, action) => {
-      console.log('searchState action.payload', action.payload);
       const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
       const currentTopK = index !== -1 ? state.searchQueries[index].topK : defaultTopk;
       const merged = index !== -1
@@ -74,29 +73,27 @@ export const SearchSlice = createSlice({
             : merged.queryStatus,
       };
 
-      console.log('[searchSlice] upsert query', {
-        queryId: action.payload.queryId,
-        prevLength: index !== -1 ? state.searchQueries[index].results?.length : undefined,
-        nextLength: normalized.results?.length,
-        selectedQuery: state.selectedQuery,
-      });
+      if (index !== -1) {
+        // Update in place. Watched queries are re-run by the directory watcher on
+        // every new video, and moving the entry would reshuffle the sidebar each time.
+        state.searchQueries[index] = normalized;
+        // Deduplicate any stale copies that a previous append-based update left behind.
+        state.searchQueries = state.searchQueries.filter(
+          (query, at) => at === index || query.queryId !== action.payload.queryId,
+        );
+      } else {
+        state.searchQueries.push(normalized);
+      }
 
-      // Deduplicate: keep only one entry per queryId (latest wins) to avoid stale copies blocking render.
-      state.searchQueries = [
-        ...state.searchQueries.filter((query) => query.queryId !== action.payload.queryId),
-        normalized,
-      ];
-
-      state.unreads.push(action.payload.queryId);
+      // Only flag as unread when the user is not already looking at it, otherwise a
+      // watched query would permanently render as unread and grow the array unbounded.
+      if (state.selectedQuery !== action.payload.queryId && !state.unreads.includes(action.payload.queryId)) {
+        state.unreads.push(action.payload.queryId);
+      }
       // If nothing is selected, auto-select the updated query so UI can render results from sockets
       if (!state.selectedQuery || state.selectedQuery === action.payload.queryId) {
         state.selectedQuery = action.payload.queryId;
       }
-      console.log('[searchSlice] state after update', {
-        selectedQuery: state.selectedQuery,
-        totalQueries: state.searchQueries.length,
-        selectedResults: state.searchQueries.find((q) => q.queryId === state.selectedQuery)?.results?.length,
-      });
     },
     syncSearch: (state: SearchState, action) => {
       const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
@@ -273,37 +270,38 @@ export const SearchLoad = createAsyncThunk('search/load', async () => {
 
 const selectSearchState = (state: RootState) => state.search;
 
-export const SearchSelector = createSelector([selectSearchState], (state) => ({
-  queries: state.searchQueries,
-  selectedQueryId: state.selectedQuery,
-  unreads: state.unreads,
-  triggerLoad: state.triggerLoad,
-  selectedQuery: state.searchQueries.find((el) => el.queryId == state.selectedQuery),
-  suggestedTags: state.suggestedTags,
-  queriesInProgress: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.RUNNING),
-  queriesWithErrors: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.ERROR),
-  isSelectedInProgress:
-    state.selectedQuery &&
-    state.searchQueries
-      .filter((query) => query.queryStatus === SearchQueryStatus.RUNNING)
-      .map((curr) => curr.queryId)
-      .includes(state.selectedQuery),
-  isSelectedHasError:
-    state.selectedQuery &&
-    state.searchQueries
-      .filter((query) => query.queryStatus === SearchQueryStatus.ERROR)
-      .map((curr) => curr.queryId)
-      .includes(state.selectedQuery),
-  selectedResults: state.searchQueries.reduce((acc: SearchResult[], curr: SearchQueryUI) => {
-    if (curr.queryId === state.selectedQuery) {
-      if (!curr || !curr.results || (curr.results && curr.results.length <= 0)) {
-        return [];
+export const SearchSelector = createSelector([selectSearchState], (state) => {
+  const selected = state.searchQueries.find((el) => el.queryId == state.selectedQuery);
+  const selectedIsRunning = Boolean(selected) && selected!.queryStatus === SearchQueryStatus.RUNNING;
+  const selectedHasResults = Boolean(selected?.results && selected!.results.length > 0);
+
+  return {
+    queries: state.searchQueries,
+    selectedQueryId: state.selectedQuery,
+    unreads: state.unreads,
+    triggerLoad: state.triggerLoad,
+    selectedQuery: selected,
+    suggestedTags: state.suggestedTags,
+    queriesInProgress: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.RUNNING),
+    queriesWithErrors: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.ERROR),
+    isSelectedInProgress: Boolean(state.selectedQuery) && selectedIsRunning,
+    // First run of a query: nothing to preserve, so a skeleton is safe to show.
+    isSelectedInitialLoading: Boolean(state.selectedQuery) && selectedIsRunning && !selectedHasResults,
+    // Re-run of a query that already has results (watch/rerun/time-filter). Results must
+    // stay mounted so a fast-updating watched query does not flicker under the user.
+    isSelectedRefreshing: Boolean(state.selectedQuery) && selectedIsRunning && selectedHasResults,
+    isSelectedHasError: Boolean(state.selectedQuery) && Boolean(selected) && selected!.queryStatus === SearchQueryStatus.ERROR,
+    selectedResults: state.searchQueries.reduce((acc: SearchResult[], curr: SearchQueryUI) => {
+      if (curr.queryId === state.selectedQuery) {
+        if (!curr || !curr.results || (curr.results && curr.results.length <= 0)) {
+          return [];
+        }
+        acc = curr.results.slice(0, curr.topK);
       }
-      acc = curr.results.slice(0, curr.topK);
-    }
-    return acc;
-  }, [] as SearchResult[]),
-}));
+      return acc;
+    }, [] as SearchResult[]),
+  };
+});
 
 export const SearchActions = SearchSlice.actions;
 export const SearchReducers = SearchSlice.reducer;

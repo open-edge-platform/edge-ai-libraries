@@ -1,0 +1,21 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# NPU override template for the behavioral-analysis service.
+#
+# Usage:
+#   1. Set BA_GST_DEVICE=NPU in your .env file.
+#   2. Copy this file to docker-compose.override.yml:
+#        cp docker-compose.override.yml.npu-example docker-compose.override.yml
+#   3. Run docker compose as usual; Compose auto-merges docker-compose.override.yml:
+#        docker compose up
+#
+# docker-compose.override.yml is gitignored, so local NPU device mappings never
+# touch the tracked docker-compose.yml and won't cause merge conflicts on updates.
+
+services:
+  behavioral-analysis:
+    devices:
+      - /dev/accel:/dev/accel
+    group_add:
+      - ${RENDER_GROUP_ID:-992}

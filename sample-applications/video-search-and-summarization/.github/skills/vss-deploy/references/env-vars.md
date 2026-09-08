@@ -1,6 +1,6 @@
 # VSS environment variables
 
-Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-started.md`, `docs/user-guide/get-started/system-requirements.md`, and `docs/user-guide/build-from-source.md`. Deployment reads the shell environment. The checked-in `.env.example` is a general application template, but this skill uses `vss.config.env` plus generated `vss.secrets.env` because those files track the current per-component device variables and keep credentials separate. If using a copied `.env` manually, source it before exporting secrets because its empty secret assignments overwrite existing values.
+Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-started.md`, `docs/user-guide/get-started/system-requirements.md`, and `docs/user-guide/build-from-source.md`. Deployment reads the shell environment. The checked-in `.env.example` is a general application template, but this skill uses `vss.config` plus the generated `$VSS_CREDENTIALS_FILE` (default `${XDG_CONFIG_HOME:-$HOME/.config}/vss/vss.credentials`) because they track the current per-component device variables while keeping credentials outside the checkout. If using a copied `.env` manually, source it before exporting credentials because its empty credential assignments overwrite existing values.
 
 ## Required before starting containers
 
@@ -29,7 +29,7 @@ Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs
 | `REGISTRY_URL` | empty | `setup.sh` trims/adds a trailing slash, combines with `PROJECT_NAME`, and exports `REGISTRY`. |
 | `PROJECT_NAME` | empty | Also normalized with trailing slash before composing `${REGISTRY_URL}${PROJECT_NAME}`. |
 | `REGISTRY` | derived | Prefix for images such as `${REGISTRY:-}pipeline-manager:${TAG:-latest}`. |
-| `TAG` | `latest` in `setup.sh`; docs example `2026.1.0-rc1` | Image tag for app images. |
+| `TAG` | `latest` in `setup.sh`; docs example `2026.2.0-rc2` | Image tag for app images. |
 
 ## Model download service
 

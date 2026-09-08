@@ -17,6 +17,54 @@ _OPENAI_WHISPER_ID_MAP = {
 }
 
 
+def _is_hf_auth_or_access_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    markers = (
+        "401",
+        "403",
+        "unauthorized",
+        "forbidden",
+        "invalid token",
+        "token is invalid",
+        "gated",
+        "permission",
+        "access denied",
+    )
+    return any(marker in text for marker in markers)
+
+
+def _validate_diarization_hf_access(model_name: str, hf_token: str | None) -> None:
+    if not hf_token:
+        raise RuntimeError(
+            "Speaker diarization is enabled but HF_TOKEN is not configured. "
+            "Set models.asr.hf_token or export HF_TOKEN with access to the "
+            f"{model_name} repository."
+        )
+
+    try:
+        from huggingface_hub import HfApi
+    except ImportError as exc:
+        raise RuntimeError(
+            "huggingface_hub is required to validate diarization access. "
+            "Install it in the runtime image/environment."
+        ) from exc
+
+    try:
+        HfApi().model_info(repo_id=model_name, token=hf_token)
+    except Exception as exc:
+        if _is_hf_auth_or_access_error(exc):
+            raise RuntimeError(
+                "Speaker diarization is enabled but HF_TOKEN is invalid or does not have access "
+                f"to {model_name}. Ensure token validity and accept the model terms on Hugging Face."
+            ) from exc
+        # Preserve startup behavior for transient/non-auth HF errors.
+        logger.warning(
+            "Could not verify HF access for diarization model due to a non-auth error: %s. "
+            "Proceeding to local-cache/download step.",
+            exc,
+        )
+
+
 def _resolve_hf_token() -> str | None:
     """Return a valid HF token from config or the HF_TOKEN environment variable.
 
@@ -403,6 +451,7 @@ def ensure_model():
         diar_cfg = getattr(config.models, "diarization", None)
         if diar_cfg and getattr(diar_cfg, "provider", None) == "huggingface":
             hf_token = _resolve_hf_token()
+            _validate_diarization_hf_access(diar_cfg.name, hf_token)
             output_dir = get_diarization_model_path()
             success, _ = _download_hf_model(
                 diar_cfg.name,
@@ -410,6 +459,11 @@ def ensure_model():
                 hf_token=hf_token,
                 required_files=["config.yaml"],
             )
+            if not success:
+                raise RuntimeError(
+                    "Speaker diarization is enabled but pyannote model download/initialization failed. "
+                    "Verify HF_TOKEN permissions and network connectivity, then retry."
+                )
             if success:
                 _cache_diarization_dependencies_locally(output_dir, hf_token=hf_token)
 
