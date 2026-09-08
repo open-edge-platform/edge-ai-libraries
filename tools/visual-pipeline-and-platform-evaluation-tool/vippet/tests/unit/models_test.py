@@ -24,6 +24,34 @@ def _reload_models_module(supported_models_file: str, models_path: str):
 
 
 class TestModels(unittest.TestCase):
+    def test_supported_models_manager_rejects_long_descriptions(self):
+        """Test that model descriptions are limited to 200 characters."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            models_dir = td_path / "models"
+            models_dir.mkdir()
+            yaml_file = td_path / "supported_models.yaml"
+            yaml_file.write_text(
+                f"""
+- name: model
+  display_name: Model
+  description: {"x" * 201}
+  source: public
+  type: classification
+  precisions:
+    - precision: FP32
+      model_path: model.xml
+      model_proc: ""
+"""
+            )
+
+            m = _reload_models_module(str(yaml_file), str(models_dir))
+            if hasattr(m, "_supported_models_manager_instance"):
+                setattr(m, "_supported_models_manager_instance", None)
+
+            with self.assertRaises(ValueError):
+                m.SupportedModelsManager()
+
     def test_supported_model_paths_and_exists(self):
         """Test SupportedModel path and model_proc resolution and exists_on_disk."""
         with tempfile.TemporaryDirectory() as td:

@@ -15,6 +15,7 @@ MODELS_PATH: str = os.environ.get("MODELS_PATH", "/models/output")
 GENAI_SENTINEL_FILE: str = "openvino_language_model.xml"
 
 logger = logging.getLogger("models")
+MAX_MODEL_DESCRIPTION_LENGTH = 200
 
 
 class SupportedModel:
@@ -212,6 +213,14 @@ class SupportedModelsManager:
                         if isinstance(description_raw, str) and description_raw.strip()
                         else None
                     )
+                    if (
+                        description is not None
+                        and len(description) > MAX_MODEL_DESCRIPTION_LENGTH
+                    ):
+                        raise ValueError(
+                            f"Model description in supported model entry at index {idx} "
+                            f"must be at most {MAX_MODEL_DESCRIPTION_LENGTH} characters."
+                        )
                     source = require_str_field(entry, "source", idx)
                     hub_raw = entry.get("hub")
                     hub = (

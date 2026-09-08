@@ -2284,6 +2284,7 @@ class Model(BaseModel):
     display_name: str = Field(..., description="Human-readable model name.")
     description: Optional[str] = Field(
         default=None,
+        max_length=200,
         description=(
             "Human-readable explanation of what the model "
             "detects or classifies, or null when not provided."
