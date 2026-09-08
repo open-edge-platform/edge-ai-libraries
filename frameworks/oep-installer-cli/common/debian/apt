@@ -1,0 +1,35 @@
+
+# apt with apt update executed only once
+ensure_apt () {
+  local no_proxy1=$(echo ${no_proxy:-$NO_PROXY} | tr ',' '\n' | grep -v -E '^[.]?intel.com$' | tr '\n' ',')
+  case "$1" in
+  update)
+    # apt-get update got executed only once unless -y is specified
+    [ ! -e /dev/shm/apt_update ] || [[ " $* " = *" -y "* ]] || return 0
+    ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
+    touch /dev/shm/apt_update
+    ;;
+  autoremove|remove|purge)
+    # make sure the package list exists
+    local package_list=()
+    local options=()
+    for v in ${*:2}; do
+      if [[ "$v" = -* ]]; then
+        options+=($v)
+      else
+        package_list+=($v)
+      fi
+    done
+    if [ ${#package_list[*]} -gt 0 ]; then
+      local valid_packages=($(dpkg-query -W -f='${Status} ${Package}\n' ${package_list[*]} 2>/dev/null | awk '/installed/{print $4}'))
+      if [ ${#valid_packages[*]} -gt 0 ]; then
+        ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy%%,} apt-get $1 -y ${options[*]} ${valid_packages[*]}
+      fi
+    fi
+    ;;
+  *)
+    ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy%%,} apt-get -y "$@"
+    ;;
+  esac
+}
+

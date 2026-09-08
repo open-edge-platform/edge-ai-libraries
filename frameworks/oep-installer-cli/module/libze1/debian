@@ -1,0 +1,23 @@
+
+configure_libze1 () {
+  libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb"
+}
+
+debian_10_profile_libze1 () {
+  echo "curl"
+}
+
+debian_10_install_libze1 () {
+  configure_libze1 
+
+  if dpkg-query -L libze1 > /dev/null 2>&1; then
+    echo "libze1 is already installed. Skipping..."
+  else
+    curl -sL "$libze1_deb" -o /tmp/libze1.deb && {
+      ensure_apt install -y /tmp/libze1.deb || {
+        ensure_apt purge -y level-zero level-zero-devel && ensure_apt install -y /tmp/libze1.deb
+      }
+    }
+  fi
+}
+

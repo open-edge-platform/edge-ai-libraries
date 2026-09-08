@@ -1,0 +1,147 @@
+name: Generate component from spec
+
+on:
+  push:
+    branches: [main]
+    paths: ['specification/**']
+  workflow_dispatch:
+    inputs:
+      spec_file:
+        description: >-
+          Path to spec file relative to repo root
+          (e.g. specification/my_component.md)
+        required: false
+      mode:
+        description: >-
+          Spec status override: 'auto' (default) infers from whether
+          module/<name>/ already exists; 'new' maps to status A and
+          'modified' maps to status M. Dispatch defaults from status only
+          (A auto-assign, M label-gated).
+        required: false
+        default: 'auto'
+        type: choice
+        options: [auto, new, modified]
+      force:
+        description: >-
+          Set to true to bypass the "module already exists" and "issue already
+          open" guards and regenerate even for existing components.
+        required: false
+        default: 'false'
+        type: boolean
+      max_tasks:
+        description: >-
+          Maximum number of new component issues to create in a single run
+          (Guard 4 cap). Raise this for an intentional batch.
+        required: false
+        default: '3'
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  dispatch:
+    runs-on: [self-hosted, linux, oep-lab]
+    timeout-minutes: 20
+    #
+    # This workflow now authenticates with a PAT (COPILOT_TASK_TOKEN) because
+    # installation tokens cannot assign the Copilot coding agent. Unlike
+    # GITHUB_TOKEN, pushes made with a PAT DO trigger workflows -- so a commit
+    # under specification/** authored by our own automation would re-enter this
+    # workflow and create duplicate agent tasks.
+    #
+    # Only applied to `push`; workflow_dispatch must always run, otherwise the
+    # token owner could not manually re-run the workflow themselves.
+    if: >-
+      github.event_name != 'push' ||
+      (github.actor != 'github-actions[bot]' &&
+       github.actor != 'copilot-swe-agent[bot]' &&
+       github.actor != 'Copilot' &&
+       github.actor != vars.AUTOMATION_ACTOR)
+    steps:
+      - name: Verify required tooling
+        run: |
+          set -euo pipefail
+          for tool in gh git; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error::Missing required tool: ${tool}. Install ${tool} on the self-hosted runner and retry."
+              exit 1
+            fi
+          done
+
+      - name: Clean workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 2
+
+      - name: Find changed spec files
+        id: specs
+        run: |
+          SPECS_FILE="$(mktemp)"
+
+          if [ -n "${{ github.event.inputs.spec_file }}" ]; then
+            # workflow_dispatch with an explicit spec_file is always intentional.
+            # Infer spec status from whether module/<name>/ already exists
+            # unless the caller explicitly set the mode input.
+            SPEC="${{ github.event.inputs.spec_file }}"
+            OVERRIDE_MODE="${{ github.event.inputs.mode }}"
+            if [[ "$OVERRIDE_MODE" == "auto" || -z "$OVERRIDE_MODE" ]]; then
+              raw_name="$(basename "$SPEC" .md)"
+              name="${raw_name,,}"
+              name="${name//-/_}"
+              if [[ -d "module/${name}/" ]]; then
+                STATUS="M"
+              else
+                STATUS="A"
+              fi
+            elif [[ "$OVERRIDE_MODE" == "modified" ]]; then
+              STATUS="M"
+            else
+              STATUS="A"
+            fi
+            printf '%s\t%s\n' "$STATUS" "$SPEC" > "$SPECS_FILE"
+          else
+            BEFORE="${{ github.event.before }}"
+            SHA="${{ github.sha }}"
+            # Pick up both Added (A) and Modified (M) spec files so that
+            # edits to existing specs also create issues (label-gated dispatch).
+            if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]] || \
+               ! git cat-file -e "$BEFORE" 2>/dev/null; then
+              # Fall back: files introduced by the head commit, all treated as Added.
+              git diff-tree --no-commit-id -r --name-status --diff-filter=AM \
+                "$SHA" -- 'specification/*.md' > "$SPECS_FILE"
+            else
+              git diff --name-status --diff-filter=AM "${BEFORE}..${SHA}" \
+                -- 'specification/*.md' > "$SPECS_FILE"
+            fi
+          fi
+
+          # Skip _template.md and README.md (match on the path column, field 2)
+          awk -F'\t' '{ if ($2 !~ /(^|\/)(_[^\/]*\.md|README\.md)$/) print }' \
+            "$SPECS_FILE" > "${SPECS_FILE}.filtered" || true
+          mv "${SPECS_FILE}.filtered" "$SPECS_FILE"
+
+          if [ ! -s "$SPECS_FILE" ]; then
+            echo "No spec files changed – nothing to do."
+            echo "has_specs=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_specs=true" >> "$GITHUB_OUTPUT"
+            echo "specs_file=$SPECS_FILE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create a Copilot task issue for each spec
+        if: steps.specs.outputs.has_specs == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_TASK_TOKEN }}
+          FORCE_REGENERATE: ${{ github.event.inputs.force == 'true' && 'true' || 'false' }}
+          MAX_TASKS_PER_RUN: ${{ github.event.inputs.max_tasks || '3' }}
+        run: |
+          chmod +x .github/scripts/create-component-issue.sh
+          .github/scripts/create-component-issue.sh \
+            "${{ steps.specs.outputs.specs_file }}"

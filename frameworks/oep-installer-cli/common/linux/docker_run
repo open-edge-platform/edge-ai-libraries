@@ -1,0 +1,19 @@
+
+# idempotently pull an image and (re)create a detached named container.
+# generic helper for docker-image based ISV applications.
+# $1: container name  $2: image reference  ${@:3}: extra "docker run" args
+ensure_docker_run () {
+  local name="$1"
+  local image="$2"
+
+  # already running or stopped-but-present: leave as-is
+  if docker inspect "$name" > /dev/null 2>&1; then
+    echo "Container $name already exists. Skipping create..."
+    return 0
+  fi
+
+  echo "Pulling image $image (this may take several minutes for large images)..."
+  docker pull "$image"
+  docker run --name "$name" "${@:3}" "$image"
+}
+

@@ -1,0 +1,99 @@
+name: Validate modules
+
+on:
+  pull_request:
+    paths:
+      - 'module/**'
+      - 'profile/**'
+
+concurrency:
+  group: validate-modules-${{ github.event.pull_request.head.repo.full_name }}-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: Shellcheck
+    runs-on: [self-hosted, linux, oep-lab]
+    timeout-minutes: 20
+    steps:
+      - name: Verify required tooling
+        run: |
+          set -euo pipefail
+          for tool in bash shellcheck; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error::Missing required tool: ${tool}. Install it on the self-hosted runner and retry."
+              exit 1
+            fi
+          done
+
+      - name: Clean workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Run bash-syntax and shellcheck
+        run: .github/scripts/validate-modules.sh --only=bash-syntax --only=shellcheck
+
+  naming-convention:
+    name: Function naming convention
+    runs-on: [self-hosted, linux, oep-lab]
+    timeout-minutes: 20
+    steps:
+      - name: Verify required tooling
+        run: |
+          set -euo pipefail
+          for tool in bash git; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error::Missing required tool: ${tool}. Install it on the self-hosted runner and retry."
+              exit 1
+            fi
+          done
+
+      - name: Clean workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Check function name uniqueness across all installer scripts
+        run: .github/scripts/validate-modules.sh --only=naming
+
+  highlight-guidance:
+    name: '@@HIGHLIGHT guidance (non-blocking)'
+    runs-on: [self-hosted, linux, oep-lab]
+    timeout-minutes: 20
+    steps:
+      - name: Verify required tooling
+        run: |
+          set -euo pipefail
+          for tool in bash git; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error::Missing required tool: ${tool}. Install it on the self-hosted runner and retry."
+              exit 1
+            fi
+          done
+
+      - name: Clean workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Warn when high-order components omit @@HIGHLIGHT
+        # This check is advisory only — it never fails the workflow.
+        # The non-blocking nature is enforced inside validate-modules.sh:
+        # the highlight check emits warnings but never affects the exit code.
+        run: .github/scripts/validate-modules.sh --only=highlight

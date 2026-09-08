@@ -1,0 +1,23 @@
+
+# perform sudo in automation or in tty
+ensure_sudo () {
+  if sudo -nv 2>/dev/null || sudo -n true 2>/dev/null; then
+    # cached timestamp still valid or passwordless sudo: no password needed
+    sudo "$@"
+  elif [ -n "$SUDO_PASSWORD" ]; then
+    # Non-interactive password. Feed it on the first stdin line via `sudo -S`
+    # and never write it to disk. `cat` forwards any remaining piped stdin to
+    # the invoked command so constructs like `curl ... | ensure_sudo tee file`
+    # keep working.
+    (echo "$SUDO_PASSWORD"; cat) | sudo -kS "$@"
+  elif [ -t 0 ]; then
+    # genuine interactive terminal: safe to prompt for a password
+    sudo "$@"
+  else
+    # No password available and no usable TTY (e.g. under the panelled UI or a
+    # pipe/background job). Avoid hanging forever on a hidden password prompt.
+    echo "ensure_sudo: sudo requires a password but none is available; set SUDO_PASSWORD or run 'sudo -v' first" 1>&2
+    return 1
+  fi
+}
+

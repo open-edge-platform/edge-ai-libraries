@@ -1,0 +1,80 @@
+
+# Autonomous Mobile Robot (AMR) - the Robotics AI Suite ROS 2 SDK for
+# sensing, perception, SLAM & mapping, navigation, and the Wandering app.
+# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/index.html
+configure_autonomous_mobile_robot () {
+  case "$VERSION_CODENAME" in
+  jammy) ros_distro=humble ;;
+  noble) ros_distro=jazzy ;;
+  *)     ros_distro=jazzy ;;
+  esac
+  # standard SDK by default; pass --complete for the full (~20GB) SDK
+  amr_sdk_pkg=ros-$ros_distro-robotics-sdk
+}
+
+debian_90_profile_autonomous_mobile_robot () {
+  echo "git curl edge_base ros2 amr_apt_repo ros_openvino realsense"
+}
+
+verify_autonomous_mobile_robot () {
+  configure_autonomous_mobile_robot
+  dpkg-query -l ros-$ros_distro-robotics-sdk > /dev/null 2>&1 || \
+  dpkg-query -l ros-$ros_distro-robotics-sdk-complete > /dev/null 2>&1
+}
+
+# add the OSRF Gazebo apt repository (needed for the robotics-sdk dependencies)
+amr_setup_gazebo () {
+  local osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+  ensure_apt install -y curl lsb-release gnupg
+  no_proxy= NO_PROXY= curl -fsL https://packages.osrfoundation.org/gazebo.gpg | ensure_sudo tee "$osrf_key" > /dev/null
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=$osrf_key] https://packages.osrfoundation.org/gazebo/ubuntu-stable $VERSION_CODENAME main" | \
+    ensure_sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+  ensure_apt update -y
+  [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
+}
+
+debian_90_install_autonomous_mobile_robot () {
+  configure_autonomous_mobile_robot
+  [[ " $* " != *" --complete "* ]] || amr_sdk_pkg=ros-$ros_distro-robotics-sdk-complete
+
+  if verify_autonomous_mobile_robot && [[ " $* " != *" --reset-autonomous_mobile_robot "* ]]; then
+    echo "Autonomous Mobile Robot is already installed. Skipping..."
+  else
+    ensure_disk_space $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
+    ensure_apt update -y
+
+    amr_setup_gazebo
+
+    # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
+    if [ "$ros_distro" = humble ]; then
+      ensure_apt install -y gcc-12 g++-12
+      ensure_sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 60 --slave /usr/bin/g++ g++ /usr/bin/g++-12
+    fi
+
+    # the Autonomous Mobile Robot SDK meta-package
+    ensure_apt install -y "$amr_sdk_pkg"
+
+    # Collaborative SLAM acceleration variant, selected by hardware capability:
+    #   lze  -> Intel GPU (Level-Zero)   avx2 -> Intel Core CPU   sse -> Atom/default
+    local slam_pkg=ros-$ros_distro-collab-slam-sse
+    grep -q -w avx2 /proc/cpuinfo && slam_pkg=ros-$ros_distro-collab-slam-avx2
+    [ -e /dev/dri/renderD128 ] && slam_pkg=ros-$ros_distro-collab-slam-lze
+    ensure_apt install -y "$slam_pkg"
+  fi
+
+  echo "@@HIGHLIGHT Autonomous Mobile Robot ($amr_sdk_pkg) installed for ROS 2 $ros_distro"
+  echo "@@HIGHLIGHT shell env @source /opt/ros/$ros_distro/setup.bash"
+  echo "@@HIGHLIGHT tutorials @https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/index_tutorials.html"
+}
+
+debian_90_remove_autonomous_mobile_robot () {
+  configure_autonomous_mobile_robot
+  if verify_autonomous_mobile_robot; then
+    ensure_apt autoremove -m -y \
+      ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete \
+      ros-$ros_distro-collab-slam-sse ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-lze || true
+    ensure_sudo rm -f /etc/apt/sources.list.d/gazebo-stable.list
+  else
+    echo "Autonomous Mobile Robot already removed. Skipping"
+  fi
+}
