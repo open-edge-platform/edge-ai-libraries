@@ -173,6 +173,22 @@ def gst_log_bridge(
         logger.info("%s", text)
         return
 
+    # Prepend the emitting element's name in `<name>` form for the
+    # `gvagenai` metadata records so the VLM-metrics parser in
+    # `pipeline_runner.py` can tag `vlm_metrics` samples with the
+    # originating element (unique per stream after
+    # `unify_all_element_names`). Scoped strictly to the
+    # `Added meta message:` marker to keep every other log line
+    # (errors, warnings, other INFOs) byte-identical to the previous
+    # behaviour.
+    if text.startswith("Added meta message:"):
+        try:
+            obj_name = obj.get_name() if obj is not None else None
+        except (AttributeError, TypeError):
+            obj_name = None
+        if obj_name:
+            text = f"<{obj_name}> {text}"
+
     # Log only the message body, without any extra category/prefix.
     # Note: GStreamer debug levels use lower values for higher severity:
     # ERROR=1, WARNING=2, FIXME=3, INFO=4, DEBUG=5, LOG=6, TRACE=7

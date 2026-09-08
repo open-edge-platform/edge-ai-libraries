@@ -1486,6 +1486,145 @@ class TestLatencyMetricsPush(unittest.TestCase):
         self.assertEqual(batch_bodies, [])
 
 
+@_patch_sync_metrics_executor
+class TestVlmMetricsPush(unittest.TestCase):
+    """Tests for the ``gvagenai`` VLM-metrics parse + push path.
+
+    The parser reads the ``Added meta message: {...}`` JSON line
+    ``gvagenai`` logs (with `metrics=true`), extracts the
+    ``VLMPerfMetrics`` mean fields, and forwards them to
+    metrics-manager. Since these metrics originate from a specific
+    ``gvagenai_*`` element instance, the runner tags every push with
+    ``stream_id`` so multi-stream jobs can be partitioned on the
+    dashboard.
+
+    ``gst_runner.gst_log_bridge`` prepends the emitting element's
+    name in ``<name>`` form; when that prefix is absent (older
+    subprocess builds or logs from unnamed objects) the push omits
+    the ``stream_id`` tag rather than failing.
+    """
+
+    # Realistic gvagenai stdout line as it reaches `pipeline_runner`
+    # after `gst_log_bridge` promotion. The `<gvagenai_0_0>` prefix is
+    # the element-name marker the runner keys on for `stream_id`.
+    # The JSON uses the OpenVINO GenAI `VLMPerfMetrics` field names
+    # (`ttft_mean`, `tpot_mean`, `generate_duration_mean`) that the
+    # runner then maps onto its metrics-manager field names
+    # (`ttft_ms`, `tpot_ms`, `generate_duration_ms`) via
+    # `_GENAI_METRIC_FIELDS`.
+    SAMPLE_META_LINE = (
+        "gst_runner - INFO - <gvagenai_0_0> Added meta message: "
+        '{"metrics": {"ttft_mean": 12.5, "tpot_mean": 3.25, '
+        '"generate_duration_mean": 250.0}}'
+    )
+
+    SAMPLE_META_LINE_NO_ELEMENT = (
+        "gst_runner - INFO - Added meta message: "
+        '{"metrics": {"ttft_mean": 12.5, "tpot_mean": 3.25, '
+        '"generate_duration_mean": 250.0}}'
+    )
+
+    def _get_vlm_payload(self, mock_urlopen: MagicMock) -> dict:
+        """Return the single ``vlm_metrics`` batch payload sent to metrics-manager."""
+        for call in mock_urlopen.call_args_list:
+            req = call[0][0]
+            if not req.full_url.endswith("/api/v1/metrics"):
+                continue
+            body = json.loads(req.data.decode())
+            if body["metrics"][0]["name"] == "vlm_metrics":
+                return body
+        self.fail("No vlm_metrics batch push was made")
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_pushes_element_name_as_stream_id(self, mock_urlopen):
+        """The ``<element>`` prefix must be forwarded as the ``stream_id`` tag."""
+        runner = PipelineRunner(mode="normal", job_id="job-42")
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
+
+        body = self._get_vlm_payload(mock_urlopen)
+        tags = body["metrics"][0]["tags"]
+        self.assertEqual(tags["stream_id"], "gvagenai_0_0")
+        self.assertEqual(tags["job_id"], "job-42")
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_forwards_metric_fields(self, mock_urlopen):
+        """All three VLMPerfMetrics means must be mapped to metrics-manager field names."""
+        runner = PipelineRunner(mode="normal")
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
+
+        body = self._get_vlm_payload(mock_urlopen)
+        self.assertEqual(
+            body["metrics"][0]["fields"],
+            {"ttft_ms": 12.5, "tpot_ms": 3.25, "generate_duration_ms": 250.0},
+        )
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_omits_stream_id_when_element_prefix_missing(
+        self, mock_urlopen
+    ):
+        """Without the ``<element>`` prefix the push must still succeed, minus ``stream_id``."""
+        runner = PipelineRunner(mode="normal", job_id="job-42")
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE_NO_ELEMENT)
+
+        body = self._get_vlm_payload(mock_urlopen)
+        tags = body["metrics"][0]["tags"]
+        self.assertNotIn("stream_id", tags)
+        self.assertEqual(tags["job_id"], "job-42")
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_without_job_id_still_tags_stream_id(self, mock_urlopen):
+        """When only ``stream_id`` is known the payload must still carry a ``tags`` block."""
+        runner = PipelineRunner(mode="normal", job_id=None)
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
+
+        body = self._get_vlm_payload(mock_urlopen)
+        self.assertEqual(
+            body["metrics"][0]["tags"], {"stream_id": "gvagenai_0_0"}
+        )
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_without_tags_omits_tags_field(self, mock_urlopen):
+        """No job_id and no element prefix must produce a payload without a ``tags`` field."""
+        runner = PipelineRunner(mode="normal", job_id=None)
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE_NO_ELEMENT)
+
+        body = self._get_vlm_payload(mock_urlopen)
+        self.assertNotIn("tags", body["metrics"][0])
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_streams_are_pushed_separately_per_element(self, mock_urlopen):
+        """Two elements in the same run must produce two pushes with distinct ``stream_id`` tags."""
+        runner = PipelineRunner(mode="normal", job_id="job-42")
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
+        runner._parse_and_push_genai_sample(
+            self.SAMPLE_META_LINE.replace("<gvagenai_0_0>", "<gvagenai_0_1>")
+        )
+
+        stream_ids: list[str] = []
+        for call in mock_urlopen.call_args_list:
+            body = json.loads(call[0][0].data.decode())
+            if body["metrics"][0]["name"] == "vlm_metrics":
+                stream_ids.append(body["metrics"][0]["tags"]["stream_id"])
+        self.assertEqual(stream_ids, ["gvagenai_0_0", "gvagenai_0_1"])
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_drops_malformed_json_silently(self, mock_urlopen):
+        """A ``<name>`` prefix is not enough — malformed JSON must still be dropped."""
+        runner = PipelineRunner(mode="normal", job_id="job-42")
+
+        runner._parse_and_push_genai_sample(
+            "gst_runner - INFO - <gvagenai_0_0> Added meta message: not-json"
+        )
+
+        mock_urlopen.assert_not_called()
+
+
 class TestPipelineResultRepr(unittest.TestCase):
     """Coverage for the custom ``PipelineResult.__repr__``.
 

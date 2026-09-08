@@ -211,6 +211,18 @@ class PipelineRunner:
     GENAI_METRICS_GST_DEBUG = "gvagenai:4"
     GENAI_PIPELINE_ELEMENT = "gvagenai"
     _GENAI_METRICS_MARKER = "Added meta message:"
+    # Extracts the emitting element name from a genai log line of the
+    # form ``... <element_name> Added meta message: {...}``. The
+    # ``<name>`` prefix is added by ``gst_runner.gst_log_bridge`` when
+    # the record carries a named ``GstObject`` — after
+    # ``unify_all_element_names`` the name is unique per stream (e.g.
+    # ``gvagenai_0_0``), so it is a natural ``stream_id`` for
+    # multi-stream runs. When the prefix is missing (older subprocesses
+    # or logs from non-object contexts) the match fails and the sample
+    # is pushed without a ``stream_id`` tag.
+    _GENAI_METRICS_ELEMENT_PATTERN = re.compile(
+        r"<(?P<element>[^>]+)>\s+Added meta message:"
+    )
     # Maps OpenVINO™ GenAI VLMPerfMetrics keys -> metrics-manager field names.
     _GENAI_METRIC_FIELDS = {
         "ttft_ms": "ttft_mean",
@@ -1216,6 +1228,13 @@ class PipelineRunner:
         time). The UI never reads these from ``gvagenai`` directly — it
         consumes them from the metrics-manager SSE stream.
 
+        The emitting ``gvagenai_*`` element name (added by
+        ``gst_runner.gst_log_bridge`` as a ``<name>`` prefix) is
+        extracted and forwarded as ``stream_id`` so metrics-manager can
+        partition VLM samples per stream in multi-stream runs. When the
+        prefix is missing the sample is still pushed, but without the
+        ``stream_id`` tag.
+
         Args:
             line: Raw stdout line from the subprocess, including any
                 log prefix (e.g. ``"gst_runner - INFO - ..."``).
@@ -1233,25 +1252,44 @@ class PipelineRunner:
         except (KeyError, TypeError, ValueError):
             return
 
-        self._push_vlm_metrics_sample(fields)
-        self.logger.debug("gvagenai metrics sample: %s", fields)
+        element_match = self._GENAI_METRICS_ELEMENT_PATTERN.search(line)
+        stream_id = element_match.group("element") if element_match else None
 
-    def _push_vlm_metrics_sample(self, fields: dict[str, float]) -> None:
+        self._push_vlm_metrics_sample(fields, stream_id=stream_id)
+        self.logger.debug(
+            "gvagenai metrics sample: stream=%s fields=%s", stream_id, fields
+        )
+
+    def _push_vlm_metrics_sample(
+        self, fields: dict[str, float], stream_id: str | None = None
+    ) -> None:
         """
         Push a single ``vlm_metrics`` sample to metrics-manager.
 
         Uses the ``/api/v1/metrics`` batch endpoint so all VLM fields
-        travel in one request, mirroring ``_push_latency_sample``. When
-        ``self.job_id`` is set, the payload carries ``tags.job_id`` so
-        metrics-manager can partition data per job.
+        travel in one request, mirroring ``_push_latency_sample``.
+
+        Tags: ``job_id`` (when set) and ``stream_id`` (when the
+        originating ``gvagenai_*`` element name was recovered from the
+        log line) so the dashboard can partition VLM samples per job
+        and per stream in multi-stream runs.
 
         Args:
             fields: Parsed VLM metric fields (``ttft_ms``, ``tpot_ms``,
                 ``generate_duration_ms``).
+            stream_id: Emitting ``gvagenai`` element name (unique per
+                stream after ``unify_all_element_names``), or ``None``
+                when it could not be recovered.
         """
-        entry: dict[str, object] = {"name": "vlm_metrics", "fields": fields}
+        tags: dict[str, str] = {}
         if self.job_id is not None:
-            entry["tags"] = {"job_id": self.job_id}
+            tags["job_id"] = self.job_id
+        if stream_id is not None:
+            tags["stream_id"] = stream_id
+
+        entry: dict[str, object] = {"name": "vlm_metrics", "fields": fields}
+        if tags:
+            entry["tags"] = tags
 
         self._post_metrics_async(
             url=self._metrics_manager_batch_url,
