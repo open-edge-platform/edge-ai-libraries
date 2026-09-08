@@ -49,8 +49,34 @@ class TestModels(unittest.TestCase):
             if hasattr(m, "_supported_models_manager_instance"):
                 setattr(m, "_supported_models_manager_instance", None)
 
-            with self.assertRaises(ValueError):
+            with self.assertRaises(RuntimeError):
                 m.SupportedModelsManager()
+
+    def test_supported_models_manager_strips_descriptions(self):
+        """Test that YAML model descriptions are trimmed before storage."""
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            models_dir = td_path / "models"
+            models_dir.mkdir()
+            yaml_file = td_path / "supported_models.yaml"
+            yaml_file.write_text(
+                '- name: model\n'
+                '  display_name: Model\n'
+                '  description: "  Model description  "\n'
+                '  source: public\n'
+                '  type: classification\n'
+                '  precisions:\n'
+                '    - precision: FP32\n'
+                '      model_path: model.xml\n'
+                '      model_proc: ""\n'
+            )
+
+            m = _reload_models_module(str(yaml_file), str(models_dir))
+            if hasattr(m, "_supported_models_manager_instance"):
+                setattr(m, "_supported_models_manager_instance", None)
+
+            model = m.SupportedModelsManager().get_all_supported_models()[0]
+            self.assertEqual(model.description, "Model description")
 
     def test_supported_model_paths_and_exists(self):
         """Test SupportedModel path and model_proc resolution and exists_on_disk."""

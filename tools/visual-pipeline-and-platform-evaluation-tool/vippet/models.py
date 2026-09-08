@@ -209,7 +209,7 @@ class SupportedModelsManager:
                     display_name = require_str_field(entry, "display_name", idx)
                     description_raw = entry.get("description")
                     description = (
-                        description_raw
+                        description_raw.strip()
                         if isinstance(description_raw, str) and description_raw.strip()
                         else None
                     )
