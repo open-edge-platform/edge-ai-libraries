@@ -180,7 +180,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `UPLOAD_MAX_SIZE_BYTES`          | Maximum accepted upload body size in bytes                   | `2147483648` (2 GiB)                                       |
 | `OUTPUT_VIDEO_DIR`               | Path to output videos                                        | `/videos/output`                                           |
 | `UPLOADED_IMAGES_DIR`            | Path to user-uploaded image sets                             | `/images/input/uploaded`                                   |
-| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | Glob patterns for elements shown in simplified pipeline view | `*src,urisourcebin,gva*,*sink,source`                      |
+| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | Glob patterns for elements shown in simplified pipeline view | `*src,urisourcebin,gva*,*sink,source,videoscale`           |
 | `SIMPLE_VIEW_INVISIBLE_ELEMENTS` | Element names hidden from simplified pipeline view           | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` |
 | `LIVE_STREAM_SERVER_HOST`        | RTSP server hostname                                         | `mediamtx`                                                 |
 | `LIVE_STREAM_SERVER_PORT`        | RTSP server port                                             | `8554`                                                     |
