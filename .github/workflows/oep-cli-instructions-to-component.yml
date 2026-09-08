@@ -3,12 +3,12 @@ name: Generate component from spec
 on:
   push:
     branches: [main]
-    paths: ['specification/**']
+    paths: ['frameworks/oep-installer-cli/specification/**']
   workflow_dispatch:
     inputs:
       spec_file:
         description: >-
-          Path to spec file relative to repo root
+          Path to spec file relative to frameworks/oep-installer-cli
           (e.g. specification/my_component.md)
         required: false
       mode:
@@ -82,6 +82,7 @@ jobs:
 
       - name: Find changed spec files
         id: specs
+        working-directory: frameworks/oep-installer-cli
         run: |
           SPECS_FILE="$(mktemp)"
 
@@ -115,9 +116,9 @@ jobs:
                ! git cat-file -e "$BEFORE" 2>/dev/null; then
               # Fall back: files introduced by the head commit, all treated as Added.
               git diff-tree --no-commit-id -r --name-status --diff-filter=AM \
-                "$SHA" -- 'specification/*.md' > "$SPECS_FILE"
+                --relative "$SHA" -- 'specification/*.md' > "$SPECS_FILE"
             else
-              git diff --name-status --diff-filter=AM "${BEFORE}..${SHA}" \
+              git diff --name-status --diff-filter=AM --relative "${BEFORE}..${SHA}" \
                 -- 'specification/*.md' > "$SPECS_FILE"
             fi
           fi
@@ -137,11 +138,12 @@ jobs:
 
       - name: Create a Copilot task issue for each spec
         if: steps.specs.outputs.has_specs == 'true'
+        working-directory: frameworks/oep-installer-cli
         env:
           GH_TOKEN: ${{ secrets.COPILOT_TASK_TOKEN }}
           FORCE_REGENERATE: ${{ github.event.inputs.force == 'true' && 'true' || 'false' }}
           MAX_TASKS_PER_RUN: ${{ github.event.inputs.max_tasks || '3' }}
         run: |
-          chmod +x .github/scripts/create-component-issue.sh
-          .github/scripts/create-component-issue.sh \
+          chmod +x "$GITHUB_WORKSPACE/frameworks/oep-installer-cli/.github/scripts/create-component-issue.sh"
+          "$GITHUB_WORKSPACE/frameworks/oep-installer-cli/.github/scripts/create-component-issue.sh" \
             "${{ steps.specs.outputs.specs_file }}"

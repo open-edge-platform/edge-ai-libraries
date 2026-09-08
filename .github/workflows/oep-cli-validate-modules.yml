@@ -3,8 +3,8 @@ name: Validate modules
 on:
   pull_request:
     paths:
-      - 'module/**'
-      - 'profile/**'
+      - 'frameworks/oep-installer-cli/module/**'
+      - 'frameworks/oep-installer-cli/profile/**'
 
 concurrency:
   group: validate-modules-${{ github.event.pull_request.head.repo.full_name }}-${{ github.event.pull_request.head.ref }}
@@ -39,7 +39,8 @@ jobs:
           clean: true
 
       - name: Run bash-syntax and shellcheck
-        run: .github/scripts/validate-modules.sh --only=bash-syntax --only=shellcheck
+        working-directory: frameworks/oep-installer-cli
+        run: "$GITHUB_WORKSPACE/frameworks/oep-installer-cli/.github/scripts/validate-modules.sh --only=bash-syntax --only=shellcheck"
 
   naming-convention:
     name: Function naming convention
@@ -66,7 +67,8 @@ jobs:
           clean: true
 
       - name: Check function name uniqueness across all installer scripts
-        run: .github/scripts/validate-modules.sh --only=naming
+        working-directory: frameworks/oep-installer-cli
+        run: "$GITHUB_WORKSPACE/frameworks/oep-installer-cli/.github/scripts/validate-modules.sh --only=naming"
 
   highlight-guidance:
     name: '@@HIGHLIGHT guidance (non-blocking)'
@@ -96,4 +98,5 @@ jobs:
         # This check is advisory only — it never fails the workflow.
         # The non-blocking nature is enforced inside validate-modules.sh:
         # the highlight check emits warnings but never affects the exit code.
-        run: .github/scripts/validate-modules.sh --only=highlight
+        run: "$GITHUB_WORKSPACE/frameworks/oep-installer-cli/.github/scripts/validate-modules.sh --only=highlight"
+        working-directory: frameworks/oep-installer-cli

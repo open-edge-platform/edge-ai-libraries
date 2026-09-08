@@ -18,7 +18,7 @@ name: Platform Validation
 on:
   pull_request_target:
     types: [labeled, synchronize]
-    paths: ['module/**']
+    paths: ['frameworks/oep-installer-cli/module/**']
   workflow_dispatch:
     inputs:
       component:
@@ -111,8 +111,8 @@ jobs:
           fi
 
           # Use git diff to find changed module files
-          cd repo
-          changed=$(git diff --name-only HEAD^1 HEAD 2>/dev/null \
+          cd repo/frameworks/oep-installer-cli
+          changed=$(git diff --name-only --relative HEAD^1 HEAD 2>/dev/null \
             | grep -E "^module/[^/]+/${OS_LIKE}$" \
             | sed -E "s|^module/([^/]+)/.*|\1|" \
             | sort -u \
@@ -135,11 +135,12 @@ jobs:
 
       - name: Make scripts executable
         run: |
-          chmod +x repo/.github/scripts/platform-target.sh
-          chmod +x repo/.github/scripts/platform-lifecycle.sh
+          chmod +x repo/frameworks/oep-installer-cli/.github/scripts/platform-target.sh
+          chmod +x repo/frameworks/oep-installer-cli/.github/scripts/platform-lifecycle.sh
 
       - name: Run platform lifecycle for each component
         id: lifecycle
+        working-directory: repo/frameworks/oep-installer-cli
         env:
           # Target host configuration — set these in the platform-validation
           # environment as repository variables / secrets.
@@ -160,7 +161,7 @@ jobs:
           all_passed=true
           for component in $COMPONENTS; do
             echo "=== Validating component: $component ==="
-            if ! repo/.github/scripts/platform-lifecycle.sh \
+            if ! "$GITHUB_WORKSPACE/repo/frameworks/oep-installer-cli/.github/scripts/platform-lifecycle.sh" \
                   "$component" "$OS_LIKE" "$RESULTS_DIR"; then
               all_passed=false
             fi
