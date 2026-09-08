@@ -124,30 +124,32 @@ act_helpper () {
       for licenser in ${handles[*]/_install_/_license_}; do
         if declare -F $licenser > /dev/null 2>&1; then
           local name1=${licenser#*_*_*_} license_line license_id="" license_title="" license_text=""
+          _flush_license () {
+            [ -n "$license_id" ] || return 0
+            licenses[$license_id]="${licenses[$license_id]:-}$name1,"
+            if [ -z "${licenses_text[$license_id]:-}" ]; then
+              licenses_text[$license_id]="@@LICENSE-ID $license_id
+${license_title:+@@LICENSE-TITLE $license_title
+}$license_text"
+            fi
+          }
           while IFS= read -r license_line; do
             case "$license_line" in
             "@@LICENSE-ID "*)
-              if [ -n "$license_id" ]; then
-                licenses[$license_id]="${licenses[$license_id]:-}$name1,"
-                licenses_text[$license_id]="$license_text"
-              fi
+              _flush_license
               license_id="${license_line#* }"
               license_title=""
               license_text=""
               ;;
             "@@LICENSE-TITLE "*)
               license_title="${license_line#* }"
-              license_text=""
               ;;
             *)
-              license_text="$license_text${license_line%\n}\n"
+              license_text+="$license_line"$'\n'
               ;;
             esac
           done < <($licenser "$@")
-          if [ -n "$license_id" ]; then
-            licenses[$license_id]="${licenses[$license_id]:-}$name1,"
-            licenses_text[$license_id]="$license_text"
-          fi
+          _flush_license
         fi
       done
       if [ ${#licenses[*]} -gt 0 ]; then
