@@ -55,40 +55,16 @@ ENV VIRTUAL_ENV=/home/dlstreamer/.venv
 RUN python3 -m venv --system-site-packages $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Secondary virtualenv dedicated to ``openvino-dev[onnx]==2024.6.0``
-# (omz_downloader / omz_converter). It pulls its own matching
-# ``openvino==2024.6.0`` so it never collides with the OpenVINO 2026.x
-# runtime installed in $VIRTUAL_ENV. Built without --system-site-packages
-# to fully isolate the two stacks.
-ENV OMZ_VIRTUAL_ENV=/home/dlstreamer/.omz-venv
-
 # Copy the requirements files into the container
 COPY --chown=dlstreamer:dlstreamer vippet/requirements.txt /home/dlstreamer/vippet/requirements.txt
-COPY --chown=dlstreamer:dlstreamer vippet/requirements-omz.txt /home/dlstreamer/vippet/requirements-omz.txt
 
-# Install the production runtime dependencies into the main venv and the
-# OMZ tooling into its own isolated venv.
-#
 # A BuildKit cache mount keeps pip's HTTP/wheel cache between builds. The
 # cache lives outside the image layer, so runtime image size is unchanged.
 # ``mode=0777`` lets the non-root ``dlstreamer`` user write to it without
 # needing to know its uid/gid at build time.
 RUN --mount=type=cache,target=/tmp/pip-cache,mode=0777,sharing=locked \
     PIP_CACHE_DIR=/tmp/pip-cache \
-    pip3 install --disable-pip-version-check -r requirements.txt && \
-    python3 -m venv $OMZ_VIRTUAL_ENV && \
-    PIP_CACHE_DIR=/tmp/pip-cache \
-    $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check \
-        -r requirements-omz.txt && \
-    # Security override: bump ``onnx`` past the cap that ``openvino-dev``
-    # 2024.6.0 (archived upstream) inherited. Fixes CVE-2026-27489 (HIGH),
-    # CVE-2026-28500 and CVE-2026-34446. ``--upgrade`` + explicit version
-    # is required because the resolver would otherwise honor the cap, and
-    # we deliberately keep transitive deps intact (no --no-deps) so onnx's
-    # own runtime requirements (protobuf, numpy) are satisfied.
-    PIP_CACHE_DIR=/tmp/pip-cache \
-    $OMZ_VIRTUAL_ENV/bin/pip install --disable-pip-version-check \
-        --upgrade "onnx>=1.21.0"
+    pip3 install --disable-pip-version-check -r requirements.txt
 
 # Copy the Python scripts and configuration files into the container
 COPY --chown=dlstreamer:dlstreamer \

@@ -10,12 +10,9 @@ Responsibilities:
 * Resolve which predefined pipelines reference each model
   (``used_by_pipelines``).
 * Start asynchronous download jobs:
-    - For ``omz`` source: run ``omz_downloader``/``omz_converter`` in a
-      worker thread (model-download has no OMZ plugin yet).
-    - For every other supported source: forward the
-      ``download_request`` body to the ``/models/download`` endpoint of
-      the model-download microservice and poll its ``/jobs/{job_id}``
-      endpoint until completion.
+        - Forward the ``download_request`` body to the ``/models/download``
+            endpoint of the model-download microservice and poll its
+            ``/jobs/{job_id}`` endpoint until completion.
 * Proxy multipart uploads to the model-download microservice
   (``/models/upload``) and register the resulting model locally so it
   shows up in ``GET /models`` immediately.
@@ -34,7 +31,6 @@ import json
 import logging
 import os
 import shutil
-import subprocess
 import tempfile
 import threading
 import time
@@ -119,67 +115,6 @@ def _precision_is_complete(category: str | None, model_path: str) -> bool:
     if category == "genai":
         return os.path.isfile(os.path.join(model_path, GENAI_SENTINEL_FILE))
     return os.path.exists(model_path)
-
-
-# ----------------------------------------------------------------------
-# OMZ post-processing assets shipped with DLStreamer
-# ----------------------------------------------------------------------
-
-DLSTREAMER_MODEL_PROC_DIR: str = os.environ.get(
-    "DLSTREAMER_MODEL_PROC_DIR",
-    "/opt/intel/dlstreamer/samples/gstreamer/model_proc",
-)
-DLSTREAMER_LABELS_DIR: str = os.environ.get(
-    "DLSTREAMER_LABELS_DIR",
-    "/opt/intel/dlstreamer/samples/labels",
-)
-
-# Path of the dedicated venv where ``openvino-dev[onnx]==2024.6.0`` (and
-# the matching legacy ``openvino==2024.6.0``) live, isolated from the
-# main runtime which uses ``openvino==2026.x``. Built in the Dockerfile;
-# the env var lets local development override it.
-OMZ_VENV_DIR: str = os.environ.get("OMZ_VIRTUAL_ENV", "/home/dlstreamer/.omz-venv")
-OMZ_DOWNLOADER_BIN: str = os.environ.get(
-    "OMZ_DOWNLOADER_BIN", os.path.join(OMZ_VENV_DIR, "bin", "omz_downloader")
-)
-OMZ_CONVERTER_BIN: str = os.environ.get(
-    "OMZ_CONVERTER_BIN", os.path.join(OMZ_VENV_DIR, "bin", "omz_converter")
-)
-
-
-# Per-model custom post-processing for OMZ downloads. Each entry describes
-# the OMZ category prefix produced by ``omz_downloader`` (``intel`` or
-# ``public``) and an optional ``model_proc`` file to copy into the final
-# model directory under a specific destination filename.
-#
-# Used by the OMZ fallback path for the subset of OMZ models still listed
-# in ``supported_models.yaml`` that model-download does not handle yet.
-_OMZ_MODEL_RULES: dict[str, dict[str, str]] = {
-    "mobilenet-v2-pytorch": {
-        "category": "public",
-        "model_proc_src": os.path.join(
-            DLSTREAMER_MODEL_PROC_DIR, "public", "preproc-aspect-ratio.json"
-        ),
-        "model_proc_dst": "mobilenet-v2.json",
-        "labels_src": os.path.join(DLSTREAMER_LABELS_DIR, "imagenet_2012.txt"),
-    },
-    "age-gender-recognition-retail-0013": {
-        "category": "intel",
-        "model_proc_src": os.path.join(
-            DLSTREAMER_MODEL_PROC_DIR,
-            "intel",
-            "age-gender-recognition-retail-0013.json",
-        ),
-        "model_proc_dst": "age-gender-recognition-retail-0013.json",
-    },
-    "face-detection-retail-0004": {
-        "category": "intel",
-        "model_proc_src": os.path.join(
-            DLSTREAMER_MODEL_PROC_DIR, "intel", "face-detection-retail-0004.json"
-        ),
-        "model_proc_dst": "face-detection-retail-0004.json",
-    },
-}
 
 
 # ----------------------------------------------------------------------
@@ -840,7 +775,7 @@ class ModelManager:
                 f"Download for model '{model_name}' is already running (job {running.id})",
             )
 
-        if source != InternalModelSource.OMZ and not download_request:
+        if not download_request:
             return (
                 None,
                 400,
@@ -865,18 +800,11 @@ class ModelManager:
         # INSTALLING/FAILED states are derived from the in-memory job
         # (see ``_compute_install_status``).
 
-        # Pick worker
-        if source == InternalModelSource.OMZ:
-            target = self._execute_omz_download
-            args: tuple[Any, ...] = (job_id, model_name, head)
-        else:
-            assert download_request is not None
-            target = self._execute_remote_download
-            args = (job_id, model_name, head, download_request)
+        assert download_request is not None
 
         threading.Thread(
-            target=target,
-            args=args,
+            target=self._execute_remote_download,
+            args=(job_id, model_name, head, download_request),
             name=f"model-download-{job_id}",
             daemon=True,
         ).start()
@@ -1000,297 +928,6 @@ class ModelManager:
         ``<hub>/<source>/<model_name>/<precision>/<file>`` prefix.
         """
         return "."
-
-    # ------------------------------------------------------------------
-    # Worker: OMZ download (handled locally by vippet-app)
-    # ------------------------------------------------------------------
-
-    def _execute_omz_download(
-        self, job_id: str, model_name: str, head: SupportedModel
-    ) -> None:
-        """Download/convert an OMZ model using ``openvino-dev`` CLIs.
-
-        model-download has no OMZ plugin yet, so we keep this fallback in
-        vippet-app itself.
-
-        Downloads and converts in a private temp dir, then moves the
-        artefacts into ``MODELS_PATH/omz/<model_name>/`` and applies any
-        per-model post-processing (copy ``model_proc`` JSON, inject
-        ImageNet labels for ``mobilenet-v2-pytorch``, ...).
-        """
-        tmp_dir: str | None = None
-        try:
-            target_dir = os.path.join(MODELS_PATH, "omz", model_name)
-            os.makedirs(os.path.dirname(target_dir), exist_ok=True)
-
-            # Use a private scratch directory for omz_downloader/omz_converter
-            # so partial artefacts never pollute the final layout.
-            tmp_dir = tempfile.mkdtemp(prefix=f"vippet-omz-{model_name}-")
-
-            self._append_detail(
-                job_id,
-                f"{OMZ_DOWNLOADER_BIN} --name {model_name} --output_dir {tmp_dir}",
-            )
-            self._run_subprocess(
-                job_id,
-                [
-                    OMZ_DOWNLOADER_BIN,
-                    "--name",
-                    model_name,
-                    "--output_dir",
-                    tmp_dir,
-                ],
-            )
-
-            self._append_detail(
-                job_id,
-                f"{OMZ_CONVERTER_BIN} --name {model_name} --download_dir {tmp_dir} "
-                f"--output_dir {tmp_dir}",
-            )
-            self._run_subprocess(
-                job_id,
-                [
-                    OMZ_CONVERTER_BIN,
-                    "--name",
-                    model_name,
-                    "--download_dir",
-                    tmp_dir,
-                    "--output_dir",
-                    tmp_dir,
-                ],
-            )
-
-            self._materialize_omz_artifacts(
-                job_id=job_id,
-                model_name=model_name,
-                tmp_dir=tmp_dir,
-                target_dir=target_dir,
-            )
-
-            self._finalize_success(job_id, model_name, head)
-        except subprocess.CalledProcessError as exc:
-            stderr = (exc.stderr or "").strip() if isinstance(exc.stderr, str) else ""
-            logger.error(
-                "OMZ tool failed for %s (job %s): %s\nstderr:\n%s",
-                model_name,
-                job_id,
-                exc,
-                stderr or "<empty>",
-                exc_info=True,
-            )
-            short = f"OMZ command failed: {' '.join(exc.cmd)} (rc={exc.returncode})"
-            details = [short]
-            if stderr:
-                details.append("stderr:")
-                details.extend(stderr.splitlines())
-            self._fail_job(job_id, short, details=details)
-        except FileNotFoundError as exc:
-            logger.error(
-                "OMZ tooling missing for job %s: %s", job_id, exc, exc_info=True
-            )
-            self._fail_job(
-                job_id,
-                "openvino-dev tools (omz_downloader/omz_converter) are not installed",
-            )
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error(
-                "Unexpected error in OMZ download job %s", job_id, exc_info=True
-            )
-            self._fail_job(job_id, f"Unexpected error: {exc}")
-        finally:
-            if tmp_dir:
-                shutil.rmtree(tmp_dir, ignore_errors=True)
-
-    def _materialize_omz_artifacts(
-        self,
-        job_id: str,
-        model_name: str,
-        tmp_dir: str,
-        target_dir: str,
-    ) -> None:
-        """Move converted OMZ artefacts and apply per-model post-processing.
-
-        Handles the per-model quirks (model-proc JSON copy, ImageNet
-        label injection, ...) for OMZ models still listed in
-        ``supported_models.yaml`` (``mobilenet-v2-pytorch``,
-        ``age-gender-recognition-retail-0013``,
-        ``face-detection-retail-0004``).
-        """
-        rule = _OMZ_MODEL_RULES.get(model_name)
-        # Default OMZ category: ``intel`` (Intel-hosted, most retail models).
-        category = (rule or {}).get("category", "intel")
-        source_dir = os.path.join(tmp_dir, category, model_name)
-        if not os.path.isdir(source_dir):
-            # Fallback: scan ``intel`` and ``public`` for the model dir.
-            for candidate in ("intel", "public"):
-                alt = os.path.join(tmp_dir, candidate, model_name)
-                if os.path.isdir(alt):
-                    source_dir = alt
-                    category = candidate
-                    break
-        if not os.path.isdir(source_dir):
-            raise FileNotFoundError(
-                f"omz_converter produced no output for '{model_name}' "
-                f"(looked under {tmp_dir}/intel and {tmp_dir}/public)"
-            )
-
-        # Move everything into the target dir. ``shutil.move`` cannot
-        # merge into an existing directory, so we move children one by
-        # one after ensuring the target exists.
-        os.makedirs(target_dir, exist_ok=True)
-        for entry in os.listdir(source_dir):
-            src = os.path.join(source_dir, entry)
-            dst = os.path.join(target_dir, entry)
-            if os.path.exists(dst):
-                # Replace any partial leftover from a previous run.
-                if os.path.isdir(dst):
-                    shutil.rmtree(dst)
-                else:
-                    os.remove(dst)
-            shutil.move(src, dst)
-        self._append_detail(
-            job_id,
-            f"Moved OMZ artefacts from {source_dir} to {target_dir}",
-        )
-
-        if rule is None:
-            return
-
-        # Copy the bundled model_proc JSON (if shipped with DLStreamer).
-        proc_src = rule.get("model_proc_src")
-        proc_dst_name = rule.get("model_proc_dst")
-        proc_dst_path: str | None = None
-        if proc_src and proc_dst_name:
-            if not os.path.isfile(proc_src):
-                logger.warning(
-                    "model_proc source not found for %s: %s", model_name, proc_src
-                )
-            else:
-                proc_dst_path = os.path.join(target_dir, proc_dst_name)
-                shutil.copyfile(proc_src, proc_dst_path)
-                self._append_detail(
-                    job_id, f"Copied model_proc {proc_src} -> {proc_dst_path}"
-                )
-
-        # mobilenet-v2-pytorch: inject ImageNet labels into the JSON.
-        labels_src = rule.get("labels_src")
-        if labels_src and proc_dst_path:
-            self._inject_imagenet_labels(
-                job_id=job_id,
-                model_name=model_name,
-                labels_path=labels_src,
-                json_path=proc_dst_path,
-            )
-
-    @staticmethod
-    def _inject_imagenet_labels(
-        job_id: str, model_name: str, labels_path: str, json_path: str
-    ) -> None:
-        """Replicate the ``mobilenet-v2-pytorch`` label injection from the shell script.
-
-        Reads ``imagenet_2012.txt`` (one ``<id> <label>`` per line) and
-        writes the labels into ``output_postproc[0].labels`` of
-        ``json_path``. Silently logs and skips on missing files/keys.
-        """
-        if not os.path.isfile(labels_path):
-            logger.warning(
-                "ImageNet labels file missing for %s: %s", model_name, labels_path
-            )
-            return
-        if not os.path.isfile(json_path):
-            logger.warning("model_proc JSON missing for %s: %s", model_name, json_path)
-            return
-        try:
-            labels: list[str] = []
-            with open(labels_path) as f:
-                for raw_line in f:
-                    line = raw_line.strip()
-                    if not line:
-                        continue
-                    parts = line.split(" ", 1)
-                    labels.append(parts[1] if len(parts) == 2 else parts[0])
-
-            with open(json_path) as f:
-                data = json.load(f)
-            postproc = data.get("output_postproc")
-            if isinstance(postproc, list) and postproc:
-                postproc[0]["labels"] = labels
-                with open(json_path, "w") as f:
-                    json.dump(data, f, indent=4)
-                logger.info(
-                    "[job %s] Injected %d ImageNet labels into %s",
-                    job_id,
-                    len(labels),
-                    json_path,
-                )
-            else:
-                logger.warning(
-                    "%s lacks output_postproc[0]; skipping label injection",
-                    json_path,
-                )
-        except Exception:
-            logger.error(
-                "Failed to inject ImageNet labels into %s", json_path, exc_info=True
-            )
-
-    def _run_subprocess(self, job_id: str, command: list[str]) -> None:
-        """Run an OMZ tool as a subprocess and stream stdout into job details.
-
-        ``stderr`` is captured separately and attached to
-        :class:`subprocess.CalledProcessError` when the command fails so
-        the caller can log meaningful diagnostics (the OMZ CLIs send
-        most error messages to stderr).
-
-        The OMZ venv's ``bin/`` directory is prepended to ``PATH`` so
-        helper CLIs that ``omz_converter`` invokes by name (notably
-        ``mo`` from openvino-dev 2024.6) are resolved from the same
-        isolated environment.
-        """
-        env = os.environ.copy()
-        omz_bin_dir = os.path.join(OMZ_VENV_DIR, "bin")
-        if os.path.isdir(omz_bin_dir):
-            env["PATH"] = omz_bin_dir + os.pathsep + env.get("PATH", "")
-
-        proc = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            env=env,
-        )
-        assert proc.stdout is not None
-        assert proc.stderr is not None
-
-        stderr_lines: list[str] = []
-
-        def _drain_stderr() -> None:
-            assert proc.stderr is not None
-            for line in proc.stderr:
-                stripped = line.rstrip()
-                stderr_lines.append(stripped)
-                if stripped:
-                    logger.debug("[job %s] [stderr] %s", job_id, stripped)
-
-        stderr_thread = threading.Thread(
-            target=_drain_stderr, name=f"omz-stderr-{job_id}", daemon=True
-        )
-        stderr_thread.start()
-
-        for line in proc.stdout:
-            line = line.rstrip()
-            if not line:
-                continue
-            with self._jobs_lock:
-                job = self._jobs.get(job_id)
-                if job is not None:
-                    job.progress_message = line
-
-        rc = proc.wait()
-        stderr_thread.join(timeout=5)
-        stderr = "\n".join(stderr_lines).strip()
-        if rc != 0:
-            raise subprocess.CalledProcessError(rc, command, output=None, stderr=stderr)
 
     # ------------------------------------------------------------------
     # Job state transitions

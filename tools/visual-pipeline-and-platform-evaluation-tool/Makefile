@@ -169,7 +169,6 @@ clean-experimental: ## Clean experimental setup artifacts
 $(TEST_IMAGE_SENTINEL): $(PROJECT_NAME)/Dockerfile \
 		$(PROJECT_NAME)/requirements.txt \
 		$(PROJECT_NAME)/requirements-dev.txt \
-		$(PROJECT_NAME)/requirements-omz.txt \
 		.dockerignore \
 		| env-setup
 	. .env && TARGET=test DOCKER_TAG="test" docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build vippet
