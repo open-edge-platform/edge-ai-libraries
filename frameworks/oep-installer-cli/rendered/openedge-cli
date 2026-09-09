@@ -4291,4 +4291,5 @@ debian_55_remove_ros_openvino () {
     echo "ROS 2 OpenVINO toolkit already removed. Skipping"
   fi
 }
+[ "$0" != bash ] || set -- setup "$@"
 main "$@"
