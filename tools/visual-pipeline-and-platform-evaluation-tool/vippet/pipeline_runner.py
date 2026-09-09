@@ -454,9 +454,7 @@ class PipelineRunner:
         # try to hide.
         self._allowed_stream_ids: set[str] | None = allowed_stream_ids
 
-        self._genai_metrics_enabled = (
-            self.GENAI_PIPELINE_ELEMENT in pipeline_command
-        )
+        self._genai_metrics_enabled = self.GENAI_PIPELINE_ELEMENT in pipeline_command
 
         if self.mode == "validation":
             return self._run_validation(pipeline_command)

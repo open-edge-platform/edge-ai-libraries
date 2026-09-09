@@ -815,6 +815,47 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
         env = runner._build_subprocess_env()
         self._assert_tracer_env_applied(env)
 
+    # --- Pure _build_subprocess_env unit tests: gvagenai branch ---------------
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_genai_only_sets_gvagenai_debug_no_tracers(self):
+        """With only the genai flag on, GST_DEBUG=gvagenai:4 and GST_TRACERS untouched."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        runner._genai_metrics_enabled = True
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_DEBUG"], "gvagenai:4")
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_genai_and_latency_combine_debug_categories(self):
+        """With both flags on, GST_DEBUG carries both categories and GST_TRACERS is set."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        runner._genai_metrics_enabled = True
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_DEBUG"], "GST_TRACER:7,gvagenai:4")
+        self._assert_tracer_env_applied(env)
+
+    @patch.dict("os.environ", {"GST_DEBUG": "2,GST_ELEMENT_PADS:5"}, clear=True)
+    def test_build_env_genai_only_appends_to_existing_gst_debug(self):
+        """Existing GST_DEBUG must be preserved and gvagenai:4 appended."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        runner._genai_metrics_enabled = True
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_DEBUG"], "2,GST_ELEMENT_PADS:5,gvagenai:4")
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch.dict("os.environ", {"GST_DEBUG": "2,GST_ELEMENT_PADS:5"}, clear=True)
+    def test_build_env_genai_and_latency_append_to_existing_gst_debug(self):
+        """Both categories must be appended in order after any pre-existing GST_DEBUG value."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        runner._genai_metrics_enabled = True
+        env = runner._build_subprocess_env()
+        self.assertEqual(
+            env["GST_DEBUG"],
+            "2,GST_ELEMENT_PADS:5,GST_TRACER:7,gvagenai:4",
+        )
+        self._assert_tracer_env_applied(env)
+
     # --- Popen-level integration: normal mode ---------------------------------
 
     @patch("pipeline_runner.Popen")
@@ -854,6 +895,56 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
         runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
 
         env = mock_popen.call_args.kwargs["env"]
+        self._assert_tracer_env_applied(env)
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_normal_mode_gvagenai_pipeline_adds_gvagenai_debug(
+        self, mock_select, mock_ps, mock_popen
+    ):
+        """A `gvagenai` element in the pipeline command must add `gvagenai:4` to GST_DEBUG."""
+        process_mock = _make_process_mock([])
+        mock_select.return_value = ([], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        runner.run(
+            pipeline_command=(
+                "videotestsrc ! gvagenai model=foo metrics=true ! fakesink"
+            ),
+            total_streams=1,
+        )
+
+        env = mock_popen.call_args.kwargs["env"]
+        self.assertEqual(env["GST_DEBUG"], "gvagenai:4")
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_normal_mode_gvagenai_pipeline_with_latency_combines_categories(
+        self, mock_select, mock_ps, mock_popen
+    ):
+        """With both a gvagenai pipeline and the latency flag, both GST_DEBUG categories are set."""
+        process_mock = _make_process_mock([])
+        mock_select.return_value = ([], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        runner.run(
+            pipeline_command=(
+                "videotestsrc ! gvagenai model=foo metrics=true ! fakesink"
+            ),
+            total_streams=1,
+        )
+
+        env = mock_popen.call_args.kwargs["env"]
+        self.assertEqual(env["GST_DEBUG"], "GST_TRACER:7,gvagenai:4")
         self._assert_tracer_env_applied(env)
 
     # --- Popen-level integration: validation mode -----------------------------
@@ -1561,9 +1652,7 @@ class TestVlmMetricsPush(unittest.TestCase):
         )
 
     @patch("pipeline_runner.urllib.request.urlopen")
-    def test_parser_omits_stream_id_when_element_prefix_missing(
-        self, mock_urlopen
-    ):
+    def test_parser_omits_stream_id_when_element_prefix_missing(self, mock_urlopen):
         """Without the ``<element>`` prefix the push must still succeed, minus ``stream_id``."""
         runner = PipelineRunner(mode="normal", job_id="job-42")
 
@@ -1582,9 +1671,7 @@ class TestVlmMetricsPush(unittest.TestCase):
         runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
 
         body = self._get_vlm_payload(mock_urlopen)
-        self.assertEqual(
-            body["metrics"][0]["tags"], {"stream_id": "gvagenai_0_0"}
-        )
+        self.assertEqual(body["metrics"][0]["tags"], {"stream_id": "gvagenai_0_0"})
 
     @patch("pipeline_runner.urllib.request.urlopen")
     def test_push_without_tags_omits_tags_field(self, mock_urlopen):
