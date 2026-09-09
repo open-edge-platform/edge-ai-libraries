@@ -2,7 +2,7 @@
 services:
   vippet:
     environment:
-      SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source,tsam-udf"
+      SIMPLE_VIEW_VISIBLE_ELEMENTS: "*src,urisourcebin,gva*,*sink,source,videoscale,tsam-udf"
       SIMPLE_VIEW_INVISIBLE_ELEMENTS: "gvafpscounter,gvametapublish,gvametaconvert,gvawatermark"
       TSAM_HOST: ${TSAM_HOST:-ia-time-series-analytics-microservice}
       TSAM_KAPACITOR_PORT: ${TSAM_KAPACITOR_PORT:-9092}

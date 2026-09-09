@@ -14,7 +14,12 @@ This guide is intended for developers working directly with the source code.
 Before starting, ensure the following:
 
 - **System requirements**: The system meets the [minimum requirements](./system-requirements.md).
-- **Docker platform**: Docker is installed. For details, see the [Docker installation guide](https://docs.docker.com/get-docker/).
+- **Docker platform**: **Docker Engine** is installed. On Linux, install it from the Docker apt repository, see
+  [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/), then complete the
+  [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run Docker as a non-root user.
+
+  > **Note:** Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU device on Linux (yet).
+
 - **Dependencies installed**:
   - **Git**: [Install Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
   - **Make**: Standard build tool, typically provided by the `build-essential` (or equivalent) package on Linux.
@@ -22,6 +27,10 @@ Before starting, ensure the following:
 For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
 script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
 [Install Guide Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
+
+> **Note:** The same steps apply to Ubuntu 24.04 running under WSL 2 on Windows - run all commands
+> inside the WSL distribution. On WSL, only the CPU and GPU (WSL) variants are supported. See
+> [System Requirements](./system-requirements.md#windows-subsystem-for-linux-wsl).
 
 This guide assumes basic familiarity with Git commands and terminal usage. For more information, see
 [Git Documentation](https://git-scm.com/doc).

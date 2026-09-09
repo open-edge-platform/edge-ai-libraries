@@ -1,0 +1,11 @@
+
+# add a group and ensure the user is part of the group
+ensure_group_add () {
+  local group1=$1
+  getent group $group1 >/dev/null 2>&1 || ensure_sudo groupadd $group1
+  id -nG | grep -qw $group1 || {
+    ensure_sudo usermod -aG $group1 "$(id -un)"
+    newgrp $group1
+  }
+}
+

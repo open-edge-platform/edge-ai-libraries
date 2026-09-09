@@ -29,7 +29,6 @@ updates:
         applies-to: version-updates
         patterns:
           - "*"
-
   # ─────────────────────────────────────────
   # Python (pip) — Microservices
   # ─────────────────────────────────────────
@@ -92,6 +91,58 @@ updates:
     schedule:
       interval: "weekly"
     versioning-strategy: lockfile-only
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/time-series-analytics"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/time-series-analytics/simulator"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/time-series-analytics/tests-functional"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/time-series-analytics/tests"
+    schedule:
+      interval: "weekly"
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5

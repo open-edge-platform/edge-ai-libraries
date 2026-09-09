@@ -34,8 +34,14 @@ chatqna:
 gpu:
   enabled: false
   devices: /dev/dri
-  group_add: $(stat -c "%g" /dev/dri/render*)
-  key:  #update as per the cluster node label key for GPU assigned by device Plugin
+  # Extra supplemental group IDs for host video/render device access.
+  # Configure render-device group IDs for nodes that require supplemental groups to access /dev/dri.
+  supplementalGroups:
+  - 44   # video
+  - 109  # render (Ubuntu 20.04)
+  - 110  # render (Ubuntu 22.04)
+  - 992  # render (Ubuntu 24.04)
+  key: #update as per the cluster node label key for GPU assigned by device Plugin
 
 uiService:
   name: chatqna-core-ui

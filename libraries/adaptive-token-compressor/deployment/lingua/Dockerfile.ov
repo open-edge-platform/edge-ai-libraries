@@ -17,20 +17,27 @@ WORKDIR /app
 # `patch` is required for the LLMLingua-2 source patch step below; python:slim
 # images don't ship it by default.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
-        curl ocl-icd-libopencl1 libze1 patch \
+        ca-certificates curl ocl-icd-libopencl1 libze1 patch \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/neo
-RUN curl -LO https://github.com/intel/intel-graphics-compiler/releases/download/v2.30.1/intel-igc-core-2_2.30.1+20950_amd64.deb \
-    && curl -LO https://github.com/intel/intel-graphics-compiler/releases/download/v2.30.1/intel-igc-opencl-2_2.30.1+20950_amd64.deb \
-    && curl -LO https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/intel-ocloc-dbgsym_26.09.37435.1-0_amd64.ddeb \
-    && curl -LO https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/intel-ocloc_26.09.37435.1-0_amd64.deb \
-    && curl -LO https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/intel-opencl-icd-dbgsym_26.09.37435.1-0_amd64.ddeb \
-    && curl -LO https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/intel-opencl-icd_26.09.37435.1-0_amd64.deb \
-    && curl -LO https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/libigdgmm12_22.9.0_amd64.deb \
-    && curl -LO https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/libze-intel-gpu1-dbgsym_26.09.37435.1-0_amd64.ddeb \
-    && curl -LO https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/libze-intel-gpu1_26.09.37435.1-0_amd64.deb \
-        && dpkg -i *.deb
+# Fetch only the runtime .deb packages. The matching -dbgsym .ddeb debug-symbol
+# variants are not needed at runtime; dropping them also cuts the number of HTTPS
+# downloads (fewer TLS handshakes to fail behind a flaky corporate proxy). curl is
+# hardened with --fail + retries so a transient GitHub asset-CDN / proxy TLS hiccup
+# is retried instead of aborting the whole build.
+RUN set -eux; \
+    for url in \
+        https://github.com/intel/intel-graphics-compiler/releases/download/v2.30.1/intel-igc-core-2_2.30.1+20950_amd64.deb \
+        https://github.com/intel/intel-graphics-compiler/releases/download/v2.30.1/intel-igc-opencl-2_2.30.1+20950_amd64.deb \
+        https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/intel-ocloc_26.09.37435.1-0_amd64.deb \
+        https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/intel-opencl-icd_26.09.37435.1-0_amd64.deb \
+        https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/libigdgmm12_22.9.0_amd64.deb \
+        https://github.com/intel/compute-runtime/releases/download/26.09.37435.1/libze-intel-gpu1_26.09.37435.1-0_amd64.deb ; \
+    do \
+        curl -fL --retry 5 --retry-all-errors -O "$url"; \
+    done; \
+    dpkg -i ./*.deb
 RUN rm -rf /tmp/neo
 WORKDIR /app
 
