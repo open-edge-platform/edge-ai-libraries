@@ -531,7 +531,9 @@ class TestBenchmarkApiRoutes(unittest.TestCase):
         response = run_benchmark_suite("manufacturing")
 
         self.assertEqual(response.status_code, 202)
-        self.assertEqual(json.loads(response.body), {"job_id": "benchmark-job-123"})
+        self.assertEqual(
+            json.loads(bytes(response.body)), {"job_id": "benchmark-job-123"}
+        )
         mock_manager_instance.start_suite.assert_called_once_with("manufacturing")
 
     @patch("api.routes.benchmarks.BenchmarkManager")
@@ -548,7 +550,7 @@ class TestBenchmarkApiRoutes(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
-            json.loads(response.body),
+            json.loads(bytes(response.body)),
             {"message": "Benchmark suite with slug 'unknown' not found."},
         )
         mock_manager_instance.start_suite.assert_called_once_with("unknown")

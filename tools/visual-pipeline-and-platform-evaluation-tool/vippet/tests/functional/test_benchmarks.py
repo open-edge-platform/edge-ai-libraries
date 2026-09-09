@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 import requests
 
+from helpers.api_helpers import start_benchmark_suite_run, wait_for_job_completion
 from helpers.config import BASE_URL
 
 logger = logging.getLogger(__name__)
@@ -170,4 +171,79 @@ def test_benchmark_run_detail_endpoints_return_404_for_missing_run(
     assert test_run_response.status_code == 404, (
         f"Expected 404 for missing benchmark test run id={missing_test_run_id}, "
         f"got {test_run_response.status_code}, body={test_run_response.text}"
+    )
+
+
+@pytest.mark.full
+def test_get_benchmark_suite_runs_returns_populated_list_after_run(
+    http_client: requests.Session,
+) -> None:
+    """After running a suite, GET /benchmarks/{suite_slug}/runs returns a populated list."""
+    suite = _find_any_benchmark_suite(http_client)
+    suite_slug = suite["slug"]
+
+    job_id = start_benchmark_suite_run(http_client, suite_slug)
+    status_url = f"{BASE_URL}/jobs/tests/benchmark/{job_id}/status"
+    final_status = wait_for_job_completion(
+        http_client, status_url, assert_initial_running=False
+    )
+    assert final_status.get("state") == "COMPLETED", (
+        f"Benchmark job {job_id} finished in unexpected state "
+        f"{final_status.get('state')}: {final_status.get('error_message')}"
+    )
+
+    response = http_client.get(f"{BASE_URL}/benchmarks/{suite_slug}/runs", timeout=30)
+
+    assert response.status_code == 200, (
+        f"Expected 200 for GET /benchmarks/{suite_slug}/runs, "
+        f"got {response.status_code}, body={response.text}"
+    )
+    runs = response.json()
+    assert isinstance(runs, list), "Benchmark suite runs response must be a list"
+    assert runs, "Expected at least one run after starting a benchmark suite job"
+
+    matching_runs = [run for run in runs if run.get("job_id") == job_id]
+    assert matching_runs, (
+        f"Expected a run with job_id={job_id!r} in {[r.get('job_id') for r in runs]}"
+    )
+    run = matching_runs[0]
+    assert run.get("suite_slug") == suite_slug, (
+        f"Expected run suite_slug={suite_slug!r}, got {run.get('suite_slug')!r}"
+    )
+    assert isinstance(run.get("total_test_cases"), int) and run["total_test_cases"] > 0, (
+        "Populated benchmark run must report a positive total_test_cases"
+    )
+
+
+@pytest.mark.full
+def test_get_all_benchmark_runs_returns_populated_list_after_run(
+    http_client: requests.Session,
+) -> None:
+    """After running a suite, GET /benchmarks/runs includes the new run."""
+    suite = _find_any_benchmark_suite(http_client)
+    suite_slug = suite["slug"]
+
+    job_id = start_benchmark_suite_run(http_client, suite_slug)
+    status_url = f"{BASE_URL}/jobs/tests/benchmark/{job_id}/status"
+    final_status = wait_for_job_completion(
+        http_client, status_url, assert_initial_running=False
+    )
+    assert final_status.get("state") == "COMPLETED", (
+        f"Benchmark job {job_id} finished in unexpected state "
+        f"{final_status.get('state')}: {final_status.get('error_message')}"
+    )
+
+    response = http_client.get(f"{BASE_URL}/benchmarks/runs", timeout=30)
+
+    assert response.status_code == 200, (
+        f"Expected 200 from /benchmarks/runs, got {response.status_code}, "
+        f"body={response.text}"
+    )
+    runs = response.json()
+    assert isinstance(runs, list), "Benchmark runs response must be a list"
+    assert runs, "Expected /benchmarks/runs to be populated after starting a job"
+
+    job_ids = [run.get("job_id") for run in runs]
+    assert job_id in job_ids, (
+        f"Expected job_id={job_id!r} in all-suite runs list: {job_ids}"
     )
