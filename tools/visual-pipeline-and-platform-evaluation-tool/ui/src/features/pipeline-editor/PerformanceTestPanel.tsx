@@ -316,41 +316,36 @@ const PerformanceTestPanel = ({
   const showMetadataSection = enableMetadata && showMetadataTab;
   const showGenAIMetricsTab = genAIMetricsData.length > 0;
   const showSummaryStyles = !isRunning && frozenSummary !== null;
-  const visibleTabCount =
-    (hasMediaTab ? 1 : 0) +
-    (showMetadataSection ? 1 : 0) +
-    (showGenAIMetricsTab ? 1 : 0);
-  const effectiveMainTab =
-    activeMainTab === "media" && !hasMediaTab
-      ? showMetadataSection
-        ? "metadata"
-        : showGenAIMetricsTab
-          ? "genai-metrics"
-          : "metadata"
-      : activeMainTab === "metadata" && !showMetadataSection
-        ? hasMediaTab
-          ? "media"
-          : showGenAIMetricsTab
-            ? "genai-metrics"
-            : "metadata"
-        : activeMainTab === "genai-metrics" && !showGenAIMetricsTab
-          ? hasMediaTab
-            ? "media"
-            : showMetadataSection
-              ? "metadata"
-              : "metadata"
-          : activeMainTab;
+
+  const availableMainTabs = useMemo(() => {
+    const tabs: string[] = [];
+    if (hasMediaTab) tabs.push("media");
+    if (showMetadataSection) tabs.push("metadata");
+    if (showGenAIMetricsTab) tabs.push("genai-metrics");
+    return tabs;
+  }, [hasMediaTab, showMetadataSection, showGenAIMetricsTab]);
+
+  // Snap `activeMainTab` back to the first available tab whenever the current
+  // one disappears (e.g. metadata stream ends, VLM samples arrive/leave).
+  useEffect(() => {
+    if (
+      availableMainTabs.length > 0 &&
+      !availableMainTabs.includes(activeMainTab)
+    ) {
+      setActiveMainTab(availableMainTabs[0]);
+    }
+  }, [availableMainTabs, activeMainTab]);
 
   return (
     <div className="flex flex-col w-full h-full bg-background p-4 space-y-4 overflow-y-auto overflow-x-hidden min-w-0">
       <h2 className="text-lg font-semibold">Test pipeline</h2>
 
       <Tabs
-        value={effectiveMainTab}
+        value={activeMainTab}
         onValueChange={setActiveMainTab}
         className="flex flex-col min-w-0"
       >
-        {visibleTabCount > 1 && (
+        {availableMainTabs.length > 1 && (
           <TabsList>
             {hasMediaTab && (
               <TabsTrigger value="media">{mediaTabLabel}</TabsTrigger>
