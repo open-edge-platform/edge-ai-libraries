@@ -142,7 +142,7 @@ class ASRComponent(PipelineComponent):
 
         raise ValueError(f"Unsupported ASR provider/model: {normalized_provider}/{normalized_model_name}")
 
-    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0, speaker_scope_id=None):
+    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0, speaker_scope_id=None, diarization: bool | None = None):
 
         self.session_id = session_id
         # Scope key for speaker enrollment. Stays stable for a whole
@@ -153,7 +153,14 @@ class ASRComponent(PipelineComponent):
         self.temperature = temperature
         self.provider = provider
         self.model_name = model_name
-        self.enable_diarization = ENABLE_DIARIZATION
+        # Per-request override, narrowing only: a caller may switch diarization
+        # OFF for a chunk it does not need speaker labels for (e.g. kiosk-core's
+        # intermediate "preview" chunks, where only the final chunk is
+        # diarized), but may not switch it ON when the service is not
+        # configured for it — the models would not be loaded.
+        self.enable_diarization = (
+            ENABLE_DIARIZATION if diarization is None else (ENABLE_DIARIZATION and bool(diarization))
+        )
         self.all_segments = []
 
         # Backend-agnostic hallucination-phrase filter. Runs on the final text

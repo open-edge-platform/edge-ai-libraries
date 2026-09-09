@@ -18,7 +18,8 @@ DELETE_CHUNK_AFTER_USE = getattr(config.pipeline, "delete_chunks_after_use", Tru
 SESSION_STATE_FILENAME = "session_state.json"
 
 class Pipeline:
-    def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None):
+    def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None,
+                 diarization: bool | None = None):
         logger.info("pipeline initialized")
         self.session_id = session_id or generate_session_id()
         self.append_to_session = append_to_session
@@ -30,6 +31,7 @@ class Pipeline:
             device=config.models.asr.device,
             temperature=self.temperature,
             speaker_scope_id=speaker_scope_id,
+            diarization=diarization,
         )
         self.sentiment_component = None
         if SENTIMENT_ENABLED:
@@ -45,7 +47,16 @@ class Pipeline:
             return self.sentiment_component.analyze(chunk_path)
         return {}
 
-    def _cleanup_chunk(self, chunk_path: str | None) -> None:
+    def _cleanup_chunk(self, chunk: dict | None) -> None:
+        """Delete a temporary chunk file produced by the chunker.
+
+        Skipped for ``passthrough`` chunks: those are not ffmpeg-derived
+        temporaries but the caller's own saved upload, which the storage
+        layer owns and other endpoints may still read.
+        """
+        if not chunk or chunk.get("passthrough"):
+            return
+        chunk_path = chunk.get("chunk_path")
         if DELETE_CHUNK_AFTER_USE and chunk_path and os.path.exists(chunk_path):
             os.remove(chunk_path)
 
@@ -140,7 +151,7 @@ class Pipeline:
 
         if not SENTIMENT_ENABLED:
             for chunk in self.asr_component.process(chunk_generator, language=language):
-                self._cleanup_chunk(chunk.get("chunk_path"))
+                self._cleanup_chunk(chunk)
                 yield chunk, {}
             return
 
@@ -150,7 +161,7 @@ class Pipeline:
                 chunk_path = chunk_transcription.get("chunk_path")
                 fut = pool.submit(self._run_sentiment, chunk_path)
                 sentiment = fut.result()
-                self._cleanup_chunk(chunk_path)
+                self._cleanup_chunk(chunk_transcription)
                 yield chunk_transcription, sentiment
 
     def _build_verbose_segment(self, segment_id: int, segment: dict, include_speaker: bool = False) -> dict:

@@ -58,6 +58,7 @@ def transcribe_audio(
     response_format: str = Form("json"),
     temperature: float = Form(0.0),
     stream: bool = Form(False),
+    diarization: bool | None = Form(None),
 ):
     language, _ = validate_transcription_options(
         temperature=temperature,
@@ -80,6 +81,7 @@ def transcribe_audio(
         temperature=temperature,
         append_to_session=continue_session,
         speaker_scope_id=speaker_scope_id,
+        diarization=diarization,
     )
 
     if stream:
