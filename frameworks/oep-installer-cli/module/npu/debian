@@ -1,0 +1,59 @@
+
+configure_npu () {
+  version=1.35.0
+  repository=https://api.github.com/repos/intel/linux-npu-driver
+  workspace="$(ensure_project_path)/npu"
+}
+
+verify_npu () {
+  [ -b /dev/accel/accel0 ]
+  getent group render >/dev/null 2>&1 
+  id -nG | grep -qw render
+  (
+    set -o pipefail
+    dpkg-query -l intel-level-zero-npu intel-fw-npu intel-driver-compiler-npu 2> /dev/null | grep -q -F $version
+  )
+}
+
+debian_40_profile_npu () {
+  echo "libtbb12 jq libze1"
+}
+
+debian_40_install_npu () {
+  configure_npu $*
+
+  if verify_npu && [[ " $* " != *" --reset-npu "* ]]; then
+    echo "Npu drivers are already installed. Skipping..."
+  else
+    # remove legacies
+    ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+
+    # create the render group
+    ensure_group_add render
+  
+    mkdir -p "$workspace"
+    cd "$workspace"
+
+    # download deb packages
+    local packages=($(set -o pipefail;curl -sL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -sL -A Mozilla/5.0 $repository/releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+    [ ${#packages[*]} -gt 0 ] || return 3
+
+    for p in ${packages[*]}; do
+      curl -sL -A Mozilla/5.0 "$p" | tar xfz -
+    done 
+
+    # install the debs
+    ensure_apt install -y $(find . -name "*.deb" -print)
+    ensure_sudo rm -rf "$workspace"
+  fi
+}
+
+debian_40_remove_npu () {
+  if verify_npu; then
+    ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+    ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  else
+    echo "npu drivers are removed already. Skipping"
+  fi
+}
+

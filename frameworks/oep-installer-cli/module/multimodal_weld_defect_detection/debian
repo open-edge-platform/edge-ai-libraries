@@ -1,0 +1,190 @@
+
+configure_multimodal_weld_defect_detection () {
+  workspace="$(ensure_project_path)/multimodal_weld_defect_detection"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  source_dir="$workspace/manufacturing-ai-suite/industrial-edge-insights-multimodal"
+  env_file="$source_dir/.env"
+  tsam_config="$source_dir/configs/time-series-analytics-microservice/config.json"
+  pipeline_config="$source_dir/configs/dlstreamer-pipeline-server/config.json"
+  pipeline_request="$source_dir/configs/dlstreamer-pipeline-server/pipeline-request-cpu.json"
+  selected_device_file="$source_dir/.oep_device"
+  ui_port=3000
+  used_ports="$ui_port 3478"
+}
+
+generate_multimodal_weld_defect_detection_username () {
+  tr -dc 'a-z' < /dev/urandom | head -c 8
+  echo
+}
+
+generate_multimodal_weld_defect_detection_password () {
+  local password
+  while :; do
+    password="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 16)"
+    case "$password" in
+    *[[:alpha:]]*[[:digit:]]*|*[[:digit:]]*[[:alpha:]]*)
+      echo "$password"
+      return
+      ;;
+    esac
+  done
+}
+
+current_multimodal_weld_defect_detection_device () {
+  local configured_device
+  if [ -e "$selected_device_file" ]; then
+    configured_device="$(cat "$selected_device_file")"
+  elif [ -e "$pipeline_config" ]; then
+    configured_device="$(sed -n 's|.*"device": "\([A-Z]*\)".*|\1|p' "$pipeline_config" | head -n 1 | tr '[:upper:]' '[:lower:]')"
+  fi
+  configured_device="${configured_device:-cpu}"
+  echo "$configured_device"
+}
+
+configure_multimodal_weld_defect_detection_env () {
+  local host_ip="$1"
+  local influxdb_username
+  local influxdb_password
+  local grafana_username
+  local grafana_password
+  local webrtc_username
+  local webrtc_password
+  local s3_username
+  local s3_password
+
+  influxdb_username="$(generate_multimodal_weld_defect_detection_username)"
+  influxdb_password="$(generate_multimodal_weld_defect_detection_password)"
+  grafana_username="$(generate_multimodal_weld_defect_detection_username)"
+  grafana_password="$(generate_multimodal_weld_defect_detection_password)"
+  webrtc_username="$(generate_multimodal_weld_defect_detection_username)"
+  webrtc_password="$(generate_multimodal_weld_defect_detection_password)"
+  s3_username="$(generate_multimodal_weld_defect_detection_username)"
+  s3_password="$(generate_multimodal_weld_defect_detection_password)"
+
+  sed -i \
+    -e "s|^INFLUXDB_USERNAME=.*|INFLUXDB_USERNAME=$influxdb_username|" \
+    -e "s|^INFLUXDB_PASSWORD=.*|INFLUXDB_PASSWORD=$influxdb_password|" \
+    -e "s|^VISUALIZER_GRAFANA_USER=.*|VISUALIZER_GRAFANA_USER=$grafana_username|" \
+    -e "s|^VISUALIZER_GRAFANA_PASSWORD=.*|VISUALIZER_GRAFANA_PASSWORD=$grafana_password|" \
+    -e "s|^MTX_WEBRTCICESERVERS2_0_USERNAME=.*|MTX_WEBRTCICESERVERS2_0_USERNAME=$webrtc_username|" \
+    -e "s|^MTX_WEBRTCICESERVERS2_0_PASSWORD=.*|MTX_WEBRTCICESERVERS2_0_PASSWORD=$webrtc_password|" \
+    -e "s|^HOST_IP=.*|HOST_IP=$host_ip|" \
+    -e "s|^S3_STORAGE_USERNAME=.*|S3_STORAGE_USERNAME=$s3_username|" \
+    -e "s|^S3_STORAGE_PASSWORD=.*|S3_STORAGE_PASSWORD=$s3_password|" \
+    "$env_file"
+  chmod 600 "$env_file"
+}
+
+multimodal_weld_defect_detection_env_value () {
+  local key="$1"
+  sed -n "s|^${key}=||p" "$env_file" | head -n 1
+}
+
+configure_multimodal_weld_defect_detection_device () {
+  local device="$1"
+  local tsam_device="${device^^}"
+  local pipeline_device="${device^^}"
+
+  [ "$device" != "npu" ] || tsam_device=CPU
+
+  for file in "$tsam_config" "$pipeline_config" "$pipeline_request"; do
+    [ -e "$file.orig" ] || cp -f "$file" "$file.orig"
+  done
+
+  cp -f "$tsam_config.orig" "$tsam_config"
+  cp -f "$pipeline_config.orig" "$pipeline_config"
+  cp -f "$pipeline_request.orig" "$pipeline_request"
+
+  sed -i "s|\"device\": \"[A-Z]*\"|\"device\": \"$tsam_device\"|" "$tsam_config"
+  sed -i "s|\"device\": \"[A-Z]*\"|\"device\": \"$pipeline_device\"|" "$pipeline_config" "$pipeline_request"
+  echo "$device" > "$selected_device_file"
+}
+
+verify_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+
+  local file
+  for file in \
+    "$env_file" \
+    "$source_dir/Makefile" \
+    "$tsam_config" \
+    "$pipeline_config" \
+    "$pipeline_request" \
+    "$source_dir/weld-data-simulator/simulation-data/good_weld_02-16-23-0081-00.csv"; do
+    [ -e "$file" ] || return 1
+  done
+
+  [ -n "$(multimodal_weld_defect_detection_env_value INFLUXDB_USERNAME)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value INFLUXDB_PASSWORD)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value VISUALIZER_GRAFANA_USER)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value VISUALIZER_GRAFANA_PASSWORD)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value MTX_WEBRTCICESERVERS2_0_USERNAME)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value MTX_WEBRTCICESERVERS2_0_PASSWORD)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value HOST_IP)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value S3_STORAGE_USERNAME)" ] &&
+    [ -n "$(multimodal_weld_defect_detection_env_value S3_STORAGE_PASSWORD)" ]
+}
+
+debian_90_profile_multimodal_weld_defect_detection () {
+  echo "git curl make docker edge_base"
+}
+
+debian_90_install_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+  if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reset-multimodal_weld_defect_detection "* ]]; then
+    echo "Multimodal weld defect detection is already installed. Skipping"
+  else
+    local device
+    device="$(ensure_select_device "$@")"
+
+    ensure_disk_space 64000
+    ensure_ram_size 16777216 # 16 GiB
+    debian_90_stop_multimodal_weld_defect_detection "$@" || true
+    ensure_git_clone "$workspace" "$version" "$repository" manufacturing-ai-suite/industrial-edge-insights-multimodal
+
+    configure_multimodal_weld_defect_detection_env "$(ensure_ip)"
+    configure_multimodal_weld_defect_detection_device "$device"
+    verify_multimodal_weld_defect_detection
+  fi
+
+  echo "@@HIGHLIGHT workspace @$source_dir"
+  echo "@@HIGHLIGHT start command @cd $source_dir && make up"
+  echo "@@HIGHLIGHT device: $(current_multimodal_weld_defect_detection_device)"
+}
+
+debian_90_start_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+  verify_multimodal_weld_defect_detection || {
+    echo "Multimodal weld defect detection is not installed. Run install first." 1>&2
+    return 3
+  }
+
+  ensure_ports_open "$used_ports" debian_90_stop_multimodal_weld_defect_detection "$@"
+  case " $* " in
+  *" --cpu "*|*" --gpu "*|*" --npu "*)
+    configure_multimodal_weld_defect_detection_device "$(ensure_select_device "$@")"
+    ;;
+  esac
+
+  cd "$source_dir"
+  make up
+
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip):$ui_port"
+  echo "@@HIGHLIGHT Grafana login: $(multimodal_weld_defect_detection_env_value VISUALIZER_GRAFANA_USER)/$(multimodal_weld_defect_detection_env_value VISUALIZER_GRAFANA_PASSWORD)"
+  echo "@@HIGHLIGHT device: $(current_multimodal_weld_defect_detection_device)"
+}
+
+debian_90_stop_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+  [ ! -d "$source_dir" ] || {
+    cd "$source_dir"
+    make down || true
+  }
+}
+
+debian_90_remove_multimodal_weld_defect_detection () {
+  debian_90_stop_multimodal_weld_defect_detection "$@" || true
+  configure_multimodal_weld_defect_detection
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}

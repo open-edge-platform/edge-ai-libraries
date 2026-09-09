@@ -1,0 +1,64 @@
+
+# ROS 2 distribution, auto-selected from the Ubuntu codename:
+#   Ubuntu 22.04 (jammy) -> ROS 2 Humble
+#   Ubuntu 24.04 (noble) -> ROS 2 Jazzy
+# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
+configure_ros2 () {
+  case "$VERSION_CODENAME" in
+  jammy) ros_distro=humble ;;
+  noble) ros_distro=jazzy ;;
+  *)     ros_distro=jazzy ;;
+  esac
+}
+
+debian_50_profile_ros2 () {
+  echo "curl gpg git edge_base"
+}
+
+verify_ros2 () {
+  configure_ros2
+  [ -r /opt/ros/$ros_distro/setup.bash ]
+}
+
+debian_50_install_ros2 () {
+  configure_ros2
+
+  if verify_ros2 && [[ " $* " != *" --reset-ros2 "* ]]; then
+    echo "ROS 2 $ros_distro is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install -y software-properties-common curl gnupg lsb-release ca-certificates
+    ensure_sudo add-apt-repository -y universe || true
+
+    # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
+    # which self-configures the apt source list and signing key
+    local codename="$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")"
+    local ros_apt_ver="$(no_proxy= NO_PROXY= curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F '"tag_name"' | awk -F'"' '{print $4}')"
+    local tmpdir="$(mktemp -d)"
+    no_proxy= NO_PROXY= curl -fsL -o "$tmpdir/ros2-apt-source.deb" \
+      "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
+    ensure_apt install -y "$tmpdir/ros2-apt-source.deb"
+    rm -rf "$tmpdir"
+
+    ensure_apt update -y
+    ensure_apt install -y ros-$ros_distro-desktop ros-dev-tools
+
+    # permanent ROS 2 environment
+    grep -q "source /opt/ros/$ros_distro/setup.bash" ~/.bashrc 2>/dev/null || \
+      echo "source /opt/ros/$ros_distro/setup.bash" >> ~/.bashrc
+    grep -q "export ROS_DOMAIN_ID=" ~/.bashrc 2>/dev/null || \
+      echo "export ROS_DOMAIN_ID=42" >> ~/.bashrc
+  fi
+
+  echo "@@HIGHLIGHT ROS 2 $ros_distro @/opt/ros/$ros_distro"
+  echo "@@HIGHLIGHT shell env @source /opt/ros/$ros_distro/setup.bash"
+}
+
+debian_50_remove_ros2 () {
+  configure_ros2
+  if verify_ros2; then
+    ensure_apt autoremove -m -y ros-$ros_distro-desktop || true
+  else
+    echo "ROS 2 already removed. Skipping"
+  fi
+}
