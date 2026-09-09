@@ -36,12 +36,6 @@ Start and stop a component as follows:
 ./rendered/openedge-cli stop smart_parking
 ```
 
-For install an ISV application, you can use the following commands:
-
-```
-./rendered/openedge-cli install unstructured   # a single component
-```
-
 > If components within a profile are not compatible with each other, you cannot start/stop a profile. You can always start/stop a component directly.  
 > `./rendered/openedge-cli stop` will stop all apps.  
 

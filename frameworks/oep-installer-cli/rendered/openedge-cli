@@ -365,7 +365,7 @@ subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
 
   # reconstruct installer
-  local installer_misc_functions=(amr_setup_gazebo cleanup_gpu configure_amr_apt_repo configure_anomalib configure_autonomous_mobile_robot configure_dlstreamer configure_docker configure_esq configure_geti configure_gpu configure_handheld_multi_modal configure_humanoid_imitation_learning configure_libze1 configure_live_video_captioning configure_loitering_detection configure_loss_prevention configure_multimodal_weld_defect_detection configure_multimodal_weld_defect_detection_device configure_multimodal_weld_defect_detection_env configure_nicu_warmer configure_npu configure_openvino configure_order_accuracy configure_pallet_defect_detection configure_pcb_anomaly_detection configure_physical_ai_framework configure_physical_ai_studio configure_realsense configure_ros2 configure_ros_openvino configure_smart_intersection configure_smart_parking configure_stationary_robot_vision configure_unstructured configure_uv configure_video_search_and_summarization configure_vippet current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary verify_amr_apt_repo verify_anomalib verify_autonomous_mobile_robot verify_dlstreamer verify_geti verify_gpu verify_handheld_multi_modal verify_humanoid_imitation_learning verify_live_video_captioning verify_loitering_detection verify_loss_prevention verify_multimodal_weld_defect_detection verify_nicu_warmer verify_npu verify_openvino verify_order_accuracy verify_pallet_defect_detection verify_pcb_anomaly_detection verify_physical_ai_framework verify_physical_ai_studio verify_realsense verify_ros2 verify_ros_openvino verify_smart_intersection verify_smart_parking verify_stationary_robot_vision verify_video_search_and_summarization verify_vippet)
+  local installer_misc_functions=(amr_setup_gazebo cleanup_gpu configure_amr_apt_repo configure_anomalib configure_autonomous_mobile_robot configure_dlstreamer configure_docker configure_esq configure_geti configure_gpu configure_handheld_multi_modal configure_humanoid_imitation_learning configure_libze1 configure_live_video_captioning configure_loitering_detection configure_loss_prevention configure_multimodal_weld_defect_detection configure_multimodal_weld_defect_detection_device configure_multimodal_weld_defect_detection_env configure_nicu_warmer configure_npu configure_openvino configure_order_accuracy configure_pallet_defect_detection configure_pcb_anomaly_detection configure_physical_ai_framework configure_physical_ai_studio configure_realsense configure_ros2 configure_ros_openvino configure_smart_intersection configure_smart_parking configure_stationary_robot_vision configure_uv configure_video_search_and_summarization configure_vippet current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary verify_amr_apt_repo verify_anomalib verify_autonomous_mobile_robot verify_dlstreamer verify_geti verify_gpu verify_handheld_multi_modal verify_humanoid_imitation_learning verify_live_video_captioning verify_loitering_detection verify_loss_prevention verify_multimodal_weld_defect_detection verify_nicu_warmer verify_npu verify_openvino verify_order_accuracy verify_pallet_defect_detection verify_pcb_anomaly_detection verify_physical_ai_framework verify_physical_ai_studio verify_realsense verify_ros2 verify_ros_openvino verify_smart_intersection verify_smart_parking verify_stationary_robot_vision verify_video_search_and_summarization verify_vippet)
   if [ ${#installer_misc_functions[@]} -gt 0 ]; then
     local installer=~/.local/bin/$installer_name
     cat > "$installer" <<EOF
@@ -3099,63 +3099,6 @@ debian_90_remove_smart_intersection () {
   debian_90_stop_smart_intersection || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
-
-# ISV application example: Unstructured (https://github.com/Unstructured-IO/unstructured)
-# Open-source pre-processing tools for turning documents (PDF, HTML, DOCX, ...)
-# into structured data. Shipped and run as the upstream docker image so that all
-# system dependencies (poppler, tesseract, libreoffice, ...) are self-contained.
-configure_unstructured () {
-  container_name=unstructured
-  image=downloads.unstructured.io/unstructured-io/unstructured:latest
-  workspace="$(ensure_project_path)/unstructured"
-}
-
-debian_95_profile_unstructured () {
-  echo "docker curl edge_base"
-}
-
-debian_95_install_unstructured () {
-  configure_unstructured
-  if docker inspect "$container_name" > /dev/null 2>&1 && [[ "$*" != *"--reset-unstructured"* ]]; then
-    echo "Unstructured is already installed. Skipping..."
-    return 0
-  fi
-
-  # drop any previous container when re-installing
-  [[ "$*" != *"--reset-unstructured"* ]] || docker rm -f "$container_name" 2> /dev/null || true
-
-  mkdir -p "$workspace"
-  ensure_docker_run "$container_name" "$image" -d -t -v "$workspace":/data
-}
-
-debian_95_start_unstructured () {
-  configure_unstructured
-  docker start "$container_name" > /dev/null
-
-  # prove the library works by partitioning one of the bundled example docs
-  echo "Running Unstructured partition demo..."
-  docker exec "$container_name" python3 -c '
-from unstructured.partition.auto import partition
-elements = partition(filename="example-docs/eml/fake-email.eml")
-print("\n\n".join(str(el) for el in elements))
-'
-  echo
-  echo "@@HIGHLIGHT Unstructured is running in container \"$container_name\"."
-  echo "@@HIGHLIGHT Open a shell with: docker exec -it $container_name bash"
-  echo "@@HIGHLIGHT Host directory $workspace is mounted at /data inside the container."
-}
-
-debian_95_stop_unstructured () {
-  configure_unstructured
-  docker stop "$container_name" 2> /dev/null || true
-}
-
-debian_95_remove_unstructured () {
-  configure_unstructured
-  docker rm -f "$container_name" 2> /dev/null || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
 
 # Autonomous Mobile Robot (AMR) APT repositories plus the Intel oneAPI Base
 # Toolkit repository. This module only configures apt sources / keys / pins;
