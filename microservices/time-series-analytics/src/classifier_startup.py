@@ -85,8 +85,12 @@ class KapacitorClassifier():
     def check_udf_package(self, config, dir_name):
         """ Check if UDF deployment package is present in the container
         """
-        logger.info("Checking if UDF deployment package is present in the container...")
-        udf_name = config["udfs"]["name"]
+        self.logger.info("Checking if UDF deployment package is present in the container...")
+        udf_config = config.get("udfs") if isinstance(config, dict) else None
+        udf_name = udf_config.get("name") if isinstance(udf_config, dict) else None
+        if not isinstance(udf_name, str) or not udf_name:
+            self.logger.error("UDF name is missing or invalid in configuration")
+            return False
         try:
             path = secure_temp_path(dir_name)
             udf_dir = secure_temp_path(dir_name, "udfs")
@@ -116,10 +120,10 @@ class KapacitorClassifier():
             found_tick_scripts = True
 
         # model file is optional
-        if "models" in config["udfs"].keys():
+        if "models" in udf_config:
             if os.path.isdir(model_dir):
                 for fname in os.listdir(model_dir):
-                    if fname.startswith(config['udfs']["name"]):
+                    if fname.startswith(udf_name):
                         found_model = True
                         break
         else:
@@ -127,13 +131,13 @@ class KapacitorClassifier():
         if not (found_model and found_udf and found_tick_scripts):
             missing_items = []
             if not found_model:
-                missing_items.append(f"model file for task {config['udfs']['name']}")
+                missing_items.append(f"model file for task {udf_name}")
                 self.logger.warning("Missing model")
             if not found_udf:
-                missing_items.append(f"udf file for task {config['udfs']['name']}")
+                missing_items.append(f"udf file for task {udf_name}")
                 self.logger.warning("Missing udf")
             if not found_tick_scripts:
-                missing_items.append(f"tick script for task {config['udfs']['name']}")
+                missing_items.append(f"tick script for task {udf_name}")
                 self.logger.warning("Missing tick script")
             self.logger.error(
                 "Missing " + ", ".join(missing_items) + 
@@ -341,20 +345,18 @@ class KapacitorClassifier():
             define_pointcl_cmd = ["kapacitor", "-skipVerify", "define",
                                   task_name, "-tick",
                                   tick_script_path]
-
-            if subprocess.check_call(define_pointcl_cmd) == SUCCESS:
+            try:
+                subprocess.check_call(define_pointcl_cmd)
                 define_pointcl_cmd = ["kapacitor", "-skipVerify", "enable",
                                       task_name]
-                if subprocess.check_call(define_pointcl_cmd) == SUCCESS:
-                    self.logger.info("Kapacitor Tasks Enabled Successfully")
-                    self.logger.info("Kapacitor Initialized Successfully. "
-                                     "Ready to Receive the Data....")
-                    task_enabled = True
-                    break
-
-                self.logger.info("ERROR:Cannot Communicate to Kapacitor.")
-            else:
-                self.logger.info("ERROR:Cannot Communicate to Kapacitor. ")
+                subprocess.check_call(define_pointcl_cmd)
+                self.logger.info("Kapacitor Tasks Enabled Successfully")
+                self.logger.info("Kapacitor Initialized Successfully. "
+                                 "Ready to Receive the Data....")
+                task_enabled = True
+                break
+            except (subprocess.CalledProcessError, OSError) as err:
+                self.logger.info("ERROR:Cannot Communicate to Kapacitor: %s", err)
             self.logger.info("Retrying Kapacitor Connection")
             time.sleep(0.0001)
             retry = retry + 1
