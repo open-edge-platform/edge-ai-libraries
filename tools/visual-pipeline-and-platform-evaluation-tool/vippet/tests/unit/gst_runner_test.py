@@ -827,7 +827,7 @@ class TestGstLogBridgeLatencyTracer(unittest.TestCase):
         self.assertIn("Added meta message: {}", joined)
 
     def test_no_prefix_when_named_obj_has_empty_name(self) -> None:
-        """A ``get_name()`` returning ``None`` must not produce a ``<None>`` prefix."""
+        """An empty ``get_name()`` result must not produce a ``<>`` prefix."""
         with self.assertLogs("gst_runner", level="INFO") as captured:
             self._invoke_bridge_with_obj(
                 "Added meta message: {}",
