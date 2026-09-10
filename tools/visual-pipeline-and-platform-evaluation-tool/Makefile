@@ -107,7 +107,7 @@ $(ENV_DIRS_SENTINEL): Makefile
 	mkdir -p shared/db && chmod o+w shared/db
 	mkdir -p shared/models/output && chmod o+w shared/models/output
 	mkdir -p shared/model-download/cache && chmod o+w shared/model-download/cache
-	for v in base huggingface ultralytics pipeline-zoo-models openvino geti hls; do \
+	for v in base huggingface ultralytics pipeline-zoo-models omz openvino geti hls; do \
 		mkdir -p shared/model-download/venv-$$v && chmod o+w shared/model-download/venv-$$v ; \
 	done
 	mkdir -p shared/images/input && chmod o+w shared/images/input
@@ -169,7 +169,6 @@ clean-experimental: ## Clean experimental setup artifacts
 $(TEST_IMAGE_SENTINEL): $(PROJECT_NAME)/Dockerfile \
 		$(PROJECT_NAME)/requirements.txt \
 		$(PROJECT_NAME)/requirements-dev.txt \
-		$(PROJECT_NAME)/requirements-omz.txt \
 		.dockerignore \
 		| env-setup
 	. .env && TARGET=test DOCKER_TAG="test" docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build vippet

@@ -2154,7 +2154,7 @@ class ModelSource(str, Enum):
     - `HUGGINGFACE` - HuggingFace Hub
     - `ULTRALYTICS` - Ultralytics model zoo
     - `PIPELINE_ZOO_MODELS` - OpenVINO Pipeline Zoo models
-    - `OMZ` - OpenVINO Open Model Zoo (handled locally by vippet-app)
+    - `OMZ` - OpenVINO Open Model Zoo
     - `CUSTOM` - User-uploaded model
 
     ### Example
