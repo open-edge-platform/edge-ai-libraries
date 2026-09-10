@@ -18,14 +18,14 @@ extracts video frames, optionally creates YOLOX object crops, generates
 multimodal embeddings in-process, and stores vectors plus metadata through a
 pluggable VDMS or Milvus backend. Raw media uses MinIO or local storage. The
 service handles ingestion only; search and query are separate concerns.
-Prebuilt image: `intel/multimodal-dataprep:latest`. Deeper user docs live under
+Prebuilt image: `intel/multimodal-dataprep:2026.2.0`. Deeper user docs live under
 [`docs/user-guide/`](../docs/user-guide/); this file is the agent-facing map.
 
 ## The Stack
 
 | Service | Image | Host port → container |
 |---|---|---|
-| multimodal-dataprep | `intel/multimodal-dataprep:latest` (or local build) | `6007` → 8000, API under `/v1/dataprep` |
+| multimodal-dataprep | `intel/multimodal-dataprep:2026.2.0` (or local build) | `6007` → 8000, API under `/v1/dataprep` |
 | vdms-vector-db | `intellabs/vdms:v2.12.0` | `6020` → 55555 |
 | milvus-standalone | Milvus | `19530` → 19530 when that backend is selected |
 | minio-server | MinIO | `6010` → 9000 (API), `6011` → 9001 (console) |
