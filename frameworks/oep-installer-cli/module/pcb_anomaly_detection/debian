@@ -37,7 +37,6 @@ MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(ca
 EOF
   ./setup.sh
   verify_pcb_anomaly_detection
-  popd > /dev/null
 }
 
 debian_90_start_pcb_anomaly_detection () {
