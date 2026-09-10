@@ -78,7 +78,7 @@ export MINIO_ROOT_USER='<user>'
 export MINIO_ROOT_PASSWORD='<strong-password>'
 export EMBEDDING_MODEL_NAME='CLIP/clip-vit-b-32'
 export REGISTRY_URL='docker.io/intel'
-export TAG='latest'
+export TAG='2026.2.0'
 
 source ./setup.sh --nosetup
 docker compose -f docker/compose.yaml up -d --no-build

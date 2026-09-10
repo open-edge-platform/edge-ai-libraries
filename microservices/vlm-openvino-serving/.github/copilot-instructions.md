@@ -17,7 +17,7 @@ VLM OpenVINO Serving is an **OpenAI-API-compatible** microservice (FastAPI +
 OpenVINO GenAI) that serves Vision Language Models — image and video chat
 completions — on Intel CPUs and GPUs. It targets VLMs not yet supported by
 OpenVINO Model Server. A prebuilt image is published as
-`intel/vlm-openvino-serving:latest` on Docker Hub. Deeper user docs live under
+`intel/vlm-openvino-serving:2026.2.0` on Docker Hub. Deeper user docs live under
 [`docs/user-guide/`](../docs/user-guide/); this file is the agent-facing map.
 
 ## Run Interfaces
