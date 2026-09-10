@@ -676,8 +676,11 @@ export const CreatePipelineDialog = ({
                                     .filter((variant) => variant.installed)
                                     .map((variant) => (
                                       <SelectItem
-                                        key={variant.display_name}
+                                        key={`${model.name}:${variant.name}`}
                                         value={variant.display_name}
+                                        description={
+                                          model.description ?? undefined
+                                        }
                                       >
                                         {variant.display_name}
                                       </SelectItem>
@@ -722,8 +725,11 @@ export const CreatePipelineDialog = ({
                                         .filter((variant) => variant.installed)
                                         .map((variant) => (
                                           <SelectItem
-                                            key={variant.display_name}
+                                            key={`${model.name}:${variant.name}`}
                                             value={variant.display_name}
+                                            description={
+                                              model.description ?? undefined
+                                            }
                                           >
                                             {variant.display_name}
                                           </SelectItem>

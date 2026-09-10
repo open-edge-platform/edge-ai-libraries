@@ -1045,6 +1045,7 @@ class TestUploadModel(unittest.TestCase):
             category=InternalModelCategory.DETECTION,
             file_path=self._payload,
             original_filename="my-detector.zip",
+            description="Detects vehicles",
         )
 
     def tearDown(self) -> None:
@@ -1070,7 +1071,12 @@ class TestUploadModel(unittest.TestCase):
         self.assertEqual(model.name, "my-detector")
         self.assertEqual(model.source, InternalModelSource.CUSTOM)
         self.assertEqual(model.install_status, InternalModelInstallStatus.INSTALLED)
+        self.assertEqual(model.description, "Detects vehicles")
         self.assertIn("my-detector", self.mgr._registry)
+        self.assertEqual(
+            self.mgr._registry["my-detector"].description,
+            "Detects vehicles",
+        )
         self.assertEqual(
             self.mgr._registry["my-detector"].precisions[0].model_path,
             "/models/output/custom/my-detector",

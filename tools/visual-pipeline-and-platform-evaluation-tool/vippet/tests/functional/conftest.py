@@ -399,6 +399,7 @@ def uploaded_model_names(
             model_name=uploaded_name,
             category=info["category"],
             payload=payload,
+            description=f"Uploaded {source_name} model",
         )
         assert response.status_code == 201, (
             f"Upload of {uploaded_name} failed: {response.status_code}: {response.text}"
