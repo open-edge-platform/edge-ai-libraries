@@ -268,6 +268,79 @@ def test_stop_completed_density_job_returns_409(
 
 
 @pytest.mark.smoke
+def test_get_all_benchmark_job_statuses_returns_list(
+    http_client: requests.Session,
+) -> None:
+    """Calls GET /jobs/tests/benchmark/status and asserts the response is a list."""
+    response = http_client.get(f"{BASE_URL}/jobs/tests/benchmark/status", timeout=30)
+
+    assert response.status_code == 200, (
+        f"Expected 200 from /jobs/tests/benchmark/status, "
+        f"got {response.status_code}, body={response.text}"
+    )
+    assert isinstance(response.json(), list), (
+        "Benchmark job statuses response must be a list"
+    )
+
+
+@pytest.mark.smoke
+def test_get_benchmark_job_status_for_nonexistent_job_returns_404(
+    http_client: requests.Session,
+) -> None:
+    """Calls GET /jobs/tests/benchmark/{job_id}/status.
+
+    Asserts that a non-existent job ID returns 404.
+    """
+    response = http_client.get(
+        f"{BASE_URL}/jobs/tests/benchmark/{_NONEXISTENT_JOB_ID}/status",
+        timeout=30,
+    )
+
+    assert response.status_code == 404, (
+        f"Expected 404 for unknown benchmark job status, "
+        f"got {response.status_code}, body={response.text}"
+    )
+
+
+@pytest.mark.smoke
+def test_get_benchmark_job_summary_for_nonexistent_job_returns_404(
+    http_client: requests.Session,
+) -> None:
+    """Calls GET /jobs/tests/benchmark/{job_id}.
+
+    Asserts that a non-existent job ID returns 404.
+    """
+    response = http_client.get(
+        f"{BASE_URL}/jobs/tests/benchmark/{_NONEXISTENT_JOB_ID}",
+        timeout=30,
+    )
+
+    assert response.status_code == 404, (
+        f"Expected 404 for unknown benchmark job summary, "
+        f"got {response.status_code}, body={response.text}"
+    )
+
+
+@pytest.mark.smoke
+def test_stop_benchmark_job_for_nonexistent_job_returns_404(
+    http_client: requests.Session,
+) -> None:
+    """Calls DELETE /jobs/tests/benchmark/{job_id}.
+
+    Asserts that a non-existent job ID returns 404.
+    """
+    response = http_client.delete(
+        f"{BASE_URL}/jobs/tests/benchmark/{_NONEXISTENT_JOB_ID}",
+        timeout=30,
+    )
+
+    assert response.status_code == 404, (
+        f"Expected 404 for unknown benchmark job stop, "
+        f"got {response.status_code}, body={response.text}"
+    )
+
+
+@pytest.mark.smoke
 def test_get_optimization_job_status_for_nonexistent_job_returns_404(
     http_client: requests.Session,
 ) -> None:

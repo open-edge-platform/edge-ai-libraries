@@ -235,6 +235,16 @@ def fetch_pipeline_templates(session: requests.Session) -> list[JsonDict]:
     return payload
 
 
+def start_benchmark_suite_run(session: requests.Session, suite_slug: str) -> str:
+    """Submit a benchmark suite run and return the assigned ``job_id``."""
+    response = session.post(f"{BASE_URL}/benchmarks/{suite_slug}/run", timeout=30)
+    response.raise_for_status()
+    job_id: str = response.json().get("job_id", "")
+    assert job_id, "Benchmark suite run response missing 'job_id'"
+    logger.info("Benchmark suite run started: slug=%s job_id=%s", suite_slug, job_id)
+    return job_id
+
+
 def start_density_job(session: requests.Session, payload: JsonDict) -> str:
     """Submit a density test job and return the assigned job ID."""
     logger.info(
