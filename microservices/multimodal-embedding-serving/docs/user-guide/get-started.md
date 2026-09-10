@@ -68,7 +68,7 @@ Refer to the [Supported Models](./supported-models.md) list for additional choic
 
 ```bash
 export REGISTRY_URL=intel
-export TAG=2026.2.0-rc3
+export TAG=2026.2.0
 ```
 
 ### Configuration Examples
