@@ -37,13 +37,13 @@ debian_20_install_docker () {
     echo "Docker is already installed. Skipping..."
   else
     echo "Remove legacy installation"
-    ensure_apt remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc
+    ensure_apt remove -y docker.io docker-doc docker-compose docker-compose-v2 docker-buildx-plugin docker-compose-plugin podman-docker containerd runc
 
     # create docker group
     ensure_group_add docker
 
     ensure_apt update
-    ensure_apt install -y docker.io docker-buildx-plugin docker-compose-plugin
+    ensure_apt install -y docker.io docker-buildx docker-compose-v2
 
     DAEMON_JSON="/etc/docker/daemon.json"
     if [ ! -f "$DAEMON_JSON" ]; then
