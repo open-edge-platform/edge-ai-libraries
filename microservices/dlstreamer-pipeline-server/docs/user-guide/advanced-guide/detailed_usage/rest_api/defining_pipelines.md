@@ -768,7 +768,7 @@ If such a file exists, the Pipeline Server automatically looks for this file in 
 
 For more information on DL Streamer `model-proc` files and samples for common models, see the
 DL Streamer [documentation](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/dlstreamer/dev_guide/how_to_create_model_proc_file.html).
-and [samples](https://github.com/open-edge-platform/dlstreamer/tree/main/samples).
+and [samples](https://github.com/open-edge-platform/dlstreamer/tree/v2026.2.0/samples).
 
 #### FFmpeg Video Analytics
 

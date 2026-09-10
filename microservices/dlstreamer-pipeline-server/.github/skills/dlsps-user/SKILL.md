@@ -34,7 +34,7 @@ the REST API.
 
 > **Not this skill:** If the user wants to *write new* DL Streamer applications,
 > create custom GStreamer pipelines from scratch, or develop Python/C++ video analytics
-> code, use the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/main/.github/skills/dlstreamer-coding-agent) skill instead.
+> code, use the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/v2026.2.0/.github/skills/dlstreamer-coding-agent) skill instead.
 
 ## Architecture at a Glance
 
@@ -155,7 +155,7 @@ Pipeline definitions live in a `config.json` mounted into the container:
 | `udfloader` | Load Python User Defined Functions |
 | `appsink` | Application sink (required, `name=appsink`) |
 
-For DL Streamer inference, decode and metadata conversion and publishing elements see the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/main/.github/skills/dlstreamer-coding-agent) skill.
+For DL Streamer inference, decode and metadata conversion and publishing elements see the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/v2026.2.0/.github/skills/dlstreamer-coding-agent) skill.
 
 ## Common Mistakes to Avoid
 
@@ -199,7 +199,7 @@ Read the matching example file — it contains the exact compact response format
 4. Show RTSP URL, status-check command, and stop command
 
 **GPU/NPU rules:**
-For GPU/NPU inference or decodeing devices see the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/main/.github/skills/dlstreamer-coding-agent) skill.
+For GPU/NPU inference or decodeing devices see the [`dlstreamer-coding-agent`](https://github.com/open-edge-platform/dlstreamer/tree/v2026.2.0/.github/skills/dlstreamer-coding-agent) skill.
 - RTSP/MQTT with GPU: add `vapostproc ! video/x-raw` before `appsink`
 
 Read reference files only when needed for advanced configuration details:
