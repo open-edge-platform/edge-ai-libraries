@@ -210,9 +210,9 @@ def test_get_benchmark_suite_runs_returns_populated_list_after_run(
     assert run.get("suite_slug") == suite_slug, (
         f"Expected run suite_slug={suite_slug!r}, got {run.get('suite_slug')!r}"
     )
-    assert isinstance(run.get("total_test_cases"), int) and run["total_test_cases"] > 0, (
-        "Populated benchmark run must report a positive total_test_cases"
-    )
+    assert (
+        isinstance(run.get("total_test_cases"), int) and run["total_test_cases"] > 0
+    ), "Populated benchmark run must report a positive total_test_cases"
 
 
 @pytest.mark.full
