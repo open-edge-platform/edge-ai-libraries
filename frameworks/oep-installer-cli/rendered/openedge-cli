@@ -2794,7 +2794,7 @@ debian_90_start_pcb_anomaly_detection () {
   docker compose up -d --wait
 
   ./sample_start.sh -p pcb_anomaly_detection$(ensure_select_device $* | sed -e 's|^|_|' -e 's|_cpu||')
-  echo "@@HIGHTLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
 }
 
 debian_90_stop_pcb_anomaly_detection () {
