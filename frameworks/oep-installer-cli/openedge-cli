@@ -65,7 +65,6 @@ subcommand_bootstrap () {
     echo "bootstrap options:"
     echo "  --install=<name>       set default installation component|profile."
     echo "  --start=<name>         set default start component|profile."
-    echo "  --setup                setup installer."
     echo
     local profiles=($(cd "$mydir";find profile -name "$ID_LIKE" | cut -f2 -d/))
     [ ${#profiles[*]} -eq 0 ] || echo "  list of bootstrap profiles: ${profiles[*]}"
@@ -161,7 +160,7 @@ subcommand_bootstrap () {
     sed -i "/^subcommand_setup *[(][)] *[{]/,/^[}]/{s|local  *installer_misc_functions=.*|local installer_misc_functions=(${misc_funcs[*]})|}" "$rendered"
     [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- start ${start_modules[*]} \"\$@\"" >> "$rendered"
     [ ${#install_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- install ${install_modules[*]} \"\$@\"" >> "$rendered"
-    [[ " $* " != *" --setup "* ]] || echo "[ \"\$0\" != bash ] || set -- setup \"\$@\"" >> "$rendered"
+    echo "[ \"\$0\" != bash ] || set -- setup \"\$@\"" >> "$rendered"
     echo 'main "$@"' >> "$rendered"
     chmod a+rx "$rendered"
     echo "Rendered to $rendered"
