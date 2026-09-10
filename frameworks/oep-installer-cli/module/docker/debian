@@ -14,10 +14,10 @@ EOF
       ensure_sudo systemctl restart docker
     )
 
-  local CONFIG_JSON=~/.docker/config.json
+  local CONFIG_JSON="$HOME/.docker/config.json"
   echo "Configure docker client proxies..."
-  grep -q -F '"proxies"' $CONFIG_JSON 2> /dev/null || (
-    mkdir -p "$(dirname $CONFIG_JSON)"
+  grep -q -F '"proxies"' "$CONFIG_JSON" 2> /dev/null || (
+    mkdir -p "$(dirname "$CONFIG_JSON")"
     python3 - "$CONFIG_JSON" <<'EOF'
 import json, os, sys
 p = sys.argv[1]
