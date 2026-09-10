@@ -17,7 +17,7 @@ file.
 Multimodal Embedding Serving generates embeddings for **text, images, and
 videos** in a shared semantic space (FastAPI + PyTorch/OpenVINO). It is
 consumable two ways: as a **REST service** (prebuilt
-`intel/multimodal-embedding-serving:latest` on Docker Hub, port 9777) and as a
+`intel/multimodal-embedding-serving:2026.2.0` on Docker Hub, port 9777) and as a
 **Python SDK wheel** (`multimodal_embedding_serving`, built with
 `poetry build`) for in-process use. Deeper user docs live under
 [`docs/user-guide/`](../docs/user-guide/); this file is the agent-facing map.
