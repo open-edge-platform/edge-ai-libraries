@@ -1783,8 +1783,8 @@ debian_85_install_esq () {
   if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reset-esq "* ]]; then
     echo "Esq is already installed. Skipping..."
   else
-    curl -sL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true
-    curl -sL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true
+    curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true
+    curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true
     uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main
 
     configure_esq
@@ -1854,8 +1854,8 @@ MINIO_CONSOLE_HOST_PORT="4001"
 RABBITMQ_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 RABBITMQ_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 LP_IP="$(ensure_ip)"
-LP_BASE_DIR="{{ workspace }}"
-LLM_BASE_DIR="{{ workspace }}/microservices/vlm/ov-models"
+LP_BASE_DIR="$workspace"
+LLM_BASE_DIR="$workspace/microservices/vlm/ov-models"
 VLM_SERVICE_PORT="8000"
 LOW_LATENCY=1
 DROP_OLD_FRAMES=1
@@ -1901,7 +1901,7 @@ debian_10_install_libze1 () {
   if dpkg-query -L libze1 > /dev/null 2>&1; then
     echo "libze1 is already installed. Skipping..."
   else
-    curl -sL "$libze1_deb" -o /tmp/libze1.deb && {
+    curl -fsSL "$libze1_deb" -o /tmp/libze1.deb && {
       ensure_apt install -y /tmp/libze1.deb || {
         ensure_apt purge -y level-zero level-zero-devel && ensure_apt install -y /tmp/libze1.deb
       }
@@ -2582,11 +2582,11 @@ debian_40_install_npu () {
     cd "$workspace"
 
     # download deb packages
-    local packages=($(set -o pipefail;curl -sL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -sL -A Mozilla/5.0 $repository/releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+    local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $repository/releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
     [ ${#packages[*]} -gt 0 ] || return 3
 
     for p in ${packages[*]}; do
-      curl -sL -A Mozilla/5.0 "$p" | tar xfz -
+      curl -fsSL -A Mozilla/5.0 "$p" | tar xfz -
     done 
 
     # install the debs
@@ -2784,7 +2784,6 @@ MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(ca
 EOF
   ./setup.sh
   verify_pcb_anomaly_detection
-  popd > /dev/null
 }
 
 debian_90_start_pcb_anomaly_detection () {
@@ -3515,9 +3514,9 @@ debian_50_install_ros2 () {
     # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
     # which self-configures the apt source list and signing key
     local codename="$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")"
-    local ros_apt_ver="$(no_proxy= NO_PROXY= curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F '"tag_name"' | awk -F'"' '{print $4}')"
+    local ros_apt_ver="$(no_proxy= NO_PROXY= curl -fsSL https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F '"tag_name"' | awk -F'"' '{print $4}')"
     local tmpdir="$(mktemp -d)"
-    no_proxy= NO_PROXY= curl -fsL -o "$tmpdir/ros2-apt-source.deb" \
+    no_proxy= NO_PROXY= curl -fsSL -o "$tmpdir/ros2-apt-source.deb" \
       "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
     ensure_apt install -y "$tmpdir/ros2-apt-source.deb"
     rm -rf "$tmpdir"
