@@ -1,7 +1,7 @@
 
 configure_docker () {
-  echo "Configure docker engine proxies..."
-  [ -z "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ] || \
+  if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
+    echo "Configure docker engine proxies..."
     grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
       ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
       ensure_sudo tee /etc/systemd/system/docker.service.d/proxy.conf <<EOF
@@ -14,10 +14,9 @@ EOF
       ensure_sudo systemctl restart docker
     )
 
-  local CONFIG_JSON=~/.docker/config.json
-  echo "Configure docker client proxies..."
-  grep -q -F '"proxies"' $CONFIG_JSON 2> /dev/null || (
-    mkdir -p "$(dirname $CONFIG_JSON)"
+    local CONFIG_JSON="$HOME/.docker/config.json"
+    echo "Configure docker client proxies..."
+    mkdir -p "$(dirname "$CONFIG_JSON")"
     python3 - "$CONFIG_JSON" <<'EOF'
 import json, os, sys
 p = sys.argv[1]
@@ -29,7 +28,7 @@ cfg.setdefault("proxies", {})["default"] = {
 }
 json.dump(cfg, open(p, "w"), indent=2)
 EOF
-  )
+  fi
 }
 
 debian_20_install_docker () {
