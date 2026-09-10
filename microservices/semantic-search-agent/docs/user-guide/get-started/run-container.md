@@ -1,6 +1,6 @@
-# Run With Docker Compose
+# Run With Docker Compose Tool
 
-Use this path to run the Semantic Search Agent inside a container. The REST API is exposed on host port `8080` and Prometheus metrics on port `9090`.
+Use this path to run the Semantic Search Agent in a container. The REST API is exposed on host port `8080`, and Prometheus metrics on port `9090`.
 
 ## Before You Start
 
@@ -9,8 +9,8 @@ Use this path to run the Semantic Search Agent inside a container. The REST API 
   cp .env.example .env
   ```
 - Edit `.env` to set `DEFAULT_MATCHING_STRATEGY` and the appropriate VLM backend variables. For exact-only matching, no VLM variables are needed.
-- Review `config/inventory.json` and `config/orders.json` and update them to match your data. These files are mounted read-only into the container.
-- An optional `redis` service is included in the Compose file. It is started alongside the main service but is only used when `CACHE_BACKEND=redis`.
+- Review `config/inventory.json` and `config/orders.json`, and update them to match your data. These files are mounted read-only into the container.
+- An optional `redis` service is included in the Compose file. It starts alongside the main service but is only used when `CACHE_BACKEND=redis`.
 
 ## Start the Service
 
@@ -50,21 +50,21 @@ To tail the logs of the running service:
 make docker-logs
 ```
 
-Or directly with Docker Compose:
+Or directly with Docker Compose tool:
 
 ```bash
 docker compose -f docker/docker-compose.yml logs -f semantic-service
 ```
 
-### Restart after configuration updates
+### Restart after Configuration Updates
 
-If you only change `config/inventory.json` or `config/orders.json`, restart the container:
+If you only modify `config/inventory.json` or `config/orders.json`, restart the container:
 
 ```bash
 docker compose -f docker/docker-compose.yml restart semantic-service
 ```
 
-If you modify environment variables in `.env`, recreate the containers:
+If you modify the environment variables in `.env`, recreate the containers:
 
 ```bash
 make docker-down
@@ -87,7 +87,7 @@ curl http://localhost:9090/metrics
 
 ## API Documentation
 
-The service exposes interactive Swagger UI documentation while running:
+The service exposes the interactive Swagger UI documentation while running:
 
 ```
 http://localhost:8080/docs

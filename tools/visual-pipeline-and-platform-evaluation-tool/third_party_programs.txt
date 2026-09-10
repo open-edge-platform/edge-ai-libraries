@@ -157,12 +157,12 @@ License-Identifier: Artistic-2.0 AND GPL-3.0-or-later AND GPL-2.0-or-later   (1 
 
 License-Identifier: BSD-2-Clause   (1 package(s))
 
-  Pygments 2.20.0
+  Pygments 2.21.0
       Copyright (c) 2006-2022 by the respective authors (see AUTHORS file).
 
 License-Identifier: BSD-3-Clause   (22 package(s))
 
-  click 8.4.2
+  click 8.5.0
       Copyright 2014 Pallets
   fastjsonschema 2.17.1
       Copyright (c) 2018, Michal Horejsek
@@ -172,7 +172,7 @@ License-Identifier: BSD-3-Clause   (22 package(s))
       Copyright © 2020, [Encode OSS Ltd](https://www.encode.io/).
   httpx 0.28.1
       Copyright © 2019, [Encode OSS Ltd](https://www.encode.io/).
-  idna 3.18
+  idna 3.19
       Copyright (c) 2013-2026, Kim Davies and contributors.
   isodate 0.7.2
       Copyright (c) 2021, Hugo van Kemenade and contributors
@@ -180,7 +180,7 @@ License-Identifier: BSD-3-Clause   (22 package(s))
       Copyright (c) 2009, Gerhard Weis
   Jinja2 3.1.6
       Copyright 2007 Pallets
-  lxml 6.1.1
+  lxml 6.1.2
       Copyright (c) 2004 Infrae. All rights reserved.
   MarkupSafe 3.0.3
       Copyright 2010 Pallets
@@ -195,11 +195,11 @@ License-Identifier: BSD-3-Clause   (22 package(s))
       Copyright (c) 2000-2013 The University of California Berkeley. All
       Copyright (c) 2006-2013 The University of Colorado Denver. All rights
       Copyright (C) 2002-2017 Free Software Foundation, Inc.
-  protobuf 7.35.1
+  protobuf 7.36.0
       Copyright 2008 Google Inc. All rights reserved.
   psutil 7.2.2
       Copyright (c) 2009, Jay Loden, Dave Daeschler, Giampaolo Rodola
-  python-dotenv 1.2.2
+  python-dotenv 1.2.3
       Copyright (c) 2014, Saurabh Kumar (python-dotenv), 2013, Ted Tieken (django-dotenv-rw),
         2013, Jacob Kaplan-Moss (django-dotenv)
   starlette 1.6.0
@@ -221,7 +221,7 @@ License-Identifier: BSD-3-Clause   (22 package(s))
       Copyright (c) Soumith Chintala 2016,
   uvicorn 0.48.0
       Copyright © 2017-present, [Encode OSS Ltd](https://www.encode.io/).
-  websockets 17.0.1
+  websockets 17.1
       Copyright (c) Aymeric Augustin and contributors
 
 License-Identifier: BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0   (1 package(s))
@@ -250,7 +250,7 @@ License-Identifier: LGPL-2.0-or-later   (1 package(s))
 
 License-Identifier: LGPL-2.1-only OR MPL-1.1   (1 package(s))
 
-  pycairo 1.29.0
+  pycairo 1.29.1
       (the package ships no copyright notice of its own)
 
 License-Identifier: LGPL-3.0-only   (1 package(s))
@@ -258,8 +258,10 @@ License-Identifier: LGPL-3.0-only   (1 package(s))
   autocommand 2.2.2
       (the package ships no copyright notice of its own)
 
-License-Identifier: MIT   (47 package(s))
+License-Identifier: MIT   (46 package(s))
 
+  agent-detector 1.1.0
+      Copyright (c) 2026 Patrick Arminio
   aiosqlite 0.22.1
       Copyright (c) 2022 Amethyst Reese
   annotated-doc 0.0.5
@@ -272,19 +274,17 @@ License-Identifier: MIT   (47 package(s))
       Copyright (c) 2015 Hynek Schlawack and the attrs contributors
   backports.tarfile 1.2.0
       (the package ships no copyright notice of its own)
-  charset-normalizer 3.4.9
-      Copyright (c) 2025 TAHRI Ahmed R.
-  charset-normalizer 3.5.0
+  charset-normalizer 3.5.1
       Copyright (c) 2025 TAHRI Ahmed R.
   fastapi 0.136.3
       Copyright (c) 2018 Sebastián Ramírez
   fastapi-cli 0.0.32
       Copyright (c) 2024 Sebastián Ramírez
-  fastapi-cloud-cli 0.23.0
+  fastapi-cloud-cli 0.24.0
       Copyright (c) 2024 Sebastián Ramírez
-  fastar 0.11.0
+  fastar 0.12.0
       Copyright 2025 Jonathan Ehwald
-  filelock 3.32.2
+  filelock 3.32.4
       Copyright (c) 2025 Bernát Gábor and contributors
   h11 0.16.0
       Copyright (c) 2016 Nathaniel J. Smith <njs@pobox.com> and other contributors
@@ -311,7 +311,7 @@ License-Identifier: MIT   (47 package(s))
       Copyright (c) 2014 Quatanium Co., Ltd.
   pip 24.0
       Copyright (c) 2008-present The pip developers (see AUTHORS.txt file)
-  platformdirs 4.11.0
+  platformdirs 4.11.3
       Copyright (c) 2010-202x The platformdirs developers
   platformdirs 4.4.0
       Copyright (c) 2010-202x The platformdirs developers
@@ -336,10 +336,8 @@ License-Identifier: MIT   (47 package(s))
       Copyright (c) 2023 Textualize Inc.
   rignore 0.8.1
       Copyright (c) 2024 Patrick Arminio
-  sentry-sdk 2.68.0
+  sentry-sdk 2.68.1
       Copyright (c) 2018 Functional Software, Inc. dba Sentry
-  setuptools 82.0.1
-      (the package ships no copyright notice of its own)
   setuptools 84.0.0
       (the package ships no copyright notice of its own)
   SQLAlchemy 2.0.51
@@ -438,13 +436,13 @@ License-Identifier: Apache-2.0 OR BSD-2-Clause   (1 package(s))
 
 License-Identifier: BSD-3-Clause   (4 package(s))
 
-  idna 3.18
+  idna 3.19
       Copyright (c) 2013-2026, Kim Davies and contributors.
   isodate 0.7.2
       Copyright (c) 2021, Hugo van Kemenade and contributors
       Copyright (c) 2009-2018, Gerhard Weis and contributors
       Copyright (c) 2009, Gerhard Weis
-  lxml 6.1.1
+  lxml 6.1.2
       Copyright (c) 2004 Infrae. All rights reserved.
   numpy 2.2.0
       Copyright (c) 2005-2024, NumPy Developers.
@@ -461,7 +459,7 @@ License-Identifier: LGPL-2.0-or-later   (1 package(s))
 
 License-Identifier: LGPL-2.1-only OR MPL-1.1   (1 package(s))
 
-  pycairo 1.29.0
+  pycairo 1.29.1
       (the package ships no copyright notice of its own)
 
 License-Identifier: LGPL-3.0-only   (1 package(s))
@@ -475,7 +473,7 @@ License-Identifier: MIT   (18 package(s))
       Copyright (c) 2015 Hynek Schlawack and the attrs contributors
   backports.tarfile 1.2.0
       (the package ships no copyright notice of its own)
-  charset-normalizer 3.4.9
+  charset-normalizer 3.5.1
       Copyright (c) 2025 TAHRI Ahmed R.
   jaraco.context 6.1.0
       (the package ships no copyright notice of its own)
@@ -489,11 +487,11 @@ License-Identifier: MIT   (18 package(s))
       Copyright (c) 2014 Quatanium Co., Ltd.
   pip 24.0
       Copyright (c) 2008-present The pip developers (see AUTHORS.txt file)
-  platformdirs 4.11.0
+  platformdirs 4.11.3
       Copyright (c) 2010-202x The platformdirs developers
   platformdirs 4.4.0
       Copyright (c) 2010-202x The platformdirs developers
-  setuptools 82.0.1
+  setuptools 84.0.0
       (the package ships no copyright notice of its own)
   sshkeyboard 2.3.1
       Copyright (c) 2021 Olli Paloviita
@@ -544,15 +542,72 @@ License-Identifier: PSF-2.0   (2 package(s))
 The ONVIF discovery agent uses only the Python standard library. The image contains the
 following packaging tooling from the python:3.14-slim base image:
 
-License-Identifier: MIT   (1 package(s))
+License-Identifier: Apache-2.0   (4 package(s))
 
-  pip 26.1.1
+  CacheControl 0.14.4
+      (the package ships no copyright notice of its own)
+  distro 1.9.0
+      (the package ships no copyright notice of its own)
+  msgpack 1.1.2
+      (the package ships no copyright notice of its own)
+  requests 2.34.2
+      Copyright 2019 Kenneth Reitz
+
+License-Identifier: Apache-2.0 OR BSD-2-Clause   (1 package(s))
+
+  packaging 26.2
+      Copyright (c) Donald Stufft and individual contributors.
+
+License-Identifier: BSD-2-Clause   (1 package(s))
+
+  pygments 2.20.0
+      Copyright (c) 2006-2022 by the respective authors (see AUTHORS file).
+
+License-Identifier: BSD-3-Clause   (1 package(s))
+
+  idna 3.18
+      Copyright (c) 2013-2026, Kim Davies and contributors.
+
+License-Identifier: ISC   (1 package(s))
+
+  resolvelib 1.2.1
+      (the package ships no copyright notice of its own)
+
+License-Identifier: MIT   (9 package(s))
+
+  pip 26.2.1
       Copyright (c) 2008-present The pip developers (see AUTHORS.txt file)
       Copyright 2012-2021 Eric Larson
       Copyright (c) 1991 - 1995, Stichting Mathematisch Centrum Amsterdam,
-      Copyright (c) 2013-2025, Kim Davies and contributors.
+      Copyright (c) 2013-2026, Kim Davies and contributors.
       Copyright (C) 2008-2011 INADA Naoki <songofacandy@gmail.com>
       Copyright (c) Donald Stufft and individual contributors.
+  platformdirs 4.10.0
+      Copyright (c) 2010-202x The platformdirs developers
+  pyproject-hooks 1.2.0
+      (the package ships no copyright notice of its own)
+  rich 14.2.0
+      Copyright (c) 2020 Will McGugan
+  setuptools 70.3.0
+      (the package ships no copyright notice of its own)
+  tomli 2.4.1
+      Copyright (c) 2021 Taneli Hukkinen
+  tomli-w 1.2.0
+      (the package ships no copyright notice of its own)
+  truststore 0.10.4
+      (the package ships no copyright notice of its own)
+  urllib3 2.7.0
+      Copyright (c) 2008-2020 Andrey Petrov and contributors.
+
+License-Identifier: MPL-2.0   (1 package(s))
+
+  certifi 2026.6.17
+      (the package ships no copyright notice of its own)
+
+License-Identifier: PSF-2.0   (1 package(s))
+
+  distlib 0.4.2
+      (the package ships no copyright notice of its own)
 
 Notes on the identifiers in sections 3 to 5:
 
@@ -1017,7 +1072,7 @@ License-Identifier: MIT   (228 package(s))
       Copyright (c) 2015 Andres Suarez <zertosh@gmail.com>
   magic-string 0.30.21
       Copyright 2018 Rich Harris
-  nanoid 3.3.17
+  nanoid 3.3.18
       Copyright 2017 Andrey Sitnik <andrey@sitnik.ru>
   next-themes 0.4.6
       Copyright (c) 2022 Paco Coursey

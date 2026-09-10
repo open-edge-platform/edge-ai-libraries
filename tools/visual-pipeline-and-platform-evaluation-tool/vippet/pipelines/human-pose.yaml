@@ -17,10 +17,10 @@ variants:
       gvadetect
       model=/models/output/ultralytics/public/yolo26n-pose/FP16/yolo26n-pose.xml
       pre-process-backend=opencv
-      ie-config=CPU_THROUGHPUT_STREAMS=2
+      ie-config=CPU_THROUGHPUT_STREAMS
       device=CPU
       batch-size=0
-      nireq=0
+      nireq=6
       inference-interval=1
       threshold=0.75
       inference-region=full-frame !

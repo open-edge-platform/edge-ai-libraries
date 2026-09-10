@@ -102,13 +102,93 @@ Performance benchmarks are marked `perf` and deselected by default; pass
 | `TP` | `1` | Tensor parallel size. |
 | `GPU_MEM_UTIL` | `0.86` | vLLM `--gpu-memory-utilization`. |
 | `MAX_MODEL_LEN` | `8192` | vLLM `--max-model-len`. |
+| `DTYPE` | `float16` | vLLM `--dtype`. |
+| `QUANTIZATION` | `fp8` | vLLM `--quantization` (model weight quantization). Unrelated to the KVWeave KV cache quantization variables below. |
+| `DEBUG` | `False` | Enables `VLLM_SERVER_DEV_MODE`. |
+| `HOST_BIND_ADDRESS` | `127.0.0.1` | Host address the container ports are published on. |
 | `HOST_PORT` | `8000` | Host port mapped to the container's vLLM API port (8000). |
 | `LMCACHE_MP_PORT` | `6555` | LMCache MP server port. |
 | `LMCACHE_MP_HTTP_PORT` | `8090` | LMCache MP HTTP healthcheck port. |
 | `LMCACHE_MP_L1_SIZE_GB` | `5` | LMCache L1 (host memory) tier size, in GB. |
+| `LMCACHE_MP_L2_ENABLE` | `true` | Enable the LMCache L2 filesystem adapter (disk tier). |
+| `LMCACHE_MP_EVICTION_TRIGGER_WATERMARK` | `0.7` | L1 occupancy fraction at which eviction starts. |
+| `LMCACHE_MP_EVICTION_RATIO` | `0.3` | Fraction of L1 evicted once the watermark is reached. |
+| `LMCACHE_MP_L1_KVWEAVE_QUANT` | `1` | See [KV cache quantization](#kv-cache-quantization) below. |
+| `LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED` | `1` | See [KV cache quantization](#kv-cache-quantization) below. |
+| `LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED` | `1` | See [KV cache quantization](#kv-cache-quantization) below. |
+| `LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED` | `1` | See [KV cache quantization](#kv-cache-quantization) below. |
 | `FORCE_BUILD` | `0` | See [FORCE_BUILD](#force_build) below. |
 | `DOCKER_BUILD_OPTS` | (empty) | Extra args appended to the `docker build` invocation. |
 | `DOCKER_RUN_OPTS` | (empty) | Extra args appended to the `docker run` invocation. |
+
+### KV cache quantization
+
+These four variables control KVWeave 4-bit quantization of the offloaded KV
+cache. They are distinct from `QUANTIZATION`, which is vLLM's *model weight*
+quantization. All default to `1` (enabled), matching the `ENV` defaults baked
+into `docker/Dockerfile`.
+
+| Variable | Scope |
+|---|---|
+| `LMCACHE_MP_L1_KVWEAVE_QUANT` | Master switch for worker-side L1 quantization. |
+| `LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED` | Group-level gate: skips quantization for the entire linear-attention / Mamba group. Overrides the two sub-state switches below. |
+| `LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED` | Mamba `conv_state` sub-state. |
+| `LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED` | Mamba `ssm_state` sub-state. |
+
+The last three only apply to hybrid (Mamba / linear-attention) models such as
+Qwen3.5-9B. Pure attention models like Qwen3-8B are unaffected by them.
+
+Each variable can be disabled independently. To store the KV cache
+uncompressed, set the master switch to `0` — the other three then have no
+effect:
+
+```bash
+LMCACHE_MP_L1_KVWEAVE_QUANT=0 \
+  bash integration/lmcache/vllm/vllm-start.sh
+```
+
+Skip quantization for the whole linear-attention / Mamba group, leaving the
+full-attention layers quantized:
+
+```bash
+LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED=0 \
+  bash integration/lmcache/vllm/vllm-start.sh
+```
+
+Store Mamba `conv_state` at full precision (`ssm_state` stays quantized):
+
+```bash
+LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED=0 \
+  bash integration/lmcache/vllm/vllm-start.sh
+```
+
+Store Mamba `ssm_state` at full precision (`conv_state` stays quantized):
+
+```bash
+LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED=0 \
+  bash integration/lmcache/vllm/vllm-start.sh
+```
+
+The two sub-state switches combine, so both Mamba states can be kept at full
+precision while attention stays quantized:
+
+```bash
+LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED=0 \
+LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED=0 \
+  bash integration/lmcache/vllm/vllm-start.sh
+```
+
+> **Note:** All four variables only take effect on the data-transfer path used
+> by XPU. On CUDA the transfer context defaults to a handle-passing mode that
+> never applies KVWeave quantization, so setting them has no effect unless
+> `LMCACHE_MP_TRANSFER_MODE=data` is also set.
+
+> **Note:** `LMCACHE_MP_L1_KVWEAVE_QUANT` is read by both the L1 worker and the
+> L2 storage manager, with opposite effects. Setting it to `0` disables L1
+> quantization, but if an L2 adapter is configured with a `serde_config`, that
+> serde wrapper is then *enabled* — the two tiers are mutually exclusive by
+> design, so that data is not compressed twice. Setting it to `0` alone
+> therefore does not guarantee that nothing is quantized.
 
 ### `FORCE_BUILD`
 

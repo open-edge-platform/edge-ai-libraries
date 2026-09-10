@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 import logging
+import re
 
 import openvino as ov
 
@@ -228,3 +230,54 @@ class DeviceDiscovery:
     def list_devices(self):
         """List all available devices."""
         return self.devices
+
+
+def running_on_wsl() -> bool:
+    """
+    Check whether the application runs on a WSL host.
+
+    Returns:
+        bool: True if the WSL GPU device node is present, False otherwise.
+    """
+    return Path("/dev/dxg").exists()
+
+
+def is_variant_supported(variant_name: str) -> bool:
+    """
+    Check whether a pipeline variant can run on the current platform.
+
+    Variant names encode the devices they use, for example "CPU", "GPU",
+    "GPU_NPU" or "GPU (WSL)". A variant is supported when every device family
+    it requires is available and, for GPU variants, when its WSL flavour
+    matches the current platform.
+
+    Args:
+        variant_name (str): Variant name as defined in the pipeline configuration.
+
+    Returns:
+        bool: True if the variant can run on this platform, False otherwise.
+    """
+    tokens = re.split(r"[^A-Z]+", variant_name.upper())
+    required = {
+        DeviceFamily(token) for token in tokens if token in DeviceFamily.__members__
+    }
+    if not required:
+        return True
+
+    try:
+        available = {
+            device.device_family for device in DeviceDiscovery().list_devices()
+        }
+    except Exception:
+        logger.exception(
+            "Device discovery failed, assuming variant '%s' is supported", variant_name
+        )
+        return True
+
+    if not required.issubset(available):
+        return False
+
+    if DeviceFamily.GPU in required and ("WSL" in tokens) != running_on_wsl():
+        return False
+
+    return True

@@ -1,0 +1,70 @@
+name: Dispatch agent on GENERATE-COMPONENT label
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+
+jobs:
+  dispatch:
+    # Only act when the label just added is 'GENERATE-COMPONENT'.
+    if: >-
+      github.event.label.name == 'GENERATE-COMPONENT' &&
+      github.actor != 'github-actions[bot]' &&
+      github.actor != 'copilot-swe-agent[bot]' &&
+      github.actor != 'Copilot' &&
+      github.actor != vars.AUTOMATION_ACTOR
+    runs-on: [self-hosted, linux, oep-lab]
+    timeout-minutes: 10
+    steps:
+      - name: Verify required tooling
+        run: |
+          set -euo pipefail
+          for tool in gh; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error::Missing required tool: ${tool}. Install ${tool} on the self-hosted runner and retry."
+              exit 1
+            fi
+          done
+
+      - name: Guard — issue must carry NEEDS-GENERATION or match known title patterns
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_TASK_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          ISSUE_JSON="$(gh issue view "$ISSUE_NUMBER" --json title,labels)"
+          TITLE="$(printf '%s' "$ISSUE_JSON" | jq -r '.title')"
+          HAS_NEEDS_GEN="$(printf '%s' "$ISSUE_JSON" | \
+            jq -r '.labels[].name' | grep -c '^NEEDS-GENERATION$' || true)"
+
+          if [[ "$HAS_NEEDS_GEN" -gt 0 ]]; then
+            echo "Issue #${ISSUE_NUMBER} carries NEEDS-GENERATION — proceeding."
+          elif echo "$TITLE" | grep -qE '^(Implement|Update) installer component:'; then
+            echo "Issue #${ISSUE_NUMBER} title matches known pattern — proceeding."
+          else
+            echo "::notice::Issue #${ISSUE_NUMBER} does not carry NEEDS-GENERATION and title does not match known patterns. Skipping."
+            exit 0
+          fi
+
+      - name: Assign Copilot coding agent and update labels
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_TASK_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          # Assign copilot-swe-agent to the issue.
+          gh issue edit "$ISSUE_NUMBER" --add-assignee copilot-swe-agent
+
+          # Remove NEEDS-GENERATION label (best-effort; may already be absent).
+          gh issue edit "$ISSUE_NUMBER" --remove-label "NEEDS-GENERATION" 2>/dev/null || true
+
+          # Post a comment recording who authorised dispatch.
+          gh issue comment "$ISSUE_NUMBER" \
+            --body "🤖 **Agent dispatched** by @${ACTOR}: \`copilot-swe-agent\` has been assigned to this issue. The \`NEEDS-GENERATION\` label has been removed."
+
+          echo "::notice::Dispatched copilot-swe-agent on issue #${ISSUE_NUMBER} (authorised by ${ACTOR})."

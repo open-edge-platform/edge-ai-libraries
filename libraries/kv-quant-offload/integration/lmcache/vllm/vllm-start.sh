@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-BUILD_CONTEXT="$(cd "${REPO_ROOT}/.." && pwd)"
+BUILD_CONTEXT="${REPO_ROOT}"
 DOCKERFILE_PATH="${SCRIPT_DIR}/docker/Dockerfile"
 
 IMAGE_NAME="${IMAGE_NAME:-kv-quant-offload-vllm-xpu:latest}"
@@ -17,10 +17,21 @@ SERVE="${SERVE:-${MODEL}}"
 TP="${TP:-1}"
 GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.86}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-8192}"
+DTYPE="${DTYPE:-float16}"
+QUANTIZATION="${QUANTIZATION:-fp8}"
+DEBUG="${DEBUG:-False}"
+HOST_BIND_ADDRESS="${HOST_BIND_ADDRESS:-127.0.0.1}"
 HOST_PORT="${HOST_PORT:-8000}"
 LMCACHE_MP_PORT="${LMCACHE_MP_PORT:-6555}"
 LMCACHE_MP_HTTP_PORT="${LMCACHE_MP_HTTP_PORT:-8090}"
 LMCACHE_MP_L1_SIZE_GB="${LMCACHE_MP_L1_SIZE_GB:-5}"
+LMCACHE_MP_L2_ENABLE="${LMCACHE_MP_L2_ENABLE:-true}"
+LMCACHE_MP_EVICTION_TRIGGER_WATERMARK="${LMCACHE_MP_EVICTION_TRIGGER_WATERMARK:-0.7}"
+LMCACHE_MP_EVICTION_RATIO="${LMCACHE_MP_EVICTION_RATIO:-0.3}"
+LMCACHE_MP_L1_KVWEAVE_QUANT="${LMCACHE_MP_L1_KVWEAVE_QUANT:-1}"
+LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED="${LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED:-1}"
+LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED="${LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED:-1}"
+LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED="${LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED:-1}"
 FORCE_BUILD="${FORCE_BUILD:-0}"
 DOCKER_BUILD_OPTS="${DOCKER_BUILD_OPTS:-}"
 DOCKER_RUN_OPTS="${DOCKER_RUN_OPTS:-}"
@@ -39,10 +50,21 @@ Optional environment variables:
   TP                    Tensor parallel size. Default: 1
   GPU_MEM_UTIL          vLLM gpu-memory-util. Default: 0.86
   MAX_MODEL_LEN         vLLM max model len. Default: 8192
+  DTYPE                vLLM data type. Default: float16
+  QUANTIZATION         vLLM quantization method. Default: fp8
+  DEBUG                Enable VLLM_SERVER_DEV_MODE. Default: False
+  HOST_BIND_ADDRESS    Host address for published container ports. Default: 127.0.0.1
   HOST_PORT             Host/container API port. Default: 8000
   LMCACHE_MP_PORT       LMCache MP port. Default: 6555
   LMCACHE_MP_HTTP_PORT  LMCache MP HTTP port. Default: 8090
   LMCACHE_MP_L1_SIZE_GB LMCache L1 size. Default: 5
+  LMCACHE_MP_L2_ENABLE  Enable LMCache L2 filesystem adapter. Default: true
+  LMCACHE_MP_EVICTION_TRIGGER_WATERMARK  L1 eviction trigger watermark. Default: 0.7
+  LMCACHE_MP_EVICTION_RATIO              L1 eviction ratio. Default: 0.3
+  LMCACHE_MP_L1_KVWEAVE_QUANT            Enable L1 KVWeave quantization. Default: 1
+  LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED  Quantize linear-attention state. Default: 1
+  LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED    Quantize Mamba conv_state. Default: 1
+  LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED     Quantize Mamba ssm_state. Default: 1
   FORCE_BUILD           Rebuild even if IMAGE_NAME already exists. Default: 0
   DOCKER_BUILD_OPTS     Extra args appended to docker build
   DOCKER_RUN_OPTS       Extra args appended to docker run
@@ -118,23 +140,34 @@ docker run -d \
   "${GROUP_ADD_OPTS[@]}" \
   --shm-size=16g \
   -v "${MODEL_PATH}:/models:ro" \
+  -v "${MODEL_PATH}/lmcache_disk:/lmcache_disk" \
   -e LMCACHE_MP_HOST="tcp://127.0.0.1" \
   -e MODEL="/models/${MODEL}" \
   -e SERVE="${SERVE}" \
   -e TP="${TP}" \
   -e GPU_MEM_UTIL="${GPU_MEM_UTIL}" \
   -e MAX_MODEL_LEN="${MAX_MODEL_LEN}" \
+  -e DTYPE="${DTYPE}" \
+  -e QUANTIZATION="${QUANTIZATION}" \
+  -e DEBUG="${DEBUG}" \
   -e LMCACHE_MP_PORT="${LMCACHE_MP_PORT}" \
   -e LMCACHE_MP_HTTP_PORT="${LMCACHE_MP_HTTP_PORT}" \
   -e LMCACHE_MP_L1_SIZE_GB="${LMCACHE_MP_L1_SIZE_GB}" \
+  -e LMCACHE_MP_L2_ENABLE="${LMCACHE_MP_L2_ENABLE}" \
+  -e LMCACHE_MP_EVICTION_TRIGGER_WATERMARK="${LMCACHE_MP_EVICTION_TRIGGER_WATERMARK}" \
+  -e LMCACHE_MP_EVICTION_RATIO="${LMCACHE_MP_EVICTION_RATIO}" \
+  -e LMCACHE_MP_L1_KVWEAVE_QUANT="${LMCACHE_MP_L1_KVWEAVE_QUANT}" \
+  -e LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED="${LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED}" \
+  -e LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED="${LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED}" \
+  -e LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED="${LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED}" \
   -e http_proxy \
   -e https_proxy \
   -e HTTP_PROXY \
   -e HTTPS_PROXY \
   -e no_proxy="localhost,127.0.0.1" \
-  -p "${HOST_PORT}:8000" \
-  -p "${LMCACHE_MP_PORT}:${LMCACHE_MP_PORT}" \
-  -p "${LMCACHE_MP_HTTP_PORT}:${LMCACHE_MP_HTTP_PORT}" \
+  -p "${HOST_BIND_ADDRESS}:${HOST_PORT}:8000" \
+  -p "${HOST_BIND_ADDRESS}:${LMCACHE_MP_PORT}:${LMCACHE_MP_PORT}" \
+  -p "${HOST_BIND_ADDRESS}:${LMCACHE_MP_HTTP_PORT}:${LMCACHE_MP_HTTP_PORT}" \
   ${DOCKER_RUN_OPTS} \
   "${IMAGE_NAME}" \
   /usr/local/bin/start-lmcache-vllm.sh
