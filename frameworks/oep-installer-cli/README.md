@@ -11,7 +11,7 @@ suite you want and install an individual module or a whole profile with a single
   </a>
 </p>
 
-> 🌐 **Web UI:** Prefer a guided experience? **[Open the OEP CLI Installer Web UI »](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)**
+> **Web UI:** Prefer a guided experience? **[Open the OEP CLI Installer Web UI »](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)**
 > to pick a profile and module and copy the exact install command.
 
 ## Overview
@@ -40,7 +40,7 @@ AI suites. The table below lists every profile and the modules it installs.
 | `federal_and_aerospace_ai_suite` | Multi-modal federal and aerospace use cases | `handheld_multi_modal` |
 | `health_and_life_science_ai_suite` | Patient and vitals monitoring | `nicu_warmer` |
 
-> ℹ️ Modules within some suites (for example `metro_ai_suite` and
+> Modules within some suites (for example `metro_ai_suite` and
 > `manufacturing_ai_suite`) cannot run at the same time. In those cases, install
 > the profile for convenience but **start and stop individual modules**.
 
