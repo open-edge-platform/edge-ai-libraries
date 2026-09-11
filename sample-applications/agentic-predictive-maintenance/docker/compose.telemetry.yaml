@@ -1,0 +1,40 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Telemetry: metrics-manager (reused microservice) + Prometheus.
+
+services:
+  apm-metrics:
+    image: ${REGISTRY:-intel/}metrics-manager:${METRICS_TAG:-2026.1.0}
+    container_name: apm-metrics
+    hostname: apm-metrics
+    environment:
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: ${no_proxy:-},localhost
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${METRICS_PORT:-9091}:8080"
+    networks:
+      - apm_network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges
+
+  prometheus:
+    image: prom/prometheus:v2.53.4
+    container_name: apm-prometheus
+    hostname: apm-prometheus
+    volumes:
+      - ../config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - apm_network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'

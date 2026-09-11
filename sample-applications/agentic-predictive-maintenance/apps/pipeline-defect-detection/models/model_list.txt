@@ -1,0 +1,1 @@
+pipeline-defect-detection/FP16/pipeline-defect-detection.xml
