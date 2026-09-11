@@ -44,6 +44,7 @@ Lightweight CLIP models designed for mobile and edge deployment.
 | `SigLIP/siglip2-vit-b-16` | ViT-B-16 | 768 |
 | `SigLIP/siglip2-vit-l-16` | ViT-L-16 | 1024 |
 | `SigLIP/siglip2-so400m-patch16-384` | ViT-So400M | 1152 |
+| `MarketaJu/siglip2-person-description-reid` | SigLIP2 ViT-B-16, person retrieval fine-tune | 768 |
 
 CLIP models with sigmoid loss function.
 
