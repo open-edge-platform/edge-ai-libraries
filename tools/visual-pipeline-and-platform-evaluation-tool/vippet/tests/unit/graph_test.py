@@ -3512,6 +3512,91 @@ class TestNegativeCases(unittest.TestCase):
                 )
 
 
+class TestValidateInferenceDevicesShareVaDisplay(unittest.TestCase):
+    """Test cases for Graph.validate_inference_devices_share_va_display method."""
+
+    @staticmethod
+    def _graph(detect_device, detect_backend, classify_device, classify_backend):
+        return Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(
+                    id="2",
+                    type="gvadetect",
+                    data={
+                        "model": "d.xml",
+                        "device": detect_device,
+                        "pre-process-backend": detect_backend,
+                    },
+                ),
+                Node(
+                    id="3",
+                    type="gvaclassify",
+                    data={
+                        "model": "c.xml",
+                        "device": classify_device,
+                        "pre-process-backend": classify_backend,
+                    },
+                ),
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+            ],
+        )
+
+    def test_same_indexed_gpu_is_allowed(self):
+        graph = self._graph(
+            "GPU.1", "va-surface-sharing", "GPU.1", "va-surface-sharing"
+        )
+        graph.validate_inference_devices_share_va_display()
+
+    def test_default_gpu_with_npu_is_allowed(self):
+        """NPU pins renderD128, which is what a bare GPU pipeline decodes into."""
+        graph = self._graph("GPU", "va-surface-sharing", "NPU", "va")
+        graph.validate_inference_devices_share_va_display()
+
+    def test_bare_gpu_adopts_upstream_display(self):
+        """A bare GPU element reuses the upstream display, so it fits any render node."""
+        graph = self._graph("GPU.1", "va-surface-sharing", "GPU", "va-surface-sharing")
+        graph.validate_inference_devices_share_va_display()
+
+    def test_two_different_indexed_gpus_are_rejected(self):
+        graph = self._graph(
+            "GPU.1", "va-surface-sharing", "GPU.2", "va-surface-sharing"
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.validate_inference_devices_share_va_display()
+        message = str(cm.exception)
+        self.assertIn("gvaclassify", message)
+        self.assertIn("renderD129", message)
+        self.assertIn("renderD130", message)
+
+    def test_indexed_gpu_with_npu_is_rejected(self):
+        graph = self._graph("GPU.1", "va-surface-sharing", "NPU", "va")
+
+        with self.assertRaises(ValueError) as cm:
+            graph.validate_inference_devices_share_va_display()
+        message = str(cm.exception)
+        self.assertIn("NPU", message)
+        self.assertIn("renderD128", message)
+
+    def test_cpu_pipeline_is_not_checked(self):
+        """A CPU-decoded pipeline carries system memory, so there is no display to share."""
+        graph = self._graph("CPU", "opencv", "NPU", "va")
+        graph.validate_inference_devices_share_va_display()
+
+    def test_non_va_backend_is_ignored(self):
+        """An element that never touches a VA display cannot mismatch."""
+        graph = self._graph("GPU.1", "va-surface-sharing", "CPU", "opencv")
+        graph.validate_inference_devices_share_va_display()
+
+
 class TestGetRecommendedEncoderDevice(unittest.TestCase):
     """Test cases for Graph.get_recommended_encoder_device method."""
 
@@ -3718,6 +3803,31 @@ class TestToSimpleView(unittest.TestCase):
                         str(i),
                         f"Edge {i} ID should be sequential: expected {str(i)}, got {actual_edge.id}",
                     )
+
+    def test_simple_view_includes_videoscale(self):
+        """Test that videoscale is retained as a user-facing simple-view step."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="videoscale", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        self.assertEqual(
+            [node.type for node in simple_view.nodes],
+            ["source", "videoscale", "fakesink"],
+        )
+        self.assertEqual(
+            [(edge.source, edge.target) for edge in simple_view.edges],
+            [("0", "1"), ("1", "2")],
+        )
 
     @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gvafpscounter,gvametapublish")
     def test_simple_view_with_invisible_elements(self):

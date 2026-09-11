@@ -200,12 +200,17 @@ const loadStrategies = async () => {
 };
 
 const syncFormModel = () => {
-  const policy = props.dialogData || {};
-  formModel.name = typeof policy.name === "string" ? policy.name : "";
+  const {
+    name,
+    criterion = "FirstMatch",
+    strategies = [],
+  } = props.dialogData || {};
+
+  formModel.name = typeof name === "string" ? name : "";
   formModel.criterion =
-    typeof policy.criterion === "string" ? policy.criterion : "FirstMatch";
-  formModel.strategies = Array.isArray(policy.strategies)
-    ? policy.strategies.filter(
+    typeof criterion === "string" ? criterion : "FirstMatch";
+  formModel.strategies = Array.isArray(strategies)
+    ? strategies.filter(
         (strategy): strategy is string => typeof strategy === "string",
       )
     : [];

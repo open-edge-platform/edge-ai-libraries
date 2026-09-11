@@ -12,12 +12,15 @@ ViPPET provides two benchmarking modes for evaluating AI inference pipeline perf
     incremented by the same algorithm. See
     [Stream Density Testing](./benchmarking/density-testing.md) for details.
 
-Both modes share a common execution configuration and report results through the same job management system.
+  Both modes share a common execution configuration and report results through the same job management system.
+
+- **Benchmark Suites** - Run prepared suites containing set of performance tests of predefined pipelines.
 
 For detailed instructions, see:
 
 - [Performance Testing](./benchmarking/performance-testing.md)
 - [Stream Density Testing](./benchmarking/density-testing.md)
+- [Benchmark Suites](./benchmarking/benchmark-suites.md)
 - [Managing Jobs](./benchmarking/managing-jobs.md)
 
 ## Key concepts
@@ -47,6 +50,8 @@ For detailed instructions, see:
 ./benchmarking/performance-testing
 ./benchmarking/density-testing
 ./benchmarking/managing-jobs
+./benchmarking/benchmark-export.md
+./benchmarking/benchmark-suites.md
 
 :::
 hide_directive-->

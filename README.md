@@ -251,7 +251,7 @@ advanced robotic workloads at the edge.
 
   Unified interface library bridging motion control commands
   between AI modules and industrial/robotic devices; simplifies
-  real-time control integration and system interoperability in mixed 
+  real-time control integration and system interoperability in mixed
   hardware environments.
 
 ### Sample Applications and Reference Implementations
@@ -377,9 +377,14 @@ The **Edge AI Libraries** project is licensed under the [APACHE 2.0](./LICENSE) 
 | Component | License |
 |:----------|:--------|
 | Dataset Management Framework (Datumaro) | [MIT License](https://github.com/open-edge-platform/datumaro/blob/develop/LICENSE) |
-| Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/main/LICENSE) |
+| Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/develop/LICENSE) |
 | Deep Learning Streamer | [MIT License](https://github.com/open-edge-platform/dlstreamer/blob/main/LICENSE) |
 
-Some of the software maintained under the Edge AI Libraries repository is intended for
-demonstration and reference purposes only. For more information, refer to
+## Intended Use
+
+Unless stated otherwise, software maintained under the Edge AI Libraries repository is intended
+for demonstration and reference purposes only.
+Certain features, such as authentication, TLS termination, and external access controls are
+assumed to be covered at the infrastructure level.
+For more information, refer to
 [Notes on Usage](https://docs.openedgeplatform.intel.com/dev/OEP-articles/notes-on-usage.html).

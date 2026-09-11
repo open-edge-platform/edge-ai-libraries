@@ -133,6 +133,11 @@ protected:
   mcBOOL need_plan_;
   mcLREAL pos_done_factor_;
   mcLREAL vel_done_factor_;
+  // Tracks the previous cycle's position error so checkMissionDone() can
+  // detect a target crossing that skipped the (fixed, narrow) done-tolerance
+  // band entirely within a single control cycle. See docs/07-blending-bug.md.
+  mcLREAL prev_pos_err_    = 0;
+  bool has_prev_pos_err_   = false;
   MC_MOTION_MODE motion_mode_;
   OverrideFactors override_factors_ = {};
 

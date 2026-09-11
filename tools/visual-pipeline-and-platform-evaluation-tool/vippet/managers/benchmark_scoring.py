@@ -55,7 +55,7 @@ def compute_test_case_scores(
     media_usage: float | None,
     power_usage: float | None,
 ) -> tuple[float | None, float | None, float | None]:
-    """Compute ``(performance, efficiency, total)`` for one passed test case.
+    """Compute ``(performance, efficiency, total)`` for one completed test case.
 
     Efficiency prefers FPS-per-Watt and falls back to FPS per mean non-zero
     utilization (cpu/gpu/npu/media) when power is not measured. Returns
@@ -102,7 +102,7 @@ def aggregate_scores(
 ) -> tuple[float | None, float | None, float | None]:
     """Aggregate child run scores into a parent-level score.
 
-    Only ``passed`` runs contribute. Performance and efficiency are averaged
+    Only ``completed`` runs contribute. Performance and efficiency are averaged
     independently (skipping ``None`` entries) and the total is the geometric
     mean of the two aggregates, mirroring :func:`compute_test_case_scores`.
 
@@ -116,12 +116,12 @@ def aggregate_scores(
     performance_values = [
         run.score_performance
         for run in runs
-        if run.status == "passed" and run.score_performance is not None
+        if run.status == "completed" and run.score_performance is not None
     ]
     efficiency_values = [
         run.score_efficiency
         for run in runs
-        if run.status == "passed" and run.score_efficiency is not None
+        if run.status == "completed" and run.score_efficiency is not None
     ]
 
     score_performance = (

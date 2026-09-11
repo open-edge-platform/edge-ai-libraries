@@ -24,7 +24,7 @@ cd ./video-chunking-utils
 pip install .
 ```
 
-> Note: If you are using a virtual environment, you can install the module
+> **Note:** If you are using a virtual environment, you can install the module
 > within the environment to avoid conflicts with other packages.
 
 ## Usage
@@ -111,6 +111,7 @@ from video_chunking.data import MicroChunkMeta
 :::{toctree}
 :hidden:
 
-release-notes
+Release Notes <./release-notes.md>
+
 :::
 hide_directive-->

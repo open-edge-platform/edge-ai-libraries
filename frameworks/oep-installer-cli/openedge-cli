@@ -1,0 +1,173 @@
+#!/bin/bash
+
+main () {
+  . /etc/os-release
+  red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
+  installer_name=openedge-cli
+
+  local _globals=() _cmds=() _args=() cur=-1 v cmd
+  for v in "$@"; do
+    case $v in
+    --help)
+      _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+      echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
+      echo "common options:"
+      echo "  --dry-run       dry-run the subcommand sequence."
+      echo "  --continue      continue execution upon errors."
+      echo "  --help          this help message." 
+      echo
+      for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
+        $cmd --help
+      done
+      return
+      ;;
+    --dry-run|--continue)
+      _globals+=($v)
+      ;;
+    *)
+      if declare -F subcommand_$v > /dev/null; then
+        _cmds+=($v); _args+=(""); cur=$((cur+1))
+      elif [ ${#_cmds[@]} -eq 0 ]; then
+        echo "Unknown command: $v"
+        exit 3
+      elif [ $cur -ge 0 ]; then
+        _args[$cur]="${_args[$cur]} $v"
+      fi
+      ;;
+    esac
+  done
+
+  # --help if nothing specified
+  if [ ${#_cmds[@]} -eq 0 ]; then
+    main --help
+    return
+  fi
+
+  # initialize act cache
+  declare -F act_get > /dev/null && act_get init
+
+  # exec subcommand
+  local _rc=0 _i
+  for ((_i=0;_i<${#_cmds[@]};_i++)); do
+    subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+    _rc=$?
+    [ $_rc -eq 0 ] || [[ " ${_globals[*]} " = *" --continue "* ]] || break
+  done
+  return $_rc
+}
+
+#### COLLECTION OF MODULES ####
+
+subcommand_bootstrap () {
+  local mydir="$(dirname "$(readlink -f "$0")")"
+
+  if [[ " $* " = *" --help "* ]]; then
+    echo "bootstrap options:"
+    echo "  --install=<name>       set default installation component|profile."
+    echo "  --start=<name>         set default start component|profile."
+    echo "  --setup                setup installer."
+    echo
+    local profiles=($(cd "$mydir";find profile -name "$ID_LIKE" | cut -f2 -d/))
+    [ ${#profiles[*]} -eq 0 ] || echo "  list of bootstrap profiles: ${profiles[*]}"
+    local modules=($(cd "$mydir";find module -name "$ID_LIKE" | cut -f2 -d/))
+    [ ${#modules[*]} -eq 0 ] || echo "  list of bootstrap components: ${modules[*]}"
+    [ "${#profiles[*]}${#modules[*]}" = "00" ] || echo
+    return 0
+  fi
+  
+  # scan for dependencies
+  local modules=(${*##-*})
+  [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";find profile module -name "$ID_LIKE" | cut -f2 -d/))
+  modules=(${modules[*]##*/})
+  local -A scripts=()
+  local i=0 script license_common=0
+  while [ $i -lt ${#modules[*]} ]; do
+    local script="$mydir"/profile/${modules[$i]}/${ID_LIKE}
+    [ -r "$script" ] || script="$mydir"/module/${modules[$i]}/${ID_LIKE}
+    if [ ${scripts["$script"]:-0} -eq 1 ]; then
+      :
+    elif [ -r "$script" ]; then
+      scripts["$script"]=1
+      local script_nos="${script%/*}/linux"
+      local profiler=$(
+        [ ! -r "$script_nos" ] || . "$script_nos"
+        . "$script"
+        declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' '
+      )
+      [ -z "$profiler" ] || modules+=($(
+        [ ! -r "$script_nos" ] || . "$script_nos"
+        . "$script"
+        for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do 
+          $profiler $cmd
+        done
+      ))
+      local licenser=$(
+        [ ! -r "$script_nos" ] || . "$script_nos"
+        . "$script"
+        declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_license_${modules[$i]}$"
+      )
+      [ -z "$licenser" ] || license_common=1
+    else
+      echo "Unknown component or profile: ${modules[$i]}. Skipping" 1>&2
+    fi
+    i=$((i+1))
+  done
+
+  # construct final installer
+  if [ ${#scripts[@]} -eq 0 ]; then
+    echo "No bootstrap component" 1>&2
+    exit 3
+  fi
+
+  local rendered="$mydir/rendered/$installer_name"
+  local install_modules=() start_modules=()
+  if [[ " $* " != *" --dry-run "* ]]; then
+    sed '/^#### COLLECTION OF MODULES ####/q' "$0" > "$rendered"
+    for m in "$@"; do
+      case "$m" in
+      --install=*)
+        install_modules+=(${m#*=})
+        ;;
+      --start=*)
+        start_modules+=(${m#*=})
+        ;;
+      esac
+    done
+    cat "$mydir"/common/linux/* >> "$rendered"
+    if [ -d "$mydir"/common/${ID_LIKE} ]; then
+      cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
+    fi
+    [ $license_common -eq 0 ] || {
+      cat "$mydir"/license/linux/license_* >> "$rendered" 2> /dev/null || true
+      cat "$mydir"/license/${ID_LIKE}/license_* >> "$rendered" 2> /dev/null || true
+    }
+  fi
+
+  local scripts_ordered
+  mapfile -t scripts_ordered < <(printf '%s\n' "${!scripts[@]}" | sort)
+  for script in "${scripts_ordered[@]}"; do
+    echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
+    [[ " $* " != *" --dry-run "* ]] || continue
+    cat "$script" >> "$rendered" 2> /dev/null || true
+    cat "${script%/*}/linux" 2> /dev/null >> "$rendered" || true
+  done
+
+  if [[ " $* " != *" --dry-run "* ]]; then
+    local misc_funcs=($(
+      local bfuncs=($(declare -F | cut -f3 -d' '))
+      . "$rendered"
+      for f in $(declare -F | grep -v -E " (${ID_LIKE}_[0-9]+|ensure_|act_|subcommand_)" | cut -f3 -d' '); do
+        [[ " ${bfuncs[*]} " = *" $f "* ]] || printf "%s " $f
+      done
+    ))
+    sed -i "/^subcommand_setup *[(][)] *[{]/,/^[}]/{s|local  *installer_misc_functions=.*|local installer_misc_functions=(${misc_funcs[*]})|}" "$rendered"
+    [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- start ${start_modules[*]} \"\$@\"" >> "$rendered"
+    [ ${#install_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- install ${install_modules[*]} \"\$@\"" >> "$rendered"
+    [[ " $* " != *" --setup "* ]] || echo "[ \"\$0\" != bash ] || set -- setup \"\$@\"" >> "$rendered"
+    echo 'main "$@"' >> "$rendered"
+    chmod a+rx "$rendered"
+    echo "Rendered to $rendered"
+  fi
+}
+
+main "$@"

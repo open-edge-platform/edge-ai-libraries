@@ -65,8 +65,8 @@ curl http://localhost:8000/health
 
 **Description:**
 
-Liveness check. Includes router initialization status and current concurrency
-counters.
+Verifies that the router is alive and operational. Includes router
+initialization status and current concurrency counters.
 
 **Response:**
 
@@ -110,7 +110,8 @@ curl http://localhost:8000/health/detailed
 **Description:**
 
 Runs a live health check against every provider and returns their individual
-status. Heavier than `GET /health` since it probes the backends.
+status. Probes the backends, and therefore is more resource-intensive
+and takes longer to execute than the `GET /health` endpoint.
 
 **Response:**
 
@@ -125,9 +126,11 @@ status. Heavier than `GET /health` since it probes the backends.
       }
   }
   ```
+  
+  The keys in the providers map are the provider names configured in your setup. 
+  The value structure for each key depends on the specific provider’s
+  health check structure.
 
-  The `providers` map is keyed by configured provider name; the value shape is
-  whatever the provider's own health check reports.
 
 ## List Models
 
@@ -149,7 +152,7 @@ Lists every available model. One entry per enabled provider in `config.yaml`,
 where `id` is the configured backend model name (the value clients pass in
 `request.model` to route here) and `owned_by` is the provider name. Two
 providers MAY share an `id` — they're distinguishable by `owned_by`, and
-routing by model name picks the first such provider in config order; pass
+routing by model name picks the first such provider in configuration order; pass
 the provider name in `request.model` to target the other. The response
 always includes the virtual model `"auto"` for automatic routing.
 
@@ -211,9 +214,9 @@ curl http://localhost:8000/v1/chat/completions \
 
 **Description:**
 
-OpenAI-compatible chat completion. Set `model` to a concrete ID to pin the
-backend, or to `"auto"` for smart routing. Set `stream: true` for SSE
-streaming.
+OpenAI-compatible chat completion. Set `model` to a specific ID to pin the
+backend, or to `"auto"` for smart routing. Set `stream: true` for
+Server-Sent Events (SSE) streaming.
 
 **Request Body:**
 
@@ -278,12 +281,12 @@ streaming.
 
 ## Pass-through Services
 
-The router can expose additional OpenAI/Cohere-compatible endpoints that
+The router can expose additional OpenAI- and Cohere-compatible endpoints that
 **forward the request body verbatim** to a backing service and return the
 response untouched. Each is enabled by adding a **provider** whose `type` names
 the service (see [Create or Update Provider](#create-or-update-provider) and the
-[Get Started guide](./get-started.md#optional-pass-through-services)). No such
-provider configured for a service ⇒ that endpoint returns `503`.
+[Get Started](./get-started.md#optional-pass-through-services)) sections. If
+there is no such provider configured for a service, that endpoint returns `503`.
 
 | Provider `type` | Endpoint                        | Body / Response                       |
 | --------------- | ------------------------------- | ------------------------------------- |
@@ -385,16 +388,16 @@ across both streaming and non-streaming requests.
 
 - 200 OK: object with three top-level sections:
 
-  Each `by_provider` map is keyed by `"<provider>/<model>"` (the configured
-  provider name followed by the backend model id, e.g.
-  `"local/Qwen/Qwen3.5-9B"`). When one provider serves multiple models, or two
+  The `by_provider` map keys are `"<provider>/<model>"`, where each key is the
+  configured provider name followed by the backend model ID; for example,
+  `"local/Qwen/Qwen3.5-9B"`. When one provider serves multiple models, or two
   providers expose the same model, each (provider, model) pair gets its own
   bucket so dashboards can disambiguate them. The field name remains
   `by_provider` for back-compat with pre-existing dashboards; only the key
   strings changed.
 
   - `routing_stats` — total request count and per-bucket request counts.
-  - `token_metrics` — per-bucket input / output / total token counts plus
+  - `token_metrics` — per-bucket input, output, and total token counts plus
     `request_share` and `token_share` (fractions of the overall traffic), and
     an `overall` aggregate. Also carries two request-level token breakdowns:
     `before_router` (the raw request) and `after_router` (the request actually
@@ -565,8 +568,8 @@ named `api_key`, `token`, `secret`, or `password`) are replaced with
   }
   ```
 
-  `path` is the on-disk config file path (or `null` if not configured).
-  `warnings` lists non-fatal advisories about the config.
+  `path` is the on-disk configuration file path (or `null` if not configured).
+  `warnings` lists non-fatal advisories about the configuration.
 
 - 503 Service Unavailable:
 
@@ -590,7 +593,7 @@ curl http://localhost:8000/v1/routing
 
 **Description:**
 
-Returns the active routing policy — the `policy` field of the config's `routing`
+Returns the active routing policy — the `policy` field of the configuration's `routing`
 section. The policy names an entry in `policy.yaml` that decides how requests are
 dispatched across providers.
 
@@ -629,7 +632,7 @@ curl http://localhost:8000/v1/routing \
 
 **Description:**
 
-Sets the routing policy, then persists the change to the on-disk config and
+Sets the routing policy, then persists the change to the on-disk configuration and
 rebuilds the runtime. The policy must name an entry in `policy.yaml`; an unknown
 name is rejected and the previous policy stays in effect. Provider secrets in
 `config.yaml` (e.g. `${VAR}` placeholders) are left untouched.
@@ -727,7 +730,7 @@ Secrets are redacted as in `GET /v1/providers`.
 
 **Response:**
 
-- 200 OK: a single `ProviderResponse` (same shape as an entry in the list above).
+- 200 OK: a single `ProviderResponse` (same structure as an entry in the list above).
 - 404 Not Found: no provider with that `name`.
 
   ```json
@@ -760,15 +763,15 @@ curl http://localhost:8000/v1/providers/openai \
 
 **Description:**
 
-Creates or updates a provider, then persists the change to the on-disk config
-and rebuilds the runtime. The provider is created if it does not exist and
+Creates or updates a provider, then persists the change to the on-disk configuration
+and rebuilds the runtime. The provider is created if it does not exist, and
 updated otherwise. Only the fields present in the request body are changed;
 `settings` and `metadata`, when supplied, replace the existing section wholesale.
 
 Secrets are preserved on disk: an `api_key` written as an environment
 placeholder (e.g. `"${OPENAI_API_KEY}"`) is stored verbatim in `config.yaml`
-rather than being resolved to its value. Providers left untouched keep their
-existing placeholders unchanged.
+rather than being resolved to its value. Providers that are left untouched keep
+their existing placeholders unchanged.
 
 **Request Body:**
 
@@ -788,7 +791,7 @@ existing placeholders unchanged.
 - `type`: provider type (e.g. `hosted_vllm`, `openai`). **Required when creating**
   a new provider; optional on update.
 - `model`: backend model identifier. **Required when creating**; optional on update.
-- `enabled`: optional. Toggle the provider on/off.
+- `enabled`: optional. Toggle the provider on or off.
 - `metadata`: optional. Routing metadata (labels, cost, performance, capability;
   extra fields allowed).
 - `settings`: optional. Provider-specific settings such as `endpoint`, `timeout`,
@@ -818,7 +821,7 @@ curl -X DELETE http://localhost:8000/v1/providers/openai
 
 **Description:**
 
-Removes a provider, persists the change to the on-disk config, and rebuilds the
+Removes a provider, persists the change to the on-disk configuration, and rebuilds the
 runtime.
 
 **Response:**
@@ -830,7 +833,7 @@ runtime.
   ```
 
 - 400 Bad Request: the rebuilt runtime failed to initialize (e.g. deleting the
-  last enabled provider). The change is rejected atomically — the config file is
+  last enabled provider). The change is rejected atomically — the configuration file is
   left unchanged.
 - 404 Not Found: no provider with that `name`.
 - 500 Internal Server Error: failed to delete the provider.
@@ -965,7 +968,7 @@ curl http://localhost:8000/v1/plugins/dummy_logger/dummy
 
 Instance-level view of a configured plugin, as defined by the plugin's
 `describe()` hook. Prefers the **live** instance (so per-instance runtime info
-such as metrics is folded in); falls back to the static config view for a
+such as metrics is folded in); falls back to the static configuration view for a
 configured-but-disabled plugin that is not loaded.
 
 **Response:**
@@ -1012,8 +1015,8 @@ curl http://localhost:8000/v1/plugins/dummy_logger/dummy \
 **Description:**
 
 Creates or updates a plugin instance, then persists the change to the on-disk
-config and rebuilds the runtime. The instance is created if it does not exist and
-updated otherwise. Only the fields present in the request body are changed.
+configuration and rebuilds the runtime. The instance is created if it does not exist,
+and updated otherwise. Only the fields present in the request body are changed.
 
 **Request Body:**
 
@@ -1025,7 +1028,7 @@ updated otherwise. Only the fields present in the request body are changed.
 }
 ```
 
-- `enabled`: optional. Toggle the plugin on/off.
+- `enabled`: optional. Toggle the plugin on or off.
 - `trigger`: optional. One of `prerouting`, `postrouting`, or `postresponse`.
 - `settings`: optional. Plugin-specific settings object (extra fields allowed).
 
@@ -1051,7 +1054,7 @@ curl -X DELETE http://localhost:8000/v1/plugins/dummy_logger/dummy
 
 **Description:**
 
-Removes a plugin instance, persists the change to the on-disk config, and
+Removes a plugin instance, persists the change to the on-disk configuration, and
 rebuilds the runtime.
 
 **Response:**
@@ -1084,7 +1087,7 @@ curl -X POST http://localhost:8000/v1/plugins/dummy_logger/dummy/reset
 
 Resets one plugin instance's own runtime state (e.g. per-instance metrics) via
 its `reset()` hook. Acts on the **live** plugin, so the instance must be loaded
-(enabled). Applies only to plugins that support resetting; a plugin that does not
+(enabled). Applies only to plugins that support reset; a plugin that does not,
 returns `400`.
 
 **Response:**
@@ -1122,7 +1125,7 @@ curl -X POST http://localhost:8000/v1/plugins/dummy_logger/reset
 
 Resets node-level (type/group-wide) state for a plugin type via its
 `reset_node()` classmethod hook. Applies only to types that support it; a type
-that does not returns `400`.
+that does not, returns `400`.
 
 **Response:**
 
@@ -1138,7 +1141,8 @@ that does not returns `400`.
 ## Policies
 
 A **policy** is a named, ordered list of strategies plus a `criterion` that
-decides how their results are combined during routing. Policies are stored in `policy.yaml`; each policy is addressed by its unique `name`.
+decides how their results are combined during routing. Policies are stored in
+`policy.yaml`; each policy is addressed by its unique `name`.
 
 All policy endpoints target `<workspace>/policy.yaml`, which **must already
 exist**: the API reads and edits an operator's workspace copy and never mutates
@@ -1146,7 +1150,7 @@ the bundled defaults in the source tree. Any request against a missing workspace
 file returns `400`. Mutations are validated with the same rules applied at
 startup and, on success, written atomically and **applied immediately**.
 
-A policy object has the following shape:
+A policy object has the following structure:
 
 ```json
 {
@@ -1218,11 +1222,11 @@ curl http://localhost:8000/v1/policies/Balanced
 
 **Description:**
 
-Returns a single policy, identified by its unique `name`.
+Returns a single policy identified by its unique `name`.
 
 **Response:**
 
-- 200 OK: a single policy object (same shape as an entry in the list above).
+- 200 OK: a single policy object (same structure as an entry in the list above).
 - 404 Not Found: no policy with that `name`.
 
   ```json
@@ -1251,7 +1255,7 @@ curl http://localhost:8000/v1/policies/Balanced \
 **Description:**
 
 Creates or updates a policy, then persists the change to `policy.yaml`. The
-policy is created if it does not exist and replaced wholesale otherwise. The
+policy is created if it does not exist, and replaced wholesale otherwise. The
 `name` is taken from the path; a `name` in the body is ignored. A `GET`
 response round-trips as a `POST` payload.
 
@@ -1271,7 +1275,7 @@ response round-trips as a `POST` payload.
 **Response:**
 
 - 200 OK: the resulting policy object.
-- 400 Bad Request: the body is invalid — e.g. missing/empty `strategies`, an
+- 400 Bad Request: the body is invalid — e.g. missing or empty `strategies`, an
   invalid `criterion`, an invalid `name`, or a strategy that does not exist in
   `strategy.yaml`; or the workspace `policy.yaml` does not exist.
 
@@ -1322,7 +1326,8 @@ Removes a policy and persists the change to `policy.yaml`.
 
 A **strategy** is a named rule set plus a provider selector: its rules decide
 whether the strategy matches a request, and its `provider_selector` (and
-optional `sort`) pick and rank the providers that can serve it. Strategies are stored in `strategy.yaml` and referenced by name from policies.
+optional `sort`) pick and rank the providers that can serve it. Strategies are
+stored in strategy.yaml, and policies reference them by name.
 
 All strategy endpoints target `<workspace>/strategy.yaml`, which **must already
 exist**: the API reads and edits an operator's workspace copy and never mutates
@@ -1330,7 +1335,7 @@ the bundled defaults in the source tree. Any request against a missing workspace
 file returns `400`. Mutations are validated with the same rules applied at
 startup and, on success, written atomically and **applied immediately**.
 
-A strategy object has the following shape:
+A strategy object has the following structure:
 
 ```json
 {
@@ -1426,7 +1431,7 @@ Returns a single strategy, identified by its unique `name`.
 
 **Response:**
 
-- 200 OK: a single strategy object (same shape as an entry in the list above).
+- 200 OK: a single strategy object (same structure as an entry in the list above).
 - 404 Not Found: no strategy with that `name`.
 
   ```json
@@ -1458,7 +1463,7 @@ curl http://localhost:8000/v1/strategies/Planning \
 **Description:**
 
 Creates or updates a strategy, then persists the change to `strategy.yaml`. The
-strategy is created if it does not exist and replaced wholesale otherwise. The
+strategy is created if it does not exist, and replaced wholesale otherwise. The
 `name` is taken from the path; a `name` in the body is ignored. A `GET`
 response round-trips as a `POST` payload.
 
@@ -1477,7 +1482,7 @@ response round-trips as a `POST` payload.
 }
 ```
 
-- `provider_selector`: **required**. See the object shape above.
+- `provider_selector`: **required**. See the object structure above.
 - `description`, `rules`, `sort`, `require_healthy`, `limit`: optional.
 
 **Response:**

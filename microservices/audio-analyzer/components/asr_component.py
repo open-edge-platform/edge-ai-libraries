@@ -1,4 +1,5 @@
 import time
+import re
 
 from components.base_component import PipelineComponent
 import os
@@ -16,12 +17,89 @@ logger = logging.getLogger(__name__)
 ENABLE_DIARIZATION = config.models.asr.diarization
 DELETE_CHUNK_AFTER_USE = config.pipeline.delete_chunks_after_use
 
+# Whisper (every backend, including OpenVINO GenAI) hallucinates common subtitle
+# phrases such as "Thank you" on silence / non-speech audio — typically the
+# trailing silence captured after the speaker stops talking. Segments whose
+# entire text matches one of these is dropped. Used when the config does not
+# supply models.asr.hallucination_phrases.
+_DEFAULT_HALLUCINATION_PHRASES = [
+    "thank you",
+    "thank you very much",
+    "thanks for watching",
+    "thank you for watching",
+    "please subscribe",
+    "subscribe",
+    "you",
+    "bye",
+]
+
+_NORMALIZE_RE = re.compile(r"[^\w\s]", re.UNICODE)
+
+
+def _normalize_transcript_text(text: str) -> str:
+    """Lowercase, drop punctuation, and collapse whitespace for phrase matching."""
+    return " ".join(_NORMALIZE_RE.sub(" ", text.lower()).split())
+
+
+def _collapse_repeated_phrases(text: str) -> str:
+    """Fold consecutive repeated word sequences (window 1-8 words) down to one.
+
+    Whisper — notably the OpenVINO GenAI backend, which has no decoder-level
+    repetition guard — can emit the same phrase multiple times back to back
+    ("What are ions? What are ions?"). Applied to a fixpoint so runs of three
+    or more (not just doubles) are fully collapsed.
+    """
+    if len(text.split()) < 2:
+        return text
+
+    def _one_pass(words: list[str]) -> list[str]:
+        result: list[str] = []
+        i = 0
+        while i < len(words):
+            found = False
+            max_window = min(8, (len(words) - i) // 2)
+            for w in range(max_window, 0, -1):
+                if words[i:i + w] == words[i + w:i + 2 * w]:
+                    result.extend(words[i:i + w])
+                    i += 2 * w
+                    found = True
+                    break
+            if not found:
+                result.append(words[i])
+                i += 1
+        return result
+
+    current = text.split()
+    for _ in range(8):  # bounded fixpoint — collapses triples/quadruples too
+        collapsed = _one_pass(current)
+        if collapsed == current:
+            break
+        current = collapsed
+    return " ".join(current)
+
 _diar_cfg = getattr(config.models, "diarization", None)
 _identity_cfg = getattr(_diar_cfg, "identity", None)
 IDENTITY_ENABLED = bool(getattr(_identity_cfg, "enabled", True))
 IDENTITY_SIMILARITY_THRESHOLD = float(getattr(_identity_cfg, "similarity_threshold", 0.75))
 IDENTITY_LOCK_MIN_DURATION_SEC = float(getattr(_identity_cfg, "lock_min_duration_sec", 0.75))
 IDENTITY_SESSION_TTL_SECONDS = float(getattr(_identity_cfg, "session_ttl_seconds", 1800.0))
+
+
+def _is_diarization_auth_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    markers = (
+        "401",
+        "403",
+        "unauthorized",
+        "forbidden",
+        "invalid token",
+        "token",
+        "huggingface",
+        "gated",
+        "access",
+        "permission",
+    )
+    return any(marker in text for marker in markers)
 
 
 class ASRComponent(PipelineComponent):
@@ -78,6 +156,22 @@ class ASRComponent(PipelineComponent):
         self.enable_diarization = ENABLE_DIARIZATION
         self.all_segments = []
 
+        # Backend-agnostic hallucination-phrase filter. Runs on the final text
+        # of every provider, so it also covers the OpenVINO GenAI backend which
+        # exposes no per-segment confidence signals for the openai-style filter.
+        _asr_cfg = getattr(config.models, "asr", None)
+        self.hallucination_phrase_filter = bool(getattr(_asr_cfg, "hallucination_phrase_filter", True))
+        _configured_phrases = getattr(_asr_cfg, "hallucination_phrases", None) or _DEFAULT_HALLUCINATION_PHRASES
+        self._hallucination_phrases = {
+            _normalize_transcript_text(p) for p in _configured_phrases if p and str(p).strip()
+        }
+        # Repetition control shared by every backend. The openai backend also
+        # applies this in its own decoder path; the OpenVINO GenAI backend has
+        # no repetition guard at all, so this component-level pass is what stops
+        # duplicated phrases ("What are ions? What are ions?") on that backend.
+        # >1.0 enables filtering, matching the openai backend's semantics.
+        self.repetition_penalty = float(getattr(_asr_cfg, "repetition_penalty", 1.0) or 1.0)
+
         backend_cls, model_config_key, resolved_device = self._resolve_backend(provider, model_name, device)
 
         if ASRComponent._model is None or ASRComponent._config != model_config_key:
@@ -91,10 +185,11 @@ class ASRComponent(PipelineComponent):
             try:
                 from components.asr.diarization.pyannote_diarizer import PyannoteDiarizer
                 from utils.ensure_model import _resolve_hf_token
+                from utils.openvino_runtime_validation import resolve_diarization_torch_device
 
-                diar_device = str(
-                    getattr(getattr(config.models, "diarization", None), "device", "cpu")
-                ).lower()
+                _diar_cfg_local = getattr(config.models, "diarization", None)
+                _config_diar_device = str(getattr(_diar_cfg_local, "device", "CPU") if _diar_cfg_local else "CPU")
+                diar_device = resolve_diarization_torch_device(_config_diar_device)
 
                 # Reuse a single shared diarizer across all requests so the
                 # pyannote pipeline (weights + embedding model) is loaded once
@@ -105,13 +200,29 @@ class ASRComponent(PipelineComponent):
                     ASRComponent._pyannote_diarizer is None
                     or ASRComponent._pyannote_diarizer_key != diarizer_key
                 ):
-                    ASRComponent._pyannote_diarizer = PyannoteDiarizer(
-                        device=diar_device,
-                        hf_token=_resolve_hf_token(),
-                    )
+                    hf_token = _resolve_hf_token()
+                    if diar_device.upper() in ("GPU", "NPU"):
+                        # OpenVINO-backed diarization: segmentation model runs on
+                        # the requested OV device; embedding + clustering on CPU.
+                        from components.asr.diarization.ov_pyannote_diarizer import (
+                            OVBackedPyannoteDiarizer,
+                        )
+                        from utils.ensure_model import get_diarization_model_path
+
+                        ASRComponent._pyannote_diarizer = OVBackedPyannoteDiarizer(
+                            ov_device=diar_device.upper(),
+                            hf_token=hf_token,
+                            model_dir=get_diarization_model_path(),
+                        )
+                    else:
+                        # CPU path: existing PyannoteDiarizer (PyTorch CPU).
+                        ASRComponent._pyannote_diarizer = PyannoteDiarizer(
+                            device="cpu",
+                            hf_token=hf_token,
+                        )
                     ASRComponent._pyannote_diarizer_key = diarizer_key
                     logger.info(
-                        "[DIARIZATION] PyannoteDiarizer loaded on device=%s",
+                        "[DIARIZATION] Diarizer loaded on device=%s",
                         diar_device,
                     )
                 self.pyannote_diarizer = ASRComponent._pyannote_diarizer
@@ -125,16 +236,34 @@ class ASRComponent(PipelineComponent):
                         session_ttl_seconds=IDENTITY_SESSION_TTL_SECONDS,
                     )
             except Exception as exc:
-                logger.warning(
-                    "[DIARIZATION] ⚠️  Failed to load PyannoteDiarizer — diarization disabled for this session. "
-                    "Cause: %s. "
-                    "If this is a 403 error, accept the model at "
-                    "https://huggingface.co/pyannote/speaker-diarization-community-1 "
-                    "then restart the container.",
-                    exc,
-                )
-                self.enable_diarization = False
-                self.pyannote_diarizer = None
+                # models.asr.diarization=true — never silently disable diarization.
+                # Any failure here is fatal; the service must not start with
+                # diarization requested but non-functional.
+                if _is_diarization_auth_error(exc):
+                    raise RuntimeError(
+                        "Speaker diarization initialization failed due to HF token/access error. "
+                        "Startup aborted: models.asr.diarization=true requires valid credentials. "
+                        "If this is a 403 error, accept the model at "
+                        "https://huggingface.co/pyannote/speaker-diarization-community-1 "
+                        "and restart the container."
+                    ) from exc
+                raise RuntimeError(
+                    "Speaker diarization initialization failed. "
+                    "Startup aborted: models.asr.diarization=true requires successful diarization "
+                    f"initialization. Cause: {exc}"
+                ) from exc
+
+    def _is_hallucination_phrase(self, text: str) -> bool:
+        """True when the whole segment text is a known Whisper silence hallucination."""
+        if not self.hallucination_phrase_filter or not self._hallucination_phrases:
+            return False
+        return _normalize_transcript_text(text) in self._hallucination_phrases
+
+    def _clean_segment_text(self, text: str) -> str:
+        """Collapse repeated phrases within one segment when filtering is enabled."""
+        if self.repetition_penalty <= 1.0:
+            return text
+        return _collapse_repeated_phrases(text)
 
     def process(self, input_generator, language: str | None = None):
 
@@ -220,6 +349,7 @@ class ASRComponent(PipelineComponent):
                             )
 
                     transcribed_lines = []
+                    prev_norm = None
                     logger.info(
                         "[DIARIZATION] session=%s | whisper produced %d segment(s)",
                         self.session_id,
@@ -227,9 +357,13 @@ class ASRComponent(PipelineComponent):
                     )
 
                     for idx, sent in enumerate(source_segments):
-                        text = sent["text"].strip()
-                        if not text:
+                        text = self._clean_segment_text(sent["text"].strip())
+                        if not text or self._is_hallucination_phrase(text):
                             continue
+                        norm = _normalize_transcript_text(text)
+                        if self.repetition_penalty > 1.0 and norm and norm == prev_norm:
+                            continue
+                        prev_norm = norm
 
                         if use_per_segment_enrollment:
                             speaker = sent.get("speaker")
@@ -314,10 +448,15 @@ class ASRComponent(PipelineComponent):
                 else:
                     if transcription.get("segments"):
                         transcribed_lines = []
+                        prev_norm = None
                         for sent in transcription["segments"]:
-                            text = sent["text"].strip()
-                            if not text:
+                            text = self._clean_segment_text(sent["text"].strip())
+                            if not text or self._is_hallucination_phrase(text):
                                 continue
+                            norm = _normalize_transcript_text(text)
+                            if self.repetition_penalty > 1.0 and norm and norm == prev_norm:
+                                continue
+                            prev_norm = norm
 
                             start = float(sent["start"]) + float(chunk_data.get("start_time", 0.0))
                             end = float(sent["end"]) + float(chunk_data.get("start_time", 0.0))

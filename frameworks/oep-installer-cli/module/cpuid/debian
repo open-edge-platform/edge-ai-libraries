@@ -1,0 +1,10 @@
+
+debian_10_install_cpuid () {
+  if dpkg-query -L cpuid > /dev/null 2>&1; then
+    echo "Cpuid is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y cpuid
+  fi
+}
+

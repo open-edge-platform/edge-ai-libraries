@@ -1,0 +1,21 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# GPU override template for the behavioral-analysis service.
+#
+# Usage:
+#   1. Set BA_GST_DEVICE=GPU (and GST_INFERENCE_DEVICE if used directly) in your .env file.
+#   2. Copy this file to docker-compose.override.yml:
+#        cp docker-compose.override.yml.gpu-example docker-compose.override.yml
+#   3. Run docker compose as usual; Compose auto-merges docker-compose.override.yml:
+#        docker compose up
+#
+# docker-compose.override.yml is gitignored, so local GPU device mappings never
+# touch the tracked docker-compose.yml and won't cause merge conflicts on updates.
+
+services:
+  behavioral-analysis:
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${RENDERER_GROUP:-992}

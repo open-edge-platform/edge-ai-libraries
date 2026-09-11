@@ -40,14 +40,14 @@
         },
         {
             "id": 4,
-            "prompt": "Translate these compose vars to helm overrides and deploy: BACKEND=openvino DEVICE=cpu REGISTRY=intel/ BACKEND_TAG=core_1.3.3 UI_TAG=core_1.3.3 HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN} http_proxy=${http_proxy} https_proxy=${https_proxy} no_proxy=${no_proxy}",
+            "prompt": "Translate these compose vars to helm overrides and deploy: BACKEND=openvino DEVICE=cpu REGISTRY=intel/ BACKEND_TAG=2026.2.0-rc2 UI_TAG=2026.2.0-rc2 HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN} http_proxy=${http_proxy} https_proxy=${https_proxy} no_proxy=${no_proxy}",
             "expected_output": "Produces a concrete values-override.yaml mapping Compose or setup_env inputs to Helm values keys without hardcoding secrets.",
             "files": [],
             "expectations": [
                 "Creates or describes values-override.yaml as the translation artifact.",
                 "Maps backend to global.MODEL_RUNTIME and registry to image.registry.",
                 "Maps BACKEND_TAG for OpenVINO CPU to image.tags.openvinoCPU.",
-                "Maps UI_TAG to subchart.chatqna-ui.image.tag.",
+                "Maps UI_TAG to the chatqna-ui subchart image tag key (chatqna-ui.image.tags.ui).",
                 "Maps token to global.huggingface.apiToken while keeping secret handling safe.",
                 "Maps proxy values to global.http_proxy, global.https_proxy, and global.no_proxy."
             ]
@@ -66,11 +66,11 @@
         },
         {
             "id": 6,
-            "prompt": "Use OCI chart source version 1.3.3 for chatqna core and deploy to namespace ai.",
+            "prompt": "Use OCI chart source version 2026.2.0-rc2-helm for chatqna core and deploy to namespace ai.",
             "expected_output": "Follows the OCI chart workflow before install, including pull, extract, dependency build, and install or upgrade.",
             "files": [],
             "expectations": [
-                "Uses helm pull oci://registry-1.docker.io/intel/chat-question-and-answer-core with version 1.3.3.",
+                "Uses helm pull oci://registry-1.docker.io/intel/chat-question-and-answer-core with version 2026.2.0-rc2-helm.",
                 "Extracts chart tarball and changes into chart directory.",
                 "Runs helm dependency build before deployment.",
                 "Provides helm upgrade --install command with namespace ai and values files."
@@ -105,7 +105,7 @@
             "expected_output": "Returns actionable Helm validation failure guidance tied to the incorrect key and expected correction.",
             "files": [],
             "expectations": [
-                "Reports the exact key causing template validation failure.",
+                "Identifies gpu.key as the values key most likely causing the invalid GPU key failure, since no specific failing value was given in the prompt.",
                 "Proposes corrected key or value based on chart expectations.",
                 "Instructs to rerun helm template after correction."
             ]

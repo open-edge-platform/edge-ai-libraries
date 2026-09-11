@@ -1,0 +1,45 @@
+
+configure_vippet () {
+  workspace="$(ensure_project_path)/vippet"
+  version=release-2026.1.0
+  repository=https://github.com/open-edge-platform/edge-ai-libraries.git
+}
+
+verify_vippet () {
+  [ -r "$workspace/tools/visual-pipeline-and-platform-evaluation-tool/.env" ]
+}
+
+debian_90_profile_vippet () {
+  echo "docker make curl git edge_base"
+}
+
+debian_90_install_vippet () {
+  configure_vippet
+  if verify_vippet && [[ " $* " != *" --reset-vippet "* ]]; then
+    echo "Vipet is already installed. Skipping..."
+  else
+    ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool
+    cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
+    make build-onvif-discovery
+    docker compose -f compose.yml pull --ignore-buildable
+  fi
+}
+
+debian_90_start_vippet () {
+  ensure_ports_open "80 7860 8000 9090 8554 8889" debian_90_stop_vippet
+  configure_vippet
+  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
+  make run
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+}
+
+debian_90_stop_vippet () {
+  configure_vippet
+  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
+  make stop || true
+}
+
+debian_90_remove_vippet () {
+  debian_90_stop_vippet $* || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}

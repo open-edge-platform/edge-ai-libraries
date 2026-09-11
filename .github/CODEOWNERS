@@ -7,7 +7,7 @@ LICENSE             @xwu2intel
 CONTRIBUTING.md     @xwu2intel
 CODE_OF_CONDUCT.md  @xwu2intel
 SECURITY.md         @xwu2intel
-README.md           @xwu2intel
+README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 # GitHub Workflows
 /.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo @yangjianfeng1208
@@ -15,7 +15,7 @@ README.md           @xwu2intel
 # ============================================================================
 # Libraries
 # ============================================================================
- 
+
 /libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
 /libraries/edge-control-libraries/**/*.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
 
@@ -25,8 +25,11 @@ README.md           @xwu2intel
 /libraries/video-chunking-utils/                       @Johere @zhangcong2019 @llin60 @xwu2intel
 /libraries/video-chunking-utils/docs/                  @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /libraries/video-chunking-utils/README.md              @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
-/libraries/adaptive-token-compressor/                  @mnoiy @myqi @llin60 @Junyu-B @xwu2intel
-/libraries/adaptive-token-compressor/README.md         @mnoiy @myqi @llin60 @Junyu-B @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+
+/libraries/adaptive-token-compressor/                  @mnoiy @Johere @zhangcong2019 @llin60 @myqi @Junyu-B @xwu2intel
+/libraries/adaptive-token-compressor/docs/             @mnoiy @Johere @zhangcong2019 @llin60 @myqi @Junyu-B @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/libraries/adaptive-token-compressor/README.md         @mnoiy @Johere @zhangcong2019 @llin60 @myqi @Junyu-B @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+
 /libraries/kv-quant-offload/                           @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel
 /libraries/kv-quant-offload/README.md                  @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
@@ -60,10 +63,9 @@ README.md           @xwu2intel
 /microservices/model-download/docs/                    @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
 /microservices/model-download/README.md                @bharagha @madhuri-rai07 @Supriya-Krishnamurthi @14pankaj  @open-edge-platform/open-edge-platform-docs-write
 
-# the main folder lacks codeowners, needs resolution
-# /microservices/multilevel-video-understanding/
-# /microservices/multilevel-video-understanding/docs/      @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
-# /microservices/multilevel-video-understanding/README.md  @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/microservices/multilevel-video-understanding/           @Johere @zhangcong2019 @llin60 @lijiunderstand
+/microservices/multilevel-video-understanding/docs/      @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/microservices/multilevel-video-understanding/README.md  @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
 /microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
 /microservices/multimodal-embedding-serving/docs/      @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
@@ -103,7 +105,7 @@ README.md           @xwu2intel
 /sample-applications/chat-question-and-answer-core/           @bharagha @hteeyeoh @madhuri-rai07
 /sample-applications/chat-question-and-answer-core/docs/      @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
 /sample-applications/chat-question-and-answer-core/README.md  @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
-        
+
 /sample-applications/document-summarization/                 @bharagha @hteeyeoh @madhuri-rai07
 /sample-applications/document-summarization/docs/            @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write
 /sample-applications/document-summarization/README.md        @bharagha @hteeyeoh @madhuri-rai07  @open-edge-platform/open-edge-platform-docs-write

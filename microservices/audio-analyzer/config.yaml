@@ -6,13 +6,13 @@ app:
 
 models:
   asr:
-    provider: openai # openai | openvino | whispercpp
+    provider: openvino  # openai | openvino | whispercpp
     name: whisper-base  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
-    device: CPU # CPU recommended; CPU only for whispercpp, CPU or GPU for openvino provider
+    device: CPU # CPU | GPU | NPU for openvino; CPU only for openai/whispercpp
     weight_format: null # OpenVINO: int8 | fp16 | null. whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
     temperature: 0.0
-    diarization: False
-    hf_token: None   # needed only if diarization=true
+    diarization: False  # True or False, applicable for provider: openvino
+    hf_token: None  # needed only if diarization=true
     models_base_path: "models"
 
     # Hallucination filtering — openai provider uses native no_speech_prob/avg_logprob.
@@ -34,6 +34,25 @@ models:
     # noise-transcribed-as-text problem.  null = disabled.
     hallucination_silence_threshold: 1.0
 
+    # Backend-agnostic hallucination filter. Whisper (including the OpenVINO
+    # GenAI backend) hallucinates common subtitle phrases such as "Thank you"
+    # on silence / non-speech audio — usually the trailing silence captured
+    # after the speaker stops talking. Any transcript segment whose entire text
+    # matches one of these phrases (case- and punctuation-insensitive) is
+    # dropped. Unlike no_speech_threshold/logprob_threshold above, this also
+    # covers OpenVINO GenAI, which exposes no per-segment confidence signals.
+    # Set hallucination_phrase_filter: false to disable.
+    hallucination_phrase_filter: true
+    hallucination_phrases:
+      - "thank you"
+      - "thank you very much"
+      - "thanks for watching"
+      - "thank you for watching"
+      - "please subscribe"
+      - "subscribe"
+      - "you"
+      - "bye"
+
     # Post-processing repetition filter (all providers).
     # 1.0 = disabled. Any value > 1.0 enables consecutive repeated-phrase
     # removal (word n-gram dedup, window 1-8) and duplicate-segment stripping.
@@ -51,7 +70,7 @@ models:
   diarization: # Only applicable when models.asr.diarization is set to True
     provider: "huggingface"
     name: "pyannote/speaker-diarization-community-1"
-    device: CPU  # CPU or GPU
+    device: CPU  # CPU | GPU | NPU
     models_base_path: "models"
     min_speakers: 1   # kiosk scenario: at most 1 customer + 1 staff member per chunk
     max_speakers: 2

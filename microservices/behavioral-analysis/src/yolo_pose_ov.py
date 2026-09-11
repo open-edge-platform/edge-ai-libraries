@@ -74,6 +74,7 @@ class YOLOPoseOV:
         output = self._model([img])[self._output_layer]  # (1, 300, 57)
         logger.debug(f"YOLO output shape: {output.shape}, dtype: {output.dtype}")
         logger.debug(f"Output stats - min: {output.min():.4f}, max: {output.max():.4f}, mean: {output.mean():.4f}")
+        logger.debug(f"YOLO top raw detection row: {output[0, 0, :12]}")
         results = self._postprocess(output, ratio, pad_w, pad_h)
         logger.debug(f"Postprocess results: {len(results)} results, keypoints: {results[0].keypoints is not None}")
         if results[0].keypoints is not None:

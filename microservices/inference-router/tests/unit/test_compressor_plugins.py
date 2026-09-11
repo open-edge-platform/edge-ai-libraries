@@ -306,15 +306,36 @@ async def test_postresponse_placement_warns(patch_factory, caplog):
 
 
 @pytest.mark.asyncio
-async def test_compression_error_returns_unmodified_request(patch_factory):
+async def test_compression_error_returns_unmodified_request(patch_factory, caplog):
     """A compressor that raises must not crash the pipeline."""
-    patch_factory(raises=RuntimeError("backend down"))
+    patch_factory(raises=RuntimeError("token=super-secret"))
     pm = create_plugin_manager([_cfg("compressor_post", "harness", trigger="postrouting")])
     req = _request()
     out = await pm.process_postrouting_request(req)
     # Unchanged: still two messages with original content.
     assert len(out.messages) == 2
     assert out.messages[0].content == "long system prompt"
+    assert "super-secret" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_health_check_error_is_sanitized(patch_factory):
+    """Health responses must not expose backend exception text."""
+    fake = patch_factory()
+    pm = create_plugin_manager([_cfg("compressor_health", "harness")])
+    plugin = pm.get_plugin_by_name_and_node("compressor_health", "compressor")
+
+    def fail_health_check(*, timeout: float = 5.0):
+        raise RuntimeError("token=super-secret")
+
+    fake.health_check = fail_health_check
+    health = await plugin.health_check()
+
+    assert health == {
+        "healthy": False,
+        "state": "unhealthy",
+        "message": "compressor unavailable",
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────

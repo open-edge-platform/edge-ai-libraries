@@ -7,6 +7,7 @@ from typing import List, Dict, Optional
 import requests
 
 from video_chunking.data import ChunkMeta
+from video_analyzer.utils.file_utils import validate_local_path, validate_remote_url
 
 '''
 RST example:
@@ -93,12 +94,13 @@ def load_subtitles(input, max_bytes: int = 10 * 1024 * 1024) -> List[Dict]:
             return load_subtitles(input["path"], max_bytes)
 
         if "url" in input and input["url"]:
-            url = input["url"]
-            if not url.startswith(("http://", "https://")):
+            try:
+                url = validate_remote_url(input["url"])
+            except ValueError:
                 raise ValueError("Subtitle URL must be http/https")
 
             # Stream download with size cap
-            with requests.get(url, stream=True, timeout=30) as r:
+            with requests.get(url, stream=True, timeout=30, allow_redirects=False) as r:
                 r.raise_for_status()
                 buf = io.BytesIO()
                 for chunk in r.iter_content(chunk_size=64 * 1024):
@@ -127,9 +129,8 @@ def load_subtitles(input, max_bytes: int = 10 * 1024 * 1024) -> List[Dict]:
     # string input as local file path
     if isinstance(input, str):
         # Read local file and parse
-        if not os.path.exists(input):
-            raise FileNotFoundError(f"Subtitle file not found: {input}")
-        with open(input, 'r', encoding='utf-8') as f:
+        path = validate_local_path(input)
+        with open(path, 'r', encoding='utf-8') as f:
             content = f.read()
         _assert_size(content)
         return parse_subtitle_text(content)

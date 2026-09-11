@@ -4,7 +4,7 @@
 services:
   # Inference Router service
   router:
-    image: inference-router:latest
+    image: ${REGISTRY:-}inference-router:${TAG:-latest}
     container_name: inference-router
     build:
       context: ../..

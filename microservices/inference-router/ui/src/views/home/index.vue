@@ -70,9 +70,10 @@
             @refresh="handleRefreshMetrics"
             @reset="handleResetMetrics"
           />
-          <ProviderConfigTab v-show="activeDetailTab === 'providers'" />
-          <PolicyConfigTab v-show="activeDetailTab === 'policies'" />
-          <StrategyConfigTab v-show="activeDetailTab === 'strategies'" />
+          <ProviderConfigTab v-if="activeDetailTab === 'providers'" />
+          <PluginsConfigTab v-if="activeDetailTab === 'plugins'" />
+          <PolicyConfigTab v-if="activeDetailTab === 'policies'" />
+          <StrategyConfigTab v-if="activeDetailTab === 'strategies'" />
           <TokenOverview
             v-show="activeDetailTab === 'tokens'"
             :drawer-data="tokenDrawerData"
@@ -98,6 +99,7 @@ import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { Modal } from "ant-design-vue";
 import {
+  AppstoreOutlined,
   BranchesOutlined,
   ClockCircleOutlined,
   CloudServerOutlined,
@@ -118,6 +120,7 @@ import {
   LatencyOverview,
   Overview,
   PolicyConfigTab,
+  PluginsConfigTab,
   ProviderConfigTab,
   StrategyConfigTab,
   TokenOverview,
@@ -139,6 +142,7 @@ type RouterDetailTabKey =
   | "tokens"
   | "latency"
   | "providers"
+  | "plugins"
   | "policies"
   | "strategies";
 
@@ -194,6 +198,7 @@ const isRouterDetailTabKey = (value: unknown): value is RouterDetailTabKey =>
   value === "tokens" ||
   value === "latency" ||
   value === "providers" ||
+  value === "plugins" ||
   value === "policies" ||
   value === "strategies";
 
@@ -229,6 +234,11 @@ const routerDetailTabs = computed<RouterDetailTab[]>(() => [
     key: "providers",
     label: t("router.routerConfigProvidersTitle"),
     icon: CloudServerOutlined,
+  },
+  {
+    key: "plugins",
+    label: t("router.routerPluginConfigTitle"),
+    icon: AppstoreOutlined,
   },
   {
     key: "policies",

@@ -109,7 +109,8 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
+          severity-level: "HIGH"
           paths: "microservices/multimodal-embedding-serving/"
           report_suffix: "-bandit-multimodal-embedding-serving-CT161"
           
@@ -133,7 +134,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/multimodal-embedding-serving/"
           exclude_dirs: ".git,.pytest_cache,__pycache__,.venv"
           

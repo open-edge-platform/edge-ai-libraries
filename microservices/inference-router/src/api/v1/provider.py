@@ -35,6 +35,7 @@ from src.models import (
     ProviderResponse,
     ProviderSettingsResponse,
 )
+from src.router.logging_utils import sanitize_for_log
 
 
 logger = logging.getLogger(__name__)
@@ -221,7 +222,7 @@ async def create_or_update_provider(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create/update provider {name}: {e}")
+        logger.error(f"Failed to create/update provider {sanitize_for_log(name)}: {e}")
         raise HTTPException(status_code=500, detail="Failed to configure provider")
 
 
@@ -242,5 +243,5 @@ async def delete_provider(name: str, http_request: Request) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to delete provider {name}: {e}")
+        logger.error(f"Failed to delete provider {sanitize_for_log(name)}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete provider")

@@ -10,7 +10,7 @@ from api.openai_endpoints import router as openai_router
 from api.realtime_endpoints import router as realtime_router
 from utils.config_loader import config
 from utils.ensure_model import ensure_model
-from utils.openvino_runtime_validation import validate_openvino_npu_runtime
+from utils.openvino_runtime_validation import validate_runtime_configuration
 from utils.preload_models import preload_models
 import logging
 import os
@@ -53,7 +53,21 @@ def _clear_storage_on_startup() -> None:
 @app.on_event("startup")
 def startup_event():
     _clear_storage_on_startup()
-    validate_openvino_npu_runtime(config)
+    try:
+        validate_runtime_configuration(config)
+    except RuntimeError as exc:
+        # Runtime validation failed (device not present, missing driver, or
+        # missing compiler library for ASR/diarization/sentiment). Log a
+        # prominent warning and continue — the service starts healthy and
+        # falls back gracefully at request time if inference is attempted on
+        # the unavailable device. A hard crash here was causing the entire
+        # container to enter an unhealthy/bootloop state whenever any
+        # OpenVINO device-related config option was set on an incompatible
+        # host.
+        logger.warning(
+            "Runtime configuration validation failed — service will start but "
+            "some inference paths may not be available: %s", exc
+        )
     ensure_model()
     preload_models()
 

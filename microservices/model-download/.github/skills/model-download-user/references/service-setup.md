@@ -17,7 +17,7 @@ variables, and enabling the right plugins for your use case.
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
 cd edge-ai-libraries/microservices/model-download
 
 # 2. Set environment variables

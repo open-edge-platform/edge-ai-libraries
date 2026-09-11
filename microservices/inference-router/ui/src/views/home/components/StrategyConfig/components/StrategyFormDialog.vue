@@ -203,20 +203,26 @@ const rules: FormRules = reactive({
 });
 
 const syncFormModel = () => {
-  const strategy = props.dialogData || {};
-  formModel.name = typeof strategy.name === "string" ? strategy.name : "";
-  formModel.description =
-    typeof strategy.description === "string" ? strategy.description : "";
-  formModel.rulesText = formatJsonText(strategy.rules, { fallback: "" });
-  formModel.providerSelectorText = formatJsonText(strategy.provider_selector, {
+  const {
+    name,
+    description,
+    rules,
+    provider_selector,
+    sort,
+    require_healthy = false,
+    limit,
+  } = props.dialogData || {};
+
+  formModel.name = typeof name === "string" ? name : "";
+  formModel.description = typeof description === "string" ? description : "";
+  formModel.rulesText = formatJsonText(rules, { fallback: "" });
+  formModel.providerSelectorText = formatJsonText(provider_selector, {
     fallback: "",
   });
-  formModel.sortText = formatJsonText(strategy.sort, { fallback: "" });
-  formModel.requireHealthy = Boolean(strategy.require_healthy);
+  formModel.sortText = formatJsonText(sort, { fallback: "" });
+  formModel.requireHealthy = Boolean(require_healthy);
   formModel.limit =
-    typeof strategy.limit === "number" && Number.isFinite(strategy.limit)
-      ? strategy.limit
-      : null;
+    typeof limit === "number" && Number.isFinite(limit) ? limit : null;
 };
 
 const formatFormParam = (): StrategyConfigPayload => {

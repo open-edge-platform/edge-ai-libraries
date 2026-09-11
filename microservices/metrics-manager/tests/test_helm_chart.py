@@ -98,9 +98,34 @@ def test_helm_template_renders() -> None:
     rendered = result.stdout
     assert "kind: Deployment" in rendered
     assert "kind: Service" in rendered
-    # Privileged hostPID profile must always be rendered.
+    assert "hostPID: false" in rendered
+    assert "privileged: false" in rendered
+    assert "runAsNonRoot: true" in rendered
+    assert "readOnlyRootFilesystem: true" in rendered
+    assert "allowPrivilegeEscalation: false" in rendered
+    assert "type: RuntimeDefault" in rendered
+    assert "hostPath:" not in rendered
+
+
+@pytest.mark.skipif(shutil.which("helm") is None, reason="helm CLI not installed")
+def test_helm_template_hardware_telemetry_profile() -> None:
+    result = subprocess.run(
+        [
+            "helm", "template", "test", str(CHART_DIR),
+            "--set", "hardware.telemetry.enabled=true",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    rendered = result.stdout
     assert "hostPID: true" in rendered
     assert "privileged: true" in rendered
+    assert "runAsNonRoot: false" in rendered
+    assert "readOnlyRootFilesystem: false" in rendered
+    assert "mountPath: /sys" in rendered
+    assert "mountPath: /dev/dri" in rendered
 
 
 @pytest.mark.skipif(shutil.which("helm") is None, reason="helm CLI not installed")

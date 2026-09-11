@@ -1259,6 +1259,7 @@ class TestJobLifecycle(unittest.TestCase):
             canonical_display_name="YOLO 11n (FP16)",
             precision="FP16",
             model_path_full="/models/output/yolo11n/FP16/model.xml",
+            exists_on_disk=True,  # model files must be present for finalize to succeed
         )
         self._supported_cls.return_value.get_all_supported_models.return_value = [entry]
         job = _make_running_job(job_id="job-1", model_name="yolo11n")
@@ -1272,9 +1273,29 @@ class TestJobLifecycle(unittest.TestCase):
         # Display name has the precision suffix stripped.
         self.assertEqual(self.mgr._registry["yolo11n"].display_name, "YOLO 11n")
 
+    def test_finalize_success_fails_when_files_missing(self) -> None:
+        """If model-download reports success but files are not on disk the job
+        must be reclassified as FAILED and the model must NOT enter the registry.
+        This guards against silent failures such as a missing HF_TOKEN that
+        causes only metadata to be downloaded while the service still reports
+        "completed"."""
+        entry = _make_supported_model(
+            canonical_name="gemma3",
+            canonical_display_name="Gemma 3",
+            precision="INT4",
+            model_path_full="/models/output/openvino_models/cpu/int4/google/gemma-3-4b-it",
+            exists_on_disk=False,  # files NOT present despite "completed" status
+        )
+        self._supported_cls.return_value.get_all_supported_models.return_value = [entry]
+        job = _make_running_job(job_id="job-2", model_name="gemma3")
+        self.mgr._jobs["job-2"] = job
 
-# ----------------------------------------------------------------------
-# DownloadRequestCache — lazy load + malformed YAML
+        self.mgr._finalize_success("job-2", "gemma3", entry)
+
+        self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
+        self.assertNotIn("gemma3", self.mgr._registry)
+
+
 # ----------------------------------------------------------------------
 
 

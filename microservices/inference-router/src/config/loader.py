@@ -27,8 +27,12 @@ logger = logging.getLogger(__name__)
 _PLUGIN_TRIGGERS = {"prerouting", "postrouting", "postresponse"}
 
 
-# Matches ``${VAR}`` or ``${VAR:-default}`` anywhere in a string.
-_ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+# Matches ``${VAR}`` or ``${VAR:-default}`` anywhere in a string. The default
+# value is length-bounded (``{0,4096}``) rather than an open ``[^}]*`` so the
+# pattern stays linear on attacker-influenced config values — an unbounded
+# ``[^}]*`` re-scans to end-of-string from every ``${`` and is polynomial (a
+# ReDoS vector, CWE-1333). No real env-var default approaches this bound.
+_ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]{0,4096}))?\}")
 
 
 # Allowed characters for user-defined ``name`` fields.
@@ -79,6 +83,11 @@ def _expand_env_in_string(value: str) -> Optional[str]:
     when the variable isn't set, instead of being passed through as the
     literal placeholder.
     """
+    # Lazy import: this module loads during early config parsing, before the
+    # router stack; ``src.router.logging_utils`` lives under the heavy
+    # ``src.router`` package, so importing it here avoids an import cycle.
+    from src.router.logging_utils import sanitize_for_log
+
     match = _ENV_VAR_PATTERN.fullmatch(value.strip())
     if match:
         var_name, default = match.group(1), match.group(2)
@@ -87,7 +96,7 @@ def _expand_env_in_string(value: str) -> Optional[str]:
             return env_val
         if default is not None:
             return default
-        logger.debug(f"Env var {var_name!r} not set; resolving to None")
+        logger.debug("Env var %r not set; resolving to None", sanitize_for_log(var_name))
         return None
 
     def _sub(m: re.Match) -> str:
@@ -97,7 +106,9 @@ def _expand_env_in_string(value: str) -> Optional[str]:
             return env_val
         if default is not None:
             return default
-        logger.debug(f"Env var {var_name!r} not set; substituting empty string")
+        logger.debug(
+            "Env var %r not set; substituting empty string", sanitize_for_log(var_name)
+        )
         return ""
 
     return _ENV_VAR_PATTERN.sub(_sub, value)

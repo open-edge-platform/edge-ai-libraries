@@ -40,7 +40,7 @@ Zone auto-discovery runs at startup against the Scenescape REST API.
 - Re-trigger discovery without restarting:
 
   ```bash
-  curl --noproxy '*' -X POST http://127.0.0.1:8082/api/v1/lp/zones/discover
+  curl --noproxy '*' -X POST http://127.0.0.1:8082/api/v1/sus/zones/discover
   ```
 
 ## MQTT TLS Connection Fails
@@ -67,7 +67,7 @@ Zone auto-discovery runs at startup against the Scenescape REST API.
 - Alerts are forwarded to the alert-service at `ALERT_SERVICE_URL` (or
   `alert_service.base_url`). Confirm that service is reachable.
 - If `alert_service.enabled` is `false`, alerts are generated but not
-  forwarded. The `/api/v1/lp/alerts` endpoints will then return empty.
+  forwarded. The `/api/v1/sus/alerts` endpoints will then return empty.
 
 ## Behavioral Analysis Not Triggering
 

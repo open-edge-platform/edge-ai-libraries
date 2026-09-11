@@ -74,6 +74,20 @@ void MotionKernel::runCycle(const mcLREAL master_ref_pos,
       if (fb_front->isActive() == mcFALSE &&
           fb_front->getAxisNodeInstance()->isEnabled() == mcTRUE)
       {
+        // Blending handoff was seeded from the previous FB's idealized end
+        // target (addFBToQueue), which can differ slightly from the actual
+        // axis position/velocity at the crossing cycle; re-seed from real
+        // axis feedback here to avoid a handoff velocity glitch. The gap
+        // between the idealized and actual state grows with cycle time (a
+        // larger dt means more overshoot before checkMissionDone's crossing
+        // check fires), so this matters more at lower cycle rates.
+        if (fb_front->getBufferMode() != mcAborting &&
+            fb_front->getPlannerType() != mcPoly5 &&
+            fb_front->getPlannerType() != mcLine)
+        {
+          fb_front->setStartPos(axis_ref_pos);
+          fb_front->setStartVel(axis_ref_vel);
+        }
         fb_front->updateOverrideFactors(override_factors);
         fb_front->onActive(state);  // Activate the first node from queue
       }
@@ -229,13 +243,22 @@ void MotionKernel::addFBToQueue(ExecutionNode* node, mcLREAL current_pos,
       }
       break;
       case mcBlendingNext: {
-        fb_prev->setEndVel(node->getVelocity());
+        mcLREAL blend_vel = node->getVelocity();
+        // The planner rejects a target end-velocity that exceeds the node's
+        // own configured velocity limit (used as its max_velocity), so raise
+        // that limit to accommodate the blend instead of leaving it planted
+        // at move1's original (lower) velocity.
+        if (blend_vel > fb_prev->getVelocity())
+          fb_prev->setVelocity(blend_vel);
+        fb_prev->setEndVel(blend_vel);
         fb_prev->setReplan();
       }
       break;
       case mcBlendingHigh: {
-        fb_prev->setEndVel(
-            std::max(fb_prev->getVelocity(), node->getVelocity()));
+        mcLREAL blend_vel = std::max(fb_prev->getVelocity(), node->getVelocity());
+        if (blend_vel > fb_prev->getVelocity())
+          fb_prev->setVelocity(blend_vel);
+        fb_prev->setEndVel(blend_vel);
         fb_prev->setReplan();
       }
       break;

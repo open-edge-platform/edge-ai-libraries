@@ -24,8 +24,8 @@ configuration and asks for Kubernetes/Helm deployment.
 | `http_proxy` | `global.http_proxy` | |
 | `https_proxy` | `global.https_proxy` | |
 | `no_proxy` | `global.no_proxy` | chart appends `,127.0.0.1` in deployment |
-| `APP_BACKEND_URL=/v1/chatqna` | `subchart.chatqna-ui.global.app_backend_url` | Default already `/v1/chatqna` |
-| `UI_TAG` | `subchart.chatqna-ui.image.tag` | Only if overriding UI image tag |
+| `APP_BACKEND_URL=/v1/chatqna` | `chatqna-ui.global.app_backend_url` | Default already `/v1/chatqna` |
+| `UI_TAG` | `chatqna-ui.image.tags.ui` | Only if overriding UI image tag; `chatqna-ui` is the subchart dependency alias from `Chart.yaml` |
 | `HOST_IP` published bind | `global.ui_nodeport` + node host IP discovery | Kubernetes exposes NodePort instead of host bind |
 | `MODEL_CONFIG_PATH` bind mount | `configmap.enabled=true` + model keys in values | Translate file content into values fields, not host path mount |
 
@@ -45,5 +45,5 @@ gpu:
 image:
   registry: intel/
   tags:
-    openvinoCPU: core_1.3.3
+    openvinoCPU: core_2026.2.0-rc2
 ```

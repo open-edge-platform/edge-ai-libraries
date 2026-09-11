@@ -11,6 +11,9 @@ machine, evaluates a declarative rule engine against each event, and acts on
 the rule output by firing alerts and/or escalating to behavioral analysis.
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 %%{init: {
   'theme': 'base',
   'themeVariables': {
@@ -36,12 +39,13 @@ flowchart LR
     SceneAPI([Scenescape<br/>REST API])
 
     subgraph Service["Scene Understanding Service (FastAPI, :8082)"]
+
         MQTT["MQTT Subscriber<br/>(scene/region/image topics)"]
         SM["Session Manager<br/>(per-person state machine)"]
         RA["Rule Adapter<br/>(sessions → rule engine)"]
         RE["Rule Engine<br/>(rules.yaml)"]
         BA["BA Orchestrator<br/>(escalate action)"]
-        API["REST API<br/>(/api/v1/lp/*)"]
+        API["REST API<br/>(/api/v1/sus/*)"]
     end
 
     SeaweedFS[("SeaweedFS<br/>frame storage")]
@@ -87,7 +91,7 @@ flowchart LR
 - **BA orchestrator** — handles `escalate` actions: captures frames to
   SeaweedFS and drives behavioral analysis over the `ba/requests` /
   `ba/results` MQTT topics.
-- **REST API** — exposes session, zone, and alert state under `/api/v1/lp`.
+- **REST API** — exposes session, zone, and alert state under `/api/v1/sus`.
 
 ## Event Flow
 
@@ -118,7 +122,7 @@ flowchart LR
 ## Components
 
 - `main.py` — FastAPI app entry point and startup wiring.
-- `api/routes.py` — REST routes under `/api/v1/lp`.
+- `api/routes.py` — REST routes under `/api/v1/sus`.
 - `services/config.py` — loads `scene-config.yaml` + `rules.yaml`.
 - `services/mqtt_service.py` — Scenescape MQTT subscriber.
 - `services/session_manager.py` — per-person session state machine.

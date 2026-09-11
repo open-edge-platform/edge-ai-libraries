@@ -38,7 +38,7 @@ jobs:
         uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb
         
       - name: Run Zizmor Workflow Security Scan
-        continue-on-error: true
+        continue-on-error: false
         run: uvx zizmor=="$ZIZMOR_VERSION" "$GITHUB_WORKSPACE" --no-exit-codes > zizmor_workflow_scan_report.txt
           
       - name: Upload Zizmor Scan Report
@@ -98,7 +98,7 @@ jobs:
         uses: ./.github/actions/setup-tools
       
       - name: Run Unit Tests for Core
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           cd sample-applications/chat-question-and-answer-core
@@ -124,7 +124,7 @@ jobs:
           
       # - name: Upload Coverage Report
       #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-      #   continue-on-error: true
+      #   continue-on-error: false
       #   with:
       #     name: core-coverage-report
       #     path: |
@@ -135,12 +135,12 @@ jobs:
       
       # - name: Setup Node.js
       #   uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-      #   continue-on-error: true
+      #   continue-on-error: false
       #   with:
       #     node-version: '22'
  
       - name: Install npm dependencies
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           pwd
@@ -155,7 +155,7 @@ jobs:
       
       - name: Upload UI Results
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        continue-on-error: true
+        continue-on-error: false
         if: always()
         with:
           name: ui-test-results-core
@@ -164,7 +164,7 @@ jobs:
               sample-applications/chat-question-and-answer-core/ui/ui-coverage-html/
       
       - name: trivy repo scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           pwd
@@ -175,10 +175,10 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
     
           # Use the downloaded template
-          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_core.html"   
+          trivy fs . --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o "trivy_code_scan_core.html"
       
       - name: Upload trivy reports
-        continue-on-error: true
+        continue-on-error: false
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
@@ -188,7 +188,7 @@ jobs:
   
 
       - name: ClamAV Antivirus Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           echo "Starting ClamAV scan on sample-applications/chat-question-and-answer-core/..."
@@ -208,7 +208,7 @@ jobs:
           fi
       
       - name: Upload Antivirus Report
-        continue-on-error: true
+        continue-on-error: false
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -216,21 +216,21 @@ jobs:
           path: sample-applications/chat-question-and-answer-core/clamav-scan-report.log
       
       - name: Trivy Image Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
               pwd
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image chatqna-core-backend and scanning"
               docker build -f ./sample-applications/chat-question-and-answer-core/docker/Dockerfile -t chatqna-core-backend:latest ./sample-applications/chat-question-and-answer-core/
-              trivy image chatqna-core-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
+              trivy image chatqna-core-backend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
               trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.spdx.json chatqna-core-backend:latest
               echo "completed chatqna-core-backend scanning"
               
               echo "**************************************************************"
               echo "Building image chatqna-core-frontend and scanning"
               docker build -t="chatqna-core-frontend:latest" ./sample-applications/chat-question-and-answer-core/ui
-              trivy image chatqna-core-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
+              trivy image chatqna-core-frontend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
               trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.spdx.json chatqna-core-frontend:latest
               echo "completed chatqna-core-frontend scanning"
               echo "print all the files"
@@ -240,7 +240,7 @@ jobs:
             
             
       - name: Upload Trivy Image Report
-        continue-on-error: true
+        continue-on-error: false
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -251,12 +251,12 @@ jobs:
                 sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
                 sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.spdx.json
       - name: Run Bandit Security Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           echo "Running Bandit security scan..."
           
-          python -m bandit -r sample-applications/chat-question-and-answer-core/ -v --exit-zero > bandit_scan_report_summary.txt || echo "Bandit found security issues"
+          python -m bandit -r sample-applications/chat-question-and-answer-core/ -v --severity-level high --confidence-level high > bandit_scan_report_summary.txt
           
           echo "Bandit scan completed"
       
@@ -290,7 +290,7 @@ jobs:
         uses: ./.github/actions/setup-tools
       
       - name: Run Unit Tests for Core
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           cd sample-applications/chat-question-and-answer
@@ -316,7 +316,7 @@ jobs:
           rm -rf venv
           
       # - name: Upload Coverage Report
-      #   continue-on-error: true
+      #   continue-on-error: false
       #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       #   with:
       #     name: chatqna-coverage-report-qa
@@ -332,7 +332,7 @@ jobs:
       #     node-version: '22'
  
       - name: Install npm dependencies
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           pwd
@@ -345,7 +345,7 @@ jobs:
           npx vitest run --reporter=html --outputFile=chatqna-ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=chat-qna-ui-coverage-html
       
       - name: Upload UI Results
-        continue-on-error: true
+        continue-on-error: false
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
@@ -354,7 +354,7 @@ jobs:
               sample-applications/chat-question-and-answer/ui/react/ui-results.html
               sample-applications/chat-question-and-answer/ui/react/ui-coverage-html/
       - name: trivy repo scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           pwd
@@ -364,10 +364,10 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
     
           # Use the downloaded template
-          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_chatqna.html"   
+          trivy fs . --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o "trivy_code_scan_chatqna.html"
       
       - name: Upload trivy reports
-        continue-on-error: true
+        continue-on-error: false
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
@@ -375,7 +375,7 @@ jobs:
           path: |
               sample-applications/chat-question-and-answer/trivy_code_scan_chatqna.html
       - name: ClamAV Antivirus Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           echo "Starting ClamAV scan on sample-applications/chat-question-and-answer/..."
@@ -395,7 +395,7 @@ jobs:
           fi
       
       - name: Upload Antivirus Report
-        continue-on-error: true
+        continue-on-error: false
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -403,21 +403,21 @@ jobs:
           path: sample-applications/chat-question-and-answer/clamav-scan-report.log
       
       - name: Trivy Image Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
               pwd
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image chatqna-backend and scanning"
               docker build -f ./sample-applications/chat-question-and-answer/Dockerfile -t chatqna-backend:latest ./sample-applications/chat-question-and-answer/
-              trivy image chatqna-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.html
+              trivy image chatqna-backend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.html
               trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.spdx.json chatqna-backend:latest
               echo "completed chatqna-backend scanning"
               
               echo "**************************************************************"
               echo "Building image chatqna-frontend and scanning"
               docker build -t="chatqna-frontend:latest" ./sample-applications/chat-question-and-answer/ui/react
-              trivy image chatqna-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.html
+              trivy image chatqna-frontend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.html
               trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.spdx.json chatqna-frontend:latest
               echo "completed chatqna-frontend scanning"
               echo "print all the files"
@@ -427,7 +427,7 @@ jobs:
             
             
       - name: Upload Trivy Image Report
-        continue-on-error: true
+        continue-on-error: false
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -438,17 +438,17 @@ jobs:
                 sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.html
                 sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.spdx.json
       - name: Run Bandit Security Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           echo "Running Bandit security scan..."
           
-          python -m bandit -r sample-applications/chat-question-and-answer/ -v --exit-zero > bandit_scan_report_summary_chatqna.txt || echo "Bandit found security issues"
+          python -m bandit -r sample-applications/chat-question-and-answer/ -v --severity-level high --confidence-level high > bandit_scan_report_summary_chatqna.txt
           
           echo "Bandit scan completed"
       
       - name: Upload Bandit Security Report
-        continue-on-error: true
+        continue-on-error: false
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -478,7 +478,7 @@ jobs:
         uses: ./.github/actions/setup-tools
       
       - name: Run Unit Tests for Document Summarization
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           cd sample-applications/document-summarization
@@ -504,7 +504,7 @@ jobs:
           
       # - name: Upload Coverage Report
       #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-      #   continue-on-error: true
+      #   continue-on-error: false
       #   with:
       #     name: doc-summary-coverage-report
       #     path: |
@@ -516,7 +516,7 @@ jobs:
       # Note: Skipping npm/UI tests since document-summarization uses Gradio instead of React
       
       - name: trivy repo scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           pwd
@@ -527,10 +527,10 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
     
           # Use the downloaded template
-          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_doc_summary.html"   
+          trivy fs . --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o "trivy_code_scan_doc_summary.html"
       
       - name: Upload trivy reports
-        continue-on-error: true
+        continue-on-error: false
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
@@ -540,7 +540,7 @@ jobs:
   
 
       - name: ClamAV Antivirus Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           echo "Starting ClamAV scan on sample-applications/document-summarization/..."
@@ -560,7 +560,7 @@ jobs:
           fi
       
       - name: Upload Antivirus Report
-        continue-on-error: true
+        continue-on-error: false
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -568,14 +568,14 @@ jobs:
           path: sample-applications/document-summarization/clamav-scan-report.log
       
       - name: Trivy Image Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
               pwd
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image doc-summary-backend and scanning"
               docker build -f ./sample-applications/document-summarization/Dockerfile -t doc-summary-backend:latest ./sample-applications/document-summarization/
-              trivy image doc-summary-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.html
+              trivy image doc-summary-backend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.html
               trivy image --quiet --format spdx-json --output sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.spdx.json doc-summary-backend:latest
               echo "completed doc-summary-backend scanning"
               
@@ -587,7 +587,7 @@ jobs:
             
             
       - name: Upload Trivy Image Report
-        continue-on-error: true
+        continue-on-error: false
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -596,12 +596,12 @@ jobs:
                 sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.html
                 sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.spdx.json
       - name: Run Bandit Security Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           echo "Running Bandit security scan..."
           
-          python -m bandit -r sample-applications/document-summarization/ -v --exit-zero > bandit_scan_report_summary_doc_summary.txt || echo "Bandit found security issues"
+          python -m bandit -r sample-applications/document-summarization/ -v --severity-level high --confidence-level high > bandit_scan_report_summary_doc_summary.txt
           
           echo "Bandit scan completed"
       
@@ -632,7 +632,7 @@ jobs:
         uses: ./.github/actions/setup-tools
       
       - name: Run Unit Tests for Core
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           cd microservices/document-ingestion/pgvector/
@@ -657,7 +657,7 @@ jobs:
           rm -rf venv
           
       # - name: Upload Coverage Report
-      #   continue-on-error: true
+      #   continue-on-error: false
       #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       #   with:
       #     name: doc_ing-coverage-report
@@ -669,7 +669,7 @@ jobs:
       
      
       - name: trivy repo scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           pwd
@@ -679,10 +679,10 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
     
           # Use the downloaded template
-          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_doc_ing.html"   
+          trivy fs . --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o "trivy_code_scan_doc_ing.html"
       
       - name: Upload trivy reports
-        continue-on-error: true
+        continue-on-error: false
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
@@ -691,7 +691,7 @@ jobs:
               microservices/document-ingestion/pgvector/trivy_code_scan_doc_ing.html
       
       - name: ClamAV Antivirus Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           echo "Starting ClamAV scan on sample-applications/chat-question-and-answer/..."
@@ -711,7 +711,7 @@ jobs:
           fi
       
       - name: Upload Antivirus Report
-        continue-on-error: true
+        continue-on-error: false
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -719,21 +719,21 @@ jobs:
           path: microservices/document-ingestion/pgvector/clamav-scan-report.log
       
       - name: Trivy Image Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
               echo "print pwd"
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image doc_ing-backend and scanning"
               docker build -f ./microservices/document-ingestion/pgvector/docker/Dockerfile -t doc_ing-backend:latest ./microservices/document-ingestion/pgvector/
-              trivy image doc_ing-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.html
+              trivy image doc_ing-backend:latest --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format template --template "@trivy-html.tpl" -o microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.html
               trivy image --quiet --format spdx-json --output microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.spdx.json doc_ing-backend:latest
               echo "completed doc_ing-backend scanning"
             
               
             
       - name: Upload Trivy Image Report
-        continue-on-error: true
+        continue-on-error: false
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -743,17 +743,17 @@ jobs:
                 microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.spdx.json
       
       - name: Run Bandit Security Scan
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           echo "Running Bandit security scan..."
           
-          python -m bandit -r microservices/document-ingestion/ -v --exit-zero > bandit_scan_report_summary_doc_ing.txt || echo "Bandit found security issues"
+          python -m bandit -r microservices/document-ingestion/ -v --severity-level high --confidence-level high > bandit_scan_report_summary_doc_ing.txt
           
           echo "Bandit scan completed"
       
       - name: Upload Bandit Security Report
-        continue-on-error: true
+        continue-on-error: false
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:

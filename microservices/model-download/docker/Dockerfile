@@ -8,7 +8,7 @@ FROM python:3.12-slim AS python-base
 WORKDIR /opt
 
 # Install system dependencies required for uv and the application
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libgl1 \
     libsm6 \
     curl \
@@ -31,7 +31,7 @@ ARG GID=1000
 ENV PYTHONPATH=/opt
 ENV MODELS_DIR=/opt/models
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends \
+RUN apt-get update -y && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libmagic-dev \
     libglib2.0-0 \
     libgl1 \

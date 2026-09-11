@@ -82,7 +82,7 @@ docker compose up -d
 ```bash
 docker compose ps
 curl --noproxy '*' http://127.0.0.1:8082/health
-curl --noproxy '*' http://127.0.0.1:8082/api/v1/lp/status
+curl --noproxy '*' http://127.0.0.1:8082/api/v1/sus/status
 ```
 
 ### Follow Logs
@@ -118,11 +118,11 @@ For endpoint details and examples, see the [API Reference](../api-reference.md).
 
 ## Notes
 
-- Container host port: `8082`; API base path: `/api/v1/lp`.
+- Container host port: `8082`; API base path: `/api/v1/sus`.
 - The service reads `scene-config.yaml` and `rules.yaml` from `/app/configs`
   (override with `CONFIG_DIR`). A mounted `./configs` volume overrides the
   bundled samples.
 - There is no hard startup dependency on Scenescape — the service starts and
   retries the MQTT connection in the background.
-- Use `GET /api/v1/lp/status` (or `GET /health`) for readiness gating in
+- Use `GET /api/v1/sus/status` (or `GET /health`) for readiness gating in
   `depends_on`.

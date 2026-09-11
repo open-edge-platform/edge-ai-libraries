@@ -1,0 +1,153 @@
+
+<!--
+SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <title>OEP CLI Installer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      /* Transparent background so the embedding docs page shows through and the
+         widget reads as part of the page rather than a separate boxed section. */
+      html, body {
+        background: transparent;
+      }
+
+      /* The spark responsive container paints a light-gray card background;
+         override it so the widget blends fully into the docs page. */
+      .app-wrap.st-responsive-container {
+        background: transparent;
+      }
+
+      /* Responsive layout that works well in iframes */
+      .app-wrap { 
+        max-width: 100%; 
+        width: 100%;
+        margin: 0 auto; 
+        padding: 0 1rem; 
+        box-sizing: border-box;
+      }
+      
+      /* Ensure content doesn't overflow horizontally */
+      * {
+        box-sizing: border-box;
+      }
+      
+      .pill-active {
+        color: white;
+        border-color: #007acc;
+        background-color: #007acc;
+      }
+      .section-title { font-weight: 600; }
+      .code-box {
+        border: 1px solid var(--spark-color-theme-light-gray400);
+        border-radius: .75rem;
+        background: var(--spark-color-theme-light-gray200);
+        padding: .75rem;
+        padding-right: 4.5rem; /* Reserve space for copy button */
+        position: relative;
+        overflow-x: auto;
+        word-wrap: break-word;
+        white-space: pre-line;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .code-copy { 
+        position: absolute; 
+        top: .5rem; 
+        right: .5rem;
+        z-index: 1; /* Ensure button stays on top */
+      }
+      .subtitle { opacity:.8; }
+      #installText {
+        font-family: monospace, monospace;
+        font-size: 0.875rem;
+        line-height: 1.4;
+        margin: 0;
+        padding: 0;
+        white-space: pre-line;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        max-width: 100%;
+        width: 100%;
+      }
+      
+      /* Responsive adjustments for smaller screens/iframes */
+      @media (max-width: 768px) {
+        .app-wrap {
+          margin: 0.5rem auto;
+          padding: 0 0.5rem;
+        }
+        .code-box {
+          padding: 0.5rem;
+          padding-right: 4rem; /* Maintain space for copy button on small screens */
+        }
+        #installText {
+          font-size: 0.8rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app-wrap st-responsive-container idz-page">
+      <h1 id="app-title" class="section-title"></h1>
+
+      <div id="categories"></div>
+
+      <section class="st-section st-section-accent" style="margin-top:1.25rem;">
+        <div class="st-section-title">Install</div>
+        <div class="st-section-content">
+          <div class="st-section-content-row">
+            <div class="code-box st-code-snippet-multi-line" style="min-width: 300px; width:100%;">
+              <button id="copyCmd" class="spark-button spark-button-size-s spark-button-primary code-copy">Copy</button>
+              <pre class="st-code-snippet-content" id="installText">Select options to see a command…</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="nextStepsSection" class="st-section st-section-accent" style="margin-top:1.25rem;">
+        <div class="st-section-title">Next Steps</div>
+        <div class="st-section-content">
+          <div class="st-section-content-row">
+            <div style="min-width: 300px; width:100%;">
+              <div id="nextStepsText">
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="st-section st-section-accent" style="margin-top:1.25rem;">
+        <div class="st-section-title">Get Started</div>
+        <div class="st-section-content">
+          <div class="st-section-content-row">
+            <div style="min-width: 300px; width:100%;">
+              <div id="getStartedText">
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="st-section st-section-accent" style="margin-top:1.25rem;">
+        <div class="st-section-title">Resources</div>
+        <div class="st-section-content">
+          <div class="st-section-content-row">
+            <div style="min-width: 300px; width:100%;">
+              <div id="resourcesText">
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="selector.js"></script>
+  </body>
+</html>
+

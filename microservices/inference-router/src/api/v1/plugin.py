@@ -21,6 +21,7 @@ from src.plugins.manager import (
     get_registered_plugin_class,
     list_registered_plugin_nodes,
 )
+from src.router.logging_utils import sanitize_for_log
 
 
 logger = logging.getLogger(__name__)
@@ -196,7 +197,7 @@ async def get_plugin_node(node: str) -> dict:
     try:
         return plugin_cls.describe_node()
     except Exception as e:
-        logger.error(f"Failed to describe plugin node {node}: {e}")
+        logger.error(f"Failed to describe plugin node {sanitize_for_log(node)}: {e}")
         raise HTTPException(status_code=500, detail="Failed to describe plugin node")
 
 
@@ -222,7 +223,9 @@ async def get_plugin(node: str, name: str, http_request: Request) -> dict:
         try:
             return live.describe()
         except Exception as e:
-            logger.error(f"Failed to describe plugin {node}/{name}: {e}")
+            logger.error(
+                f"Failed to describe plugin {sanitize_for_log(node)}/{sanitize_for_log(name)}: {e}"
+            )
             raise HTTPException(status_code=500, detail="Failed to describe plugin")
 
     plugin = _find_plugin(http_request, name, node)
@@ -314,7 +317,9 @@ async def create_or_update_plugin(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create/update plugin {name}/{node}: {e}")
+        logger.error(
+            f"Failed to create/update plugin {sanitize_for_log(name)}/{sanitize_for_log(node)}: {e}"
+        )
         raise HTTPException(status_code=500, detail="Failed to configure plugin")
 
 
@@ -338,5 +343,7 @@ async def delete_plugin(node: str, name: str, http_request: Request) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to delete plugin {name}/{node}: {e}")
+        logger.error(
+            f"Failed to delete plugin {sanitize_for_log(name)}/{sanitize_for_log(node)}: {e}"
+        )
         raise HTTPException(status_code=500, detail="Failed to delete plugin")

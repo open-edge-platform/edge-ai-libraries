@@ -57,7 +57,7 @@ def _get_manager(cache_size: int = 4096) -> Optional[Any]:
                 logger.warning(
                     "adaptive-token-compressor not importable (%s); compressor "
                     "plugins run standalone with no cache/metrics aggregation.",
-                    exc,
+                    type(exc).__name__,
                 )
                 return None
             _MANAGER = CompressionManager(cache_size=cache_size)
@@ -75,7 +75,7 @@ def get_compression_metrics(source: str | None = None) -> Dict[str, float]:
         return _MANAGER.snapshot(source=source)
     except Exception as exc:
         # e.g. PerRequest metrics registered but no request seen yet.
-        logger.debug("compression snapshot unavailable: %s", exc)
+        logger.debug("compression snapshot unavailable: %s", type(exc).__name__)
         return {}
 
 
@@ -157,7 +157,7 @@ def _register_metrics(manager: Any, source: str, metric_keys: List[str]) -> None
                 "compressor '%s': failed to register metric %r (%s) — skipped",
                 source,
                 key,
-                exc,
+                type(exc).__name__,
             )
 
 
@@ -185,7 +185,9 @@ def register_overall_metrics(sources: List[str]) -> None:
             manager.register_metric(name, spec)
         except Exception as exc:
             logger.warning(
-                "compression overall metrics: failed to register %r (%s)", name, exc
+                "compression overall metrics: failed to register %r (%s)",
+                name,
+                type(exc).__name__,
             )
     logger.info("Registered overall compression metrics (sources=%s)", sources)
 
@@ -303,7 +305,7 @@ class CompressorPlugin(PluginBaseNode):
         except Exception as exc:  # pragma: no cover - import guard
             raise PluginSchemaError(
                 "compressor: adaptive-token-compressor is not importable; "
-                f"cannot validate settings.type={ctype!r}: {exc}"
+                f"cannot validate settings.type={ctype!r}"
             ) from exc
 
         known = sorted(atc.available_compressor_types())
@@ -316,7 +318,7 @@ class CompressorPlugin(PluginBaseNode):
             schema = atc.config_schema(ctype)
         except Exception as exc:
             raise PluginSchemaError(
-                f"compressor: failed to fetch config schema for type {ctype!r}: {exc}"
+                f"compressor: failed to fetch config schema for type {ctype!r}"
             ) from exc
 
         properties: Dict[str, Dict[str, Any]] = dict(schema.get("properties", {}) or {})
@@ -357,7 +359,7 @@ class CompressorPlugin(PluginBaseNode):
             return _CompressorConfig(**merged)
         except Exception as exc:
             raise PluginSchemaError(
-                f"Invalid common compressor settings for type {ctype!r}: {exc}"
+                f"Invalid common compressor settings for type {ctype!r}"
             ) from exc
 
     def init(self) -> None:
@@ -395,7 +397,7 @@ class CompressorPlugin(PluginBaseNode):
                 logger.warning(
                     "compressor '%s': manager registration failed (%s); running standalone.",
                     self.name,
-                    exc,
+                    type(exc).__name__,
                 )
 
     def _build_compressor(self, s: _CompressorConfig) -> Any:
@@ -407,7 +409,7 @@ class CompressorPlugin(PluginBaseNode):
             return create_compressor(self._ctype, **_library_params(s))
         except ConfigError as exc:
             raise PluginSchemaError(
-                f"Invalid settings for compressor type {self._ctype!r}: {exc}"
+                f"Invalid settings for compressor type {self._ctype!r}"
             ) from exc
 
     def _compress(self, request: ChatCompletionRequest) -> ChatCompletionRequest:
@@ -423,11 +425,10 @@ class CompressorPlugin(PluginBaseNode):
             return _apply_result(request, result)
         except Exception as exc:
             logger.error(
-                "[%s] compressor (type=%s) failed: %s — returning request unmodified.",
+                "[%s] compressor (type=%s) failed: %s; returning request unmodified.",
                 self.name,
                 self._ctype,
-                exc,
-                exc_info=True,
+                type(exc).__name__,
             )
             return request
 
@@ -484,6 +485,15 @@ class CompressorPlugin(PluginBaseNode):
                     "details": dict(getattr(status, "details", {}) or {}),
                 }
             except Exception as exc:
-                return {"healthy": False, "state": "unhealthy", "message": str(exc)}
+                logger.warning(
+                    "[%s] compressor health check failed: %s",
+                    self.name,
+                    type(exc).__name__,
+                )
+                return {
+                    "healthy": False,
+                    "state": "unhealthy",
+                    "message": "compressor unavailable",
+                }
 
         return await asyncio.to_thread(_probe)

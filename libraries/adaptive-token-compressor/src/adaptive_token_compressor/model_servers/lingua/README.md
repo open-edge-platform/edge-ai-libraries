@@ -26,7 +26,7 @@ pip install "adaptive-token-compressor[lingua-server-cpu]"
 
 No IPEX, no XPU wheels — default PyPI index works. Pass `--backend pytorch --device cpu` on launch.
 
-## Install (OpenVINO backend — xpu or cpu)
+## Install (OpenVINO backend — cpu / gpu)
 
 ```bash
 pip install "adaptive-token-compressor[lingua-server-ov]"
@@ -34,7 +34,8 @@ pip install "adaptive-token-compressor[lingua-server-ov]"
 
 OpenVINO reaches the Intel GPU through its own runtime, not torch, so plain CPU
 `torch` is enough — no IPEX / XPU wheels, default PyPI index works. Adds
-`openvino` + `optimum[openvino]`. Run with `--backend ov --device xpu` (or `cpu`).
+`openvino` + `optimum[openvino]`. Run with `--backend ov --device gpu` (or `cpu`;
+devices are lowercase and case-insensitive, default `gpu`).
 
 > To run both the PyTorch-XPU and OpenVINO backends from one environment,
 > combine the extras: `"adaptive-token-compressor[lingua-server-xpu,lingua-server-ov]"`
@@ -67,7 +68,7 @@ the `digit_neighbor_radius` field is silently ignored.
 ```bash
 python -m adaptive_token_compressor.model_servers.lingua    # default --backend pytorch --device xpu --port 8001
 python -m adaptive_token_compressor.model_servers.lingua --backend pytorch --device cpu
-python -m adaptive_token_compressor.model_servers.lingua --backend ov --device xpu
+python -m adaptive_token_compressor.model_servers.lingua --backend ov --device gpu    # ov default
 python -m adaptive_token_compressor.model_servers.lingua --backend ov --device cpu
 python -m adaptive_token_compressor.model_servers.lingua --model_name microsoft/llmlingua-2-xlm-roberta-large-meetingbank
 ```
@@ -141,7 +142,7 @@ result = backend.compress(
 ## See also
 
 - Docker compose deployment (recommended for production):
-  `docs/use-guide/lingua-deployment.md` —
+  `docs/user-guide/lingua-deployment.md` —
   `cd deployment/lingua && docker compose up -d --build` runs the same
   server inside a container without installing extras locally.
 

@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from api.custom_endpoints import router as custom_router
 from api.error_responses import build_openai_error, openai_error_response
 from api.openai_endpoints import router as openai_router
+from api.streaming_endpoints import router as streaming_router
 from pipeline import Pipeline
 from utils.config_loader import config
 from utils.ensure_model import ensure_model
@@ -80,6 +81,7 @@ app.add_middleware(
 )
 
 app.include_router(openai_router)
+app.include_router(streaming_router)
 app.include_router(custom_router)
 
 
