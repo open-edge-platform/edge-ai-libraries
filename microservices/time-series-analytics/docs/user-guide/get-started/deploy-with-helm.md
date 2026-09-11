@@ -31,7 +31,7 @@
 
         `tar -xvzf ia-time-series-analytics-microservice-2026.2.0-<date>-weekly-helm.tgz`
 
-    - Get into the Helm directory
+    3. Get into the Helm directory
 
         `cd ia-time-series-analytics-microservice`
 

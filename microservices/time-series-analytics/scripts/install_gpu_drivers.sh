@@ -102,7 +102,7 @@ case $INSTALL_DRIVER_VERSION in \
         curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/libze-intel-gpu1_26.27.39122.11-0_amd64.deb || exit 1 && \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
-*) \ddeb 
+*) \
         dpkg -P intel-gmmlib intel-igc-core intel-igc-opencl intel-level-zero-gpu intel-ocloc intel-opencl intel-opencl-icd && \
         apt-get update && apt-get -y --no-install-recommends install dpkg-dev && rm -rf /var/lib/apt/lists/* && \
         cd /drivers/${INSTALL_DRIVER_VERSION} && \
@@ -115,6 +115,7 @@ case $INSTALL_DRIVER_VERSION in \
             intel-level-zero-gpu level-zero \
             intel-media-va-driver-non-free libmfx1 && \
             rm -rf /var/lib/apt/lists/* ; \
+;; \
 esac
 
 apt-get clean && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
