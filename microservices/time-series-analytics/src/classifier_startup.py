@@ -10,7 +10,6 @@
 import subprocess
 import os
 import os.path
-import re
 import time
 import tempfile
 import sys
@@ -499,7 +498,6 @@ def classifier_startup(config):
         dir_name = os.getenv("SAMPLE_APP")
     else:
         dir_name = udf_name
-    dir_name = sanitize_dir_name(dir_name)
 
     udf_section = config_data.get('udf', {}).get('functions', {})
     udf_section[udf_name] = tomlkit.table()
