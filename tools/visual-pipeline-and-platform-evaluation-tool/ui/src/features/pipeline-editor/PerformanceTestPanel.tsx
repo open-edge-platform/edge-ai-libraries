@@ -1,25 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MetadataJsonViewer } from "@/features/metadata/MetadataJsonViewer.tsx";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
+import {
+  VlmMetricsCharts,
+  type VlmMetricsPoint,
+} from "@/features/metrics/VlmMetricsCharts.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
 import {
   useFrozenMetrics,
   type FrozenSnapshotOverrides,
 } from "@/hooks/useFrozenMetrics";
+import { useMetricHistory } from "@/hooks/useMetricHistory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
-import { Button } from "@/components/ui/button";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsRight,
-  ExternalLink,
-} from "lucide-react";
-import { highlightJson } from "@/lib/jsonUtils";
+import { ExternalLink } from "lucide-react";
 import "@/lib/hljs-theme.css";
 
 const MAX_JSON_LINES_PER_PIPELINE = 400;
 const METADATA_POLL_INTERVAL = 3000;
-
 type ConnectionState = "connecting" | "open" | "error" | "closed";
 
 type PerformanceJobStatusWithMetadata = {
@@ -37,108 +35,6 @@ const buildStreamLabel = (jobId: string, pipelineId: string): string => {
 const shortenStreamUrl = (url: string): string => {
   const segments = url.replace(/\/+$/, "").split("/").filter(Boolean);
   return segments.length > 2 ? `…/${segments.slice(-2).join("/")}` : url;
-};
-
-const MetadataJsonViewer = ({
-  lines,
-  stale = false,
-}: {
-  lines: string[];
-  stale?: boolean;
-}) => {
-  const [currentIndex, setCurrentIndex] = useState(lines.length - 1);
-  const [followLatest, setFollowLatest] = useState(true);
-
-  useEffect(() => {
-    if (followLatest && lines.length > 0) {
-      setCurrentIndex(lines.length - 1);
-    }
-  }, [lines.length, followLatest]);
-
-  const goPrev = useCallback(() => {
-    setFollowLatest(false);
-    setCurrentIndex((i) => Math.max(0, i - 1));
-  }, []);
-
-  const goNext = useCallback(() => {
-    setCurrentIndex((i) => {
-      const next = Math.min(lines.length - 1, i + 1);
-      if (next === lines.length - 1) setFollowLatest(true);
-      return next;
-    });
-  }, [lines.length]);
-
-  const goLatest = useCallback(() => {
-    setFollowLatest(true);
-    setCurrentIndex(lines.length - 1);
-  }, [lines.length]);
-
-  const safeIndex =
-    lines.length > 0
-      ? Math.max(0, Math.min(currentIndex, lines.length - 1))
-      : 0;
-  const currentLine = lines[safeIndex] ?? "";
-  const highlightedHtml = useMemo(
-    () => (currentLine ? highlightJson(currentLine) : ""),
-    [currentLine],
-  );
-
-  if (lines.length === 0) {
-    return (
-      <div className="min-h-[100px] flex items-center justify-center border bg-muted/20 p-3">
-        <p className="text-sm text-muted-foreground">
-          Waiting for JSON entries...
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col space-y-2 min-w-0">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={goPrev}
-            disabled={safeIndex === 0}
-            aria-label="Previous entry"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={goNext}
-            disabled={safeIndex >= lines.length - 1}
-            aria-label="Next entry"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {safeIndex + 1} / {lines.length}
-        </span>
-        <Button
-          variant={followLatest ? "secondary" : "outline"}
-          size="sm"
-          onClick={goLatest}
-          className="text-xs gap-1 h-7"
-        >
-          <ChevronsRight className="h-3.5 w-3.5" />
-          Follow
-        </Button>
-      </div>
-      <pre
-        className={`min-h-[100px] max-h-[40vh] overflow-auto border p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-zinc-100 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 ${stale ? "border-2 dark:border-energy-blue/40 dark:shadow-energy-blue/20 dark:ring-1 dark:ring-energy-blue/20 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20 shadow-lg" : ""}`}
-      >
-        <code
-          className="hljs"
-          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-        />
-      </pre>
-    </div>
-  );
 };
 
 const collectMetadataStreams = (
@@ -184,6 +80,7 @@ const PerformanceTestPanel = ({
 }: PerformanceTestPanelProps) => {
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
+  const liveHistory = useMetricHistory();
   const prevIsRunningRef = useRef(false);
   const metadataSourcesRef = useRef<Record<string, EventSource>>({});
   const metadataSourceUrlsRef = useRef<Record<string, string>>({});
@@ -386,9 +283,28 @@ const PerformanceTestPanel = ({
   const displayEntries = hasMetadataStreams
     ? metadataEntries
     : (frozenMetadata?.entries ?? []);
-  const displayLines = hasMetadataStreams
-    ? metadataLines
-    : (frozenMetadata?.lines ?? {});
+  const displayLines = useMemo(
+    () => (hasMetadataStreams ? metadataLines : (frozenMetadata?.lines ?? {})),
+    [frozenMetadata?.lines, hasMetadataStreams, metadataLines],
+  );
+
+  const genAIMetricsData: VlmMetricsPoint[] = useMemo(
+    () =>
+      (isRunning ? liveHistory : frozenHistory)
+        .filter(
+          (point) =>
+            point.vlmTtftMs !== undefined ||
+            point.vlmTpotMs !== undefined ||
+            point.vlmGenerateDurationMs !== undefined,
+        )
+        .map((point) => ({
+          timestamp: point.timestamp,
+          ttft: point.vlmTtftMs ?? 0,
+          tpot: point.vlmTpotMs ?? 0,
+          totalLatency: point.vlmGenerateDurationMs ?? 0,
+        })),
+    [frozenHistory, isRunning, liveHistory],
+  );
 
   const metadataTabValue = activeMetadataTab ?? displayEntries[0]?.[0] ?? "";
 
@@ -398,32 +314,47 @@ const PerformanceTestPanel = ({
   const hasOutputVideo =
     !livePreviewEnabled && !isRunning && !!completedVideoPath;
   const showMetadataSection = enableMetadata && showMetadataTab;
-  const visibleTabCount = (hasMediaTab ? 1 : 0) + (showMetadataSection ? 1 : 0);
-  const effectiveMainTab =
-    activeMainTab === "media" && !hasMediaTab
-      ? "metadata"
-      : activeMainTab === "metadata" && !showMetadataSection
-        ? hasMediaTab
-          ? "media"
-          : "metadata"
-        : activeMainTab;
+  const showGenAIMetricsTab = genAIMetricsData.length > 0;
+  const showSummaryStyles = !isRunning && frozenSummary !== null;
+
+  const availableMainTabs = useMemo(() => {
+    const tabs: string[] = [];
+    if (hasMediaTab) tabs.push("media");
+    if (showMetadataSection) tabs.push("metadata");
+    if (showGenAIMetricsTab) tabs.push("genai-metrics");
+    return tabs;
+  }, [hasMediaTab, showMetadataSection, showGenAIMetricsTab]);
+
+  // Snap `activeMainTab` back to the first available tab whenever the current
+  // one disappears (e.g. metadata stream ends, VLM samples arrive/leave).
+  useEffect(() => {
+    if (
+      availableMainTabs.length > 0 &&
+      !availableMainTabs.includes(activeMainTab)
+    ) {
+      setActiveMainTab(availableMainTabs[0]);
+    }
+  }, [availableMainTabs, activeMainTab]);
 
   return (
     <div className="flex flex-col w-full h-full bg-background p-4 space-y-4 overflow-y-auto overflow-x-hidden min-w-0">
       <h2 className="text-lg font-semibold">Test pipeline</h2>
 
       <Tabs
-        value={effectiveMainTab}
+        value={activeMainTab}
         onValueChange={setActiveMainTab}
         className="flex flex-col min-w-0"
       >
-        {visibleTabCount > 1 && (
+        {availableMainTabs.length > 1 && (
           <TabsList>
             {hasMediaTab && (
               <TabsTrigger value="media">{mediaTabLabel}</TabsTrigger>
             )}
             {showMetadataSection && (
               <TabsTrigger value="metadata">Metadata JSON</TabsTrigger>
+            )}
+            {showGenAIMetricsTab && (
+              <TabsTrigger value="genai-metrics">VLM Metrics</TabsTrigger>
             )}
           </TabsList>
         )}
@@ -591,6 +522,15 @@ const PerformanceTestPanel = ({
                 })}
               </Tabs>
             )}
+          </TabsContent>
+        )}
+
+        {showGenAIMetricsTab && (
+          <TabsContent value="genai-metrics" className="space-y-4 mt-2">
+            <VlmMetricsCharts
+              data={genAIMetricsData}
+              isSummary={showSummaryStyles}
+            />
           </TabsContent>
         )}
       </Tabs>
