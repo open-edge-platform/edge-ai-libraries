@@ -26,11 +26,11 @@ cd edge-ai-libraries/microservices
 Run the command to build images:
 
 ```bash
-docker build -t retriever-milvus:2026.2.0-rc1 --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f vector-retriever/milvus/src/Dockerfile .
+docker build -t retriever-milvus:2025.2.0 --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f vector-retriever/milvus/src/Dockerfile .
 
 # build the dependency image
 cd multimodal-embedding-serving
-docker build -t multimodal-embedding-serving:2026.2.0-rc1 --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f docker/Dockerfile .
+docker build -t multimodal-embedding-serving:2025.2.0 --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f docker/Dockerfile .
 ```
 
 #### Option 2: Use Remote Prebuilt Images
