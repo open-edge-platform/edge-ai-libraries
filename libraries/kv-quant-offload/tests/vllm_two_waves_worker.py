@@ -16,7 +16,7 @@ cache hits between them), while the same request index produces the exact
 same prompt on every invocation (wave) -- letting you compare wave1 (cold)
 vs wave2 (e.g. KV-cache-warmed) latency for "the same" request. Each
 generated prompt is then repeated/truncated (via the model's own tokenizer,
-loaded from $MODEL) to exactly INPUT_LEN tokens.
+loaded from $TOKENIZER_PATH/$MODEL) to exactly INPUT_LEN tokens.
 
 Also reports each request's cached_tokens (vLLM local prefix cache + LMCache
 external cache hits, combined -- the server does not split the two out), via
@@ -37,11 +37,14 @@ from transformers import AutoTokenizer
 
 BASE_URL = f"http://{os.environ['HOST']}:{os.environ['PORT']}"
 # Served model name, used as the "model" field in API requests.
-MODEL = os.environ["MODEL"]
-# Local path/name AutoTokenizer can resolve; defaults to MODEL for backward
-# compatibility, but should be set separately whenever MODEL is a
-# served-model-name that differs from the tokenizer's local path.
-TOKENIZER_PATH = os.environ.get("TOKENIZER_PATH", MODEL)
+SERVE = os.environ["SERVE"]
+# Model name/subdirectory under TOKENIZER_PATH; matches the vLLM server's
+# --model basename, not the served-model-name.
+MODEL = os.environ.get("MODEL", SERVE)
+# Directory containing the model, mounted at /models in the container. Joined
+# with MODEL to form the path AutoTokenizer resolves -- same join the shell
+# script applies for `vllm bench serve --model`.
+TOKENIZER_PATH = os.path.join(os.environ.get("TOKENIZER_PATH", "/models"), MODEL)
 KEY = os.environ["KEY"]
 MAX_TOKENS = int(os.environ["MAX_TOKENS"])
 OUT_DIR = os.environ["OUT_DIR"]
@@ -94,7 +97,7 @@ lock = threading.Lock()
 def run_one(req_id, prompt):
     body = json.dumps(
         {
-            "model": MODEL,
+            "model": SERVE,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0,
             "stream": True,

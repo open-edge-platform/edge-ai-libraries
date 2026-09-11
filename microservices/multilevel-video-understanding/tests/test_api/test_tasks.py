@@ -81,8 +81,8 @@ def test_register_fridge_full_mode(isolated_registry, test_client: TestClient):
     assert sorted(t["name"] for t in listing if t["source"] == "builtin") == ["summary", "summary_zh"]
 
     # Persisted to the isolated cache dir.
-    cache_file = Path(settings.VIDEO_SUMMARY_CACHE) / "tasks" / f"{FRIDGE_TASK}.json"
-    assert cache_file.exists()
+    cache_files = list((Path(settings.VIDEO_SUMMARY_CACHE) / "tasks").glob("*.json"))
+    assert len(cache_files) == 1
 
 
 @pytest.mark.api
@@ -118,8 +118,10 @@ def test_delete_dynamic_task(isolated_registry, test_client: TestClient):
         "/v1/tasks",
         json={"task_name": FRIDGE_TASK, "mode": "full", "content": {"text": FRIDGE_CONTENT}},
     )
-    assert test_client.delete(f"/v1/tasks/{FRIDGE_TASK}").status_code == 204
-    assert test_client.get(f"/v1/tasks/{FRIDGE_TASK}").status_code == 404
+    delete_response = test_client.delete(f"/v1/tasks/{FRIDGE_TASK}")
+    get_response = test_client.get(f"/v1/tasks/{FRIDGE_TASK}")
+    assert delete_response.status_code == 204
+    assert get_response.status_code == 404
 
 
 # ---------------------------------------------------------------- patch / rename

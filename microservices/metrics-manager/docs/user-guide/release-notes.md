@@ -1,8 +1,25 @@
 # Release Notes: Metrics Manager
 
-<!--## Version 2026.2.0-->
+## Version 2026.2.0
 
-<!--date TBD-->
+**Release Date:** September 9, 2026
+
+**New:**
+
+- **Platform & Device Capabilities API**: New `GET /api/v1/capabilities` endpoint returns a structured snapshot of the host platform and its compute devices (CPU, GPU, NPU, memory, storage, media codecs). Two detail profiles are available via `?profile=`: `minimal` (default) for a high-level summary and `expanded` for a full technical inventory. Enables workload placement without shelling out to platform-specific tools.
+- **Software Capabilities Export**: The capabilities snapshot reports the software stack on each detected compute device (drivers, runtimes, supported precisions, media codecs), enabling capability-aware model and pipeline placement across heterogeneous edge fleets.
+- **Hardware Discovery Tooling Bundled**: The runtime image ships `dmidecode`, `pciutils` (`lspci`), `util-linux` (`lsblk`), and `hwinfo` for out-of-the-box capability detection with no extra host packages or sidecar containers.
+- **Optional OpenVINO™ Build Variant**: New `openvino` extra in `pyproject.toml` and `INSTALL_OPENVINO` Docker build argument. When enabled, adds `vainfo` and `intel-media-va-driver` for VAAPI codec detection, while keeping the default image lean.
+
+**Improved:**
+
+- **Telegraf 1.38.4 Built from Source**: Compiled from the upstream `v1.38.4` tag using a digest-pinned Go 1.26.4 toolchain. Patches vulnerable bundled dependencies (`rclone` → 1.73.5, `go-billy` → 5.9.0), remediating known CVEs and producing a fully reproducible build.
+- **qmassa 2.1.0 and qmmd 0.2.0**: Installed with `cargo install --locked --git … --tag …` from upstream instead of crates.io, preventing build failures from yanked versions and bringing the latest Intel® GPU telemetry improvements.
+- **Security Hardening**: Several attack-surface reductions in the production image: `supervisor` installed via `pip` (4.3.0), `perl-base` purged, `curl` removed (healthcheck replaced with a Python one-liner), and supervisord's Unix socket configured with an explicit user/password placeholder.
+- **Build and Developer Loop**: Go module and build caches added to the `Dockerfile`, with leaner service startup/shutdown in `Makefile` and `compose.yaml` for shorter `make test` and `docker compose up/down` turnaround.
+- **Documentation**: Capabilities endpoint documented in the API reference, updated system requirements, corrected links and release-branch references, improved cross-linking, and an expanded troubleshooting section.
+- **Test Coverage**: New tests for the capabilities endpoint and response model, plus additional route and application wiring tests.
+
 
 ## Version 2026.1.0
 

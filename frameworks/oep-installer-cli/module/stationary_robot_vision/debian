@@ -1,0 +1,57 @@
+
+# Stationary Robot Vision & Control (RVC) - vision-guided pick-and-place
+# reference application (UR5e + MoveIt) from the Robotics AI Suite.
+# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html
+#
+# RVC ships as the ROS 2 meta-package `ros-<distro>-rvc-simulation` from the
+# AMR apt feed, which pulls in `ros-<distro>-rvc`, `ros-<distro>-robot-config`
+# and `ros-<distro>-robot-config-plugins`.
+configure_stationary_robot_vision () {
+  case "$VERSION_CODENAME" in
+  jammy) ros_distro=humble ;;
+  noble) ros_distro=jazzy ;;
+  *)     ros_distro=jazzy ;;
+  esac
+  rvc_pkgs="ros-$ros_distro-rvc-simulation"
+}
+
+debian_90_profile_stationary_robot_vision () {
+  echo "git curl edge_base ros2 amr_apt_repo ros_openvino realsense"
+}
+
+verify_stationary_robot_vision () {
+  configure_stationary_robot_vision
+  dpkg-query -l ros-$ros_distro-rvc > /dev/null 2>&1
+}
+
+debian_90_install_stationary_robot_vision () {
+  configure_stationary_robot_vision
+
+  if verify_stationary_robot_vision && [[ " $* " != *" --reset-stationary_robot_vision "* ]]; then
+    echo "Stationary Robot Vision & Control is already installed. Skipping..."
+  else
+    ensure_disk_space 15000
+    ensure_apt update -y
+    # RVC depends on Gazebo Harmonic (gz-harmonic); make sure the OSRF Gazebo
+    # apt repository is configured (shared with the AMR SDK component).
+    ! declare -F amr_setup_gazebo > /dev/null 2>&1 || amr_setup_gazebo
+    ensure_apt install -y $rvc_pkgs || {
+      echo "Could not install RVC packages ($rvc_pkgs)." 1>&2
+      echo "Confirm the exact package names at https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html" 1>&2
+      return 3
+    }
+  fi
+
+  echo "@@HIGHLIGHT Stationary Robot Vision & Control installed for ROS 2 $ros_distro"
+  echo "@@HIGHLIGHT docs @https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html"
+}
+
+debian_90_remove_stationary_robot_vision () {
+  configure_stationary_robot_vision
+  if verify_stationary_robot_vision; then
+    ensure_apt autoremove -m -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc \
+      ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true
+  else
+    echo "Stationary Robot Vision & Control already removed. Skipping"
+  fi
+}

@@ -1,0 +1,49 @@
+
+# Intel RealSense SDK (librealsense) + ROS 2 RealSense support.
+# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
+configure_realsense () {
+  rs_key_url=https://librealsense.realsenseai.com/Debian/librealsenseai.asc
+  rs_key_file=/etc/apt/keyrings/librealsenseai.gpg
+  rs_list=/etc/apt/sources.list.d/librealsense.list
+  case "$VERSION_CODENAME" in
+  jammy) ros_distro=humble ;;
+  noble) ros_distro=jazzy ;;
+  *)     ros_distro=jazzy ;;
+  esac
+}
+
+debian_55_profile_realsense () {
+  echo "curl gpg ros2 amr_apt_repo"
+}
+
+verify_realsense () {
+  configure_realsense
+  dpkg-query -l librealsense2 > /dev/null 2>&1
+}
+
+debian_55_install_realsense () {
+  configure_realsense
+
+  if verify_realsense && [[ " $* " != *" --reset-realsense "* ]]; then
+    echo "RealSense SDK is already installed. Skipping..."
+  else
+    ensure_sudo mkdir -p /etc/apt/keyrings
+    no_proxy= NO_PROXY= curl -sSf "$rs_key_url" | gpg --dearmor | ensure_sudo tee "$rs_key_file" > /dev/null
+    echo "deb [signed-by=$rs_key_file] https://librealsense.realsenseai.com/Debian/apt-repo $VERSION_CODENAME main" | \
+      ensure_sudo tee "$rs_list" > /dev/null
+    ensure_apt update -y
+
+    ensure_apt install -y --allow-downgrades ros-$ros_distro-librealsense2
+    ensure_apt install -y librealsense2-dkms librealsense2
+  fi
+}
+
+debian_55_remove_realsense () {
+  configure_realsense
+  if verify_realsense; then
+    ensure_apt autoremove -m -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true
+    ensure_sudo rm -f "$rs_key_file" "$rs_list"
+  else
+    echo "RealSense SDK already removed. Skipping"
+  fi
+}

@@ -47,6 +47,23 @@ export LLM_MODEL_NAME=Qwen/Qwen3.5-35B-A3B
 pytest -q tests/test_integration/test_summary_external_serving.py
 ```
 
+Run the deployed multilevel service integration test (optional):
+
+```bash
+source .venv/bin/activate
+export ENABLE_EXTERNAL_SERVING_TESTS=1
+# Optional overrides; these are the defaults.
+export MULTILEVEL_SERVICE_BASE_URL="http://localhost:8192"
+export MULTILEVEL_SERVICE_TIMEOUT_SECONDS=900
+pytest -q -s tests/test_integration/test_summary_deployed_service.py
+```
+
+This test calls the already-running multilevel service directly. It checks
+`/v1/health`, then runs the same summary case matrix as the external-serving
+test through `/v1/summary`; the service must be configured with reachable model
+serving endpoints. The `-s` option displays one `√` description after each
+case completes successfully.
+
 ## 4) Notes
 
 - Keep unit/API tests independent from network and external model serving whenever possible.

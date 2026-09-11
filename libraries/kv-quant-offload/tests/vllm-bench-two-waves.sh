@@ -105,7 +105,7 @@
 #   bash tests/vllm-bench-two-waves.sh
 #
 #   # Heavier run against a specific served model.
-#   MODEL=Qwen3.5-9B TOKENIZER_PATH=/models/Qwen3.5-9B \
+#   SERVE=Qwen3.5-9B TOKENIZER_PATH=/models MODEL=Qwen3.5-9B \
 #   NUM_REQUESTS=8 INPUT_LEN=2048 bash tests/vllm-bench-two-waves.sh
 #
 #   # Measure the L2 (disk) tier: clears vLLM prefix cache + LMCache L1
@@ -116,10 +116,12 @@
 #   WARMUP=0 bash tests/vllm-bench-two-waves.sh
 #
 # Key variables (default):
-#   MODEL (Qwen3.5-9B)      Served model name; must match --served-model-name.
-#   TOKENIZER_PATH ($MODEL) Local path AutoTokenizer can resolve, e.g.
-#                           /models/Qwen3.5-9B. Set whenever it differs from
-#                           the served name.
+#   SERVE (Qwen3.5-9B)      Served model name; must match --served-model-name.
+#   MODEL (Qwen3.5-9B)      Model name/subdir under TOKENIZER_PATH; must match
+#                           the vLLM server's --model basename.
+#   TOKENIZER_PATH (/models)  Directory containing MODEL. Joined as
+#                           $TOKENIZER_PATH/$MODEL to form the path
+#                           AutoTokenizer and `vllm bench serve` resolve.
 #   HOST/PORT (localhost/8000)  vLLM OpenAI API endpoint.
 #   NUM_REQUESTS (2)        Concurrent requests per wave.
 #   INPUT_LEN (512)         Exact prompt length in tokens.
@@ -142,11 +144,14 @@ set -euo pipefail
 
 # Served model name -- must match --served-model-name on the vLLM server,
 # used as the "model" field in API requests.
+SERVE=${SERVE:-Qwen3.5-9B}
+# Model name/subdirectory under $TOKENIZER_PATH -- must match the basename of
+# the vLLM server's --model, which may differ from the served model name.
 MODEL=${MODEL:-Qwen3.5-9B}
-# Local path/name AutoTokenizer can resolve (e.g. /models/Qwen3.5-9B).
-# Defaults to $MODEL, but set this separately whenever the served model name
-# differs from the tokenizer's local path (as with --served-model-name).
-TOKENIZER_PATH=${TOKENIZER_PATH:-${MODEL}}
+# Directory containing $MODEL (mounted at /models in the container). Joined as
+# $TOKENIZER_PATH/$MODEL to build the path that AutoTokenizer and
+# `vllm bench serve --model` resolve.
+TOKENIZER_PATH=${TOKENIZER_PATH:-/models}
 HOST=${HOST:-localhost}
 PORT=${PORT:-8000}
 KEY=${KEY:-sk-xxx}
@@ -180,7 +185,8 @@ if [ "${TEST_OBJECT}" = "l2" ]; then
   curl -s -X POST 'http://localhost:8000/reset_prefix_cache' >/dev/null || \
   echo "=== reset_prefix_cache unavailable; start vLLM with VLLM_SERVER_DEV_MODE=1 to enable it ==="
   sleep 5
-  curl -sf -X POST "${LMCACHE_HTTP_URL}/clear-cache"
+  curl -sf -X POST "${LMCACHE_HTTP_URL}/clear-cache" || \
+    echo "=== clear-cache unavailable; continuing without clearing LMCache L1 ==="
   sleep 5
 elif [ "${TEST_OBJECT}" = "l1_l0" ]; then
   sleep 5
@@ -255,8 +261,8 @@ print(f"{num_gpu_blocks} {block_size}")
   vllm bench serve \
     --host "${HOST}" \
     --port "${PORT}" \
-    --model "${TOKENIZER_PATH}" \
-    --served-model-name "${MODEL}" \
+    --model "${TOKENIZER_PATH}/${MODEL}" \
+    --served-model-name "${SERVE}" \
     --dataset-name random \
     --random-input-len ${INPUT_LEN} \
     --random-output-len 1 \
@@ -283,7 +289,7 @@ export PROMPT_A="Mr. and Mrs. Dursley, of number four, Privet Drive, were proud 
 # shared sentences with pool A.
 export PROMPT_B="It is a truth universally acknowledged, that a single man in possession of a good fortune must be in want of a wife. However little known the feelings or views of such a man may be on his first entering a neighbourhood, this truth is so well fixed in the minds of the surrounding families, that he is considered as the rightful property of some one or other of their daughters. My dear Mr. Bennet, said his lady to him one day, have you heard that Netherfield Park is let at last? Mr. Bennet replied that he had not. But it is, returned she; for Mrs. Long has just been here, and she told me all about it. Mr. Bennet made no answer. Do not you want to know who has taken it? cried his wife impatiently. You want to tell me, and I have no objection to hearing it. This was invitation enough. Why, my dear, you must know, Mrs. Long says that Netherfield is taken by a young man of large fortune from the north of England; that he came down on Monday in a chaise and four to see the place, and was so much delighted with it that he agreed with Mr. Morris immediately; that he is to take possession before Michaelmas, and some of his servants are to be in the house by the end of next week. What is his name? Bingley. Is he married or single? Oh! single, my dear, to be sure! A single man of large fortune; four or five thousand a year. What a fine thing for our girls!"
 
-export MODEL TOKENIZER_PATH HOST PORT KEY MAX_TOKENS OUT_DIR INPUT_LEN NUM_REQUESTS SEQ
+export MODEL SERVE TOKENIZER_PATH HOST PORT KEY MAX_TOKENS OUT_DIR INPUT_LEN NUM_REQUESTS SEQ
 
 run_wave() {
 local wave_name=$1
@@ -297,8 +303,8 @@ echo "=== warmup: triggering kernel compilation via vllm bench serve ==="
 vllm bench serve \
   --host "${HOST}" \
   --port "${PORT}" \
-  --model "${TOKENIZER_PATH}" \
-  --served-model-name "${MODEL}" \
+  --model "${TOKENIZER_PATH}/${MODEL}" \
+  --served-model-name "${SERVE}" \
   --dataset-name random \
   --random-input-len ${INPUT_LEN} \
   --random-output-len 64 \
@@ -307,7 +313,8 @@ vllm bench serve \
   --ignore-eos
 echo "=== warmup: done, clearing LMCache L1 cache ==="
 sleep 5
-curl -sf -X POST "${LMCACHE_HTTP_URL}/clear-cache"
+curl -sf -X POST "${LMCACHE_HTTP_URL}/clear-cache" || \
+  echo "=== clear-cache unavailable; continuing without clearing LMCache L1 ==="
 sleep 5
 echo
 echo "=== warmup: L1 cache cleared ==="

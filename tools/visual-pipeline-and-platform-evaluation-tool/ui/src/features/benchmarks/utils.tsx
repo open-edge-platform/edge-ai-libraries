@@ -58,5 +58,7 @@ export { exportBenchmarkRunCsv };
 export const formatBenchmarkExportFilename = (
   slug: string,
   startTime: number,
+  runId: number,
   extension: string,
-) => `${slug}-results-${formatFilenameTimestamp(startTime)}.${extension}`;
+) =>
+  `${slug}-results-${formatFilenameTimestamp(startTime)}-${runId}.${extension}`;

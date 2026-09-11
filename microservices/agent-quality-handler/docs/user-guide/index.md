@@ -1,5 +1,13 @@
 # Agent Quality Handler
 
+<!--hide_directive
+<div class="component_card_widget">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/microservices/agent-quality-handler">
+     GitHub
+  </a>
+</div>
+hide_directive-->
+
 The Agent Quality Handler is a standalone, configuration-driven service that runs an Agentic Predictive Maintenance graph against detections from a required external storage API.
 
 ## Capabilities

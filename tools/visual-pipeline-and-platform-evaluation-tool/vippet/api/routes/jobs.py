@@ -2,7 +2,7 @@ import logging
 import time
 
 from fastapi import APIRouter, Query
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 import api.api_schemas as schemas
 from graph import Graph
@@ -524,6 +524,7 @@ def get_performance_job_metadata_for_stream(
             "description": "SSE stream of metadata records",
             "content": {"text/event-stream": {}},
         },
+        204: {"description": "Job finished; no further metadata will be produced"},
         404: {"description": "Job not found", "model": schemas.MessageResponse},
     },
 )
@@ -538,7 +539,9 @@ async def stream_performance_job_metadata(
     Opens a persistent HTTP connection and pushes each new JSON record emitted
     by the ``gvametapublish`` GStreamer element as an SSE ``data:`` event.
     The stream terminates automatically when the pipeline finishes.
-    A ``": keepalive"`` comment is sent every 30 s to prevent proxy timeouts.
+    A padding comment is sent on connect and a ``": keepalive"`` comment every
+    10 s, so buffering proxies release the response instead of holding it until
+    the stream closes.
 
     ## Path Parameters
 
@@ -556,6 +559,7 @@ async def stream_performance_job_metadata(
     | Code | Description |
     |------|-------------|
     | 200  | SSE stream opened |
+    | 204  | Job has finished; the client should not reconnect |
     | 404  | Job id is unknown or no metadata is available for this job |
     """
     if not MetadataManager().job_exists(job_id):
@@ -574,6 +578,10 @@ async def stream_performance_job_metadata(
             ).model_dump(),
             status_code=404,
         )
+
+    if not MetadataManager().is_tailing(job_id):
+        # EventSource reconnects after a normal close; 204 tells it to stop for good.
+        return Response(status_code=204)
 
     global_index = MetadataManager().resolve_file_index(job_id, pipeline_id, file_index)
     if global_index is None:

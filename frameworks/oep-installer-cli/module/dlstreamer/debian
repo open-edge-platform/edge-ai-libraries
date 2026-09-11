@@ -1,0 +1,72 @@
+
+configure_dlstreamer () {
+  key_url=https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg
+  key_file=/usr/share/keyrings/dls-archive-keyring.gpg
+  deb_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main"
+  repository=https://github.com/open-edge-platform/dlstreamer
+  workspace="$(ensure_project_path)/dlstreamer"
+  version=2026.2.0-rc1
+}
+
+debian_75_profile_dlstreamer () {
+  echo "git openvino edge_base"
+}
+
+verify_dlstreamer () {
+  dpkg-query -l intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
+  [ -r "$workspace/python3-venv/bin/activate" ] || return 1
+  cd "$workspace"
+  . python3-venv/bin/activate
+  pip show ultralytics nncf
+}
+
+debian_75_install_dlstreamer () {
+  configure_dlstreamer
+  
+  if verify_dlstreamer && [[ " $* " != *" --reset-dlstreamer "* ]]; then
+    echo "dlstreamer-${version} already installed. Skipping"
+  else
+    # remove old versions
+    ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
+
+    # product key
+    sudo mkdir -p $(dirname $key_file)
+    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
+
+    # deb entry
+    echo "$deb_entry" | ensure_sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
+
+    # apt update
+    ensure_apt update -y
+
+    # install dlstreamer
+    ensure_apt install --no-install-recommends -y intel-dlstreamer=$version
+
+    # clone the dlstreamer repostiory
+    ensure_git_clone "$workspace" v$version $repository
+
+    # create the dlstreamer venv
+    cd "$workspace"
+    python3 -m venv python3-venv
+    . python3-venv/bin/activate
+    pip install nncf==3.0.0 ultralytics==8.4.57
+  fi
+
+  # info
+  echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
+  echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples"
+  echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
+  echo "@@HIGHLIGHT python venv @$workspace/python3-venv"
+}
+
+debian_75_remove_dlstreamer () {
+  configure_dlstreamer
+
+  if verify_dlstreamer; then
+    ensure_apt autoremove -m -y intel-dlstreamer
+    ensure_sudo -rf "$workspace" 2> /dev/null || true
+  else
+    echo "dlstreamer already removed. Skipping"
+  fi
+}
+

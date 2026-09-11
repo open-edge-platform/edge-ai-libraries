@@ -1,0 +1,19 @@
+
+debian_15_profile_core_types () {
+  [ "$1" != "install" ] || echo "cpuid curl"
+}
+
+debian_15_install_core_types () {
+  if [ -e /etc/core-types ] && [[ " $* " != *" --reset-core_types "* ]]; then
+    echo "/etc/core-types exists. Skipping"
+    return
+  fi
+
+  local script="https://raw.githubusercontent.com/open-edge-platform/edge-workloads-and-benchmarks/refs/heads/main/utils/obtain_cores.sh"
+
+  set -o pipefail
+  curl -sSL $script | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types
+
+  echo "Core types are detected and written to /etc/core-types"
+}
+
