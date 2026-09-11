@@ -1,0 +1,102 @@
+name: CV-Triggered VLM
+definition: >
+  CV+VLM pipeline: object detection triggers Vision-Language Model inference only when
+  two object classes stay in close proximity for a sustained number of frames. Based on
+  https://github.com/open-edge-platform/dlstreamer/pull/978. The proximity trigger runs
+  as a mock passthrough element in ViPPET until the upstream custom element is adopted.
+tags:
+  - GenAi
+  - Smart Cities
+thumbnail: images/video-captioning.png
+type: vision
+variants:
+  - name: CPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 !
+      gvadetect
+        model=/models/output/public/yolo11s/INT8/yolo11s.xml
+        pre-process-backend=opencv
+        device=CPU
+        model-instance-id=cv-vlm-detect-cpu !
+      queue !
+      tee name=t0 !
+      queue !
+      gvawatermark !
+      gvafpscounter starting-frame=100 !
+      fakesink name=default_output_sink
+      t0. !
+      queue leaky=downstream max-size-buffers=1 !
+      gvaproximitytrigger_py class-a=person class-b=bicycle distance=150 frames=10 !
+      videoconvert !
+      video/x-raw,format=RGB !
+      gvagenai
+        model-path=/models/output/openvino_models/cpu/INT4/google/gemma-3-4b-it
+        device=CPU
+        prompt="Are people riding on bicycles? Answer yes or no."
+        generation-config="max_new_tokens=10"
+        chunk-size=1
+        metrics=false !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      fakesink sync=false async=false
+  - name: GPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 !
+      gvadetect
+        model=/models/output/public/yolo11s/INT8/yolo11s.xml
+        pre-process-backend=va-surface-sharing
+        device=GPU
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        model-instance-id=cv-vlm-detect-gpu !
+      queue !
+      tee name=t0 !
+      queue !
+      gvawatermark !
+      gvafpscounter starting-frame=100 !
+      fakesink name=default_output_sink
+      t0. !
+      queue leaky=downstream max-size-buffers=1 !
+      gvaproximitytrigger_py class-a=person class-b=bicycle distance=150 frames=10 !
+      videoconvert !
+      video/x-raw,format=RGB !
+      gvagenai
+        model-path=/models/output/openvino_models/gpu/INT4/google/gemma-3-4b-it
+        device=GPU
+        prompt="Are people riding on bicycles? Answer yes or no."
+        generation-config="max_new_tokens=10"
+        chunk-size=1
+        metrics=false !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      fakesink sync=false async=false
+  - name: NPU_GPU
+    pipeline_description: >-
+      filesrc location=/videos/input/people.mp4 !
+      decodebin3 !
+      gvadetect
+        model=/models/output/public/yolo11s/INT8/yolo11s.xml
+        pre-process-backend=va
+        device=NPU
+        batch-size=1
+        nireq=2
+        model-instance-id=cv-vlm-detect-npu !
+      queue !
+      tee name=t0 !
+      queue !
+      gvawatermark !
+      gvafpscounter starting-frame=100 !
+      fakesink name=default_output_sink
+      t0. !
+      queue leaky=downstream max-size-buffers=1 !
+      gvaproximitytrigger_py class-a=person class-b=bicycle distance=150 frames=10 !
+      videoconvert !
+      video/x-raw,format=RGB !
+      gvagenai
+        model-path=/models/output/openvino_models/gpu/INT4/google/gemma-3-4b-it
+        device=GPU
+        prompt="Are people riding on bicycles? Answer yes or no."
+        generation-config="max_new_tokens=10"
+        chunk-size=1
+        metrics=false !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
+      fakesink sync=false async=false
