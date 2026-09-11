@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Federation node registry.
+# Each entry describes a DLS-PS instance reachable over the network.
+
+nodes:
+  - id: nuc-controller
+    url: http://localhost:8081
+    max_pipelines: 50
+    ssh: null                          # local — no SSH needed
+
+  - id: nuc-worker-1
+    url: http://192.168.1.101:8080
+    max_pipelines: 50
+    ssh: user@192.168.1.101            # for remote restart
+
+  - id: nuc-worker-2
+    url: http://192.168.1.102:8080
+    max_pipelines: 50
+    ssh: user@192.168.1.102
+
+health_check_interval: 10             # seconds between health polls
+request_timeout: 5.0                  # seconds for proxied HTTP requests
