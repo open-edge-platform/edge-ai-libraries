@@ -10,5 +10,5 @@ SPDX-License-Identifier: Apache-2.0
 - **All tools:** [`.github/copilot-instructions.md`](.github/copilot-instructions.md)
 - **Claude:** [`CLAUDE.md`](CLAUDE.md)
 - **Gemini:** [`GEMINI.md`](GEMINI.md)
-- **Cursor:** [`.cursor/rules/times-series-analytics.mdc`](.cursor/rules/times-series-analytics.mdc)
+- **Cursor:** [`.cursor/rules/time-series-analytics.mdc`](.cursor/rules/time-series-analytics.mdc)
 - **Codex, Antigravity:** this file (`AGENTS.md`), read natively

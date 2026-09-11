@@ -72,8 +72,7 @@ COPY ./requirements.txt .
 # Install Python dependencies efficiently and clean up cache to reduce image size
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
-    python -m pip uninstall -y pip && \
-    rm -rf /usr/local/lib/python3.13/ensurepip/_bundled
+    python -m pip uninstall -y pip
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
