@@ -89,6 +89,8 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const hasError = item.queryStatus === SearchQueryStatus.ERROR;
+  // Image searches have no text query; show a descriptive label instead.
+  const displayLabel = item.query || (item.image ? t('searchByImage') : '');
 
   const handleCheckboxChange = (checked: boolean) => {
     if (checked) {
@@ -130,7 +132,7 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
         />
 
         <span className='text-container'>
-          {item.query}
+          {displayLabel}
         </span>
 
         <IconButton kind='ghost' label={t('queryDeleteLabel')} autoAlign onClick={handleDeleteClick}>
@@ -150,7 +152,7 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
         >
           <p>
             {t('thisWillDelete')}
-            <strong>{`${item.query}`}</strong>.
+            <strong>{`${displayLabel}`}</strong>.
           </p>
         </PopupModal>
       )}

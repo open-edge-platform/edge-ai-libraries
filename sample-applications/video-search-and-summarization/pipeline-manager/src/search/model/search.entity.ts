@@ -14,6 +14,11 @@ export class SearchEntity {
   @Column({ type: 'text', nullable: false })
   query: string;
 
+  // Query image (base64/data URL) for image-based searches; null for text queries.
+  // Persisted so watched/refetch re-runs can re-embed the same image.
+  @Column({ type: 'text', nullable: true })
+  image?: string | null;
+
   @Column({ type: 'boolean', default: false })
   watch: boolean;
 

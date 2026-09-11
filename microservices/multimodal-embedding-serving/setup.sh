@@ -84,6 +84,9 @@ case "$EMBEDDING_MODEL_NAME" in
     "SigLIP/siglip2-vit-b-16"|"SigLIP/siglip2-vit-l-16"|"SigLIP/siglip2-so400m-patch16-384")
         echo "Using SigLIP model: $EMBEDDING_MODEL_NAME"
         ;;
+    "MarketaJu/siglip2-person-description-reid"|"SigLIP/siglip2-person-description-reid")
+        echo "Using Hugging Face SigLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
     "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b"|"MobileCLIP/mobileclip_blt")
         echo "Using MobileCLIP model: $EMBEDDING_MODEL_NAME"
         ;;

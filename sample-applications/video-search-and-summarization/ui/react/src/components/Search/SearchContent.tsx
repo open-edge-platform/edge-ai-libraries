@@ -282,9 +282,25 @@ export const QueryInfo: FC = () => {
   return (
     <QueryBar>
       <span className='query-label'>{t('userQueryLabel', 'User Query:')}</span>
-      <Tooltip align='bottom' label={selectedQuery.query}>
-        <strong className='query-text'>{selectedQuery.query}</strong>
-      </Tooltip>
+      {selectedQuery.image ? (
+        <>
+          <img
+            src={selectedQuery.image}
+            alt={t('searchByImage', 'Search by image')}
+            style={{
+              maxWidth: '48px',
+              maxHeight: '48px',
+              borderRadius: '4px',
+              objectFit: 'cover',
+            }}
+          />
+          <strong className='query-text'>{t('searchByImage', 'Search by image')}</strong>
+        </>
+      ) : (
+        <Tooltip align='bottom' label={selectedQuery.query}>
+          <strong className='query-text'>{selectedQuery.query}</strong>
+        </Tooltip>
+      )}
       {selectedQuery.tags.length > 0 && (
         <TagsContainer>
           {selectedQuery.tags.map((tag, index) => (

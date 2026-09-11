@@ -250,8 +250,19 @@ export const SearchWatch = createAsyncThunk(
 
 export const SearchAdd = createAsyncThunk(
   'search/add',
-  async ({ query, tags, timeFilter }: { query: string; tags: string[]; timeFilter?: TimeFilterSelection | null }) => {
-    const searchQuery: SearchQueryDTO = { query };
+  async ({
+    query,
+    image,
+    tags,
+    timeFilter,
+  }: {
+    query?: string;
+    image?: string;
+    tags: string[];
+    timeFilter?: TimeFilterSelection | null;
+  }) => {
+    // Image-based search sends `image` and omits the text query; otherwise `query`.
+    const searchQuery: SearchQueryDTO = image ? { image } : { query };
 
     if (tags && tags.length > 0) {
       searchQuery.tags = tags.join(',');
