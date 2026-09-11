@@ -24,7 +24,7 @@ ARG PYTHON_VERSION
 FROM python:${PYTHON_VERSION}-slim as runtime
 
 
-ARG INSTALL_DRIVER_VERSION="26.14.37833"
+ARG INSTALL_DRIVER_VERSION="26.27.39122"
 ENV INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
 
 # Security upgrades for known CVEs
@@ -71,7 +71,8 @@ COPY ./requirements.txt .
 
 # Install Python dependencies efficiently and clean up cache to reduce image size
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    python -m pip uninstall -y pip
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
