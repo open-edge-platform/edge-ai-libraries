@@ -28,7 +28,7 @@ to match the `REGISTRY` / `RELEASE_TAG` values you set there (see
 [run-container.md](run-container.md)):
 
 ```bash
-docker build -t intel/scene-understanding-service:2026.2.0-rc1 .
+docker build -t intel/scene-understanding-service:2026.2.0 .
 ```
 
 The `Dockerfile` copies the whole service into `/app` (including the sample
