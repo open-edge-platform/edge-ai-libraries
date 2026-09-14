@@ -1,7 +1,9 @@
+import json
 import unittest
 from unittest.mock import patch, MagicMock
 
 import api.api_schemas as schemas
+from api.routes.benchmarks import run_benchmark_suite
 from benchmark import (
     Benchmark,
     BenchmarkResult,
@@ -515,6 +517,43 @@ class TestBenchmark(unittest.TestCase):
             self.assertTrue(result.streams_per_pipeline[0].id.startswith("/pipelines/"))
             # Second should be inline graph format
             self.assertTrue(result.streams_per_pipeline[1].id.startswith("__graph-"))
+
+
+class TestBenchmarkApiRoutes(unittest.TestCase):
+    @patch("api.routes.benchmarks.BenchmarkManager")
+    def test_run_benchmark_suite_returns_accepted_job_response(
+        self, mock_benchmark_manager_cls
+    ):
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.start_suite.return_value = "benchmark-job-123"
+        mock_benchmark_manager_cls.return_value = mock_manager_instance
+
+        response = run_benchmark_suite("manufacturing")
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(
+            json.loads(bytes(response.body)), {"job_id": "benchmark-job-123"}
+        )
+        mock_manager_instance.start_suite.assert_called_once_with("manufacturing")
+
+    @patch("api.routes.benchmarks.BenchmarkManager")
+    def test_run_benchmark_suite_returns_400_for_invalid_suite(
+        self, mock_benchmark_manager_cls
+    ):
+        mock_manager_instance = MagicMock()
+        mock_manager_instance.start_suite.side_effect = ValueError(
+            "Benchmark suite with slug 'unknown' not found."
+        )
+        mock_benchmark_manager_cls.return_value = mock_manager_instance
+
+        response = run_benchmark_suite("unknown")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            json.loads(bytes(response.body)),
+            {"message": "Benchmark suite with slug 'unknown' not found."},
+        )
+        mock_manager_instance.start_suite.assert_called_once_with("unknown")
 
 
 class TestBenchmarkLatencyTracerMetrics(unittest.TestCase):

@@ -519,6 +519,96 @@ class TestModelsDownloadAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
 
 
+class TestModelsCheckStatusAPI(unittest.TestCase):
+    """Tests for POST /models/check-status route layer."""
+
+    @classmethod
+    def setUpClass(cls):
+        app = FastAPI()
+        app.include_router(models_router, prefix="/models")
+        cls.client = TestClient(app)
+
+    def test_check_status_returns_matching_model_statuses(self):
+        """Known display names are returned; unknown display names are omitted."""
+        mock_models = [
+            TestModelsAPI._make_model(
+                "yolo11n",
+                "YOLO 11n 640x640",
+                "detection",
+                "FP16",
+                install_status=InternalModelInstallStatus.INSTALLED,
+            ),
+            TestModelsAPI._make_model(
+                "mobilenet-v2-pytorch",
+                "MobileNet V2 PyTorch",
+                "classification",
+                "FP32",
+                install_status=InternalModelInstallStatus.NOT_INSTALLED,
+            ),
+        ]
+        with patch("api.routes.models.ModelManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
+            mock_manager_instance.list_models.return_value = mock_models
+            mock_manager_cls.return_value = mock_manager_instance
+
+            response = self.client.post(
+                "/models/check-status",
+                json={
+                    "display_names": [
+                        "YOLO 11n 640x640",
+                        "Missing Model",
+                        "MobileNet V2 PyTorch",
+                    ]
+                },
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.json(),
+                {
+                    "models": [
+                        {
+                            "name": "yolo11n",
+                            "display_name": "YOLO 11n 640x640",
+                            "install_status": "installed",
+                        },
+                        {
+                            "name": "mobilenet-v2-pytorch",
+                            "display_name": "MobileNet V2 PyTorch",
+                            "install_status": "not_installed",
+                        },
+                    ]
+                },
+            )
+            mock_manager_instance.list_models.assert_called_once_with()
+
+    def test_check_status_empty_display_names_rejected_by_validator(self):
+        """``display_names=[]`` is rejected by the Pydantic ``min_length=1`` rule."""
+        response = self.client.post("/models/check-status", json={"display_names": []})
+        self.assertEqual(response.status_code, 422)
+
+    def test_check_status_blank_display_name_rejected_by_validator(self):
+        """Whitespace-only display names are rejected by the model validator."""
+        response = self.client.post(
+            "/models/check-status", json={"display_names": ["YOLO", "  "]}
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_check_status_returns_500_when_manager_raises(self):
+        """An unexpected error inside ``list_models`` maps to 500."""
+        with patch("api.routes.models.ModelManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
+            mock_manager_instance.list_models.side_effect = RuntimeError("boom")
+            mock_manager_cls.return_value = mock_manager_instance
+
+            response = self.client.post(
+                "/models/check-status", json={"display_names": ["YOLO"]}
+            )
+
+            self.assertEqual(response.status_code, 500)
+            self.assertIn("Unexpected error", response.json()["message"])
+
+
 class TestAggregateStatus(unittest.TestCase):
     """Direct unit tests for ``_aggregate_status`` precedence rules."""
 
