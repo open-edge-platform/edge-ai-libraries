@@ -27,7 +27,7 @@ Pin a specific release by setting them in a `.env` file next to
 ```bash
 # .env
 REGISTRY=intel
-RELEASE_TAG=2026.2.0-rc1
+RELEASE_TAG=2026.2.0
 ```
 
 Compose loads `.env` automatically. Confirm the resolved image before starting:
