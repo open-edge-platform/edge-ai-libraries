@@ -68,17 +68,6 @@ x-vippet: &vippet
     # Path of the JSON registry tracking installed/uploaded models on
     # the shared volume so it survives service restarts.
     INSTALLED_MODELS_REGISTRY: ${INSTALLED_MODELS_REGISTRY:-/models/output/installed_models.json}
-    # DLStreamer-bundled assets used during OMZ model post-processing
-    # (copying model_proc JSON, injecting ImageNet labels for
-    # mobilenet-v2-pytorch, ...). Override only if the DLStreamer
-    # installation layout in the container changes.
-    DLSTREAMER_MODEL_PROC_DIR: ${DLSTREAMER_MODEL_PROC_DIR:-/opt/intel/dlstreamer/samples/gstreamer/model_proc}
-    DLSTREAMER_LABELS_DIR: ${DLSTREAMER_LABELS_DIR:-/opt/intel/dlstreamer/samples/labels}
-    # Isolated virtualenv where ``openvino-dev[onnx]==2024.6.0`` lives.
-    # vippet-app invokes ``omz_downloader``/``omz_converter`` from this
-    # venv so the legacy 2024.x ``openvino`` package never collides
-    # with the OpenVINO 2026.x runtime used for inference.
-    OMZ_VIRTUAL_ENV: ${OMZ_VIRTUAL_ENV:-/home/dlstreamer/.omz-venv}
     # Database configuration (SQLite)
     DATABASE_URL: "sqlite+aiosqlite:////db/app.db"
     DB_ECHO: "false"
@@ -134,7 +123,7 @@ services:
     container_name: model-download
     ports:
       - "8000:8000"
-    command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,ultralytics,pipeline-zoo-models,openvino,geti,hls}
+    command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,ultralytics,pipeline-zoo-models,omz,openvino,geti,hls}
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:8000/api/v1/health"]
       # First start can take tens of minutes: each plugin venv runs `uv sync`
@@ -172,6 +161,7 @@ services:
       - ./shared/model-download/venv-huggingface:/opt/.venv-huggingface
       - ./shared/model-download/venv-ultralytics:/opt/.venv-ultralytics
       - ./shared/model-download/venv-pipeline-zoo-models:/opt/.venv-pipeline-zoo-models
+      - ./shared/model-download/venv-omz:/opt/.venv-omz
       - ./shared/model-download/venv-openvino:/opt/.venv-openvino
       - ./shared/model-download/venv-geti:/opt/.venv-geti
       - ./shared/model-download/venv-hls:/opt/.venv-hls
