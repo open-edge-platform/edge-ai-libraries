@@ -41,8 +41,11 @@ RUN dpkg --purge --force-depends linux-libc-dev
 # Switch to dlstreamer user
 USER dlstreamer
 
-# Set GStreamer plugin path (original GST_PLUGIN_PATH ends with a colon, so there is no need to add one here)
-ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/
+# Set GStreamer plugin path (original GST_PLUGIN_PATH ends with a colon, so there is no need to add one here).
+# ``/home/dlstreamer/vippet/gst_plugins`` hosts ViPPET-owned custom elements
+# (e.g. the ``gvaproximitytrigger_py`` mock used by cv-triggered-vlm.yaml).
+# libgstpython scans its ``python/`` subdirectory automatically.
+ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/:/home/dlstreamer/vippet/gst_plugins
 
 # Add DLSOptimizer scripts to PYTHONPATH
 ENV PYTHONPATH=$PYTHONPATH:/opt/intel/dlstreamer/scripts/optimizer/
@@ -98,6 +101,7 @@ COPY --chown=dlstreamer:dlstreamer \
 
 COPY --chown=dlstreamer:dlstreamer vippet/pipelines/ /home/dlstreamer/vippet/pipelines
 COPY --chown=dlstreamer:dlstreamer vippet/benchmarks/ /home/dlstreamer/vippet/benchmarks
+COPY --chown=dlstreamer:dlstreamer vippet/gst_plugins/ /home/dlstreamer/vippet/gst_plugins
 COPY --chown=dlstreamer:dlstreamer vippet/api/ /home/dlstreamer/vippet/api
 COPY --chown=dlstreamer:dlstreamer vippet/managers/ /home/dlstreamer/vippet/managers
 
