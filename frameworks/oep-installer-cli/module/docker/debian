@@ -42,7 +42,8 @@ debian_20_install_docker () {
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
     echo "Remove legacy installation"
-    ensure_apt autopurge -m -y $(dpkg-query -W -f='${Package} ${Status}\n' docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc 2>/dev/null | awk '$2!="unknown"{print $1}')
+    local legacy_pkgs="$(dpkg-query -W -f='${Package} ${Status}\n' docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc 2>/dev/null | awk '$2!="unknown"{print $1}')"
+    [ -z "$legacy_pkgs" ] || ensure_apt purge -y $legacy_pkgs
 
     # create docker group
     ensure_group_add docker:
