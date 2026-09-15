@@ -920,7 +920,7 @@ _finish() {
   printf '\033[?7h'
   printf '\033[%d;1H\033[K' "$TTY_ROWS"   # last row, cleared, NO newline
   printf '\033[?25h'
-  (( TTY_FD >= 0 )) && exec {TTY_FD}>&-
+  (( TTY_FD >= 0 )) && { stty echo <&"$TTY_FD" 2>/dev/null; exec {TTY_FD}>&-; }
 }
 
 # ------------------------------------------------------------------ input
