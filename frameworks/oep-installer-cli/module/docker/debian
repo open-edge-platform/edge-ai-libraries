@@ -32,6 +32,7 @@ EOF
 }
 
 debian_20_install_docker () {
+  set -x
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
     echo "Docker is already installed. Skipping..."
   elif dpkg -L docker.io > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
@@ -42,7 +43,7 @@ debian_20_install_docker () {
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
     echo "Remove legacy installation"
-    ensure_apt autoremove -m -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd runc
+    ensure_apt autopurge -m -y $(dpkg-query -W -f='${Package} ${Status}\n' docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc 2>/dev/null | awk '$2!="unknown"{print $1}')
 
     # create docker group
     ensure_group_add docker
