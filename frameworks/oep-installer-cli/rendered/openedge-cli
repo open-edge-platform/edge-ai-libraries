@@ -64,8 +64,8 @@ main () {
       done
     done
 
-    ensure_sudo true
-    act_groups_prelude "${!groups[*]}" "$@"
+    #ensure_sudo true
+    [ ${#groups[*]} -eq 0 ] || act_groups_prelude "${!groups[*]}" "$@"
     local _prc=$?
     case $_prc in
       0) :;;             # groups fine, fall through to the loop
@@ -460,7 +460,7 @@ act_resolve_args () {
 
 # collect groups created by modules. enforce them.
 act_groups_prelude () {
-  [ -z "$1" ] || ensure_group_add $1 || {
+  ensure_group_add $1 || {
     echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
     echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
     echo "may not apply. Ask your administrator to add: ${groups[*]%:*}" 1>&2
