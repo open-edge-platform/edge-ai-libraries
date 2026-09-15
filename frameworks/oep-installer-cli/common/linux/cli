@@ -410,7 +410,7 @@ act_groups_prelude () {
       {
         IFS= read -r SUDO_PASSWORD 
         IFS= read -r TF_TOKEN
-      } < secret_file
+      } < $secret_file/secrets
       rm -f $secret_dir/secrets
       '$installer' ${*:2}
     "
