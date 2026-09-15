@@ -54,13 +54,13 @@ main () {
   if [ $groups_required -eq 1 ] && [[ " ${_globals[*]} " != *" --dry-run "* ]]; then
     # critical group permissions
     local -A groups=()
-    local dep
+    local _dep
     for ((_i=0;_i<${#_cmds[@]};_i++)); do
       local _resolved="$(act_resolve_args ${_cmds[$_i]} ${_globals[*]} ${_args[$_i]})"
-      for dep in $(act_find_deps install install $_resolved); do
-        { [[ "$dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$dep" = ${ID_LIKE}_*_install_npu ]] } && groups["render:992"]=1
-        [[ "$dep" = ${ID_LIKE}_*_install_gpu ]] && groups["video:"]=1
-        [[ "$dep" = ${ID_LIKE}_*_install_docker ]] && groups["docker:"]=1
+      for _dep in $(act_find_deps install install $_resolved); do
+        { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]] } && groups["render:992"]=1
+        [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] && groups["video:"]=1
+        [[ "$_dep" = ${ID_LIKE}_*_install_docker ]] && groups["docker:"]=1
       done
     done
 
