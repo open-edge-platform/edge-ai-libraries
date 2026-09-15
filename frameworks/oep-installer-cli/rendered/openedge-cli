@@ -468,7 +468,7 @@ act_groups_prelude () {
 
   if [ -n "${OEP_GROUP_REEXEC:-}" ]; then
     echo -e "${yellow}groups still not effective after re-exec${reset}" 1>&2
-    return 0
+    return 1
   fi
 
   subcommand_setup
