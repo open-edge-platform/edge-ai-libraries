@@ -452,7 +452,7 @@ EOF
 
 # collect groups created by modules. enforce them.
 act_groups_prelude () {
-  ensure_group_add $1 || {
+  [ -z "$1" ] || ensure_group_add $1 || {
     echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
     echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
     echo "may not apply. Ask your administrator to add: ${groups[*]%:*}" 1>&2
@@ -487,7 +487,7 @@ act_groups_prelude () {
       {
         IFS= read -r SUDO_PASSWORD 
         IFS= read -r TF_TOKEN
-      } < $secret_file/secrets
+      } < $secret_dir/secrets
       rm -f $secret_dir/secrets
       '$installer' ${*:2}
     "
