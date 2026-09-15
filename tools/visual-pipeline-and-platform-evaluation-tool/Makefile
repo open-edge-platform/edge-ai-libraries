@@ -195,11 +195,11 @@ test: build-test ## Run unit tests and generate coverage report
 
 test-smoke: $(VENV_SENTINEL) ## Run smoke functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
-	python -m pytest --log-cli-level=INFO -m smoke vippet/tests/functional/
+	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO -m smoke vippet/tests/functional/
 
 test-full: $(VENV_SENTINEL) ## Run full functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
-	python -m pytest --log-cli-level=INFO vippet/tests/functional/
+	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO vippet/tests/functional/
 
 test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full)
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
