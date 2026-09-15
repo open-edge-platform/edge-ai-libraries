@@ -32,7 +32,6 @@ EOF
 }
 
 debian_20_install_docker () {
-  set -x
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
     echo "Docker is already installed. Skipping..."
   elif dpkg -L docker.io > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
