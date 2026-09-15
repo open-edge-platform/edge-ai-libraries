@@ -5,6 +5,11 @@ main () {
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
+  # sudo askpass helper
+  case "${0##*/}" in
+  *-askpass) ensure_sudo_askpass_helper "$@"; exit ;;
+  esac
+
   local _globals=() _cmds=() _args=() cur=-1 v cmd groups_required=0
   for v in "$@"; do
     case $v in
@@ -64,7 +69,6 @@ main () {
       done
     done
 
-    #ensure_sudo true
     [ ${#groups[*]} -eq 0 ] || act_groups_prelude "${!groups[*]}" "$@"
     local _prc=$?
     case $_prc in
@@ -398,6 +402,7 @@ $(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|subcomman
 main "\$@"
 EOF
   chmod a+rx "$installer"
+  ln -sf "$installer" "$installer"-askpass
   echo "Installer reconstructed at $installer"
 
   # reconstruct bash completion
@@ -747,7 +752,7 @@ readonly MAX_WRAP=3000
 readonly LEFT_MIN=16
 KEEP_COLOR=${KEEP_COLOR:-1}
 WRAP_MODE=${WRAP_MODE:-wrap}
-LEFT_WIDTH=${LEFT_WIDTH:-0}
+LEFT_WIDTH=${LEFT_WIDTH:-38}
 LEFT_MAX_PCT=${LEFT_MAX_PCT:-34}
 REPORT_MAX_PCT=${REPORT_MAX_PCT:-55}
 SPLIT_MIN=${SPLIT_MIN:-6}
@@ -1526,7 +1531,7 @@ _draw() {
   fi
 
   local out="" l r rowstr
-  if (( FULL_CLEAR )); then out+=$'\033[2J'; PREV=(); FULL_CLEAR=0; fi
+  if (( FULL_CLEAR )); then PREV=(); FULL_CLEAR=0; fi
 
   local title=" ${ACT_TEXT[0]} progress "
   if (( REVIEW )); then
@@ -1595,7 +1600,7 @@ _finish() {
   printf '\033[?7h'
   printf '\033[%d;1H\033[K' "$TTY_ROWS"   # last row, cleared, NO newline
   printf '\033[?25h'
-  (( TTY_FD >= 0 )) && exec {TTY_FD}>&-
+  (( TTY_FD >= 0 )) && { stty echo <&"$TTY_FD" 2>/dev/null; exec {TTY_FD}>&-; }
 }
 
 # ------------------------------------------------------------------ input
@@ -1787,15 +1792,12 @@ ensure_select_device () {
 
 # perform sudo in automation or in tty
 ensure_sudo () {
+  local askpass_helper="$HOME/.local/bin/$installer_name-askpass"
   if sudo -nv 2>/dev/null || sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
     sudo "$@"
-  elif [ -n "$SUDO_PASSWORD" ]; then
-    # Non-interactive password. Feed it on the first stdin line via `sudo -S`
-    # and never write it to disk. `cat` forwards any remaining piped stdin to
-    # the invoked command so constructs like `curl ... | ensure_sudo tee file`
-    # keep working.
-    (echo "$SUDO_PASSWORD"; cat) | sudo -kS "$@"
+  elif [ -x "$askpass_helper" ]; then
+    SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
   elif [ -t 0 ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo "$@"
@@ -1805,6 +1807,34 @@ ensure_sudo () {
     echo "ensure_sudo: sudo requires a password but none is available" 1>&2
     return 1
   fi
+}
+
+# the askpass helper
+ensure_sudo_askpass_helper () {
+  set -u
+  local sudo_askpass="$HOME/.local/bin/$installer_name-askpass"
+
+  # 0) non-interactive / CI: env wins, no tty needed
+  [ -z "${SUDO_PASSWORD:-}" ] || { printf '%s\n' "$SUDO_PASSWORD"; exit 0; }
+
+  # 1) serialize: parallel components must not race to prompt
+  exec 9<"$sudo_askpass" || exit 1
+  flock 9 || exit 1
+
+  # 3) first real need. sudo's stdin/stdout are pipes; /dev/tty is not.
+  exec 8<>/dev/tty 2>/dev/null || exit 1
+
+  saved=$(stty -g <&8) || exit 1
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  stty -echo <&8
+
+  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+  rows=$(stty size <&8 | cut -d' ' -f1)
+  printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
+  IFS= read -r pw <&8
+  printf '\033[%d;1H\033[K' "$rows" >&8
+
+  printf '%s\n' "$pw"
 }
 
 

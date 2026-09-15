@@ -22,7 +22,6 @@ ensure_sudo () {
 ensure_sudo_askpass_helper () {
   set -u
   local sudo_askpass="$HOME/.local/bin/$installer_name-askpass"
-  local askpass_prompt=/dev/shm/$installer_name-askpass-prompt
 
   # 0) non-interactive / CI: env wins, no tty needed
   [ -z "${SUDO_PASSWORD:-}" ] || { printf '%s\n' "$SUDO_PASSWORD"; exit 0; }
@@ -35,15 +34,13 @@ ensure_sudo_askpass_helper () {
   exec 8<>/dev/tty 2>/dev/null || exit 1
 
   saved=$(stty -g <&8) || exit 1
-  trap 'rm -f "$askpass_prompt"; stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
   stty -echo <&8
 
   # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
   rows=$(stty size <&8 | cut -d' ' -f1)
-  printf '%s' "$1" > $askpass_prompt
   printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
   IFS= read -r pw <&8
-  rm -f $askpass_prompt
   printf '\033[%d;1H\033[K' "$rows" >&8
 
   printf '%s\n' "$pw"
