@@ -847,7 +847,7 @@ _draw() {
   local out="" l r rowstr
   if (( FULL_CLEAR )); then 
     out+=$'\033[2J'; PREV=(); FULL_CLEAR=0; 
-    local sudo_prompt=/dev/shm/openedge-cli-askpass-prompt
+    local sudo_prompt=/dev/shm/$installer_name-askpass-prompt
     if [ -e "$sudo_prompt" ]; then
       printf -v out '%s\033[%d;1H\033[K%s' "$out" "$TTY_ROWS" "$(<"$sudo_prompt")"
     fi

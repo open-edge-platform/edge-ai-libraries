@@ -21,8 +21,8 @@ ensure_sudo () {
 # the askpass helper
 ensure_sudo_askpass_helper () {
   set -u
-  local sudo_askpass="$HOME/.local/bin/$install_name-askpass"
-  local askpass_prompt=/dev/shm/openedge-cli-askpass-prompt
+  local sudo_askpass="$HOME/.local/bin/$installer_name-askpass"
+  local askpass_prompt=/dev/shm/$installer_name-askpass-prompt
 
   # 0) non-interactive / CI: env wins, no tty needed
   [ -z "${SUDO_PASSWORD:-}" ] || { printf '%s\n' "$SUDO_PASSWORD"; exit 0; }
