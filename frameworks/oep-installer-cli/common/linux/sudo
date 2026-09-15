@@ -21,35 +21,31 @@ ensure_sudo () {
 # the askpass helper
 ensure_sudo_askpass_helper () {
   set -u
-  cache=/dev/shm/openedge-cli-sudo-password-cache
+  local sudo_askpass="$HOME/.local/bin/$install_name-askpass"
+  local askpass_prompt=/dev/shm/openedge-cli-askpass-prompt
 
   # 0) non-interactive / CI: env wins, no tty needed
   [ -z "${SUDO_PASSWORD:-}" ] || { printf '%s\n' "$SUDO_PASSWORD"; exit 0; }
 
   # 1) serialize: parallel components must not race to prompt
-  exec 9>"$cache.lock" || exit 1
+  exec 9<"$sudo_askpass" || exit 1
   flock 9 || exit 1
-
-  # 2) someone already asked -> reuse, no second prompt
-  [ -s "$cache" ] && { cat "$cache"; exit 0; }
 
   # 3) first real need. sudo's stdin/stdout are pipes; /dev/tty is not.
   exec 8<>/dev/tty 2>/dev/null || exit 1
 
   saved=$(stty -g <&8) || exit 1
-  trap 'rm -f "$cache.prompt"; stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM
+  trap 'rm -f $askpass_prompt; stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM
   stty -echo <&8
 
   # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
   rows=$(stty size <&8 | cut -d' ' -f1)
-  printf '%s' "$1" > "$cache.prompt"
+  printf '%s' "$1" > $askpass_prompt
   printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
   IFS= read -r pw <&8
-  rm -f "$cache.prompt"
+  rm -f $askpass_prompt
   printf '\033[%d;1H\033[K' "$rows" >&8
 
-  # 4) cache on tmpfs, 0600, for the rest of the run
-  (umask 077; printf '%s\n' "$pw" > "$cache")
   printf '%s\n' "$pw"
 }
 
