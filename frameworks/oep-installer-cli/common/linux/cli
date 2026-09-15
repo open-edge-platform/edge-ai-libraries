@@ -395,8 +395,9 @@ act_groups_prelude () {
     exit 3
   }
 
-  local args_str="$*"
-  ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" --inh-caps=-all bash -c "export OEP_GROUP_REEXEC=1;$installer $args_str"
+  ensure_sudo env HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" PATH="$PATH" OEP_GROUP_REEXEC=1 \
+    setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" --inh-caps=-all \
+    "$installer" "$@"
   local rc=$?
   [ $rc -le 250 ] || rc=1
   [ $rc -eq 0 ] || return $rc
