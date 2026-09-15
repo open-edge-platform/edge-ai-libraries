@@ -22,6 +22,7 @@ PLUGINS=""
 MODEL_PATH=""
 OVMS_RELEASE_TAG=""
 ACTION="up"
+MCP_MODE=false
 
 # Default URLs for HLS assets
 HLS_3D_POSE_CHECKPOINT_URL_DEFAULT="https://storage.openvinotoolkit.org/repositories/open_model_zoo/public/2022.1/human-pose-estimation-3d-0001/human-pose-estimation-3d.tar.gz"
@@ -56,6 +57,7 @@ show_usage() {
     echo -e "  ${CYAN}--rebuild${NC}                   Force rebuild the Docker image without cache (without starting services)"
     echo -e "  ${CYAN}--model-path${NC} <path>         Set custom model path (default: $DEFAULT_MODEL_PATH)"
     echo -e "  ${CYAN}--plugins${NC} <list>            Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics,geti,hls) or 'all' to enable all"
+    echo -e "  ${CYAN}--mcp${NC}                       Start in MCP server mode instead of REST API"
     echo -e "  ${CYAN}--ovms-release-tag${NC} <tag>    Set OVMS release tag (e.g., v2025.4.1) (default: $DEFAULT_OVMS_RELEASE_TAG)"
     echo -e "  ${CYAN}--help${NC}                      Show this help message"
 }
@@ -99,6 +101,10 @@ while [[ $# -gt 0 ]]; do
                 log_error "--plugins requires a comma-separated list"
                 return 1
             fi
+            ;;
+        --mcp)
+            MCP_MODE=true
+            shift
             ;;
         --ovms-release-tag)
             if [[ -n "$2" && "$2" != --* ]]; then
@@ -241,13 +247,21 @@ case "$ACTION" in
         fi
 
         # Run the Docker container
-        log_info "Starting model download service..."
-        if docker compose ps | grep -q "model_download"; then
-            log_warning "Service is already running. Stopping first..."
-            docker compose -f docker/compose.yaml down
+        if [[ "$MCP_MODE" == true ]]; then
+            log_info "Starting model download MCP server..."
+            if docker compose ps | grep -q "model_download"; then
+                log_warning "Service is already running. Stopping first..."
+                docker compose -f docker/compose.yaml --profile mcp down
+            fi
+            docker compose -f docker/compose.yaml --profile mcp up -d model_download_mcp
+        else
+            log_info "Starting model download service..."
+            if docker compose ps | grep -q "model_download"; then
+                log_warning "Service is already running. Stopping first..."
+                docker compose -f docker/compose.yaml down
+            fi
+            docker compose -f docker/compose.yaml up -d
         fi
-
-        docker compose -f docker/compose.yaml up -d
 
         ;;
     down)
