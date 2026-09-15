@@ -483,7 +483,7 @@ act_groups_prelude () {
   }
 
   local secret_dir=""
-  ensure_tmpdir create secret_dir scretes /dev/shm
+  ensure_tmpdir create secret_dir secrets /dev/shm
   printf "%s\n%s\n" "$SUDO_PASSWORD" "$TF_TOKEN" > $secret_dir/secrets
   chmod 600 $secret_dir/secrets
   ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" --inh-caps=-all \
