@@ -307,21 +307,19 @@ subcommand_setup () {
 
   # reconstruct installer
   local installer_misc_functions=()
-  if [ ${#installer_misc_functions[@]} -gt 0 ]; then
-    local installer="$HOME/.local/bin/$installer_name"
-    mkdir -p "$(dirname "$installer")"
-    cat > "$installer" <<EOF
+  local installer="$HOME/.local/bin/$installer_name"
+  mkdir -p "$(dirname "$installer")"
+  cat > "$installer" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
 $(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
-    chmod a+rx "$installer"
-    echo "Installer reconstructed at $installer"
-  fi
+  chmod a+rx "$installer"
+  echo "Installer reconstructed at $installer"
 
   # reconstruct bash completion
-  local completion_script=~/.local/share/bash-completion/completions/$installer_name
+  local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name"
   mkdir -p "$(dirname "$completion_script")"
 
   local all_cmds=(${_act_cache_cmds[*]})
