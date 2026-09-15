@@ -4,7 +4,7 @@ configure_docker () {
     echo "Configure docker engine proxies..."
     grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
       ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
-      ensure_sudo tee /etc/systemd/system/docker.service.d/proxy.conf <<EOF
+      ensure_sudo tee /etc/systemd/system/docker.service.d/oep-proxy.conf <<EOF
 [Service]
 Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
 Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
@@ -34,10 +34,10 @@ EOF
 debian_20_install_docker () {
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
     echo "Docker is already installed. Skipping..."
-  elif dpkg -L docker.io > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
+  elif dpkg-query -W -f '${Status}' docker.io 2> /dev/null | grep -q install && [[ "$*" != *"--reset-docker"* ]]; then
     ensure_apt update
     ensure_apt install -y docker-buildx docker-compose-v2
-  elif dpkg -L docker-ce > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then 
+  elif dpkg-query -W -f '${Status}' docker-ce 2> /dev/null | grep -q install && [[ "$*" != *"--reset-docker"* ]]; then 
     ensure_apt update
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
@@ -45,24 +45,22 @@ debian_20_install_docker () {
     ensure_apt autopurge -m -y $(dpkg-query -W -f='${Package} ${Status}\n' docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc 2>/dev/null | awk '$2!="unknown"{print $1}')
 
     # create docker group
-    ensure_group_add docker
+    ensure_group_add docker:
 
-    ensure_apt update
-    ensure_apt install -y docker.io docker-buildx docker-compose-v2
+    ensure_apt  update
+    ensure_apt  install -y docker.io docker-buildx docker-compose-v2
 
-    DAEMON_JSON="/etc/docker/daemon.json"
-    if [ ! -f "$DAEMON_JSON" ]; then
-      ensure_sudo mkdir -p /etc/docker
-      ensure_sudo tee "$DAEMON_JSON" <<EOF
-{
-   "exec-opts": [
-        "native.cgroupdriver=systemd"
-    ]
-}
-EOF
-    fi
-    ensure_sudo systemctl daemon-reload
-    ensure_sudo systemctl restart docker
+    # wait
+    local deadline=$((SECONDS+60))
+    until systemctl is-active --quiet docker.service > /dev/null 2>&1; do
+      [ $SECONDS -lt $deadline ] || {
+        echo -e "${red}dockerd did not become ready${reset}" 1>&2
+        ensure_sudo systemctl status docker.service --no-pager 1>&2
+        ensure_sudo journalctl -u docker.service -n 30 --no-pager 1>&2
+        return 1
+      }
+      sleep 1
+    done
   fi
   configure_docker
 }
