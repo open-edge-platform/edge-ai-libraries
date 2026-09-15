@@ -44,7 +44,7 @@ or converting any supported model using the REST API.
 | Ollama | `ollama` | Downloads Ollama models, runs local Ollama server | — |
 | Ultralytics | `ultralytics` | Downloads YOLO models, optional INT8 quantization | — |
 | OpenVINO | `openvino` | Converts HF models to OpenVINO IR for OVMS | `HUGGINGFACEHUB_API_TOKEN` for compose-based startup (usually needed) |
-| Geti | `geti` | Downloads trained models from Intel Geti platform | `GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID` |
+| Geti | `geti` | Downloads trained models from Intel Geti 3.0 Model API | `GETI_HOST` |
 | Pipeline Zoo | `pipeline-zoo-models` | Downloads DL Streamer pipeline-zoo models | — |
 | HLS | `hls` | Downloads healthcare AI models (3d-pose, rppg, ai-ecg) | — |
 
@@ -224,10 +224,10 @@ echo "$JOB_RESPONSE"
 # Response: {"job_ids": ["<uuid>"]}
 
 # 2. Extract job ID
-JOB_ID=$(echo "$JOB_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_ids'][0])")
+JOB_ID=$(echo "$JOB_RESPONSE" | jq -r '.job_ids[0]')
 
 # 3. Poll until completed or failed
-watch -n 5 "curl -s http://localhost:8200/api/v1/jobs/$JOB_ID | python3 -m json.tool"
+watch -n 5 "curl -s http://localhost:8200/api/v1/jobs/$JOB_ID | jq ."
 ```
 
 Job status values: `queued` → `downloading` / `converting` → `completed` / `failed`
@@ -240,10 +240,10 @@ If status is `failed`, read the `error` field and check [troubleshooting.md](./r
 
 ```bash
 # List all completed downloads
-curl -s http://localhost:8200/api/v1/models/results | python3 -m json.tool
+curl -s http://localhost:8200/api/v1/models/results | jq .
 
 # Check a specific model's jobs
-curl -s "http://localhost:8200/api/v1/models/jobs?model_name=<model-name>" | python3 -m json.tool
+curl -s "http://localhost:8200/api/v1/models/jobs?model_name=<model-name>" | jq .
 ```
 
 After confirming success, tell the user:

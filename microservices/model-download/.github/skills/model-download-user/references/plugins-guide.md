@@ -295,13 +295,11 @@ curl -s -X POST \
 
 ## Geti
 
-Downloads trained models from an Intel Geti server (base or optimized OpenVINO variants).
+Downloads trained models from an Intel Geti (3.0) server using the unauthenticated Model REST API (base or optimized OpenVINO variants).
 
 **Required environment variables before starting service:**
 ```bash
 export GETI_HOST=https://geti.example.com
-export GETI_TOKEN=<your-api-token>
-export GETI_WORKSPACE_ID=<workspace-id>
 ```
 
 ### Request Body
@@ -310,13 +308,14 @@ export GETI_WORKSPACE_ID=<workspace-id>
 {
   "models": [
     {
-      "name": "<project-name>",
+      "name": "<model-name>",
       "hub": "geti",
       "config": {
         "export_type": "optimized",
-        "model_group_id": "<model-group-id>",
-        "optimized_model_id": "<optimized-model-id>",
-        "model_only": true
+        "precision": "FP16",
+        "model_format": "OpenVINO",
+        "project_id": "<project-id>",
+        "variant_id": "<variant-id>"
       }
     }
   ]
@@ -327,16 +326,18 @@ export GETI_WORKSPACE_ID=<workspace-id>
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Geti project name |
+| `name` | string | Yes | Geti model name (searched across all projects unless `config.project_id` is given) |
 | `hub` | string | Yes | Must be `"geti"` |
 | `config.export_type` | string | No | `"base"` or `"optimized"` (default: `"optimized"`) |
-| `config.model_group_id` | string | No | Model group ID from Geti |
-| `config.optimized_model_id` | string | No | Specific optimized model ID |
-| `config.model_only` | bool | No | Download model artifacts only (skip project data) |
+| `config.precision` | string | No | Target variant precision, e.g. `"FP16"` (default: `"FP16"`) |
+| `config.model_format` | string | No | Target variant model format, e.g. `"OpenVINO"` (default: `"OpenVINO"`) |
+| `config.project_id` | string | No | Geti project ID (skips project search when provided together with `config.model_id`) |
+| `config.model_id` | string | No | Geti model ID (skips model search when provided together with `config.project_id`) |
+| `config.variant_id` | string | No | Specific model variant ID to download (overrides format/precision selection) |
 
 ### Output Path
 
-`<model-path>/geti/<project-id>/<model-id>/`
+`<model-path>/geti/<model-name>/<precision>/`
 
 ---
 
