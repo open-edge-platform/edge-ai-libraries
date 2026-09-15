@@ -50,9 +50,17 @@ main () {
   # initialize act cache
   declare -F act_get > /dev/null && act_get init
 
+  local _rc=0 _i
   if [ $groups_required -eq 1 ] && [[ " ${_globals[*]} " != *" --dry-run "* ]]; then
+    local handles=()
+    for ((_i=0;_i<${#_cmds[@]};_i++)); do
+      handles+=($(
+        act_find_deps ${_cmds[$_i]} ${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+      ))
+    done
+
     ensure_sudo true
-    act_groups_prelude "$@"
+    act_groups_prelude "${handles[*]}" "$@"
     local _prc=$?
     case $_prc in
       0) :;;             # groups fine, fall through to the loop
@@ -62,7 +70,6 @@ main () {
   fi
 
   # exec subcommand
-  local _rc=0 _i
   for ((_i=0;_i<${#_cmds[@]};_i++)); do
     subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
     _rc=$?
