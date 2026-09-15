@@ -51,6 +51,7 @@ main () {
   declare -F act_get > /dev/null && act_get init
 
   if [ $groups_required -eq 1 ] && [[ " ${_globals[*]} " != *" --dry-run "* ]]; then
+    ensure_sudo true
     act_groups_prelude "$@"
     local _prc=$?
     case $_prc in
