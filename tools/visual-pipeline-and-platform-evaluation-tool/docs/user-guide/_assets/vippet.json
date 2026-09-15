@@ -4431,6 +4431,17 @@
             ],
             "title": "Power Usage"
           },
+          "latency_avg_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Avg Ms"
+          },
           "score_total": {
             "anyOf": [
               {
@@ -4500,6 +4511,7 @@
           "media_usage",
           "memory_usage",
           "power_usage",
+          "latency_avg_ms",
           "score_total",
           "score_performance",
           "score_efficiency",
@@ -4642,6 +4654,17 @@
             ],
             "title": "Power Usage"
           },
+          "latency_avg_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Avg Ms"
+          },
           "score_total": {
             "anyOf": [
               {
@@ -4729,6 +4752,7 @@
           "media_usage",
           "memory_usage",
           "power_usage",
+          "latency_avg_ms",
           "score_total",
           "score_performance",
           "score_efficiency",
