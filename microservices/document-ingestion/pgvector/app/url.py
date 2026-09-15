@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from http import HTTPStatus
 from fastapi import HTTPException
 from typing import List, Optional
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
 from .logger import logger
@@ -186,7 +186,17 @@ def ingest_url_to_pgvector(url_list: List[str]) -> dict:
     }
 
     # Initialize text splitter and embedder once
-    text_splitter = RecursiveCharacterTextSplitter(
+    headers_to_split_on = [
+        ("#", "Header 1"),
+        ("##", "Header 2"),
+        ("###", "Header 3"),
+        ("####", "Header 4"),
+    ]
+    markdown_splitter = MarkdownHeaderTextSplitter(
+        headers_to_split_on=headers_to_split_on, strip_headers=False
+    )
+
+    char_splitter = RecursiveCharacterTextSplitter(
         chunk_size=config.CHUNK_SIZE,
         chunk_overlap=config.CHUNK_OVERLAP,
         add_start_index=True,
@@ -227,13 +237,18 @@ def ingest_url_to_pgvector(url_list: List[str]) -> dict:
                 continue
 
             # Chunk + embed
-            chunks = text_splitter.split_text(content)
-            metadata = [{"url": url}] * len(chunks)
+            md_header_splits = markdown_splitter.split_text(content)
+            docs = char_splitter.split_documents(md_header_splits)
+            
+            for doc in docs:
+                doc.metadata["url"] = url
+                
             batch_size = config.BATCH_SIZE
 
-            for i in range(0, len(chunks), batch_size):
-                batch_texts = chunks[i : i + batch_size]
-                batch_metadata = metadata[i : i + batch_size]
+            for i in range(0, len(docs), batch_size):
+                batch_docs = docs[i : i + batch_size]
+                batch_texts = [d.page_content for d in batch_docs]
+                batch_metadata = [d.metadata for d in batch_docs]
 
                 PGVector.from_texts(
                     texts=batch_texts,
