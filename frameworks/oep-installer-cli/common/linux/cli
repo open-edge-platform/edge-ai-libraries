@@ -221,11 +221,7 @@ subcommand_start () {
 
 subcommand_stop () {
   [[ " $* " != *" --help "* ]] || return
-
-  local args=("$@") margs=(${*##-*})
-  local state_path="$(ensure_project_path)/$installer_name/states"
-  [ ${#margs[@]} -eq 0 ] && [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
-  act_helpper "stop,Stop,Stopping,Stopped" "-r" "${args[@]}" --continue
+  act_helpper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
 }
 
 subcommand_list () {
@@ -363,6 +359,17 @@ $(
 complete -F _${installer_name//-/_}_completion $installer_name
 EOF
   echo "bash completion created at $completion_script"
+}
+
+# Resolve the effective component list for a subcommand.
+act_resolve_args () {
+  local act_name=$1; shift
+  local args=("$@") margs=(${*##-*})
+  if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
+    local state_path="$(ensure_project_path)/$installer_name/states"
+    [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
+  fi
+  echo "${args[*]}"
 }
 
 # collect groups created by modules. enforce them.

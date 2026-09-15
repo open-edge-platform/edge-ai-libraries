@@ -56,7 +56,8 @@ main () {
     local -A groups=()
     local dep
     for ((_i=0;_i<${#_cmds[@]};_i++)); do
-      for dep in $(act_find_deps install install ${_globals[*]} ${_args[$_i]}); do
+      local _resolved="$(act_resolve_args ${_cmds[$_i]} ${_globals[*]} ${_args[$_i]})"
+      for dep in $(act_find_deps install install $_resolved); do
         { [[ "$dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$dep" = ${ID_LIKE}_*_install_npu ]] } && groups["render:992"]=1
         [[ "$dep" = ${ID_LIKE}_*_install_gpu ]] && groups["video:"]=1
         [[ "$dep" = ${ID_LIKE}_*_install_docker ]] && groups["docker:"]=1
@@ -306,11 +307,7 @@ subcommand_start () {
 
 subcommand_stop () {
   [[ " $* " != *" --help "* ]] || return
-
-  local args=("$@") margs=(${*##-*})
-  local state_path="$(ensure_project_path)/$installer_name/states"
-  [ ${#margs[@]} -eq 0 ] && [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
-  act_helpper "stop,Stop,Stopping,Stopped" "-r" "${args[@]}" --continue
+  act_helpper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
 }
 
 subcommand_list () {
@@ -448,6 +445,17 @@ $(
 complete -F _${installer_name//-/_}_completion $installer_name
 EOF
   echo "bash completion created at $completion_script"
+}
+
+# Resolve the effective component list for a subcommand.
+act_resolve_args () {
+  local act_name=$1; shift
+  local args=("$@") margs=(${*##-*})
+  if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
+    local state_path="$(ensure_project_path)/$installer_name/states"
+    [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
+  fi
+  echo "${args[*]}"
 }
 
 # collect groups created by modules. enforce them.
