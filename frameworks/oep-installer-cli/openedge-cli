@@ -28,7 +28,7 @@ main () {
       if declare -F subcommand_$v > /dev/null; then
         _cmds+=($v); _args+=(""); cur=$((cur+1))
         case "$v" in
-        setup|list) :;;
+        setup|list|bootstrap) :;;
         *) groups_required=1;;
         esac
       elif [ ${#_cmds[@]} -eq 0 ]; then
@@ -51,7 +51,7 @@ main () {
   declare -F act_get > /dev/null && act_get init
 
   if [ $groups_required -eq 1 ] && [[ " ${_globals[*]} " != *" --dry-run "* ]]; then
-    ensure_groups_prelude "$@"
+    act_groups_prelude "$@"
     local _prc=$?
     case $_prc in
       0) :;;             # groups fine, fall through to the loop
