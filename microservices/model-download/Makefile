@@ -69,7 +69,7 @@ help:
 	@echo ""
 	@echo "Config:  edit .env (auto-created from .env.example on first"
 	@echo "         'make build'/'make up'/'make down')"
-	@echo "Secrets: export GETI_TOKEN=.. HUGGINGFACEHUB_API_TOKEN=.. etc. in"
+	@echo "Secrets: export HUGGINGFACEHUB_API_TOKEN=.. etc. in"
 	@echo "         your shell before running build/up (never store secrets in .env)"
 	@echo ""
 	@echo "Code Quality & Security Scans"

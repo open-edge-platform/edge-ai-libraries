@@ -86,7 +86,7 @@
       "files": [],
       "expectations": [
         "Uses source scripts/run_service.sh up --plugins geti.",
-        "Lists GETI_HOST and optional GETI_TOKEN.",
+        "Lists GETI_HOST.",
         "Uses hub=geti in the request body.",
         "Uses port 8200.",
         "Explains that the user still needs the relevant Geti identifiers such as model or project information."

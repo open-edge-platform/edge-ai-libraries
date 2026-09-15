@@ -287,10 +287,8 @@ class Config(BaseModel):
     quantize: Optional[str] = None  # quantization dataset (for example: coco) used to enable INT8 export
 
     # Other plugin-specific common parameters
-    model_group_id: Optional[str] = None
     export_type: Optional[str] = Field(None, description="For Geti: 'base' or 'optimized'")
-    optimized_model_id: Optional[str] = None
-    model_only: Optional[bool] = Field(None, description="For optimized Geti models: exclude code")
+    variant_id: Optional[str] = Field(None, description="For Geti: specific model variant ID to download")
     
     # Plugin-specific configurations
     openvino_config: Optional[OpenVINOOptimizationConfig] = Field(
@@ -367,7 +365,7 @@ class ModelRequest(BaseModel):
         default=None,
         description=(
             "Optional per-request overrides for the target plugin's connection "
-            "keys (for example HF_TOKEN, or GETI_HOST/GETI_TOKEN). "
+            "keys (for example HF_TOKEN or GETI_HOST). "
             "Each value must be Base64-encoded (e.g. echo -n 'token' | base64). "
             "Values are decoded server-side and take precedence over the service's "
             "environment variables for this request only. They are never stored "

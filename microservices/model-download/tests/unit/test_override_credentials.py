@@ -28,14 +28,8 @@ class TestDecodeOverrideCredentials:
 
     def test_multiple_keys_decoded(self):
         host = base64.b64encode(b"https://geti.example.com").decode()
-        token = base64.b64encode(b"geti-token-123").decode()
-        result = _decode_override_credentials({
-            "GETI_HOST": host,
-            "GETI_TOKEN": token,
-        })
-        assert result == {
+        assert _decode_override_credentials({"GETI_HOST": host}) == {
             "GETI_HOST": "https://geti.example.com",
-            "GETI_TOKEN": "geti-token-123",
         }
 
     def test_null_value_preserved(self):
@@ -68,22 +62,11 @@ class TestGetiGroupedKeyValidation:
     @pytest.fixture
     def plugin(self, monkeypatch):
         monkeypatch.setenv("GETI_HOST", "https://env-host.com")
-        monkeypatch.setenv("GETI_TOKEN", "env-token")
         return GetiPlugin()
 
-    def test_all_geti_keys_provided_resolves(self, plugin):
-        result = plugin.resolve_config({
-            "GETI_HOST": "https://override-host.com",
-            "GETI_TOKEN": "override-token",
-        })
+    def test_geti_host_override_resolves(self, plugin):
+        result = plugin.resolve_config({"GETI_HOST": "https://override-host.com"})
         assert result["GETI_HOST"] == "https://override-host.com"
-        assert result["GETI_TOKEN"] == "override-token"
-
-    def test_partial_geti_override_missing_host_rejected(self, plugin):
-        with pytest.raises(ValueError, match="GETI_HOST"):
-            plugin.resolve_config({
-                "GETI_TOKEN": "new-token",
-            })
 
     def test_host_override_without_token_is_allowed(self, plugin):
         """Geti 3.0 permits local deployments without a token."""
@@ -95,7 +78,6 @@ class TestGetiGroupedKeyValidation:
     def test_no_override_uses_env(self, plugin):
         result = plugin.resolve_config({})
         assert result["GETI_HOST"] == "https://env-host.com"
-        assert result["GETI_TOKEN"] == "env-token"
 
 
 # --- Unknown key rejection tests ---

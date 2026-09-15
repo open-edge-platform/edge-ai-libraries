@@ -44,7 +44,7 @@ or converting any supported model using the REST API.
 | Ollama | `ollama` | Downloads Ollama models, runs local Ollama server | — |
 | Ultralytics | `ultralytics` | Downloads YOLO models, optional INT8 quantization | — |
 | OpenVINO | `openvino` | Converts HF models to OpenVINO IR for OVMS | `HUGGINGFACEHUB_API_TOKEN` for compose-based startup (usually needed) |
-| Geti | `geti` | Downloads trained models from Intel Geti 3.0 Model API | `GETI_HOST`, optional `GETI_TOKEN` |
+| Geti | `geti` | Downloads trained models from Intel Geti 3.0 Model API | `GETI_HOST` |
 | Pipeline Zoo | `pipeline-zoo-models` | Downloads DL Streamer pipeline-zoo models | — |
 | HLS | `hls` | Downloads healthcare AI models (3d-pose, rppg, ai-ecg) | — |
 

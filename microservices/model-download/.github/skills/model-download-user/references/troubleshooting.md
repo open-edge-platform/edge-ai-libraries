@@ -113,7 +113,7 @@ docker logs model-download 2>&1 | grep -A 20 "ERROR\|Traceback\|Exception"
 **Fix:**
 1. Verify env vars are set before starting the service:
    ```bash
-  echo $GETI_HOST $GETI_TOKEN
+  echo $GETI_HOST
    ```
 2. If SSL verification is failing against a self-signed cert:
    ```bash

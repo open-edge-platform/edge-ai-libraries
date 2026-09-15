@@ -199,7 +199,7 @@ install_dependencies() {
             ;;
         geti)
             echo -e "${BLUE}INFO:${NC} Geti plugin dependencies will be installed via uv sync"
-            echo -e "${BLUE}INFO:${NC} Geti plugin uses the Geti 3.0 Model API; GETI_HOST is required and GETI_TOKEN is optional"
+            echo -e "${BLUE}INFO:${NC} Geti plugin uses the unauthenticated Geti 3.0 Model API; GETI_HOST is required"
             echo "0" > "${status_file}"
             ;;
         hls)

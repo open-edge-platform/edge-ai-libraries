@@ -64,8 +64,6 @@ spec:
               value: "{{ .Values.modeldownload.env.OVMS_RELEASE_TAG }}"
             - name: GETI_HOST
               value: "{{ .Values.modeldownload.env.GETI_HOST }}"
-            - name: GETI_TOKEN
-              value: "{{ .Values.modeldownload.env.GETI_TOKEN }}"
             - name: GETI_SERVER_SSL_VERIFY
               value: "{{ .Values.modeldownload.env.GETI_SERVER_SSL_VERIFY }}"
             - name: HLS_3D_POSE_CHECKPOINT_URL
