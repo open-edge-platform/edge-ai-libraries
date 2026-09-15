@@ -208,7 +208,6 @@ act_helpper () {
 }
 
 subcommand_install () {
-  [[ " $* " = *" --help "* ]] || ensure_groups
   act_helpper "install,Installation,Installing,Installed" "" "$@"
 }
 
@@ -368,16 +367,3 @@ EOF
   echo "bash completion created at $completion_script"
 }
 
-act_enforce_groups () {
-  # ensure docker, render and video groups are present
-  if [[ " $* " = *" install "* ]]; then
-    local group
-    for group in docker: render:992 video:; do
-      [ -z "$(getent group ${group%:*})" ] || continue
-      local want_gid="${group#*:}"
-      [ -n "$want_gid" ] && getent group $want_gid > /dev/null && want_gid=""
-      ensure_sudo groupadd --system ${want_gid:+--gid $want_gid} ${group%:*}
-    done
-    ensure_sudo exec openedge-cli "$@"
-  fi
-}

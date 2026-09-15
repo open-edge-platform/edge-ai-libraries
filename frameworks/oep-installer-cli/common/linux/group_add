@@ -28,6 +28,7 @@ ensure_group_add () {
   while :; do
     missing=""
     for group1 in "$@"; do
+      # id -G "$(id -un)" searches the database while id -G checks the current session
       id -G "$(id -un)" | tr ' ' '\n' | grep -qx "$(getent group ${group1%:*} | cut -f3 -d:)" || missing+=" ${group1%:*}"
     done
     [ -n "$missing" ] || return 0
