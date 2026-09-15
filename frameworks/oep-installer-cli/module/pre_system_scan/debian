@@ -18,21 +18,25 @@ debian_10_install_pre_system_scan () {
     membank_info="$(system_scan_check_membank)"
     [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Configuration}"
     echo -e "RAM|$membank_info|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2
 
     pass=$ok
     [[ $PRETTY_NAME = *"24.04"* ]] || pass="${nok/MSG/Not supported}"
     echo -e "OS|$PRETTY_NAME|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT OS|$PRETTY_NAME|$pass" 1>&2
 
     pass=$ok
     docker_ver="$(system_scan_check_docker)"
     [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}"
     [ -n "$docker_ver" ] || pass="${nok} Missing Docker"
     echo -e "Docker|$docker_ver|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2
 
     net_pass=$ok
     net_access="$(system_scan_check_network_access)"
     [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}"
     echo -e "Network|$net_access|$net_pass"
+    [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2
 
     echo
     echo "Accelerators:"
@@ -41,6 +45,7 @@ debian_10_install_pre_system_scan () {
     cpuinst_info="$(system_scan_check_cpu_instructions)"
     [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}"
     echo -e "CPU|$cpuinst_info|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass"
 
     for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' '); do
       pass=$ok
@@ -48,6 +53,7 @@ debian_10_install_pre_system_scan () {
       if [ -n "$accel_info" ]; then
         [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
         echo -e "GPU|$accel_info|$pass"
+        [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2
       fi
     done
 
@@ -57,6 +63,7 @@ debian_10_install_pre_system_scan () {
       if [ -n "$accel_info" ]; then
         [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
         echo -e "NPU|$accel_info|$pass"
+        [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT NPU|$accel_info|$pass" 1>&2
       fi
     done
 
