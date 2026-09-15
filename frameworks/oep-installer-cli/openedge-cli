@@ -64,8 +64,8 @@ main () {
       done
     done
 
-    ensure_sudo true
-    act_groups_prelude "${!groups[*]}" "$@"
+    #ensure_sudo true
+    [ ${#groups[*]} -eq 0 ] || act_groups_prelude "${!groups[*]}" "$@"
     local _prc=$?
     case $_prc in
       0) :;;             # groups fine, fall through to the loop
