@@ -5,7 +5,7 @@ main () {
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
-  local _globals=() _cmds=() _args=() cur=-1 v cmd
+  local _globals=() _cmds=() _args=() cur=-1 v cmd groups_required=0
   for v in "$@"; do
     case $v in
     --help)
@@ -27,6 +27,10 @@ main () {
     *)
       if declare -F subcommand_$v > /dev/null; then
         _cmds+=($v); _args+=(""); cur=$((cur+1))
+        case "$v" in
+        setup|list) :;;
+        *) groups_required=1;;
+        esac
       elif [ ${#_cmds[@]} -eq 0 ]; then
         echo "Unknown command: $v"
         exit 3
@@ -45,6 +49,16 @@ main () {
 
   # initialize act cache
   declare -F act_get > /dev/null && act_get init
+
+  if [ $groups_required -eq 1 ] && [[ " ${_globals[*]} " != *" --dry-run "* ]]; then
+    ensure_prelude "$@"
+    local _prc=$?
+    case $_prc in
+      0) :;;             # groups fine, fall through to the loop
+      251) return 0;;    # child ran everything
+      *) return $_prc;;
+    esac
+  fi
 
   # exec subcommand
   local _rc=0 _i
