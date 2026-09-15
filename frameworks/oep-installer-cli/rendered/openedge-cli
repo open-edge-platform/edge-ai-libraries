@@ -5,7 +5,7 @@ main () {
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
-  local _globals=() _cmds=() _args=() cur=-1 v cmd
+  local _globals=() _cmds=() _args=() cur=-1 v cmd groups_required=0
   for v in "$@"; do
     case $v in
     --help)
@@ -27,6 +27,10 @@ main () {
     *)
       if declare -F subcommand_$v > /dev/null; then
         _cmds+=($v); _args+=(""); cur=$((cur+1))
+        case "$v" in
+        setup|list|bootstrap) :;;
+        *) groups_required=1;;
+        esac
       elif [ ${#_cmds[@]} -eq 0 ]; then
         echo "Unknown command: $v"
         exit 3
@@ -45,6 +49,16 @@ main () {
 
   # initialize act cache
   declare -F act_get > /dev/null && act_get init
+
+  if [ $groups_required -eq 1 ] && [[ " ${_globals[*]} " != *" --dry-run "* ]]; then
+    act_groups_prelude "$@"
+    local _prc=$?
+    case $_prc in
+      0) :;;             # groups fine, fall through to the loop
+      251) return 0;;    # child ran everything
+      *) return $_prc;;
+    esac
+  fi
 
   # exec subcommand
   local _rc=0 _i
@@ -366,20 +380,19 @@ subcommand_setup () {
 
   # reconstruct installer
   local installer_misc_functions=(amr_setup_gazebo cleanup_gpu configure_amr_apt_repo configure_anomalib configure_autonomous_mobile_robot configure_dlstreamer configure_docker configure_esq configure_geti configure_gpu configure_handheld_multi_modal configure_humanoid_imitation_learning configure_libze1 configure_live_video_captioning configure_loitering_detection configure_loss_prevention configure_multimodal_weld_defect_detection configure_multimodal_weld_defect_detection_device configure_multimodal_weld_defect_detection_env configure_nicu_warmer configure_npu configure_openvino configure_order_accuracy configure_pallet_defect_detection configure_pcb_anomaly_detection configure_physical_ai_framework configure_physical_ai_studio configure_realsense configure_ros2 configure_ros_openvino configure_smart_intersection configure_smart_parking configure_stationary_robot_vision configure_uv configure_video_search_and_summarization configure_vippet current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary verify_amr_apt_repo verify_anomalib verify_autonomous_mobile_robot verify_dlstreamer verify_geti verify_gpu verify_handheld_multi_modal verify_humanoid_imitation_learning verify_live_video_captioning verify_loitering_detection verify_loss_prevention verify_multimodal_weld_defect_detection verify_nicu_warmer verify_npu verify_openvino verify_order_accuracy verify_pallet_defect_detection verify_pcb_anomaly_detection verify_physical_ai_framework verify_physical_ai_studio verify_realsense verify_ros2 verify_ros_openvino verify_smart_intersection verify_smart_parking verify_stationary_robot_vision verify_video_search_and_summarization verify_vippet)
-  if [ ${#installer_misc_functions[@]} -gt 0 ]; then
-    local installer=~/.local/bin/$installer_name
-    cat > "$installer" <<EOF
+  local installer="$HOME/.local/bin/$installer_name"
+  mkdir -p "$(dirname "$installer")"
+  cat > "$installer" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
 $(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
-    chmod a+rx "$installer"
-    echo "Installer reconstructed at $installer"
-  fi
+  chmod a+rx "$installer"
+  echo "Installer reconstructed at $installer"
 
   # reconstruct bash completion
-  local completion_script=~/.local/share/bash-completion/completions/$installer_name
+  local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name"
   mkdir -p "$(dirname "$completion_script")"
 
   local all_cmds=(${_act_cache_cmds[*]})
@@ -423,6 +436,45 @@ $(
 complete -F _${installer_name//-/_}_completion $installer_name
 EOF
   echo "bash completion created at $completion_script"
+}
+
+# collect groups created by modules. enforce them.
+act_groups_prelude () {
+  local common_groups=(docker: video: render:992)
+  local critical_groups=(docker)
+  ensure_group_add ${common_groups[*]} || {
+    echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
+    echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
+    echo "may not apply. Ask your administrator to add: ${groups[*]%:*}" 1>&2
+    exit 3
+  }
+
+  # Process credentials -- no argument to id, deliberately.
+  local g needed=0
+  for g in ${critical_groups[*]}; do
+    id -nG | tr ' ' '\n' | grep -qx "$g" || { needed=1; break; }
+  done
+  [ $needed -eq 1 ] || return 0
+
+  if [ -n "${OEP_GROUP_REEXEC:-}" ]; then
+    echo -e "${yellow}groups still not effective after re-exec${reset}" 1>&2
+    return 0
+  fi
+
+  subcommand_setup
+  local installer="$HOME/.local/bin/$installer_name"
+  [ -x "$installer" ] || {
+    echo -e "${red}$installer not found; run 'setup' first${reset}" 1>&2
+    exit 3
+  }
+
+  ensure_sudo env HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" PATH="$PATH" OEP_GROUP_REEXEC=1 \
+    setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" --inh-caps=-all \
+    "$installer" "$@"
+  local rc=$?
+  [ $rc -le 250 ] || rc=1
+  [ $rc -eq 0 ] || return $rc
+  return 251
 }
 
 
@@ -505,14 +557,54 @@ ensure_git_clone () {
 }
 
 
-# add a group and ensure the user is part of the group
+# add groups and ensure user is part of the groups
+# use docker: for a system group
 ensure_group_add () {
-  local group1=$1
-  getent group $group1 >/dev/null 2>&1 || ensure_sudo groupadd $group1
-  id -nG | grep -qw $group1 || {
-    ensure_sudo usermod -aG $group1 "$(id -un)"
-    newgrp $group1
-  }
+  local group1 gid1
+  
+  for group1 in "$@"; do
+    case "$group1" in
+    *:) 
+      gid1="--system"
+      ;;
+    *:*) 
+      gid1="--system --gid ${group1#*:}"
+      getent group ${group1%:*} >/dev/null 2>&1 || [ -z "$(getent group ${gid1##* })" ] || { echo "gid ${gid1##* } is taken" 1>&2; gid1="--system"; }
+      ;;
+    *) 
+      gid1=""
+      ;;
+    esac
+    getent group ${group1%:*} >/dev/null 2>&1 || ensure_sudo groupadd $gid1 ${group1%:*}
+    id -nG | tr ' ' '\n' | grep -qx ${group1%:*} || ensure_sudo usermod -aG ${group1%:*} "$(id -un)"
+  done
+
+  # wait until NSS settles
+  local deadline=$((SECONDS + 30))
+  local flushed=0 missing
+
+  while :; do
+    missing=""
+    for group1 in "$@"; do
+      # id -G "$(id -un)" searches the database while id -G checks the current session
+      id -G "$(id -un)" | tr ' ' '\n' | grep -qx "$(getent group ${group1%:*} | cut -f3 -d:)" || missing+=" ${group1%:*}"
+    done
+    [ -n "$missing" ] || return 0
+
+    # One-shot cache invalidation -- usually converges immediately after this.
+    if [ $flushed -eq 0 ]; then
+      flushed=1
+      command -v nscd  >/dev/null && ensure_sudo nscd -i group   >/dev/null 2>&1
+      command -v sss_cache >/dev/null && ensure_sudo sss_cache -G >/dev/null 2>&1
+      continue
+    fi
+
+    [ $SECONDS -ge $deadline ] && {
+      echo -e "${red}groups not visible:${missing}${reset}" 1>&2
+      return 1
+    }
+    sleep 1
+  done
 }
 
 
@@ -2073,7 +2165,7 @@ configure_docker () {
     echo "Configure docker engine proxies..."
     grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
       ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
-      ensure_sudo tee /etc/systemd/system/docker.service.d/proxy.conf <<EOF
+      ensure_sudo tee /etc/systemd/system/docker.service.d/oep-proxy.conf <<EOF
 [Service]
 Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
 Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
@@ -2103,35 +2195,33 @@ EOF
 debian_20_install_docker () {
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
     echo "Docker is already installed. Skipping..."
-  elif dpkg -L docker.io > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
+  elif dpkg-query -W -f '${Status}' docker.io 2> /dev/null | grep -q install && [[ "$*" != *"--reset-docker"* ]]; then
     ensure_apt update
     ensure_apt install -y docker-buildx docker-compose-v2
-  elif dpkg -L docker-ce > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then 
+  elif dpkg-query -W -f '${Status}' docker-ce 2> /dev/null | grep -q install && [[ "$*" != *"--reset-docker"* ]]; then 
     ensure_apt update
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
     echo "Remove legacy installation"
-    ensure_apt autoremove -m -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd runc
+    ensure_apt autopurge -m -y $(dpkg-query -W -f='${Package} ${Status}\n' docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc 2>/dev/null | awk '$2!="unknown"{print $1}')
 
     # create docker group
-    ensure_group_add docker
+    ensure_group_add docker:
 
-    ensure_apt update
-    ensure_apt install -y docker.io docker-buildx docker-compose-v2
+    ensure_apt  update
+    ensure_apt  install -y docker.io docker-buildx docker-compose-v2
 
-    DAEMON_JSON="/etc/docker/daemon.json"
-    if [ ! -f "$DAEMON_JSON" ]; then
-      ensure_sudo mkdir -p /etc/docker
-      ensure_sudo tee "$DAEMON_JSON" <<EOF
-{
-   "exec-opts": [
-        "native.cgroupdriver=systemd"
-    ]
-}
-EOF
-    fi
-    ensure_sudo systemctl daemon-reload
-    ensure_sudo systemctl restart docker
+    # wait
+    local deadline=$((SECONDS+60))
+    until systemctl is-active --quiet docker.service > /dev/null 2>&1; do
+      [ $SECONDS -lt $deadline ] || {
+        echo -e "${red}dockerd did not become ready${reset}" 1>&2
+        ensure_sudo systemctl status docker.service --no-pager 1>&2
+        ensure_sudo journalctl -u docker.service -n 30 --no-pager 1>&2
+        return 1
+      }
+      sleep 1
+    done
   fi
   configure_docker
 }
@@ -3495,21 +3585,25 @@ debian_10_install_pre_system_scan () {
     membank_info="$(system_scan_check_membank)"
     [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Configuration}"
     echo -e "RAM|$membank_info|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2
 
     pass=$ok
     [[ $PRETTY_NAME = *"24.04"* ]] || pass="${nok/MSG/Not supported}"
     echo -e "OS|$PRETTY_NAME|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT OS|$PRETTY_NAME|$pass" 1>&2
 
     pass=$ok
     docker_ver="$(system_scan_check_docker)"
     [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}"
     [ -n "$docker_ver" ] || pass="${nok} Missing Docker"
     echo -e "Docker|$docker_ver|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2
 
     net_pass=$ok
     net_access="$(system_scan_check_network_access)"
     [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}"
     echo -e "Network|$net_access|$net_pass"
+    [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2
 
     echo
     echo "Accelerators:"
@@ -3518,6 +3612,7 @@ debian_10_install_pre_system_scan () {
     cpuinst_info="$(system_scan_check_cpu_instructions)"
     [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}"
     echo -e "CPU|$cpuinst_info|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass"
 
     for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' '); do
       pass=$ok
@@ -3525,6 +3620,7 @@ debian_10_install_pre_system_scan () {
       if [ -n "$accel_info" ]; then
         [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
         echo -e "GPU|$accel_info|$pass"
+        [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2
       fi
     done
 
@@ -3534,6 +3630,7 @@ debian_10_install_pre_system_scan () {
       if [ -n "$accel_info" ]; then
         [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
         echo -e "NPU|$accel_info|$pass"
+        [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT NPU|$accel_info|$pass" 1>&2
       fi
     done
 
