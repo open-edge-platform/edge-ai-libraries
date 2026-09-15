@@ -34,6 +34,7 @@ def _internal_model_to_api(model: InternalSupportedModel) -> schemas.Model:
     return schemas.Model(
         name=model.name,
         display_name=model.display_name,
+        description=model.description,
         category=(
             schemas.ModelCategory(model.category.value) if model.category else None
         ),
@@ -132,6 +133,7 @@ async def upload_model(
     model_name: Annotated[str, Form(..., min_length=1)],
     category: Annotated[schemas.ModelCategory, Form(...)],
     file: Annotated[UploadFile, File(...)],
+    description: Annotated[str | None, Form()] = None,
 ):
     """
     # Upload Model
@@ -146,6 +148,8 @@ async def upload_model(
     - **`model_name`** *(required)* - Canonical identifier for the model
     - **`category`** *(required)* - Logical model category
       (`classification`, `detection`, `genai`)
+    - **`description`** *(optional)* - Human-readable explanation of
+      what the model detects/classifies
     - **`file`** *(required)* - ZIP file containing the OpenVINO IR
 
     ## Response Codes
@@ -166,11 +170,13 @@ async def upload_model(
         tmp_path = ModelManager.write_upload_to_tempfile(
             file.file, file.filename or f"{model_name}.zip"
         )
+        normalized_description = (description or "").strip() or None
         spec = InternalModelUploadSpec(
             model_name=model_name,
             category=InternalModelCategory(category.value),
             file_path=tmp_path,
             original_filename=file.filename or f"{model_name}.zip",
+            description=normalized_description,
         )
         model, status, message = ModelManager().upload_model(spec)
         if model is None:
