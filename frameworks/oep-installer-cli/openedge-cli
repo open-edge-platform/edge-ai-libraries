@@ -160,7 +160,7 @@ subcommand_bootstrap () {
   local scripts_ordered
   mapfile -t scripts_ordered < <(printf '%s\n' "${!scripts[@]}" | sort)
   for script in "${scripts_ordered[@]}"; do
-    echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
+    echo "==== bootstrapping ${script#"$mydir/"} ===="
     [[ " $* " != *" --dry-run "* ]] || continue
     cat "$script" >> "$rendered" 2> /dev/null || true
     cat "${script%/*}/linux" 2> /dev/null >> "$rendered" || true
