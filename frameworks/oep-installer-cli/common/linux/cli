@@ -395,7 +395,7 @@ act_groups_prelude () {
   }
 
   ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" --inh-caps=-all \
-    bash -c "HOME='$HOME' USER='$(id -un)' LOGNAME='$(id -un)' PATH='$PATH' SUDO_PASSWORD='$SUDO_PASSWORD' OEP_GROUP_REEXEC=1 '$installer' $*"
+    env HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" PATH="$PATH" SUDO_PASSWORD="$SUDO_PASSWORD" TF_TOKEN="$TF_TOKEN" OEP_GROUP_REEXEC=1 "$installer" "$@"
   local rc=$?
   [ $rc -le 250 ] || rc=1
   [ $rc -eq 0 ] || return $rc
