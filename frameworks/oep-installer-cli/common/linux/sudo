@@ -4,12 +4,8 @@ ensure_sudo () {
   if sudo -nv 2>/dev/null || sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
     sudo "$@"
-  elif [ -n "$SUDO_PASSWORD" ]; then
-    # Non-interactive password. Feed it on the first stdin line via `sudo -S`
-    # and never write it to disk. `cat` forwards any remaining piped stdin to
-    # the invoked command so constructs like `curl ... | ensure_sudo tee file`
-    # keep working.
-    (echo "$SUDO_PASSWORD"; cat) | sudo -kS "$@"
+  elif [ -x "$0-askpass" ]; then
+    SUDO_ASKPASS="$0-askpass" sudo -A "$@"
   elif [ -t 0 ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo "$@"
@@ -19,5 +15,38 @@ ensure_sudo () {
     echo "ensure_sudo: sudo requires a password but none is available" 1>&2
     return 1
   fi
+}
+
+# the askpass helper
+ensure_sudo_askpass_helper () {
+  set -u
+  cache=/dev/shm/openedge-cli-sudo-password-cache
+
+  # 0) non-interactive / CI: env wins, no tty needed
+  [ -z "${SUDO_PASSWORD:-}" ] || { printf '%s\n' "$SUDO_PASSWORD"; exit 0; }
+
+  # 1) serialize: parallel components must not race to prompt
+  exec 9>"$cache.lock" || exit 1
+  flock 9 || exit 1
+
+  # 2) someone already asked -> reuse, no second prompt
+  [ -s "$cache" ] && { cat "$cache"; exit 0; }
+
+  # 3) first real need. sudo's stdin/stdout are pipes; /dev/tty is not.
+  exec 8<>/dev/tty 2>/dev/null || exit 1
+
+  saved=$(stty -g <&8) || exit 1
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM
+  stty -echo <&8
+
+  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+  rows=$(stty size <&8 | cut -d' ' -f1)
+  printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
+  IFS= read -r pw <&8
+  printf '\033[%d;1H\033[K' "$rows" >&8
+
+  # 4) cache on tmpfs, 0600, for the rest of the run
+  (umask 077; printf '%s\n' "$pw" > "$cache")
+  printf '%s\n' "$pw"
 }
 

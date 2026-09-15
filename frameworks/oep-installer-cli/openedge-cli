@@ -5,6 +5,11 @@ main () {
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
+  # sudo askpass helper
+  case "${0##*/}" in
+  *-askpass) ensure_sudo_askpass_helper "$@"; exit ;;
+  esac
+
   local _globals=() _cmds=() _args=() cur=-1 v cmd groups_required=0
   for v in "$@"; do
     case $v in
@@ -64,7 +69,6 @@ main () {
       done
     done
 
-    #ensure_sudo true
     [ ${#groups[*]} -eq 0 ] || act_groups_prelude "${!groups[*]}" "$@"
     local _prc=$?
     case $_prc in
