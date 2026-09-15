@@ -59,6 +59,7 @@ main () {
       for dep in $(act_find_deps install install ${_globals[*]} ${_args[$_i]}); do
         { [[ "$dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$dep" = ${ID_LIKE}_*_install_npu ]] } && groups["render:992"]=1
         [[ "$dep" = ${ID_LIKE}_*_install_gpu ]] && groups["video:"]=1
+        [[ "$dep" = ${ID_LIKE}_*_install_docker ]] && groups["docker:"]=1
       done
     done
 
