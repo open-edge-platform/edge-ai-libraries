@@ -1,11 +1,12 @@
 
 # perform sudo in automation or in tty
 ensure_sudo () {
+  local askpass_helper="$HOME/.local/bin/$installer_name-askpass"
   if sudo -nv 2>/dev/null || sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
     sudo "$@"
-  elif [ -x "$0-askpass" ]; then
-    SUDO_ASKPASS="$0-askpass" sudo -A "$@"
+  elif [ -x "$askpass_helper" ]; then
+    SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
   elif [ -t 0 ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo "$@"
@@ -36,13 +37,15 @@ ensure_sudo_askpass_helper () {
   exec 8<>/dev/tty 2>/dev/null || exit 1
 
   saved=$(stty -g <&8) || exit 1
-  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM
+  trap 'rm -f "$cache.prompt"; stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM
   stty -echo <&8
 
   # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
   rows=$(stty size <&8 | cut -d' ' -f1)
+  printf '%s' "$1" > "$cache.prompt"
   printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
   IFS= read -r pw <&8
+  rm -f "$cache.prompt"
   printf '\033[%d;1H\033[K' "$rows" >&8
 
   # 4) cache on tmpfs, 0600, for the rest of the run

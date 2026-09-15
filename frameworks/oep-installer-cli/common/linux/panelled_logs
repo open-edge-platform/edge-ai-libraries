@@ -66,7 +66,7 @@ readonly MAX_WRAP=3000
 readonly LEFT_MIN=16
 KEEP_COLOR=${KEEP_COLOR:-1}
 WRAP_MODE=${WRAP_MODE:-wrap}
-LEFT_WIDTH=${LEFT_WIDTH:-0}
+LEFT_WIDTH=${LEFT_WIDTH:-38}
 LEFT_MAX_PCT=${LEFT_MAX_PCT:-34}
 REPORT_MAX_PCT=${REPORT_MAX_PCT:-55}
 SPLIT_MIN=${SPLIT_MIN:-6}
@@ -845,7 +845,13 @@ _draw() {
   fi
 
   local out="" l r rowstr
-  if (( FULL_CLEAR )); then out+=$'\033[2J'; PREV=(); FULL_CLEAR=0; fi
+  if (( FULL_CLEAR )); then 
+    out+=$'\033[2J'; PREV=(); FULL_CLEAR=0; 
+    local sudo_prompt=/dev/shm/openedge-cli-sudo-password-cache.prompt
+    if [ -e $sudo_prompt ]]; then
+      printf -v out '%s\033[%d;1H\033[K%s' "$out" "$TTY_ROWS" "$(<$sudo_prompt)"
+    fi
+  fi
 
   local title=" ${ACT_TEXT[0]} progress "
   if (( REVIEW )); then

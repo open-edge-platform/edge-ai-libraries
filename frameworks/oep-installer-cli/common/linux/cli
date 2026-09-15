@@ -196,7 +196,6 @@ act_helpper () {
       mkdir -p "$(dirname "$LOG_FILE")"
       echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
       echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
-      echo "$BASHPID" > /dev/shm/openedge-cli-panel-pid
       ensure_panelled_logs ${act_text//,/ }
     ) 2>&1
     # wait for background processes
