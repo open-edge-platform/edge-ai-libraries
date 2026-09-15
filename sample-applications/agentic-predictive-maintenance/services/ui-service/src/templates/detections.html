@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Detections — {{ use_case_id }}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <span class="logo">&#9632; Intel</span>
+      <h1>Agentic Predictive Maintenance</h1>
+      <span class="use-case-badge">{{ use_case_id }}</span>
+    </div>
+  </header>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/detections" class="active">Detections</a>
+  </nav>
+
+  <main>
+    <section class="card">
+      <h2>Filter Detections</h2>
+      <form method="GET" action="/detections" class="filter-form">
+        <label>Label: <input type="text" name="label" value="{{ filter_label }}"></label>
+        <label>Min Confidence: <input type="number" name="min_confidence" step="0.01" min="0" max="1" value="{{ filter_confidence }}"></label>
+        <label>Limit:
+          <select name="limit">
+            {% for n in [50, 100, 250, 500] %}
+            <option value="{{ n }}" {% if filter_limit == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="btn-primary">Filter</button>
+        <a href="/detections" class="btn-secondary">Reset</a>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Detections
+        <span class="count-info">— showing {{ detections|length }}{% if total_count %} of {{ total_count }} total{% endif %}</span>
+      </h2>
+      {% if detections %}
+      <table>
+        <thead><tr><th>#</th><th>Frame</th><th>Label</th><th>Confidence</th><th>BBox (x,y,w,h)</th><th>Timestamp</th></tr></thead>
+        <tbody>
+          {% for d in detections %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ d.frame_id }}</td>
+            <td><span class="label-badge">{{ d.label }}</span></td>
+            <td>
+              <span class="conf-bar">
+                <span class="conf-fill" style="width: {{ (d.confidence * 100)|int }}%"></span>
+              </span>
+              {{ "%.3f"|format(d.confidence) }}
+            </td>
+            <td>({{ d.x }}, {{ d.y }}, {{ d.width }}, {{ d.height }})</td>
+            <td class="timestamp">{{ d.timestamp or "—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty">No detections match the current filter.</p>
+      {% endif %}
+    </section>
+    <section class="card card-danger">
+      <h2>&#9888; Danger Zone</h2>
+      <form method="POST" action="/clear-detections">
+        <button type="submit" class="btn-danger" onclick="return confirm('This will permanently delete all detection records. Continue?')">&#10005; Clear All Detections</button>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <p>&#169; Intel Corporation — Agentic Predictive Maintenance Blueprint</p>
+  </footer>
+</body>
+</html>
