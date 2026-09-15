@@ -148,17 +148,19 @@ describe('SearchModal Component test suite', () => {
     });
   });
 
-  it('should handle empty search submission', async () => {
+  it('should not submit an empty search (no text and no image)', async () => {
     const closeModalMock = vi.fn();
     renderComponent({ closeModal: closeModalMock });
-    
-    const searchButton = screen.getByText('Search');
-    fireEvent.click(searchButton);
-    
-    await waitFor(() => {
-      expect(mockDispatch).toHaveBeenCalled();
-      expect(closeModalMock).toHaveBeenCalled();
-    });
+
+    // With neither text nor image, the Search button is disabled and clicking
+    // it must not dispatch a search or close the modal.
+    const searchButton = screen.getByText('Search').closest('button');
+    expect(searchButton).toBeDisabled();
+
+    fireEvent.click(searchButton!);
+
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(closeModalMock).not.toHaveBeenCalled();
   });
 
   it('should respect maxLength attribute on textarea', () => {
@@ -182,19 +184,19 @@ describe('SearchModal Component test suite', () => {
     expect(screen.getByText('Cancel')).toBeInTheDocument();
   });
 
-  it('should handle textarea ref correctly', () => {
+  it('should keep the text area available after submitting', () => {
     renderComponent();
-    
+
     const textArea = screen.getByRole('textbox');
     expect(textArea).toBeInTheDocument();
-    
-    // Type in the textarea and then simulate search to trigger reset
+
+    // Type in the (controlled) text area and submit to trigger a reset.
     fireEvent.change(textArea, { target: { value: 'test' } });
-    
+
     const searchButton = screen.getByText('Search');
     fireEvent.click(searchButton);
-    
-    // The ref-based reset should work
-    expect(textArea).toBeInTheDocument();
+
+    // The text area remains mounted (no image), ready for the next query.
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
   });
 });

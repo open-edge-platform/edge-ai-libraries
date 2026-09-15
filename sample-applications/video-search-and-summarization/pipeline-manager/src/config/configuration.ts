@@ -20,6 +20,7 @@ export default () => ({
   search: {
     endpoint: process.env.SEARCH_ENDPOINT,
     dataPrep: process.env.SEARCH_DATAPREP_ENDPOINT,
+    vsIndexName: process.env.VS_INDEX_NAME,
     dataPrepTimeoutMs: process.env.SEARCH_DATAPREP_TIMEOUT_MS
       ? Number(process.env.SEARCH_DATAPREP_TIMEOUT_MS)
       : 30000,
