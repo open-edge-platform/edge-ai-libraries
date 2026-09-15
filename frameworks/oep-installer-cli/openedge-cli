@@ -52,15 +52,18 @@ main () {
 
   local _rc=0 _i
   if [ $groups_required -eq 1 ] && [[ " ${_globals[*]} " != *" --dry-run "* ]]; then
-    local handles=()
+    # critical group permissions
+    local -A groups=()
+    local dep
     for ((_i=0;_i<${#_cmds[@]};_i++)); do
-      handles+=($(
-        act_find_deps ${_cmds[$_i]} ${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
-      ))
+      for dep in $(act_find_deps install install ${_globals[*]} ${_args[$_i]}); do
+        { [[ "$dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$dep" = ${ID_LIKE}_*_install_npu ]] } && groups["render:992"]=1
+        [[ "$dep" = ${ID_LIKE}_*_install_gpu ]] && groups["video:"]=1
+      done
     done
 
     ensure_sudo true
-    act_groups_prelude "${handles[*]}" "$@"
+    act_groups_prelude "${!groups[*]}" "$@"
     local _prc=$?
     case $_prc in
       0) :;;             # groups fine, fall through to the loop
