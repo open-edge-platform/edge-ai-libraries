@@ -333,6 +333,7 @@ class BenchmarkManager:
                 output_mode=InternalOutputMode.DISABLED,
                 max_runtime=BENCHMARK_TEST_CASE_MAX_RUNTIME_SECONDS,
                 metadata_mode=InternalMetadataMode.DISABLED,
+                enable_latency_metrics=True,
             ),
             original_request={
                 "pipeline_performance_specs": [
@@ -349,6 +350,7 @@ class BenchmarkManager:
                     "output_mode": "disabled",
                     "max_runtime": BENCHMARK_TEST_CASE_MAX_RUNTIME_SECONDS,
                     "metadata_mode": "disabled",
+                    "enable_latency_metrics": True,
                 },
             },
         )
