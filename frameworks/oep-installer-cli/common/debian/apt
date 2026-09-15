@@ -9,7 +9,7 @@ ensure_apt () {
     ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
     touch /dev/shm/apt_update
     ;;
-  autoremove|remove|purge)
+  autoremove|remove|purge|autopurge)
     # make sure the package list exists
     local package_list=()
     local options=()
@@ -21,7 +21,7 @@ ensure_apt () {
       fi
     done
     if [ ${#package_list[*]} -gt 0 ]; then
-      local valid_packages=($(dpkg-query -W -f='${Status} ${Package}\n' ${package_list[*]} 2>/dev/null | awk '/installed/{print $4}'))
+      local valid_packages=($(dpkg-query -W -f='${Status} ${Package}\n' ${package_list[*]} 2>/dev/null | awk '$2!="unknown"{print $4}'))
       if [ ${#valid_packages[*]} -gt 0 ]; then
         ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy%%,} apt-get $1 -y ${options[*]} ${valid_packages[*]}
       fi
