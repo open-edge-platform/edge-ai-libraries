@@ -44,7 +44,7 @@ WORKDIR /app
 ARG KAPACITOR_VERSION
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    wget intel-gpu-tools && \
+    wget intel-gpu-tools libgomp1 && \
     mkdir -p /etc/init.d && \
     wget -O /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_VERSION}-1_amd64.deb" || exit 1 && \
     dpkg -i /tmp/kapacitor.deb || true && apt-get install -y --no-install-recommends -f && \
@@ -71,8 +71,7 @@ COPY ./requirements.txt .
 
 # Install Python dependencies efficiently and clean up cache to reduce image size
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    python -m pip uninstall -y pip
+    pip install --no-cache-dir -r requirements.txt
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
