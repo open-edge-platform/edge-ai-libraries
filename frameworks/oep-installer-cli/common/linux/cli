@@ -407,8 +407,9 @@ act_groups_prelude () {
   ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" --inh-caps=-all \
     env HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" PATH="$PATH" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" OEP_GROUP_REEXEC=1 bash -c "
       {
-        IFS= read -r SUDO_PASSWORD 
+        IFS= read -r SUDO_PASSWORD
         IFS= read -r TF_TOKEN
+        export SUDO_PASSWORD TF_TOKEN
       } < $secret_dir/secrets
       rm -f $secret_dir/secrets
       '$installer' ${*:2}
