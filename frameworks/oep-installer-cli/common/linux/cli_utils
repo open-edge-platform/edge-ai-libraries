@@ -196,7 +196,7 @@ act_helpper () {
       mkdir -p "$(dirname "$LOG_FILE")"
       echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
       echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
-      ensure_panelled_logs ${act_text//,/ }
+      act_panelled_logs ${act_text//,/ }
     ) 2>&1
     # wait for background processes
     wait
