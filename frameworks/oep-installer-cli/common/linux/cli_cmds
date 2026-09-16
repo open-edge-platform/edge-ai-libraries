@@ -159,7 +159,7 @@ subcommand_sbom () {
 
   # scan for dependencies
   local handler
-  for handler in $(act_find_deps install $(act_resolve_args install "$@")); do
+  for handler in $(act_find_deps install $(act_resolve_args install "$@") | tr ' ' '\n' | sort); do
     declare -F ${handler/_install_/_sbom_} > /dev/null 2>&1 || continue
     ${handler/_install_/_sbom_} $(act_extract_args sbom ${handler#*_*_*_} "${handles[*]#${ID_LIKE}_*_sbom_}" "$@")
     echo "---"

@@ -91,3 +91,8 @@ EOF
   configure_docker
 }
 
+debian_20_sbom_docker () {
+  cat <<EOF
+"pkg-list": [ "docker.io","docker-buildx","docker-compose-v2" ]
+EOF
+}

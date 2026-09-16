@@ -1,8 +1,9 @@
 
 configure_openvino () {
-  key_url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+  repo_name="apt.repos.intel.com"
+  key_url="https://$repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
   key_file=/usr/share/keyrings/intel-gpg-archive-keyring.gpg
-  apt_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/openvino ${ID}${VERSION_ID%.*} main"
+  apt_entry="deb [signed-by=$key_file] https://$repo_name/openvino ${ID}${VERSION_ID%.*} main"
   apt_file=/etc/apt/sources.list.d/intel-openvino.list
   version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.1.0 || echo 2026.3.0)
   openvino_venv="$(ensure_project_path)/openvino-genai"
@@ -63,3 +64,13 @@ debian_70_remove_openvino () {
   fi
 }
 
+debian_70_sbom_openvino () {
+  configure_openvino "$@"
+  cat <<EOF
+"name": "$repo_name"
+"gpg-key": "$key_url"
+"key-file": "$key_file"
+"deb-entry": "$apt_entry"
+"pkg-list": ["openvino-$version"]
+EOF
+}

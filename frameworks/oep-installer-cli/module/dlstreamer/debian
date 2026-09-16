@@ -1,8 +1,9 @@
 
 configure_dlstreamer () {
-  key_url=https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg
+  repo_name="apt.repos.intel.com"
+  key_url="https://$repo_name/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg"
   key_file=/usr/share/keyrings/dls-archive-keyring.gpg
-  deb_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main"
+  deb_entry="deb [signed-by=$key_file] https://$repo_name/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main"
   repository=https://github.com/open-edge-platform/dlstreamer
   workspace="$(ensure_project_path)/dlstreamer"
   version=2026.2.0-rc1
@@ -68,5 +69,16 @@ debian_75_remove_dlstreamer () {
   else
     echo "dlstreamer already removed. Skipping"
   fi
+}
+
+debian_75_sbom_dlstreamer () {
+  configure_dlstreamer
+  cat <<EOF
+"name": "$repo_name"
+"deb-entry": "$deb_entry"
+"gpg-key": "$key_url"
+"key-file": "$key_file"
+"pkg-list": ["intel-dlstreamer=$version"]
+EOF
 }
 

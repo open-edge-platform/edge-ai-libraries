@@ -8,3 +8,8 @@ debian_05_install_libtbb12 () {
   fi
 }
 
+debian_05_sbom_libtbb12 () {
+  cat <<EOF
+"pkg-list": ["libtbb12"]
+EOF
+}
