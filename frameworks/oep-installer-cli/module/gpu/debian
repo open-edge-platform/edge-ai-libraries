@@ -81,7 +81,8 @@ debian_40_sbom_gpu () {
   configure_gpu "$@"
   cat <<EOF
 "name": "$repo_name"
-"deb-entry": "$apt_entry"
+"apt-source": "$apt_entry"
+"apt-list-file": "$apt_file"
 "gpg-key": "$key_url"
 "key-file": "$key_file"
 "pkg-list": ["${pkg_list// /'","'}"]

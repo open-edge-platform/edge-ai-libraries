@@ -70,7 +70,8 @@ debian_70_sbom_openvino () {
 "name": "$repo_name"
 "gpg-key": "$key_url"
 "key-file": "$key_file"
-"deb-entry": "$apt_entry"
+"apt-source": "$apt_entry"
+"apt-list-file": "$apt_file"
 "pkg-list": ["openvino-$version"]
 EOF
 }

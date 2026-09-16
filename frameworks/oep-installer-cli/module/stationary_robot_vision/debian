@@ -55,3 +55,11 @@ debian_90_remove_stationary_robot_vision () {
     echo "Stationary Robot Vision & Control already removed. Skipping"
   fi
 }
+
+debian_90_sbom_stationary_robot_vision () {
+  configure_stationary_robot_vision
+  cat <<EOF
+"pkg-list": ["${rvc_pkgs// /'","'}"]
+EOF
+}
+

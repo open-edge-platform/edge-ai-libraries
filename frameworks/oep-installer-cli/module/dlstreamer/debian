@@ -4,6 +4,7 @@ configure_dlstreamer () {
   key_url="https://$repo_name/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg"
   key_file=/usr/share/keyrings/dls-archive-keyring.gpg
   deb_entry="deb [signed-by=$key_file] https://$repo_name/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main"
+  list_file=/etc/apt/sources.list.d/intel-dlstreamer.list
   repository=https://github.com/open-edge-platform/dlstreamer
   workspace="$(ensure_project_path)/dlstreamer"
   version=2026.2.0-rc1
@@ -35,7 +36,7 @@ debian_75_install_dlstreamer () {
     no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
 
     # deb entry
-    echo "$deb_entry" | ensure_sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
+    echo "$deb_entry" | ensure_sudo tee $list_file
 
     # apt update
     ensure_apt update -y
@@ -65,6 +66,7 @@ debian_75_remove_dlstreamer () {
 
   if verify_dlstreamer; then
     ensure_apt autoremove -m -y intel-dlstreamer
+    ensure_sudo rm -f $list_file
     ensure_sudo -rf "$workspace" 2> /dev/null || true
   else
     echo "dlstreamer already removed. Skipping"
@@ -75,7 +77,8 @@ debian_75_sbom_dlstreamer () {
   configure_dlstreamer
   cat <<EOF
 "name": "$repo_name"
-"deb-entry": "$deb_entry"
+"apt-source": "$deb_entry"
+"apt-list-file": "$list_file"
 "gpg-key": "$key_url"
 "key-file": "$key_file"
 "pkg-list": ["intel-dlstreamer=$version"]

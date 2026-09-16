@@ -15,12 +15,12 @@ configure_realsense () {
 }
 
 debian_55_profile_realsense () {
-  echo "curl gpg ros2 amr_apt_repo"
+  echo "curl gpg"
 }
 
 verify_realsense () {
   configure_realsense
-  dpkg-query -l librealsense2 > /dev/null 2>&1
+  dpkg-query -L librealsense2 > /dev/null 2>&1
 }
 
 debian_55_install_realsense () {
@@ -55,7 +55,8 @@ debian_05_sbom_realsense () {
 "name": "$rs_repo_name"
 "gpg-key": "$rs_key_url"
 "key-file": "$rs_key_file"
-"deb-entry": "$rs_deb_entry"
+"apt-source": "$rs_deb_entry"
+"apt-list-file": "$rs_list"
 "pkg-list": ["ros-$ros_distro-librealsense2","librealsense2-dkms","librealsense2"]
 EOF
 }

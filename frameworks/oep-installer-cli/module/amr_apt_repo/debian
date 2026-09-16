@@ -65,13 +65,15 @@ debian_45_sbom_amr_apt_repo () {
   configure_amr_apt_repo
   cat <<EOF
 "name": "$amr_repo_name"
-"deb-entry": "$amr_deb_entry"
-"deb-src-entry": "$amr_deb_src_entry"
+"apt-source": "$amr_deb_entry"
+"apt-src-source": "$amr_deb_src_entry"
+"apt-list-file": "$amr_list"
 "gpg-key": "$amr_key_url"
 "key-file": "$amr_key_file"
 ---
 "name": "$oneapi_repo_name"
-"deb-entry": "$oneapi_deb_entry"
+"apt-source": "$oneapi_deb_entry"
+"apt-list-file": "$oneapi_list"
 "gpg-key": "$oneapi_key_url"
 "key-file": "$oneapi_key_file"
 EOF

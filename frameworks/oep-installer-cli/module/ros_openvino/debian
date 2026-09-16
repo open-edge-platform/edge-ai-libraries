@@ -17,6 +17,17 @@ configure_ros_openvino () {
   noble) ros_distro=jazzy ;;
   *)     ros_distro=jazzy ;;
   esac
+  ov_deb_pref=(
+    "Package: openvino"
+    "Pin: version $ov_version"
+    "Pin-Priority: 1001"
+    "Package: ros-$ros_distro-openvino-wrapper-lib"
+    "Pin: version $ov_version*"
+    "Pin-Priority: 1002"
+    "Package: ros-$ros_distro-openvino-node"
+    "Pin: version $ov_version*"
+    "Pin-Priority: 1002"
+  )
 }
 
 debian_55_profile_ros_openvino () {
@@ -41,8 +52,7 @@ debian_55_install_ros_openvino () {
     echo "$ov_deb_entry" | ensure_sudo tee "$ov_list" > /dev/null
 
     # pin OpenVINO and the ROS OpenVINO packages to the same version
-    printf 'Package: openvino\nPin: version %s*\nPin-Priority: 1001\n\nPackage: ros-%s-openvino-wrapper-lib\nPin: version %s*\nPin-Priority: 1002\n\nPackage: ros-%s-openvino-node\nPin: version %s*\nPin-Priority: 1002\n' \
-      "$ov_version" "$ros_distro" "$ov_version" "$ros_distro" "$ov_version" | ensure_sudo tee "$ov_pref" > /dev/null
+    ( IFS=$'\n'; echo "${ov_deb_pref[*]}" ) | ensure_sudo tee "$ov_pref" > /dev/null
 
     ensure_apt update -y
 
@@ -75,12 +85,19 @@ debian_55_remove_ros_openvino () {
 
 debian_55_sbom_ros_openvino () {
   configure_ros_openvino
+(
+  IFS=$'|'
+  local pref_str="${ov_deb_pref[*]}"
   cat <<EOF
 "name": "$ov_repo_name"
 "gpg-key": "$ov_key_url"
 "key-file": "$ov_key_file"
-"deb-entry": "$ov_deb_entry"
+"apt-source": "$ov_deb_entry"
+"apt-list-file": "$ov_list"
 "pkg-list": ["openvino","ros-$ros_distro-openvino-node"]
+"apt-pref-file": "$ov_pref"
+"apt-pref": ["${pref_str//|/'","'}"]
 EOF
+)
 }
 
