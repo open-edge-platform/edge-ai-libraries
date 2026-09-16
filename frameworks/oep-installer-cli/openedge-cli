@@ -64,7 +64,7 @@ main () {
         local _j _dep _rest_args=() _restart=0
         for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
           _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
-          for _dep in $(act_find_deps install install $(act_resolve_args ${_cmds[$_i]} ${_globals[*]} ${_args[$_i]})); do
+          for _dep in $(act_find_deps install install $(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]})); do
             { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]]; } && _groups["render:992"]=1
             [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] && _groups["video:"]=1
             [[ "$_dep" = ${ID_LIKE}_*_install_docker ]] && _groups["docker:"]=1
