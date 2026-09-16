@@ -1,6 +1,6 @@
 
 # Split panel logging
-ensure_panelled_logs () {(
+act_panelled_logs () {(
 #
 # Protocol (markers your installer emits on stdout/stderr):
 #   @@COMP       <name>     start/switch to component (starts its timer)
