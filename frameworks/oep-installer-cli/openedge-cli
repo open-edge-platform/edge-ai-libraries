@@ -75,7 +75,7 @@ main () {
           echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
           echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
           echo "may not apply. Ask your administrator to add: ${!_groups[*]}" 1>&2
-          exit 3
+          return 3
         }
 
         for _dep in ${!_groups[*]}; do
@@ -96,7 +96,7 @@ main () {
           local installer="$HOME/.local/bin/$installer_name"
           [ -x "$installer" ] || {
             echo -e "${red}$installer not found; run 'setup' first${reset}" 1>&2
-            exit 3
+            return 3
           }
 
           local _sdir=""
