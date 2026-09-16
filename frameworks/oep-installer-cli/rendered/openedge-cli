@@ -5,11 +5,6 @@ main () {
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
-  # sudo askpass helper
-  case "${0##*/}" in
-  *-askpass) ensure_sudo_askpass_helper "$@"; exit ;;
-  esac
-
   local _globals=() _cmds=() _args=() cur=-1 v cmd groups_required=0
   for v in "$@"; do
     case $v in
@@ -402,7 +397,6 @@ $(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|subcomman
 main "\$@"
 EOF
   chmod a+rx "$installer"
-  ln -sf "$installer" "$installer"-askpass
   echo "Installer reconstructed at $installer"
 
   # reconstruct bash completion
@@ -1792,49 +1786,44 @@ ensure_select_device () {
 
 # perform sudo in automation or in tty
 ensure_sudo () {
-  local askpass_helper="$HOME/.local/bin/$installer_name-askpass"
   if sudo -nv 2>/dev/null || sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
     sudo "$@"
-  elif [ -x "$askpass_helper" ]; then
-    SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
+  elif [ -n "${SUDO_PASSWORD:-}" ]; then
+    # password known: prefix it onto stdin, forward the rest so that
+    # `curl ... | ensure_sudo bash -s` and `... | ensure_sudo tee f` still work.
+    # -k is required: without it sudo may skip the read and leak the password
+    # into the invoked command's stdin.
+    (echo "$SUDO_PASSWORD"; cat) | sudo -kS "$@"
   elif [ -t 0 ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo "$@"
   else
-    # No password available and no usable TTY (e.g. under the panelled UI or a
-    # pipe/background job). Avoid hanging forever on a hidden password prompt.
-    echo "ensure_sudo: sudo requires a password but none is available" 1>&2
-    return 1
+    # write an askpass helper
+    local askpass_helper="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/$installer_name-askpass"
+    ( umask 077; cat > "$askpass_helper" <<'EOF'
+#!/bin/bash
+set -u
+# 1) serialize: parallel components must not race to prompt
+exec 9<"$0" || exit 1
+flock 9 || exit 1
+# 3) first real need. sudo's stdin/stdout are pipes; /dev/tty is not.
+exec 8<>/dev/tty 2>/dev/null || exit 1
+# size and style
+rows=$(stty size <&8 | cut -d' ' -f1)
+saved=$(stty -g <&8) || exit 1
+# restore screen
+trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+stty -echo <&8
+# last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
+IFS= read -r pw <&8
+printf '\033[%d;1H\033[K' "$rows" >&8
+printf '%s\n' "$pw"
+EOF
+) && chmod 700 "$askpass_helper"
+    SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
   fi
-}
-
-# the askpass helper
-ensure_sudo_askpass_helper () {
-  set -u
-  local sudo_askpass="$HOME/.local/bin/$installer_name-askpass"
-
-  # 0) non-interactive / CI: env wins, no tty needed
-  [ -z "${SUDO_PASSWORD:-}" ] || { printf '%s\n' "$SUDO_PASSWORD"; exit 0; }
-
-  # 1) serialize: parallel components must not race to prompt
-  exec 9<"$sudo_askpass" || exit 1
-  flock 9 || exit 1
-
-  # 3) first real need. sudo's stdin/stdout are pipes; /dev/tty is not.
-  exec 8<>/dev/tty 2>/dev/null || exit 1
-
-  saved=$(stty -g <&8) || exit 1
-  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
-  stty -echo <&8
-
-  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
-  rows=$(stty size <&8 | cut -d' ' -f1)
-  printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
-  IFS= read -r pw <&8
-  printf '\033[%d;1H\033[K' "$rows" >&8
-
-  printf '%s\n' "$pw"
 }
 
 

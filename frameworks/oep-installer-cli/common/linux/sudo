@@ -16,34 +16,27 @@ ensure_sudo () {
   else
     # write an askpass helper
     local askpass_helper="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/$installer_name-askpass"
-    cat > "$askpass_helper" <<'EOF'
+    ( umask 077; cat > "$askpass_helper" <<'EOF'
 #!/bin/bash
 set -u
-local sudo_askpass="$HOME/.local/bin/$installer_name-askpass"
-
-# 0) non-interactive / CI: env wins, no tty needed
-[ -z "${SUDO_PASSWORD:-}" ] || { printf '%s\n' "$SUDO_PASSWORD"; exit 0; }
-
 # 1) serialize: parallel components must not race to prompt
-exec 9<"$sudo_askpass" || exit 1
+exec 9<"$0" || exit 1
 flock 9 || exit 1
-
 # 3) first real need. sudo's stdin/stdout are pipes; /dev/tty is not.
 exec 8<>/dev/tty 2>/dev/null || exit 1
-
+# size and style
 rows=$(stty size <&8 | cut -d' ' -f1)
 saved=$(stty -g <&8) || exit 1
-
+# restore screen
 trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
 stty -echo <&8
-
 # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
 printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
 IFS= read -r pw <&8
 printf '\033[%d;1H\033[K' "$rows" >&8
 printf '%s\n' "$pw"
 EOF
-    chmod 700 "$askpass_helper"
+) && chmod 700 "$askpass_helper"
     SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
   fi
 }
