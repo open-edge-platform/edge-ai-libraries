@@ -2,10 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # update the submodules on a weekly interval
 version: 2
-multi-ecosystem-groups:
-  time-series-analytics-python:
-    schedule:
-      interval: weekly
 updates:
 
   # ─────────────────────────────────────────
