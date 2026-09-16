@@ -25,7 +25,7 @@ repos:
         args: [--fix=lf]
 
   - repo: https://github.com/TekWizely/pre-commit-golang
-    rev: v1.0.0
+    rev: v1.0.0-rc.4
     hooks:
       # Formatting, imports, vet, gosec and staticcheck all runs here.
       - id: golangci-lint-mod
