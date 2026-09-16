@@ -61,6 +61,7 @@ const TEST_CASE_COLUMNS: TestCaseColumn[] = [
   { key: "media", width: 80 },
   { key: "memory", width: 90 },
   { key: "power", width: 90 },
+  { key: "latency", width: 90 },
   { key: "status", width: 50 },
   { key: "actions", width: 20, exportIgnore: true },
 ];
@@ -232,6 +233,7 @@ export const BenchmarkSuiteRunDetailsTable = ({
                           <TableHead>Media</TableHead>
                           <TableHead>Memory</TableHead>
                           <TableHead>Power</TableHead>
+                          <TableHead>Latency</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead data-export-ignore></TableHead>
                         </TableRow>
@@ -335,6 +337,16 @@ export const BenchmarkSuiteRunDetailsTable = ({
                                   )}
                                 </TableCell>
                                 <TableCell>
+                                  {testCaseRun.status === "running" ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                  ) : typeof testCaseRun.latency_avg_ms ===
+                                    "number" ? (
+                                    `${testCaseRun.latency_avg_ms.toFixed(1)} ms`
+                                  ) : (
+                                    "-"
+                                  )}
+                                </TableCell>
+                                <TableCell>
                                   {renderBenchmarkStatus(testCaseRun.status)}
                                 </TableCell>
                                 <TableCell
@@ -405,7 +417,7 @@ export const BenchmarkSuiteRunDetailsTable = ({
                         ) : (
                           <TableRow>
                             <TableCell
-                              colSpan={13}
+                              colSpan={14}
                               className="text-center text-muted-foreground py-4"
                             >
                               No test cases found.
