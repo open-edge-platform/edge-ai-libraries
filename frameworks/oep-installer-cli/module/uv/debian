@@ -1,0 +1,16 @@
+
+configure_uv () {
+  echo "$PATH" | grep -q -F ~/.local/bin || export PATH=$PATH:~/.local/bin
+}
+
+debian_10_install_uv () {
+  configure_uv
+  if uv --version 2> /dev/null && [[ "$*" != *"--reset-uv"* ]]; then
+    echo "Uv is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y pipx
+    pipx install uv
+  fi
+}
+

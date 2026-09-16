@@ -1,0 +1,93 @@
+
+configure_docker () {
+  if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
+    echo "Configure docker engine proxies..."
+    grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
+      ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
+      ensure_sudo tee /etc/systemd/system/docker.service.d/99-oep-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
+Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
+Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
+EOF
+      ensure_sudo systemctl daemon-reload
+      ensure_sudo systemctl restart docker
+    )
+
+    local CONFIG_JSON="$HOME/.docker/config.json"
+    echo "Configure docker client proxies..."
+    mkdir -p "$(dirname "$CONFIG_JSON")"
+    python3 - "$CONFIG_JSON" <<'EOF'
+import json, os, sys
+p = sys.argv[1]
+cfg = json.load(open(p)) if os.path.exists(p) else {}
+cfg.setdefault("proxies", {})["default"] = {
+    "httpProxy":  os.environ.get("http_proxy",  os.environ.get("HTTP_PROXY", "")),
+    "httpsProxy": os.environ.get("https_proxy", os.environ.get("HTTPS_PROXY", "")),
+    "noProxy":    os.environ.get("no_proxy",    os.environ.get("NO_PROXY", "")),
+}
+json.dump(cfg, open(p, "w"), indent=2)
+EOF
+  fi
+}
+
+debian_20_install_docker () {
+  if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
+    echo "Docker is already installed. Skipping..."
+  elif dpkg-query -W -f '${Status}' docker.io 2> /dev/null | grep -q ' ok installed$' && [[ "$*" != *"--reset-docker"* ]]; then
+    ensure_apt update
+    ensure_apt install -y docker-buildx docker-compose-v2
+  elif dpkg-query -W -f '${Status}' docker-ce 2> /dev/null | grep -q ' ok installed$' && [[ "$*" != *"--reset-docker"* ]]; then 
+    ensure_apt update
+    ensure_apt install -y docker-buildx-plugin docker-compose-plugin
+  else
+    echo "Remove legacy installation"
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
+    ensure_sudo systemctl stop docker.socket docker.service 2>/dev/null || true
+    ensure_apt purge -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc
+
+    # reset systemd states
+    ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
+    ensure_sudo tee /etc/systemd/system/docker.service.d/10-socket.conf <<EOF
+[Unit]
+Requires=docker.socket
+After=docker.socket
+EOF
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
+
+    # create docker group
+    ensure_group_add docker:
+
+    # install docker.io
+    ensure_apt update
+    ensure_apt install -y docker.io docker-buildx docker-compose-v2
+
+    # recover and start — must be AFTER the install
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
+    ensure_sudo systemctl enable --now containerd.service
+    ensure_sudo systemctl enable --now docker.socket
+    ensure_sudo systemctl start docker.service
+
+    # wait
+    local deadline=$((SECONDS+60))
+    until ensure_sudo docker info >/dev/null 2>&1; do
+      [ $SECONDS -lt $deadline ] || {
+        echo -e "${red}dockerd did not become ready${reset}" 1>&2
+        ensure_sudo systemctl status docker.socket --no-pager 1>&2
+        ensure_sudo systemctl status docker.service --no-pager 1>&2
+        ensure_sudo journalctl -u docker.socket -u docker.service --since "-5 min" --no-pager 1>&2
+        return 1
+      }
+      if ensure_sudo systemctl is-failed --quiet docker.service docker.socket; then
+        ensure_sudo systemctl reset-failed docker.service docker.socket 2>/dev/null || true
+        ensure_sudo systemctl start docker.socket 2>/dev/null || true
+        ensure_sudo systemctl start docker.service 2>/dev/null || true
+      fi
+      sleep 1
+    done
+  fi
+  configure_docker
+}
+
