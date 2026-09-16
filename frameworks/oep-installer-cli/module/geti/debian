@@ -1,0 +1,56 @@
+
+configure_geti () {
+  workspace="$(ensure_project_path)/geti"
+  image_name=ghcr.io/open-edge-platform/geti-xpu
+  port=8080
+}
+
+verify_geti () {
+  docker inspect $image_name > /dev/null 2>&1
+}
+
+debian_90_profile_geti () {
+  echo "docker edge_base"
+}
+
+debian_90_install_geti () {
+  configure_geti $*
+
+  if verify_geti && [[ " $* " != *" --reset-geti "* ]]; then
+    echo "Geti already installed. Skipping."
+  else
+    ensure_disk_space 40000
+    ensure_ram_size 16000000
+    docker pull $image_name
+  fi
+}
+
+debian_90_start_geti () {
+  configure_geti $*
+  ensure_ports_open "$port" debian_90_stop_geti
+
+  mkdir -p "$workspace"/geti-data
+  docker run --rm --name geti-app -d \
+     -v "$workspace"/geti-data:/application/data:rw \
+     -e HOST=0.0.0.0 -e PORT=$port -p $port:$port \
+     -e http_proxy -e https_proxy -e no_proxy \
+     -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
+     --device /dev/dri:/dev/dri --group-add $(getent group render | cut -d: -f3) \
+     --group-add $(id -g) \
+     --shm-size 8g \
+     $image_name
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
+  echo "@@HIGHLIGHT workspace: $workspace/geti-data"
+}
+
+debian_90_stop_geti () {
+  configure_geti $*
+  docker rm -f geti-app || true
+}
+
+debian_90_remove_geti () {
+  debian_90_stop_geti $* || true
+  docker image rm $image_name || true
+}
+

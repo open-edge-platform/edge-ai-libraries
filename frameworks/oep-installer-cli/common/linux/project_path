@@ -1,0 +1,6 @@
+
+# return the installation path
+ensure_project_path () {
+  echo "$HOME/open-edge-platform"
+}
+

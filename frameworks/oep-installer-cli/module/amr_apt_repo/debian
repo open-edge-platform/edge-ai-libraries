@@ -1,0 +1,58 @@
+
+# Autonomous Mobile Robot (AMR) APT repositories plus the Intel oneAPI Base
+# Toolkit repository. This module only configures apt sources / keys / pins;
+# the track components install the actual Deb packages.
+# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
+configure_amr_apt_repo () {
+  amr_key_url=https://amrdocs.intel.com/repos/gpg-keys/GPG-PUB-KEY-INTEL-AMR.gpg
+  amr_key_file=/usr/share/keyrings/amr-archive-keyring.gpg
+  amr_list=/etc/apt/sources.list.d/amr.list
+  amr_pref=/etc/apt/preferences.d/amr
+
+  oneapi_key_url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
+  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  oneapi_pref=/etc/apt/preferences.d/oneapi
+}
+
+debian_45_profile_amr_apt_repo () {
+  echo "curl gpg edge_base"
+}
+
+verify_amr_apt_repo () {
+  configure_amr_apt_repo
+  [ -r "$amr_key_file" ] && [ -r "$amr_list" ] && [ -r "$oneapi_list" ]
+}
+
+debian_45_install_amr_apt_repo () {
+  configure_amr_apt_repo
+
+  if verify_amr_apt_repo && [[ " $* " != *" --reset-amr_apt_repo "* ]]; then
+    echo "AMR apt repositories are already configured. Skipping..."
+  else
+    ensure_apt install -y software-properties-common curl gnupg wget
+
+    # AMR archive key + sources + pin
+    ensure_sudo mkdir -p "$(dirname "$amr_key_file")"
+    no_proxy= NO_PROXY= curl -fsL "$amr_key_url" | ensure_sudo tee "$amr_key_file" > /dev/null
+    printf 'deb [signed-by=%s] https://amrdocs.intel.com/repos/%s amr main\ndeb-src [signed-by=%s] https://amrdocs.intel.com/repos/%s amr main\n' \
+      "$amr_key_file" "$VERSION_CODENAME" "$amr_key_file" "$VERSION_CODENAME" | ensure_sudo tee "$amr_list" > /dev/null
+    printf 'Package: *\nPin: origin amrdocs.intel.com\nPin-Priority: 1001\n' | ensure_sudo tee "$amr_pref" > /dev/null
+
+    # Intel oneAPI Base Toolkit key + source + pins
+    no_proxy= NO_PROXY= curl -fsL "$oneapi_key_url" | gpg --dearmor | ensure_sudo tee "$oneapi_key_file" > /dev/null
+    echo "deb [signed-by=$oneapi_key_file] https://apt.repos.intel.com/oneapi all main" | ensure_sudo tee "$oneapi_list" > /dev/null
+    printf 'Package: intel-oneapi-runtime-*\nPin: version 2025.3.*\nPin-Priority: 1001\n\nPackage: intel-oneapi-compiler-*\nPin: version 2025.3.*\nPin-Priority: 1001\n\nPackage: intel-oneapi-mkl-*\nPin: version 2025.3.*\nPin-Priority: 1001\n' | ensure_sudo tee "$oneapi_pref" > /dev/null
+
+    # Canonical kobuk PPA for latest Intel silicon support (best-effort)
+    ensure_sudo add-apt-repository -y ppa:kobuk-team/intel-graphics || true
+
+    ensure_apt update -y
+  fi
+}
+
+debian_45_remove_amr_apt_repo () {
+  configure_amr_apt_repo
+  ensure_sudo rm -f "$amr_key_file" "$amr_list" "$amr_pref" \
+    "$oneapi_key_file" "$oneapi_list" "$oneapi_pref"
+}

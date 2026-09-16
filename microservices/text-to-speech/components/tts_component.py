@@ -34,5 +34,14 @@ class TTSComponent(PipelineComponent):
     ) -> dict:
         return self.service.synthesize(text, language, speaker, instructions)
 
+    def synthesize_stream(
+        self,
+        text: str,
+        language: str | None = None,
+        speaker: str | None = None,
+        instructions: str | None = None,
+    ):
+        return self.service.synthesize_stream(text, language, speaker, instructions)
+
     def get_model_info(self) -> dict:
         return self.service.get_model_info()
