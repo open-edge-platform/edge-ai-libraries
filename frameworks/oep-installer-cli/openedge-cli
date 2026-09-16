@@ -5,7 +5,7 @@ main () {
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
-  local _globals=() _cmds=() _args=() cur=-1 v cmd groups_required=0
+  local _globals=() _cmds=() _args=() cur=-1 v
   for v in "$@"; do
     case $v in
     --help)
@@ -16,6 +16,7 @@ main () {
       echo "  --continue      continue execution upon errors."
       echo "  --help          this help message." 
       echo
+      local cmd
       for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
         $cmd --help
       done
@@ -27,10 +28,6 @@ main () {
     *)
       if declare -F subcommand_$v > /dev/null; then
         _cmds+=($v); _args+=(""); cur=$((cur+1))
-        case "$v" in
-        setup|list|bootstrap) :;;
-        *) groups_required=1;;
-        esac
       elif [ ${#_cmds[@]} -eq 0 ]; then
         echo "Unknown command: $v"
         exit 3
@@ -50,7 +47,7 @@ main () {
   # initialize act cache
   declare -F act_get > /dev/null && act_get init
 
-  local _i _rc
+  local _i _rc=0
   for ((_i=0;_i<${#_cmds[*]};_i++)); do
     case "${_cmds[$_i]}" in
     setup|list|bootstrap)
@@ -64,11 +61,11 @@ main () {
       else
         # critical group permissions
         local -A _groups=()
-        local _j _dep _rest_args="" _restart=0
+        local _j _dep _rest_args=() _restart=0
         for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
-          _rest_args="$_rest_args ${_cmds[@]} ${_args[$_j]}"
+          _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
           for _dep in $(act_find_deps install install $(act_resolve_args ${_cmds[$_i]} ${_globals[*]} ${_args[$_i]})); do
-            { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]] } && _groups["render:992"]=1
+            { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]]; } && _groups["render:992"]=1
             [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] && _groups["video:"]=1
             [[ "$_dep" = ${ID_LIKE}_*_install_docker ]] && _groups["docker:"]=1
           done
@@ -77,7 +74,7 @@ main () {
         [ ${#_groups[*]} -eq 0 ] || ensure_group_add ${!_groups[*]} || {
           echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
           echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
-          echo "may not apply. Ask your administrator to add: ${groups[*]%:*}" 1>&2
+          echo "may not apply. Ask your administrator to add: ${!_groups[*]%:*}" 1>&2
           exit 3
         }
 
@@ -89,8 +86,10 @@ main () {
           subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
           _rc=$?
         else
-          if [ -n "${OEP_GROUP_REEXEC:-}" ]; then                                                                                   echo -e "${yellow}groups still not effective after re-exec${reset}" 1>&2
-            return 1                                                                                                              fi
+          if [ -n "${OEP_GROUP_REEXEC:-}" ]; then
+            echo -e "${yellow}groups still not effective after re-exec${reset}" 1>&2
+            return 1
+          fi
 
           [[ " ${_cmds[*]:0:$_i} " = *" setup "* ]] || subcommand_setup
 
@@ -105,17 +104,19 @@ main () {
           (umask 077;printf "%s\n%s\n" "$SUDO_PASSWORD" "$TF_TOKEN" > $_sdir/secrets)
           ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" \
             --inh-caps=-all env HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" PATH="$PATH" \
-            XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" OEP_GROUP_REEXEC=1 bash -c "
+            XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" OEP_GROUP_REEXEC=1 bash -c '
+secret="$1"; installer="$2"; shift 2
 {
   IFS= read -r SUDO_PASSWORD
   IFS= read -r TF_TOKEN
-  export SUDO_PASSWORD TF_TOKEN
-} < $_sdir/secrets
-rm -f $_sdir/secrets
-'$installer' $_rest_args ${_globals[*]}
-          "
+} < "$secret"
+rm -f "$secret"
+export SUDO_PASSWORD TF_TOKEN
+exec "$installer" "$@"
+' bash "$_sdir/secrets" "$installer" "${_rest_args[@]}" "${_globals[@]}"
           _rc=$?
-          ensure_tmpdir destroy $_sdir
+          ensure_tmpdir destroy "$_sdir"
+          return $_rc
         fi
       fi
       ;;
