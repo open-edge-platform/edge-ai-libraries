@@ -75,7 +75,7 @@ jobs:
           set -euo pipefail
           find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           clean: true
           fetch-depth: 2
