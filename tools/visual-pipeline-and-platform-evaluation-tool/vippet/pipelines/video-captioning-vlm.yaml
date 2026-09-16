@@ -1,9 +1,9 @@
-name: Video Summarization VLM
+name: Video Captioning VLM
 definition: >
-  Video summarization pipeline using gvagenai with a vision-language model to generate concise scene-level summaries from sampled frames.
+  Video captioning pipeline using gvagenai with a vision-language model to generate concise scene-level captions from sampled frames.
 tags:
   - GenAi
-thumbnail: images/video-summary.png
+thumbnail: images/video-captioning.png
 type: vision
 variants:
   - name: CPU

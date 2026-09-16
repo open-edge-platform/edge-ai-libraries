@@ -318,6 +318,7 @@ flowchart TD
         STEP2 --> EMB_DETAIL[Embedding Generation Details]
 
         subgraph "Embedding Generation"
+        direction LR
             EMB_DETAIL --> EMB_LOCAL_PROC[In-process Embedding<br/>• Use global embedding client<br/>• Thread-safe infer_new_request<br/>• No HTTP overhead<br/>• OpenVINO optimized<br/>• Batch processing inside model]
 
             EMB_LOCAL_PROC --> EMB_RESULT[Embedding Results<br/>Vector dimensions: 512/768/1024<br/>Format: List of float arrays]
@@ -331,6 +332,7 @@ flowchart TD
     end
 
     subgraph "VDMS Vector DB Storage"
+    direction LR
         STORAGE_DETAIL --> VDB_PREP[Prepare Storage Request<br/>• Embeddings: List of vectors<br/>• Metadata: List of dicts<br/>• Collection: MM_DATAPREP_DB_COLLECTION]
 
         VDB_PREP --> VDB_BULK[Bulk Insert Operation<br/>AddEntity with AddDescriptor<br/>Batch operation more efficient]
@@ -455,8 +457,6 @@ flowchart TD
     end
 
     JSON --> COMPLETE([Processing Complete])
-
-
 ```
 
 **Performance Metrics Explained:**
@@ -493,7 +493,7 @@ The system tracks three critical counts:
 
 **Efficiency Calculations:**
 
-```
+```text
 Expansion Factor = Post-Detection Items / Extracted Frames
                  = 240 / 60 = 4x
 
@@ -613,7 +613,7 @@ graph TB
         E --> F[Frame List<br/>60 frames @ interval=15<br/>Time: 1.2s]
     end
 
-    subgraph "Stage 3: Object Detection Optional"
+    subgraph "Stage 3: Object Detection<br/> Optional"
         F --> G{Object Detection<br/>Enabled?}
         G -->|Yes| H[YOLOX Detection<br/>Parallel batches<br/>Time: 2.4s total]
         G -->|No| I[Skip Detection]
@@ -646,8 +646,6 @@ graph TB
         Q --> R[(VDMS Vector DB<br/>240 vectors indexed)]
         Q --> S[Return Response<br/>Status: 201 CREATED<br/>Details: timing + counts]
     end
-
-
 ```
 
 ## Performance Optimization Summary

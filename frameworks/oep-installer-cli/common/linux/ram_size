@@ -1,0 +1,11 @@
+
+# check ram size
+ensure_ram_size () {
+  local ram_size=$1            # in KiB
+  local ram_avail=$(awk '/^MemTotal:/{if(/kB/)r=$2;if(/mB/)r=$2*1000;if(/gB/)r=$2*1000000}END{print int(r)}' /proc/meminfo)
+  if [ "$ram_size" -gt "$ram_avail" ]; then
+    echo "Not enough RAM: required ${ram_size}KiB and available ${disk_avail}KiB"
+    return 3
+  fi
+}
+

@@ -24,7 +24,7 @@ ARG PYTHON_VERSION
 FROM python:${PYTHON_VERSION}-slim as runtime
 
 
-ARG INSTALL_DRIVER_VERSION="26.14.37833"
+ARG INSTALL_DRIVER_VERSION="26.27.39122"
 ENV INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
 
 # Security upgrades for known CVEs
@@ -44,7 +44,7 @@ WORKDIR /app
 ARG KAPACITOR_VERSION
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    wget intel-gpu-tools && \
+    wget intel-gpu-tools libgomp1 && \
     mkdir -p /etc/init.d && \
     wget -O /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_VERSION}-1_amd64.deb" || exit 1 && \
     dpkg -i /tmp/kapacitor.deb || true && apt-get install -y --no-install-recommends -f && \
