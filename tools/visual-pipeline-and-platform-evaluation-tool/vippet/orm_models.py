@@ -138,6 +138,7 @@ class BenchmarkTestCaseRun(Base):
     media_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
     memory_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
     power_usage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    latency_avg_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     score_total: Mapped[float | None] = mapped_column(Float, nullable=True)
     score_performance: Mapped[float | None] = mapped_column(Float, nullable=True)
     score_efficiency: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import threading
 import time
 import uuid
@@ -44,6 +45,12 @@ logger = logging.getLogger("benchmark_manager")
 # video (see build_pipeline_command's needs_looping) so short source clips
 # still fill the whole measurement window.
 BENCHMARK_TEST_CASE_MAX_RUNTIME_SECONDS = 30
+
+# Benchmark test cases collect DLStreamer latency tracer samples by default;
+# set BENCHMARK_ENABLE_LATENCY_METRICS=false to run without the tracer.
+BENCHMARK_ENABLE_LATENCY_METRICS = (
+    os.environ.get("BENCHMARK_ENABLE_LATENCY_METRICS", "true").lower() == "true"
+)
 
 
 _T = TypeVar("_T")
@@ -333,7 +340,7 @@ class BenchmarkManager:
                 output_mode=InternalOutputMode.DISABLED,
                 max_runtime=BENCHMARK_TEST_CASE_MAX_RUNTIME_SECONDS,
                 metadata_mode=InternalMetadataMode.DISABLED,
-                enable_latency_metrics=True,
+                enable_latency_metrics=BENCHMARK_ENABLE_LATENCY_METRICS,
             ),
             original_request={
                 "pipeline_performance_specs": [
@@ -350,7 +357,7 @@ class BenchmarkManager:
                     "output_mode": "disabled",
                     "max_runtime": BENCHMARK_TEST_CASE_MAX_RUNTIME_SECONDS,
                     "metadata_mode": "disabled",
-                    "enable_latency_metrics": True,
+                    "enable_latency_metrics": BENCHMARK_ENABLE_LATENCY_METRICS,
                 },
             },
         )
@@ -550,6 +557,7 @@ class BenchmarkManager:
             test_case_run.media_usage = metrics.media_usage(parsed_metrics)
             test_case_run.memory_usage = metrics.memory_usage(parsed_metrics)
             test_case_run.power_usage = metrics.power_usage(parsed_metrics)
+            test_case_run.latency_avg_ms = metrics.latency_avg_ms(parsed_metrics)
             if (
                 total_fps is not None
                 and benchmark_test_case is not None

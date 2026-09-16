@@ -588,6 +588,7 @@ async def export_benchmark_suite_run_csv(
             "media",
             "memory",
             "power",
+            "latency_avg_ms",
             "status",
         ]
 
@@ -638,6 +639,7 @@ async def export_benchmark_suite_run_csv(
                         test_row.media_usage,
                         test_row.memory_usage,
                         test_row.power_usage,
+                        test_row.latency_avg_ms,
                         status.value,
                     ]
                 )
@@ -809,6 +811,7 @@ async def get_benchmark_suite_run_by_id(
                     media_usage=row.media_usage,
                     memory_usage=row.memory_usage,
                     power_usage=row.power_usage,
+                    latency_avg_ms=row.latency_avg_ms,
                     score_total=row.score_total,
                     score_performance=row.score_performance,
                     score_efficiency=row.score_efficiency,
@@ -1053,6 +1056,7 @@ async def get_benchmark_test_run_by_id(
             media_usage=test_case_run.media_usage,
             memory_usage=test_case_run.memory_usage,
             power_usage=test_case_run.power_usage,
+            latency_avg_ms=test_case_run.latency_avg_ms,
             score_total=test_case_run.score_total,
             score_performance=test_case_run.score_performance,
             score_efficiency=test_case_run.score_efficiency,
