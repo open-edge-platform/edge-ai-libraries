@@ -64,12 +64,12 @@ act_extract_args () {
   local act_name=${1%%,*}
   local module_name=$2
   local act_modules="$3"
-  local all_modules=(
+  local all_modules=($(
     names=(${_act_cache_modules[*]})
     for f in ${!_act_cache_functions[*]}; do
       [[ "$f" = profile_* ]] && echo ${f#profile_}
     done
-  )
+  ))
   local all_module_args=" ${all_modules[*]/#/--} "
   local args1=() args2=() i j
   for ((i=4;i<=${#@};i++)); do
