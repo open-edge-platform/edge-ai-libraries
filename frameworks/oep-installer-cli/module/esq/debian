@@ -1,0 +1,49 @@
+
+configure_esq () {
+  workspace="$(ensure_project_path)/esq"
+}
+
+debian_85_profile_esq () {
+  echo "curl git libgl1 make docker uv edge_base openvino dlstreamer"
+}
+
+debian_85_install_esq () {
+  configure_uv
+  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reset-esq "* ]]; then
+    echo "Esq is already installed. Skipping..."
+  else
+    curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true
+    curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true
+    uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main
+
+    configure_esq
+    mkdir -p "$workspace"
+  fi
+
+  echo "@@HIGHLIGHT esq @$(which esq)"
+  echo "@@HIGHLIGHT workspace @$workspace"
+}
+
+debian_85_start_esq () {
+  configure_uv
+  configure_esq
+
+  mkdir -p "$workspace"
+  cd "$workspace" 
+  esq clean --all
+
+  local cmdline_str=" $* "
+  local options=(${cmdline_str#* -- })
+  [ ${#options[@]} -gt 0 ] || options=(-qo)
+
+  esq run "${options[@]}" -v -f && esq summary && esq report
+  echo "@@HIGHLIGHT workspace @$workspace"
+}
+
+debian_85_remove_esq () {
+  configure_uv
+  configure_esq
+  esq clean --all
+  uv tool uninstall --force esq || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}

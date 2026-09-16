@@ -59,7 +59,7 @@ class TestGStreamerRtspDestination:
         gstreamer_rtsp_destination._init_stream(mock_sample)
         assert gstreamer_rtsp_destination._frame_size == 1000
         assert gstreamer_rtsp_destination._need_data is False
-        mock_pipeline.rtsp_server.add_stream.assert_called_once_with(mock_pipeline.identifier, mock_pipeline.rtsp_path, mock_caps, gstreamer_rtsp_destination,gstreamer_rtsp_destination.overlay)
+        mock_pipeline.rtsp_server.add_stream.assert_called_once_with(mock_pipeline.identifier, mock_pipeline.rtsp_path, mock_caps, gstreamer_rtsp_destination,gstreamer_rtsp_destination.overlay, gstreamer_rtsp_destination.overlay_properties)
         assert gstreamer_rtsp_destination._last_timestamp == 500
         mock_pipeline.appsink_element.set_property.assert_called_once_with("sync", True)
 
