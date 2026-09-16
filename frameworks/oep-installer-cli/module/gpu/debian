@@ -46,7 +46,7 @@ debian_40_install_gpu () {
     cleanup_gpu
 
     # create the render group
-    ensure_group_add render
+    ensure_group_add render:992 video:
 
     # product key
     ensure_sudo mkdir -p $(dirname $key_file)

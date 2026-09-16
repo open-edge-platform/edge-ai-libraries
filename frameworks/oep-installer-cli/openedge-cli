@@ -5,7 +5,7 @@ main () {
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
-  local _globals=() _cmds=() _args=() cur=-1 v cmd
+  local _globals=() _cmds=() _args=() cur=-1 v cmd groups_required=0
   for v in "$@"; do
     case $v in
     --help)
@@ -27,6 +27,10 @@ main () {
     *)
       if declare -F subcommand_$v > /dev/null; then
         _cmds+=($v); _args+=(""); cur=$((cur+1))
+        case "$v" in
+        setup|list|bootstrap) :;;
+        *) groups_required=1;;
+        esac
       elif [ ${#_cmds[@]} -eq 0 ]; then
         echo "Unknown command: $v"
         exit 3
@@ -46,8 +50,30 @@ main () {
   # initialize act cache
   declare -F act_get > /dev/null && act_get init
 
-  # exec subcommand
   local _rc=0 _i
+  if [ $groups_required -eq 1 ] && [[ " ${_globals[*]} " != *" --dry-run "* ]]; then
+    # critical group permissions
+    local -A groups=()
+    local _dep
+    for ((_i=0;_i<${#_cmds[@]};_i++)); do
+      local _resolved="$(act_resolve_args ${_cmds[$_i]} ${_globals[*]} ${_args[$_i]})"
+      for _dep in $(act_find_deps install install $_resolved); do
+        { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]] } && groups["render:992"]=1
+        [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] && groups["video:"]=1
+        [[ "$_dep" = ${ID_LIKE}_*_install_docker ]] && groups["docker:"]=1
+      done
+    done
+
+    [ ${#groups[*]} -eq 0 ] || act_groups_prelude "${!groups[*]}" "$@"
+    local _prc=$?
+    case $_prc in
+      0) :;;             # groups fine, fall through to the loop
+      251) return 0;;    # child ran everything
+      *) return $_prc;;
+    esac
+  fi
+
+  # exec subcommand
   for ((_i=0;_i<${#_cmds[@]};_i++)); do
     subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
     _rc=$?
@@ -68,9 +94,17 @@ subcommand_bootstrap () {
     echo "  --setup                setup installer."
     echo
     local profiles=($(cd "$mydir";find profile -name "$ID_LIKE" | cut -f2 -d/))
-    [ ${#profiles[*]} -eq 0 ] || echo "  list of bootstrap profiles: ${profiles[*]}"
+    [ ${#profiles[*]} -eq 0 ] || (
+      IFS=$'\n'
+      echo "  list of bootstrap profiles:"
+      echo "${profiles[*]/#/    }" | sort
+    )
     local modules=($(cd "$mydir";find module -name "$ID_LIKE" | cut -f2 -d/))
-    [ ${#modules[*]} -eq 0 ] || echo "  list of bootstrap components: ${modules[*]}"
+    [ ${#modules[*]} -eq 0 ] || (
+      IFS=$'\n'
+      echo "  list of bootstrap components:"
+      echo "${modules[*]/#/    }" | sort
+    )
     [ "${#profiles[*]}${#modules[*]}" = "00" ] || echo
     return 0
   fi
@@ -143,8 +177,10 @@ subcommand_bootstrap () {
     }
   fi
 
-  for script in "${!scripts[@]}"; do
-    echo "==== bootstrapping ${script##*${ID_LIKE}_} ===="
+  local scripts_ordered
+  mapfile -t scripts_ordered < <(printf '%s\n' "${!scripts[@]}" | sort)
+  for script in "${scripts_ordered[@]}"; do
+    echo "==== bootstrapping ${script#"$mydir/"} ===="
     [[ " $* " != *" --dry-run "* ]] || continue
     cat "$script" >> "$rendered" 2> /dev/null || true
     cat "${script%/*}/linux" 2> /dev/null >> "$rendered" || true

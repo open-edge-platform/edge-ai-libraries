@@ -80,6 +80,32 @@ class Pipeline:
             "output_path": output_path,
         }
 
+    def synthesize_stream(
+        self,
+        text: str,
+        language: str | None = None,
+        speaker: str | None = None,
+        instructions: str | None = None,
+    ):
+        """Yield synthesized audio chunks as they are produced.
+
+        Latency is recorded against the first chunk (time-to-first-audio).
+        Streamed chunks are not persisted to storage.
+        """
+        _t0 = time.monotonic()
+        first = True
+        index = 0
+        for chunk in self.tts_component.synthesize_stream(
+            text=text,
+            language=language,
+            speaker=speaker,
+            instructions=instructions,
+        ):
+            if first:
+                tts_latency.record((time.monotonic() - _t0) * 1000)
+                first = False
+            yield {**chunk, "session_id": self.session_id, "index": index}
+            index += 1
+
     def get_model_info(self) -> dict:
         return self.tts_component.get_model_info()
- 

@@ -13,7 +13,7 @@ debian_10_install_libze1 () {
   if dpkg-query -L libze1 > /dev/null 2>&1; then
     echo "libze1 is already installed. Skipping..."
   else
-    curl -sL "$libze1_deb" -o /tmp/libze1.deb && {
+    curl -fsSL "$libze1_deb" -o /tmp/libze1.deb && {
       ensure_apt install -y /tmp/libze1.deb || {
         ensure_apt purge -y level-zero level-zero-devel && ensure_apt install -y /tmp/libze1.deb
       }
