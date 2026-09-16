@@ -5,7 +5,7 @@ main () {
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
-  local _globals=() _cmds=() _args=() cur=-1 v cmd groups_required=0
+  local _globals=() _cmds=() _args=() cur=-1 v
   for v in "$@"; do
     case $v in
     --help)
@@ -16,6 +16,7 @@ main () {
       echo "  --continue      continue execution upon errors."
       echo "  --help          this help message." 
       echo
+      local cmd
       for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
         $cmd --help
       done
@@ -27,10 +28,6 @@ main () {
     *)
       if declare -F subcommand_$v > /dev/null; then
         _cmds+=($v); _args+=(""); cur=$((cur+1))
-        case "$v" in
-        setup|list|bootstrap) :;;
-        *) groups_required=1;;
-        esac
       elif [ ${#_cmds[@]} -eq 0 ]; then
         echo "Unknown command: $v"
         exit 3
@@ -50,33 +47,80 @@ main () {
   # initialize act cache
   declare -F act_get > /dev/null && act_get init
 
-  local _rc=0 _i
-  if [ $groups_required -eq 1 ] && [[ " ${_globals[*]} " != *" --dry-run "* ]]; then
-    # critical group permissions
-    local -A groups=()
-    local _dep
-    for ((_i=0;_i<${#_cmds[@]};_i++)); do
-      local _resolved="$(act_resolve_args ${_cmds[$_i]} ${_globals[*]} ${_args[$_i]})"
-      for _dep in $(act_find_deps install install $_resolved); do
-        { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]] } && groups["render:992"]=1
-        [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] && groups["video:"]=1
-        [[ "$_dep" = ${ID_LIKE}_*_install_docker ]] && groups["docker:"]=1
-      done
-    done
+  local _i _rc=0
+  for ((_i=0;_i<${#_cmds[*]};_i++)); do
+    case "${_cmds[$_i]}" in
+    setup|list|bootstrap)
+      subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+      _rc=$?
+      ;;
+    *)
+      if [[ " ${_globals[*]} " = *" --dry-run "* ]]; then
+        subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+        _rc=$?
+      else
+        # critical group permissions
+        local -A _groups=()
+        local _j _dep _rest_args=() _restart=0
+        for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
+          _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
+          for _dep in $(act_find_deps install install $(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]})); do
+            { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]]; } && _groups["render:992"]=1
+            [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] && _groups["video:"]=1
+            [[ "$_dep" = ${ID_LIKE}_*_install_docker ]] && _groups["docker:"]=1
+          done
+        done
 
-    [ ${#groups[*]} -eq 0 ] || act_groups_prelude "${!groups[*]}" "$@"
-    local _prc=$?
-    case $_prc in
-      0) :;;             # groups fine, fall through to the loop
-      251) return 0;;    # child ran everything
-      *) return $_prc;;
+        [ ${#_groups[*]} -eq 0 ] || ensure_group_add ${!_groups[*]} || {
+          echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
+          echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
+          echo "may not apply. Ask your administrator to add: ${!_groups[*]}" 1>&2
+          return 3
+        }
+
+        for _dep in ${!_groups[*]}; do
+          [[ " $(id -nG) " == *" ${_dep%:*} "* ]] || { _restart=1; break; }
+        done
+
+        if [ $_restart -eq 0 ]; then
+          subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+          _rc=$?
+        else
+          if [ -n "${OEP_GROUP_REEXEC:-}" ]; then
+            echo -e "${yellow}groups still not effective after re-exec${reset}" 1>&2
+            return 1
+          fi
+
+          [[ " ${_cmds[*]:0:$_i} " = *" setup "* ]] || subcommand_setup "${_globals[@]}"
+
+          local installer="$HOME/.local/bin/$installer_name"
+          [ -x "$installer" ] || {
+            echo -e "${red}$installer not found; run 'setup' first${reset}" 1>&2
+            return 3
+          }
+
+          local _sdir=""
+          ensure_tmpdir create _sdir secrets /dev/shm
+          (umask 077;printf "%s\n%s\n" "$SUDO_PASSWORD" "$TF_TOKEN" > "$_sdir"/secrets)
+          ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" \
+            --inh-caps=-all env HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" PATH="$PATH" \
+            XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" OEP_GROUP_REEXEC=1 bash -c '
+secret="$1"; installer="$2"; shift 2
+{
+  IFS= read -r SUDO_PASSWORD
+  IFS= read -r TF_TOKEN
+} < "$secret"
+rm -f "$secret"
+export SUDO_PASSWORD TF_TOKEN
+exec "$installer" "$@"
+' bash "$_sdir/secrets" "$installer" "${_rest_args[@]}" "${_globals[@]}"
+          _rc=$?
+          ensure_tmpdir destroy "$_sdir"
+          return $_rc
+        fi
+      fi
+      ;;
     esac
-  fi
-
-  # exec subcommand
-  for ((_i=0;_i<${#_cmds[@]};_i++)); do
-    subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
-    _rc=$?
     [ $_rc -eq 0 ] || [[ " ${_globals[*]} " = *" --continue "* ]] || break
   done
   return $_rc
@@ -84,213 +128,6 @@ main () {
 
 #### COLLECTION OF MODULES ####
 #!/bin/bash
-
-act_get () {
-  case "$1" in
-  prefix)
-    declare -ga _act_reply=()
-    local f
-    for f in ${!_act_cache_functions[*]}; do
-      [[ "$f" = "$2"* ]] && _act_reply+=("${_act_cache_functions[$f]}")
-    done
-    ;;
-  init)
-    declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_))
-    declare -g _act_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'))
-    declare -gA _act_cache_functions=()
-
-    local f rest
-    while read -r _ _ f; do
-      case $f in
-        "${ID_LIKE}_"*)
-          rest=${f#"${ID_LIKE}_"}                  # e.g. 10_install_foo
-          _act_cache_functions[${rest#*_}]=$f      # strip the numeric order -> install_foo
-          ;;
-      esac
-    done < <(declare -F)
-    ;;
-  esac
-}
-
-act_expand_modules () {
-  local act_name=${1%%,*}
-  local -a q=($2)
-  local -A seen=()
-  local i=0
-  while [ $i -lt ${#q[*]} ]; do
-    local n=${q[$i]}; i=$((i+1))
-    [ -z "${seen[$n]:-}" ] || continue
-    seen[$n]=1
-    local p="${_act_cache_functions[profile_$n]:-}"
-    [ -n "$p" ] && q+=($($p $act_name "${@:3}"))
-  done
-  echo "${!seen[*]}"
-}
-
-act_extract_modules () {
-  local act_name=${1%%,*}
-  local all_modules=(${_act_cache_modules[*]})
-  local all_module_args=" ${all_modules[*]/#/--} "
-  local -A modules=()
-  local v
-  for v in ${*:2}; do
-    [[ " ${all_module_args} " != *" $v "* ]] || break
-    [[ " ${all_module_args} " != *" --$v "* ]] || modules[$v]=1
-  done
-  echo "${!modules[*]}"
-}
-
-act_extract_args () {
-  local act_name=${1%%,*}
-  local module_name=$2
-  local act_modules="$3"
-  local all_modules=(${_act_cache_modules[*]})
-  local all_module_args=" ${all_modules[*]/#/--} "
-  local args1=() args2=() i j
-  for ((i=4;i<=${#@};i++)); do
-    if [[ " ${all_module_args} " = *" ${*:$i:1} "* ]]; then
-      for ((j=++i;j<=${#*};j++)); do
-        [[ " ${all_module_args} " != *" ${*:$j:1} "* ]] || break
-      done
-      [ "${*:$((i-1)):1}" != "--${module_name}" ] || args2+=(${*:$i:$((j-i))})
-      i=$((j-1))
-    elif [[ " ${all_module_args} " != *" --${*:$i:1} "* ]]; then
-      args1+=(${*:$i:1})
-    fi
-  done
-  echo "${args1[*]} ${act_modules} -- ${args2[*]}"
-}
-
-act_find_deps () {
-  local act_name=${1%%,*}
-  local -A handlers=()
-  local name handler
-  for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}"); do
-    local p="${_act_cache_functions[${act_name}_${name}]:-}"
-    [ -n "$p" ] && handlers[$p]=1
-  done
-  echo "${!handlers[*]}"
-}
-
-act_helpper () {
-  local act_name=${1%%,*}
-  local act_text="${1#*,}"
-  local sort_options="$2"
-  shift
-  shift
-
-  if [[ " $* " = *" --help "* ]]; then
-    act_get prefix ${act_name}_
-    if [ ${#_act_reply[*]} -gt 0 ]; then
-      if [ "${act_name}" = "install" ]; then
-        echo "${act_name} options:"
-        echo "  --reset-<name>  force reinstallation of the component if exit."
-        echo
-      fi
-    fi
-    return 0
-  fi
-
-  # scan for dependencies
-  local handles=($(
-    act_find_deps $act_name $(
-      # always included modules
-      for m in pre_system_scan core_types; do 
-        [[ -v _act_cache_functions[${act_name}_${m}] ]] && echo $m
-      done
-    ) "$@"
-  ))
-
-  # act in sequence
-  if [ ${#handles[@]} -gt 0 ]; then
-    if [ "$act_name" = "install" ]; then
-      # build license gate
-      local -A licenses=() licenses_text=()
-      for licenser in ${handles[*]/_install_/_license_}; do
-        if declare -F $licenser > /dev/null 2>&1; then
-          local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0
-          while IFS= read -r license_line; do
-            case "$license_line" in
-            "@@LICENSE-ID "*)
-              license_id="${license_line#* }"
-              [ -z "$license_id" ] || licenses[$license_id]="${licenses[$license_id]:-}$name1,"
-              [[ -v licenses_text[$license_id] ]] && license_keep=0 || license_keep=1
-              ;;
-            esac
-            [ $license_keep -eq 1 ] && licenses_text[$license_id]+="${license_line}"$'\n'
-          done < <($licenser "$@")
-        fi
-      done
-      if [ ${#licenses[*]} -gt 0 ]; then
-        local id1 rc
-        for id1 in ${!licenses[*]}; do
-          echo "${licenses_text[$id1]}"
-          echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")"
-        done | ensure_license_gate $installer_name "$@"
-        rc=$?
-        if [ $rc -eq 1 ]; then
-          echo "License declined"
-          exit 3
-        elif [ $rc -ne 0 ]; then
-          echo "License gate failed (no terminal or parse error)"
-          exit 3
-        fi
-      fi
-    fi
-
-    local rc=0 order=0
-    {
-      for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
-        local name1=${handler#*_*_*_}
-        if [ "$act_name" = "remove" ]; then
-          local order1=${handler#*_};order1=${order1%%_*}
-          [ "$order" -gt 0 ] || order=$order1
-          [ "$order1" -ge "$order" ] || break
-        fi
-        local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")"
-        if [[ " $* " = *" --dry-run "* ]]; then
-          echo "@@COMP $name1"
-          echo "Invoke $handler with $invoke_args" 
-          echo "@@OK $name1"
-        else
-          local state_path="$(ensure_project_path)/$installer_name/states/$name1"
-          [ "$act_name" = "start" ] && mkdir -p "$state_path"
-          echo "@@COMP $name1"
-          (
-            set -e
-            $handler $invoke_args &
-            wait -n
-          )
-          local rc1=$?
-          [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
-          if [ $rc1 -eq 0 ]; then
-            echo "@@OK $name1"
-          else
-            echo "@@FAIL $name1"
-            rc=$rc1
-            [[ " $* " = *" --continue "* ]] || break
-          fi
-        fi
-      done
-      if [[ " $* " != *" --dry-run "* ]] && [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
-        echo "@@REPORT SYSTEM SUMMARY"
-        ${ID_LIKE}_10_${act_name}_pre_system_scan
-      fi
-    } > >(
-      LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
-      mkdir -p "$(dirname "$LOG_FILE")"
-      echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
-      echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
-      ensure_panelled_logs ${act_text//,/ }
-    ) 2>&1
-    # wait for background processes
-    wait
-    return $rc
-  else
-    echo "Component not found" 1>&2
-    exit 3
-  fi
-}
 
 subcommand_install () {
   act_helpper "install,Installation,Installing,Installed" "" "$@"
@@ -446,241 +283,9 @@ EOF
   echo "bash completion created at $completion_script"
 }
 
-# Resolve the effective component list for a subcommand.
-act_resolve_args () {
-  local act_name=$1; shift
-  local args=("$@") margs=(${*##-*})
-  if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
-    local state_path="$(ensure_project_path)/$installer_name/states"
-    [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
-  fi
-  echo "${args[*]}"
-}
-
-# collect groups created by modules. enforce them.
-act_groups_prelude () {
-  ensure_group_add $1 || {
-    echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
-    echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
-    echo "may not apply. Ask your administrator to add: ${groups[*]%:*}" 1>&2
-    exit 3
-  }
-
-  # Process credentials -- no argument to id, deliberately.
-  local g needed=0
-  for g in $1; do
-    id -nG | tr ' ' '\n' | grep -qx ${g%:*} || { needed=1; break; }
-  done
-  [ $needed -eq 1 ] || return 0
-
-  if [ -n "${OEP_GROUP_REEXEC:-}" ]; then
-    echo -e "${yellow}groups still not effective after re-exec${reset}" 1>&2
-    return 1
-  fi
-
-  subcommand_setup
-  local installer="$HOME/.local/bin/$installer_name"
-  [ -x "$installer" ] || {
-    echo -e "${red}$installer not found; run 'setup' first${reset}" 1>&2
-    exit 3
-  }
-
-  local secret_dir=""
-  ensure_tmpdir create secret_dir secrets /dev/shm
-  (umask 077;printf "%s\n%s\n" "$SUDO_PASSWORD" "$TF_TOKEN" > $secret_dir/secrets)
-  ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" --inh-caps=-all \
-    env HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" PATH="$PATH" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" OEP_GROUP_REEXEC=1 bash -c "
-      {
-        IFS= read -r SUDO_PASSWORD
-        IFS= read -r TF_TOKEN
-        export SUDO_PASSWORD TF_TOKEN
-      } < $secret_dir/secrets
-      rm -f $secret_dir/secrets
-      '$installer' ${*:2}
-    "
-  local rc=$?
-  ensure_tmpdir destroy $secret_dir
-  [ $rc -le 250 ] || rc=1
-  [ $rc -eq 0 ] || return $rc
-  return 251
-}
-
-
-# show output in columns, allowing merged last row and ignoring color sequence
-ensure_columns () {
-  local sep=${1:-'|'}
-  python3 -c '
-import sys,re
-ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
-rows=[line.strip().split(sys.argv[1]) for line in sys.stdin]
-cols=max(len(r) for r in rows)
-widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0) for c in range(cols-1)]
-for r in rows:
-  print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
-' "$sep"
-}
-
-
-# check disk space
-ensure_disk_space () {
-  local disk_size=$1            # in MB
-  local disk_path="${2:-$HOME}" # optional disk path
-  local disk_avail=$(df -h --output=avail "$disk_path" | awk '/[0-9]T/{a=$1*1000000}/[0-9]G/{a=$1*1000}/[0-9]M/{a=$1*1}/[0-9]K/{a=$1/1000}END{print int(a)}')
-  if [ "$disk_size" -gt "$disk_avail" ]; then
-    echo "Not enough disk space: required ${disk_size}MiB and available ${disk_avail}MiB"
-    return 3
-  fi
-}
-
-
-# sparse or full git clone
-# full clone: <workspace> <version> <repository>
-# sparse clone: <workspace> <version> <repository> <dirs> [<dirs>...]
-ensure_git_clone () {
-  local workspace="$1"
-  local version="$2"
-  local repository="$3"
-
-  ensure_sudo rm -rf "$workspace"
-  mkdir -p "$(dirname "$workspace")"
-  if [ ${#@} -ge 4 ]; then
-    # sparse checkout
-    mkdir -p "$workspace"
-    pushd "$workspace" > /dev/null
-    git clone --filter=blob:none --no-checkout $repository .
-    git sparse-checkout init --cone
-    git sparse-checkout set "${@:4}"
-    git checkout $version
-    popd > /dev/null
-  else
-    # full checkout
-    mkdir -p "$workspace"
-    pushd "$workspace" > /dev/null
-    git init -q
-    git remote add origin "$repository"
-    git fetch --depth 1 origin "$version"
-    git checkout -q FETCH_HEAD
-    [ ! -e .gitmodules ] || git submodule update --init --recursive
-    popd > /dev/null
-  fi
-}
-
-
-# add groups and ensure user is part of the groups
-# use docker: for a system group
-ensure_group_add () {
-  local group1 gid1
-  
-  for group1 in "$@"; do
-    case "$group1" in
-    *:) 
-      gid1="--system"
-      ;;
-    *:*) 
-      gid1="--system --gid ${group1#*:}"
-      getent group ${group1%:*} >/dev/null 2>&1 || [ -z "$(getent group ${gid1##* })" ] || { echo "gid ${gid1##* } is taken" 1>&2; gid1="--system"; }
-      ;;
-    *) 
-      gid1=""
-      ;;
-    esac
-    getent group ${group1%:*} >/dev/null 2>&1 || ensure_sudo groupadd $gid1 ${group1%:*}
-    id -nG | tr ' ' '\n' | grep -qx ${group1%:*} || ensure_sudo usermod -aG ${group1%:*} "$(id -un)"
-  done
-
-  # wait until NSS settles
-  local deadline=$((SECONDS + 30))
-  local flushed=0 missing
-
-  while :; do
-    missing=""
-    for group1 in "$@"; do
-      # id -G "$(id -un)" searches the database while id -G checks the current session
-      id -G "$(id -un)" | tr ' ' '\n' | grep -qx "$(getent group ${group1%:*} | cut -f3 -d:)" || missing+=" ${group1%:*}"
-    done
-    [ -n "$missing" ] || return 0
-
-    # One-shot cache invalidation -- usually converges immediately after this.
-    if [ $flushed -eq 0 ]; then
-      flushed=1
-      command -v nscd  >/dev/null && ensure_sudo nscd -i group   >/dev/null 2>&1
-      command -v sss_cache >/dev/null && ensure_sudo sss_cache -G >/dev/null 2>&1
-      continue
-    fi
-
-    [ $SECONDS -ge $deadline ] && {
-      echo -e "${red}groups not visible:${missing}${reset}" 1>&2
-      return 1
-    }
-    sleep 1
-  done
-}
-
-
-# Set HF_TOKEN as an environment variable
-# Verify if model permissions are granted on the token
-ensure_hf_token () {
-  local models=($*)
-
-  export HF_TOKEN
-  if [ -z "$HF_TOKEN" ]; then
-    if [ -r "$HOME"/.cache/huggingface/token ]; then
-      export HF_TOKEN=$(< "$HOME"/.cache/huggingface/token)
-    elif [ -r "$HOME"/.hf_token ]; then
-      export HF_TOKEN=$(< "$HOME"/.hf_token)
-    else
-      export HF_TOKEN=$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json > /dev/null 2>&1 || true)
-    fi
-  fi
-
-  local model f gated=()
-  for model in ${models[*]}; do
-    local probes=()
-    for f in $(curl -s -L "https://huggingface.co/api/models/${model}?full=tree" | tr ',' '\n' | grep -F '"rfilename":' | cut -f4 -d'"'); do
-      case "$f" in
-      *config.yaml|*config.json|*tokenizer.json)
-        probes+=($f)
-        break
-        ;;
-      esac
-    done
-    if [ ${#probes[*]} -eq 0 ]; then
-      echo "No probe found with $model" 1>&2
-      return 3
-    fi
-    for f in ${probes[*]}; do
-      local code=$(curl -s -o /dev/null -w "%{http_code}" -L -r 0-0 -H "Authorization: Bearer $HF_TOKEN" https://huggingface.co/${model}/resolve/main/$f)
-      case "$code" in
-      200|206)
-        continue
-        ;;
-      401|403|404) 
-        gated+=($model)
-        break
-        ;;
-      *)
-        echo "Unknown probe code $code" 1>&2
-        return 3
-        ;;
-      esac
-    done
-  done
-
-  if [ ${#gated[*]} -gt 0 ]; then
-    echo "Gated model(s): ${gated[*]}" 1>&2
-    return 3
-  fi
-}
-
-
-# return the current machine IP address
-ensure_ip () {
-  ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
-}
-
 
 # Split panel logging
-ensure_panelled_logs () {(
+act_panelled_logs () {(
 #
 # Protocol (markers your installer emits on stdout/stderr):
 #   @@COMP       <name>     start/switch to component (starts its timer)
@@ -1737,6 +1342,399 @@ _handle_line() {
   fi
   _draw 1
 )}
+
+#!/bin/bash
+
+act_get () {
+  case "$1" in
+  prefix)
+    declare -ga _act_reply=()
+    local f
+    for f in ${!_act_cache_functions[*]}; do
+      [[ "$f" = "$2"* ]] && _act_reply+=("${_act_cache_functions[$f]}")
+    done
+    ;;
+  init)
+    declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_))
+    declare -g _act_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'))
+    declare -gA _act_cache_functions=()
+
+    local f rest
+    while read -r _ _ f; do
+      case $f in
+        "${ID_LIKE}_"*)
+          rest=${f#"${ID_LIKE}_"}                  # e.g. 10_install_foo
+          _act_cache_functions[${rest#*_}]=$f      # strip the numeric order -> install_foo
+          ;;
+      esac
+    done < <(declare -F)
+    ;;
+  esac
+}
+
+act_expand_modules () {
+  local act_name=${1%%,*}
+  local -a q=($2)
+  local -A seen=()
+  local i=0
+  while [ $i -lt ${#q[*]} ]; do
+    local n=${q[$i]}; i=$((i+1))
+    [ -z "${seen[$n]:-}" ] || continue
+    seen[$n]=1
+    local p="${_act_cache_functions[profile_$n]:-}"
+    [ -n "$p" ] && q+=($($p $act_name "${@:3}"))
+  done
+  echo "${!seen[*]}"
+}
+
+act_extract_modules () {
+  local act_name=${1%%,*}
+  local all_modules=(${_act_cache_modules[*]})
+  local all_module_args=" ${all_modules[*]/#/--} "
+  local -A modules=()
+  local v
+  for v in ${*:2}; do
+    [[ " ${all_module_args} " != *" $v "* ]] || break
+    [[ " ${all_module_args} " != *" --$v "* ]] || modules[$v]=1
+  done
+  echo "${!modules[*]}"
+}
+
+act_extract_args () {
+  local act_name=${1%%,*}
+  local module_name=$2
+  local act_modules="$3"
+  local all_modules=(${_act_cache_modules[*]})
+  local all_module_args=" ${all_modules[*]/#/--} "
+  local args1=() args2=() i j
+  for ((i=4;i<=${#@};i++)); do
+    if [[ " ${all_module_args} " = *" ${*:$i:1} "* ]]; then
+      for ((j=++i;j<=${#*};j++)); do
+        [[ " ${all_module_args} " != *" ${*:$j:1} "* ]] || break
+      done
+      [ "${*:$((i-1)):1}" != "--${module_name}" ] || args2+=(${*:$i:$((j-i))})
+      i=$((j-1))
+    elif [[ " ${all_module_args} " != *" --${*:$i:1} "* ]]; then
+      args1+=(${*:$i:1})
+    fi
+  done
+  echo "${args1[*]} ${act_modules} -- ${args2[*]}"
+}
+
+act_find_deps () {
+  local act_name=${1%%,*}
+  local -A handlers=()
+  local name handler
+  for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}"); do
+    local p="${_act_cache_functions[${act_name}_${name}]:-}"
+    [ -n "$p" ] && handlers[$p]=1
+  done
+  echo "${!handlers[*]}"
+}
+
+act_helpper () {
+  local act_name=${1%%,*}
+  local act_text="${1#*,}"
+  local sort_options="$2"
+  shift
+  shift
+
+  if [[ " $* " = *" --help "* ]]; then
+    act_get prefix ${act_name}_
+    if [ ${#_act_reply[*]} -gt 0 ]; then
+      if [ "${act_name}" = "install" ]; then
+        echo "${act_name} options:"
+        echo "  --reset-<name>  force reinstallation of the component if exit."
+        echo
+      fi
+    fi
+    return 0
+  fi
+
+  # scan for dependencies
+  local handles=($(
+    act_find_deps $act_name $(
+      # always included modules
+      for m in pre_system_scan core_types; do 
+        [[ -v _act_cache_functions[${act_name}_${m}] ]] && echo $m
+      done
+    ) "$@"
+  ))
+
+  # act in sequence
+  if [ ${#handles[@]} -gt 0 ]; then
+    if [ "$act_name" = "install" ]; then
+      # build license gate
+      local -A licenses=() licenses_text=()
+      for licenser in ${handles[*]/_install_/_license_}; do
+        if declare -F $licenser > /dev/null 2>&1; then
+          local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0
+          while IFS= read -r license_line; do
+            case "$license_line" in
+            "@@LICENSE-ID "*)
+              license_id="${license_line#* }"
+              [ -z "$license_id" ] || licenses[$license_id]="${licenses[$license_id]:-}$name1,"
+              [[ -v licenses_text[$license_id] ]] && license_keep=0 || license_keep=1
+              ;;
+            esac
+            [ $license_keep -eq 1 ] && licenses_text[$license_id]+="${license_line}"$'\n'
+          done < <($licenser "$@")
+        fi
+      done
+      if [ ${#licenses[*]} -gt 0 ]; then
+        local id1 rc
+        for id1 in ${!licenses[*]}; do
+          echo "${licenses_text[$id1]}"
+          echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")"
+        done | ensure_license_gate $installer_name "$@"
+        rc=$?
+        if [ $rc -eq 1 ]; then
+          echo "License declined"
+          exit 3
+        elif [ $rc -ne 0 ]; then
+          echo "License gate failed (no terminal or parse error)"
+          exit 3
+        fi
+      fi
+    fi
+
+    local rc=0 order=0
+    {
+      for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
+        local name1=${handler#*_*_*_}
+        if [ "$act_name" = "remove" ]; then
+          local order1=${handler#*_};order1=${order1%%_*}
+          [ "$order" -gt 0 ] || order=$order1
+          [ "$order1" -ge "$order" ] || break
+        fi
+        local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")"
+        if [[ " $* " = *" --dry-run "* ]]; then
+          echo "@@COMP $name1"
+          echo "Invoke $handler with $invoke_args" 
+          echo "@@OK $name1"
+        else
+          local state_path="$(ensure_project_path)/$installer_name/states/$name1"
+          [ "$act_name" = "start" ] && mkdir -p "$state_path"
+          echo "@@COMP $name1"
+          (
+            set -e
+            $handler $invoke_args &
+            wait -n
+          )
+          local rc1=$?
+          [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
+          if [ $rc1 -eq 0 ]; then
+            echo "@@OK $name1"
+          else
+            echo "@@FAIL $name1"
+            rc=$rc1
+            [[ " $* " = *" --continue "* ]] || break
+          fi
+        fi
+      done
+      if [[ " $* " != *" --dry-run "* ]] && [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
+        echo "@@REPORT SYSTEM SUMMARY"
+        ${ID_LIKE}_10_${act_name}_pre_system_scan
+      fi
+    } > >(
+      LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
+      mkdir -p "$(dirname "$LOG_FILE")"
+      echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
+      echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
+      act_panelled_logs ${act_text//,/ }
+    ) 2>&1
+    # wait for background processes
+    wait
+    return $rc
+  else
+    echo "Component not found" 1>&2
+    exit 3
+  fi
+}
+
+# Resolve the effective component list for a subcommand.
+act_resolve_args () {
+  local act_name=$1; shift
+  local args=("$@") margs=(${*##-*})
+  if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
+    local state_path="$(ensure_project_path)/$installer_name/states"
+    [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
+  fi
+  echo "${args[*]}"
+}
+
+
+# show output in columns, allowing merged last row and ignoring color sequence
+ensure_columns () {
+  local sep=${1:-'|'}
+  python3 -c '
+import sys,re
+ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
+rows=[line.strip().split(sys.argv[1]) for line in sys.stdin]
+cols=max(len(r) for r in rows)
+widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0) for c in range(cols-1)]
+for r in rows:
+  print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
+' "$sep"
+}
+
+
+# check disk space
+ensure_disk_space () {
+  local disk_size=$1            # in MB
+  local disk_path="${2:-$HOME}" # optional disk path
+  local disk_avail=$(df -h --output=avail "$disk_path" | awk '/[0-9]T/{a=$1*1000000}/[0-9]G/{a=$1*1000}/[0-9]M/{a=$1*1}/[0-9]K/{a=$1/1000}END{print int(a)}')
+  if [ "$disk_size" -gt "$disk_avail" ]; then
+    echo "Not enough disk space: required ${disk_size}MiB and available ${disk_avail}MiB"
+    return 3
+  fi
+}
+
+
+# sparse or full git clone
+# full clone: <workspace> <version> <repository>
+# sparse clone: <workspace> <version> <repository> <dirs> [<dirs>...]
+ensure_git_clone () {
+  local workspace="$1"
+  local version="$2"
+  local repository="$3"
+
+  ensure_sudo rm -rf "$workspace"
+  mkdir -p "$(dirname "$workspace")"
+  if [ ${#@} -ge 4 ]; then
+    # sparse checkout
+    mkdir -p "$workspace"
+    pushd "$workspace" > /dev/null
+    git clone --filter=blob:none --no-checkout $repository .
+    git sparse-checkout init --cone
+    git sparse-checkout set "${@:4}"
+    git checkout $version
+    popd > /dev/null
+  else
+    # full checkout
+    mkdir -p "$workspace"
+    pushd "$workspace" > /dev/null
+    git init -q
+    git remote add origin "$repository"
+    git fetch --depth 1 origin "$version"
+    git checkout -q FETCH_HEAD
+    [ ! -e .gitmodules ] || git submodule update --init --recursive
+    popd > /dev/null
+  fi
+}
+
+
+# add groups and ensure user is part of the groups
+# use docker: for a system group
+ensure_group_add () {
+  local group1 gid1
+  
+  for group1 in "$@"; do
+    case "$group1" in
+    *:) 
+      gid1="--system"
+      ;;
+    *:*) 
+      gid1="--system --gid ${group1#*:}"
+      getent group ${group1%:*} >/dev/null 2>&1 || [ -z "$(getent group ${gid1##* })" ] || { echo "gid ${gid1##* } is taken" 1>&2; gid1="--system"; }
+      ;;
+    *) 
+      gid1=""
+      ;;
+    esac
+    getent group ${group1%:*} >/dev/null 2>&1 || ensure_sudo groupadd $gid1 ${group1%:*}
+    id -nG | tr ' ' '\n' | grep -qx ${group1%:*} || ensure_sudo usermod -aG ${group1%:*} "$(id -un)"
+  done
+
+  # wait until NSS settles
+  local deadline=$((SECONDS + 30))
+  local flushed=0 missing
+
+  while :; do
+    missing=""
+    for group1 in "$@"; do
+      # id -G "$(id -un)" searches the database while id -G checks the current session
+      id -G "$(id -un)" | tr ' ' '\n' | grep -qx "$(getent group ${group1%:*} | cut -f3 -d:)" || missing+=" ${group1%:*}"
+    done
+    [ -n "$missing" ] || return 0
+
+    # One-shot cache invalidation -- usually converges immediately after this.
+    if [ $flushed -eq 0 ]; then
+      flushed=1
+      command -v nscd  >/dev/null && ensure_sudo nscd -i group   >/dev/null 2>&1
+      command -v sss_cache >/dev/null && ensure_sudo sss_cache -G >/dev/null 2>&1
+      continue
+    fi
+
+    [ $SECONDS -ge $deadline ] && {
+      echo -e "${red}groups not visible:${missing}${reset}" 1>&2
+      return 1
+    }
+    sleep 1
+  done
+}
+
+
+# Set HF_TOKEN as an environment variable
+# Verify if model permissions are granted on the token
+ensure_hf_token () {
+  local models=($*)
+
+  export HF_TOKEN
+  if [ -z "$HF_TOKEN" ]; then
+    if [ -r "$HOME"/.cache/huggingface/token ]; then
+      export HF_TOKEN=$(< "$HOME"/.cache/huggingface/token)
+    elif [ -r "$HOME"/.hf_token ]; then
+      export HF_TOKEN=$(< "$HOME"/.hf_token)
+    else
+      export HF_TOKEN=$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json > /dev/null 2>&1 || true)
+    fi
+  fi
+
+  local model f gated=()
+  for model in ${models[*]}; do
+    local probes=()
+    for f in $(curl -s -L "https://huggingface.co/api/models/${model}?full=tree" | tr ',' '\n' | grep -F '"rfilename":' | cut -f4 -d'"'); do
+      case "$f" in
+      *config.yaml|*config.json|*tokenizer.json)
+        probes+=($f)
+        break
+        ;;
+      esac
+    done
+    if [ ${#probes[*]} -eq 0 ]; then
+      echo "No probe found with $model" 1>&2
+      return 3
+    fi
+    for f in ${probes[*]}; do
+      local code=$(curl -s -o /dev/null -w "%{http_code}" -L -r 0-0 -H "Authorization: Bearer $HF_TOKEN" https://huggingface.co/${model}/resolve/main/$f)
+      case "$code" in
+      200|206)
+        continue
+        ;;
+      401|403|404) 
+        gated+=($model)
+        break
+        ;;
+      *)
+        echo "Unknown probe code $code" 1>&2
+        return 3
+        ;;
+      esac
+    done
+  done
+
+  if [ ${#gated[*]} -gt 0 ]; then
+    echo "Gated model(s): ${gated[*]}" 1>&2
+    return 3
+  fi
+}
+
+
+# return the current machine IP address
+ensure_ip () {
+  ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
+}
 
 
 # ensure ports are open
