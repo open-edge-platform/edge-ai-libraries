@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Git and local metadata
+.git
+.gitignore
+.DS_Store
+
+# Go build artifacts and test output
+bin/
+*.exe
+*.test
+*.out
+coverage/
