@@ -1,11 +1,51 @@
 
-# add a group and ensure the user is part of the group
+# add groups and ensure user is part of the groups
+# use docker: for a system group
 ensure_group_add () {
-  local group1=$1
-  getent group $group1 >/dev/null 2>&1 || ensure_sudo groupadd $group1
-  id -nG | grep -qw $group1 || {
-    ensure_sudo usermod -aG $group1 "$(id -un)"
-    newgrp $group1
-  }
+  local group1 gid1
+  
+  for group1 in "$@"; do
+    case "$group1" in
+    *:) 
+      gid1="--system"
+      ;;
+    *:*) 
+      gid1="--system --gid ${group1#*:}"
+      getent group ${group1%:*} >/dev/null 2>&1 || [ -z "$(getent group ${gid1##* })" ] || { echo "gid ${gid1##* } is taken" 1>&2; gid1="--system"; }
+      ;;
+    *) 
+      gid1=""
+      ;;
+    esac
+    getent group ${group1%:*} >/dev/null 2>&1 || ensure_sudo groupadd $gid1 ${group1%:*}
+    id -nG | tr ' ' '\n' | grep -qx ${group1%:*} || ensure_sudo usermod -aG ${group1%:*} "$(id -un)"
+  done
+
+  # wait until NSS settles
+  local deadline=$((SECONDS + 30))
+  local flushed=0 missing
+
+  while :; do
+    missing=""
+    for group1 in "$@"; do
+      # id -G "$(id -un)" searches the database while id -G checks the current session
+      id -G "$(id -un)" | tr ' ' '\n' | grep -qx "$(getent group ${group1%:*} | cut -f3 -d:)" || missing+=" ${group1%:*}"
+    done
+    [ -n "$missing" ] || return 0
+
+    # One-shot cache invalidation -- usually converges immediately after this.
+    if [ $flushed -eq 0 ]; then
+      flushed=1
+      command -v nscd  >/dev/null && ensure_sudo nscd -i group   >/dev/null 2>&1
+      command -v sss_cache >/dev/null && ensure_sudo sss_cache -G >/dev/null 2>&1
+      continue
+    fi
+
+    [ $SECONDS -ge $deadline ] && {
+      echo -e "${red}groups not visible:${missing}${reset}" 1>&2
+      return 1
+    }
+    sleep 1
+  done
 }
 
