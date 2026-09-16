@@ -15,8 +15,12 @@ ensure_sudo () {
     sudo "$@"
   else
     # write an askpass helper
-    local askpass_helper="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/$installer_name-askpass"
-    ( umask 077; cat > "$askpass_helper" <<'EOF'
+    local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    [ -d "$rundir" ] || rundir="$HOME/.local/state/$installer_name"
+    mkdir -p "$rundir" 2>/dev/null
+    local askpass_helper="$rundir"/askpass
+
+    [ -x "$askpass_helper" ] || ( umask 077; cat > "$askpass_helper" <<'EOF'
 #!/bin/bash
 set -u
 # 1) serialize: parallel components must not race to prompt
