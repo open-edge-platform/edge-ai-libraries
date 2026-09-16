@@ -1,6 +1,6 @@
 # Release Notes: Time Series Analytics
 
-<!--## Version 2026.2-->
+## Version 2026.2
 
 **Release Date:** September 9, 2026
 

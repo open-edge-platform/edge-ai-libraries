@@ -1,0 +1,11 @@
+
+ensure_rm_apt_source () {
+  local r e
+  for r in "$@"; do
+    [ -r /etc/apt/sources.list ] && sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
+    for e in /etc/apt/sources.list.d/*.list; do
+      [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && mv -f "$e" "$e".save || true
+    done
+  done
+}
+

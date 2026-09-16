@@ -1,0 +1,10 @@
+
+debian_10_install_git () {
+  if dpkg-query -L git > /dev/null 2>&1; then
+    echo "Git is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y git ca-certificates
+  fi
+}
+

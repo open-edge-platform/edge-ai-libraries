@@ -2,6 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # update the submodules on a weekly interval
 version: 2
+multi-ecosystem-groups:
+  time-series-analytics-python:
+    schedule:
+      interval: weekly
 updates:
 
   # ─────────────────────────────────────────
@@ -29,7 +33,6 @@ updates:
         applies-to: version-updates
         patterns:
           - "*"
-
   # ─────────────────────────────────────────
   # Python (pip) — Microservices
   # ─────────────────────────────────────────
@@ -101,6 +104,42 @@ updates:
         patterns:
           - "*"
 
+  - package-ecosystem: "pip"
+    directory: "/microservices/time-series-analytics"
+    schedule:
+      interval: "weekly"
+    multi-ecosystem-group: time-series-analytics-python
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/time-series-analytics/simulator"
+    schedule:
+      interval: "weekly"
+    multi-ecosystem-group: time-series-analytics-python
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/time-series-analytics/tests-functional"
+    schedule:
+      interval: "weekly"
+    multi-ecosystem-group: time-series-analytics-python
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+
+  - package-ecosystem: "pip"
+    directory: "/microservices/time-series-analytics/tests"
+    schedule:
+      interval: "weekly"
+    multi-ecosystem-group: time-series-analytics-python
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+  
   # ─────────────────────────────────────────
   # Python (pip) — Sample Applications
   # ─────────────────────────────────────────
