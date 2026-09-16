@@ -55,7 +55,7 @@ class FieldHashStrategy(DedupStrategy):
         raw = "+".join(values)
         algo = config.hash_algorithm
         digest = (
-          hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()
+            hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()
             if algo == "md5"
             else hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()
         )
