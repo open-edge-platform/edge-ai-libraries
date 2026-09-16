@@ -86,7 +86,7 @@ The user has an option to either [build the docker images](./how-to-build-from-s
 
  ```bash
  export REGISTRY_URL=intel
- export TAG=latest
+ export TAG=2026.2.0
  ```
 
 ## Running the Server with CPU
