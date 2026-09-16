@@ -41,7 +41,7 @@ RETRY_DELAY_SECONDS: float = 5.0
 
 # A known pipeline/variant that does NOT contain a gvametapublish element,
 # used for error-path tests that need a valid (but metadata-free) pipeline.
-_PIPELINE_WITHOUT_METADATA = "smart-parking"
+_PIPELINE_WITHOUT_METADATA = "simple-nvr"
 _VARIANT_WITHOUT_METADATA = "cpu"
 
 
