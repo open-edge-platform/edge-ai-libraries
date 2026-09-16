@@ -312,7 +312,6 @@ $(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|subcomman
 main "\$@"
 EOF
   chmod a+rx "$installer"
-  ln -sf "$installer" "$installer"-askpass
   echo "Installer reconstructed at $installer"
 
   # reconstruct bash completion
