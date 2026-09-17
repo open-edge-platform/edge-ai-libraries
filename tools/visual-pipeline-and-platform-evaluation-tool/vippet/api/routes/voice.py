@@ -6,6 +6,7 @@ import io
 import logging
 import os
 import wave
+from time import perf_counter
 from typing import Annotated
 
 import httpx
@@ -22,6 +23,17 @@ MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 TIMEOUT_SECONDS = 120
 AUDIO_ANALYZER_URL = os.getenv("AUDIO_ANALYZER_URL", "http://audio-analyzer:8010")
 TEXT_TO_SPEECH_URL = os.getenv("TEXT_TO_SPEECH_URL", "http://text-to-speech:8011")
+SERVICE_DURATION_HEADER = "X-Voice-Service-Duration-Ms"
+METRICS_HEADERS = {
+    SERVICE_DURATION_HEADER: {
+        "description": (
+            "Request-scoped upstream round-trip time in milliseconds, measured by "
+            "ViPPET through receipt of the full response body. Includes service queueing "
+            "and transport, not just model inference. Excludes browser upload/download."
+        ),
+        "schema": {"type": "number", "minimum": 0},
+    }
+}
 
 
 class SpeechRequest(BaseModel):
@@ -50,6 +62,7 @@ async def call_service(
     json: dict[str, str] | None = None,
     max_bytes: int = MAX_RESPONSE_BYTES,
 ) -> httpx.Response:
+    started_at = perf_counter()
     try:
         async with asyncio.timeout(TIMEOUT_SECONDS):
             async with create_client() as client:
@@ -79,9 +92,13 @@ async def call_service(
                                 "The speech service response exceeded the size limit.",
                             )
                         content.extend(chunk)
-                    return httpx.Response(
+                    result = httpx.Response(
                         200, content=bytes(content), headers=upstream.headers
                     )
+                    result.headers[SERVICE_DURATION_HEADER] = (
+                        f"{(perf_counter() - started_at) * 1000:.3f}"
+                    )
+                    return result
     except (httpx.TimeoutException, TimeoutError) as exc:
         raise HTTPException(
             504, "Speech conversion timed out. Try a shorter input."
@@ -114,6 +131,7 @@ def validate_audio(content: bytes) -> None:
     "/transcriptions",
     operation_id="transcribe_voice",
     response_model=TranscriptionResponse,
+    responses={200: {"headers": METRICS_HEADERS}},
 )
 async def transcribe_voice(
     response: Response,
@@ -137,8 +155,12 @@ async def transcribe_voice(
         max_bytes=128 * 1024,
     )
     try:
+        result = TranscriptionResponse.model_validate(upstream.json())
         response.headers["Cache-Control"] = "no-store"
-        return TranscriptionResponse.model_validate(upstream.json())
+        response.headers[SERVICE_DURATION_HEADER] = upstream.headers[
+            SERVICE_DURATION_HEADER
+        ]
+        return result
     except ValueError as exc:
         raise HTTPException(
             502, "The speech service returned an invalid transcription."
@@ -151,7 +173,10 @@ async def transcribe_voice(
     response_class=Response,
     responses={
         200: {
-            "content": {"audio/wav": {"schema": {"type": "string", "format": "binary"}}}
+            "content": {
+                "audio/wav": {"schema": {"type": "string", "format": "binary"}}
+            },
+            "headers": METRICS_HEADERS,
         }
     },
 )
@@ -174,6 +199,7 @@ async def synthesize_voice(request: SpeechRequest) -> Response:
         media_type="audio/wav",
         headers={
             "Cache-Control": "no-store",
+            SERVICE_DURATION_HEADER: upstream.headers[SERVICE_DURATION_HEADER],
             "Content-Disposition": 'inline; filename="speech.wav"',
             "X-Content-Type-Options": "nosniff",
         },

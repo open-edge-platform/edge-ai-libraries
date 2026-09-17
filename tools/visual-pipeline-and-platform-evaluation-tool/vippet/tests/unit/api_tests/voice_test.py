@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import io
 import unittest
 import wave
@@ -102,6 +103,26 @@ class VoiceTests(unittest.TestCase):
             self.requests[0].content, b'{"input":"Hello world","response_format":"wav"}'
         )
 
+    def test_timings_belong_to_each_conversion(self) -> None:
+        with patch.object(voice, "perf_counter", side_effect=[10, 10.25, 20, 20.75]):
+            transcription = self.transcribe()
+            speech = self.client.post("/voice/speech", json={"input": "Hello"})
+        self.assertEqual(transcription.status_code, 200)
+        self.assertEqual(speech.status_code, 200)
+        self.assertEqual(
+            transcription.headers["x-voice-service-duration-ms"], "250.000"
+        )
+        self.assertEqual(speech.headers["x-voice-service-duration-ms"], "750.000")
+        self.assertEqual(transcription.json(), {"text": "Hello world"})
+        self.assertEqual(speech.content, wav_bytes())
+        self.assertEqual(len(self.requests), 2)
+
+    def test_failed_conversion_has_no_success_timing(self) -> None:
+        self.upstream = httpx.Response(500, text="private service detail")
+        response = self.transcribe()
+        self.assertEqual(response.status_code, 502)
+        self.assertNotIn("x-voice-service-duration-ms", response.headers)
+
     def test_rejects_invalid_text(self) -> None:
         for text in ["", "   ", "a" * 5001]:
             with self.subTest(length=len(text)):
@@ -149,11 +170,70 @@ class VoiceTests(unittest.TestCase):
 
     def test_rejects_invalid_upstream_payload(self) -> None:
         self.upstream = httpx.Response(200, json={"text": 123})
-        self.assertEqual(self.transcribe().status_code, 502)
-        self.assertEqual(
-            self.client.post("/voice/speech", json={"input": "Hello"}).status_code, 502
-        )
+        responses = [
+            self.transcribe(),
+            self.client.post("/voice/speech", json={"input": "Hello"}),
+        ]
+        for response in responses:
+            self.assertEqual(response.status_code, 502)
+            self.assertNotIn("x-voice-service-duration-ms", response.headers)
 
     def test_rejects_oversized_upstream_response(self) -> None:
         self.upstream = httpx.Response(200, content=b"x" * (128 * 1024 + 1))
         self.assertEqual(self.transcribe().status_code, 502)
+
+
+class ConcurrentVoiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_timing_includes_body_and_is_isolated_between_requests(self) -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        class TranscriptionStream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                started.set()
+                yield b'{"text":'
+                await release.wait()
+                yield b'"Hello world"}'
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("transcriptions"):
+                return httpx.Response(200, stream=TranscriptionStream())
+            return httpx.Response(
+                200, content=wav_bytes(), headers={"content-type": "audio/wav"}
+            )
+
+        app = FastAPI()
+        app.include_router(voice.router, prefix="/voice")
+        with (
+            patch.object(voice, "perf_counter", side_effect=[10, 20, 20.25, 21]),
+            patch.object(
+                voice,
+                "create_client",
+                lambda: httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+            ),
+        ):
+            async with (
+                asyncio.timeout(5),
+                httpx.AsyncClient(
+                    transport=httpx.ASGITransport(app=app), base_url="http://test"
+                ) as client,
+            ):
+                pending = asyncio.create_task(
+                    client.post(
+                        "/voice/transcriptions",
+                        files={"file": ("sentence.wav", wav_bytes(), "audio/wav")},
+                    )
+                )
+                try:
+                    await started.wait()
+                    speech = await client.post("/voice/speech", json={"input": "Hello"})
+                finally:
+                    release.set()
+                    transcription = await pending
+        self.assertEqual(speech.status_code, 200)
+        self.assertEqual(transcription.status_code, 200)
+        self.assertEqual(speech.headers["x-voice-service-duration-ms"], "250.000")
+        self.assertEqual(
+            transcription.headers["x-voice-service-duration-ms"], "11000.000"
+        )
+        self.assertEqual(transcription.json(), {"text": "Hello world"})

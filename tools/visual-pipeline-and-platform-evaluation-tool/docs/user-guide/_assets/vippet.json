@@ -3868,6 +3868,15 @@
                   "$ref": "#/components/schemas/TranscriptionResponse"
                 }
               }
+            },
+            "headers": {
+              "X-Voice-Service-Duration-Ms": {
+                "description": "Request-scoped upstream round-trip time in milliseconds, measured by ViPPET through receipt of the full response body. Includes service queueing and transport, not just model inference. Excludes browser upload/download.",
+                "schema": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
             }
           },
           "422": {
@@ -3909,6 +3918,15 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "X-Voice-Service-Duration-Ms": {
+                "description": "Request-scoped upstream round-trip time in milliseconds, measured by ViPPET through receipt of the full response body. Includes service queueing and transport, not just model inference. Excludes browser upload/download.",
+                "schema": {
+                  "type": "number",
+                  "minimum": 0
                 }
               }
             }
