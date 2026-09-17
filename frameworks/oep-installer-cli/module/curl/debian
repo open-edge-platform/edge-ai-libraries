@@ -8,3 +8,8 @@ debian_05_install_curl () {
   fi
 }
 
+debian_05_sbom_curl () {
+  cat <<EOF
+"pkg-list": ["curl","ca-certificates"]
+EOF
+}

@@ -23,12 +23,19 @@ verify_autonomous_mobile_robot () {
 }
 
 # add the OSRF Gazebo apt repository (needed for the robotics-sdk dependencies)
-amr_setup_gazebo () {
-  local osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+configure_osrf_gazebo () {
+  osrf_name=packages.osrfoundation.org
+  osrf_key_url="https://$osrf_name/gazebo.gpg"
+  osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+  osrf_entry="deb [signed-by=$osrf_key] https://$osrf_name/gazebo/$ID-stable $VERSION_CODENAME main"
+  osrf_list=/etc/apt/sources.list.d/gazebo-stable.list
+}
+
+amr_setup_osrf_gazebo () {
+  configure_osrf_gazebo
   ensure_apt install -y curl lsb-release gnupg
-  no_proxy= NO_PROXY= curl -fsL https://packages.osrfoundation.org/gazebo.gpg | ensure_sudo tee "$osrf_key" > /dev/null
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=$osrf_key] https://packages.osrfoundation.org/gazebo/ubuntu-stable $VERSION_CODENAME main" | \
-    ensure_sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+  no_proxy= NO_PROXY= curl -fsL $osrf_key_url | ensure_sudo tee "$osrf_key" > /dev/null
+  echo "$osrf_entry" | ensure_sudo tee $osrf_list > /dev/null
   ensure_apt update -y
   [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
 }
@@ -78,3 +85,34 @@ debian_90_remove_autonomous_mobile_robot () {
     echo "Autonomous Mobile Robot already removed. Skipping"
   fi
 }
+
+debian_90_sbom_autonomous_mobile_robot () {
+  configure_autonomous_mobile_robot
+  # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
+  if [ "$ros_distro" = humble ]; then
+    cat <<EOF
+"pkg-list": ["gcc-12","g++-12"]
+---
+EOF
+  fi
+
+  cat <<EOF
+"pkg-list": ["gnupg"]
+EOF
+
+  if [ "$ros_distro" = jazzy ]; then
+    configure_osrf_gazebo
+    cat <<EOF
+"name": "$osrf_name"
+"apt-source": "$osrf_entry"
+"apt-list-file": "$osrf_list"
+"pkg-list": ["gz-harmonic"]
+---
+EOF
+  fi
+
+  cat <<EOF
+"pkg-list": ["$amr_sdk_pkg","ros-$ros_distro-collab-slam-sse"]
+EOF
+}
+

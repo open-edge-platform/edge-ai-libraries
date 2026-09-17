@@ -5,7 +5,7 @@ main () {
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
 
-  local _globals=() _cmds=() _args=() cur=-1 v cmd
+  local _globals=() _cmds=() _args=() cur=-1 v
   for v in "$@"; do
     case $v in
     --help)
@@ -16,6 +16,7 @@ main () {
       echo "  --continue      continue execution upon errors."
       echo "  --help          this help message." 
       echo
+      local cmd
       for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
         $cmd --help
       done
@@ -46,11 +47,80 @@ main () {
   # initialize act cache
   declare -F act_get > /dev/null && act_get init
 
-  # exec subcommand
-  local _rc=0 _i
-  for ((_i=0;_i<${#_cmds[@]};_i++)); do
-    subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
-    _rc=$?
+  local _i _rc=0
+  for ((_i=0;_i<${#_cmds[*]};_i++)); do
+    case "${_cmds[$_i]}" in
+    setup|list|bootstrap|sbom)
+      subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+      _rc=$?
+      ;;
+    *)
+      if [[ " ${_globals[*]} " = *" --dry-run "* ]]; then
+        subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+        _rc=$?
+      else
+        # critical group permissions
+        local -A _groups=()
+        local _j _dep _rest_args=() _restart=0
+        for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
+          _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
+          for _dep in $(act_find_deps install install $(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]})); do
+            { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]]; } && _groups["render:992"]=1
+            [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] && _groups["video:"]=1
+            [[ "$_dep" = ${ID_LIKE}_*_install_docker ]] && _groups["docker:"]=1
+          done
+        done
+
+        [ ${#_groups[*]} -eq 0 ] || ensure_group_add ${!_groups[*]} || {
+          echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
+          echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
+          echo "may not apply. Ask your administrator to add: ${!_groups[*]}" 1>&2
+          return 3
+        }
+
+        for _dep in ${!_groups[*]}; do
+          [[ " $(id -nG) " == *" ${_dep%:*} "* ]] || { _restart=1; break; }
+        done
+
+        if [ $_restart -eq 0 ]; then
+          subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+          _rc=$?
+        else
+          if [ -n "${OEP_GROUP_REEXEC:-}" ]; then
+            echo -e "${yellow}groups still not effective after re-exec${reset}" 1>&2
+            return 1
+          fi
+
+          [[ " ${_cmds[*]:0:$_i} " = *" setup "* ]] || subcommand_setup "${_globals[@]}"
+
+          local installer="$HOME/.local/bin/$installer_name"
+          [ -x "$installer" ] || {
+            echo -e "${red}$installer not found; run 'setup' first${reset}" 1>&2
+            return 3
+          }
+
+          local _sdir=""
+          ensure_tmpdir create _sdir secrets /dev/shm
+          (umask 077;printf "%s\n%s\n" "$SUDO_PASSWORD" "$TF_TOKEN" > "$_sdir"/secrets)
+          ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" \
+            --inh-caps=-all env HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" PATH="$PATH" \
+            XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" OEP_GROUP_REEXEC=1 bash -c '
+secret="$1"; installer="$2"; shift 2
+{
+  IFS= read -r SUDO_PASSWORD
+  IFS= read -r TF_TOKEN
+} < "$secret"
+rm -f "$secret"
+export SUDO_PASSWORD TF_TOKEN
+exec "$installer" "$@"
+' bash "$_sdir/secrets" "$installer" "${_rest_args[@]}" "${_globals[@]}"
+          _rc=$?
+          ensure_tmpdir destroy "$_sdir"
+          return $_rc
+        fi
+      fi
+      ;;
+    esac
     [ $_rc -eq 0 ] || [[ " ${_globals[*]} " = *" --continue "* ]] || break
   done
   return $_rc
@@ -58,213 +128,6 @@ main () {
 
 #### COLLECTION OF MODULES ####
 #!/bin/bash
-
-act_get () {
-  case "$1" in
-  prefix)
-    declare -ga _act_reply=()
-    local f
-    for f in ${!_act_cache_functions[*]}; do
-      [[ "$f" = "$2"* ]] && _act_reply+=("${_act_cache_functions[$f]}")
-    done
-    ;;
-  init)
-    declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_))
-    declare -g _act_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'))
-    declare -gA _act_cache_functions=()
-
-    local f rest
-    while read -r _ _ f; do
-      case $f in
-        "${ID_LIKE}_"*)
-          rest=${f#"${ID_LIKE}_"}                  # e.g. 10_install_foo
-          _act_cache_functions[${rest#*_}]=$f      # strip the numeric order -> install_foo
-          ;;
-      esac
-    done < <(declare -F)
-    ;;
-  esac
-}
-
-act_expand_modules () {
-  local act_name=${1%%,*}
-  local -a q=($2)
-  local -A seen=()
-  local i=0
-  while [ $i -lt ${#q[*]} ]; do
-    local n=${q[$i]}; i=$((i+1))
-    [ -z "${seen[$n]:-}" ] || continue
-    seen[$n]=1
-    local p="${_act_cache_functions[profile_$n]:-}"
-    [ -n "$p" ] && q+=($($p $act_name "${@:3}"))
-  done
-  echo "${!seen[*]}"
-}
-
-act_extract_modules () {
-  local act_name=${1%%,*}
-  local all_modules=(${_act_cache_modules[*]})
-  local all_module_args=" ${all_modules[*]/#/--} "
-  local -A modules=()
-  local v
-  for v in ${*:2}; do
-    [[ " ${all_module_args} " != *" $v "* ]] || break
-    [[ " ${all_module_args} " != *" --$v "* ]] || modules[$v]=1
-  done
-  echo "${!modules[*]}"
-}
-
-act_extract_args () {
-  local act_name=${1%%,*}
-  local module_name=$2
-  local act_modules="$3"
-  local all_modules=(${_act_cache_modules[*]})
-  local all_module_args=" ${all_modules[*]/#/--} "
-  local args1=() args2=() i j
-  for ((i=4;i<=${#@};i++)); do
-    if [[ " ${all_module_args} " = *" ${*:$i:1} "* ]]; then
-      for ((j=++i;j<=${#*};j++)); do
-        [[ " ${all_module_args} " != *" ${*:$j:1} "* ]] || break
-      done
-      [ "${*:$((i-1)):1}" != "--${module_name}" ] || args2+=(${*:$i:$((j-i))})
-      i=$((j-1))
-    elif [[ " ${all_module_args} " != *" --${*:$i:1} "* ]]; then
-      args1+=(${*:$i:1})
-    fi
-  done
-  echo "${args1[*]} ${act_modules} -- ${args2[*]}"
-}
-
-act_find_deps () {
-  local act_name=${1%%,*}
-  local -A handlers=()
-  local name handler
-  for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}"); do
-    local p="${_act_cache_functions[${act_name}_${name}]:-}"
-    [ -n "$p" ] && handlers[$p]=1
-  done
-  echo "${!handlers[*]}"
-}
-
-act_helpper () {
-  local act_name=${1%%,*}
-  local act_text="${1#*,}"
-  local sort_options="$2"
-  shift
-  shift
-
-  if [[ " $* " = *" --help "* ]]; then
-    act_get prefix ${act_name}_
-    if [ ${#_act_reply[*]} -gt 0 ]; then
-      if [ "${act_name}" = "install" ]; then
-        echo "${act_name} options:"
-        echo "  --reset-<name>  force reinstallation of the component if exit."
-        echo
-      fi
-    fi
-    return 0
-  fi
-
-  # scan for dependencies
-  local handles=($(
-    act_find_deps $act_name $(
-      # always included modules
-      for m in pre_system_scan core_types; do 
-        [[ -v _act_cache_functions[${act_name}_${m}] ]] && echo $m
-      done
-    ) "$@"
-  ))
-
-  # act in sequence
-  if [ ${#handles[@]} -gt 0 ]; then
-    if [ "$act_name" = "install" ]; then
-      # build license gate
-      local -A licenses=() licenses_text=()
-      for licenser in ${handles[*]/_install_/_license_}; do
-        if declare -F $licenser > /dev/null 2>&1; then
-          local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0
-          while IFS= read -r license_line; do
-            case "$license_line" in
-            "@@LICENSE-ID "*)
-              license_id="${license_line#* }"
-              [ -z "$license_id" ] || licenses[$license_id]="${licenses[$license_id]:-}$name1,"
-              [[ -v licenses_text[$license_id] ]] && license_keep=0 || license_keep=1
-              ;;
-            esac
-            [ $license_keep -eq 1 ] && licenses_text[$license_id]+="${license_line}"$'\n'
-          done < <($licenser "$@")
-        fi
-      done
-      if [ ${#licenses[*]} -gt 0 ]; then
-        local id1 rc
-        for id1 in ${!licenses[*]}; do
-          echo "${licenses_text[$id1]}"
-          echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")"
-        done | ensure_license_gate $installer_name "$@"
-        rc=$?
-        if [ $rc -eq 1 ]; then
-          echo "License declined"
-          exit 3
-        elif [ $rc -ne 0 ]; then
-          echo "License gate failed (no terminal or parse error)"
-          exit 3
-        fi
-      fi
-    fi
-
-    local rc=0 order=0
-    {
-      for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
-        local name1=${handler#*_*_*_}
-        if [ "$act_name" = "remove" ]; then
-          local order1=${handler#*_};order1=${order1%%_*}
-          [ "$order" -gt 0 ] || order=$order1
-          [ "$order1" -ge "$order" ] || break
-        fi
-        local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")"
-        if [[ " $* " = *" --dry-run "* ]]; then
-          echo "@@COMP $name1"
-          echo "Invoke $handler with $invoke_args" 
-          echo "@@OK $name1"
-        else
-          local state_path="$(ensure_project_path)/$installer_name/states/$name1"
-          [ "$act_name" = "start" ] && mkdir -p "$state_path"
-          echo "@@COMP $name1"
-          (
-            set -e
-            $handler $invoke_args &
-            wait -n
-          )
-          local rc1=$?
-          [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
-          if [ $rc1 -eq 0 ]; then
-            echo "@@OK $name1"
-          else
-            echo "@@FAIL $name1"
-            rc=$rc1
-            [[ " $* " = *" --continue "* ]] || break
-          fi
-        fi
-      done
-      if [[ " $* " != *" --dry-run "* ]] && [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
-        echo "@@REPORT SYSTEM SUMMARY"
-        ${ID_LIKE}_10_${act_name}_pre_system_scan
-      fi
-    } > >(
-      LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
-      mkdir -p "$(dirname "$LOG_FILE")"
-      echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
-      echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
-      ensure_panelled_logs ${act_text//,/ }
-    ) 2>&1
-    # wait for background processes
-    wait
-    return $rc
-  else
-    echo "Component not found" 1>&2
-    exit 3
-  fi
-}
 
 subcommand_install () {
   act_helpper "install,Installation,Installing,Installed" "" "$@"
@@ -280,11 +143,7 @@ subcommand_start () {
 
 subcommand_stop () {
   [[ " $* " != *" --help "* ]] || return
-
-  local args=("$@") margs=(${*##-*})
-  local state_path="$(ensure_project_path)/$installer_name/states"
-  [ ${#margs[@]} -eq 0 ] && [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
-  act_helpper "stop,Stop,Stopping,Stopped" "-r" "${args[@]}" --continue
+  act_helpper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
 }
 
 subcommand_list () {
@@ -365,21 +224,20 @@ subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
 
   # reconstruct installer
-  local installer_misc_functions=(amr_setup_gazebo cleanup_gpu configure_amr_apt_repo configure_anomalib configure_autonomous_mobile_robot configure_dlstreamer configure_docker configure_esq configure_geti configure_gpu configure_handheld_multi_modal configure_humanoid_imitation_learning configure_libze1 configure_live_video_captioning configure_loitering_detection configure_loss_prevention configure_multimodal_weld_defect_detection configure_multimodal_weld_defect_detection_device configure_multimodal_weld_defect_detection_env configure_nicu_warmer configure_npu configure_openvino configure_order_accuracy configure_pallet_defect_detection configure_pcb_anomaly_detection configure_physical_ai_framework configure_physical_ai_studio configure_realsense configure_ros2 configure_ros_openvino configure_smart_intersection configure_smart_parking configure_stationary_robot_vision configure_uv configure_video_search_and_summarization configure_vippet current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary verify_amr_apt_repo verify_anomalib verify_autonomous_mobile_robot verify_dlstreamer verify_geti verify_gpu verify_handheld_multi_modal verify_humanoid_imitation_learning verify_live_video_captioning verify_loitering_detection verify_loss_prevention verify_multimodal_weld_defect_detection verify_nicu_warmer verify_npu verify_openvino verify_order_accuracy verify_pallet_defect_detection verify_pcb_anomaly_detection verify_physical_ai_framework verify_physical_ai_studio verify_realsense verify_ros2 verify_ros_openvino verify_smart_intersection verify_smart_parking verify_stationary_robot_vision verify_video_search_and_summarization verify_vippet)
-  if [ ${#installer_misc_functions[@]} -gt 0 ]; then
-    local installer=~/.local/bin/$installer_name
-    cat > "$installer" <<EOF
+  local installer_misc_functions=(amr_setup_osrf_gazebo cleanup_gpu configure_amr_apt_repo configure_anomalib configure_autonomous_mobile_robot configure_dlstreamer configure_docker configure_esq configure_geti configure_gpu configure_handheld_multi_modal configure_humanoid_imitation_learning configure_libze1 configure_live_video_captioning configure_loitering_detection configure_loss_prevention configure_multimodal_weld_defect_detection configure_multimodal_weld_defect_detection_device configure_multimodal_weld_defect_detection_env configure_nicu_warmer configure_npu configure_openvino configure_order_accuracy configure_osrf_gazebo configure_pallet_defect_detection configure_pcb_anomaly_detection configure_physical_ai_framework configure_physical_ai_studio configure_realsense configure_ros2 configure_ros_openvino configure_smart_intersection configure_smart_parking configure_stationary_robot_vision configure_uv configure_video_search_and_summarization configure_vippet current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary verify_amr_apt_repo verify_anomalib verify_autonomous_mobile_robot verify_dlstreamer verify_geti verify_gpu verify_handheld_multi_modal verify_humanoid_imitation_learning verify_live_video_captioning verify_loitering_detection verify_loss_prevention verify_multimodal_weld_defect_detection verify_nicu_warmer verify_npu verify_openvino verify_order_accuracy verify_pallet_defect_detection verify_pcb_anomaly_detection verify_physical_ai_framework verify_physical_ai_studio verify_realsense verify_ros2 verify_ros_openvino verify_smart_intersection verify_smart_parking verify_stationary_robot_vision verify_video_search_and_summarization verify_vippet)
+  local installer="$HOME/.local/bin/$installer_name"
+  mkdir -p "$(dirname "$installer")"
+  cat > "$installer" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
 $(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
-    chmod a+rx "$installer"
-    echo "Installer reconstructed at $installer"
-  fi
+  chmod a+rx "$installer"
+  echo "Installer reconstructed at $installer"
 
   # reconstruct bash completion
-  local completion_script=~/.local/share/bash-completion/completions/$installer_name
+  local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name"
   mkdir -p "$(dirname "$completion_script")"
 
   local all_cmds=(${_act_cache_cmds[*]})
@@ -393,16 +251,30 @@ _${installer_name//-/_}_completion () {
 
   case "\${COMP_WORDS[1]}" in
 $(  
+    # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
+    act_get prefix profile_
+    local all_profilers=(${_act_reply[*]})
+    local cmd dcmd profiler pname mname found
+    local -A all_comps
     for cmd in ${all_cmds[*]}; do
-      local -A all_comps=(["--continue"]="" ["--dry-run"]="")
-      act_get prefix ${cmd}_; local all_modules=(${_act_reply[*]#*_*_*_})
-      act_get prefix profile_
-      for profiler in ${_act_reply[*]}; do
-        local pname=${profiler#*_*_*_}
+      all_comps=()
+      all_comps["--continue"]=""
+      all_comps["--dry-run"]=""
+      # sbom handlers are sparse; resolve its dependency graph as if it were install
+      dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
+      act_get prefix ${dcmd}_
+      local all_modules=(${_act_reply[*]#*_*_*_})
+      for profiler in ${all_profilers[*]}; do
+        pname=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
-        for mname in $($profiler $cmd); do
-          [[ -v _act_cache_functions[${cmd}_${mname}] ]] && all_comps[$pname]=""
+        found=0
+        for mname in $(act_expand_modules $dcmd $pname); do
+          if [[ -v _act_cache_functions[${dcmd}_${mname}] ]]; then
+            found=1
+            break
+          fi
         done
+        [ $found -eq 0 ] || all_comps[$pname]=""
       done
       for mname in ${all_modules[*]}; do
         all_comps[$mname]=""
@@ -414,6 +286,7 @@ $(
       echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
       echo "    ;;"
     done
+    :
 )
   *)
     COMPREPLY=()
@@ -425,161 +298,21 @@ EOF
   echo "bash completion created at $completion_script"
 }
 
+subcommand_sbom () {
+  [[ " $* " != *" --help "* ]] || return
 
-# show output in columns, allowing merged last row and ignoring color sequence
-ensure_columns () {
-  local sep=${1:-'|'}
-  python3 -c '
-import sys,re
-ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
-rows=[line.strip().split(sys.argv[1]) for line in sys.stdin]
-cols=max(len(r) for r in rows)
-widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0) for c in range(cols-1)]
-for r in rows:
-  print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
-' "$sep"
-}
-
-
-# check disk space
-ensure_disk_space () {
-  local disk_size=$1            # in MB
-  local disk_path="${2:-$HOME}" # optional disk path
-  local disk_avail=$(df -h --output=avail "$disk_path" | awk '/[0-9]T/{a=$1*1000000}/[0-9]G/{a=$1*1000}/[0-9]M/{a=$1*1}/[0-9]K/{a=$1/1000}END{print int(a)}')
-  if [ "$disk_size" -gt "$disk_avail" ]; then
-    echo "Not enough disk space: required ${disk_size}MiB and available ${disk_avail}MiB"
-    return 3
-  fi
-}
-
-
-# idempotently pull an image and (re)create a detached named container.
-# generic helper for docker-image based ISV applications.
-# $1: container name  $2: image reference  ${@:3}: extra "docker run" args
-ensure_docker_run () {
-  local name="$1"
-  local image="$2"
-
-  # already running or stopped-but-present: leave as-is
-  if docker inspect "$name" > /dev/null 2>&1; then
-    echo "Container $name already exists. Skipping create..."
-    return 0
-  fi
-
-  echo "Pulling image $image (this may take several minutes for large images)..."
-  docker pull "$image"
-  docker run --name "$name" "${@:3}" "$image"
-}
-
-
-# sparse or full git clone
-# full clone: <workspace> <version> <repository>
-# sparse clone: <workspace> <version> <repository> <dirs> [<dirs>...]
-ensure_git_clone () {
-  local workspace="$1"
-  local version="$2"
-  local repository="$3"
-
-  ensure_sudo rm -rf "$workspace"
-  mkdir -p "$(dirname "$workspace")"
-  if [ ${#@} -ge 4 ]; then
-    # sparse checkout
-    mkdir -p "$workspace"
-    pushd "$workspace" > /dev/null
-    git clone --filter=blob:none --no-checkout $repository .
-    git sparse-checkout init --cone
-    git sparse-checkout set "${@:4}"
-    git checkout $version
-    popd > /dev/null
-  else
-    # full checkout
-    mkdir -p "$workspace"
-    pushd "$workspace" > /dev/null
-    git init -q
-    git remote add origin "$repository"
-    git fetch --depth 1 origin "$version"
-    git checkout -q FETCH_HEAD
-    [ ! -e .gitmodules ] || git submodule update --init --recursive
-    popd > /dev/null
-  fi
-}
-
-
-# add a group and ensure the user is part of the group
-ensure_group_add () {
-  local group1=$1
-  getent group $group1 >/dev/null 2>&1 || ensure_sudo groupadd $group1
-  id -nG | grep -qw $group1 || {
-    ensure_sudo usermod -aG $group1 "$(id -un)"
-    newgrp $group1
-  }
-}
-
-
-# Set HF_TOKEN as an environment variable
-# Verify if model permissions are granted on the token
-ensure_hf_token () {
-  local models=($*)
-
-  export HF_TOKEN
-  if [ -z "$HF_TOKEN" ]; then
-    if [ -r "$HOME"/.cache/huggingface/token ]; then
-      export HF_TOKEN=$(< "$HOME"/.cache/huggingface/token)
-    elif [ -r "$HOME"/.hf_token ]; then
-      export HF_TOKEN=$(< "$HOME"/.hf_token)
-    else
-      export HF_TOKEN=$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json > /dev/null 2>&1 || true)
-    fi
-  fi
-
-  local model f gated=()
-  for model in ${models[*]}; do
-    local probes=()
-    for f in $(curl -s -L "https://huggingface.co/api/models/${model}?full=tree" | tr ',' '\n' | grep -F '"rfilename":' | cut -f4 -d'"'); do
-      case "$f" in
-      *config.yaml|*config.json|*tokenizer.json)
-        probes+=($f)
-        break
-        ;;
-      esac
-    done
-    if [ ${#probes[*]} -eq 0 ]; then
-      echo "No probe found with $model" 1>&2
-      return 3
-    fi
-    for f in ${probes[*]}; do
-      local code=$(curl -s -o /dev/null -w "%{http_code}" -L -r 0-0 -H "Authorization: Bearer $HF_TOKEN" https://huggingface.co/${model}/resolve/main/$f)
-      case "$code" in
-      200|206)
-        continue
-        ;;
-      401|403|404) 
-        gated+=($model)
-        break
-        ;;
-      *)
-        echo "Unknown probe code $code" 1>&2
-        return 3
-        ;;
-      esac
-    done
+  # scan for dependencies
+  local handler
+  for handler in $(act_find_deps install $(act_resolve_args install "$@") | tr ' ' '\n' | sort); do
+    declare -F ${handler/_install_/_sbom_} > /dev/null 2>&1 || continue
+    ${handler/_install_/_sbom_} $(act_extract_args sbom ${handler#*_*_*_} "${handles[*]#${ID_LIKE}_*_sbom_}" "$@")
+    echo "---"
   done
-
-  if [ ${#gated[*]} -gt 0 ]; then
-    echo "Gated model(s): ${gated[*]}" 1>&2
-    return 3
-  fi
-}
-
-
-# return the current machine IP address
-ensure_ip () {
-  ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
 }
 
 
 # Split panel logging
-ensure_panelled_logs () {(
+act_panelled_logs () {(
 #
 # Protocol (markers your installer emits on stdout/stderr):
 #   @@COMP       <name>     start/switch to component (starts its timer)
@@ -645,7 +378,7 @@ readonly MAX_WRAP=3000
 readonly LEFT_MIN=16
 KEEP_COLOR=${KEEP_COLOR:-1}
 WRAP_MODE=${WRAP_MODE:-wrap}
-LEFT_WIDTH=${LEFT_WIDTH:-0}
+LEFT_WIDTH=${LEFT_WIDTH:-38}
 LEFT_MAX_PCT=${LEFT_MAX_PCT:-34}
 REPORT_MAX_PCT=${REPORT_MAX_PCT:-55}
 SPLIT_MIN=${SPLIT_MIN:-6}
@@ -1424,7 +1157,7 @@ _draw() {
   fi
 
   local out="" l r rowstr
-  if (( FULL_CLEAR )); then out+=$'\033[2J'; PREV=(); FULL_CLEAR=0; fi
+  if (( FULL_CLEAR )); then PREV=(); FULL_CLEAR=0; fi
 
   local title=" ${ACT_TEXT[0]} progress "
   if (( REVIEW )); then
@@ -1493,7 +1226,7 @@ _finish() {
   printf '\033[?7h'
   printf '\033[%d;1H\033[K' "$TTY_ROWS"   # last row, cleared, NO newline
   printf '\033[?25h'
-  (( TTY_FD >= 0 )) && exec {TTY_FD}>&-
+  (( TTY_FD >= 0 )) && { stty echo <&"$TTY_FD" 2>/dev/null; exec {TTY_FD}>&-; }
 }
 
 # ------------------------------------------------------------------ input
@@ -1637,6 +1370,405 @@ _handle_line() {
   _draw 1
 )}
 
+#!/bin/bash
+
+act_get () {
+  case "$1" in
+  prefix)
+    declare -ga _act_reply=()
+    local f
+    for f in ${!_act_cache_functions[*]}; do
+      [[ "$f" = "$2"* ]] && _act_reply+=("${_act_cache_functions[$f]}")
+    done
+    ;;
+  init)
+    declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_))
+    declare -g _act_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'))
+    declare -gA _act_cache_functions=()
+
+    local f rest
+    while read -r _ _ f; do
+      case $f in
+        "${ID_LIKE}_"*)
+          rest=${f#"${ID_LIKE}_"}                  # e.g. 10_install_foo
+          _act_cache_functions[${rest#*_}]=$f      # strip the numeric order -> install_foo
+          ;;
+      esac
+    done < <(declare -F)
+
+    declare -ga _act_cache_names=(${_act_cache_modules[*]})
+    for f in ${!_act_cache_functions[*]}; do
+      [[ "$f" = profile_* ]] || continue
+      [[ " ${_act_cache_names[*]} " = *" ${f#profile_} "* ]] || _act_cache_names+=("${f#profile_}")
+    done
+    ;;
+  esac
+}
+
+act_expand_modules () {
+  local act_name=${1%%,*}
+  local -a q=($2)
+  local -A seen=()
+  local i=0
+  while [ $i -lt ${#q[*]} ]; do
+    local n=${q[$i]}; i=$((i+1))
+    [ -z "${seen[$n]:-}" ] || continue
+    seen[$n]=1
+    local p="${_act_cache_functions[profile_$n]:-}"
+    [ -n "$p" ] && q+=($($p $act_name "${@:3}"))
+  done
+  echo "${!seen[*]}"
+}
+
+act_extract_modules () {
+  local act_name=${1%%,*}
+  local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}})
+  local all_module_args=" ${all_modules[*]/#/--} "
+  local -A modules=()
+  local v
+  for v in ${*:2}; do
+    [[ " ${all_module_args} " != *" $v "* ]] || break
+    [[ " ${all_module_args} " != *" --$v "* ]] || modules[$v]=1
+  done
+  echo "${!modules[*]}"
+}
+
+act_extract_args () {
+  local act_name=${1%%,*}
+  local module_name=$2
+  local act_modules="$3"
+  local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}})
+  local all_module_args=" ${all_modules[*]/#/--} "
+  local args1=() args2=() i j
+  for ((i=4;i<=${#@};i++)); do
+    if [[ " ${all_module_args} " = *" ${*:$i:1} "* ]]; then
+      for ((j=++i;j<=${#*};j++)); do
+        [[ " ${all_module_args} " != *" ${*:$j:1} "* ]] || break
+      done
+      [ "${*:$((i-1)):1}" != "--${module_name}" ] || args2+=(${*:$i:$((j-i))})
+      i=$((j-1))
+    elif [[ " ${all_module_args} " != *" --${*:$i:1} "* ]]; then
+      args1+=(${*:$i:1})
+    fi
+  done
+  echo "${args1[*]} ${act_modules} -- ${args2[*]}"
+}
+
+act_find_deps () {
+  local act_name=${1%%,*}
+  local -A handlers=()
+  local name handler
+  for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}"); do
+    local p="${_act_cache_functions[${act_name}_${name}]:-}"
+    [ -n "$p" ] && handlers[$p]=1
+  done
+  echo "${!handlers[*]}"
+}
+
+act_helpper () {
+  local act_name=${1%%,*}
+  local act_text="${1#*,}"
+  local sort_options="$2"
+  shift
+  shift
+
+  if [[ " $* " = *" --help "* ]]; then
+    act_get prefix ${act_name}_
+    if [ ${#_act_reply[*]} -gt 0 ]; then
+      if [ "${act_name}" = "install" ]; then
+        echo "${act_name} options:"
+        echo "  --reset-<name>  force reinstallation of the component if exit."
+        echo
+      fi
+    fi
+    return 0
+  fi
+
+  # scan for dependencies
+  local handles=($(
+    act_find_deps $act_name $(
+      # always included modules
+      for m in pre_system_scan core_types; do 
+        [[ -v _act_cache_functions[${act_name}_${m}] ]] && echo $m
+      done
+    ) "$@"
+  ))
+
+  # act in sequence
+  if [ ${#handles[@]} -gt 0 ]; then
+    if [ "$act_name" = "install" ]; then
+      # build license gate
+      local -A licenses=() licenses_text=()
+      for licenser in ${handles[*]/_install_/_license_}; do
+        if declare -F $licenser > /dev/null 2>&1; then
+          local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0
+          while IFS= read -r license_line; do
+            case "$license_line" in
+            "@@LICENSE-ID "*)
+              license_id="${license_line#* }"
+              [ -z "$license_id" ] || licenses[$license_id]="${licenses[$license_id]:-}$name1,"
+              [[ -v licenses_text[$license_id] ]] && license_keep=0 || license_keep=1
+              ;;
+            esac
+            [ $license_keep -eq 1 ] && licenses_text[$license_id]+="${license_line}"$'\n'
+          done < <($licenser "$@")
+        fi
+      done
+      if [ ${#licenses[*]} -gt 0 ]; then
+        local id1 rc
+        for id1 in ${!licenses[*]}; do
+          echo "${licenses_text[$id1]}"
+          echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")"
+        done | ensure_license_gate $installer_name "$@"
+        rc=$?
+        if [ $rc -eq 1 ]; then
+          echo "License declined"
+          exit 3
+        elif [ $rc -ne 0 ]; then
+          echo "License gate failed (no terminal or parse error)"
+          exit 3
+        fi
+      fi
+    fi
+
+    local rc=0 order=0
+    {
+      for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
+        local name1=${handler#*_*_*_}
+        if [ "$act_name" = "remove" ]; then
+          local order1=${handler#*_};order1=${order1%%_*}
+          [ "$order" -gt 0 ] || order=$order1
+          [ "$order1" -ge "$order" ] || break
+        fi
+        local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")"
+        if [[ " $* " = *" --dry-run "* ]]; then
+          echo "@@COMP $name1"
+          echo "Invoke $handler with $invoke_args" 
+          echo "@@OK $name1"
+        else
+          local state_path="$(ensure_project_path)/$installer_name/states/$name1"
+          [ "$act_name" = "start" ] && mkdir -p "$state_path"
+          echo "@@COMP $name1"
+          (
+            set -e
+            $handler $invoke_args &
+            wait -n
+          )
+          local rc1=$?
+          [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
+          if [ $rc1 -eq 0 ]; then
+            echo "@@OK $name1"
+          else
+            echo "@@FAIL $name1"
+            rc=$rc1
+            [[ " $* " = *" --continue "* ]] || break
+          fi
+        fi
+      done
+      if [[ " $* " != *" --dry-run "* ]] && [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
+        echo "@@REPORT SYSTEM SUMMARY"
+        ${ID_LIKE}_10_${act_name}_pre_system_scan
+      fi
+    } > >(
+      LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
+      mkdir -p "$(dirname "$LOG_FILE")"
+      echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
+      echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
+      act_panelled_logs ${act_text//,/ }
+    ) 2>&1
+    # wait for background processes
+    wait
+    return $rc
+  else
+    echo "Component not found" 1>&2
+    exit 3
+  fi
+}
+
+# Resolve the effective component list for a subcommand.
+act_resolve_args () {
+  local act_name=$1; shift
+  local args=("$@") margs=(${*##-*})
+  if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
+    local state_path="$(ensure_project_path)/$installer_name/states"
+    [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
+  fi
+  echo "${args[*]}"
+}
+
+
+# show output in columns, allowing merged last row and ignoring color sequence
+ensure_columns () {
+  local sep=${1:-'|'}
+  python3 -c '
+import sys,re
+ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
+rows=[line.strip().split(sys.argv[1]) for line in sys.stdin]
+cols=max(len(r) for r in rows)
+widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0) for c in range(cols-1)]
+for r in rows:
+  print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
+' "$sep"
+}
+
+
+# check disk space
+ensure_disk_space () {
+  local disk_size=$1            # in MB
+  local disk_path="${2:-$HOME}" # optional disk path
+  local disk_avail=$(df -h --output=avail "$disk_path" | awk '/[0-9]T/{a=$1*1000000}/[0-9]G/{a=$1*1000}/[0-9]M/{a=$1*1}/[0-9]K/{a=$1/1000}END{print int(a)}')
+  if [ "$disk_size" -gt "$disk_avail" ]; then
+    echo "Not enough disk space: required ${disk_size}MiB and available ${disk_avail}MiB"
+    return 3
+  fi
+}
+
+
+# sparse or full git clone
+# full clone: <workspace> <version> <repository>
+# sparse clone: <workspace> <version> <repository> <dirs> [<dirs>...]
+ensure_git_clone () {
+  local workspace="$1"
+  local version="$2"
+  local repository="$3"
+
+  ensure_sudo rm -rf "$workspace"
+  mkdir -p "$(dirname "$workspace")"
+  if [ ${#@} -ge 4 ]; then
+    # sparse checkout
+    mkdir -p "$workspace"
+    pushd "$workspace" > /dev/null
+    git clone --filter=blob:none --no-checkout $repository .
+    git sparse-checkout init --cone
+    git sparse-checkout set "${@:4}"
+    git checkout $version
+    popd > /dev/null
+  else
+    # full checkout
+    mkdir -p "$workspace"
+    pushd "$workspace" > /dev/null
+    git init -q
+    git remote add origin "$repository"
+    git fetch --depth 1 origin "$version"
+    git checkout -q FETCH_HEAD
+    [ ! -e .gitmodules ] || git submodule update --init --recursive
+    popd > /dev/null
+  fi
+}
+
+
+# add groups and ensure user is part of the groups
+# use docker: for a system group
+ensure_group_add () {
+  local group1 gid1
+  
+  for group1 in "$@"; do
+    case "$group1" in
+    *:) 
+      gid1="--system"
+      ;;
+    *:*) 
+      gid1="--system --gid ${group1#*:}"
+      getent group ${group1%:*} >/dev/null 2>&1 || [ -z "$(getent group ${gid1##* })" ] || { echo "gid ${gid1##* } is taken" 1>&2; gid1="--system"; }
+      ;;
+    *) 
+      gid1=""
+      ;;
+    esac
+    getent group ${group1%:*} >/dev/null 2>&1 || ensure_sudo groupadd $gid1 ${group1%:*}
+    id -nG | tr ' ' '\n' | grep -qx ${group1%:*} || ensure_sudo usermod -aG ${group1%:*} "$(id -un)"
+  done
+
+  # wait until NSS settles
+  local deadline=$((SECONDS + 30))
+  local flushed=0 missing
+
+  while :; do
+    missing=""
+    for group1 in "$@"; do
+      # id -G "$(id -un)" searches the database while id -G checks the current session
+      id -G "$(id -un)" | tr ' ' '\n' | grep -qx "$(getent group ${group1%:*} | cut -f3 -d:)" || missing+=" ${group1%:*}"
+    done
+    [ -n "$missing" ] || return 0
+
+    # One-shot cache invalidation -- usually converges immediately after this.
+    if [ $flushed -eq 0 ]; then
+      flushed=1
+      command -v nscd  >/dev/null && ensure_sudo nscd -i group   >/dev/null 2>&1
+      command -v sss_cache >/dev/null && ensure_sudo sss_cache -G >/dev/null 2>&1
+      continue
+    fi
+
+    [ $SECONDS -ge $deadline ] && {
+      echo -e "${red}groups not visible:${missing}${reset}" 1>&2
+      return 1
+    }
+    sleep 1
+  done
+}
+
+
+# Set HF_TOKEN as an environment variable
+# Verify if model permissions are granted on the token
+ensure_hf_token () {
+  local models=($*)
+
+  export HF_TOKEN
+  if [ -z "$HF_TOKEN" ]; then
+    if [ -r "$HOME"/.cache/huggingface/token ]; then
+      export HF_TOKEN=$(< "$HOME"/.cache/huggingface/token)
+    elif [ -r "$HOME"/.hf_token ]; then
+      export HF_TOKEN=$(< "$HOME"/.hf_token)
+    else
+      export HF_TOKEN=$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json > /dev/null 2>&1 || true)
+    fi
+  fi
+
+  local model f gated=()
+  for model in ${models[*]}; do
+    local probes=()
+    for f in $(curl -s -L "https://huggingface.co/api/models/${model}?full=tree" | tr ',' '\n' | grep -F '"rfilename":' | cut -f4 -d'"'); do
+      case "$f" in
+      *config.yaml|*config.json|*tokenizer.json)
+        probes+=($f)
+        break
+        ;;
+      esac
+    done
+    if [ ${#probes[*]} -eq 0 ]; then
+      echo "No probe found with $model" 1>&2
+      return 3
+    fi
+    for f in ${probes[*]}; do
+      local code=$(curl -s -o /dev/null -w "%{http_code}" -L -r 0-0 -H "Authorization: Bearer $HF_TOKEN" https://huggingface.co/${model}/resolve/main/$f)
+      case "$code" in
+      200|206)
+        continue
+        ;;
+      401|403|404) 
+        gated+=($model)
+        break
+        ;;
+      *)
+        echo "Unknown probe code $code" 1>&2
+        return 3
+        ;;
+      esac
+    done
+  done
+
+  if [ ${#gated[*]} -gt 0 ]; then
+    echo "Gated model(s): ${gated[*]}" 1>&2
+    return 3
+  fi
+}
+
+
+# return the current machine IP address
+ensure_ip () {
+  ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
+}
+
 
 # ensure ports are open
 ensure_ports_open () {
@@ -1685,23 +1817,45 @@ ensure_select_device () {
 
 # perform sudo in automation or in tty
 ensure_sudo () {
-  if sudo -nv 2>/dev/null || sudo -n true 2>/dev/null; then
+  if sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
     sudo "$@"
-  elif [ -n "$SUDO_PASSWORD" ]; then
-    # Non-interactive password. Feed it on the first stdin line via `sudo -S`
-    # and never write it to disk. `cat` forwards any remaining piped stdin to
-    # the invoked command so constructs like `curl ... | ensure_sudo tee file`
-    # keep working.
+  elif [ -n "${SUDO_PASSWORD:-}" ]; then
+    # password known: prefix it onto stdin, forward the rest so that
+    # `curl ... | ensure_sudo bash -s` and `... | ensure_sudo tee f` still work.
+    # -k is required: without it sudo may skip the read and leak the password
+    # into the invoked command's stdin.
     (echo "$SUDO_PASSWORD"; cat) | sudo -kS "$@"
   elif [ -t 0 ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo "$@"
   else
-    # No password available and no usable TTY (e.g. under the panelled UI or a
-    # pipe/background job). Avoid hanging forever on a hidden password prompt.
-    echo "ensure_sudo: sudo requires a password but none is available; set SUDO_PASSWORD or run 'sudo -v' first" 1>&2
-    return 1
+    # write an askpass helper
+    local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$HOME/.local/state/${installer_name:?}"
+    mkdir -p "$rundir" 2>/dev/null || return 1
+    local askpass_helper="$rundir"/askpass
+    (
+      flock -w 300 -e 9 || { echo "ensure_sudo: timed out waiting for another installer" >&2; exit 1; }
+      ( umask 077;cat > "$askpass_helper" <<'EOF'
+#!/bin/bash
+set -u
+exec 8<>/dev/tty 2>/dev/null || exit 1
+# size and style
+rows=$(stty size <&8 | cut -d' ' -f1)
+saved=$(stty -g <&8) || exit 1
+# restore screen
+trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+stty -echo <&8
+# last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
+IFS= read -r pw <&8
+printf '\033[%d;1H\033[K' "$rows" >&8
+printf '%s\n' "$pw"
+EOF
+      ) && chmod 700 "$askpass_helper" || exit 1
+      SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
+    ) 9< "$rundir"
   fi
 }
 
@@ -1711,10 +1865,11 @@ ensure_tmpdir () {
   # $1: op
   # $2: varname in create or tmpdir in destroy
   # $3: prefix in create
+  # $4: /tmp
   case "$1" in
   create)
-    printf -v $2 "%s" $(mktemp -d /tmp/openedge-cli-${3:-}.XXXXXX)
-    trap "ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
+    printf -v $2 "%s" $(mktemp -d ${4:-/tmp}/openedge-cli-${3:-}.XXXXXX)
+    trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
     ;;
   destroy)
     trap - ERR SIGINT EXIT
@@ -1746,7 +1901,7 @@ ensure_apt () {
       fi
     done
     if [ ${#package_list[*]} -gt 0 ]; then
-      local valid_packages=($(dpkg-query -W -f='${Status} ${Package}\n' ${package_list[*]} 2>/dev/null | awk '/installed/{print $4}'))
+      local valid_packages=($(dpkg-query -W -f='${db:Status-Status} ${Package}\n' "${package_list[@]}" 2>/dev/null | awk '$1!="not-installed"{print $2}'))
       if [ ${#valid_packages[*]} -gt 0 ]; then
         ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy%%,} apt-get $1 -y ${options[*]} ${valid_packages[*]}
       fi
@@ -1775,15 +1930,36 @@ ensure_rm_apt_source () {
 # the track components install the actual Deb packages.
 # https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
 configure_amr_apt_repo () {
-  amr_key_url=https://amrdocs.intel.com/repos/gpg-keys/GPG-PUB-KEY-INTEL-AMR.gpg
+  amr_repo_name="amrdocs.intel.com"
+  amr_key_url=https://$amr_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-AMR.gpg
   amr_key_file=/usr/share/keyrings/amr-archive-keyring.gpg
   amr_list=/etc/apt/sources.list.d/amr.list
-  amr_pref=/etc/apt/preferences.d/amr
+  amr_pref=(
+    "Package: *"
+    "Pin: origin $amr_repo_name"
+    "Pin-Priority: 1001"
+  )
+  amr_pref_file=/etc/apt/preferences.d/amr
+  amr_deb_entry="$(printf 'deb [signed-by=%s] https://%s/repos/%s amr main' "$amr_key_file" "$amr_repo_name"  "$VERSION_CODENAME")"
+  amr_deb_src_entry="$(printf 'deb-src [signed-by=%s] https://%s/repos/%s amr main\n' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
 
-  oneapi_key_url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+  oneapi_repo_name="apt.repos.intel.com"
+  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
   oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
   oneapi_list=/etc/apt/sources.list.d/oneAPI.list
-  oneapi_pref=/etc/apt/preferences.d/oneapi
+  oneapi_pref=(
+    "Package: intel-oneapi-runtime-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-compiler-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-mkl-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+  )
+  oneapi_pref_file=/etc/apt/preferences.d/oneapi
+  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
 }
 
 debian_45_profile_amr_apt_repo () {
@@ -1806,14 +1982,13 @@ debian_45_install_amr_apt_repo () {
     # AMR archive key + sources + pin
     ensure_sudo mkdir -p "$(dirname "$amr_key_file")"
     no_proxy= NO_PROXY= curl -fsL "$amr_key_url" | ensure_sudo tee "$amr_key_file" > /dev/null
-    printf 'deb [signed-by=%s] https://amrdocs.intel.com/repos/%s amr main\ndeb-src [signed-by=%s] https://amrdocs.intel.com/repos/%s amr main\n' \
-      "$amr_key_file" "$VERSION_CODENAME" "$amr_key_file" "$VERSION_CODENAME" | ensure_sudo tee "$amr_list" > /dev/null
-    printf 'Package: *\nPin: origin amrdocs.intel.com\nPin-Priority: 1001\n' | ensure_sudo tee "$amr_pref" > /dev/null
+    printf '%s\n%s' "$amr_deb_entry" "$amr_deb_src_entry" | ensure_sudo tee "$amr_list" > /dev/null
+    (IFS=$'\n'; echo "${amr_pref[*]}") | ensure_sudo tee "$amr_pref_file" > /dev/null
 
     # Intel oneAPI Base Toolkit key + source + pins
     no_proxy= NO_PROXY= curl -fsL "$oneapi_key_url" | gpg --dearmor | ensure_sudo tee "$oneapi_key_file" > /dev/null
-    echo "deb [signed-by=$oneapi_key_file] https://apt.repos.intel.com/oneapi all main" | ensure_sudo tee "$oneapi_list" > /dev/null
-    printf 'Package: intel-oneapi-runtime-*\nPin: version 2025.3.*\nPin-Priority: 1001\n\nPackage: intel-oneapi-compiler-*\nPin: version 2025.3.*\nPin-Priority: 1001\n\nPackage: intel-oneapi-mkl-*\nPin: version 2025.3.*\nPin-Priority: 1001\n' | ensure_sudo tee "$oneapi_pref" > /dev/null
+    echo "$oneapi_deb_entry" | ensure_sudo tee "$oneapi_list" > /dev/null
+    (IFS=$'\n'; echo "${oneapi_pref[*]}") | ensure_sudo tee "$oneapi_pref_file" > /dev/null
 
     # Canonical kobuk PPA for latest Intel silicon support (best-effort)
     ensure_sudo add-apt-repository -y ppa:kobuk-team/intel-graphics || true
@@ -1827,6 +2002,34 @@ debian_45_remove_amr_apt_repo () {
   ensure_sudo rm -f "$amr_key_file" "$amr_list" "$amr_pref" \
     "$oneapi_key_file" "$oneapi_list" "$oneapi_pref"
 }
+
+debian_45_sbom_amr_apt_repo () {
+  configure_amr_apt_repo
+  (
+    IFS=$'|'
+    amr_pref_str="${amr_pref[*]}"
+    oneapi_pref_str="${oneapi_pref[*]}"
+    cat <<EOF
+"name": "$amr_repo_name"
+"gpg-key": "$amr_key_url"
+"key-file": "$amr_key_file"
+"apt-source": "$amr_deb_entry"
+"apt-src-source": "$amr_deb_src_entry"
+"apt-list-file": "$amr_list"
+"apt-pref": ["${amr_pref_str//'|'/'","'}"]
+"apt-pref-file": "$amr_pref_file"
+---
+"name": "$oneapi_repo_name"
+"apt-source": "$oneapi_deb_entry"
+"apt-list-file": "$oneapi_list"
+"gpg-key": "$oneapi_key_url"
+"key-file": "$oneapi_key_file"
+"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
+"apt-pref-file": "$oneapi_pref_file"
+EOF
+  )
+}
+
 
 configure_anomalib () {
   workspace="$(ensure_project_path)/anomalib"
@@ -1891,12 +2094,19 @@ verify_autonomous_mobile_robot () {
 }
 
 # add the OSRF Gazebo apt repository (needed for the robotics-sdk dependencies)
-amr_setup_gazebo () {
-  local osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+configure_osrf_gazebo () {
+  osrf_name=packages.osrfoundation.org
+  osrf_key_url="https://$osrf_name/gazebo.gpg"
+  osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+  osrf_entry="deb [signed-by=$osrf_key] https://$osrf_name/gazebo/$ID-stable $VERSION_CODENAME main"
+  osrf_list=/etc/apt/sources.list.d/gazebo-stable.list
+}
+
+amr_setup_osrf_gazebo () {
+  configure_osrf_gazebo
   ensure_apt install -y curl lsb-release gnupg
-  no_proxy= NO_PROXY= curl -fsL https://packages.osrfoundation.org/gazebo.gpg | ensure_sudo tee "$osrf_key" > /dev/null
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=$osrf_key] https://packages.osrfoundation.org/gazebo/ubuntu-stable $VERSION_CODENAME main" | \
-    ensure_sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+  no_proxy= NO_PROXY= curl -fsL $osrf_key_url | ensure_sudo tee "$osrf_key" > /dev/null
+  echo "$osrf_entry" | ensure_sudo tee $osrf_list > /dev/null
   ensure_apt update -y
   [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
 }
@@ -1947,6 +2157,37 @@ debian_90_remove_autonomous_mobile_robot () {
   fi
 }
 
+debian_90_sbom_autonomous_mobile_robot () {
+  configure_autonomous_mobile_robot
+  # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
+  if [ "$ros_distro" = humble ]; then
+    cat <<EOF
+"pkg-list": ["gcc-12","g++-12"]
+---
+EOF
+  fi
+
+  cat <<EOF
+"pkg-list": ["gnupg"]
+EOF
+
+  if [ "$ros_distro" = jazzy ]; then
+    configure_osrf_gazebo
+    cat <<EOF
+"name": "$osrf_name"
+"apt-source": "$osrf_entry"
+"apt-list-file": "$osrf_list"
+"pkg-list": ["gz-harmonic"]
+---
+EOF
+  fi
+
+  cat <<EOF
+"pkg-list": ["$amr_sdk_pkg","ros-$ros_distro-collab-slam-sse"]
+EOF
+}
+
+
 debian_15_profile_core_types () {
   [ "$1" != "install" ] || echo "cpuid curl"
 }
@@ -1975,6 +2216,11 @@ debian_10_install_cpuid () {
   fi
 }
 
+debian_10_sbom_cpuid () {
+  cat <<EOF
+"pkg-list": ["cpuid"]
+EOF
+}
 
 debian_05_install_curl () {
   if dpkg-query -L curl > /dev/null 2>&1; then
@@ -1985,11 +2231,18 @@ debian_05_install_curl () {
   fi
 }
 
+debian_05_sbom_curl () {
+  cat <<EOF
+"pkg-list": ["curl","ca-certificates"]
+EOF
+}
 
 configure_dlstreamer () {
-  key_url=https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg
+  repo_name="apt.repos.intel.com"
+  key_url="https://$repo_name/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg"
   key_file=/usr/share/keyrings/dls-archive-keyring.gpg
-  deb_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main"
+  deb_entry="deb [signed-by=$key_file] https://$repo_name/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main"
+  list_file=/etc/apt/sources.list.d/intel-dlstreamer.list
   repository=https://github.com/open-edge-platform/dlstreamer
   workspace="$(ensure_project_path)/dlstreamer"
   version=2026.2.0-rc1
@@ -2021,7 +2274,7 @@ debian_75_install_dlstreamer () {
     no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
 
     # deb entry
-    echo "$deb_entry" | ensure_sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
+    echo "$deb_entry" | ensure_sudo tee $list_file
 
     # apt update
     ensure_apt update -y
@@ -2051,10 +2304,23 @@ debian_75_remove_dlstreamer () {
 
   if verify_dlstreamer; then
     ensure_apt autoremove -m -y intel-dlstreamer
+    ensure_sudo rm -f $list_file
     ensure_sudo -rf "$workspace" 2> /dev/null || true
   else
     echo "dlstreamer already removed. Skipping"
   fi
+}
+
+debian_75_sbom_dlstreamer () {
+  configure_dlstreamer
+  cat <<EOF
+"name": "$repo_name"
+"apt-source": "$deb_entry"
+"apt-list-file": "$list_file"
+"gpg-key": "$key_url"
+"key-file": "$key_file"
+"pkg-list": ["intel-dlstreamer=$version"]
+EOF
 }
 
 
@@ -2067,13 +2333,19 @@ debian_05_install_dmidecode () {
   fi
 }
 
+debian_05_sbom_dmidecode () {
+  cat <<EOF
+"pkg-list": ["dmidecode"]
+EOF
+}
+
 
 configure_docker () {
   if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
     echo "Configure docker engine proxies..."
     grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
       ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
-      ensure_sudo tee /etc/systemd/system/docker.service.d/proxy.conf <<EOF
+      ensure_sudo tee /etc/systemd/system/docker.service.d/99-oep-proxy.conf <<EOF
 [Service]
 Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
 Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
@@ -2103,39 +2375,68 @@ EOF
 debian_20_install_docker () {
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
     echo "Docker is already installed. Skipping..."
-  elif dpkg -L docker.io > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
+  elif dpkg-query -W -f '${Status}' docker.io 2> /dev/null | grep -q ' ok installed$' && [[ "$*" != *"--reset-docker"* ]]; then
     ensure_apt update
     ensure_apt install -y docker-buildx docker-compose-v2
-  elif dpkg -L docker-ce > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then 
+  elif dpkg-query -W -f '${Status}' docker-ce 2> /dev/null | grep -q ' ok installed$' && [[ "$*" != *"--reset-docker"* ]]; then 
     ensure_apt update
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
     echo "Remove legacy installation"
-    ensure_apt autoremove -m -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd runc
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
+    ensure_sudo systemctl stop docker.socket docker.service 2>/dev/null || true
+    ensure_apt purge -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc
+
+    # reset systemd states
+    ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
+    ensure_sudo tee /etc/systemd/system/docker.service.d/10-socket.conf <<EOF
+[Unit]
+Requires=docker.socket
+After=docker.socket
+EOF
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
 
     # create docker group
-    ensure_group_add docker
+    ensure_group_add docker:
 
+    # install docker.io
     ensure_apt update
     ensure_apt install -y docker.io docker-buildx docker-compose-v2
 
-    DAEMON_JSON="/etc/docker/daemon.json"
-    if [ ! -f "$DAEMON_JSON" ]; then
-      ensure_sudo mkdir -p /etc/docker
-      ensure_sudo tee "$DAEMON_JSON" <<EOF
-{
-   "exec-opts": [
-        "native.cgroupdriver=systemd"
-    ]
-}
-EOF
-    fi
+    # recover and start — must be AFTER the install
     ensure_sudo systemctl daemon-reload
-    ensure_sudo systemctl restart docker
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
+    ensure_sudo systemctl enable --now containerd.service
+    ensure_sudo systemctl enable --now docker.socket
+    ensure_sudo systemctl start docker.service
+
+    # wait
+    local deadline=$((SECONDS+60))
+    until ensure_sudo docker info >/dev/null 2>&1; do
+      [ $SECONDS -lt $deadline ] || {
+        echo -e "${red}dockerd did not become ready${reset}" 1>&2
+        ensure_sudo systemctl status docker.socket --no-pager 1>&2
+        ensure_sudo systemctl status docker.service --no-pager 1>&2
+        ensure_sudo journalctl -u docker.socket -u docker.service --since "-5 min" --no-pager 1>&2
+        return 1
+      }
+      if ensure_sudo systemctl is-failed --quiet docker.service docker.socket; then
+        ensure_sudo systemctl reset-failed docker.service docker.socket 2>/dev/null || true
+        ensure_sudo systemctl start docker.socket 2>/dev/null || true
+        ensure_sudo systemctl start docker.service 2>/dev/null || true
+      fi
+      sleep 1
+    done
   fi
   configure_docker
 }
 
+debian_20_sbom_docker () {
+  cat <<EOF
+"pkg-list": [ "docker.io","docker-buildx","docker-compose-v2" ]
+EOF
+}
 
 debian_99_profile_edge_base () {
   [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu npu core_types pre_system_scan"
@@ -2191,6 +2492,21 @@ debian_85_remove_esq () {
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
+debian_70_install_ffmpeg () {
+  if dpkg-query -L ffmpeg > /dev/null 2>&1; then
+    echo "ffmpeg is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y ffmpeg
+  fi
+}
+
+debian_70_sbom_ffmpeg () {
+  cat <<EOF
+"pkg-list": ["ffmpeg"]
+EOF
+}
+
 debian_05_install_gawk () {
   if dpkg-query -L gawk > /dev/null 2>&1; then
     echo "Gawk is already installed. Skipping..."
@@ -2198,6 +2514,12 @@ debian_05_install_gawk () {
     ensure_apt update
     ensure_apt install --no-install-recommends -y gawk
   fi
+}
+
+debian_05_sbom_gawk () {
+  cat <<EOF
+"pkg-list": ["gawk"]
+EOF
 }
 
 
@@ -2266,6 +2588,11 @@ debian_10_install_git () {
   fi
 }
 
+debian_10_sbom_git () {
+  cat <<EOF
+"pkg-list": ["git","ca-certificates"]
+EOF
+}
 
 debian_05_install_gpg () {
   if dpkg-query -L gpg > /dev/null 2>&1; then
@@ -2276,13 +2603,19 @@ debian_05_install_gpg () {
   fi
 }
 
-
+debian_05_sbom_gpg () {
+  cat <<EOF
+"pkg-list": ["gpgv1"]
+EOF
+}
 
 configure_gpu () {
-  key_url="https://repositories.intel.com/gpu/intel-graphics.key"
+  repo_name="repositories.intel.com"
+  key_url="https://$repo_name/gpu/intel-graphics.key"
   key_file="/usr/share/keyrings/intel-graphics.gpg"
-  apt_entry="deb [signed-by=$key_file] https://repositories.intel.com/gpu/${ID} ${VERSION_CODENAME} unified"
+  apt_entry="deb [signed-by=$key_file] https://$repo_name/gpu/${ID} ${VERSION_CODENAME} unified"
   apt_file="/etc/apt/sources.list.d/intel-graphics.list"
+  pkg_list="clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd"
   version=26.2.2
 }
 
@@ -2325,7 +2658,7 @@ debian_40_install_gpu () {
     cleanup_gpu
 
     # create the render group
-    ensure_group_add render
+    ensure_group_add render:992 video:
 
     # product key
     ensure_sudo mkdir -p $(dirname $key_file)
@@ -2338,7 +2671,7 @@ debian_40_install_gpu () {
     ensure_apt update -y
 
     # install the packages
-    ensure_apt install --no-install-recommends -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd
+    ensure_apt install --no-install-recommends -y $pkg_list
   fi
 }
 
@@ -2352,6 +2685,18 @@ debian_40_remove_gpu () {
   # always drop gpu apt sources/keyrings, including our own, so nothing conflicting is left behind
   cleanup_gpu
   ensure_sudo rm -f "$apt_file" "$key_file"
+}
+
+debian_40_sbom_gpu () {
+  configure_gpu "$@"
+  cat <<EOF
+"name": "$repo_name"
+"apt-source": "$apt_entry"
+"apt-list-file": "$apt_file"
+"gpg-key": "$key_url"
+"key-file": "$key_file"
+"pkg-list": ["${pkg_list// /'","'}"]
+EOF
 }
 
 
@@ -2478,6 +2823,11 @@ debian_05_install_jq () {
   fi
 }
 
+debian_05_sbom_jq () {
+  cat <<EOF
+"pkg-list": ["jq"]
+EOF
+}
 
 debian_10_install_libgl1 () {
   if dpkg-query -L libgl1 > /dev/null 2>&1; then
@@ -2486,6 +2836,12 @@ debian_10_install_libgl1 () {
     ensure_apt update
     ensure_apt install --no-install-recommends -y libgl1
   fi
+}
+
+debian_10_sbom_libgl1 () {
+  cat <<EOF
+"pkg-list": ["libgl1"]
+EOF
 }
 
 
@@ -2498,6 +2854,11 @@ debian_05_install_libtbb12 () {
   fi
 }
 
+debian_05_sbom_libtbb12 () {
+  cat <<EOF
+"pkg-list": ["libtbb12"]
+EOF
+}
 
 configure_libze1 () {
   libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb"
@@ -2519,6 +2880,13 @@ debian_10_install_libze1 () {
       }
     }
   fi
+}
+
+debian_10_sbom_libze1 () {
+  configure_libze1
+  cat <<EOF
+"pkg-list": ["$libze1_deb"]
+EOF
 }
 
 
@@ -2714,6 +3082,11 @@ debian_10_install_make () {
   fi
 }
 
+debian_10_sbom_make () {
+  cat <<EOF
+"pkg-list": ["make"]
+EOF
+}
 
 configure_multimodal_weld_defect_detection () {
   workspace="$(ensure_project_path)/multimodal_weld_defect_detection"
@@ -3023,7 +3396,7 @@ debian_40_install_npu () {
     ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
 
     # create the render group
-    ensure_group_add render
+    ensure_group_add render:992
   
     mkdir -p "$workspace"
     cd "$workspace"
@@ -3051,11 +3424,22 @@ debian_40_remove_npu () {
   fi
 }
 
+debian_40_sbom_npu () {
+  configure_npu "$@"
+  local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $repository/releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+  [ ${#packages[*]} -gt 0 ] || return 3
+  local packages_str="${packages[*]}"
+  cat <<EOF
+"deb-zip": ["${packages_str// /'","'}"]
+EOF
+}
+
 
 configure_openvino () {
-  key_url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+  repo_name="apt.repos.intel.com"
+  key_url="https://$repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
   key_file=/usr/share/keyrings/intel-gpg-archive-keyring.gpg
-  apt_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/openvino ${ID}${VERSION_ID%.*} main"
+  apt_entry="deb [signed-by=$key_file] https://$repo_name/openvino ${ID}${VERSION_ID%.*} main"
   apt_file=/etc/apt/sources.list.d/intel-openvino.list
   version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.1.0 || echo 2026.3.0)
   openvino_venv="$(ensure_project_path)/openvino-genai"
@@ -3116,6 +3500,17 @@ debian_70_remove_openvino () {
   fi
 }
 
+debian_70_sbom_openvino () {
+  configure_openvino "$@"
+  cat <<EOF
+"name": "$repo_name"
+"gpg-key": "$key_url"
+"key-file": "$key_file"
+"apt-source": "$apt_entry"
+"apt-list-file": "$apt_file"
+"pkg-list": ["openvino-$version"]
+EOF
+}
 
 configure_order_accuracy () {
   workspace="$(ensure_project_path)/order-accuracy"
@@ -3322,7 +3717,7 @@ configure_physical_ai_framework () {
 }
 
 debian_91_profile_physical_ai_framework () {
-  echo "git curl edge_base uv"
+  echo "git curl edge_base uv ffmpeg"
 }
 
 verify_physical_ai_framework () {
@@ -3338,9 +3733,7 @@ debian_91_install_physical_ai_framework () {
     echo "Physical AI Framework is already installed. Skipping..."
   else
     ensure_disk_space 15000
-    # LeRobot (a dependency) requires ffmpeg on the host
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y ffmpeg
+
     mkdir -p "$workspace"
     uv venv --python 3.12 "$paif_venv" || {
       echo "Could not create the Physical AI Framework virtual environment." 1>&2
@@ -3397,7 +3790,7 @@ configure_physical_ai_studio () {
 }
 
 debian_92_profile_physical_ai_studio () {
-  echo "git curl edge_base uv"
+  echo "git curl edge_base uv ffmpeg"
 }
 
 verify_physical_ai_studio () {
@@ -3413,9 +3806,6 @@ debian_92_install_physical_ai_studio () {
     echo "Physical AI Studio is already installed. Skipping..."
   else
     ensure_disk_space 20000
-    # LeRobot / video encoding dependencies require ffmpeg on the host
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y ffmpeg
     echo "Installing ${pais_pkg}[${pais_extra}] (PyTorch ${pais_extra} build; this may take a while)..."
     uv tool install --python 3.12 \
       --index "$pais_index" --index-strategy unsafe-best-match \
@@ -3495,21 +3885,25 @@ debian_10_install_pre_system_scan () {
     membank_info="$(system_scan_check_membank)"
     [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Configuration}"
     echo -e "RAM|$membank_info|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2
 
     pass=$ok
     [[ $PRETTY_NAME = *"24.04"* ]] || pass="${nok/MSG/Not supported}"
     echo -e "OS|$PRETTY_NAME|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT OS|$PRETTY_NAME|$pass" 1>&2
 
     pass=$ok
     docker_ver="$(system_scan_check_docker)"
     [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}"
     [ -n "$docker_ver" ] || pass="${nok} Missing Docker"
     echo -e "Docker|$docker_ver|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2
 
     net_pass=$ok
     net_access="$(system_scan_check_network_access)"
     [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}"
     echo -e "Network|$net_access|$net_pass"
+    [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2
 
     echo
     echo "Accelerators:"
@@ -3518,6 +3912,7 @@ debian_10_install_pre_system_scan () {
     cpuinst_info="$(system_scan_check_cpu_instructions)"
     [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}"
     echo -e "CPU|$cpuinst_info|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass"
 
     for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' '); do
       pass=$ok
@@ -3525,6 +3920,7 @@ debian_10_install_pre_system_scan () {
       if [ -n "$accel_info" ]; then
         [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
         echo -e "GPU|$accel_info|$pass"
+        [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2
       fi
     done
 
@@ -3534,6 +3930,7 @@ debian_10_install_pre_system_scan () {
       if [ -n "$accel_info" ]; then
         [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
         echo -e "NPU|$accel_info|$pass"
+        [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT NPU|$accel_info|$pass" 1>&2
       fi
     done
 
@@ -3684,13 +4081,21 @@ debian_05_install_python3_venv () {
   fi
 }
 
+debian_05_sbom_python3_venv () {
+  cat <<EOF
+"pkg-list": ["python3-venv"]
+EOF
+}
+
 
 # Intel RealSense SDK (librealsense) + ROS 2 RealSense support.
 # https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
 configure_realsense () {
-  rs_key_url=https://librealsense.realsenseai.com/Debian/librealsenseai.asc
+  rs_repo_name="librealsense.realsenseai.com"
+  rs_key_url="https://$rs_repo_name/Debian/librealsenseai.asc"
   rs_key_file=/etc/apt/keyrings/librealsenseai.gpg
   rs_list=/etc/apt/sources.list.d/librealsense.list
+  rs_deb_entry="deb [signed-by=$rs_key_file] https://$rs_repo_name/Debian/apt-repo $VERSION_CODENAME main"
   case "$VERSION_CODENAME" in
   jammy) ros_distro=humble ;;
   noble) ros_distro=jazzy ;;
@@ -3699,12 +4104,12 @@ configure_realsense () {
 }
 
 debian_55_profile_realsense () {
-  echo "curl gpg ros2 amr_apt_repo"
+  echo "curl gpg"
 }
 
 verify_realsense () {
   configure_realsense
-  dpkg-query -l librealsense2 > /dev/null 2>&1
+  dpkg-query -L librealsense2 > /dev/null 2>&1
 }
 
 debian_55_install_realsense () {
@@ -3715,8 +4120,7 @@ debian_55_install_realsense () {
   else
     ensure_sudo mkdir -p /etc/apt/keyrings
     no_proxy= NO_PROXY= curl -sSf "$rs_key_url" | gpg --dearmor | ensure_sudo tee "$rs_key_file" > /dev/null
-    echo "deb [signed-by=$rs_key_file] https://librealsense.realsenseai.com/Debian/apt-repo $VERSION_CODENAME main" | \
-      ensure_sudo tee "$rs_list" > /dev/null
+    echo "rs_deb_entry" | ensure_sudo tee "$rs_list" > /dev/null
     ensure_apt update -y
 
     ensure_apt install -y --allow-downgrades ros-$ros_distro-librealsense2
@@ -3734,6 +4138,19 @@ debian_55_remove_realsense () {
   fi
 }
 
+debian_05_sbom_realsense () {
+  configure_realsense "$@"
+  cat <<EOF
+"name": "$rs_repo_name"
+"gpg-key": "$rs_key_url"
+"key-file": "$rs_key_file"
+"apt-source": "$rs_deb_entry"
+"apt-list-file": "$rs_list"
+"pkg-list": ["ros-$ros_distro-librealsense2","librealsense2-dkms","librealsense2"]
+EOF
+}
+
+
 # ROS 2 distribution, auto-selected from the Ubuntu codename:
 #   Ubuntu 22.04 (jammy) -> ROS 2 Humble
 #   Ubuntu 24.04 (noble) -> ROS 2 Jazzy
@@ -3744,6 +4161,10 @@ configure_ros2 () {
   noble) ros_distro=jazzy ;;
   *)     ros_distro=jazzy ;;
   esac
+
+  local codename="${UBUNTU_CODENAME:-$VERSION_CODENAME}"
+  ros_apt_ver="$(no_proxy= NO_PROXY= curl -fsSL https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F '"tag_name"' | awk -F'"' '{print $4}')"
+  ros_deb_src="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
 }
 
 debian_50_profile_ros2 () {
@@ -3751,7 +4172,6 @@ debian_50_profile_ros2 () {
 }
 
 verify_ros2 () {
-  configure_ros2
   [ -r /opt/ros/$ros_distro/setup.bash ]
 }
 
@@ -3762,18 +4182,16 @@ debian_50_install_ros2 () {
     echo "ROS 2 $ros_distro is already installed. Skipping..."
   else
     ensure_apt update
-    ensure_apt install -y software-properties-common curl gnupg lsb-release ca-certificates
+    ensure_apt install -y software-properties-common gnupg lsb-release ca-certificates
     ensure_sudo add-apt-repository -y universe || true
 
     # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
     # which self-configures the apt source list and signing key
-    local codename="$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")"
-    local ros_apt_ver="$(no_proxy= NO_PROXY= curl -fsSL https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F '"tag_name"' | awk -F'"' '{print $4}')"
-    local tmpdir="$(mktemp -d)"
-    no_proxy= NO_PROXY= curl -fsSL -o "$tmpdir/ros2-apt-source.deb" \
-      "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
+    local tmpdir
+    ensure_tmpdir create tmpdir ros2
+    no_proxy= NO_PROXY= curl -fsSL -o "$tmpdir/ros2-apt-source.deb" "$ros_deb_src"
     ensure_apt install -y "$tmpdir/ros2-apt-source.deb"
-    rm -rf "$tmpdir"
+    ensure_tmpdir destroy $tmpdir
 
     ensure_apt update -y
     ensure_apt install -y ros-$ros_distro-desktop ros-dev-tools
@@ -3798,26 +4216,49 @@ debian_50_remove_ros2 () {
   fi
 }
 
+debian_50_sbom_ros2 () {
+  configure_ros2 "$@"
+  cat <<EOF
+"pkg-list": ["software-properties-common","gnupg","lsb-release","ca-certificates"]
+---
+"pkg-list": ["ros-$ros_distro-desktop","ros-dev-tools"]
+"apt-repository": "universe"
+EOF
+}
+
 # OpenVINO(TM) Runtime (pinned to 2025.3.0) and the ROS 2 OpenVINO Toolkit
 # required by the Robotics AI Suite perception tutorials. Kept separate from the
 # generic `openvino` module because the robotics stack pins a specific version
 # and adds the ROS OpenVINO node / wrapper packages.
 # https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
 configure_ros_openvino () {
+  ov_repo_name=apt.repos.intel.com
   ov_version=2025.3.0
-  ov_key_url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+  ov_key_url=https://$ov_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
   ov_key_file=/usr/share/keyrings/openvino-archive-keyring.gpg
   ov_list=/etc/apt/sources.list.d/intel-openvino.list
   ov_pref=/etc/apt/preferences.d/intel-openvino
+  ov_deb_entry="deb [signed-by=$ov_key_file] https://$ov_repo_name/openvino/2025 ${ID}${VERSION_ID%.*} main"
   case "$VERSION_CODENAME" in
   jammy) ros_distro=humble ;;
   noble) ros_distro=jazzy ;;
   *)     ros_distro=jazzy ;;
   esac
+  ov_deb_pref=(
+    "Package: openvino"
+    "Pin: version $ov_version"
+    "Pin-Priority: 1001"
+    "Package: ros-$ros_distro-openvino-wrapper-lib"
+    "Pin: version $ov_version*"
+    "Pin-Priority: 1002"
+    "Package: ros-$ros_distro-openvino-node"
+    "Pin: version $ov_version*"
+    "Pin-Priority: 1002"
+  )
 }
 
 debian_55_profile_ros_openvino () {
-  echo "curl gpg ros2 amr_apt_repo edge_base"
+  echo "curl gpg ros2 amr_apt_repo edge_base libze1 debconf_utils"
 }
 
 verify_ros_openvino () {
@@ -3835,17 +4276,12 @@ debian_55_install_ros_openvino () {
     # OpenVINO apt repository + signing key
     ensure_sudo mkdir -p "$(dirname "$ov_key_file")"
     no_proxy= NO_PROXY= curl -fsL "$ov_key_url" | gpg --dearmor | ensure_sudo tee "$ov_key_file" > /dev/null
-    echo "deb [signed-by=$ov_key_file] https://apt.repos.intel.com/openvino/2025 ${ID}${VERSION_ID%.*} main" | \
-      ensure_sudo tee "$ov_list" > /dev/null
+    echo "$ov_deb_entry" | ensure_sudo tee "$ov_list" > /dev/null
 
     # pin OpenVINO and the ROS OpenVINO packages to the same version
-    printf 'Package: openvino\nPin: version %s*\nPin-Priority: 1001\n\nPackage: ros-%s-openvino-wrapper-lib\nPin: version %s*\nPin-Priority: 1002\n\nPackage: ros-%s-openvino-node\nPin: version %s*\nPin-Priority: 1002\n' \
-      "$ov_version" "$ros_distro" "$ov_version" "$ros_distro" "$ov_version" | ensure_sudo tee "$ov_pref" > /dev/null
+    ( IFS=$'\n'; echo "${ov_deb_pref[*]}" ) | ensure_sudo tee "$ov_pref" > /dev/null
 
     ensure_apt update -y
-
-    # Intel Graphics Compute Runtime for GPU inference + tooling
-    ensure_apt install -y libze1 libze-intel-gpu1 debconf-utils
 
     # clear any stale openvino-node debconf configuration
     ensure_apt purge -y ros-$ros_distro-openvino-node || true
@@ -3873,6 +4309,25 @@ debian_55_remove_ros_openvino () {
     echo "ROS 2 OpenVINO toolkit already removed. Skipping"
   fi
 }
+
+debian_55_sbom_ros_openvino () {
+  configure_ros_openvino
+(
+  IFS=$'|'
+  local pref_str="${ov_deb_pref[*]}"
+  cat <<EOF
+"name": "$ov_repo_name"
+"gpg-key": "$ov_key_url"
+"key-file": "$ov_key_file"
+"apt-source": "$ov_deb_entry"
+"apt-list-file": "$ov_list"
+"pkg-list": ["openvino","ros-$ros_distro-openvino-node"]
+"apt-pref-file": "$ov_pref"
+"apt-pref": ["${pref_str//|/'","'}"]
+EOF
+)
+}
+
 
 configure_smart_intersection () {
   workspace="$(ensure_project_path)/smart-intersection"
@@ -4035,7 +4490,7 @@ debian_90_install_stationary_robot_vision () {
     ensure_apt update -y
     # RVC depends on Gazebo Harmonic (gz-harmonic); make sure the OSRF Gazebo
     # apt repository is configured (shared with the AMR SDK component).
-    ! declare -F amr_setup_gazebo > /dev/null 2>&1 || amr_setup_gazebo
+    ! declare -F amr_setup_osrf_gazebo > /dev/null 2>&1 || amr_setup_osrf_gazebo
     ensure_apt install -y $rvc_pkgs || {
       echo "Could not install RVC packages ($rvc_pkgs)." 1>&2
       echo "Confirm the exact package names at https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html" 1>&2
@@ -4057,6 +4512,20 @@ debian_90_remove_stationary_robot_vision () {
   fi
 }
 
+debian_90_sbom_stationary_robot_vision () {
+  configure_stationary_robot_vision
+  configure_osrf_gazebo
+  cat <<EOF
+"name": "packages.ros.org"
+"gpg-key": "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key"
+"key-file": "usr/share/keyrings/ros-archive-keyring.gpg"
+"apt-source": "deb http://packages.ros.org/ros2/$ID $VERSION_CODENAME main"
+"apt-list-file": "/etc/apt/sources.list.d/ros2-latest.list"
+"pkg-list": ["${rvc_pkgs// /'","'}"]
+EOF
+}
+
+
 debian_10_install_unzip () {
   if dpkg-query -L unzip > /dev/null 2>&1; then
     echo "Unzip is already installed. Skipping..."
@@ -4066,9 +4535,18 @@ debian_10_install_unzip () {
   fi
 }
 
+debian_10_sbom_unzip () {
+  cat <<EOF
+"pkg-list": ["unzip"]
+EOF
+}
 
 configure_uv () {
   echo "$PATH" | grep -q -F ~/.local/bin || export PATH=$PATH:~/.local/bin
+}
+
+debian_10_profile_uv () {
+  echo "pipx"
 }
 
 debian_10_install_uv () {
@@ -4076,8 +4554,6 @@ debian_10_install_uv () {
   if uv --version 2> /dev/null && [[ "$*" != *"--reset-uv"* ]]; then
     echo "Uv is already installed. Skipping..."
   else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y pipx
     pipx install uv
   fi
 }
@@ -4254,6 +4730,11 @@ debian_05_install_yq () {
   fi
 }
 
+debian_05_sbom_yq () {
+  cat <<EOF
+"pkg-list": ["yq"]
+EOF
+}
 
 debian_99_profile_computer_vision () {
   [ "$1" = "start" ] || echo "dlstreamer vippet geti anomalib"

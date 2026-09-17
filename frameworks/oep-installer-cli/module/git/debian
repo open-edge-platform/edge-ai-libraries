@@ -8,3 +8,8 @@ debian_10_install_git () {
   fi
 }
 
+debian_10_sbom_git () {
+  cat <<EOF
+"pkg-list": ["git","ca-certificates"]
+EOF
+}
