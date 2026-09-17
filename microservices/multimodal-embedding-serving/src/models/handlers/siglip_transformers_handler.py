@@ -90,20 +90,28 @@ class SigLIPTransformersHandler(BaseEmbeddingModel):
         self.async_infer = None
 
     def load_model(self) -> None:
-        """Load preprocessing and either PyTorch weights or cached OpenVINO IR."""
+        """Load preprocessing and weights, logging loading errors before re-raising."""
         logger.info("Loading Hugging Face SigLIP model: %s", self.hf_model_id)
-        self.processor = AutoProcessor.from_pretrained(
-            self.processor_id, trust_remote_code=False
-        )
-        self.tokenizer = self.processor.tokenizer
-        self.preprocess = self._preprocess_image
-        if self.use_openvino:
-            self._load_openvino_models()
-        else:
-            self.model = self._load_pytorch_model()
-            self._image_encoder = _ImageEncoder(self.model.vision_model).eval()
-            self._text_encoder = _TextEncoder(self.model.text_model).eval()
-            self._embedding_dim = self.model.config.text_config.projection_size
+        try:
+            self.processor = AutoProcessor.from_pretrained(
+                self.processor_id, trust_remote_code=False
+            )
+            self.tokenizer = self.processor.tokenizer
+            self.preprocess = self._preprocess_image
+            if self.use_openvino:
+                self._load_openvino_models()
+            else:
+                self.model = self._load_pytorch_model()
+                self._image_encoder = _ImageEncoder(self.model.vision_model).eval()
+                self._text_encoder = _TextEncoder(self.model.text_model).eval()
+                self._embedding_dim = self.model.config.text_config.projection_size
+        except (OSError, RuntimeError, ValueError, ImportError) as exc:
+            logger.error(
+                "Failed to load Hugging Face SigLIP model %s (%s)",
+                self.hf_model_id,
+                type(exc).__name__,
+            )
+            raise
         logger.info("Hugging Face SigLIP model loaded: %s", self.hf_model_id)
 
     def _load_pytorch_model(self) -> SiglipModel:
