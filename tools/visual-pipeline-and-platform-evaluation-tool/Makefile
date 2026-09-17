@@ -8,7 +8,8 @@ SHELL := bash -eu -o pipefail
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
 	build-videogenerator build-onvif-discovery docker-build env-setup build-test \
-	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental 
+	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental \
+	pull-voice build-voice run-voice stop-voice
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -18,6 +19,18 @@ PROJECT_DIR := $(shell pwd)
 COMPOSE_FILE := compose.yml
 DEV_COMPOSE_FILE := compose.dev.yml
 EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
+VOICE_COMPOSE_FILE := compose.voice.yml
+export AUDIO_ANALYZER_TAG ?= 2026.1.0
+export TEXT_TO_SPEECH_TAG ?= 2026.1.0
+
+define voice-compose
+	. .env && \
+	voice_files=(-f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(VOICE_COMPOSE_FILE)) && \
+	case "$$COMPOSE_PROFILES" in \
+		gpu|npu) voice_files+=(-f compose.voice.$$COMPOSE_PROFILES.yml) ;; \
+	esac && \
+	docker compose "$${voice_files[@]}" $(1)
+endef
 
 # Speed up `docker compose build` by skipping provenance/SBOM attestations
 # (saves ~hundreds of ms per build on warm cache, more on cold).
@@ -138,8 +151,20 @@ build-onvif-discovery: env-setup ## Build onvif discovery image
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run the docker compose services
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d
+run: env-setup ## Run the docker compose services, including STT/TTS
+	$(call voice-compose,up -d)
+
+pull-voice: env-setup ## Pull pre-built images for ViPPET with voice services
+	$(call voice-compose,pull)
+
+build-voice: env-setup ## Build ViPPET and voice services locally from source
+	$(call voice-compose,build)
+
+run-voice: env-setup ## Start ViPPET with voice services without building images
+	$(call voice-compose,up -d --no-build)
+
+stop-voice: ## Stop ViPPET with voice services, preserving named volumes
+	$(call voice-compose,down)
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
@@ -220,8 +245,8 @@ shell-metrics-manager: ## Open shell in metrics-manager container
 shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
-stop: ## Stop the docker compose services
-	docker compose down
+stop: ## Stop ViPPET and STT/TTS services, preserving named volumes
+	$(call voice-compose,down)
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator

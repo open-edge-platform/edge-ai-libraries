@@ -90,6 +90,16 @@ This keeps the experimental Time Series pipeline isolated behind the `compose.ex
 layered on top of the standard `compose.yml` stack while still reusing the same hardware-specific profile
 selection from `setup_env.sh` and `.env`.
 
+## Voice Conversion
+
+The **Voice** page (`/voice`) provides independent speech-to-text and
+text-to-speech conversions, without a chat, conversation history, or kiosk-core.
+`make run` starts ViPPET together with audio-analyzer and text-to-speech, using
+the detected hardware profile and the usual Compose image pull/build behavior.
+`make run-voice` starts the same services with automatic building disabled.
+The [voice deployment guide](docs/user-guide/user-guide/voice-conversion.md)
+covers startup, browser microphone requirements, input limits, and storage.
+
 ## Learn More
 
 The following resources provide comprehensive guidance on installation, usage, and development of the Visual

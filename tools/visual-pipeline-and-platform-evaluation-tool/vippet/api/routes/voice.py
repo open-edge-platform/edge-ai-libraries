@@ -1,0 +1,180 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+import asyncio
+import io
+import logging
+import os
+import wave
+from typing import Annotated
+
+import httpx
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response
+from pydantic import BaseModel, ConfigDict, Field
+
+router = APIRouter()
+logger = logging.getLogger("api.routes.voice")
+
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_AUDIO_SECONDS = 60
+MAX_RESPONSE_BYTES = 64 * 1024 * 1024
+TIMEOUT_SECONDS = 120
+AUDIO_ANALYZER_URL = os.getenv("AUDIO_ANALYZER_URL", "http://audio-analyzer:8010")
+TEXT_TO_SPEECH_URL = os.getenv("TEXT_TO_SPEECH_URL", "http://text-to-speech:8011")
+
+
+class SpeechRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    input: str = Field(min_length=1, max_length=5000)
+
+
+class TranscriptionResponse(BaseModel):
+    text: str = Field(max_length=16000)
+
+
+def create_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(TIMEOUT_SECONDS, connect=5.0),
+        trust_env=False,
+        follow_redirects=False,
+    )
+
+
+async def call_service(
+    url: str,
+    *,
+    files: dict[str, tuple[str, bytes, str]] | None = None,
+    data: dict[str, str] | None = None,
+    json: dict[str, str] | None = None,
+    max_bytes: int = MAX_RESPONSE_BYTES,
+) -> httpx.Response:
+    try:
+        async with asyncio.timeout(TIMEOUT_SECONDS):
+            async with create_client() as client:
+                async with client.stream(
+                    "POST", url, files=files, data=data, json=json
+                ) as upstream:
+                    if upstream.status_code in {400, 413, 422}:
+                        raise HTTPException(
+                            400, "The speech service rejected the input."
+                        )
+                    if upstream.status_code == 429:
+                        raise HTTPException(
+                            503, "The speech service is busy. Try again later."
+                        )
+                    if upstream.status_code != 200:
+                        logger.warning(
+                            "Speech service returned HTTP %s", upstream.status_code
+                        )
+                        raise HTTPException(
+                            502, "The speech service failed to process the request."
+                        )
+                    content = bytearray()
+                    async for chunk in upstream.aiter_bytes():
+                        if len(content) + len(chunk) > max_bytes:
+                            raise HTTPException(
+                                502,
+                                "The speech service response exceeded the size limit.",
+                            )
+                        content.extend(chunk)
+                    return httpx.Response(
+                        200, content=bytes(content), headers=upstream.headers
+                    )
+    except (httpx.TimeoutException, TimeoutError) as exc:
+        raise HTTPException(
+            504, "Speech conversion timed out. Try a shorter input."
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(503, "The speech service is unavailable.") from exc
+
+
+def validate_audio(content: bytes) -> None:
+    try:
+        with wave.open(io.BytesIO(content), "rb") as audio:
+            frames = audio.getnframes()
+            rate = audio.getframerate()
+            if (
+                audio.getnchannels() != 1
+                or audio.getsampwidth() != 2
+                or not 8000 <= rate <= 48000
+                or frames == 0
+                or frames > MAX_AUDIO_SECONDS * rate
+                or len(audio.readframes(frames)) != frames * 2
+            ):
+                raise ValueError("Unsupported WAV parameters")
+    except (wave.Error, EOFError, ValueError) as exc:
+        raise HTTPException(
+            400, "Use a valid mono PCM 16-bit WAV, 8-48 kHz, up to 60 seconds."
+        ) from exc
+
+
+@router.post(
+    "/transcriptions",
+    operation_id="transcribe_voice",
+    response_model=TranscriptionResponse,
+)
+async def transcribe_voice(
+    response: Response,
+    file: Annotated[
+        UploadFile, File(description="Mono PCM 16-bit WAV, up to 60 seconds and 10 MiB")
+    ],
+    language: Annotated[str, Form(pattern=r"^[a-z]{2}$")] = "en",
+) -> TranscriptionResponse:
+    """Transcribe one independent recording. Previous recordings are never used as context."""
+    try:
+        content = await file.read(MAX_UPLOAD_BYTES + 1)
+    finally:
+        await file.close()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "Audio exceeds the 10 MiB upload limit.")
+    validate_audio(content)
+    upstream = await call_service(
+        f"{AUDIO_ANALYZER_URL.rstrip('/')}/v1/audio/transcriptions",
+        files={"file": ("recording.wav", content, "audio/wav")},
+        data={"language": language, "response_format": "json", "temperature": "0"},
+        max_bytes=128 * 1024,
+    )
+    try:
+        response.headers["Cache-Control"] = "no-store"
+        return TranscriptionResponse.model_validate(upstream.json())
+    except ValueError as exc:
+        raise HTTPException(
+            502, "The speech service returned an invalid transcription."
+        ) from exc
+
+
+@router.post(
+    "/speech",
+    operation_id="synthesize_voice",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"audio/wav": {"schema": {"type": "string", "format": "binary"}}}
+        }
+    },
+)
+async def synthesize_voice(request: SpeechRequest) -> Response:
+    """Synthesize one sentence using the configured service model and voice. Returns WAV audio."""
+    upstream = await call_service(
+        f"{TEXT_TO_SPEECH_URL.rstrip('/')}/v1/audio/speech",
+        json={"input": request.input, "response_format": "wav"},
+    )
+    content = upstream.content
+    if (
+        upstream.headers.get("content-type", "").split(";")[0] != "audio/wav"
+        or len(content) < 44
+        or content[:4] != b"RIFF"
+        or content[8:12] != b"WAVE"
+    ):
+        raise HTTPException(502, "The speech service returned invalid audio.")
+    return Response(
+        content=content,
+        media_type="audio/wav",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": 'inline; filename="speech.wav"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )

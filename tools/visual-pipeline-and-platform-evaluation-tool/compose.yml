@@ -136,7 +136,7 @@ services:
       - "8000:8000"
     command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,ultralytics,pipeline-zoo-models,openvino,geti,hls}
     healthcheck:
-      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:8000/api/v1/health"]
+      test: ["CMD", "curl", "--noproxy", "localhost,127.0.0.1", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:8000/api/v1/health"]
       # First start can take tens of minutes: each plugin venv runs `uv sync`
       # and pulls heavy deps (torch, openvino, ...). `start_period` keeps the
       # container marked "starting" (so dependents wait but don't get

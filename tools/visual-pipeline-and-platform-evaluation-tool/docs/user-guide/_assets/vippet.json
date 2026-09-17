@@ -3840,6 +3840,91 @@
           }
         }
       }
+    },
+    "/voice/transcriptions": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Transcribe Voice",
+        "description": "Transcribe one independent recording. Previous recordings are never used as context.",
+        "operationId": "transcribe_voice",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_transcribe_voice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/speech": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Synthesize Voice",
+        "description": "Synthesize one sentence using the configured service model and voice. Returns WAV audio.",
+        "operationId": "synthesize_voice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4909,6 +4994,27 @@
         ],
         "title": "BenchmarkWorkloadRun",
         "description": "Historical run record for one workload within a suite run."
+      },
+      "Body_transcribe_voice": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Mono PCM 16-bit WAV, up to 60 seconds and 10 MiB"
+          },
+          "language": {
+            "type": "string",
+            "pattern": "^[a-z]{2}$",
+            "title": "Language",
+            "default": "en"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_transcribe_voice"
       },
       "Body_upload_image_archive": {
         "properties": {
@@ -7160,6 +7266,22 @@
         "title": "PipelineValidation",
         "description": "**Request body for pipeline validation.**\n\n## Attributes\n- `pipeline_graph` - Structured graph representation of the pipeline\n- `parameters` - Optional parameter set for validation (e.g., `{\"max-runtime\": 10}`)\n\n### Example\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [...],\n    \"edges\": [...]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```"
       },
+      "SpeechRequest": {
+        "properties": {
+          "input": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Input"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "input"
+        ],
+        "title": "SpeechRequest"
+      },
       "StatusResponse": {
         "properties": {
           "status": {
@@ -7217,6 +7339,20 @@
         ],
         "title": "TestJobState",
         "description": "**Generic state of a long-running test job (performance or density).**\n\n## Values\n- `RUNNING` - Job is still executing\n- `COMPLETED` - Job finished successfully\n- `FAILED` - Job finished unsuccessfully\n\n### Example\n```json\n\"RUNNING\"\n```"
+      },
+      "TranscriptionResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 16000,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "TranscriptionResponse"
       },
       "USBCameraDetails": {
         "properties": {

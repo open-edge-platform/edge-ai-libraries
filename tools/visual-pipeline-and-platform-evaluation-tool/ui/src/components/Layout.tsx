@@ -31,7 +31,7 @@ const Layout = () => {
   const hasModels = useAppSelector(selectIsAnyModelDownloaded);
 
   useEffect(() => {
-    if (!hasModels) {
+    if (!hasModels && location.pathname !== "/voice") {
       toast.warning("There are no models in the system.", {
         id: "no-models-warning",
         closeButton: false,
@@ -51,7 +51,7 @@ const Layout = () => {
     } else {
       toast.dismiss("no-models-warning");
     }
-  }, [hasModels]);
+  }, [hasModels, location.pathname]);
 
   return (
     <BackgroundJobsProvider>
