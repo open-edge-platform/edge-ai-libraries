@@ -64,41 +64,35 @@ async def call_service(
 ) -> httpx.Response:
     started_at = perf_counter()
     try:
-        async with asyncio.timeout(TIMEOUT_SECONDS):
-            async with create_client() as client:
-                async with client.stream(
-                    "POST", url, files=files, data=data, json=json
-                ) as upstream:
-                    if upstream.status_code in {400, 413, 422}:
-                        raise HTTPException(
-                            400, "The speech service rejected the input."
-                        )
-                    if upstream.status_code == 429:
-                        raise HTTPException(
-                            503, "The speech service is busy. Try again later."
-                        )
-                    if upstream.status_code != 200:
-                        logger.warning(
-                            "Speech service returned HTTP %s", upstream.status_code
-                        )
-                        raise HTTPException(
-                            502, "The speech service failed to process the request."
-                        )
-                    content = bytearray()
-                    async for chunk in upstream.aiter_bytes():
-                        if len(content) + len(chunk) > max_bytes:
-                            raise HTTPException(
-                                502,
-                                "The speech service response exceeded the size limit.",
-                            )
-                        content.extend(chunk)
-                    result = httpx.Response(
-                        200, content=bytes(content), headers=upstream.headers
+        async with (
+            asyncio.timeout(TIMEOUT_SECONDS),
+            create_client() as client,
+            client.stream("POST", url, files=files, data=data, json=json) as upstream,
+        ):
+            if upstream.status_code in {400, 413, 422}:
+                raise HTTPException(400, "The speech service rejected the input.")
+            if upstream.status_code == 429:
+                raise HTTPException(503, "The speech service is busy. Try again later.")
+            if upstream.status_code != 200:
+                logger.warning("Speech service returned HTTP %s", upstream.status_code)
+                raise HTTPException(
+                    502, "The speech service failed to process the request."
+                )
+            content = bytearray()
+            async for chunk in upstream.aiter_bytes():
+                if len(content) + len(chunk) > max_bytes:
+                    raise HTTPException(
+                        502,
+                        "The speech service response exceeded the size limit.",
                     )
-                    result.headers[SERVICE_DURATION_HEADER] = (
-                        f"{(perf_counter() - started_at) * 1000:.3f}"
-                    )
-                    return result
+                content.extend(chunk)
+            result = httpx.Response(
+                200, content=bytes(content), headers=upstream.headers
+            )
+            result.headers[SERVICE_DURATION_HEADER] = (
+                f"{(perf_counter() - started_at) * 1000:.3f}"
+            )
+            return result
     except (httpx.TimeoutException, TimeoutError) as exc:
         raise HTTPException(
             504, "Speech conversion timed out. Try a shorter input."
