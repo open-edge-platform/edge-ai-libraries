@@ -63,7 +63,7 @@ debian_40_sbom_npu () {
   [ ${#packages[*]} -gt 0 ] || return 3
   local packages_str="${packages[*]}"
   cat <<EOF
-"deb-zip": ["${packages_str// /'","'}"]
+"pkg-list": ["${packages_str// /'","'}"]
 EOF
 }
 

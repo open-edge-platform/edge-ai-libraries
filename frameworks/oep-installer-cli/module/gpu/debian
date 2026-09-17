@@ -17,7 +17,7 @@ configure_gpu () {
 # (anything referencing the gpu repo other than our own $apt_file) so the current
 # entry is authoritative.
 cleanup_gpu () {
-  ensure_rm_apt_source https://repositories.intel.com/gpu
+  ensure_apt_source remove https://repositories.intel.com/gpu
   ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg
 }
 
