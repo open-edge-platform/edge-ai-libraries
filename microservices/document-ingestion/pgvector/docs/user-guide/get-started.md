@@ -128,7 +128,7 @@ This method provides the fastest way to get started with the microservice.
 
    ```bash
    # Clone the release branch
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.0
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-2026.2.1
    ```
 
 2. **Change to project directory**:
@@ -158,7 +158,7 @@ This method provides the fastest way to get started with the microservice.
 
    ```bash
    export CONTAINER_REGISTRY_URL=intel/ #defaults to "intel/" if not set
-   export CONTAINER_TAG=2026.2.0    #defaults to "latest" if not set
+   export CONTAINER_TAG=2026.2.1    #defaults to "latest" if not set
 
    # Run the production environment for all services in daemon mode
    source ./run.sh
