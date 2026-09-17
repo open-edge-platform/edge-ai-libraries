@@ -126,8 +126,9 @@ $(
     act_get prefix profile_
     local all_profilers=(${_act_reply[*]})
     local cmd dcmd profiler pname mname found
+    local -A all_comps
     for cmd in ${all_cmds[*]}; do
-      local -A all_comps=()
+      all_comps=()
       all_comps["--continue"]=""
       all_comps["--dry-run"]=""
       # sbom handlers are sparse; resolve its dependency graph as if it were install
