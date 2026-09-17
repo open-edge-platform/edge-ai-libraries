@@ -5,9 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Release Notes: KV-Quant-Offload
 
-## Current Release
-
-**Version**: 2026.2
+## Version 2026.2
 
 **Release Date:** September 9, 2026
 
