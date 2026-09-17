@@ -36,7 +36,7 @@ def test_health_check_running(monkeypatch):
     monkeypatch.setattr(main.requests, "get", lambda *a, **k: MockResponse())
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json()["status"] == "kapacitor daemon is running"
+    assert resp.json()["status"] == "Kapacitor daemon is running"
 
 def test_health_check_not_running(monkeypatch):
     def raise_conn_err(*a, **k):
