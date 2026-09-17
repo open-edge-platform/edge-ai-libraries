@@ -60,14 +60,14 @@ class TestModels(unittest.TestCase):
             models_dir.mkdir()
             yaml_file = td_path / "supported_models.yaml"
             yaml_file.write_text(
-                '- name: model\n'
-                '  display_name: Model\n'
+                "- name: model\n"
+                "  display_name: Model\n"
                 '  description: "  Model description  "\n'
-                '  source: public\n'
-                '  type: classification\n'
-                '  precisions:\n'
-                '    - precision: FP32\n'
-                '      model_path: model.xml\n'
+                "  source: public\n"
+                "  type: classification\n"
+                "  precisions:\n"
+                "    - precision: FP32\n"
+                "      model_path: model.xml\n"
                 '      model_proc: ""\n'
             )
 
