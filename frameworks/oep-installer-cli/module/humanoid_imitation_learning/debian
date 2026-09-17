@@ -1,0 +1,62 @@
+
+# Humanoid - Imitation Learning - the Robotics AI Suite track for teaching
+# robots tasks by demonstration (ACT and Pi0.5 RTC-OV imitation-learning
+# policies). Unlike the AMR and RVC components, this track is delivered as
+# Docker images built from the Robotics AI Suite container recipes, not as
+# native apt packages.
+# https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html
+configure_humanoid_imitation_learning () {
+  workspace="$(ensure_project_path)/humanoid-imitation-learning"
+  version=main
+  repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts.git"
+  container_dir="$workspace/samples/robotics/robotics-ai-suite-containers"
+  # sample: act-sample (default) or pi05-rtc-ov, selectable via a module arg
+  humanoid_sample=act-sample
+  [[ " $* " != *" pi05-rtc-ov "* && " $* " != *" --pi05-rtc-ov "* ]] || humanoid_sample=pi05-rtc-ov
+  humanoid_base_image=robotics-ai-suite:humanoid-imitation-learning-base
+  humanoid_sample_image=robotics-ai-suite:humanoid-imitation-learning-$humanoid_sample
+}
+
+debian_90_profile_humanoid_imitation_learning () {
+  echo "git curl edge_base docker"
+}
+
+verify_humanoid_imitation_learning () {
+  configure_humanoid_imitation_learning "$@"
+  docker image inspect "$humanoid_sample_image" > /dev/null 2>&1
+}
+
+debian_90_install_humanoid_imitation_learning () {
+  configure_humanoid_imitation_learning "$@"
+
+  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reset-humanoid_imitation_learning "* ]]; then
+    echo "Humanoid - Imitation Learning is already installed. Skipping..."
+  else
+    # The base image bundles the OpenVINO dev stack, Intel GPU runtime, oneAPI
+    # and a clone of edge-ai-suites; the sample image adds the policy packages.
+    ensure_disk_space 25000
+    ensure_git_clone "$workspace" "$version" "$repository" samples/robotics/robotics-ai-suite-containers
+
+    cd "$container_dir"
+    echo "Building $humanoid_base_image (this downloads the OpenVINO dev image and may take a while)..."
+    docker build -t "$humanoid_base_image" -f dockerfiles/humanoid-imitation-learning/base.dockerfile . || {
+      echo "Could not build the Humanoid - Imitation Learning base image." 1>&2
+      return 3
+    }
+    echo "Building $humanoid_sample_image ($humanoid_sample)..."
+    docker build -t "$humanoid_sample_image" -f "dockerfiles/humanoid-imitation-learning/$humanoid_sample.dockerfile" . || {
+      echo "Could not build the Humanoid - Imitation Learning $humanoid_sample image." 1>&2
+      return 3
+    }
+  fi
+
+  echo "@@HIGHLIGHT Humanoid - Imitation Learning image built: $humanoid_sample_image"
+  echo "@@HIGHLIGHT run @cd $container_dir && ./run.sh   # select humanoid-imitation-learning / $humanoid_sample"
+  echo "@@HIGHLIGHT docs @https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
+}
+
+debian_90_remove_humanoid_imitation_learning () {
+  configure_humanoid_imitation_learning "$@"
+  docker image rm -f "$humanoid_sample_image" "$humanoid_base_image" > /dev/null 2>&1 || true
+  ensure_sudo rm -rf "$workspace"
+}

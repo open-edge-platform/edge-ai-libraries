@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Testing framework
+pytest>=8.0.0
+pytest-cov>=5.0.0
+pytest-html>=4.1.1
+pytest-mock>=3.14.0
+
+# Needed for running tests (mock GStreamer)
+Gst-python-stub>=1.0.0  # optional; tests will work with just unittest.mock

@@ -1,0 +1,103 @@
+
+# OpenVINO(TM) Runtime (pinned to 2025.3.0) and the ROS 2 OpenVINO Toolkit
+# required by the Robotics AI Suite perception tutorials. Kept separate from the
+# generic `openvino` module because the robotics stack pins a specific version
+# and adds the ROS OpenVINO node / wrapper packages.
+# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
+configure_ros_openvino () {
+  ov_repo_name=apt.repos.intel.com
+  ov_version=2025.3.0
+  ov_key_url=https://$ov_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+  ov_key_file=/usr/share/keyrings/openvino-archive-keyring.gpg
+  ov_list=/etc/apt/sources.list.d/intel-openvino.list
+  ov_pref=/etc/apt/preferences.d/intel-openvino
+  ov_deb_entry="deb [signed-by=$ov_key_file] https://$ov_repo_name/openvino/2025 ${ID}${VERSION_ID%.*} main"
+  case "$VERSION_CODENAME" in
+  jammy) ros_distro=humble ;;
+  noble) ros_distro=jazzy ;;
+  *)     ros_distro=jazzy ;;
+  esac
+  ov_deb_pref=(
+    "Package: openvino"
+    "Pin: version $ov_version"
+    "Pin-Priority: 1001"
+    "Package: ros-$ros_distro-openvino-wrapper-lib"
+    "Pin: version $ov_version*"
+    "Pin-Priority: 1002"
+    "Package: ros-$ros_distro-openvino-node"
+    "Pin: version $ov_version*"
+    "Pin-Priority: 1002"
+  )
+}
+
+debian_55_profile_ros_openvino () {
+  echo "curl gpg ros2 amr_apt_repo edge_base libze1 debconf_utils"
+}
+
+verify_ros_openvino () {
+  configure_ros_openvino
+  dpkg-query -l openvino 2> /dev/null | grep -q -F "$ov_version" || return 1
+  dpkg-query -l ros-$ros_distro-openvino-node > /dev/null 2>&1
+}
+
+debian_55_install_ros_openvino () {
+  configure_ros_openvino
+
+  if verify_ros_openvino && [[ " $* " != *" --reset-ros_openvino "* ]]; then
+    echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
+  else
+    # OpenVINO apt repository + signing key
+    ensure_sudo mkdir -p "$(dirname "$ov_key_file")"
+    no_proxy= NO_PROXY= curl -fsL "$ov_key_url" | gpg --dearmor | ensure_sudo tee "$ov_key_file" > /dev/null
+    echo "$ov_deb_entry" | ensure_sudo tee "$ov_list" > /dev/null
+
+    # pin OpenVINO and the ROS OpenVINO packages to the same version
+    ( IFS=$'\n'; echo "${ov_deb_pref[*]}" ) | ensure_sudo tee "$ov_pref" > /dev/null
+
+    ensure_apt update -y
+
+    # clear any stale openvino-node debconf configuration
+    ensure_apt purge -y ros-$ros_distro-openvino-node || true
+    ensure_apt autoremove -y || true
+    echo PURGE | ensure_sudo debconf-communicate ros-$ros_distro-openvino-node > /dev/null 2>&1 || true
+
+    # preseed the "install OpenVINO IR models" prompt to yes (tutorials need it)
+    echo "ros-$ros_distro-openvino-node ros-$ros_distro-openvino-node/install_models boolean true" | \
+      ensure_sudo debconf-set-selections > /dev/null 2>&1 || true
+
+    ensure_apt install -y openvino
+    ensure_apt install -y ros-$ros_distro-openvino-node
+  fi
+
+  echo "@@HIGHLIGHT OpenVINO $ov_version + ros-$ros_distro-openvino-node installed"
+  echo "@@HIGHLIGHT If the OpenVINO IR models were not installed, reinstall ros-$ros_distro-openvino-node interactively and answer Yes"
+}
+
+debian_55_remove_ros_openvino () {
+  configure_ros_openvino
+  if verify_ros_openvino; then
+    ensure_apt autoremove -m -y ros-$ros_distro-openvino-node openvino || true
+    ensure_sudo rm -f "$ov_key_file" "$ov_list" "$ov_pref"
+  else
+    echo "ROS 2 OpenVINO toolkit already removed. Skipping"
+  fi
+}
+
+debian_55_sbom_ros_openvino () {
+  configure_ros_openvino
+(
+  IFS=$'|'
+  local pref_str="${ov_deb_pref[*]}"
+  cat <<EOF
+"name": "$ov_repo_name"
+"gpg-key": "$ov_key_url"
+"key-file": "$ov_key_file"
+"apt-source": "$ov_deb_entry"
+"apt-list-file": "$ov_list"
+"pkg-list": ["openvino","ros-$ros_distro-openvino-node"]
+"apt-pref-file": "$ov_pref"
+"apt-pref": ["${pref_str//|/'","'}"]
+EOF
+)
+}
+
