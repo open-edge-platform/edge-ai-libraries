@@ -184,6 +184,10 @@ For GPU/NPU, use the same profile and override files as at startup.
   using browser Web Audio and the existing Recharts library. No audio is sent
   to an additional visualization service. Waveforms are approximate amplitude
   overviews, not interactive seek controls; use the native audio player to seek.
+  The vertical scale adapts to each clip's sampled peak, filling about 90% of
+  the plot height while preserving relative amplitudes. Silence stays flat.
+  This is display-only scaling: playback volume and downloaded audio are unchanged.
+  Waveform heights do not indicate absolute loudness across different clips.
   If visualization fails, playback and WAV download remain available.
 - Voice uses the existing semantic color tokens, typography, shadcn controls
   and metrics components in both light and dark themes. Global navigation is

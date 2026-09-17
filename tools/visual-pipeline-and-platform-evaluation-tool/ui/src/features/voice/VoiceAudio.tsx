@@ -13,6 +13,7 @@ import {
 interface AudioPreview {
     src: string;
     duration: number;
+    amplitudeLimit: number;
     peaks: { amplitude: [number, number] }[];
 }
 
@@ -42,6 +43,7 @@ export function VoiceAudio({
                 const samples = audio.getChannelData(0);
                 const binSize = Math.max(1, Math.ceil(samples.length / 160));
                 const peaks: AudioPreview["peaks"] = [];
+                let maxPeak = 0;
                 for (let start = 0; start < samples.length; start += binSize) {
                     let peak = 0;
                     const end = Math.min(start + binSize, samples.length);
@@ -50,8 +52,14 @@ export function VoiceAudio({
                         peak = Math.max(peak, Math.abs(samples[index]));
                     }
                     peaks.push({ amplitude: [-peak, peak] });
+                    maxPeak = Math.max(maxPeak, peak);
                 }
-                setPreview({ src, duration: audio.duration, peaks });
+                setPreview({
+                    src,
+                    duration: audio.duration,
+                    amplitudeLimit: maxPeak > 0 ? maxPeak / 0.9 : 1,
+                    peaks,
+                });
             } catch {
                 if (!controller.signal.aborted) setFailedSrc(src);
             }
@@ -90,7 +98,10 @@ export function VoiceAudio({
                             barCategoryGap="20%"
                             accessibilityLayer={false}
                         >
-                            <YAxis hide domain={[-1, 1]} />
+                            <YAxis
+                                hide
+                                domain={[-current.amplitudeLimit, current.amplitudeLimit]}
+                            />
                             <ReferenceLine
                                 y={0}
                                 stroke="var(--brand-accent)"

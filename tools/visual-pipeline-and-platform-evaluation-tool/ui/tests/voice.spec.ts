@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 import { Buffer } from "node:buffer";
 import process from "node:process";
 
-function wav(): Buffer {
+function wav(volume = 1): Buffer {
   const content = Buffer.alloc(32044);
   content.write("RIFF", 0);
   content.writeUInt32LE(content.length - 8, 4);
@@ -22,7 +22,7 @@ function wav(): Buffer {
   for (let frame = 0; frame < 16000; frame++) {
     const envelope = 0.1 + 0.6 * Math.abs(Math.sin(frame / 900));
     content.writeInt16LE(
-      Math.round(20000 * envelope * Math.sin(frame * 0.15)),
+      Math.round(20000 * volume * envelope * Math.sin(frame * 0.15)),
       44 + frame * 2,
     );
   }
@@ -244,6 +244,52 @@ for (const viewport of [
     });
   });
 }
+
+test("waveform scales quiet audio and keeps silence flat", async ({ page }) => {
+  await page.getByRole("tab", { name: "Text to speech" }).click();
+  await page.getByLabel("Text input (English)").fill("Hello world");
+  for (const volume of [0.01, 1, 0]) {
+    const content = wav(volume);
+    await page.route("**/voice/speech", (route) =>
+      route.fulfill({ contentType: "audio/wav", body: content }),
+    );
+    await page.getByRole("button", { name: "Generate speech" }).click();
+    const waveform = page.getByRole("img", {
+      name: "Synthesized audio waveform",
+    });
+    await expect(waveform).toHaveAttribute("aria-busy", "false");
+    const heights = await waveform
+      .locator(".recharts-bar-rectangle path")
+      .evaluateAll((elements) =>
+        elements.map(
+          (element) => (element as SVGGraphicsElement).getBBox().height,
+        ),
+      );
+    if (volume === 0) {
+      expect(heights.every((height) => height === 0)).toBe(true);
+    } else {
+      expect(heights).toHaveLength(160);
+      expect(Math.max(...heights)).toBeGreaterThan(48);
+      expect(Math.max(...heights)).toBeLessThan(56);
+      expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(20);
+    }
+    const audioBytes = await page
+      .getByLabel("Generated speech")
+      .evaluate(async (element: HTMLAudioElement) =>
+        Array.from(
+          new Uint8Array(await (await fetch(element.src)).arrayBuffer()),
+        ),
+      );
+    expect(Buffer.from(audioBytes)).toEqual(content);
+    if (volume === 0.01) {
+      await waveform.scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: "/tmp/voice-waveform-quiet.png",
+        fullPage: true,
+      });
+    }
+  }
+});
 
 test("service failure and cancellation", async ({ page }) => {
   await page.getByRole("tab", { name: "Text to speech" }).click();
