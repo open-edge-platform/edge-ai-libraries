@@ -133,7 +133,7 @@ async def upload_model(
     model_name: Annotated[str, Form(..., min_length=1)],
     category: Annotated[schemas.ModelCategory, Form(...)],
     file: Annotated[UploadFile, File(...)],
-    description: Annotated[str | None, Form()] = None,
+    description: Annotated[str | None, Form(max_length=MAX_MODEL_DESCRIPTION_LENGTH)] = None,
 ):
     """
     # Upload Model
