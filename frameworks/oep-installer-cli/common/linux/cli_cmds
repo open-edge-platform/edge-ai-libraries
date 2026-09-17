@@ -122,26 +122,28 @@ _${installer_name//-/_}_completion () {
 
   case "\${COMP_WORDS[1]}" in
 $(  
-    local -A all_comps=()
-    local cmd profiler pname mname found
+    # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
+    act_get prefix profile_
+    local all_profilers=(${_act_reply[*]})
+    local cmd dcmd profiler pname mname found
     for cmd in ${all_cmds[*]}; do
-      all_comps=()
-      all_comps["--continue"]=""
-      all_comps["--dry-run"]=""
-      act_get prefix ${cmd}_; local all_modules=(${_act_reply[*]#*_*_*_})
-      act_get prefix profile_
-      for profiler in ${_act_reply[*]}; do
+      local -A all_comps=(["--continue"]="" ["--dry-run"]="")
+      # sbom handlers are sparse; resolve its dependency graph as if it were install
+      dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
+      act_get prefix ${dcmd}_
+      local all_modules=(${_act_reply[*]#*_*_*_})
+      for profiler in ${all_profilers[*]}; do
         pname=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
         found=0
-        for mname in $(act_expand_modules $cmd $pname); do
-          if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+        for mname in $(act_expand_modules $dcmd $pname); do
+          if [[ -v _act_cache_functions[${dcmd}_${mname}] ]]; then
             found=1
             break
           fi
         done
+        [ $found -eq 0 ] || all_comps[$pname]=""
       done
-      [ $found -eq 0 ] || all_comps[$pname]=""
       for mname in ${all_modules[*]}; do
         all_comps[$mname]=""
       done
