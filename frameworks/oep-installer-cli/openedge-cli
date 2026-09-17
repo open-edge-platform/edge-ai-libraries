@@ -113,7 +113,7 @@ secret="$1"; installer="$2"; shift 2
 rm -f "$secret"
 export SUDO_PASSWORD TF_TOKEN
 exec "$installer" "$@"
-' /bin/bash "$_sdir/secrets" "$installer" "${_rest_args[@]}" "${_globals[@]}"
+' bash "$_sdir/secrets" "$installer" "${_rest_args[@]}" "${_globals[@]}"
           _rc=$?
           ensure_tmpdir destroy "$_sdir"
           return $_rc
