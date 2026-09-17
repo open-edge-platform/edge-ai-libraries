@@ -44,12 +44,12 @@ def test_health_check_not_running(monkeypatch):
     monkeypatch.setattr(main.requests, "get", raise_conn_err)
     resp = client.get("/health")
     assert resp.status_code == 503
-    assert "kapacitor daemon not running" in resp.json()["status"]
+    assert "Kapacitor daemon is not running" in resp.json()["status"]
 
 def test_receive_data_success(monkeypatch):
     class MockHealthResp:
-        def __getitem__(self, k): return "kapacitor daemon is running"
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "kapacitor daemon is running"})
+        def __getitem__(self, k): return "Kapacitor daemon is running"
+    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
     class MockResp:
         status_code = 204
         text = ""
@@ -130,7 +130,7 @@ def test_start_kapacitor_service_calls_classifier_startup(monkeypatch):
     assert called["called"] == test_cfg
 
 def test_stop_kapacitor_service_not_running(monkeypatch, caplog):
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "kapacitor daemon is not running"})
+    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is not running"})
     logs = []
     def fake_info(msg):
         logs.append(msg)
@@ -140,7 +140,7 @@ def test_stop_kapacitor_service_not_running(monkeypatch, caplog):
 
 def test_stop_kapacitor_service_success(monkeypatch):
     # health_check returns running
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "kapacitor daemon is running"})
+    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
     # Mock requests.get to return a fake task list
     class FakeResp:
         def json(self):
@@ -151,14 +151,17 @@ def test_stop_kapacitor_service_success(monkeypatch):
     def fake_run(cmd, check):
         calls.append((tuple(cmd), check))
     monkeypatch.setattr(main.subprocess, "run", fake_run)
+    # Track kill-by-name calls instead of subprocess pkill
+    killed = []
+    monkeypatch.setattr(main, "_kill_processes_by_name", lambda name: killed.append(name))
     # Mock logger
     monkeypatch.setattr(main.logger, "info", lambda *args, **kwargs: None)
     main.stop_kapacitor_service()
     assert (("kapacitor", "disable", "task1"), False) in calls
-    assert (("pkill", "-9", "kapacitord"), False) in calls
+    assert "kapacitord" in killed
 
 def test_stop_kapacitor_service_subprocess_error(monkeypatch):
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "kapacitor daemon is running"})
+    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
     class FakeResp:
         def json(self):
             return {"tasks": [{"id": "task1"}]}
@@ -185,7 +188,7 @@ def test_health_check_status_running_204(monkeypatch):
         status_code = 204
     monkeypatch.setattr(main.requests, "get", lambda *a, **k: MockResponse())
     response = main.health_check(main.Response())
-    assert response == {"status": "kapacitor daemon is running"}
+    assert response == {"status": "Kapacitor daemon is running"}
 
 def test_health_check_status_not_running(monkeypatch):
     class MockResponse:
@@ -193,7 +196,7 @@ def test_health_check_status_not_running(monkeypatch):
     monkeypatch.setattr(main.requests, "get", lambda *a, **k: MockResponse())
     resp_obj = main.Response()
     response = main.health_check(resp_obj)
-    assert response == {"status": "kapacitor daemon is not running properly"}
+    assert response == {"status": "Kapacitor daemon is not running"}
 
 
 def test_health_check_request_exception(monkeypatch):
