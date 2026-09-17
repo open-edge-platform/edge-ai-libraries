@@ -2,7 +2,7 @@
 # operate on apt source list
 ensure_apt_source () {
   local op=$1; shift
-  case "$1" in
+  case "$op" in
   remove)
     local r e
     for r in "$@"; do
