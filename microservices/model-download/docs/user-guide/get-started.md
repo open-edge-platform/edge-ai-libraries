@@ -182,7 +182,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/list" \
   }'
 ```
 
-Call `GET /api/v1/plugins` to see which plugins support listing and which `listing_filter_fields` each plugin accepts. Hugging Face supports `author`, `search`, and `tags`. The `author` filter is the repository namespace and accepts a user, owner, or organization name (for example, `microsoft` or `meta-llama`); `tags` filters by Hugging Face tags (library, language, task, license, and so on). Each returned Hugging Face item also includes `license`, `gated` (`false`, `"auto"`, or `"manual"`), and `requires_token` (true when the model is gated and needs an HF token to download). Ultralytics and Pipeline Zoo Models support `search`. Geti™ supports `project_id`, `project_name`, `model_name`, `export_type`, `precision`, `model_format`, `architecture`, and `variant_id`.
+Call `GET /api/v1/plugins` to see which plugins support listing and which `listing_filter_fields` each plugin accepts. Hugging Face supports `author`, `search`, and `tags`. The `author` filter is the repository namespace and accepts a user, owner, or organization name (for example, `microsoft` or `meta-llama`); `tags` filters by Hugging Face tags (library, language, task, license, and so on). Each returned Hugging Face item also includes `license`, `gated` (`false`, `"auto"`, or `"manual"`), and `requires_token` (true when the model is gated and needs an HF token to download). Ultralytics and Pipeline Zoo Models support `search`. Geti™ supports `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, and `variant_id`.
 
 > **Name format by hub (`models[].name`):**
 > `huggingface`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name.

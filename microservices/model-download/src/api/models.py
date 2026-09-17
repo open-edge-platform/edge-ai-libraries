@@ -287,7 +287,6 @@ class Config(BaseModel):
     quantize: Optional[str] = None  # quantization dataset (for example: coco) used to enable INT8 export
 
     # Other plugin-specific common parameters
-    export_type: Optional[str] = Field(None, description="For Geti: 'base' or 'optimized'")
     variant_id: Optional[str] = Field(None, description="For Geti: specific model variant ID to download")
     
     # Plugin-specific configurations

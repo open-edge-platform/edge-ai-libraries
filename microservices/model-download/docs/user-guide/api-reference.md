@@ -77,7 +77,7 @@ curl -X POST http://localhost:8200/api/v1/models/list \
 | `huggingface`        | `author`, `search`, `tags`                                                                       |
 | `ultralytics`        | `search`                                                                                         |
 | `pipeline-zoo-models`| `search`                                                                                         |
-| `geti`               | `project_id`, `project_name`, `model_name`, `export_type`, `precision`, `model_format`, `architecture`, `variant_id` |
+| `geti`               | `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id` |
 
 **Response:**
 

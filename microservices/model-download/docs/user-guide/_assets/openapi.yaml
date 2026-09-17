@@ -566,7 +566,7 @@ paths:
         - `huggingface`: `author`, `search`, `tags`
         - `ultralytics`: `search`
         - `pipeline-zoo-models`: `search`
-        - `geti`: `project_id`, `project_name`, `model_name`, `export_type`, `precision`, `model_format`, `architecture`, `variant_id`
+        - `geti`: `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id`
 
         For `huggingface`, `author` is the repository namespace and accepts a
         user, owner, or organization name (for example, `microsoft` or

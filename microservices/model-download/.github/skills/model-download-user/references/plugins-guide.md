@@ -295,7 +295,7 @@ curl -s -X POST \
 
 ## Geti
 
-Downloads trained models from an Intel Geti (3.0) server using the unauthenticated Model REST API (base or optimized OpenVINO variants).
+Downloads trained models from an Intel Geti (3.0) server using the unauthenticated Model REST API (pytorch, onnx, or OpenVINO-optimized variants).
 
 **Required environment variables before starting service:**
 ```bash
@@ -311,7 +311,6 @@ export GETI_HOST=https://geti.example.com
       "name": "<model-name>",
       "hub": "geti",
       "config": {
-        "export_type": "optimized",
         "precision": "FP16",
         "model_format": "OpenVINO",
         "project_id": "<project-id>",
@@ -328,12 +327,13 @@ export GETI_HOST=https://geti.example.com
 |-------|------|----------|-------------|
 | `name` | string | Yes | Geti model name (searched across all projects unless `config.project_id` is given) |
 | `hub` | string | Yes | Must be `"geti"` |
-| `config.export_type` | string | No | `"base"` or `"optimized"` (default: `"optimized"`) |
-| `config.precision` | string | No | Target variant precision, e.g. `"FP16"` (default: `"FP16"`) |
-| `config.model_format` | string | No | Target variant model format, e.g. `"OpenVINO"` (default: `"OpenVINO"`) |
+| `config.precision` | string | No | Target variant precision, e.g. `"FP16"`, `"fp32"` (default: `"FP16"`) |
+| `config.model_format` | string | No | Target variant format, e.g. `"OpenVINO"`, `"pytorch"`, `"onnx"` (default: `"OpenVINO"`) |
 | `config.project_id` | string | No | Geti project ID (skips project search when provided together with `config.model_id`) |
 | `config.model_id` | string | No | Geti model ID (skips model search when provided together with `config.project_id`) |
 | `config.variant_id` | string | No | Specific model variant ID to download (overrides format/precision selection) |
+
+Every trained Geti 3.0 model exposes multiple variants side by side (`pytorch`, `onnx`, `openvino`), each with its own `precision`. To download the raw/base weights instead of the OpenVINO-optimized variant, set `config.model_format` to `"pytorch"` and `config.precision` to `"fp32"` (pytorch variants are always fp32).
 
 ### Output Path
 
