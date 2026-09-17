@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Release Notes
+# Release Notes: KV-Quant-Offload
 
 ## Current Release
 
@@ -13,7 +13,7 @@ SPDX-License-Identifier: Apache-2.0
 
 This is the first release for kv-quant-offload. It is a near-lossless 4-bit KV-cache quantization codec for LMCache/vLLM, purpose-built for offloading KV caches from XPU memory to host memory / disk on edge devices — restoring prefix-cache hits that would otherwise be lost to memory pressure.
 
-**Features**
+**Features**:
 
 - Near-lossless 4-bit KV-cache quantization built on Randomized Hadamard Transform (RHT) preconditioning.
 - Configurable scaling methods (`per_tensor` / `per_channel` / `per_token`), optional asymmetric quantization, and optional RHT preconditioning.

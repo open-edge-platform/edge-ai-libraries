@@ -1,6 +1,6 @@
 # Release Notes: Edge Device Enablement Framework
 
-**EEF Release - 25.12**
+**EEF Release - 25.12**:
 
 ## Known Issues in this Release
 
