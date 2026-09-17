@@ -375,6 +375,10 @@ def get_pipelines():
     """
     internal_pipelines = PipelineManager().get_pipelines()
 
+    # Variants unsupported on this platform are filtered out on load, so a
+    # pipeline can end up with none - such a pipeline is not runnable here.
+    internal_pipelines = [p for p in internal_pipelines if p.variants]
+
     # If timeseries service is not available, filter to vision pipelines only
     if not _is_timeseries_service_available():
         logger.debug(

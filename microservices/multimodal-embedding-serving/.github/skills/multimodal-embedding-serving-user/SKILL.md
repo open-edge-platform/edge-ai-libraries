@@ -89,7 +89,7 @@ Load these existing docs only when needed:
    `--no-build` prevents a source build. Run in the background — first start
    downloads the model:
    ```bash
-   bash -c 'export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32" REGISTRY_URL=intel TAG=latest \
+   bash -c 'export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32" REGISTRY_URL=intel TAG=2026.2.0 \
      && source setup.sh && docker compose -f docker/compose.yaml up -d --no-build'
    ```
    Intel GPU: also `export EMBEDDING_DEVICE=GPU` (setup.sh then auto-enables

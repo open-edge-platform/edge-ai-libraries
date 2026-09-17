@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { useAppSelector } from "@/store/hooks.ts";
+import { selectGpuDevices } from "@/store/reducers/devices.ts";
 import {
   selectCpuMetric,
   selectCpuMetrics,
@@ -21,17 +22,37 @@ export const useMetrics = () => {
   const npu = useAppSelector(selectNpuMetric);
   const npuDetailed = useAppSelector(selectNpuMetrics);
   const allMetrics = useAppSelector(selectMetrics);
+  const gpuDevices = useAppSelector(selectGpuDevices);
   const previousAvailableGpuIdsRef = useRef<string[]>([]);
   const previousGpuUsageRef = useRef<Record<string, number>>({});
   const gpuZeroStreakRef = useRef<Record<string, number>>({});
 
-  // dynamically get all available GPU IDs
-  const rawAvailableGpuIds = Array.from(
+  // Build GPU IDs from live metrics first.
+  const metricDerivedGpuIds = Array.from(
     new Set(
       allMetrics
         .filter((m) => m.name === "gpu_engine_usage_usage" && m.labels.gpu_id)
         .map((m) => m.labels.gpu_id),
     ),
+  ).sort();
+
+  // Build GPU IDs from detected devices so UI can render immediately
+  // before first GPU telemetry sample arrives.
+  const deviceDerivedGpuIds = gpuDevices
+    .map((device) => {
+      if (device.device_name === "GPU") {
+        return "0";
+      }
+      if (device.device_name.startsWith("GPU.")) {
+        return device.device_name.replace("GPU.", "");
+      }
+      return undefined;
+    })
+    .filter((id): id is string => id !== undefined)
+    .sort();
+
+  const rawAvailableGpuIds = Array.from(
+    new Set([...deviceDerivedGpuIds, ...metricDerivedGpuIds]),
   ).sort();
 
   if (rawAvailableGpuIds.length > 0) {

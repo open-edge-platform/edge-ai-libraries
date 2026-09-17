@@ -30,7 +30,7 @@ Within a stage, instances run **sequentially in the order they appear** in
 
 ## The Plugin Contract
 
-The plugin subclass `PluginBaseNode` in [src/plugins/base.py](../../src/plugins/base.py)
+The plugin subclass `PluginBaseNode` in [src/plugins/base.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/inference-router/src/plugins/base.py)
 implements the plugin contract in Inference Router. Only the following two methods are
 required; everything else has a safe default, so you override only what you need.
 
@@ -45,7 +45,7 @@ required; everything else has a safe default, so you override only what you need
 
 - `init()` — set up after the plugin instance's `settings` are validated; used to build
   clients, register with shared managers, and etc. (no-op).
-- `process_request(request, **kwargs)` — acts on the request; returns the possibly 
+- `process_request(request, **kwargs)` — acts on the request; returns the possibly
   modified request (passthrough).
 - `process_response(response, **kwargs)` — acts on the response (passthrough).
 - `describe()` — the `GET /v1/plugins/{node}/{name}` payload; folds in
@@ -73,7 +73,7 @@ required; everything else has a safe default, so you override only what you need
 
 ### `compressor` Plugin
 
-Source: [src/plugins/compressor.py](../../src/plugins/compressor.py).
+Source: [src/plugins/compressor.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/inference-router/src/plugins/compressor.py).
 
 Reduces prompt tokens before the request reaches the backend, using the
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor)
@@ -103,8 +103,8 @@ How it works:
   `overall.*` metrics are exposed via `describe_node()`. See
   [Metrics Checking](./get-started.md#metrics-checking)
   for the metric fields and how to read compression savings.
-  
-  
+
+
 
 Configuration example — a `tool` compressor at the `prerouting` stage and a `harness`
 compressor at the `postrouting` stage. `node` is always `compressor`, `settings.type`
@@ -146,7 +146,7 @@ repository for deployment and per-compressor behavior.
 
 ### `provider_management` Plugin
 
-Source: [src/plugins/provider_management.py](../../src/plugins/provider_management.py).
+Source: [src/plugins/provider_management.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/inference-router/src/plugins/provider_management.py).
 
 This plugin allows the router drive an external **Local Provider Manager** that can
 start and stop a backend on demand. This plugin contributes an HTTP route rather
@@ -184,7 +184,7 @@ the managed provider's `extra` block shown above.
 
 ### `dummy_logger` Plugin
 
-Source: [src/plugins/dummy.py](../../src/plugins/dummy.py).
+Source: [src/plugins/dummy.py](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/inference-router/src/plugins/dummy.py).
 
 A plugin example that prints the stage that invoked it, and passes the
 request or response through, unchanged. It also serves as a reference implementation

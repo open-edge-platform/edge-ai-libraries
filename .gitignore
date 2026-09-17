@@ -3,3 +3,7 @@
 
 # Local Docker Compose overrides (e.g. GPU device mappings); see *.gpu-example templates
 docker-compose.override.yml
+# For skills eval benchmark directories, we will include only two benchmark files and ignore rest.
+**/.github/skills/*/benchmark/*
+!**/.github/skills/*/benchmark/benchmark.md
+!**/.github/skills/*/benchmark/benchmark.json

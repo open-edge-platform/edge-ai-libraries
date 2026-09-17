@@ -70,9 +70,39 @@ ls -la ./models/yolo_models/yolo26n-pose/
 
 - Check whether `VLM_ENABLED=true` is set when you want VLM enabled; this is the global runtime switch.
 - If the global VLM flag is disabled, the service will skip VLM confirmation regardless of pattern-level YAML values. Pattern-level `vlm.enabled` only matters when the service-level flag is already enabled.
+- The `VLMClient` is created only once, at container startup, based on `VLM_ENABLED` at that time. A per-request `vlm_enabled=true` override on `/api/v1/analyze/batch` cannot create a client that was never instantiated — it silently returns `vlm_confirmed=null` with no error logged.
+- Verify `.env.local` has `VLM_ENABLED=true` (and `COMPOSE_PROFILES=vlm` if using the `vlm` profile), then confirm the value actually took effect inside the running container:
+
+  ```bash
+  docker exec behavioral-analysis env | grep VLM_ENABLED
+  ```
+
+  If it still shows `false` after editing `.env.local`, the container was not recreated with the updated env file — restart it:
+
+  ```bash
+  docker compose --env-file .env.local up -d --no-build behavioral-analysis
+  ```
+
 - Confirm the OVMS service is running and responding: `curl http://ovms-vlm:8001/v2/health/ready`.
 - Check that `VLM_ENDPOINT` points to the correct host and port.
 - In Docker Compose, `depends_on: ovms-vlm: condition: service_healthy` ensures OVMS is ready before the service starts.
+
+## `dependency failed to start: container ovms-vlm is unhealthy`
+
+**Symptom:**
+
+```text
+✘ Container ovms-vlm  Error dependency ovms-vlm failed to start
+dependency failed to start: container ovms-vlm is unhealthy
+```
+
+**Cause:** `ovms-vlm` runs under the `vlm` Compose profile. If the profile is active but no VLM model files exist under `${DOWNLOADED_MODEL_PATH}/vlm_models`, OVMS cannot load a config and fails its healthcheck, blocking `behavioral-analysis` from starting.
+
+**Resolution:**
+
+- If VLM is not needed (`VLM_ENABLED=false`), do not activate the `vlm` profile — omit `--profile vlm` and remove/unset `COMPOSE_PROFILES=vlm`. `ovms-vlm` will then not start at all and `behavioral-analysis` starts normally.
+- If VLM is needed (`VLM_ENABLED=true`), download the VLM model files into `${DOWNLOADED_MODEL_PATH}/vlm_models` before running `docker compose --profile vlm up -d`.
+- Double check `.env.local` for a mismatch between `VLM_ENABLED` and `COMPOSE_PROFILES` (e.g., `VLM_ENABLED=true` without `COMPOSE_PROFILES=vlm`, or vice versa) — both must agree with your intended VLM state.
 
 ## VLM Circuit Breaker Open
 
@@ -89,6 +119,29 @@ VLM circuit breaker open — skipping analysis (cooldown: 30s remaining)
 - Check OVMS health: `curl http://ovms-vlm:8001/v2/health/ready`.
 - Verify the model is loaded: `curl http://ovms-vlm:8001/v2/models`.
 - Once OVMS recovers, the circuit breaker automatically probes after 30 seconds.
+
+## NPU Compilation Error: `Unrecognized device ID`
+
+**Symptom:**
+
+```text
+[NPU_VCL] Unrecognized device ID! 0x0x0
+Compilation failed. vclAllocatedExecutableCreate3 result: 0x78000004
+```
+
+**Cause:** `BA_GST_DEVICE=NPU` is set but the `/dev/accel` device is not mapped into the container, so the OpenVINO NPU plugin cannot find the hardware.
+
+**Resolution:**
+
+- Create a `docker-compose.override.yml` from the NPU template:
+
+  ```bash
+  cp docker-compose.override.yml.npu-example docker-compose.override.yml
+  ```
+
+- Verify the host has an NPU device: `ls -l /dev/accel/`.
+- Recreate the container: `docker compose --env-file .env.local up -d --no-build --force-recreate behavioral-analysis`.
+- If no NPU hardware is available, set `BA_GST_DEVICE=CPU` (or `GPU`) in `.env.local` and restart.
 
 ## MQTT Consumer Not Receiving Messages
 

@@ -1,14 +1,14 @@
 # GenAI Use Case
 
-This guide walks you through the **Video Summarization VLM** predefined pipeline. It uses the `gvagenai`
+This guide walks you through the **Video Captioning VLM** predefined pipeline. It uses the `gvagenai`
 DL Streamer element together with a vision-language model (VLM) to generate concise, scene-level natural-language
-summaries from sampled frames of an input video. Unlike the classic detection/classification pipelines, this
+captions from sampled frames of an input video. Unlike the classic detection/classification pipelines, this
 pipeline produces *metadata-only* output (JSON Lines) — there is no rendered output video.
 
 ## Step 1. Navigate to the predefined pipeline
 
 1. Open the ViPPET UI and go to the **Pipelines** view from the left navigation.
-2. Locate the **Video Summarization VLM** tile in the pipeline grid. It is identifiable by its
+2. Locate the **Video Captioning VLM** tile in the pipeline grid. It is identifiable by its
    **GenAi** tag badge shown on the card.
 3. Click the tile (or one of its variant badges) to open it in the **Pipeline Builder**.
 
@@ -29,18 +29,18 @@ The following parameters are exposed in the UI (defaults shown reflect the prede
 
 | Parameter             | Default                                   | Description                                                                                                                                                                                                |
 | --------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **model**             | `google/gemma-3-4b-it` (INT4)             | The vision-language model used for summarization. Only models on disk tagged for GenAI are listed. The on-disk path is resolved automatically from the selected variant (CPU/GPU).                         |
+| **model**             | `google/gemma-3-4b-it` (INT4)             | The vision-language model used for captioning. Only models on disk tagged for GenAI are listed. The on-disk path is resolved automatically from the selected variant (CPU/GPU).                            |
 | **device**            | `CPU` / `GPU`                             | Target inference device. Set automatically by the selected variant; use the variant switcher to change devices rather than editing this field directly.                                                    |
-| **prompt**            | `"Summarize this video in one sentence."` | Instruction sent to the VLM for each chunk of sampled frames. Edit it to control the style, length, or focus of the generated summaries (for example, *"List the main activities visible in the scene."*). |
-| **generation-config** | `max_new_tokens=64`                       | Generation-config controls for the VLM, expressed as a comma-separated `key=value` list (e.g., `max_new_tokens=128,temperature=0.7`). Larger values produce longer summaries at the cost of latency.       |
+| **prompt**            | `"Summarize this video in one sentence."` | Instruction sent to the VLM for each chunk of sampled frames. Edit it to control the style, length, or focus of the generated captions (for example, *"List the main activities visible in the scene."*).  |
+| **generation-config** | `max_new_tokens=64`                       | Generation-config controls for the VLM, expressed as a comma-separated `key=value` list (e.g., `max_new_tokens=128,temperature=0.7`). Larger values produce longer captions at the cost of latency.        |
 | **frame-rate**        | `1`                                       | Number of frames per second sampled from the decoded video and fed to the VLM. Lower values reduce compute; higher values capture more temporal detail.                                                    |
-| **chunk-size**        | `4`                                       | Number of sampled frames grouped into a single VLM inference call. One summary entry is emitted per chunk.                                                                                                 |
-| **metrics**           | `false`                                   | When `true`, the element emits per-inference timing metrics alongside the summary metadata.                                                                                                                |
+| **chunk-size**        | `4`                                       | Number of sampled frames grouped into a single VLM inference call. One caption entry is emitted per chunk.                                                                                                  |
+| **metrics**           | `false`                                   | When `true`, the element emits per-inference timing metrics alongside the caption metadata.                                                                                                                 |
 
 The downstream `gvametapublish` and `gvafpscounter` nodes are
 responsible for writing the JSON Lines output and reporting FPS, respectively.
 
-> **Note:** The Video Summarization VLM pipeline is *metadata-only* — it terminates in an unnamed `fakesink`
+> **Note:** The Video Captioning VLM pipeline is *metadata-only* — it terminates in an unnamed `fakesink`
 > and does not produce a rendered output video. The **Save to file** and **Live stream** output modes
 > therefore have no effect for this pipeline; only the JSON Lines metadata file is generated.
 
@@ -56,7 +56,7 @@ responsible for writing the JSON Lines output and reporting FPS, respectively.
 
 When the job completes, two outputs are available:
 
-- **Scene summaries (JSON Lines):** the VLM writes one record per processed chunk to
+- **Scene captions (JSON Lines):** the VLM writes one record per processed chunk to
   `videos/output/summary.jsonl` in the shared volume. Each line is a JSON object whose `summary` (or
   equivalent) field contains the generated text for that chunk, together with frame/timestamp information.
 
@@ -67,4 +67,4 @@ When the job completes, two outputs are available:
 ![GenAI Results](../../_assets/ViPPET-UI-GenAI-Results-light.png)
 
 To evaluate the pipeline across hardware, re-run it with a different variant selected and compare the
-reported FPS and generated summaries.
+reported FPS and generated captions.

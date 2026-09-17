@@ -2,7 +2,7 @@
 
 ## Version 2026.2.0
 
-**August, 2026**
+**Release Date:** September 9, 2026
 
 **New**
 
@@ -27,7 +27,7 @@
     auto-discovery of every module under `src/plugins/` — no central registry
     to edit. Plugins can also contribute their own HTTP routes under `/v1`.
   - Built-in `compressor` plugin: prompt compression (`tool`, `harness`, and
-    `context` types) backed by the [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
+    `context` types) backed by the [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-2026.2.0/libraries/adaptive-token-compressor)
     library to cut token usage, with per-instance and node-level metrics.
   - Built-in `provider_management` plugin: start and stop backends on demand via an
     external Local Provider Manager, updating the running configuration.
@@ -56,7 +56,7 @@
 
   - A Vue-based dashboard for managing providers and monitoring telemetry,
     including latency and token metrics. Supports light and dark themes, and English
-	and Chinese locales.
+    and Chinese locales.
   - Build and run with Docker Compose tool from `ui/docker`.
 
 - Intel® GPU Support:

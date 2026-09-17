@@ -70,11 +70,11 @@ RUN cargo install --locked --git https://github.com/ulissesf/qmassa --tag qmassa
 # -----------------------------------------------------------------------------
 # Built from source (instead of the upstream .deb) to patch known CVEs in
 # bundled Go dependencies:
-# Using golang:1.26 (1.26.3+) also resolves stdlib CVEs fixed in Go 1.26.3.
+# Using golang:1.26 (1.26.6+) also resolves stdlib CVEs fixed in Go 1.26.6.
 # Digest pinned for reproducible builds — decoupled from Docker Hub tag updates.
-FROM golang:1.26.4@sha256:68cb6d68bed024785b69195b89af7ac7a444f27791435f98647edff595aa0479 AS telegraf-builder
+FROM golang:1.26.6@sha256:0d1d3a794be25f809dd2cb3160d8c73276c4056a9f8242a138e908ddeee7b6b6 AS telegraf-builder
 
-ARG TELEGRAF_VERSION=1.38.4
+ARG TELEGRAF_VERSION=1.39.3
 
 ARG http_proxy
 ARG HTTP_PROXY
@@ -103,25 +103,8 @@ WORKDIR /telegraf
 # Cache Go module downloads across builds to avoid re-fetching on every run.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go get github.com/rclone/rclone@v1.73.5 && \
-    go get github.com/go-git/go-billy/v5@v5.9.0 && \
+    go get github.com/moby/go-archive@v0.3.0 && \
     go mod tidy
-# NOTE: CVE-2026-34040 (HIGH) and CVE-2026-33997 (MEDIUM) in github.com/docker/docker
-# cannot be patched yet — fix requires v29.3.1 which does not exist in the Go
-# module proxy (latest: v28.5.2+incompatible). Transitive Telegraf dependency.
-# Revisit when moby/moby v29.3.1 is published to the Go module registry.
-
-# fs.LogOutput was removed from rclone/fs in rclone 1.71+; the remotefile
-# plugin used it only for trace logging so dropping the assignment is safe.
-# The outer `if` is a no-op if a future Telegraf release already adapts to
-# the new API; the inner grep catches a block size change at build time.
-RUN if grep -q 'fs\.LogOutput = func' plugins/outputs/remotefile/remotefile.go; then \
-        sed -i '/fs\.LogOutput = func/,+2d' plugins/outputs/remotefile/remotefile.go; \
-        if grep -q 'fs\.LogOutput' plugins/outputs/remotefile/remotefile.go; then \
-            echo "ERROR: sed patch incomplete — fs.LogOutput block may have changed size in this Telegraf version" >&2; \
-            exit 1; \
-        fi; \
-    fi
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -203,6 +186,9 @@ FROM python:3.12-slim AS production
 
 ARG INSTALL_OPENVINO=false
 
+ARG METRICS_MANAGER_UID=10001
+ARG METRICS_MANAGER_GID=10001
+
 # Proxy settings (passed from docker-compose build args)
 ARG http_proxy
 ARG HTTP_PROXY
@@ -241,13 +227,19 @@ RUN apt-get update && \
         packages="$packages vainfo intel-media-va-driver"; \
     fi; \
     apt-get install --yes --no-install-recommends $packages && \
-    pip install --no-cache-dir pip==26.1 supervisor==4.3.0 && \
+    pip install --no-cache-dir pip==26.2.1 supervisor==4.3.0 && \
+    rm -rf /usr/local/lib/python3.12/site-packages/pip \
+        /usr/local/lib/python3.12/site-packages/pip-*.dist-info \
+        /usr/local/lib/python3.12/site-packages/setuptools* \
+        /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.12 && \
     (dpkg -s perl-base >/dev/null 2>&1 && dpkg --purge --force-remove-essential perl-base || true) && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Create Telegraf config directories
-RUN mkdir -p /etc/telegraf /etc/telegraf/telegraf.d /var/log/telegraf
+RUN mkdir -p /etc/telegraf /etc/telegraf/telegraf.d /var/log/telegraf \
+        /etc/supervisor/conf.d && \
+    touch /etc/supervisor/conf.d/placeholder.conf
 
 # Clear proxy from final image (not needed at runtime, set via environment)
 ENV http_proxy= \
@@ -283,11 +275,22 @@ RUN sed -i 's/\r$//' /entrypoint.sh /etc/telegraf/telegraf.conf /etc/supervisor/
 # Make scripts executable
 RUN chmod +x /entrypoint.sh && \
     find /app/scripts -name "*.sh" -exec chmod +x {} + && \
-    find /app/scripts -name "*.py" -exec chmod +x {} +
+    find /app/scripts -name "*.py" -exec chmod +x {} + && \
+    groupadd --gid ${METRICS_MANAGER_GID} metrics-manager && \
+    useradd --uid ${METRICS_MANAGER_UID} --gid ${METRICS_MANAGER_GID} \
+        --create-home --shell /usr/sbin/nologin metrics-manager && \
+    chown -R ${METRICS_MANAGER_UID}:${METRICS_MANAGER_GID} \
+        /app /tmp /var/log/telegraf /etc/telegraf /etc/supervisor
 
 # Environment variables with defaults
 ENV METRICS_PORT=9090
 ENV TELEGRAF_PORT=9273
+# Gates the qmassa GPU collector in supervisord. Set to false for deployments
+# that cannot grant /dev/dri access (the Helm chart does this explicitly).
+ENV HARDWARE_TELEMETRY_ENABLED=true
+ENV QMASSA_FIFO_PATH=/app/qmassa.fifo
+ENV QMASSA_LOG_TO_STDERR=false
+ENV NPU_READER_LOG_FILE=/app/npu_reader_trace.log
 ENV LOG_LEVEL=INFO
 ENV CORS_ORIGINS="*"
 ENV CUSTOM_METRICS_DIR=/app/custom-metrics
@@ -298,6 +301,9 @@ ENV TELEGRAF_CONFIG_PATH=/etc/telegraf/telegraf.conf
 # 9273 - Telegraf Prometheus metrics
 # 8186 - Telegraf HTTP listener (InfluxDB Line Protocol)
 EXPOSE 9090 9273 8186
+
+# No USER directive: host telemetry (PMT sysfs, dmidecode) is readable only by
+# root, so the image defaults to root; override with CONTAINER_USER to opt out.
 
 # OCI image metadata - version is read from the VERSION file at build time
 # (single source of truth used by Makefile / docker compose).

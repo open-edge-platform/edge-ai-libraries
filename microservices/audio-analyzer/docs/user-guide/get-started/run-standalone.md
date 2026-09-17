@@ -93,3 +93,10 @@ For API use cases, request examples, and endpoint details, see the [API Referenc
 - First startup can take longer because models may be downloaded or exported
 - Runtime session files are stored under `storage/<session_id>/`
 - Host-side Linux iGPU/OpenVINO GPU was the validated GPU path for this setup
+- **GPU/NPU device visibility:** The host Python `.venv` environment may report only `CPU`
+  in `openvino.Core().available_devices` depending on how the host OpenVINO runtime and
+  Intel GPU/NPU driver stack are installed. If the application fails at startup with
+  `RuntimeError: Configured OpenVINO ASR device 'GPU' is not visible in this runtime`,
+  check that the Intel OpenVINO GPU or NPU runtime package is installed on the host
+  (separate from the Python `openvino` pip package). The Docker Compose flow provides
+  the validated configuration for GPU and NPU acceleration — see [Run With Docker Compose](./run-container.md).

@@ -1,9 +1,19 @@
 from components.asr.base_asr import BaseASR
+import threading
 import whisper
 import logging
 from utils.config_loader import config
 from utils.ensure_model import get_asr_model_path
 from typing import Dict, Any, List
+
+# openai-whisper's PyTorch model is NOT thread-safe: concurrent calls to
+# model.transcribe() corrupt the model's internal KV cache, causing a
+# KeyError inside the attention layers and a non-200 response from the
+# service.  This lock serialises all transcribe() calls that share the same
+# model instance (the class-level singleton in ASRComponent), preventing
+# concurrent KV cache access.  Each call is typically 1-5 s on CPU, so the
+# serialisation overhead is negligible compared to the inference cost.
+_TRANSCRIBE_LOCK = threading.Lock()
 
 logger = logging.getLogger(__name__)
 
@@ -146,29 +156,30 @@ class Whisper(BaseASR):
         # Both layers read from the same config values so the behaviour is
         # consistent; the double-pass only affects segments whisper would have
         # kept but our stricter multi-signal check rejects.
-        result = self.model.transcribe(
-            audio_path,
-            temperature=temperature,
-            language=language,
-            condition_on_previous_text=False,
-            no_speech_threshold=self.NO_SPEECH_THRESHOLD,
-            logprob_threshold=self.LOGPROB_THRESHOLD,
+        with _TRANSCRIBE_LOCK:
+            result = self.model.transcribe(
+                audio_path,
+                temperature=temperature,
+                language=language,
+                condition_on_previous_text=False,
+                no_speech_threshold=self.NO_SPEECH_THRESHOLD,
+                logprob_threshold=self.LOGPROB_THRESHOLD,
 
-            # Repetition control (decoder level)
-            beam_size=self.BEAM_SIZE,
-            best_of=self.BEST_OF,
+                # Repetition control (decoder level)
+                beam_size=self.BEAM_SIZE,
+                best_of=self.BEST_OF,
 
-            # Hallucination guard
-            compression_ratio_threshold=2.4,
+                # Hallucination guard
+                compression_ratio_threshold=2.4,
 
-            # Skip generation over silent regions (mic noise fix)
-            hallucination_silence_threshold=self.HALLUCINATION_SILENCE_THRESHOLD,
+                # Skip generation over silent regions (mic noise fix)
+                hallucination_silence_threshold=self.HALLUCINATION_SILENCE_THRESHOLD,
 
-            # Per-word timings (used by diarization to split mixed-speaker segments)
-            word_timestamps=self.WORD_TIMESTAMPS,
+                # Per-word timings (used by diarization to split mixed-speaker segments)
+                word_timestamps=self.WORD_TIMESTAMPS,
 
-            verbose=False,
-        )
+                verbose=False,
+            )
 
         kept_segments: List[Dict[str, Any]] = []
         dropped = 0

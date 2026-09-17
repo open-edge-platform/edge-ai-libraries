@@ -31,6 +31,9 @@ The Behavioral Analysis Service is a reusable Intel-developed microservice that 
 ### Architecture Diagram
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 graph TB
     subgraph "Input / Triggering"
         A["Upstream System<br/>(e.g., swlp-service)"]
@@ -72,9 +75,15 @@ graph TB
     I -->|result| K
 ```
 
+> **Note:** The `swlp-service` mentioned above as an example upstream service refers to
+> [Store-Wide Loss Prevention](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html). Follow the link for more details.
+
 ### Request/Response Flow (MQTT Path)
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 sequenceDiagram
     participant US as Upstream
     participant MQTT as MQTT Broker

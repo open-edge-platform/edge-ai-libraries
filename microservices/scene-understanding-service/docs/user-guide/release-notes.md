@@ -3,9 +3,38 @@
 This page tracks releases of the Scene Understanding Service microservice. The
 most recent release is listed first; older entries are preserved for history.
 
-<!--## Version 2026.2.0-->
+## Version 2026.2.0
 
-<!--date TBD-->
+**Release Date:** September 9, 2026
+
+Scene Understanding Service is a generic microservice for multi-scene, zone-based
+behavioral analysis. Its behavior is defined entirely through two YAML files
+(`scene-config.yaml` and `rules.yaml`), enabling scenarios such as retail loss
+prevention, restricted-area monitoring, and other zone-based use cases without
+code changes.
+
+**New:**
+
+- Multi-scene, multi-camera person tracking with per-person session state
+  (zone visits, dwell time, behavioral flags).
+- Declarative rule engine: thresholds and detection rules are changed through
+  configuration, with support for severity escalation and per-session
+  de-duplication of alerts.
+- Optional deeper analysis: escalate selected events to a behavioral-analysis
+  worker (pose + visual language model) for concealment-style detection.
+- Automatic zone discovery from Scenescape at startup, with the ability to add
+  or update zones at runtime.
+- Optional evidence-frame capture and routing of alerts to a downstream alert
+  service.
+- Ships self-contained with sample configuration for standalone evaluation and
+  drop-in use with any Scenescape-based deployment.
+
+**Known Issues:**
+
+- The service requires a reachable Scenescape deployment (including the
+  analytics component on Scenescape 2026.2.0) to produce zone-based events
+  and alerts.
+- Alert visibility depends on a reachable alert service.
 
 ## Version 0.1.0
 

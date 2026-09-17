@@ -52,6 +52,7 @@ export const BenchmarkExportButton = ({
         filename: formatBenchmarkExportFilename(
           benchmark.slug,
           runDetails.start_time,
+          runDetails.id,
           "pdf",
         ),
         node,
@@ -68,6 +69,7 @@ export const BenchmarkExportButton = ({
       const filename = formatBenchmarkExportFilename(
         runDetails.suite_slug,
         runDetails.start_time,
+        runDetails.id,
         "csv",
       );
       const response: ExportBenchmarkSuiteRunCsvDownload =

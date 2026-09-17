@@ -2,8 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from datetime import datetime
+from functools import wraps
 import inspect
 import logging
+import threading
 from typing import Any
 
 from src.common.logger import get_logger
@@ -29,6 +31,33 @@ from src.retriever.backends.registry import (
 
 logger = get_logger()
 TIME_FILTER_METADATA_FIELD = "created_at"
+
+# The VDMS backend caches a single process-wide ``VDMS_Client`` (see
+# ``backends/vdms/backend.py``).  That client wraps one raw TCP socket and does a
+# non-atomic send/recv round trip, so concurrent callers interleave frames on the
+# wire: one thread consumes another's length prefix, protobuf parsing fails with
+# ``DecodeError``, and the remaining threads block indefinitely in ``recv()``
+# until the worker's thread pool is exhausted.  Serializing backend calls keeps
+# each round trip atomic.  Requests are I/O bound on that one socket regardless,
+# so this costs no measurable throughput.
+_VDMS_CONNECTION_LOCK = threading.RLock()
+
+
+def _serialize_vdms_calls(func):
+    """Serialize calls that share the process-wide VDMS connection.
+
+    Only VDMS needs this; the pooled backends (Milvus, PGVector) are already
+    safe for concurrent use and are left untouched.
+    """
+
+    @wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        if settings.RETRIEVER_BACKEND == "vdms":
+            with _VDMS_CONNECTION_LOCK:
+                return func(*args, **kwargs)
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 def _serialize_log_value(value: Any) -> Any:
@@ -87,6 +116,7 @@ def _do_vector_search(db: Any, embedding: list[float], resolved_top_k: int, fetc
     return db.similarity_search_with_score_by_vector(embedding, k=fetch_k, **fkw)
 
 
+@_serialize_vdms_calls
 def _similarity_search_with_reconnect(
     db: Any,
     query: str,
@@ -114,6 +144,7 @@ def _similarity_search_with_reconnect(
         return _do_search(fresh_db, query, resolved_top_k, fetch_k, query_filter)
 
 
+@_serialize_vdms_calls
 def _vector_search_with_reconnect(
     db: Any,
     embedding: list[float],

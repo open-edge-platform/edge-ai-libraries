@@ -63,6 +63,7 @@ export const BenchmarkSuiteRunsTable = ({
       const filename = formatBenchmarkExportFilename(
         run.suite_slug,
         run.start_time,
+        run.id,
         "csv",
       );
       const response: ExportBenchmarkSuiteRunCsvDownload =

@@ -61,7 +61,7 @@ If it returns information about the plugin it is installed successfully and can 
 3. **Git** — [git-scm.com](https://git-scm.com/)
 4. **PowerShell** >= 7 — [github.com/PowerShell/PowerShell/releases](https://github.com/PowerShell/PowerShell/releases)
 5. **GStreamer MSVC x86_64** — install both the *runtime* and *development* packages from [gstreamer.freedesktop.org](https://gstreamer.freedesktop.org/download/)
-6. **DL Streamer runtime environment** — Follow the [Windows installation guide](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/install/install_guide_windows.md) to install the latest version of Deep Learning Streamer (DL Streamer).
+6. **DL Streamer runtime environment** — Follow the [Windows installation guide](https://github.com/open-edge-platform/dlstreamer/blob/docs-release/2026.2/docs/user-guide/install/install_guide_windows.md) to install the latest version of Deep Learning Streamer (DL Streamer).
 
    > **Note:** Set `$dlsRoot` once to your DL Streamer installation root before running any of the commands below. The default path is shown; adjust if you installed elsewhere:
    >

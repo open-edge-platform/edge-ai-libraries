@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: {{ $kind }}
 metadata:
   name: {{ include "metrics-manager.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "metrics-manager.labels" . | nindent 4 }}
 spec:
@@ -50,7 +51,16 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "metrics-manager.serviceAccountName" . }}
-      hostPID: {{ .Values.pod.hostPID }}
+      hostPID: {{ if .Values.hardware.telemetry.enabled }}true{{ else }}{{ .Values.pod.hostPID }}{{ end }}
+      securityContext:
+        fsGroup: {{ .Values.pod.fsGroup }}
+        {{- if .Values.hardware.telemetry.enabled }}
+        supplementalGroups:
+          - {{ .Values.hardware.gpuRenderGroup }}
+        {{- else if .Values.pod.supplementalGroups }}
+        supplementalGroups:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       hostNetwork: {{ .Values.pod.hostNetwork }}
       {{- /*
         dnsPolicy:
@@ -94,9 +104,16 @@ spec:
           image: {{ include "metrics-manager.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
-            privileged: {{ .Values.securityContext.privileged }}
-            runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
-            readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+            privileged: {{ if .Values.hardware.telemetry.enabled }}true{{ else }}{{ .Values.securityContext.privileged }}{{ end }}
+            allowPrivilegeEscalation: {{ if .Values.hardware.telemetry.enabled }}true{{ else }}{{ .Values.securityContext.allowPrivilegeEscalation }}{{ end }}
+            runAsNonRoot: {{ if .Values.hardware.telemetry.enabled }}false{{ else }}{{ .Values.securityContext.runAsNonRoot }}{{ end }}
+            runAsUser: {{ if .Values.hardware.telemetry.enabled }}0{{ else }}{{ .Values.securityContext.runAsUser }}{{ end }}
+            runAsGroup: {{ if .Values.hardware.telemetry.enabled }}0{{ else }}{{ .Values.securityContext.runAsGroup }}{{ end }}
+            readOnlyRootFilesystem: {{ if .Values.hardware.telemetry.enabled }}false{{ else }}{{ .Values.securityContext.readOnlyRootFilesystem }}{{ end }}
+            {{- with .Values.securityContext.capabilities }}
+            capabilities:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
             {{- /*
               appArmorProfile is a native field starting with Kubernetes
               1.30. On older API servers it is silently dropped or rejected,
@@ -113,11 +130,19 @@ spec:
             {{- $apparmorNative := or (.Values.securityContext.appArmorProfileForce) (and (ge $kubeMajor 1) (ge $kubeMinor 30)) }}
             {{- if and .Values.securityContext.appArmorProfile $apparmorNative }}
             appArmorProfile:
+              {{- if .Values.hardware.telemetry.enabled }}
+              type: Unconfined
+              {{- else }}
               {{- toYaml .Values.securityContext.appArmorProfile | nindent 14 }}
+              {{- end }}
             {{- end }}
             {{- with .Values.securityContext.seccompProfile }}
             seccompProfile:
+              {{- if $.Values.hardware.telemetry.enabled }}
+              type: Unconfined
+              {{- else }}
               {{- toYaml . | nindent 14 }}
+              {{- end }}
             {{- end }}
           ports:
             - name: metrics
@@ -146,6 +171,14 @@ spec:
               value: {{ .Values.config.metricsRetentionSeconds | quote }}
             - name: MAX_METRICS_BATCH_SIZE
               value: {{ .Values.config.maxMetricsBatchSize | quote }}
+            - name: HARDWARE_TELEMETRY_ENABLED
+              value: {{ if .Values.hardware.telemetry.enabled }}"true"{{ else }}{{ .Values.config.hardwareTelemetryEnabled | quote }}{{ end }}
+            - name: QMASSA_FIFO_PATH
+              value: {{ if .Values.hardware.telemetry.enabled }}"/app/qmassa.fifo"{{ else }}"/tmp/qmassa.fifo"{{ end }}
+            - name: QMASSA_LOG_TO_STDERR
+              value: {{ if .Values.hardware.telemetry.enabled }}"false"{{ else }}"true"{{ end }}
+            - name: NPU_READER_LOG_FILE
+              value: {{ if .Values.hardware.telemetry.enabled }}"/app/npu_reader_trace.log"{{ else }}"/tmp/npu_reader_trace.log"{{ end }}
             - name: METRICS_MANAGER_HOSTNAME
               value: {{ .Values.config.hostnameOverride | quote }}
             - name: CUSTOM_METRICS_DIR
@@ -168,13 +201,17 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.hardware.telemetry.enabled }}
             - name: sys
               mountPath: /sys
               readOnly: true
             - name: run
               mountPath: /run
               readOnly: true
-            {{- if .Values.hardware.gpu.enabled }}
+            {{- end }}
+            {{- if and .Values.hardware.telemetry.enabled .Values.hardware.gpu.enabled }}
             - name: dev-dri
               mountPath: /dev/dri
             {{- end }}
@@ -189,6 +226,9 @@ spec:
               mountPath: /app/custom-metrics
             {{- end }}
       volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.hardware.telemetry.enabled }}
         - name: sys
           hostPath:
             path: /sys
@@ -197,7 +237,8 @@ spec:
           hostPath:
             path: /run
             type: Directory
-        {{- if .Values.hardware.gpu.enabled }}
+          {{- end }}
+          {{- if and .Values.hardware.telemetry.enabled .Values.hardware.gpu.enabled }}
         - name: dev-dri
           hostPath:
             path: /dev/dri

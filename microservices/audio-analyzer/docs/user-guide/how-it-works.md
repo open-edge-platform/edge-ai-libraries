@@ -15,6 +15,9 @@ voice activity detection — rather than file boundaries — decides where each
 transcribed utterance ends.
 
 ```mermaid
+---
+config: {"theme": "dark"}
+---
 %%{init: {
   'theme': 'base',
   'themeVariables': {
@@ -35,7 +38,7 @@ transcribed utterance ends.
     'noteTextColor': '#3A3A3A'
   }
 }}%%
-flowchart LR
+flowchart TD
     Client([Client])
 
     subgraph Service["Audio Analyzer (FastAPI, :8010)"]

@@ -50,7 +50,7 @@ export VLLM_SERVICE_PORT=41091
 # =========================================================================
 export REGISTRY_URL=intel/
 export REGISTRY=${REGISTRY_URL}
-export TAG=latest
+export TAG=${TAG:-latest}
 export SERVICE_PORT=8192
 
 # Run multilevel-video-understanding as the host user

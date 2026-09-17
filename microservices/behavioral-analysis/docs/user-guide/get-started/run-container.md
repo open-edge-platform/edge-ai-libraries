@@ -35,8 +35,18 @@ If you prefer to build your own image (for customization, reproducibility, compl
 
 ### 3. Start the Stack
 
+`ovms-vlm` is gated behind the `vlm` Compose profile so it only starts when VLM confirmation is actually used.
+
+With VLM disabled (`VLM_ENABLED=false`, the default):
+
 ```bash
 docker compose --env-file .env.local up -d --no-build
+```
+
+With VLM enabled (`VLM_ENABLED=true`), activate the `vlm` profile so `ovms-vlm` starts and `behavioral-analysis` waits for it to become healthy:
+
+```bash
+docker compose --env-file .env.local --profile vlm up -d --no-build
 ```
 
 ### 4. View Logs

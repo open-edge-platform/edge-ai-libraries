@@ -48,7 +48,7 @@ def app(monkeypatch):
         argparse.Namespace(
             backend="pytorch",
             device="cpu",
-            xpu_index=0,
+            device_index=0,
             model_name_id="",
             mode="llmlingua2",
         )

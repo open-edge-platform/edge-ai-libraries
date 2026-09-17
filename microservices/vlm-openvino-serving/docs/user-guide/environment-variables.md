@@ -420,7 +420,7 @@ export no_proxy_env=localhost,127.0.0.1,.local
 **Examples**:
 
 ```bash
-export TAG=latest              # Docker image tag
+export TAG=2026.2.0            # Docker image tag
 export REGISTRY_URL=docker.io/     # Docker registry URL
 export PROJECT_NAME=my_project   # Docker project name
 ```
