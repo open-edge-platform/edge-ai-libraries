@@ -3,12 +3,12 @@
 ensure_trap() {
   local script="$1" sig var_sig; shift
 
-  # Pop / Restore mode
-  if [[ "$script" == "-" || -z "$script" ]]; then
-    for sig in "$@"; do
-      var_sig="${sig//[^a-zA-Z0-9_]/_}"
-      local -n stack="_ENSURE_TRAP_STACK_${var_sig}"
+  for sig in "$@"; do
+    var_sig="${sig//[^a-zA-Z0-9_]/_}"
+    local -n stack="_ENSURE_TRAP_STACK_${var_sig}"
 
+    if [[ "$script" == "-" || -z "$script" ]]; then
+      # Pop / Restore mode
       if (( ${#stack[@]} > 0 )); then
         unset "stack[$((${#stack[@]} - 1))]"
         stack=("${stack[@]}")
@@ -18,33 +18,25 @@ ensure_trap() {
       if (( ${#stack[@]} == 0 )); then
         trap - "$sig"
       fi
-    done
-    return 0
-  fi
+    else 
+      # Register mode
+      if [[ -z "$(trap -p "$sig")" ]]; then
+        stack=()
+        trap "
+          _ENSURE_TRAP_IDX_${var_sig}=\$((\${#_ENSURE_TRAP_STACK_${var_sig}[@]} - 1))
+          while (( _ENSURE_TRAP_IDX_${var_sig} >= 0 )); do
+            eval \"\${_ENSURE_TRAP_STACK_${var_sig}[\$_ENSURE_TRAP_IDX_${var_sig}]}\"
+            (( _ENSURE_TRAP_IDX_${var_sig}-- )) || true
+          done
+          if [[ \"$sig\" != \"EXIT\" && \"$sig\" != \"0\" && \"$sig\" != \"SIGEXIT\" ]]; then
+            trap - \"$sig\"
+            kill -s \"$sig\" \$\$
+          fi
+        " "$sig"
+      fi
 
-  # Register mode
-  for sig in "$@"; do
-    var_sig="${sig//[^a-zA-Z0-9_]/_}"
-    declare -g -a "_ENSURE_TRAP_STACK_${var_sig}"
-    local -n stack="_ENSURE_TRAP_STACK_${var_sig}"
-
-    # If no trap handler is active in current process/subshell, initialize
-    if [[ -z "$(trap -p "$sig")" ]]; then
-      stack=()
-      trap "
-        _ENSURE_TRAP_IDX_${var_sig}=\$((\${#_ENSURE_TRAP_STACK_${var_sig}[@]} - 1))
-        while (( _ENSURE_TRAP_IDX_${var_sig} >= 0 )); do
-          eval \"\${_ENSURE_TRAP_STACK_${var_sig}[\$_ENSURE_TRAP_IDX_${var_sig}]}\"
-          (( _ENSURE_TRAP_IDX_${var_sig}-- )) || true
-        done
-        if [[ \"$sig\" != \"EXIT\" && \"$sig\" != \"0\" && \"$sig\" != \"SIGEXIT\" ]]; then
-          trap - \"$sig\"
-          kill -s \"$sig\" \$\$
-        fi
-      " "$sig"
+      stack+=("$script")
     fi
-
-    stack+=("$script")
   done
 }
 
