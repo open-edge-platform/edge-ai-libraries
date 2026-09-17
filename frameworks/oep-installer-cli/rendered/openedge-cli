@@ -1914,14 +1914,20 @@ ensure_apt () {
 }
 
 
-ensure_rm_apt_source () {
-  local r e
-  for r in "$@"; do
-    [ -r /etc/apt/sources.list ] && sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
-    for e in /etc/apt/sources.list.d/*.list; do
-      [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && mv -f "$e" "$e".save || true
+# operate on apt source list
+ensure_apt_source () {
+  local op=$1; shift
+  case "$1" in
+  remove)
+    local r e
+    for r in "$@"; do
+      [ -r /etc/apt/sources.list ] && sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
+      for e in /etc/apt/sources.list.d/*.list; do
+        [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && mv -f "$e" "$e".save || true
+      done
     done
-  done
+    ;;
+  esac
 }
 
 
@@ -2627,7 +2633,7 @@ configure_gpu () {
 # (anything referencing the gpu repo other than our own $apt_file) so the current
 # entry is authoritative.
 cleanup_gpu () {
-  ensure_rm_apt_source https://repositories.intel.com/gpu
+  ensure_apt_source remove https://repositories.intel.com/gpu
   ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg
 }
 
@@ -3430,7 +3436,7 @@ debian_40_sbom_npu () {
   [ ${#packages[*]} -gt 0 ] || return 3
   local packages_str="${packages[*]}"
   cat <<EOF
-"deb-zip": ["${packages_str// /'","'}"]
+"pkg-list": ["${packages_str// /'","'}"]
 EOF
 }
 
