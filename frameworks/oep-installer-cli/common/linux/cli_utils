@@ -23,6 +23,12 @@ act_get () {
           ;;
       esac
     done < <(declare -F)
+
+    declare -ga _act_cache_names=(${_act_cache_modules[*]})
+    for f in ${!_act_cache_functions[*]}; do
+      [[ "$f" = profile_* ]] || continue
+      [[ " ${_act_cache_names[*]} " = *" ${f#profile_} "* ]] || _act_cache_names+=("${f#profile_}")
+    done
     ;;
   esac
 }
@@ -45,7 +51,7 @@ act_expand_modules () {
 act_extract_modules () {
   local act_name=${1%%,*}
   local all_modules=($(
-    names=(${_act_cache_modules[*]})
+    echo "${_act_cache_modules[*]}"
     for f in ${!_act_cache_functions[*]}; do
       [[ "$f" = profile_* ]] && echo ${f#profile_}
     done
@@ -65,7 +71,7 @@ act_extract_args () {
   local module_name=$2
   local act_modules="$3"
   local all_modules=($(
-    names=(${_act_cache_modules[*]})
+    echo "${_act_cache_modules[*]}"
     for f in ${!_act_cache_functions[*]}; do
       [[ "$f" = profile_* ]] && echo ${f#profile_}
     done

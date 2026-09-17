@@ -122,17 +122,26 @@ _${installer_name//-/_}_completion () {
 
   case "\${COMP_WORDS[1]}" in
 $(  
+    local -A all_comps=()
+    local cmd profiler pname mname found
     for cmd in ${all_cmds[*]}; do
-      local -A all_comps=(["--continue"]="" ["--dry-run"]="")
+      all_comps=()
+      all_comps["--continue"]=""
+      all_comps["--dry-run"]=""
       act_get prefix ${cmd}_; local all_modules=(${_act_reply[*]#*_*_*_})
       act_get prefix profile_
       for profiler in ${_act_reply[*]}; do
-        local pname=${profiler#*_*_*_}
+        pname=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
-        for mname in $($profiler $cmd); do
-          [[ -v _act_cache_functions[${cmd}_${mname}] ]] && all_comps[$pname]=""
+        found=0
+        for mname in $(act_expand_modules $cmd $pname); do
+          if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+            found=1
+            break
+          fi
         done
       done
+      [ $found -eq 0 ] || all_comps[$pname]=""
       for mname in ${all_modules[*]}; do
         all_comps[$mname]=""
       done
@@ -143,6 +152,7 @@ $(
       echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
       echo "    ;;"
     done
+    :
 )
   *)
     COMPREPLY=()
