@@ -8,4 +8,8 @@ debian_05_install_gpg () {
   fi
 }
 
-
+debian_05_sbom_gpg () {
+  cat <<EOF
+"pkg-list": ["gpgv1"]
+EOF
+}

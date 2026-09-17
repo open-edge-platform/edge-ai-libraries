@@ -1,9 +1,11 @@
 
 configure_gpu () {
-  key_url="https://repositories.intel.com/gpu/intel-graphics.key"
+  repo_name="repositories.intel.com"
+  key_url="https://$repo_name/gpu/intel-graphics.key"
   key_file="/usr/share/keyrings/intel-graphics.gpg"
-  apt_entry="deb [signed-by=$key_file] https://repositories.intel.com/gpu/${ID} ${VERSION_CODENAME} unified"
+  apt_entry="deb [signed-by=$key_file] https://$repo_name/gpu/${ID} ${VERSION_CODENAME} unified"
   apt_file="/etc/apt/sources.list.d/intel-graphics.list"
+  pkg_list="clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd"
   version=26.2.2
 }
 
@@ -46,7 +48,7 @@ debian_40_install_gpu () {
     cleanup_gpu
 
     # create the render group
-    ensure_group_add render
+    ensure_group_add render:992 video:
 
     # product key
     ensure_sudo mkdir -p $(dirname $key_file)
@@ -59,7 +61,7 @@ debian_40_install_gpu () {
     ensure_apt update -y
 
     # install the packages
-    ensure_apt install --no-install-recommends -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd
+    ensure_apt install --no-install-recommends -y $pkg_list
   fi
 }
 
@@ -73,5 +75,17 @@ debian_40_remove_gpu () {
   # always drop gpu apt sources/keyrings, including our own, so nothing conflicting is left behind
   cleanup_gpu
   ensure_sudo rm -f "$apt_file" "$key_file"
+}
+
+debian_40_sbom_gpu () {
+  configure_gpu "$@"
+  cat <<EOF
+"name": "$repo_name"
+"apt-source": "$apt_entry"
+"apt-list-file": "$apt_file"
+"gpg-key": "$key_url"
+"key-file": "$key_file"
+"pkg-list": ["${pkg_list// /'","'}"]
+EOF
 }
 

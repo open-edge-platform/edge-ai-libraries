@@ -8,3 +8,8 @@ debian_05_install_jq () {
   fi
 }
 
+debian_05_sbom_jq () {
+  cat <<EOF
+"pkg-list": ["jq"]
+EOF
+}

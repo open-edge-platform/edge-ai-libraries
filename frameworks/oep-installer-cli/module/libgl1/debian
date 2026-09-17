@@ -8,3 +8,9 @@ debian_10_install_libgl1 () {
   fi
 }
 
+debian_10_sbom_libgl1 () {
+  cat <<EOF
+"pkg-list": ["libgl1"]
+EOF
+}
+

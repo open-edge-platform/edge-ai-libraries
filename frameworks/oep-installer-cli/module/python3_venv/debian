@@ -8,3 +8,9 @@ debian_05_install_python3_venv () {
   fi
 }
 
+debian_05_sbom_python3_venv () {
+  cat <<EOF
+"pkg-list": ["python3-venv"]
+EOF
+}
+

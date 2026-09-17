@@ -198,11 +198,12 @@ def ingest_to_pgvector(doc_path: Path, bucket: str):
             for chunk in chunks
         ]
 
+        # transformers isn't installable alongside pinned huggingface_hub 1.x, so use tiktoken based counting
         embedder = OpenAIEmbeddings(
             openai_api_key="EMPTY",
             openai_api_base="{}".format(config.TEI_ENDPOINT_URL),
             model=config.EMBEDDING_MODEL_NAME,
-            tiktoken_enabled=False
+            tiktoken_enabled=True,
         )
 
         # Batch upload documents to handle large files

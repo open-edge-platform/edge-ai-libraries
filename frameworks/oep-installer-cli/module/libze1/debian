@@ -21,3 +21,10 @@ debian_10_install_libze1 () {
   fi
 }
 
+debian_10_sbom_libze1 () {
+  configure_libze1
+  cat <<EOF
+"pkg-list": ["$libze1_deb"]
+EOF
+}
+

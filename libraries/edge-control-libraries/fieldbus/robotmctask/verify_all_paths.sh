@@ -2,10 +2,10 @@
 echo "=== Verifying All Paths in README.md ==="
 echo ""
 
-# Path 1: Apt-Repositories.md
-echo "1. Apt-Repositories.md:"
-if [ -f "../../plcopen-motion-control/docs/user-guide/rt-motion/installation_setup/prerequisites/Apt-Repositories.md" ]; then
-    echo "   ✓ PASS: ../../plcopen-motion-control/docs/user-guide/rt-motion/installation_setup/prerequisites/Apt-Repositories.md"
+# Path 1: os_setup.md
+echo "1. os_setup.md:"
+if [ -f "../../plcopen-motion-control/docs/user-guide/rt-motion/installation_setup/prerequisites/os_setup.md" ]; then
+    echo "   ✓ PASS: ../../plcopen-motion-control/docs/user-guide/rt-motion/installation_setup/prerequisites/os_setup.md"
 else
     echo "   ✗ FAIL: Path not found"
 fi
