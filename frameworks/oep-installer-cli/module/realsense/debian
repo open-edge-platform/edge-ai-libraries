@@ -20,7 +20,7 @@ debian_55_profile_realsense () {
 
 verify_realsense () {
   configure_realsense
-  dpkg-query -L librealsense2 > /dev/null 2>&1
+  ensure_apt_is_installed librealsense2
 }
 
 debian_55_install_realsense () {
@@ -30,8 +30,8 @@ debian_55_install_realsense () {
     echo "RealSense SDK is already installed. Skipping..."
   else
     ensure_sudo mkdir -p /etc/apt/keyrings
-    no_proxy= NO_PROXY= curl -sSf "$rs_key_url" | gpg --dearmor | ensure_sudo tee "$rs_key_file" > /dev/null
-    echo "rs_deb_entry" | ensure_sudo tee "$rs_list" > /dev/null
+    ensure_apt_key $rs_key_file $rs_key_url --dearmor
+    ensure_apt_source $rs_list "$rs_deb_entry"
     ensure_apt update -y
 
     ensure_apt install -y --allow-downgrades ros-$ros_distro-librealsense2
@@ -43,7 +43,7 @@ debian_55_remove_realsense () {
   configure_realsense
   if verify_realsense; then
     ensure_apt autoremove -m -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true
-    ensure_sudo rm -f "$rs_key_file" "$rs_list"
+    ensure_sudo rm -f $rs_key_file $rs_list
   else
     echo "RealSense SDK already removed. Skipping"
   fi

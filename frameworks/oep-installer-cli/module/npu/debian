@@ -11,7 +11,7 @@ verify_npu () {
   id -nG | grep -qw render
   (
     set -o pipefail
-    dpkg-query -l intel-level-zero-npu intel-fw-npu intel-driver-compiler-npu 2> /dev/null | grep -q -F $version
+    ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
   )
 }
 

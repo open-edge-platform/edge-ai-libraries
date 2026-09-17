@@ -21,7 +21,7 @@ debian_90_profile_stationary_robot_vision () {
 
 verify_stationary_robot_vision () {
   configure_stationary_robot_vision
-  dpkg-query -l ros-$ros_distro-rvc > /dev/null 2>&1
+  ensure_apt_is_installed ros-$ros_distro-rvc
 }
 
 debian_90_install_stationary_robot_vision () {

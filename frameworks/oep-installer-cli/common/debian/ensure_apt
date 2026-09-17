@@ -33,3 +33,11 @@ ensure_apt () {
   esac
 }
 
+# check pacakge installation. add =<version> to check version.
+ensure_apt_is_installed () {
+  for pkg in $*; do
+    [ "$(dpkg-query -W -f='${db:Status-Status}' ${pkg%%=*} 2>/dev/null)" = "installed" ] || return 1
+    [[ "$pkg" != *=* ]] || [[ "$(dpkg-query -W -f='${Version}' ${pkg%%=*} 2>/dev/null)" = "${pkg#*=}"* ]] || return 1
+  done
+}
+

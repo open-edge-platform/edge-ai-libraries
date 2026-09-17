@@ -14,7 +14,7 @@ debian_70_profile_openvino () {
 }
 
 verify_openvino () {
-  dpkg-query -L openvino-${version} > /dev/null 2>&1 || return 1
+  ensure_apt_is_installed openvino-${version} || return 1
   [ -r "$openvino_venv"/bin/activate ] || return 1
   . "$openvino_venv"/bin/activate
   pip show openvino-genai 2> /dev/null | grep -q -F ${version} || return 1
@@ -30,11 +30,10 @@ debian_70_install_openvino () {
     ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
 
     # product key
-    ensure_sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
+    ensure_apt_key $key_file $key_url --dearmor
 
     # deb entry
-    echo "$apt_entry" | ensure_sudo tee $apt_file > /dev/null
+    ensure_apt_source $apt_file "$apt_entry"
 
     # apt update
     ensure_apt update -y
@@ -58,7 +57,7 @@ debian_70_remove_openvino () {
 
   if verify_openvino; then
     ensure_apt autoremove -m -y openvino-${version} openvino || true
-    ensure_sudo rm -rf "$openvino_venv" /etc/apt/sources.list.d/intel-openvino.list 2> /dev/null || true
+    ensure_sudo rm -rf "$openvino_venv" $apt_file $key_file
   else
     echo "openvino-${version} already removed. Skipping"
   fi

@@ -1,17 +1,18 @@
 
-# operate on apt source list
+# create new source list
 ensure_apt_source () {
-  local op=$1; shift
-  case "$op" in
-  remove)
-    local r e
-    for r in "$@"; do
-      [ -r /etc/apt/sources.list ] && sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
-      for e in /etc/apt/sources.list.d/*.list; do
-        [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && mv -f "$e" "$e".save || true
-      done
+  local list_file=$1; shift
+  (IFS=$'\n';echo "$*") | ensure_sudo tee $list_file > /dev/null
+}
+
+# remove apt source by pattern
+ensure_apt_source_remove () {
+  local r e
+  for r in "$@"; do
+    [ -r /etc/apt/sources.list ] && ensure_sudo sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
+    for e in /etc/apt/sources.list.d/*.list; do
+      [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && ensure_sudo mv -f "$e" "$e".save || true
     done
-    ;;
-  esac
+  done
 }
 

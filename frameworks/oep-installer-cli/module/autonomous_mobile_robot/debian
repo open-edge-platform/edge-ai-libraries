@@ -18,8 +18,8 @@ debian_90_profile_autonomous_mobile_robot () {
 
 verify_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot
-  dpkg-query -l ros-$ros_distro-robotics-sdk > /dev/null 2>&1 || \
-  dpkg-query -l ros-$ros_distro-robotics-sdk-complete > /dev/null 2>&1
+  ensure_apt_is_installed ros-$ros_distro-robotics-sdk || \
+  ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete
 }
 
 # add the OSRF Gazebo apt repository (needed for the robotics-sdk dependencies)
@@ -34,8 +34,8 @@ configure_osrf_gazebo () {
 amr_setup_osrf_gazebo () {
   configure_osrf_gazebo
   ensure_apt install -y curl lsb-release gnupg
-  no_proxy= NO_PROXY= curl -fsL $osrf_key_url | ensure_sudo tee "$osrf_key" > /dev/null
-  echo "$osrf_entry" | ensure_sudo tee $osrf_list > /dev/null
+  ensure_apt_key "$osrf_key" "$osrf_key_url"
+  ensure_apt_source "$osrf_list" "$osrf_entry"
   ensure_apt update -y
   [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
 }
@@ -80,7 +80,8 @@ debian_90_remove_autonomous_mobile_robot () {
     ensure_apt autoremove -m -y \
       ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete \
       ros-$ros_distro-collab-slam-sse ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-lze || true
-    ensure_sudo rm -f /etc/apt/sources.list.d/gazebo-stable.list
+    configure_osrf_gazebo
+    ensure_sudo rm -f $osrf_list $osrf_key
   else
     echo "Autonomous Mobile Robot already removed. Skipping"
   fi

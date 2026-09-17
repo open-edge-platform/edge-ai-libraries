@@ -15,7 +15,7 @@ debian_75_profile_dlstreamer () {
 }
 
 verify_dlstreamer () {
-  dpkg-query -l intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
+  ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
   [ -r "$workspace/python3-venv/bin/activate" ] || return 1
   cd "$workspace"
   . python3-venv/bin/activate
@@ -31,12 +31,9 @@ debian_75_install_dlstreamer () {
     # remove old versions
     ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
 
-    # product key
-    sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
-
-    # deb entry
-    echo "$deb_entry" | ensure_sudo tee $list_file
+    # product key & list file
+    ensure_apt_key $key_file $key_url --dearmor
+    ensure_apt_source $list_file "$deb_entry" 
 
     # apt update
     ensure_apt update -y
@@ -66,7 +63,7 @@ debian_75_remove_dlstreamer () {
 
   if verify_dlstreamer; then
     ensure_apt autoremove -m -y intel-dlstreamer
-    ensure_sudo rm -f $list_file
+    ensure_sudo rm -f $list_file $key_file
     ensure_sudo -rf "$workspace" 2> /dev/null || true
   else
     echo "dlstreamer already removed. Skipping"

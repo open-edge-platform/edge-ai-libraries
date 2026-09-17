@@ -224,7 +224,7 @@ subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
 
   # reconstruct installer
-  local installer_misc_functions=(amr_setup_osrf_gazebo cleanup_gpu configure_amr_apt_repo configure_anomalib configure_autonomous_mobile_robot configure_dlstreamer configure_docker configure_esq configure_geti configure_gpu configure_handheld_multi_modal configure_humanoid_imitation_learning configure_libze1 configure_live_video_captioning configure_loitering_detection configure_loss_prevention configure_multimodal_weld_defect_detection configure_multimodal_weld_defect_detection_device configure_multimodal_weld_defect_detection_env configure_nicu_warmer configure_npu configure_openvino configure_order_accuracy configure_osrf_gazebo configure_pallet_defect_detection configure_pcb_anomaly_detection configure_physical_ai_framework configure_physical_ai_studio configure_realsense configure_ros2 configure_ros_openvino configure_smart_intersection configure_smart_parking configure_stationary_robot_vision configure_uv configure_video_search_and_summarization configure_vippet current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary verify_amr_apt_repo verify_anomalib verify_autonomous_mobile_robot verify_dlstreamer verify_geti verify_gpu verify_handheld_multi_modal verify_humanoid_imitation_learning verify_live_video_captioning verify_loitering_detection verify_loss_prevention verify_multimodal_weld_defect_detection verify_nicu_warmer verify_npu verify_openvino verify_order_accuracy verify_pallet_defect_detection verify_pcb_anomaly_detection verify_physical_ai_framework verify_physical_ai_studio verify_realsense verify_ros2 verify_ros_openvino verify_smart_intersection verify_smart_parking verify_stationary_robot_vision verify_video_search_and_summarization verify_vippet)
+  local installer_misc_functions=(amr_setup_osrf_gazebo configure_amr_apt_repo configure_anomalib configure_autonomous_mobile_robot configure_dlstreamer configure_docker configure_esq configure_geti configure_gpu configure_handheld_multi_modal configure_humanoid_imitation_learning configure_libze1 configure_live_video_captioning configure_loitering_detection configure_loss_prevention configure_multimodal_weld_defect_detection configure_multimodal_weld_defect_detection_device configure_multimodal_weld_defect_detection_env configure_nicu_warmer configure_npu configure_openvino configure_order_accuracy configure_osrf_gazebo configure_pallet_defect_detection configure_pcb_anomaly_detection configure_physical_ai_framework configure_physical_ai_studio configure_realsense configure_ros2 configure_ros_openvino configure_smart_intersection configure_smart_parking configure_stationary_robot_vision configure_uv configure_video_search_and_summarization configure_vippet current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary verify_amr_apt_repo verify_anomalib verify_autonomous_mobile_robot verify_dlstreamer verify_geti verify_gpu verify_handheld_multi_modal verify_humanoid_imitation_learning verify_live_video_captioning verify_loitering_detection verify_loss_prevention verify_multimodal_weld_defect_detection verify_nicu_warmer verify_npu verify_openvino verify_order_accuracy verify_pallet_defect_detection verify_pcb_anomaly_detection verify_physical_ai_framework verify_physical_ai_studio verify_realsense verify_ros2 verify_ros_openvino verify_smart_intersection verify_smart_parking verify_stationary_robot_vision verify_video_search_and_summarization verify_vippet)
   local installer="$HOME/.local/bin/$installer_name"
   mkdir -p "$(dirname "$installer")"
   cat > "$installer" <<EOF
@@ -378,7 +378,7 @@ readonly MAX_WRAP=3000
 readonly LEFT_MIN=16
 KEEP_COLOR=${KEEP_COLOR:-1}
 WRAP_MODE=${WRAP_MODE:-wrap}
-LEFT_WIDTH=${LEFT_WIDTH:-38}
+LEFT_WIDTH=${LEFT_WIDTH:-0}
 LEFT_MAX_PCT=${LEFT_MAX_PCT:-34}
 REPORT_MAX_PCT=${REPORT_MAX_PCT:-55}
 SPLIT_MIN=${SPLIT_MIN:-6}
@@ -1913,21 +1913,49 @@ ensure_apt () {
   esac
 }
 
+# check pacakge installation. add =<version> to check version.
+ensure_apt_is_installed () {
+  for pkg in $*; do
+    [ "$(dpkg-query -W -f='${db:Status-Status}' ${pkg%%=*} 2>/dev/null)" = "installed" ] || return 1
+    [[ "$pkg" != *=* ]] || [[ "$(dpkg-query -W -f='${Version}' ${pkg%%=*} 2>/dev/null)" = "${pkg#*=}"* ]] || return 1
+  done
+}
 
-# operate on apt source list
+
+ensure_apt_key () {
+  local key_file=$1 key_url=$2
+  local no_proxy1=$(echo ${no_proxy:-$NO_PROXY} | tr ',' '\n' | grep -v -E '^[.]?intel.com$' | tr '\n' ',')
+
+  sudo mkdir -p $(dirname $key_file)
+  if [[ "$*" = *"--dearmor"* ]]; then
+    no_proxy=$no_proxy1 NO_PROXY=$no_proxy1 curl -fsSL "$key_url" | gpg --dearmor | ensure_sudo tee "$key_file" > /dev/null
+  else
+    no_proxy=$no_proxy1 NO_PROXY=$no_proxy1 curl -fsSL "$key_url" | ensure_sudo tee "$key_file" > /dev/null
+  fi
+}
+
+
+ensure_apt_preference () {
+  local pref_file=$1; shift
+  (IFS=$'\n';echo "$@") | ensure_sudo tee "$pref_file" > /dev/null
+}
+
+
+# create new source list
 ensure_apt_source () {
-  local op=$1; shift
-  case "$op" in
-  remove)
-    local r e
-    for r in "$@"; do
-      [ -r /etc/apt/sources.list ] && sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
-      for e in /etc/apt/sources.list.d/*.list; do
-        [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && mv -f "$e" "$e".save || true
-      done
+  local list_file=$1; shift
+  (IFS=$'\n';echo "$*") | ensure_sudo tee $list_file > /dev/null
+}
+
+# remove apt source by pattern
+ensure_apt_source_remove () {
+  local r e
+  for r in "$@"; do
+    [ -r /etc/apt/sources.list ] && ensure_sudo sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
+    for e in /etc/apt/sources.list.d/*.list; do
+      [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && ensure_sudo mv -f "$e" "$e".save || true
     done
-    ;;
-  esac
+  done
 }
 
 
@@ -1987,14 +2015,14 @@ debian_45_install_amr_apt_repo () {
 
     # AMR archive key + sources + pin
     ensure_sudo mkdir -p "$(dirname "$amr_key_file")"
-    no_proxy= NO_PROXY= curl -fsL "$amr_key_url" | ensure_sudo tee "$amr_key_file" > /dev/null
-    printf '%s\n%s' "$amr_deb_entry" "$amr_deb_src_entry" | ensure_sudo tee "$amr_list" > /dev/null
-    (IFS=$'\n'; echo "${amr_pref[*]}") | ensure_sudo tee "$amr_pref_file" > /dev/null
+    ensure_apt_key "$amr_key_file" "$amr_key_url"
+    ensure_apt_source "$amr_list" "$amr_deb_entry" "$amr_deb_src_entry"
+    ensure_apt_preference "$amr_pref_file" "${amr_pref[@]}"
 
     # Intel oneAPI Base Toolkit key + source + pins
-    no_proxy= NO_PROXY= curl -fsL "$oneapi_key_url" | gpg --dearmor | ensure_sudo tee "$oneapi_key_file" > /dev/null
-    echo "$oneapi_deb_entry" | ensure_sudo tee "$oneapi_list" > /dev/null
-    (IFS=$'\n'; echo "${oneapi_pref[*]}") | ensure_sudo tee "$oneapi_pref_file" > /dev/null
+    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
+    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
+    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
 
     # Canonical kobuk PPA for latest Intel silicon support (best-effort)
     ensure_sudo add-apt-repository -y ppa:kobuk-team/intel-graphics || true
@@ -2095,8 +2123,8 @@ debian_90_profile_autonomous_mobile_robot () {
 
 verify_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot
-  dpkg-query -l ros-$ros_distro-robotics-sdk > /dev/null 2>&1 || \
-  dpkg-query -l ros-$ros_distro-robotics-sdk-complete > /dev/null 2>&1
+  ensure_apt_is_installed ros-$ros_distro-robotics-sdk || \
+  ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete
 }
 
 # add the OSRF Gazebo apt repository (needed for the robotics-sdk dependencies)
@@ -2111,8 +2139,8 @@ configure_osrf_gazebo () {
 amr_setup_osrf_gazebo () {
   configure_osrf_gazebo
   ensure_apt install -y curl lsb-release gnupg
-  no_proxy= NO_PROXY= curl -fsL $osrf_key_url | ensure_sudo tee "$osrf_key" > /dev/null
-  echo "$osrf_entry" | ensure_sudo tee $osrf_list > /dev/null
+  ensure_apt_key "$osrf_key" "$osrf_key_url"
+  ensure_apt_source "$osrf_list" "$osrf_entry"
   ensure_apt update -y
   [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
 }
@@ -2157,7 +2185,8 @@ debian_90_remove_autonomous_mobile_robot () {
     ensure_apt autoremove -m -y \
       ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete \
       ros-$ros_distro-collab-slam-sse ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-lze || true
-    ensure_sudo rm -f /etc/apt/sources.list.d/gazebo-stable.list
+    configure_osrf_gazebo
+    ensure_sudo rm -f $osrf_list $osrf_key
   else
     echo "Autonomous Mobile Robot already removed. Skipping"
   fi
@@ -2214,7 +2243,7 @@ debian_15_install_core_types () {
 
 
 debian_10_install_cpuid () {
-  if dpkg-query -L cpuid > /dev/null 2>&1; then
+  if ensure_apt_is_installed cpuid; then
     echo "Cpuid is already installed. Skipping..."
   else
     ensure_apt update
@@ -2229,7 +2258,7 @@ EOF
 }
 
 debian_05_install_curl () {
-  if dpkg-query -L curl > /dev/null 2>&1; then
+  if ensure_apt_is_installed curl; then
     echo "Curl is already installed. Skipping..."
   else
     ensure_apt update
@@ -2240,6 +2269,21 @@ debian_05_install_curl () {
 debian_05_sbom_curl () {
   cat <<EOF
 "pkg-list": ["curl","ca-certificates"]
+EOF
+}
+
+debian_05_install_debconf_utils () {
+  if ensure_apt_is_installed debconf_utils; then
+    echo "debconf_utils is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y debconf_utils
+  fi
+}
+
+debian_05_sbom_debconf_utils () {
+  cat <<EOF
+"pkg-list": ["debconf_utils"]
 EOF
 }
 
@@ -2259,7 +2303,7 @@ debian_75_profile_dlstreamer () {
 }
 
 verify_dlstreamer () {
-  dpkg-query -l intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
+  ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
   [ -r "$workspace/python3-venv/bin/activate" ] || return 1
   cd "$workspace"
   . python3-venv/bin/activate
@@ -2275,12 +2319,9 @@ debian_75_install_dlstreamer () {
     # remove old versions
     ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
 
-    # product key
-    sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
-
-    # deb entry
-    echo "$deb_entry" | ensure_sudo tee $list_file
+    # product key & list file
+    ensure_apt_key $key_file $key_url --dearmor
+    ensure_apt_source $list_file "$deb_entry" 
 
     # apt update
     ensure_apt update -y
@@ -2310,7 +2351,7 @@ debian_75_remove_dlstreamer () {
 
   if verify_dlstreamer; then
     ensure_apt autoremove -m -y intel-dlstreamer
-    ensure_sudo rm -f $list_file
+    ensure_sudo rm -f $list_file $key_file
     ensure_sudo -rf "$workspace" 2> /dev/null || true
   else
     echo "dlstreamer already removed. Skipping"
@@ -2331,7 +2372,7 @@ EOF
 
 
 debian_05_install_dmidecode () {
-  if dpkg-query -L dmidecode > /dev/null 2>&1; then
+  if ensure_apt_is_installed dmidecode; then
     echo "Dmidecode is already installed. Skipping..."
   else
     ensure_apt update
@@ -2381,10 +2422,10 @@ EOF
 debian_20_install_docker () {
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
     echo "Docker is already installed. Skipping..."
-  elif dpkg-query -W -f '${Status}' docker.io 2> /dev/null | grep -q ' ok installed$' && [[ "$*" != *"--reset-docker"* ]]; then
+  elif ensure_apt_is_installed docker.io && [[ "$*" != *"--reset-docker"* ]]; then
     ensure_apt update
     ensure_apt install -y docker-buildx docker-compose-v2
-  elif dpkg-query -W -f '${Status}' docker-ce 2> /dev/null | grep -q ' ok installed$' && [[ "$*" != *"--reset-docker"* ]]; then 
+  elif ensure_apt_is_installed docker-ce && [[ "$*" != *"--reset-docker"* ]]; then 
     ensure_apt update
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
@@ -2499,7 +2540,7 @@ debian_85_remove_esq () {
 }
 
 debian_70_install_ffmpeg () {
-  if dpkg-query -L ffmpeg > /dev/null 2>&1; then
+  if ensure_apt_is_installed ffmpeg > /dev/null 2>&1; then
     echo "ffmpeg is already installed. Skipping..."
   else
     ensure_apt update
@@ -2514,7 +2555,7 @@ EOF
 }
 
 debian_05_install_gawk () {
-  if dpkg-query -L gawk > /dev/null 2>&1; then
+  if ensure_apt_is_installed gawk > /dev/null 2>&1; then
     echo "Gawk is already installed. Skipping..."
   else
     ensure_apt update
@@ -2586,7 +2627,7 @@ debian_90_remove_geti () {
 
 
 debian_10_install_git () {
-  if dpkg-query -L git > /dev/null 2>&1; then
+  if ensure_apt_is_installed git > /dev/null 2>&1; then
     echo "Git is already installed. Skipping..."
   else
     ensure_apt update
@@ -2601,7 +2642,7 @@ EOF
 }
 
 debian_05_install_gpg () {
-  if dpkg-query -L gpg > /dev/null 2>&1; then
+  if ensure_apt_is_installed gpg; then
     echo "Gpg is already installed. Skipping..."
   else
     ensure_apt update
@@ -2625,26 +2666,11 @@ configure_gpu () {
   version=26.2.2
 }
 
-# Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
-# Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
-# intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same
-# repository as $apt_file but with a different Signed-By, apt refuses to update
-# ("Conflicting values set for option Signed-By"). Drop any such stale entry
-# (anything referencing the gpu repo other than our own $apt_file) so the current
-# entry is authoritative.
-cleanup_gpu () {
-  ensure_apt_source remove https://repositories.intel.com/gpu
-  ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg
-}
-
 verify_gpu () {
   [ -b /dev/render/renderD128 ]
   getent group render >/dev/null 2>&1
   id -nG | grep -qw render
-  (
-    set -o pipefail
-    dpkg-query -l intel-media-va-driver-non-free 2> /dev/null | grep -q -F $version
-  )
+  ensure_apt_is_installed intel-media-va-driver-non-free=$version
 }
 
 debian_40_profile_gpu () {
@@ -2660,18 +2686,12 @@ debian_40_install_gpu () {
     # remove legacies
     debian_40_remove_gpu || true
 
-    # drop stale/conflicting gpu apt sources from older installer versions
-    cleanup_gpu
-
     # create the render group
     ensure_group_add render:992 video:
 
-    # product key
-    ensure_sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
-
-    # deb entry
-    echo "$apt_entry" | ensure_sudo tee $apt_file > /dev/null
+    # product key & list 
+    ensure_apt_key $key_file $key_url --dearmor
+    ensure_apt_source $apt_file "$apt_entry"
 
     # apt update
     ensure_apt update -y
@@ -2688,9 +2708,15 @@ debian_40_remove_gpu () {
   else
     echo "Gpu drivers are removed already. Skipping"
   fi
-  # always drop gpu apt sources/keyrings, including our own, so nothing conflicting is left behind
-  cleanup_gpu
-  ensure_sudo rm -f "$apt_file" "$key_file"
+  # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
+  # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
+  # intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same
+  # repository as $apt_file but with a different Signed-By, apt refuses to update
+  # ("Conflicting values set for option Signed-By"). Drop any such stale entry
+  # (anything referencing the gpu repo other than our own $apt_file) so the current
+  # entry is authoritative.
+  ensure_apt_source_remove https://repositories.intel.com/gpu
+  ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg $key_file $apt_file
 }
 
 debian_40_sbom_gpu () {
@@ -2821,7 +2847,7 @@ debian_90_remove_humanoid_imitation_learning () {
 }
 
 debian_05_install_jq () {
-  if dpkg-query -L jq > /dev/null 2>&1; then
+  if ensure_apt_is_installed jq; then
     echo "jq is already installed. Skipping..."
   else
     ensure_apt update
@@ -2836,7 +2862,7 @@ EOF
 }
 
 debian_10_install_libgl1 () {
-  if dpkg-query -L libgl1 > /dev/null 2>&1; then
+  if ensure_apt_is_installed libgl1; then
     echo "Libgl1 is already installed. Skipping..."
   else
     ensure_apt update
@@ -2852,7 +2878,7 @@ EOF
 
 
 debian_05_install_libtbb12 () {
-  if dpkg-query -L libtbb12 > /dev/null 2>&1; then
+  if ensure_apt_is_installed libtbb12; then
     echo "libtbb12 is already installed. Skipping..."
   else
     ensure_apt update
@@ -2877,7 +2903,7 @@ debian_10_profile_libze1 () {
 debian_10_install_libze1 () {
   configure_libze1 
 
-  if dpkg-query -L libze1 > /dev/null 2>&1; then
+  if ensure_apt_is_installed libze1; then
     echo "libze1 is already installed. Skipping..."
   else
     curl -fsSL "$libze1_deb" -o /tmp/libze1.deb && {
@@ -3080,7 +3106,7 @@ debian_90_remove_loss_prevention () {
 
 
 debian_10_install_make () {
-  if dpkg-query -L make > /dev/null 2>&1; then
+  if ensure_apt_is_installed make; then
     echo "Make is already installed. Skipping..."
   else
     ensure_apt update
@@ -3384,7 +3410,7 @@ verify_npu () {
   id -nG | grep -qw render
   (
     set -o pipefail
-    dpkg-query -l intel-level-zero-npu intel-fw-npu intel-driver-compiler-npu 2> /dev/null | grep -q -F $version
+    ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
   )
 }
 
@@ -3456,7 +3482,7 @@ debian_70_profile_openvino () {
 }
 
 verify_openvino () {
-  dpkg-query -L openvino-${version} > /dev/null 2>&1 || return 1
+  ensure_apt_is_installed openvino-${version} || return 1
   [ -r "$openvino_venv"/bin/activate ] || return 1
   . "$openvino_venv"/bin/activate
   pip show openvino-genai 2> /dev/null | grep -q -F ${version} || return 1
@@ -3472,11 +3498,10 @@ debian_70_install_openvino () {
     ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
 
     # product key
-    ensure_sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
+    ensure_apt_key $key_file $key_url --dearmor
 
     # deb entry
-    echo "$apt_entry" | ensure_sudo tee $apt_file > /dev/null
+    ensure_apt_source $apt_file "$apt_entry"
 
     # apt update
     ensure_apt update -y
@@ -3500,7 +3525,7 @@ debian_70_remove_openvino () {
 
   if verify_openvino; then
     ensure_apt autoremove -m -y openvino-${version} openvino || true
-    ensure_sudo rm -rf "$openvino_venv" /etc/apt/sources.list.d/intel-openvino.list 2> /dev/null || true
+    ensure_sudo rm -rf "$openvino_venv" $apt_file $key_file
   else
     echo "openvino-${version} already removed. Skipping"
   fi
@@ -3872,6 +3897,21 @@ debian_92_remove_physical_ai_studio () {
   ensure_sudo rm -rf "$pais_run_dir"
 }
 
+debian_05_install_pipx () {
+  if ensure_apt_is_installed pipx; then
+    echo "pipx is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y pipx
+  fi
+}
+
+debian_05_sbom_pipx () {
+  cat <<EOF
+"pkg-list": ["pipx"]
+EOF
+}
+
 debian_10_profile_pre_system_scan () {
   [ "$1" != "install" ] || echo "curl dmidecode"
 }
@@ -4079,7 +4119,7 @@ system_scan_check_pci_device () {
 
 
 debian_05_install_python3_venv () {
-  if dpkg-query -L python3-venv > /dev/null 2>&1; then
+  if ensure_apt_is_installed python3-venv; then
     echo "Python3-venv is already installed. Skipping..."
   else
     ensure_apt update
@@ -4115,7 +4155,7 @@ debian_55_profile_realsense () {
 
 verify_realsense () {
   configure_realsense
-  dpkg-query -L librealsense2 > /dev/null 2>&1
+  ensure_apt_is_installed librealsense2
 }
 
 debian_55_install_realsense () {
@@ -4125,8 +4165,8 @@ debian_55_install_realsense () {
     echo "RealSense SDK is already installed. Skipping..."
   else
     ensure_sudo mkdir -p /etc/apt/keyrings
-    no_proxy= NO_PROXY= curl -sSf "$rs_key_url" | gpg --dearmor | ensure_sudo tee "$rs_key_file" > /dev/null
-    echo "rs_deb_entry" | ensure_sudo tee "$rs_list" > /dev/null
+    ensure_apt_key $rs_key_file $rs_key_url --dearmor
+    ensure_apt_source $rs_list "$rs_deb_entry"
     ensure_apt update -y
 
     ensure_apt install -y --allow-downgrades ros-$ros_distro-librealsense2
@@ -4138,7 +4178,7 @@ debian_55_remove_realsense () {
   configure_realsense
   if verify_realsense; then
     ensure_apt autoremove -m -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true
-    ensure_sudo rm -f "$rs_key_file" "$rs_list"
+    ensure_sudo rm -f $rs_key_file $rs_list
   else
     echo "RealSense SDK already removed. Skipping"
   fi
@@ -4269,8 +4309,7 @@ debian_55_profile_ros_openvino () {
 
 verify_ros_openvino () {
   configure_ros_openvino
-  dpkg-query -l openvino 2> /dev/null | grep -q -F "$ov_version" || return 1
-  dpkg-query -l ros-$ros_distro-openvino-node > /dev/null 2>&1
+  ensure_apt_is_installed openvino=$ov_version ros-$ros_distro-openvino-node
 }
 
 debian_55_install_ros_openvino () {
@@ -4280,12 +4319,11 @@ debian_55_install_ros_openvino () {
     echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
   else
     # OpenVINO apt repository + signing key
-    ensure_sudo mkdir -p "$(dirname "$ov_key_file")"
-    no_proxy= NO_PROXY= curl -fsL "$ov_key_url" | gpg --dearmor | ensure_sudo tee "$ov_key_file" > /dev/null
-    echo "$ov_deb_entry" | ensure_sudo tee "$ov_list" > /dev/null
+    ensure_apt_key $ov_key_file $ov_key_url --dearmor
+    ensure_apt_source $ov_list "$ov_deb_entry"
 
     # pin OpenVINO and the ROS OpenVINO packages to the same version
-    ( IFS=$'\n'; echo "${ov_deb_pref[*]}" ) | ensure_sudo tee "$ov_pref" > /dev/null
+    ensure_apt_preference $ov_pref "${ov_deb_pref[@]}"
 
     ensure_apt update -y
 
@@ -4483,7 +4521,7 @@ debian_90_profile_stationary_robot_vision () {
 
 verify_stationary_robot_vision () {
   configure_stationary_robot_vision
-  dpkg-query -l ros-$ros_distro-rvc > /dev/null 2>&1
+  ensure_apt_is_installed ros-$ros_distro-rvc
 }
 
 debian_90_install_stationary_robot_vision () {
@@ -4533,7 +4571,7 @@ EOF
 
 
 debian_10_install_unzip () {
-  if dpkg-query -L unzip > /dev/null 2>&1; then
+  if ensure_apt_is_installed unzip; then
     echo "Unzip is already installed. Skipping..."
   else
     ensure_apt update
@@ -4728,7 +4766,7 @@ debian_90_remove_vippet () {
 }
 
 debian_05_install_yq () {
-  if dpkg-query -L yq > /dev/null 2>&1; then
+  if ensure_apt_is_installed yq; then
     echo "yq is already installed. Skipping..."
   else
     ensure_apt update
