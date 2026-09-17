@@ -1,6 +1,6 @@
 # Release Notes: Document Ingestion
 
-## Version 2026.2.0
+## Version 2026.2.1
 
 **Release Date:** September 9, 2026
 
