@@ -87,7 +87,7 @@ Load these existing docs only when needed:
    skill's job). Run in the background — the first start downloads and
    converts the model, which can take many minutes:
    ```bash
-   bash -c 'export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct" VLM_DEVICE=CPU REGISTRY_URL=intel TAG=latest \
+   bash -c 'export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct" VLM_DEVICE=CPU REGISTRY_URL=intel TAG=2026.2.0 \
      && source setup.sh && docker compose -f docker/compose.yaml up -d --no-build'
    ```
    For Intel GPU: also `export VLM_DEVICE=GPU` (that exact value makes

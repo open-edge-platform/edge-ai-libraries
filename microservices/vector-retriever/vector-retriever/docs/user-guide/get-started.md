@@ -151,7 +151,7 @@ hide_directive-->
 
 ```bash
 export REGISTRY_URL=intel
-export TAG=2026.2.0-rc2
+export TAG=2026.2.0
 ```
 
 ### Optional Environment Variables
