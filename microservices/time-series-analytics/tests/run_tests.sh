@@ -16,4 +16,6 @@ PYTHONPATH=./src python3 -m pytest --cov=src tests --cov-config=./tests/.coverag
 PYTHONPATH=./src python3 -m pytest --cov=src tests --cov-config=./tests/.coveragerc  --cov-report=term --tb=no -q --disable-warnings > /tmp/unit-test-results.txt
 retval=$?
 python3 -m coverage html -d /tmp/htmlcov
+coverage_retval=$?
+[ "$retval" -ne 0 ] || retval="$coverage_retval"
 exit "$retval"
