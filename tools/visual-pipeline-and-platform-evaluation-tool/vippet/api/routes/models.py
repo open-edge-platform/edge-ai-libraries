@@ -19,6 +19,7 @@ from internal_types import (
     InternalSupportedModel,
 )
 from managers.model_manager import ModelManager
+from models import MAX_MODEL_DESCRIPTION_LENGTH
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.models")
