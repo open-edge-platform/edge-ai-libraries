@@ -50,7 +50,7 @@ graph TB
 ### Stage 1: Video Upload & Initial Processing
 
 ```mermaid
-flowchart LR
+flowchart TD
     START([Video Upload Request]) --> ENTRY{Entry Point?}
 
     ENTRY -->|Direct Upload| UPLOAD[POST /media/upload<br/>File: video.mp4<br/>Params: frame_interval, enable_detection]
@@ -83,7 +83,7 @@ flowchart LR
 ### Stage 2: Frame Extraction & Metadata Creation
 
 ```mermaid
-flowchart LR
+flowchart TD
     START[Frame Extraction Stage] --> VIDEO_INFO[Read Video Information<br/>Using Decord VideoReader]
 
     VIDEO_INFO --> CALC[Calculate Video Metrics<br/>• Total Frames: len vr<br/>• FPS: vr.get_avg_fps<br/>• Duration: frames / fps]
@@ -208,7 +208,7 @@ flowchart TD
 ### Stage 4: Batch Creation for Parallel Processing
 
 ```mermaid
-flowchart LR
+flowchart TD
     START[Batch Creation Stage] --> INPUT[Input: List of Images + Metadata<br/><br/>After Detection:<br/>• Full frames: 60<br/>• Detected crops: 180<br/>• Total items: 240]
 
     INPUT --> CONFIG[Get Pipeline Configuration<br/>Based on CPU cores and mode]
