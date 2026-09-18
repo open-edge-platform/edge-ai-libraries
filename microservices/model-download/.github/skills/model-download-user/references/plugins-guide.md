@@ -45,6 +45,7 @@ Downloads any public or gated model from HuggingFace Hub using `snapshot_downloa
 | `revision` | string | No | Branch, tag, or commit hash (default: `main`) |
 
 **Environment:** For compose-based startup, set `HUGGINGFACEHUB_API_TOKEN` on the host. Docker maps it into the container as `HF_TOKEN`.
+**Token requirement:** Required only for gated/private models. Optional for public models (e.g. `sentence-transformers/all-MiniLM-L6-v2`) — downloads succeed without it.
 
 ### Output Path
 
@@ -183,6 +184,14 @@ curl -s -X POST \
 Downloads Ollama models by starting a local Ollama server inside the container and running `ollama pull`.
 
 > **Note:** Downloads are serialized — only one Ollama model downloads at a time even if multiple jobs are submitted.
+
+**Use these exact field names — the Ollama API differs from what generic model-download
+documentation implies:**
+- `hub` must be `"ollama"` (not `model_hub`, not `type`)
+- `name` is the base model family only, e.g. `"llama3.2"`, `"mistral"`, `"gemma2"` — **no tag suffix** (not `"llama3.2:3b"`)
+- `revision` is the tag as a separate field, e.g. `"3b"`, `"7b"`, `"latest"` (not folded into `name`, not `model_name`)
+- Service port is always **`8200`** (not 8080, not 8000)
+- Start the service with `--plugins ollama`: `source scripts/run_service.sh up --plugins ollama`
 
 ### Request Body
 
