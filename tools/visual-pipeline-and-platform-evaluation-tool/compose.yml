@@ -134,7 +134,7 @@ services:
     container_name: model-download
     ports:
       - "8000:8000"
-    command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,ultralytics,pipeline-zoo-models,openvino,geti,hls}
+    command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,ultralytics,pipeline-zoo-models,remote-url,openvino,geti,hls}
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:8000/api/v1/health"]
       # First start can take tens of minutes: each plugin venv runs `uv sync`

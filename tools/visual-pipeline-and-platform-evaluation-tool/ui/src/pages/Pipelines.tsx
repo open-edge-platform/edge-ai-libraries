@@ -26,6 +26,7 @@ import RunPipelineButton from "@/features/pipeline-editor/RunPerformanceTestButt
 import StopPipelineButton from "@/features/pipeline-editor/StopPipelineButton.tsx";
 import PerformanceTestPanel from "@/features/pipeline-editor/PerformanceTestPanel.tsx";
 import TimeseriesOutputPanel from "@/features/pipeline-editor/TimeseriesOutputPanel.tsx";
+import { DeployTsamUdfDialog } from "@/features/pipeline-editor/DeployTsamUdfDialog.tsx";
 import { aggregateLatencyTracerMetrics } from "@/hooks/useFrozenMetrics";
 import { toast } from "@/lib/toast";
 import ViewModeSwitcher from "@/features/pipeline-editor/ViewModeSwitcher.tsx";
@@ -505,6 +506,9 @@ export const Pipelines = () => {
           ? runPanelSizeRef.current
           : 0;
     const currentVariantData = data.variants.find((v) => v.id === variant);
+    const timeseriesDevice = currentVariantData?.pipeline_graph.nodes.find(
+      (node) => node.type === "tsam-udf",
+    )?.data.device;
     const isReadOnly = currentVariantData?.read_only ?? false;
     const pipelineHasMetadata =
       currentVariantData?.pipeline_graph.nodes.some(
@@ -894,6 +898,9 @@ export const Pipelines = () => {
 
             <Separator orientation="vertical" className="h-6" />
 
+            {isTimeSeriesPipeline && (
+              <DeployTsamUdfDialog device={timeseriesDevice} />
+            )}
             {jobStatus?.state === "RUNNING" ? (
               <StopPipelineButton
                 isStopping={isStopping}
