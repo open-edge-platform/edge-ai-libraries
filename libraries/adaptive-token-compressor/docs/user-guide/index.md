@@ -77,6 +77,7 @@ and additional resources.
 get-started
 lingua-deployment
 tool-predictor-deployment
-release-notes
+Release Notes <./release-notes.md>
+
 :::
 hide_directive-->

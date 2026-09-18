@@ -4,7 +4,7 @@
 
 **Release Date:** September 9, 2026
 
-**New**
+**New**:
 
 - Policy-Based and Intelligent Routing:
 
@@ -71,12 +71,11 @@
   - Token accounting integrated with telemetry; router processing time is
     excluded from the Time To First Token (TTFT) statistics.
 
-
 ## Version 2026.1.0
 
-**June 17, 2026**
+**Release date:** June 17, 2026
 
-**New**
+**New**:
 
 - Initial release of the Inference Router microservice.
 
@@ -98,7 +97,7 @@
 
   - The `/v1/metrics` endpoint breaks down request counts by each unique
     (model, provider) pair, token usage, end-to-end latency, TTFT, and
-	Time Per Output Token (TPOT).
+    Time Per Output Token (TPOT).
   - The `POST /v1/metrics/reset` endpoint clears accumulated counters.
 
 - Configuration:
