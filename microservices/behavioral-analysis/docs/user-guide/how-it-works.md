@@ -59,9 +59,6 @@ src/
 ## Request Lifecycle (MQTT Path)
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 sequenceDiagram
     participant US as Upstream Service
     participant MQ as MQTT Broker

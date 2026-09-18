@@ -65,9 +65,6 @@ flowchart TB
 9. Results are sorted and returned as `BatchQueryResponse` with partial errors when needed.
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 sequenceDiagram
     autonumber
     participant Client

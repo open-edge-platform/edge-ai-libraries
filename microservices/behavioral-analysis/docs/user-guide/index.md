@@ -81,9 +81,6 @@ graph TB
 ### Request/Response Flow (MQTT Path)
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 sequenceDiagram
     participant US as Upstream
     participant MQTT as MQTT Broker
