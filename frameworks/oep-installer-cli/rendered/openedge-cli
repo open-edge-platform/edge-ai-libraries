@@ -4,6 +4,7 @@ main () {
   . /etc/os-release
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
+  installer_bin="$HOME/.local/bin/$installer_name"
 
   local _globals=() _cmds=() _args=() cur=-1 v
   for v in "$@"; do
@@ -12,15 +13,13 @@ main () {
       _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
       echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
       echo "common options:"
-      echo "  --dry-run       dry-run the subcommand sequence."
-      echo "  --continue      continue execution upon errors."
       echo "  --help          this help message." 
       echo
       local cmd
       for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
         $cmd --help
       done
-      return
+      return 0
       ;;
     --dry-run|--continue)
       _globals+=($v)
@@ -41,7 +40,7 @@ main () {
   # --help if nothing specified
   if [ ${#_cmds[@]} -eq 0 ]; then
     main --help
-    return
+    return 0
   fi
 
   # initialize act cache
@@ -93,27 +92,27 @@ main () {
 
           [[ " ${_cmds[*]:0:$_i} " = *" setup "* ]] || subcommand_setup "${_globals[@]}"
 
-          local installer="$HOME/.local/bin/$installer_name"
-          [ -x "$installer" ] || {
-            echo -e "${red}$installer not found; run 'setup' first${reset}" 1>&2
+          [ -x "$installer_bin" ] || {
+            echo -e "${red}$installer_bin not found; run 'setup' first${reset}" 1>&2
             return 3
           }
 
-          local _sdir=""
+          local _sdir="" _sdir_secrets
           ensure_tmpdir create _sdir secrets /dev/shm
-          (umask 077;printf "%s\n%s\n" "$SUDO_PASSWORD" "$TF_TOKEN" > "$_sdir"/secrets)
+          local _sdir_secrets="$_sdir"/secrets
+          (
+            umask 077;
+            export OEP_GROUP_REEXEC=1
+            for e in HOME USER PATH LOGNAME XDG_RUNTIME_DIR $(compgen -e | grep -E '^OEP_|_ASKPASS$|_TOKEN$|_PASSWORD$'); do
+              printf "export %s=%q\n" "$e" "${!e}"
+            done > "$_sdir_secrets"
+          ) || { echo "Failed to write secrets" >&2; return 3; }
           ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" \
-            --inh-caps=-all env HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" PATH="$PATH" \
-            XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" OEP_GROUP_REEXEC=1 bash -c '
-secret="$1"; installer="$2"; shift 2
-{
-  IFS= read -r SUDO_PASSWORD
-  IFS= read -r TF_TOKEN
-} < "$secret"
-rm -f "$secret"
-export SUDO_PASSWORD TF_TOKEN
-exec "$installer" "$@"
-' bash "$_sdir/secrets" "$installer" "${_rest_args[@]}" "${_globals[@]}"
+            --inh-caps=-all bash -c '
+secrets="$1"; installer_bin="$2"; shift 2
+. "$secrets"; rm -f "$secrets"
+exec "$installer_bin" "$@"
+' bash "$_sdir_secrets" "$installer_bin" "${_rest_args[@]}" "${_globals[@]}"
           _rc=$?
           ensure_tmpdir destroy "$_sdir"
           return $_rc
@@ -228,13 +227,16 @@ subcommand_setup () {
   local installer="$HOME/.local/bin/$installer_name"
   mkdir -p "$(dirname "$installer")"
   cat > "$installer" <<EOF
+  local installer_misc_functions=(amr_setup_osrf_gazebo current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary)
+  mkdir -p "$(dirname "$installer_bin")"
+  cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
-  chmod a+rx "$installer"
-  echo "Installer reconstructed at $installer"
+  chmod a+rx "$installer_bin"
+  echo "Installer reconstructed at $installer_bin"
 
   # reconstruct bash completion
   local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name"
@@ -1370,6 +1372,31 @@ _handle_line() {
   _draw 1
 )}
 
+# create an askpass helper
+act_panelled_logs_askpass () {
+  local askpass_helper="$1"
+  ( umask 077;cat > "$askpass_helper" <<'EOF'
+#!/bin/bash
+if [ -n "$SUDO_PASSWORD" ]; then
+  printf '%s\n' "$SUDO_PASSWORD"
+else
+  exec 8<>/dev/tty 2>/dev/null || exit 1
+  # size and style
+  rows=$(stty size <&8 | cut -d' ' -f1)
+  saved=$(stty -g <&8) || exit 1
+  # restore screen
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  stty -echo <&8
+  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+  printf '\033[%d;1H\033[K%s' "${rows:-1}" "$1" >&8
+  IFS= read -r pw <&8
+  printf '\033[%d;1H\033[K' "${rows:-1}" >&8
+  printf '%s\n' "$pw"
+fi
+EOF
+  ) && chmod 700 "$askpass_helper"
+}
+
 #!/bin/bash
 
 act_get () {
@@ -1473,14 +1500,16 @@ act_helpper () {
   shift
 
   if [[ " $* " = *" --help "* ]]; then
+    echo "${act_name} options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
     act_get prefix ${act_name}_
     if [ ${#_act_reply[*]} -gt 0 ]; then
       if [ "${act_name}" = "install" ]; then
-        echo "${act_name} options:"
         echo "  --reset-<name>  force reinstallation of the component if exit."
-        echo
       fi
     fi
+    echo
     return 0
   fi
 
@@ -1785,7 +1814,7 @@ ensure_ports_open () {
 
 # return the installation path
 ensure_project_path () {
-  echo "$HOME/open-edge-platform"
+  echo "$HOME/.local/open-edge-platform"
 }
 
 
@@ -1820,41 +1849,22 @@ ensure_sudo () {
   if sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
     sudo "$@"
-  elif [ -n "${SUDO_PASSWORD:-}" ]; then
-    # password known: prefix it onto stdin, forward the rest so that
-    # `curl ... | ensure_sudo bash -s` and `... | ensure_sudo tee f` still work.
-    # -k is required: without it sudo may skip the read and leak the password
-    # into the invoked command's stdin.
-    (echo "$SUDO_PASSWORD"; cat) | sudo -kS "$@"
-  elif [ -t 0 ]; then
+  elif [ -t 0 ] && [ -z "$SUDO_PASSWORD" ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo "$@"
   else
     # write an askpass helper
     local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-    [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$HOME/.local/state/${installer_name:?}"
+    [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}"
     mkdir -p "$rundir" 2>/dev/null || return 1
-    local askpass_helper="$rundir"/askpass
     (
       flock -w 300 -e 9 || { echo "ensure_sudo: timed out waiting for another installer" >&2; exit 1; }
-      ( umask 077;cat > "$askpass_helper" <<'EOF'
-#!/bin/bash
-set -u
-exec 8<>/dev/tty 2>/dev/null || exit 1
-# size and style
-rows=$(stty size <&8 | cut -d' ' -f1)
-saved=$(stty -g <&8) || exit 1
-# restore screen
-trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
-stty -echo <&8
-# last row: _draw only ever writes rows 1..rows-1, so this is never repainted
-printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
-IFS= read -r pw <&8
-printf '\033[%d;1H\033[K' "$rows" >&8
-printf '%s\n' "$pw"
-EOF
-      ) && chmod 700 "$askpass_helper" || exit 1
-      SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
+      if [ ! -x "$SUDO_ASKPASS" ]; then
+        askpass_helper="$rundir"/askpass
+        act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
+        export SUDO_ASKPASS="$askpass_helper"
+      fi
+      sudo -A "$@"
     ) 9< "$rundir"
   fi
 }

@@ -96,16 +96,15 @@ subcommand_setup () {
 
   # reconstruct installer
   local installer_misc_functions=()
-  local installer="$HOME/.local/bin/$installer_name"
-  mkdir -p "$(dirname "$installer")"
-  cat > "$installer" <<EOF
+  mkdir -p "$(dirname "$installer_bin")"
+  cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
-  chmod a+rx "$installer"
-  echo "Installer reconstructed at $installer"
+  chmod a+rx "$installer_bin"
+  echo "Installer reconstructed at $installer_bin"
 
   # reconstruct bash completion
   local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name"
