@@ -10,10 +10,30 @@ configure_autonomous_mobile_robot () {
   esac
   # standard SDK by default; pass --complete for the full (~20GB) SDK
   amr_sdk_pkg=ros-$ros_distro-robotics-sdk
+
+  # Intel oneAPI Base Toolkit repo + version pins - the robotics SDK links the
+  # oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
+  oneapi_repo_name="apt.repos.intel.com"
+  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
+  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  oneapi_pref=(
+    "Package: intel-oneapi-runtime-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-compiler-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-mkl-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+  )
+  oneapi_pref_file=/etc/apt/preferences.d/oneapi
+  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
 }
 
 debian_90_profile_autonomous_mobile_robot () {
-  echo "git curl edge_base ros2 amr_apt_repo ros_openvino realsense"
+  echo "git curl edge_base ros2 ros_openvino realsense"
 }
 
 verify_autonomous_mobile_robot () {
@@ -48,6 +68,13 @@ debian_90_install_autonomous_mobile_robot () {
     echo "Autonomous Mobile Robot is already installed. Skipping..."
   else
     ensure_disk_space $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
+
+    # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
+    ensure_apt install -y software-properties-common curl gnupg wget
+    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
+    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
+    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
+
     ensure_apt update -y
 
     amr_setup_gazebo
@@ -82,6 +109,7 @@ debian_90_remove_autonomous_mobile_robot () {
       ros-$ros_distro-collab-slam-sse ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-lze || true
     configure_osrf_gazebo
     ensure_sudo rm -f $osrf_list $osrf_key
+    ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
   else
     echo "Autonomous Mobile Robot already removed. Skipping"
   fi
@@ -89,6 +117,20 @@ debian_90_remove_autonomous_mobile_robot () {
 
 debian_90_sbom_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot
+  (
+    IFS=$'|'
+    local oneapi_pref_str="${oneapi_pref[*]}"
+    cat <<EOF
+"name": "$oneapi_repo_name"
+"gpg-key": "$oneapi_key_url"
+"key-file": "$oneapi_key_file"
+"apt-source": "$oneapi_deb_entry"
+"apt-list-file": "$oneapi_list"
+"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
+"apt-pref-file": "$oneapi_pref_file"
+EOF
+  )
+  echo "---"
   # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
   if [ "$ros_distro" = humble ]; then
     cat <<EOF
@@ -98,7 +140,7 @@ EOF
   fi
 
   cat <<EOF
-"pkg-list": ["gnupg"]
+"pkg-list": ["software-properties-common","curl","gnupg","wget","lsb-release"]
 EOF
 
   if [ "$ros_distro" = jazzy ]; then
