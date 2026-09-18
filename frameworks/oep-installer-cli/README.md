@@ -1,9 +1,9 @@
 # Open Edge Platform (OEP) CLI Installer
 
 The **OEP CLI Installer** (`openedge-cli`) is a modular, self-contained shell
-installer that discovers, bootstraps, and installs Open Edge Platform modules on
-your edge system. Modules are grouped into **profiles**, so you can browse the AI
-suite you want and install an individual module or a whole profile with a single command.
+script that discovers, bootstraps, and installs Open Edge Platform components on
+your edge system. The OEP installer can install individual components (libraries, SDKs, samples etc)
+as well as virtual groups (**profiles**). 
 
 <p align="center">
   <a href="https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html">
@@ -11,23 +11,10 @@ suite you want and install an individual module or a whole profile with a single
   </a>
 </p>
 
-> **Web UI:** Prefer a guided experience? **[Open the OEP CLI Installer Web UI »](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)**
-> to pick a profile and module and copy the exact install command.
-
-## Overview
-
-The installer ships as a single `openedge-cli` script. Installable **modules**
-(for example `dlstreamer`, `openvino`, or `smart_parking`) and their dependencies.
-
-Selecting a profile in the [Web UI](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)
-lists the modules it contains; selecting a module then shows the exact install
-command generated for that module, its next steps, and links to the suite
-documentation.
-
 ## Profiles and Modules
 
-Profiles are curated bundles of modules targeting specific domain workloads and
-AI suites. The table below lists every profile and the modules it installs.
+Profiles are groupings of installable components targeting specific domain workloads or
+marketing segments. The table lists the profiles and their components.  
 
 | Profile | Domain | Modules |
 | ------- | ------ | ------- |
@@ -40,140 +27,161 @@ AI suites. The table below lists every profile and the modules it installs.
 | `federal_and_aerospace_ai_suite` | Multi-modal federal and aerospace use cases | `handheld_multi_modal` |
 | `health_and_life_science_ai_suite` | Patient and vitals monitoring | `nicu_warmer` |
 
-> Modules within some suites (for example `metro_ai_suite` and
-> `manufacturing_ai_suite`) cannot run at the same time. In those cases, install
-> the profile for convenience but **start and stop individual modules**.
-
 ### Module reference
 
 | Module | Description |
 | ------ | ----------- |
-| `openvino` | OpenVINO™ inference runtime and toolkit. |
-| `dlstreamer` | Intel® DL Streamer video-analytics pipeline framework. |
-| `vippet` | Visual Pipeline and Platform Evaluation Tool. |
-| `geti` | Intel® Geti™ computer-vision model training platform. |
-| `anomalib` | Deep-learning library for visual anomaly detection. |
-| `smart_intersection` | Traffic-intersection monitoring reference application. |
-| `smart_parking` | Smart-parking occupancy and monitoring application. |
-| `loitering_detection` | Loitering-detection video analytics application. |
-| `live_video_captioning` | Real-time video captioning application. |
-| `video_search_and_summarization` | Video search and summarization (VLM-based) application. |
-| `pallet_defect_detection` | Pallet defect-detection inspection application. |
-| `pcb_anomaly_detection` | PCB anomaly-detection inspection application. |
-| `multimodal_weld_defect_detection` | Multi-modal weld defect-detection application. |
-| `loss_prevention` | Retail loss-prevention application. |
-| `order_accuracy` | Retail order-accuracy verification application. |
-| `handheld_multi_modal` | Handheld multi-modal application for federal/aerospace use cases. |
-| `nicu_warmer` | NICU warmer patient-monitoring application. |
+| `openvino` | The OpenVINO™ inference runtime and toolkit. |
+| `dlstreamer` | The Intel® DL Streamer video-analytics pipeline framework. |
+| `vippet` | The Visual Pipeline and Platform Evaluation Tool. |
+| `geti` | The Intel® Geti™ computer-vision model training platform. |
+| `anomalib` | The deep-learning library for visual anomaly detection. |
+| `smart_intersection` | A traffic-intersection monitoring reference sample. |
+| `smart_parking` | A smart-parking occupancy and monitoring sample. |
+| `loitering_detection` | A loitering-detection video analytics sample. |
+| `live_video_captioning` | A real-time video captioning sample. |
+| `video_search_and_summarization` | A video search and summarization (VLM-based) sample. |
+| `pallet_defect_detection` | A pallet defect-detection inspection sample. |
+| `pcb_anomaly_detection` | A PCB anomaly-detection inspection sample. |
+| `multimodal_weld_defect_detection` | A multi-modal weld defect-detection sample. |
+| `loss_prevention` | A Retail loss-prevention sample. |
+| `order_accuracy` | A Retail order-accuracy verification sample. |
+| `handheld_multi_modal` | A handheld multi-modal sample for federal/aerospace use cases. |
+| `nicu_warmer` | A NICU warmer patient-monitoring sample. |
 | `autonomous_mobile_robot` | Robotics AI Suite ROS 2 SDK for sensing, SLAM, and navigation. |
-| `stationary_robot_vision` | Vision-guided pick-and-place reference application (RVC). |
+| `stationary_robot_vision` | Vision-guided pick-and-place reference sample (RVC). |
 | `humanoid_imitation_learning` | Imitation-learning track (ACT and Pi0.5 policies). |
 | `physical_ai_framework` | Physical AI training/deployment SDK (`physicalai` CLI). |
 | `physical_ai_studio` | Physical AI Studio backend + web UI for data collection and training. |
 
 ## Installation
 
-Use the [Web UI](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)
-to select a profile and module and get the exact command. The `curl | bash`
-pattern bootstraps and installs the selected module in a single step — just swap
-the module name to install a different one:
+For simplicity, the OEP installer is presented as a single self-contained shell script (located at [`rendered/openedge-cli`](rendered/openedge-cli)) that can be 
+downloaded and then run in a shell environment. 
 
+- install components from a profile, or
 ```bash
-curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install smart_parking
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision
 ```
 
+- install an individual component
 ```bash
-curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install smart_intersection
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install smart_parking
 ```
 
-The **Computer Vision** and **Inferencing** profiles install every module in the
-profile at once, so they do not require a module selection:
+<hr>
+
+> Prefer a guided experience? **[Open the OEP CLI Installer Web UI »](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)**
+> to pick a profile and module and copy the exact install command.
+
+<hr>
+
+> After the very first invocation, the OEP installer saves itself under `~/.local/bin/openedge-cli`. You can subsequently invoke any installer command locally:
 
 ```bash
-curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision
+openedge-cli start smart_intersection
 ```
+
+<hr>
 
 ## Start and Stop
 
-Once installed, start or stop a module:
+Start or stop a component:
 
 ```bash
 openedge-cli start smart_parking
-openedge-cli stop smart_parking
+openedge-cli stop smart_parking        # or openedge-cli stop to stop all
 ```
 
-Select a module in the Web UI to see its Start and Stop commands. When a module
-starts, the installer prints any runtime details (such as a URL) to the terminal.
+> You cannot start/stop a profile element as the profile contains many components. They may be in conflict
+> to start simutenously. Start/stop only individual components.
+
+## Remove
+
+Remove a profile or a component:
+
+```bash
+openedge-cli remove video_conferencing
+```
+
+> Unlike installation where dependency items are installed automatically, the OEP installer removes a component without touching any dependency items. For example, the OEP installer does not uninstall GPU and NPU drivers upon a sample removal operation. You have to invoke the OEP installer explicitly to remove the GPU and NPU drivers.
 
 ## Advanced Usage
 
-The `rendered/` directory already contains a ready-to-ship `openedge-cli` with
-all modules and profiles included. The steps below describe how to regenerate it.
+### Commandline Options
+
+The OEP installer uses the following commandline options:
+
+```
+Usage: openedge-cli <subcommand> [options] [modules/profiles] [module options] ...
+```
+
+Multiple subcommands can be specified at once. They are executed in order:
+
+```bash
+openedge-cli install smart_parking --gpu start smart_parking --gpu
+```
+
+The following global options are supported:
+
+| Option | Description |
+|:-------|:------------|
+| `--dry-run` | Dry run the install/start/stop/remove commands.|
+| `--continue` | Ignore errors and let the install/start/stop/remove operations to proceed to the end. |
+| `--gpu`/`--npu`/`--cpu` | Select GPU/NPU/CPU device at the component level. |
+
+To specify component specific options, insert a `--<component-name>` tag:
+
+```bash
+openedge-cli install smart_park smart_intersection --smart_parking --gpu
+```
+
+> Omit `--<component-name>` if there is only a single component or the specified options apply to all components.  
+
+### List Profiles and Components
+
+Use the `list` subcommand to list all components and profiles 
+
+```bash
+openedge-cli list
+```
+
+### List SBOM
+
+Use the `sbom` subcommand to discover what is installed by the OEP installer system wide. 
+
+```bash
+openedge-cli sbom computer_vision
+```
+
+> The listing is limited to system-level installation only.
+
+> User level installation is under `~/.local/openedge-cli/<component-name>`.  
 
 ### Bootstrapping
 
-By default, the base installer does not contain any installable components — they
-live under the [`module/`](module) and [`profile/`](profile) directories. Use the
-`bootstrap` command to self-construct the final installer:
+By default, the complete and ready-to-ship installer is committed under [`rendered\openedge-cli`](rendered\openedge-cli). If you modify any source and need to regenerate the installer, use the following steps:
 
 ```bash
-./openedge-cli bootstrap                                               
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/frameworks/oep-installer-cli
+./openedge-cli bootstrap      # saved to rendered/openedge-cli
 ```
-
-After bootstrapping, the `openedge-cli` script includes all components specified
-by the chosen profile and is ready to ship.
 
 For bootstrapping with different modules/profiles, use the commands below:
 
 ```bash
 # include all profiles and modules, or
-./openedge-cli bootstrap metro_ai_suite
+./openedge-cli bootstrap metro_ai_suite -o rendered/openedge-cli-metro
 
-# include a specific profile/module
-./openedge-cli bootstrap --install=metro_ai_suite metro_ai_suite
+# include a specific profile/module, or
+./openedge-cli bootstrap --install=metro_ai_suite metro_ai_suite -o rendered/openedge-cli-metro
 
 # install metro_ai_suite by default
-./openedge-cli bootstrap --setup --install=metro_ai_suite metro_ai_suite  # setup installer locally and install metro_ai_suite
+./openedge-cli bootstrap --setup --install=metro_ai_suite metro_ai_suite -o rendered/openedge-cli-metro
 ```
 
-### Installation and Removal
-
-Install or remove a component or a profile:
-
-```bash
-./rendered/openedge-cli install metro_ai_suite
-./rendered/openedge-cli remove metro_ai_suite
-```
-
-### Start and Stop
-
-Start or stop a component:
-
-```bash
-./rendered/openedge-cli start smart_parking
-./rendered/openedge-cli stop smart_parking
-```
-
-> If components within a profile are not compatible with each other, you cannot
-> start/stop the profile as a whole — start/stop the component directly.
-> `./rendered/openedge-cli stop` stops all apps.
-
-### Deployment
-
-The installer can be hosted on a website for click-to-download. Instruct users to
-copy and paste the command:
-
-```bash
-# with default command(s)
-curl ... | bash
-
-# with an explicit command
-curl ... | bash -s -- install smart_parking
-```
-
-You can bake in any default commands during the bootstrap process. If you pass
-`--setup` during bootstrap, the installer reconstructs itself locally at
-`~/.local/bin` with bash completion, so you can use it as a local command.
+> Let `rendered/openedge-cli` be a reserved location for the full installer. If you generate a partial installer, save it other than `rendered/openedge-cli`. 
 
 ### AI-assisted Module Generation
 
@@ -183,10 +191,5 @@ an AI coding agent. Drop a Markdown spec file into the
 [`specification/`](specification/) directory, push it to `main`, and a GitHub
 Actions workflow automatically opens a task for the Copilot coding agent, which
 writes `module/<component>` and opens a pull request.
-
-- For **new** spec files, the agent is dispatched automatically.
-- For **modified** spec files, an issue is created but the agent is held until a
-  maintainer explicitly adds the `GENERATE-COMPONENT` label — ensuring a human
-  reviews the spec change before AI code generation begins.
 
 See [SPEC](specification/README.md) for instructions on how to write a spec file.
