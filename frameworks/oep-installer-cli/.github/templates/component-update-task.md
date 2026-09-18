@@ -109,6 +109,7 @@ If the spec changes a pinned version, tag, or workspace layout, `verify_{{NAME}}
    debian_<NN>_start_{{NAME}}
    debian_<NN>_stop_{{NAME}}
    debian_<NN>_license_{{NAME}}   # only if the spec requires a click-through license
+   debian_<NN>_sbom_{{NAME}}   # only if the component installs system-wide packages
    ```
 
    Use the **same two-digit order number** `<NN>` across all functions

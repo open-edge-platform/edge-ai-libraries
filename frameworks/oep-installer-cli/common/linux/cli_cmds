@@ -122,16 +122,30 @@ _${installer_name//-/_}_completion () {
 
   case "\${COMP_WORDS[1]}" in
 $(  
+    # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
+    act_get prefix profile_
+    local all_profilers=(${_act_reply[*]})
+    local cmd dcmd profiler pname mname found
+    local -A all_comps
     for cmd in ${all_cmds[*]}; do
-      local -A all_comps=(["--continue"]="" ["--dry-run"]="")
-      act_get prefix ${cmd}_; local all_modules=(${_act_reply[*]#*_*_*_})
-      act_get prefix profile_
-      for profiler in ${_act_reply[*]}; do
-        local pname=${profiler#*_*_*_}
+      all_comps=()
+      all_comps["--continue"]=""
+      all_comps["--dry-run"]=""
+      # sbom handlers are sparse; resolve its dependency graph as if it were install
+      dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
+      act_get prefix ${dcmd}_
+      local all_modules=(${_act_reply[*]#*_*_*_})
+      for profiler in ${all_profilers[*]}; do
+        pname=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
-        for mname in $($profiler $cmd); do
-          [[ -v _act_cache_functions[${cmd}_${mname}] ]] && all_comps[$pname]=""
+        found=0
+        for mname in $(act_expand_modules $dcmd $pname); do
+          if [[ -v _act_cache_functions[${dcmd}_${mname}] ]]; then
+            found=1
+            break
+          fi
         done
+        [ $found -eq 0 ] || all_comps[$pname]=""
       done
       for mname in ${all_modules[*]}; do
         all_comps[$mname]=""
@@ -143,6 +157,7 @@ $(
       echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
       echo "    ;;"
     done
+    :
 )
   *)
     COMPREPLY=()
@@ -152,5 +167,17 @@ $(
 complete -F _${installer_name//-/_}_completion $installer_name
 EOF
   echo "bash completion created at $completion_script"
+}
+
+subcommand_sbom () {
+  [[ " $* " != *" --help "* ]] || return
+
+  # scan for dependencies
+  local handler
+  for handler in $(act_find_deps install $(act_resolve_args install "$@") | tr ' ' '\n' | sort); do
+    declare -F ${handler/_install_/_sbom_} > /dev/null 2>&1 || continue
+    ${handler/_install_/_sbom_} $(act_extract_args sbom ${handler#*_*_*_} "${handles[*]#${ID_LIKE}_*_sbom_}" "$@")
+    echo "---"
+  done
 }
 

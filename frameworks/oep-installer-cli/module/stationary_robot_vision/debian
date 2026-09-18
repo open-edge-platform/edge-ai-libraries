@@ -21,7 +21,7 @@ debian_90_profile_stationary_robot_vision () {
 
 verify_stationary_robot_vision () {
   configure_stationary_robot_vision
-  dpkg-query -l ros-$ros_distro-rvc > /dev/null 2>&1
+  ensure_apt_is_installed ros-$ros_distro-rvc
 }
 
 debian_90_install_stationary_robot_vision () {
@@ -34,7 +34,7 @@ debian_90_install_stationary_robot_vision () {
     ensure_apt update -y
     # RVC depends on Gazebo Harmonic (gz-harmonic); make sure the OSRF Gazebo
     # apt repository is configured (shared with the AMR SDK component).
-    ! declare -F amr_setup_gazebo > /dev/null 2>&1 || amr_setup_gazebo
+    ! declare -F amr_setup_osrf_gazebo > /dev/null 2>&1 || amr_setup_osrf_gazebo
     ensure_apt install -y $rvc_pkgs || {
       echo "Could not install RVC packages ($rvc_pkgs)." 1>&2
       echo "Confirm the exact package names at https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html" 1>&2
@@ -55,3 +55,17 @@ debian_90_remove_stationary_robot_vision () {
     echo "Stationary Robot Vision & Control already removed. Skipping"
   fi
 }
+
+debian_90_sbom_stationary_robot_vision () {
+  configure_stationary_robot_vision
+  configure_osrf_gazebo
+  cat <<EOF
+"name": "packages.ros.org"
+"gpg-key": "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key"
+"key-file": "usr/share/keyrings/ros-archive-keyring.gpg"
+"apt-source": "deb http://packages.ros.org/ros2/$ID $VERSION_CODENAME main"
+"apt-list-file": "/etc/apt/sources.list.d/ros2-latest.list"
+"pkg-list": ["${rvc_pkgs// /'","'}"]
+EOF
+}
+

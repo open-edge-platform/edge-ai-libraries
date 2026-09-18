@@ -1,0 +1,15 @@
+
+debian_05_install_debconf_utils () {
+  if ensure_apt_is_installed debconf_utils; then
+    echo "debconf_utils is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y debconf_utils
+  fi
+}
+
+debian_05_sbom_debconf_utils () {
+  cat <<EOF
+"pkg-list": ["debconf_utils"]
+EOF
+}
