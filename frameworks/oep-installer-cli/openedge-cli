@@ -19,7 +19,7 @@ main () {
       for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
         $cmd --help
       done
-      return
+      return 0
       ;;
     --dry-run|--continue)
       _globals+=($v)
@@ -40,7 +40,7 @@ main () {
   # --help if nothing specified
   if [ ${#_cmds[@]} -eq 0 ]; then
     main --help
-    return
+    return 0
   fi
 
   # initialize act cache

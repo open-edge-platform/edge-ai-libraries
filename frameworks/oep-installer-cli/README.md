@@ -160,7 +160,7 @@ openedge-cli sbom computer_vision
 
 ### Bootstrapping
 
-By default, the complete and ready-to-ship installer is committed under [`rendered\openedge-cli`](rendered\openedge-cli). If you modify any source and need to regenerate the installer, use the following steps:
+By default, the complete and ready-to-ship installer is committed under [`rendered/openedge-cli`](rendered/openedge-cli). If you modify any source and need to regenerate the installer, use the following steps:
 
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git
