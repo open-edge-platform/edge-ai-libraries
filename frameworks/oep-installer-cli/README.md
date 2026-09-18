@@ -156,7 +156,7 @@ openedge-cli sbom computer_vision
 
 > The listing is limited to system-level installation only.
 
-> User level installation is under `~/.local/openedge-cli/<component-name>`.  
+> User level installation is under `~/.local/open-edge-platform/<component-name>`.  
 
 ### Bootstrapping
 
