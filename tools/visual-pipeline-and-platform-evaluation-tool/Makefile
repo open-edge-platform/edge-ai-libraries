@@ -23,13 +23,26 @@ VOICE_COMPOSE_FILE := compose.voice.yml
 export AUDIO_ANALYZER_TAG ?= 2026.1.0
 export TEXT_TO_SPEECH_TAG ?= 2026.1.0
 
-define voice-compose
+define base-compose
 	. .env && \
-	voice_files=(-f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(VOICE_COMPOSE_FILE)) && \
-	case "$$COMPOSE_PROFILES" in \
-		gpu|npu) voice_files+=(-f compose.voice.$$COMPOSE_PROFILES.yml) ;; \
-	esac && \
-	docker compose "$${voice_files[@]}" $(1)
+	compose_files=(-f $(COMPOSE_FILE) $(2) -f compose.$$COMPOSE_PROFILES.yml) && \
+	$(if $(strip $(3)),$(3) &&) \
+	docker compose "$${compose_files[@]}" $(1)
+endef
+
+define voice-compose
+	$(call base-compose,$(1),,\
+		compose_files+=(-f $(VOICE_COMPOSE_FILE)) && \
+		case "$$COMPOSE_PROFILES" in \
+			(gpu|npu|igpu-wsl) compose_files+=(-f compose.voice.$$COMPOSE_PROFILES.yml) ;; \
+		esac)
+endef
+
+define experimental-compose
+	$(call base-compose,$(1),-f $(EXPERIMENTAL_COMPOSE_FILE),\
+		case "$$COMPOSE_PROFILES" in \
+			(igpu-wsl) compose_files+=(-f compose.experimental.$$COMPOSE_PROFILES.yml) ;; \
+		esac)
 endef
 
 # Speed up `docker compose build` by skipping provenance/SBOM attestations
@@ -138,7 +151,7 @@ env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup
 	./setup_env.sh
 
 build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery)
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
+	$(call base-compose,build)
 
 build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onvif-discovery)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
@@ -151,8 +164,8 @@ build-onvif-discovery: env-setup ## Build onvif discovery image
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run the docker compose services, including STT/TTS
-	$(call voice-compose,up -d)
+run: env-setup ## Run the base ViPPET services
+	$(call base-compose,up -d)
 
 pull-voice: env-setup ## Pull pre-built images for ViPPET with voice services
 	$(call voice-compose,pull)
@@ -173,16 +186,16 @@ run-dev: env-setup ## Run the docker compose services for development
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
 
 build-experimental: env-setup ## Build core images for experimental timeseries setup
-	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
+	$(call experimental-compose,build)
 
 run-experimental: env-setup ## Run the docker compose services with experimental timeseries features
-	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d --remove-orphans
+	$(call experimental-compose,up -d --remove-orphans)
 
 stop-experimental: ## Stop experimental docker compose services
-	docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) down
+	$(call experimental-compose,down)
 
 clean-experimental: ## Clean experimental setup artifacts
-	docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) down -v
+	$(call experimental-compose,down -v)
 
 # Build the test image only when its inputs change. Source files are
 # bind-mounted at run-time (see `test` target), so changing application
@@ -245,8 +258,8 @@ shell-metrics-manager: ## Open shell in metrics-manager container
 shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
-stop: ## Stop ViPPET and STT/TTS services, preserving named volumes
-	$(call voice-compose,down)
+stop: ## Stop base ViPPET services, preserving named volumes
+	$(call base-compose,down)
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator

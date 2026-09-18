@@ -19,14 +19,13 @@ if compgen -G "/dev/accel/accel*" > /dev/null; then
     # NPU device found, using NPU profile and render group
     COMPOSE_PROFILES="npu"
     RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+elif [ -c /dev/dxg ]; then
+    COMPOSE_PROFILES="igpu-wsl"
+    RENDER_GROUP_ID=""
 elif compgen -G "/dev/dri/render*" > /dev/null; then
     # GPU device found, using GPU profile and render group
     COMPOSE_PROFILES="gpu"
     RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
-elif [ -c /dev/dxg ]; then
-    # WSL GPU device found, using WSL GPU profile
-    COMPOSE_PROFILES="gpu-wsl"
-    RENDER_GROUP_ID=""
 else
     # No NPU or GPU device found, falling back to CPU
     echo "No GPU or NPU device was found in the system, so only CPU will be used. This may be because the appropriate drivers have not been installed."

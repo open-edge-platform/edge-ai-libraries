@@ -21,24 +21,25 @@ make run-voice
 ```
 
 `make run` executes `env-setup`, loads `.env`, and runs the original `up -d`
-with the base and detected hardware Compose files plus STT/TTS overrides.
+with only the base and detected hardware Compose files, without STT/TTS overrides.
 It preserves Compose's normal image pull/build behavior, including local builds
-when needed. `make run-voice` uses the same files but explicitly passes
-`--no-build`: an unavailable image produces an error instead of falling back
-to a local build. Existing local images can also be used without pulling first.
-`make stop` and `make stop-voice` stop and remove the stack's containers,
-including STT/TTS, using the same Compose files as startup. Both preserve named
-volumes and use the existing `.env` without rerunning `env-setup`.
-Direct Compose usage without `compose.voice.yml`
-still starts only the base application.
+when needed. `make run-voice` adds the voice Compose files and explicitly passes
+`--no-build`: an unavailable image produces an error instead of falling back to
+a local build. Existing local images can also be used without pulling first.
+`make stop` stops and removes only the base service containers; it does not
+remove orphan containers such as independently running STT/TTS services.
+Those services may keep the shared Compose network in use.
+`make stop-voice` stops and removes the base and STT/TTS containers together.
+Both stop targets preserve named volumes and use the existing `.env` without
+rerunning `env-setup`.
 
 The Makefile defines and exports `AUDIO_ANALYZER_TAG` and `TEXT_TO_SPEECH_TAG`,
-both defaulting to `2026.1.0`. Plain `make pull-voice` and `make run` use
+both defaulting to `2026.1.0`. Plain `make pull-voice` and `make run-voice` use
 these defaults without any shell variable setup. Change the defaults in the
 Makefile or override them independently on the command line, for example:
 
 ```bash
-make pull-voice run AUDIO_ANALYZER_TAG=2026.2.0 TEXT_TO_SPEECH_TAG=2026.2.0
+make pull-voice run-voice AUDIO_ANALYZER_TAG=2026.2.0 TEXT_TO_SPEECH_TAG=2026.2.0
 ```
 
 Command-line values override inherited environment values and Makefile defaults.
@@ -96,16 +97,17 @@ export AUDIO_ANALYZER_PORT=18010 TEXT_TO_SPEECH_PORT=18011
 make run-voice
 ```
 
-### GPU and NPU
+### GPU, NPU and WSL
 
 The configuration uses Whisper Base and SpeechT5 with OpenVINO. Make selects
 the following voice overrides for the detected ViPPET hardware profile:
 
-| Profile | Additional voice files after `compose.voice.yml` | ASR | TTS       |
-| ------- | ------------------------------------------------ | --- | --------- |
-| `cpu`   | None                                             | CPU | CPU, INT8 |
-| `gpu`   | `compose.voice.gpu.yml`                          | GPU | GPU, FP16 |
-| `npu`   | `compose.voice.npu.yml`                          | NPU | GPU, FP16 |
+| Profile    | Voice Override               | ASR | TTS       |
+| ---------- | ---------------------------- | --- | --------- |
+| `cpu`      | None                         | CPU | CPU, INT8 |
+| `gpu`      | `compose.voice.gpu.yml`      | GPU | GPU, FP16 |
+| `npu`      | `compose.voice.npu.yml`      | NPU | GPU, FP16 |
+| `igpu-wsl` | `compose.voice.igpu-wsl.yml` | GPU | CPU, INT8 |
 
 The GPU override gives both services `/dev/dri` and the host's numeric
 `RENDER_GROUP_ID` as a supplementary group. The NPU override gives
@@ -115,6 +117,16 @@ text-to-speech gets `/dev/dri` and `RENDER_GROUP_ID` for GPU inference.
 The host must have the corresponding device nodes and compatible drivers;
 the images must include the required OpenVINO runtimes. No privileged mode or
 extra Linux capabilities are enabled.
+
+The `igpu-wsl` override gives both voice services `/dev/dxg` and a read-only
+`/usr/lib/wsl` library mount. It does not require `/dev/dri` or `RENDER_GROUP_ID`.
+Use this profile inside WSL 2, not the native `gpu` override. ASR uses the iGPU,
+while SpeechT5 TTS is fixed to CPU/INT8: measured synthesis took about 1 second
+on CPU versus 5 seconds on a warmed-up GPU, and the first GPU request spent
+about 75 seconds compiling kernels for dynamic shapes. The `/dev/dxg` mapping
+remains on the TTS service as part of the shared WSL service configuration, but
+OpenVINO selects CPU for synthesis. Docker Compose 2.24.4 or newer is required
+for the WSL override files.
 
 `setup_env.sh` detects `RENDER_GROUP_ID` for Make. When invoking Compose
 directly, set it to the host render group's numeric ID. If NPU device nodes
@@ -129,6 +141,13 @@ COMPOSE_PROFILES=gpu docker compose -f compose.yml -f compose.gpu.yml \
   -f compose.voice.yml -f compose.voice.gpu.yml up -d --no-build
 ```
 
+Direct WSL iGPU startup:
+
+```bash
+COMPOSE_PROFILES=igpu-wsl docker compose -f compose.yml -f compose.igpu-wsl.yml \
+  -f compose.voice.yml -f compose.voice.igpu-wsl.yml up -d --no-build
+```
+
 Direct NPU startup (use the NPU voice override instead of the GPU override):
 
 ```bash
@@ -138,15 +157,19 @@ COMPOSE_PROFILES=npu docker compose -f compose.yml -f compose.npu.yml \
   up -d --no-build
 ```
 
-Export `VOICE_ASR_DEVICE` (`CPU`, `GPU`, or `NPU`), `VOICE_TTS_DEVICE` (`CPU` or
-`GPU`), and `VOICE_TTS_DTYPE` to override inference settings. Device selection
-alone does not expose hardware: keep the corresponding Compose overrides.
-To run ASR on GPU, use the GPU voice override, including on an NPU-capable host.
-SpeechT5 does not document NPU support, so the NPU profile deliberately uses
-GPU for TTS. For CPU inference on an accelerator host, export
-`VOICE_ASR_DEVICE=CPU VOICE_TTS_DEVICE=CPU VOICE_TTS_DTYPE=int8`.
-The `gpu-wsl` profile leaves voice inference on CPU; these Linux hardware
-overrides do not implement WSL device passthrough.
+Export `VOICE_ASR_DEVICE` (`CPU`, `GPU`, or `NPU`) to override ASR inference.
+The native GPU and NPU voice overrides also accept `VOICE_TTS_DEVICE` (`CPU` or
+`GPU`) and `VOICE_TTS_DTYPE`. The CPU and `igpu-wsl` profiles deliberately fix
+SpeechT5 to CPU/INT8. Device selection alone does not expose hardware: keep the
+corresponding Compose overrides. SpeechT5 does not document NPU support, so the
+NPU profile defaults to GPU for TTS. For CPU inference on a native GPU or NPU
+host, export `VOICE_ASR_DEVICE=CPU VOICE_TTS_DEVICE=CPU VOICE_TTS_DTYPE=int8`.
+The former `gpu-wsl` profile has been replaced by `igpu-wsl`. Run `make run-voice`
+to regenerate the detected profile and recreate affected containers without
+deleting their named model/cache volumes. For manual Compose commands, update
+both the profile and override filenames. Do not edit the generated `.env` file.
+GPU utilization metrics may be unavailable under WSL even when inference works;
+the native Linux GPU collectors depend on driver interfaces not exposed by WSL.
 
 Diarization and sentiment analysis are disabled; SpeechT5 uses Ryan's voice.
 TTS supports English in this configuration. Changing a language label alone
@@ -164,7 +187,7 @@ COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml -f compose
   audio-analyzer text-to-speech
 ```
 
-For GPU/NPU, use the same profile and override files as at startup.
+For GPU/NPU/WSL, use the same profile and override files as at startup.
 
 ## Browser and Input Requirements
 

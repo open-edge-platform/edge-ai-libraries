@@ -66,7 +66,8 @@ For consistent behavior on your own content, prefer:
 
 Before benchmarking, confirm:
 
-1. The GPU profile is enabled when starting ViPPET (`COMPOSE_PROFILES` includes `gpu`).
+1. The GPU profile is enabled when starting ViPPET (`gpu` on native Linux or `igpu-wsl` under WSL).
+  Under WSL, select the pipeline's **GPU (WSL)** variant.
 2. Both models are installed:
    - `ultralytics/public/yolo11s/INT8/yolo11s.xml`
    - `ultralytics/public/mars-small128/mars_small128_fp32.xml`
