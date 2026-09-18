@@ -100,6 +100,10 @@ debian_90_sbom_stationary_robot_vision () {
 EOF
   )
   echo "---"
+  cat <<EOF
+"pkg-list": ["software-properties-common","curl","gnupg","wget"]
+EOF
+  echo "---"
   configure_osrf_gazebo
   cat <<EOF
 "name": "packages.ros.org"

@@ -140,7 +140,7 @@ EOF
   fi
 
   cat <<EOF
-"pkg-list": ["gnupg"]
+"pkg-list": ["software-properties-common","curl","gnupg","wget","lsb-release"]
 EOF
 
   if [ "$ros_distro" = jazzy ]; then
