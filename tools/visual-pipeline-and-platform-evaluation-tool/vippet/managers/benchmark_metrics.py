@@ -23,6 +23,7 @@ _MEMORY_METRIC = "mem_used_percent"
 _NPU_METRIC = "npu_utilization"
 _GPU_ENGINE_METRIC = "gpu_engine_usage_usage"
 _GPU_POWER_METRIC = "gpu_power"
+_LATENCY_METRIC = "pipeline_latency_avg_ms"
 
 # GPU engine label groups.
 _GPU_COMPUTE_LABELS = {"compute", "ccs"}
@@ -91,22 +92,31 @@ def _extract_metric_field_value(metric: dict, field_key: str) -> float | None:
     return None
 
 
+def _collect_metric_values_for_event(event: dict, metric_name: str) -> list[float]:
+    """Collect every numeric sample for ``metric_name`` within a single event (step)."""
+    metrics = event.get("metrics")
+    if not isinstance(metrics, list):
+        return []
+
+    values: list[float] = []
+    for metric in metrics:
+        if not isinstance(metric, dict) or metric.get("name") != metric_name:
+            continue
+
+        value = _extract_metric_field_value(metric, metric_name)
+        if value is not None:
+            values.append(value)
+
+    return values
+
+
 def _collect_metric_values(parsed_metrics: list[dict], metric_name: str) -> list[float]:
     """Collect every numeric sample for ``metric_name`` across all events."""
     values: list[float] = []
-
     for event in parsed_metrics:
-        metrics = event.get("metrics")
-        if not isinstance(metrics, list):
+        if not isinstance(event, dict):
             continue
-
-        for metric in metrics:
-            if not isinstance(metric, dict) or metric.get("name") != metric_name:
-                continue
-
-            value = _extract_metric_field_value(metric, metric_name)
-            if value is not None:
-                values.append(value)
+        values.extend(_collect_metric_values_for_event(event, metric_name))
 
     return values
 
@@ -271,6 +281,26 @@ def power_usage(parsed_metrics: list[dict]) -> float | None:
                 continue
 
             value = _extract_metric_field_value(metric, _GPU_POWER_METRIC)
+            if value is not None:
+                values.append(value)
+
+    return _mean_of_trimmed(values)
+
+
+def latency_avg_ms(parsed_metrics: list[dict]) -> float | None:
+    """Average per-frame pipeline latency (milliseconds) from ``pipeline_latency_avg_ms``."""
+    values: list[float] = []
+
+    for event in parsed_metrics:
+        metrics = event.get("metrics")
+        if not isinstance(metrics, list):
+            continue
+
+        for metric in metrics:
+            if not isinstance(metric, dict) or metric.get("name") != _LATENCY_METRIC:
+                continue
+
+            value = _extract_metric_field_value(metric, _LATENCY_METRIC)
             if value is not None:
                 values.append(value)
 

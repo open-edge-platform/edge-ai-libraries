@@ -21,7 +21,7 @@ from sqlalchemy.pool import NullPool
 logger = logging.getLogger(__name__)
 
 # Increment this manually whenever the DB schema changes.
-DB_SCHEMA_VERSION = 1
+DB_SCHEMA_VERSION = 2
 
 # Base class for all ORM models
 Base = declarative_base()

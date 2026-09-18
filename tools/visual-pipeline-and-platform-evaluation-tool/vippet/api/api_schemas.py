@@ -1702,6 +1702,7 @@ class BenchmarkTestCaseRun(BaseModel):
     media_usage: float | None
     memory_usage: float | None
     power_usage: float | None
+    latency_avg_ms: float | None
     score_total: float | None
     score_performance: float | None
     score_efficiency: float | None
