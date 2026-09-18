@@ -1077,6 +1077,6 @@ IFS= read -r pw <&8
 printf '\033[%d;1H\033[K' "$rows" >&8
 printf '%s\n' "$pw"
 EOF
-  ) && chmod 700 "$askpass_helper" || exit 1
+  ) && chmod 700 "$askpass_helper"
 }
 
