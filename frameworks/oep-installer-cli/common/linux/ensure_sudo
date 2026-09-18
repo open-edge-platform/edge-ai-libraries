@@ -21,7 +21,7 @@ ensure_sudo () {
     (
       flock -w 300 -e 9 || { echo "ensure_sudo: timed out waiting for another installer" >&2; exit 1; }
       askpass_helper="$rundir"/askpass
-      ensure_panelled_logs_askpass "$askpass_helper"
+      act_panelled_logs_askpass "$askpass_helper"
       SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
     ) 9< "$rundir"
   fi

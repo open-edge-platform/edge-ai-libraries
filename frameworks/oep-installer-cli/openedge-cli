@@ -13,8 +13,6 @@ main () {
       _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
       echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
       echo "common options:"
-      echo "  --dry-run       dry-run the subcommand sequence."
-      echo "  --continue      continue execution upon errors."
       echo "  --help          this help message." 
       echo
       local cmd
@@ -104,10 +102,10 @@ main () {
           local _sdir_secrets="$_sdir"/secrets
           (
             umask 077;
-            for e in SUDOPASSWORD TF_TOKEN HOME USER PATH LOGNAME XDG_RUNTIME_DIR $(compgen -e | grep -E ^OEP_); do
-              printf "export %s=\"%s\"\n" "$e" "${!e}"
-            done > "$_sdir_secrets" || { echo -e "Failed to write secrets"; return 3; }
-          )
+            for e in SUDO_PASSWORD TF_TOKEN HOME USER PATH LOGNAME XDG_RUNTIME_DIR $(compgen -e | grep -E ^OEP_); do
+              printf "export %s=%q\n" "$e" "${!e}"
+            done > "$_sdir_secrets"
+          ) || { echo "Failed to write secrets" >&2; return 3; }
           ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" \
             --inh-caps=-all bash -c '
 secrets="$1"; installer_bin="$2"; shift 2
