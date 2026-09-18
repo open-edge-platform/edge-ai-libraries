@@ -1384,9 +1384,9 @@ else
   trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
   stty -echo <&8
   # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
-  printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
+  printf '\033[%d;1H\033[K%s' "${rows:-1}" "$1" >&8
   IFS= read -r pw <&8
-  printf '\033[%d;1H\033[K' "$rows" >&8
+  printf '\033[%d;1H\033[K' "${rows:-1}" >&8
   printf '%s\n' "$pw"
 fi
 EOF
