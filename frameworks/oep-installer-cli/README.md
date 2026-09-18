@@ -183,6 +183,14 @@ For bootstrapping with different modules/profiles, use the commands below:
 
 > Let `rendered/openedge-cli` be a reserved location for the full installer. If you generate a partial installer, save it other than `rendered/openedge-cli`. 
 
+### Credentials
+
+During installer operations, if credentials are required, the installer will prompt for sudo password. 
+You can avoid the password prompt by providing a `SUDO_PASSWORD` environment variable, a `SUDO_ASKPASS`
+helper, or grant passwordless access. 
+
+Other credentials may be required such as `HF_TOKEN` during a gated model download.  
+
 ### AI-assisted Module Generation
 
 New installer components can be added by committing code directly to the

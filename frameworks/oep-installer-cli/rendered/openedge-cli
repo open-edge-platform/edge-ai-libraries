@@ -102,7 +102,8 @@ main () {
           local _sdir_secrets="$_sdir"/secrets
           (
             umask 077;
-            for e in SUDO_PASSWORD TF_TOKEN HOME USER PATH LOGNAME XDG_RUNTIME_DIR $(compgen -e | grep -E ^OEP_); do
+            export OEP_GROUP_REEXEC=1
+            for e in SUDO_PASSWORD HOME USER PATH LOGNAME XDG_RUNTIME_DIR $(compgen -e | grep -E '^OEP_|_ASKPASS$|_TOKEN$'); do
               printf "export %s=%q\n" "$e" "${!e}"
             done > "$_sdir_secrets"
           ) || { echo "Failed to write secrets" >&2; return 3; }
@@ -110,7 +111,6 @@ main () {
             --inh-caps=-all bash -c '
 secrets="$1"; installer_bin="$2"; shift 2
 . "$secrets"; rm -f "$secrets"
-export OEP_GROUP_REEXEC=1
 exec "$installer_bin" "$@"
 ' bash "$_sdir_secrets" "$installer_bin" "${_rest_args[@]}" "${_globals[@]}"
           _rc=$?
@@ -1855,9 +1855,12 @@ ensure_sudo () {
     mkdir -p "$rundir" 2>/dev/null || return 1
     (
       flock -w 300 -e 9 || { echo "ensure_sudo: timed out waiting for another installer" >&2; exit 1; }
-      askpass_helper="$rundir"/askpass
-      act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
-      SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
+      if [ ! -x "$SUDO_ASKPASS" ]; then
+        askpass_helper="$rundir"/askpass
+        act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
+        export SUDO_ASKPASS="$askpass_helper"
+      fi
+      sudo -A "$@"
     ) 9< "$rundir"
   fi
 }

@@ -14,9 +14,12 @@ ensure_sudo () {
     mkdir -p "$rundir" 2>/dev/null || return 1
     (
       flock -w 300 -e 9 || { echo "ensure_sudo: timed out waiting for another installer" >&2; exit 1; }
-      askpass_helper="$rundir"/askpass
-      act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
-      SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
+      if [ ! -x "$SUDO_ASKPASS" ]; then
+        askpass_helper="$rundir"/askpass
+        act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
+        export SUDO_ASKPASS="$askpass_helper"
+      fi
+      sudo -A "$@"
     ) 9< "$rundir"
   fi
 }
