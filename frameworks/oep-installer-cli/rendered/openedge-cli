@@ -103,7 +103,7 @@ main () {
           (
             umask 077;
             export OEP_GROUP_REEXEC=1
-            for e in SUDO_PASSWORD HOME USER PATH LOGNAME XDG_RUNTIME_DIR $(compgen -e | grep -E '^OEP_|_ASKPASS$|_TOKEN$'); do
+            for e in HOME USER PATH LOGNAME XDG_RUNTIME_DIR $(compgen -e | grep -E '^OEP_|_ASKPASS$|_TOKEN$|_PASSWORD$'); do
               printf "export %s=%q\n" "$e" "${!e}"
             done > "$_sdir_secrets"
           ) || { echo "Failed to write secrets" >&2; return 3; }
