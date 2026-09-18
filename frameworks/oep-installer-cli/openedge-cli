@@ -174,7 +174,7 @@ subcommand_bootstrap () {
         rendered="$v"
         ;;
       *)
-        modules+=("$v")
+        [[ "$v" = -* ]] || modules+=("$v")
         ;;
       esac
     esac
