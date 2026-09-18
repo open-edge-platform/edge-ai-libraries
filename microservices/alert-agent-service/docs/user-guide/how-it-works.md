@@ -14,9 +14,6 @@ The service exposes a FastAPI-based REST API and supports two dispatch modes:
 The following diagram illustrates the high-level architecture and data flow:
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     A[Detection Pipeline] -->|POST /api/v1/actions/execute| B
 
