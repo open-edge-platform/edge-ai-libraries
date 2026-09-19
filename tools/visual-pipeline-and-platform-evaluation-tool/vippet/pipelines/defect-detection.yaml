@@ -21,6 +21,7 @@ variants:
       gvawatermark !
       gvametaconvert add-empty-results=true !
       queue !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       fakesink name=default_output_sink
   - name: GPU
@@ -42,6 +43,7 @@ variants:
       gvawatermark !
       gvametaconvert add-empty-results=true !
       queue !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       fakesink name=default_output_sink
   - name: GPU (WSL)
@@ -65,6 +67,7 @@ variants:
       gvawatermark !
       gvametaconvert add-empty-results=true !
       queue !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       fakesink name=default_output_sink
   - name: NPU
@@ -85,5 +88,6 @@ variants:
       gvawatermark !
       gvametaconvert add-empty-results=true !
       queue !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       fakesink name=default_output_sink
