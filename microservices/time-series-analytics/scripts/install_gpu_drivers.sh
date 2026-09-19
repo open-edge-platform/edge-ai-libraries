@@ -26,7 +26,7 @@ fi
 apt-get update && apt-get install -y libnuma1 ocl-icd-libopencl1 --no-install-recommends && rm -rf /var/lib/apt/lists/* && \
 case $INSTALL_DRIVER_VERSION in \
 "24.26.30049") \
-        mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
+        mkdir /tmp/gpu_deps && cd /tmp/gpu_deps || exit 1 ; \
         curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.26.30049.6/intel-level-zero-gpu_1.3.30049.6_amd64.deb || exit 1 ; \
         curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.26.30049.6/intel-opencl-icd_24.26.30049.6_amd64.deb || exit 1 ; \
         curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.26.30049.6/libigdgmm12_22.3.20_amd64.deb || exit 1 ; \
@@ -35,7 +35,7 @@ case $INSTALL_DRIVER_VERSION in \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "24.39.31294") \
-        mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
+        mkdir /tmp/gpu_deps && cd /tmp/gpu_deps || exit 1 ; \
         curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.39.31294.12/intel-level-zero-gpu_1.6.31294.12_amd64.deb || exit 1 ; \
         curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.39.31294.12/intel-opencl-icd_24.39.31294.12_amd64.deb || exit 1 ; \
         curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.39.31294.12/libigdgmm12_22.5.2_amd64.deb || exit 1 ; \
@@ -44,7 +44,7 @@ case $INSTALL_DRIVER_VERSION in \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "24.52.32224") \
-        mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
+        mkdir /tmp/gpu_deps && cd /tmp/gpu_deps || exit 1 ; \
         curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/intel-level-zero-gpu_1.6.32224.5_amd64.deb || exit 1 ; \
         curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/intel-opencl-icd_24.52.32224.5_amd64.deb || exit 1 ; \
         curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/24.52.32224.5/libigdgmm12_22.5.5_amd64.deb || exit 1 ; \
@@ -53,7 +53,7 @@ case $INSTALL_DRIVER_VERSION in \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "25.31.34666") \
-	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
+	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps || exit 1 ; \
 	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.31.34666.3/libze-intel-gpu1_25.31.34666.3-0_amd64.deb || exit 1; \
 	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.31.34666.3/intel-opencl-icd_25.31.34666.3-0_amd64.deb || exit 1; \
 	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.31.34666.3/libigdgmm12_22.8.1_amd64.deb || exit 1; \
@@ -63,7 +63,7 @@ case $INSTALL_DRIVER_VERSION in \
 	dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "25.35.35096") \
-	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
+	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps || exit 1 ; \
 	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/libze-intel-gpu1_25.35.35096.9-0_amd64.deb || exit 1; \
 	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/intel-opencl-icd_25.35.35096.9-0_amd64.deb || exit 1; \
 	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.35.35096.9/libigdgmm12_22.8.1_amd64.deb || exit 1; \
@@ -73,7 +73,7 @@ case $INSTALL_DRIVER_VERSION in \
 	dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "25.48.36300") \
-	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps ; \
+	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps || exit 1 ; \
 	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.48.36300.8/libze-intel-gpu1_25.48.36300.8-0_amd64.deb || exit 1; \
 	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.48.36300.8/intel-opencl-icd_25.48.36300.8-0_amd64.deb || exit 1; \
 	curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/25.48.36300.8/libigdgmm12_22.8.2_amd64.deb || exit 1; \
@@ -83,7 +83,7 @@ case $INSTALL_DRIVER_VERSION in \
 	dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "26.14.37833") \
-	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps && \
+	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps || exit 1 && \
         curl --fail -L -O  https://github.com/intel/intel-graphics-compiler/releases/download/v2.32.7/intel-igc-core-2_2.32.7+21184_amd64.deb || exit 1 && \
         curl --fail -L -O  https://github.com/intel/intel-graphics-compiler/releases/download/v2.32.7/intel-igc-opencl-2_2.32.7+21184_amd64.deb || exit 1 && \
         curl --fail -L -O  https://github.com/intel/compute-runtime/releases/download/26.14.37833.4/intel-ocloc_26.14.37833.4-0_amd64.deb || exit 1 && \
@@ -93,7 +93,7 @@ case $INSTALL_DRIVER_VERSION in \
         dpkg -i *.deb && rm -Rf /tmp/gpu_deps ; \
 ;; \
 "26.27.39122") \
-	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps && \
+	mkdir /tmp/gpu_deps && cd /tmp/gpu_deps || exit 1 && \
         curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.38.2/intel-igc-core-2_2.38.2+22051_amd64.deb || exit 1 && \
         curl --fail -L -O https://github.com/intel/intel-graphics-compiler/releases/download/v2.38.2/intel-igc-opencl-2_2.38.2+22051_amd64.deb || exit 1 && \
         curl --fail -L -O https://github.com/intel/compute-runtime/releases/download/26.27.39122.11/intel-ocloc_26.27.39122.11-0_amd64.deb || exit 1 && \
@@ -105,9 +105,9 @@ case $INSTALL_DRIVER_VERSION in \
 *) \
         dpkg -P intel-gmmlib intel-igc-core intel-igc-opencl intel-level-zero-gpu intel-ocloc intel-opencl intel-opencl-icd && \
         apt-get update && apt-get -y --no-install-recommends install dpkg-dev && rm -rf /var/lib/apt/lists/* && \
-        cd /drivers/${INSTALL_DRIVER_VERSION} && \
+        cd /drivers/${INSTALL_DRIVER_VERSION} || exit 1 && \
             dpkg-scanpackages .  > Packages && \
-            cd - ; \
+            cd - || exit 1 ; \
         echo "deb [trusted=yes arch=amd64] file:/drivers/${INSTALL_DRIVER_VERSION} ./" > /etc/apt/sources.list.d/intel-graphics-${INSTALL_DRIVER_VERSION}.list ; \
         apt-get update && \
         apt-get install -y --no-install-recommends \
