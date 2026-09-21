@@ -21,8 +21,8 @@ services:
     user: "1000:1000"
     init: true
     restart: unless-stopped
-    cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ ALL ]
+    security_opt: [ "no-new-privileges:true" ]
     environment:
       AUDIO_ANALYZER_SERVER_PORT: "8010"
       AUDIO_ANALYZER__MODELS__ASR__PROVIDER: openvino
@@ -45,7 +45,7 @@ services:
       - voice_asr_chunks:/app/audio_analyzer/chunks
       - voice_asr_storage:/app/audio_analyzer/storage
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8010/health', timeout=5).read()"]
+      test: [ "CMD", "python3", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8010/health', timeout=5).read()" ]
       interval: 15s
       timeout: 10s
       start_period: 15m
@@ -65,8 +65,8 @@ services:
     user: "1000:1000"
     init: true
     restart: unless-stopped
-    cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ ALL ]
+    security_opt: [ "no-new-privileges:true" ]
     environment:
       TEXT_TO_SPEECH__MODELS__TTS__NAME: microsoft/speecht5_tts
       TEXT_TO_SPEECH__MODELS__TTS__RUNTIME: openvino
@@ -85,7 +85,7 @@ services:
       - voice_tts_cache:/app/text-to-speech/.cache
       - voice_tts_storage:/app/text-to-speech/storage
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8011/health', timeout=5).read()"]
+      test: [ "CMD", "python3", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8011/health', timeout=5).read()" ]
       interval: 15s
       timeout: 10s
       start_period: 15m

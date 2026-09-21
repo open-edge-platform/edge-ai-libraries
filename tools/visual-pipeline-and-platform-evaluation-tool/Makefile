@@ -20,8 +20,8 @@ COMPOSE_FILE := compose.yml
 DEV_COMPOSE_FILE := compose.dev.yml
 EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
 VOICE_COMPOSE_FILE := compose.voice.yml
-export AUDIO_ANALYZER_TAG ?= 2026.1.0
-export TEXT_TO_SPEECH_TAG ?= 2026.1.0
+export AUDIO_ANALYZER_TAG ?= 2026.2.0
+export TEXT_TO_SPEECH_TAG ?= 2026.2.0
 
 define base-compose
 	. .env && \

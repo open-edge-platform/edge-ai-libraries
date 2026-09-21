@@ -94,19 +94,55 @@ class VoiceTests(unittest.TestCase):
         self.assertEqual(self.requests, [])
 
     def test_speech_returns_wav(self) -> None:
-        response = self.client.post("/voice/speech", json={"input": "Hello world"})
+        response = self.client.post(
+            "/voice/speech", json={"input": "Hello world", "voice": "Angus"}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["content-type"], "audio/wav")
         self.assertEqual(response.headers["cache-control"], "no-store")
         self.assertEqual(response.content, wav_bytes())
         self.assertEqual(
-            self.requests[0].content, b'{"input":"Hello world","response_format":"wav"}'
+            self.requests[0].content,
+            b'{"input":"Hello world","voice":"Angus","response_format":"wav"}',
         )
+
+    def test_accepts_supported_speech_voices(self) -> None:
+        for voice_name in [
+            "Ryan",
+            "Miles",
+            "Aaron",
+            "Nora",
+            "Elena",
+            "Kabir",
+            "Angus",
+        ]:
+            with self.subTest(voice=voice_name):
+                response = self.client.post(
+                    "/voice/speech", json={"input": "Hello", "voice": voice_name}
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.content, wav_bytes())
+
+    def test_rejects_invalid_speech_voice(self) -> None:
+        for payload in [
+            {"input": "Hello"},
+            {"input": "Hello", "voice": ""},
+            {"input": "Hello", "voice": "awb"},
+            {"input": "Hello", "voice": "angus"},
+            {"input": "Hello", "voice": "Unknown"},
+        ]:
+            with self.subTest(payload=payload):
+                self.assertEqual(
+                    self.client.post("/voice/speech", json=payload).status_code, 422
+                )
+        self.assertEqual(self.requests, [])
 
     def test_timings_belong_to_each_conversion(self) -> None:
         with patch.object(voice, "perf_counter", side_effect=[10, 10.25, 20, 20.75]):
             transcription = self.transcribe()
-            speech = self.client.post("/voice/speech", json={"input": "Hello"})
+            speech = self.client.post(
+                "/voice/speech", json={"input": "Hello", "voice": "Ryan"}
+            )
         self.assertEqual(transcription.status_code, 200)
         self.assertEqual(speech.status_code, 200)
         self.assertEqual(
@@ -127,7 +163,9 @@ class VoiceTests(unittest.TestCase):
         for text in ["", "   ", "a" * 5001]:
             with self.subTest(length=len(text)):
                 self.assertEqual(
-                    self.client.post("/voice/speech", json={"input": text}).status_code,
+                    self.client.post(
+                        "/voice/speech", json={"input": text, "voice": "Ryan"}
+                    ).status_code,
                     422,
                 )
         self.assertEqual(self.requests, [])
@@ -135,7 +173,8 @@ class VoiceTests(unittest.TestCase):
     def test_rejects_conversation_fields(self) -> None:
         self.assertEqual(
             self.client.post(
-                "/voice/speech", json={"input": "Hello", "session_id": "previous"}
+                "/voice/speech",
+                json={"input": "Hello", "voice": "Ryan", "session_id": "previous"},
             ).status_code,
             422,
         )
@@ -153,7 +192,9 @@ class VoiceTests(unittest.TestCase):
                 self.upstream = httpx.Response(
                     upstream_status, text="private service detail"
                 )
-                response = self.client.post("/voice/speech", json={"input": "Hello"})
+                response = self.client.post(
+                    "/voice/speech", json={"input": "Hello", "voice": "Ryan"}
+                )
                 self.assertEqual(response.status_code, expected_status)
                 self.assertNotIn("private", response.text)
 
@@ -164,7 +205,9 @@ class VoiceTests(unittest.TestCase):
         ]:
             with self.subTest(error=error):
                 self.failure = error
-                response = self.client.post("/voice/speech", json={"input": "Hello"})
+                response = self.client.post(
+                    "/voice/speech", json={"input": "Hello", "voice": "Ryan"}
+                )
                 self.assertEqual(response.status_code, expected_status)
                 self.assertNotIn("private", response.text)
 
@@ -172,7 +215,7 @@ class VoiceTests(unittest.TestCase):
         self.upstream = httpx.Response(200, json={"text": 123})
         responses = [
             self.transcribe(),
-            self.client.post("/voice/speech", json={"input": "Hello"}),
+            self.client.post("/voice/speech", json={"input": "Hello", "voice": "Ryan"}),
         ]
         for response in responses:
             self.assertEqual(response.status_code, 502)
@@ -226,7 +269,9 @@ class ConcurrentVoiceTests(unittest.IsolatedAsyncioTestCase):
                 )
                 try:
                     await started.wait()
-                    speech = await client.post("/voice/speech", json={"input": "Hello"})
+                    speech = await client.post(
+                        "/voice/speech", json={"input": "Hello", "voice": "Ryan"}
+                    )
                 finally:
                     release.set()
                     transcription = await pending

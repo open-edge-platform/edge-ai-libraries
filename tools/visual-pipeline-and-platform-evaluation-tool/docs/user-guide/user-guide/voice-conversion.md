@@ -171,9 +171,9 @@ both the profile and override filenames. Do not edit the generated `.env` file.
 GPU utilization metrics may be unavailable under WSL even when inference works;
 the native Linux GPU collectors depend on driver interfaces not exposed by WSL.
 
-Diarization and sentiment analysis are disabled; SpeechT5 uses Ryan's voice.
-TTS supports English in this configuration. Changing a language label alone
-does not add multilingual synthesis support.
+Diarization and sentiment analysis are disabled. TTS supports English in this
+configuration. Changing a language label alone does not add multilingual
+synthesis support.
 
 First startup downloads/exports models and requires network access to model
 sources. Healthchecks allow 15 minutes for startup. Subsequent starts reuse
@@ -203,6 +203,9 @@ For GPU/NPU/WSL, use the same profile and override files as at startup.
   audio preview and transcription appear below the source controls.
 - The TTS **Sample text** menu fills the text input with an editable example.
   Selecting a sample clears the previous generated audio and its request metrics.
+- The TTS **Voice** menu initially selects `Ryan`. It also offers `Miles`,
+  `Aaron`, `Nora`, `Elena`, `Kabir`, and `Angus`. Changing the voice preserves
+  the text and clears the previous generated audio, metrics, and error.
 - Audio previews display a waveform sampled from the actual decoded audio,
   using browser Web Audio and the existing Recharts library. No audio is sent
   to an additional visualization service. Waveforms are approximate amplitude
@@ -214,9 +217,9 @@ For GPU/NPU/WSL, use the same profile and override files as at startup.
   If visualization fails, playback and WAV download remain available.
 - Voice uses the existing semantic color tokens, typography, shadcn controls
   and metrics components in both light and dark themes. Global navigation is
-  unchanged. No model, device, voice or synthesis-rate selectors are added;
-  those settings remain service configuration. MP3 and bundled sample recordings
-  are not supported by this UI.
+  unchanged. No model, device, or synthesis-rate selectors are added; those
+  settings remain service configuration. MP3 and bundled sample recordings are
+  not supported by this UI.
 - Cancel aborts the browser request or recording; it does not guarantee that
   already-started inference in the upstream service stops immediately.
 
@@ -226,8 +229,14 @@ For GPU/NPU/WSL, use the same profile and override files as at startup.
 two-letter `language` (default `en`). It returns `{"text": "..."}`.
 No upstream `session_id`, history, or prompt is forwarded.
 
-`POST /api/v1/voice/speech` accepts `{"input": "Hello world"}` and returns
-`audio/wav`. The model and voice come from service configuration.
+`POST /api/v1/voice/speech` accepts the following body and returns `audio/wav`:
+
+```json
+{"input": "Hello world", "voice": "Angus"}
+```
+
+Both fields are required. `voice` must be one of `Ryan`, `Miles`, `Aaron`,
+`Nora`, `Elena`, `Kabir`, or `Angus`; ViPPET forwards it for that request.
 
 Backend service locations are configured with `AUDIO_ANALYZER_URL` (default
 `http://audio-analyzer:8010`) and `TEXT_TO_SPEECH_URL` (default

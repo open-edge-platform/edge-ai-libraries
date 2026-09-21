@@ -29,6 +29,17 @@ const SAMPLE_TEXTS = [
   "Hello, how can I assist you today?",
 ];
 
+const SPEECH_VOICES = [
+  "Ryan",
+  "Miles",
+  "Aaron",
+  "Nora",
+  "Elena",
+  "Kabir",
+  "Angus",
+] as const;
+type SpeechVoice = (typeof SPEECH_VOICES)[number];
+
 function readConversionMetrics(
   response: Response,
   requestMs: number,
@@ -79,6 +90,7 @@ export function VoiceConversion() {
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState("en");
   const [text, setText] = useState("");
+  const [voice, setVoice] = useState<SpeechVoice>("Ryan");
   const [transcription, setTranscription] = useState<string | null>(null);
   const [speech, setSpeech] = useState<Blob | null>(null);
   const [sttMetrics, setSttMetrics] = useState<ConversionMetrics | null>(null);
@@ -111,6 +123,13 @@ export function VoiceConversion() {
 
   function updateText(value: string) {
     setText(value);
+    setSpeech(null);
+    setTtsMetrics(null);
+    setError(null);
+  }
+
+  function updateVoice(value: SpeechVoice) {
+    setVoice(value);
     setSpeech(null);
     setTtsMetrics(null);
     setError(null);
@@ -180,7 +199,7 @@ export function VoiceConversion() {
         const response = await fetch(`${API_BASE_URL}/voice/speech`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: text.trim() }),
+          body: JSON.stringify({ input: text.trim(), voice }),
           signal: controller.signal,
           cache: "no-store",
         });
@@ -400,6 +419,24 @@ export function VoiceConversion() {
                 Text to Speech Workload Configuration
               </h2>
               <section className="min-w-0 space-y-4 rounded-sm bg-muted p-3 sm:p-4">
+                <div className="max-w-sm space-y-2">
+                  <Label htmlFor="speech-voice">Voice</Label>
+                  <select
+                    id="speech-voice"
+                    value={voice}
+                    disabled={busy}
+                    onChange={(event) =>
+                      updateVoice(event.target.value as SpeechVoice)
+                    }
+                    className="border-input h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  >
+                    {SPEECH_VOICES.map((voiceName) => (
+                      <option key={voiceName} value={voiceName}>
+                        {voiceName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <Label htmlFor="voice-text" className="text-sm font-semibold">
                   Text input (English)
                 </Label>

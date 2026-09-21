@@ -7,7 +7,7 @@ import logging
 import os
 import wave
 from time import perf_counter
-from typing import Annotated
+from typing import Annotated, Literal
 
 import httpx
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -36,10 +36,14 @@ METRICS_HEADERS = {
 }
 
 
+SpeechVoice = Literal["Ryan", "Miles", "Aaron", "Nora", "Elena", "Kabir", "Angus"]
+
+
 class SpeechRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     input: str = Field(min_length=1, max_length=5000)
+    voice: SpeechVoice
 
 
 class TranscriptionResponse(BaseModel):
@@ -175,10 +179,14 @@ async def transcribe_voice(
     },
 )
 async def synthesize_voice(request: SpeechRequest) -> Response:
-    """Synthesize one sentence using the configured service model and voice. Returns WAV audio."""
+    """Synthesize one sentence with the selected voice. Returns WAV audio."""
     upstream = await call_service(
         f"{TEXT_TO_SPEECH_URL.rstrip('/')}/v1/audio/speech",
-        json={"input": request.input, "response_format": "wav"},
+        json={
+            "input": request.input,
+            "voice": request.voice,
+            "response_format": "wav",
+        },
     )
     content = upstream.content
     if (

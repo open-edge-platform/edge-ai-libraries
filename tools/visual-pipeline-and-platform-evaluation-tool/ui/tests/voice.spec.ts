@@ -71,7 +71,10 @@ for (const viewport of [
       });
     });
     await page.route("**/voice/speech", async (route) => {
-      expect(route.request().postDataJSON()).toEqual({ input: "Hello world" });
+      expect(route.request().postDataJSON()).toEqual({
+        input: "Hello world",
+        voice: "Angus",
+      });
       await route.fulfill({
         contentType: "audio/wav",
         body: wav(),
@@ -131,6 +134,8 @@ for (const viewport of [
     await expect(
       page.getByRole("button", { name: "Generate speech" }),
     ).toBeDisabled();
+    await expect(page.getByLabel("Voice")).toHaveValue("Ryan");
+    await page.getByLabel("Voice").selectOption("Angus");
     await page.getByLabel("Text input (English)").fill("Hello world");
     await page.getByRole("button", { name: "Generate speech" }).click();
     await expect(page.getByLabel("Generated speech")).toHaveJSProperty(
@@ -199,6 +204,14 @@ for (const viewport of [
       path: `/tmp/voice-tts-${viewport.width}.png`,
       fullPage: true,
     });
+    await page.getByLabel("Voice").selectOption("Miles");
+    await expect(page.getByLabel("Text input (English)")).toHaveValue(
+      "Hello world",
+    );
+    await expect(page.getByLabel("Generated speech")).toHaveCount(0);
+    await expect(
+      page.getByRole("region", { name: "Text to speech metrics" }),
+    ).toHaveCount(0);
     await page
       .getByLabel("Sample text")
       .selectOption("Welcome to Intel Performance Studio.");
