@@ -12,7 +12,7 @@ export const gvaDetectConfig = {
       defaultValue: "",
       description: "Path to inference model network file",
       params: {
-        filter: "detection",
+        filter: "object_detection",
       },
     },
     {

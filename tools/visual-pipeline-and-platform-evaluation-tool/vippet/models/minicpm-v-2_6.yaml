@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+name: minicpm-v-2_6
+display_name: MiniCPM-V 2.6
+description: "MiniCPM-V 2.6 multimodal vision-language model that analyzes images and answers questions about them, generating captions and visual descriptions."
+source: huggingface
+hub: huggingface
+type: vision_language_models
+precisions:
+  - precision: INT4
+    model_path: openvino_models/cpu/int4/openbmb/MiniCPM-V-2_6/
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: "NPU"
+download_request:
+  hub: openvino
+  name: openbmb/MiniCPM-V-2_6
+  type: vlm
+  is_ovms: true
+  config:
+    precision: int4
+    device: CPU
+    cache_size: 10

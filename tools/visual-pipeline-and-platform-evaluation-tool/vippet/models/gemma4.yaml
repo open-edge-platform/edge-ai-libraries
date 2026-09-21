@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+name: gemma4
+display_name: Gemma 4 E4B
+description: "Google Gemma multimodal vision-language model (E4B variant) that jointly processes images and text to produce natural-language descriptions and answers."
+source: huggingface
+hub: huggingface
+type: vision_language_models
+precisions:
+  - precision: INT4
+    model_path: openvino_models/cpu/int4/google/gemma-4-E4B-it/
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: "NPU"
+download_request:
+  hub: openvino
+  name: google/gemma-4-E4B-it
+  type: vlm
+  is_ovms: true
+  config:
+    precision: int4
+    device: CPU
+    cache_size: 10

@@ -330,11 +330,11 @@ def make_tar_archive(sample_frame_bgr: "np.ndarray[Any, Any]"):
 
 _UPLOAD_MODEL_SOURCES: dict[str, dict[str, str]] = {
     "face-detection-retail-0004": {
-        "category": "detection",
+        "category": "object_detection",
         "fp16_dir": "shared/models/output/omz/face-detection-retail-0004/FP16",
     },
     "age-gender-recognition-retail-0013": {
-        "category": "classification",
+        "category": "image_classification",
         "fp16_dir": "shared/models/output/omz/age-gender-recognition-retail-0013/FP16",
     },
 }

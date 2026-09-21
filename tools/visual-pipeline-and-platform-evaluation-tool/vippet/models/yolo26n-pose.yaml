@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+name: yolo26n-pose
+display_name: YOLO 26n Pose
+description: "YOLO26 nano pose-estimation model providing lightweight, real-time human body keypoint detection."
+source: public
+hub: ultralytics
+type: object_detection
+precisions:
+  - precision: FP32
+    model_path: ultralytics/public/yolo26n-pose/FP32/yolo26n-pose.xml
+    model_proc: ""
+  - precision: FP16
+    model_path: ultralytics/public/yolo26n-pose/FP16/yolo26n-pose.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: yolo26n-pose

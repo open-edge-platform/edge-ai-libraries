@@ -4,9 +4,9 @@ uploading inside vippet-app.
 
 Responsibilities:
 
-* Aggregate models known from ``supported_models.yaml`` and previously
-  installed/uploaded ones (the latter persisted in
-  ``installed_models.json`` next to the model files).
+* Read the model catalog (canonical models + variants, install status)
+  from the `models`/`model_variants` DB tables, seeded at startup from
+  ``vippet/models/*.yaml`` (see ``db_seed.py``).
 * Resolve which predefined pipelines reference each model
   (``used_by_pipelines``).
 * Start asynchronous download jobs:
@@ -17,18 +17,24 @@ Responsibilities:
       the model-download microservice and poll its ``/jobs/{job_id}``
       endpoint until completion.
 * Proxy multipart uploads to the model-download microservice
-  (``/models/upload``) and register the resulting model locally so it
+  (``/models/upload``) and register the resulting model in the DB so it
   shows up in ``GET /models`` immediately.
+
+On every successful download/upload, the DB is updated and
+``SupportedModelsManager`` (the in-memory cache used by pipeline
+building/execution code) is explicitly refreshed so the new install
+state is visible immediately without waiting for a restart.
 
 Threading model mirrors :class:`OptimizationManager`:
 * one background ``threading.Thread`` per job,
-* jobs stored in-memory in a singleton (lost on restart, but the
-  installed-model registry survives via ``installed_models.json``),
+* jobs stored in-memory in a singleton (lost on restart; install state
+  itself is durable in the DB),
 * no cancellation.
 """
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import logging
@@ -39,7 +45,7 @@ import tempfile
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -58,12 +64,7 @@ from internal_types import (
     InternalSupportedModel,
 )
 from managers.pipeline_manager import PipelineManager
-from models import (
-    GENAI_SENTINEL_FILE,
-    MODELS_PATH,
-    SupportedModel,
-    SupportedModelsManager,
-)
+from models import GENAI_SENTINEL_FILE, MODELS_PATH, SupportedModelsManager
 
 logger = logging.getLogger("model_manager")
 
@@ -77,15 +78,6 @@ MODEL_DOWNLOAD_URL: str = os.environ.get(
 ).rstrip("/")
 # API root used by model-download.
 MODEL_DOWNLOAD_API_PREFIX: str = "/api/v1"
-
-# Path of the JSON registry tracking installed/uploaded models.
-# Defaults to ``<MODELS_PATH>/installed_models.json`` so the file lives
-# alongside the downloaded model artefacts inside the mounted
-# ``shared/models/output/`` volume.
-INSTALLED_MODELS_REGISTRY: str = os.environ.get(
-    "INSTALLED_MODELS_REGISTRY",
-    os.path.join(MODELS_PATH, "installed_models.json"),
-)
 
 # Polling configuration for remote model-download jobs.
 DOWNLOAD_POLL_INTERVAL_S: float = float(
@@ -116,7 +108,7 @@ def _precision_is_complete(category: str | None, model_path: str) -> bool:
     For all other model types the path points directly at the ``.xml``
     artefact, so a plain existence check is sufficient.
     """
-    if category == "genai":
+    if category == "vision_language_models":
         return os.path.isfile(os.path.join(model_path, GENAI_SENTINEL_FILE))
     return os.path.exists(model_path)
 
@@ -183,95 +175,6 @@ _OMZ_MODEL_RULES: dict[str, dict[str, str]] = {
 
 
 # ----------------------------------------------------------------------
-# In-memory installed-model registry entry
-# ----------------------------------------------------------------------
-
-
-@dataclass
-class _InstalledModelRecord:
-    """Persisted record describing a model that lives on disk.
-
-    Records are only created on successful download/upload and are
-    removed (in-memory + on disk) at startup when the referenced files
-    no longer exist. Implicit invariant: every record in the registry
-    is currently ``INSTALLED``.
-    """
-
-    name: str
-    display_name: str
-    source: InternalModelSource
-    category: InternalModelCategory | None
-    precisions: list[InternalModelPrecision] = field(default_factory=list)
-    description: str | None = None
-
-
-# ----------------------------------------------------------------------
-# Adapter exposing uploaded models through the SupportedModel interface
-# ----------------------------------------------------------------------
-
-
-class _UploadedSupportedModel(SupportedModel):
-    """``SupportedModel`` view over an uploaded model registry record.
-
-    The registry stores absolute on-disk paths (e.g.
-    ``<MODELS_PATH>/custom_uploaded_models/<name>/``), while
-    ``SupportedModel`` normally joins relative ``model_path`` with
-    ``MODELS_PATH``. This adapter bypasses that join and additionally
-    resolves a single ``.xml`` artefact when the record points at a
-    directory, so the resulting ``model_path_full`` is directly usable
-    by GStreamer.
-
-    Uploaded models never carry a model-proc file (custom ZIPs only
-    contain ``.xml``/``.bin``), so ``model_proc_full`` stays empty.
-    """
-
-    def __init__(
-        self,
-        record: "_InstalledModelRecord",
-        precision: "InternalModelPrecision",
-    ) -> None:
-        # Initialise the base with a sentinel relative path; we override
-        # ``model_path_full`` below so the join with MODELS_PATH is moot.
-        super().__init__(
-            name=record.name,
-            display_name=record.display_name,
-            source=record.source.value,
-            model_type=(record.category.value if record.category else ""),
-            model_path=precision.model_path,
-            model_proc=None,
-            unsupported_devices=None,
-            precision=precision.precision or None,
-            default=False,
-            hub=record.source.value,
-            canonical_name=record.name,
-            canonical_display_name=record.display_name,
-        )
-        # Treat the registry path as absolute and resolve the actual
-        # ``.xml`` artefact when the record points at a directory.
-        absolute_path = precision.model_path
-        if os.path.isdir(absolute_path):
-            try:
-                xml_files = sorted(
-                    f for f in os.listdir(absolute_path) if f.endswith(".xml")
-                )
-            except OSError:
-                xml_files = []
-            if xml_files:
-                absolute_path = os.path.join(absolute_path, xml_files[0])
-        self.model_path_full = absolute_path
-        # Uploaded models never carry a model-proc.
-        self.model_proc_full = ""
-
-    def exists_on_disk(self) -> bool:  # pragma: no cover - thin wrapper
-        # Either the resolved ``.xml`` exists, or (genai-style) the
-        # registry path is a populated directory.
-        path = self.model_path_full
-        if os.path.isfile(path):
-            return True
-        return os.path.isdir(path)
-
-
-# ----------------------------------------------------------------------
 # Manager singleton
 # ----------------------------------------------------------------------
 
@@ -298,210 +201,11 @@ class ModelManager:
         self._jobs: dict[str, InternalModelDownloadJobStatus] = {}
         self._jobs_lock = threading.Lock()
 
-        # Installed-models registry (custom uploaded + completed downloads)
-        self._registry: dict[str, _InstalledModelRecord] = {}
-        self._registry_lock = threading.Lock()
-        self._load_registry()
-
-        # Pre-warm SupportedModelsManager so we fail fast if the YAML is broken.
-        SupportedModelsManager()
-
-    # ------------------------------------------------------------------
-    # Registry persistence
-    # ------------------------------------------------------------------
-
-    def _load_registry(self) -> None:
-        """Load the installed-models registry from disk if present.
-
-        Stale entries (whose ``precisions[*].model_path`` no longer exist
-        on disk) are pruned and the file is rewritten so the registry
-        always reflects on-disk reality. The legacy ``install_status``
-        field is ignored: presence in the registry implies ``INSTALLED``.
-        """
-        path = INSTALLED_MODELS_REGISTRY
-        if not os.path.isfile(path):
-            logger.debug("Installed-models registry not found at %s", path)
-            return
-        try:
-            with open(path) as f:
-                raw = json.load(f)
-            if not isinstance(raw, list):
-                logger.warning(
-                    "Installed-models registry %s has unexpected shape, ignoring", path
-                )
-                return
-            pruned = 0
-            for entry in raw:
-                try:
-                    name = entry["name"]
-                    precisions = [
-                        InternalModelPrecision(
-                            precision=p.get("precision", ""),
-                            model_path=p["model_path"],
-                        )
-                        for p in entry.get("precisions", [])
-                        if "model_path" in p
-                    ]
-                    category_raw: str | None = entry.get("category")
-                    # Prune entries whose files no longer exist on disk or are
-                    # incomplete (e.g. a GenAI directory without the sentinel
-                    # model file, left behind by a failed/interrupted download).
-                    if not precisions or not any(
-                        _precision_is_complete(category_raw, p.model_path)
-                        for p in precisions
-                    ):
-                        logger.info(
-                            "Pruning stale registry entry '%s' (files missing or incomplete)",
-                            name,
-                        )
-                        pruned += 1
-                        continue
-                    self._registry[name] = _InstalledModelRecord(
-                        name=name,
-                        display_name=entry.get("display_name", name),
-                        source=InternalModelSource(entry.get("source", "custom")),
-                        category=(
-                            InternalModelCategory(entry["category"])
-                            if entry.get("category")
-                            else None
-                        ),
-                        precisions=precisions,
-                        description=entry.get("description"),
-                    )
-                except Exception:
-                    logger.warning(
-                        "Skipping malformed registry entry: %s", entry, exc_info=True
-                    )
-                    pruned += 1
-            if pruned:
-                # Persist the cleaned-up registry so the file stays in sync.
-                with self._registry_lock:
-                    self._save_registry_locked()
-        except Exception:
-            logger.error(
-                "Failed to load installed-models registry from %s",
-                path,
-                exc_info=True,
-            )
-
-    def _save_registry_locked(self) -> None:
-        """Persist the registry to disk. Caller must hold ``_registry_lock``."""
-        path = INSTALLED_MODELS_REGISTRY
-        try:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            payload = [
-                {
-                    "name": r.name,
-                    "display_name": r.display_name,
-                    "source": r.source.value,
-                    "category": r.category.value if r.category else None,
-                    "precisions": [
-                        {"precision": p.precision, "model_path": p.model_path}
-                        for p in r.precisions
-                    ],
-                    "description": r.description,
-                }
-                for r in self._registry.values()
-            ]
-            tmp = f"{path}.tmp"
-            with open(tmp, "w") as f:
-                json.dump(payload, f, indent=2)
-            os.replace(tmp, path)
-        except Exception:
-            logger.error(
-                "Failed to persist installed-models registry to %s",
-                path,
-                exc_info=True,
-            )
-
-    def _upsert_registry_record(self, record: _InstalledModelRecord) -> None:
-        with self._registry_lock:
-            self._registry[record.name] = record
-            self._save_registry_locked()
-
-    def _remove_registry_record(self, model_name: str) -> None:
-        """Drop ``model_name`` from the registry if present and persist."""
-        with self._registry_lock:
-            if self._registry.pop(model_name, None) is not None:
-                self._save_registry_locked()
-
-    # ------------------------------------------------------------------
-    # Public lookups for uploaded models (graph.py fallback)
-    # ------------------------------------------------------------------
-
-    def find_installed_uploaded_model_by_display_name(
-        self, display_name: str
-    ) -> SupportedModel | None:
-        """Return a ``SupportedModel`` view for an uploaded model.
-
-        Used by ``graph.py`` as a fallback when ``SupportedModelsManager``
-        does not know the display name. Uploaded models are registered
-        under ``self._registry`` and live outside the YAML catalogue.
-
-        Args:
-            display_name: Display name as shown in the UI dropdown.
-                Uploaded models use ``model_name`` as their display name.
-
-        Returns:
-            A ``_UploadedSupportedModel`` view of the first precision
-            entry, or ``None`` when no matching record exists or the
-            on-disk files are missing.
-        """
-        with self._registry_lock:
-            record = next(
-                (
-                    r
-                    for r in self._registry.values()
-                    if r.display_name == display_name or r.name == display_name
-                ),
-                None,
-            )
-        if record is None or not record.precisions:
-            return None
-        adapter = _UploadedSupportedModel(record, record.precisions[0])
-        if not adapter.exists_on_disk():
-            return None
-        return adapter
-
-    def find_uploaded_model_by_path(
-        self,
-        model_path: str,
-        model_proc_path: str | None = None,  # noqa: ARG002 - uploads have no model-proc
-    ) -> SupportedModel | None:
-        """Return a ``SupportedModel`` view for an uploaded model by path.
-
-        Mirrors ``SupportedModelsManager.find_model_by_model_and_proc_path``
-        for uploaded models. Matching prefers exact path equality and
-        falls back to filename + parent-dir equality so existing
-        pipelines referencing absolute paths can still be resolved.
-
-        Args:
-            model_path: Path written in the pipeline string. May be the
-                model directory or an ``.xml`` artefact inside it.
-            model_proc_path: Ignored. Uploaded models do not carry a
-                model-proc file (kept for signature symmetry with
-                ``SupportedModelsManager``).
-
-        Returns:
-            A ``_UploadedSupportedModel`` view of the matching record,
-            or ``None`` when no record matches.
-        """
-        normalized = os.path.normpath(model_path)
-        with self._registry_lock:
-            records = list(self._registry.values())
-        for record in records:
-            for precision in record.precisions:
-                registry_path = os.path.normpath(precision.model_path)
-                if registry_path == normalized:
-                    return _UploadedSupportedModel(record, precision)
-                # Allow the pipeline string to point at the resolved
-                # ``.xml`` artefact when the registry stores a directory.
-                if (
-                    os.path.isdir(registry_path)
-                    and os.path.dirname(normalized) == registry_path
-                ):
-                    return _UploadedSupportedModel(record, precision)
-        return None
+        # Re-sync the model cache (already warmed once in the FastAPI
+        # lifespan before PipelineManager loaded predefined pipelines).
+        # Idempotent and cheap; mainly guards against ModelManager ever
+        # being constructed standalone (e.g. in isolated tests).
+        SupportedModelsManager().reload()
 
     # ------------------------------------------------------------------
     # Helpers: type conversion
@@ -532,98 +236,75 @@ class ModelManager:
     # Public: model listing
     # ------------------------------------------------------------------
 
-    def list_models(self) -> list[InternalSupportedModel]:
+    async def list_models(self) -> list[InternalSupportedModel]:
         """Return every model known to vippet-app as internal records.
 
-        Combines:
-        * entries from ``supported_models.yaml`` (grouped per canonical name),
-        * uploaded/custom models stored in the registry that are not also
-          listed in the YAML.
-
-        The ``install_status`` and ``used_by_pipelines`` fields are
-        computed at call time so that subsequent ``GET /models`` calls
-        always reflect on-disk reality.
+        Reads the `models`/`model_variants` DB tables directly (both
+        YAML-catalog and custom-uploaded models live in the same
+        `models` table, distinguished by `is_custom`). `install_status`
+        is the DB's code-managed value merged with any active in-memory
+        download job (RUNNING/FAILED overlays the DB's resting state so
+        an in-flight download shows up immediately).
         """
-        # Build display_name -> pipeline_ids map. PipelineManager exposes display
-        # names because pipeline graphs store display names (see graph.py).
+        from sqlalchemy import select
+
+        from database import async_session_maker
+        from orm_models import Model, ModelVariant
+
         used_by_display = PipelineManager().get_model_display_names_used_by_pipelines()
-
-        supported = SupportedModelsManager().get_all_supported_models()
-
-        # Group YAML entries by canonical name. A single canonical model
-        # may appear multiple times: once per precision and once per
-        # ``extra_model_procs`` variant. The API exposes the collapsed
-        # canonical view (one installable model); fine-grained variants
-        # remain visible to the PipelineBuilder via ``SupportedModel``.
-        grouped: dict[str, list[SupportedModel]] = {}
-        for m in supported:
-            grouped.setdefault(m.canonical_name, []).append(m)
-
-        result: list[InternalSupportedModel] = []
         active_jobs = self._active_jobs_by_model()
 
-        # 1) Models from supported_models.yaml
-        for name, entries in grouped.items():
-            # Choose representative entry for display metadata.
-            head = entries[0]
+        result: list[InternalSupportedModel] = []
+        if async_session_maker is None:
+            logger.warning("Database not initialized yet; returning no models")
+            return result
 
-            precisions = self._collect_precisions(entries)
-            variants = self._collect_variants(entries)
-            install_status = self._compute_install_status(
-                name=name,
-                entries=entries,
-                active_jobs=active_jobs,
-            )
-
-            display_name = self._strip_precision_suffix(head.canonical_display_name)
-            used_by = sorted(
-                {
-                    pipeline_id
-                    for e in entries
-                    for pipeline_id in used_by_display.get(e.display_name, [])
-                }
-            )
-
-            result.append(
-                InternalSupportedModel(
-                    name=name,
-                    display_name=display_name,
-                    category=self._to_internal_category(head.model_type),
-                    source=self._to_internal_source(head.hub),
-                    precisions=precisions,
-                    variants=variants,
-                    install_status=install_status,
-                    used_by_pipelines=used_by,
-                    default=bool(used_by),
-                    unsupported_devices=head.unsupported_devices or None,
-                    download_request=self._lookup_download_request(name),
-                    description=getattr(head, "description", None),
+        async with async_session_maker() as session:
+            db_models = (await session.execute(select(Model))).scalars().all()
+            for db_model in db_models:
+                db_variants = (
+                    (
+                        await session.execute(
+                            select(ModelVariant).where(
+                                ModelVariant.model_id == db_model.id
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
                 )
-            )
 
-        # 2) Uploaded/custom models recorded in the registry only.
-        yaml_names = set(grouped.keys())
-        with self._registry_lock:
-            extra_records = [
-                r for r in self._registry.values() if r.name not in yaml_names
-            ]
-        for record in extra_records:
-            result.append(
-                InternalSupportedModel(
-                    name=record.name,
-                    display_name=record.display_name,
-                    category=record.category,
-                    source=record.source,
-                    precisions=list(record.precisions),
-                    variants=self._variants_from_record(record),
-                    install_status=self._registry_install_status(record),
-                    used_by_pipelines=[],
-                    default=False,
-                    unsupported_devices=None,
-                    download_request=None,
-                    description=record.description,
+                precisions = self._collect_precisions(db_variants)
+                variants = self._collect_variants(db_variants)
+                install_status = self._compute_install_status(
+                    name=db_model.name,
+                    db_model=db_model,
+                    active_jobs=active_jobs,
                 )
-            )
+                used_by = sorted(
+                    {
+                        pipeline_id
+                        for v in db_variants
+                        for pipeline_id in used_by_display.get(v.display_name, [])
+                    }
+                )
+
+                result.append(
+                    InternalSupportedModel(
+                        name=db_model.name,
+                        display_name=db_model.display_name,
+                        category=self._to_internal_category(db_model.category),
+                        source=self._to_internal_source(db_model.hub),
+                        precisions=precisions,
+                        variants=variants,
+                        install_status=install_status,
+                        used_by_pipelines=used_by,
+                        default=bool(used_by),
+                        unsupported_devices=db_model.unsupported_devices,
+                        download_request=db_model.download_request,
+                        description=db_model.description,
+                    )
+                )
 
         return result
 
@@ -637,105 +318,60 @@ class ModelManager:
             return display_name.rsplit(" (", 1)[0]
         return display_name
 
-    def _collect_precisions(
-        self, entries: list[SupportedModel]
-    ) -> list[InternalModelPrecision]:
+    @staticmethod
+    def _collect_precisions(db_variants: list[Any]) -> list[InternalModelPrecision]:
         """Build a unique list of precision variants for a canonical model."""
         seen: set[str] = set()
         precisions: list[InternalModelPrecision] = []
-        for e in entries:
-            if not e.precision or e.precision in seen:
+        for v in db_variants:
+            if not v.precision or v.precision in seen:
                 continue
-            seen.add(e.precision)
+            seen.add(v.precision)
             precisions.append(
                 InternalModelPrecision(
-                    precision=e.precision, model_path=e.model_path_full
+                    precision=v.precision,
+                    model_path=os.path.join(MODELS_PATH, v.model_path),
                 )
             )
         return precisions
 
     @staticmethod
-    def _collect_variants(
-        entries: list[SupportedModel],
-    ) -> list[InternalModelVariant]:
+    def _collect_variants(db_variants: list[Any]) -> list[InternalModelVariant]:
         """Build the API-facing variant list for a canonical model.
 
-        Emits one ``InternalModelVariant`` per ``SupportedModel`` entry
-        (one per precision and per ``extra_model_procs`` alias). Order
-        follows the YAML definition so the dropdown stays predictable.
-        Filesystem paths are intentionally excluded — variants are
-        identified by ``name`` and matched to artefacts by the backend
-        when ingesting / running a pipeline graph.
-
-        ``SupportedModel.name`` is shared across precisions for a
-        single canonical model (only ``extra_model_procs`` aliases
-        suffix it), so deduplication must use the per-precision
-        ``display_name`` which is always unique.
-
-        ``installed`` reflects the on-disk presence of this exact
-        variant so the pipeline builder can filter its dropdown to
-        ready-to-use entries.
+        Emits one ``InternalModelVariant`` per `ModelVariant` row (one
+        per precision and per model-proc alias). ``installed`` is the
+        DB's code-managed flag, never a live disk check.
         """
         variants: list[InternalModelVariant] = []
         seen: set[str] = set()
-        for e in entries:
-            if e.display_name in seen:
+        for v in db_variants:
+            if v.display_name in seen:
                 continue
-            seen.add(e.display_name)
+            seen.add(v.display_name)
             variants.append(
                 InternalModelVariant(
-                    name=e.name,
-                    display_name=e.display_name,
-                    precision=e.precision or "",
-                    installed=e.exists_on_disk(),
+                    name=v.name,
+                    display_name=v.display_name,
+                    precision=v.precision or "",
+                    installed=v.installed,
                 )
             )
         return variants
 
     @staticmethod
-    def _variants_from_record(
-        record: "_InstalledModelRecord",
-    ) -> list[InternalModelVariant]:
-        """Build a single-variant list for a registry-only (uploaded) model.
-
-        Custom uploads always carry exactly one entry today, so this
-        keeps the schema consistent with YAML-backed models without
-        inventing model-proc aliases. Registry records exist only for
-        models that were successfully installed, so ``installed`` is
-        always ``True`` here.
-        """
-        precision = record.precisions[0].precision if record.precisions else ""
-        suffix = f" ({precision})" if precision else ""
-        return [
-            InternalModelVariant(
-                name=record.name,
-                display_name=f"{record.display_name}{suffix}",
-                precision=precision,
-                installed=True,
-            )
-        ]
-
     def _compute_install_status(
-        self,
         name: str,
-        entries: list[SupportedModel],
+        db_model: Any,
         active_jobs: dict[str, InternalModelDownloadJobStatus],
     ) -> InternalModelInstallStatus:
-        """Decide install status using on-disk presence + active jobs + registry.
+        """Overlay an active in-memory job on top of the DB's resting install_status.
 
         Order of precedence:
-        1. Files present on disk under any YAML precision → INSTALLED.
-        2. Model is in the registry (only added on successful install) → INSTALLED.
-        3. There is an active job for this model → INSTALLING/FAILED depending on state.
-        4. Otherwise NOT_INSTALLED.
+        1. There is an active job for this model → INSTALLING/FAILED, so an
+           in-flight or just-failed download shows up without a DB write.
+        2. Otherwise, the DB's own `install_status` column.
         """
-        if any(e.exists_on_disk() for e in entries):
-            return InternalModelInstallStatus.INSTALLED
-
-        with self._registry_lock:
-            if name in self._registry:
-                return InternalModelInstallStatus.INSTALLED
-
         job = active_jobs.get(name)
         if job is not None:
             if job.state == InternalModelDownloadJobState.RUNNING:
@@ -743,29 +379,7 @@ class ModelManager:
             if job.state == InternalModelDownloadJobState.FAILED:
                 return InternalModelInstallStatus.FAILED
 
-        return InternalModelInstallStatus.NOT_INSTALLED
-
-    def _registry_install_status(
-        self, record: _InstalledModelRecord
-    ) -> InternalModelInstallStatus:
-        """Install status for a registry-only model (no YAML entry).
-
-        Records only exist in the registry when the underlying files
-        were verified at startup or just after a successful job/upload,
-        so this is always ``INSTALLED``.
-        """
-        del record
-        return InternalModelInstallStatus.INSTALLED
-
-    def _lookup_download_request(self, name: str) -> dict[str, Any] | None:
-        """Return the raw ``download_request`` body from supported_models.yaml.
-
-        We re-read the YAML here only for the supported model entry,
-        falling back to ``None`` when not specified. The YAML payload
-        is loaded once by SupportedModelsManager but ``download_request``
-        is not exposed there yet; cache it lazily.
-        """
-        return _DownloadRequestCache.get(name)
+        return InternalModelInstallStatus(db_model.install_status)
 
     def _active_jobs_by_model(
         self,
@@ -804,28 +418,33 @@ class ModelManager:
     # Public: download
     # ------------------------------------------------------------------
 
-    def start_download(self, model_name: str) -> tuple[str | None, int, str]:
+    async def start_download(self, model_name: str) -> tuple[str | None, int, str]:
         """Start a download job for the given supported model.
 
         Returns a tuple ``(job_id, http_status, message)`` where
         ``job_id`` is ``None`` for error responses. ``http_status`` is
         the HTTP code that the route layer should return.
         """
-        # Resolve supported model entry
-        entries = [
-            m
-            for m in SupportedModelsManager().get_all_supported_models()
-            if m.canonical_name == model_name
-        ]
-        if not entries:
+        from sqlalchemy import select
+
+        from database import async_session_maker
+        from orm_models import Model
+
+        if async_session_maker is None:
+            return None, 500, "Database not initialized yet"
+
+        async with async_session_maker() as session:
+            db_model = await session.scalar(
+                select(Model).where(Model.name == model_name)
+            )
+        if db_model is None:
             return None, 404, f"Model '{model_name}' is not supported"
 
-        head = entries[0]
-        source = self._to_internal_source(head.hub)
-        download_request = _DownloadRequestCache.get(model_name)
+        source = self._to_internal_source(db_model.hub)
+        download_request = db_model.download_request
 
         # Idempotency: reject if installed or already running.
-        if any(e.exists_on_disk() for e in entries):
+        if db_model.install_status == InternalModelInstallStatus.INSTALLED.value:
             return None, 409, f"Model '{model_name}' is already installed"
 
         with self._jobs_lock:
@@ -865,19 +484,14 @@ class ModelManager:
         with self._jobs_lock:
             self._jobs[job_id] = job
 
-        # Note: we intentionally do not insert a registry record here.
-        # The registry only tracks successfully installed models; the
-        # INSTALLING/FAILED states are derived from the in-memory job
-        # (see ``_compute_install_status``).
-
         # Pick worker
         if source == InternalModelSource.OMZ:
             target = self._execute_omz_download
-            args: tuple[Any, ...] = (job_id, model_name, head)
+            args: tuple[Any, ...] = (job_id, model_name)
         else:
             assert download_request is not None
             target = self._execute_remote_download
-            args = (job_id, model_name, head, download_request)
+            args = (job_id, model_name, download_request)
 
         threading.Thread(
             target=target,
@@ -896,7 +510,6 @@ class ModelManager:
         self,
         job_id: str,
         model_name: str,
-        head: SupportedModel,
         download_request: dict[str, Any],
     ) -> None:
         """Run a download via the model-download microservice."""
@@ -957,7 +570,7 @@ class ModelManager:
 
                     if all(s in ("completed", "failed") for s, _ in statuses):
                         if all(s == "completed" for s, _ in statuses):
-                            self._finalize_success(job_id, model_name, head)
+                            self._finalize_success(job_id, model_name)
                             return
                         # At least one failed and none is still processing —
                         # aggregate every failure reason into a single message
@@ -1010,9 +623,7 @@ class ModelManager:
     # Worker: OMZ download (handled locally by vippet-app)
     # ------------------------------------------------------------------
 
-    def _execute_omz_download(
-        self, job_id: str, model_name: str, head: SupportedModel
-    ) -> None:
+    def _execute_omz_download(self, job_id: str, model_name: str) -> None:
         """Download/convert an OMZ model using ``openvino-dev`` CLIs.
 
         model-download has no OMZ plugin yet, so we keep this fallback in
@@ -1072,7 +683,7 @@ class ModelManager:
                 target_dir=target_dir,
             )
 
-            self._finalize_success(job_id, model_name, head)
+            self._finalize_success(job_id, model_name)
         except subprocess.CalledProcessError as exc:
             stderr = (exc.stderr or "").strip() if isinstance(exc.stderr, str) else ""
             logger.error(
@@ -1316,6 +927,11 @@ class ModelManager:
     ) -> None:
         """Mark a job as FAILED.
 
+        No DB write is needed: the DB's resting `install_status` (never
+        touched by a failed attempt) stays authoritative, and `GET
+        /models` overlays this in-memory FAILED state on top of it (see
+        `_compute_install_status`).
+
         Args:
             job_id: id of the job to update.
             message: short, one-line failure summary used for the
@@ -1331,28 +947,10 @@ class ModelManager:
             job.state = InternalModelDownloadJobState.FAILED
             job.end_time = int(time.time() * 1000)
             job.details = details if details else [message]
-            model_name = job.model_name
-
-        # The registry only tracks installed models. If a previous
-        # install succeeded and a re-install fails, the on-disk files
-        # may now be partial/missing — drop the stale record so the
-        # API reports the failed state (derived from the job).
-        with self._registry_lock:
-            record = self._registry.get(model_name)
-            if record is not None:
-                category_raw = record.category.value if record.category else None
-                if not any(
-                    _precision_is_complete(category_raw, p.model_path)
-                    for p in record.precisions
-                ):
-                    self._registry.pop(model_name, None)
-                    self._save_registry_locked()
         logger.error("Model download job %s failed: %s", job_id, message)
 
-    def _finalize_success(
-        self, job_id: str, model_name: str, head: SupportedModel
-    ) -> None:
-        """Mark the job as COMPLETED and update the registry.
+    def _finalize_success(self, job_id: str, model_name: str) -> None:
+        """Mark the job as COMPLETED and persist the new install state to the DB.
 
         Verifies that the expected model files are present on disk before
         trusting the model-download service's "completed" status.  The
@@ -1361,18 +959,14 @@ class ModelManager:
         valid HF_TOKEN, the service may download config/metadata files and
         then exit cleanly, never writing the actual model weights.  In that
         case the job is re-classified as FAILED with an informative message.
-        """
-        # Refresh on-disk precision list from supported_models.yaml entries.
-        entries = [
-            m
-            for m in SupportedModelsManager().get_all_supported_models()
-            if m.canonical_name == model_name
-        ]
-        precisions = self._collect_precisions(entries)
-        model_path = precisions[0].model_path if precisions else None
 
-        # Verify the expected files are actually on disk before registering.
-        if not any(e.exists_on_disk() for e in entries):
+        This is the ONLY place install_status/installed are ever derived
+        from a filesystem check post-seed: it is tied to this specific
+        download-completion event, not a periodic rescan.
+        """
+        installed, model_path = asyncio.run(self._persist_download_result(model_name))
+
+        if not installed:
             logger.warning(
                 "model-download reported success for '%s' (job %s) but the "
                 "expected model files are not present on disk — reclassifying "
@@ -1397,25 +991,76 @@ class ModelManager:
             job.details = [f"Model '{model_name}' installed successfully"]
             job.model_path = model_path
 
-        self._upsert_registry_record(
-            _InstalledModelRecord(
-                name=model_name,
-                display_name=self._strip_precision_suffix(head.canonical_display_name),
-                source=self._to_internal_source(head.hub),
-                category=self._to_internal_category(head.model_type),
-                precisions=precisions,
-            )
-        )
         logger.info("Model download job %s completed", job_id)
+
+    @staticmethod
+    async def _persist_download_result(model_name: str) -> tuple[bool, str | None]:
+        """Check disk for each variant's artefact and persist the result.
+
+        Called exactly once, right after model-download/OMZ reports
+        success. Also refreshes ``SupportedModelsManager`` so pipeline
+        building sees the new install state immediately.
+        """
+        from sqlalchemy import select
+
+        from database import async_session_maker
+        from orm_models import Model, ModelVariant
+
+        if async_session_maker is None:
+            return False, None
+
+        async with async_session_maker() as session:
+            db_model = await session.scalar(
+                select(Model).where(Model.name == model_name)
+            )
+            if db_model is None:
+                return False, None
+            variants = (
+                (
+                    await session.execute(
+                        select(ModelVariant).where(
+                            ModelVariant.model_id == db_model.id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            now = datetime.now(timezone.utc)
+            any_installed = False
+            model_path: str | None = None
+            for variant in variants:
+                full_path = os.path.join(MODELS_PATH, variant.model_path)
+                is_installed = _precision_is_complete(db_model.category, full_path)
+                variant.installed = is_installed
+                variant.installed_at = now if is_installed else None
+                if is_installed:
+                    any_installed = True
+                    if model_path is None:
+                        model_path = full_path
+
+            db_model.install_status = (
+                InternalModelInstallStatus.INSTALLED.value
+                if any_installed
+                else InternalModelInstallStatus.NOT_INSTALLED.value
+            )
+            db_model.installed_at = now if any_installed else None
+            await session.commit()
+
+        if any_installed:
+            await SupportedModelsManager().reload_async()
+
+        return any_installed, model_path
 
     # ------------------------------------------------------------------
     # Public: upload
     # ------------------------------------------------------------------
 
-    def upload_model(
+    async def upload_model(
         self, spec: InternalModelUploadSpec
     ) -> tuple[InternalSupportedModel | None, int, str]:
-        """Forward a model upload to model-download and register it locally.
+        """Forward a model upload to model-download and register it in the DB.
 
         Returns ``(model, http_status, message)``. On success ``model``
         is the freshly registered :class:`InternalSupportedModel`.
@@ -1454,36 +1099,110 @@ class ModelManager:
 
         # Resolve installed model path. model-download replies include
         # ``output_dir`` (best-effort across versions).
-        model_path = (
+        output_dir = str(
             payload.get("output_dir")
             or payload.get("model_path")
             or os.path.join(MODELS_PATH, "custom_uploaded_models", spec.model_name)
         )
 
-        precisions = [InternalModelPrecision(precision="", model_path=str(model_path))]
-        record = _InstalledModelRecord(
-            name=spec.model_name,
-            display_name=spec.model_name,
-            source=InternalModelSource.CUSTOM,
-            category=spec.category,
-            precisions=precisions,
-            description=spec.description,
-        )
-        self._upsert_registry_record(record)
+        # Resolve the actual ``.xml`` artefact when model-download returns a
+        # directory (custom ZIPs only contain ``.xml``/``.bin``). GenAI-style
+        # uploads keep the directory itself, matching the sentinel-file check.
+        resolved_path = output_dir
+        if (
+            spec.category != InternalModelCategory.VISION_LANGUAGE_MODELS
+            and os.path.isdir(output_dir)
+        ):
+            try:
+                xml_files = sorted(
+                    f for f in os.listdir(output_dir) if f.endswith(".xml")
+                )
+            except OSError:
+                xml_files = []
+            if xml_files:
+                resolved_path = os.path.join(output_dir, xml_files[0])
+
+        # Store relative to MODELS_PATH so this row is indistinguishable
+        # from a catalog-seeded row when SupportedModelsManager rebuilds
+        # its cache (no special "uploaded model" adapter needed).
+        relative_path = os.path.relpath(resolved_path, MODELS_PATH)
+
+        from sqlalchemy import select
+        from sqlalchemy.exc import IntegrityError
+
+        from database import async_session_maker
+        from orm_models import Model, ModelVariant
+
+        if async_session_maker is None:
+            return None, 500, "Database not initialized yet"
+
+        now = datetime.now(timezone.utc)
+        async with async_session_maker() as session:
+            existing = await session.scalar(
+                select(Model).where(Model.name == spec.model_name)
+            )
+            if existing is not None:
+                return None, 409, f"Model '{spec.model_name}' already exists"
+
+            db_model = Model(
+                name=spec.model_name,
+                display_name=spec.model_name,
+                description=spec.description,
+                category=spec.category.value,
+                source=InternalModelSource.CUSTOM.value,
+                hub=InternalModelSource.CUSTOM.value,
+                unsupported_devices=None,
+                is_custom=True,
+                install_status=InternalModelInstallStatus.INSTALLED.value,
+                installed_at=now,
+                download_request=None,
+                created_at=now,
+            )
+            session.add(db_model)
+            try:
+                await session.flush()
+            except IntegrityError:
+                await session.rollback()
+                return None, 409, f"Model '{spec.model_name}' already exists"
+
+            session.add(
+                ModelVariant(
+                    model_id=db_model.id,
+                    name=spec.model_name,
+                    display_name=spec.model_name,
+                    precision="",
+                    model_path=relative_path,
+                    model_proc=None,
+                    installed=True,
+                    installed_at=now,
+                )
+            )
+            await session.commit()
+
+        await SupportedModelsManager().reload_async()
 
         model = InternalSupportedModel(
-            name=record.name,
-            display_name=record.display_name,
-            category=record.category,
-            source=record.source,
-            precisions=list(record.precisions),
-            variants=self._variants_from_record(record),
+            name=spec.model_name,
+            display_name=spec.model_name,
+            category=spec.category,
+            source=InternalModelSource.CUSTOM,
+            precisions=[
+                InternalModelPrecision(precision="", model_path=resolved_path)
+            ],
+            variants=[
+                InternalModelVariant(
+                    name=spec.model_name,
+                    display_name=spec.model_name,
+                    precision="",
+                    installed=True,
+                )
+            ],
             install_status=InternalModelInstallStatus.INSTALLED,
             used_by_pipelines=[],
             default=False,
             unsupported_devices=None,
             download_request=None,
-            description=record.description,
+            description=spec.description,
         )
         return model, 201, "Model uploaded successfully"
 
@@ -1534,56 +1253,3 @@ class ModelManager:
             pass
         except Exception:  # pragma: no cover - defensive
             logger.debug("Failed to remove temp upload %s", path, exc_info=True)
-
-
-# ----------------------------------------------------------------------
-# Helpers shared across the manager
-# ----------------------------------------------------------------------
-
-
-class _DownloadRequestCache:
-    """Lazy cache for ``download_request`` fragments from ``supported_models.yaml``.
-
-    We re-parse the YAML only the first time we need it: this keeps
-    SupportedModelsManager untouched while still exposing the data the
-    manager needs.
-    """
-
-    _data: dict[str, dict[str, Any] | None] | None = None
-    _lock = threading.Lock()
-
-    @classmethod
-    def get(cls, model_name: str) -> dict[str, Any] | None:
-        cls._load()
-        assert cls._data is not None
-        return cls._data.get(model_name)
-
-    @classmethod
-    def _load(cls) -> None:
-        if cls._data is not None:
-            return
-        with cls._lock:
-            if cls._data is not None:
-                return
-            import yaml
-
-            from models import SUPPORTED_MODELS_FILE
-
-            cls._data = {}
-            try:
-                with open(SUPPORTED_MODELS_FILE) as f:
-                    raw = yaml.safe_load(f) or []
-                for entry in raw:
-                    if not isinstance(entry, dict):
-                        continue
-                    name = entry.get("name")
-                    if not isinstance(name, str):
-                        continue
-                    dr = entry.get("download_request")
-                    cls._data[name] = dr if isinstance(dr, dict) else None
-            except Exception:
-                logger.error(
-                    "Failed to load download_request entries from %s",
-                    SUPPORTED_MODELS_FILE,
-                    exc_info=True,
-                )

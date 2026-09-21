@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+name: yolo26n-seg
+display_name: YOLO 26n Segmentation
+description: "YOLO26 nano instance-segmentation model producing per-object pixel masks for the 80 COCO categories with minimal compute."
+source: public
+hub: ultralytics
+type: object_detection
+precisions:
+  - precision: FP32
+    model_path: ultralytics/public/yolo26n-seg/FP32/yolo26n-seg.xml
+    model_proc: ""
+  - precision: FP16
+    model_path: ultralytics/public/yolo26n-seg/FP16/yolo26n-seg.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: yolo26n-seg

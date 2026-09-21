@@ -1,14 +1,10 @@
+import asyncio
 import logging
 import os
 import threading
-import yaml
 
 from typing import Optional
 
-# Path to the file containing the list of supported models
-SUPPORTED_MODELS_FILE: str = os.environ.get(
-    "SUPPORTED_MODELS_FILE", "/models/supported_models.yaml"
-)
 # Path to the directory where models are stored
 MODELS_PATH: str = os.environ.get("MODELS_PATH", "/models/output")
 # Main language model file that every OpenVINO GenAI model must contain.
@@ -112,7 +108,7 @@ class SupportedModel:
         Returns:
             bool: True if the model exists, False otherwise.
         """
-        if self.model_type == "genai":
+        if self.model_type == "vision_language_models":
             if not os.path.isdir(self.model_path_full):
                 logger.debug(
                     f"GenAI model directory not found for '{self.display_name}' at path '{self.model_path_full}'"
@@ -134,13 +130,22 @@ class SupportedModel:
 
 class SupportedModelsManager:
     """
-    Thread-safe singleton responsible for reading supported_models.yaml and filtering available models.
+    Thread-safe singleton, in-memory read cache of the `models`/`model_variants`
+    DB tables, used for fast synchronous model lookups (pipeline graph
+    parsing/building, device-support checks).
+
+    The DB is the source of truth; this cache is populated once at app
+    startup (via :meth:`reload`, called from :class:`ModelManager`'s
+    background-thread pre-warm, so a blocking DB read never runs on the
+    event-loop thread) and explicitly refreshed after every mutation
+    (download completion, upload) via :meth:`reload` (sync callers) or
+    :meth:`reload_async` (async callers already on the event loop).
+    It is never refreshed on a timer or lazily re-scanned - only on
+    startup and right after a mutation, mirroring the DB's own
+    install-status semantics.
 
     Implements singleton pattern using __new__ with double-checked locking.
     Create instances with SupportedModelsManager() to get the shared singleton instance.
-
-    Raises:
-        RuntimeError: On file errors or validation failures during first initialization.
     """
 
     _instance: Optional["SupportedModelsManager"] = None
@@ -156,182 +161,88 @@ class SupportedModelsManager:
 
     def __init__(self) -> None:
         """
-        Loads and validates the supported models from SUPPORTED_MODELS_FILE.
-        Populates self._models with SupportedModel instances.
-        Protected against multiple initialization.
-
-        Raises:
-            RuntimeError: On file errors or validation failures.
+        Protected against multiple initialization. Starts empty; call
+        :meth:`reload` (or :meth:`reload_async`) to populate from the DB.
         """
-        # Protect against multiple initialization
         if hasattr(self, "_initialized"):
             return
         self._initialized = True
-
         self._models: list[SupportedModel] = []
-        try:
-            with open(SUPPORTED_MODELS_FILE, "r") as f:
-                models_yaml = yaml.safe_load(f)
-                # Ensure the loaded YAML is a list
-                if not isinstance(models_yaml, list):
-                    raise RuntimeError(
-                        f"Invalid format in '{SUPPORTED_MODELS_FILE}': expected a list."
-                    )
 
-                def require_str_field(
-                    model_entry: dict, field_name: str, index: int
-                ) -> str:
-                    """
-                    Helper function to validate that a required field exists,
-                    is of type str, and is not empty or whitespace only.
+    def reload(self) -> None:
+        """Synchronously (re)load the cache from the DB.
 
-                    Args:
-                        model_entry (dict): Dictionary representing a model entry.
-                        field_name (str): Name of the required field.
-                        index (int): Index of the entry in the list (for error context).
+        Only safe to call from a thread that is not already running an
+        asyncio event loop (e.g. the background init thread or a
+        download worker thread) - it opens a fresh event loop via
+        ``asyncio.run``. Async callers already on the event loop must
+        use :meth:`reload_async` instead.
+        """
+        self._models = asyncio.run(self._fetch_models_from_db())
 
-                    Returns:
-                        str: The validated string value for the field.
+    async def reload_async(self) -> None:
+        """Async equivalent of :meth:`reload`, for callers already on the event loop."""
+        self._models = await self._fetch_models_from_db()
 
-                    Raises:
-                        ValueError: If the field is missing, not a string, or empty.
-                    """
-                    value = model_entry.get(field_name)
-                    if not isinstance(value, str) or not value.strip():
-                        raise ValueError(
-                            f"Missing or invalid required field '{field_name}' in supported model entry at index {index}."
-                        )
-                    return value
+    @staticmethod
+    async def _fetch_models_from_db() -> list["SupportedModel"]:
+        """Query `models`/`model_variants` and rebuild the `SupportedModel` list.
 
-                for idx, entry in enumerate(models_yaml):
-                    # Validate and extract top-level required fields
-                    name = require_str_field(entry, "name", idx)
-                    display_name = require_str_field(entry, "display_name", idx)
-                    description_raw = entry.get("description")
-                    description = (
-                        description_raw.strip()
-                        if isinstance(description_raw, str) and description_raw.strip()
-                        else None
-                    )
-                    if (
-                        description is not None
-                        and len(description) > MAX_MODEL_DESCRIPTION_LENGTH
-                    ):
-                        raise ValueError(
-                            f"Model description in supported model entry at index {idx} "
-                            f"must be at most {MAX_MODEL_DESCRIPTION_LENGTH} characters."
-                        )
-                    source = require_str_field(entry, "source", idx)
-                    hub_raw = entry.get("hub")
-                    hub = (
-                        hub_raw
-                        if isinstance(hub_raw, str) and hub_raw.strip()
-                        else source
-                    )
-                    model_type = require_str_field(entry, "type", idx)
-                    unsupported_devices = entry.get("unsupported_devices", None)
-                    extra_model_procs = entry.get("extra_model_procs", None)
-                    # Validate precisions list
-                    precisions = entry.get("precisions")
-                    if not isinstance(precisions, list) or len(precisions) == 0:
-                        raise ValueError(
-                            f"Missing or invalid required field 'precisions' in supported model entry at index {idx}."
-                        )
+        One `SupportedModel` is produced per `ModelVariant` row, mirroring
+        the old YAML fan-out (one entry per precision, plus one per
+        model-proc alias). ``model_proc_is_full_path`` is derived from
+        whether the stored path is absolute rather than a separate column,
+        since only ``extra_model_procs`` aliases were ever stored as
+        absolute paths.
+        """
+        # Imported lazily to avoid a module import cycle (database.py already
+        # imports orm_models lazily for the same reason).
+        from sqlalchemy import select
 
-                    # Check if extra_model_procs exists and is a non-empty list
-                    has_extra_procs = (
-                        extra_model_procs
-                        and isinstance(extra_model_procs, list)
-                        and len(extra_model_procs) > 0
-                    )
+        from database import async_session_maker
+        from orm_models import Model, ModelVariant
 
-                    for prec_entry in precisions:
-                        precision = require_str_field(prec_entry, "precision", idx)
-                        model_path = require_str_field(prec_entry, "model_path", idx)
-                        model_proc = prec_entry.get("model_proc", None)
+        if async_session_maker is None:
+            logger.warning("Database not initialized yet; model cache stays empty")
+            return []
 
-                        # Append precision suffix to display_name for clarity
-                        prec_display_name = f"{display_name} ({precision})"
-
-                        # Determine if we need to modify the name/display_name for variants
-                        should_modify_for_variant = (
-                            has_extra_procs and model_proc and model_proc.strip()
-                        )
-
-                        # Set name and display_name based on whether this is a variant
-                        if should_modify_for_variant:
-                            proc_filename = os.path.splitext(
-                                os.path.basename(model_proc)
-                            )[0]
-                            model_name = f"{name}_{proc_filename}"
-                            model_display_name = (
-                                f"{prec_display_name} [model-proc: {proc_filename}]"
-                            )
-                        else:
-                            model_name = name
-                            model_display_name = prec_display_name
-
-                        # Add the base model for this precision
-                        self._models.append(
-                            SupportedModel(
-                                name=model_name,
-                                display_name=model_display_name,
-                                source=source,
-                                model_type=model_type,
-                                model_path=model_path,
-                                model_proc=model_proc,
-                                unsupported_devices=unsupported_devices,
-                                precision=precision,
-                                hub=hub,
-                                canonical_name=name,
-                                canonical_display_name=display_name,
-                                description=description,
+        built: list[SupportedModel] = []
+        async with async_session_maker() as session:
+            db_models = (await session.execute(select(Model))).scalars().all()
+            for db_model in db_models:
+                variants = (
+                    (
+                        await session.execute(
+                            select(ModelVariant).where(
+                                ModelVariant.model_id == db_model.id
                             )
                         )
-
-                        # If extra_model_procs is provided, create additional entries for this precision
-                        if has_extra_procs:
-                            for extra_proc in extra_model_procs:
-                                if (
-                                    extra_proc
-                                    and isinstance(extra_proc, str)
-                                    and extra_proc.strip()
-                                ):
-                                    # Note: extra_model_procs contains full absolute paths, not relative paths
-                                    # Extract the filename without extension from the extra_proc path
-                                    proc_filename = os.path.splitext(
-                                        os.path.basename(extra_proc)
-                                    )[0]
-                                    extra_display_name = f"{prec_display_name} [model-proc: {proc_filename}]"
-                                    self._models.append(
-                                        SupportedModel(
-                                            name=f"{name}_{proc_filename}",
-                                            display_name=extra_display_name,
-                                            source=source,
-                                            model_type=model_type,
-                                            model_path=model_path,
-                                            model_proc=extra_proc,
-                                            unsupported_devices=unsupported_devices,
-                                            precision=precision,
-                                            default=False,  # Variants are not default
-                                            model_proc_is_full_path=True,  # extra_model_procs contains full paths
-                                            hub=hub,
-                                            canonical_name=name,
-                                            canonical_display_name=display_name,
-                                            description=description,
-                                        )
-                                    )
-
-        except Exception as e:
-            # Raise a descriptive error if the file cannot be read or parsed
-            raise RuntimeError(
-                f"Cannot read supported models file '{SUPPORTED_MODELS_FILE}': {e}"
-            )
-        # Raise an error if no valid models are found
-        if not self._models:
-            raise RuntimeError(
-                f"No supported models found in '{SUPPORTED_MODELS_FILE}'."
-            )
+                    )
+                    .scalars()
+                    .all()
+                )
+                for variant in variants:
+                    built.append(
+                        SupportedModel(
+                            name=variant.name,
+                            display_name=variant.display_name,
+                            source=db_model.source,
+                            model_type=db_model.category or "",
+                            model_path=variant.model_path,
+                            model_proc=variant.model_proc,
+                            unsupported_devices=db_model.unsupported_devices,
+                            precision=variant.precision,
+                            model_proc_is_full_path=bool(
+                                variant.model_proc
+                                and os.path.isabs(variant.model_proc)
+                            ),
+                            hub=db_model.hub,
+                            canonical_name=db_model.name,
+                            canonical_display_name=db_model.display_name,
+                            description=db_model.description,
+                        )
+                    )
+        return built
 
     def _filter_models(
         self, model_names: list[str], default_model: str, model_type: str
@@ -388,53 +299,53 @@ class SupportedModelsManager:
                 default = None
         return filtered, default
 
-    def filter_detection_models(
+    def filter_object_detection_models(
         self, model_names: list[str], default_model: str
     ) -> tuple[list[str], str | None]:
         """
-        Filters detection models based on availability and input arguments.
+        Filters object detection models based on availability and input arguments.
 
         Args:
-            model_names (list[str]): List of detection model display names to consider.
-            default_model (str): The default detection model's display name.
+            model_names (list[str]): List of object detection model display names to consider.
+            default_model (str): The default object detection model's display name.
 
         Returns:
-            tuple[list[str], str | None]: A tuple containing the filtered list of detection model display names
+            tuple[list[str], str | None]: A tuple containing the filtered list of object detection model display names
                                           and the selected default model name (or None).
         """
-        return self._filter_models(model_names, default_model, "detection")
+        return self._filter_models(model_names, default_model, "object_detection")
 
-    def filter_classification_models(
+    def filter_image_classification_models(
         self, model_names: list[str], default_model: str
     ) -> tuple[list[str], str | None]:
         """
-        Filters classification models based on availability and input arguments.
+        Filters image classification models based on availability and input arguments.
 
         Args:
-            model_names (list[str]): List of classification model display names to consider.
-            default_model (str): The default classification model's display name.
+            model_names (list[str]): List of image classification model display names to consider.
+            default_model (str): The default image classification model's display name.
 
         Returns:
-            tuple[list[str], str | None]: A tuple containing the filtered list of classification model display names
+            tuple[list[str], str | None]: A tuple containing the filtered list of image classification model display names
                                           and the selected default model name (or None).
         """
-        return self._filter_models(model_names, default_model, "classification")
+        return self._filter_models(model_names, default_model, "image_classification")
 
-    def filter_genai_models(
+    def filter_vision_language_models(
         self, model_names: list[str], default_model: str
     ) -> tuple[list[str], str | None]:
         """
-        Filters GenAI models based on availability and input arguments.
+        Filters vision-language models based on availability and input arguments.
 
         Args:
-            model_names (list[str]): List of GenAI model display names to consider.
-            default_model (str): The default GenAI model's display name.
+            model_names (list[str]): List of vision-language model display names to consider.
+            default_model (str): The default vision-language model's display name.
 
         Returns:
-            tuple[list[str], str | None]: A tuple containing the filtered list of GenAI model display names
+            tuple[list[str], str | None]: A tuple containing the filtered list of vision-language model display names
                                           and the selected default model name (or None).
         """
-        return self._filter_models(model_names, default_model, "genai")
+        return self._filter_models(model_names, default_model, "vision_language_models")
 
     def get_all_installed_models(self) -> list[SupportedModel]:
         """
@@ -531,7 +442,7 @@ class SupportedModelsManager:
         # Compare with trailing-slash stripped (pipeline descriptions may omit the slash).
         for model in self._models:
             if (
-                model.model_type == "genai"
+                model.model_type == "vision_language_models"
                 and (not installed_only or model.exists_on_disk())
                 and os.path.normpath(model.model_path_full).rstrip("/")
                 == normalized_model_path.rstrip("/")

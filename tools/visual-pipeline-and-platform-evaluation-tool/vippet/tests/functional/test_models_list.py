@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 type ModelDict = dict[str, Any]
 
 VALID_MODEL_CATEGORIES: set[str] = {
-    "detection",
-    "classification",
+    "object_detection",
+    "image_classification",
     "segmentation",
-    "genai",
+    "vision_language_models",
 }
 VALID_MODEL_PRECISIONS: set[str] = {"FP32", "FP16", "INT8", "INT4"}
 

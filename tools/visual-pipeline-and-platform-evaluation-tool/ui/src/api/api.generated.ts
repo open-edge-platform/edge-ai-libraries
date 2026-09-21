@@ -1288,7 +1288,10 @@ export type ModelDownloadJobSummary = {
   model_name: string;
   source: ModelSource;
 };
-export type ModelCategory = "classification" | "detection" | "genai";
+export type ModelCategory =
+  | "image_classification"
+  | "object_detection"
+  | "vision_language_models";
 export type ModelInstallStatus =
   | "installed"
   | "not_installed"

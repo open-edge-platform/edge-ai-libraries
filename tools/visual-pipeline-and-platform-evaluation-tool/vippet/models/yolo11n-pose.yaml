@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+name: yolo11n-pose
+display_name: YOLO 11n Pose
+description: "YOLO11 nano pose-estimation model that detects people and estimates their body keypoints for lightweight, real-time pose tracking."
+source: public
+hub: ultralytics
+type: object_detection
+precisions:
+  - precision: FP32
+    model_path: ultralytics/public/yolo11n-pose/FP32/yolo11n-pose.xml
+    model_proc: ""
+  - precision: FP16
+    model_path: ultralytics/public/yolo11n-pose/FP16/yolo11n-pose.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: yolo11n-pose

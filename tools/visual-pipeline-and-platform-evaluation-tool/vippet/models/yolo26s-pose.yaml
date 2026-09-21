@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+name: yolo26s-pose
+display_name: YOLO 26s Pose
+description: "YOLO26 small pose-estimation model that detects people and predicts their body keypoints for human pose analysis."
+source: public
+hub: ultralytics
+type: object_detection
+precisions:
+  - precision: FP32
+    model_path: ultralytics/public/yolo26s-pose/FP32/yolo26s-pose.xml
+    model_proc: ""
+  - precision: FP16
+    model_path: ultralytics/public/yolo26s-pose/FP16/yolo26s-pose.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: yolo26s-pose

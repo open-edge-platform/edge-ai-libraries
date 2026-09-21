@@ -177,22 +177,22 @@ class DeviceFamily(str, Enum):
 
 class ModelCategory(str, Enum):
     """
-    **Model category for classification, detection, or GenAI tasks.**
+    **Model category for image classification, object detection, or vision-language tasks.**
 
     ## Values
-    - `CLASSIFICATION` - Classification model
-    - `DETECTION` - Detection model
-    - `GENAI` - Generative AI model (for example VLM)
+    - `IMAGE_CLASSIFICATION` - Image classification model
+    - `OBJECT_DETECTION` - Object detection model
+    - `VISION_LANGUAGE_MODELS` - Vision-language model (for example VLM)
 
     ### Example
     ```json
-    "detection"
+    "object_detection"
     ```
     """
 
-    CLASSIFICATION = "classification"
-    DETECTION = "detection"
-    GENAI = "genai"
+    IMAGE_CLASSIFICATION = "image_classification"
+    OBJECT_DETECTION = "object_detection"
+    VISION_LANGUAGE_MODELS = "vision_language_models"
 
 
 class OptimizationType(str, Enum):
@@ -2254,7 +2254,7 @@ class Model(BaseModel):
     ## Attributes
     - `name` - Internal model identifier used by the backend
     - `display_name` - Human-readable model name suitable for UI
-    - `category` - Logical model category (`classification`, `detection`, `genai`) or null when unknown
+    - `category` - Logical model category (`image_classification`, `object_detection`, `vision_language_models`) or null when unknown
     - `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)
     - `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)
     - `variants` - Selectable variants of this model (one per precision and optional model-proc)
@@ -2267,7 +2267,7 @@ class Model(BaseModel):
     {
       "name": "yolo11n",
       "display_name": "YOLO 11n 640x640",
-      "category": "detection",
+      "category": "object_detection",
       "source": "ultralytics",
       "install_status": "installed",
       "variants": [
@@ -2347,7 +2347,7 @@ class ModelUploadResponse(BaseModel):
       "model": {
         "name": "my-custom-detector",
         "display_name": "My Custom Detector",
-        "category": "detection",
+        "category": "object_detection",
         "source": "custom",
         "install_status": "installed",
         "variants": [{"name": "my-custom-detector", "display_name": "My Custom Detector (FP32)", "precision": "FP32"}],
