@@ -105,10 +105,10 @@ case $INSTALL_DRIVER_VERSION in \
 *) \
         dpkg -P intel-gmmlib intel-igc-core intel-igc-opencl intel-level-zero-gpu intel-ocloc intel-opencl intel-opencl-icd && \
         apt-get update && apt-get -y --no-install-recommends install dpkg-dev && rm -rf /var/lib/apt/lists/* && \
-                cd "/drivers/${INSTALL_DRIVER_VERSION}" && \
+        cd "/drivers/${INSTALL_DRIVER_VERSION}" && \
             dpkg-scanpackages .  > Packages && \
             cd - && \
-            echo "deb [trusted=yes arch=amd64] file:/drivers/${INSTALL_DRIVER_VERSION} ./" > "/etc/apt/sources.list.d/intel-graphics-${INSTALL_DRIVER_VERSION}.list" ; \
+        echo "deb [trusted=yes arch=amd64] file:/drivers/${INSTALL_DRIVER_VERSION} ./" > "/etc/apt/sources.list.d/intel-graphics-${INSTALL_DRIVER_VERSION}.list" ; \
         apt-get update && \
         apt-get install -y --no-install-recommends \
             intel-opencl-icd \
