@@ -16,6 +16,12 @@ name: Platform Validation
 # in use — that would bypass this gate.
 
 on:
+  # zizmor: ignore[dangerous-triggers]
+  # Intentional: see the SECURITY NOTE above. pull_request_target is required so
+  # the self-hosted lab runner has repo secrets, and abuse is prevented by the
+  # maintainer-only VALIDATE-PLATFORM label gate plus a checkout pinned to the
+  # immutable PR head SHA. Do not change to pull_request while self-hosted
+  # runners are in use.
   pull_request_target:
     types: [labeled, synchronize]
     paths: ['frameworks/oep-installer-cli/module/**']

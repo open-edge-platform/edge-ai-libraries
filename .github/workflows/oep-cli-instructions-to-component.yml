@@ -83,15 +83,20 @@ jobs:
       - name: Find changed spec files
         id: specs
         working-directory: frameworks/oep-installer-cli
+        env:
+          # Pass untrusted workflow_dispatch inputs via env to avoid template
+          # injection into the run script (zizmor: template-injection).
+          SPEC_FILE: ${{ github.event.inputs.spec_file }}
+          MODE: ${{ github.event.inputs.mode }}
         run: |
           SPECS_FILE="$(mktemp)"
 
-          if [ -n "${{ github.event.inputs.spec_file }}" ]; then
+          if [ -n "$SPEC_FILE" ]; then
             # workflow_dispatch with an explicit spec_file is always intentional.
             # Infer spec status from whether module/<name>/ already exists
             # unless the caller explicitly set the mode input.
-            SPEC="${{ github.event.inputs.spec_file }}"
-            OVERRIDE_MODE="${{ github.event.inputs.mode }}"
+            SPEC="$SPEC_FILE"
+            OVERRIDE_MODE="$MODE"
             if [[ "$OVERRIDE_MODE" == "auto" || -z "$OVERRIDE_MODE" ]]; then
               raw_name="$(basename "$SPEC" .md)"
               name="${raw_name,,}"
