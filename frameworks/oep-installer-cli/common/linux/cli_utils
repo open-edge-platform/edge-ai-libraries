@@ -104,13 +104,6 @@ act_helpper () {
     echo "${act_name} options:"
     echo "  --dry-run       dry-run operations"
     echo "  --continue      ignore errors and proceed to the end"
-    act_get prefix ${act_name}_
-    if [ ${#_act_reply[*]} -gt 0 ]; then
-      if [ "${act_name}" = "install" ]; then
-        echo "  --validate      perform sanity check of features after installation."
-        echo "  --reset-<name>  force reinstallation of the component if exit."
-      fi
-    fi
     echo
     return 0
   fi
