@@ -15,9 +15,6 @@ voice activity detection — rather than file boundaries — decides where each
 transcribed utterance ends.
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 %%{init: {
   'theme': 'base',
   'themeVariables': {
