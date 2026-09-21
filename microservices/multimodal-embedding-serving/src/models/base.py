@@ -177,6 +177,19 @@ class BaseEmbeddingModel(ABC):
         """Return True if the handler can consume video inputs (via image pathway)."""
         return "video" in self.supported_modalities or self.supports_image()
 
+    def get_max_text_tokens(self) -> Optional[int]:
+        """
+        Return the number of text tokens the handler can actually attend to.
+
+        Callers use this to split long documents before embedding, instead of
+        having the text silently truncated. Returning ``None`` means the
+        handler does not advertise a limit, in which case callers should not
+        attempt to chunk. Handlers whose effective limit depends on runtime
+        configuration (for example a static shape compiled for an accelerator)
+        must report the *effective* value, not the theoretical maximum.
+        """
+        return None
+
     def prepare_query(self, text: str) -> str:
         """
         Optional preprocessing hook for single query text.

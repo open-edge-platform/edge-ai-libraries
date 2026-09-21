@@ -90,6 +90,13 @@ case "$EMBEDDING_MODEL_NAME" in
     "Blip2/blip2")
         echo "Using BLIP2 model: $EMBEDDING_MODEL_NAME"
         ;;
+    "QwenText/qwen3-embedding-0.6b"|"QwenText/qwen3-embedding-4b"|"QwenText/qwen3-embedding-8b")
+        echo "Using Qwen text embedding model: $EMBEDDING_MODEL_NAME (text-only)"
+        if [ "$EMBEDDING_DEVICE" = "NPU" ]; then
+            echo "NPU: this model is compiled with static shapes; the first startup for a given"
+            echo "     shape takes longer. See docs/user-guide/qwentext-on-npu.md for tuning."
+        fi
+        ;;
     *)
         echo -e "WARNING: Model '$EMBEDDING_MODEL_NAME' may not be supported."
         echo -e "See docs/user-guide/supported-models.md for the complete list of supported models."

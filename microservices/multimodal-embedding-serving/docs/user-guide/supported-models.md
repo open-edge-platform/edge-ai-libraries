@@ -71,6 +71,10 @@ The Qwen text embedding handler provides high-quality multilingual embeddings op
 - Require `trust_remote_code=true` (handled by the factory).
 - Support Intel GPU execution via OpenVINO.
 
+#### QwenText on NPU
+
+QwenText models also run on `EMBEDDING_DEVICE=NPU`, which requires static-shape compilation and caps the tokens read per pass (2048 by default; longer text is split into chunks automatically). See [QwenText Models on NPU](./qwentext-on-npu.md) for the configuration and measured performance.
+
 Use the `/model/capabilities` endpoint to inspect which modalities the currently loaded model supports.
 
 ## Model Configuration
