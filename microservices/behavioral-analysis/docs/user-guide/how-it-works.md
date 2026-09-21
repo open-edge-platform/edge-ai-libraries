@@ -5,9 +5,6 @@
 The Behavioral Analysis Service is a single-process Python microservice that combines three distinct AI capabilities: skeletal pose extraction (YOLO-Pose via OpenVINO), declarative pattern matching (rule engine), and optional visual confirmation (VLM via OVMS). It is fully event-driven; processing is triggered by MQTT messages.
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 graph TD
     A[upstream service<br/>e.g., swlp-service] -- MQTT ba/requests --> B[BAQueueConsumer]
     subgraph Service["Behavioral Analysis Service"]
@@ -59,9 +56,6 @@ src/
 ## Request Lifecycle (MQTT Path)
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 sequenceDiagram
     participant US as Upstream Service
     participant MQ as MQTT Broker
