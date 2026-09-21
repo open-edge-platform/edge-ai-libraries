@@ -128,6 +128,7 @@ debian_90_sbom_autonomous_mobile_robot () {
 "apt-list-file": "$oneapi_list"
 "apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
 "apt-pref-file": "$oneapi_pref_file"
+"pkg-list": ["intel-oneapi-runtime-*","intel-oneapi-compiler-*","intel-oneapi-mkl-*"]
 EOF
   )
   echo "---"
