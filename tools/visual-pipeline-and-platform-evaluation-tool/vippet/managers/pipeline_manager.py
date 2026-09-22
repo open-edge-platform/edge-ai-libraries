@@ -446,6 +446,13 @@ class PipelineManager:
             current_time = get_current_timestamp()
 
             variants_config = config.get("variants", [])
+            if not variants_config:
+                self.logger.warning(
+                    "Skipping pipeline '%s' from %s because it has no legacy variants",
+                    pipeline_name,
+                    config_path,
+                )
+                continue
             variants_list = []
 
             # Collect existing variant IDs for collision check

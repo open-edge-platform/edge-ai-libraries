@@ -1,4 +1,4 @@
-import { ChartNoAxesCombined, type LucideIcon } from "lucide-react";
+import { ChartNoAxesCombined, Server, type LucideIcon } from "lucide-react";
 import {
   Cpu,
   Film,
@@ -29,6 +29,7 @@ import { Benchmarks } from "@/pages/Benchmarks";
 import { BenchmarkDetail } from "@/pages/BenchmarkDetail";
 import { BenchmarkRunDetail } from "@/pages/BenchmarkRunDetail";
 import { BenchmarkRunTestDetail } from "@/pages/BenchmarkRunTestDetail";
+import { OvmsPoc } from "@/pages/OvmsPoc";
 
 export type NavigationItem = {
   url: string;
@@ -55,6 +56,7 @@ export const menuItems: Array<NavigationItem> = [
     title: "Performance",
     icon: Gauge,
   },
+  { url: "/ovms-poc", title: "OVMS POC", icon: Server },
   { url: "/tests/density", title: "Density", icon: Grid3x3 },
   { url: "/jobs", title: "Jobs", icon: ListTodo },
 ];
@@ -69,6 +71,7 @@ export const routeConfig: Array<RouteObject> = [
   { path: "images/:imageSetName", Component: ImagesInSet },
   { path: "cameras", Component: Cameras },
   { path: "tests/performance", Component: PerformanceTests },
+  { path: "ovms-poc", Component: OvmsPoc },
   { path: "tests/density", Component: DensityTests },
   {
     path: "jobs",

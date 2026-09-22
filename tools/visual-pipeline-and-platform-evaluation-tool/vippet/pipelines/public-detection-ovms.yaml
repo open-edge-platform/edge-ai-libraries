@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: Public Object Detection via OVMS Streaming
+type: vision
+runtime: python-ovms
+
+input:
+  type: video-file
+  path: /videos/input/auto/obj_classification.mp4
+
+execution:
+  max_parallel_requests: 2
+  queue_size: 8
+  request_timeout_s: 30
+
+stages:
+  - name: detection
+    type: ovms-kserve-grpc-stream
+    model: publicDetection
+    endpoint: ovms:9000
+    max_width: 1920
+    max_height: 1080
+
+output:
+  video_path: /videos/output/public-object-detection-output.mp4
+  metadata_path: /metadata/public-object-detection-output.jsonl
+  overlay: true
+
+metrics:
+  enabled: true
