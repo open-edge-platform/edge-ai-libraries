@@ -48,12 +48,9 @@ debian_75_install_dlstreamer () {
     # clone the dlstreamer repostiory
     ensure_git_clone "$workspace" v$version $repository
 
-    # modify samples/download_public_models.sh for customizing VENV_DIR
-    cd "$workspace"
-    sed -i 's|^VENV_DIR=\(".*"\).*$|VENV_DIR=${VENV_DIR:-\1}|' samples/download_public_models.sh
-
     # create the dlstreamer venv
-    [ -e .venv ] || python3 -m venv .venv
+    cd "$workspace"
+    python3 -m venv .venv
     . .venv/bin/activate
     pip install nncf==3.0.0 ultralytics==8.4.57
 
@@ -63,7 +60,7 @@ debian_75_install_dlstreamer () {
       . /opt/intel/dlstreamer/scripts/setup_dls_env.sh
       mkdir -p models
 
-      [ -e models/$od_model.bin ] || ( 
+      ( 
         mkdir -p models/${od_model%/*}
         set -x
         curl -sSfL $model_repo/storage/$od_model.bin -o models/$od_model.bin
@@ -71,7 +68,7 @@ debian_75_install_dlstreamer () {
         curl -sSfL $model_repo/storage/${od_model_proc}.json -o models/$od_model.json
       )
 
-      [ -e models/$oc_model.bin ] || (
+      (
         mkdir -p models/${oc_model%/*}
         set -x
         curl -sSfL $model_repo/storage/$oc_model.bin -o models/$oc_model.bin
