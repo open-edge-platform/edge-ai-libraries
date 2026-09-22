@@ -5,7 +5,7 @@ subcommand_install () {
     echo "install options:"
     echo "  --dry-run       dry-run operations"
     echo "  --continue      ignore errors and proceed to the end"
-    echo "  --validate      perform sanity check of features after installation."
+    echo "  --validate or --validate-<name>   perform sanity check of features after installation."
     echo "  --reset-<name>  force reinstallation of the component if exit."
     echo
     return 0

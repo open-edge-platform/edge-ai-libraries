@@ -5,7 +5,7 @@ configure_openvino () {
   key_file=/usr/share/keyrings/intel-gpg-archive-keyring.gpg
   apt_entry="deb [signed-by=$key_file] https://$repo_name/openvino ${ID}${VERSION_ID%.*} main"
   apt_file=/etc/apt/sources.list.d/intel-openvino.list
-  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.1.0 || echo 2026.3.0)
+  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.3.0)
   workspace="$(ensure_project_path)/openvino"
   model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
 }
@@ -49,14 +49,14 @@ debian_70_install_openvino () {
     pip install openvino-genai==${version}
 
     echo "openvino-${version} installed successfully."
-  fi
 
-  if [[ " $* " = *" --validate "* ]]; then
-    [ -e "$workspace"/${model##*/} ] || curl -sSfL "$model" -o "$workspace"/${model##*/}
-    for device in CPU GPU NPU; do
-      echo "Validating ${model##*/} inferencing on $device..."
-      benchmark_app -t 5 -m "$workspace"/${model##*/} -d $device
-    done
+    if [[ " $* " = *" --validate "* || " $* " = *" --validate-openvino "* ]]; then
+      [ -e "$workspace"/${model##*/} ] || curl -sSfL "$model" -o "$workspace"/${model##*/}
+      for device in CPU GPU NPU; do
+        echo "Validating ${model##*/} inferencing on $device..."
+        benchmark_app -t 5 -m "$workspace"/${model##*/} -d $device
+      done
+    fi
   fi
 
   # info
