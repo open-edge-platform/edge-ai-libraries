@@ -5768,6 +5768,18 @@
             "title": "Display Name",
             "description": "Human-readable model name."
           },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Human-readable explanation of what the model detects or classifies, or null when not provided."
+          },
           "category": {
             "anyOf": [
               {
