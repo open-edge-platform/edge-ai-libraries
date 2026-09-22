@@ -27,6 +27,19 @@ models:
                               # when hf_token is null. See docker-compose.yml audio-analyzer.environment.
     models_base_path: "models"
 
+    # Preview pool override (see ASRComponent's "two independent model-instance
+    # pools" docstring in components/asr_component.py): non-destructive
+    # `input_audio_buffer.preview` calls in the realtime WS endpoint (used for
+    # continuous-streaming ASR / the endpoint-completeness shortcut) are on the
+    # customer-facing latency critical path, unlike the persisted final
+    # commit. Route them to GPU -- this config's own note above already
+    # targets "<300ms for typical 1-2s kiosk commands" on GPU, vs CPU (the
+    # `device:` setting above) which was measured taking 700ms+ decoding a
+    # multi-second growing buffer. Falls back to the main asr config above
+    # when omitted, so existing single-device deployments are unaffected.
+    preview:
+      device: GPU
+
     # Hallucination filtering — openai provider uses native no_speech_prob/avg_logprob.
     # whispercpp derives the same values from per-token plog and ptsum.
     # openvino genai pipelines do not expose these fields; filtering is skipped.

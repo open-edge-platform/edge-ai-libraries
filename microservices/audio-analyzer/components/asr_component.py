@@ -104,8 +104,27 @@ def _is_diarization_auth_error(exc: Exception) -> bool:
 
 class ASRComponent(PipelineComponent):
 
-    _model = None
-    _config = None
+    # Two independent model-instance pools, not one shared singleton.
+    #
+    # kiosk-voice-lab (pipeline/orchestrator.py) keeps a dedicated `self.asr`
+    # (rolling preview ticks, called every ~0.4s with a monotonically GROWING
+    # buffer) and a separate `self.asr_final` (called once, at end of turn) —
+    # the two ASR objects never see each other's call history. On this
+    # hardware, some OpenVINO GenAI WhisperPipeline backends (confirmed with
+    # distil-whisper/distil-small.en on NPU) corrupt internal generation state
+    # when ONE shared pipeline instance processes calls of very different
+    # audio lengths back-to-back (e.g. a short non-destructive preview
+    # immediately followed by a longer persisted commit) -- symptoms are
+    # garbled/repeated tokens or empty transcripts that don't recover until
+    # the process restarts. Splitting the pool by call kind -- "preview"
+    # (append_to_session=False, non-destructive scratch calls) vs "final"
+    # (append_to_session=True, persisted commits, including the file-based
+    # /v1/audio/transcriptions endpoint) reproduces the lab's isolation
+    # without the cost of reloading a model per call (~0.2-0.3s to
+    # reconstruct a WhisperPipeline on this NPU, which the driver's compiled-
+    # blob cache makes cheap, but still too slow to pay on every request).
+    _models: dict[str, object] = {"preview": None, "final": None}
+    _model_configs: dict[str, tuple] = {"preview": None, "final": None}
     # Shared across all ASRComponent instances/sessions — keyed by session_id
     # internally — so primary-speaker identity persists across chunk calls
     # for the same session regardless of which ASRComponent instance handles
@@ -142,9 +161,14 @@ class ASRComponent(PipelineComponent):
 
         raise ValueError(f"Unsupported ASR provider/model: {normalized_provider}/{normalized_model_name}")
 
-    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0, speaker_scope_id=None, diarization: bool | None = None):
+    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0, speaker_scope_id=None, diarization: bool | None = None, append_to_session: bool = True):
 
         self.session_id = session_id
+        # Selects which of the two model-instance pools (see class docstring
+        # above _models) this component's calls use. Non-destructive preview
+        # calls (append_to_session=False) and persisted commits
+        # (append_to_session=True) never share a pipeline instance.
+        self.pool_key = "final" if append_to_session else "preview"
         # Scope key for speaker enrollment. Stays stable for a whole
         # conversation, whereas session_id is regenerated for every utterance —
         # enrolling per utterance would re-derive the reference voice from the
@@ -181,11 +205,14 @@ class ASRComponent(PipelineComponent):
 
         backend_cls, model_config_key, resolved_device = self._resolve_backend(provider, model_name, device)
 
-        if ASRComponent._model is None or ASRComponent._config != model_config_key:
-            ASRComponent._model = backend_cls(model_name.lower(), resolved_device, None)
-            ASRComponent._config = model_config_key
+        if (
+            ASRComponent._models[self.pool_key] is None
+            or ASRComponent._model_configs[self.pool_key] != model_config_key
+        ):
+            ASRComponent._models[self.pool_key] = backend_cls(model_name.lower(), resolved_device, None)
+            ASRComponent._model_configs[self.pool_key] = model_config_key
 
-        self.asr = ASRComponent._model
+        self.asr = ASRComponent._models[self.pool_key]
 
         self.pyannote_diarizer = None
         if self.enable_diarization:
