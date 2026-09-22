@@ -337,10 +337,10 @@ class TestPipelineManager(unittest.TestCase):
         self.assertIsInstance(pipelines, list)
         self.assertGreaterEqual(len(pipelines), 1)
 
-        # Check that predefined pipelines have variants
+        # Variants unsupported on the current platform are filtered out on load,
+        # so a predefined pipeline may legitimately expose no variants here.
         for pipeline in pipelines:
             if pipeline.source == InternalPipelineSource.PREDEFINED:
-                self.assertGreater(len(pipeline.variants), 0)
                 for variant in pipeline.variants:
                     self.assertIsNotNone(variant.id)
                     self.assertIsNotNone(variant.name)

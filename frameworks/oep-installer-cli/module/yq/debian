@@ -1,0 +1,15 @@
+
+debian_05_install_yq () {
+  if ensure_apt_is_installed yq; then
+    echo "yq is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y yq
+  fi
+}
+
+debian_05_sbom_yq () {
+  cat <<EOF
+"pkg-list": ["yq"]
+EOF
+}

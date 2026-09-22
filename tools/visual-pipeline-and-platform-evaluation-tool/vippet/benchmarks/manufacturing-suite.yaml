@@ -1,0 +1,11 @@
+name: Manufacturing Suite
+description: Manufacturing benchmark suite covering defect detection.
+workloads:
+  - pipeline_id: defect-detection
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: npu
+        number_of_streams: [1, 4, 8, 12]

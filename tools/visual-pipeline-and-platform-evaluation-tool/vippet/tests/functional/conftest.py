@@ -26,7 +26,7 @@ _recorded_api_calls: set[tuple[str, str]] = set()
 # Pipelines with externally pre-downloaded models (path template uses lowercase
 # device ``family``, rooted at PROJECT_ROOT); variants skipped if path missing.
 _EXTERNAL_MODEL_PATH_TEMPLATES: dict[str, str] = {
-    "Video Summarization VLM": (
+    "Video Captioning VLM": (
         "shared/models/output/openvino_models/{family}/int4/google/gemma-3-4b-it"
     ),
 }
@@ -36,7 +36,7 @@ _EXTERNAL_MODEL_PATH_TEMPLATES: dict[str, str] = {
 # an empty ``video_output_paths`` list, so the file-output test is skipped.
 _NO_FILE_VIDEO_OUTPUT_PIPELINES: frozenset[str] = frozenset(
     {
-        "Video Summarization VLM",
+        "Video Captioning VLM",
     }
 )
 
@@ -97,7 +97,7 @@ def _skip_when_external_model_missing(request: pytest.FixtureRequest) -> None:
     """Skip parametrized pipeline cases whose pre-downloaded model is absent.
 
     Applies to pipelines listed in ``_EXTERNAL_MODEL_PATH_TEMPLATES`` (e.g. the
-    VLM Video Summarization pipeline, which hard-codes its model path instead
+    VLM Video Captioning pipeline, which hard-codes its model path instead
     of going through ``supported_models.yaml``).
     """
     case = getattr(request.node, "callspec", None)
@@ -399,6 +399,7 @@ def uploaded_model_names(
             model_name=uploaded_name,
             category=info["category"],
             payload=payload,
+            description=f"Uploaded {source_name} model",
         )
         assert response.status_code == 201, (
             f"Upload of {uploaded_name} failed: {response.status_code}: {response.text}"

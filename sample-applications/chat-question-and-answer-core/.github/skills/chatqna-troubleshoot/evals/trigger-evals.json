@@ -1,0 +1,50 @@
+[
+    {
+        "query": "ChatQnA docker deployment starts but POST /v1/chatqna/chat returns 500. Help me troubleshoot.",
+        "should_trigger": true
+    },
+    {
+        "query": "Health endpoint /v1/chatqna/health fails after compose up. Debug this deployment.",
+        "should_trigger": true
+    },
+    {
+        "query": "Helm pods are crashlooping in namespace ai-demo and UI is unreachable. Diagnose root cause.",
+        "should_trigger": true
+    },
+    {
+        "query": "Document upload to /v1/chatqna/documents returns 400 and 500 intermittently. Walk me through troubleshooting.",
+        "should_trigger": true
+    },
+    {
+        "query": "OpenVINO GPU requested but service fails to initialize device. Provide debug steps and fallback guidance.",
+        "should_trigger": true
+    },
+    {
+        "query": "After deploy, /v1/chatqna/docs is unavailable while containers are running. Help isolate nginx or gateway issues.",
+        "should_trigger": true
+    },
+    {
+        "query": "Model download or Hugging Face auth errors appear in backend logs. Troubleshoot ChatQnA startup.",
+        "should_trigger": true
+    },
+    {
+        "query": "Build chatqna backend and ui images from source with docker build.",
+        "should_trigger": false
+    },
+    {
+        "query": "Deploy chatqna core to kubernetes with helm in namespace ai using values-openvino.yaml.",
+        "should_trigger": false
+    },
+    {
+        "query": "Run backend pytest and UI vitest for chatqna.",
+        "should_trigger": false
+    },
+    {
+        "query": "Translate setup_env.sh variables into values-override.yaml for helm deployment.",
+        "should_trigger": false
+    },
+    {
+        "query": "Generate API smoke tests for /v1/chatqna/chat and /v1/chatqna/health endpoints.",
+        "should_trigger": false
+    }
+]

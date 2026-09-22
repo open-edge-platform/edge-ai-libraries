@@ -1,0 +1,15 @@
+
+debian_05_install_libtbb12 () {
+  if ensure_apt_is_installed libtbb12; then
+    echo "libtbb12 is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y libtbb12
+  fi
+}
+
+debian_05_sbom_libtbb12 () {
+  cat <<EOF
+"pkg-list": ["libtbb12"]
+EOF
+}

@@ -24,20 +24,13 @@
 - **Storage:**
   - Minimum free disk space: 30 GB.
   - Recommended: 60 GB+ to accommodate Docker images, OpenVINO™ models, the
-    VLM weights (Qwen2.5-VL is several GB) and frame storage.
+    VLM weights (Qwen2.5-VL is several GB), and frame storage.
 
 - **Graphics / Accelerators:**
   - Required: Intel CPU.
   - Optional (recommended for full experience):
     - Intel integrated or discrete GPU supported by Intel® Graphics Compute
-      Runtime — VLM inference `Qwen2.5-VL-7B-Instruct (GPU-backed recommended)`
-    - Intel NPU supported by the `linux-npu-driver` stack — recommended for
-      VLM inference (see [Release Notes](../release-notes.md) for a known
-      issue on systems without NPU).
-
-  - The host must expose GPU and NPU devices to Docker, for example:
-    - `/dev/dri` (GPU)
-    - `/dev/accel/accel0` (NPU)
+      Runtime for VLM inference with `Qwen2.5-VL-7B-Instruct` (GPU-backed recommended)
 
 ## Required Ports
 
@@ -53,7 +46,8 @@ The following services must be running and accessible for the behavioral-analysi
 | MQTT Broker | Event messaging (`ba/requests` / `ba/results`) | `broker.scenescape.intel.com:1883` |
 | OpenVINO Model Server (OVMS) | VLM inference (Qwen2.5-VL-7B-Instruct) | `http://ovms-vlm:8001` |
 
-> **Note:** OVMS is only required when `VLM_ENABLED=true` (the default). The service starts and functions for pose-only detection if VLM is disabled.
+> **Note:** OVMS is only required when `VLM_ENABLED=true`. VLM is disabled by default,
+> and the service starts and functions for pose-only detection unless it is explicitly enabled.
 
 ## YOLO-Pose Model
 
@@ -69,7 +63,7 @@ The service requires a YOLO26n-pose model in OpenVINO IR format (`.xml` + `.bin`
 
 | Environment Variable | Default | Options |
 | --- | --- | --- |
-| `GST_INFERENCE_DEVICE` | `CPU` | `CPU`, `GPU`, `NPU` (any device supported by the installed OpenVINO Runtime) |
+| `GST_INFERENCE_DEVICE` | `CPU` | `CPU`, `GPU` (any device supported by the installed OpenVINO Runtime) |
 
 ## Network Requirements
 
@@ -80,9 +74,9 @@ The service requires a YOLO26n-pose model in OpenVINO IR format (`.xml` + `.bin`
 
 ## Related Documentation
 
-- [Overview](../index.md#1-overview): A high-level introduction to the
+- [Overview](../index.md): A high-level introduction to the
     microservice and its capabilities.
 - [Get Started](../get-started.md) — Step-by-step run instructions
 - [API Reference](../api-reference.md) — HTTP and MQTT endpoint schemas
 - [Configuration](./configuration.md) — Full environment variable reference
-- [Troubleshooting](../troubleshooting.md) — Common issues and resolutions
+- [Troubleshooting](../troubleshooting.md) — Common issues and resolution paths

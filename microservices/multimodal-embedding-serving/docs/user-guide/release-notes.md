@@ -4,7 +4,7 @@ This microservice supports features based on the requirements of Video Search an
 
 ## Version 2026.2.0
 
-**Release Date:** August 4, 2026
+**Release Date:** September 9, 2026
 
 **New:**
 

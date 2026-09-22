@@ -6,17 +6,21 @@ The Behavioral Analysis Service is a single-process Python microservice that com
 
 ```mermaid
 graph TD
-    A[upstream service<br/>e.g. swlp-service] -- MQTT ba/requests --> B[BAQueueConsumer]
+    A[upstream service<br/>e.g., swlp-service] -- MQTT ba/requests --> B[BAQueueConsumer]
+    subgraph Service["Behavioral Analysis Service"]
+    direction LR
     B --> C[SeaweedFSClient<br/>fetch frames]
     C --> D[YOLOPipelineRunner<br/>extract_poses]
     D --> E[PoseRuleEngine<br/>evaluate patterns]
     E -->|pattern matched| F[VLMClient<br/>visual confirmation]
     E -->|no match| G[publish result]
     F --> G
+    end
     G -- MQTT ba/results --> H[downstream consumer]
 ```
 
----
+> **Note:** The `swlp-service` mentioned above as an example upstream service refers to
+> [Store-Wide Loss Prevention](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html). Follow the link for more details.
 
 ## Component Responsibilities
 
@@ -101,7 +105,7 @@ The pose extraction pipeline is orchestrated by `extract_poses()` in `yolo_pipel
 **Model Architecture:**
 
 - OpenVINO IR format (no PyTorch at runtime): XML model definition + BIN weights
-- Input: Letterboxed 640×640 float32 tensor normalized to [0, 1]
+- Input: Letterboxed 640×640 float32 tensor normalized to `[0, 1]`
 - Output shape: `(1, 300, 57)` — up to 300 detections per image
   - 4 values: bounding box (x_center, y_center, width, height)
   - 1 value: detection confidence score
@@ -110,8 +114,8 @@ The pose extraction pipeline is orchestrated by `extract_poses()` in `yolo_pipel
 
 **Processing pipeline:**
 
-1. **Preprocessing:** Image resized via letterboxing (maintains aspect ratio, pads with 114 gray); converted to float32 [0, 1]
-2. **Inference:** OpenVINO compiled model runs on configured device (CPU/GPU/NPU via `GST_INFERENCE_DEVICE`)
+1. **Preprocessing:** Image resized via letterboxing (maintains aspect ratio, pads with 114 gray); converted to float32 `[0, 1]`
+2. **Inference:** OpenVINO compiled model runs on configured device (CPU/GPU via `GST_INFERENCE_DEVICE`)
 3. **Postprocessing:**
    - NMS (Non-Maximum Suppression) filters overlapping detections
    - Detections with confidence < `POSE_CONFIDENCE_THRESHOLD` (default 0.5) are discarded
@@ -121,7 +125,7 @@ The pose extraction pipeline is orchestrated by `extract_poses()` in `yolo_pipel
 **COCO 17-keypoint format** (indexes 0–16):
 Nose, Left Eye, Right Eye, Left Ear, Right Ear, Left Shoulder, Right Shoulder, Left Elbow, Right Elbow, Left Wrist, Right Wrist, Left Hip, Right Hip, Left Knee, Right Knee, Left Ankle, Right Ankle
 
-For feature overview, see [Key Features: Pose Extraction](./index.md#41-pose-extraction).
+For feature overview, see [Key Features: Pose Extraction](./index.md#31-pose-extraction).
 
 ## Pattern Rule Engine
 
@@ -142,7 +146,7 @@ The `PoseRuleEngine` evaluates patterns defined in `config/patterns.yaml`. Patte
 
 - Patterns are organized into **ordered phases** representing temporal stages of behavior
 - Each phase specifies `min_frames`: minimum consecutive frames where all conditions hold
-- Engine performs **sliding-window matching**: seeks best-matching N-frame partition in the pose sequence where all phases satisfy their constraints in order
+- The engine performs **sliding-window matching**: seeks best-matching N-frame partition in the pose sequence where all phases satisfy their constraints in order
 - If `per_side: true` in pattern config: conditions auto-expand into left/right variants (e.g., `elbow_bent` → `left_elbow_bent`, `right_elbow_bent`)
 
 **Example: shelf_to_waist pattern**
@@ -169,13 +173,13 @@ patterns:
               threshold: 0.40  # within 40% of torso length
 ```
 
-When all phases match, engine returns a `PatternResult` with matched frames, confidence, and phase details.
+When all phases match, the engine returns a `PatternResult` with matched frames, confidence, and phase details.
 
-For feature overview, see [Key Features: Declarative Pattern Engine](./index.md#42-declarative-pattern-engine).
+For feature overview, see [Key Features: Declarative Pattern Engine](./index.md#32-declarative-pattern-engine).
 
 ## VLM Confirmation
 
-When a pose pattern matches and VLM is enabled (globally via `VLM_ENABLED=true` and per-pattern in YAML), the service performs frame-level visual confirmation via an OpenAI-compatible VLM endpoint.
+When a pose pattern matches and the global VLM switch is enabled via `VLM_ENABLED=true`, the service performs frame-level visual confirmation through an OpenAI-compatible VLM endpoint. Individual pattern `vlm.enabled` values can further opt a given pattern in or out when needed.
 
 **Request pipeline:**
 
@@ -213,7 +217,7 @@ When a pose pattern matches and VLM is enabled (globally via `VLM_ENABLED=true` 
 - **Concurrency semaphore:** `vlm_max_concurrency` (default 1) limits concurrent VLM requests (Semaphore-based) to prevent unbounded fan-in
 - **Timeout handling:** `VLM_TIMEOUT` (configurable) aborts slow requests
 
-For feature overview, see [Key Features: VLM Confirmation](./index.md#43-vlm-confirmation).
+For feature overview, see [Key Features: VLM Confirmation](./index.md#33-vlm-confirmation).
 
 ## Entity Deduplication and Backpressure
 
@@ -234,7 +238,7 @@ For feature overview, see [Key Features: VLM Confirmation](./index.md#43-vlm-con
 - **Logic:** When a task would begin:
   - If `_current_analyses >= max_inflight_analyses`: new analysis request is dropped (logged at warning level)
   - Otherwise: task proceeds; counter incremented; decremented upon completion
-- **Purpose:** Caps memory usage and SeaweedFS/YOLO pipeline load; prevents cascade when frame storage is slow
+- **Purpose:** Caps memory usage and SeaweedFS/YOLO pipeline load; prevents a cascade when frame storage is slow
 
 **Dropped request handling:**
 
@@ -242,7 +246,7 @@ For feature overview, see [Key Features: VLM Confirmation](./index.md#43-vlm-con
 - Upstream should implement its own retry logic or buffer management
 - No backpressure signal is sent to MQTT publisher (asynchronous; no ACK mechanism defined)
 
-For feature overview, see [Key Features: Entity Deduplication & Backpressure](./index.md#44-entity-deduplication--backpressure).
+For feature overview, see [Key Features: Entity Deduplication & Backpressure](./index.md#34-entity-deduplication--backpressure).
 
 ## Error Handling
 
@@ -261,7 +265,7 @@ For feature overview, see [Key Features: Entity Deduplication & Backpressure](./
 - Standard Python `logging` module used throughout.
 - Log level defaults to `INFO`; configurable via `LOG_LEVEL` environment variable.
 - Key events logged: service startup, frame counts, pose extraction results, pattern match outcomes, VLM calls and results, MQTT connection events, bucket creation, and analysis errors.
-- Structured log extras (e.g. `person_id`, `status`) are added to MQTT-related log events.
+- Structured log extras (e.g., `person_id`, `status`) are added to MQTT-related log events.
 
 ## Monitoring / Observability
 
@@ -270,9 +274,9 @@ For feature overview, see [Key Features: Entity Deduplication & Backpressure](./
 
 ## Related Documentation
 
-- [Overview](./index.md#1-overview): A high-level introduction to the
+- [Overview](./index.md): A high-level introduction to the
     microservice and its capabilities.
 - [Get Started](./get-started.md) — Step-by-step run instructions
 - [API Reference](./api-reference.md) — HTTP and MQTT endpoint schemas
 - [Configuration](./get-started/configuration.md) — Full environment variable reference
-- [Troubleshooting](./troubleshooting.md) — Common issues and resolutions
+- [Troubleshooting](./troubleshooting.md) — Common issues and resolution paths

@@ -8,6 +8,7 @@ import pytest
 import requests
 
 from helpers.api_helpers import (
+    drain_job,
     start_density_job,
     start_optimization_job,
     start_performance_job,
@@ -110,6 +111,7 @@ def test_get_all_performance_job_statuses_returns_list(
 ) -> None:
     """After submitting a performance job, GET /jobs/tests/performance/status returns a non-empty list containing the job."""
     job_id = _start_performance_job(http_client)
+    drain_job(http_client, f"{BASE_URL}/jobs/tests/performance/{job_id}/status")
 
     response = http_client.get(f"{BASE_URL}/jobs/tests/performance/status", timeout=30)
 
@@ -132,6 +134,7 @@ def test_get_performance_job_summary_returns_correct_request(
 ) -> None:
     """After submitting a performance job, GET /jobs/tests/performance/{job_id} echoes back the original request."""
     job_id = _start_performance_job(http_client)
+    drain_job(http_client, f"{BASE_URL}/jobs/tests/performance/{job_id}/status")
 
     response = http_client.get(
         f"{BASE_URL}/jobs/tests/performance/{job_id}", timeout=30
@@ -206,6 +209,7 @@ def test_get_all_density_job_statuses_returns_list(
 ) -> None:
     """After submitting a density job, GET /jobs/tests/density/status returns a non-empty list containing the job."""
     job_id = _start_density_job(http_client)
+    drain_job(http_client, f"{BASE_URL}/jobs/tests/density/{job_id}/status")
 
     response = http_client.get(f"{BASE_URL}/jobs/tests/density/status", timeout=30)
 
@@ -228,6 +232,7 @@ def test_get_density_job_summary_returns_correct_request(
 ) -> None:
     """After submitting a density job, GET /jobs/tests/density/{job_id} echoes back the original request."""
     job_id = _start_density_job(http_client)
+    drain_job(http_client, f"{BASE_URL}/jobs/tests/density/{job_id}/status")
 
     response = http_client.get(f"{BASE_URL}/jobs/tests/density/{job_id}", timeout=30)
 
@@ -284,6 +289,7 @@ def test_get_all_optimization_job_statuses_returns_list(
 ) -> None:
     """After an optimization job, GET /jobs/optimization/status returns a non-empty list containing the job."""
     job_id = _start_optimization_job(http_client)
+    drain_job(http_client, f"{BASE_URL}/jobs/optimization/{job_id}/status")
 
     response = http_client.get(f"{BASE_URL}/jobs/optimization/status", timeout=30)
 
@@ -306,6 +312,7 @@ def test_get_optimization_job_summary_returns_correct_request(
 ) -> None:
     """After an optimization job, GET /jobs/optimization/{job_id} echoes back the original request."""
     job_id = _start_optimization_job(http_client)
+    drain_job(http_client, f"{BASE_URL}/jobs/optimization/{job_id}/status")
 
     response = http_client.get(f"{BASE_URL}/jobs/optimization/{job_id}", timeout=30)
 

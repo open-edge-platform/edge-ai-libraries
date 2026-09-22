@@ -1,0 +1,53 @@
+name: Metro Suite
+description: Metro benchmark suite covering city and transport analytics pipelines.
+workloads:
+  - pipeline_id: smart-nvr
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: npu
+        number_of_streams: [1, 4, 8, 12]
+  - pipeline_id: simple-nvr
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]
+  - pipeline_id: smart-parking
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: npu
+        number_of_streams: [1, 4, 8, 12]
+  - pipeline_id: motion-detection
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: npu
+        number_of_streams: [1, 4, 8, 12]
+  - pipeline_id: license-plate-recognition
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]
+  - pipeline_id: human-pose-detection
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: npu
+        number_of_streams: [1, 4, 8, 12]
+  - pipeline_id: segmentation
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]

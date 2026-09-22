@@ -34,6 +34,25 @@ models:
     # noise-transcribed-as-text problem.  null = disabled.
     hallucination_silence_threshold: 1.0
 
+    # Backend-agnostic hallucination filter. Whisper (including the OpenVINO
+    # GenAI backend) hallucinates common subtitle phrases such as "Thank you"
+    # on silence / non-speech audio — usually the trailing silence captured
+    # after the speaker stops talking. Any transcript segment whose entire text
+    # matches one of these phrases (case- and punctuation-insensitive) is
+    # dropped. Unlike no_speech_threshold/logprob_threshold above, this also
+    # covers OpenVINO GenAI, which exposes no per-segment confidence signals.
+    # Set hallucination_phrase_filter: false to disable.
+    hallucination_phrase_filter: true
+    hallucination_phrases:
+      - "thank you"
+      - "thank you very much"
+      - "thanks for watching"
+      - "thank you for watching"
+      - "please subscribe"
+      - "subscribe"
+      - "you"
+      - "bye"
+
     # Post-processing repetition filter (all providers).
     # 1.0 = disabled. Any value > 1.0 enables consecutive repeated-phrase
     # removal (word n-gram dedup, window 1-8) and duplicate-segment stripping.

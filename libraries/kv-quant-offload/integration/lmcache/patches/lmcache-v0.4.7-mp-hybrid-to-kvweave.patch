@@ -416,794 +416,6 @@ index 1ad21400..a80ef5bd 100644
      def close(self) -> None:
          """
          Close the memory manager and release all resources.
-diff --git a/lmcache/v1/distributed/serde/kvweave_config.py b/lmcache/v1/distributed/serde/kvweave_config.py
-new file mode 100644
-index 00000000..9f8f1946
---- /dev/null
-+++ b/lmcache/v1/distributed/serde/kvweave_config.py
-@@ -0,0 +1,131 @@
-+"""KVWeave codec configuration.
-+
-+This module is the single source of truth for the KVWeave codec settings used
-+by the LMCache L1 worker-side quantization path
-+(``lmcache/v1/multiprocess/transfer_context/worker_transfer.py``): it defines
-+the ``KVWeaveCodecConfig`` dataclass consumed directly by ``_KVWeaveCodec``
-+(see ``kvweave_serde.py``), and by the Mamba/linear preconditioner in
-+``mamba_quant.py``.
-+
-+Preconditioning (P&D) matrices
-+------------------------------
-+When ``precond`` is true the caller needs the D (``signs``, +/-1) and P
-+(``perm``, permutation) matrices for a given ``hadamard_size``.
-+:meth:`KVWeaveCodecConfig.get_pd_matrix` provides them:
-+
-+* If ``precond_path`` is set, the matrices are loaded from that file (a NumPy
-+  ``.npz`` or a torch ``.pt``) keyed by ``hadamard_size`` -- this is the seam
-+  for injecting data-driven / GHA-computed preconditioners.
-+* Otherwise they are generated deterministically from ``precond_seed`` (the
-+  historical seed-42 behavior).
-+
-+The matrices are returned as NumPy arrays; the caller coerces them to torch
-+tensors and validates them before use.
-+"""
-+from __future__ import annotations
-+
-+import threading
-+from dataclasses import dataclass
-+from typing import Optional, Tuple
-+
-+import numpy as np
-+
-+# Historical default seed used to generate the random sign-flip / permutation
-+# preconditioner.  Kept so behavior is unchanged when no precond file is given.
-+_DEFAULT_PRECOND_SEED = 42
-+
-+
-+@dataclass
-+class KVWeaveCodecConfig:
-+    """Typed KVWeave codec settings."""
-+
-+    quantize: bool = True
-+    qbit: int = 4
-+    scaling_method: str = "per_channel"
-+    rh: bool = True
-+    asym: bool = True
-+    log: bool = False
-+    precond: bool = False
-+    num_threads: int = 1
-+    precond_seed: int = _DEFAULT_PRECOND_SEED
-+    # Optional path to a file of precomputed P&D matrices (.npz or .pt),
-+    # keyed by hadamard_size (see get_pd_matrix).  None -> seeded generator.
-+    precond_path: Optional[str] = None
-+
-+    def __post_init__(self):
-+        # Caches keyed by hadamard_size so we generate/load each size once.
-+        self._pd_cache: dict = {}
-+        self._pd_lock = threading.Lock()
-+        self._pd_file: Optional[dict] = None  # lazily loaded precond_path
-+        self.scaling_method = str(self.scaling_method)
-+
-+    # -- P&D matrix interface ------------------------------------------------
-+    def get_pd_matrix(
-+        self, hadamard_size: int
-+    ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
-+        """Return ``(signs, perm)`` for ``hadamard_size`` or ``None``.
-+
-+        ``signs`` is a float32 array of +/-1 with length ``hadamard_size``;
-+        ``perm`` is an int32 permutation of ``range(hadamard_size)``.
-+
-+        Returns ``None`` only if the caller should fall back to its own default
-+        (never happens here -- the seeded generator is always available), but a
-+        ``None`` return is honored by the caller for forward compatibility.
-+        """
-+        cached = self._pd_cache.get(hadamard_size)
-+        if cached is not None:
-+            return cached
-+        with self._pd_lock:
-+            cached = self._pd_cache.get(hadamard_size)
-+            if cached is None:
-+                if self.precond_path:
-+                    cached = self._load_pd_from_file(hadamard_size)
-+                else:
-+                    cached = self._generate_pd(hadamard_size)
-+                self._pd_cache[hadamard_size] = cached
-+        return cached
-+
-+    def _generate_pd(self, hadamard_size: int) -> Tuple[np.ndarray, np.ndarray]:
-+        rng = np.random.default_rng(self.precond_seed)
-+        signs = rng.choice([-1.0, 1.0], size=hadamard_size).astype(np.float32)
-+        perm = rng.permutation(hadamard_size).astype(np.int32)
-+        return signs, perm
-+
-+    def _load_pd_from_file(
-+        self, hadamard_size: int
-+    ) -> Tuple[np.ndarray, np.ndarray]:
-+        """Load (signs, perm) for ``hadamard_size`` from ``precond_path``.
-+
-+        Supported layouts:
-+          * ``.npz`` with arrays named ``signs_<h>`` / ``perm_<h>``.
-+          * ``.pt``  with a dict mapping the same keys to tensors/arrays.
-+        """
-+        if self._pd_file is None:
-+            self._pd_file = self._read_pd_file(self.precond_path)
-+        s_key, p_key = f"signs_{hadamard_size}", f"perm_{hadamard_size}"
-+        if s_key not in self._pd_file or p_key not in self._pd_file:
-+            raise KeyError(
-+                f"precond_path={self.precond_path!r} has no P&D matrices for "
-+                f"hadamard_size={hadamard_size} (expected keys {s_key!r}, "
-+                f"{p_key!r})."
-+            )
-+        signs = np.asarray(self._pd_file[s_key], dtype=np.float32).reshape(-1)
-+        perm = np.asarray(self._pd_file[p_key], dtype=np.int32).reshape(-1)
-+        return signs, perm
-+
-+    @staticmethod
-+    def _read_pd_file(path: str) -> dict:
-+        if path.endswith(".npz"):
-+            with np.load(path) as npz:
-+                return {k: npz[k] for k in npz.files}
-+        if path.endswith((".pt", ".pth")):
-+            import torch  # local import: keep module import torch-free
-+
-+            obj = torch.load(path, map_location="cpu")
-+            return {
-+                k: (v.numpy() if hasattr(v, "numpy") else np.asarray(v))
-+                for k, v in obj.items()
-+            }
-+        raise ValueError(
-+            f"Unsupported precond_path extension: {path!r} (use .npz or .pt)."
-+        )
-diff --git a/lmcache/v1/distributed/serde/kvweave_serde.py b/lmcache/v1/distributed/serde/kvweave_serde.py
-new file mode 100644
-index 00000000..862a5fab
---- /dev/null
-+++ b/lmcache/v1/distributed/serde/kvweave_serde.py
-@@ -0,0 +1,645 @@
-+"""KVWeave L1 quantization codec for LMCache MP mode.
-+
-+This module provides ``_KVWeaveCodec``, called directly by the L1 worker-side
-+transfer path (``lmcache/v1/multiprocess/transfer_context/worker_transfer.py``)
-+to quantize attention-shaped KV chunks before L1 store and dequantize them
-+after L1 load, plus the ``_copy_bytes_to_tensor`` helper it uses to land
-+serialized bytes into a destination tensor.
-+"""
-+from __future__ import annotations
-+
-+import io
-+import struct
-+import threading
-+from dataclasses import dataclass
-+from typing import Optional
-+
-+import torch
-+
-+from lmcache.logging import init_logger
-+from lmcache.v1.distributed.api import MemoryLayoutDesc
-+
-+try:
-+    from lmcache.v1.memory_management import MemoryFormat
-+except ImportError:  # pragma: no cover - compatibility with older LMCache trees
-+    MemoryFormat = None  # type: ignore[assignment]
-+
-+from lmcache.v1.distributed.serde import kvweave_config
-+
-+logger = init_logger(__name__)
-+
-+_KVW_MAGIC_RAW = b"KVW0"
-+_KVW_MAGIC_QUANT = b"KVW3"
-+_KVW_BLOCK_SIZE = 64
-+
-+_KVW_SCALING_TO_INT = {"per_tensor": 0, "per_token": 1, "per_channel": 2}
-+_KVW_INT_TO_SCALING = {v: k for k, v in _KVW_SCALING_TO_INT.items()}
-+
-+_KVW_FMT_TO_INT = {}
-+_KVW_INT_TO_FMT = {}
-+if MemoryFormat is not None:
-+    _KVW_FMT_TO_INT = {
-+        MemoryFormat.KV_2LTD: 0,
-+        MemoryFormat.KV_T2D: 1,
-+        MemoryFormat.KV_2TD: 2,
-+        MemoryFormat.KV_MLA_FMT: 3,
-+    }
-+    _KVW_INT_TO_FMT = {v: k for k, v in _KVW_FMT_TO_INT.items()}
-+
-+_KVW_DTYPE_TO_INT = {torch.float16: 0, torch.bfloat16: 1, torch.float32: 2}
-+_KVW_INT_TO_DTYPE = {v: k for k, v in _KVW_DTYPE_TO_INT.items()}
-+
-+_KVW_SCALE_COUNTER = 0
-+_KVW_SCALE_LOCK = threading.Lock()
-+
-+
-+def _allocate_scale_ids(n: int) -> list[int]:
-+    global _KVW_SCALE_COUNTER
-+    ids = []
-+    with _KVW_SCALE_LOCK:
-+        for _ in range(n):
-+            _KVW_SCALE_COUNTER = (_KVW_SCALE_COUNTER + 1) & 0xFFFFFFFF
-+            ids.append(_KVW_SCALE_COUNTER)
-+    return ids
-+
-+
-+def _quantized_half_bytes(half_elements: int, qbit: int) -> int:
-+    if qbit == 4:
-+        return (half_elements + 1) // 2
-+    if qbit <= 8:
-+        return half_elements
-+    return half_elements * 2
-+
-+
-+def _element_size(dtype: torch.dtype) -> int:
-+    if dtype in (torch.float16, torch.bfloat16):
-+        return 2
-+    if dtype == torch.float32:
-+        return 4
-+    return torch.tensor([], dtype=dtype).element_size()
-+
-+
-+def _tensor_nbytes(tensor: torch.Tensor) -> int:
-+    return int(tensor.numel() * tensor.element_size())
-+
-+
-+def _copy_bytes_to_tensor(payload: bytes, dst_tensor: torch.Tensor) -> None:
-+    if not dst_tensor.is_contiguous():
-+        raise ValueError("KVWeave serde destination byte buffer must be contiguous")
-+    flat = dst_tensor.reshape(-1)
-+    if flat.dtype != torch.uint8:
-+        flat = dst_tensor.view(torch.uint8).reshape(-1)
-+    if len(payload) > flat.numel():
-+        raise ValueError(
-+            f"KVWeave payload ({len(payload)} bytes) exceeds serde buffer "
-+            f"capacity ({flat.numel()} bytes)"
-+        )
-+    src = torch.frombuffer(payload, dtype=torch.uint8)
-+    flat[: len(payload)].copy_(src)
-+
-+
-+def _tensor_to_bytes(tensor: torch.Tensor) -> bytes:
-+    if tensor.dtype == torch.uint8:
-+        return bytes(tensor.detach().cpu().contiguous().numpy().tobytes())
-+    return bytes(tensor.detach().cpu().contiguous().view(torch.uint8).numpy().tobytes())
-+
-+
-+@dataclass
-+class _KVShape:
-+    tensor4d: torch.Tensor
-+    header_shape: tuple[int, ...]
-+    num_layers: int
-+    chunk_tokens: int
-+    h_merged: int
-+    original_ndim: int
-+
-+
-+class _KVWeaveCodec:
-+    def __init__(self, kwargs: dict[str, object]):
-+        cfg_obj = kvweave_config.KVWeaveCodecConfig(
-+            quantize=bool(kwargs.get("quantize", True)),
-+            qbit=int(kwargs.get("qbit", 4)),
-+            scaling_method=str(kwargs.get("scaling_method", "per_channel")),
-+            rh=bool(kwargs.get("rh", True)),
-+            asym=bool(kwargs.get("asym", True)),
-+            log=bool(kwargs.get("log", False)),
-+            precond=bool(kwargs.get("precond", False)),
-+            num_threads=int(kwargs.get("num_threads", 1)),
-+            precond_seed=int(kwargs.get("precond_seed", 42)),
-+            precond_path=kwargs.get("precond_path") or None,
-+        )
-+        self._kvw_cfg = cfg_obj
-+        self.quantize = bool(cfg_obj.quantize)
-+        self.log = bool(cfg_obj.log)
-+        self.qbit = int(cfg_obj.qbit)
-+        self.rh = bool(cfg_obj.rh)
-+        self.asym = bool(cfg_obj.asym)
-+        self.scaling_method = str(cfg_obj.scaling_method)
-+        self.precond = bool(cfg_obj.precond)
-+        self.linear_rh = bool(kwargs.get("linear_rh", False))
-+        self.linear_asym = bool(kwargs.get("linear_asym", False))
-+        self.linear_precond = bool(kwargs.get("linear_precond", False))
-+        self.num_threads = int(cfg_obj.num_threads)
-+        self.block_size = int(kwargs.get("block_size", _KVW_BLOCK_SIZE))
-+        self.num_kv_heads = int(kwargs.get("num_kv_heads", kwargs.get("head_num", 1)))
-+        self.head_dim = int(kwargs.get("head_dim", 0))
-+        self._precond_cache: dict[tuple[str, int], tuple[torch.Tensor, torch.Tensor]] = {}
-+        self._precond_lock = threading.Lock()
-+
-+        self._cpu_quant_mod = None
-+        if self.quantize:
-+            from kvweave import kvweave_quant
-+
-+            self._cpu_quant_mod = kvweave_quant
-+
-+    def estimate_serialized_size(
-+        self,
-+        layout_desc: MemoryLayoutDesc,
-+        scaling_method: Optional[str] = None,
-+    ) -> int:
-+        total = 0
-+        for shape, dtype in zip(layout_desc.shapes, layout_desc.dtypes, strict=True):
-+            total += self._estimate_one(
-+                tuple(int(x) for x in shape),
-+                dtype,
-+                scaling_method=scaling_method,
-+            )
-+        return total
-+
-+    def serialize_tensor(
-+        self,
-+        src_tensor: torch.Tensor,
-+        scaling_method: Optional[str] = None,
-+    ) -> bytes:
-+        method = str(scaling_method or self.scaling_method)
-+        rh, asym, precond = self._quant_flags_for_method(method)
-+        cpu_tensor = src_tensor.detach().to("cpu").contiguous()
-+        kv_shape = self._normalize_src(cpu_tensor)
-+        raw_bytes = _tensor_nbytes(cpu_tensor)
-+        if (
-+            not self.quantize
-+            or self._cpu_quant_mod is None
-+            or not self._is_attention_shape(kv_shape.h_merged)
-+        ):
-+            payload = self._serialize_raw(cpu_tensor, kv_shape)
-+            if self.log:
-+                logger.debug(
-+                    "KVWeave store raw shape=%s dtype=%s raw_bytes=%d payload_bytes=%d "
-+                    "attention_shape=%s",
-+                    tuple(cpu_tensor.shape), cpu_tensor.dtype, raw_bytes, len(payload),
-+                    self._is_attention_shape(kv_shape.h_merged),
-+                )
-+            return payload
-+
-+        header = self._build_kvw3_header(
-+            kv_shape,
-+            cpu_tensor.dtype,
-+            scaling_method=method,
-+            rh=rh,
-+            asym=asym,
-+            precond=precond,
-+        )
-+        signs_cpu, perm_cpu = (None, None)
-+        if precond:
-+            signs_cpu, perm_cpu = self._precond_pair(
-+                kv_shape.chunk_tokens,
-+                kv_shape.h_merged,
-+                scaling_method=method,
-+            )
-+        scale_ids = _allocate_scale_ids(2)
-+        blocks_num = max(1, kv_shape.chunk_tokens // self.block_size)
-+        payload = self._cpu_quant_mod.kvweave_serialize_chunk(
-+            kv_shape.tensor4d,
-+            header,
-+            scale_ids[0],
-+            scale_ids[1],
-+            qbit=self.qbit,
-+            blocks_num=blocks_num,
-+            block_size=self.block_size,
-+            head_num=self._head_num(kv_shape.h_merged),
-+            head_dim=self._head_dim(kv_shape.h_merged),
-+            num_layers=kv_shape.num_layers,
-+            rh=rh,
-+            asym=asym,
-+            scaling_method=method,
-+            signs=signs_cpu,
-+            perm=perm_cpu,
-+            num_threads=self.num_threads,
-+        )
-+        inner_payload = bytes(payload)
-+        payload_bytes = inner_payload
-+        if self.log:
-+            half_elements = int(kv_shape.num_layers) * int(kv_shape.chunk_tokens) * int(kv_shape.h_merged)
-+            q_bytes = 2 * _quantized_half_bytes(half_elements, self.qbit)
-+            scale_bytes = max(0, len(inner_payload) - len(header) - 8 - q_bytes)
-+            ratio = (len(payload_bytes) / raw_bytes) if raw_bytes else 0.0
-+            logger.debug(
-+                "KVWeave quantize store shape=%s dtype=%s qbit=%d scaling=%s "
-+                "raw_bytes=%d payload_bytes=%d ratio=%.4f q_bytes=%d scale_bytes=%d",
-+                tuple(cpu_tensor.shape), cpu_tensor.dtype, self.qbit, raw_bytes,
-+                method, len(payload_bytes), ratio, q_bytes, scale_bytes,
-+            )
-+        return payload_bytes
-+
-+    def deserialize_tensor(self, src_tensor: torch.Tensor, dst_tensor: torch.Tensor) -> None:
-+        raw = _tensor_to_bytes(src_tensor)
-+        parsed = self._parse_payload(raw)
-+        copied_direct = False
-+        if parsed["raw"]:
-+            tensor = self._decode_raw(parsed, dst_tensor)
-+            if self.log:
-+                logger.debug(
-+                    "KVWeave load raw shape=%s payload_buffer_bytes=%d restored_bytes=%d",
-+                    tuple(parsed["shape"]), len(raw), _tensor_nbytes(tensor),
-+                )
-+        else:
-+            if self._cpu_quant_mod is None:
-+                from kvweave import kvweave_quant
-+
-+                self._cpu_quant_mod = kvweave_quant
-+            if (
-+                len(parsed["shape"]) == 4
-+                and hasattr(self._cpu_quant_mod, "kvweave_dequantize_chunk_into_4d")
-+            ):
-+                self._cpu_dequantize_into_4d(parsed, dst_tensor)
-+                tensor = dst_tensor
-+                copied_direct = True
-+            else:
-+                tensor = self._cpu_dequantize(parsed)
-+            if self.log:
-+                q_bytes = len(parsed["q_data"])
-+                scale_bytes = len(parsed["k_scale_bytes"]) + len(parsed["v_scale_bytes"])
-+                logger.debug(
-+                    "KVWeave dequantize load shape=%s qbit=%d payload_buffer_bytes=%d "
-+                    "q_bytes=%d scale_bytes=%d restored_bytes=%d",
-+                    tuple(parsed["shape"]), int(parsed["qbit"]), len(raw),
-+                    q_bytes, scale_bytes, _tensor_nbytes(tensor),
-+                )
-+        if not copied_direct:
-+            self._copy_restored(tensor, dst_tensor)
-+
-+    def _estimate_one(
-+        self,
-+        shape: tuple[int, ...],
-+        dtype: torch.dtype,
-+        scaling_method: Optional[str] = None,
-+    ) -> int:
-+        if len(shape) == 3:
-+            chunk_tokens, kv_size, h_merged = shape
-+            num_layers = 1
-+            original_ndim = 3
-+        elif len(shape) == 4:
-+            kv_size, num_layers, chunk_tokens, h_merged = shape
-+            original_ndim = 4
-+        else:
-+            nbytes = _element_size(dtype)
-+            for dim in shape:
-+                nbytes *= dim
-+            return 64 + nbytes
-+        if kv_size != 2:
-+            raise ValueError(f"KVWeave serde expects K/V dimension size 2, got {shape}")
-+
-+        method = str(scaling_method or self.scaling_method)
-+        _, _, precond = self._quant_flags_for_method(method)
-+        header = 4 + 8 + 4 * original_ndim
-+        if precond:
-+            header += 4 + 8 * self._hadamard_size(
-+                chunk_tokens,
-+                h_merged,
-+                scaling_method=method,
-+            )
-+
-+        half_elements = int(num_layers) * int(chunk_tokens) * int(h_merged)
-+        if not self.quantize:
-+            return header + 16 + 2 * half_elements * _element_size(dtype)
-+
-+        q_bytes = 2 * _quantized_half_bytes(half_elements, self.qbit)
-+        scale_count = max(
-+            1,
-+            self._scale_count(
-+                chunk_tokens,
-+                h_merged,
-+                num_layers,
-+                scaling_method=method,
-+            ),
-+        )
-+        scale_bytes = 2 * (4 + scale_count * 12)
-+        estimated = header + 8 + scale_bytes + q_bytes
-+        return int(estimated * 1.10) + 4096
-+
-+    def _normalize_src(self, tensor: torch.Tensor) -> _KVShape:
-+        if tensor.dim() == 3:
-+            chunk_tokens, kv_size, h_merged = (int(x) for x in tensor.shape)
-+            if kv_size != 2:
-+                raise ValueError(f"KVWeave serde expects shape [T,2,H], got {tuple(tensor.shape)}")
-+            tensor4d = tensor.permute(1, 0, 2).unsqueeze(1).contiguous()
-+            return _KVShape(tensor4d, (chunk_tokens, 2, h_merged), 1, chunk_tokens, h_merged, 3)
-+        if tensor.dim() == 4:
-+            kv_size, num_layers, chunk_tokens, h_merged = (int(x) for x in tensor.shape)
-+            if kv_size != 2:
-+                raise ValueError(f"KVWeave serde expects shape [2,L,T,H], got {tuple(tensor.shape)}")
-+            return _KVShape(tensor.contiguous(), tuple(int(x) for x in tensor.shape), num_layers, chunk_tokens, h_merged, 4)
-+        raise ValueError(f"Unsupported KV tensor shape for KVWeave serde: {tuple(tensor.shape)}")
-+
-+    def _serialize_raw(self, tensor: torch.Tensor, kv_shape: _KVShape) -> bytes:
-+        header = struct.pack(
-+            ">4sBBB",
-+            _KVW_MAGIC_RAW,
-+            kv_shape.original_ndim,
-+            _KVW_FMT_TO_INT.get(getattr(MemoryFormat, "KV_T2D", None), 1),
-+            _KVW_DTYPE_TO_INT.get(tensor.dtype, 0),
-+        )
-+        header += struct.pack(">" + "i" * kv_shape.original_ndim, *kv_shape.header_shape)
-+        return header + bytes(tensor.contiguous().numpy().tobytes())
-+
-+    def _build_kvw3_header(
-+        self,
-+        kv_shape: _KVShape,
-+        src_dtype: torch.dtype,
-+        scaling_method: str,
-+        rh: bool,
-+        asym: bool,
-+        precond: bool,
-+    ) -> bytes:
-+        header = struct.pack(
-+            ">4sBBBBBBBB",
-+            _KVW_MAGIC_QUANT,
-+            self.qbit,
-+            int(rh),
-+            int(asym),
-+            int(precond),
-+            kv_shape.original_ndim,
-+            _KVW_FMT_TO_INT.get(getattr(MemoryFormat, "KV_T2D", None), 1),
-+            _KVW_SCALING_TO_INT.get(scaling_method, 1),
-+            _KVW_DTYPE_TO_INT.get(src_dtype, 0),
-+        )
-+        if precond:
-+            signs_cpu, perm_cpu = self._precond_pair(
-+                kv_shape.chunk_tokens,
-+                kv_shape.h_merged,
-+                scaling_method=scaling_method,
-+            )
-+            h = signs_cpu.numel()
-+            header += struct.pack(">I", h)
-+            header += signs_cpu.numpy().tobytes()
-+            header += perm_cpu.numpy().tobytes()
-+        header += struct.pack(">" + "i" * kv_shape.original_ndim, *kv_shape.header_shape)
-+        return header
-+
-+    def _parse_payload(self, raw: bytes) -> dict[str, object]:
-+        buf = io.BytesIO(raw)
-+        magic = buf.read(4)
-+        if magic == _KVW_MAGIC_RAW:
-+            ndim, fmt_byte, dtype_byte = struct.unpack(">BBB", buf.read(3))
-+            shape = tuple(struct.unpack(">" + "i" * ndim, buf.read(4 * ndim)))
-+            dtype = _KVW_INT_TO_DTYPE.get(dtype_byte, torch.float16)
-+            nbytes = _element_size(dtype)
-+            for dim in shape:
-+                nbytes *= int(dim)
-+            return {
-+                "raw": True,
-+                "tensor_bytes": buf.read(nbytes),
-+                "shape": shape,
-+                "output_dtype": dtype,
-+                "fmt": _KVW_INT_TO_FMT.get(fmt_byte),
-+            }
-+        if magic != _KVW_MAGIC_QUANT:
-+            raise ValueError(f"KVWeave bad magic: {magic!r}")
-+
-+        qbit, rh, asym, precond, ndim, fmt_byte, scaling_byte, dtype_byte = struct.unpack(
-+            ">BBBBBBBB", buf.read(8)
-+        )
-+        signs: Optional[torch.Tensor] = None
-+        perm: Optional[torch.Tensor] = None
-+        if precond:
-+            h = struct.unpack(">I", buf.read(4))[0]
-+            signs = torch.frombuffer(buf.read(4 * h), dtype=torch.float32).clone()
-+            perm = torch.frombuffer(buf.read(4 * h), dtype=torch.int32).clone()
-+
-+        shape = tuple(struct.unpack(">" + "i" * ndim, buf.read(4 * ndim)))
-+        if len(shape) == 3:
-+            shape_4d = (shape[1], 1, shape[0], shape[2])
-+        else:
-+            shape_4d = shape
-+        kv_size, num_layers, chunk_tokens, h_merged = shape_4d
-+
-+        scale_blobs = []
-+        for _ in range(kv_size):
-+            scale_len = struct.unpack(">I", buf.read(4))[0]
-+            scale_blobs.append(buf.read(scale_len))
-+        half_elements = int(num_layers) * int(chunk_tokens) * int(h_merged)
-+        half_bytes = _quantized_half_bytes(half_elements, qbit)
-+        q_raw = buf.read(2 * half_bytes)
-+        head_num = self._head_num(int(h_merged))
-+        head_dim = int(h_merged) // head_num if head_num > 1 else int(h_merged)
-+        blocks_num = max(1, int(chunk_tokens) // self.block_size)
-+        scaling_method = _KVW_INT_TO_SCALING.get(scaling_byte, self.scaling_method)
-+
-+        return {
-+            "raw": False,
-+            "q_data": q_raw,
-+            "k_scale_bytes": scale_blobs[0] if len(scale_blobs) > 0 else b"",
-+            "v_scale_bytes": scale_blobs[1] if len(scale_blobs) > 1 else b"",
-+            "qbit": qbit,
-+            "rh": bool(rh),
-+            "asym": bool(asym),
-+            "scaling_method": scaling_method,
-+            "output_dtype": _KVW_INT_TO_DTYPE.get(dtype_byte, torch.float16),
-+            "shape": shape,
-+            "chunk_tokens": int(chunk_tokens),
-+            "h_merged": int(h_merged),
-+            "num_layers": int(num_layers),
-+            "blocks_num": int(blocks_num),
-+            "block_size": self.block_size,
-+            "head_num": int(head_num),
-+            "head_dim": int(head_dim),
-+            "signs": signs,
-+            "perm": perm,
-+            "fmt": _KVW_INT_TO_FMT.get(fmt_byte),
-+        }
-+
-+    def _decode_raw(self, parsed: dict[str, object], dst_tensor: torch.Tensor) -> torch.Tensor:
-+        tensor = torch.frombuffer(bytearray(parsed["tensor_bytes"]), dtype=parsed["output_dtype"])
-+        return tensor.reshape(tuple(parsed["shape"]))
-+
-+    def _cpu_dequantize(self, parsed: dict[str, object]) -> torch.Tensor:
-+        qbit = int(parsed["qbit"])
-+        q_dtype = torch.int8 if qbit <= 8 else torch.int16
-+        q_data = torch.frombuffer(bytearray(parsed["q_data"]), dtype=q_dtype)
-+        result = self._cpu_quant_mod.kvweave_dequantize_chunk(
-+            q_data,
-+            parsed["k_scale_bytes"],
-+            parsed["v_scale_bytes"],
-+            int(parsed["num_layers"]),
-+            int(parsed["chunk_tokens"]),
-+            int(parsed["h_merged"]),
-+            qbit=qbit,
-+            blocks_num=int(parsed["blocks_num"]),
-+            block_size=int(parsed["block_size"]),
-+            head_num=int(parsed["head_num"]),
-+            head_dim=int(parsed["head_dim"]),
-+            rh=bool(parsed["rh"]),
-+            asym=bool(parsed["asym"]),
-+            scaling_method=str(parsed["scaling_method"]),
-+            output_dtype=parsed["output_dtype"],
-+            signs=parsed["signs"],
-+            perm=parsed["perm"],
-+            num_threads=self.num_threads,
-+        )
-+        if len(parsed["shape"]) == 3:
-+            return result.squeeze(1).permute(1, 0, 2)
-+        return result.contiguous()
-+
-+    def _cpu_dequantize_into_4d(self, parsed: dict[str, object], dst_tensor: torch.Tensor) -> None:
-+        qbit = int(parsed["qbit"])
-+        q_dtype = torch.int8 if qbit <= 8 else torch.int16
-+        q_data = torch.frombuffer(bytearray(parsed["q_data"]), dtype=q_dtype)
-+        self._cpu_quant_mod.kvweave_dequantize_chunk_into_4d(
-+            q_data,
-+            parsed["k_scale_bytes"],
-+            parsed["v_scale_bytes"],
-+            dst_tensor,
-+            int(parsed["num_layers"]),
-+            int(parsed["chunk_tokens"]),
-+            int(parsed["h_merged"]),
-+            qbit=qbit,
-+            blocks_num=int(parsed["blocks_num"]),
-+            block_size=int(parsed["block_size"]),
-+            head_num=int(parsed["head_num"]),
-+            head_dim=int(parsed["head_dim"]),
-+            rh=bool(parsed["rh"]),
-+            asym=bool(parsed["asym"]),
-+            scaling_method=str(parsed["scaling_method"]),
-+            output_dtype=parsed["output_dtype"],
-+            signs=parsed["signs"],
-+            perm=parsed["perm"],
-+            num_threads=self.num_threads,
-+        )
-+
-+    @staticmethod
-+    def _copy_restored(tensor: torch.Tensor, dst_tensor: torch.Tensor) -> None:
-+        if tuple(tensor.shape) != tuple(dst_tensor.shape):
-+            tensor = tensor.reshape(dst_tensor.shape)
-+        dst_tensor.copy_(tensor.to(device=dst_tensor.device, dtype=dst_tensor.dtype))
-+
-+    def _head_num(self, h_merged: int) -> int:
-+        if self.num_kv_heads > 1 and h_merged % self.num_kv_heads == 0:
-+            return self.num_kv_heads
-+        return 1
-+
-+    def _quant_flags_for_method(self, scaling_method: str) -> tuple[bool, bool, bool]:
-+        """Resolve effective quant flags for one scaling method.
-+
-+        Per-tensor path is reserved for linear/mamba groups; its RH/ASYM/
-+        PRECOND are controlled independently from the attention path via
-+        linear_rh/linear_asym/linear_precond.
-+        """
-+        method = str(scaling_method)
-+        if method == "per_tensor":
-+            return self.linear_rh, self.linear_asym, self.linear_precond
-+        return self.rh, self.asym, self.precond
-+
-+    def _head_dim(self, h_merged: int) -> int:
-+        if self.head_dim > 0:
-+            return self.head_dim
-+        head_num = self._head_num(h_merged)
-+        return h_merged // head_num if head_num > 1 else h_merged
-+
-+    def _is_attention_shape(self, h_merged: int) -> bool:
-+        """Whether ``h_merged`` matches this model's real attention KV width.
-+
-+        Hybrid Mamba/attention models (e.g. Qwen3.5) reinterpret Mamba
-+        ``[conv_state, ssm_state]`` pages as attention-shaped tensors purely so
-+        LMCache's transfer path can address them (see
-+        ``lmcache/integration/vllm/kv_cache_group_edits.py:_MambaPageViewEdit``
-+        upstream); those bytes are opaque, not real K/V, so content-aware
-+        quantization must not run on them. Real attention chunks have
-+        ``h_merged == num_kv_heads * head_dim``; anything else is treated as
-+        non-attention and stored raw (see ``serialize_tensor``).
-+        """
-+        return self.num_kv_heads > 0 and self.head_dim > 0 and h_merged == self.num_kv_heads * self.head_dim
-+
-+    def _hadamard_size(
-+        self,
-+        chunk_tokens: int,
-+        h_merged: int,
-+        scaling_method: Optional[str] = None,
-+    ) -> int:
-+        half_elements = int(chunk_tokens) * int(h_merged)
-+        blocks_num = max(1, int(chunk_tokens) // self.block_size)
-+        method = str(scaling_method or self.scaling_method)
-+        if method == "per_token":
-+            return max(1, half_elements // (blocks_num * self.block_size))
-+        if method == "per_channel":
-+            return max(1, half_elements // self._head_dim(h_merged))
-+        return max(1, half_elements)
-+
-+    def _scale_count(
-+        self,
-+        chunk_tokens: int,
-+        h_merged: int,
-+        num_layers: int,
-+        scaling_method: Optional[str] = None,
-+    ) -> int:
-+        """Return number of scales per K/V half for one chunk.
-+
-+        This follows kvweave_quant_wrapper.cpp behavior:
-+        - per-layer quantization is always used when num_layers > 1, so each
-+          layer gets its own independent scale.
-+        - otherwise (num_layers == 1) quantization runs on the flattened half
-+          and emits one set of scales for the whole half.
-+        """
-+        method = str(scaling_method or self.scaling_method)
-+
-+        if method == "per_token":
-+            base = max(1, int(chunk_tokens))
-+        elif method == "per_channel":
-+            base = max(1, self._head_dim(h_merged))
-+        else:
-+            # per_tensor uses a single scale for one flattened half.
-+            base = 1
-+
-+        use_per_layer = int(num_layers) > 1
-+        return base * max(1, int(num_layers)) if use_per_layer else base
-+
-+    def _precond_pair(
-+        self,
-+        chunk_tokens: int,
-+        h_merged: Optional[int] = None,
-+        scaling_method: Optional[str] = None,
-+    ):
-+        method = str(scaling_method or self.scaling_method)
-+        _, _, precond = self._quant_flags_for_method(method)
-+        if not precond:
-+            return None, None
-+        if h_merged is None:
-+            raise ValueError("h_merged is required when preconditioning is enabled")
-+        hadamard_size = self._hadamard_size(
-+            chunk_tokens,
-+            h_merged,
-+            scaling_method=method,
-+        )
-+        cache_key = (method, hadamard_size)
-+        cached = self._precond_cache.get(cache_key)
-+        if cached is not None:
-+            return cached
-+        with self._precond_lock:
-+            cached = self._precond_cache.get(cache_key)
-+            if cached is None:
-+                signs_arr, perm_arr = self._kvw_cfg.get_pd_matrix(hadamard_size)
-+                signs = torch.as_tensor(signs_arr, dtype=torch.float32).reshape(-1).contiguous()
-+                perm = torch.as_tensor(perm_arr, dtype=torch.int32).reshape(-1).contiguous()
-+                self._validate_precond(signs, perm, hadamard_size)
-+                cached = (signs, perm)
-+                self._precond_cache[cache_key] = cached
-+        return cached
-+
-+    @staticmethod
-+    def _validate_precond(signs: torch.Tensor, perm: torch.Tensor, hadamard_size: int) -> None:
-+        if signs.numel() != hadamard_size or perm.numel() != hadamard_size:
-+            raise ValueError("P&D matrix length mismatch")
-+        if not torch.all((signs == 1.0) | (signs == -1.0)):
-+            raise ValueError("signs must contain only +1/-1 values")
-+        expected = torch.arange(hadamard_size, dtype=perm.dtype)
-+        if not torch.equal(torch.sort(perm).values, expected):
-+            raise ValueError("perm must be a permutation of range(h)")
 diff --git a/lmcache/v1/distributed/storage_controllers/prefetch_controller.py b/lmcache/v1/distributed/storage_controllers/prefetch_controller.py
 index 8b9a9228..a1151d1b 100644
 --- a/lmcache/v1/distributed/storage_controllers/prefetch_controller.py
@@ -1369,7 +581,7 @@ index 44873cf4..314d9263 100644
      @enable_tracing()
      def reserve_write(
 diff --git a/lmcache/v1/gpu_connector/utils.py b/lmcache/v1/gpu_connector/utils.py
-index a2729939..dd29ce1f 100644
+index a2729939..667e5752 100644
 --- a/lmcache/v1/gpu_connector/utils.py
 +++ b/lmcache/v1/gpu_connector/utils.py
 @@ -495,8 +495,8 @@ def legible_print_gpu_kv_format(gpu_kv_format: "lmc_ops.GPUKVFormat"):
@@ -1401,6 +613,91 @@ index a2729939..dd29ce1f 100644
  
      detected_format = None
  
+@@ -665,7 +665,7 @@ def normalize_kv_and_discover_format(
+                 "No KV Cache Layout hint provided when using vLLM, defaulting to NHD"
+             )
+             kv_layout = "NHD"
+-        logger.info("vLLM KV cache layout: %s", kv_layout)
++        logger.debug("vLLM KV cache layout: %s", kv_layout)
+         is_hnd = kv_layout == "HND"
+         if list_depth == 0:
+             # vllm cross layer
+@@ -686,20 +686,32 @@ def normalize_kv_and_discover_format(
+                         detected_format = lmc_ops.GPUKVFormat.NL_X_NB_TWO_BS_NH_HS
+             elif tensor_dim == 4:
+                 # vLLM non-MLA blocks-first attention: K/V fused into the
+-                # trailing dim -> [NB, NH, BS, 2*head_size].
+-                # Split the fused axis so downstream sees the canonical 5D
+-                # [NB, NH, BS, 2, HS].
++                # trailing dim. The physical order is [NB, BS, NH, 2*HS]
++                # for NHD and [NB, NH, BS, 2*HS] for HND.
+                 last_dim = probe.shape[3]
+                 if last_dim % 2 != 0:
+                     raise ValueError(
+                         "blocks-first fused KV cache trailing dim "
+                         f"{last_dim} is not 2 * head_size"
+                     )
+-                kv_caches = [
+-                    layer.reshape(*layer.shape[:3], 2, last_dim // 2)
+-                    for layer in kv_caches
+-                ]
+-                detected_format = lmc_ops.GPUKVFormat.NL_X_NB_NH_BS_TWO_HS
++                head_size = last_dim // 2
++                if is_hnd:
++                    # Canonical HND: [NB, NH, BS, 2, HS].
++                    kv_caches = [
++                        layer.reshape(*layer.shape[:3], 2, head_size)
++                        for layer in kv_caches
++                    ]
++                    detected_format = (
++                        lmc_ops.GPUKVFormat.NL_X_NB_NH_BS_TWO_HS
++                    )
++                else:
++                    # Canonical NHD: [NB, 2, BS, NH, HS].
++                    kv_caches = [
++                        layer.reshape(*layer.shape[:3], 2, head_size)
++                        .permute(0, 3, 1, 2, 4)
++                        for layer in kv_caches
++                    ]
++                    detected_format = lmc_ops.GPUKVFormat.NL_X_NB_TWO_BS_NH_HS
+             elif tensor_dim == 3:
+                 # vllm MLA
+                 detected_format = lmc_ops.GPUKVFormat.NL_X_NB_BS_HS
+@@ -950,16 +962,22 @@ def get_hidden_dim_size(
+         lmc_ops.GPUKVFormat.NL_X_NB_TWO_BS_NH_HS,
+     ):
+         # NHD: [..., NH, HS] — hidden_dim = shape[3] * shape[4]
+-        return kv_caches[layer_idx].shape[3] * kv_caches[layer_idx].shape[4]
++        return get_num_heads(kv_caches, gpu_kv_format, layer_idx) * get_head_size(
++            kv_caches, gpu_kv_format, layer_idx
++        )
+     elif gpu_kv_format in (
+         lmc_ops.GPUKVFormat.NL_X_TWO_NB_NH_BS_HS,
+         lmc_ops.GPUKVFormat.NL_X_NB_TWO_NH_BS_HS,
+     ):
+         # HND: [..., NH, BS, HS] — hidden_dim = NH * HS = shape[2] * shape[4]
+-        return kv_caches[layer_idx].shape[2] * kv_caches[layer_idx].shape[4]
++        return get_num_heads(kv_caches, gpu_kv_format, layer_idx) * get_head_size(
++            kv_caches, gpu_kv_format, layer_idx
++        )
+     elif gpu_kv_format == lmc_ops.GPUKVFormat.NL_X_NB_NH_BS_TWO_HS:
+         # CPU fused: [NB, NH, BS, 2, HS] — hidden_dim = NH * HS = shape[1] * shape[4]
+-        return kv_caches[layer_idx].shape[1] * kv_caches[layer_idx].shape[4]
++        return get_num_heads(kv_caches, gpu_kv_format, layer_idx) * get_head_size(
++            kv_caches, gpu_kv_format, layer_idx
++        )
+     elif gpu_kv_format == lmc_ops.GPUKVFormat.NL_X_NB_BS_HS:
+         return kv_caches[layer_idx].shape[2]
+     elif gpu_kv_format == lmc_ops.GPUKVFormat.TWO_X_NL_X_NBBS_NH_HS:
+@@ -997,7 +1015,7 @@ def get_head_size(
+         lmc_ops.GPUKVFormat.NL_X_NB_NH_BS_TWO_HS,
+     ):
+         # All these per-layer non-MLA layouts carry head_size as the last dim
+-        return kv_caches[layer_idx].shape[4]
++        return kv_caches[layer_idx].shape[-1]
+     elif gpu_kv_format == lmc_ops.GPUKVFormat.NL_X_NB_BS_HS:
+         return kv_caches[layer_idx].shape[2]
+     elif gpu_kv_format in (
 diff --git a/lmcache/v1/mp_observability/subscribers/logging/l2.py b/lmcache/v1/mp_observability/subscribers/logging/l2.py
 index ff168382..ce661524 100644
 --- a/lmcache/v1/mp_observability/subscribers/logging/l2.py
@@ -1963,12 +1260,2038 @@ index 7d5ff8d8..7993dd47 100644
  
      if mp_config.engine_type == "blend_legacy":
          if mp_config.supported_transfer_mode == "non_gpu":
+diff --git a/lmcache/v1/multiprocess/transfer_context/base.py b/lmcache/v1/multiprocess/transfer_context/base.py
+index afdcc29d..6701c170 100644
+--- a/lmcache/v1/multiprocess/transfer_context/base.py
++++ b/lmcache/v1/multiprocess/transfer_context/base.py
+@@ -370,6 +370,9 @@ def gather_paged_kv_to_cpu(
+         num_blocks=num_blocks,
+         block_size=block_size,
+     )
++    # The descriptor is the single source of truth for the flattened
++    # per-token layout used by the transfer kernel and the CPU chunks.
++    hidden_dim_size = int(shape_desc.nh) * int(shape_desc.hs)
+ 
+     iter_indices = (
+         list(chunk_indices) if chunk_indices is not None else list(range(num_chunks))
+diff --git a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py b/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
+index 75bc7e37..9cca187f 100644
+--- a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
++++ b/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
+@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
+ from collections.abc import Sequence
+ from enum import Enum
+ from typing import Any, Callable, Protocol
++import json
+ import os
+ 
+ # Third Party
+@@ -16,10 +17,23 @@ from lmcache import torch_dev
+ from lmcache.utils import EngineType, init_logger
+ from lmcache.v1.distributed.api import MemoryLayoutDesc
+ from lmcache.v1.gpu_connector.utils import LayoutHints, is_mla
+-from lmcache.v1.multiprocess.custom_types import RegisterNonGpuContextPayload
++from lmcache.v1.multiprocess.custom_types import (
++    RegisterNonGpuContextPayload,
++    serialize_memory_layout_desc,
++)
+ from lmcache.v1.multiprocess.futures import MessagingFuture
+ from lmcache.v1.multiprocess.group_view import EngineGroupInfo
+ from lmcache.v1.multiprocess.mq import MessageQueueClient
++from lmcache.v1.multiprocess.transfer_context.mamba_quant import (
++    MambaChunkSplit,
++    dequantize_mamba_substate_4bit,
++    merge_mamba_chunk,
++    pack_mamba_payloads,
++    quantize_mamba_substate_4bit,
++    serialize_mamba_substate_raw,
++    split_mamba_chunk,
++    unpack_mamba_payloads,
++)
+ from lmcache.v1.multiprocess.protocol import RequestType
+ from lmcache.v1.multiprocess.protocols.engine import RegisterNonGpuContextResponse
+ from lmcache.v1.multiprocess.transfer_context.base import (
+@@ -34,12 +48,81 @@ from lmcache.v1.platform import _registry as platform_registry
+ 
+ logger = init_logger(__name__)
+ 
++try:
++    # Optional L1 KVWeave quantization codec.
++    from lmcache.v1.distributed.serde.kvweave_serde import (
++        _KVWeaveCodec,
++        _copy_bytes_to_tensor,
++    )  # type: ignore[attr-defined]
++except ImportError:  # pragma: no cover - optional runtime dependency
++    _KVWeaveCodec = None  # type: ignore[assignment]
++    _copy_bytes_to_tensor = None  # type: ignore[assignment]
++
+ # Environment variable that lets the user override the default routing
+ # performed by :func:`create_transfer_context`. Accepted values match the
+ # string values of :class:`MPTransferMode` (``auto`` / ``handle`` /
+ # ``data``); ``auto`` reproduces the historical device-type-based dispatch.
+ ENV_MP_TRANSFER_MODE = "LMCACHE_MP_TRANSFER_MODE"
++ENV_MP_L1_KVWEAVE_QUANT = "LMCACHE_MP_L1_KVWEAVE_QUANT"
++ENV_MP_KVWEAVE_PRECOND = "LMCACHE_MP_KVWEAVE_PRECOND"
++ENV_MP_KVWEAVE_NUM_THREADS = "LMCACHE_MP_KVWEAVE_NUM_THREADS"
++ENV_MP_KVWEAVE_SCALING_METHOD = "LMCACHE_MP_KVWEAVE_SCALING_METHOD"
++ENV_MP_KVWEAVE_LINEAR_MAX_SIZE_RATIO = "LMCACHE_MP_KVWEAVE_LINEAR_MAX_SIZE_RATIO"
++ENV_MP_KVWEAVE_LINEAR_QUANT_ENABLED = "LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED"
++ENV_MP_KVWEAVE_CONV_QUANT_ENABLED = "LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED"
++ENV_MP_KVWEAVE_SSM_QUANT_ENABLED = "LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED"
++ENV_MP_KVWEAVE_LINEAR_RH = "LMCACHE_MP_KVWEAVE_LINEAR_RH"
++ENV_MP_KVWEAVE_LINEAR_ASYM = "LMCACHE_MP_KVWEAVE_LINEAR_ASYM"
++ENV_MP_KVWEAVE_LINEAR_PRECOND = "LMCACHE_MP_KVWEAVE_LINEAR_PRECOND"
++ENV_MP_KVWEAVE_LINEAR_SCALING_METHOD = "LMCACHE_MP_KVWEAVE_LINEAR_SCALING_METHOD"
++ENV_MP_KVWEAVE_CONV_SCALING_METHOD = "LMCACHE_MP_KVWEAVE_CONV_SCALING_METHOD"
++ENV_MP_KVWEAVE_CONV_RH = "LMCACHE_MP_KVWEAVE_CONV_RH"
++ENV_MP_KVWEAVE_SSM_SCALING_METHOD = "LMCACHE_MP_KVWEAVE_SSM_SCALING_METHOD"
++ENV_MP_KVWEAVE_SSM_RH = "LMCACHE_MP_KVWEAVE_SSM_RH"
++
++_KVWEAVE_SCALING_METHODS = frozenset({"per_tensor", "per_channel", "per_token"})
++# Caller-imposed restriction (not a native kernel limitation, see
++# mamba_quant._UNSUPPORTED_CONV_RH_METHODS): conv_state has no real head
++# axis, so rh is only supported for conv with per_token scaling.
++_UNSUPPORTED_CONV_RH_SCALING_METHODS = frozenset({"per_tensor", "per_channel"})
++
++_DEFAULT_KVWEAVE_NUM_KV_HEADS = 4
++_DEFAULT_KVWEAVE_HEAD_DIM = 256
++
++
++def _load_kvweave_model_dims() -> tuple[int, int]:
++    """Load attention KV dimensions from the serving model config."""
++    model = os.environ.get("MODEL", "")
++    model_path = os.environ.get("MODEL_PATH", "")
++    config_paths = []
++    if model:
++        config_paths.append(os.path.join(model, "config.json"))
++    if model_path and model:
++        config_paths.append(os.path.join(model_path, model, "config.json"))
++
++    for config_path in config_paths:
++        try:
++            with open(config_path, encoding="utf-8") as config_file:
++                config = json.load(config_file)
++            text_config = config.get("text_config", config)
++            num_kv_heads = int(text_config["num_key_value_heads"])
++            head_dim = int(text_config["head_dim"])
++            logger.info(
++                "Loaded KVWeave dimensions from %s: num_kv_heads=%d, head_dim=%d",
++                config_path,
++                num_kv_heads,
++                head_dim,
++            )
++            return num_kv_heads, head_dim
++        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
++            continue
+ 
++    logger.info(
++        "Using default KVWeave dimensions: num_kv_heads=%d, head_dim=%d",
++        _DEFAULT_KVWEAVE_NUM_KV_HEADS,
++        _DEFAULT_KVWEAVE_HEAD_DIM,
++    )
++    return _DEFAULT_KVWEAVE_NUM_KV_HEADS, _DEFAULT_KVWEAVE_HEAD_DIM
+ 
+ class MPTransferMode(str, Enum):
+     """Routing mode used by :func:`create_transfer_context`.
+@@ -57,6 +140,40 @@ class MPTransferMode(str, Enum):
+     DATA = "data"
+ 
+ 
++class GroupCodecMode(str, Enum):
++    """Per-group codec mode for non-GPU worker data transfer."""
++
++    RAW = "raw"
++    KVWEAVE_QUANT = "kvweave_quant"
++
++
++def _parse_env_flag(name: str, default: bool = False) -> bool:
++    raw = os.environ.get(name)
++    if raw is None:
++        return default
++    return str(raw).strip().lower() in {"1", "true", "yes", "y", "on"}
++
++
++def _parse_flag_value(raw: object) -> bool:
++    if isinstance(raw, bool):
++        return raw
++    if isinstance(raw, int):
++        return raw != 0
++    if raw is None:
++        return False
++    return str(raw).strip().lower() in {"1", "true", "yes", "y", "on"}
++
++
++def _layout_nbytes(layout_desc: MemoryLayoutDesc) -> int:
++    total = 0
++    for shape, dtype in zip(layout_desc.shapes, layout_desc.dtypes, strict=True):
++        numel = 1
++        for dim in shape:
++            numel *= int(dim)
++        total += numel * torch.empty((), dtype=dtype).element_size()
++    return total
++
++
+ def _resolve_mode(mode: "str | MPTransferMode | None") -> MPTransferMode:
+     """Coerce ``mode`` into :class:`MPTransferMode`, falling back to env."""
+     raw = (
+@@ -305,12 +422,271 @@ class HandleTransferContext(TransferContext):
+ class DataTransferContext(TransferContext):
+     """Data transfer context for non-CUDA workers."""
+ 
+-    def __init__(self) -> None:
++    def __init__(
++        self,
++        *,
++        enable_l1_kvweave_quant: bool = True,
++        kvweave_num_kv_heads: int = 4,
++        kvweave_head_dim: int = 256,
++        kvweave_precond: bool = True,
++        kvweave_num_threads: int = 8,
++        kvweave_scaling_method: str = "per_channel",
++        kvweave_linear_quant_enabled: bool = True,
++        kvweave_conv_quant_enabled: bool = True,
++        kvweave_ssm_quant_enabled: bool = True,
++        kvweave_linear_rh: bool = False,
++        kvweave_linear_asym: bool = True,
++        kvweave_linear_precond: bool = False,
++        kvweave_linear_scaling_method: str = "per_tensor",
++        kvweave_conv_scaling_method: str | None = None,
++        kvweave_conv_rh: bool | None = None,
++        kvweave_ssm_scaling_method: str | None = "per_channel",
++        kvweave_ssm_rh: bool | None = True,
++    ) -> None:
+         self._non_gpu_context: NonGpuContext | None = None
+         self._layout_hints: LayoutHints | None = None
+         self._gpu_kv_format: Any = None
+         self._engine_group_infos: list[EngineGroupInfo] = []
+         self._chunk_size_tokens: int | None = None
++        self._enable_l1_kvweave_quant = enable_l1_kvweave_quant
++        self._kvweave_num_kv_heads = kvweave_num_kv_heads
++        self._kvweave_head_dim = kvweave_head_dim
++        self._kvweave_precond = kvweave_precond
++        self._kvweave_num_threads = kvweave_num_threads
++        self._kvweave_scaling_method = kvweave_scaling_method
++        self._kvweave_linear_quant_enabled = kvweave_linear_quant_enabled
++        self._kvweave_conv_quant_enabled = kvweave_conv_quant_enabled
++        self._kvweave_ssm_quant_enabled = kvweave_ssm_quant_enabled
++        self._kvweave_linear_rh = kvweave_linear_rh
++        self._kvweave_linear_asym = kvweave_linear_asym
++        self._kvweave_linear_precond = kvweave_linear_precond
++        self._kvweave_linear_scaling_method = kvweave_linear_scaling_method
++        self._kvweave_conv_scaling_method = (
++            kvweave_conv_scaling_method
++            if kvweave_conv_scaling_method is not None
++            else kvweave_linear_scaling_method
++        )
++        self._kvweave_conv_rh = (
++            kvweave_conv_rh if kvweave_conv_rh is not None else kvweave_linear_rh
++        )
++        self._kvweave_ssm_scaling_method = (
++            kvweave_ssm_scaling_method
++            if kvweave_ssm_scaling_method is not None
++            else kvweave_linear_scaling_method
++        )
++        self._kvweave_ssm_rh = (
++            kvweave_ssm_rh if kvweave_ssm_rh is not None else kvweave_linear_rh
++        )
++        if (
++            self._kvweave_conv_rh
++            and self._kvweave_conv_scaling_method
++            in _UNSUPPORTED_CONV_RH_SCALING_METHODS
++        ):
++            logger.debug(
++                "rh is not supported for conv with scaling_method=%r "
++                "(conv has no real head axis); falling back to "
++                "scaling_method='per_tensor', rh=False",
++                self._kvweave_conv_scaling_method,
++            )
++            self._kvweave_conv_scaling_method = "per_tensor"
++            self._kvweave_conv_rh = False
++        self._kvweave_linear_max_size_ratio = float(
++            os.environ.get(ENV_MP_KVWEAVE_LINEAR_MAX_SIZE_RATIO, "1.20")
++        )
++        self._kvweave_codec: Any | None = None
++        self._group_codec_modes: list[GroupCodecMode] = [GroupCodecMode.RAW]
++        self._group_quant_scaling_methods: list[str] = []
++        self._group_raw_layout_descs: list[MemoryLayoutDesc] = []
++        self._group_store_layout_descs: list[MemoryLayoutDesc] = []
++
++    @staticmethod
++    def _resolved_future(value: bool) -> MessagingFuture:
++        future: MessagingFuture[bool] = MessagingFuture()
++        future.set_result(value)
++        return future
++
++    def _build_group_raw_layout_desc(
++        self,
++        group_kv_caches: dict[str, torch.Tensor],
++        group_blocks_in_chunk: int,
++    ) -> MemoryLayoutDesc:
++        (
++            block_size,
++            num_layers,
++            hidden_dim_size,
++            dtype_str,
++            gpu_kv_format,
++        ) = compute_kv_layout(group_kv_caches, layout_hints=self._layout_hints)
++        use_mla_flag = is_mla(gpu_kv_format)
++        shape = (
++            torch.Size([num_layers, group_blocks_in_chunk * block_size, hidden_dim_size])
++            if use_mla_flag
++            else torch.Size([2, num_layers, group_blocks_in_chunk * block_size, hidden_dim_size])
++        )
++        return MemoryLayoutDesc(
++            shapes=[shape],
++            dtypes=[getattr(torch, dtype_str)],
++        )
++
++    def _is_attention_group_layout(
++        self,
++        layout_desc: MemoryLayoutDesc,
++        group_info: EngineGroupInfo | None = None,
++    ) -> bool:
++        if self._kvweave_codec is None:
++            return False
++        # Keep group_info in the signature for interface stability. Routing is
++        # intentionally shape-based here so aligned hybrid groups can follow
++        # the same quantization path as attention layouts.
++        _ = group_info
++        shape = layout_desc.shapes[0]
++        if len(shape) == 4:
++            h_merged = int(shape[3])
++        elif len(shape) == 3:
++            h_merged = int(shape[2])
++        else:
++            return False
++        return bool(self._kvweave_codec._is_attention_shape(h_merged))
++
++    def _group_scaling_method_for_group(
++        self,
++        group_info: EngineGroupInfo | None,
++    ) -> str:
++        """Pick quant scaling for one group.
++
++        Policy:
++        - Linear-like groups (mamba/linear categories) use the configured
++          linear scaling method (LMCACHE_MP_KVWEAVE_LINEAR_SCALING_METHOD).
++        - Full attention and unknown groups keep the configured default.
++        """
++        default_method = str(self._kvweave_scaling_method)
++        if group_info is None:
++            return default_method
++        category = str(group_info.cache_category).strip().lower()
++        if category in {"mamba", "linear"}:
++            return str(self._kvweave_linear_scaling_method)
++        return default_method
++
++    def _estimate_mamba_serialized_size(
++        self,
++        group_info: EngineGroupInfo,
++        raw_desc: MemoryLayoutDesc,
++        blocks_in_chunk: int,
++    ) -> int:
++        conv_layout, ssm_layout = group_info.mamba_real_layout
++        raw_shape = raw_desc.shapes[0]
++        num_layers = int(raw_shape[1])
++
++        def state_dtype(layout: Any) -> torch.dtype:
++            return getattr(torch, layout.dtype_str.removeprefix("torch."))
++
++        conv = torch.zeros(
++            (num_layers, blocks_in_chunk, *conv_layout.shape),
++            dtype=state_dtype(conv_layout),
++        )
++        ssm = torch.zeros(
++            (num_layers, blocks_in_chunk, *ssm_layout.shape),
++            dtype=state_dtype(ssm_layout),
++        )
++        conv_payload = (
++            quantize_mamba_substate_4bit(
++                conv,
++                substate="conv",
++                scaling_method=self._kvweave_conv_scaling_method,
++                rh=self._kvweave_conv_rh,
++                asym=self._kvweave_linear_asym,
++            )
++            if self._kvweave_conv_quant_enabled
++            else serialize_mamba_substate_raw(conv)
++        )
++        ssm_payload = (
++            quantize_mamba_substate_4bit(
++                ssm,
++                substate="ssm",
++                scaling_method=self._kvweave_ssm_scaling_method,
++                rh=self._kvweave_ssm_rh,
++                asym=self._kvweave_linear_asym,
++            )
++            if self._kvweave_ssm_quant_enabled
++            else serialize_mamba_substate_raw(ssm)
++        )
++        payload_size = len(pack_mamba_payloads(conv_payload, ssm_payload))
++        return int(payload_size * 1.02) + 4096
++
++    @staticmethod
++    def _group_category(group_info: EngineGroupInfo | None) -> str:
++        if group_info is None:
++            return "unknown"
++        return str(group_info.cache_category).strip().lower()
++
++    def _is_linear_like_group(self, group_info: EngineGroupInfo | None) -> bool:
++        return self._group_category(group_info) in {"mamba", "linear"}
++
++    def _should_attempt_group_quant(self, group_info: EngineGroupInfo | None) -> bool:
++        if self._is_linear_like_group(group_info) and not self._kvweave_linear_quant_enabled:
++            return False
++        return True
++
++    def _is_serialized_size_acceptable(
++        self,
++        raw_nbytes: int,
++        serialized_nbytes: int,
++        group_info: EngineGroupInfo | None,
++    ) -> bool:
++        """Return whether a group's serialized size should keep quantization.
++
++        Attention-like groups keep the strict gate (must be smaller than raw).
++        Linear/Mamba groups can exceed raw by a bounded ratio for experiments.
++        """
++        if self._is_linear_like_group(group_info):
++            allowed = int(raw_nbytes * max(1.0, self._kvweave_linear_max_size_ratio))
++            return serialized_nbytes <= allowed
++        return serialized_nbytes < raw_nbytes
++
++    def _init_l1_kvweave_quant_codec(self) -> bool:
++        if not self._enable_l1_kvweave_quant:
++            return False
++        if _KVWeaveCodec is None:
++            raise ValueError(
++                "L1 KVWeave quantization requires the optional kvweave_serde module"
++            )
++        if _copy_bytes_to_tensor is None:
++            raise ValueError(
++                "L1 KVWeave quantization requires kvweave_serde._copy_bytes_to_tensor"
++            )
++
++        num_kv_heads = self._kvweave_num_kv_heads
++        head_dim = self._kvweave_head_dim
++        if num_kv_heads <= 0 and self._layout_hints is not None:
++            num_kv_heads = int(self._layout_hints.get("num_kv_heads", 0))
++        if head_dim <= 0 and self._layout_hints is not None:
++            head_dim = int(self._layout_hints.get("head_dim", 0))
++
++        if num_kv_heads <= 0 or head_dim <= 0:
++            logger.warning(
++                "L1 KVWeave quantization requested, but num_kv_heads/head_dim are "
++                "not configured. Falling back to RAW mode for all groups."
++            )
++            return False
++
++        self._kvweave_codec = _KVWeaveCodec(
++            {
++                "quantize": True,
++                "log": True,
++                "qbit": 4,
++                "num_kv_heads": int(num_kv_heads),
++                "head_dim": int(head_dim),
++                "precond": self._kvweave_precond,
++                "num_threads": self._kvweave_num_threads,
++                "scaling_method": self._kvweave_scaling_method,
++                "linear_rh": self._kvweave_linear_rh,
++                "linear_asym": self._kvweave_linear_asym,
++                "linear_precond": self._kvweave_linear_precond,
++            }
++        )
++        self._kvweave_num_kv_heads = int(num_kv_heads)
++        self._kvweave_head_dim = int(head_dim)
++        return True
+ 
+     def _kv_caches_for_group(
+         self,
+@@ -421,6 +797,20 @@ class DataTransferContext(TransferContext):
+         self._layout_hints = layout_hints
+         self._gpu_kv_format = gpu_kv_format
+         self._engine_group_infos = list(engine_group_infos)
++        logger.debug(
++            "KVWeave group layout: group_count=%d, groups=%s",
++            len(self._engine_group_infos),
++            [
++                {
++                    "engine_group_id": info.engine_group_id,
++                    "category": info.cache_category,
++                    "layers": info.layer_indices,
++                    "tokens_per_block": info.tokens_per_block,
++                    "mamba_real_layout": info.mamba_real_layout,
++                }
++                for info in self._engine_group_infos
++            ],
++        )
+         self._chunk_size_tokens = blocks_in_chunk * block_size
+ 
+         use_mla_flag = is_mla(gpu_kv_format)
+@@ -434,6 +824,80 @@ class DataTransferContext(TransferContext):
+         dtype = getattr(torch, dtype_str)
+         layout_desc = MemoryLayoutDesc(shapes=[shape], dtypes=[dtype])
+ 
++        transfer_groups: list[tuple[EngineGroupInfo | None, dict[str, torch.Tensor], int]] = []
++        if self._engine_group_infos:
++            for group_info in self._engine_group_infos:
++                group_kv_caches = self._kv_caches_for_group(kv_caches, group_info)
++                transfer_groups.append(
++                    (
++                        group_info,
++                        group_kv_caches,
++                        self._blocks_per_chunk_for_group(group_info, blocks_in_chunk),
++                    )
++                )
++        else:
++            transfer_groups.append((None, kv_caches, blocks_in_chunk))
++        self._group_raw_layout_descs = [
++            self._build_group_raw_layout_desc(group_kv_caches, group_blocks_in_chunk)
++            for _, group_kv_caches, group_blocks_in_chunk in transfer_groups
++        ]
++
++        self._group_store_layout_descs = list(self._group_raw_layout_descs)
++        self._group_codec_modes = [GroupCodecMode.RAW] * len(self._group_raw_layout_descs)
++        self._group_quant_scaling_methods = [
++            self._group_scaling_method_for_group(group_info)
++            for group_info, _, _ in transfer_groups
++        ]
++        kvweave_quant_active = False
++        if self._init_l1_kvweave_quant_codec():
++            assert self._kvweave_codec is not None
++            for idx, ((group_info, _, _), raw_desc) in enumerate(
++                zip(transfer_groups, self._group_raw_layout_descs, strict=True)
++            ):
++                if not self._should_attempt_group_quant(group_info):
++                    logger.debug(
++                        "Skipping L1 KVWeave quantization for group %d because "
++                        "linear quantization is disabled",
++                        idx,
++                    )
++                    continue
++                if group_info is not None and group_info.mamba_real_layout is not None:
++                    serialized_size = self._estimate_mamba_serialized_size(
++                        group_info,
++                        raw_desc,
++                        transfer_groups[idx][2],
++                    )
++                else:
++                    if not self._is_attention_group_layout(raw_desc, group_info):
++                        continue
++                    scaling_method = self._group_quant_scaling_methods[idx]
++                    serialized_size = self._kvweave_codec.estimate_serialized_size(
++                        raw_desc,
++                        scaling_method=scaling_method,
++                    )
++                serialized_desc = MemoryLayoutDesc(
++                    shapes=[torch.Size([serialized_size])],
++                    dtypes=[torch.uint8],
++                )
++                raw_nbytes = _layout_nbytes(raw_desc)
++                serialized_nbytes = _layout_nbytes(serialized_desc)
++                if not self._is_serialized_size_acceptable(
++                    raw_nbytes,
++                    serialized_nbytes,
++                    group_info,
++                ):
++                    logger.debug(
++                        "Skipping L1 KVWeave quantization for group %d because "
++                        "estimated serialized size %d does not meet threshold for raw %d",
++                        idx,
++                        serialized_nbytes,
++                        raw_nbytes,
++                    )
++                    continue
++                self._group_store_layout_descs[idx] = serialized_desc
++                self._group_codec_modes[idx] = GroupCodecMode.KVWEAVE_QUANT
++                kvweave_quant_active = True
++
+         future = send_request(
+             mq_client,
+             RequestType.REGISTER_KV_CACHE_NON_GPU_CONTEXT,
+@@ -448,6 +912,15 @@ class DataTransferContext(TransferContext):
+                     dtype_str=dtype_str,
+                     use_mla=use_mla_flag,
+                     engine_group_infos=list(engine_group_infos),
++                    group_layout_descs=(
++                        [
++                            serialize_memory_layout_desc(layout_desc)
++                            for layout_desc in self._group_store_layout_descs
++                        ]
++                        if kvweave_quant_active
++                        else None
++                    ),
++                    enable_l1_kvweave_quant=kvweave_quant_active,
+                 )
+             ],
+         )
+@@ -498,15 +971,33 @@ class DataTransferContext(TransferContext):
+         out_buffers, chunk_indices = result if result is not None else (None, None)
+         # All chunks already in cache — nothing to gather or commit.
+         if chunk_indices is not None and len(chunk_indices) == 0:
+-            future: MessagingFuture[bool] = MessagingFuture()
+-            future.set_result(True)
+-            return future
++            return self._resolved_future(True)
+         cpu_chunks: list[torch.Tensor] = []
+         group_offset = 0
+-        for _group_info, group_kv_caches, group_block_ids, group_blocks_in_chunk in self._iter_transfer_groups(
+-            kv_caches, block_ids, blocks_in_chunk
++        for group_index, (
++            _group_info,
++            group_kv_caches,
++            group_block_ids,
++            group_blocks_in_chunk,
++        ) in enumerate(
++            self._iter_transfer_groups(kv_caches, block_ids, blocks_in_chunk)
+         ):
+             num_group_chunks = len(group_block_ids) // group_blocks_in_chunk
++            codec_mode = (
++                self._group_codec_modes[group_index]
++                if group_index < len(self._group_codec_modes)
++                else GroupCodecMode.RAW
++            )
++            group_scaling_method = (
++                self._group_quant_scaling_methods[group_index]
++                if group_index < len(self._group_quant_scaling_methods)
++                else self._group_scaling_method_for_group(_group_info)
++            )
++            group_store_layout = (
++                self._group_store_layout_descs[group_index]
++                if group_index < len(self._group_store_layout_descs)
++                else None
++            )
+             if chunk_indices is None:
+                 group_chunk_indices = None
+                 group_out_buffers = None
+@@ -523,31 +1014,132 @@ class DataTransferContext(TransferContext):
+                     else None
+                 )
+             if chunk_indices is None or group_chunk_indices:
+-                group_out_buffers = self._chunk_views_for_group(
+-                    group_out_buffers,
+-                    _group_info,
+-                    len(group_kv_caches),
+-                )
+-                cpu_chunks.extend(
+-                    gather_paged_kv_to_cpu(
++                if codec_mode is GroupCodecMode.RAW:
++                    group_out_buffers = self._chunk_views_for_group(
++                        group_out_buffers,
++                        _group_info,
++                        len(group_kv_caches),
++                    )
++                    cpu_chunks.extend(
++                        gather_paged_kv_to_cpu(
++                            group_kv_caches,
++                            group_block_ids,
++                            group_blocks_in_chunk,
++                            layout_hints=self._layout_hints,
++                            gpu_kv_format=self._gpu_kv_format,
++                            out=group_out_buffers,
++                            chunk_indices=group_chunk_indices,
++                        )
++                    )
++                else:
++                    if self._kvweave_codec is None or _copy_bytes_to_tensor is None:
++                        logger.error("KVWeave codec is not initialized for quantized store")
++                        return self._resolved_future(False)
++
++                    raw_chunks = gather_paged_kv_to_cpu(
+                         group_kv_caches,
+                         group_block_ids,
+                         group_blocks_in_chunk,
+                         layout_hints=self._layout_hints,
+                         gpu_kv_format=self._gpu_kv_format,
+-                        out=group_out_buffers,
++                        out=None,
+                         chunk_indices=group_chunk_indices,
+                     )
+-                )
++
++                    mamba_real_layout = (
++                        _group_info.mamba_real_layout
++                        if _group_info is not None
++                        else None
++                    )
++
++                    def _serialize_chunk(raw_chunk: torch.Tensor) -> bytes:
++                        if mamba_real_layout is not None:
++                            assert _group_info is not None
++                            split = split_mamba_chunk(
++                                raw_chunk,
++                                mamba_real_layout,
++                                _group_info.tokens_per_block,
++                            )
++                            return pack_mamba_payloads(
++                                (
++                                    quantize_mamba_substate_4bit(
++                                    split.conv,
++                                    substate="conv",
++                                    scaling_method=self._kvweave_conv_scaling_method,
++                                    rh=self._kvweave_conv_rh,
++                                    asym=self._kvweave_linear_asym,
++                                    )
++                                    if self._kvweave_conv_quant_enabled
++                                    else serialize_mamba_substate_raw(split.conv)
++                                ),
++                                (
++                                    quantize_mamba_substate_4bit(
++                                    split.ssm,
++                                    substate="ssm",
++                                    scaling_method=self._kvweave_ssm_scaling_method,
++                                    rh=self._kvweave_ssm_rh,
++                                    asym=self._kvweave_linear_asym,
++                                    )
++                                    if self._kvweave_ssm_quant_enabled
++                                    else serialize_mamba_substate_raw(split.ssm)
++                                ),
++                            )
++                        return self._kvweave_codec.serialize_tensor(
++                            raw_chunk,
++                            scaling_method=group_scaling_method,
++                        )
++
++                    if group_out_buffers is not None:
++                        if len(raw_chunks) != len(group_out_buffers):
++                            logger.error(
++                                "Mismatched SHM slots for quantized group: chunks=%d slots=%d",
++                                len(raw_chunks),
++                                len(group_out_buffers),
++                            )
++                            return self._resolved_future(False)
++                        for raw_chunk, dst_tensor in zip(
++                            raw_chunks, group_out_buffers, strict=True
++                        ):
++                            try:
++                                payload = _serialize_chunk(raw_chunk)
++                                _copy_bytes_to_tensor(payload, dst_tensor)
++                            except (RuntimeError, ValueError, TypeError):
++                                logger.exception(
++                                    "Failed to serialize quantized store chunk into SHM slot"
++                                )
++                                return self._resolved_future(False)
++                    else:
++                        if group_store_layout is None:
++                            logger.error("Missing store layout for quantized group")
++                            return self._resolved_future(False)
++                        serialized_size = int(group_store_layout.shapes[0][0])
++                        for raw_chunk in raw_chunks:
++                            try:
++                                payload = _serialize_chunk(raw_chunk)
++                                if len(payload) > serialized_size:
++                                    logger.error(
++                                        "Quantized payload size %d exceeds reserved slot %d",
++                                        len(payload),
++                                        serialized_size,
++                                    )
++                                    return self._resolved_future(False)
++                                dst_tensor = torch.empty(
++                                    (serialized_size,), dtype=torch.uint8
++                                )
++                                _copy_bytes_to_tensor(payload, dst_tensor)
++                                cpu_chunks.append(dst_tensor)
++                            except (RuntimeError, ValueError, TypeError):
++                                logger.exception(
++                                    "Failed to serialize quantized store chunk"
++                                )
++                                return self._resolved_future(False)
+             group_offset += num_group_chunks
+         if out_buffers is not None:
+             # SHM path uses async device->CPU copies; complete them before commit.
+             torch_dev.synchronize()
+         ok = self._non_gpu_context.commit_store(key, instance_id, cpu_chunks)
+ 
+-        future = MessagingFuture()
+-        future.set_result(ok)
+-        return future
++        return self._resolved_future(ok)
+ 
+     def submit_retrieve(
+         self,
+@@ -571,16 +1163,67 @@ class DataTransferContext(TransferContext):
+         if src_buffers is not None:
+             try:
+                 group_offset = 0
+-                for _group_info, group_kv_caches, group_block_ids, group_blocks_in_chunk in self._iter_transfer_groups(
+-                    kv_caches, block_ids, blocks_in_chunk
++                for group_index, (
++                    _group_info,
++                    group_kv_caches,
++                    group_block_ids,
++                    group_blocks_in_chunk,
++                ) in enumerate(
++                    self._iter_transfer_groups(kv_caches, block_ids, blocks_in_chunk)
+                 ):
+                     num_group_chunks = len(group_block_ids) // group_blocks_in_chunk
+                     group_chunks = src_buffers[group_offset : group_offset + num_group_chunks]
+-                    group_chunks = self._chunk_views_for_group(
+-                        group_chunks,
+-                        _group_info,
+-                        len(group_kv_caches),
++                    codec_mode = (
++                        self._group_codec_modes[group_index]
++                        if group_index < len(self._group_codec_modes)
++                        else GroupCodecMode.RAW
+                     )
++                    if codec_mode is GroupCodecMode.RAW:
++                        group_chunks = self._chunk_views_for_group(
++                            group_chunks,
++                            _group_info,
++                            len(group_kv_caches),
++                        )
++                    else:
++                        if self._kvweave_codec is None:
++                            raise RuntimeError(
++                                "KVWeave codec is not initialized for quantized retrieve"
++                            )
++                        if group_index >= len(self._group_raw_layout_descs):
++                            raise RuntimeError(
++                                f"missing raw layout for quantized group {group_index}"
++                            )
++                        raw_layout = self._group_raw_layout_descs[group_index]
++                        raw_shape = raw_layout.shapes[0]
++                        raw_dtype = raw_layout.dtypes[0]
++                        mamba_real_layout = (
++                            _group_info.mamba_real_layout
++                            if _group_info is not None
++                            else None
++                        )
++                        decoded_chunks: list[torch.Tensor] = []
++                        for chunk in group_chunks:
++                            if mamba_real_layout is not None:
++                                assert _group_info is not None
++                                conv_payload, ssm_payload = unpack_mamba_payloads(
++                                    bytes(chunk.numpy().tobytes())
++                                )
++                                split = MambaChunkSplit(
++                                    conv=dequantize_mamba_substate_4bit(conv_payload),
++                                    ssm=dequantize_mamba_substate_4bit(ssm_payload),
++                                )
++                                hidden_dim = int(raw_shape[-1])
++                                scratch = merge_mamba_chunk(
++                                    split,
++                                    mamba_real_layout,
++                                    _group_info.tokens_per_block,
++                                    hidden_dim,
++                                )
++                            else:
++                                scratch = torch.empty(raw_shape, dtype=raw_dtype)
++                                self._kvweave_codec.deserialize_tensor(chunk, scratch)
++                            decoded_chunks.append(scratch)
++                        group_chunks = decoded_chunks
+                     scatter_cpu_to_paged_kv(
+                         group_kv_caches,
+                         group_block_ids,
+@@ -599,9 +1242,7 @@ class DataTransferContext(TransferContext):
+             torch_dev.synchronize()
+         self._non_gpu_context.commit_retrieve(key, instance_id)
+ 
+-        future: MessagingFuture[bool] = MessagingFuture()
+-        future.set_result(ok)
+-        return future
++        return self._resolved_future(ok)
+ 
+     def close(self) -> None:
+         if self._non_gpu_context is not None:
+@@ -612,7 +1253,7 @@ class DataTransferContext(TransferContext):
+ def create_transfer_context(
+     kv_caches: dict[str, torch.Tensor],
+     mode: "str | MPTransferMode | None" = None,
+-    **_kwargs: Any,
++    **kwargs: Any,
+ ) -> TransferContext:
+     """Create a transfer context from KV cache device type.
+ 
+@@ -651,9 +1292,174 @@ def create_transfer_context(
+     )
+     if resolved_mode is MPTransferMode.HANDLE:
+         return _build_handle_context(device_type)
++    kvweave_quant_enabled = _parse_flag_value(
++        kwargs.get(
++            "enable_l1_kvweave_quant",
++            kwargs.get(
++                "l1_kvweave_quant",
++                _parse_env_flag(ENV_MP_L1_KVWEAVE_QUANT, default=True),
++            ),
++        )
++    )
++    model_num_kv_heads, model_head_dim = _load_kvweave_model_dims()
++    kvweave_num_kv_heads = int(
++        kwargs.get("kvweave_num_kv_heads", model_num_kv_heads)
++    )
++    kvweave_head_dim = int(kwargs.get("kvweave_head_dim", model_head_dim))
++    kvweave_precond = _parse_flag_value(
++        kwargs.get(
++            "kvweave_precond",
++            _parse_env_flag(ENV_MP_KVWEAVE_PRECOND, default=True),
++        )
++    )
++    kvweave_num_threads = int(
++        kwargs.get(
++            "kvweave_num_threads",
++            os.environ.get(ENV_MP_KVWEAVE_NUM_THREADS, "8"),
++        )
++    )
++    kvweave_scaling_method = str(
++        kwargs.get(
++            "kvweave_scaling_method",
++            os.environ.get(ENV_MP_KVWEAVE_SCALING_METHOD, "per_channel"),
++        )
++    )
++    kvweave_linear_quant_enabled = _parse_flag_value(
++        kwargs.get(
++            "kvweave_linear_quant_enabled",
++            _parse_env_flag(ENV_MP_KVWEAVE_LINEAR_QUANT_ENABLED, default=True),
++        )
++    )
++    kvweave_conv_quant_enabled = _parse_flag_value(
++        kwargs.get(
++            "kvweave_conv_quant_enabled",
++            _parse_env_flag(ENV_MP_KVWEAVE_CONV_QUANT_ENABLED, default=True),
++        )
++    )
++    kvweave_ssm_quant_enabled = _parse_flag_value(
++        kwargs.get(
++            "kvweave_ssm_quant_enabled",
++            _parse_env_flag(ENV_MP_KVWEAVE_SSM_QUANT_ENABLED, default=True),
++        )
++    )
++    kvweave_linear_rh = _parse_flag_value(
++        kwargs.get(
++            "kvweave_linear_rh",
++            _parse_env_flag(ENV_MP_KVWEAVE_LINEAR_RH, default=False),
++        )
++    )
++    kvweave_linear_asym = _parse_flag_value(
++        kwargs.get(
++            "kvweave_linear_asym",
++            _parse_env_flag(ENV_MP_KVWEAVE_LINEAR_ASYM, default=True),
++        )
++    )
++    kvweave_linear_precond = _parse_flag_value(
++        kwargs.get(
++            "kvweave_linear_precond",
++            _parse_env_flag(ENV_MP_KVWEAVE_LINEAR_PRECOND, default=False),
++        )
++    )
++    kvweave_linear_scaling_method = str(
++        kwargs.get(
++            "kvweave_linear_scaling_method",
++            os.environ.get(ENV_MP_KVWEAVE_LINEAR_SCALING_METHOD, "per_tensor"),
++        )
++    )
++    if kvweave_linear_scaling_method not in _KVWEAVE_SCALING_METHODS:
++        raise ValueError(
++            f"Invalid {ENV_MP_KVWEAVE_LINEAR_SCALING_METHOD}="
++            f"{kvweave_linear_scaling_method!r}; expected one of "
++            f"{sorted(_KVWEAVE_SCALING_METHODS)}"
++        )
++    kvweave_conv_scaling_method = str(
++        kwargs.get(
++            "kvweave_conv_scaling_method",
++            os.environ.get(
++                ENV_MP_KVWEAVE_CONV_SCALING_METHOD, kvweave_linear_scaling_method
++            ),
++        )
++    )
++    if kvweave_conv_scaling_method not in _KVWEAVE_SCALING_METHODS:
++        raise ValueError(
++            f"Invalid {ENV_MP_KVWEAVE_CONV_SCALING_METHOD}="
++            f"{kvweave_conv_scaling_method!r}; expected one of "
++            f"{sorted(_KVWEAVE_SCALING_METHODS)}"
++        )
++    kvweave_conv_rh = _parse_flag_value(
++        kwargs.get(
++            "kvweave_conv_rh",
++            _parse_env_flag(ENV_MP_KVWEAVE_CONV_RH, default=kvweave_linear_rh),
++        )
++    )
++    if kvweave_conv_rh and kvweave_conv_scaling_method in (
++        _UNSUPPORTED_CONV_RH_SCALING_METHODS
++    ):
++        logger.debug(
++            "rh is not supported for conv with scaling_method=%r "
++            "(conv has no real head axis); falling back to "
++            "scaling_method='per_tensor', rh=False",
++            kvweave_conv_scaling_method,
++        )
++        kvweave_conv_scaling_method = "per_tensor"
++        kvweave_conv_rh = False
++    kvweave_ssm_scaling_method = str(
++        kwargs.get(
++            "kvweave_ssm_scaling_method",
++            os.environ.get(ENV_MP_KVWEAVE_SSM_SCALING_METHOD, "per_channel"),
++        )
++    )
++    if kvweave_ssm_scaling_method not in _KVWEAVE_SCALING_METHODS:
++        raise ValueError(
++            f"Invalid {ENV_MP_KVWEAVE_SSM_SCALING_METHOD}="
++            f"{kvweave_ssm_scaling_method!r}; expected one of "
++            f"{sorted(_KVWEAVE_SCALING_METHODS)}"
++        )
++    kvweave_ssm_rh = _parse_flag_value(
++        kwargs.get(
++            "kvweave_ssm_rh",
++            _parse_env_flag(ENV_MP_KVWEAVE_SSM_RH, default=True),
++        )
++    )
+     if resolved_mode is MPTransferMode.DATA:
+-        return DataTransferContext()
++        return DataTransferContext(
++            enable_l1_kvweave_quant=kvweave_quant_enabled,
++            kvweave_num_kv_heads=kvweave_num_kv_heads,
++            kvweave_head_dim=kvweave_head_dim,
++            kvweave_precond=kvweave_precond,
++            kvweave_num_threads=kvweave_num_threads,
++            kvweave_scaling_method=kvweave_scaling_method,
++            kvweave_linear_quant_enabled=kvweave_linear_quant_enabled,
++            kvweave_conv_quant_enabled=kvweave_conv_quant_enabled,
++            kvweave_ssm_quant_enabled=kvweave_ssm_quant_enabled,
++            kvweave_linear_rh=kvweave_linear_rh,
++            kvweave_linear_asym=kvweave_linear_asym,
++            kvweave_linear_precond=kvweave_linear_precond,
++            kvweave_linear_scaling_method=kvweave_linear_scaling_method,
++            kvweave_conv_scaling_method=kvweave_conv_scaling_method,
++            kvweave_conv_rh=kvweave_conv_rh,
++            kvweave_ssm_scaling_method=kvweave_ssm_scaling_method,
++            kvweave_ssm_rh=kvweave_ssm_rh,
++        )
+     # AUTO: preserve the historical device-type-based dispatch.
+     if device_type == "cuda":
+         return HandleTransferContext()
+-    return DataTransferContext()
++    return DataTransferContext(
++        enable_l1_kvweave_quant=kvweave_quant_enabled,
++        kvweave_num_kv_heads=kvweave_num_kv_heads,
++        kvweave_head_dim=kvweave_head_dim,
++        kvweave_precond=kvweave_precond,
++        kvweave_num_threads=kvweave_num_threads,
++        kvweave_scaling_method=kvweave_scaling_method,
++        kvweave_linear_quant_enabled=kvweave_linear_quant_enabled,
++        kvweave_conv_quant_enabled=kvweave_conv_quant_enabled,
++        kvweave_ssm_quant_enabled=kvweave_ssm_quant_enabled,
++        kvweave_linear_rh=kvweave_linear_rh,
++        kvweave_linear_asym=kvweave_linear_asym,
++        kvweave_linear_precond=kvweave_linear_precond,
++        kvweave_linear_scaling_method=kvweave_linear_scaling_method,
++        kvweave_conv_scaling_method=kvweave_conv_scaling_method,
++        kvweave_conv_rh=kvweave_conv_rh,
++        kvweave_ssm_scaling_method=kvweave_ssm_scaling_method,
++        kvweave_ssm_rh=kvweave_ssm_rh,
++    )
+diff --git a/tests/test_setup_backend_selection.py b/tests/test_setup_backend_selection.py
+old mode 100644
+new mode 100755
+diff --git a/tests/v1/multiprocess/test_worker_transfer.py b/tests/v1/multiprocess/test_worker_transfer.py
+old mode 100644
+new mode 100755
+index 4ec99a52..4f29e748
+--- a/tests/v1/multiprocess/test_worker_transfer.py
++++ b/tests/v1/multiprocess/test_worker_transfer.py
+@@ -3,8 +3,14 @@ from unittest.mock import MagicMock, patch
+ 
+ import torch
+ 
++from lmcache.v1.distributed.api import MemoryLayoutDesc
+ from lmcache.v1.multiprocess.group_view import EngineGroupInfo
+-from lmcache.v1.multiprocess.transfer_context.worker_transfer import DataTransferContext
++from lmcache.v1.multiprocess.transfer_context.worker_transfer import (
++    DataTransferContext,
++    ENV_MP_KVWEAVE_LINEAR_QUANT_ENABLED,
++    GroupCodecMode,
++    create_transfer_context,
++)
+ 
+ 
+ class _FakeNonGpuContext:
+@@ -55,4 +61,139 @@ def test_submit_store_narrows_full_layer_shm_chunk_to_engine_group():
+     assert group_out[0].shape == (2, 6, 4, 8)
+     group_out[0].fill_(3)
+     assert torch.all(full_chunk[:, :6] == 3)
+-    assert torch.all(full_chunk[:, 6:] == 0)
+\ No newline at end of file
++    assert torch.all(full_chunk[:, 6:] == 0)
++
++
++def test_group_scaling_method_linear_forced_per_tensor_attention_uses_default():
++    ctx = DataTransferContext(kvweave_scaling_method="per_channel")
++    linear_group = EngineGroupInfo(
++        engine_group_id=0,
++        layer_indices=(0,),
++        tokens_per_block=4,
++        cache_category="mamba",
++    )
++    attention_group = EngineGroupInfo(
++        engine_group_id=1,
++        layer_indices=(1,),
++        tokens_per_block=4,
++        cache_category="attention",
++    )
++
++    assert ctx._group_scaling_method_for_group(linear_group) == "per_tensor"
++    assert ctx._group_scaling_method_for_group(attention_group) == "per_channel"
++
++
++def test_submit_store_quant_group_uses_group_scaling_method():
++    ctx = DataTransferContext(kvweave_scaling_method="per_channel")
++    fake_non_gpu_context = _FakeNonGpuContext([])
++    ctx._non_gpu_context = fake_non_gpu_context
++    ctx._engine_group_infos = [
++        EngineGroupInfo(
++            engine_group_id=0,
++            layer_indices=(0,),
++            tokens_per_block=4,
++            cache_category="mamba",
++        )
++    ]
++    ctx._chunk_size_tokens = 4
++    ctx._group_codec_modes = [GroupCodecMode.KVWEAVE_QUANT]
++    ctx._group_raw_layout_descs = [
++        MemoryLayoutDesc(
++            shapes=[torch.Size([2, 1, 4, 8])],
++            dtypes=[torch.float16],
++        )
++    ]
++    ctx._group_store_layout_descs = [
++        MemoryLayoutDesc(
++            shapes=[torch.Size([1024])],
++            dtypes=[torch.uint8],
++        )
++    ]
++    ctx._group_quant_scaling_methods = ["per_tensor"]
++    ctx._kvweave_codec = MagicMock()
++    ctx._kvweave_codec.serialize_tensor.return_value = b"\x01\x02"
++
++    kv_caches = {"layer_0": torch.empty(2, 1, 4, 1, 8)}
++
++    with (
++        patch("lmcache.v1.multiprocess.transfer_context.worker_transfer.torch_dev.synchronize"),
++        patch(
++            "lmcache.v1.multiprocess.transfer_context.worker_transfer.gather_paged_kv_to_cpu",
++            return_value=[torch.empty(2, 1, 4, 8)],
++        ),
++        patch(
++            "lmcache.v1.multiprocess.transfer_context.worker_transfer._copy_bytes_to_tensor",
++            lambda _payload, _dst: None,
++        ),
++    ):
++        future = ctx.submit_store(
++            "req",
++            object(),
++            0,
++            kv_caches,
++            [[0]],
++            MagicMock(),
++            1,
++        )
++
++    assert future.result() is True
++    assert ctx._kvweave_codec.serialize_tensor.call_count == 1
++    _, kwargs = ctx._kvweave_codec.serialize_tensor.call_args
++    assert kwargs.get("scaling_method") == "per_tensor"
++
++
++def test_serialized_size_gate_relaxed_only_for_linear_groups():
++    ctx = DataTransferContext()
++    ctx._kvweave_linear_max_size_ratio = 1.20
++
++    linear_group = EngineGroupInfo(
++        engine_group_id=0,
++        layer_indices=(0,),
++        tokens_per_block=4,
++        cache_category="mamba",
++    )
++    attention_group = EngineGroupInfo(
++        engine_group_id=1,
++        layer_indices=(1,),
++        tokens_per_block=4,
++        cache_category="attention",
++    )
++
++    # 10% overhead is allowed for linear/mamba groups.
++    assert ctx._is_serialized_size_acceptable(100, 110, linear_group)
++    # Attention groups remain strict: must be smaller than raw.
++    assert not ctx._is_serialized_size_acceptable(100, 110, attention_group)
++    assert not ctx._is_serialized_size_acceptable(100, 100, attention_group)
++    assert ctx._is_serialized_size_acceptable(100, 99, attention_group)
++
++
++def test_should_attempt_group_quant_respects_linear_toggle():
++    linear_group = EngineGroupInfo(
++        engine_group_id=0,
++        layer_indices=(0,),
++        tokens_per_block=4,
++        cache_category="mamba",
++    )
++    attention_group = EngineGroupInfo(
++        engine_group_id=1,
++        layer_indices=(1,),
++        tokens_per_block=4,
++        cache_category="attention",
++    )
++
++    enabled_ctx = DataTransferContext(kvweave_linear_quant_enabled=True)
++    assert enabled_ctx._should_attempt_group_quant(linear_group)
++    assert enabled_ctx._should_attempt_group_quant(attention_group)
++
++    disabled_ctx = DataTransferContext(kvweave_linear_quant_enabled=False)
++    assert not disabled_ctx._should_attempt_group_quant(linear_group)
++    assert disabled_ctx._should_attempt_group_quant(attention_group)
++
++
++def test_create_transfer_context_reads_linear_quant_env_toggle():
++    kv_caches = {"layer0": torch.empty(1, device="cpu")}
++    with patch.dict(os.environ, {ENV_MP_KVWEAVE_LINEAR_QUANT_ENABLED: "0"}, clear=False):
++        ctx = create_transfer_context(kv_caches, mode="data")
++
++    assert isinstance(ctx, DataTransferContext)
++    assert ctx._kvweave_linear_quant_enabled is False
+\ No newline at end of file
+diff --git a/tests/v1/test_kv_cache_groups.py b/tests/v1/test_kv_cache_groups.py
+index b7a0f51a..919c124a 100644
+--- a/tests/v1/test_kv_cache_groups.py
++++ b/tests/v1/test_kv_cache_groups.py
+@@ -53,6 +53,7 @@ def test_engine_group_info_old_payload_defaults_sw_size():
+     )
+ 
+     assert decoded.sw_size_tokens == -1
++    assert decoded.cache_category == "unknown"
+ 
+ 
+ def test_engine_group_infos_msgspec_round_trip():
+diff --git a/tests/v1/test_vllm_kv_cache_groups.py b/tests/v1/test_vllm_kv_cache_groups.py
+index 021a72cb..cef41423 100644
+--- a/tests/v1/test_vllm_kv_cache_groups.py
++++ b/tests/v1/test_vllm_kv_cache_groups.py
+@@ -43,6 +43,11 @@ class FullAttentionSpec:
+     sliding_window: "int | None" = None
+ 
+ 
++@dataclass
++class MambaSpec:
++    block_size: int
++
++
+ @dataclass
+ class UniformTypeKVCacheSpecs:
+     block_size: int
+@@ -94,6 +99,21 @@ def test_conversion_preserves_engine_group_layers():
+     assert num_engine_groups(spec) == 2
+     assert get_engine_group_indices(spec, 4) == [0, 1, 0, 1]
+     assert [group.tokens_per_block for group in spec] == [16, 16]
++    assert [group.cache_category for group in spec] == ["attention", "attention"]
++
++
++def test_conversion_marks_mamba_groups_as_non_attention():
++    spec = create_engine_group_infos_from_vllm(
++        MockKVCacheConfig(
++            kv_cache_groups=[
++                MockKVCacheGroup(["layer.0"], MambaSpec(block_size=16)),
++                MockKVCacheGroup(["layer.1"], FullAttentionSpec(block_size=16)),
++            ]
++        ),
++        _same_shape_caches(["layer.0", "layer.1"]),
++    )
++
++    assert [group.cache_category for group in spec] == ["mamba", "attention"]
+ 
+ 
+ def test_conversion_splits_by_lmcache_layer_identity():
+diff --git a/lmcache/v1/distributed/serde/kvweave_config.py b/lmcache/v1/distributed/serde/kvweave_config.py
+new file mode 100644
+index 00000000..9f8f1946
+--- /dev/null
++++ b/lmcache/v1/distributed/serde/kvweave_config.py
+@@ -0,0 +1,131 @@
++"""KVWeave codec configuration.
++
++This module is the single source of truth for the KVWeave codec settings used
++by the LMCache L1 worker-side quantization path
++(``lmcache/v1/multiprocess/transfer_context/worker_transfer.py``): it defines
++the ``KVWeaveCodecConfig`` dataclass consumed directly by ``_KVWeaveCodec``
++(see ``kvweave_serde.py``), and by the Mamba/linear preconditioner in
++``mamba_quant.py``.
++
++Preconditioning (P&D) matrices
++------------------------------
++When ``precond`` is true the caller needs the D (``signs``, +/-1) and P
++(``perm``, permutation) matrices for a given ``hadamard_size``.
++:meth:`KVWeaveCodecConfig.get_pd_matrix` provides them:
++
++* If ``precond_path`` is set, the matrices are loaded from that file (a NumPy
++  ``.npz`` or a torch ``.pt``) keyed by ``hadamard_size`` -- this is the seam
++  for injecting data-driven / GHA-computed preconditioners.
++* Otherwise they are generated deterministically from ``precond_seed`` (the
++  historical seed-42 behavior).
++
++The matrices are returned as NumPy arrays; the caller coerces them to torch
++tensors and validates them before use.
++"""
++from __future__ import annotations
++
++import threading
++from dataclasses import dataclass
++from typing import Optional, Tuple
++
++import numpy as np
++
++# Historical default seed used to generate the random sign-flip / permutation
++# preconditioner.  Kept so behavior is unchanged when no precond file is given.
++_DEFAULT_PRECOND_SEED = 42
++
++
++@dataclass
++class KVWeaveCodecConfig:
++    """Typed KVWeave codec settings."""
++
++    quantize: bool = True
++    qbit: int = 4
++    scaling_method: str = "per_channel"
++    rh: bool = True
++    asym: bool = True
++    log: bool = False
++    precond: bool = False
++    num_threads: int = 1
++    precond_seed: int = _DEFAULT_PRECOND_SEED
++    # Optional path to a file of precomputed P&D matrices (.npz or .pt),
++    # keyed by hadamard_size (see get_pd_matrix).  None -> seeded generator.
++    precond_path: Optional[str] = None
++
++    def __post_init__(self):
++        # Caches keyed by hadamard_size so we generate/load each size once.
++        self._pd_cache: dict = {}
++        self._pd_lock = threading.Lock()
++        self._pd_file: Optional[dict] = None  # lazily loaded precond_path
++        self.scaling_method = str(self.scaling_method)
++
++    # -- P&D matrix interface ------------------------------------------------
++    def get_pd_matrix(
++        self, hadamard_size: int
++    ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
++        """Return ``(signs, perm)`` for ``hadamard_size`` or ``None``.
++
++        ``signs`` is a float32 array of +/-1 with length ``hadamard_size``;
++        ``perm`` is an int32 permutation of ``range(hadamard_size)``.
++
++        Returns ``None`` only if the caller should fall back to its own default
++        (never happens here -- the seeded generator is always available), but a
++        ``None`` return is honored by the caller for forward compatibility.
++        """
++        cached = self._pd_cache.get(hadamard_size)
++        if cached is not None:
++            return cached
++        with self._pd_lock:
++            cached = self._pd_cache.get(hadamard_size)
++            if cached is None:
++                if self.precond_path:
++                    cached = self._load_pd_from_file(hadamard_size)
++                else:
++                    cached = self._generate_pd(hadamard_size)
++                self._pd_cache[hadamard_size] = cached
++        return cached
++
++    def _generate_pd(self, hadamard_size: int) -> Tuple[np.ndarray, np.ndarray]:
++        rng = np.random.default_rng(self.precond_seed)
++        signs = rng.choice([-1.0, 1.0], size=hadamard_size).astype(np.float32)
++        perm = rng.permutation(hadamard_size).astype(np.int32)
++        return signs, perm
++
++    def _load_pd_from_file(
++        self, hadamard_size: int
++    ) -> Tuple[np.ndarray, np.ndarray]:
++        """Load (signs, perm) for ``hadamard_size`` from ``precond_path``.
++
++        Supported layouts:
++          * ``.npz`` with arrays named ``signs_<h>`` / ``perm_<h>``.
++          * ``.pt``  with a dict mapping the same keys to tensors/arrays.
++        """
++        if self._pd_file is None:
++            self._pd_file = self._read_pd_file(self.precond_path)
++        s_key, p_key = f"signs_{hadamard_size}", f"perm_{hadamard_size}"
++        if s_key not in self._pd_file or p_key not in self._pd_file:
++            raise KeyError(
++                f"precond_path={self.precond_path!r} has no P&D matrices for "
++                f"hadamard_size={hadamard_size} (expected keys {s_key!r}, "
++                f"{p_key!r})."
++            )
++        signs = np.asarray(self._pd_file[s_key], dtype=np.float32).reshape(-1)
++        perm = np.asarray(self._pd_file[p_key], dtype=np.int32).reshape(-1)
++        return signs, perm
++
++    @staticmethod
++    def _read_pd_file(path: str) -> dict:
++        if path.endswith(".npz"):
++            with np.load(path) as npz:
++                return {k: npz[k] for k in npz.files}
++        if path.endswith((".pt", ".pth")):
++            import torch  # local import: keep module import torch-free
++
++            obj = torch.load(path, map_location="cpu")
++            return {
++                k: (v.numpy() if hasattr(v, "numpy") else np.asarray(v))
++                for k, v in obj.items()
++            }
++        raise ValueError(
++            f"Unsupported precond_path extension: {path!r} (use .npz or .pt)."
++        )
+diff --git a/lmcache/v1/distributed/serde/kvweave_serde.py b/lmcache/v1/distributed/serde/kvweave_serde.py
+new file mode 100644
+index 00000000..ad89d1f6
+--- /dev/null
++++ b/lmcache/v1/distributed/serde/kvweave_serde.py
+@@ -0,0 +1,645 @@
++"""KVWeave L1 quantization codec for LMCache MP mode.
++
++This module provides ``_KVWeaveCodec``, called directly by the L1 worker-side
++transfer path (``lmcache/v1/multiprocess/transfer_context/worker_transfer.py``)
++to quantize attention-shaped KV chunks before L1 store and dequantize them
++after L1 load, plus the ``_copy_bytes_to_tensor`` helper it uses to land
++serialized bytes into a destination tensor.
++"""
++from __future__ import annotations
++
++import io
++import struct
++import threading
++from dataclasses import dataclass
++from typing import Optional
++
++import torch
++
++from lmcache.logging import init_logger
++from lmcache.v1.distributed.api import MemoryLayoutDesc
++
++try:
++    from lmcache.v1.memory_management import MemoryFormat
++except ImportError:  # pragma: no cover - compatibility with older LMCache trees
++    MemoryFormat = None  # type: ignore[assignment]
++
++from lmcache.v1.distributed.serde import kvweave_config
++
++logger = init_logger(__name__)
++
++_KVW_MAGIC_RAW = b"KVW0"
++_KVW_MAGIC_QUANT = b"KVW3"
++_KVW_BLOCK_SIZE = 64
++
++_KVW_SCALING_TO_INT = {"per_tensor": 0, "per_token": 1, "per_channel": 2}
++_KVW_INT_TO_SCALING = {v: k for k, v in _KVW_SCALING_TO_INT.items()}
++
++_KVW_FMT_TO_INT = {}
++_KVW_INT_TO_FMT = {}
++if MemoryFormat is not None:
++    _KVW_FMT_TO_INT = {
++        MemoryFormat.KV_2LTD: 0,
++        MemoryFormat.KV_T2D: 1,
++        MemoryFormat.KV_2TD: 2,
++        MemoryFormat.KV_MLA_FMT: 3,
++    }
++    _KVW_INT_TO_FMT = {v: k for k, v in _KVW_FMT_TO_INT.items()}
++
++_KVW_DTYPE_TO_INT = {torch.float16: 0, torch.bfloat16: 1, torch.float32: 2}
++_KVW_INT_TO_DTYPE = {v: k for k, v in _KVW_DTYPE_TO_INT.items()}
++
++_KVW_SCALE_COUNTER = 0
++_KVW_SCALE_LOCK = threading.Lock()
++
++
++def _allocate_scale_ids(n: int) -> list[int]:
++    global _KVW_SCALE_COUNTER
++    ids = []
++    with _KVW_SCALE_LOCK:
++        for _ in range(n):
++            _KVW_SCALE_COUNTER = (_KVW_SCALE_COUNTER + 1) & 0xFFFFFFFF
++            ids.append(_KVW_SCALE_COUNTER)
++    return ids
++
++
++def _quantized_half_bytes(half_elements: int, qbit: int) -> int:
++    if qbit == 4:
++        return (half_elements + 1) // 2
++    if qbit <= 8:
++        return half_elements
++    return half_elements * 2
++
++
++def _element_size(dtype: torch.dtype) -> int:
++    if dtype in (torch.float16, torch.bfloat16):
++        return 2
++    if dtype == torch.float32:
++        return 4
++    return torch.tensor([], dtype=dtype).element_size()
++
++
++def _tensor_nbytes(tensor: torch.Tensor) -> int:
++    return int(tensor.numel() * tensor.element_size())
++
++
++def _copy_bytes_to_tensor(payload: bytes, dst_tensor: torch.Tensor) -> None:
++    if not dst_tensor.is_contiguous():
++        raise ValueError("KVWeave serde destination byte buffer must be contiguous")
++    flat = dst_tensor.reshape(-1)
++    if flat.dtype != torch.uint8:
++        flat = dst_tensor.view(torch.uint8).reshape(-1)
++    if len(payload) > flat.numel():
++        raise ValueError(
++            f"KVWeave payload ({len(payload)} bytes) exceeds serde buffer "
++            f"capacity ({flat.numel()} bytes)"
++        )
++    src = torch.frombuffer(payload, dtype=torch.uint8)
++    flat[: len(payload)].copy_(src)
++
++
++def _tensor_to_bytes(tensor: torch.Tensor) -> bytes:
++    if tensor.dtype == torch.uint8:
++        return bytes(tensor.detach().cpu().contiguous().numpy().tobytes())
++    return bytes(tensor.detach().cpu().contiguous().view(torch.uint8).numpy().tobytes())
++
++
++@dataclass
++class _KVShape:
++    tensor4d: torch.Tensor
++    header_shape: tuple[int, ...]
++    num_layers: int
++    chunk_tokens: int
++    h_merged: int
++    original_ndim: int
++
++
++class _KVWeaveCodec:
++    def __init__(self, kwargs: dict[str, object]):
++        cfg_obj = kvweave_config.KVWeaveCodecConfig(
++            quantize=bool(kwargs.get("quantize", True)),
++            qbit=int(kwargs.get("qbit", 4)),
++            scaling_method=str(kwargs.get("scaling_method", "per_channel")),
++            rh=bool(kwargs.get("rh", True)),
++            asym=bool(kwargs.get("asym", True)),
++            log=bool(kwargs.get("log", False)),
++            precond=bool(kwargs.get("precond", False)),
++            num_threads=int(kwargs.get("num_threads", 1)),
++            precond_seed=int(kwargs.get("precond_seed", 42)),
++            precond_path=kwargs.get("precond_path") or None,
++        )
++        self._kvw_cfg = cfg_obj
++        self.quantize = bool(cfg_obj.quantize)
++        self.log = bool(cfg_obj.log)
++        self.qbit = int(cfg_obj.qbit)
++        self.rh = bool(cfg_obj.rh)
++        self.asym = bool(cfg_obj.asym)
++        self.scaling_method = str(cfg_obj.scaling_method)
++        self.precond = bool(cfg_obj.precond)
++        self.linear_rh = bool(kwargs.get("linear_rh", False))
++        self.linear_asym = bool(kwargs.get("linear_asym", False))
++        self.linear_precond = bool(kwargs.get("linear_precond", False))
++        self.num_threads = int(cfg_obj.num_threads)
++        self.block_size = int(kwargs.get("block_size", _KVW_BLOCK_SIZE))
++        self.num_kv_heads = int(kwargs.get("num_kv_heads", kwargs.get("head_num", 1)))
++        self.head_dim = int(kwargs.get("head_dim", 0))
++        self._precond_cache: dict[tuple[str, int], tuple[torch.Tensor, torch.Tensor]] = {}
++        self._precond_lock = threading.Lock()
++
++        self._cpu_quant_mod = None
++        if self.quantize:
++            from kvweave import kvweave_quant
++
++            self._cpu_quant_mod = kvweave_quant
++
++    def estimate_serialized_size(
++        self,
++        layout_desc: MemoryLayoutDesc,
++        scaling_method: Optional[str] = None,
++    ) -> int:
++        total = 0
++        for shape, dtype in zip(layout_desc.shapes, layout_desc.dtypes, strict=True):
++            total += self._estimate_one(
++                tuple(int(x) for x in shape),
++                dtype,
++                scaling_method=scaling_method,
++            )
++        return total
++
++    def serialize_tensor(
++        self,
++        src_tensor: torch.Tensor,
++        scaling_method: Optional[str] = None,
++    ) -> bytes:
++        method = str(scaling_method or self.scaling_method)
++        rh, asym, precond = self._quant_flags_for_method(method)
++        cpu_tensor = src_tensor.detach().to("cpu").contiguous()
++        kv_shape = self._normalize_src(cpu_tensor)
++        raw_bytes = _tensor_nbytes(cpu_tensor)
++        if (
++            not self.quantize
++            or self._cpu_quant_mod is None
++            or not self._is_attention_shape(kv_shape.h_merged)
++        ):
++            payload = self._serialize_raw(cpu_tensor, kv_shape)
++            if self.log:
++                logger.debug(
++                    "KVWeave store raw shape=%s dtype=%s raw_bytes=%d payload_bytes=%d "
++                    "attention_shape=%s",
++                    tuple(cpu_tensor.shape), cpu_tensor.dtype, raw_bytes, len(payload),
++                    self._is_attention_shape(kv_shape.h_merged),
++                )
++            return payload
++
++        header = self._build_kvw3_header(
++            kv_shape,
++            cpu_tensor.dtype,
++            scaling_method=method,
++            rh=rh,
++            asym=asym,
++            precond=precond,
++        )
++        signs_cpu, perm_cpu = (None, None)
++        if precond:
++            signs_cpu, perm_cpu = self._precond_pair(
++                kv_shape.chunk_tokens,
++                kv_shape.h_merged,
++                scaling_method=method,
++            )
++        scale_ids = _allocate_scale_ids(2)
++        blocks_num = max(1, kv_shape.chunk_tokens // self.block_size)
++        payload = self._cpu_quant_mod.kvweave_serialize_chunk(
++            kv_shape.tensor4d,
++            header,
++            scale_ids[0],
++            scale_ids[1],
++            qbit=self.qbit,
++            blocks_num=blocks_num,
++            block_size=self.block_size,
++            head_num=self._head_num(kv_shape.h_merged),
++            head_dim=self._head_dim(kv_shape.h_merged),
++            num_layers=kv_shape.num_layers,
++            rh=rh,
++            asym=asym,
++            scaling_method=method,
++            signs=signs_cpu,
++            perm=perm_cpu,
++            num_threads=self.num_threads,
++        )
++        inner_payload = bytes(payload)
++        payload_bytes = inner_payload
++        if self.log:
++            half_elements = int(kv_shape.num_layers) * int(kv_shape.chunk_tokens) * int(kv_shape.h_merged)
++            q_bytes = 2 * _quantized_half_bytes(half_elements, self.qbit)
++            scale_bytes = max(0, len(inner_payload) - len(header) - 8 - q_bytes)
++            ratio = (len(payload_bytes) / raw_bytes) if raw_bytes else 0.0
++            logger.debug(
++                "KVWeave quantize store shape=%s dtype=%s qbit=%d scaling=%s "
++                "raw_bytes=%d payload_bytes=%d ratio=%.4f q_bytes=%d scale_bytes=%d",
++                tuple(cpu_tensor.shape), cpu_tensor.dtype, self.qbit, raw_bytes,
++                method, len(payload_bytes), ratio, q_bytes, scale_bytes,
++            )
++        return payload_bytes
++
++    def deserialize_tensor(self, src_tensor: torch.Tensor, dst_tensor: torch.Tensor) -> None:
++        raw = _tensor_to_bytes(src_tensor)
++        parsed = self._parse_payload(raw)
++        copied_direct = False
++        if parsed["raw"]:
++            tensor = self._decode_raw(parsed, dst_tensor)
++            if self.log:
++                logger.debug(
++                    "KVWeave load raw shape=%s payload_buffer_bytes=%d restored_bytes=%d",
++                    tuple(parsed["shape"]), len(raw), _tensor_nbytes(tensor),
++                )
++        else:
++            if self._cpu_quant_mod is None:
++                from kvweave import kvweave_quant
++
++                self._cpu_quant_mod = kvweave_quant
++            if (
++                len(parsed["shape"]) == 4
++                and hasattr(self._cpu_quant_mod, "kvweave_dequantize_chunk_into_4d")
++            ):
++                self._cpu_dequantize_into_4d(parsed, dst_tensor)
++                tensor = dst_tensor
++                copied_direct = True
++            else:
++                tensor = self._cpu_dequantize(parsed)
++            if self.log:
++                q_bytes = len(parsed["q_data"])
++                scale_bytes = len(parsed["k_scale_bytes"]) + len(parsed["v_scale_bytes"])
++                logger.debug(
++                    "KVWeave dequantize load shape=%s qbit=%d payload_buffer_bytes=%d "
++                    "q_bytes=%d scale_bytes=%d restored_bytes=%d",
++                    tuple(parsed["shape"]), int(parsed["qbit"]), len(raw),
++                    q_bytes, scale_bytes, _tensor_nbytes(tensor),
++                )
++        if not copied_direct:
++            self._copy_restored(tensor, dst_tensor)
++
++    def _estimate_one(
++        self,
++        shape: tuple[int, ...],
++        dtype: torch.dtype,
++        scaling_method: Optional[str] = None,
++    ) -> int:
++        if len(shape) == 3:
++            chunk_tokens, kv_size, h_merged = shape
++            num_layers = 1
++            original_ndim = 3
++        elif len(shape) == 4:
++            kv_size, num_layers, chunk_tokens, h_merged = shape
++            original_ndim = 4
++        else:
++            nbytes = _element_size(dtype)
++            for dim in shape:
++                nbytes *= dim
++            return 64 + nbytes
++        if kv_size != 2:
++            raise ValueError(f"KVWeave serde expects K/V dimension size 2, got {shape}")
++
++        method = str(scaling_method or self.scaling_method)
++        _, _, precond = self._quant_flags_for_method(method)
++        header = 4 + 8 + 4 * original_ndim
++        if precond:
++            header += 4 + 8 * self._hadamard_size(
++                chunk_tokens,
++                h_merged,
++                scaling_method=method,
++            )
++
++        half_elements = int(num_layers) * int(chunk_tokens) * int(h_merged)
++        if not self.quantize:
++            return header + 16 + 2 * half_elements * _element_size(dtype)
++
++        q_bytes = 2 * _quantized_half_bytes(half_elements, self.qbit)
++        scale_count = max(
++            1,
++            self._scale_count(
++                chunk_tokens,
++                h_merged,
++                num_layers,
++                scaling_method=method,
++            ),
++        )
++        scale_bytes = 2 * (4 + scale_count * 12)
++        estimated = header + 8 + scale_bytes + q_bytes
++        return int(estimated * 1.02) + 4096
++
++    def _normalize_src(self, tensor: torch.Tensor) -> _KVShape:
++        if tensor.dim() == 3:
++            chunk_tokens, kv_size, h_merged = (int(x) for x in tensor.shape)
++            if kv_size != 2:
++                raise ValueError(f"KVWeave serde expects shape [T,2,H], got {tuple(tensor.shape)}")
++            tensor4d = tensor.permute(1, 0, 2).unsqueeze(1).contiguous()
++            return _KVShape(tensor4d, (chunk_tokens, 2, h_merged), 1, chunk_tokens, h_merged, 3)
++        if tensor.dim() == 4:
++            kv_size, num_layers, chunk_tokens, h_merged = (int(x) for x in tensor.shape)
++            if kv_size != 2:
++                raise ValueError(f"KVWeave serde expects shape [2,L,T,H], got {tuple(tensor.shape)}")
++            return _KVShape(tensor.contiguous(), tuple(int(x) for x in tensor.shape), num_layers, chunk_tokens, h_merged, 4)
++        raise ValueError(f"Unsupported KV tensor shape for KVWeave serde: {tuple(tensor.shape)}")
++
++    def _serialize_raw(self, tensor: torch.Tensor, kv_shape: _KVShape) -> bytes:
++        header = struct.pack(
++            ">4sBBB",
++            _KVW_MAGIC_RAW,
++            kv_shape.original_ndim,
++            _KVW_FMT_TO_INT.get(getattr(MemoryFormat, "KV_T2D", None), 1),
++            _KVW_DTYPE_TO_INT.get(tensor.dtype, 0),
++        )
++        header += struct.pack(">" + "i" * kv_shape.original_ndim, *kv_shape.header_shape)
++        return header + bytes(tensor.contiguous().numpy().tobytes())
++
++    def _build_kvw3_header(
++        self,
++        kv_shape: _KVShape,
++        src_dtype: torch.dtype,
++        scaling_method: str,
++        rh: bool,
++        asym: bool,
++        precond: bool,
++    ) -> bytes:
++        header = struct.pack(
++            ">4sBBBBBBBB",
++            _KVW_MAGIC_QUANT,
++            self.qbit,
++            int(rh),
++            int(asym),
++            int(precond),
++            kv_shape.original_ndim,
++            _KVW_FMT_TO_INT.get(getattr(MemoryFormat, "KV_T2D", None), 1),
++            _KVW_SCALING_TO_INT.get(scaling_method, 1),
++            _KVW_DTYPE_TO_INT.get(src_dtype, 0),
++        )
++        if precond:
++            signs_cpu, perm_cpu = self._precond_pair(
++                kv_shape.chunk_tokens,
++                kv_shape.h_merged,
++                scaling_method=scaling_method,
++            )
++            h = signs_cpu.numel()
++            header += struct.pack(">I", h)
++            header += signs_cpu.numpy().tobytes()
++            header += perm_cpu.numpy().tobytes()
++        header += struct.pack(">" + "i" * kv_shape.original_ndim, *kv_shape.header_shape)
++        return header
++
++    def _parse_payload(self, raw: bytes) -> dict[str, object]:
++        buf = io.BytesIO(raw)
++        magic = buf.read(4)
++        if magic == _KVW_MAGIC_RAW:
++            ndim, fmt_byte, dtype_byte = struct.unpack(">BBB", buf.read(3))
++            shape = tuple(struct.unpack(">" + "i" * ndim, buf.read(4 * ndim)))
++            dtype = _KVW_INT_TO_DTYPE.get(dtype_byte, torch.float16)
++            nbytes = _element_size(dtype)
++            for dim in shape:
++                nbytes *= int(dim)
++            return {
++                "raw": True,
++                "tensor_bytes": buf.read(nbytes),
++                "shape": shape,
++                "output_dtype": dtype,
++                "fmt": _KVW_INT_TO_FMT.get(fmt_byte),
++            }
++        if magic != _KVW_MAGIC_QUANT:
++            raise ValueError(f"KVWeave bad magic: {magic!r}")
++
++        qbit, rh, asym, precond, ndim, fmt_byte, scaling_byte, dtype_byte = struct.unpack(
++            ">BBBBBBBB", buf.read(8)
++        )
++        signs: Optional[torch.Tensor] = None
++        perm: Optional[torch.Tensor] = None
++        if precond:
++            h = struct.unpack(">I", buf.read(4))[0]
++            signs = torch.frombuffer(buf.read(4 * h), dtype=torch.float32).clone()
++            perm = torch.frombuffer(buf.read(4 * h), dtype=torch.int32).clone()
++
++        shape = tuple(struct.unpack(">" + "i" * ndim, buf.read(4 * ndim)))
++        if len(shape) == 3:
++            shape_4d = (shape[1], 1, shape[0], shape[2])
++        else:
++            shape_4d = shape
++        kv_size, num_layers, chunk_tokens, h_merged = shape_4d
++
++        scale_blobs = []
++        for _ in range(kv_size):
++            scale_len = struct.unpack(">I", buf.read(4))[0]
++            scale_blobs.append(buf.read(scale_len))
++        half_elements = int(num_layers) * int(chunk_tokens) * int(h_merged)
++        half_bytes = _quantized_half_bytes(half_elements, qbit)
++        q_raw = buf.read(2 * half_bytes)
++        head_num = self._head_num(int(h_merged))
++        head_dim = int(h_merged) // head_num if head_num > 1 else int(h_merged)
++        blocks_num = max(1, int(chunk_tokens) // self.block_size)
++        scaling_method = _KVW_INT_TO_SCALING.get(scaling_byte, self.scaling_method)
++
++        return {
++            "raw": False,
++            "q_data": q_raw,
++            "k_scale_bytes": scale_blobs[0] if len(scale_blobs) > 0 else b"",
++            "v_scale_bytes": scale_blobs[1] if len(scale_blobs) > 1 else b"",
++            "qbit": qbit,
++            "rh": bool(rh),
++            "asym": bool(asym),
++            "scaling_method": scaling_method,
++            "output_dtype": _KVW_INT_TO_DTYPE.get(dtype_byte, torch.float16),
++            "shape": shape,
++            "chunk_tokens": int(chunk_tokens),
++            "h_merged": int(h_merged),
++            "num_layers": int(num_layers),
++            "blocks_num": int(blocks_num),
++            "block_size": self.block_size,
++            "head_num": int(head_num),
++            "head_dim": int(head_dim),
++            "signs": signs,
++            "perm": perm,
++            "fmt": _KVW_INT_TO_FMT.get(fmt_byte),
++        }
++
++    def _decode_raw(self, parsed: dict[str, object], dst_tensor: torch.Tensor) -> torch.Tensor:
++        tensor = torch.frombuffer(bytearray(parsed["tensor_bytes"]), dtype=parsed["output_dtype"])
++        return tensor.reshape(tuple(parsed["shape"]))
++
++    def _cpu_dequantize(self, parsed: dict[str, object]) -> torch.Tensor:
++        qbit = int(parsed["qbit"])
++        q_dtype = torch.int8 if qbit <= 8 else torch.int16
++        q_data = torch.frombuffer(bytearray(parsed["q_data"]), dtype=q_dtype)
++        result = self._cpu_quant_mod.kvweave_dequantize_chunk(
++            q_data,
++            parsed["k_scale_bytes"],
++            parsed["v_scale_bytes"],
++            int(parsed["num_layers"]),
++            int(parsed["chunk_tokens"]),
++            int(parsed["h_merged"]),
++            qbit=qbit,
++            blocks_num=int(parsed["blocks_num"]),
++            block_size=int(parsed["block_size"]),
++            head_num=int(parsed["head_num"]),
++            head_dim=int(parsed["head_dim"]),
++            rh=bool(parsed["rh"]),
++            asym=bool(parsed["asym"]),
++            scaling_method=str(parsed["scaling_method"]),
++            output_dtype=parsed["output_dtype"],
++            signs=parsed["signs"],
++            perm=parsed["perm"],
++            num_threads=self.num_threads,
++        )
++        if len(parsed["shape"]) == 3:
++            return result.squeeze(1).permute(1, 0, 2)
++        return result.contiguous()
++
++    def _cpu_dequantize_into_4d(self, parsed: dict[str, object], dst_tensor: torch.Tensor) -> None:
++        qbit = int(parsed["qbit"])
++        q_dtype = torch.int8 if qbit <= 8 else torch.int16
++        q_data = torch.frombuffer(bytearray(parsed["q_data"]), dtype=q_dtype)
++        self._cpu_quant_mod.kvweave_dequantize_chunk_into_4d(
++            q_data,
++            parsed["k_scale_bytes"],
++            parsed["v_scale_bytes"],
++            dst_tensor,
++            int(parsed["num_layers"]),
++            int(parsed["chunk_tokens"]),
++            int(parsed["h_merged"]),
++            qbit=qbit,
++            blocks_num=int(parsed["blocks_num"]),
++            block_size=int(parsed["block_size"]),
++            head_num=int(parsed["head_num"]),
++            head_dim=int(parsed["head_dim"]),
++            rh=bool(parsed["rh"]),
++            asym=bool(parsed["asym"]),
++            scaling_method=str(parsed["scaling_method"]),
++            output_dtype=parsed["output_dtype"],
++            signs=parsed["signs"],
++            perm=parsed["perm"],
++            num_threads=self.num_threads,
++        )
++
++    @staticmethod
++    def _copy_restored(tensor: torch.Tensor, dst_tensor: torch.Tensor) -> None:
++        if tuple(tensor.shape) != tuple(dst_tensor.shape):
++            tensor = tensor.reshape(dst_tensor.shape)
++        dst_tensor.copy_(tensor.to(device=dst_tensor.device, dtype=dst_tensor.dtype))
++
++    def _head_num(self, h_merged: int) -> int:
++        if self.num_kv_heads > 1 and h_merged % self.num_kv_heads == 0:
++            return self.num_kv_heads
++        return 1
++
++    def _quant_flags_for_method(self, scaling_method: str) -> tuple[bool, bool, bool]:
++        """Resolve effective quant flags for one scaling method.
++
++        Per-tensor path is reserved for linear/mamba groups; its RH/ASYM/
++        PRECOND are controlled independently from the attention path via
++        linear_rh/linear_asym/linear_precond.
++        """
++        method = str(scaling_method)
++        if method == "per_tensor":
++            return self.linear_rh, self.linear_asym, self.linear_precond
++        return self.rh, self.asym, self.precond
++
++    def _head_dim(self, h_merged: int) -> int:
++        if self.head_dim > 0:
++            return self.head_dim
++        head_num = self._head_num(h_merged)
++        return h_merged // head_num if head_num > 1 else h_merged
++
++    def _is_attention_shape(self, h_merged: int) -> bool:
++        """Whether ``h_merged`` matches this model's real attention KV width.
++
++        Hybrid Mamba/attention models (e.g. Qwen3.5) reinterpret Mamba
++        ``[conv_state, ssm_state]`` pages as attention-shaped tensors purely so
++        LMCache's transfer path can address them (see
++        ``lmcache/integration/vllm/kv_cache_group_edits.py:_MambaPageViewEdit``
++        upstream); those bytes are opaque, not real K/V, so content-aware
++        quantization must not run on them. Real attention chunks have
++        ``h_merged == num_kv_heads * head_dim``; anything else is treated as
++        non-attention and stored raw (see ``serialize_tensor``).
++        """
++        return self.num_kv_heads > 0 and self.head_dim > 0 and h_merged == self.num_kv_heads * self.head_dim
++
++    def _hadamard_size(
++        self,
++        chunk_tokens: int,
++        h_merged: int,
++        scaling_method: Optional[str] = None,
++    ) -> int:
++        half_elements = int(chunk_tokens) * int(h_merged)
++        blocks_num = max(1, int(chunk_tokens) // self.block_size)
++        method = str(scaling_method or self.scaling_method)
++        if method == "per_token":
++            return max(1, half_elements // (blocks_num * self.block_size))
++        if method == "per_channel":
++            return max(1, half_elements // self._head_dim(h_merged))
++        return max(1, half_elements)
++
++    def _scale_count(
++        self,
++        chunk_tokens: int,
++        h_merged: int,
++        num_layers: int,
++        scaling_method: Optional[str] = None,
++    ) -> int:
++        """Return number of scales per K/V half for one chunk.
++
++        This follows kvweave_quant_wrapper.cpp behavior:
++        - per-layer quantization is always used when num_layers > 1, so each
++          layer gets its own independent scale.
++        - otherwise (num_layers == 1) quantization runs on the flattened half
++          and emits one set of scales for the whole half.
++        """
++        method = str(scaling_method or self.scaling_method)
++
++        if method == "per_token":
++            base = max(1, int(chunk_tokens))
++        elif method == "per_channel":
++            base = max(1, self._head_dim(h_merged))
++        else:
++            # per_tensor uses a single scale for one flattened half.
++            base = 1
++
++        use_per_layer = int(num_layers) > 1
++        return base * max(1, int(num_layers)) if use_per_layer else base
++
++    def _precond_pair(
++        self,
++        chunk_tokens: int,
++        h_merged: Optional[int] = None,
++        scaling_method: Optional[str] = None,
++    ):
++        method = str(scaling_method or self.scaling_method)
++        _, _, precond = self._quant_flags_for_method(method)
++        if not precond:
++            return None, None
++        if h_merged is None:
++            raise ValueError("h_merged is required when preconditioning is enabled")
++        hadamard_size = self._hadamard_size(
++            chunk_tokens,
++            h_merged,
++            scaling_method=method,
++        )
++        cache_key = (method, hadamard_size)
++        cached = self._precond_cache.get(cache_key)
++        if cached is not None:
++            return cached
++        with self._precond_lock:
++            cached = self._precond_cache.get(cache_key)
++            if cached is None:
++                signs_arr, perm_arr = self._kvw_cfg.get_pd_matrix(hadamard_size)
++                signs = torch.as_tensor(signs_arr, dtype=torch.float32).reshape(-1).contiguous()
++                perm = torch.as_tensor(perm_arr, dtype=torch.int32).reshape(-1).contiguous()
++                self._validate_precond(signs, perm, hadamard_size)
++                cached = (signs, perm)
++                self._precond_cache[cache_key] = cached
++        return cached
++
++    @staticmethod
++    def _validate_precond(signs: torch.Tensor, perm: torch.Tensor, hadamard_size: int) -> None:
++        if signs.numel() != hadamard_size or perm.numel() != hadamard_size:
++            raise ValueError("P&D matrix length mismatch")
++        if not torch.all((signs == 1.0) | (signs == -1.0)):
++            raise ValueError("signs must contain only +1/-1 values")
++        expected = torch.arange(hadamard_size, dtype=perm.dtype)
++        if not torch.equal(torch.sort(perm).values, expected):
++            raise ValueError("perm must be a permutation of range(h)")
 diff --git a/lmcache/v1/multiprocess/transfer_context/mamba_quant.py b/lmcache/v1/multiprocess/transfer_context/mamba_quant.py
 new file mode 100644
-index 00000000..50c576d6
+index 00000000..f6d949d1
 --- /dev/null
 +++ b/lmcache/v1/multiprocess/transfer_context/mamba_quant.py
-@@ -0,0 +1,580 @@
+@@ -0,0 +1,653 @@
 +# SPDX-License-Identifier: Apache-2.0
 +"""Per-tensor/per-channel 4-bit quantization for Mamba ``conv_state``/``ssm_state``.
 +
@@ -2000,6 +3323,8 @@ index 00000000..50c576d6
 +# Standard
 +from dataclasses import dataclass
 +from itertools import count
++import json
++import os
 +import struct
 +import threading
 +
@@ -2014,11 +3339,48 @@ index 00000000..50c576d6
 +
 +logger = init_logger(__name__)
 +
++# Debugging aid for the SSM int4 root-cause investigation (see
++# MIGRATION_PLAN.md, "下一步计划：真正解决 SSM int4 量化问题", in the sibling
++# lmcache-main checkout). When set, the real store-time conv/ssm sub-states
++# are dumped to disk *before* quantization so they can be compared against
++# the same dump taken from the vllm-v0.26.0 / lmcache-main stack. Not read
++# anywhere else; purely a side-channel observability hook, never gates
++# behavior.
++_SSM_DUMP_DIR = os.environ.get("LMCACHE_MP_KVWEAVE_SSM_DUMP_DIR")
++_ssm_dump_seq = count()
++
++
++def _dump_mamba_substate(substate: str, tensor: torch.Tensor) -> None:
++    """Best-effort dump of a pre-quantization Mamba sub-state tensor to disk.
++
++    No-op unless ``LMCACHE_MP_KVWEAVE_SSM_DUMP_DIR`` is set. Never raises --
++    a dump failure must not affect the store path.
++    """
++    if not _SSM_DUMP_DIR:
++        return
++    try:
++        os.makedirs(_SSM_DUMP_DIR, exist_ok=True)
++        seq = next(_ssm_dump_seq)
++        stem = f"{substate}_chunk{seq}"
++        torch.save(tensor.detach().cpu(), os.path.join(_SSM_DUMP_DIR, f"{stem}.pt"))
++        with open(os.path.join(_SSM_DUMP_DIR, f"{stem}.json"), "w") as f:
++            json.dump(
++                {
++                    "substate": substate,
++                    "shape": list(tensor.shape),
++                    "dtype": str(tensor.dtype),
++                },
++                f,
++            )
++    except Exception:
++        logger.warning("Failed to dump Mamba %s sub-state", substate, exc_info=True)
++
 +# Payload header: magic, qbit, dtype code, flags (bit0=rh, bit1=asym),
 +# scaling method code, ndim, then ndim int32 shape dims, then the
 +# scale/zeropoint bytes produced by ``kvweave_quant.get_scales_for_id``
 +# (length-prefixed), then the packed qbit-wide values.
 +_MAGIC = b"MQ01"
++_RAW_MAGIC = b"MR01"
 +_DTYPE_TO_CODE = {torch.float16: 0, torch.float32: 1, torch.bfloat16: 2}
 +_CODE_TO_DTYPE = {v: k for k, v in _DTYPE_TO_CODE.items()}
 +_QBIT = 4
@@ -2141,9 +3503,10 @@ index 00000000..50c576d6
 +            # its own independently-scaled position.
 +            token_blocks_num = num_blocks * middle_numel
 +            return token_blocks_num, 1, real_head_dim, token_blocks_num
-+        # ssm: num_heads/head_v_dim are head-like, shared under one scale
-+        # per (block, head) position -- fold into head_num, not blocks_num.
-+        return num_blocks, middle_numel, real_head_dim, num_blocks
++        # ssm: fold num_heads/head_v_dim into blocks_num so each contiguous
++        # row along the true last dimension gets its own scale.
++        row_blocks = num_blocks * middle_numel
++        return row_blocks, 1, real_head_dim, row_blocks
 +    # per_tensor: num_chunks == 1, blocks_num/head_num/head_dim are unused by
 +    # the native kernel but must still multiply out to numel_per_layer.
 +    blocks_num = max(numel_per_layer // (middle_numel * real_head_dim), 1)
@@ -2396,6 +3759,7 @@ index 00000000..50c576d6
 +        )
 +
 +    cpu_tensor = tensor.detach().to("cpu").contiguous()
++    _dump_mamba_substate(substate, cpu_tensor)
 +    numel = cpu_tensor.numel()
 +    shape = tuple(tensor.shape)
 +    num_layers = shape[0]
@@ -2439,6 +3803,17 @@ index 00000000..50c576d6
 +    )
 +
 +
++def serialize_mamba_substate_raw(tensor: torch.Tensor) -> bytes:
++    """Serialize one Mamba sub-state without quantization."""
++    if tensor.dtype not in _DTYPE_TO_CODE:
++        raise ValueError(f"unsupported dtype for raw Mamba payload: {tensor.dtype}")
++    tensor = tensor.detach().to("cpu").contiguous()
++    shape = tuple(int(dim) for dim in tensor.shape)
++    header = _RAW_MAGIC + struct.pack(">BB", _DTYPE_TO_CODE[tensor.dtype], len(shape))
++    header += struct.pack(">" + "i" * len(shape), *shape)
++    return header + bytes(tensor.view(torch.uint8).numpy().tobytes())
++
++
 +def dequantize_mamba_substate_4bit(payload: bytes) -> torch.Tensor:
 +    """Invert :func:`quantize_mamba_substate_4bit`.
 +
@@ -2457,6 +3832,27 @@ index 00000000..50c576d6
 +        ValueError: If ``payload``'s magic, qbit, dtype code, scaling
 +            method code, or substate code is unrecognized.
 +    """
++    if payload[:4] == _RAW_MAGIC:
++        dtype_code, ndim = struct.unpack(">BB", payload[4:6])
++        if dtype_code not in _CODE_TO_DTYPE:
++            raise ValueError(f"unrecognized raw dtype code: {dtype_code}")
++        offset = 6
++        shape = struct.unpack(">" + "i" * ndim, payload[offset : offset + 4 * ndim])
++        offset += 4 * ndim
++        dtype = _CODE_TO_DTYPE[dtype_code]
++        numel = 1
++        for dim in shape:
++            numel *= dim
++        expected_nbytes = numel * torch.empty((), dtype=dtype).element_size()
++        raw_bytes = payload[offset : offset + expected_nbytes]
++        if len(raw_bytes) != expected_nbytes:
++            raise ValueError(
++                f"raw Mamba payload truncated: got {len(raw_bytes)} bytes, "
++                f"expected {expected_nbytes}"
++            )
++        return torch.frombuffer(
++            bytearray(raw_bytes), dtype=dtype
++        ).reshape(shape).clone()
 +    if payload[:4] != _MAGIC:
 +        raise ValueError(f"unrecognized payload magic: {payload[:4]!r}")
 +    qbit, dtype_code, flags, scaling_method_code, substate_code, ndim = (
@@ -2549,872 +3945,6 @@ index 00000000..50c576d6
 +    conv_payload = blob[4 : 4 + conv_len]
 +    ssm_payload = blob[4 + conv_len :]
 +    return conv_payload, ssm_payload
-diff --git a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py b/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
-index 75bc7e37..babe5057 100644
---- a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
-+++ b/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
-@@ -16,10 +16,22 @@ from lmcache import torch_dev
- from lmcache.utils import EngineType, init_logger
- from lmcache.v1.distributed.api import MemoryLayoutDesc
- from lmcache.v1.gpu_connector.utils import LayoutHints, is_mla
--from lmcache.v1.multiprocess.custom_types import RegisterNonGpuContextPayload
-+from lmcache.v1.multiprocess.custom_types import (
-+    RegisterNonGpuContextPayload,
-+    serialize_memory_layout_desc,
-+)
- from lmcache.v1.multiprocess.futures import MessagingFuture
- from lmcache.v1.multiprocess.group_view import EngineGroupInfo
- from lmcache.v1.multiprocess.mq import MessageQueueClient
-+from lmcache.v1.multiprocess.transfer_context.mamba_quant import (
-+    MambaChunkSplit,
-+    dequantize_mamba_substate_4bit,
-+    merge_mamba_chunk,
-+    pack_mamba_payloads,
-+    quantize_mamba_substate_4bit,
-+    split_mamba_chunk,
-+    unpack_mamba_payloads,
-+)
- from lmcache.v1.multiprocess.protocol import RequestType
- from lmcache.v1.multiprocess.protocols.engine import RegisterNonGpuContextResponse
- from lmcache.v1.multiprocess.transfer_context.base import (
-@@ -34,11 +46,43 @@ from lmcache.v1.platform import _registry as platform_registry
- 
- logger = init_logger(__name__)
- 
-+try:
-+    # Optional L1 KVWeave quantization codec.
-+    from lmcache.v1.distributed.serde.kvweave_serde import (
-+        _KVWeaveCodec,
-+        _copy_bytes_to_tensor,
-+    )  # type: ignore[attr-defined]
-+except ImportError:  # pragma: no cover - optional runtime dependency
-+    _KVWeaveCodec = None  # type: ignore[assignment]
-+    _copy_bytes_to_tensor = None  # type: ignore[assignment]
-+
- # Environment variable that lets the user override the default routing
- # performed by :func:`create_transfer_context`. Accepted values match the
- # string values of :class:`MPTransferMode` (``auto`` / ``handle`` /
- # ``data``); ``auto`` reproduces the historical device-type-based dispatch.
- ENV_MP_TRANSFER_MODE = "LMCACHE_MP_TRANSFER_MODE"
-+ENV_MP_L1_KVWEAVE_QUANT = "LMCACHE_MP_L1_KVWEAVE_QUANT"
-+ENV_MP_KVWEAVE_NUM_KV_HEADS = "LMCACHE_MP_KVWEAVE_NUM_KV_HEADS"
-+ENV_MP_KVWEAVE_HEAD_DIM = "LMCACHE_MP_KVWEAVE_HEAD_DIM"
-+ENV_MP_KVWEAVE_PRECOND = "LMCACHE_MP_KVWEAVE_PRECOND"
-+ENV_MP_KVWEAVE_NUM_THREADS = "LMCACHE_MP_KVWEAVE_NUM_THREADS"
-+ENV_MP_KVWEAVE_SCALING_METHOD = "LMCACHE_MP_KVWEAVE_SCALING_METHOD"
-+ENV_MP_KVWEAVE_LINEAR_MAX_SIZE_RATIO = "LMCACHE_MP_KVWEAVE_LINEAR_MAX_SIZE_RATIO"
-+ENV_MP_KVWEAVE_LINEAR_QUANT_ENABLED = "LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED"
-+ENV_MP_KVWEAVE_LINEAR_RH = "LMCACHE_MP_KVWEAVE_LINEAR_RH"
-+ENV_MP_KVWEAVE_LINEAR_ASYM = "LMCACHE_MP_KVWEAVE_LINEAR_ASYM"
-+ENV_MP_KVWEAVE_LINEAR_PRECOND = "LMCACHE_MP_KVWEAVE_LINEAR_PRECOND"
-+ENV_MP_KVWEAVE_LINEAR_SCALING_METHOD = "LMCACHE_MP_KVWEAVE_LINEAR_SCALING_METHOD"
-+ENV_MP_KVWEAVE_CONV_SCALING_METHOD = "LMCACHE_MP_KVWEAVE_CONV_SCALING_METHOD"
-+ENV_MP_KVWEAVE_CONV_RH = "LMCACHE_MP_KVWEAVE_CONV_RH"
-+ENV_MP_KVWEAVE_SSM_SCALING_METHOD = "LMCACHE_MP_KVWEAVE_SSM_SCALING_METHOD"
-+ENV_MP_KVWEAVE_SSM_RH = "LMCACHE_MP_KVWEAVE_SSM_RH"
-+
-+_KVWEAVE_SCALING_METHODS = frozenset({"per_tensor", "per_channel", "per_token"})
-+# Caller-imposed restriction (not a native kernel limitation, see
-+# mamba_quant._UNSUPPORTED_CONV_RH_METHODS): conv_state has no real head
-+# axis, so rh is only supported for conv with per_token scaling.
-+_UNSUPPORTED_CONV_RH_SCALING_METHODS = frozenset({"per_tensor", "per_channel"})
- 
- 
- class MPTransferMode(str, Enum):
-@@ -57,6 +101,40 @@ class MPTransferMode(str, Enum):
-     DATA = "data"
- 
- 
-+class GroupCodecMode(str, Enum):
-+    """Per-group codec mode for non-GPU worker data transfer."""
-+
-+    RAW = "raw"
-+    KVWEAVE_QUANT = "kvweave_quant"
-+
-+
-+def _parse_env_flag(name: str, default: bool = False) -> bool:
-+    raw = os.environ.get(name)
-+    if raw is None:
-+        return default
-+    return str(raw).strip().lower() in {"1", "true", "yes", "y", "on"}
-+
-+
-+def _parse_flag_value(raw: object) -> bool:
-+    if isinstance(raw, bool):
-+        return raw
-+    if isinstance(raw, int):
-+        return raw != 0
-+    if raw is None:
-+        return False
-+    return str(raw).strip().lower() in {"1", "true", "yes", "y", "on"}
-+
-+
-+def _layout_nbytes(layout_desc: MemoryLayoutDesc) -> int:
-+    total = 0
-+    for shape, dtype in zip(layout_desc.shapes, layout_desc.dtypes, strict=True):
-+        numel = 1
-+        for dim in shape:
-+            numel *= int(dim)
-+        total += numel * torch.empty((), dtype=dtype).element_size()
-+    return total
-+
-+
- def _resolve_mode(mode: "str | MPTransferMode | None") -> MPTransferMode:
-     """Coerce ``mode`` into :class:`MPTransferMode`, falling back to env."""
-     raw = (
-@@ -305,12 +383,220 @@ class HandleTransferContext(TransferContext):
- class DataTransferContext(TransferContext):
-     """Data transfer context for non-CUDA workers."""
- 
--    def __init__(self) -> None:
-+    def __init__(
-+        self,
-+        *,
-+        enable_l1_kvweave_quant: bool = True,
-+        kvweave_num_kv_heads: int = 4,
-+        kvweave_head_dim: int = 256,
-+        kvweave_precond: bool = True,
-+        kvweave_num_threads: int = 8,
-+        kvweave_scaling_method: str = "per_channel",
-+        kvweave_linear_quant_enabled: bool = True,
-+        kvweave_linear_rh: bool = False,
-+        kvweave_linear_asym: bool = True,
-+        kvweave_linear_precond: bool = False,
-+        kvweave_linear_scaling_method: str = "per_tensor",
-+        kvweave_conv_scaling_method: str | None = None,
-+        kvweave_conv_rh: bool | None = None,
-+        kvweave_ssm_scaling_method: str | None = "per_channel",
-+        kvweave_ssm_rh: bool | None = True,
-+    ) -> None:
-         self._non_gpu_context: NonGpuContext | None = None
-         self._layout_hints: LayoutHints | None = None
-         self._gpu_kv_format: Any = None
-         self._engine_group_infos: list[EngineGroupInfo] = []
-         self._chunk_size_tokens: int | None = None
-+        self._enable_l1_kvweave_quant = enable_l1_kvweave_quant
-+        self._kvweave_num_kv_heads = kvweave_num_kv_heads
-+        self._kvweave_head_dim = kvweave_head_dim
-+        self._kvweave_precond = kvweave_precond
-+        self._kvweave_num_threads = kvweave_num_threads
-+        self._kvweave_scaling_method = kvweave_scaling_method
-+        self._kvweave_linear_quant_enabled = kvweave_linear_quant_enabled
-+        self._kvweave_linear_rh = kvweave_linear_rh
-+        self._kvweave_linear_asym = kvweave_linear_asym
-+        self._kvweave_linear_precond = kvweave_linear_precond
-+        self._kvweave_linear_scaling_method = kvweave_linear_scaling_method
-+        self._kvweave_conv_scaling_method = (
-+            kvweave_conv_scaling_method
-+            if kvweave_conv_scaling_method is not None
-+            else kvweave_linear_scaling_method
-+        )
-+        self._kvweave_conv_rh = (
-+            kvweave_conv_rh if kvweave_conv_rh is not None else kvweave_linear_rh
-+        )
-+        self._kvweave_ssm_scaling_method = (
-+            kvweave_ssm_scaling_method
-+            if kvweave_ssm_scaling_method is not None
-+            else kvweave_linear_scaling_method
-+        )
-+        self._kvweave_ssm_rh = (
-+            kvweave_ssm_rh if kvweave_ssm_rh is not None else kvweave_linear_rh
-+        )
-+        if (
-+            self._kvweave_conv_rh
-+            and self._kvweave_conv_scaling_method
-+            in _UNSUPPORTED_CONV_RH_SCALING_METHODS
-+        ):
-+            logger.debug(
-+                "rh is not supported for conv with scaling_method=%r "
-+                "(conv has no real head axis); falling back to "
-+                "scaling_method='per_tensor', rh=False",
-+                self._kvweave_conv_scaling_method,
-+            )
-+            self._kvweave_conv_scaling_method = "per_tensor"
-+            self._kvweave_conv_rh = False
-+        self._kvweave_linear_max_size_ratio = float(
-+            os.environ.get(ENV_MP_KVWEAVE_LINEAR_MAX_SIZE_RATIO, "1.20")
-+        )
-+        self._kvweave_codec: Any | None = None
-+        self._group_codec_modes: list[GroupCodecMode] = [GroupCodecMode.RAW]
-+        self._group_quant_scaling_methods: list[str] = []
-+        self._group_raw_layout_descs: list[MemoryLayoutDesc] = []
-+        self._group_store_layout_descs: list[MemoryLayoutDesc] = []
-+
-+    @staticmethod
-+    def _resolved_future(value: bool) -> MessagingFuture:
-+        future: MessagingFuture[bool] = MessagingFuture()
-+        future.set_result(value)
-+        return future
-+
-+    def _build_group_raw_layout_desc(
-+        self,
-+        group_kv_caches: dict[str, torch.Tensor],
-+        group_blocks_in_chunk: int,
-+    ) -> MemoryLayoutDesc:
-+        (
-+            block_size,
-+            num_layers,
-+            hidden_dim_size,
-+            dtype_str,
-+            gpu_kv_format,
-+        ) = compute_kv_layout(group_kv_caches, layout_hints=self._layout_hints)
-+        use_mla_flag = is_mla(gpu_kv_format)
-+        shape = (
-+            torch.Size([num_layers, group_blocks_in_chunk * block_size, hidden_dim_size])
-+            if use_mla_flag
-+            else torch.Size([2, num_layers, group_blocks_in_chunk * block_size, hidden_dim_size])
-+        )
-+        return MemoryLayoutDesc(
-+            shapes=[shape],
-+            dtypes=[getattr(torch, dtype_str)],
-+        )
-+
-+    def _is_attention_group_layout(
-+        self,
-+        layout_desc: MemoryLayoutDesc,
-+        group_info: EngineGroupInfo | None = None,
-+    ) -> bool:
-+        if self._kvweave_codec is None:
-+            return False
-+        # Keep group_info in the signature for interface stability. Routing is
-+        # intentionally shape-based here so aligned hybrid groups can follow
-+        # the same quantization path as attention layouts.
-+        _ = group_info
-+        shape = layout_desc.shapes[0]
-+        if len(shape) == 4:
-+            h_merged = int(shape[3])
-+        elif len(shape) == 3:
-+            h_merged = int(shape[2])
-+        else:
-+            return False
-+        return bool(self._kvweave_codec._is_attention_shape(h_merged))
-+
-+    def _group_scaling_method_for_group(
-+        self,
-+        group_info: EngineGroupInfo | None,
-+    ) -> str:
-+        """Pick quant scaling for one group.
-+
-+        Policy:
-+        - Linear-like groups (mamba/linear categories) use the configured
-+          linear scaling method (LMCACHE_MP_KVWEAVE_LINEAR_SCALING_METHOD).
-+        - Full attention and unknown groups keep the configured default.
-+        """
-+        default_method = str(self._kvweave_scaling_method)
-+        if group_info is None:
-+            return default_method
-+        category = str(group_info.cache_category).strip().lower()
-+        if category in {"mamba", "linear"}:
-+            return str(self._kvweave_linear_scaling_method)
-+        return default_method
-+
-+    @staticmethod
-+    def _group_category(group_info: EngineGroupInfo | None) -> str:
-+        if group_info is None:
-+            return "unknown"
-+        return str(group_info.cache_category).strip().lower()
-+
-+    def _is_linear_like_group(self, group_info: EngineGroupInfo | None) -> bool:
-+        return self._group_category(group_info) in {"mamba", "linear"}
-+
-+    def _should_attempt_group_quant(self, group_info: EngineGroupInfo | None) -> bool:
-+        if self._is_linear_like_group(group_info) and not self._kvweave_linear_quant_enabled:
-+            return False
-+        return True
-+
-+    def _is_serialized_size_acceptable(
-+        self,
-+        raw_nbytes: int,
-+        serialized_nbytes: int,
-+        group_info: EngineGroupInfo | None,
-+    ) -> bool:
-+        """Return whether a group's serialized size should keep quantization.
-+
-+        Attention-like groups keep the strict gate (must be smaller than raw).
-+        Linear/Mamba groups can exceed raw by a bounded ratio for experiments.
-+        """
-+        if self._is_linear_like_group(group_info):
-+            allowed = int(raw_nbytes * max(1.0, self._kvweave_linear_max_size_ratio))
-+            return serialized_nbytes <= allowed
-+        return serialized_nbytes < raw_nbytes
-+
-+    def _init_l1_kvweave_quant_codec(self) -> bool:
-+        if not self._enable_l1_kvweave_quant:
-+            return False
-+        if _KVWeaveCodec is None:
-+            raise ValueError(
-+                "L1 KVWeave quantization requires the optional kvweave_serde module"
-+            )
-+        if _copy_bytes_to_tensor is None:
-+            raise ValueError(
-+                "L1 KVWeave quantization requires kvweave_serde._copy_bytes_to_tensor"
-+            )
-+
-+        num_kv_heads = self._kvweave_num_kv_heads
-+        head_dim = self._kvweave_head_dim
-+        if num_kv_heads <= 0 and self._layout_hints is not None:
-+            num_kv_heads = int(self._layout_hints.get("num_kv_heads", 0))
-+        if head_dim <= 0 and self._layout_hints is not None:
-+            head_dim = int(self._layout_hints.get("head_dim", 0))
-+
-+        if num_kv_heads <= 0 or head_dim <= 0:
-+            logger.warning(
-+                "L1 KVWeave quantization requested, but num_kv_heads/head_dim are "
-+                "not configured. Falling back to RAW mode for all groups."
-+            )
-+            return False
-+
-+        self._kvweave_codec = _KVWeaveCodec(
-+            {
-+                "quantize": True,
-+                "qbit": 4,
-+                "num_kv_heads": int(num_kv_heads),
-+                "head_dim": int(head_dim),
-+                "precond": self._kvweave_precond,
-+                "num_threads": self._kvweave_num_threads,
-+                "scaling_method": self._kvweave_scaling_method,
-+                "linear_rh": self._kvweave_linear_rh,
-+                "linear_asym": self._kvweave_linear_asym,
-+                "linear_precond": self._kvweave_linear_precond,
-+            }
-+        )
-+        self._kvweave_num_kv_heads = int(num_kv_heads)
-+        self._kvweave_head_dim = int(head_dim)
-+        return True
- 
-     def _kv_caches_for_group(
-         self,
-@@ -434,6 +720,73 @@ class DataTransferContext(TransferContext):
-         dtype = getattr(torch, dtype_str)
-         layout_desc = MemoryLayoutDesc(shapes=[shape], dtypes=[dtype])
- 
-+        transfer_groups: list[tuple[EngineGroupInfo | None, dict[str, torch.Tensor], int]] = []
-+        if self._engine_group_infos:
-+            for group_info in self._engine_group_infos:
-+                group_kv_caches = self._kv_caches_for_group(kv_caches, group_info)
-+                transfer_groups.append(
-+                    (
-+                        group_info,
-+                        group_kv_caches,
-+                        self._blocks_per_chunk_for_group(group_info, blocks_in_chunk),
-+                    )
-+                )
-+        else:
-+            transfer_groups.append((None, kv_caches, blocks_in_chunk))
-+        self._group_raw_layout_descs = [
-+            self._build_group_raw_layout_desc(group_kv_caches, group_blocks_in_chunk)
-+            for _, group_kv_caches, group_blocks_in_chunk in transfer_groups
-+        ]
-+
-+        self._group_store_layout_descs = list(self._group_raw_layout_descs)
-+        self._group_codec_modes = [GroupCodecMode.RAW] * len(self._group_raw_layout_descs)
-+        self._group_quant_scaling_methods = [
-+            self._group_scaling_method_for_group(group_info)
-+            for group_info, _, _ in transfer_groups
-+        ]
-+        kvweave_quant_active = False
-+        if self._init_l1_kvweave_quant_codec():
-+            assert self._kvweave_codec is not None
-+            for idx, ((group_info, _, _), raw_desc) in enumerate(
-+                zip(transfer_groups, self._group_raw_layout_descs, strict=True)
-+            ):
-+                if not self._should_attempt_group_quant(group_info):
-+                    logger.debug(
-+                        "Skipping L1 KVWeave quantization for group %d because "
-+                        "linear quantization is disabled",
-+                        idx,
-+                    )
-+                    continue
-+                if not self._is_attention_group_layout(raw_desc, group_info):
-+                    continue
-+                scaling_method = self._group_quant_scaling_methods[idx]
-+                serialized_size = self._kvweave_codec.estimate_serialized_size(
-+                    raw_desc,
-+                    scaling_method=scaling_method,
-+                )
-+                serialized_desc = MemoryLayoutDesc(
-+                    shapes=[torch.Size([serialized_size])],
-+                    dtypes=[torch.uint8],
-+                )
-+                raw_nbytes = _layout_nbytes(raw_desc)
-+                serialized_nbytes = _layout_nbytes(serialized_desc)
-+                if not self._is_serialized_size_acceptable(
-+                    raw_nbytes,
-+                    serialized_nbytes,
-+                    group_info,
-+                ):
-+                    logger.debug(
-+                        "Skipping L1 KVWeave quantization for group %d because "
-+                        "estimated serialized size %d does not meet threshold for raw %d",
-+                        idx,
-+                        serialized_nbytes,
-+                        raw_nbytes,
-+                    )
-+                    continue
-+                self._group_store_layout_descs[idx] = serialized_desc
-+                self._group_codec_modes[idx] = GroupCodecMode.KVWEAVE_QUANT
-+                kvweave_quant_active = True
-+
-         future = send_request(
-             mq_client,
-             RequestType.REGISTER_KV_CACHE_NON_GPU_CONTEXT,
-@@ -448,6 +801,15 @@ class DataTransferContext(TransferContext):
-                     dtype_str=dtype_str,
-                     use_mla=use_mla_flag,
-                     engine_group_infos=list(engine_group_infos),
-+                    group_layout_descs=(
-+                        [
-+                            serialize_memory_layout_desc(layout_desc)
-+                            for layout_desc in self._group_store_layout_descs
-+                        ]
-+                        if kvweave_quant_active
-+                        else None
-+                    ),
-+                    enable_l1_kvweave_quant=kvweave_quant_active,
-                 )
-             ],
-         )
-@@ -498,15 +860,33 @@ class DataTransferContext(TransferContext):
-         out_buffers, chunk_indices = result if result is not None else (None, None)
-         # All chunks already in cache — nothing to gather or commit.
-         if chunk_indices is not None and len(chunk_indices) == 0:
--            future: MessagingFuture[bool] = MessagingFuture()
--            future.set_result(True)
--            return future
-+            return self._resolved_future(True)
-         cpu_chunks: list[torch.Tensor] = []
-         group_offset = 0
--        for _group_info, group_kv_caches, group_block_ids, group_blocks_in_chunk in self._iter_transfer_groups(
--            kv_caches, block_ids, blocks_in_chunk
-+        for group_index, (
-+            _group_info,
-+            group_kv_caches,
-+            group_block_ids,
-+            group_blocks_in_chunk,
-+        ) in enumerate(
-+            self._iter_transfer_groups(kv_caches, block_ids, blocks_in_chunk)
-         ):
-             num_group_chunks = len(group_block_ids) // group_blocks_in_chunk
-+            codec_mode = (
-+                self._group_codec_modes[group_index]
-+                if group_index < len(self._group_codec_modes)
-+                else GroupCodecMode.RAW
-+            )
-+            group_scaling_method = (
-+                self._group_quant_scaling_methods[group_index]
-+                if group_index < len(self._group_quant_scaling_methods)
-+                else self._group_scaling_method_for_group(_group_info)
-+            )
-+            group_store_layout = (
-+                self._group_store_layout_descs[group_index]
-+                if group_index < len(self._group_store_layout_descs)
-+                else None
-+            )
-             if chunk_indices is None:
-                 group_chunk_indices = None
-                 group_out_buffers = None
-@@ -523,31 +903,124 @@ class DataTransferContext(TransferContext):
-                     else None
-                 )
-             if chunk_indices is None or group_chunk_indices:
--                group_out_buffers = self._chunk_views_for_group(
--                    group_out_buffers,
--                    _group_info,
--                    len(group_kv_caches),
--                )
--                cpu_chunks.extend(
--                    gather_paged_kv_to_cpu(
-+                if codec_mode is GroupCodecMode.RAW:
-+                    group_out_buffers = self._chunk_views_for_group(
-+                        group_out_buffers,
-+                        _group_info,
-+                        len(group_kv_caches),
-+                    )
-+                    cpu_chunks.extend(
-+                        gather_paged_kv_to_cpu(
-+                            group_kv_caches,
-+                            group_block_ids,
-+                            group_blocks_in_chunk,
-+                            layout_hints=self._layout_hints,
-+                            gpu_kv_format=self._gpu_kv_format,
-+                            out=group_out_buffers,
-+                            chunk_indices=group_chunk_indices,
-+                        )
-+                    )
-+                else:
-+                    if self._kvweave_codec is None or _copy_bytes_to_tensor is None:
-+                        logger.error("KVWeave codec is not initialized for quantized store")
-+                        return self._resolved_future(False)
-+
-+                    raw_chunks = gather_paged_kv_to_cpu(
-                         group_kv_caches,
-                         group_block_ids,
-                         group_blocks_in_chunk,
-                         layout_hints=self._layout_hints,
-                         gpu_kv_format=self._gpu_kv_format,
--                        out=group_out_buffers,
-+                        out=None,
-                         chunk_indices=group_chunk_indices,
-                     )
--                )
-+
-+                    mamba_real_layout = (
-+                        _group_info.mamba_real_layout
-+                        if _group_info is not None
-+                        else None
-+                    )
-+
-+                    def _serialize_chunk(raw_chunk: torch.Tensor) -> bytes:
-+                        if mamba_real_layout is not None:
-+                            assert _group_info is not None
-+                            split = split_mamba_chunk(
-+                                raw_chunk,
-+                                mamba_real_layout,
-+                                _group_info.tokens_per_block,
-+                            )
-+                            return pack_mamba_payloads(
-+                                quantize_mamba_substate_4bit(
-+                                    split.conv,
-+                                    substate="conv",
-+                                    scaling_method=self._kvweave_conv_scaling_method,
-+                                    rh=self._kvweave_conv_rh,
-+                                    asym=self._kvweave_linear_asym,
-+                                ),
-+                                quantize_mamba_substate_4bit(
-+                                    split.ssm,
-+                                    substate="ssm",
-+                                    scaling_method=self._kvweave_ssm_scaling_method,
-+                                    rh=self._kvweave_ssm_rh,
-+                                    asym=self._kvweave_linear_asym,
-+                                ),
-+                            )
-+                        return self._kvweave_codec.serialize_tensor(
-+                            raw_chunk,
-+                            scaling_method=group_scaling_method,
-+                        )
-+
-+                    if group_out_buffers is not None:
-+                        if len(raw_chunks) != len(group_out_buffers):
-+                            logger.error(
-+                                "Mismatched SHM slots for quantized group: chunks=%d slots=%d",
-+                                len(raw_chunks),
-+                                len(group_out_buffers),
-+                            )
-+                            return self._resolved_future(False)
-+                        for raw_chunk, dst_tensor in zip(
-+                            raw_chunks, group_out_buffers, strict=True
-+                        ):
-+                            try:
-+                                payload = _serialize_chunk(raw_chunk)
-+                                _copy_bytes_to_tensor(payload, dst_tensor)
-+                            except (RuntimeError, ValueError, TypeError):
-+                                logger.exception(
-+                                    "Failed to serialize quantized store chunk into SHM slot"
-+                                )
-+                                return self._resolved_future(False)
-+                    else:
-+                        if group_store_layout is None:
-+                            logger.error("Missing store layout for quantized group")
-+                            return self._resolved_future(False)
-+                        serialized_size = int(group_store_layout.shapes[0][0])
-+                        for raw_chunk in raw_chunks:
-+                            try:
-+                                payload = _serialize_chunk(raw_chunk)
-+                                if len(payload) > serialized_size:
-+                                    logger.error(
-+                                        "Quantized payload size %d exceeds reserved slot %d",
-+                                        len(payload),
-+                                        serialized_size,
-+                                    )
-+                                    return self._resolved_future(False)
-+                                dst_tensor = torch.empty(
-+                                    (serialized_size,), dtype=torch.uint8
-+                                )
-+                                _copy_bytes_to_tensor(payload, dst_tensor)
-+                                cpu_chunks.append(dst_tensor)
-+                            except (RuntimeError, ValueError, TypeError):
-+                                logger.exception(
-+                                    "Failed to serialize quantized store chunk"
-+                                )
-+                                return self._resolved_future(False)
-             group_offset += num_group_chunks
-         if out_buffers is not None:
-             # SHM path uses async device->CPU copies; complete them before commit.
-             torch_dev.synchronize()
-         ok = self._non_gpu_context.commit_store(key, instance_id, cpu_chunks)
- 
--        future = MessagingFuture()
--        future.set_result(ok)
--        return future
-+        return self._resolved_future(ok)
- 
-     def submit_retrieve(
-         self,
-@@ -571,16 +1044,67 @@ class DataTransferContext(TransferContext):
-         if src_buffers is not None:
-             try:
-                 group_offset = 0
--                for _group_info, group_kv_caches, group_block_ids, group_blocks_in_chunk in self._iter_transfer_groups(
--                    kv_caches, block_ids, blocks_in_chunk
-+                for group_index, (
-+                    _group_info,
-+                    group_kv_caches,
-+                    group_block_ids,
-+                    group_blocks_in_chunk,
-+                ) in enumerate(
-+                    self._iter_transfer_groups(kv_caches, block_ids, blocks_in_chunk)
-                 ):
-                     num_group_chunks = len(group_block_ids) // group_blocks_in_chunk
-                     group_chunks = src_buffers[group_offset : group_offset + num_group_chunks]
--                    group_chunks = self._chunk_views_for_group(
--                        group_chunks,
--                        _group_info,
--                        len(group_kv_caches),
-+                    codec_mode = (
-+                        self._group_codec_modes[group_index]
-+                        if group_index < len(self._group_codec_modes)
-+                        else GroupCodecMode.RAW
-                     )
-+                    if codec_mode is GroupCodecMode.RAW:
-+                        group_chunks = self._chunk_views_for_group(
-+                            group_chunks,
-+                            _group_info,
-+                            len(group_kv_caches),
-+                        )
-+                    else:
-+                        if self._kvweave_codec is None:
-+                            raise RuntimeError(
-+                                "KVWeave codec is not initialized for quantized retrieve"
-+                            )
-+                        if group_index >= len(self._group_raw_layout_descs):
-+                            raise RuntimeError(
-+                                f"missing raw layout for quantized group {group_index}"
-+                            )
-+                        raw_layout = self._group_raw_layout_descs[group_index]
-+                        raw_shape = raw_layout.shapes[0]
-+                        raw_dtype = raw_layout.dtypes[0]
-+                        mamba_real_layout = (
-+                            _group_info.mamba_real_layout
-+                            if _group_info is not None
-+                            else None
-+                        )
-+                        decoded_chunks: list[torch.Tensor] = []
-+                        for chunk in group_chunks:
-+                            if mamba_real_layout is not None:
-+                                assert _group_info is not None
-+                                conv_payload, ssm_payload = unpack_mamba_payloads(
-+                                    bytes(chunk.numpy().tobytes())
-+                                )
-+                                split = MambaChunkSplit(
-+                                    conv=dequantize_mamba_substate_4bit(conv_payload),
-+                                    ssm=dequantize_mamba_substate_4bit(ssm_payload),
-+                                )
-+                                hidden_dim = int(raw_shape[-1])
-+                                scratch = merge_mamba_chunk(
-+                                    split,
-+                                    mamba_real_layout,
-+                                    _group_info.tokens_per_block,
-+                                    hidden_dim,
-+                                )
-+                            else:
-+                                scratch = torch.empty(raw_shape, dtype=raw_dtype)
-+                                self._kvweave_codec.deserialize_tensor(chunk, scratch)
-+                            decoded_chunks.append(scratch)
-+                        group_chunks = decoded_chunks
-                     scatter_cpu_to_paged_kv(
-                         group_kv_caches,
-                         group_block_ids,
-@@ -599,9 +1123,7 @@ class DataTransferContext(TransferContext):
-             torch_dev.synchronize()
-         self._non_gpu_context.commit_retrieve(key, instance_id)
- 
--        future: MessagingFuture[bool] = MessagingFuture()
--        future.set_result(ok)
--        return future
-+        return self._resolved_future(ok)
- 
-     def close(self) -> None:
-         if self._non_gpu_context is not None:
-@@ -612,7 +1134,7 @@ class DataTransferContext(TransferContext):
- def create_transfer_context(
-     kv_caches: dict[str, torch.Tensor],
-     mode: "str | MPTransferMode | None" = None,
--    **_kwargs: Any,
-+    **kwargs: Any,
- ) -> TransferContext:
-     """Create a transfer context from KV cache device type.
- 
-@@ -651,9 +1173,165 @@ def create_transfer_context(
-     )
-     if resolved_mode is MPTransferMode.HANDLE:
-         return _build_handle_context(device_type)
-+    kvweave_quant_enabled = _parse_flag_value(
-+        kwargs.get(
-+            "enable_l1_kvweave_quant",
-+            kwargs.get(
-+                "l1_kvweave_quant",
-+                _parse_env_flag(ENV_MP_L1_KVWEAVE_QUANT, default=True),
-+            ),
-+        )
-+    )
-+    kvweave_num_kv_heads = int(
-+        kwargs.get(
-+            "kvweave_num_kv_heads",
-+            os.environ.get(ENV_MP_KVWEAVE_NUM_KV_HEADS, "4"),
-+        )
-+    )
-+    kvweave_head_dim = int(
-+        kwargs.get(
-+            "kvweave_head_dim",
-+            os.environ.get(ENV_MP_KVWEAVE_HEAD_DIM, "256"),
-+        )
-+    )
-+    kvweave_precond = _parse_flag_value(
-+        kwargs.get(
-+            "kvweave_precond",
-+            _parse_env_flag(ENV_MP_KVWEAVE_PRECOND, default=True),
-+        )
-+    )
-+    kvweave_num_threads = int(
-+        kwargs.get(
-+            "kvweave_num_threads",
-+            os.environ.get(ENV_MP_KVWEAVE_NUM_THREADS, "8"),
-+        )
-+    )
-+    kvweave_scaling_method = str(
-+        kwargs.get(
-+            "kvweave_scaling_method",
-+            os.environ.get(ENV_MP_KVWEAVE_SCALING_METHOD, "per_channel"),
-+        )
-+    )
-+    kvweave_linear_quant_enabled = _parse_flag_value(
-+        kwargs.get(
-+            "kvweave_linear_quant_enabled",
-+            _parse_env_flag(ENV_MP_KVWEAVE_LINEAR_QUANT_ENABLED, default=True),
-+        )
-+    )
-+    kvweave_linear_rh = _parse_flag_value(
-+        kwargs.get(
-+            "kvweave_linear_rh",
-+            _parse_env_flag(ENV_MP_KVWEAVE_LINEAR_RH, default=False),
-+        )
-+    )
-+    kvweave_linear_asym = _parse_flag_value(
-+        kwargs.get(
-+            "kvweave_linear_asym",
-+            _parse_env_flag(ENV_MP_KVWEAVE_LINEAR_ASYM, default=True),
-+        )
-+    )
-+    kvweave_linear_precond = _parse_flag_value(
-+        kwargs.get(
-+            "kvweave_linear_precond",
-+            _parse_env_flag(ENV_MP_KVWEAVE_LINEAR_PRECOND, default=False),
-+        )
-+    )
-+    kvweave_linear_scaling_method = str(
-+        kwargs.get(
-+            "kvweave_linear_scaling_method",
-+            os.environ.get(ENV_MP_KVWEAVE_LINEAR_SCALING_METHOD, "per_tensor"),
-+        )
-+    )
-+    if kvweave_linear_scaling_method not in _KVWEAVE_SCALING_METHODS:
-+        raise ValueError(
-+            f"Invalid {ENV_MP_KVWEAVE_LINEAR_SCALING_METHOD}="
-+            f"{kvweave_linear_scaling_method!r}; expected one of "
-+            f"{sorted(_KVWEAVE_SCALING_METHODS)}"
-+        )
-+    kvweave_conv_scaling_method = str(
-+        kwargs.get(
-+            "kvweave_conv_scaling_method",
-+            os.environ.get(
-+                ENV_MP_KVWEAVE_CONV_SCALING_METHOD, kvweave_linear_scaling_method
-+            ),
-+        )
-+    )
-+    if kvweave_conv_scaling_method not in _KVWEAVE_SCALING_METHODS:
-+        raise ValueError(
-+            f"Invalid {ENV_MP_KVWEAVE_CONV_SCALING_METHOD}="
-+            f"{kvweave_conv_scaling_method!r}; expected one of "
-+            f"{sorted(_KVWEAVE_SCALING_METHODS)}"
-+        )
-+    kvweave_conv_rh = _parse_flag_value(
-+        kwargs.get(
-+            "kvweave_conv_rh",
-+            _parse_env_flag(ENV_MP_KVWEAVE_CONV_RH, default=kvweave_linear_rh),
-+        )
-+    )
-+    if kvweave_conv_rh and kvweave_conv_scaling_method in (
-+        _UNSUPPORTED_CONV_RH_SCALING_METHODS
-+    ):
-+        logger.debug(
-+            "rh is not supported for conv with scaling_method=%r "
-+            "(conv has no real head axis); falling back to "
-+            "scaling_method='per_tensor', rh=False",
-+            kvweave_conv_scaling_method,
-+        )
-+        kvweave_conv_scaling_method = "per_tensor"
-+        kvweave_conv_rh = False
-+    kvweave_ssm_scaling_method = str(
-+        kwargs.get(
-+            "kvweave_ssm_scaling_method",
-+            os.environ.get(ENV_MP_KVWEAVE_SSM_SCALING_METHOD, "per_channel"),
-+        )
-+    )
-+    if kvweave_ssm_scaling_method not in _KVWEAVE_SCALING_METHODS:
-+        raise ValueError(
-+            f"Invalid {ENV_MP_KVWEAVE_SSM_SCALING_METHOD}="
-+            f"{kvweave_ssm_scaling_method!r}; expected one of "
-+            f"{sorted(_KVWEAVE_SCALING_METHODS)}"
-+        )
-+    kvweave_ssm_rh = _parse_flag_value(
-+        kwargs.get(
-+            "kvweave_ssm_rh",
-+            _parse_env_flag(ENV_MP_KVWEAVE_SSM_RH, default=True),
-+        )
-+    )
-     if resolved_mode is MPTransferMode.DATA:
--        return DataTransferContext()
-+        return DataTransferContext(
-+            enable_l1_kvweave_quant=kvweave_quant_enabled,
-+            kvweave_num_kv_heads=kvweave_num_kv_heads,
-+            kvweave_head_dim=kvweave_head_dim,
-+            kvweave_precond=kvweave_precond,
-+            kvweave_num_threads=kvweave_num_threads,
-+            kvweave_scaling_method=kvweave_scaling_method,
-+            kvweave_linear_quant_enabled=kvweave_linear_quant_enabled,
-+            kvweave_linear_rh=kvweave_linear_rh,
-+            kvweave_linear_asym=kvweave_linear_asym,
-+            kvweave_linear_precond=kvweave_linear_precond,
-+            kvweave_linear_scaling_method=kvweave_linear_scaling_method,
-+            kvweave_conv_scaling_method=kvweave_conv_scaling_method,
-+            kvweave_conv_rh=kvweave_conv_rh,
-+            kvweave_ssm_scaling_method=kvweave_ssm_scaling_method,
-+            kvweave_ssm_rh=kvweave_ssm_rh,
-+        )
-     # AUTO: preserve the historical device-type-based dispatch.
-     if device_type == "cuda":
-         return HandleTransferContext()
--    return DataTransferContext()
-+    return DataTransferContext(
-+        enable_l1_kvweave_quant=kvweave_quant_enabled,
-+        kvweave_num_kv_heads=kvweave_num_kv_heads,
-+        kvweave_head_dim=kvweave_head_dim,
-+        kvweave_precond=kvweave_precond,
-+        kvweave_num_threads=kvweave_num_threads,
-+        kvweave_scaling_method=kvweave_scaling_method,
-+        kvweave_linear_quant_enabled=kvweave_linear_quant_enabled,
-+        kvweave_linear_rh=kvweave_linear_rh,
-+        kvweave_linear_asym=kvweave_linear_asym,
-+        kvweave_linear_precond=kvweave_linear_precond,
-+        kvweave_linear_scaling_method=kvweave_linear_scaling_method,
-+        kvweave_conv_scaling_method=kvweave_conv_scaling_method,
-+        kvweave_conv_rh=kvweave_conv_rh,
-+        kvweave_ssm_scaling_method=kvweave_ssm_scaling_method,
-+        kvweave_ssm_rh=kvweave_ssm_rh,
-+    )
-diff --git a/tests/test_setup_backend_selection.py b/tests/test_setup_backend_selection.py
-old mode 100644
-new mode 100755
 diff --git a/tests/v1/multiprocess/test_mamba_quant.py b/tests/v1/multiprocess/test_mamba_quant.py
 new file mode 100644
 index 00000000..e14afe8c
@@ -3898,218 +4428,3 @@ index 00000000..e14afe8c
 +
 +        assert restored.shape == tensor.shape
 +        assert (restored - tensor).abs().max().item() < 1.0
-diff --git a/tests/v1/multiprocess/test_worker_transfer.py b/tests/v1/multiprocess/test_worker_transfer.py
-old mode 100644
-new mode 100755
-index 4ec99a52..4f29e748
---- a/tests/v1/multiprocess/test_worker_transfer.py
-+++ b/tests/v1/multiprocess/test_worker_transfer.py
-@@ -3,8 +3,14 @@ from unittest.mock import MagicMock, patch
- 
- import torch
- 
-+from lmcache.v1.distributed.api import MemoryLayoutDesc
- from lmcache.v1.multiprocess.group_view import EngineGroupInfo
--from lmcache.v1.multiprocess.transfer_context.worker_transfer import DataTransferContext
-+from lmcache.v1.multiprocess.transfer_context.worker_transfer import (
-+    DataTransferContext,
-+    ENV_MP_KVWEAVE_LINEAR_QUANT_ENABLED,
-+    GroupCodecMode,
-+    create_transfer_context,
-+)
- 
- 
- class _FakeNonGpuContext:
-@@ -55,4 +61,139 @@ def test_submit_store_narrows_full_layer_shm_chunk_to_engine_group():
-     assert group_out[0].shape == (2, 6, 4, 8)
-     group_out[0].fill_(3)
-     assert torch.all(full_chunk[:, :6] == 3)
--    assert torch.all(full_chunk[:, 6:] == 0)
-\ No newline at end of file
-+    assert torch.all(full_chunk[:, 6:] == 0)
-+
-+
-+def test_group_scaling_method_linear_forced_per_tensor_attention_uses_default():
-+    ctx = DataTransferContext(kvweave_scaling_method="per_channel")
-+    linear_group = EngineGroupInfo(
-+        engine_group_id=0,
-+        layer_indices=(0,),
-+        tokens_per_block=4,
-+        cache_category="mamba",
-+    )
-+    attention_group = EngineGroupInfo(
-+        engine_group_id=1,
-+        layer_indices=(1,),
-+        tokens_per_block=4,
-+        cache_category="attention",
-+    )
-+
-+    assert ctx._group_scaling_method_for_group(linear_group) == "per_tensor"
-+    assert ctx._group_scaling_method_for_group(attention_group) == "per_channel"
-+
-+
-+def test_submit_store_quant_group_uses_group_scaling_method():
-+    ctx = DataTransferContext(kvweave_scaling_method="per_channel")
-+    fake_non_gpu_context = _FakeNonGpuContext([])
-+    ctx._non_gpu_context = fake_non_gpu_context
-+    ctx._engine_group_infos = [
-+        EngineGroupInfo(
-+            engine_group_id=0,
-+            layer_indices=(0,),
-+            tokens_per_block=4,
-+            cache_category="mamba",
-+        )
-+    ]
-+    ctx._chunk_size_tokens = 4
-+    ctx._group_codec_modes = [GroupCodecMode.KVWEAVE_QUANT]
-+    ctx._group_raw_layout_descs = [
-+        MemoryLayoutDesc(
-+            shapes=[torch.Size([2, 1, 4, 8])],
-+            dtypes=[torch.float16],
-+        )
-+    ]
-+    ctx._group_store_layout_descs = [
-+        MemoryLayoutDesc(
-+            shapes=[torch.Size([1024])],
-+            dtypes=[torch.uint8],
-+        )
-+    ]
-+    ctx._group_quant_scaling_methods = ["per_tensor"]
-+    ctx._kvweave_codec = MagicMock()
-+    ctx._kvweave_codec.serialize_tensor.return_value = b"\x01\x02"
-+
-+    kv_caches = {"layer_0": torch.empty(2, 1, 4, 1, 8)}
-+
-+    with (
-+        patch("lmcache.v1.multiprocess.transfer_context.worker_transfer.torch_dev.synchronize"),
-+        patch(
-+            "lmcache.v1.multiprocess.transfer_context.worker_transfer.gather_paged_kv_to_cpu",
-+            return_value=[torch.empty(2, 1, 4, 8)],
-+        ),
-+        patch(
-+            "lmcache.v1.multiprocess.transfer_context.worker_transfer._copy_bytes_to_tensor",
-+            lambda _payload, _dst: None,
-+        ),
-+    ):
-+        future = ctx.submit_store(
-+            "req",
-+            object(),
-+            0,
-+            kv_caches,
-+            [[0]],
-+            MagicMock(),
-+            1,
-+        )
-+
-+    assert future.result() is True
-+    assert ctx._kvweave_codec.serialize_tensor.call_count == 1
-+    _, kwargs = ctx._kvweave_codec.serialize_tensor.call_args
-+    assert kwargs.get("scaling_method") == "per_tensor"
-+
-+
-+def test_serialized_size_gate_relaxed_only_for_linear_groups():
-+    ctx = DataTransferContext()
-+    ctx._kvweave_linear_max_size_ratio = 1.20
-+
-+    linear_group = EngineGroupInfo(
-+        engine_group_id=0,
-+        layer_indices=(0,),
-+        tokens_per_block=4,
-+        cache_category="mamba",
-+    )
-+    attention_group = EngineGroupInfo(
-+        engine_group_id=1,
-+        layer_indices=(1,),
-+        tokens_per_block=4,
-+        cache_category="attention",
-+    )
-+
-+    # 10% overhead is allowed for linear/mamba groups.
-+    assert ctx._is_serialized_size_acceptable(100, 110, linear_group)
-+    # Attention groups remain strict: must be smaller than raw.
-+    assert not ctx._is_serialized_size_acceptable(100, 110, attention_group)
-+    assert not ctx._is_serialized_size_acceptable(100, 100, attention_group)
-+    assert ctx._is_serialized_size_acceptable(100, 99, attention_group)
-+
-+
-+def test_should_attempt_group_quant_respects_linear_toggle():
-+    linear_group = EngineGroupInfo(
-+        engine_group_id=0,
-+        layer_indices=(0,),
-+        tokens_per_block=4,
-+        cache_category="mamba",
-+    )
-+    attention_group = EngineGroupInfo(
-+        engine_group_id=1,
-+        layer_indices=(1,),
-+        tokens_per_block=4,
-+        cache_category="attention",
-+    )
-+
-+    enabled_ctx = DataTransferContext(kvweave_linear_quant_enabled=True)
-+    assert enabled_ctx._should_attempt_group_quant(linear_group)
-+    assert enabled_ctx._should_attempt_group_quant(attention_group)
-+
-+    disabled_ctx = DataTransferContext(kvweave_linear_quant_enabled=False)
-+    assert not disabled_ctx._should_attempt_group_quant(linear_group)
-+    assert disabled_ctx._should_attempt_group_quant(attention_group)
-+
-+
-+def test_create_transfer_context_reads_linear_quant_env_toggle():
-+    kv_caches = {"layer0": torch.empty(1, device="cpu")}
-+    with patch.dict(os.environ, {ENV_MP_KVWEAVE_LINEAR_QUANT_ENABLED: "0"}, clear=False):
-+        ctx = create_transfer_context(kv_caches, mode="data")
-+
-+    assert isinstance(ctx, DataTransferContext)
-+    assert ctx._kvweave_linear_quant_enabled is False
-\ No newline at end of file
-diff --git a/tests/v1/test_kv_cache_groups.py b/tests/v1/test_kv_cache_groups.py
-index b7a0f51a..919c124a 100644
---- a/tests/v1/test_kv_cache_groups.py
-+++ b/tests/v1/test_kv_cache_groups.py
-@@ -53,6 +53,7 @@ def test_engine_group_info_old_payload_defaults_sw_size():
-     )
- 
-     assert decoded.sw_size_tokens == -1
-+    assert decoded.cache_category == "unknown"
- 
- 
- def test_engine_group_infos_msgspec_round_trip():
-diff --git a/tests/v1/test_vllm_kv_cache_groups.py b/tests/v1/test_vllm_kv_cache_groups.py
-index 021a72cb..cef41423 100644
---- a/tests/v1/test_vllm_kv_cache_groups.py
-+++ b/tests/v1/test_vllm_kv_cache_groups.py
-@@ -43,6 +43,11 @@ class FullAttentionSpec:
-     sliding_window: "int | None" = None
- 
- 
-+@dataclass
-+class MambaSpec:
-+    block_size: int
-+
-+
- @dataclass
- class UniformTypeKVCacheSpecs:
-     block_size: int
-@@ -94,6 +99,21 @@ def test_conversion_preserves_engine_group_layers():
-     assert num_engine_groups(spec) == 2
-     assert get_engine_group_indices(spec, 4) == [0, 1, 0, 1]
-     assert [group.tokens_per_block for group in spec] == [16, 16]
-+    assert [group.cache_category for group in spec] == ["attention", "attention"]
-+
-+
-+def test_conversion_marks_mamba_groups_as_non_attention():
-+    spec = create_engine_group_infos_from_vllm(
-+        MockKVCacheConfig(
-+            kv_cache_groups=[
-+                MockKVCacheGroup(["layer.0"], MambaSpec(block_size=16)),
-+                MockKVCacheGroup(["layer.1"], FullAttentionSpec(block_size=16)),
-+            ]
-+        ),
-+        _same_shape_caches(["layer.0", "layer.1"]),
-+    )
-+
-+    assert [group.cache_category for group in spec] == ["mamba", "attention"]
- 
- 
- def test_conversion_splits_by_lmcache_layer_identity():

@@ -1,6 +1,6 @@
 # Get Started
 
-The **Multimodal DataPrep microservice** builds and stores frame-level, image, and text embeddings in the configured vector database — VDMS by default, or Milvus — while preserving the raw assets in the configured object storage — MinIO by default, or the local filesystem. This guide explains how to launch the service, configure runtime options, and exercise the primary APIs. Backend selection is covered in [Pluggable Backends](pluggable-backends.md); this walkthrough uses the default VDMS + MinIO stack.
+The **Multimodal DataPrep microservice** builds and stores frame-level, image, and text embeddings in the configured vector database — VDMS by default, or Milvus — while preserving the raw assets in the configured object storage — MinIO by default, or the local filesystem. This guide explains how to launch the service, configure runtime options, and exercise the primary APIs. Backend selection is covered in [Pluggable Backends](./pluggable-backends.md); this walkthrough uses the default VDMS + MinIO stack.
 
 ## Configuration and Setup
 
@@ -10,14 +10,14 @@ Multimodal DataPrep ships with Docker Compose manifests (`docker/compose*.yaml`)
 
 Before you begin, ensure the following:
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
+- **System Requirements**: Verify that your system meets the [minimum requirements](./get-started/system-requirements.md).
 - **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
 
 ## Environment Variables
 
-The table below lists the core configuration knobs. `setup.sh` seeds defaults, but you can override them before sourcing the script. The defaults below assume the **VDMS + MinIO** backends; to run against **Milvus** or **local filesystem** storage, set the backend selectors below and see [Pluggable Backends](pluggable-backends.md) for the full backend-specific reference.
+The table below lists the core configuration knobs. `setup.sh` seeds defaults, but you can override them before sourcing the script. The defaults below assume the **VDMS + MinIO** backends; to run against **Milvus** or **local filesystem** storage, set the backend selectors below and see [Pluggable Backends](./pluggable-backends.md) for the full backend-specific reference.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
@@ -147,27 +147,19 @@ Or configure it in `src/config.yaml` under `object_detection.roi_consolidation`:
 
 Use `source ./setup.sh --conf` to print the resolved Docker Compose configuration with your overrides applied.
 
-## Supporting Resources
-
-- [Overview](Overview.md)
-- [Architecture Overview](./overview-architecture.md)
-- [Media Ingestion Flow](./media-ingestion-flow.md) - Detailed flow diagrams of the video and image processing pipelines
-- [API Reference](api-reference.md)
-- [System Requirements](system-requirements.md)
-
 ## Quick Start with Docker
 
 > **Important:** Do not run `docker build` directly against `docker/Dockerfile` from the `multimodal-dataprep` directory. Always execute `./build.sh` so the build uses the `microservices/` context and includes the local `multimodal-embedding-serving` source dependency.
 
-The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
+The user has an option to either [build the docker images](./get-started/build-from-source.md#steps-to-build) or use prebuilt images as documented below.
 
 **Configure the registry**:
-   The Multimodal DataPrep microservice uses the registry URL and tag to pull the required image.
+The Multimodal DataPrep microservice uses the registry URL and tag to pull the required image.
 
-    ```bash
-    export REGISTRY_URL=intel
-    export TAG=latest
-    ```
+```bash
+export REGISTRY_URL=intel
+export TAG=latest
+```
 
 1. **Clone the repository and enter the project.**
 
@@ -252,7 +244,6 @@ curl -X POST "http://localhost:6007/v1/dataprep/media/ingest" \
   -d '{"type": "image_url", "image_url": "https://example.com/cat.jpg"}'
 ```
 
-
 ### Process an existing video in MinIO
 
 ```bash
@@ -318,11 +309,21 @@ See the [Telemetry Metrics](telemetry-metrics.md) reference for a complete break
    - The MinIO console (`http://localhost:6011`) shows the raw asset, thumbnails, and crops.
 3. Inspect the vector database to verify entries in the `video-rag-test` collection (for the default VDMS backend, use `vdms_cli` or a custom client; for Milvus, use a Milvus client such as `pymilvus` or Attu).
 
-## Troubleshooting
+## Supporting Resources
 
-- **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before sourcing `setup.sh` or set `MM_DATAPREP_EMBEDDING_MODEL_NAME` in the container environment before launching Docker.
-- **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
-- **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/media/process` instead.
-- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `GPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`.
-- **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `NPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
-- **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `MM_DATAPREP_OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.
+- [Overview](index.md)
+- [System Requirements](./get-started/system-requirements.md)
+- [Architecture Overview](./how-it-works-architecture.md)
+- [Media Ingestion Flow](./how-it-works-ingestion-flow.md) - Detailed flow diagrams of the video and image processing pipelines
+- [API Reference](./api-reference.md)
+- [Troubleshooting](./troubleshooting.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+./get-started/system-requirements.md
+./get-started/build-from-source.md
+
+:::
+hide_directive-->

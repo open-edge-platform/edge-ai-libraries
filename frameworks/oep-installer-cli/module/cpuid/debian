@@ -1,0 +1,15 @@
+
+debian_10_install_cpuid () {
+  if ensure_apt_is_installed cpuid; then
+    echo "Cpuid is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y cpuid
+  fi
+}
+
+debian_10_sbom_cpuid () {
+  cat <<EOF
+"pkg-list": ["cpuid"]
+EOF
+}

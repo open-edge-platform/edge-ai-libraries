@@ -4,8 +4,14 @@
 #   docker compose up -d --build
 #
 # Override via env (no .env file required; all vars have :-default fallbacks):
-#   LINGUA_DEVICE=cpu docker compose up -d --build
+#   LINGUA_DEVICE=cpu docker compose up -d --build        # pytorch: cpu/cuda/xpu
+#   LINGUA_DEVICE=cpu docker compose --profile ov up      # ov: cpu/gpu (default gpu)
 #   LINGUA_PORT=9000  docker compose up -d --build
+#
+# Devices are lowercase & case-insensitive. LINGUA_DEVICE is shared by both
+# services: pytorch accepts cpu/cuda/xpu, ov accepts cpu/gpu (default gpu).
+# So don't set a pytorch-only value (xpu) when running the ov profile; gpu needs
+# /dev/dri passthrough.
 #
 # Security — publish bind address (LINGUA_BIND_HOST, default 127.0.0.1):
 #   The port is published to the host loopback ONLY by default, so the server
@@ -44,8 +50,9 @@ services:
     environment:
       - LINGUA_PORT=8001
       - LINGUA_BACKEND=pytorch
+      # pytorch devices (lowercase): cpu / cuda / xpu. Default xpu.
       - LINGUA_DEVICE=${LINGUA_DEVICE:-xpu}
-      - LINGUA_XPU_INDEX=${LINGUA_XPU_INDEX:-0}
+      - LINGUA_DEVICE_INDEX=${LINGUA_DEVICE_INDEX:-0}
       - LINGUA_MODE=${LINGUA_MODE:-llmlingua2}
       - LINGUA_MODEL_NAME_ID=${LINGUA_MODEL_NAME_ID:-}
       - HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-0}
@@ -92,8 +99,12 @@ services:
     environment:
       - LINGUA_PORT=8001
       - LINGUA_BACKEND=ov
-      - LINGUA_DEVICE=${LINGUA_DEVICE:-xpu}
-      - LINGUA_XPU_INDEX=${LINGUA_XPU_INDEX:-0}
+      # ov devices (lowercase): cpu / gpu. Default gpu when LINGUA_DEVICE is
+      # unset. NOTE: LINGUA_DEVICE is shared with the pytorch service — ov does NOT
+      # accept pytorch's "xpu", so a global LINGUA_DEVICE=xpu is rejected here.
+      # Run the ov profile with an ov-valid value, e.g. LINGUA_DEVICE=cpu.
+      - LINGUA_DEVICE=${LINGUA_DEVICE:-gpu}
+      - LINGUA_DEVICE_INDEX=${LINGUA_DEVICE_INDEX:-0}
       - LINGUA_MODE=${LINGUA_MODE:-llmlingua2}
       - LINGUA_MODEL_NAME_ID=${LINGUA_MODEL_NAME_ID:-}
       - HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-0}
@@ -105,7 +116,7 @@ services:
       - lingua-models:/home/user/.cache/huggingface
     devices:
       # Intel GPU passthrough. Harmless on CPU hosts (LINGUA_DEVICE=cpu skips
-      # OpenVINO XPU code paths). Comment out only if your docker daemon refuses
+      # OpenVINO GPU code paths). Comment out only if your docker daemon refuses
       # /dev/dri because the device file does not exist.
       - /dev/dri:/dev/dri
     group_add:

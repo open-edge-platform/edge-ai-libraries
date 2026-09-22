@@ -101,6 +101,7 @@ jobs:
           scan-scope: "all"  
           output-format: "txt" 
           fail-on-findings: "true"
+          severity-level: "HIGH"
           paths: "microservices/visual-data-preparation-for-retrieval/milvus"
           report_suffix: "-bandit-dataprep-visualdata-milvus-CT161"
 

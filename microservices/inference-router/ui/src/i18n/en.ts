@@ -127,8 +127,8 @@ export default {
     routerProviderDetailTitle: "Provider details",
     routerProviderBasicInfo: "Basic information",
     routerProviderNamePlaceholder: "Use letters, numbers, or underscores",
-    routerProviderTypePlaceholder: "Select provider type",
-    routerProviderModelPlaceholder: "Select model",
+    routerProviderTypePlaceholder: "Enter provider type",
+    routerProviderModelPlaceholder: "Enter model name",
     routerProviderEnabledTip: "Enable this provider",
     routerProviderJsonPlaceholder: "Enter JSON. Empty value saves as {}",
     routerProviderNameRequired: "Please enter provider name",
@@ -140,6 +140,51 @@ export default {
     routerProviderDeleteConfirmTitle: "Delete provider",
     routerProviderDeleteConfirmContent:
       'Are you sure to delete "{name}"? It cannot be restored after deletion.',
+    routerPluginConfigTitle: "Plugins",
+    routerPluginConfigCaption:
+      "Manage configured plugin instances and inspect registered plugin nodes with their settings schemas.",
+    routerPluginInstancesTab: "Plugin instances",
+    routerPluginNodesTab: "Plugin nodes",
+    routerPluginName: "Instance name",
+    routerPluginNode: "Plugin node",
+    routerPluginGroup: "Plugin group",
+    routerPluginTrigger: "Trigger phase",
+    routerPluginEnabled: "Enabled",
+    routerPluginSettings: "Settings",
+    routerPluginSettingsSchema: "Settings schema",
+    routerPluginMetrics: "Runtime metrics",
+    routerPluginDescription: "Node description",
+    routerPluginNodeRuntimeInfo: "Node runtime information",
+    routerPluginBasicInfo: "Basic information",
+    routerPluginCreate: "Add plugin instance",
+    routerPluginCreateTitle: "Add plugin instance",
+    routerPluginEditTitle: "Edit plugin instance",
+    routerPluginDetailTitle: "Plugin instance details",
+    routerPluginNodeDetailTitle: "Plugin node details",
+    routerPluginNodePlaceholder: "Select a plugin node",
+    routerPluginNamePlaceholder:
+      "Use letters, numbers, dots, hyphens, or underscores",
+    routerPluginSettingsPlaceholder:
+      "Enter a JSON object. Empty value saves as an empty object",
+    routerPluginNodeRequired: "Please select a plugin node",
+    routerPluginNameRequired: "Please enter an instance name",
+    routerPluginNamePattern:
+      "Name can only contain letters, numbers, dots, hyphens, and underscores",
+    routerPluginSettingsRule: "Settings must be a valid JSON object",
+    routerPluginRequiredSettings: "Required settings",
+    routerPluginRequiredSettingsRule: "Missing required settings: {fields}",
+    routerPluginDeleteConfirmContent:
+      'Are you sure to delete plugin instance "{name}"? It cannot be restored after deletion.',
+    routerPluginResetConfirmContent:
+      'Are you sure to reset runtime state for plugin instance "{name}"?',
+    routerPluginNodeResetConfirmContent:
+      'Are you sure to reset global runtime state for plugin node "{node}"?',
+    routerPluginResetDisabledTip:
+      "Only enabled and loaded plugin instances can be reset",
+    routerPluginUngrouped: "Ungrouped",
+    routerPluginNoDescription: "No node description",
+    routerNoPlugins: "No plugin instance configuration",
+    routerNoPluginNodes: "No registered plugin nodes",
     routerPolicyConfigTitle: "Policies",
     routerPolicyConfigCaption:
       "Controls how routing combines strategy results in workspace policy.yaml. Valid updates apply immediately.",

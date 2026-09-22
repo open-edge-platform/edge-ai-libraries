@@ -1,18 +1,5 @@
 # Release Notes: Document Summarization Sample Application
 
-## Version 2026.2.0
-
-<!--date TBD-->
-
-**Fixed:**
-
-- Added NLTK_DATA environment variable and improved NLTK corpus download with quiet mode and fail-fast error handling during image builds
-
-**Known Issues:**
-
-- EMF Deployment package is not supported.
-- Summary time depends on the size and complexity (image, tables, cross references) of the document.
-
 ## Version 2026.1.0
 
 **Release Date:** June 17, 2026

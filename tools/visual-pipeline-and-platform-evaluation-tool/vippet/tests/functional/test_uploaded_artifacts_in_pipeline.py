@@ -62,7 +62,7 @@ _FILE_SOURCE_UNSUPPORTED: frozenset[str] = frozenset({"Simple NVR", "Smart NVR"}
 #     produces no detections on the same still frame repeated; the
 #     backend can still build a runnable pipeline but the test would
 #     be a tautology.
-#   * Video Summarization VLM: requires a temporally-coherent video
+#   * Video Captioning VLM: requires a temporally-coherent video
 #     stream as input and a heavyweight VLM model that is not part of
 #     the default install (already skipped via the model-presence
 #     fixture, but listed here for clarity).
@@ -71,7 +71,7 @@ _IMAGE_SET_UNSUPPORTED: frozenset[str] = frozenset(
         "Simple NVR",
         "Smart NVR",
         "Motion Detection",
-        "Video Summarization VLM",
+        "Video Captioning VLM",
     }
 )
 
