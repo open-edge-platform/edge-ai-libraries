@@ -1,7 +1,0 @@
-# Harness-only dependencies (the service itself already ships websockets).
-requests>=2.31.0
-websockets==15.0.1
-# websockets (used by ws realtime mode) is already in the service requirements.txt
-# For corpus prep from Hugging Face:
-#   datasets>=2.19.0
-#   soundfile>=0.12.1

@@ -1,6 +1,0 @@
-ok,file,status_code,audio_duration_sec,e2e_sec,ttft_sec,server_asr_last_ms,response_duration_sec,error
-True,/home/intel/rudra/2026-rc1/edge-ai-libraries/microservices/audio-analyzer/benchmarks/sample_files/short/philosophy_10_russell_128kb.mp3,200,900.127347,63.70371027299552,,472.6,,
-True,/home/intel/rudra/2026-rc1/edge-ai-libraries/microservices/audio-analyzer/benchmarks/sample_files/short/philosophy_10_russell_128kb.mp3,200,900.127347,63.01626606300124,,475.7,,
-True,/home/intel/rudra/2026-rc1/edge-ai-libraries/microservices/audio-analyzer/benchmarks/sample_files/short/philosophy_10_russell_128kb.mp3,200,900.127347,64.30729472500389,,471.8,,
-True,/home/intel/rudra/2026-rc1/edge-ai-libraries/microservices/audio-analyzer/benchmarks/sample_files/short/philosophy_10_russell_128kb.mp3,200,900.127347,63.35255420699832,,478.5,,
-True,/home/intel/rudra/2026-rc1/edge-ai-libraries/microservices/audio-analyzer/benchmarks/sample_files/short/philosophy_10_russell_128kb.mp3,200,900.127347,62.31190853501903,,429.3,,

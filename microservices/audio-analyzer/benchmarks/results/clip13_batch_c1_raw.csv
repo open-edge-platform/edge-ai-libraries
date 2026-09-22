@@ -1,6 +1,0 @@
-ok,file,status_code,audio_duration_sec,e2e_sec,ttft_sec,server_asr_last_ms,response_duration_sec,error
-True,/home/user/sainijit/edge-ai-libraries/microservices/audio-analyzer/benchmarks/sample_files/clip13/clip13.mp3,200,13.04,0.9529931102879345,,713.6,,
-True,/home/user/sainijit/edge-ai-libraries/microservices/audio-analyzer/benchmarks/sample_files/clip13/clip13.mp3,200,13.04,0.9450292470864952,,698.0,,
-True,/home/user/sainijit/edge-ai-libraries/microservices/audio-analyzer/benchmarks/sample_files/clip13/clip13.mp3,200,13.04,0.9492151741869748,,706.3,,
-True,/home/user/sainijit/edge-ai-libraries/microservices/audio-analyzer/benchmarks/sample_files/clip13/clip13.mp3,200,13.04,0.9474333827383816,,694.2,,
-True,/home/user/sainijit/edge-ai-libraries/microservices/audio-analyzer/benchmarks/sample_files/clip13/clip13.mp3,200,13.04,0.9390795421786606,,696.3,,
