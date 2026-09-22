@@ -33,7 +33,7 @@ debian_75_install_dlstreamer () {
     echo "dlstreamer-${version} already installed. Skipping"
   else
     # remove old versions
-    #ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
+    ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
 
     # product key & list file
     ensure_apt_key $key_file $key_url --dearmor
