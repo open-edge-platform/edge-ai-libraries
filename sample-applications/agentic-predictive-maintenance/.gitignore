@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.db
+*.sqlite
+services/agent_service/
+services/ui_service/
