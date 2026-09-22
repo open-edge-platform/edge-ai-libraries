@@ -157,6 +157,9 @@ services:
       # large weights between container restarts.
       HF_HOME: /cache/huggingface
       GETI_HOST: ${GETI_HOST:-}
+      GETI_TOKEN: ${GETI_TOKEN:-}
+      GETI_WORKSPACE_ID: ${GETI_WORKSPACE_ID:-}
+      GETI_SERVER_API_VERSION: ${GETI_SERVER_API_VERSION:-v1}
       GETI_SERVER_SSL_VERIFY: ${GETI_SERVER_SSL_VERIFY:-False}
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
