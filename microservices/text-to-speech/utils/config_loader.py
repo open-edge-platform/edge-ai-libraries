@@ -102,8 +102,8 @@ def _validate_config_data(data: dict) -> dict:
         raise ValueError("audio.sample_width must be 16")
 
     runtime = str(_get_nested_value(data, ("models", "tts", "runtime"))).strip().lower()
-    if runtime not in {"openvino", "pytorch"}:
-        raise ValueError("models.tts.runtime must be 'openvino' or 'pytorch'")
+    if runtime not in {"openvino", "pytorch", "kokoro"}:
+        raise ValueError("models.tts.runtime must be 'openvino', 'pytorch', or 'kokoro'")
 
     return data
 

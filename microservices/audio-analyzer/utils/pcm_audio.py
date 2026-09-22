@@ -161,3 +161,35 @@ class PcmStreamBuffer:
         data = b"".join(self._chunks)
         self.clear()
         return data
+
+    def peek(self) -> bytes:
+        """Return the buffered audio WITHOUT clearing it.
+
+        Lets a caller transcribe "everything since the last real commit" as
+        a preview, with full acoustic/textual context, while leaving the
+        buffer untouched for the next real ``take()``.
+        """
+        return b"".join(self._chunks)
+
+    def peek_tail(self, max_seconds: float) -> bytes:
+        """Return at most the last ``max_seconds`` of buffered audio.
+
+        Used to bound preview-decode cost: re-transcribing the ENTIRE
+        buffered utterance on every preview tick makes each call more
+        expensive than the last as speech goes on (a multi-second utterance
+        can take 700ms+ to re-decode from scratch near the end), even though
+        previews only need to resolve what was said recently. Capping the
+        window keeps every preview's decode cost roughly constant instead of
+        growing with utterance length. Falls back to the full buffer when it
+        is already shorter than the window (identical behaviour to
+        ``peek()`` in that case).
+        """
+        data = b"".join(self._chunks)
+        max_bytes = int(max_seconds * self.sample_rate * self.channels * BYTES_PER_SAMPLE)
+        if max_bytes <= 0 or len(data) <= max_bytes:
+            return data
+        # Keep the tail sample-aligned (BYTES_PER_SAMPLE * channels per
+        # frame) so we never split a sample in half.
+        frame_size = BYTES_PER_SAMPLE * self.channels
+        max_bytes -= max_bytes % frame_size
+        return data[-max_bytes:]
