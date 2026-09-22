@@ -194,6 +194,10 @@ services:
         container_name: multimodal-embedding-serving
         ports:
             - '${EMBEDDING_SERVER_PORT:-9777}:8000'
+        ulimits:
+            nofile:
+                soft: 32768
+                hard: 65535
         ipc: host
         environment:
             no_proxy: ${no_proxy},${MINIO_HOST:-minio-service},${MM_DATAPREP_HOST:-multimodal-dataprep},localhost

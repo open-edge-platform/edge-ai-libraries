@@ -20,7 +20,6 @@
 - **Documentation**: Capabilities endpoint documented in the API reference, updated system requirements, corrected links and release-branch references, improved cross-linking, and an expanded troubleshooting section.
 - **Test Coverage**: New tests for the capabilities endpoint and response model, plus additional route and application wiring tests.
 
-
 ## Version 2026.1.0
 
 **Release Date:** May 11, 2026
@@ -82,8 +81,6 @@
 
 None at this release. See GitHub issues for feature requests and discussions.
 
----
-
 ## Version 2026.0.1
 
 **Release Date:** May 5, 2026
@@ -98,8 +95,6 @@ None at this release. See GitHub issues for feature requests and discussions.
   - SSE client (`Accept: text/event-stream`) → raw stream
   - **Impact**: Single endpoint works for both browsers and programmatic clients
 
----
-
 ## Version 2026.0.0
 
 **Release Date:** April 1, 2026
@@ -112,8 +107,6 @@ None at this release. See GitHub issues for feature requests and discussions.
   - In-memory metrics store with configurable retention
   - Prometheus-compatible output (`GET /metrics`, `:9273/metrics`)
   - Real-time SSE streaming (`GET /metrics/stream`)
-
----
 
 ## Versions and Dependencies
 
@@ -129,8 +122,6 @@ None at this release. See GitHub issues for feature requests and discussions.
 
 > **Note on qmmd:** The default Metrics Manager already collects GPU metrics via `qmassa_reader.py` and Telegraf. Enable qmmd only if you need a standalone Prometheus exporter on a separate port. See [Environment Variables](./get-started/environment-variables.md#optional-components) for details.
 
----
-
 ## Support Matrix
 
 | Component    | Version | Support                                |
@@ -139,8 +130,6 @@ None at this release. See GitHub issues for feature requests and discussions.
 | Kubernetes   | 1.25+   | Via Helm chart                         |
 | Python       | 3.12    | Included in image                      |
 | Linux Kernel | 5.4+    | Required for system metrics collection |
-
----
 
 ## Migration Guide
 
@@ -160,8 +149,6 @@ No breaking changes. All existing endpoints remain compatible.
 3. Restart: `docker compose up -d`
 4. No data migration needed (in-memory store)
 
----
-
 ## Supporting Resources
 
 - [Get Started Guide](./get-started.md)
@@ -169,8 +156,6 @@ No breaking changes. All existing endpoints remain compatible.
 - [Environment Variables](./get-started/environment-variables.md)
 - [How It Works](./how-it-works.md)
 - [Troubleshooting](./troubleshooting.md)
-
----
 
 ## Disclaimer
 

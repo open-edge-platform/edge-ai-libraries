@@ -1,6 +1,6 @@
 
 debian_10_install_make () {
-  if dpkg-query -L make > /dev/null 2>&1; then
+  if ensure_apt_is_installed make; then
     echo "Make is already installed. Skipping..."
   else
     ensure_apt update
@@ -8,3 +8,8 @@ debian_10_install_make () {
   fi
 }
 
+debian_10_sbom_make () {
+  cat <<EOF
+"pkg-list": ["make"]
+EOF
+}

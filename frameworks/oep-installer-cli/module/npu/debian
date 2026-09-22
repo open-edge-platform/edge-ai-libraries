@@ -2,6 +2,7 @@
 configure_npu () {
   version=1.35.0
   repository=https://api.github.com/repos/intel/linux-npu-driver
+  releases=https://github.com/intel/linux-npu-driver/releases
   workspace="$(ensure_project_path)/npu"
 }
 
@@ -11,7 +12,7 @@ verify_npu () {
   id -nG | grep -qw render
   (
     set -o pipefail
-    dpkg-query -l intel-level-zero-npu intel-fw-npu intel-driver-compiler-npu 2> /dev/null | grep -q -F $version
+    ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
   )
 }
 
@@ -29,17 +30,17 @@ debian_40_install_npu () {
     ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
 
     # create the render group
-    ensure_group_add render
+    ensure_group_add render:992
   
     mkdir -p "$workspace"
     cd "$workspace"
 
     # download deb packages
-    local packages=($(set -o pipefail;curl -sL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -sL -A Mozilla/5.0 $repository/releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+    local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
     [ ${#packages[*]} -gt 0 ] || return 3
 
     for p in ${packages[*]}; do
-      curl -sL -A Mozilla/5.0 "$p" | tar xfz -
+      curl -fsSL -A Mozilla/5.0 "$p" | tar xfz -
     done 
 
     # install the debs
@@ -55,5 +56,15 @@ debian_40_remove_npu () {
   else
     echo "npu drivers are removed already. Skipping"
   fi
+}
+
+debian_40_sbom_npu () {
+  configure_npu "$@"
+  local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+  [ ${#packages[*]} -gt 0 ] || return 3
+  local packages_str="${packages[*]}"
+  cat <<EOF
+"pkg-list": ["${packages_str// /'","'}"]
+EOF
 }
 

@@ -22,7 +22,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
 99      profiles
 ```
 
-- `<start|stop|install|remove|profile|license>`: The `profile` function works similarly to a profile, which specifies the component dependencies, and the `install/remove/start/stop` functions perform their corresponding functions. At least one of thoses functions must be defined for the component. Others are optional.
+- `<start|stop|install|remove|profile|license|sbom>`: The `profile` function works similarly to a profile, which specifies the component dependencies, and the `install/remove/start/stop` functions perform their corresponding functions. At least one of thoses functions must be defined for the component. Others are optional.
 
   - For simple system-level packages, for example, `curl`, it is ok to define only an installation function without an uninstaller. The assumption is that `curl` can reside on the system for future use, while uninstalling it everytime is a bit overkill and may cause potentially unintended consequence. For other non-system components, there usually should define both an `install` function and a corresponding `remove` function.
   - The function argument is as follows: `<subcommand> [global-options] <complete list of component names> -- <this component specific arguments>`, where `<subcommand>` is one of `install`, `start`, `stop`, or `remove`. The list of installed components is useful to resolve any dependency issues. For example, `openvino` can use a newer version when installed standalone but a different version when installed together with `dlstreamer`. The arguments of this component can be used for component specific configurations, for example, selecting accelerator devices ([`ensure_select_device`](../common/linux/select_device)).   
@@ -43,6 +43,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
   - For components that need to download AI models from huggingface, use the [`ensure_hf_token`](../common/linux/hf_token) function to set `HF_TOKEN`. The `ensure_hf_token` function can be used to check model access permissions for gated models.   
   - For components that download any dataset, video files, AI models, implement a check that the download files actually exist, to ensure there is no silent failure during installation/setup. The check can be part of the `verify_<component>` helper, which checks if a previous installation/setup is complete.   
   - For libraries, SDKs, applications or tools, after installation, the `install` function should highlight what is next to the users. For example, for SDKs, show the workspace location and instructions of how to configure and play with samples included in the SDKs. See the [`@@HIGHLIGH`](#highlight-protocol) section for more details.
+  - For libraries and SDKs specific and optional for others, if the `--validate` option is specified, the libraries and SDKs should perform a self validation to ensure the intended features work correctly on the installed platform. 
 
 - `remove`: The optional `remove` function removes the component from the system. If the component has a `stop` function, the `remove` function usually invokes the `stop` function to terminate the component before physically remove the component from the system.
 
@@ -65,6 +66,16 @@ EOF
 ```
 where `<license-id>` must be a unique identifier to the license. Multiple licenses with the same license-id's can be accepted at once by the users. Use the [`ensure_license_fetch`](../license/linux/license_fetch) function if the license text must be fetched from the Internet. The `ensure_license_fetch` function does not use any unresolved dependencies at the time of a license clickthrough.  
    
+- `sbom`: The optional `sbom` function declares any `apt` packages to be installed by the component. Do not define a `sbom` function if there is no system-wide installation. See [`openvino`](openvino/debian) for an example. The following keys can be used:
+  - `name`: The name of an external repository that hosts the package(s).  
+  - `gpg-key`: The URL of the gpg key file.  
+  - `key-file`: The location of the gpg key file on the disk.  
+  - `apt-source`/`apt-src-source`: The `deb` or `deb-src` line that defines the repository.  
+  - `apt-list-file`: The location of the list file under `/etc/apt/sources.d`.  
+  - `apt-pref`: The list of `apt` preference definitions.  
+  - `apt-pref-file`: The preference file under `/etc/apt/preference.d`.   
+  - `pkg-list`: The list of packges to be installed.  
+  
 - Helper functions: A component can provide any number of helper functions. The function names must be unique across all installer scripts. A convention is to suffix the helper functions with the component name. If the component is declared as a dependency by other components, these helper functions are available to those components.  
   
 The following shows a skeleton of component functions:
