@@ -157,7 +157,7 @@ describe('SearchModal image search', () => {
 
     // Preview appears...
     await waitFor(() => {
-      expect(screen.getByAltText('Search by image')).toBeInTheDocument();
+      expect(screen.getByAltText('Uploaded image')).toBeInTheDocument();
     });
     // ...and the text area is removed to reclaim the space.
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
@@ -189,7 +189,7 @@ describe('SearchModal image search', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByAltText('Search by image')).toBeInTheDocument();
+      expect(screen.getByAltText('Uploaded image')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByText('Search'));
@@ -213,7 +213,7 @@ describe('SearchModal image search', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByAltText('Search by image')).toBeInTheDocument();
+      expect(screen.getByAltText('Uploaded image')).toBeInTheDocument();
     });
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
 

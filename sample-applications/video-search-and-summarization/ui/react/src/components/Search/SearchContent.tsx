@@ -1,10 +1,10 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { FC } from 'react';
+import { FC, useState } from 'react';
 import styled from 'styled-components';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { useTranslation } from 'react-i18next';
-import { Slider, Tag, Tooltip, Button, Accordion, AccordionItem } from '@carbon/react';
+import { Slider, Tag, Tooltip, Button, Accordion, AccordionItem, Modal, ModalBody } from '@carbon/react';
 import { RerunSearch, SearchActions, SearchSelector } from '../../redux/search/searchSlice';
 import { TimeFilterSelection } from '../../redux/search/search';
 import TimeFilterControl from './TimeFilterControl';
@@ -276,6 +276,7 @@ export const QueryInfo: FC = () => {
   const { selectedQuery } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
+  const [showImageModal, setShowImageModal] = useState(false);
 
   if (!selectedQuery) return null;
 
@@ -286,15 +287,37 @@ export const QueryInfo: FC = () => {
         <>
           <img
             src={selectedQuery.image}
-            alt={t('searchByImage', 'Search by image')}
+            alt={t('searchByImage', 'Uploaded image')}
+            onClick={() => setShowImageModal(true)}
             style={{
               maxWidth: '48px',
               maxHeight: '48px',
               borderRadius: '4px',
               objectFit: 'cover',
+              cursor: 'pointer',
             }}
           />
-          <strong className='query-text'>{t('searchByImage', 'Search by image')}</strong>
+          <strong className='query-text'>{t('searchByImage', 'Uploaded image')}</strong>
+          <Modal
+            open={showImageModal}
+            onRequestClose={() => setShowImageModal(false)}
+            modalHeading={t('searchByImage', 'Uploaded image')}
+            passiveModal
+          >
+            <ModalBody>
+              <img
+                src={selectedQuery.image}
+                alt={t('searchByImage', 'Uploaded image')}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '70vh',
+                  objectFit: 'contain',
+                  display: 'block',
+                  margin: '0 auto',
+                }}
+              />
+            </ModalBody>
+          </Modal>
         </>
       ) : (
         <Tooltip align='bottom' label={selectedQuery.query}>

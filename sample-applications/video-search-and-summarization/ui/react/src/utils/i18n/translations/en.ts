@@ -24,7 +24,7 @@ export const enTranslations = {
   videoSearchStart: 'Video Search Query',
   SearchingForPlaceholder: 'Red bus or white plane...',
   search: 'Search',
-  searchByImage: 'Search by image',
+  searchByImage: 'Uploaded image',
   searchByImageUpload: 'Upload query image',
   searchByImageRemove: 'Remove image',
   searchByImageHelper: 'Upload an image to find visually similar moments in your videos.',
