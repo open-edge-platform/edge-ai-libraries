@@ -127,7 +127,7 @@ class ComposeProfileTest(unittest.TestCase):
                 if profile == "igpu-wsl":
                     selected = ["vippet", "metrics-manager"]
                     if mode == "voice":
-                        selected.extend(["audio-analyzer", "text-to-speech"])
+                        selected.append("audio-analyzer")
                     if mode == "experimental":
                         selected.append("ia-time-series-analytics-microservice")
                         timeseries = services["ia-time-series-analytics-microservice"]
@@ -168,6 +168,7 @@ class ComposeProfileTest(unittest.TestCase):
                 if mode == "voice":
                     asr = services["audio-analyzer"]
                     tts = services["text-to-speech"]
+                    self.assertNotIn("voice-model-provisioner", services)
                     asr_device = {
                         "cpu": "CPU",
                         "gpu": "GPU",
@@ -185,6 +186,23 @@ class ComposeProfileTest(unittest.TestCase):
                     self.assertEqual(
                         tts["environment"]["TEXT_TO_SPEECH__MODELS__TTS__DTYPE"],
                         "int8" if profile in ("cpu", "igpu-wsl") else "fp16",
+                    )
+                    for service in (asr, tts):
+                        self.assertNotIn("voice-model-provisioner", service.get("depends_on", {}))
+                    for service in (asr, tts):
+                        model_mount = next(
+                            mount
+                            for mount in service["volumes"]
+                            if mount["target"] == "/models-output"
+                        )
+                        self.assertTrue(model_mount["read_only"])
+                    self.assertEqual(
+                        asr["environment"]["AUDIO_ANALYZER__MODELS__ASR__MODELS_BASE_PATH"],
+                        "/models-output/voice/audio-analyzer",
+                    )
+                    self.assertEqual(
+                        tts["environment"]["TEXT_TO_SPEECH__MODELS__TTS__MODELS_BASE_PATH"],
+                        "/models-output/voice/text-to-speech",
                     )
                     for service in (asr, tts):
                         self.assertEqual(service["user"], "1000:1000")
@@ -272,7 +290,15 @@ class MakeRoutingTest(unittest.TestCase):
                     expected_args = ["compose"]
                     for filename in expected:
                         expected_args.extend(["-f", filename])
-                    self.assertEqual(args, [*expected_args, *commands[target]])
+                    expected_commands = [[*expected_args, *commands[target]]]
+                    if target == "run-voice":
+                        expected_commands.insert(
+                            0, [*expected_args, "build", "model-download"]
+                        )
+                    self.assertEqual(
+                        args,
+                        [argument for command in expected_commands for argument in command],
+                    )
 
 
 if __name__ == "__main__":

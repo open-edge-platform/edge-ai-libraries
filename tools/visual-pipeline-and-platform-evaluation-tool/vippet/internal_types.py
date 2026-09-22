@@ -167,11 +167,13 @@ class InternalModelCategory(str, Enum):
         CLASSIFICATION: Classification model.
         DETECTION: Detection model.
         GENAI: Generative AI model (e.g. VLM/LLM).
+        VOICE: Speech recognition or synthesis model.
     """
 
     CLASSIFICATION = "classification"
     DETECTION = "detection"
     GENAI = "genai"
+    VOICE = "voice"
 
 
 class InternalModelDownloadJobState(str, Enum):
@@ -1112,7 +1114,7 @@ class InternalSupportedModel:
     Attributes:
         name: Unique internal identifier of the model.
         display_name: Human-readable name shown in the UI.
-        category: Model category (classification/detection/genai).
+        category: Model category (classification/detection/genai/voice).
         source: Origin hub of the model (huggingface, ultralytics, ...).
         precisions: Internal precision records (with filesystem paths)
             used by the install-status / registry logic. **Not exposed
@@ -1129,8 +1131,8 @@ class InternalSupportedModel:
         unsupported_devices: Comma-separated string of devices on which
             the model cannot run (e.g. "NPU"). ``None`` when no
             restrictions exist.
-        download_request: Body fragment (or full body) to POST to the
-            model-download microservice in order to install this model.
+        download_request: One body fragment or a list of fragments to POST to
+            the model-download microservice in order to install this model.
             ``None`` when no automated download is wired up yet.
     """
 
@@ -1144,7 +1146,7 @@ class InternalSupportedModel:
     used_by_pipelines: list[str] = field(default_factory=list)
     default: bool = False
     unsupported_devices: str | None = None
-    download_request: dict[str, Any] | None = None
+    download_request: dict[str, Any] | list[dict[str, Any]] | None = None
 
 
 @dataclass

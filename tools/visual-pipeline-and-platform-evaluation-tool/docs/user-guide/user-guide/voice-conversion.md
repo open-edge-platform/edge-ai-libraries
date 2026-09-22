@@ -12,20 +12,29 @@ memory; navigating away clears it. Models remain loaded across requests.
 
 Run from the ViPPET component directory. The Makefile detects the hardware
 profile using the standard environment setup and applies the matching voice
-hardware overrides. To pull published images and start ViPPET with voice
-services without building any images:
+hardware overrides. Install the Voice models before starting the services,
+because audio-analyzer and text-to-speech preload their selected models:
 
 ```bash
 make pull-voice
+make run
+# In the Models page, install Whisper Base and SpeechT5 and wait for Installed.
 make run-voice
 ```
+
+If Voice services start before installation, they log that the selected model
+is unavailable and restart until the required artifacts appear. After both
+models show Installed, the next automatic startup loads them and the services
+become healthy.
 
 `make run` executes `env-setup`, loads `.env`, and runs the original `up -d`
 with only the base and detected hardware Compose files, without STT/TTS overrides.
 It preserves Compose's normal image pull/build behavior, including local builds
-when needed. `make run-voice` adds the voice Compose files and explicitly passes
-`--no-build`: an unavailable image produces an error instead of falling back to
-a local build. Existing local images can also be used without pulling first.
+when needed. `make run-voice` adds the voice Compose files, builds only
+`model-download` from this checkout to provide the Voice target API, and then
+passes `--no-build` when starting all services. An unavailable application or
+Voice service image produces an error instead of falling back to a local build.
+Existing local images can also be used without pulling first.
 `make stop` stops and removes only the base service containers; it does not
 remove orphan containers such as independently running STT/TTS services.
 Those services may keep the shared Compose network in use.
@@ -81,6 +90,26 @@ Local builds remain available explicitly with `make build-voice`, followed by
 the results with the configured image names. Use distinct local image tags to
 avoid overwriting cached release images; a later pull replaces local images
 under the same tag. No sibling kiosk checkout is needed.
+
+Voice services do not download models during startup. Open the ViPPET
+**Models** page and install **Whisper Base** and **SpeechT5** before using Voice
+Conversion. The existing background-jobs UI reports download and conversion
+progress. SpeechT5 installs INT8 and FP16 together and is marked Installed only
+after both artifacts are complete.
+
+Artifacts are retained on the host under `shared/models/output/voice`. The
+consumers mount only their own subdirectories read-only:
+
+```text
+shared/models/output/voice/audio-analyzer/openvino/whisper-base
+shared/models/output/voice/text-to-speech/openvino/microsoft_speecht5_tts__<precision>
+```
+
+Complete artifacts are reused on later starts. An interrupted or incomplete
+export is staged separately and never replaces the last complete artifact.
+The Models-page install exports device-neutral OpenVINO IR on CPU. Each Voice
+service selects CPU, GPU, or NPU when loading the artifact at runtime according
+to the active hardware profile.
 
 The services are reachable inside the Compose network and through host ports
 `127.0.0.1:8010` (audio-analyzer) and `127.0.0.1:8011` (text-to-speech).
@@ -166,7 +195,7 @@ NPU profile defaults to GPU for TTS. For CPU inference on a native GPU or NPU
 host, export `VOICE_ASR_DEVICE=CPU VOICE_TTS_DEVICE=CPU VOICE_TTS_DTYPE=int8`.
 The former `gpu-wsl` profile has been replaced by `igpu-wsl`. Run `make run-voice`
 to regenerate the detected profile and recreate affected containers without
-deleting their named model/cache volumes. For manual Compose commands, update
+deleting shared model artifacts or named cache volumes. For manual Compose commands, update
 both the profile and override filenames. Do not edit the generated `.env` file.
 GPU utilization metrics may be unavailable under WSL even when inference works;
 the native Linux GPU collectors depend on driver interfaces not exposed by WSL.
@@ -175,10 +204,10 @@ Diarization and sentiment analysis are disabled. TTS supports English in this
 configuration. Changing a language label alone does not add multilingual
 synthesis support.
 
-First startup downloads/exports models and requires network access to model
-sources. Healthchecks allow 15 minutes for startup. Subsequent starts reuse
-named model/cache volumes. Configure `http_proxy`, `https_proxy`, and `no_proxy`
-as required. Do not pass tokens through Docker build arguments.
+Installing models from the Models page requires network access to model
+sources. Subsequent starts reuse the shared host artifacts and named runtime
+cache volumes. Configure `http_proxy`, `https_proxy`, and `no_proxy` as required.
+Do not pass tokens through Docker build arguments.
 
 To stop only the optional services, preserving their caches:
 

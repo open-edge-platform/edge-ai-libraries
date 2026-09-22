@@ -173,7 +173,8 @@ pull-voice: env-setup ## Pull pre-built images for ViPPET with voice services
 build-voice: env-setup ## Build ViPPET and voice services locally from source
 	$(call voice-compose,build)
 
-run-voice: env-setup ## Start ViPPET with voice services without building images
+run-voice: env-setup ## Build model-download and start ViPPET with pre-built voice services
+	$(call voice-compose,build model-download)
 	$(call voice-compose,up -d --no-build)
 
 stop-voice: ## Stop ViPPET with voice services, preserving named volumes
@@ -270,6 +271,7 @@ clean-model-download: ## Clean only model-download artifacts
 
 clean-models: ## Clean only models
 	docker run --rm -v "${PWD}"/shared/models/:/mnt/models/ python:3.12-slim sh -c 'rm -rf /mnt/models/output/'
+	rm -f $(ENV_DIRS_SENTINEL)
 
 clean-output-videos: ## Clean only output videos
 	rm -rf shared/videos/output/*

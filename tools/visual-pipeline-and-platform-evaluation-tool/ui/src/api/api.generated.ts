@@ -789,17 +789,17 @@ export type GetModelDownloadJobStatusApiArg = {
 export type GetModelsApiResponse =
   /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
-export type UploadModelApiResponse =
-  /** status 200 Successful Response */
-  any | /** status 201 Model uploaded successfully */ ModelUploadResponse;
+export type UploadModelApiResponse = /** status 200 Successful Response */
+  | any
+  | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
   /** status 200 Successful Response */
-  | any
-  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+    | any
+    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };
@@ -1321,7 +1321,7 @@ export type ModelDownloadJobSummary = {
   model_name: string;
   source: ModelSource;
 };
-export type ModelCategory = "classification" | "detection" | "genai";
+export type ModelCategory = "classification" | "detection" | "genai" | "voice";
 export type ModelInstallStatus =
   | "installed"
   | "not_installed"

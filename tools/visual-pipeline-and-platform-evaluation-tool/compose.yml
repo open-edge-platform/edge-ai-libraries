@@ -11,7 +11,7 @@ x-vippet: &vippet
       https_proxy:
       no_proxy:
   healthcheck:
-    test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:7860/api/v1/health"]
+    test: [ "CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:7860/api/v1/health" ]
     interval: 10s
     timeout: 5s
     retries: 3
@@ -49,7 +49,7 @@ x-vippet: &vippet
     UPLOAD_ALLOWED_EXTENSIONS: "mp4,mkv,mov,avi,ts,264,avc,h265,hevc"
     UPLOAD_ALLOWED_CONTAINERS: "mp4,mov,mkv,avi,mpegts,raw"
     UPLOAD_ALLOWED_CODECS: "h264,h265"
-    UPLOAD_MAX_SIZE_BYTES: "2147483648"  # 2 GiB
+    UPLOAD_MAX_SIZE_BYTES: "2147483648" # 2 GiB
     METADATA_DIR: /metadata
     # Bytes of padding on the metadata SSE preamble and keepalives. Buffering HTTP
     # proxies release a response only once their block buffer fills, which a low-rate
@@ -130,13 +130,16 @@ services:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
-    image: docker.io/intel/model-download:2026.2.0-rc2
+    image: ${MODEL_DOWNLOAD_IMAGE:-docker.io/intel/model-download:2026.2.0-rc2}
+    build:
+      context: ../../microservices/model-download
+      dockerfile: docker/Dockerfile
     container_name: model-download
     ports:
       - "8000:8000"
     command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,ultralytics,pipeline-zoo-models,openvino,geti,hls}
     healthcheck:
-      test: ["CMD", "curl", "--noproxy", "localhost,127.0.0.1", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:8000/api/v1/health"]
+      test: [ "CMD", "curl", "--noproxy", "localhost,127.0.0.1", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:8000/api/v1/health" ]
       # First start can take tens of minutes: each plugin venv runs `uv sync`
       # and pulls heavy deps (torch, openvino, ...). `start_period` keeps the
       # container marked "starting" (so dependents wait but don't get
@@ -164,6 +167,9 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
+      HTTP_PROXY: ${http_proxy}
+      HTTPS_PROXY: ${https_proxy}
+      NO_PROXY: ${no_proxy}
     volumes:
       - ./shared/models/:/models
       # Persist uv cache + per-plugin venvs across restarts.
@@ -175,7 +181,8 @@ services:
       - ./shared/model-download/venv-openvino:/opt/.venv-openvino
       - ./shared/model-download/venv-geti:/opt/.venv-geti
       - ./shared/model-download/venv-hls:/opt/.venv-hls
-  vippet:  # Always 'vippet', hardware config from override files
+  vippet:
+    # Always 'vippet', hardware config from override files
     <<: *vippet
     container_name: vippet
     ports:
@@ -208,7 +215,7 @@ services:
       no_proxy: ${no_proxy}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/health', timeout=8)"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/health', timeout=8)" ]
       interval: 10s
       timeout: 10s
       retries: 3
@@ -223,8 +230,8 @@ services:
       - MTX_RTSPADDRESS=:8554
       - MTX_WEBRTCADDITIONALHOSTS=${HOST_IPS}
     ports:
-      - "8554:8554"     # RTSP
-      - "8889:8889"     # WebRTC signaling/HTTP
+      - "8554:8554" # RTSP
+      - "8889:8889" # WebRTC signaling/HTTP
       - "8189:8189/udp" # WebRTC/ICE UDP
     restart: unless-stopped
   onvif-discovery:
@@ -255,7 +262,7 @@ services:
     volumes:
       - ./shared/onvif:/out
   videogenerator:
-    profiles: [do-not-start]
+    profiles: [ do-not-start ]
     image: docker.io/intel/vippet-videogenerator:${DOCKER_TAG}
     build:
       context: video_generator

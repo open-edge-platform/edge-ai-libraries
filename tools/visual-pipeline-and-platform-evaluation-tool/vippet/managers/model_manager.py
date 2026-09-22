@@ -103,6 +103,12 @@ HTTP_REQUEST_TIMEOUT_S: float = float(
 # Upload streaming chunk size.
 UPLOAD_CHUNK_SIZE: int = 8 * 1024 * 1024  # 8 MiB
 
+DownloadRequest = dict[str, Any] | list[dict[str, Any]]
+
+
+def _normalize_download_requests(request: DownloadRequest) -> list[dict[str, Any]]:
+    return [request] if isinstance(request, dict) else request
+
 
 def _precision_is_complete(category: str | None, model_path: str) -> bool:
     """Return True only when the model files at *model_path* are complete.
@@ -724,12 +730,14 @@ class ModelManager:
         3. There is an active job for this model → INSTALLING/FAILED depending on state.
         4. Otherwise NOT_INSTALLED.
         """
-        if any(e.exists_on_disk() for e in entries):
+        is_multi_request = isinstance(_DownloadRequestCache.get(name), list)
+        if self._required_artifacts_exist(name, entries):
             return InternalModelInstallStatus.INSTALLED
 
-        with self._registry_lock:
-            if name in self._registry:
-                return InternalModelInstallStatus.INSTALLED
+        if not is_multi_request:
+            with self._registry_lock:
+                if name in self._registry:
+                    return InternalModelInstallStatus.INSTALLED
 
         job = active_jobs.get(name)
         if job is not None:
@@ -739,6 +747,14 @@ class ModelManager:
                 return InternalModelInstallStatus.FAILED
 
         return InternalModelInstallStatus.NOT_INSTALLED
+
+    @staticmethod
+    def _required_artifacts_exist(
+        model_name: str, entries: list[SupportedModel]
+    ) -> bool:
+        request = _DownloadRequestCache.get(model_name)
+        predicate = all if isinstance(request, list) else any
+        return predicate(entry.exists_on_disk() for entry in entries)
 
     def _registry_install_status(
         self, record: _InstalledModelRecord
@@ -820,7 +836,7 @@ class ModelManager:
         download_request = _DownloadRequestCache.get(model_name)
 
         # Idempotency: reject if installed or already running.
-        if any(e.exists_on_disk() for e in entries):
+        if self._required_artifacts_exist(model_name, entries):
             return None, 409, f"Model '{model_name}' is already installed"
 
         with self._jobs_lock:
@@ -892,13 +908,13 @@ class ModelManager:
         job_id: str,
         model_name: str,
         head: SupportedModel,
-        download_request: dict[str, Any],
+        download_request: DownloadRequest,
     ) -> None:
         """Run a download via the model-download microservice."""
         try:
-            download_path = self._resolve_download_path()
+            download_path = self._resolve_download_path(download_request)
             url = f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/models/download"
-            body = {"models": [download_request]}
+            body = {"models": _normalize_download_requests(download_request)}
 
             self._append_detail(
                 job_id,
@@ -988,10 +1004,12 @@ class ModelManager:
             self._fail_job(job_id, f"Unexpected error: {exc}")
 
     @staticmethod
-    def _resolve_download_path() -> str:
+    def _resolve_download_path(download_request: DownloadRequest) -> str:
         """Pick the ``download_path`` query value passed to model-download.
 
-        We always pass ``.`` (i.e. the MODELS_PATH root). The model-download
+        Voice runtime artifacts are grouped below ``voice/`` because that is
+        the host directory mounted read-only by their consumers. Other models
+        use ``.`` (i.e. the MODELS_PATH root). The model-download
         plugins themselves prepend their own ``<hub>/`` subdirectory to
         ``output_dir`` (e.g. ``ultralytics/``, ``huggingface/``), and the
         download scripts they invoke further nest the files under
@@ -999,7 +1017,8 @@ class ModelManager:
         ``model_path`` entries must therefore include the full
         ``<hub>/<source>/<model_name>/<precision>/<file>`` prefix.
         """
-        return "."
+        requests = _normalize_download_requests(download_request)
+        return "voice" if all(request.get("target") for request in requests) else "."
 
     # ------------------------------------------------------------------
     # Worker: OMZ download (handled locally by vippet-app)
@@ -1367,7 +1386,7 @@ class ModelManager:
         model_path = precisions[0].model_path if precisions else None
 
         # Verify the expected files are actually on disk before registering.
-        if not any(e.exists_on_disk() for e in entries):
+        if not self._required_artifacts_exist(model_name, entries):
             logger.warning(
                 "model-download reported success for '%s' (job %s) but the "
                 "expected model files are not present on disk — reclassifying "
@@ -1542,11 +1561,11 @@ class _DownloadRequestCache:
     manager needs.
     """
 
-    _data: dict[str, dict[str, Any] | None] | None = None
+    _data: dict[str, DownloadRequest | None] | None = None
     _lock = threading.Lock()
 
     @classmethod
-    def get(cls, model_name: str) -> dict[str, Any] | None:
+    def get(cls, model_name: str) -> DownloadRequest | None:
         cls._load()
         assert cls._data is not None
         return cls._data.get(model_name)
@@ -1573,7 +1592,14 @@ class _DownloadRequestCache:
                     if not isinstance(name, str):
                         continue
                     dr = entry.get("download_request")
-                    cls._data[name] = dr if isinstance(dr, dict) else None
+                    if isinstance(dr, dict):
+                        cls._data[name] = dr
+                    elif isinstance(dr, list) and dr and all(
+                        isinstance(request, dict) for request in dr
+                    ):
+                        cls._data[name] = dr
+                    else:
+                        cls._data[name] = None
             except Exception:
                 logger.error(
                     "Failed to load download_request entries from %s",

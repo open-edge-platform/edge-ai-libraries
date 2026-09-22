@@ -50,8 +50,16 @@ def _clear_storage_on_startup() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _clear_storage_on_startup()
-    ensure_model()
-    preload_models()
+    try:
+        ensure_model()
+        preload_models()
+    except Exception as exc:
+        logger.warning(
+            "TTS model is unavailable. "
+            "Startup will be retried by the container runtime: %s",
+            exc,
+        )
+        raise
 
     # GPU warmup: compile kernels before the app starts serving traffic.
     try:

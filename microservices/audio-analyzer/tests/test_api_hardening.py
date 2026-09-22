@@ -12,6 +12,33 @@ import main
 from utils.audio_util import save_audio_file
 
 
+class StartupModelTests(unittest.TestCase):
+    def test_startup_fails_when_model_preparation_fails(self):
+        error = FileNotFoundError("missing model")
+        with patch("main._clear_storage_on_startup"), patch(
+            "main.validate_runtime_configuration"
+        ), patch("main.ensure_model", side_effect=error), patch(
+            "main.preload_models"
+        ) as preload_models, patch("main.logger.warning") as warning:
+            with self.assertRaisesRegex(FileNotFoundError, "missing model"):
+                main.startup_event()
+
+        preload_models.assert_not_called()
+        self.assertIn("ASR model is unavailable", warning.call_args.args[0])
+
+    def test_startup_fails_when_model_preload_fails(self):
+        error = RuntimeError("invalid model")
+        with patch("main._clear_storage_on_startup"), patch(
+            "main.validate_runtime_configuration"
+        ), patch("main.ensure_model"), patch(
+            "main.preload_models", side_effect=error
+        ), patch("main.logger.warning") as warning:
+            with self.assertRaisesRegex(RuntimeError, "invalid model"):
+                main.startup_event()
+
+        self.assertIn("ASR model is unavailable", warning.call_args.args[0])
+
+
 class ApiHardeningTests(unittest.TestCase):
     @staticmethod
     def _openai_error(message, error_type, *, param=None, code=None):

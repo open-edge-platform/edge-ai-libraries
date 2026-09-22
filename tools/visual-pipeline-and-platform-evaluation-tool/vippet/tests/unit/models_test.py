@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 
 # Helper to reload the models module with environment variables set.
 def _reload_models_module(supported_models_file: str, models_path: str):
@@ -24,6 +26,74 @@ def _reload_models_module(supported_models_file: str, models_path: str):
 
 
 class TestModels(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._original_supported_models_file = os.environ.get(
+            "SUPPORTED_MODELS_FILE"
+        )
+        cls._original_models_path = os.environ.get("MODELS_PATH")
+
+    @classmethod
+    def tearDownClass(cls):
+        for name, value in (
+            ("SUPPORTED_MODELS_FILE", cls._original_supported_models_file),
+            ("MODELS_PATH", cls._original_models_path),
+        ):
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        importlib.reload(sys.modules["models"])
+
+    def test_voice_category_is_exposed_by_internal_and_api_types(self):
+        from api.api_schemas import ModelCategory
+        from internal_types import InternalModelCategory
+
+        self.assertEqual(InternalModelCategory.VOICE.value, "voice")
+        self.assertEqual(ModelCategory.VOICE.value, "voice")
+
+    def test_real_catalog_contains_voice_runtime_models(self):
+        component_root = Path(__file__).parents[3]
+        catalog_path = component_root / "shared/models/supported_models.yaml"
+        models_path = component_root / "shared/models/output"
+        m = _reload_models_module(str(catalog_path), str(models_path))
+        m.SupportedModelsManager._instance = None
+
+        models = m.SupportedModelsManager().get_all_supported_models()
+        whisper = [
+            model for model in models if model.canonical_name == "voice-whisper-base"
+        ]
+        speecht5 = [
+            model for model in models if model.canonical_name == "voice-speecht5"
+        ]
+
+        self.assertEqual([model.precision for model in whisper], ["INT8"])
+        self.assertEqual(
+            {model.precision for model in speecht5}, {"INT8", "FP16"}
+        )
+        self.assertTrue(
+            whisper[0].model_path.endswith(
+                "voice/audio-analyzer/openvino/whisper-base/"
+                "openvino_encoder_model.xml"
+            )
+        )
+        self.assertEqual(
+            {
+                Path(model.model_path).parent.name
+                for model in speecht5
+            },
+            {
+                "microsoft_speecht5_tts__int8",
+                "microsoft_speecht5_tts__fp16",
+            },
+        )
+
+        catalog = yaml.safe_load(catalog_path.read_text())
+        speecht5_entry = next(
+            entry for entry in catalog if entry["name"] == "voice-speecht5"
+        )
+        self.assertEqual(len(speecht5_entry["download_request"]), 2)
+
     def test_supported_model_paths_and_exists(self):
         """Test SupportedModel path and model_proc resolution and exists_on_disk."""
         with tempfile.TemporaryDirectory() as td:
