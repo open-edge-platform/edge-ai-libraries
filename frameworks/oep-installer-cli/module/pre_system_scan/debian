@@ -1,6 +1,6 @@
 
 debian_10_profile_pre_system_scan () {
-  [ "$1" != "install" ] || echo "curl dmidecode"
+  [ "$1" != "install" ] || echo "curl dmidecode pciutils"
 }
 
 debian_10_install_pre_system_scan () {
