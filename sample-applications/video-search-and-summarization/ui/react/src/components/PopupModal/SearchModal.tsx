@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Button, IconButton, Modal, ModalBody, MultiSelect, TextArea } from '@carbon/react';
 import { Image as ImageIcon, Close } from '@carbon/icons-react';
-import { ChangeEvent, FC, useRef, useState } from 'react';
+import { ChangeEvent, FC, KeyboardEvent, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { SearchAdd, SearchSelector } from '../../redux/search/searchSlice';
@@ -94,12 +94,15 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
   const [timeFilter, setTimeFilter] = useState<TimeFilterSelection | null>(null);
   const [imageData, setImageData] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [emptyQueryError, setEmptyQueryError] = useState<boolean>(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const resetInput = () => {
     setTextInput('');
     setImageData(null);
     setImageError(null);
+    setEmptyQueryError(false);
 
     if (imageInputRef.current) {
       imageInputRef.current.value = '';
@@ -135,14 +138,21 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
   };
 
   const submitSearch = async () => {
+    const query = textInput.trim();
+
+    // Keep the modal open and flag the field instead of running an empty search
+    // (an uploaded image counts as a valid, non-text query).
+    if (!imageData && !query) {
+      setEmptyQueryError(true);
+      textAreaRef.current?.focus();
+      return;
+    }
+
     try {
       if (imageData) {
         dispatch(SearchAdd({ image: imageData, tags: selectedTags, timeFilter }));
       } else {
-        if (!textInput.trim()) {
-          return;
-        }
-        dispatch(SearchAdd({ query: textInput, tags: selectedTags, timeFilter }));
+        dispatch(SearchAdd({ query, tags: selectedTags, timeFilter }));
       }
       dispatch(UIActions.setMux(MuxFeatures.SEARCH));
       resetInput();
@@ -152,16 +162,30 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
     }
   };
 
+  const handleKeyDown = (ev: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (ev.key !== 'Enter' || ev.shiftKey) {
+      return;
+    }
+
+    // Enter confirms an in-flight IME composition; it must not submit.
+    if (ev.nativeEvent.isComposing) {
+      return;
+    }
+
+    ev.preventDefault();
+    void submitSearch();
+  };
+
   return (
     <Modal
       open={showModal}
       onRequestClose={() => {
+        setEmptyQueryError(false);
         closeModal();
       }}
       modalHeading={t('videoSearchStart')}
       primaryButtonText={t('search')}
       secondaryButtonText={t('cancel')}
-      primaryButtonDisabled={!imageData && !textInput.trim()}
       onRequestSubmit={() => {
         submitSearch();
       }}
@@ -229,10 +253,18 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
           <>
             <TextArea
               labelText=''
+              ref={textAreaRef}
               value={textInput}
               maxLength={250}
+              invalid={emptyQueryError}
+              invalidText={t('searchQueryRequired')}
+              onKeyDown={handleKeyDown}
               onChange={(ev) => {
                 setTextInput(ev.currentTarget.value);
+
+                if (ev.currentTarget.value.trim()) {
+                  setEmptyQueryError(false);
+                }
               }}
               placeholder={t('SearchingForPlaceholder')}
             />
@@ -281,12 +313,15 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
           />
         )}
 
-        <div style={{ marginTop: '1rem' }}>
+        <div style={{ marginTop: '2rem' }}>
           <TimeFilterControl
             timeFilter={timeFilter}
             onChange={setTimeFilter}
             idPrefix='modal-time-filter'
             size='sm'
+            // Last field in a scrolling modal body: open upwards so the
+            // tooltip is not clipped by the body's bottom edge.
+            tooltipAlign='top-start'
           />
         </div>
       </ModalBody>
