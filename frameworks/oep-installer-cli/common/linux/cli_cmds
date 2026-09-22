@@ -1,6 +1,15 @@
 #!/bin/bash
 
 subcommand_install () {
+  if [[ " $* " = *" --help "* ]]; then
+    echo "install options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
+    echo "  --validate or --validate-<name>   perform sanity check of features after installation."
+    echo "  --reset-<name>  force reinstallation of the component if exit."
+    echo
+    return 0
+  fi
   act_helpper "install,Installation,Installing,Installed" "" "$@"
 }
 

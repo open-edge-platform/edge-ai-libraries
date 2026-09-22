@@ -25,11 +25,11 @@ from src.retriever.embedding_client import EmbeddingAPI
 from src.retriever.backends.registry import (
     BACKEND_PUSHDOWN_OPERATORS as BACKEND_NATIVE_PUSHDOWN_OPERATORS,
 )
+from src.retriever.backends.vdms.concurrency import serialize_vdms_calls
 
 
 logger = get_logger()
 TIME_FILTER_METADATA_FIELD = "created_at"
-
 
 def _serialize_log_value(value: Any) -> Any:
     """Convert nested models into plain values suitable for debug logs."""
@@ -87,6 +87,7 @@ def _do_vector_search(db: Any, embedding: list[float], resolved_top_k: int, fetc
     return db.similarity_search_with_score_by_vector(embedding, k=fetch_k, **fkw)
 
 
+@serialize_vdms_calls
 def _similarity_search_with_reconnect(
     db: Any,
     query: str,
@@ -114,6 +115,7 @@ def _similarity_search_with_reconnect(
         return _do_search(fresh_db, query, resolved_top_k, fetch_k, query_filter)
 
 
+@serialize_vdms_calls
 def _vector_search_with_reconnect(
     db: Any,
     embedding: list[float],

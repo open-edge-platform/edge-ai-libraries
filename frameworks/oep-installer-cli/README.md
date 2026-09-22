@@ -183,6 +183,13 @@ For bootstrapping with different modules/profiles, use the commands below:
 
 > Let `rendered/openedge-cli` be a reserved location for the full installer. If you generate a partial installer, save it other than `rendered/openedge-cli`. 
 
+> **Automated rendering.** You normally do not need to run `bootstrap` by hand. A GitHub
+> Actions workflow ([`oep-cli-render-on-merge.yml`](../../.github/workflows/oep-cli-render-on-merge.yml))
+> regenerates `rendered/openedge-cli` and commits it back automatically whenever the
+> installer source (`openedge-cli`, `common/`, `license/`, `module/`, or `profile/`) changes
+> on `main` or a release branch — i.e. after a pull request is merged. The committed
+> `rendered/openedge-cli` therefore stays in sync with source without manual steps.
+
 ### Credentials
 
 During installer operations, if credentials are required, the installer will prompt for sudo password. 

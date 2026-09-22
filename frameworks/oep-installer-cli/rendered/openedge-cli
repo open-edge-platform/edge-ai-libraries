@@ -129,6 +129,15 @@ exec "$installer_bin" "$@"
 #!/bin/bash
 
 subcommand_install () {
+  if [[ " $* " = *" --help "* ]]; then
+    echo "install options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
+    echo "  --validate or --validate-<name>   perform sanity check of features after installation."
+    echo "  --reset-<name>  force reinstallation of the component if exit."
+    echo
+    return 0
+  fi
   act_helpper "install,Installation,Installing,Installed" "" "$@"
 }
 
@@ -1499,12 +1508,6 @@ act_helpper () {
     echo "${act_name} options:"
     echo "  --dry-run       dry-run operations"
     echo "  --continue      ignore errors and proceed to the end"
-    act_get prefix ${act_name}_
-    if [ ${#_act_reply[*]} -gt 0 ]; then
-      if [ "${act_name}" = "install" ]; then
-        echo "  --reset-<name>  force reinstallation of the component if exit."
-      fi
-    fi
     echo
     return 0
   fi
@@ -2007,112 +2010,6 @@ ensure_apt_source_remove () {
 }
 
 
-# Autonomous Mobile Robot (AMR) APT repositories plus the Intel oneAPI Base
-# Toolkit repository. This module only configures apt sources / keys / pins;
-# the track components install the actual Deb packages.
-# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
-configure_amr_apt_repo () {
-  amr_repo_name="amrdocs.intel.com"
-  amr_key_url=https://$amr_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-AMR.gpg
-  amr_key_file=/usr/share/keyrings/amr-archive-keyring.gpg
-  amr_list=/etc/apt/sources.list.d/amr.list
-  amr_pref=(
-    "Package: *"
-    "Pin: origin $amr_repo_name"
-    "Pin-Priority: 1001"
-  )
-  amr_pref_file=/etc/apt/preferences.d/amr
-  amr_deb_entry="$(printf 'deb [signed-by=%s] https://%s/repos/%s amr main' "$amr_key_file" "$amr_repo_name"  "$VERSION_CODENAME")"
-  amr_deb_src_entry="$(printf 'deb-src [signed-by=%s] https://%s/repos/%s amr main\n' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
-
-  oneapi_repo_name="apt.repos.intel.com"
-  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
-  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
-  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
-  oneapi_pref=(
-    "Package: intel-oneapi-runtime-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-    "Package: intel-oneapi-compiler-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-    "Package: intel-oneapi-mkl-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-  )
-  oneapi_pref_file=/etc/apt/preferences.d/oneapi
-  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
-}
-
-debian_45_profile_amr_apt_repo () {
-  echo "curl gpg edge_base"
-}
-
-verify_amr_apt_repo () {
-  configure_amr_apt_repo
-  [ -r "$amr_key_file" ] && [ -r "$amr_list" ] && [ -r "$oneapi_list" ]
-}
-
-debian_45_install_amr_apt_repo () {
-  configure_amr_apt_repo
-
-  if verify_amr_apt_repo && [[ " $* " != *" --reset-amr_apt_repo "* ]]; then
-    echo "AMR apt repositories are already configured. Skipping..."
-  else
-    ensure_apt install -y software-properties-common curl gnupg wget
-
-    # AMR archive key + sources + pin
-    ensure_sudo mkdir -p "$(dirname "$amr_key_file")"
-    ensure_apt_key "$amr_key_file" "$amr_key_url"
-    ensure_apt_source "$amr_list" "$amr_deb_entry" "$amr_deb_src_entry"
-    ensure_apt_preference "$amr_pref_file" "${amr_pref[@]}"
-
-    # Intel oneAPI Base Toolkit key + source + pins
-    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
-    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
-    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
-
-    # Canonical kobuk PPA for latest Intel silicon support (best-effort)
-    ensure_sudo add-apt-repository -y ppa:kobuk-team/intel-graphics || true
-
-    ensure_apt update -y
-  fi
-}
-
-debian_45_remove_amr_apt_repo () {
-  configure_amr_apt_repo
-  ensure_sudo rm -f "$amr_key_file" "$amr_list" "$amr_pref" \
-    "$oneapi_key_file" "$oneapi_list" "$oneapi_pref"
-}
-
-debian_45_sbom_amr_apt_repo () {
-  configure_amr_apt_repo
-  (
-    IFS=$'|'
-    amr_pref_str="${amr_pref[*]}"
-    oneapi_pref_str="${oneapi_pref[*]}"
-    cat <<EOF
-"name": "$amr_repo_name"
-"gpg-key": "$amr_key_url"
-"key-file": "$amr_key_file"
-"apt-source": "$amr_deb_entry"
-"apt-src-source": "$amr_deb_src_entry"
-"apt-list-file": "$amr_list"
-"apt-pref": ["${amr_pref_str//'|'/'","'}"]
-"apt-pref-file": "$amr_pref_file"
----
-"name": "$oneapi_repo_name"
-"apt-source": "$oneapi_deb_entry"
-"apt-list-file": "$oneapi_list"
-"gpg-key": "$oneapi_key_url"
-"key-file": "$oneapi_key_file"
-"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
-"apt-pref-file": "$oneapi_pref_file"
-EOF
-  )
-}
-
-
 configure_anomalib () {
   workspace="$(ensure_project_path)/anomalib"
   version=2.6.0
@@ -2163,10 +2060,30 @@ configure_autonomous_mobile_robot () {
   esac
   # standard SDK by default; pass --complete for the full (~20GB) SDK
   amr_sdk_pkg=ros-$ros_distro-robotics-sdk
+
+  # Intel oneAPI Base Toolkit repo + version pins - the robotics SDK links the
+  # oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
+  oneapi_repo_name="apt.repos.intel.com"
+  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
+  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  oneapi_pref=(
+    "Package: intel-oneapi-runtime-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-compiler-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-mkl-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+  )
+  oneapi_pref_file=/etc/apt/preferences.d/oneapi
+  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
 }
 
 debian_90_profile_autonomous_mobile_robot () {
-  echo "git curl edge_base ros2 amr_apt_repo ros_openvino realsense"
+  echo "git curl edge_base ros2 ros_openvino realsense"
 }
 
 verify_autonomous_mobile_robot () {
@@ -2201,6 +2118,13 @@ debian_90_install_autonomous_mobile_robot () {
     echo "Autonomous Mobile Robot is already installed. Skipping..."
   else
     ensure_disk_space $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
+
+    # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
+    ensure_apt install -y software-properties-common curl gnupg wget
+    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
+    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
+    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
+
     ensure_apt update -y
 
     amr_setup_gazebo
@@ -2235,6 +2159,7 @@ debian_90_remove_autonomous_mobile_robot () {
       ros-$ros_distro-collab-slam-sse ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-lze || true
     configure_osrf_gazebo
     ensure_sudo rm -f $osrf_list $osrf_key
+    ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
   else
     echo "Autonomous Mobile Robot already removed. Skipping"
   fi
@@ -2242,6 +2167,21 @@ debian_90_remove_autonomous_mobile_robot () {
 
 debian_90_sbom_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot
+  (
+    IFS=$'|'
+    local oneapi_pref_str="${oneapi_pref[*]}"
+    cat <<EOF
+"name": "$oneapi_repo_name"
+"gpg-key": "$oneapi_key_url"
+"key-file": "$oneapi_key_file"
+"apt-source": "$oneapi_deb_entry"
+"apt-list-file": "$oneapi_list"
+"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
+"apt-pref-file": "$oneapi_pref_file"
+"pkg-list": ["intel-oneapi-runtime-*","intel-oneapi-compiler-*","intel-oneapi-mkl-*"]
+EOF
+  )
+  echo "---"
   # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
   if [ "$ros_distro" = humble ]; then
     cat <<EOF
@@ -2251,7 +2191,7 @@ EOF
   fi
 
   cat <<EOF
-"pkg-list": ["gnupg"]
+"pkg-list": ["software-properties-common","curl","gnupg","wget","lsb-release"]
 EOF
 
   if [ "$ros_distro" = jazzy ]; then
@@ -2321,17 +2261,17 @@ EOF
 }
 
 debian_05_install_debconf_utils () {
-  if ensure_apt_is_installed debconf_utils; then
-    echo "debconf_utils is already installed. Skipping..."
+  if ensure_apt_is_installed debconf-utils; then
+    echo "debconf-utils is already installed. Skipping..."
   else
     ensure_apt update
-    ensure_apt install --no-install-recommends -y debconf_utils
+    ensure_apt install --no-install-recommends -y debconf-utils
   fi
 }
 
 debian_05_sbom_debconf_utils () {
   cat <<EOF
-"pkg-list": ["debconf_utils"]
+"pkg-list": ["debconf-utils"]
 EOF
 }
 
@@ -2343,7 +2283,11 @@ configure_dlstreamer () {
   list_file=/etc/apt/sources.list.d/intel-dlstreamer.list
   repository=https://github.com/open-edge-platform/dlstreamer
   workspace="$(ensure_project_path)/dlstreamer"
-  version=2026.2.0-rc1
+  version=2026.2.0
+  od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8
+  od_model_proc=yolov5m-640_INT8/yolo-v5
+  oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
+  model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
 }
 
 debian_75_profile_dlstreamer () {
@@ -2352,9 +2296,9 @@ debian_75_profile_dlstreamer () {
 
 verify_dlstreamer () {
   ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
-  [ -r "$workspace/python3-venv/bin/activate" ] || return 1
+  [ -r "$workspace/.venv/bin/activate" ] || return 1
   cd "$workspace"
-  . python3-venv/bin/activate
+  . .venv/bin/activate
   pip show ultralytics nncf
 }
 
@@ -2382,16 +2326,63 @@ debian_75_install_dlstreamer () {
 
     # create the dlstreamer venv
     cd "$workspace"
-    python3 -m venv python3-venv
-    . python3-venv/bin/activate
+    python3 -m venv .venv
+    . .venv/bin/activate
     pip install nncf==3.0.0 ultralytics==8.4.57
+
+    echo "intel-dlstreamer=$version installed successfully."
+
+    if [[ " $* " = *" --validate "* || " $* " = *" --validate-dlstreamer "* ]]; then
+      ( 
+        mkdir -p models/${od_model%/*}
+        set -x
+        curl -sSfL $model_repo/storage/$od_model.bin -o models/$od_model.bin
+        curl -sSfL $model_repo/storage/$od_model.xml -o models/$od_model.xml
+        curl -sSfL $model_repo/storage/${od_model_proc}.json -o models/$od_model.json
+      )
+
+      (
+        mkdir -p models/${oc_model%/*}
+        set -x
+        curl -sSfL $model_repo/storage/$oc_model.bin -o models/$oc_model.bin
+        curl -sSfL $model_repo/storage/$oc_model.xml -o models/$oc_model.xml
+      )
+
+      set -o pipefail
+      local -A device_map=(
+        [GPU]=/dev/dri/renderD128
+        [NPU]=/dev/accel/accel0
+      )
+      . /opt/intel/dlstreamer/scripts/setup_dls_env.sh
+      for device in ${!device_map[*]}; do
+        [ -e ${device_map[$device]} ] || continue
+        echo "Validating $od_model and $oc_model on device $device..."
+        gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! \
+            gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! \
+            gvainference model=models/$oc_model.xml device=$device ! \
+            gvafpscounter ! fakesink sync=false | ( \
+          info=0
+          while IFS= read -r line; do
+            echo "$line"
+            case "$line" in
+            *"FpsCounter(last"*"sec): total="*)
+            info=1
+            ;;
+            esac
+          done
+          [ $info -eq 1 ]
+        )
+      done
+    fi
+
+    rm -rf .git
   fi
 
   # info
   echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
   echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples"
   echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
-  echo "@@HIGHLIGHT python venv @$workspace/python3-venv"
+  echo "@@HIGHLIGHT python venv @$workspace/.venv"
 }
 
 debian_75_remove_dlstreamer () {
@@ -3449,6 +3440,7 @@ debian_90_remove_nicu_warmer () {
 configure_npu () {
   version=1.35.0
   repository=https://api.github.com/repos/intel/linux-npu-driver
+  releases=https://github.com/intel/linux-npu-driver/releases
   workspace="$(ensure_project_path)/npu"
 }
 
@@ -3482,7 +3474,7 @@ debian_40_install_npu () {
     cd "$workspace"
 
     # download deb packages
-    local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $repository/releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+    local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
     [ ${#packages[*]} -gt 0 ] || return 3
 
     for p in ${packages[*]}; do
@@ -3506,7 +3498,7 @@ debian_40_remove_npu () {
 
 debian_40_sbom_npu () {
   configure_npu "$@"
-  local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $repository/releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+  local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
   [ ${#packages[*]} -gt 0 ] || return 3
   local packages_str="${packages[*]}"
   cat <<EOF
@@ -3521,8 +3513,9 @@ configure_openvino () {
   key_file=/usr/share/keyrings/intel-gpg-archive-keyring.gpg
   apt_entry="deb [signed-by=$key_file] https://$repo_name/openvino ${ID}${VERSION_ID%.*} main"
   apt_file=/etc/apt/sources.list.d/intel-openvino.list
-  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.1.0 || echo 2026.3.0)
-  openvino_venv="$(ensure_project_path)/openvino-genai"
+  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.3.0)
+  workspace="$(ensure_project_path)/openvino"
+  model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
 }
 
 debian_70_profile_openvino () {
@@ -3531,8 +3524,8 @@ debian_70_profile_openvino () {
 
 verify_openvino () {
   ensure_apt_is_installed openvino-${version} || return 1
-  [ -r "$openvino_venv"/bin/activate ] || return 1
-  . "$openvino_venv"/bin/activate
+  [ -r "$workspace"/.venv/bin/activate ] || return 1
+  . "$workspace"/.venv/bin/activate
   pip show openvino-genai 2> /dev/null | grep -q -F ${version} || return 1
 }
 
@@ -3558,13 +3551,24 @@ debian_70_install_openvino () {
     ensure_apt install --no-install-recommends -y openvino-$version
 
     # install openvino-genai
-    python3 -m venv "${openvino_venv}"
-    . "${openvino_venv}"/bin/activate
+    mkdir -p "$workspace"
+    python3 -m venv "$workspace"/.venv
+    . "$workspace"/.venv/bin/activate
     pip install openvino-genai==${version}
+
+    echo "openvino-${version} installed successfully."
+
+    if [[ " $* " = *" --validate "* || " $* " = *" --validate-openvino "* ]]; then
+      [ -e "$workspace"/${model##*/} ] || curl -sSfL "$model" -o "$workspace"/${model##*/}
+      for device in CPU GPU NPU; do
+        echo "Validating ${model##*/} inferencing on $device..."
+        benchmark_app -t 5 -m "$workspace"/${model##*/} -d $device
+      done
+    fi
   fi
 
   # info
-  echo "@@HIGHLIGHT openvino-genai @$openvino_venv"
+  echo "@@HIGHLIGHT openvino-genai @$workspace/.venv"
   echo "@@HIGHLIGHT openvino samples @/usr/share/openvino"
 }
 
@@ -3573,7 +3577,7 @@ debian_70_remove_openvino () {
 
   if verify_openvino; then
     ensure_apt autoremove -m -y openvino-${version} openvino || true
-    ensure_sudo rm -rf "$openvino_venv" $apt_file $key_file
+    ensure_sudo rm -rf "$workspace" $apt_file $key_file
   else
     echo "openvino-${version} already removed. Skipping"
   fi
@@ -4098,18 +4102,18 @@ system_scan_check_network_access () {
     http://ubuntu.com
     https://apt.repos.intel.com
   ) url
+
   for url in "${check_urls[@]}"; do
-    if ! curl --connect-timeout 5 --max-time 10 --head $url > /dev/null 2>&1; then
+    if ! curl -fsSL --retry 2 $url > /dev/null; then
       echo "$url by $(id -un)"
       return
     fi
-    # Only verify root connectivity when sudo can run without an interactive
-    # prompt, otherwise skip it to avoid hanging or false negatives.
-    if sudo -nv 2>/dev/null || [ -n "$SUDO_PASSWORD" ]; then
-      if ! ensure_sudo curl --connect-timeout 5 --max-time 10 --head $url > /dev/null 2>&1; then
-        echo "$url by root"
-        return
-      fi
+  done
+
+  for url in "${check_urls[@]}"; do
+    if ! ensure_sudo curl -fsSL --retry 2 $url > /dev/null; then
+      echo "$url by root"
+      return
     fi
   done
   echo "registry reachable"
@@ -4349,14 +4353,32 @@ configure_ros_openvino () {
     "Pin: version $ov_version*"
     "Pin-Priority: 1002"
   )
+
+  # Autonomous Mobile Robot (AMR) apt feed - hosts the ROS OpenVINO node /
+  # wrapper packages (ros-<distro>-openvino-node) pulled in below. Previously
+  # provided by the standalone amr_apt_repo module.
+  # https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
+  amr_repo_name="amrdocs.intel.com"
+  amr_key_url=https://$amr_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-AMR.gpg
+  amr_key_file=/usr/share/keyrings/amr-archive-keyring.gpg
+  amr_list=/etc/apt/sources.list.d/amr.list
+  amr_pref=(
+    "Package: *"
+    "Pin: origin $amr_repo_name"
+    "Pin-Priority: 1001"
+  )
+  amr_pref_file=/etc/apt/preferences.d/amr
+  amr_deb_entry="$(printf 'deb [signed-by=%s] https://%s/repos/%s amr main' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
+  amr_deb_src_entry="$(printf 'deb-src [signed-by=%s] https://%s/repos/%s amr main\n' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
 }
 
 debian_55_profile_ros_openvino () {
-  echo "curl gpg ros2 amr_apt_repo edge_base libze1 debconf_utils"
+  echo "curl gpg ros2 edge_base libze1 debconf_utils"
 }
 
 verify_ros_openvino () {
   configure_ros_openvino
+  [ -r "$amr_key_file" ] && [ -r "$amr_list" ] || return 1
   ensure_apt_is_installed openvino=$ov_version ros-$ros_distro-openvino-node
 }
 
@@ -4366,6 +4388,14 @@ debian_55_install_ros_openvino () {
   if verify_ros_openvino && [[ " $* " != *" --reset-ros_openvino "* ]]; then
     echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
   else
+    ensure_apt install -y curl gnupg
+
+    # AMR apt feed (signing key + source + pin) providing the ROS OpenVINO node
+    ensure_sudo mkdir -p "$(dirname "$amr_key_file")"
+    ensure_apt_key "$amr_key_file" "$amr_key_url"
+    ensure_apt_source "$amr_list" "$amr_deb_entry" "$amr_deb_src_entry"
+    ensure_apt_preference "$amr_pref_file" "${amr_pref[@]}"
+
     # OpenVINO apt repository + signing key
     ensure_apt_key $ov_key_file $ov_key_url --dearmor
     ensure_apt_source $ov_list "$ov_deb_entry"
@@ -4396,7 +4426,8 @@ debian_55_remove_ros_openvino () {
   configure_ros_openvino
   if verify_ros_openvino; then
     ensure_apt autoremove -m -y ros-$ros_distro-openvino-node openvino || true
-    ensure_sudo rm -f "$ov_key_file" "$ov_list" "$ov_pref"
+    ensure_sudo rm -f "$ov_key_file" "$ov_list" "$ov_pref" \
+      "$amr_key_file" "$amr_list" "$amr_pref_file"
   else
     echo "ROS 2 OpenVINO toolkit already removed. Skipping"
   fi
@@ -4407,7 +4438,17 @@ debian_55_sbom_ros_openvino () {
 (
   IFS=$'|'
   local pref_str="${ov_deb_pref[*]}"
+  local amr_pref_str="${amr_pref[*]}"
   cat <<EOF
+"name": "$amr_repo_name"
+"gpg-key": "$amr_key_url"
+"key-file": "$amr_key_file"
+"apt-source": "$amr_deb_entry"
+"apt-src-source": "$amr_deb_src_entry"
+"apt-list-file": "$amr_list"
+"apt-pref": ["${amr_pref_str//'|'/'","'}"]
+"apt-pref-file": "$amr_pref_file"
+---
 "name": "$ov_repo_name"
 "gpg-key": "$ov_key_url"
 "key-file": "$ov_key_file"
@@ -4416,6 +4457,8 @@ debian_55_sbom_ros_openvino () {
 "pkg-list": ["openvino","ros-$ros_distro-openvino-node"]
 "apt-pref-file": "$ov_pref"
 "apt-pref": ["${pref_str//|/'","'}"]
+---
+"pkg-list": ["curl","gnupg"]
 EOF
 )
 }
@@ -4561,10 +4604,30 @@ configure_stationary_robot_vision () {
   *)     ros_distro=jazzy ;;
   esac
   rvc_pkgs="ros-$ros_distro-rvc-simulation"
+
+  # Intel oneAPI Base Toolkit repo + version pins - the RVC robotics stack links
+  # the oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
+  oneapi_repo_name="apt.repos.intel.com"
+  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
+  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  oneapi_pref=(
+    "Package: intel-oneapi-runtime-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-compiler-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-mkl-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+  )
+  oneapi_pref_file=/etc/apt/preferences.d/oneapi
+  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
 }
 
 debian_90_profile_stationary_robot_vision () {
-  echo "git curl edge_base ros2 amr_apt_repo ros_openvino realsense"
+  echo "git curl edge_base ros2 ros_openvino realsense"
 }
 
 verify_stationary_robot_vision () {
@@ -4579,6 +4642,13 @@ debian_90_install_stationary_robot_vision () {
     echo "Stationary Robot Vision & Control is already installed. Skipping..."
   else
     ensure_disk_space 15000
+
+    # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
+    ensure_apt install -y software-properties-common curl gnupg wget
+    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
+    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
+    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
+
     ensure_apt update -y
     # RVC depends on Gazebo Harmonic (gz-harmonic); make sure the OSRF Gazebo
     # apt repository is configured (shared with the AMR SDK component).
@@ -4599,6 +4669,7 @@ debian_90_remove_stationary_robot_vision () {
   if verify_stationary_robot_vision; then
     ensure_apt autoremove -m -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc \
       ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true
+    ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
   else
     echo "Stationary Robot Vision & Control already removed. Skipping"
   fi
@@ -4606,6 +4677,25 @@ debian_90_remove_stationary_robot_vision () {
 
 debian_90_sbom_stationary_robot_vision () {
   configure_stationary_robot_vision
+  (
+    IFS=$'|'
+    local oneapi_pref_str="${oneapi_pref[*]}"
+    cat <<EOF
+"name": "$oneapi_repo_name"
+"gpg-key": "$oneapi_key_url"
+"key-file": "$oneapi_key_file"
+"apt-source": "$oneapi_deb_entry"
+"apt-list-file": "$oneapi_list"
+"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
+"apt-pref-file": "$oneapi_pref_file"
+"pkg-list": ["intel-oneapi-runtime-*","intel-oneapi-compiler-*","intel-oneapi-mkl-*"]
+EOF
+  )
+  echo "---"
+  cat <<EOF
+"pkg-list": ["software-properties-common","curl","gnupg","wget"]
+EOF
+  echo "---"
   configure_osrf_gazebo
   cat <<EOF
 "name": "packages.ros.org"

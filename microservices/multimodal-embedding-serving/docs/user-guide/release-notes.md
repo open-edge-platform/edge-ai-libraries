@@ -26,9 +26,16 @@ This microservice supports features based on the requirements of Video Search an
 
 **Fixed:**
 
+- Fixed file-descriptor exhaustion (`[Errno 24] Too many open files`) that failed video embedding requests with HTTP 500 at large `VIDEO_FRAME_BATCH_SIZE`; shared-memory pool blocks no longer each hold two open descriptors, and the container raises `nofile` to 65536.
+- Fixed shared-memory segments leaking into `/dev/shm` when pool teardown hit an already-unlinked block; blocks are now unlinked independently.
+- Fixed GPU batch-size defaults in `setup.sh` never applying: values were assigned before the device was tested, so GPU deployments silently ran at CPU batch sizes. Defaults are now resolved per device, and explicit values still take precedence.
 - Fixed `QwenText/*` models failing to start on `EMBEDDING_DEVICE=NPU`. The exported IR is dynamic on both batch and sequence length, which the NPU compiler rejects (`expected exactly 1 dynamic output bound dimension, got 2`). The handler now reshapes the model to a static shape before compiling, chunks larger request batches at inference time, and caches the compiled blob per device/shape.
 - Fixed long text losing its tail on `QwenText/*` on NPU. Input beyond the compiled sequence length was truncated, and because the discarded remainder did not affect the vector at all, documents sharing a long prefix produced near-identical embeddings. Such text is now split into overlapping chunks that are embedded and combined into a single vector, weighted so each token counts exactly once. Set `EMBEDDING_CHUNK_LONG_TEXT=false` to restore truncation. CPU and GPU are unaffected.
 - `EMBEDDING_STATIC_SEQ_LEN` is now restricted to validated values (`128`–`8192`, powers of two), rounding other values up rather than compiling an arbitrary shape. See [QwenText Models on NPU](./qwentext-on-npu.md).
+
+**Upgrade Notes:**
+
+- GPU deployments now default to `INFER_BATCH_SIZE=32` and `VIDEO_FRAME_BATCH_SIZE=256` (previously `16`/`64` in practice), the fastest measured combination for CLIP ViT-B/32. Export either variable before sourcing `setup.sh` to keep the old values.
 
 ## Version 2026.1.0
 
