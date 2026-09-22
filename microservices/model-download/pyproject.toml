@@ -14,6 +14,7 @@ dependencies = [
     "structlog==25.1.0",
     "uvicorn==0.38.0",
     "PyYAML==6.0.2",
+    "httpx>=0.27,<1.0.0",
     "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.2",
 ]
 
@@ -53,9 +54,7 @@ ollama = [
     # Ollama is installed as a binary, no Python dependencies required
 ]
 
-geti = [
-    "geti-sdk==2.13.1",
-]
+geti = []
 
 hls = [
     "torch==2.9.1+cpu",

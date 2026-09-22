@@ -53,7 +53,7 @@ preventing later entries from being scheduled.
 
 Do not store credentials in this file. Supply credentials through the existing environment
 variables, including `HUGGINGFACEHUB_API_TOKEN` for gated Hugging Face models and
-`GETI_HOST`, `GETI_TOKEN`, and `GETI_WORKSPACE_ID` for Geti software.
+`GETI_HOST` for Geti 3.0 software.
 
 ## Docker Compose
 

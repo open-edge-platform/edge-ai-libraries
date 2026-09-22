@@ -1483,12 +1483,10 @@ class TestOverrideCredentialsBase64:
             hub="geti",
             override_credentials={
                 "GETI_HOST": self._b64("https://geti.example.com"),
-                "GETI_TOKEN": self._b64("geti_secret"),
             },
         )
         assert req.override_credentials == {
             "GETI_HOST": "https://geti.example.com",
-            "GETI_TOKEN": "geti_secret",
         }
 
     def test_none_is_passthrough(self):
