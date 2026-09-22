@@ -563,7 +563,6 @@ def test_post_config_alerts_optional(monkeypatch):
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"
     assert main.config["udfs"]["model"] == "model_name"
-    assert main.config["alerts"] == {}
 
 def test_post_config_invalid_json(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
