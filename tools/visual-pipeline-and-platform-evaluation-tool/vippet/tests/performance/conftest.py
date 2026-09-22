@@ -28,6 +28,7 @@ from perf_helpers.config import (
     PIPELINE_FILTER,
     POLL_INTERVAL,
     POLL_TIMEOUT,
+    READINESS_TIMEOUT_SECONDS,
     REQUEST_TIMEOUT,
     RESULT_FORMATS,
     SKIP_PIPELINES,
@@ -36,6 +37,7 @@ from perf_helpers.config import (
     VARIANT_FILTER,
 )
 from perf_helpers.hw_monitor import HardwareMonitor
+from perf_helpers.preflight import run_preflight_or_exit
 from perf_helpers.reporters import ResultExporter, generate_html_report
 
 logger = logging.getLogger(__name__)
@@ -76,16 +78,33 @@ def _collect_system_info(session: httpx.Client | None = None) -> dict[str, Any]:
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
 _QUICK_VARIANTS: set[str] = {"CPU", "GPU"}
 
-_PIPELINE_CASES, _CASE_IDS = discover_pipeline_cases_for_pytest()
+_PIPELINE_CASES: list[PipelineCase | object] | None = None
+_CASE_IDS: list[str] | None = None
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure() -> None:
+    """Verify ViPPET readiness once before performance test collection."""
+    run_preflight_or_exit(
+        BASE_URL,
+        READINESS_TIMEOUT_SECONDS,
+        POLL_INTERVAL,
+        REQUEST_TIMEOUT,
+    )
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Generate the cross-product parametrization: pipeline_case x stream_count."""
+    global _PIPELINE_CASES, _CASE_IDS
+
     if (
         "pipeline_case" not in metafunc.fixturenames
         or "stream_count" not in metafunc.fixturenames
     ):
         return
+
+    if _PIPELINE_CASES is None or _CASE_IDS is None:
+        _PIPELINE_CASES, _CASE_IDS = discover_pipeline_cases_for_pytest()
 
     params = []
     ids = []
