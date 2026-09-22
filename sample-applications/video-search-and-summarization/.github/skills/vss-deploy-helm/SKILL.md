@@ -270,7 +270,7 @@ service, and `global.devices.multimodalDataprep.detection` for DataPrep object
 detection. These settings are independent; every GPU/NPU setting requires its
 own resource `key`.
 
-vLLM tuning keys from the actual `vllm` subchart (set `global.vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"` for vLLM):
+vLLM tuning keys from the actual `vllm` subchart:
 ```yaml
 vllm:
   enabled: true
