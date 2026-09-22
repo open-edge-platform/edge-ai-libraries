@@ -12,9 +12,6 @@ containing metadata and a base64-encoded WAV payload. Models are loaded and
 warmed up once per process and reused across requests.
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 %%{init: {
   'theme': 'base',
   'themeVariables': {

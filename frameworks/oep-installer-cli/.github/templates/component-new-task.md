@@ -49,6 +49,7 @@ pull request adding `module/{{NAME}}/debian`.
    debian_<NN>_start_{{NAME}}
    debian_<NN>_stop_{{NAME}}
    debian_<NN>_license_{{NAME}}   # only if the spec requires a click-through license
+   debian_<NN>_sbom_{{NAME}}   # only if the component installs system-wide packages
    ```
    `configure_{{NAME}}` and `verify_{{NAME}}` are **conventions, not
    requirements** — they are not enforced by the naming check.  Additional
@@ -65,6 +66,7 @@ pull request adding `module/{{NAME}}/debian`.
    - Omit `remove` **only** for trivial system packages where removal could cause unintended side-effects (cite `module/curl/debian`).
    - Add `debian_<NN>_license_{{NAME}}` if the spec requires a click-through license; the function must print `@@LICENSE-ID`, `@@LICENSE-TITLE`, and the full license text (use `ensure_license_fetch` if fetching from a URL).
    - Reuse common functions actually defined under common/ or license/. Do not invent new helpers. Available helpers: {{HELPERS_LIST}}
+   - Must implement `sbom` if the component installs system-wide packages.  
 
 - **Profile membership**: the spec states whether this component should be added to one or more profiles.
    - If the spec names one or more profiles, **update those `profile/*/debian`

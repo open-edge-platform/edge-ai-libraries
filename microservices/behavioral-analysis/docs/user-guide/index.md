@@ -31,9 +31,6 @@ The Behavioral Analysis Service is a reusable Intel-developed microservice that 
 ### Architecture Diagram
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 graph TB
     subgraph "Input / Triggering"
         A["Upstream System<br/>(e.g., swlp-service)"]
@@ -81,9 +78,6 @@ graph TB
 ### Request/Response Flow (MQTT Path)
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 sequenceDiagram
     participant US as Upstream
     participant MQTT as MQTT Broker
