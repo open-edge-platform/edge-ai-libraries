@@ -8,11 +8,11 @@ ensure_tmpdir () {
   case "$1" in
   create)
     printf -v $2 "%s" $(mktemp -d ${4:-/tmp}/openedge-cli-${3:-}.XXXXXX)
-    trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
+    ensure_trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
     ;;
   destroy)
-    trap - ERR SIGINT EXIT
     rm -rf "$2"
+    ensure_trap - ERR SIGINT EXIT
     ;;
   esac
 }

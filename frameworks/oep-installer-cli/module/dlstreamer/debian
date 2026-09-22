@@ -7,7 +7,11 @@ configure_dlstreamer () {
   list_file=/etc/apt/sources.list.d/intel-dlstreamer.list
   repository=https://github.com/open-edge-platform/dlstreamer
   workspace="$(ensure_project_path)/dlstreamer"
-  version=2026.2.0-rc1
+  version=2026.2.0
+  od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8
+  od_model_proc=yolov5m-640_INT8/yolo-v5
+  oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
+  model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
 }
 
 debian_75_profile_dlstreamer () {
@@ -15,10 +19,10 @@ debian_75_profile_dlstreamer () {
 }
 
 verify_dlstreamer () {
-  dpkg-query -l intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
-  [ -r "$workspace/python3-venv/bin/activate" ] || return 1
+  ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
+  [ -r "$workspace/.venv/bin/activate" ] || return 1
   cd "$workspace"
-  . python3-venv/bin/activate
+  . .venv/bin/activate
   pip show ultralytics nncf
 }
 
@@ -31,12 +35,9 @@ debian_75_install_dlstreamer () {
     # remove old versions
     ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
 
-    # product key
-    sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
-
-    # deb entry
-    echo "$deb_entry" | ensure_sudo tee $list_file
+    # product key & list file
+    ensure_apt_key $key_file $key_url --dearmor
+    ensure_apt_source $list_file "$deb_entry" 
 
     # apt update
     ensure_apt update -y
@@ -49,16 +50,63 @@ debian_75_install_dlstreamer () {
 
     # create the dlstreamer venv
     cd "$workspace"
-    python3 -m venv python3-venv
-    . python3-venv/bin/activate
+    python3 -m venv .venv
+    . .venv/bin/activate
     pip install nncf==3.0.0 ultralytics==8.4.57
+
+    echo "intel-dlstreamer=$version installed successfully."
+
+    if [[ " $* " = *" --validate "* || " $* " = *" --validate-dlstreamer "* ]]; then
+      ( 
+        mkdir -p models/${od_model%/*}
+        set -x
+        curl -sSfL $model_repo/storage/$od_model.bin -o models/$od_model.bin
+        curl -sSfL $model_repo/storage/$od_model.xml -o models/$od_model.xml
+        curl -sSfL $model_repo/storage/${od_model_proc}.json -o models/$od_model.json
+      )
+
+      (
+        mkdir -p models/${oc_model%/*}
+        set -x
+        curl -sSfL $model_repo/storage/$oc_model.bin -o models/$oc_model.bin
+        curl -sSfL $model_repo/storage/$oc_model.xml -o models/$oc_model.xml
+      )
+
+      set -o pipefail
+      local -A device_map=(
+        [GPU]=/dev/dri/renderD128
+        [NPU]=/dev/accel/accel0
+      )
+      . /opt/intel/dlstreamer/scripts/setup_dls_env.sh
+      for device in ${!device_map[*]}; do
+        [ -e ${device_map[$device]} ] || continue
+        echo "Validating $od_model and $oc_model on device $device..."
+        gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! \
+            gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! \
+            gvainference model=models/$oc_model.xml device=$device ! \
+            gvafpscounter ! fakesink sync=false | ( \
+          info=0
+          while IFS= read -r line; do
+            echo "$line"
+            case "$line" in
+            *"FpsCounter(last"*"sec): total="*)
+            info=1
+            ;;
+            esac
+          done
+          [ $info -eq 1 ]
+        )
+      done
+    fi
+
+    rm -rf .git
   fi
 
   # info
   echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
   echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples"
   echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
-  echo "@@HIGHLIGHT python venv @$workspace/python3-venv"
+  echo "@@HIGHLIGHT python venv @$workspace/.venv"
 }
 
 debian_75_remove_dlstreamer () {
@@ -66,7 +114,7 @@ debian_75_remove_dlstreamer () {
 
   if verify_dlstreamer; then
     ensure_apt autoremove -m -y intel-dlstreamer
-    ensure_sudo rm -f $list_file
+    ensure_sudo rm -f $list_file $key_file
     ensure_sudo -rf "$workspace" 2> /dev/null || true
   else
     echo "dlstreamer already removed. Skipping"

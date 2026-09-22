@@ -1,6 +1,6 @@
 
 debian_70_install_ffmpeg () {
-  if dpkg-query -L ffmpeg > /dev/null 2>&1; then
+  if ensure_apt_is_installed ffmpeg > /dev/null 2>&1; then
     echo "ffmpeg is already installed. Skipping..."
   else
     ensure_apt update

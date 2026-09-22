@@ -28,16 +28,33 @@ configure_ros_openvino () {
     "Pin: version $ov_version*"
     "Pin-Priority: 1002"
   )
+
+  # Autonomous Mobile Robot (AMR) apt feed - hosts the ROS OpenVINO node /
+  # wrapper packages (ros-<distro>-openvino-node) pulled in below. Previously
+  # provided by the standalone amr_apt_repo module.
+  # https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
+  amr_repo_name="amrdocs.intel.com"
+  amr_key_url=https://$amr_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-AMR.gpg
+  amr_key_file=/usr/share/keyrings/amr-archive-keyring.gpg
+  amr_list=/etc/apt/sources.list.d/amr.list
+  amr_pref=(
+    "Package: *"
+    "Pin: origin $amr_repo_name"
+    "Pin-Priority: 1001"
+  )
+  amr_pref_file=/etc/apt/preferences.d/amr
+  amr_deb_entry="$(printf 'deb [signed-by=%s] https://%s/repos/%s amr main' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
+  amr_deb_src_entry="$(printf 'deb-src [signed-by=%s] https://%s/repos/%s amr main\n' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
 }
 
 debian_55_profile_ros_openvino () {
-  echo "curl gpg ros2 amr_apt_repo edge_base libze1 debconf_utils"
+  echo "curl gpg ros2 edge_base libze1 debconf_utils"
 }
 
 verify_ros_openvino () {
   configure_ros_openvino
-  dpkg-query -l openvino 2> /dev/null | grep -q -F "$ov_version" || return 1
-  dpkg-query -l ros-$ros_distro-openvino-node > /dev/null 2>&1
+  [ -r "$amr_key_file" ] && [ -r "$amr_list" ] || return 1
+  ensure_apt_is_installed openvino=$ov_version ros-$ros_distro-openvino-node
 }
 
 debian_55_install_ros_openvino () {
@@ -46,13 +63,20 @@ debian_55_install_ros_openvino () {
   if verify_ros_openvino && [[ " $* " != *" --reset-ros_openvino "* ]]; then
     echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
   else
+    ensure_apt install -y curl gnupg
+
+    # AMR apt feed (signing key + source + pin) providing the ROS OpenVINO node
+    ensure_sudo mkdir -p "$(dirname "$amr_key_file")"
+    ensure_apt_key "$amr_key_file" "$amr_key_url"
+    ensure_apt_source "$amr_list" "$amr_deb_entry" "$amr_deb_src_entry"
+    ensure_apt_preference "$amr_pref_file" "${amr_pref[@]}"
+
     # OpenVINO apt repository + signing key
-    ensure_sudo mkdir -p "$(dirname "$ov_key_file")"
-    no_proxy= NO_PROXY= curl -fsL "$ov_key_url" | gpg --dearmor | ensure_sudo tee "$ov_key_file" > /dev/null
-    echo "$ov_deb_entry" | ensure_sudo tee "$ov_list" > /dev/null
+    ensure_apt_key $ov_key_file $ov_key_url --dearmor
+    ensure_apt_source $ov_list "$ov_deb_entry"
 
     # pin OpenVINO and the ROS OpenVINO packages to the same version
-    ( IFS=$'\n'; echo "${ov_deb_pref[*]}" ) | ensure_sudo tee "$ov_pref" > /dev/null
+    ensure_apt_preference $ov_pref "${ov_deb_pref[@]}"
 
     ensure_apt update -y
 
@@ -77,7 +101,8 @@ debian_55_remove_ros_openvino () {
   configure_ros_openvino
   if verify_ros_openvino; then
     ensure_apt autoremove -m -y ros-$ros_distro-openvino-node openvino || true
-    ensure_sudo rm -f "$ov_key_file" "$ov_list" "$ov_pref"
+    ensure_sudo rm -f "$ov_key_file" "$ov_list" "$ov_pref" \
+      "$amr_key_file" "$amr_list" "$amr_pref_file"
   else
     echo "ROS 2 OpenVINO toolkit already removed. Skipping"
   fi
@@ -88,7 +113,17 @@ debian_55_sbom_ros_openvino () {
 (
   IFS=$'|'
   local pref_str="${ov_deb_pref[*]}"
+  local amr_pref_str="${amr_pref[*]}"
   cat <<EOF
+"name": "$amr_repo_name"
+"gpg-key": "$amr_key_url"
+"key-file": "$amr_key_file"
+"apt-source": "$amr_deb_entry"
+"apt-src-source": "$amr_deb_src_entry"
+"apt-list-file": "$amr_list"
+"apt-pref": ["${amr_pref_str//'|'/'","'}"]
+"apt-pref-file": "$amr_pref_file"
+---
 "name": "$ov_repo_name"
 "gpg-key": "$ov_key_url"
 "key-file": "$ov_key_file"
@@ -97,6 +132,8 @@ debian_55_sbom_ros_openvino () {
 "pkg-list": ["openvino","ros-$ros_distro-openvino-node"]
 "apt-pref-file": "$ov_pref"
 "apt-pref": ["${pref_str//|/'","'}"]
+---
+"pkg-list": ["curl","gnupg"]
 EOF
 )
 }

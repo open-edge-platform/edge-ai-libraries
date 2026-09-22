@@ -1,0 +1,6 @@
+
+ensure_apt_preference () {
+  local pref_file=$1; shift
+  (IFS=$'\n';echo "$@") | ensure_sudo tee "$pref_file" > /dev/null
+}
+

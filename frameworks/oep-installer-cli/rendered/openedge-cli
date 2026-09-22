@@ -4,6 +4,7 @@ main () {
   . /etc/os-release
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
+  installer_bin="$HOME/.local/bin/$installer_name"
 
   local _globals=() _cmds=() _args=() cur=-1 v
   for v in "$@"; do
@@ -12,15 +13,13 @@ main () {
       _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
       echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
       echo "common options:"
-      echo "  --dry-run       dry-run the subcommand sequence."
-      echo "  --continue      continue execution upon errors."
       echo "  --help          this help message." 
       echo
       local cmd
       for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
         $cmd --help
       done
-      return
+      return 0
       ;;
     --dry-run|--continue)
       _globals+=($v)
@@ -41,7 +40,7 @@ main () {
   # --help if nothing specified
   if [ ${#_cmds[@]} -eq 0 ]; then
     main --help
-    return
+    return 0
   fi
 
   # initialize act cache
@@ -93,27 +92,27 @@ main () {
 
           [[ " ${_cmds[*]:0:$_i} " = *" setup "* ]] || subcommand_setup "${_globals[@]}"
 
-          local installer="$HOME/.local/bin/$installer_name"
-          [ -x "$installer" ] || {
-            echo -e "${red}$installer not found; run 'setup' first${reset}" 1>&2
+          [ -x "$installer_bin" ] || {
+            echo -e "${red}$installer_bin not found; run 'setup' first${reset}" 1>&2
             return 3
           }
 
-          local _sdir=""
+          local _sdir="" _sdir_secrets
           ensure_tmpdir create _sdir secrets /dev/shm
-          (umask 077;printf "%s\n%s\n" "$SUDO_PASSWORD" "$TF_TOKEN" > "$_sdir"/secrets)
+          local _sdir_secrets="$_sdir"/secrets
+          (
+            umask 077;
+            export OEP_GROUP_REEXEC=1
+            for e in $(compgen -e | grep -Ev '^BASH_FUNC_|^(SHELLOPTS|BASHOPTS|BASH_ENV|ENV)$'); do
+              printf "export %s=%q\n" "$e" "${!e}"
+            done > "$_sdir_secrets"
+          ) || { echo "Failed to write secrets" >&2; return 3; }
           ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" \
-            --inh-caps=-all env HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" PATH="$PATH" \
-            XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" OEP_GROUP_REEXEC=1 bash -c '
-secret="$1"; installer="$2"; shift 2
-{
-  IFS= read -r SUDO_PASSWORD
-  IFS= read -r TF_TOKEN
-} < "$secret"
-rm -f "$secret"
-export SUDO_PASSWORD TF_TOKEN
-exec "$installer" "$@"
-' bash "$_sdir/secrets" "$installer" "${_rest_args[@]}" "${_globals[@]}"
+            --inh-caps=-all bash -c '
+secrets="$1"; installer_bin="$2"; shift 2
+. "$secrets"; rm -f "$secrets"
+exec "$installer_bin" "$@"
+' bash "$_sdir_secrets" "$installer_bin" "${_rest_args[@]}" "${_globals[@]}"
           _rc=$?
           ensure_tmpdir destroy "$_sdir"
           return $_rc
@@ -130,6 +129,15 @@ exec "$installer" "$@"
 #!/bin/bash
 
 subcommand_install () {
+  if [[ " $* " = *" --help "* ]]; then
+    echo "install options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
+    echo "  --validate or --validate-<name>   perform sanity check of features after installation."
+    echo "  --reset-<name>  force reinstallation of the component if exit."
+    echo
+    return 0
+  fi
   act_helpper "install,Installation,Installing,Installed" "" "$@"
 }
 
@@ -224,17 +232,16 @@ subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
 
   # reconstruct installer
-  local installer_misc_functions=(amr_setup_osrf_gazebo cleanup_gpu configure_amr_apt_repo configure_anomalib configure_autonomous_mobile_robot configure_dlstreamer configure_docker configure_esq configure_geti configure_gpu configure_handheld_multi_modal configure_humanoid_imitation_learning configure_libze1 configure_live_video_captioning configure_loitering_detection configure_loss_prevention configure_multimodal_weld_defect_detection configure_multimodal_weld_defect_detection_device configure_multimodal_weld_defect_detection_env configure_nicu_warmer configure_npu configure_openvino configure_order_accuracy configure_osrf_gazebo configure_pallet_defect_detection configure_pcb_anomaly_detection configure_physical_ai_framework configure_physical_ai_studio configure_realsense configure_ros2 configure_ros_openvino configure_smart_intersection configure_smart_parking configure_stationary_robot_vision configure_uv configure_video_search_and_summarization configure_vippet current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary verify_amr_apt_repo verify_anomalib verify_autonomous_mobile_robot verify_dlstreamer verify_geti verify_gpu verify_handheld_multi_modal verify_humanoid_imitation_learning verify_live_video_captioning verify_loitering_detection verify_loss_prevention verify_multimodal_weld_defect_detection verify_nicu_warmer verify_npu verify_openvino verify_order_accuracy verify_pallet_defect_detection verify_pcb_anomaly_detection verify_physical_ai_framework verify_physical_ai_studio verify_realsense verify_ros2 verify_ros_openvino verify_smart_intersection verify_smart_parking verify_stationary_robot_vision verify_video_search_and_summarization verify_vippet)
-  local installer="$HOME/.local/bin/$installer_name"
-  mkdir -p "$(dirname "$installer")"
-  cat > "$installer" <<EOF
+  local installer_misc_functions=(amr_setup_osrf_gazebo current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary)
+  mkdir -p "$(dirname "$installer_bin")"
+  cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
-  chmod a+rx "$installer"
-  echo "Installer reconstructed at $installer"
+  chmod a+rx "$installer_bin"
+  echo "Installer reconstructed at $installer_bin"
 
   # reconstruct bash completion
   local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name"
@@ -378,7 +385,7 @@ readonly MAX_WRAP=3000
 readonly LEFT_MIN=16
 KEEP_COLOR=${KEEP_COLOR:-1}
 WRAP_MODE=${WRAP_MODE:-wrap}
-LEFT_WIDTH=${LEFT_WIDTH:-38}
+LEFT_WIDTH=${LEFT_WIDTH:-0}
 LEFT_MAX_PCT=${LEFT_MAX_PCT:-34}
 REPORT_MAX_PCT=${REPORT_MAX_PCT:-55}
 SPLIT_MIN=${SPLIT_MIN:-6}
@@ -1370,6 +1377,31 @@ _handle_line() {
   _draw 1
 )}
 
+# create an askpass helper
+act_panelled_logs_askpass () {
+  local askpass_helper="$1"
+  ( umask 077;cat > "$askpass_helper" <<'EOF'
+#!/bin/bash
+if [ -n "$SUDO_PASSWORD" ]; then
+  printf '%s\n' "$SUDO_PASSWORD"
+else
+  exec 8<>/dev/tty 2>/dev/null || exit 1
+  # size and style
+  rows=$(stty size <&8 | cut -d' ' -f1)
+  saved=$(stty -g <&8) || exit 1
+  # restore screen
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  stty -echo <&8
+  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+  printf '\033[%d;1H\033[K%s' "${rows:-1}" "$1" >&8
+  IFS= read -r pw <&8
+  printf '\033[%d;1H\033[K' "${rows:-1}" >&8
+  printf '%s\n' "$pw"
+fi
+EOF
+  ) && chmod 700 "$askpass_helper"
+}
+
 #!/bin/bash
 
 act_get () {
@@ -1473,14 +1505,10 @@ act_helpper () {
   shift
 
   if [[ " $* " = *" --help "* ]]; then
-    act_get prefix ${act_name}_
-    if [ ${#_act_reply[*]} -gt 0 ]; then
-      if [ "${act_name}" = "install" ]; then
-        echo "${act_name} options:"
-        echo "  --reset-<name>  force reinstallation of the component if exit."
-        echo
-      fi
-    fi
+    echo "${act_name} options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
+    echo
     return 0
   fi
 
@@ -1785,7 +1813,7 @@ ensure_ports_open () {
 
 # return the installation path
 ensure_project_path () {
-  echo "$HOME/open-edge-platform"
+  echo "$HOME/.local/open-edge-platform"
 }
 
 
@@ -1820,41 +1848,22 @@ ensure_sudo () {
   if sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
     sudo "$@"
-  elif [ -n "${SUDO_PASSWORD:-}" ]; then
-    # password known: prefix it onto stdin, forward the rest so that
-    # `curl ... | ensure_sudo bash -s` and `... | ensure_sudo tee f` still work.
-    # -k is required: without it sudo may skip the read and leak the password
-    # into the invoked command's stdin.
-    (echo "$SUDO_PASSWORD"; cat) | sudo -kS "$@"
-  elif [ -t 0 ]; then
+  elif [ -t 0 ] && [ -z "$SUDO_PASSWORD" ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo "$@"
   else
     # write an askpass helper
     local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-    [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$HOME/.local/state/${installer_name:?}"
+    [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}"
     mkdir -p "$rundir" 2>/dev/null || return 1
-    local askpass_helper="$rundir"/askpass
     (
       flock -w 300 -e 9 || { echo "ensure_sudo: timed out waiting for another installer" >&2; exit 1; }
-      ( umask 077;cat > "$askpass_helper" <<'EOF'
-#!/bin/bash
-set -u
-exec 8<>/dev/tty 2>/dev/null || exit 1
-# size and style
-rows=$(stty size <&8 | cut -d' ' -f1)
-saved=$(stty -g <&8) || exit 1
-# restore screen
-trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
-stty -echo <&8
-# last row: _draw only ever writes rows 1..rows-1, so this is never repainted
-printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
-IFS= read -r pw <&8
-printf '\033[%d;1H\033[K' "$rows" >&8
-printf '%s\n' "$pw"
-EOF
-      ) && chmod 700 "$askpass_helper" || exit 1
-      SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
+      if [ ! -x "$SUDO_ASKPASS" ]; then
+        askpass_helper="$rundir"/askpass
+        act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
+        export SUDO_ASKPASS="$askpass_helper"
+      fi
+      sudo -A "$@"
     ) 9< "$rundir"
   fi
 }
@@ -1869,13 +1878,55 @@ ensure_tmpdir () {
   case "$1" in
   create)
     printf -v $2 "%s" $(mktemp -d ${4:-/tmp}/openedge-cli-${3:-}.XXXXXX)
-    trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
+    ensure_trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
     ;;
   destroy)
-    trap - ERR SIGINT EXIT
     rm -rf "$2"
+    ensure_trap - ERR SIGINT EXIT
     ;;
   esac
+}
+
+
+# nested trap
+ensure_trap() {
+  local script="$1" sig var_sig; shift
+
+  for sig in "$@"; do
+    var_sig="${sig//[^a-zA-Z0-9_]/_}"
+    local -n stack="_ENSURE_TRAP_STACK_${var_sig}"
+
+    if [[ "$script" == "-" || -z "$script" ]]; then
+      # Pop / Restore mode
+      if (( ${#stack[@]} > 0 )); then
+        unset "stack[$((${#stack[@]} - 1))]"
+        stack=("${stack[@]}")
+      fi
+
+      # Reset signal handler to default if stack is empty
+      if (( ${#stack[@]} == 0 )); then
+        trap - "$sig"
+      fi
+    else 
+      # Register mode
+      if [[ -z "$(trap -p "$sig")" ]]; then
+        stack=()
+        trap "
+          _ENSURE_TRAP_IDX_${var_sig}=\$((\${#_ENSURE_TRAP_STACK_${var_sig}[@]} - 1))
+          while (( _ENSURE_TRAP_IDX_${var_sig} >= 0 )); do
+            eval \"\${_ENSURE_TRAP_STACK_${var_sig}[\$_ENSURE_TRAP_IDX_${var_sig}]}\"
+            (( _ENSURE_TRAP_IDX_${var_sig}-- )) || true
+          done
+          if [[ \"$sig\" != \"EXIT\" && \"$sig\" != \"0\" && \"$sig\" != \"SIGEXIT\" ]]; then
+            trap - \"$sig\"
+            kill -s \"$sig\" \$\$
+          fi
+        " "$sig"
+      fi
+
+      stack+=("$script")
+    fi
+  done
 }
 
 
@@ -1913,121 +1964,49 @@ ensure_apt () {
   esac
 }
 
-
-ensure_rm_apt_source () {
-  local r e
-  for r in "$@"; do
-    [ -r /etc/apt/sources.list ] && sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
-    for e in /etc/apt/sources.list.d/*.list; do
-      [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && mv -f "$e" "$e".save || true
-    done
+# check pacakge installation. add =<version> to check version.
+ensure_apt_is_installed () {
+  for pkg in $*; do
+    [ "$(dpkg-query -W -f='${db:Status-Status}' ${pkg%%=*} 2>/dev/null)" = "installed" ] || return 1
+    [[ "$pkg" != *=* ]] || [[ "$(dpkg-query -W -f='${Version}' ${pkg%%=*} 2>/dev/null)" = "${pkg#*=}"* ]] || return 1
   done
 }
 
 
-# Autonomous Mobile Robot (AMR) APT repositories plus the Intel oneAPI Base
-# Toolkit repository. This module only configures apt sources / keys / pins;
-# the track components install the actual Deb packages.
-# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
-configure_amr_apt_repo () {
-  amr_repo_name="amrdocs.intel.com"
-  amr_key_url=https://$amr_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-AMR.gpg
-  amr_key_file=/usr/share/keyrings/amr-archive-keyring.gpg
-  amr_list=/etc/apt/sources.list.d/amr.list
-  amr_pref=(
-    "Package: *"
-    "Pin: origin $amr_repo_name"
-    "Pin-Priority: 1001"
-  )
-  amr_pref_file=/etc/apt/preferences.d/amr
-  amr_deb_entry="$(printf 'deb [signed-by=%s] https://%s/repos/%s amr main' "$amr_key_file" "$amr_repo_name"  "$VERSION_CODENAME")"
-  amr_deb_src_entry="$(printf 'deb-src [signed-by=%s] https://%s/repos/%s amr main\n' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
+ensure_apt_key () {
+  local key_file=$1 key_url=$2
+  local no_proxy1=$(echo ${no_proxy:-$NO_PROXY} | tr ',' '\n' | grep -v -E '^[.]?intel.com$' | tr '\n' ',')
 
-  oneapi_repo_name="apt.repos.intel.com"
-  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
-  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
-  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
-  oneapi_pref=(
-    "Package: intel-oneapi-runtime-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-    "Package: intel-oneapi-compiler-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-    "Package: intel-oneapi-mkl-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-  )
-  oneapi_pref_file=/etc/apt/preferences.d/oneapi
-  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
-}
-
-debian_45_profile_amr_apt_repo () {
-  echo "curl gpg edge_base"
-}
-
-verify_amr_apt_repo () {
-  configure_amr_apt_repo
-  [ -r "$amr_key_file" ] && [ -r "$amr_list" ] && [ -r "$oneapi_list" ]
-}
-
-debian_45_install_amr_apt_repo () {
-  configure_amr_apt_repo
-
-  if verify_amr_apt_repo && [[ " $* " != *" --reset-amr_apt_repo "* ]]; then
-    echo "AMR apt repositories are already configured. Skipping..."
+  sudo mkdir -p $(dirname $key_file)
+  if [[ "$*" = *"--dearmor"* ]]; then
+    no_proxy=$no_proxy1 NO_PROXY=$no_proxy1 curl -fsSL "$key_url" | gpg --dearmor | ensure_sudo tee "$key_file" > /dev/null
   else
-    ensure_apt install -y software-properties-common curl gnupg wget
-
-    # AMR archive key + sources + pin
-    ensure_sudo mkdir -p "$(dirname "$amr_key_file")"
-    no_proxy= NO_PROXY= curl -fsL "$amr_key_url" | ensure_sudo tee "$amr_key_file" > /dev/null
-    printf '%s\n%s' "$amr_deb_entry" "$amr_deb_src_entry" | ensure_sudo tee "$amr_list" > /dev/null
-    (IFS=$'\n'; echo "${amr_pref[*]}") | ensure_sudo tee "$amr_pref_file" > /dev/null
-
-    # Intel oneAPI Base Toolkit key + source + pins
-    no_proxy= NO_PROXY= curl -fsL "$oneapi_key_url" | gpg --dearmor | ensure_sudo tee "$oneapi_key_file" > /dev/null
-    echo "$oneapi_deb_entry" | ensure_sudo tee "$oneapi_list" > /dev/null
-    (IFS=$'\n'; echo "${oneapi_pref[*]}") | ensure_sudo tee "$oneapi_pref_file" > /dev/null
-
-    # Canonical kobuk PPA for latest Intel silicon support (best-effort)
-    ensure_sudo add-apt-repository -y ppa:kobuk-team/intel-graphics || true
-
-    ensure_apt update -y
+    no_proxy=$no_proxy1 NO_PROXY=$no_proxy1 curl -fsSL "$key_url" | ensure_sudo tee "$key_file" > /dev/null
   fi
 }
 
-debian_45_remove_amr_apt_repo () {
-  configure_amr_apt_repo
-  ensure_sudo rm -f "$amr_key_file" "$amr_list" "$amr_pref" \
-    "$oneapi_key_file" "$oneapi_list" "$oneapi_pref"
+
+ensure_apt_preference () {
+  local pref_file=$1; shift
+  (IFS=$'\n';echo "$@") | ensure_sudo tee "$pref_file" > /dev/null
 }
 
-debian_45_sbom_amr_apt_repo () {
-  configure_amr_apt_repo
-  (
-    IFS=$'|'
-    amr_pref_str="${amr_pref[*]}"
-    oneapi_pref_str="${oneapi_pref[*]}"
-    cat <<EOF
-"name": "$amr_repo_name"
-"gpg-key": "$amr_key_url"
-"key-file": "$amr_key_file"
-"apt-source": "$amr_deb_entry"
-"apt-src-source": "$amr_deb_src_entry"
-"apt-list-file": "$amr_list"
-"apt-pref": ["${amr_pref_str//'|'/'","'}"]
-"apt-pref-file": "$amr_pref_file"
----
-"name": "$oneapi_repo_name"
-"apt-source": "$oneapi_deb_entry"
-"apt-list-file": "$oneapi_list"
-"gpg-key": "$oneapi_key_url"
-"key-file": "$oneapi_key_file"
-"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
-"apt-pref-file": "$oneapi_pref_file"
-EOF
-  )
+
+# create new source list
+ensure_apt_source () {
+  local list_file=$1; shift
+  (IFS=$'\n';echo "$*") | ensure_sudo tee $list_file > /dev/null
+}
+
+# remove apt source by pattern
+ensure_apt_source_remove () {
+  local r e
+  for r in "$@"; do
+    [ -r /etc/apt/sources.list ] && ensure_sudo sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
+    for e in /etc/apt/sources.list.d/*.list; do
+      [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && ensure_sudo mv -f "$e" "$e".save || true
+    done
+  done
 }
 
 
@@ -2081,16 +2060,36 @@ configure_autonomous_mobile_robot () {
   esac
   # standard SDK by default; pass --complete for the full (~20GB) SDK
   amr_sdk_pkg=ros-$ros_distro-robotics-sdk
+
+  # Intel oneAPI Base Toolkit repo + version pins - the robotics SDK links the
+  # oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
+  oneapi_repo_name="apt.repos.intel.com"
+  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
+  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  oneapi_pref=(
+    "Package: intel-oneapi-runtime-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-compiler-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-mkl-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+  )
+  oneapi_pref_file=/etc/apt/preferences.d/oneapi
+  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
 }
 
 debian_90_profile_autonomous_mobile_robot () {
-  echo "git curl edge_base ros2 amr_apt_repo ros_openvino realsense"
+  echo "git curl edge_base ros2 ros_openvino realsense"
 }
 
 verify_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot
-  dpkg-query -l ros-$ros_distro-robotics-sdk > /dev/null 2>&1 || \
-  dpkg-query -l ros-$ros_distro-robotics-sdk-complete > /dev/null 2>&1
+  ensure_apt_is_installed ros-$ros_distro-robotics-sdk || \
+  ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete
 }
 
 # add the OSRF Gazebo apt repository (needed for the robotics-sdk dependencies)
@@ -2105,8 +2104,8 @@ configure_osrf_gazebo () {
 amr_setup_osrf_gazebo () {
   configure_osrf_gazebo
   ensure_apt install -y curl lsb-release gnupg
-  no_proxy= NO_PROXY= curl -fsL $osrf_key_url | ensure_sudo tee "$osrf_key" > /dev/null
-  echo "$osrf_entry" | ensure_sudo tee $osrf_list > /dev/null
+  ensure_apt_key "$osrf_key" "$osrf_key_url"
+  ensure_apt_source "$osrf_list" "$osrf_entry"
   ensure_apt update -y
   [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
 }
@@ -2119,6 +2118,13 @@ debian_90_install_autonomous_mobile_robot () {
     echo "Autonomous Mobile Robot is already installed. Skipping..."
   else
     ensure_disk_space $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
+
+    # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
+    ensure_apt install -y software-properties-common curl gnupg wget
+    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
+    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
+    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
+
     ensure_apt update -y
 
     amr_setup_gazebo
@@ -2151,7 +2157,9 @@ debian_90_remove_autonomous_mobile_robot () {
     ensure_apt autoremove -m -y \
       ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete \
       ros-$ros_distro-collab-slam-sse ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-lze || true
-    ensure_sudo rm -f /etc/apt/sources.list.d/gazebo-stable.list
+    configure_osrf_gazebo
+    ensure_sudo rm -f $osrf_list $osrf_key
+    ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
   else
     echo "Autonomous Mobile Robot already removed. Skipping"
   fi
@@ -2159,6 +2167,21 @@ debian_90_remove_autonomous_mobile_robot () {
 
 debian_90_sbom_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot
+  (
+    IFS=$'|'
+    local oneapi_pref_str="${oneapi_pref[*]}"
+    cat <<EOF
+"name": "$oneapi_repo_name"
+"gpg-key": "$oneapi_key_url"
+"key-file": "$oneapi_key_file"
+"apt-source": "$oneapi_deb_entry"
+"apt-list-file": "$oneapi_list"
+"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
+"apt-pref-file": "$oneapi_pref_file"
+"pkg-list": ["intel-oneapi-runtime-*","intel-oneapi-compiler-*","intel-oneapi-mkl-*"]
+EOF
+  )
+  echo "---"
   # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
   if [ "$ros_distro" = humble ]; then
     cat <<EOF
@@ -2168,7 +2191,7 @@ EOF
   fi
 
   cat <<EOF
-"pkg-list": ["gnupg"]
+"pkg-list": ["software-properties-common","curl","gnupg","wget","lsb-release"]
 EOF
 
   if [ "$ros_distro" = jazzy ]; then
@@ -2208,7 +2231,7 @@ debian_15_install_core_types () {
 
 
 debian_10_install_cpuid () {
-  if dpkg-query -L cpuid > /dev/null 2>&1; then
+  if ensure_apt_is_installed cpuid; then
     echo "Cpuid is already installed. Skipping..."
   else
     ensure_apt update
@@ -2223,7 +2246,7 @@ EOF
 }
 
 debian_05_install_curl () {
-  if dpkg-query -L curl > /dev/null 2>&1; then
+  if ensure_apt_is_installed curl; then
     echo "Curl is already installed. Skipping..."
   else
     ensure_apt update
@@ -2237,6 +2260,21 @@ debian_05_sbom_curl () {
 EOF
 }
 
+debian_05_install_debconf_utils () {
+  if ensure_apt_is_installed debconf-utils; then
+    echo "debconf-utils is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y debconf-utils
+  fi
+}
+
+debian_05_sbom_debconf_utils () {
+  cat <<EOF
+"pkg-list": ["debconf-utils"]
+EOF
+}
+
 configure_dlstreamer () {
   repo_name="apt.repos.intel.com"
   key_url="https://$repo_name/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg"
@@ -2245,7 +2283,11 @@ configure_dlstreamer () {
   list_file=/etc/apt/sources.list.d/intel-dlstreamer.list
   repository=https://github.com/open-edge-platform/dlstreamer
   workspace="$(ensure_project_path)/dlstreamer"
-  version=2026.2.0-rc1
+  version=2026.2.0
+  od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8
+  od_model_proc=yolov5m-640_INT8/yolo-v5
+  oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
+  model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
 }
 
 debian_75_profile_dlstreamer () {
@@ -2253,10 +2295,10 @@ debian_75_profile_dlstreamer () {
 }
 
 verify_dlstreamer () {
-  dpkg-query -l intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
-  [ -r "$workspace/python3-venv/bin/activate" ] || return 1
+  ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
+  [ -r "$workspace/.venv/bin/activate" ] || return 1
   cd "$workspace"
-  . python3-venv/bin/activate
+  . .venv/bin/activate
   pip show ultralytics nncf
 }
 
@@ -2269,12 +2311,9 @@ debian_75_install_dlstreamer () {
     # remove old versions
     ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
 
-    # product key
-    sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
-
-    # deb entry
-    echo "$deb_entry" | ensure_sudo tee $list_file
+    # product key & list file
+    ensure_apt_key $key_file $key_url --dearmor
+    ensure_apt_source $list_file "$deb_entry" 
 
     # apt update
     ensure_apt update -y
@@ -2287,16 +2326,63 @@ debian_75_install_dlstreamer () {
 
     # create the dlstreamer venv
     cd "$workspace"
-    python3 -m venv python3-venv
-    . python3-venv/bin/activate
+    python3 -m venv .venv
+    . .venv/bin/activate
     pip install nncf==3.0.0 ultralytics==8.4.57
+
+    echo "intel-dlstreamer=$version installed successfully."
+
+    if [[ " $* " = *" --validate "* || " $* " = *" --validate-dlstreamer "* ]]; then
+      ( 
+        mkdir -p models/${od_model%/*}
+        set -x
+        curl -sSfL $model_repo/storage/$od_model.bin -o models/$od_model.bin
+        curl -sSfL $model_repo/storage/$od_model.xml -o models/$od_model.xml
+        curl -sSfL $model_repo/storage/${od_model_proc}.json -o models/$od_model.json
+      )
+
+      (
+        mkdir -p models/${oc_model%/*}
+        set -x
+        curl -sSfL $model_repo/storage/$oc_model.bin -o models/$oc_model.bin
+        curl -sSfL $model_repo/storage/$oc_model.xml -o models/$oc_model.xml
+      )
+
+      set -o pipefail
+      local -A device_map=(
+        [GPU]=/dev/dri/renderD128
+        [NPU]=/dev/accel/accel0
+      )
+      . /opt/intel/dlstreamer/scripts/setup_dls_env.sh
+      for device in ${!device_map[*]}; do
+        [ -e ${device_map[$device]} ] || continue
+        echo "Validating $od_model and $oc_model on device $device..."
+        gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! \
+            gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! \
+            gvainference model=models/$oc_model.xml device=$device ! \
+            gvafpscounter ! fakesink sync=false | ( \
+          info=0
+          while IFS= read -r line; do
+            echo "$line"
+            case "$line" in
+            *"FpsCounter(last"*"sec): total="*)
+            info=1
+            ;;
+            esac
+          done
+          [ $info -eq 1 ]
+        )
+      done
+    fi
+
+    rm -rf .git
   fi
 
   # info
   echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
   echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples"
   echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
-  echo "@@HIGHLIGHT python venv @$workspace/python3-venv"
+  echo "@@HIGHLIGHT python venv @$workspace/.venv"
 }
 
 debian_75_remove_dlstreamer () {
@@ -2304,7 +2390,7 @@ debian_75_remove_dlstreamer () {
 
   if verify_dlstreamer; then
     ensure_apt autoremove -m -y intel-dlstreamer
-    ensure_sudo rm -f $list_file
+    ensure_sudo rm -f $list_file $key_file
     ensure_sudo -rf "$workspace" 2> /dev/null || true
   else
     echo "dlstreamer already removed. Skipping"
@@ -2325,7 +2411,7 @@ EOF
 
 
 debian_05_install_dmidecode () {
-  if dpkg-query -L dmidecode > /dev/null 2>&1; then
+  if ensure_apt_is_installed dmidecode; then
     echo "Dmidecode is already installed. Skipping..."
   else
     ensure_apt update
@@ -2375,10 +2461,10 @@ EOF
 debian_20_install_docker () {
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
     echo "Docker is already installed. Skipping..."
-  elif dpkg-query -W -f '${Status}' docker.io 2> /dev/null | grep -q ' ok installed$' && [[ "$*" != *"--reset-docker"* ]]; then
+  elif ensure_apt_is_installed docker.io && [[ "$*" != *"--reset-docker"* ]]; then
     ensure_apt update
     ensure_apt install -y docker-buildx docker-compose-v2
-  elif dpkg-query -W -f '${Status}' docker-ce 2> /dev/null | grep -q ' ok installed$' && [[ "$*" != *"--reset-docker"* ]]; then 
+  elif ensure_apt_is_installed docker-ce && [[ "$*" != *"--reset-docker"* ]]; then 
     ensure_apt update
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
@@ -2493,7 +2579,7 @@ debian_85_remove_esq () {
 }
 
 debian_70_install_ffmpeg () {
-  if dpkg-query -L ffmpeg > /dev/null 2>&1; then
+  if ensure_apt_is_installed ffmpeg > /dev/null 2>&1; then
     echo "ffmpeg is already installed. Skipping..."
   else
     ensure_apt update
@@ -2508,7 +2594,7 @@ EOF
 }
 
 debian_05_install_gawk () {
-  if dpkg-query -L gawk > /dev/null 2>&1; then
+  if ensure_apt_is_installed gawk > /dev/null 2>&1; then
     echo "Gawk is already installed. Skipping..."
   else
     ensure_apt update
@@ -2580,7 +2666,7 @@ debian_90_remove_geti () {
 
 
 debian_10_install_git () {
-  if dpkg-query -L git > /dev/null 2>&1; then
+  if ensure_apt_is_installed git > /dev/null 2>&1; then
     echo "Git is already installed. Skipping..."
   else
     ensure_apt update
@@ -2595,7 +2681,7 @@ EOF
 }
 
 debian_05_install_gpg () {
-  if dpkg-query -L gpg > /dev/null 2>&1; then
+  if ensure_apt_is_installed gpg; then
     echo "Gpg is already installed. Skipping..."
   else
     ensure_apt update
@@ -2619,26 +2705,11 @@ configure_gpu () {
   version=26.2.2
 }
 
-# Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
-# Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
-# intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same
-# repository as $apt_file but with a different Signed-By, apt refuses to update
-# ("Conflicting values set for option Signed-By"). Drop any such stale entry
-# (anything referencing the gpu repo other than our own $apt_file) so the current
-# entry is authoritative.
-cleanup_gpu () {
-  ensure_rm_apt_source https://repositories.intel.com/gpu
-  ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg
-}
-
 verify_gpu () {
   [ -b /dev/render/renderD128 ]
   getent group render >/dev/null 2>&1
   id -nG | grep -qw render
-  (
-    set -o pipefail
-    dpkg-query -l intel-media-va-driver-non-free 2> /dev/null | grep -q -F $version
-  )
+  ensure_apt_is_installed intel-media-va-driver-non-free=$version
 }
 
 debian_40_profile_gpu () {
@@ -2654,18 +2725,12 @@ debian_40_install_gpu () {
     # remove legacies
     debian_40_remove_gpu || true
 
-    # drop stale/conflicting gpu apt sources from older installer versions
-    cleanup_gpu
-
     # create the render group
     ensure_group_add render:992 video:
 
-    # product key
-    ensure_sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
-
-    # deb entry
-    echo "$apt_entry" | ensure_sudo tee $apt_file > /dev/null
+    # product key & list 
+    ensure_apt_key $key_file $key_url --dearmor
+    ensure_apt_source $apt_file "$apt_entry"
 
     # apt update
     ensure_apt update -y
@@ -2682,9 +2747,15 @@ debian_40_remove_gpu () {
   else
     echo "Gpu drivers are removed already. Skipping"
   fi
-  # always drop gpu apt sources/keyrings, including our own, so nothing conflicting is left behind
-  cleanup_gpu
-  ensure_sudo rm -f "$apt_file" "$key_file"
+  # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
+  # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
+  # intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same
+  # repository as $apt_file but with a different Signed-By, apt refuses to update
+  # ("Conflicting values set for option Signed-By"). Drop any such stale entry
+  # (anything referencing the gpu repo other than our own $apt_file) so the current
+  # entry is authoritative.
+  ensure_apt_source_remove https://repositories.intel.com/gpu
+  ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg $key_file $apt_file
 }
 
 debian_40_sbom_gpu () {
@@ -2815,7 +2886,7 @@ debian_90_remove_humanoid_imitation_learning () {
 }
 
 debian_05_install_jq () {
-  if dpkg-query -L jq > /dev/null 2>&1; then
+  if ensure_apt_is_installed jq; then
     echo "jq is already installed. Skipping..."
   else
     ensure_apt update
@@ -2830,7 +2901,7 @@ EOF
 }
 
 debian_10_install_libgl1 () {
-  if dpkg-query -L libgl1 > /dev/null 2>&1; then
+  if ensure_apt_is_installed libgl1; then
     echo "Libgl1 is already installed. Skipping..."
   else
     ensure_apt update
@@ -2846,7 +2917,7 @@ EOF
 
 
 debian_05_install_libtbb12 () {
-  if dpkg-query -L libtbb12 > /dev/null 2>&1; then
+  if ensure_apt_is_installed libtbb12; then
     echo "libtbb12 is already installed. Skipping..."
   else
     ensure_apt update
@@ -2871,7 +2942,7 @@ debian_10_profile_libze1 () {
 debian_10_install_libze1 () {
   configure_libze1 
 
-  if dpkg-query -L libze1 > /dev/null 2>&1; then
+  if ensure_apt_is_installed libze1; then
     echo "libze1 is already installed. Skipping..."
   else
     curl -fsSL "$libze1_deb" -o /tmp/libze1.deb && {
@@ -3074,7 +3145,7 @@ debian_90_remove_loss_prevention () {
 
 
 debian_10_install_make () {
-  if dpkg-query -L make > /dev/null 2>&1; then
+  if ensure_apt_is_installed make; then
     echo "Make is already installed. Skipping..."
   else
     ensure_apt update
@@ -3369,6 +3440,7 @@ debian_90_remove_nicu_warmer () {
 configure_npu () {
   version=1.35.0
   repository=https://api.github.com/repos/intel/linux-npu-driver
+  releases=https://github.com/intel/linux-npu-driver/releases
   workspace="$(ensure_project_path)/npu"
 }
 
@@ -3378,7 +3450,7 @@ verify_npu () {
   id -nG | grep -qw render
   (
     set -o pipefail
-    dpkg-query -l intel-level-zero-npu intel-fw-npu intel-driver-compiler-npu 2> /dev/null | grep -q -F $version
+    ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
   )
 }
 
@@ -3402,7 +3474,7 @@ debian_40_install_npu () {
     cd "$workspace"
 
     # download deb packages
-    local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $repository/releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+    local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
     [ ${#packages[*]} -gt 0 ] || return 3
 
     for p in ${packages[*]}; do
@@ -3426,11 +3498,11 @@ debian_40_remove_npu () {
 
 debian_40_sbom_npu () {
   configure_npu "$@"
-  local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $repository/releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+  local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
   [ ${#packages[*]} -gt 0 ] || return 3
   local packages_str="${packages[*]}"
   cat <<EOF
-"deb-zip": ["${packages_str// /'","'}"]
+"pkg-list": ["${packages_str// /'","'}"]
 EOF
 }
 
@@ -3441,8 +3513,9 @@ configure_openvino () {
   key_file=/usr/share/keyrings/intel-gpg-archive-keyring.gpg
   apt_entry="deb [signed-by=$key_file] https://$repo_name/openvino ${ID}${VERSION_ID%.*} main"
   apt_file=/etc/apt/sources.list.d/intel-openvino.list
-  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.1.0 || echo 2026.3.0)
-  openvino_venv="$(ensure_project_path)/openvino-genai"
+  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.3.0)
+  workspace="$(ensure_project_path)/openvino"
+  model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
 }
 
 debian_70_profile_openvino () {
@@ -3450,9 +3523,9 @@ debian_70_profile_openvino () {
 }
 
 verify_openvino () {
-  dpkg-query -L openvino-${version} > /dev/null 2>&1 || return 1
-  [ -r "$openvino_venv"/bin/activate ] || return 1
-  . "$openvino_venv"/bin/activate
+  ensure_apt_is_installed openvino-${version} || return 1
+  [ -r "$workspace"/.venv/bin/activate ] || return 1
+  . "$workspace"/.venv/bin/activate
   pip show openvino-genai 2> /dev/null | grep -q -F ${version} || return 1
 }
 
@@ -3466,11 +3539,10 @@ debian_70_install_openvino () {
     ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
 
     # product key
-    ensure_sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
+    ensure_apt_key $key_file $key_url --dearmor
 
     # deb entry
-    echo "$apt_entry" | ensure_sudo tee $apt_file > /dev/null
+    ensure_apt_source $apt_file "$apt_entry"
 
     # apt update
     ensure_apt update -y
@@ -3479,13 +3551,24 @@ debian_70_install_openvino () {
     ensure_apt install --no-install-recommends -y openvino-$version
 
     # install openvino-genai
-    python3 -m venv "${openvino_venv}"
-    . "${openvino_venv}"/bin/activate
+    mkdir -p "$workspace"
+    python3 -m venv "$workspace"/.venv
+    . "$workspace"/.venv/bin/activate
     pip install openvino-genai==${version}
+
+    echo "openvino-${version} installed successfully."
+
+    if [[ " $* " = *" --validate "* || " $* " = *" --validate-openvino "* ]]; then
+      [ -e "$workspace"/${model##*/} ] || curl -sSfL "$model" -o "$workspace"/${model##*/}
+      for device in CPU GPU NPU; do
+        echo "Validating ${model##*/} inferencing on $device..."
+        benchmark_app -t 5 -m "$workspace"/${model##*/} -d $device
+      done
+    fi
   fi
 
   # info
-  echo "@@HIGHLIGHT openvino-genai @$openvino_venv"
+  echo "@@HIGHLIGHT openvino-genai @$workspace/.venv"
   echo "@@HIGHLIGHT openvino samples @/usr/share/openvino"
 }
 
@@ -3494,7 +3577,7 @@ debian_70_remove_openvino () {
 
   if verify_openvino; then
     ensure_apt autoremove -m -y openvino-${version} openvino || true
-    ensure_sudo rm -rf "$openvino_venv" /etc/apt/sources.list.d/intel-openvino.list 2> /dev/null || true
+    ensure_sudo rm -rf "$workspace" $apt_file $key_file
   else
     echo "openvino-${version} already removed. Skipping"
   fi
@@ -3866,6 +3949,21 @@ debian_92_remove_physical_ai_studio () {
   ensure_sudo rm -rf "$pais_run_dir"
 }
 
+debian_05_install_pipx () {
+  if ensure_apt_is_installed pipx; then
+    echo "pipx is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y pipx
+  fi
+}
+
+debian_05_sbom_pipx () {
+  cat <<EOF
+"pkg-list": ["pipx"]
+EOF
+}
+
 debian_10_profile_pre_system_scan () {
   [ "$1" != "install" ] || echo "curl dmidecode"
 }
@@ -4004,18 +4102,18 @@ system_scan_check_network_access () {
     http://ubuntu.com
     https://apt.repos.intel.com
   ) url
+
   for url in "${check_urls[@]}"; do
-    if ! curl --connect-timeout 5 --max-time 10 --head $url > /dev/null 2>&1; then
+    if ! curl -fsSL --retry 2 $url > /dev/null; then
       echo "$url by $(id -un)"
       return
     fi
-    # Only verify root connectivity when sudo can run without an interactive
-    # prompt, otherwise skip it to avoid hanging or false negatives.
-    if sudo -nv 2>/dev/null || [ -n "$SUDO_PASSWORD" ]; then
-      if ! ensure_sudo curl --connect-timeout 5 --max-time 10 --head $url > /dev/null 2>&1; then
-        echo "$url by root"
-        return
-      fi
+  done
+
+  for url in "${check_urls[@]}"; do
+    if ! ensure_sudo curl -fsSL --retry 2 $url > /dev/null; then
+      echo "$url by root"
+      return
     fi
   done
   echo "registry reachable"
@@ -4073,7 +4171,7 @@ system_scan_check_pci_device () {
 
 
 debian_05_install_python3_venv () {
-  if dpkg-query -L python3-venv > /dev/null 2>&1; then
+  if ensure_apt_is_installed python3-venv; then
     echo "Python3-venv is already installed. Skipping..."
   else
     ensure_apt update
@@ -4109,7 +4207,7 @@ debian_55_profile_realsense () {
 
 verify_realsense () {
   configure_realsense
-  dpkg-query -L librealsense2 > /dev/null 2>&1
+  ensure_apt_is_installed librealsense2
 }
 
 debian_55_install_realsense () {
@@ -4119,8 +4217,8 @@ debian_55_install_realsense () {
     echo "RealSense SDK is already installed. Skipping..."
   else
     ensure_sudo mkdir -p /etc/apt/keyrings
-    no_proxy= NO_PROXY= curl -sSf "$rs_key_url" | gpg --dearmor | ensure_sudo tee "$rs_key_file" > /dev/null
-    echo "rs_deb_entry" | ensure_sudo tee "$rs_list" > /dev/null
+    ensure_apt_key $rs_key_file $rs_key_url --dearmor
+    ensure_apt_source $rs_list "$rs_deb_entry"
     ensure_apt update -y
 
     ensure_apt install -y --allow-downgrades ros-$ros_distro-librealsense2
@@ -4132,7 +4230,7 @@ debian_55_remove_realsense () {
   configure_realsense
   if verify_realsense; then
     ensure_apt autoremove -m -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true
-    ensure_sudo rm -f "$rs_key_file" "$rs_list"
+    ensure_sudo rm -f $rs_key_file $rs_list
   else
     echo "RealSense SDK already removed. Skipping"
   fi
@@ -4255,16 +4353,33 @@ configure_ros_openvino () {
     "Pin: version $ov_version*"
     "Pin-Priority: 1002"
   )
+
+  # Autonomous Mobile Robot (AMR) apt feed - hosts the ROS OpenVINO node /
+  # wrapper packages (ros-<distro>-openvino-node) pulled in below. Previously
+  # provided by the standalone amr_apt_repo module.
+  # https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
+  amr_repo_name="amrdocs.intel.com"
+  amr_key_url=https://$amr_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-AMR.gpg
+  amr_key_file=/usr/share/keyrings/amr-archive-keyring.gpg
+  amr_list=/etc/apt/sources.list.d/amr.list
+  amr_pref=(
+    "Package: *"
+    "Pin: origin $amr_repo_name"
+    "Pin-Priority: 1001"
+  )
+  amr_pref_file=/etc/apt/preferences.d/amr
+  amr_deb_entry="$(printf 'deb [signed-by=%s] https://%s/repos/%s amr main' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
+  amr_deb_src_entry="$(printf 'deb-src [signed-by=%s] https://%s/repos/%s amr main\n' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
 }
 
 debian_55_profile_ros_openvino () {
-  echo "curl gpg ros2 amr_apt_repo edge_base libze1 debconf_utils"
+  echo "curl gpg ros2 edge_base libze1 debconf_utils"
 }
 
 verify_ros_openvino () {
   configure_ros_openvino
-  dpkg-query -l openvino 2> /dev/null | grep -q -F "$ov_version" || return 1
-  dpkg-query -l ros-$ros_distro-openvino-node > /dev/null 2>&1
+  [ -r "$amr_key_file" ] && [ -r "$amr_list" ] || return 1
+  ensure_apt_is_installed openvino=$ov_version ros-$ros_distro-openvino-node
 }
 
 debian_55_install_ros_openvino () {
@@ -4273,13 +4388,20 @@ debian_55_install_ros_openvino () {
   if verify_ros_openvino && [[ " $* " != *" --reset-ros_openvino "* ]]; then
     echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
   else
+    ensure_apt install -y curl gnupg
+
+    # AMR apt feed (signing key + source + pin) providing the ROS OpenVINO node
+    ensure_sudo mkdir -p "$(dirname "$amr_key_file")"
+    ensure_apt_key "$amr_key_file" "$amr_key_url"
+    ensure_apt_source "$amr_list" "$amr_deb_entry" "$amr_deb_src_entry"
+    ensure_apt_preference "$amr_pref_file" "${amr_pref[@]}"
+
     # OpenVINO apt repository + signing key
-    ensure_sudo mkdir -p "$(dirname "$ov_key_file")"
-    no_proxy= NO_PROXY= curl -fsL "$ov_key_url" | gpg --dearmor | ensure_sudo tee "$ov_key_file" > /dev/null
-    echo "$ov_deb_entry" | ensure_sudo tee "$ov_list" > /dev/null
+    ensure_apt_key $ov_key_file $ov_key_url --dearmor
+    ensure_apt_source $ov_list "$ov_deb_entry"
 
     # pin OpenVINO and the ROS OpenVINO packages to the same version
-    ( IFS=$'\n'; echo "${ov_deb_pref[*]}" ) | ensure_sudo tee "$ov_pref" > /dev/null
+    ensure_apt_preference $ov_pref "${ov_deb_pref[@]}"
 
     ensure_apt update -y
 
@@ -4304,7 +4426,8 @@ debian_55_remove_ros_openvino () {
   configure_ros_openvino
   if verify_ros_openvino; then
     ensure_apt autoremove -m -y ros-$ros_distro-openvino-node openvino || true
-    ensure_sudo rm -f "$ov_key_file" "$ov_list" "$ov_pref"
+    ensure_sudo rm -f "$ov_key_file" "$ov_list" "$ov_pref" \
+      "$amr_key_file" "$amr_list" "$amr_pref_file"
   else
     echo "ROS 2 OpenVINO toolkit already removed. Skipping"
   fi
@@ -4315,7 +4438,17 @@ debian_55_sbom_ros_openvino () {
 (
   IFS=$'|'
   local pref_str="${ov_deb_pref[*]}"
+  local amr_pref_str="${amr_pref[*]}"
   cat <<EOF
+"name": "$amr_repo_name"
+"gpg-key": "$amr_key_url"
+"key-file": "$amr_key_file"
+"apt-source": "$amr_deb_entry"
+"apt-src-source": "$amr_deb_src_entry"
+"apt-list-file": "$amr_list"
+"apt-pref": ["${amr_pref_str//'|'/'","'}"]
+"apt-pref-file": "$amr_pref_file"
+---
 "name": "$ov_repo_name"
 "gpg-key": "$ov_key_url"
 "key-file": "$ov_key_file"
@@ -4324,6 +4457,8 @@ debian_55_sbom_ros_openvino () {
 "pkg-list": ["openvino","ros-$ros_distro-openvino-node"]
 "apt-pref-file": "$ov_pref"
 "apt-pref": ["${pref_str//|/'","'}"]
+---
+"pkg-list": ["curl","gnupg"]
 EOF
 )
 }
@@ -4469,15 +4604,35 @@ configure_stationary_robot_vision () {
   *)     ros_distro=jazzy ;;
   esac
   rvc_pkgs="ros-$ros_distro-rvc-simulation"
+
+  # Intel oneAPI Base Toolkit repo + version pins - the RVC robotics stack links
+  # the oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
+  oneapi_repo_name="apt.repos.intel.com"
+  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
+  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  oneapi_pref=(
+    "Package: intel-oneapi-runtime-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-compiler-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-mkl-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+  )
+  oneapi_pref_file=/etc/apt/preferences.d/oneapi
+  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
 }
 
 debian_90_profile_stationary_robot_vision () {
-  echo "git curl edge_base ros2 amr_apt_repo ros_openvino realsense"
+  echo "git curl edge_base ros2 ros_openvino realsense"
 }
 
 verify_stationary_robot_vision () {
   configure_stationary_robot_vision
-  dpkg-query -l ros-$ros_distro-rvc > /dev/null 2>&1
+  ensure_apt_is_installed ros-$ros_distro-rvc
 }
 
 debian_90_install_stationary_robot_vision () {
@@ -4487,6 +4642,13 @@ debian_90_install_stationary_robot_vision () {
     echo "Stationary Robot Vision & Control is already installed. Skipping..."
   else
     ensure_disk_space 15000
+
+    # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
+    ensure_apt install -y software-properties-common curl gnupg wget
+    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
+    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
+    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
+
     ensure_apt update -y
     # RVC depends on Gazebo Harmonic (gz-harmonic); make sure the OSRF Gazebo
     # apt repository is configured (shared with the AMR SDK component).
@@ -4507,6 +4669,7 @@ debian_90_remove_stationary_robot_vision () {
   if verify_stationary_robot_vision; then
     ensure_apt autoremove -m -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc \
       ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true
+    ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
   else
     echo "Stationary Robot Vision & Control already removed. Skipping"
   fi
@@ -4514,6 +4677,25 @@ debian_90_remove_stationary_robot_vision () {
 
 debian_90_sbom_stationary_robot_vision () {
   configure_stationary_robot_vision
+  (
+    IFS=$'|'
+    local oneapi_pref_str="${oneapi_pref[*]}"
+    cat <<EOF
+"name": "$oneapi_repo_name"
+"gpg-key": "$oneapi_key_url"
+"key-file": "$oneapi_key_file"
+"apt-source": "$oneapi_deb_entry"
+"apt-list-file": "$oneapi_list"
+"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
+"apt-pref-file": "$oneapi_pref_file"
+"pkg-list": ["intel-oneapi-runtime-*","intel-oneapi-compiler-*","intel-oneapi-mkl-*"]
+EOF
+  )
+  echo "---"
+  cat <<EOF
+"pkg-list": ["software-properties-common","curl","gnupg","wget"]
+EOF
+  echo "---"
   configure_osrf_gazebo
   cat <<EOF
 "name": "packages.ros.org"
@@ -4527,7 +4709,7 @@ EOF
 
 
 debian_10_install_unzip () {
-  if dpkg-query -L unzip > /dev/null 2>&1; then
+  if ensure_apt_is_installed unzip; then
     echo "Unzip is already installed. Skipping..."
   else
     ensure_apt update
@@ -4722,7 +4904,7 @@ debian_90_remove_vippet () {
 }
 
 debian_05_install_yq () {
-  if dpkg-query -L yq > /dev/null 2>&1; then
+  if ensure_apt_is_installed yq; then
     echo "yq is already installed. Skipping..."
   else
     ensure_apt update
@@ -4776,4 +4958,5 @@ debian_99_profile_robotics_ai_suite () {
   # native ROS 2 / APT components; grouped for install and removal
   [ "$1" = "start" ] || echo "autonomous_mobile_robot stationary_robot_vision humanoid_imitation_learning physical_ai_framework physical_ai_studio"
 }
+[ "$0" != bash ] || set -- setup "$@"
 main "$@"
