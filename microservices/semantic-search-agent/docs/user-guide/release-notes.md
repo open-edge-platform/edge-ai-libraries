@@ -2,9 +2,11 @@
 
 This section tracks releases of the Semantic Search Agent microservice. The most recent release is listed first.
 
-## Version 2026.2.0
+<!--hide_directive
+## Version 2026.3.0
 
-date TBD
+**Release Date:** TBD
+hide_directive-->
 
 ## Version 2026.1.0
 

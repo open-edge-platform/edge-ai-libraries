@@ -35,7 +35,7 @@ transcribed utterance ends.
     'noteTextColor': '#3A3A3A'
   }
 }}%%
-flowchart LR
+flowchart TD
     Client([Client])
 
     subgraph Service["Audio Analyzer (FastAPI, :8010)"]

@@ -1,0 +1,26 @@
+
+# perform sudo in automation or in tty
+ensure_sudo () {
+  if sudo -n true 2>/dev/null; then
+    # cached timestamp still valid or passwordless sudo: no password needed
+    sudo "$@"
+  elif [ -t 0 ] && [ -z "$SUDO_PASSWORD" ]; then
+    # genuine interactive terminal: safe to prompt for a password
+    sudo "$@"
+  else
+    # write an askpass helper
+    local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}"
+    mkdir -p "$rundir" 2>/dev/null || return 1
+    (
+      flock -w 300 -e 9 || { echo "ensure_sudo: timed out waiting for another installer" >&2; exit 1; }
+      if [ ! -x "$SUDO_ASKPASS" ]; then
+        askpass_helper="$rundir"/askpass
+        act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
+        export SUDO_ASKPASS="$askpass_helper"
+      fi
+      sudo -A "$@"
+    ) 9< "$rundir"
+  fi
+}
+

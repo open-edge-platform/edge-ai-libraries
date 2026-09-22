@@ -1,8 +1,9 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-# Common base image with system dependencies
-FROM python:3.13-slim AS python-base
+# Common base image with system dependencies. Use the explicit trixie tag so
+# builds do not reuse a stale cached image for the floating 3.13-slim tag.
+FROM python:3.13-slim-trixie AS python-base
 
 # Setting env vars for python, pip and poetry
 ENV PYTHONUNBUFFERED=1 \
@@ -78,7 +79,12 @@ RUN apt-get update -y && apt-get install --no-install-recommends -y \
     libsm6 \
     libxext6 \
     libxrender1 \
-    libgl1
+    libgl1 \
+    libssl3t64 \
+    openssl \
+    openssl-provider-legacy \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Download copyleft sources if requested
 RUN mkdir -p /copyleft_sources/deb

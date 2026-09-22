@@ -59,21 +59,23 @@ class SpeechRequest(BaseModel):
             self._validate_for_kokoro()
 
     def _validate_for_kokoro(self) -> None:
-        from components.tts.kokoro import kokoro_tts
-
         default_language = config.models.tts.default_language.strip()
 
         if self.language and self.language.lower() != default_language.lower():
             raise ValueError(f"Only {default_language} is currently supported for speech synthesis.")
 
-        if self.voice and not kokoro_tts.is_supported_voice(self.voice):
-            raise ValueError(
-                f"Unsupported voice '{self.voice}'. "
-                f"Supported voices: {', '.join(kokoro_tts.SUPPORTED_VOICES)}."
-            )
+        # No static voice allow-list here: main's KokoroTTSService discovers
+        # supported voices dynamically from the loaded model
+        # (_supported_voices()) and falls back to the configured default with
+        # a warning on an unknown voice at synthesis time, rather than
+        # failing the whole utterance -- see kokoro_tts.py's
+        # _resolve_kokoro_voice(). Duplicating that list here would require
+        # loading the model just to validate a DTO, which this layer must
+        # not do.
 
         if self.instructions:
             raise ValueError("Kokoro does not support free-form voice instructions.")
+
 
     def _validate_for_speecht5(self) -> None:
         from components.tts import speecht5_voices

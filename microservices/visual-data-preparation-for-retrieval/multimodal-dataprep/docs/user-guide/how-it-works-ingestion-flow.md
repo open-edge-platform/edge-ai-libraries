@@ -12,9 +12,6 @@ Both kinds converge on the **same** embedding model, the **same** shared vector 
 ## High-Level Architecture
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 graph TB
     subgraph "Entry Points"
         A1[POST /media/upload<br/>Direct File Upload]
@@ -53,9 +50,6 @@ graph TB
 ### Stage 1: Video Upload & Initial Processing
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START([Video Upload Request]) --> ENTRY{Entry Point?}
 
@@ -89,9 +83,6 @@ flowchart TD
 ### Stage 2: Frame Extraction & Metadata Creation
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START[Frame Extraction Stage] --> VIDEO_INFO[Read Video Information<br/>Using Decord VideoReader]
 
@@ -134,9 +125,6 @@ flowchart TD
 ### Stage 3: Object Detection (Optional)
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START[Object Detection Stage] --> CHECK{Object Detection<br/>Enabled?}
 
@@ -220,9 +208,6 @@ flowchart TD
 ### Stage 4: Batch Creation for Parallel Processing
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START[Batch Creation Stage] --> INPUT[Input: List of Images + Metadata<br/><br/>After Detection:<br/>• Full frames: 60<br/>• Detected crops: 180<br/>• Total items: 240]
 
@@ -290,9 +275,6 @@ batch_size = 32  # Fixed optimal size
 ### Stage 5: Parallel Batch Processing Pipeline
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START[Parallel Processing Stage] --> POOL[Thread Pool Executor<br/>max_workers = pipeline_count<br/><br/>Example: 4 workers<br/>Processing 8 batches]
 
@@ -318,6 +300,7 @@ flowchart TD
         STEP2 --> EMB_DETAIL[Embedding Generation Details]
 
         subgraph "Embedding Generation"
+        direction LR
             EMB_DETAIL --> EMB_LOCAL_PROC[In-process Embedding<br/>• Use global embedding client<br/>• Thread-safe infer_new_request<br/>• No HTTP overhead<br/>• OpenVINO optimized<br/>• Batch processing inside model]
 
             EMB_LOCAL_PROC --> EMB_RESULT[Embedding Results<br/>Vector dimensions: 512/768/1024<br/>Format: List of float arrays]
@@ -331,6 +314,7 @@ flowchart TD
     end
 
     subgraph "VDMS Vector DB Storage"
+    direction LR
         STORAGE_DETAIL --> VDB_PREP[Prepare Storage Request<br/>• Embeddings: List of vectors<br/>• Metadata: List of dicts<br/>• Collection: MM_DATAPREP_DB_COLLECTION]
 
         VDB_PREP --> VDB_BULK[Bulk Insert Operation<br/>AddEntity with AddDescriptor<br/>Batch operation more efficient]
@@ -392,9 +376,6 @@ flowchart TD
 ### Stage 6: Results Aggregation & Performance Metrics
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START[Results Aggregation] --> COLLECT[Collect All Batch Results<br/>From ThreadPoolExecutor.as_completed]
 
@@ -455,8 +436,6 @@ flowchart TD
     end
 
     JSON --> COMPLETE([Processing Complete])
-
-
 ```
 
 **Performance Metrics Explained:**
@@ -493,7 +472,7 @@ The system tracks three critical counts:
 
 **Efficiency Calculations:**
 
-```
+```text
 Expansion Factor = Post-Detection Items / Extracted Frames
                  = 240 / 60 = 4x
 
@@ -535,9 +514,6 @@ capped before any processing.
 ### Stage flow
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 graph TB
     subgraph "Entry"
         U1[POST /media/upload<br/>multipart bytes]
@@ -600,9 +576,6 @@ search, enabling cross-modal retrieval.
 ## Complete End-to-End Flow Visualization
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 graph TB
     subgraph "Stage 1: Video Upload"
         A[Video Upload<br/>POST /media/upload or /media/process] --> C[Memory Processing]
@@ -613,7 +586,7 @@ graph TB
         E --> F[Frame List<br/>60 frames @ interval=15<br/>Time: 1.2s]
     end
 
-    subgraph "Stage 3: Object Detection Optional"
+    subgraph "Stage 3: Object Detection<br/> Optional"
         F --> G{Object Detection<br/>Enabled?}
         G -->|Yes| H[YOLOX Detection<br/>Parallel batches<br/>Time: 2.4s total]
         G -->|No| I[Skip Detection]
@@ -646,8 +619,6 @@ graph TB
         Q --> R[(VDMS Vector DB<br/>240 vectors indexed)]
         Q --> S[Return Response<br/>Status: 201 CREATED<br/>Details: timing + counts]
     end
-
-
 ```
 
 ## Performance Optimization Summary
@@ -711,9 +682,6 @@ graph TB
 ### Component Interaction
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 graph LR
     subgraph "Multimodal DataPrep Microservice"
         A[FastAPI Endpoints] --> B[Video Processing]

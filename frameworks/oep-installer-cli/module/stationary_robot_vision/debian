@@ -1,0 +1,118 @@
+
+# Stationary Robot Vision & Control (RVC) - vision-guided pick-and-place
+# reference application (UR5e + MoveIt) from the Robotics AI Suite.
+# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html
+#
+# RVC ships as the ROS 2 meta-package `ros-<distro>-rvc-simulation` from the
+# AMR apt feed, which pulls in `ros-<distro>-rvc`, `ros-<distro>-robot-config`
+# and `ros-<distro>-robot-config-plugins`.
+configure_stationary_robot_vision () {
+  case "$VERSION_CODENAME" in
+  jammy) ros_distro=humble ;;
+  noble) ros_distro=jazzy ;;
+  *)     ros_distro=jazzy ;;
+  esac
+  rvc_pkgs="ros-$ros_distro-rvc-simulation"
+
+  # Intel oneAPI Base Toolkit repo + version pins - the RVC robotics stack links
+  # the oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
+  oneapi_repo_name="apt.repos.intel.com"
+  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
+  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  oneapi_pref=(
+    "Package: intel-oneapi-runtime-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-compiler-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-mkl-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+  )
+  oneapi_pref_file=/etc/apt/preferences.d/oneapi
+  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
+}
+
+debian_90_profile_stationary_robot_vision () {
+  echo "git curl edge_base ros2 ros_openvino realsense"
+}
+
+verify_stationary_robot_vision () {
+  configure_stationary_robot_vision
+  ensure_apt_is_installed ros-$ros_distro-rvc
+}
+
+debian_90_install_stationary_robot_vision () {
+  configure_stationary_robot_vision
+
+  if verify_stationary_robot_vision && [[ " $* " != *" --reset-stationary_robot_vision "* ]]; then
+    echo "Stationary Robot Vision & Control is already installed. Skipping..."
+  else
+    ensure_disk_space 15000
+
+    # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
+    ensure_apt install -y software-properties-common curl gnupg wget
+    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
+    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
+    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
+
+    ensure_apt update -y
+    # RVC depends on Gazebo Harmonic (gz-harmonic); make sure the OSRF Gazebo
+    # apt repository is configured (shared with the AMR SDK component).
+    ! declare -F amr_setup_osrf_gazebo > /dev/null 2>&1 || amr_setup_osrf_gazebo
+    ensure_apt install -y $rvc_pkgs || {
+      echo "Could not install RVC packages ($rvc_pkgs)." 1>&2
+      echo "Confirm the exact package names at https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html" 1>&2
+      return 3
+    }
+  fi
+
+  echo "@@HIGHLIGHT Stationary Robot Vision & Control installed for ROS 2 $ros_distro"
+  echo "@@HIGHLIGHT docs @https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html"
+}
+
+debian_90_remove_stationary_robot_vision () {
+  configure_stationary_robot_vision
+  if verify_stationary_robot_vision; then
+    ensure_apt autoremove -m -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc \
+      ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true
+    ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
+  else
+    echo "Stationary Robot Vision & Control already removed. Skipping"
+  fi
+}
+
+debian_90_sbom_stationary_robot_vision () {
+  configure_stationary_robot_vision
+  (
+    IFS=$'|'
+    local oneapi_pref_str="${oneapi_pref[*]}"
+    cat <<EOF
+"name": "$oneapi_repo_name"
+"gpg-key": "$oneapi_key_url"
+"key-file": "$oneapi_key_file"
+"apt-source": "$oneapi_deb_entry"
+"apt-list-file": "$oneapi_list"
+"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
+"apt-pref-file": "$oneapi_pref_file"
+"pkg-list": ["intel-oneapi-runtime-*","intel-oneapi-compiler-*","intel-oneapi-mkl-*"]
+EOF
+  )
+  echo "---"
+  cat <<EOF
+"pkg-list": ["software-properties-common","curl","gnupg","wget"]
+EOF
+  echo "---"
+  configure_osrf_gazebo
+  cat <<EOF
+"name": "packages.ros.org"
+"gpg-key": "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key"
+"key-file": "usr/share/keyrings/ros-archive-keyring.gpg"
+"apt-source": "deb http://packages.ros.org/ros2/$ID $VERSION_CODENAME main"
+"apt-list-file": "/etc/apt/sources.list.d/ros2-latest.list"
+"pkg-list": ["${rvc_pkgs// /'","'}"]
+EOF
+}
+

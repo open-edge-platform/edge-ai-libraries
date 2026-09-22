@@ -1,0 +1,15 @@
+
+debian_05_install_curl () {
+  if ensure_apt_is_installed curl; then
+    echo "Curl is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y curl ca-certificates
+  fi
+}
+
+debian_05_sbom_curl () {
+  cat <<EOF
+"pkg-list": ["curl","ca-certificates"]
+EOF
+}
