@@ -3,11 +3,14 @@ from .document import load_file_document
 from .logger import logger
 from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
 from langchain_community.vectorstores import FAISS
+from langchain_core.documents import Document
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from starlette.concurrency import run_in_threadpool
 import os
+import json
 import importlib
 import pandas as pd
 
@@ -128,6 +131,173 @@ async def process_query(chain=None, query: str = ""):
 
     async for chunk in chain.astream(query):
         yield f"data: {chunk}\n\n"
+
+
+def retrieve_documents(query: str):
+    """
+    Retrieves the context documents for a query, keeping their metadata.
+
+    The reranker returns new documents that carry only the index of the input document
+    (`id`) and a `relevance_score`, so the original metadata (`source`, `page`, ...) is
+    restored from the base retriever results.
+
+    Args:
+        query (str): The question text.
+
+    Returns:
+        list[Document]: Context documents in rank order, each with a `relevance_score`
+        in its metadata when reranking is enabled.
+    """
+
+    if vectorstore is None:
+        return []
+
+    base_retriever = vectorstore.as_retriever(
+        search_kwargs={"k": 3, "fetch_k": config._FETCH_K},
+        search_type=config._SEARCH_METHOD,
+    )
+    candidates = base_retriever.invoke(query)
+
+    if not config._ENABLE_RERANK or not candidates:
+        return list(candidates)
+
+    reranked = reranker.compress_documents(candidates, query)
+    results = []
+    for doc in reranked:
+        idx = doc.metadata.get("id")
+        original = candidates[idx] if isinstance(idx, int) and 0 <= idx < len(candidates) else doc
+        metadata = dict(original.metadata)
+        if "relevance_score" in doc.metadata:
+            metadata["relevance_score"] = float(doc.metadata["relevance_score"])
+        results.append(Document(page_content=original.page_content, metadata=metadata))
+
+    return results
+
+
+def format_labelled_context(docs) -> str:
+    """
+    Formats context documents as numbered sources `[S1]..[Sn]` for the prompt.
+
+    Args:
+        docs (list[Document]): Context documents in rank order.
+
+    Returns:
+        str: The labelled context string.
+    """
+
+    blocks = []
+    for n, doc in enumerate(docs, start=1):
+        header = f"[S{n}]"
+        source = os.path.basename(str(doc.metadata.get("source", "")))
+        if source:
+            header += f" {source}"
+        page = _page_label(doc.metadata)
+        if page is not None:
+            header += f", page {page}"
+        blocks.append(f"{header}\n{doc.page_content}")
+
+    return "\n\n".join(blocks)
+
+
+def _page_label(metadata: dict):
+    if metadata.get("page_label") not in (None, ""):
+        return str(metadata["page_label"])
+    if isinstance(metadata.get("page"), int):
+        return str(metadata["page"] + 1)
+    return None
+
+
+def build_sources(docs) -> list:
+    """
+    Builds the `sources` list returned with an answer.
+
+    Args:
+        docs (list[Document]): Context documents in the same order as in the prompt.
+
+    Returns:
+        list[dict]: One entry per source with `id` (S1..Sn), `source` (file name),
+        `page` (0-based, as set by the loader, or None), `page_label`, `snippet` and
+        `relevance_score` (None when reranking is disabled).
+    """
+
+    sources = []
+    for n, doc in enumerate(docs, start=1):
+        page = doc.metadata.get("page")
+        score = doc.metadata.get("relevance_score")
+        sources.append(
+            {
+                "id": f"S{n}",
+                "source": os.path.basename(str(doc.metadata.get("source", ""))),
+                "page": page if isinstance(page, int) else None,
+                "page_label": _page_label(doc.metadata),
+                "snippet": doc.page_content[: config.SOURCE_SNIPPET_CHARS],
+                "relevance_score": float(score) if score is not None else None,
+            }
+        )
+
+    return sources
+
+
+def build_answer_chain():
+    """
+    Builds the generation chain that takes a prepared `context` and `question`.
+
+    Returns:
+        A runnable mapping {"context", "question"} to the answer text.
+    """
+
+    return prompt | llm | StrOutputParser()
+
+
+def sse_data(chunk: str) -> str:
+    """
+    Encodes a text chunk as one SSE event, with one `data:` line per text line, so
+    that newlines inside the chunk survive standard SSE parsing. Empty chunks are skipped.
+    """
+
+    if not chunk:
+        return ""
+
+    return "".join(f"data: {line}\n" for line in chunk.split("\n")) + "\n"
+
+
+def answer_with_sources(query: str):
+    """
+    Answers a query with labelled context and returns the sources used.
+
+    Args:
+        query (str): The question text.
+
+    Returns:
+        tuple[str, list[dict]]: The answer text and the sources.
+    """
+
+    docs = retrieve_documents(query)
+    answer = build_answer_chain().invoke(
+        {"context": format_labelled_context(docs), "question": query}
+    )
+
+    return answer, build_sources(docs)
+
+
+async def process_query_with_sources(query: str = ""):
+    """
+    Streams an answer with labelled context, then a final `event: sources` frame.
+
+    Yields:
+        str: SSE frames. Token frames use standard multi-line `data:` encoding; the last
+        frame is `event: sources` with `{"sources": [...]}` as JSON data.
+    """
+
+    docs = await run_in_threadpool(retrieve_documents, query)
+    chain = build_answer_chain()
+
+    async for chunk in chain.astream(
+        {"context": format_labelled_context(docs), "question": query}
+    ):
+        yield sse_data(chunk)
+
+    yield f"event: sources\ndata: {json.dumps({'sources': build_sources(docs)})}\n\n"
 
 
 def create_faiss_vectordb(file_path: str = "", chunk_size=1000, chunk_overlap=200):
