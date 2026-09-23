@@ -42,7 +42,7 @@ permissions:
 
 jobs:
   dispatch:
-    runs-on: [self-hosted, linux, oep-lab]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     #
     # This workflow now authenticates with a PAT (COPILOT_TASK_TOKEN) because
@@ -60,25 +60,10 @@ jobs:
        github.actor != 'Copilot' &&
        github.actor != vars.AUTOMATION_ACTOR)
     steps:
-      - name: Verify required tooling
-        run: |
-          set -euo pipefail
-          for tool in gh git; do
-            if ! command -v "$tool" >/dev/null 2>&1; then
-              echo "::error::Missing required tool: ${tool}. Install ${tool} on the self-hosted runner and retry."
-              exit 1
-            fi
-          done
-
-      - name: Clean workspace
-        run: |
-          set -euo pipefail
-          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          clean: true
           fetch-depth: 2
+          persist-credentials: false
 
       - name: Find changed spec files
         id: specs
@@ -88,6 +73,8 @@ jobs:
           # injection into the run script (zizmor: template-injection).
           SPEC_FILE: ${{ github.event.inputs.spec_file }}
           MODE: ${{ github.event.inputs.mode }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
         run: |
           SPECS_FILE="$(mktemp)"
 
@@ -113,8 +100,6 @@ jobs:
             fi
             printf '%s\t%s\n' "$STATUS" "$SPEC" > "$SPECS_FILE"
           else
-            BEFORE="${{ github.event.before }}"
-            SHA="${{ github.sha }}"
             # Pick up both Added (A) and Modified (M) spec files so that
             # edits to existing specs also create issues (label-gated dispatch).
             if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]] || \
@@ -148,7 +133,8 @@ jobs:
           GH_TOKEN: ${{ secrets.COPILOT_TASK_TOKEN }}
           FORCE_REGENERATE: ${{ github.event.inputs.force == 'true' && 'true' || 'false' }}
           MAX_TASKS_PER_RUN: ${{ github.event.inputs.max_tasks || '3' }}
+          SPECS_FILE: ${{ steps.specs.outputs.specs_file }}
         run: |
           chmod +x "$GITHUB_WORKSPACE/frameworks/oep-installer-cli/.github/scripts/create-component-issue.sh"
-          "$GITHUB_WORKSPACE/frameworks/oep-installer-cli/.github/scripts/create-component-issue.sh" \
-            "${{ steps.specs.outputs.specs_file }}"
+          "$GITHUB_WORKSPACE/frameworks/oep-installer-cli/.github/scripts/create-component-issue.sh" "$SPECS_FILE"
+
