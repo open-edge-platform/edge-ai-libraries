@@ -247,6 +247,42 @@ Common errors:
 - `422`: Missing or empty `input`.
 - `500`: Inference or processing failure.
 
+#### Returning sources (opt-in)
+
+Set `RETURN_SOURCES: true` under `model_settings` in the model configuration YAML (or the
+`RETURN_SOURCES` environment variable) to make answers traceable to the retrieved chunks. The
+default is `false`, and the responses above are unchanged.
+
+When enabled:
+
+- The retrieved (and reranked) chunks are labelled `[S1]`, `[S2]`, … in the prompt, with the
+  file name and page, so a prompt template can ask the model to cite them.
+- A non-stream response adds a `sources` array:
+
+  ```json
+  {
+    "status": "Success",
+    "metadata": "<answer text that may contain [S1] markers>",
+    "sources": [
+      {"id": "S1", "source": "manual.pdf", "page": 4, "page_label": "5",
+       "snippet": "<first SOURCE_SNIPPET_CHARS characters>", "relevance_score": 0.93}
+    ]
+  }
+  ```
+
+  `page` is 0-based as set by the document loader (`null` for formats without pages).
+  `page_label` is the printed page label when the PDF has one, otherwise `page + 1`.
+  `relevance_score` is the reranker score (`null` when reranking is disabled).
+- A streamed response encodes each token chunk as standard SSE `data:` lines (one per line of
+  text, so newlines are preserved) and ends with one extra event:
+
+  ```text
+  event: sources
+  data: {"sources": [ ... ]}
+  ```
+
+`SOURCE_SNIPPET_CHARS` (default `300`) limits the snippet length.
+
 ### `GET /ollama-models` (Ollama runtime)
 
 Returns the list of currently loaded Ollama models.

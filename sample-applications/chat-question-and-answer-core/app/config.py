@@ -31,6 +31,9 @@ class Settings(BaseSettings):
         LLM_DEVICE (str): Device for LLM ('CPU', etc.).
         MAX_TOKENS (int): Maximum number of tokens for LLM responses.
         KEEP_ALIVE (Union[str, int, None]): Keep-alive setting for the application.
+        RETURN_SOURCES (bool): When True, context chunks are labelled [S1..Sn] in the prompt and
+            `/chat` returns them as `sources` (JSON field or a final `event: sources` SSE frame).
+        SOURCE_SNIPPET_CHARS (int): Maximum length of the snippet returned per source.
 
     Private Attributes:
         _ENABLE_RERANK (bool): Whether reranking is enabled.
@@ -67,6 +70,9 @@ class Settings(BaseSettings):
     LLM_DEVICE: str = "CPU"
     MAX_TOKENS: int = 1024
     KEEP_ALIVE: Union[str, int, None] = None
+    # Opt-in: label context chunks [S1..Sn] in the prompt and return them as `sources`.
+    RETURN_SOURCES: bool = False
+    SOURCE_SNIPPET_CHARS: int = 300
 
     # These fields will not be affected by environment variables
     _ENABLE_RERANK: bool = PrivateAttr(True)
