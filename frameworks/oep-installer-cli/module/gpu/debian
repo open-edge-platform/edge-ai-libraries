@@ -10,9 +10,9 @@ configure_gpu () {
 }
 
 verify_gpu () {
-  [ -b /dev/render/renderD128 ]
-  getent group render >/dev/null 2>&1
-  id -nG | grep -qw render
+  [ -c /dev/dri/renderD128 ] &&
+  getent group render >/dev/null 2>&1 &&
+  id -nG | grep -qw render &&
   ensure_apt_is_installed intel-media-va-driver-non-free=$version
 }
 

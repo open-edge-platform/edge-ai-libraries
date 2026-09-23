@@ -7,9 +7,9 @@ configure_npu () {
 }
 
 verify_npu () {
-  [ -b /dev/accel/accel0 ]
-  getent group render >/dev/null 2>&1 
-  id -nG | grep -qw render
+  [ -c /dev/accel/accel0 ] &&
+  getent group render >/dev/null 2>&1 &&
+  id -nG | grep -qw render &&
   (
     set -o pipefail
     ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
