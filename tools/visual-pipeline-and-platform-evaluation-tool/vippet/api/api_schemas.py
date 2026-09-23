@@ -370,13 +370,15 @@ class StatusResponse(BaseModel):
     - `status` - Current application status (STARTING, INITIALIZING, READY, or SHUTDOWN)
     - `message` - Optional message describing current activity or initialization progress
     - `ready` - True if application is ready to serve API requests
+    - `version` - Build version (image tag / release string) of the running application
 
     ### Example
     ```json
     {
       "status": "ready",
       "message": null,
-      "ready": true
+      "ready": true,
+      "version": "2026.2.0-rc2"
     }
     ```
     """
@@ -384,6 +386,7 @@ class StatusResponse(BaseModel):
     status: AppStatus
     message: Optional[str]
     ready: bool
+    version: str
 
 
 class Node(BaseModel):

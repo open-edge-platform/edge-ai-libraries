@@ -10,6 +10,7 @@ import logging
 from fastapi import APIRouter
 
 from api.api_schemas import AppStatus, HealthResponse, StatusResponse
+from app_version import VIPPET_VERSION
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
 
@@ -81,6 +82,7 @@ def get_status() -> StatusResponse:
     - `status` - Current application status (`starting`, `initializing`, `ready`, `shutdown`)
     - `message` - Optional message describing current activity
     - `ready` - `true` if application is ready to serve API requests
+    - `version` - Build version (image tag / release string) of the running application
 
     ## Conditions
 
@@ -94,7 +96,8 @@ def get_status() -> StatusResponse:
     {
       "status": "initializing",
       "message": "Loading video metadata...",
-      "ready": false
+      "ready": false,
+      "version": "2026.2.0-rc2"
     }
     ```
 
@@ -103,7 +106,8 @@ def get_status() -> StatusResponse:
     {
       "status": "ready",
       "message": null,
-      "ready": true
+      "ready": true,
+      "version": "2026.2.0-rc2"
     }
     ```
     """
@@ -112,6 +116,7 @@ def get_status() -> StatusResponse:
         status=_internal_app_status_to_api(app_state_manager.status),
         message=app_state_manager.message,
         ready=app_state_manager.is_ready(),
+        version=VIPPET_VERSION,
     )
 
 

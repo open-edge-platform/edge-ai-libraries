@@ -25,6 +25,13 @@ USER root
 # Set environment variable to non-interactive mode (avoids some prompts)
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Build-time release identifier (image tag / release string). Injected via
+# --build-arg (see compose.yml, which sources it from DOCKER_TAG). Left
+# empty when not provided; app_version.py falls back to a timestamped
+# "dev"/"test" label at runtime in that case.
+ARG VIPPET_VERSION
+ENV VIPPET_VERSION=${VIPPET_VERSION}
+
 # Install necessary dependencies
 # BuildKit cache mounts keep apt downloads/metadata between builds. The
 # cache lives outside the image layer, so runtime image size is unchanged.
