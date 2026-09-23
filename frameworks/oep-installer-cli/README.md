@@ -127,14 +127,17 @@ The following global options are supported:
 | Option | Description |
 |:-------|:------------|
 | `--dry-run` | Dry run the install/start/stop/remove commands.|
-| `--continue` | Ignore errors and let the install/start/stop/remove operations to proceed to the end. |
+| `--continue` | Ignore errors and let the install operation to proceed to the end. |
+| `--validate` | Validate features after installation. |
+| `--reinstall` | Force to reinstall a component, if already installed. |
 | `--gpu`/`--npu`/`--cpu` | Select GPU/NPU/CPU device at the component level. |
 
 To specify component specific options, insert a `--<component-name>` tag:
 
 ```bash
-openedge-cli install smart_park smart_intersection --smart_parking --gpu
+openedge-cli install smart_parking smart_intersection --smart_parking --gpu
 ```
+where `--gpu` applies to the smart_parking component.  
 
 > Omit `--<component-name>` if there is only a single component or the specified options apply to all components.  
 

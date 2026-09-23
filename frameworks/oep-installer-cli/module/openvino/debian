@@ -24,7 +24,7 @@ verify_openvino () {
 debian_70_install_openvino () {
   configure_openvino $*
   
-  if verify_openvino && [[ " $* " != *" --reset-openvino "* ]]; then
+  if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
     echo "openvino-${version} already installed. Skipping"
   else
     # remove old versions
@@ -50,7 +50,7 @@ debian_70_install_openvino () {
 
     echo "openvino-${version} installed successfully."
 
-    if [[ " $* " = *" --validate "* || " $* " = *" --validate-openvino "* ]]; then
+    if [[ " $* " = *" --validate "* ]]; then
       [ -e "$workspace"/${model##*/} ] || curl -sSfL "$model" -o "$workspace"/${model##*/}
       for device in CPU GPU NPU; do
         echo "Validating ${model##*/} inferencing on $device..."

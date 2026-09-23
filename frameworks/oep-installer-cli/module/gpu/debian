@@ -23,7 +23,7 @@ debian_40_profile_gpu () {
 debian_40_install_gpu () {
   configure_gpu $*
 
-  if verify_gpu && [[ " $* " != *" --reset-gpu "* ]]; then
+  if verify_gpu && [[ " $* " != *" --reinstall "* ]]; then
     echo "Gpu drivers are already installed. Skipping..."
   else
     # remove legacies
@@ -42,15 +42,12 @@ debian_40_install_gpu () {
     # install the packages
     ensure_apt install --no-install-recommends -y $pkg_list
   fi
+  verify_gpu
 }
 
 debian_40_remove_gpu () {
   configure_gpu $*
-  if verify_gpu; then
-    ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
-  else
-    echo "Gpu drivers are removed already. Skipping"
-  fi
+  ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
   # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
   # intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same

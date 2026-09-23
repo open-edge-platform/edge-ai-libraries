@@ -4,10 +4,6 @@
 Components are installable modules within the OEP installer. Their filenames are in the pattern of `<component-name>/linux` (distribution neutral) or `<component-name>/<OS_LIKE>` (distribution specific), where `<OS_LIKE>` is the OS family identifier (from `/etc/os-release`.) 
 The component name should contain no whitespace or special character except '_'.  
 
-To validate a component locally — running the same checks that CI enforces —
-use `.github/scripts/validate-modules.sh module/<component-name>`.  No
-arguments runs the whole tree.
-
 ### Develop a component
 
 A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<profile|install|remove|start|stop>_<component-name>`, where 
@@ -37,7 +33,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
 - `install`: The `install` function installs and configures the component.  
   - Use `$(ensure_project_path)/<component_name>` as the default installation path.  
   - The `install` function should cover the following conditions: (1) The component is not yet installed. (2) The component is previously installed but misconfigured. (3) The component of an older version is installed. After installation, it is assumed that the component is fully configured and ready to be launched (`start`).
-  - If the component (of the same version) is already installed, the `install` function should skip the installation unless `--reset-<component_name>` is specified, in which case, the `install` function should reinstall the component cleanly.    
+  - If the component (of the same version) is already installed, the `install` function should skip the installation unless the `--reinstall` option is specified, in which case, the `install` function should reinstall the component cleanly.    
   - For components that support multiple device accelerations, the `install` function must use the [`ensure_select_device`](../common/linux/select_device) function to take user input and configure the component accordingly.  
   - For components that require certain memory size or disk space, use the [`ensure_disk_space`](../common/linux/disk_space) and [`ensure_ram_size`](../common/linux/ram_size) functions to enforce the requirements and exit early.
   - For components that need to download AI models from huggingface, use the [`ensure_hf_token`](../common/linux/hf_token) function to set `HF_TOKEN`. The `ensure_hf_token` function can be used to check model access permissions for gated models.   
@@ -93,11 +89,17 @@ verify_my_component () {
 
 debian_85_install_my_component () {
   configure_my_component "$@"
-  if verify_my_component "$@" && [[ " $* " != *"--reset-my_component"* ]]; then
+  if verify_my_component "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "My component is already installed. Skipping"
   else
     # install component
     ...
+
+    if [[ " $* " = *" --validate "* ]]; then
+      # sanity feature validation
+      ...
+    fi
+
     verify_my_component "$@"   # final check after installation
   fi
   # For a SDK, application or service, highlight what's next after installation

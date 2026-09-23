@@ -26,7 +26,7 @@ verify_realsense () {
 debian_55_install_realsense () {
   configure_realsense
 
-  if verify_realsense && [[ " $* " != *" --reset-realsense "* ]]; then
+  if verify_realsense && [[ " $* " != *" --reinstall "* ]]; then
     echo "RealSense SDK is already installed. Skipping..."
   else
     ensure_sudo mkdir -p /etc/apt/keyrings

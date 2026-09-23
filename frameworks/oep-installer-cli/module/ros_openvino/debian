@@ -60,7 +60,7 @@ verify_ros_openvino () {
 debian_55_install_ros_openvino () {
   configure_ros_openvino
 
-  if verify_ros_openvino && [[ " $* " != *" --reset-ros_openvino "* ]]; then
+  if verify_ros_openvino && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
   else
     ensure_apt install -y curl gnupg

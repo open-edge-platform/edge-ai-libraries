@@ -133,8 +133,8 @@ subcommand_install () {
     echo "install options:"
     echo "  --dry-run       dry-run operations"
     echo "  --continue      ignore errors and proceed to the end"
-    echo "  --validate or --validate-<name>   perform sanity check of features after installation."
-    echo "  --reset-<name>  force reinstallation of the component if exit."
+    echo "  --validate      perform sanity check of features after installation."
+    echo "  --reinstall     force reinstallation of the component if exit."
     echo
     return 0
   fi
@@ -267,6 +267,8 @@ $(
       all_comps=()
       all_comps["--continue"]=""
       all_comps["--dry-run"]=""
+      all_comps["--reinstall"]=""
+      all_comps["--validate"]=""
       # sbom handlers are sparse; resolve its dependency graph as if it were install
       dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
       act_get prefix ${dcmd}_
@@ -288,7 +290,6 @@ $(
       done
       echo "  $cmd)"
       echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
-      echo "    for ((i=2;i<COMP_CWORD;i++)); do [[ -v all_comps[\${COMP_WORDS[\$i]}] && \"\${COMP_WORDS[\$i]}\" != --* ]] && all_comps[\"--reset-\${COMP_WORDS[\$i]}\"]=\"\"; done"
       echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
       echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
       echo "    ;;"
@@ -1830,17 +1831,21 @@ ensure_ram_size () {
 
 # select --gpu/--npu from command line arguments
 ensure_select_device () {
+  local device="cpu"
+  [ ! -e /dev/accel/accel0 ] || device="npu"
+  [ ! -e /dev/dri/renderD128 ] || device="gpu"
   case " $* " in
   *" --npu "*)
-    echo npu
+    [ ! -e /dev/accel/accel0 ] || device="npu"
     ;;
   *" --cpu "*)
-    echo cpu
+    device="cpu"
     ;;
-  *)
-    echo gpu
+  *" --gpu "*)
+    [ ! -e /dev/dri/renderD128 ] || device="gpu"
     ;;
   esac
+  echo $device
 }
 
 # perform sudo in automation or in tty
@@ -1917,10 +1922,11 @@ ensure_trap() {
             eval \"\${_ENSURE_TRAP_STACK_${var_sig}[\$_ENSURE_TRAP_IDX_${var_sig}]}\"
             (( _ENSURE_TRAP_IDX_${var_sig}-- )) || true
           done
-          if [[ \"$sig\" != \"EXIT\" && \"$sig\" != \"0\" && \"$sig\" != \"SIGEXIT\" ]]; then
-            trap - \"$sig\"
-            kill -s \"$sig\" \$\$
-          fi
+          trap - \"$sig\"
+          case \"$sig\" in
+            EXIT|0|ERR|RETURN|DEBUG) ;;
+            *) kill -s \"$sig\" \$\$ ;;
+          esac
         " "$sig"
       fi
 
@@ -2029,7 +2035,7 @@ debian_70_profile_anomalib () {
 
 debian_70_install_anomalib () {
   configure_anomalib $*
-  if verify_anomalib && [[ " $* " != *" --reset-anomalib "* ]]; then
+  if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
     echo "Anomalib already installed. Skipping"
   else
     ensure_disk_space 6000
@@ -2114,7 +2120,7 @@ debian_90_install_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot
   [[ " $* " != *" --complete "* ]] || amr_sdk_pkg=ros-$ros_distro-robotics-sdk-complete
 
-  if verify_autonomous_mobile_robot && [[ " $* " != *" --reset-autonomous_mobile_robot "* ]]; then
+  if verify_autonomous_mobile_robot && [[ " $* " != *" --reinstall "* ]]; then
     echo "Autonomous Mobile Robot is already installed. Skipping..."
   else
     ensure_disk_space $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
@@ -2216,7 +2222,7 @@ debian_15_profile_core_types () {
 }
 
 debian_15_install_core_types () {
-  if [ -e /etc/core-types ] && [[ " $* " != *" --reset-core_types "* ]]; then
+  if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
     echo "/etc/core-types exists. Skipping"
     return
   fi
@@ -2305,7 +2311,7 @@ verify_dlstreamer () {
 debian_75_install_dlstreamer () {
   configure_dlstreamer
   
-  if verify_dlstreamer && [[ " $* " != *" --reset-dlstreamer "* ]]; then
+  if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
     echo "dlstreamer-${version} already installed. Skipping"
   else
     # remove old versions
@@ -2332,7 +2338,7 @@ debian_75_install_dlstreamer () {
 
     echo "intel-dlstreamer=$version installed successfully."
 
-    if [[ " $* " = *" --validate "* || " $* " = *" --validate-dlstreamer "* ]]; then
+    if [[ " $* " = *" --validate "* ]]; then
       ( 
         mkdir -p models/${od_model%/*}
         set -x
@@ -2459,12 +2465,12 @@ EOF
 }
 
 debian_20_install_docker () {
-  if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
+  if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
     echo "Docker is already installed. Skipping..."
-  elif ensure_apt_is_installed docker.io && [[ "$*" != *"--reset-docker"* ]]; then
+  elif ensure_apt_is_installed docker.io && [[ " $* " != *" --reinstall "* ]]; then
     ensure_apt update
     ensure_apt install -y docker-buildx docker-compose-v2
-  elif ensure_apt_is_installed docker-ce && [[ "$*" != *"--reset-docker"* ]]; then 
+  elif ensure_apt_is_installed docker-ce && [[ " $* " != *" --reinstall "* ]]; then 
     ensure_apt update
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
@@ -2539,7 +2545,7 @@ debian_85_profile_esq () {
 
 debian_85_install_esq () {
   configure_uv
-  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reset-esq "* ]]; then
+  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
     echo "Esq is already installed. Skipping..."
   else
     curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true
@@ -2626,7 +2632,7 @@ debian_90_profile_geti () {
 debian_90_install_geti () {
   configure_geti $*
 
-  if verify_geti && [[ " $* " != *" --reset-geti "* ]]; then
+  if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
     echo "Geti already installed. Skipping."
   else
     ensure_disk_space 40000
@@ -2719,7 +2725,7 @@ debian_40_profile_gpu () {
 debian_40_install_gpu () {
   configure_gpu $*
 
-  if verify_gpu && [[ " $* " != *" --reset-gpu "* ]]; then
+  if verify_gpu && [[ " $* " != *" --reinstall "* ]]; then
     echo "Gpu drivers are already installed. Skipping..."
   else
     # remove legacies
@@ -2738,15 +2744,12 @@ debian_40_install_gpu () {
     # install the packages
     ensure_apt install --no-install-recommends -y $pkg_list
   fi
+  verify_gpu
 }
 
 debian_40_remove_gpu () {
   configure_gpu $*
-  if verify_gpu; then
-    ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
-  else
-    echo "Gpu drivers are removed already. Skipping"
-  fi
+  ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
   # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
   # intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same
@@ -2787,7 +2790,7 @@ debian_90_profile_handheld_multi_modal () {
 
 debian_90_install_handheld_multi_modal () {
   configure_handheld_multi_modal
-  if verify_handheld_multi_modal $* && [[ " $* " != *" --reset-handheld_multi_modal "* ]]; then
+  if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
     echo "handheld_multi_modal already installed. Skipping"
   else
     ensure_disk_space 300
@@ -2853,7 +2856,7 @@ verify_humanoid_imitation_learning () {
 debian_90_install_humanoid_imitation_learning () {
   configure_humanoid_imitation_learning "$@"
 
-  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reset-humanoid_imitation_learning "* ]]; then
+  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Humanoid - Imitation Learning is already installed. Skipping..."
   else
     # The base image bundles the OpenVINO dev stack, Intel GPU runtime, oneAPI
@@ -2978,7 +2981,7 @@ debian_90_profile_live_video_captioning () {
 
 debian_90_install_live_video_captioning () {
   configure_live_video_captioning
-  if verify_live_video_captioning && [[ " $* " != *" --reset-live_video_captioning "* ]]; then
+  if verify_live_video_captioning && [[ " $* " != *" --reinstall "* ]]; then
     echo "Live Video Captioning is already installed. Skipping"
     return
   fi
@@ -3038,7 +3041,7 @@ debian_90_profile_loitering_detection () {
 
 debian_90_install_loitering_detection () {
   configure_loitering_detection
-  if verify_loitering_detection && [[ " $* " != *" --reset-loitering_detection "* ]]; then
+  if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loitering detection is already installed. Skipping"
     return
   fi
@@ -3092,7 +3095,7 @@ debian_90_profile_loss_prevention () {
 
 debian_90_install_loss_prevention () {
   configure_loss_prevention
-  if verify_loss_prevention && [[ "$*" != *"--reset-loss_prevention"* ]]; then
+  if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loss prevention is already installed. Skipping"
     return
   fi
@@ -3292,7 +3295,7 @@ debian_90_profile_multimodal_weld_defect_detection () {
 
 debian_90_install_multimodal_weld_defect_detection () {
   configure_multimodal_weld_defect_detection
-  if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reset-multimodal_weld_defect_detection "* ]]; then
+  if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Multimodal weld defect detection is already installed. Skipping"
   else
     local device
@@ -3383,7 +3386,7 @@ debian_90_profile_nicu_warmer () {
 
 debian_90_install_nicu_warmer () {
   configure_nicu_warmer $*
-  if verify_nicu_warmer && [[ " $* " != *" --reset-nicu_warmer "* ]]; then
+  if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
     echo "NICU Warmer is already installed. Skipping" 1>&2
     return
   fi
@@ -3461,7 +3464,7 @@ debian_40_profile_npu () {
 debian_40_install_npu () {
   configure_npu $*
 
-  if verify_npu && [[ " $* " != *" --reset-npu "* ]]; then
+  if verify_npu && [[ " $* " != *" --reinstall "* ]]; then
     echo "Npu drivers are already installed. Skipping..."
   else
     # remove legacies
@@ -3485,15 +3488,12 @@ debian_40_install_npu () {
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
   fi
+  verify_npu
 }
 
 debian_40_remove_npu () {
-  if verify_npu; then
-    ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
-    ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-  else
-    echo "npu drivers are removed already. Skipping"
-  fi
+  ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
 debian_40_sbom_npu () {
@@ -3532,7 +3532,7 @@ verify_openvino () {
 debian_70_install_openvino () {
   configure_openvino $*
   
-  if verify_openvino && [[ " $* " != *" --reset-openvino "* ]]; then
+  if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
     echo "openvino-${version} already installed. Skipping"
   else
     # remove old versions
@@ -3558,7 +3558,7 @@ debian_70_install_openvino () {
 
     echo "openvino-${version} installed successfully."
 
-    if [[ " $* " = *" --validate "* || " $* " = *" --validate-openvino "* ]]; then
+    if [[ " $* " = *" --validate "* ]]; then
       [ -e "$workspace"/${model##*/} ] || curl -sSfL "$model" -o "$workspace"/${model##*/}
       for device in CPU GPU NPU; do
         echo "Validating ${model##*/} inferencing on $device..."
@@ -3612,7 +3612,7 @@ debian_90_profile_order_accuracy () {
 
 debian_90_install_order_accuracy () {
   configure_order_accuracy
-  if verify_order_accuracy && [[ "$*" != *"--reset-order_accuracy"* ]]; then
+  if verify_order_accuracy && [[ " $* " != *" --reinstall "* ]]; then
     echo "Order accuracy is already installed. Skipping"
     return
   fi
@@ -3664,7 +3664,7 @@ debian_90_profile_pallet_defect_detection () {
 
 debian_90_install_pallet_defect_detection () {
   configure_pallet_defect_detection
-  if verify_pallet_defect_detection && [[ "$*" != *"--reset-pallet_defect_detection"* ]]; then
+  if verify_pallet_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Pallet defect detection is already installed. Skipping"
     return
   fi
@@ -3727,7 +3727,7 @@ debian_90_profile_pcb_anomaly_detection () {
 
 debian_90_install_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  if verify_pcb_anomaly_detection && [[ "$*" != *"--reset-pcb_anomaly_detection"* ]]; then
+  if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "PCB anomaly detection is already installed. Skipping"
     return
   fi
@@ -3774,6 +3774,21 @@ debian_90_remove_pcb_anomaly_detection () {
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
+debian_05_install_pciutils () {
+  if ensure_apt_is_installed pciutils; then
+    echo "Pciutils is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y pciutils
+  fi
+}
+
+debian_05_sbom_pciutils () {
+  cat <<EOF
+"pkg-list": ["pciutils"]
+EOF
+}
+
 # Physical AI Framework - the Physical AI training/deployment SDK (the
 # `physicalai-train` distribution, which also pulls in the `physicalai`
 # runtime). It provides the `physicalai` CLI (fit / export / benchmark /
@@ -3812,7 +3827,7 @@ debian_91_install_physical_ai_framework () {
   configure_physical_ai_framework "$@"
   configure_uv
 
-  if verify_physical_ai_framework "$@" && [[ " $* " != *" --reset-physical_ai_framework "* ]]; then
+  if verify_physical_ai_framework "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Framework is already installed. Skipping..."
   else
     ensure_disk_space 15000
@@ -3885,7 +3900,7 @@ debian_92_install_physical_ai_studio () {
   configure_physical_ai_studio "$@"
   configure_uv
 
-  if verify_physical_ai_studio "$@" && [[ " $* " != *" --reset-physical_ai_studio "* ]]; then
+  if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Studio is already installed. Skipping..."
   else
     ensure_disk_space 20000
@@ -3965,7 +3980,7 @@ EOF
 }
 
 debian_10_profile_pre_system_scan () {
-  [ "$1" != "install" ] || echo "curl dmidecode"
+  [ "$1" != "install" ] || echo "curl dmidecode pciutils"
 }
 
 debian_10_install_pre_system_scan () {
@@ -4213,7 +4228,7 @@ verify_realsense () {
 debian_55_install_realsense () {
   configure_realsense
 
-  if verify_realsense && [[ " $* " != *" --reset-realsense "* ]]; then
+  if verify_realsense && [[ " $* " != *" --reinstall "* ]]; then
     echo "RealSense SDK is already installed. Skipping..."
   else
     ensure_sudo mkdir -p /etc/apt/keyrings
@@ -4276,7 +4291,7 @@ verify_ros2 () {
 debian_50_install_ros2 () {
   configure_ros2
 
-  if verify_ros2 && [[ " $* " != *" --reset-ros2 "* ]]; then
+  if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 $ros_distro is already installed. Skipping..."
   else
     ensure_apt update
@@ -4385,7 +4400,7 @@ verify_ros_openvino () {
 debian_55_install_ros_openvino () {
   configure_ros_openvino
 
-  if verify_ros_openvino && [[ " $* " != *" --reset-ros_openvino "* ]]; then
+  if verify_ros_openvino && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
   else
     ensure_apt install -y curl gnupg
@@ -4480,7 +4495,7 @@ debian_90_profile_smart_intersection () {
 
 debian_90_install_smart_intersection () {
   configure_smart_intersection
-  if verify_smart_intersection && [[ " $* " != *" --reset-smart_intersection "* ]]; then
+  if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Smart intersection is already installed. Skipping"
     return
   fi
@@ -4551,7 +4566,7 @@ debian_90_profile_smart_parking () {
 
 debian_90_install_smart_parking () {
   configure_smart_parking
-  if verify_smart_parking && [[ "$*" != *"--reset-smart_parking"* ]]; then
+  if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
     echo "Smart parking is already installed. Skipping..."
     return 0
   fi
@@ -4638,7 +4653,7 @@ verify_stationary_robot_vision () {
 debian_90_install_stationary_robot_vision () {
   configure_stationary_robot_vision
 
-  if verify_stationary_robot_vision && [[ " $* " != *" --reset-stationary_robot_vision "* ]]; then
+  if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
     echo "Stationary Robot Vision & Control is already installed. Skipping..."
   else
     ensure_disk_space 15000
@@ -4733,7 +4748,7 @@ debian_10_profile_uv () {
 
 debian_10_install_uv () {
   configure_uv
-  if uv --version 2> /dev/null && [[ "$*" != *"--reset-uv"* ]]; then
+  if uv --version 2> /dev/null && [[ " $* " != *" --reinstall "* ]]; then
     echo "Uv is already installed. Skipping..."
   else
     pipx install uv
@@ -4812,7 +4827,7 @@ debian_85_profile_video_search_and_summarization () {
 
 debian_85_install_video_search_and_summarization () {
   configure_video_search_and_summarization $*
-  if verify_video_search_and_summarization && [[ "$*" != *"--reset-video_search_and_summarization"* ]]; then
+  if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
     echo "video_search_and_summarization is already installed. Skipping..."
     return 0
   fi
@@ -4874,7 +4889,7 @@ debian_90_profile_vippet () {
 
 debian_90_install_vippet () {
   configure_vippet
-  if verify_vippet && [[ " $* " != *" --reset-vippet "* ]]; then
+  if verify_vippet && [[ " $* " != *" --reinstall "* ]]; then
     echo "Vipet is already installed. Skipping..."
   else
     ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool

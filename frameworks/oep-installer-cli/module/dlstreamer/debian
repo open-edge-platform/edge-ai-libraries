@@ -29,7 +29,7 @@ verify_dlstreamer () {
 debian_75_install_dlstreamer () {
   configure_dlstreamer
   
-  if verify_dlstreamer && [[ " $* " != *" --reset-dlstreamer "* ]]; then
+  if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
     echo "dlstreamer-${version} already installed. Skipping"
   else
     # remove old versions
@@ -56,7 +56,7 @@ debian_75_install_dlstreamer () {
 
     echo "intel-dlstreamer=$version installed successfully."
 
-    if [[ " $* " = *" --validate "* || " $* " = *" --validate-dlstreamer "* ]]; then
+    if [[ " $* " = *" --validate "* ]]; then
       ( 
         mkdir -p models/${od_model%/*}
         set -x
