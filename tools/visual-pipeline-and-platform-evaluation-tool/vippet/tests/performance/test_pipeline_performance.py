@@ -17,6 +17,7 @@ import httpx
 
 from helpers.api_helpers import (
     start_performance_job,
+    stop_performance_job,
     wait_for_job_completion,
 )
 from helpers.pipeline_case_helpers import PipelineCase
@@ -56,10 +57,31 @@ def _build_performance_payload(case: PipelineCase, streams: int) -> dict[str, An
 def _attempt_performance_job(
     session: httpx.Client, payload: dict[str, Any]
 ) -> dict[str, Any]:
-    """Submit a performance job and wait for it to finish."""
+    """Submit a performance job and wait for it to finish.
+
+    Timeouts are reported as a synthetic ``TIMEOUT`` state (see
+    :func:`wait_for_job_completion`'s ``fail_on_timeout`` parameter) rather
+    than raising, so the caller's retry loop can treat it like any other
+    non-``COMPLETED`` outcome. When a timeout occurs, the still-running job
+    is stopped on a best-effort basis so the backend's single job slot is
+    freed before the next attempt is submitted.
+    """
     job_id = start_performance_job(session, payload)  # type: ignore[arg-type]
     status_url = f"{BASE_URL}/jobs/tests/performance/{job_id}/status"
-    return wait_for_job_completion(session, status_url)  # type: ignore[arg-type]
+    status = wait_for_job_completion(session, status_url, fail_on_timeout=False)  # type: ignore[arg-type]
+
+    if status.get("state") == "TIMEOUT":
+        try:
+            stop_performance_job(session, job_id)  # type: ignore[arg-type]
+        except Exception:
+            logger.warning(
+                "Failed to stop timed-out job_id=%s – it may still be running "
+                "and could cause a 409 on the next job submission",
+                job_id,
+                exc_info=True,
+            )
+
+    return status
 
 
 @pytest.mark.perf
