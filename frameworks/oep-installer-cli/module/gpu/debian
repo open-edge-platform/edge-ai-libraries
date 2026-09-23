@@ -41,8 +41,8 @@ debian_40_install_gpu () {
 
     # install the packages
     ensure_apt install --no-install-recommends -y $pkg_list
+    verify_gpu
   fi
-  verify_gpu
 }
 
 debian_40_remove_gpu () {

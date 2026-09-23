@@ -46,8 +46,8 @@ debian_40_install_npu () {
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
+    verify_npu
   fi
-  verify_npu
 }
 
 debian_40_remove_npu () {
