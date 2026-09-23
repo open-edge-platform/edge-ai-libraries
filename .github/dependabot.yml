@@ -101,57 +101,61 @@ updates:
           - "*"
 
   - package-ecosystem: "pip"
-    directory: "/microservices/time-series-analytics"
+    directories: &timeseries-directories
+      - "/microservices/time-series-analytics"
+      - "/microservices/time-series-analytics/*"
+      - "/microservices/time-series-analytics/*/*"
+      - "/microservices/time-series-analytics/*/*/*"
     schedule:
       interval: "weekly"
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     groups:
-      python-deps:
+      industrial-edge-insights-python:
         applies-to: version-updates
         patterns:
           - "*"
 
-  - package-ecosystem: "pip"
-    directory: "/microservices/time-series-analytics/simulator"
+  - package-ecosystem: "docker"
+    directories: *timeseries-directories
     schedule:
       interval: "weekly"
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     groups:
-      python-deps:
+      docker-dependencies:
         applies-to: version-updates
         patterns:
           - "*"
 
-  - package-ecosystem: "pip"
-    directory: "/microservices/time-series-analytics/tests-functional"
+  - package-ecosystem: "docker-compose"
+    directories: *timeseries-directories
     schedule:
       interval: "weekly"
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     groups:
-      python-deps:
+      docker-compose-dependencies:
         applies-to: version-updates
         patterns:
           - "*"
 
-  - package-ecosystem: "pip"
-    directory: "/microservices/time-series-analytics/tests"
+  - package-ecosystem: "helm"
+    directories: *timeseries-directories
     schedule:
       interval: "weekly"
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     groups:
-      python-deps:
+      helm-dependencies:
         applies-to: version-updates
         patterns:
           - "*"
-
+  
   # ─────────────────────────────────────────
   # Python (pip) — Sample Applications
   # ─────────────────────────────────────────

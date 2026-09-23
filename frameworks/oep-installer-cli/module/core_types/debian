@@ -4,7 +4,7 @@ debian_15_profile_core_types () {
 }
 
 debian_15_install_core_types () {
-  if [ -e /etc/core-types ] && [[ " $* " != *" --reset-core_types "* ]]; then
+  if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
     echo "/etc/core-types exists. Skipping"
     return
   fi

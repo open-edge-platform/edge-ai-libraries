@@ -70,7 +70,7 @@ debian_85_profile_video_search_and_summarization () {
 
 debian_85_install_video_search_and_summarization () {
   configure_video_search_and_summarization $*
-  if verify_video_search_and_summarization && [[ "$*" != *"--reset-video_search_and_summarization"* ]]; then
+  if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
     echo "video_search_and_summarization is already installed. Skipping..."
     return 0
   fi

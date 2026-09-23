@@ -1,0 +1,19 @@
+
+# select --gpu/--npu from command line arguments
+ensure_select_device () {
+  local device="cpu"
+  [ ! -e /dev/accel/accel0 ] || device="npu"
+  [ ! -e /dev/dri/renderD128 ] || device="gpu"
+  case " $* " in
+  *" --npu "*)
+    [ ! -e /dev/accel/accel0 ] || device="npu"
+    ;;
+  *" --cpu "*)
+    device="cpu"
+    ;;
+  *" --gpu "*)
+    [ ! -e /dev/dri/renderD128 ] || device="gpu"
+    ;;
+  esac
+  echo $device
+}

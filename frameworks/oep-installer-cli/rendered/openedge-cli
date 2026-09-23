@@ -4,22 +4,22 @@ main () {
   . /etc/os-release
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
+  installer_bin="$HOME/.local/bin/$installer_name"
 
-  local _globals=() _cmds=() _args=() cur=-1 v cmd
+  local _globals=() _cmds=() _args=() cur=-1 v
   for v in "$@"; do
     case $v in
     --help)
       _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
       echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
       echo "common options:"
-      echo "  --dry-run       dry-run the subcommand sequence."
-      echo "  --continue      continue execution upon errors."
       echo "  --help          this help message." 
       echo
+      local cmd
       for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
         $cmd --help
       done
-      return
+      return 0
       ;;
     --dry-run|--continue)
       _globals+=($v)
@@ -40,17 +40,86 @@ main () {
   # --help if nothing specified
   if [ ${#_cmds[@]} -eq 0 ]; then
     main --help
-    return
+    return 0
   fi
 
   # initialize act cache
   declare -F act_get > /dev/null && act_get init
 
-  # exec subcommand
-  local _rc=0 _i
-  for ((_i=0;_i<${#_cmds[@]};_i++)); do
-    subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
-    _rc=$?
+  local _i _rc=0
+  for ((_i=0;_i<${#_cmds[*]};_i++)); do
+    case "${_cmds[$_i]}" in
+    setup|list|bootstrap|sbom)
+      subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+      _rc=$?
+      ;;
+    *)
+      if [[ " ${_globals[*]} " = *" --dry-run "* ]]; then
+        subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+        _rc=$?
+      else
+        # critical group permissions
+        local -A _groups=()
+        local _j _dep _rest_args=() _restart=0
+        for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
+          _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
+          for _dep in $(act_find_deps install install $(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]})); do
+            { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]]; } && _groups["render:992"]=1
+            [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] && _groups["video:"]=1
+            [[ "$_dep" = ${ID_LIKE}_*_install_docker ]] && _groups["docker:"]=1
+          done
+        done
+
+        [ ${#_groups[*]} -eq 0 ] || ensure_group_add ${!_groups[*]} || {
+          echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
+          echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
+          echo "may not apply. Ask your administrator to add: ${!_groups[*]}" 1>&2
+          return 3
+        }
+
+        for _dep in ${!_groups[*]}; do
+          [[ " $(id -nG) " == *" ${_dep%:*} "* ]] || { _restart=1; break; }
+        done
+
+        if [ $_restart -eq 0 ]; then
+          subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+          _rc=$?
+        else
+          if [ -n "${OEP_GROUP_REEXEC:-}" ]; then
+            echo -e "${yellow}groups still not effective after re-exec${reset}" 1>&2
+            return 1
+          fi
+
+          [[ " ${_cmds[*]:0:$_i} " = *" setup "* ]] || subcommand_setup "${_globals[@]}"
+
+          [ -x "$installer_bin" ] || {
+            echo -e "${red}$installer_bin not found; run 'setup' first${reset}" 1>&2
+            return 3
+          }
+
+          local _sdir="" _sdir_secrets
+          ensure_tmpdir create _sdir secrets /dev/shm
+          local _sdir_secrets="$_sdir"/secrets
+          (
+            umask 077;
+            export OEP_GROUP_REEXEC=1
+            for e in $(compgen -e | grep -Ev '^BASH_FUNC_|^(SHELLOPTS|BASHOPTS|BASH_ENV|ENV)$'); do
+              printf "export %s=%q\n" "$e" "${!e}"
+            done > "$_sdir_secrets"
+          ) || { echo "Failed to write secrets" >&2; return 3; }
+          ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" \
+            --inh-caps=-all bash -c '
+secrets="$1"; installer_bin="$2"; shift 2
+. "$secrets"; rm -f "$secrets"
+exec "$installer_bin" "$@"
+' bash "$_sdir_secrets" "$installer_bin" "${_rest_args[@]}" "${_globals[@]}"
+          _rc=$?
+          ensure_tmpdir destroy "$_sdir"
+          return $_rc
+        fi
+      fi
+      ;;
+    esac
     [ $_rc -eq 0 ] || [[ " ${_globals[*]} " = *" --continue "* ]] || break
   done
   return $_rc
@@ -59,214 +128,16 @@ main () {
 #### COLLECTION OF MODULES ####
 #!/bin/bash
 
-act_get () {
-  case "$1" in
-  prefix)
-    declare -ga _act_reply=()
-    local f
-    for f in ${!_act_cache_functions[*]}; do
-      [[ "$f" = "$2"* ]] && _act_reply+=("${_act_cache_functions[$f]}")
-    done
-    ;;
-  init)
-    declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_))
-    declare -g _act_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'))
-    declare -gA _act_cache_functions=()
-
-    local f rest
-    while read -r _ _ f; do
-      case $f in
-        "${ID_LIKE}_"*)
-          rest=${f#"${ID_LIKE}_"}                  # e.g. 10_install_foo
-          _act_cache_functions[${rest#*_}]=$f      # strip the numeric order -> install_foo
-          ;;
-      esac
-    done < <(declare -F)
-    ;;
-  esac
-}
-
-act_expand_modules () {
-  local act_name=${1%%,*}
-  local -a q=($2)
-  local -A seen=()
-  local i=0
-  while [ $i -lt ${#q[*]} ]; do
-    local n=${q[$i]}; i=$((i+1))
-    [ -z "${seen[$n]:-}" ] || continue
-    seen[$n]=1
-    local p="${_act_cache_functions[profile_$n]:-}"
-    [ -n "$p" ] && q+=($($p $act_name "${@:3}"))
-  done
-  echo "${!seen[*]}"
-}
-
-act_extract_modules () {
-  local act_name=${1%%,*}
-  local all_modules=(${_act_cache_modules[*]})
-  local all_module_args=" ${all_modules[*]/#/--} "
-  local -A modules=()
-  local v
-  for v in ${*:2}; do
-    [[ " ${all_module_args} " != *" $v "* ]] || break
-    [[ " ${all_module_args} " != *" --$v "* ]] || modules[$v]=1
-  done
-  echo "${!modules[*]}"
-}
-
-act_extract_args () {
-  local act_name=${1%%,*}
-  local module_name=$2
-  local act_modules="$3"
-  local all_modules=(${_act_cache_modules[*]})
-  local all_module_args=" ${all_modules[*]/#/--} "
-  local args1=() args2=() i j
-  for ((i=4;i<=${#@};i++)); do
-    if [[ " ${all_module_args} " = *" ${*:$i:1} "* ]]; then
-      for ((j=++i;j<=${#*};j++)); do
-        [[ " ${all_module_args} " != *" ${*:$j:1} "* ]] || break
-      done
-      [ "${*:$((i-1)):1}" != "--${module_name}" ] || args2+=(${*:$i:$((j-i))})
-      i=$((j-1))
-    elif [[ " ${all_module_args} " != *" --${*:$i:1} "* ]]; then
-      args1+=(${*:$i:1})
-    fi
-  done
-  echo "${args1[*]} ${act_modules} -- ${args2[*]}"
-}
-
-act_find_deps () {
-  local act_name=${1%%,*}
-  local -A handlers=()
-  local name handler
-  for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}"); do
-    local p="${_act_cache_functions[${act_name}_${name}]:-}"
-    [ -n "$p" ] && handlers[$p]=1
-  done
-  echo "${!handlers[*]}"
-}
-
-act_helpper () {
-  local act_name=${1%%,*}
-  local act_text="${1#*,}"
-  local sort_options="$2"
-  shift
-  shift
-
+subcommand_install () {
   if [[ " $* " = *" --help "* ]]; then
-    act_get prefix ${act_name}_
-    if [ ${#_act_reply[*]} -gt 0 ]; then
-      if [ "${act_name}" = "install" ]; then
-        echo "${act_name} options:"
-        echo "  --reset-<name>  force reinstallation of the component if exit."
-        echo
-      fi
-    fi
+    echo "install options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
+    echo "  --validate      perform sanity check of features after installation."
+    echo "  --reinstall     force reinstallation of the component if exit."
+    echo
     return 0
   fi
-
-  # scan for dependencies
-  local handles=($(
-    act_find_deps $act_name $(
-      # always included modules
-      for m in pre_system_scan core_types; do 
-        [[ -v _act_cache_functions[${act_name}_${m}] ]] && echo $m
-      done
-    ) "$@"
-  ))
-
-  # act in sequence
-  if [ ${#handles[@]} -gt 0 ]; then
-    if [ "$act_name" = "install" ]; then
-      # build license gate
-      local -A licenses=() licenses_text=()
-      for licenser in ${handles[*]/_install_/_license_}; do
-        if declare -F $licenser > /dev/null 2>&1; then
-          local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0
-          while IFS= read -r license_line; do
-            case "$license_line" in
-            "@@LICENSE-ID "*)
-              license_id="${license_line#* }"
-              [ -z "$license_id" ] || licenses[$license_id]="${licenses[$license_id]:-}$name1,"
-              [[ -v licenses_text[$license_id] ]] && license_keep=0 || license_keep=1
-              ;;
-            esac
-            [ $license_keep -eq 1 ] && licenses_text[$license_id]+="${license_line}"$'\n'
-          done < <($licenser "$@")
-        fi
-      done
-      if [ ${#licenses[*]} -gt 0 ]; then
-        local id1 rc
-        for id1 in ${!licenses[*]}; do
-          echo "${licenses_text[$id1]}"
-          echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")"
-        done | ensure_license_gate $installer_name "$@"
-        rc=$?
-        if [ $rc -eq 1 ]; then
-          echo "License declined"
-          exit 3
-        elif [ $rc -ne 0 ]; then
-          echo "License gate failed (no terminal or parse error)"
-          exit 3
-        fi
-      fi
-    fi
-
-    local rc=0 order=0
-    {
-      for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
-        local name1=${handler#*_*_*_}
-        if [ "$act_name" = "remove" ]; then
-          local order1=${handler#*_};order1=${order1%%_*}
-          [ "$order" -gt 0 ] || order=$order1
-          [ "$order1" -ge "$order" ] || break
-        fi
-        local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")"
-        if [[ " $* " = *" --dry-run "* ]]; then
-          echo "@@COMP $name1"
-          echo "Invoke $handler with $invoke_args" 
-          echo "@@OK $name1"
-        else
-          local state_path="$(ensure_project_path)/$installer_name/states/$name1"
-          [ "$act_name" = "start" ] && mkdir -p "$state_path"
-          echo "@@COMP $name1"
-          (
-            set -e
-            $handler $invoke_args &
-            wait -n
-          )
-          local rc1=$?
-          [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
-          if [ $rc1 -eq 0 ]; then
-            echo "@@OK $name1"
-          else
-            echo "@@FAIL $name1"
-            rc=$rc1
-            [[ " $* " = *" --continue "* ]] || break
-          fi
-        fi
-      done
-      if [[ " $* " != *" --dry-run "* ]] && [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
-        echo "@@REPORT SYSTEM SUMMARY"
-        ${ID_LIKE}_10_${act_name}_pre_system_scan
-      fi
-    } > >(
-      LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
-      mkdir -p "$(dirname "$LOG_FILE")"
-      echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
-      echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
-      ensure_panelled_logs ${act_text//,/ }
-    ) 2>&1
-    # wait for background processes
-    wait
-    return $rc
-  else
-    echo "Component not found" 1>&2
-    exit 3
-  fi
-}
-
-subcommand_install () {
   act_helpper "install,Installation,Installing,Installed" "" "$@"
 }
 
@@ -280,11 +151,7 @@ subcommand_start () {
 
 subcommand_stop () {
   [[ " $* " != *" --help "* ]] || return
-
-  local args=("$@") margs=(${*##-*})
-  local state_path="$(ensure_project_path)/$installer_name/states"
-  [ ${#margs[@]} -eq 0 ] && [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
-  act_helpper "stop,Stop,Stopping,Stopped" "-r" "${args[@]}" --continue
+  act_helpper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
 }
 
 subcommand_list () {
@@ -365,21 +232,19 @@ subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
 
   # reconstruct installer
-  local installer_misc_functions=(amr_setup_gazebo cleanup_gpu configure_amr_apt_repo configure_anomalib configure_autonomous_mobile_robot configure_dlstreamer configure_docker configure_esq configure_geti configure_gpu configure_handheld_multi_modal configure_humanoid_imitation_learning configure_libze1 configure_live_video_captioning configure_loitering_detection configure_loss_prevention configure_multimodal_weld_defect_detection configure_multimodal_weld_defect_detection_device configure_multimodal_weld_defect_detection_env configure_nicu_warmer configure_npu configure_openvino configure_order_accuracy configure_pallet_defect_detection configure_pcb_anomaly_detection configure_physical_ai_framework configure_physical_ai_studio configure_realsense configure_ros2 configure_ros_openvino configure_smart_intersection configure_smart_parking configure_stationary_robot_vision configure_uv configure_video_search_and_summarization configure_vippet current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary verify_amr_apt_repo verify_anomalib verify_autonomous_mobile_robot verify_dlstreamer verify_geti verify_gpu verify_handheld_multi_modal verify_humanoid_imitation_learning verify_live_video_captioning verify_loitering_detection verify_loss_prevention verify_multimodal_weld_defect_detection verify_nicu_warmer verify_npu verify_openvino verify_order_accuracy verify_pallet_defect_detection verify_pcb_anomaly_detection verify_physical_ai_framework verify_physical_ai_studio verify_realsense verify_ros2 verify_ros_openvino verify_smart_intersection verify_smart_parking verify_stationary_robot_vision verify_video_search_and_summarization verify_vippet)
-  if [ ${#installer_misc_functions[@]} -gt 0 ]; then
-    local installer=~/.local/bin/$installer_name
-    cat > "$installer" <<EOF
+  local installer_misc_functions=(amr_setup_osrf_gazebo current_multimodal_weld_defect_detection_device generate_multimodal_weld_defect_detection_password generate_multimodal_weld_defect_detection_username multimodal_weld_defect_detection_env_value system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary)
+  mkdir -p "$(dirname "$installer_bin")"
+  cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
-    chmod a+rx "$installer"
-    echo "Installer reconstructed at $installer"
-  fi
+  chmod a+rx "$installer_bin"
+  echo "Installer reconstructed at $installer_bin"
 
   # reconstruct bash completion
-  local completion_script=~/.local/share/bash-completion/completions/$installer_name
+  local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name"
   mkdir -p "$(dirname "$completion_script")"
 
   local all_cmds=(${_act_cache_cmds[*]})
@@ -393,27 +258,43 @@ _${installer_name//-/_}_completion () {
 
   case "\${COMP_WORDS[1]}" in
 $(  
+    # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
+    act_get prefix profile_
+    local all_profilers=(${_act_reply[*]})
+    local cmd dcmd profiler pname mname found
+    local -A all_comps
     for cmd in ${all_cmds[*]}; do
-      local -A all_comps=(["--continue"]="" ["--dry-run"]="")
-      act_get prefix ${cmd}_; local all_modules=(${_act_reply[*]#*_*_*_})
-      act_get prefix profile_
-      for profiler in ${_act_reply[*]}; do
-        local pname=${profiler#*_*_*_}
+      all_comps=()
+      all_comps["--continue"]=""
+      all_comps["--dry-run"]=""
+      all_comps["--reinstall"]=""
+      all_comps["--validate"]=""
+      # sbom handlers are sparse; resolve its dependency graph as if it were install
+      dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
+      act_get prefix ${dcmd}_
+      local all_modules=(${_act_reply[*]#*_*_*_})
+      for profiler in ${all_profilers[*]}; do
+        pname=${profiler#*_*_*_}
         [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
-        for mname in $($profiler $cmd); do
-          [[ -v _act_cache_functions[${cmd}_${mname}] ]] && all_comps[$pname]=""
+        found=0
+        for mname in $(act_expand_modules $dcmd $pname); do
+          if [[ -v _act_cache_functions[${dcmd}_${mname}] ]]; then
+            found=1
+            break
+          fi
         done
+        [ $found -eq 0 ] || all_comps[$pname]=""
       done
       for mname in ${all_modules[*]}; do
         all_comps[$mname]=""
       done
       echo "  $cmd)"
       echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
-      echo "    for ((i=2;i<COMP_CWORD;i++)); do [[ -v all_comps[\${COMP_WORDS[\$i]}] && \"\${COMP_WORDS[\$i]}\" != --* ]] && all_comps[\"--reset-\${COMP_WORDS[\$i]}\"]=\"\"; done"
       echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
       echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
       echo "    ;;"
     done
+    :
 )
   *)
     COMPREPLY=()
@@ -425,161 +306,21 @@ EOF
   echo "bash completion created at $completion_script"
 }
 
+subcommand_sbom () {
+  [[ " $* " != *" --help "* ]] || return
 
-# show output in columns, allowing merged last row and ignoring color sequence
-ensure_columns () {
-  local sep=${1:-'|'}
-  python3 -c '
-import sys,re
-ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
-rows=[line.strip().split(sys.argv[1]) for line in sys.stdin]
-cols=max(len(r) for r in rows)
-widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0) for c in range(cols-1)]
-for r in rows:
-  print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
-' "$sep"
-}
-
-
-# check disk space
-ensure_disk_space () {
-  local disk_size=$1            # in MB
-  local disk_path="${2:-$HOME}" # optional disk path
-  local disk_avail=$(df -h --output=avail "$disk_path" | awk '/[0-9]T/{a=$1*1000000}/[0-9]G/{a=$1*1000}/[0-9]M/{a=$1*1}/[0-9]K/{a=$1/1000}END{print int(a)}')
-  if [ "$disk_size" -gt "$disk_avail" ]; then
-    echo "Not enough disk space: required ${disk_size}MiB and available ${disk_avail}MiB"
-    return 3
-  fi
-}
-
-
-# idempotently pull an image and (re)create a detached named container.
-# generic helper for docker-image based ISV applications.
-# $1: container name  $2: image reference  ${@:3}: extra "docker run" args
-ensure_docker_run () {
-  local name="$1"
-  local image="$2"
-
-  # already running or stopped-but-present: leave as-is
-  if docker inspect "$name" > /dev/null 2>&1; then
-    echo "Container $name already exists. Skipping create..."
-    return 0
-  fi
-
-  echo "Pulling image $image (this may take several minutes for large images)..."
-  docker pull "$image"
-  docker run --name "$name" "${@:3}" "$image"
-}
-
-
-# sparse or full git clone
-# full clone: <workspace> <version> <repository>
-# sparse clone: <workspace> <version> <repository> <dirs> [<dirs>...]
-ensure_git_clone () {
-  local workspace="$1"
-  local version="$2"
-  local repository="$3"
-
-  ensure_sudo rm -rf "$workspace"
-  mkdir -p "$(dirname "$workspace")"
-  if [ ${#@} -ge 4 ]; then
-    # sparse checkout
-    mkdir -p "$workspace"
-    pushd "$workspace" > /dev/null
-    git clone --filter=blob:none --no-checkout $repository .
-    git sparse-checkout init --cone
-    git sparse-checkout set "${@:4}"
-    git checkout $version
-    popd > /dev/null
-  else
-    # full checkout
-    mkdir -p "$workspace"
-    pushd "$workspace" > /dev/null
-    git init -q
-    git remote add origin "$repository"
-    git fetch --depth 1 origin "$version"
-    git checkout -q FETCH_HEAD
-    [ ! -e .gitmodules ] || git submodule update --init --recursive
-    popd > /dev/null
-  fi
-}
-
-
-# add a group and ensure the user is part of the group
-ensure_group_add () {
-  local group1=$1
-  getent group $group1 >/dev/null 2>&1 || ensure_sudo groupadd $group1
-  id -nG | grep -qw $group1 || {
-    ensure_sudo usermod -aG $group1 "$(id -un)"
-    newgrp $group1
-  }
-}
-
-
-# Set HF_TOKEN as an environment variable
-# Verify if model permissions are granted on the token
-ensure_hf_token () {
-  local models=($*)
-
-  export HF_TOKEN
-  if [ -z "$HF_TOKEN" ]; then
-    if [ -r "$HOME"/.cache/huggingface/token ]; then
-      export HF_TOKEN=$(< "$HOME"/.cache/huggingface/token)
-    elif [ -r "$HOME"/.hf_token ]; then
-      export HF_TOKEN=$(< "$HOME"/.hf_token)
-    else
-      export HF_TOKEN=$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json > /dev/null 2>&1 || true)
-    fi
-  fi
-
-  local model f gated=()
-  for model in ${models[*]}; do
-    local probes=()
-    for f in $(curl -s -L "https://huggingface.co/api/models/${model}?full=tree" | tr ',' '\n' | grep -F '"rfilename":' | cut -f4 -d'"'); do
-      case "$f" in
-      *config.yaml|*config.json|*tokenizer.json)
-        probes+=($f)
-        break
-        ;;
-      esac
-    done
-    if [ ${#probes[*]} -eq 0 ]; then
-      echo "No probe found with $model" 1>&2
-      return 3
-    fi
-    for f in ${probes[*]}; do
-      local code=$(curl -s -o /dev/null -w "%{http_code}" -L -r 0-0 -H "Authorization: Bearer $HF_TOKEN" https://huggingface.co/${model}/resolve/main/$f)
-      case "$code" in
-      200|206)
-        continue
-        ;;
-      401|403|404) 
-        gated+=($model)
-        break
-        ;;
-      *)
-        echo "Unknown probe code $code" 1>&2
-        return 3
-        ;;
-      esac
-    done
+  # scan for dependencies
+  local handler
+  for handler in $(act_find_deps install $(act_resolve_args install "$@") | tr ' ' '\n' | sort); do
+    declare -F ${handler/_install_/_sbom_} > /dev/null 2>&1 || continue
+    ${handler/_install_/_sbom_} $(act_extract_args sbom ${handler#*_*_*_} "${handles[*]#${ID_LIKE}_*_sbom_}" "$@")
+    echo "---"
   done
-
-  if [ ${#gated[*]} -gt 0 ]; then
-    echo "Gated model(s): ${gated[*]}" 1>&2
-    return 3
-  fi
-}
-
-
-# return the current machine IP address
-ensure_ip () {
-  ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
 }
 
 
 # Split panel logging
-ensure_panelled_logs () {(
+act_panelled_logs () {(
 #
 # Protocol (markers your installer emits on stdout/stderr):
 #   @@COMP       <name>     start/switch to component (starts its timer)
@@ -1424,7 +1165,7 @@ _draw() {
   fi
 
   local out="" l r rowstr
-  if (( FULL_CLEAR )); then out+=$'\033[2J'; PREV=(); FULL_CLEAR=0; fi
+  if (( FULL_CLEAR )); then PREV=(); FULL_CLEAR=0; fi
 
   local title=" ${ACT_TEXT[0]} progress "
   if (( REVIEW )); then
@@ -1493,7 +1234,7 @@ _finish() {
   printf '\033[?7h'
   printf '\033[%d;1H\033[K' "$TTY_ROWS"   # last row, cleared, NO newline
   printf '\033[?25h'
-  (( TTY_FD >= 0 )) && exec {TTY_FD}>&-
+  (( TTY_FD >= 0 )) && { stty echo <&"$TTY_FD" 2>/dev/null; exec {TTY_FD}>&-; }
 }
 
 # ------------------------------------------------------------------ input
@@ -1637,6 +1378,426 @@ _handle_line() {
   _draw 1
 )}
 
+# create an askpass helper
+act_panelled_logs_askpass () {
+  local askpass_helper="$1"
+  ( umask 077;cat > "$askpass_helper" <<'EOF'
+#!/bin/bash
+if [ -n "$SUDO_PASSWORD" ]; then
+  printf '%s\n' "$SUDO_PASSWORD"
+else
+  exec 8<>/dev/tty 2>/dev/null || exit 1
+  # size and style
+  rows=$(stty size <&8 | cut -d' ' -f1)
+  saved=$(stty -g <&8) || exit 1
+  # restore screen
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  stty -echo <&8
+  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+  printf '\033[%d;1H\033[K%s' "${rows:-1}" "$1" >&8
+  IFS= read -r pw <&8
+  printf '\033[%d;1H\033[K' "${rows:-1}" >&8
+  printf '%s\n' "$pw"
+fi
+EOF
+  ) && chmod 700 "$askpass_helper"
+}
+
+#!/bin/bash
+
+act_get () {
+  case "$1" in
+  prefix)
+    declare -ga _act_reply=()
+    local f
+    for f in ${!_act_cache_functions[*]}; do
+      [[ "$f" = "$2"* ]] && _act_reply+=("${_act_cache_functions[$f]}")
+    done
+    ;;
+  init)
+    declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_))
+    declare -g _act_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'))
+    declare -gA _act_cache_functions=()
+
+    local f rest
+    while read -r _ _ f; do
+      case $f in
+        "${ID_LIKE}_"*)
+          rest=${f#"${ID_LIKE}_"}                  # e.g. 10_install_foo
+          _act_cache_functions[${rest#*_}]=$f      # strip the numeric order -> install_foo
+          ;;
+      esac
+    done < <(declare -F)
+
+    declare -ga _act_cache_names=(${_act_cache_modules[*]})
+    for f in ${!_act_cache_functions[*]}; do
+      [[ "$f" = profile_* ]] || continue
+      [[ " ${_act_cache_names[*]} " = *" ${f#profile_} "* ]] || _act_cache_names+=("${f#profile_}")
+    done
+    ;;
+  esac
+}
+
+act_expand_modules () {
+  local act_name=${1%%,*}
+  local -a q=($2)
+  local -A seen=()
+  local i=0
+  while [ $i -lt ${#q[*]} ]; do
+    local n=${q[$i]}; i=$((i+1))
+    [ -z "${seen[$n]:-}" ] || continue
+    seen[$n]=1
+    local p="${_act_cache_functions[profile_$n]:-}"
+    [ -n "$p" ] && q+=($($p $act_name "${@:3}"))
+  done
+  echo "${!seen[*]}"
+}
+
+act_extract_modules () {
+  local act_name=${1%%,*}
+  local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}})
+  local all_module_args=" ${all_modules[*]/#/--} "
+  local -A modules=()
+  local v
+  for v in ${*:2}; do
+    [[ " ${all_module_args} " != *" $v "* ]] || break
+    [[ " ${all_module_args} " != *" --$v "* ]] || modules[$v]=1
+  done
+  echo "${!modules[*]}"
+}
+
+act_extract_args () {
+  local act_name=${1%%,*}
+  local module_name=$2
+  local act_modules="$3"
+  local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}})
+  local all_module_args=" ${all_modules[*]/#/--} "
+  local args1=() args2=() i j
+  for ((i=4;i<=${#@};i++)); do
+    if [[ " ${all_module_args} " = *" ${*:$i:1} "* ]]; then
+      for ((j=++i;j<=${#*};j++)); do
+        [[ " ${all_module_args} " != *" ${*:$j:1} "* ]] || break
+      done
+      [ "${*:$((i-1)):1}" != "--${module_name}" ] || args2+=(${*:$i:$((j-i))})
+      i=$((j-1))
+    elif [[ " ${all_module_args} " != *" --${*:$i:1} "* ]]; then
+      args1+=(${*:$i:1})
+    fi
+  done
+  echo "${args1[*]} ${act_modules} -- ${args2[*]}"
+}
+
+act_find_deps () {
+  local act_name=${1%%,*}
+  local -A handlers=()
+  local name handler
+  for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}"); do
+    local p="${_act_cache_functions[${act_name}_${name}]:-}"
+    [ -n "$p" ] && handlers[$p]=1
+  done
+  echo "${!handlers[*]}"
+}
+
+act_helpper () {
+  local act_name=${1%%,*}
+  local act_text="${1#*,}"
+  local sort_options="$2"
+  shift
+  shift
+
+  if [[ " $* " = *" --help "* ]]; then
+    echo "${act_name} options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
+    echo
+    return 0
+  fi
+
+  # scan for dependencies
+  local handles=($(
+    act_find_deps $act_name $(
+      # always included modules
+      for m in pre_system_scan core_types; do 
+        [[ -v _act_cache_functions[${act_name}_${m}] ]] && echo $m
+      done
+    ) "$@"
+  ))
+
+  # act in sequence
+  if [ ${#handles[@]} -gt 0 ]; then
+    if [ "$act_name" = "install" ]; then
+      # build license gate
+      local -A licenses=() licenses_text=()
+      for licenser in ${handles[*]/_install_/_license_}; do
+        if declare -F $licenser > /dev/null 2>&1; then
+          local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0
+          while IFS= read -r license_line; do
+            case "$license_line" in
+            "@@LICENSE-ID "*)
+              license_id="${license_line#* }"
+              [ -z "$license_id" ] || licenses[$license_id]="${licenses[$license_id]:-}$name1,"
+              [[ -v licenses_text[$license_id] ]] && license_keep=0 || license_keep=1
+              ;;
+            esac
+            [ $license_keep -eq 1 ] && licenses_text[$license_id]+="${license_line}"$'\n'
+          done < <($licenser "$@")
+        fi
+      done
+      if [ ${#licenses[*]} -gt 0 ]; then
+        local id1 rc
+        for id1 in ${!licenses[*]}; do
+          echo "${licenses_text[$id1]}"
+          echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")"
+        done | ensure_license_gate $installer_name "$@"
+        rc=$?
+        if [ $rc -eq 1 ]; then
+          echo "License declined"
+          exit 3
+        elif [ $rc -ne 0 ]; then
+          echo "License gate failed (no terminal or parse error)"
+          exit 3
+        fi
+      fi
+    fi
+
+    local rc=0 order=0
+    {
+      for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
+        local name1=${handler#*_*_*_}
+        if [ "$act_name" = "remove" ]; then
+          local order1=${handler#*_};order1=${order1%%_*}
+          [ "$order" -gt 0 ] || order=$order1
+          [ "$order1" -ge "$order" ] || break
+        fi
+        local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")"
+        if [[ " $* " = *" --dry-run "* ]]; then
+          echo "@@COMP $name1"
+          echo "Invoke $handler with $invoke_args" 
+          echo "@@OK $name1"
+        else
+          local state_path="$(ensure_project_path)/$installer_name/states/$name1"
+          [ "$act_name" = "start" ] && mkdir -p "$state_path"
+          echo "@@COMP $name1"
+          (
+            set -e
+            $handler $invoke_args &
+            wait -n
+          )
+          local rc1=$?
+          [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
+          if [ $rc1 -eq 0 ]; then
+            echo "@@OK $name1"
+          else
+            echo "@@FAIL $name1"
+            rc=$rc1
+            [[ " $* " = *" --continue "* ]] || break
+          fi
+        fi
+      done
+      if [[ " $* " != *" --dry-run "* ]] && [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
+        echo "@@REPORT SYSTEM SUMMARY"
+        ${ID_LIKE}_10_${act_name}_pre_system_scan
+      fi
+    } > >(
+      LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
+      mkdir -p "$(dirname "$LOG_FILE")"
+      echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
+      echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
+      act_panelled_logs ${act_text//,/ }
+    ) 2>&1
+    # wait for background processes
+    wait
+    return $rc
+  else
+    echo "Component not found" 1>&2
+    exit 3
+  fi
+}
+
+# Resolve the effective component list for a subcommand.
+act_resolve_args () {
+  local act_name=$1; shift
+  local args=("$@") margs=(${*##-*})
+  if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
+    local state_path="$(ensure_project_path)/$installer_name/states"
+    [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
+  fi
+  echo "${args[*]}"
+}
+
+
+# show output in columns, allowing merged last row and ignoring color sequence
+ensure_columns () {
+  local sep=${1:-'|'}
+  python3 -c '
+import sys,re
+ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
+rows=[line.strip().split(sys.argv[1]) for line in sys.stdin]
+cols=max(len(r) for r in rows)
+widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0) for c in range(cols-1)]
+for r in rows:
+  print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
+' "$sep"
+}
+
+
+# check disk space
+ensure_disk_space () {
+  local disk_size=$1            # in MB
+  local disk_path="${2:-$HOME}" # optional disk path
+  local disk_avail=$(df -h --output=avail "$disk_path" | awk '/[0-9]T/{a=$1*1000000}/[0-9]G/{a=$1*1000}/[0-9]M/{a=$1*1}/[0-9]K/{a=$1/1000}END{print int(a)}')
+  if [ "$disk_size" -gt "$disk_avail" ]; then
+    echo "Not enough disk space: required ${disk_size}MiB and available ${disk_avail}MiB"
+    return 3
+  fi
+}
+
+
+# sparse or full git clone
+# full clone: <workspace> <version> <repository>
+# sparse clone: <workspace> <version> <repository> <dirs> [<dirs>...]
+ensure_git_clone () {
+  local workspace="$1"
+  local version="$2"
+  local repository="$3"
+
+  ensure_sudo rm -rf "$workspace"
+  mkdir -p "$(dirname "$workspace")"
+  if [ ${#@} -ge 4 ]; then
+    # sparse checkout
+    mkdir -p "$workspace"
+    pushd "$workspace" > /dev/null
+    git clone --filter=blob:none --no-checkout $repository .
+    git sparse-checkout init --cone
+    git sparse-checkout set "${@:4}"
+    git checkout $version
+    popd > /dev/null
+  else
+    # full checkout
+    mkdir -p "$workspace"
+    pushd "$workspace" > /dev/null
+    git init -q
+    git remote add origin "$repository"
+    git fetch --depth 1 origin "$version"
+    git checkout -q FETCH_HEAD
+    [ ! -e .gitmodules ] || git submodule update --init --recursive
+    popd > /dev/null
+  fi
+}
+
+
+# add groups and ensure user is part of the groups
+# use docker: for a system group
+ensure_group_add () {
+  local group1 gid1
+  
+  for group1 in "$@"; do
+    case "$group1" in
+    *:) 
+      gid1="--system"
+      ;;
+    *:*) 
+      gid1="--system --gid ${group1#*:}"
+      getent group ${group1%:*} >/dev/null 2>&1 || [ -z "$(getent group ${gid1##* })" ] || { echo "gid ${gid1##* } is taken" 1>&2; gid1="--system"; }
+      ;;
+    *) 
+      gid1=""
+      ;;
+    esac
+    getent group ${group1%:*} >/dev/null 2>&1 || ensure_sudo groupadd $gid1 ${group1%:*}
+    id -nG | tr ' ' '\n' | grep -qx ${group1%:*} || ensure_sudo usermod -aG ${group1%:*} "$(id -un)"
+  done
+
+  # wait until NSS settles
+  local deadline=$((SECONDS + 30))
+  local flushed=0 missing
+
+  while :; do
+    missing=""
+    for group1 in "$@"; do
+      # id -G "$(id -un)" searches the database while id -G checks the current session
+      id -G "$(id -un)" | tr ' ' '\n' | grep -qx "$(getent group ${group1%:*} | cut -f3 -d:)" || missing+=" ${group1%:*}"
+    done
+    [ -n "$missing" ] || return 0
+
+    # One-shot cache invalidation -- usually converges immediately after this.
+    if [ $flushed -eq 0 ]; then
+      flushed=1
+      command -v nscd  >/dev/null && ensure_sudo nscd -i group   >/dev/null 2>&1
+      command -v sss_cache >/dev/null && ensure_sudo sss_cache -G >/dev/null 2>&1
+      continue
+    fi
+
+    [ $SECONDS -ge $deadline ] && {
+      echo -e "${red}groups not visible:${missing}${reset}" 1>&2
+      return 1
+    }
+    sleep 1
+  done
+}
+
+
+# Set HF_TOKEN as an environment variable
+# Verify if model permissions are granted on the token
+ensure_hf_token () {
+  local models=($*)
+
+  export HF_TOKEN
+  if [ -z "$HF_TOKEN" ]; then
+    if [ -r "$HOME"/.cache/huggingface/token ]; then
+      export HF_TOKEN=$(< "$HOME"/.cache/huggingface/token)
+    elif [ -r "$HOME"/.hf_token ]; then
+      export HF_TOKEN=$(< "$HOME"/.hf_token)
+    else
+      export HF_TOKEN=$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json > /dev/null 2>&1 || true)
+    fi
+  fi
+
+  local model f gated=()
+  for model in ${models[*]}; do
+    local probes=()
+    for f in $(curl -s -L "https://huggingface.co/api/models/${model}?full=tree" | tr ',' '\n' | grep -F '"rfilename":' | cut -f4 -d'"'); do
+      case "$f" in
+      *config.yaml|*config.json|*tokenizer.json)
+        probes+=($f)
+        break
+        ;;
+      esac
+    done
+    if [ ${#probes[*]} -eq 0 ]; then
+      echo "No probe found with $model" 1>&2
+      return 3
+    fi
+    for f in ${probes[*]}; do
+      local code=$(curl -s -o /dev/null -w "%{http_code}" -L -r 0-0 -H "Authorization: Bearer $HF_TOKEN" https://huggingface.co/${model}/resolve/main/$f)
+      case "$code" in
+      200|206)
+        continue
+        ;;
+      401|403|404) 
+        gated+=($model)
+        break
+        ;;
+      *)
+        echo "Unknown probe code $code" 1>&2
+        return 3
+        ;;
+      esac
+    done
+  done
+
+  if [ ${#gated[*]} -gt 0 ]; then
+    echo "Gated model(s): ${gated[*]}" 1>&2
+    return 3
+  fi
+}
+
+
+# return the current machine IP address
+ensure_ip () {
+  ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
+}
+
 
 # ensure ports are open
 ensure_ports_open () {
@@ -1653,7 +1814,7 @@ ensure_ports_open () {
 
 # return the installation path
 ensure_project_path () {
-  echo "$HOME/open-edge-platform"
+  echo "$HOME/.local/open-edge-platform"
 }
 
 
@@ -1670,38 +1831,45 @@ ensure_ram_size () {
 
 # select --gpu/--npu from command line arguments
 ensure_select_device () {
+  local device="cpu"
+  [ ! -e /dev/accel/accel0 ] || device="npu"
+  [ ! -e /dev/dri/renderD128 ] || device="gpu"
   case " $* " in
   *" --npu "*)
-    echo npu
+    [ ! -e /dev/accel/accel0 ] || device="npu"
     ;;
   *" --cpu "*)
-    echo cpu
+    device="cpu"
     ;;
-  *)
-    echo gpu
+  *" --gpu "*)
+    [ ! -e /dev/dri/renderD128 ] || device="gpu"
     ;;
   esac
+  echo $device
 }
 
 # perform sudo in automation or in tty
 ensure_sudo () {
-  if sudo -nv 2>/dev/null || sudo -n true 2>/dev/null; then
+  if sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
     sudo "$@"
-  elif [ -n "$SUDO_PASSWORD" ]; then
-    # Non-interactive password. Feed it on the first stdin line via `sudo -S`
-    # and never write it to disk. `cat` forwards any remaining piped stdin to
-    # the invoked command so constructs like `curl ... | ensure_sudo tee file`
-    # keep working.
-    (echo "$SUDO_PASSWORD"; cat) | sudo -kS "$@"
-  elif [ -t 0 ]; then
+  elif [ -t 0 ] && [ -z "$SUDO_PASSWORD" ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo "$@"
   else
-    # No password available and no usable TTY (e.g. under the panelled UI or a
-    # pipe/background job). Avoid hanging forever on a hidden password prompt.
-    echo "ensure_sudo: sudo requires a password but none is available; set SUDO_PASSWORD or run 'sudo -v' first" 1>&2
-    return 1
+    # write an askpass helper
+    local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}"
+    mkdir -p "$rundir" 2>/dev/null || return 1
+    (
+      flock -w 300 -e 9 || { echo "ensure_sudo: timed out waiting for another installer" >&2; exit 1; }
+      if [ ! -x "$SUDO_ASKPASS" ]; then
+        askpass_helper="$rundir"/askpass
+        act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
+        export SUDO_ASKPASS="$askpass_helper"
+      fi
+      sudo -A "$@"
+    ) 9< "$rundir"
   fi
 }
 
@@ -1711,16 +1879,60 @@ ensure_tmpdir () {
   # $1: op
   # $2: varname in create or tmpdir in destroy
   # $3: prefix in create
+  # $4: /tmp
   case "$1" in
   create)
-    printf -v $2 "%s" $(mktemp -d /tmp/openedge-cli-${3:-}.XXXXXX)
-    trap "ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
+    printf -v $2 "%s" $(mktemp -d ${4:-/tmp}/openedge-cli-${3:-}.XXXXXX)
+    ensure_trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
     ;;
   destroy)
-    trap - ERR SIGINT EXIT
     rm -rf "$2"
+    ensure_trap - ERR SIGINT EXIT
     ;;
   esac
+}
+
+
+# nested trap
+ensure_trap() {
+  local script="$1" sig var_sig; shift
+
+  for sig in "$@"; do
+    var_sig="${sig//[^a-zA-Z0-9_]/_}"
+    local -n stack="_ENSURE_TRAP_STACK_${var_sig}"
+
+    if [[ "$script" == "-" || -z "$script" ]]; then
+      # Pop / Restore mode
+      if (( ${#stack[@]} > 0 )); then
+        unset "stack[$((${#stack[@]} - 1))]"
+        stack=("${stack[@]}")
+      fi
+
+      # Reset signal handler to default if stack is empty
+      if (( ${#stack[@]} == 0 )); then
+        trap - "$sig"
+      fi
+    else 
+      # Register mode
+      if [[ -z "$(trap -p "$sig")" ]]; then
+        stack=()
+        trap "
+          _ENSURE_TRAP_IDX_${var_sig}=\$((\${#_ENSURE_TRAP_STACK_${var_sig}[@]} - 1))
+          while (( _ENSURE_TRAP_IDX_${var_sig} >= 0 )); do
+            eval \"\${_ENSURE_TRAP_STACK_${var_sig}[\$_ENSURE_TRAP_IDX_${var_sig}]}\"
+            (( _ENSURE_TRAP_IDX_${var_sig}-- )) || true
+          done
+          trap - \"$sig\"
+          case \"$sig\" in
+            EXIT|0|ERR|RETURN|DEBUG) ;;
+            *) kill -s \"$sig\" \$\$ ;;
+          esac
+        " "$sig"
+      fi
+
+      stack+=("$script")
+    fi
+  done
 }
 
 
@@ -1746,7 +1958,7 @@ ensure_apt () {
       fi
     done
     if [ ${#package_list[*]} -gt 0 ]; then
-      local valid_packages=($(dpkg-query -W -f='${Status} ${Package}\n' ${package_list[*]} 2>/dev/null | awk '/installed/{print $4}'))
+      local valid_packages=($(dpkg-query -W -f='${db:Status-Status} ${Package}\n' "${package_list[@]}" 2>/dev/null | awk '$1!="not-installed"{print $2}'))
       if [ ${#valid_packages[*]} -gt 0 ]; then
         ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy%%,} apt-get $1 -y ${options[*]} ${valid_packages[*]}
       fi
@@ -1758,84 +1970,289 @@ ensure_apt () {
   esac
 }
 
+# check pacakge installation. add =<version> to check version.
+ensure_apt_is_installed () {
+  for pkg in $*; do
+    [ "$(dpkg-query -W -f='${db:Status-Status}' ${pkg%%=*} 2>/dev/null)" = "installed" ] || return 1
+    [[ "$pkg" != *=* ]] || [[ "$(dpkg-query -W -f='${Version}' ${pkg%%=*} 2>/dev/null)" = "${pkg#*=}"* ]] || return 1
+  done
+}
 
-ensure_rm_apt_source () {
+
+ensure_apt_key () {
+  local key_file=$1 key_url=$2
+  local no_proxy1=$(echo ${no_proxy:-$NO_PROXY} | tr ',' '\n' | grep -v -E '^[.]?intel.com$' | tr '\n' ',')
+
+  sudo mkdir -p $(dirname $key_file)
+  if [[ "$*" = *"--dearmor"* ]]; then
+    no_proxy=$no_proxy1 NO_PROXY=$no_proxy1 curl -fsSL "$key_url" | gpg --dearmor | ensure_sudo tee "$key_file" > /dev/null
+  else
+    no_proxy=$no_proxy1 NO_PROXY=$no_proxy1 curl -fsSL "$key_url" | ensure_sudo tee "$key_file" > /dev/null
+  fi
+}
+
+
+ensure_apt_preference () {
+  local pref_file=$1; shift
+  (IFS=$'\n';echo "$@") | ensure_sudo tee "$pref_file" > /dev/null
+}
+
+
+# create new source list
+ensure_apt_source () {
+  local list_file=$1; shift
+  (IFS=$'\n';echo "$*") | ensure_sudo tee $list_file > /dev/null
+}
+
+# remove apt source by pattern
+ensure_apt_source_remove () {
   local r e
   for r in "$@"; do
-    [ -r /etc/apt/sources.list ] && sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
+    [ -r /etc/apt/sources.list ] && ensure_sudo sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true
     for e in /etc/apt/sources.list.d/*.list; do
-      [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && mv -f "$e" "$e".save || true
+      [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && ensure_sudo mv -f "$e" "$e".save || true
     done
   done
 }
 
 
-# ROS 2 distribution, auto-selected from the Ubuntu codename:
-#   Ubuntu 22.04 (jammy) -> ROS 2 Humble
-#   Ubuntu 24.04 (noble) -> ROS 2 Jazzy
-# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
-configure_ros2 () {
+configure_anomalib () {
+  workspace="$(ensure_project_path)/anomalib"
+  version=2.6.0
+  repository=https://github.com/open-edge-platform/anomalib.git
+}
+
+verify_anomalib () {
+  [ -r "$workspace"/venv/bin/activate ] || return 1
+  . "$workspace"/venv/bin/activate
+  set -o pipefail
+  pip show anomalib | grep -q -F $version || return 1
+}
+
+debian_70_profile_anomalib () {
+  echo "python3_venv edge_base"
+}
+
+debian_70_install_anomalib () {
+  configure_anomalib $*
+  if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Anomalib already installed. Skipping"
+  else
+    ensure_disk_space 6000
+    mkdir -p "$workspace"
+    cd "$workspace"
+    python3 -m venv venv
+    . venv/bin/activate
+    pip install anomalib==${version}
+  fi
+
+  echo "@@HIGHLIGHT venv: $workspace/venv"
+}
+
+debian_70_remove_anomalib () {
+  configure_anomalib $*
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+
+# Autonomous Mobile Robot (AMR) - the Robotics AI Suite ROS 2 SDK for
+# sensing, perception, SLAM & mapping, navigation, and the Wandering app.
+# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/index.html
+configure_autonomous_mobile_robot () {
   case "$VERSION_CODENAME" in
   jammy) ros_distro=humble ;;
   noble) ros_distro=jazzy ;;
   *)     ros_distro=jazzy ;;
   esac
+  # standard SDK by default; pass --complete for the full (~20GB) SDK
+  amr_sdk_pkg=ros-$ros_distro-robotics-sdk
+
+  # Intel oneAPI Base Toolkit repo + version pins - the robotics SDK links the
+  # oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
+  oneapi_repo_name="apt.repos.intel.com"
+  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
+  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  oneapi_pref=(
+    "Package: intel-oneapi-runtime-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-compiler-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-mkl-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+  )
+  oneapi_pref_file=/etc/apt/preferences.d/oneapi
+  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
 }
 
-debian_50_profile_ros2 () {
-  echo "curl gpg git edge_base"
+debian_90_profile_autonomous_mobile_robot () {
+  echo "git curl edge_base ros2 ros_openvino realsense"
 }
 
-verify_ros2 () {
-  configure_ros2
-  [ -r /opt/ros/$ros_distro/setup.bash ]
+verify_autonomous_mobile_robot () {
+  configure_autonomous_mobile_robot
+  ensure_apt_is_installed ros-$ros_distro-robotics-sdk || \
+  ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete
 }
 
-debian_50_install_ros2 () {
-  configure_ros2
+# add the OSRF Gazebo apt repository (needed for the robotics-sdk dependencies)
+configure_osrf_gazebo () {
+  osrf_name=packages.osrfoundation.org
+  osrf_key_url="https://$osrf_name/gazebo.gpg"
+  osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+  osrf_entry="deb [signed-by=$osrf_key] https://$osrf_name/gazebo/$ID-stable $VERSION_CODENAME main"
+  osrf_list=/etc/apt/sources.list.d/gazebo-stable.list
+}
 
-  if verify_ros2 && [[ " $* " != *" --reset-ros2 "* ]]; then
-    echo "ROS 2 $ros_distro is already installed. Skipping..."
+amr_setup_osrf_gazebo () {
+  configure_osrf_gazebo
+  ensure_apt install -y curl lsb-release gnupg
+  ensure_apt_key "$osrf_key" "$osrf_key_url"
+  ensure_apt_source "$osrf_list" "$osrf_entry"
+  ensure_apt update -y
+  [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
+}
+
+debian_90_install_autonomous_mobile_robot () {
+  configure_autonomous_mobile_robot
+  [[ " $* " != *" --complete "* ]] || amr_sdk_pkg=ros-$ros_distro-robotics-sdk-complete
+
+  if verify_autonomous_mobile_robot && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Autonomous Mobile Robot is already installed. Skipping..."
   else
-    ensure_apt update
-    ensure_apt install -y software-properties-common curl gnupg lsb-release ca-certificates
-    ensure_sudo add-apt-repository -y universe || true
+    ensure_disk_space $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
 
-    # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
-    # which self-configures the apt source list and signing key
-    local codename="$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")"
-    local ros_apt_ver="$(no_proxy= NO_PROXY= curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F '"tag_name"' | awk -F'"' '{print $4}')"
-    local tmpdir="$(mktemp -d)"
-    no_proxy= NO_PROXY= curl -fsL -o "$tmpdir/ros2-apt-source.deb" \
-      "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
-    ensure_apt install -y "$tmpdir/ros2-apt-source.deb"
-    rm -rf "$tmpdir"
+    # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
+    ensure_apt install -y software-properties-common curl gnupg wget
+    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
+    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
+    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
 
     ensure_apt update -y
-    ensure_apt install -y ros-$ros_distro-desktop ros-dev-tools
 
-    # permanent ROS 2 environment
-    grep -q "source /opt/ros/$ros_distro/setup.bash" ~/.bashrc 2>/dev/null || \
-      echo "source /opt/ros/$ros_distro/setup.bash" >> ~/.bashrc
-    grep -q "export ROS_DOMAIN_ID=" ~/.bashrc 2>/dev/null || \
-      echo "export ROS_DOMAIN_ID=42" >> ~/.bashrc
+    amr_setup_gazebo
+
+    # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
+    if [ "$ros_distro" = humble ]; then
+      ensure_apt install -y gcc-12 g++-12
+      ensure_sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 60 --slave /usr/bin/g++ g++ /usr/bin/g++-12
+    fi
+
+    # the Autonomous Mobile Robot SDK meta-package
+    ensure_apt install -y "$amr_sdk_pkg"
+
+    # Collaborative SLAM acceleration variant, selected by hardware capability:
+    #   lze  -> Intel GPU (Level-Zero)   avx2 -> Intel Core CPU   sse -> Atom/default
+    local slam_pkg=ros-$ros_distro-collab-slam-sse
+    grep -q -w avx2 /proc/cpuinfo && slam_pkg=ros-$ros_distro-collab-slam-avx2
+    [ -e /dev/dri/renderD128 ] && slam_pkg=ros-$ros_distro-collab-slam-lze
+    ensure_apt install -y "$slam_pkg"
   fi
 
-  echo "@@HIGHLIGHT ROS 2 $ros_distro @/opt/ros/$ros_distro"
+  echo "@@HIGHLIGHT Autonomous Mobile Robot ($amr_sdk_pkg) installed for ROS 2 $ros_distro"
   echo "@@HIGHLIGHT shell env @source /opt/ros/$ros_distro/setup.bash"
+  echo "@@HIGHLIGHT tutorials @https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/index_tutorials.html"
 }
 
-debian_50_remove_ros2 () {
-  configure_ros2
-  if verify_ros2; then
-    ensure_apt autoremove -m -y ros-$ros_distro-desktop || true
+debian_90_remove_autonomous_mobile_robot () {
+  configure_autonomous_mobile_robot
+  if verify_autonomous_mobile_robot; then
+    ensure_apt autoremove -m -y \
+      ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete \
+      ros-$ros_distro-collab-slam-sse ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-lze || true
+    configure_osrf_gazebo
+    ensure_sudo rm -f $osrf_list $osrf_key
+    ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
   else
-    echo "ROS 2 already removed. Skipping"
+    echo "Autonomous Mobile Robot already removed. Skipping"
   fi
+}
+
+debian_90_sbom_autonomous_mobile_robot () {
+  configure_autonomous_mobile_robot
+  (
+    IFS=$'|'
+    local oneapi_pref_str="${oneapi_pref[*]}"
+    cat <<EOF
+"name": "$oneapi_repo_name"
+"gpg-key": "$oneapi_key_url"
+"key-file": "$oneapi_key_file"
+"apt-source": "$oneapi_deb_entry"
+"apt-list-file": "$oneapi_list"
+"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
+"apt-pref-file": "$oneapi_pref_file"
+"pkg-list": ["intel-oneapi-runtime-*","intel-oneapi-compiler-*","intel-oneapi-mkl-*"]
+EOF
+  )
+  echo "---"
+  # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
+  if [ "$ros_distro" = humble ]; then
+    cat <<EOF
+"pkg-list": ["gcc-12","g++-12"]
+---
+EOF
+  fi
+
+  cat <<EOF
+"pkg-list": ["software-properties-common","curl","gnupg","wget","lsb-release"]
+EOF
+
+  if [ "$ros_distro" = jazzy ]; then
+    configure_osrf_gazebo
+    cat <<EOF
+"name": "$osrf_name"
+"apt-source": "$osrf_entry"
+"apt-list-file": "$osrf_list"
+"pkg-list": ["gz-harmonic"]
+---
+EOF
+  fi
+
+  cat <<EOF
+"pkg-list": ["$amr_sdk_pkg","ros-$ros_distro-collab-slam-sse"]
+EOF
+}
+
+
+debian_15_profile_core_types () {
+  [ "$1" != "install" ] || echo "cpuid curl"
+}
+
+debian_15_install_core_types () {
+  if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
+    echo "/etc/core-types exists. Skipping"
+    return
+  fi
+
+  local script="https://raw.githubusercontent.com/open-edge-platform/edge-workloads-and-benchmarks/refs/heads/main/utils/obtain_cores.sh"
+
+  set -o pipefail
+  curl -sSL $script | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types
+
+  echo "Core types are detected and written to /etc/core-types"
+}
+
+
+debian_10_install_cpuid () {
+  if ensure_apt_is_installed cpuid; then
+    echo "Cpuid is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y cpuid
+  fi
+}
+
+debian_10_sbom_cpuid () {
+  cat <<EOF
+"pkg-list": ["cpuid"]
+EOF
 }
 
 debian_05_install_curl () {
-  if dpkg-query -L curl > /dev/null 2>&1; then
+  if ensure_apt_is_installed curl; then
     echo "Curl is already installed. Skipping..."
   else
     ensure_apt update
@@ -1843,83 +2260,164 @@ debian_05_install_curl () {
   fi
 }
 
+debian_05_sbom_curl () {
+  cat <<EOF
+"pkg-list": ["curl","ca-certificates"]
+EOF
+}
 
-debian_10_install_unzip () {
-  if dpkg-query -L unzip > /dev/null 2>&1; then
-    echo "Unzip is already installed. Skipping..."
+debian_05_install_debconf_utils () {
+  if ensure_apt_is_installed debconf-utils; then
+    echo "debconf-utils is already installed. Skipping..."
   else
     ensure_apt update
-    ensure_apt install --no-install-recommends -y unzip
+    ensure_apt install --no-install-recommends -y debconf-utils
   fi
 }
 
-
-configure_pcb_anomaly_detection () {
-  workspace="$(ensure_project_path)/pcb-anomaly-detection"
-  version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
-}
-
-verify_pcb_anomaly_detection () {
-  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
-}
-
-debian_90_profile_pcb_anomaly_detection () {
-  echo "git curl gawk edge_base docker"
-}
-
-debian_90_install_pcb_anomaly_detection () {
-  configure_pcb_anomaly_detection
-  if verify_pcb_anomaly_detection && [[ "$*" != *"--reset-pcb_anomaly_detection"* ]]; then
-    echo "PCB anomaly detection is already installed. Skipping"
-    return
-  fi
-
-  # clone the repository
-  ensure_disk_space 60
-  ensure_git_clone "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
-
-  # setup
-  cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
-  cat > .env <<EOF
-$(cat .env_pcb-anomaly-detection)
-HOST_IP=$(ensure_ip)
-ENABLE_HTTPS_MODE=true
-MINIO_ACCESS_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
-MINIO_SECRET_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
-MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
-MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+debian_05_sbom_debconf_utils () {
+  cat <<EOF
+"pkg-list": ["debconf-utils"]
 EOF
-  ./setup.sh
-  verify_pcb_anomaly_detection
-  popd > /dev/null
 }
 
-debian_90_start_pcb_anomaly_detection () {
-  configure_pcb_anomaly_detection
-  ensure_ports_open "80 443" debian_90_stop_pcb_anomaly_detection
-
-  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
-  docker compose up -d --wait
-
-  ./sample_start.sh -p pcb_anomaly_detection$(ensure_select_device $* | sed -e 's|^|_|' -e 's|_cpu||')
-  echo "@@HIGHTLIGHT URL: http://$(ensure_ip)"
+configure_dlstreamer () {
+  repo_name="apt.repos.intel.com"
+  key_url="https://$repo_name/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg"
+  key_file=/usr/share/keyrings/dls-archive-keyring.gpg
+  deb_entry="deb [signed-by=$key_file] https://$repo_name/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main"
+  list_file=/etc/apt/sources.list.d/intel-dlstreamer.list
+  repository=https://github.com/open-edge-platform/dlstreamer
+  workspace="$(ensure_project_path)/dlstreamer"
+  version=2026.2.0
+  od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8
+  od_model_proc=yolov5m-640_INT8/yolo-v5
+  oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
+  model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
 }
 
-debian_90_stop_pcb_anomaly_detection () {
-  configure_pcb_anomaly_detection
-  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
-  ./sample_stop.sh || true
-  docker compose down -v --remove-orphans
+debian_75_profile_dlstreamer () {
+  echo "git openvino edge_base"
 }
 
-debian_90_remove_pcb_anomaly_detection () {
-  debian_90_stop_pcb_anomaly_detection || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+verify_dlstreamer () {
+  ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
+  [ -r "$workspace/.venv/bin/activate" ] || return 1
+  cd "$workspace"
+  . .venv/bin/activate
+  pip show ultralytics nncf
 }
+
+debian_75_install_dlstreamer () {
+  configure_dlstreamer
+  
+  if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
+    echo "dlstreamer-${version} already installed. Skipping"
+  else
+    # remove old versions
+    ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
+
+    # product key & list file
+    ensure_apt_key $key_file $key_url --dearmor
+    ensure_apt_source $list_file "$deb_entry" 
+
+    # apt update
+    ensure_apt update -y
+
+    # install dlstreamer
+    ensure_apt install --no-install-recommends -y intel-dlstreamer=$version
+
+    # clone the dlstreamer repostiory
+    ensure_git_clone "$workspace" v$version $repository
+
+    # create the dlstreamer venv
+    cd "$workspace"
+    python3 -m venv .venv
+    . .venv/bin/activate
+    pip install nncf==3.0.0 ultralytics==8.4.57
+
+    echo "intel-dlstreamer=$version installed successfully."
+
+    if [[ " $* " = *" --validate "* ]]; then
+      ( 
+        mkdir -p models/${od_model%/*}
+        set -x
+        curl -sSfL $model_repo/storage/$od_model.bin -o models/$od_model.bin
+        curl -sSfL $model_repo/storage/$od_model.xml -o models/$od_model.xml
+        curl -sSfL $model_repo/storage/${od_model_proc}.json -o models/$od_model.json
+      )
+
+      (
+        mkdir -p models/${oc_model%/*}
+        set -x
+        curl -sSfL $model_repo/storage/$oc_model.bin -o models/$oc_model.bin
+        curl -sSfL $model_repo/storage/$oc_model.xml -o models/$oc_model.xml
+      )
+
+      set -o pipefail
+      local -A device_map=(
+        [GPU]=/dev/dri/renderD128
+        [NPU]=/dev/accel/accel0
+      )
+      . /opt/intel/dlstreamer/scripts/setup_dls_env.sh
+      for device in ${!device_map[*]}; do
+        [ -e ${device_map[$device]} ] || continue
+        echo "Validating $od_model and $oc_model on device $device..."
+        gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! \
+            gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! \
+            gvainference model=models/$oc_model.xml device=$device ! \
+            gvafpscounter ! fakesink sync=false | ( \
+          info=0
+          while IFS= read -r line; do
+            echo "$line"
+            case "$line" in
+            *"FpsCounter(last"*"sec): total="*)
+            info=1
+            ;;
+            esac
+          done
+          [ $info -eq 1 ]
+        )
+      done
+    fi
+
+    rm -rf .git
+  fi
+
+  # info
+  echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
+  echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples"
+  echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
+  echo "@@HIGHLIGHT python venv @$workspace/.venv"
+}
+
+debian_75_remove_dlstreamer () {
+  configure_dlstreamer
+
+  if verify_dlstreamer; then
+    ensure_apt autoremove -m -y intel-dlstreamer
+    ensure_sudo rm -f $list_file $key_file
+    ensure_sudo -rf "$workspace" 2> /dev/null || true
+  else
+    echo "dlstreamer already removed. Skipping"
+  fi
+}
+
+debian_75_sbom_dlstreamer () {
+  configure_dlstreamer
+  cat <<EOF
+"name": "$repo_name"
+"apt-source": "$deb_entry"
+"apt-list-file": "$list_file"
+"gpg-key": "$key_url"
+"key-file": "$key_file"
+"pkg-list": ["intel-dlstreamer=$version"]
+EOF
+}
+
 
 debian_05_install_dmidecode () {
-  if dpkg-query -L dmidecode > /dev/null 2>&1; then
+  if ensure_apt_is_installed dmidecode; then
     echo "Dmidecode is already installed. Skipping..."
   else
     ensure_apt update
@@ -1927,11 +2425,195 @@ debian_05_install_dmidecode () {
   fi
 }
 
-
-debian_99_profile_manufacturing_ai_suite () {
-  # manufacturing ai suites cannot start at the same time
-  [ "$1" = "start" ] || echo "pallet_defect_detection pcb_anomaly_detection multimodal_weld_defect_detection"
+debian_05_sbom_dmidecode () {
+  cat <<EOF
+"pkg-list": ["dmidecode"]
+EOF
 }
+
+
+configure_docker () {
+  if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
+    echo "Configure docker engine proxies..."
+    grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
+      ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
+      ensure_sudo tee /etc/systemd/system/docker.service.d/99-oep-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
+Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
+Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
+EOF
+      ensure_sudo systemctl daemon-reload
+      ensure_sudo systemctl restart docker
+    )
+
+    local CONFIG_JSON="$HOME/.docker/config.json"
+    echo "Configure docker client proxies..."
+    mkdir -p "$(dirname "$CONFIG_JSON")"
+    python3 - "$CONFIG_JSON" <<'EOF'
+import json, os, sys
+p = sys.argv[1]
+cfg = json.load(open(p)) if os.path.exists(p) else {}
+cfg.setdefault("proxies", {})["default"] = {
+    "httpProxy":  os.environ.get("http_proxy",  os.environ.get("HTTP_PROXY", "")),
+    "httpsProxy": os.environ.get("https_proxy", os.environ.get("HTTPS_PROXY", "")),
+    "noProxy":    os.environ.get("no_proxy",    os.environ.get("NO_PROXY", "")),
+}
+json.dump(cfg, open(p, "w"), indent=2)
+EOF
+  fi
+}
+
+debian_20_install_docker () {
+  if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Docker is already installed. Skipping..."
+  elif ensure_apt_is_installed docker.io && [[ " $* " != *" --reinstall "* ]]; then
+    ensure_apt update
+    ensure_apt install -y docker-buildx docker-compose-v2
+  elif ensure_apt_is_installed docker-ce && [[ " $* " != *" --reinstall "* ]]; then 
+    ensure_apt update
+    ensure_apt install -y docker-buildx-plugin docker-compose-plugin
+  else
+    echo "Remove legacy installation"
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
+    ensure_sudo systemctl stop docker.socket docker.service 2>/dev/null || true
+    ensure_apt purge -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc
+
+    # reset systemd states
+    ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
+    ensure_sudo tee /etc/systemd/system/docker.service.d/10-socket.conf <<EOF
+[Unit]
+Requires=docker.socket
+After=docker.socket
+EOF
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
+
+    # create docker group
+    ensure_group_add docker:
+
+    # install docker.io
+    ensure_apt update
+    ensure_apt install -y docker.io docker-buildx docker-compose-v2
+
+    # recover and start — must be AFTER the install
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
+    ensure_sudo systemctl enable --now containerd.service
+    ensure_sudo systemctl enable --now docker.socket
+    ensure_sudo systemctl start docker.service
+
+    # wait
+    local deadline=$((SECONDS+60))
+    until ensure_sudo docker info >/dev/null 2>&1; do
+      [ $SECONDS -lt $deadline ] || {
+        echo -e "${red}dockerd did not become ready${reset}" 1>&2
+        ensure_sudo systemctl status docker.socket --no-pager 1>&2
+        ensure_sudo systemctl status docker.service --no-pager 1>&2
+        ensure_sudo journalctl -u docker.socket -u docker.service --since "-5 min" --no-pager 1>&2
+        return 1
+      }
+      if ensure_sudo systemctl is-failed --quiet docker.service docker.socket; then
+        ensure_sudo systemctl reset-failed docker.service docker.socket 2>/dev/null || true
+        ensure_sudo systemctl start docker.socket 2>/dev/null || true
+        ensure_sudo systemctl start docker.service 2>/dev/null || true
+      fi
+      sleep 1
+    done
+  fi
+  configure_docker
+}
+
+debian_20_sbom_docker () {
+  cat <<EOF
+"pkg-list": [ "docker.io","docker-buildx","docker-compose-v2" ]
+EOF
+}
+
+debian_99_profile_edge_base () {
+  [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu npu core_types pre_system_scan"
+}
+
+
+configure_esq () {
+  workspace="$(ensure_project_path)/esq"
+}
+
+debian_85_profile_esq () {
+  echo "curl git libgl1 make docker uv edge_base openvino dlstreamer"
+}
+
+debian_85_install_esq () {
+  configure_uv
+  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Esq is already installed. Skipping..."
+  else
+    curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true
+    curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true
+    uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main
+
+    configure_esq
+    mkdir -p "$workspace"
+  fi
+
+  echo "@@HIGHLIGHT esq @$(which esq)"
+  echo "@@HIGHLIGHT workspace @$workspace"
+}
+
+debian_85_start_esq () {
+  configure_uv
+  configure_esq
+
+  mkdir -p "$workspace"
+  cd "$workspace" 
+  esq clean --all
+
+  local cmdline_str=" $* "
+  local options=(${cmdline_str#* -- })
+  [ ${#options[@]} -gt 0 ] || options=(-qo)
+
+  esq run "${options[@]}" -v -f && esq summary && esq report
+  echo "@@HIGHLIGHT workspace @$workspace"
+}
+
+debian_85_remove_esq () {
+  configure_uv
+  configure_esq
+  esq clean --all
+  uv tool uninstall --force esq || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+debian_70_install_ffmpeg () {
+  if ensure_apt_is_installed ffmpeg > /dev/null 2>&1; then
+    echo "ffmpeg is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y ffmpeg
+  fi
+}
+
+debian_70_sbom_ffmpeg () {
+  cat <<EOF
+"pkg-list": ["ffmpeg"]
+EOF
+}
+
+debian_05_install_gawk () {
+  if ensure_apt_is_installed gawk > /dev/null 2>&1; then
+    echo "Gawk is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y gawk
+  fi
+}
+
+debian_05_sbom_gawk () {
+  cat <<EOF
+"pkg-list": ["gawk"]
+EOF
+}
+
 
 configure_geti () {
   workspace="$(ensure_project_path)/geti"
@@ -1950,7 +2632,7 @@ debian_90_profile_geti () {
 debian_90_install_geti () {
   configure_geti $*
 
-  if verify_geti && [[ " $* " != *" --reset-geti "* ]]; then
+  if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
     echo "Geti already installed. Skipping."
   else
     ensure_disk_space 40000
@@ -1989,8 +2671,256 @@ debian_90_remove_geti () {
 }
 
 
+debian_10_install_git () {
+  if ensure_apt_is_installed git > /dev/null 2>&1; then
+    echo "Git is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y git ca-certificates
+  fi
+}
+
+debian_10_sbom_git () {
+  cat <<EOF
+"pkg-list": ["git","ca-certificates"]
+EOF
+}
+
+debian_05_install_gpg () {
+  if ensure_apt_is_installed gpg; then
+    echo "Gpg is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y gpgv1
+  fi
+}
+
+debian_05_sbom_gpg () {
+  cat <<EOF
+"pkg-list": ["gpgv1"]
+EOF
+}
+
+configure_gpu () {
+  repo_name="repositories.intel.com"
+  key_url="https://$repo_name/gpu/intel-graphics.key"
+  key_file="/usr/share/keyrings/intel-graphics.gpg"
+  apt_entry="deb [signed-by=$key_file] https://$repo_name/gpu/${ID} ${VERSION_CODENAME} unified"
+  apt_file="/etc/apt/sources.list.d/intel-graphics.list"
+  pkg_list="clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd"
+  version=26.2.2
+}
+
+verify_gpu () {
+  [ -b /dev/render/renderD128 ]
+  getent group render >/dev/null 2>&1
+  id -nG | grep -qw render
+  ensure_apt_is_installed intel-media-va-driver-non-free=$version
+}
+
+debian_40_profile_gpu () {
+  echo "curl gpg libze1"
+}
+
+debian_40_install_gpu () {
+  configure_gpu $*
+
+  if verify_gpu && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Gpu drivers are already installed. Skipping..."
+  else
+    # remove legacies
+    debian_40_remove_gpu || true
+
+    # create the render group
+    ensure_group_add render:992 video:
+
+    # product key & list 
+    ensure_apt_key $key_file $key_url --dearmor
+    ensure_apt_source $apt_file "$apt_entry"
+
+    # apt update
+    ensure_apt update -y
+
+    # install the packages
+    ensure_apt install --no-install-recommends -y $pkg_list
+  fi
+  verify_gpu
+}
+
+debian_40_remove_gpu () {
+  configure_gpu $*
+  ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
+  # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
+  # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
+  # intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same
+  # repository as $apt_file but with a different Signed-By, apt refuses to update
+  # ("Conflicting values set for option Signed-By"). Drop any such stale entry
+  # (anything referencing the gpu repo other than our own $apt_file) so the current
+  # entry is authoritative.
+  ensure_apt_source_remove https://repositories.intel.com/gpu
+  ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg $key_file $apt_file
+}
+
+debian_40_sbom_gpu () {
+  configure_gpu "$@"
+  cat <<EOF
+"name": "$repo_name"
+"apt-source": "$apt_entry"
+"apt-list-file": "$apt_file"
+"gpg-key": "$key_url"
+"key-file": "$key_file"
+"pkg-list": ["${pkg_list// /'","'}"]
+EOF
+}
+
+
+configure_handheld_multi_modal () {
+  workspace="$(ensure_project_path)/handheld_multi_modal"
+  version=release-2026.2.0
+  repository=https://github.com/open-edge-platform/edge-ai-suites.git
+}
+
+verify_handheld_multi_modal () {
+  [ -e "$workspace"/federal-and-aerospace-ai-suite/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml ]
+}
+
+debian_90_profile_handheld_multi_modal () {
+  echo "yq make curl git docker edge_base"
+}
+
+debian_90_install_handheld_multi_modal () {
+  configure_handheld_multi_modal
+  if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
+    echo "handheld_multi_modal already installed. Skipping"
+  else
+    ensure_disk_space 300
+
+    ensure_git_clone "$workspace" $version $repository federal-and-aerospace-ai-suite/handheld-multi-modal
+    cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
+    make setup
+    make build-whisper
+    make vippet-get
+    yes | make models-license
+    docker compose -f docker-compose.yml pull --ignore-buildable
+    verify_handheld_multi_modal $*
+  fi
+}
+
+debian_90_start_handheld_multi_modal () {
+  ensure_ports_open "443 1443 5443 6443 7443 8443 80 7860 8000 9090 8554 8889" debian_90_stop_handheld_multi_modal $*
+  configure_handheld_multi_modal
+  cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
+  make deploy
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
+}
+
+debian_90_stop_handheld_multi_modal () {
+  configure_handheld_multi_modal
+  cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
+  make down
+}
+
+debian_90_remove_handheld_multi_modal () {
+  debian_90_stop_handheld_multi_modal $*
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+
+# Humanoid - Imitation Learning - the Robotics AI Suite track for teaching
+# robots tasks by demonstration (ACT and Pi0.5 RTC-OV imitation-learning
+# policies). Unlike the AMR and RVC components, this track is delivered as
+# Docker images built from the Robotics AI Suite container recipes, not as
+# native apt packages.
+# https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html
+configure_humanoid_imitation_learning () {
+  workspace="$(ensure_project_path)/humanoid-imitation-learning"
+  version=main
+  repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts.git"
+  container_dir="$workspace/samples/robotics/robotics-ai-suite-containers"
+  # sample: act-sample (default) or pi05-rtc-ov, selectable via a module arg
+  humanoid_sample=act-sample
+  [[ " $* " != *" pi05-rtc-ov "* && " $* " != *" --pi05-rtc-ov "* ]] || humanoid_sample=pi05-rtc-ov
+  humanoid_base_image=robotics-ai-suite:humanoid-imitation-learning-base
+  humanoid_sample_image=robotics-ai-suite:humanoid-imitation-learning-$humanoid_sample
+}
+
+debian_90_profile_humanoid_imitation_learning () {
+  echo "git curl edge_base docker"
+}
+
+verify_humanoid_imitation_learning () {
+  configure_humanoid_imitation_learning "$@"
+  docker image inspect "$humanoid_sample_image" > /dev/null 2>&1
+}
+
+debian_90_install_humanoid_imitation_learning () {
+  configure_humanoid_imitation_learning "$@"
+
+  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Humanoid - Imitation Learning is already installed. Skipping..."
+  else
+    # The base image bundles the OpenVINO dev stack, Intel GPU runtime, oneAPI
+    # and a clone of edge-ai-suites; the sample image adds the policy packages.
+    ensure_disk_space 25000
+    ensure_git_clone "$workspace" "$version" "$repository" samples/robotics/robotics-ai-suite-containers
+
+    cd "$container_dir"
+    echo "Building $humanoid_base_image (this downloads the OpenVINO dev image and may take a while)..."
+    docker build -t "$humanoid_base_image" -f dockerfiles/humanoid-imitation-learning/base.dockerfile . || {
+      echo "Could not build the Humanoid - Imitation Learning base image." 1>&2
+      return 3
+    }
+    echo "Building $humanoid_sample_image ($humanoid_sample)..."
+    docker build -t "$humanoid_sample_image" -f "dockerfiles/humanoid-imitation-learning/$humanoid_sample.dockerfile" . || {
+      echo "Could not build the Humanoid - Imitation Learning $humanoid_sample image." 1>&2
+      return 3
+    }
+  fi
+
+  echo "@@HIGHLIGHT Humanoid - Imitation Learning image built: $humanoid_sample_image"
+  echo "@@HIGHLIGHT run @cd $container_dir && ./run.sh   # select humanoid-imitation-learning / $humanoid_sample"
+  echo "@@HIGHLIGHT docs @https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
+}
+
+debian_90_remove_humanoid_imitation_learning () {
+  configure_humanoid_imitation_learning "$@"
+  docker image rm -f "$humanoid_sample_image" "$humanoid_base_image" > /dev/null 2>&1 || true
+  ensure_sudo rm -rf "$workspace"
+}
+
+debian_05_install_jq () {
+  if ensure_apt_is_installed jq; then
+    echo "jq is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y jq
+  fi
+}
+
+debian_05_sbom_jq () {
+  cat <<EOF
+"pkg-list": ["jq"]
+EOF
+}
+
+debian_10_install_libgl1 () {
+  if ensure_apt_is_installed libgl1; then
+    echo "Libgl1 is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y libgl1
+  fi
+}
+
+debian_10_sbom_libgl1 () {
+  cat <<EOF
+"pkg-list": ["libgl1"]
+EOF
+}
+
+
 debian_05_install_libtbb12 () {
-  if dpkg-query -L libtbb12 > /dev/null 2>&1; then
+  if ensure_apt_is_installed libtbb12; then
     echo "libtbb12 is already installed. Skipping..."
   else
     ensure_apt update
@@ -1998,25 +2928,11 @@ debian_05_install_libtbb12 () {
   fi
 }
 
-
-debian_15_profile_core_types () {
-  [ "$1" != "install" ] || echo "cpuid curl"
+debian_05_sbom_libtbb12 () {
+  cat <<EOF
+"pkg-list": ["libtbb12"]
+EOF
 }
-
-debian_15_install_core_types () {
-  if [ -e /etc/core-types ] && [[ " $* " != *" --reset-core_types "* ]]; then
-    echo "/etc/core-types exists. Skipping"
-    return
-  fi
-
-  local script="https://raw.githubusercontent.com/open-edge-platform/edge-workloads-and-benchmarks/refs/heads/main/utils/obtain_cores.sh"
-
-  set -o pipefail
-  curl -sSL $script | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types
-
-  echo "Core types are detected and written to /etc/core-types"
-}
-
 
 configure_libze1 () {
   libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb"
@@ -2029,10 +2945,10 @@ debian_10_profile_libze1 () {
 debian_10_install_libze1 () {
   configure_libze1 
 
-  if dpkg-query -L libze1 > /dev/null 2>&1; then
+  if ensure_apt_is_installed libze1; then
     echo "libze1 is already installed. Skipping..."
   else
-    curl -sL "$libze1_deb" -o /tmp/libze1.deb && {
+    curl -fsSL "$libze1_deb" -o /tmp/libze1.deb && {
       ensure_apt install -y /tmp/libze1.deb || {
         ensure_apt purge -y level-zero level-zero-devel && ensure_apt install -y /tmp/libze1.deb
       }
@@ -2040,353 +2956,211 @@ debian_10_install_libze1 () {
   fi
 }
 
-
-debian_99_profile_inferencing () {
-  [ "$1" = "start" ] || echo "openvino"
+debian_10_sbom_libze1 () {
+  configure_libze1
+  cat <<EOF
+"pkg-list": ["$libze1_deb"]
+EOF
 }
 
 
-# Physical AI Framework - the Physical AI training/deployment SDK (the
-# `physicalai-train` distribution, which also pulls in the `physicalai`
-# runtime). It provides the `physicalai` CLI (fit / export / benchmark /
-# run) for Vision-Language-Action imitation-learning policies (ACT, Pi0,
-# Pi0.5, GR00T, SmolVLA). Installed into a dedicated uv-managed Python 3.12
-# virtual environment with the PyTorch build matched to the local
-# accelerator (Intel XPU, NVIDIA CUDA, or CPU).
-# https://github.com/open-edge-platform/physical-ai-studio/tree/main/library
-configure_physical_ai_framework () {
-  workspace="$(ensure_project_path)/physical-ai-framework"
-  paif_venv="$workspace/.venv"
-  paif_pkg="physicalai-train"
-  # pick the PyTorch wheel index and package extra for the detected device
-  if command -v nvidia-smi > /dev/null 2>&1; then
-    paif_extra=cu128
-    paif_index="https://download.pytorch.org/whl/cu128"
-  elif [ -e /dev/dri/renderD128 ]; then
-    paif_extra=xpu
-    paif_index="https://download.pytorch.org/whl/xpu"
-  else
-    paif_extra=cpu
-    paif_index="https://download.pytorch.org/whl/cpu"
-  fi
-}
-
-debian_91_profile_physical_ai_framework () {
-  echo "git curl edge_base uv"
-}
-
-verify_physical_ai_framework () {
-  configure_physical_ai_framework "$@"
-  [ -x "$paif_venv/bin/physicalai" ]
-}
-
-debian_91_install_physical_ai_framework () {
-  configure_physical_ai_framework "$@"
-  configure_uv
-
-  if verify_physical_ai_framework "$@" && [[ " $* " != *" --reset-physical_ai_framework "* ]]; then
-    echo "Physical AI Framework is already installed. Skipping..."
-  else
-    ensure_disk_space 15000
-    # LeRobot (a dependency) requires ffmpeg on the host
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y ffmpeg
-    mkdir -p "$workspace"
-    uv venv --python 3.12 "$paif_venv" || {
-      echo "Could not create the Physical AI Framework virtual environment." 1>&2
-      return 3
-    }
-    echo "Installing ${paif_pkg}[${paif_extra}] (PyTorch ${paif_extra} build; this may take a while)..."
-    uv pip install --python "$paif_venv/bin/python" \
-      --index "$paif_index" --index-strategy unsafe-best-match \
-      "${paif_pkg}[${paif_extra}]" || {
-      echo "Could not install $paif_pkg." 1>&2
-      return 3
-    }
-  fi
-
-  echo "@@HIGHLIGHT Physical AI Framework installed in $paif_venv"
-  echo "@@HIGHLIGHT run @source $paif_venv/bin/activate && physicalai --help"
-  echo "@@HIGHLIGHT docs @https://github.com/open-edge-platform/physical-ai-studio/tree/main/library"
-}
-
-debian_91_remove_physical_ai_framework () {
-  configure_physical_ai_framework "$@"
-  ensure_sudo rm -rf "$workspace"
-}
-
-configure_order_accuracy () {
-  workspace="$(ensure_project_path)/order-accuracy"
-  version=fe872f5f5e475b9d75954f273f6d995bce95cdc6
-  repository="https://github.com/intel-retail/order-accuracy.git"
-}
-
-verify_order_accuracy () {
-  [ -e "$workspace"/ovms-service/models/openbmb/MiniCPM-V-4_5-int4/openvino_language_model.bin ]
-  [ -e "$workspace"/take-away/models/yolo11n_int8_openvino_model/yolo11n.bin ]
-}
-
-debian_90_profile_order_accuracy () {
-  echo "git curl gawk make python3_venv docker edge_base"
-}
-
-debian_90_install_order_accuracy () {
-  configure_order_accuracy
-  if verify_order_accuracy && [[ "$*" != *"--reset-order_accuracy"* ]]; then
-    echo "Order accuracy is already installed. Skipping"
-    return
-  fi
-
-  # clone the repository
-  ensure_disk_space 10000
-  ensure_git_clone "$workspace" $version $repository
-
-  # setup
-  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
-  ensure_hf_token Qwen/Qwen2.5-VL-7B-Instruct openbmb/MiniCPM-V-4_5 
-
-  for app in dine-in take-away; do
-    cd "$workspace"/$app
-    make init-env
-    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
-    cd ../ovms-service
-    ./setup_models.sh --app $app
-    cd "$workspace"/$app
-    make build
-  done
-  
-  cd "$workspace"
-  verify_order_accuracy
-
-  echo "@@HIGHLIGHT workspace @$workspace"
-  echo "@@HIGHLIGHT cd dine-in[|take-away] && make up"
-}
-
-debian_90_remove_order_accuracy () {
-  configure_order_accuracy
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
-
-configure_smart_parking () {
-  workspace="$(ensure_project_path)/smart-parking"
+configure_live_video_captioning () {
+  workspace="$(ensure_project_path)/live-video-captioning"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
 }
 
-verify_smart_parking () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_1.mp4 ]
+verify_live_video_captioning () {
+  [ -e "$workspace"/metro-ai-suite/live-video-analysis/live-video-captioning/ov_models/gpu/InternVL2-1B/config.json ]
+  [ -e "$workspace"/metro-ai-suite/live-video-analysis/live-video-captioning/ov_detection_models/yolov8s/public/yolov8s/FP16/yolov8s.bin ]
 }
 
-debian_90_profile_smart_parking () {
-  echo "git curl gawk edge_base docker"
+debian_90_profile_live_video_captioning () {
+  echo "git curl gawk jq edge_base docker"
 }
 
-debian_90_install_smart_parking () {
-  configure_smart_parking
-  if verify_smart_parking && [[ "$*" != *"--reset-smart_parking"* ]]; then
-    echo "Smart parking is already installed. Skipping..."
-    return 0
-  fi
-
-  # clone the repository
-  ensure_disk_space 300
-  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
-
-  # setup
-  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
-  sed -i 's|curl | curl -f |' smart-parking/install.sh
-  ./install.sh smart-parking $(ensure_ip)
-  verify_smart_parking
-}
-
-debian_90_start_smart_parking () {
-  ensure_ports_open "80 443" debian_90_stop_smart_parking
-  configure_smart_parking
-  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
-  docker compose up -d
-  ./sample_start.sh $(ensure_select_device $*)
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
-  echo "@@HIGHLIGHT Grafana username/password: admin"
-}
-
-debian_90_stop_smart_parking () {
-  configure_smart_parking
-  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
-  ./sample_stop.sh || true
-  docker compose down -v --remove-orphans
-}
-
-debian_90_remove_smart_parking () {
-  debian_90_stop_smart_parking || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
-
-configure_nicu_warmer () {
-  workspace="$(ensure_project_path)/nicu-warmer"
-  version=50e02996223da20a7375aaf7919faf3f1d50ed5c
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
-  device_env="configs/res/all-$(ensure_select_device $*).env"
-  models=(
-    "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin"
-    "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml"
-    "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.bin?download=true person-detect-fp32.bin"
-    "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.xml?download=true person-detect-fp32.xml"
-    "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.bin?download=true latch-detect-fp32.bin"
-    "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.xml?download=true latch-detect-fp32.xml"
-    "https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5 models_rppg/mtts_can.hdf5"
-    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.xml action-recognition-0001-encoder.xml"
-    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.bin action-recognition-0001-encoder.bin"
-    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.xml action-recognition-0001-decoder.xml"
-    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.bin action-recognition-0001-decoder.bin"
-  )
-}
-
-verify_nicu_warmer () {
-  for model1 in "${models[@]}"; do
-    [ -e "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/${model1#* } ] || return 1
-  done
-  . "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/.env 2> /dev/null
-  docker inspect intel/hl-ai-nicu-backend:$TAG > /dev/null 2>&1
-}
-
-debian_90_profile_nicu_warmer () {
-  echo "git curl gawk docker edge_base"
-}
-
-debian_90_install_nicu_warmer () {
-  configure_nicu_warmer $*
-  if verify_nicu_warmer && [[ " $* " != *" --reset-nicu_warmer "* ]]; then
-    echo "NICU Warmer is already installed. Skipping" 1>&2
+debian_90_install_live_video_captioning () {
+  configure_live_video_captioning
+  if verify_live_video_captioning && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Live Video Captioning is already installed. Skipping"
     return
   fi
 
   # clone the repository
-  ensure_disk_space 160
-  ensure_git_clone "$workspace" $version $repository health-and-life-sciences-ai-suite/NICU-Warmer
-
-  # configure and optimization
-  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
-  sed -i 's|decodebin3 ! .*|decodebin3|' configs/res/all-gpu.env
-  sed -i -e 's|- *"8080:8080"||' -e 's|- *"5001:5001"||' -e 's|- *"9100:9000"||' -e 's|- *"1883:1883"||' -e 's|3001|8080|' Makefile docker-compose.yaml
-  sed -i -z 's| *ports:\n\([ ]*[^ -]\)|\1|g' docker-compose.yaml
-  echo "DEVICE_ENV=$device_env" >> .env 
-  echo "TAG=$(grep -E ^TAG Makefile | cut -f2 -d= | tr -d ' ')" >> .env 
-
-  # download models
-  mkdir -p models_rppg
-  for model1 in "${models[@]}"; do
-    [ -e ${model1#* } ] || curl -sSf -L --retry 5 --retry-all-errors --retry-delay 2 "${model1%% *}" -o ${model1#* }
-  done
+  ensure_disk_space 64000
+  ensure_git_clone "$workspace" $version $repository metro-ai-suite/live-video-analysis/live-video-captioning
+  export -n socks_server ftp_proxy
 
   # setup
-  make setup DEVICE_ENV=$device_env
+  cd "$workspace/metro-ai-suite/live-video-analysis/live-video-captioning"
+  sed -i "s|^ENABLE_DETECTION_PIPELINE=.*|ENABLE_DETECTION_PIPELINE=true|" .env.example
+  ensure_hf_token
+  sed -i "s|^HUGGINGFACEHUB_API_TOKEN=.*|HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN|" .env.example
+  bash scripts/setup_env.sh
 
-  # prepull images
-  docker compose --profile dlsps pull --ignore-buildable
-
-  # build images
-  docker compose --profile dlsps build --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
-
-  verify_nicu_warmer
+  local device=$(ensure_select_device "$@")
+  ./model_download_scripts/download_models.sh --model OpenGVLab/InternVL2-1B --type vlm --weight-format int8 --device $device
+  ./model_download_scripts/download_models.sh --model yolov8s --type vision --device $device
+  docker compose -f compose.yaml pull 
+  verify_live_video_captioning
 }
 
-debian_90_start_nicu_warmer () {
-  ensure_ports_open 8080 debian_90_stop_nicu_warmer
-  configure_nicu_warmer $*
-  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
-  make run DEVICE_ENV=$device_env
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip):8080"
+debian_90_start_live_video_captioning () {
+  configure_live_video_captioning
+  ensure_ports_open "4173 8040 1883 9090 8889 9273 8556" debian_90_stop_live_video_captioning
+
+  cd "$workspace"/metro-ai-suite/live-video-analysis/live-video-captioning
+  docker compose -f compose.yaml up -d
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):4173"
 }
 
-debian_90_stop_nicu_warmer () {
-  configure_nicu_warmer $*
-  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
-  make down
+debian_90_stop_live_video_captioning () {
+  configure_live_video_captioning
+  cd "$workspace"/metro-ai-suite/live-video-analysis/live-video-captioning
+  docker compose -f compose.yaml down -v --remove-orphans
 }
 
-debian_90_remove_nicu_warmer () {
-  debian_90_stop_nicu_warmer || true
+debian_90_remove_live_video_captioning () {
+  debian_90_stop_live_video_captioning || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
-configure_gpu () {
-  key_url="https://repositories.intel.com/gpu/intel-graphics.key"
-  key_file="/usr/share/keyrings/intel-graphics.gpg"
-  apt_entry="deb [signed-by=$key_file] https://repositories.intel.com/gpu/${ID} ${VERSION_CODENAME} unified"
-  apt_file="/etc/apt/sources.list.d/intel-graphics.list"
-  version=26.2.2
+configure_loitering_detection () {
+  workspace="$(ensure_project_path)/loitering-detection"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
 }
 
-# Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
-# Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
-# intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same
-# repository as $apt_file but with a different Signed-By, apt refuses to update
-# ("Conflicting values set for option Signed-By"). Drop any such stale entry
-# (anything referencing the gpu repo other than our own $apt_file) so the current
-# entry is authoritative.
-cleanup_gpu () {
-  ensure_rm_apt_source https://repositories.intel.com/gpu
-  ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg
+verify_loitering_detection () {
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000101.mp4 ]
 }
 
-verify_gpu () {
-  [ -b /dev/render/renderD128 ]
-  getent group render >/dev/null 2>&1
-  id -nG | grep -qw render
-  (
-    set -o pipefail
-    dpkg-query -l intel-media-va-driver-non-free 2> /dev/null | grep -q -F $version
-  )
+debian_90_profile_loitering_detection () {
+  echo "git curl gawk docker edge_base"
 }
 
-debian_40_profile_gpu () {
-  echo "curl gpg libze1"
+debian_90_install_loitering_detection () {
+  configure_loitering_detection
+  if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Loitering detection is already installed. Skipping"
+    return
+  fi
+
+  # clone the repository
+  ensure_disk_space 280
+  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+
+  # setup
+  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+  sed -i 's|curl |curl -f |' loitering-detection/install.sh
+  ./install.sh loitering-detection $(ensure_ip)
+  verify_loitering_detection
 }
 
-debian_40_install_gpu () {
-  configure_gpu $*
+debian_90_start_loitering_detection () {
+  ensure_ports_open "80 443" debian_90_stop_loitering_detection
+  configure_loitering_detection
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  docker compose -f compose-without-scenescape.yml up -d
+  ./sample_start.sh $(ensure_select_device $*)
+  echo "@@HIGHLIGHT UI entrypoint: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT Grafana username/password: admin"
+}
 
-  if verify_gpu && [[ " $* " != *" --reset-gpu "* ]]; then
-    echo "Gpu drivers are already installed. Skipping..."
+debian_90_stop_loitering_detection () {
+  configure_loitering_detection
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  ./sample_stop.sh || true
+  docker compose -f compose-without-scenescape.yml down -v --remove-orphans
+}
+
+debian_90_remove_loitering_detection () {
+  debian_90_stop_loitering_detection || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+configure_loss_prevention () {
+  workspace="$(ensure_project_path)/loss_prevention"
+  version=v2026.1.0-rc2
+  repository="https://github.com/intel-retail/loss-prevention.git"
+}
+
+verify_loss_prevention () {
+  [ -e "$workspace"/performance-tools/sample-media/face-detection-3249935-1080-15-bench.mp4 ]
+}
+
+debian_90_profile_loss_prevention () {
+  echo "git curl gawk make python3_venv docker edge_base"
+}
+
+debian_90_install_loss_prevention () {
+  configure_loss_prevention
+  if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Loss prevention is already installed. Skipping"
+    return
+  fi
+
+  # clone the repository
+  ensure_disk_space 300
+  ensure_git_clone "$workspace" $version $repository
+
+  # setup
+  pushd "$workspace" > /dev/null
+  cat > src/.env <<EOF
+MINIO_ROOT_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
+MINIO_ROOT_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
+MINIO_API_HOST_PORT="4000"
+MINIO_CONSOLE_HOST_PORT="4001"
+RABBITMQ_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
+RABBITMQ_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
+LP_IP="$(ensure_ip)"
+LP_BASE_DIR="$workspace"
+LLM_BASE_DIR="$workspace/microservices/vlm/ov-models"
+VLM_SERVICE_PORT="8000"
+LOW_LATENCY=1
+DROP_OLD_FRAMES=1
+MEDIAN_LATENCY=0
+USER_GROUP_ID=$(id -g)
+VIDEO_GROUP_ID=$(getent group video | cut -f3 -d:)
+RENDER_GROUP_ID=$(getent group render | cut -f3 -d:)
+LOCAL_UID=$(id -u)
+LOCAL_GID=$(id -g)
+EOF
+
+  # download videos
+  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+  set -a
+  . src/.env
+  set +a
+  make download-sample-videos
+
+  # download models
+  make download-models
+
+  verify_loss_prevention
+  popd > /dev/null
+}
+
+debian_90_remove_loss_prevention () {
+  configure_loss_prevention
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+
+debian_10_install_make () {
+  if ensure_apt_is_installed make; then
+    echo "Make is already installed. Skipping..."
   else
-    # remove legacies
-    debian_40_remove_gpu || true
-
-    # drop stale/conflicting gpu apt sources from older installer versions
-    cleanup_gpu
-
-    # create the render group
-    ensure_group_add render
-
-    # product key
-    ensure_sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
-
-    # deb entry
-    echo "$apt_entry" | ensure_sudo tee $apt_file > /dev/null
-
-    # apt update
-    ensure_apt update -y
-
-    # install the packages
-    ensure_apt install --no-install-recommends -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y make
   fi
 }
 
-debian_40_remove_gpu () {
-  configure_gpu $*
-  if verify_gpu; then
-    ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
-  else
-    echo "Gpu drivers are removed already. Skipping"
-  fi
-  # always drop gpu apt sources/keyrings, including our own, so nothing conflicting is left behind
-  cleanup_gpu
-  ensure_sudo rm -f "$apt_file" "$key_file"
+debian_10_sbom_make () {
+  cat <<EOF
+"pkg-list": ["make"]
+EOF
 }
-
 
 configure_multimodal_weld_defect_detection () {
   workspace="$(ensure_project_path)/multimodal_weld_defect_detection"
@@ -2521,7 +3295,7 @@ debian_90_profile_multimodal_weld_defect_detection () {
 
 debian_90_install_multimodal_weld_defect_detection () {
   configure_multimodal_weld_defect_detection
-  if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reset-multimodal_weld_defect_detection "* ]]; then
+  if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Multimodal weld defect detection is already installed. Skipping"
   else
     local device
@@ -2578,41 +3352,298 @@ debian_90_remove_multimodal_weld_defect_detection () {
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
-configure_anomalib () {
-  workspace="$(ensure_project_path)/anomalib"
-  version=2.6.0
-  repository=https://github.com/open-edge-platform/anomalib.git
+configure_nicu_warmer () {
+  workspace="$(ensure_project_path)/nicu-warmer"
+  version=50e02996223da20a7375aaf7919faf3f1d50ed5c
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  device_env="configs/res/all-$(ensure_select_device $*).env"
+  models=(
+    "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin"
+    "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml"
+    "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.bin?download=true person-detect-fp32.bin"
+    "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.xml?download=true person-detect-fp32.xml"
+    "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.bin?download=true latch-detect-fp32.bin"
+    "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.xml?download=true latch-detect-fp32.xml"
+    "https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5 models_rppg/mtts_can.hdf5"
+    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.xml action-recognition-0001-encoder.xml"
+    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.bin action-recognition-0001-encoder.bin"
+    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.xml action-recognition-0001-decoder.xml"
+    "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.bin action-recognition-0001-decoder.bin"
+  )
 }
 
-verify_anomalib () {
-  [ -r "$workspace"/venv/bin/activate ] || return 1
-  . "$workspace"/venv/bin/activate
-  set -o pipefail
-  pip show anomalib | grep -q -F $version || return 1
+verify_nicu_warmer () {
+  for model1 in "${models[@]}"; do
+    [ -e "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/${model1#* } ] || return 1
+  done
+  . "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/.env 2> /dev/null
+  docker inspect intel/hl-ai-nicu-backend:$TAG > /dev/null 2>&1
 }
 
-debian_70_profile_anomalib () {
-  echo "python3_venv edge_base"
+debian_90_profile_nicu_warmer () {
+  echo "git curl gawk docker edge_base"
 }
 
-debian_70_install_anomalib () {
-  configure_anomalib $*
-  if verify_anomalib && [[ " $* " != *" --reset-anomalib "* ]]; then
-    echo "Anomalib already installed. Skipping"
-  else
-    ensure_disk_space 6000
-    mkdir -p "$workspace"
-    cd "$workspace"
-    python3 -m venv venv
-    . venv/bin/activate
-    pip install anomalib==${version}
+debian_90_install_nicu_warmer () {
+  configure_nicu_warmer $*
+  if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
+    echo "NICU Warmer is already installed. Skipping" 1>&2
+    return
   fi
 
-  echo "@@HIGHLIGHT venv: $workspace/venv"
+  # clone the repository
+  ensure_disk_space 160
+  ensure_git_clone "$workspace" $version $repository health-and-life-sciences-ai-suite/NICU-Warmer
+
+  # configure and optimization
+  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
+  sed -i 's|decodebin3 ! .*|decodebin3|' configs/res/all-gpu.env
+  sed -i -e 's|- *"8080:8080"||' -e 's|- *"5001:5001"||' -e 's|- *"9100:9000"||' -e 's|- *"1883:1883"||' -e 's|3001|8080|' Makefile docker-compose.yaml
+  sed -i -z 's| *ports:\n\([ ]*[^ -]\)|\1|g' docker-compose.yaml
+  echo "DEVICE_ENV=$device_env" >> .env 
+  echo "TAG=$(grep -E ^TAG Makefile | cut -f2 -d= | tr -d ' ')" >> .env 
+
+  # download models
+  mkdir -p models_rppg
+  for model1 in "${models[@]}"; do
+    [ -e ${model1#* } ] || curl -sSf -L --retry 5 --retry-all-errors --retry-delay 2 "${model1%% *}" -o ${model1#* }
+  done
+
+  # setup
+  make setup DEVICE_ENV=$device_env
+
+  # prepull images
+  docker compose --profile dlsps pull --ignore-buildable
+
+  # build images
+  docker compose --profile dlsps build --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
+
+  verify_nicu_warmer
 }
 
-debian_70_remove_anomalib () {
-  configure_anomalib $*
+debian_90_start_nicu_warmer () {
+  ensure_ports_open 8080 debian_90_stop_nicu_warmer
+  configure_nicu_warmer $*
+  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
+  make run DEVICE_ENV=$device_env
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):8080"
+}
+
+debian_90_stop_nicu_warmer () {
+  configure_nicu_warmer $*
+  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
+  make down
+}
+
+debian_90_remove_nicu_warmer () {
+  debian_90_stop_nicu_warmer || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+configure_npu () {
+  version=1.35.0
+  repository=https://api.github.com/repos/intel/linux-npu-driver
+  releases=https://github.com/intel/linux-npu-driver/releases
+  workspace="$(ensure_project_path)/npu"
+}
+
+verify_npu () {
+  [ -b /dev/accel/accel0 ]
+  getent group render >/dev/null 2>&1 
+  id -nG | grep -qw render
+  (
+    set -o pipefail
+    ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
+  )
+}
+
+debian_40_profile_npu () {
+  echo "libtbb12 jq libze1"
+}
+
+debian_40_install_npu () {
+  configure_npu $*
+
+  if verify_npu && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Npu drivers are already installed. Skipping..."
+  else
+    # remove legacies
+    ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+
+    # create the render group
+    ensure_group_add render:992
+  
+    mkdir -p "$workspace"
+    cd "$workspace"
+
+    # download deb packages
+    local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+    [ ${#packages[*]} -gt 0 ] || return 3
+
+    for p in ${packages[*]}; do
+      curl -fsSL -A Mozilla/5.0 "$p" | tar xfz -
+    done 
+
+    # install the debs
+    ensure_apt install -y $(find . -name "*.deb" -print)
+    ensure_sudo rm -rf "$workspace"
+  fi
+  verify_npu
+}
+
+debian_40_remove_npu () {
+  ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+debian_40_sbom_npu () {
+  configure_npu "$@"
+  local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+  [ ${#packages[*]} -gt 0 ] || return 3
+  local packages_str="${packages[*]}"
+  cat <<EOF
+"pkg-list": ["${packages_str// /'","'}"]
+EOF
+}
+
+
+configure_openvino () {
+  repo_name="apt.repos.intel.com"
+  key_url="https://$repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  key_file=/usr/share/keyrings/intel-gpg-archive-keyring.gpg
+  apt_entry="deb [signed-by=$key_file] https://$repo_name/openvino ${ID}${VERSION_ID%.*} main"
+  apt_file=/etc/apt/sources.list.d/intel-openvino.list
+  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.3.0)
+  workspace="$(ensure_project_path)/openvino"
+  model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
+}
+
+debian_70_profile_openvino () {
+  echo "curl gpg python3_venv edge_base"
+}
+
+verify_openvino () {
+  ensure_apt_is_installed openvino-${version} || return 1
+  [ -r "$workspace"/.venv/bin/activate ] || return 1
+  . "$workspace"/.venv/bin/activate
+  pip show openvino-genai 2> /dev/null | grep -q -F ${version} || return 1
+}
+
+debian_70_install_openvino () {
+  configure_openvino $*
+  
+  if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
+    echo "openvino-${version} already installed. Skipping"
+  else
+    # remove old versions
+    ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
+
+    # product key
+    ensure_apt_key $key_file $key_url --dearmor
+
+    # deb entry
+    ensure_apt_source $apt_file "$apt_entry"
+
+    # apt update
+    ensure_apt update -y
+
+    # install openvino
+    ensure_apt install --no-install-recommends -y openvino-$version
+
+    # install openvino-genai
+    mkdir -p "$workspace"
+    python3 -m venv "$workspace"/.venv
+    . "$workspace"/.venv/bin/activate
+    pip install openvino-genai==${version}
+
+    echo "openvino-${version} installed successfully."
+
+    if [[ " $* " = *" --validate "* ]]; then
+      [ -e "$workspace"/${model##*/} ] || curl -sSfL "$model" -o "$workspace"/${model##*/}
+      for device in CPU GPU NPU; do
+        echo "Validating ${model##*/} inferencing on $device..."
+        benchmark_app -t 5 -m "$workspace"/${model##*/} -d $device
+      done
+    fi
+  fi
+
+  # info
+  echo "@@HIGHLIGHT openvino-genai @$workspace/.venv"
+  echo "@@HIGHLIGHT openvino samples @/usr/share/openvino"
+}
+
+debian_70_remove_openvino () {
+  configure_openvino $*
+
+  if verify_openvino; then
+    ensure_apt autoremove -m -y openvino-${version} openvino || true
+    ensure_sudo rm -rf "$workspace" $apt_file $key_file
+  else
+    echo "openvino-${version} already removed. Skipping"
+  fi
+}
+
+debian_70_sbom_openvino () {
+  configure_openvino "$@"
+  cat <<EOF
+"name": "$repo_name"
+"gpg-key": "$key_url"
+"key-file": "$key_file"
+"apt-source": "$apt_entry"
+"apt-list-file": "$apt_file"
+"pkg-list": ["openvino-$version"]
+EOF
+}
+
+configure_order_accuracy () {
+  workspace="$(ensure_project_path)/order-accuracy"
+  version=fe872f5f5e475b9d75954f273f6d995bce95cdc6
+  repository="https://github.com/intel-retail/order-accuracy.git"
+}
+
+verify_order_accuracy () {
+  [ -e "$workspace"/ovms-service/models/openbmb/MiniCPM-V-4_5-int4/openvino_language_model.bin ]
+  [ -e "$workspace"/take-away/models/yolo11n_int8_openvino_model/yolo11n.bin ]
+}
+
+debian_90_profile_order_accuracy () {
+  echo "git curl gawk make python3_venv docker edge_base"
+}
+
+debian_90_install_order_accuracy () {
+  configure_order_accuracy
+  if verify_order_accuracy && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Order accuracy is already installed. Skipping"
+    return
+  fi
+
+  # clone the repository
+  ensure_disk_space 10000
+  ensure_git_clone "$workspace" $version $repository
+
+  # setup
+  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+  ensure_hf_token Qwen/Qwen2.5-VL-7B-Instruct openbmb/MiniCPM-V-4_5 
+
+  for app in dine-in take-away; do
+    cd "$workspace"/$app
+    make init-env
+    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
+    cd ../ovms-service
+    ./setup_models.sh --app $app
+    cd "$workspace"/$app
+    make build
+  done
+  
+  cd "$workspace"
+  verify_order_accuracy
+
+  echo "@@HIGHLIGHT workspace @$workspace"
+  echo "@@HIGHLIGHT cd dine-in[|take-away] && make up"
+}
+
+debian_90_remove_order_accuracy () {
+  configure_order_accuracy
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
@@ -2633,7 +3664,7 @@ debian_90_profile_pallet_defect_detection () {
 
 debian_90_install_pallet_defect_detection () {
   configure_pallet_defect_detection
-  if verify_pallet_defect_detection && [[ "$*" != *"--reset-pallet_defect_detection"* ]]; then
+  if verify_pallet_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Pallet defect detection is already installed. Skipping"
     return
   fi
@@ -2680,1025 +3711,150 @@ debian_90_remove_pallet_defect_detection () {
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
-configure_vippet () {
-  workspace="$(ensure_project_path)/vippet"
-  version=release-2026.1.0
-  repository=https://github.com/open-edge-platform/edge-ai-libraries.git
+configure_pcb_anomaly_detection () {
+  workspace="$(ensure_project_path)/pcb-anomaly-detection"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
 }
 
-verify_vippet () {
-  [ -r "$workspace/tools/visual-pipeline-and-platform-evaluation-tool/.env" ]
+verify_pcb_anomaly_detection () {
+  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
 }
 
-debian_90_profile_vippet () {
-  echo "docker make curl git edge_base"
+debian_90_profile_pcb_anomaly_detection () {
+  echo "git curl gawk edge_base docker"
 }
 
-debian_90_install_vippet () {
-  configure_vippet
-  if verify_vippet && [[ " $* " != *" --reset-vippet "* ]]; then
-    echo "Vipet is already installed. Skipping..."
-  else
-    ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool
-    cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
-    make build-onvif-discovery
-    docker compose -f compose.yml pull --ignore-buildable
+debian_90_install_pcb_anomaly_detection () {
+  configure_pcb_anomaly_detection
+  if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
+    echo "PCB anomaly detection is already installed. Skipping"
+    return
   fi
+
+  # clone the repository
+  ensure_disk_space 60
+  ensure_git_clone "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
+
+  # setup
+  cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
+  cat > .env <<EOF
+$(cat .env_pcb-anomaly-detection)
+HOST_IP=$(ensure_ip)
+ENABLE_HTTPS_MODE=true
+MINIO_ACCESS_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+MINIO_SECRET_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+EOF
+  ./setup.sh
+  verify_pcb_anomaly_detection
 }
 
-debian_90_start_vippet () {
-  ensure_ports_open "80 7860 8000 9090 8554 8889" debian_90_stop_vippet
-  configure_vippet
-  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
-  make run
+debian_90_start_pcb_anomaly_detection () {
+  configure_pcb_anomaly_detection
+  ensure_ports_open "80 443" debian_90_stop_pcb_anomaly_detection
+
+  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  docker compose up -d --wait
+
+  ./sample_start.sh -p pcb_anomaly_detection$(ensure_select_device $* | sed -e 's|^|_|' -e 's|_cpu||')
   echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
 }
 
-debian_90_stop_vippet () {
-  configure_vippet
-  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
-  make stop || true
-}
-
-debian_90_remove_vippet () {
-  debian_90_stop_vippet $* || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
-configure_dlstreamer () {
-  key_url=https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg
-  key_file=/usr/share/keyrings/dls-archive-keyring.gpg
-  deb_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main"
-  repository=https://github.com/open-edge-platform/dlstreamer
-  workspace="$(ensure_project_path)/dlstreamer"
-  version=2026.2.0-rc1
-}
-
-debian_75_profile_dlstreamer () {
-  echo "git openvino edge_base"
-}
-
-verify_dlstreamer () {
-  dpkg-query -l intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
-  [ -r "$workspace/python3-venv/bin/activate" ] || return 1
-  cd "$workspace"
-  . python3-venv/bin/activate
-  pip show ultralytics nncf
-}
-
-debian_75_install_dlstreamer () {
-  configure_dlstreamer
-  
-  if verify_dlstreamer && [[ " $* " != *" --reset-dlstreamer "* ]]; then
-    echo "dlstreamer-${version} already installed. Skipping"
-  else
-    # remove old versions
-    ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
-
-    # product key
-    sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
-
-    # deb entry
-    echo "$deb_entry" | ensure_sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
-
-    # apt update
-    ensure_apt update -y
-
-    # install dlstreamer
-    ensure_apt install --no-install-recommends -y intel-dlstreamer=$version
-
-    # clone the dlstreamer repostiory
-    ensure_git_clone "$workspace" v$version $repository
-
-    # create the dlstreamer venv
-    cd "$workspace"
-    python3 -m venv python3-venv
-    . python3-venv/bin/activate
-    pip install nncf==3.0.0 ultralytics==8.4.57
-  fi
-
-  # info
-  echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
-  echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples"
-  echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
-  echo "@@HIGHLIGHT python venv @$workspace/python3-venv"
-}
-
-debian_75_remove_dlstreamer () {
-  configure_dlstreamer
-
-  if verify_dlstreamer; then
-    ensure_apt autoremove -m -y intel-dlstreamer
-    ensure_sudo -rf "$workspace" 2> /dev/null || true
-  else
-    echo "dlstreamer already removed. Skipping"
-  fi
-}
-
-
-debian_99_profile_computer_vision () {
-  [ "$1" = "start" ] || echo "dlstreamer vippet geti anomalib"
-}
-
-
-debian_99_profile_health_and_life_science_ai_suite () {
-  [ "$1" = "start" ] || echo "nicu_warmer"
-}
-
-configure_handheld_multi_modal () {
-  workspace="$(ensure_project_path)/handheld_multi_modal"
-  version=release-2026.2.0
-  repository=https://github.com/open-edge-platform/edge-ai-suites.git
-}
-
-verify_handheld_multi_modal () {
-  [ -e "$workspace"/federal-and-aerospace-ai-suite/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml ]
-}
-
-debian_90_profile_handheld_multi_modal () {
-  echo "yq make curl git docker edge_base"
-}
-
-debian_90_install_handheld_multi_modal () {
-  configure_handheld_multi_modal
-  if verify_handheld_multi_modal $* && [[ " $* " != *" --reset-handheld_multi_modal "* ]]; then
-    echo "handheld_multi_modal already installed. Skipping"
-  else
-    ensure_disk_space 300
-
-    ensure_git_clone "$workspace" $version $repository federal-and-aerospace-ai-suite/handheld-multi-modal
-    cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
-    make setup
-    make build-whisper
-    make vippet-get
-    yes | make models-license
-    docker compose -f docker-compose.yml pull --ignore-buildable
-    verify_handheld_multi_modal $*
-  fi
-}
-
-debian_90_start_handheld_multi_modal () {
-  ensure_ports_open "443 1443 5443 6443 7443 8443 80 7860 8000 9090 8554 8889" debian_90_stop_handheld_multi_modal $*
-  configure_handheld_multi_modal
-  cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
-  make deploy
-  echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
-}
-
-debian_90_stop_handheld_multi_modal () {
-  configure_handheld_multi_modal
-  cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
-  make down
-}
-
-debian_90_remove_handheld_multi_modal () {
-  debian_90_stop_handheld_multi_modal $*
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
-
-configure_loitering_detection () {
-  workspace="$(ensure_project_path)/loitering-detection"
-  version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
-}
-
-verify_loitering_detection () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000101.mp4 ]
-}
-
-debian_90_profile_loitering_detection () {
-  echo "git curl gawk docker edge_base"
-}
-
-debian_90_install_loitering_detection () {
-  configure_loitering_detection
-  if verify_loitering_detection && [[ " $* " != *" --reset-loitering_detection "* ]]; then
-    echo "Loitering detection is already installed. Skipping"
-    return
-  fi
-
-  # clone the repository
-  ensure_disk_space 280
-  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
-
-  # setup
-  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
-  sed -i 's|curl |curl -f |' loitering-detection/install.sh
-  ./install.sh loitering-detection $(ensure_ip)
-  verify_loitering_detection
-}
-
-debian_90_start_loitering_detection () {
-  ensure_ports_open "80 443" debian_90_stop_loitering_detection
-  configure_loitering_detection
-  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
-  docker compose -f compose-without-scenescape.yml up -d
-  ./sample_start.sh $(ensure_select_device $*)
-  echo "@@HIGHLIGHT UI entrypoint: http://$(ensure_ip)"
-  echo "@@HIGHLIGHT Grafana username/password: admin"
-}
-
-debian_90_stop_loitering_detection () {
-  configure_loitering_detection
-  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+debian_90_stop_pcb_anomaly_detection () {
+  configure_pcb_anomaly_detection
+  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
   ./sample_stop.sh || true
-  docker compose -f compose-without-scenescape.yml down -v --remove-orphans
+  docker compose down -v --remove-orphans
 }
 
-debian_90_remove_loitering_detection () {
-  debian_90_stop_loitering_detection || true
+debian_90_remove_pcb_anomaly_detection () {
+  debian_90_stop_pcb_anomaly_detection || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
-configure_video_search_and_summarization () {
-  workspace="$(ensure_project_path)/video_search_and_summarization"
-  version=7f124d9ef54c843345f51bb74c86103cef819531
-  repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
-  used_ports="${APP_HOST_PORT:-12345} 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640"
-
-  local device=$(ensure_select_device $*)
-  export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
-  export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en
-  export OD_MODEL_NAME=yolov8l-worldv2
-  export TEXT_EMBEDDING_MODEL=Qwen/qwen3-embedding-0.6b
-  export OVMS_LLM_MODEL_NAME=meta-llama/Llama-3.2-3B-Instruct
-  ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME
-
-  export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false
-  export MULTIMODAL_EMBEDDING_MODEL=CLIP/clip-vit-b-32
-  export FRAME_INTERVAL=15
-  export MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=true
-  export ROI_CONSOLIDATION_ENABLED=true
-  export ROI_CONSOLIDATION_IOU_THRESHOLD=0.2
-  export ROI_CONSOLIDATION_CLASS_AWARE=false
-  export ROI_CONSOLIDATION_CONTEXT_SCALE=0.2
-  export ENABLE_METRICS_MANAGER=true
-  export PM_VLM_CONCURRENT=6
-  export PM_LLM_CONCURRENT=1
-  export VLM_COMPRESSION_WEIGHT_FORMAT=int4
-  export LLM_COMPRESSION_WEIGHT_FORMAT=int4
-  export SDK_USE_OPENVINO=true
-  export DATAPREP_EMBEDDING_DEVICE=${device^^}
-  export DATAPREP_DETECTION_DEVICE=${device^^}
-  export MME_EMBEDDING_DEVICE=${device^^}
-  export VLM_TARGET_DEVICE=${device^^}
-  export HUGGINGFACE_TOKEN=$HF_TOKEN
-  export HF_TOKEN=$HF_TOKEN
-  export HF_HUB_CACHE=\"$workspace/sample-applications/video-search-and-summarization/.cache\"
-  export GATED_MODEL=$([ -n "$HF_TOKEN" ] && echo true || echo false)
-  export LLM_TARGET_DEVICE=${device^^}
-  export PM_MULTI_FRAME_COUNT=34
-  export ENABLE_EMBEDDING_GPU=$([ "$device" = "gpu" ] && echo true || echo false)
-  export EMBEDDING_PROCESSING_MODE=sdk
-  export ENABLE_OBJECT_DETECTION=false
-  export MINIO_ROOT_USER=$(cat /dev/random | tr -dc a-z | head -c 5)
-  export MINIO_ROOT_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
-  export POSTGRES_USER=$(cat /dev/random | tr -dc a-z | head -c 5)
-  export POSTGRES_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
-  export RABBITMQ_USER=$(cat /dev/random | tr -dc a-z | head -c 5)
-  export RABBITMQ_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
-  export REGISTRY_URL=intel
-  export TAG=latest
-}
-
-verify_video_search_and_summarization () {
-  local files_to_check=(
-    ov_models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml
-    ov_models/object-detection/ultralytics/public/yolov8l/FP16/yolov8l.xml
-    ov_models/ovms/openvino_models/gpu/int4/meta-llama/Llama-3.2-3B-Instruct/openvino_model.xml
-    ov_models/ovms/openvino_models/gpu/int4/Qwen/Qwen2.5-VL-3B-Instruct/openvino_config.json
-    ov_models/ovms/openvino_models/gpu/int4/config_all.json
-    ov_models/ovms/config.json
-  )
-  for f in "${files_to_check[@]}"; do
-    [ -e "$workspace"/sample-applications/video-search-and-summarization/$f ] || return 1
-  done
-}
-
-debian_85_profile_video_search_and_summarization () {
-  echo "git curl gawk python3_venv edge_base docker"
-}
-
-debian_85_install_video_search_and_summarization () {
-  configure_video_search_and_summarization $*
-  if verify_video_search_and_summarization && [[ "$*" != *"--reset-video_search_and_summarization"* ]]; then
-    echo "video_search_and_summarization is already installed. Skipping..."
-    return 0
-  fi
-
-  # clone the repository
-  ensure_disk_space 8000
-  ensure_ports_open "$used_ports" return 3
-  ensure_git_clone "$workspace" $version $repository sample-applications/video-search-and-summarization
-
-  # setup
-  cd "$workspace"/sample-applications/video-search-and-summarization
-  ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME                   
-
-  sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh
-  sed -i 's|FINAL_ARG=.*|FINAL_ARG="${FINAL_ARG:-up -d}"|' setup.sh
-  export FINAL_ARG=pull
-  . ./setup.sh --search-and-summary
-
-  verify_video_search_and_summarization
-}
-
-debian_85_start_video_search_and_summarization () {
-  configure_video_search_and_summarization $*
-  ensure_ports_open "$used_ports" debian_85_stop_video_search_and_summarization $*
-
-  cd "$workspace"/sample-applications/video-search-and-summarization
-  export FINAL_ARG=
-  . ./setup.sh --search-and-summary
-
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${APP_HOST_PORT}"
-}
-
-debian_85_stop_video_search_and_summarization () {
-  configure_video_search_and_summarization $*
-
-  cd "$workspace"/sample-applications/video-search-and-summarization
-  . ./setup.sh --stop || true
-  . ./setup.sh --clean-data || true
-}
-
-debian_85_remove_video_search_and_summarization () {
-  debian_85_stop_video_search_and_summarization $* || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
-configure_smart_intersection () {
-  workspace="$(ensure_project_path)/smart-intersection"
-  version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
-}
-
-verify_smart_intersection () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/1122north_h264.ts ]
-}
-
-debian_90_profile_smart_intersection () {
-  echo "git curl gawk jq edge_base docker"
-}
-
-debian_90_install_smart_intersection () {
-  configure_smart_intersection
-  if verify_smart_intersection && [[ " $* " != *" --reset-smart_intersection "* ]]; then
-    echo "Smart intersection is already installed. Skipping"
-    return
-  fi
-
-  # clone the repository
-  ensure_disk_space 1500
-  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
-
-  # setup
-  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
-  sed -i 's|sudo chown|#sudo chown|' smart-intersection/install.sh
-  sed -i 's|curl -k |curl -f |' smart-intersection/init.sh
-  ./install.sh smart-intersection $(ensure_ip)
-  verify_smart_intersection
-}
-
-debian_90_start_smart_intersection () {
-  configure_smart_intersection
-  ensure_ports_open 443 debian_90_stop_smart_intersection
-
-  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
-
-  local device=$(ensure_select_device $*)
-  sed -i -e "s|DETECTION_DEVICE=.*|DETECTION_DEVICE=$device|" -e "s|CLASSIFICATION_DEVICE=.*|CLASSIFICATION_DEVICE=$device|" docker-compose.yml
-  [ -e smart-intersection/src/dlstreamer-pipeline-server/config.json.orig ] || cp -f smart-intersection/src/dlstreamer-pipeline-server/config.json smart-intersection/src/dlstreamer-pipeline-server/config.json.orig
-  case "$device" in
-  cpu)
-    jq -r '.config.pipelines[].name | select(endswith("-gpu") or endswith("-npu") | not)' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
-    ;;
-  npu)
-    jq -r '.config.pipelines[].name | select(endswith("-npu"))' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
-    ;;
-  *)
-    jq -r '.config.pipelines[].name | select(endswith("-gpu"))' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
-    ;;
-  esac
-
-  export SUPASS=$(cat smart-intersection/src/secrets/supass)
-  docker compose up -d 
-  echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
-  echo "@@HIGHLIGHT username/password: admin/$SUPASS"
-}
-
-debian_90_stop_smart_intersection () {
-  configure_smart_intersection
-  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
-  docker compose -f compose-scenescape.yml down -v --remove-orphans
-}
-
-debian_90_remove_smart_intersection () {
-  debian_90_stop_smart_intersection || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
-# Autonomous Mobile Robot (AMR) APT repositories plus the Intel oneAPI Base
-# Toolkit repository. This module only configures apt sources / keys / pins;
-# the track components install the actual Deb packages.
-# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
-configure_amr_apt_repo () {
-  amr_key_url=https://amrdocs.intel.com/repos/gpg-keys/GPG-PUB-KEY-INTEL-AMR.gpg
-  amr_key_file=/usr/share/keyrings/amr-archive-keyring.gpg
-  amr_list=/etc/apt/sources.list.d/amr.list
-  amr_pref=/etc/apt/preferences.d/amr
-
-  oneapi_key_url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
-  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
-  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
-  oneapi_pref=/etc/apt/preferences.d/oneapi
-}
-
-debian_45_profile_amr_apt_repo () {
-  echo "curl gpg edge_base"
-}
-
-verify_amr_apt_repo () {
-  configure_amr_apt_repo
-  [ -r "$amr_key_file" ] && [ -r "$amr_list" ] && [ -r "$oneapi_list" ]
-}
-
-debian_45_install_amr_apt_repo () {
-  configure_amr_apt_repo
-
-  if verify_amr_apt_repo && [[ " $* " != *" --reset-amr_apt_repo "* ]]; then
-    echo "AMR apt repositories are already configured. Skipping..."
-  else
-    ensure_apt install -y software-properties-common curl gnupg wget
-
-    # AMR archive key + sources + pin
-    ensure_sudo mkdir -p "$(dirname "$amr_key_file")"
-    no_proxy= NO_PROXY= curl -fsL "$amr_key_url" | ensure_sudo tee "$amr_key_file" > /dev/null
-    printf 'deb [signed-by=%s] https://amrdocs.intel.com/repos/%s amr main\ndeb-src [signed-by=%s] https://amrdocs.intel.com/repos/%s amr main\n' \
-      "$amr_key_file" "$VERSION_CODENAME" "$amr_key_file" "$VERSION_CODENAME" | ensure_sudo tee "$amr_list" > /dev/null
-    printf 'Package: *\nPin: origin amrdocs.intel.com\nPin-Priority: 1001\n' | ensure_sudo tee "$amr_pref" > /dev/null
-
-    # Intel oneAPI Base Toolkit key + source + pins
-    no_proxy= NO_PROXY= curl -fsL "$oneapi_key_url" | gpg --dearmor | ensure_sudo tee "$oneapi_key_file" > /dev/null
-    echo "deb [signed-by=$oneapi_key_file] https://apt.repos.intel.com/oneapi all main" | ensure_sudo tee "$oneapi_list" > /dev/null
-    printf 'Package: intel-oneapi-runtime-*\nPin: version 2025.3.*\nPin-Priority: 1001\n\nPackage: intel-oneapi-compiler-*\nPin: version 2025.3.*\nPin-Priority: 1001\n\nPackage: intel-oneapi-mkl-*\nPin: version 2025.3.*\nPin-Priority: 1001\n' | ensure_sudo tee "$oneapi_pref" > /dev/null
-
-    # Canonical kobuk PPA for latest Intel silicon support (best-effort)
-    ensure_sudo add-apt-repository -y ppa:kobuk-team/intel-graphics || true
-
-    ensure_apt update -y
-  fi
-}
-
-debian_45_remove_amr_apt_repo () {
-  configure_amr_apt_repo
-  ensure_sudo rm -f "$amr_key_file" "$amr_list" "$amr_pref" \
-    "$oneapi_key_file" "$oneapi_list" "$oneapi_pref"
-}
-
-debian_10_install_make () {
-  if dpkg-query -L make > /dev/null 2>&1; then
-    echo "Make is already installed. Skipping..."
+debian_05_install_pciutils () {
+  if ensure_apt_is_installed pciutils; then
+    echo "Pciutils is already installed. Skipping..."
   else
     ensure_apt update
-    ensure_apt install --no-install-recommends -y make
+    ensure_apt install --no-install-recommends -y pciutils
   fi
 }
 
-
-# Autonomous Mobile Robot (AMR) - the Robotics AI Suite ROS 2 SDK for
-# sensing, perception, SLAM & mapping, navigation, and the Wandering app.
-# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/index.html
-configure_autonomous_mobile_robot () {
-  case "$VERSION_CODENAME" in
-  jammy) ros_distro=humble ;;
-  noble) ros_distro=jazzy ;;
-  *)     ros_distro=jazzy ;;
-  esac
-  # standard SDK by default; pass --complete for the full (~20GB) SDK
-  amr_sdk_pkg=ros-$ros_distro-robotics-sdk
+debian_05_sbom_pciutils () {
+  cat <<EOF
+"pkg-list": ["pciutils"]
+EOF
 }
 
-debian_90_profile_autonomous_mobile_robot () {
-  echo "git curl edge_base ros2 amr_apt_repo ros_openvino realsense"
-}
-
-verify_autonomous_mobile_robot () {
-  configure_autonomous_mobile_robot
-  dpkg-query -l ros-$ros_distro-robotics-sdk > /dev/null 2>&1 || \
-  dpkg-query -l ros-$ros_distro-robotics-sdk-complete > /dev/null 2>&1
-}
-
-# add the OSRF Gazebo apt repository (needed for the robotics-sdk dependencies)
-amr_setup_gazebo () {
-  local osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
-  ensure_apt install -y curl lsb-release gnupg
-  no_proxy= NO_PROXY= curl -fsL https://packages.osrfoundation.org/gazebo.gpg | ensure_sudo tee "$osrf_key" > /dev/null
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=$osrf_key] https://packages.osrfoundation.org/gazebo/ubuntu-stable $VERSION_CODENAME main" | \
-    ensure_sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
-  ensure_apt update -y
-  [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
-}
-
-debian_90_install_autonomous_mobile_robot () {
-  configure_autonomous_mobile_robot
-  [[ " $* " != *" --complete "* ]] || amr_sdk_pkg=ros-$ros_distro-robotics-sdk-complete
-
-  if verify_autonomous_mobile_robot && [[ " $* " != *" --reset-autonomous_mobile_robot "* ]]; then
-    echo "Autonomous Mobile Robot is already installed. Skipping..."
+# Physical AI Framework - the Physical AI training/deployment SDK (the
+# `physicalai-train` distribution, which also pulls in the `physicalai`
+# runtime). It provides the `physicalai` CLI (fit / export / benchmark /
+# run) for Vision-Language-Action imitation-learning policies (ACT, Pi0,
+# Pi0.5, GR00T, SmolVLA). Installed into a dedicated uv-managed Python 3.12
+# virtual environment with the PyTorch build matched to the local
+# accelerator (Intel XPU, NVIDIA CUDA, or CPU).
+# https://github.com/open-edge-platform/physical-ai-studio/tree/main/library
+configure_physical_ai_framework () {
+  workspace="$(ensure_project_path)/physical-ai-framework"
+  paif_venv="$workspace/.venv"
+  paif_pkg="physicalai-train"
+  # pick the PyTorch wheel index and package extra for the detected device
+  if command -v nvidia-smi > /dev/null 2>&1; then
+    paif_extra=cu128
+    paif_index="https://download.pytorch.org/whl/cu128"
+  elif [ -e /dev/dri/renderD128 ]; then
+    paif_extra=xpu
+    paif_index="https://download.pytorch.org/whl/xpu"
   else
-    ensure_disk_space $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
-    ensure_apt update -y
-
-    amr_setup_gazebo
-
-    # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
-    if [ "$ros_distro" = humble ]; then
-      ensure_apt install -y gcc-12 g++-12
-      ensure_sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 60 --slave /usr/bin/g++ g++ /usr/bin/g++-12
-    fi
-
-    # the Autonomous Mobile Robot SDK meta-package
-    ensure_apt install -y "$amr_sdk_pkg"
-
-    # Collaborative SLAM acceleration variant, selected by hardware capability:
-    #   lze  -> Intel GPU (Level-Zero)   avx2 -> Intel Core CPU   sse -> Atom/default
-    local slam_pkg=ros-$ros_distro-collab-slam-sse
-    grep -q -w avx2 /proc/cpuinfo && slam_pkg=ros-$ros_distro-collab-slam-avx2
-    [ -e /dev/dri/renderD128 ] && slam_pkg=ros-$ros_distro-collab-slam-lze
-    ensure_apt install -y "$slam_pkg"
-  fi
-
-  echo "@@HIGHLIGHT Autonomous Mobile Robot ($amr_sdk_pkg) installed for ROS 2 $ros_distro"
-  echo "@@HIGHLIGHT shell env @source /opt/ros/$ros_distro/setup.bash"
-  echo "@@HIGHLIGHT tutorials @https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/index_tutorials.html"
-}
-
-debian_90_remove_autonomous_mobile_robot () {
-  configure_autonomous_mobile_robot
-  if verify_autonomous_mobile_robot; then
-    ensure_apt autoremove -m -y \
-      ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete \
-      ros-$ros_distro-collab-slam-sse ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-lze || true
-    ensure_sudo rm -f /etc/apt/sources.list.d/gazebo-stable.list
-  else
-    echo "Autonomous Mobile Robot already removed. Skipping"
+    paif_extra=cpu
+    paif_index="https://download.pytorch.org/whl/cpu"
   fi
 }
 
-# Stationary Robot Vision & Control (RVC) - vision-guided pick-and-place
-# reference application (UR5e + MoveIt) from the Robotics AI Suite.
-# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html
-#
-# RVC ships as the ROS 2 meta-package `ros-<distro>-rvc-simulation` from the
-# AMR apt feed, which pulls in `ros-<distro>-rvc`, `ros-<distro>-robot-config`
-# and `ros-<distro>-robot-config-plugins`.
-configure_stationary_robot_vision () {
-  case "$VERSION_CODENAME" in
-  jammy) ros_distro=humble ;;
-  noble) ros_distro=jazzy ;;
-  *)     ros_distro=jazzy ;;
-  esac
-  rvc_pkgs="ros-$ros_distro-rvc-simulation"
+debian_91_profile_physical_ai_framework () {
+  echo "git curl edge_base uv ffmpeg"
 }
 
-debian_90_profile_stationary_robot_vision () {
-  echo "git curl edge_base ros2 amr_apt_repo ros_openvino realsense"
+verify_physical_ai_framework () {
+  configure_physical_ai_framework "$@"
+  [ -x "$paif_venv/bin/physicalai" ]
 }
 
-verify_stationary_robot_vision () {
-  configure_stationary_robot_vision
-  dpkg-query -l ros-$ros_distro-rvc > /dev/null 2>&1
-}
+debian_91_install_physical_ai_framework () {
+  configure_physical_ai_framework "$@"
+  configure_uv
 
-debian_90_install_stationary_robot_vision () {
-  configure_stationary_robot_vision
-
-  if verify_stationary_robot_vision && [[ " $* " != *" --reset-stationary_robot_vision "* ]]; then
-    echo "Stationary Robot Vision & Control is already installed. Skipping..."
+  if verify_physical_ai_framework "$@" && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Physical AI Framework is already installed. Skipping..."
   else
     ensure_disk_space 15000
-    ensure_apt update -y
-    # RVC depends on Gazebo Harmonic (gz-harmonic); make sure the OSRF Gazebo
-    # apt repository is configured (shared with the AMR SDK component).
-    ! declare -F amr_setup_gazebo > /dev/null 2>&1 || amr_setup_gazebo
-    ensure_apt install -y $rvc_pkgs || {
-      echo "Could not install RVC packages ($rvc_pkgs)." 1>&2
-      echo "Confirm the exact package names at https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html" 1>&2
+
+    mkdir -p "$workspace"
+    uv venv --python 3.12 "$paif_venv" || {
+      echo "Could not create the Physical AI Framework virtual environment." 1>&2
+      return 3
+    }
+    echo "Installing ${paif_pkg}[${paif_extra}] (PyTorch ${paif_extra} build; this may take a while)..."
+    uv pip install --python "$paif_venv/bin/python" \
+      --index "$paif_index" --index-strategy unsafe-best-match \
+      "${paif_pkg}[${paif_extra}]" || {
+      echo "Could not install $paif_pkg." 1>&2
       return 3
     }
   fi
 
-  echo "@@HIGHLIGHT Stationary Robot Vision & Control installed for ROS 2 $ros_distro"
-  echo "@@HIGHLIGHT docs @https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html"
+  echo "@@HIGHLIGHT Physical AI Framework installed in $paif_venv"
+  echo "@@HIGHLIGHT run @source $paif_venv/bin/activate && physicalai --help"
+  echo "@@HIGHLIGHT docs @https://github.com/open-edge-platform/physical-ai-studio/tree/main/library"
 }
 
-debian_90_remove_stationary_robot_vision () {
-  configure_stationary_robot_vision
-  if verify_stationary_robot_vision; then
-    ensure_apt autoremove -m -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc \
-      ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true
-  else
-    echo "Stationary Robot Vision & Control already removed. Skipping"
-  fi
+debian_91_remove_physical_ai_framework () {
+  configure_physical_ai_framework "$@"
+  ensure_sudo rm -rf "$workspace"
 }
-
-debian_99_profile_metro_ai_suite () {
-  # metro ai suites cannot start at the same time
-  [ "$1" = "start" ] || echo "smart_intersection smart_parking loitering_detection live_video_captioning video_search_and_summarization"
-}
-
-
-configure_uv () {
-  echo "$PATH" | grep -q -F ~/.local/bin || export PATH=$PATH:~/.local/bin
-}
-
-debian_10_install_uv () {
-  configure_uv
-  if uv --version 2> /dev/null && [[ "$*" != *"--reset-uv"* ]]; then
-    echo "Uv is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y pipx
-    pipx install uv
-  fi
-}
-
-
-configure_loss_prevention () {
-  workspace="$(ensure_project_path)/loss_prevention"
-  version=v2026.1.0-rc2
-  repository="https://github.com/intel-retail/loss-prevention.git"
-}
-
-verify_loss_prevention () {
-  [ -e "$workspace"/performance-tools/sample-media/face-detection-3249935-1080-15-bench.mp4 ]
-}
-
-debian_90_profile_loss_prevention () {
-  echo "git curl gawk make python3_venv docker edge_base"
-}
-
-debian_90_install_loss_prevention () {
-  configure_loss_prevention
-  if verify_loss_prevention && [[ "$*" != *"--reset-loss_prevention"* ]]; then
-    echo "Loss prevention is already installed. Skipping"
-    return
-  fi
-
-  # clone the repository
-  ensure_disk_space 300
-  ensure_git_clone "$workspace" $version $repository
-
-  # setup
-  pushd "$workspace" > /dev/null
-  cat > src/.env <<EOF
-MINIO_ROOT_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
-MINIO_ROOT_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
-MINIO_API_HOST_PORT="4000"
-MINIO_CONSOLE_HOST_PORT="4001"
-RABBITMQ_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
-RABBITMQ_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
-LP_IP="$(ensure_ip)"
-LP_BASE_DIR="{{ workspace }}"
-LLM_BASE_DIR="{{ workspace }}/microservices/vlm/ov-models"
-VLM_SERVICE_PORT="8000"
-LOW_LATENCY=1
-DROP_OLD_FRAMES=1
-MEDIAN_LATENCY=0
-USER_GROUP_ID=$(id -g)
-VIDEO_GROUP_ID=$(getent group video | cut -f3 -d:)
-RENDER_GROUP_ID=$(getent group render | cut -f3 -d:)
-LOCAL_UID=$(id -u)
-LOCAL_GID=$(id -g)
-EOF
-
-  # download videos
-  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
-  set -a
-  . src/.env
-  set +a
-  make download-sample-videos
-
-  # download models
-  make download-models
-
-  verify_loss_prevention
-  popd > /dev/null
-}
-
-debian_90_remove_loss_prevention () {
-  configure_loss_prevention
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
-
-configure_openvino () {
-  key_url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
-  key_file=/usr/share/keyrings/intel-gpg-archive-keyring.gpg
-  apt_entry="deb [signed-by=$key_file] https://apt.repos.intel.com/openvino ${ID}${VERSION_ID%.*} main"
-  apt_file=/etc/apt/sources.list.d/intel-openvino.list
-  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.1.0 || echo 2026.3.0)
-  openvino_venv="$(ensure_project_path)/openvino-genai"
-}
-
-debian_70_profile_openvino () {
-  echo "curl gpg python3_venv edge_base"
-}
-
-verify_openvino () {
-  dpkg-query -L openvino-${version} > /dev/null 2>&1 || return 1
-  [ -r "$openvino_venv"/bin/activate ] || return 1
-  . "$openvino_venv"/bin/activate
-  pip show openvino-genai 2> /dev/null | grep -q -F ${version} || return 1
-}
-
-debian_70_install_openvino () {
-  configure_openvino $*
-  
-  if verify_openvino && [[ " $* " != *" --reset-openvino "* ]]; then
-    echo "openvino-${version} already installed. Skipping"
-  else
-    # remove old versions
-    ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
-
-    # product key
-    ensure_sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
-
-    # deb entry
-    echo "$apt_entry" | ensure_sudo tee $apt_file > /dev/null
-
-    # apt update
-    ensure_apt update -y
-
-    # install openvino
-    ensure_apt install --no-install-recommends -y openvino-$version
-
-    # install openvino-genai
-    python3 -m venv "${openvino_venv}"
-    . "${openvino_venv}"/bin/activate
-    pip install openvino-genai==${version}
-  fi
-
-  # info
-  echo "@@HIGHLIGHT openvino-genai @$openvino_venv"
-  echo "@@HIGHLIGHT openvino samples @/usr/share/openvino"
-}
-
-debian_70_remove_openvino () {
-  configure_openvino $*
-
-  if verify_openvino; then
-    ensure_apt autoremove -m -y openvino-${version} openvino || true
-    ensure_sudo rm -rf "$openvino_venv" /etc/apt/sources.list.d/intel-openvino.list 2> /dev/null || true
-  else
-    echo "openvino-${version} already removed. Skipping"
-  fi
-}
-
-
-debian_05_install_yq () {
-  if dpkg-query -L yq > /dev/null 2>&1; then
-    echo "yq is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y yq
-  fi
-}
-
-
-debian_05_install_jq () {
-  if dpkg-query -L jq > /dev/null 2>&1; then
-    echo "jq is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y jq
-  fi
-}
-
-
-debian_05_install_gpg () {
-  if dpkg-query -L gpg > /dev/null 2>&1; then
-    echo "Gpg is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y gpgv1
-  fi
-}
-
-
-
-configure_live_video_captioning () {
-  workspace="$(ensure_project_path)/live-video-captioning"
-  version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
-}
-
-verify_live_video_captioning () {
-  [ -e "$workspace"/metro-ai-suite/live-video-analysis/live-video-captioning/ov_models/gpu/InternVL2-1B/config.json ]
-  [ -e "$workspace"/metro-ai-suite/live-video-analysis/live-video-captioning/ov_detection_models/yolov8s/public/yolov8s/FP16/yolov8s.bin ]
-}
-
-debian_90_profile_live_video_captioning () {
-  echo "git curl gawk jq edge_base docker"
-}
-
-debian_90_install_live_video_captioning () {
-  configure_live_video_captioning
-  if verify_live_video_captioning && [[ " $* " != *" --reset-live_video_captioning "* ]]; then
-    echo "Live Video Captioning is already installed. Skipping"
-    return
-  fi
-
-  # clone the repository
-  ensure_disk_space 64000
-  ensure_git_clone "$workspace" $version $repository metro-ai-suite/live-video-analysis/live-video-captioning
-  export -n socks_server ftp_proxy
-
-  # setup
-  cd "$workspace/metro-ai-suite/live-video-analysis/live-video-captioning"
-  sed -i "s|^ENABLE_DETECTION_PIPELINE=.*|ENABLE_DETECTION_PIPELINE=true|" .env.example
-  ensure_hf_token
-  sed -i "s|^HUGGINGFACEHUB_API_TOKEN=.*|HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN|" .env.example
-  bash scripts/setup_env.sh
-
-  local device=$(ensure_select_device "$@")
-  ./model_download_scripts/download_models.sh --model OpenGVLab/InternVL2-1B --type vlm --weight-format int8 --device $device
-  ./model_download_scripts/download_models.sh --model yolov8s --type vision --device $device
-  docker compose -f compose.yaml pull 
-  verify_live_video_captioning
-}
-
-debian_90_start_live_video_captioning () {
-  configure_live_video_captioning
-  ensure_ports_open "4173 8040 1883 9090 8889 9273 8556" debian_90_stop_live_video_captioning
-
-  cd "$workspace"/metro-ai-suite/live-video-analysis/live-video-captioning
-  docker compose -f compose.yaml up -d
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip):4173"
-}
-
-debian_90_stop_live_video_captioning () {
-  configure_live_video_captioning
-  cd "$workspace"/metro-ai-suite/live-video-analysis/live-video-captioning
-  docker compose -f compose.yaml down -v --remove-orphans
-}
-
-debian_90_remove_live_video_captioning () {
-  debian_90_stop_live_video_captioning || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
-debian_99_profile_federal_and_aerospace_ai_suite () {
-  [ "$1" = "start" ] || echo "handheld_multi_modal"
-}
-
-
-debian_99_profile_edge_base () {
-  [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu npu core_types pre_system_scan"
-}
-
-
-debian_10_install_libgl1 () {
-  if dpkg-query -L libgl1 > /dev/null 2>&1; then
-    echo "Libgl1 is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y libgl1
-  fi
-}
-
-
-debian_10_install_cpuid () {
-  if dpkg-query -L cpuid > /dev/null 2>&1; then
-    echo "Cpuid is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y cpuid
-  fi
-}
-
-
-debian_99_profile_robotics_ai_suite () {
-  # native ROS 2 / APT components; grouped for install and removal
-  [ "$1" = "start" ] || echo "autonomous_mobile_robot stationary_robot_vision humanoid_imitation_learning physical_ai_framework physical_ai_studio"
-}
-
-# Intel RealSense SDK (librealsense) + ROS 2 RealSense support.
-# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
-configure_realsense () {
-  rs_key_url=https://librealsense.realsenseai.com/Debian/librealsenseai.asc
-  rs_key_file=/etc/apt/keyrings/librealsenseai.gpg
-  rs_list=/etc/apt/sources.list.d/librealsense.list
-  case "$VERSION_CODENAME" in
-  jammy) ros_distro=humble ;;
-  noble) ros_distro=jazzy ;;
-  *)     ros_distro=jazzy ;;
-  esac
-}
-
-debian_55_profile_realsense () {
-  echo "curl gpg ros2 amr_apt_repo"
-}
-
-verify_realsense () {
-  configure_realsense
-  dpkg-query -l librealsense2 > /dev/null 2>&1
-}
-
-debian_55_install_realsense () {
-  configure_realsense
-
-  if verify_realsense && [[ " $* " != *" --reset-realsense "* ]]; then
-    echo "RealSense SDK is already installed. Skipping..."
-  else
-    ensure_sudo mkdir -p /etc/apt/keyrings
-    no_proxy= NO_PROXY= curl -sSf "$rs_key_url" | gpg --dearmor | ensure_sudo tee "$rs_key_file" > /dev/null
-    echo "deb [signed-by=$rs_key_file] https://librealsense.realsenseai.com/Debian/apt-repo $VERSION_CODENAME main" | \
-      ensure_sudo tee "$rs_list" > /dev/null
-    ensure_apt update -y
-
-    ensure_apt install -y --allow-downgrades ros-$ros_distro-librealsense2
-    ensure_apt install -y librealsense2-dkms librealsense2
-  fi
-}
-
-debian_55_remove_realsense () {
-  configure_realsense
-  if verify_realsense; then
-    ensure_apt autoremove -m -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true
-    ensure_sudo rm -f "$rs_key_file" "$rs_list"
-  else
-    echo "RealSense SDK already removed. Skipping"
-  fi
-}
-
-configure_docker () {
-  echo "Configure docker engine proxies..."
-  [ -z "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ] || \
-    grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
-      ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
-      ensure_sudo tee /etc/systemd/system/docker.service.d/proxy.conf <<EOF
-[Service]
-Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
-Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
-Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
-EOF
-      ensure_sudo systemctl daemon-reload
-      ensure_sudo systemctl restart docker
-    )
-
-  local CONFIG_JSON=~/.docker/config.json
-  echo "Configure docker client proxies..."
-  grep -q -F '"proxies"' $CONFIG_JSON 2> /dev/null || (
-    mkdir -p "$(dirname $CONFIG_JSON)"
-    python3 - "$CONFIG_JSON" <<'EOF'
-import json, os, sys
-p = sys.argv[1]
-cfg = json.load(open(p)) if os.path.exists(p) else {}
-cfg.setdefault("proxies", {})["default"] = {
-    "httpProxy":  os.environ.get("http_proxy",  os.environ.get("HTTP_PROXY", "")),
-    "httpsProxy": os.environ.get("https_proxy", os.environ.get("HTTPS_PROXY", "")),
-    "noProxy":    os.environ.get("no_proxy",    os.environ.get("NO_PROXY", "")),
-}
-json.dump(cfg, open(p, "w"), indent=2)
-EOF
-  )
-}
-
-debian_20_install_docker () {
-  if docker version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
-    echo "Docker is already installed. Skipping..."
-  else
-    echo "Remove legacy installation"
-    ensure_apt remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc
-
-    # create docker group
-    ensure_group_add docker
-
-    ensure_apt update
-    ensure_apt install -y docker.io docker-buildx-plugin docker-compose-plugin
-
-    DAEMON_JSON="/etc/docker/daemon.json"
-    if [ ! -f "$DAEMON_JSON" ]; then
-      ensure_sudo mkdir -p /etc/docker
-      ensure_sudo tee "$DAEMON_JSON" <<EOF
-{
-   "exec-opts": [
-        "native.cgroupdriver=systemd"
-    ]
-}
-EOF
-    fi
-    ensure_sudo systemctl daemon-reload
-    ensure_sudo systemctl restart docker
-  fi
-  configure_docker
-}
-
 
 # Physical AI Studio - the end-to-end Physical AI application (the
 # `physicalai-studio` distribution): a FastAPI backend + web UI for
@@ -3732,7 +3888,7 @@ configure_physical_ai_studio () {
 }
 
 debian_92_profile_physical_ai_studio () {
-  echo "git curl edge_base uv"
+  echo "git curl edge_base uv ffmpeg"
 }
 
 verify_physical_ai_studio () {
@@ -3744,13 +3900,10 @@ debian_92_install_physical_ai_studio () {
   configure_physical_ai_studio "$@"
   configure_uv
 
-  if verify_physical_ai_studio "$@" && [[ " $* " != *" --reset-physical_ai_studio "* ]]; then
+  if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Studio is already installed. Skipping..."
   else
     ensure_disk_space 20000
-    # LeRobot / video encoding dependencies require ffmpeg on the host
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y ffmpeg
     echo "Installing ${pais_pkg}[${pais_extra}] (PyTorch ${pais_extra} build; this may take a while)..."
     uv tool install --python 3.12 \
       --index "$pais_index" --index-strategy unsafe-best-match \
@@ -3811,34 +3964,23 @@ debian_92_remove_physical_ai_studio () {
   ensure_sudo rm -rf "$pais_run_dir"
 }
 
-debian_10_install_git () {
-  if dpkg-query -L git > /dev/null 2>&1; then
-    echo "Git is already installed. Skipping..."
+debian_05_install_pipx () {
+  if ensure_apt_is_installed pipx; then
+    echo "pipx is already installed. Skipping..."
   else
     ensure_apt update
-    ensure_apt install --no-install-recommends -y git ca-certificates
+    ensure_apt install --no-install-recommends -y pipx
   fi
 }
 
-
-debian_05_install_gawk () {
-  if dpkg-query -L gawk > /dev/null 2>&1; then
-    echo "Gawk is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y gawk
-  fi
+debian_05_sbom_pipx () {
+  cat <<EOF
+"pkg-list": ["pipx"]
+EOF
 }
-
-
-debian_99_profile_retail_ai_suite () {
-  # metro ai suites cannot start at the same time
-  [ "$1" = "start" ] || echo "loss_prevention order_accuracy"
-}
-
 
 debian_10_profile_pre_system_scan () {
-  [ "$1" != "install" ] || echo "curl dmidecode"
+  [ "$1" != "install" ] || echo "curl dmidecode pciutils"
 }
 
 debian_10_install_pre_system_scan () {
@@ -3856,21 +3998,25 @@ debian_10_install_pre_system_scan () {
     membank_info="$(system_scan_check_membank)"
     [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Configuration}"
     echo -e "RAM|$membank_info|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2
 
     pass=$ok
     [[ $PRETTY_NAME = *"24.04"* ]] || pass="${nok/MSG/Not supported}"
     echo -e "OS|$PRETTY_NAME|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT OS|$PRETTY_NAME|$pass" 1>&2
 
     pass=$ok
     docker_ver="$(system_scan_check_docker)"
     [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}"
     [ -n "$docker_ver" ] || pass="${nok} Missing Docker"
     echo -e "Docker|$docker_ver|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2
 
     net_pass=$ok
     net_access="$(system_scan_check_network_access)"
     [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}"
     echo -e "Network|$net_access|$net_pass"
+    [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2
 
     echo
     echo "Accelerators:"
@@ -3879,6 +4025,7 @@ debian_10_install_pre_system_scan () {
     cpuinst_info="$(system_scan_check_cpu_instructions)"
     [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}"
     echo -e "CPU|$cpuinst_info|$pass"
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass"
 
     for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' '); do
       pass=$ok
@@ -3886,6 +4033,7 @@ debian_10_install_pre_system_scan () {
       if [ -n "$accel_info" ]; then
         [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
         echo -e "GPU|$accel_info|$pass"
+        [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2
       fi
     done
 
@@ -3895,6 +4043,7 @@ debian_10_install_pre_system_scan () {
       if [ -n "$accel_info" ]; then
         [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}"
         echo -e "NPU|$accel_info|$pass"
+        [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT NPU|$accel_info|$pass" 1>&2
       fi
     done
 
@@ -3968,18 +4117,18 @@ system_scan_check_network_access () {
     http://ubuntu.com
     https://apt.repos.intel.com
   ) url
+
   for url in "${check_urls[@]}"; do
-    if ! curl --connect-timeout 5 --max-time 10 --head $url > /dev/null 2>&1; then
+    if ! curl -fsSL --retry 2 $url > /dev/null; then
       echo "$url by $(id -un)"
       return
     fi
-    # Only verify root connectivity when sudo can run without an interactive
-    # prompt, otherwise skip it to avoid hanging or false negatives.
-    if sudo -nv 2>/dev/null || [ -n "$SUDO_PASSWORD" ]; then
-      if ! ensure_sudo curl --connect-timeout 5 --max-time 10 --head $url > /dev/null 2>&1; then
-        echo "$url by root"
-        return
-      fi
+  done
+
+  for url in "${check_urls[@]}"; do
+    if ! ensure_sudo curl -fsSL --retry 2 $url > /dev/null; then
+      echo "$url by root"
+      return
     fi
   done
   echo "registry reachable"
@@ -4036,67 +4185,8 @@ system_scan_check_pci_device () {
 }
 
 
-configure_npu () {
-  version=1.35.0
-  repository=https://api.github.com/repos/intel/linux-npu-driver
-  workspace="$(ensure_project_path)/npu"
-}
-
-verify_npu () {
-  [ -b /dev/accel/accel0 ]
-  getent group render >/dev/null 2>&1 
-  id -nG | grep -qw render
-  (
-    set -o pipefail
-    dpkg-query -l intel-level-zero-npu intel-fw-npu intel-driver-compiler-npu 2> /dev/null | grep -q -F $version
-  )
-}
-
-debian_40_profile_npu () {
-  echo "libtbb12 jq libze1"
-}
-
-debian_40_install_npu () {
-  configure_npu $*
-
-  if verify_npu && [[ " $* " != *" --reset-npu "* ]]; then
-    echo "Npu drivers are already installed. Skipping..."
-  else
-    # remove legacies
-    ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
-
-    # create the render group
-    ensure_group_add render
-  
-    mkdir -p "$workspace"
-    cd "$workspace"
-
-    # download deb packages
-    local packages=($(set -o pipefail;curl -sL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -sL -A Mozilla/5.0 $repository/releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
-    [ ${#packages[*]} -gt 0 ] || return 3
-
-    for p in ${packages[*]}; do
-      curl -sL -A Mozilla/5.0 "$p" | tar xfz -
-    done 
-
-    # install the debs
-    ensure_apt install -y $(find . -name "*.deb" -print)
-    ensure_sudo rm -rf "$workspace"
-  fi
-}
-
-debian_40_remove_npu () {
-  if verify_npu; then
-    ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
-    ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-  else
-    echo "npu drivers are removed already. Skipping"
-  fi
-}
-
-
 debian_05_install_python3_venv () {
-  if dpkg-query -L python3-venv > /dev/null 2>&1; then
+  if ensure_apt_is_installed python3-venv; then
     echo "Python3-venv is already installed. Skipping..."
   else
     ensure_apt update
@@ -4104,116 +4194,149 @@ debian_05_install_python3_venv () {
   fi
 }
 
-
-configure_esq () {
-  workspace="$(ensure_project_path)/esq"
+debian_05_sbom_python3_venv () {
+  cat <<EOF
+"pkg-list": ["python3-venv"]
+EOF
 }
 
-debian_85_profile_esq () {
-  echo "curl git libgl1 make docker uv edge_base openvino dlstreamer"
+
+# Intel RealSense SDK (librealsense) + ROS 2 RealSense support.
+# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
+configure_realsense () {
+  rs_repo_name="librealsense.realsenseai.com"
+  rs_key_url="https://$rs_repo_name/Debian/librealsenseai.asc"
+  rs_key_file=/etc/apt/keyrings/librealsenseai.gpg
+  rs_list=/etc/apt/sources.list.d/librealsense.list
+  rs_deb_entry="deb [signed-by=$rs_key_file] https://$rs_repo_name/Debian/apt-repo $VERSION_CODENAME main"
+  case "$VERSION_CODENAME" in
+  jammy) ros_distro=humble ;;
+  noble) ros_distro=jazzy ;;
+  *)     ros_distro=jazzy ;;
+  esac
 }
 
-debian_85_install_esq () {
-  configure_uv
-  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reset-esq "* ]]; then
-    echo "Esq is already installed. Skipping..."
+debian_55_profile_realsense () {
+  echo "curl gpg"
+}
+
+verify_realsense () {
+  configure_realsense
+  ensure_apt_is_installed librealsense2
+}
+
+debian_55_install_realsense () {
+  configure_realsense
+
+  if verify_realsense && [[ " $* " != *" --reinstall "* ]]; then
+    echo "RealSense SDK is already installed. Skipping..."
   else
-    curl -sL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true
-    curl -sL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true
-    uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main
+    ensure_sudo mkdir -p /etc/apt/keyrings
+    ensure_apt_key $rs_key_file $rs_key_url --dearmor
+    ensure_apt_source $rs_list "$rs_deb_entry"
+    ensure_apt update -y
 
-    configure_esq
-    mkdir -p "$workspace"
+    ensure_apt install -y --allow-downgrades ros-$ros_distro-librealsense2
+    ensure_apt install -y librealsense2-dkms librealsense2
+  fi
+}
+
+debian_55_remove_realsense () {
+  configure_realsense
+  if verify_realsense; then
+    ensure_apt autoremove -m -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true
+    ensure_sudo rm -f $rs_key_file $rs_list
+  else
+    echo "RealSense SDK already removed. Skipping"
+  fi
+}
+
+debian_05_sbom_realsense () {
+  configure_realsense "$@"
+  cat <<EOF
+"name": "$rs_repo_name"
+"gpg-key": "$rs_key_url"
+"key-file": "$rs_key_file"
+"apt-source": "$rs_deb_entry"
+"apt-list-file": "$rs_list"
+"pkg-list": ["ros-$ros_distro-librealsense2","librealsense2-dkms","librealsense2"]
+EOF
+}
+
+
+# ROS 2 distribution, auto-selected from the Ubuntu codename:
+#   Ubuntu 22.04 (jammy) -> ROS 2 Humble
+#   Ubuntu 24.04 (noble) -> ROS 2 Jazzy
+# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
+configure_ros2 () {
+  case "$VERSION_CODENAME" in
+  jammy) ros_distro=humble ;;
+  noble) ros_distro=jazzy ;;
+  *)     ros_distro=jazzy ;;
+  esac
+
+  local codename="${UBUNTU_CODENAME:-$VERSION_CODENAME}"
+  ros_apt_ver="$(no_proxy= NO_PROXY= curl -fsSL https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F '"tag_name"' | awk -F'"' '{print $4}')"
+  ros_deb_src="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
+}
+
+debian_50_profile_ros2 () {
+  echo "curl gpg git edge_base"
+}
+
+verify_ros2 () {
+  [ -r /opt/ros/$ros_distro/setup.bash ]
+}
+
+debian_50_install_ros2 () {
+  configure_ros2
+
+  if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
+    echo "ROS 2 $ros_distro is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install -y software-properties-common gnupg lsb-release ca-certificates
+    ensure_sudo add-apt-repository -y universe || true
+
+    # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
+    # which self-configures the apt source list and signing key
+    local tmpdir
+    ensure_tmpdir create tmpdir ros2
+    no_proxy= NO_PROXY= curl -fsSL -o "$tmpdir/ros2-apt-source.deb" "$ros_deb_src"
+    ensure_apt install -y "$tmpdir/ros2-apt-source.deb"
+    ensure_tmpdir destroy $tmpdir
+
+    ensure_apt update -y
+    ensure_apt install -y ros-$ros_distro-desktop ros-dev-tools
+
+    # permanent ROS 2 environment
+    grep -q "source /opt/ros/$ros_distro/setup.bash" ~/.bashrc 2>/dev/null || \
+      echo "source /opt/ros/$ros_distro/setup.bash" >> ~/.bashrc
+    grep -q "export ROS_DOMAIN_ID=" ~/.bashrc 2>/dev/null || \
+      echo "export ROS_DOMAIN_ID=42" >> ~/.bashrc
   fi
 
-  echo "@@HIGHLIGHT esq @$(which esq)"
-  echo "@@HIGHLIGHT workspace @$workspace"
+  echo "@@HIGHLIGHT ROS 2 $ros_distro @/opt/ros/$ros_distro"
+  echo "@@HIGHLIGHT shell env @source /opt/ros/$ros_distro/setup.bash"
 }
 
-debian_85_start_esq () {
-  configure_uv
-  configure_esq
-
-  mkdir -p "$workspace"
-  cd "$workspace" 
-  esq clean --all
-
-  local cmdline_str=" $* "
-  local options=(${cmdline_str#* -- })
-  [ ${#options[@]} -gt 0 ] || options=(-qo)
-
-  esq run "${options[@]}" -v -f && esq summary && esq report
-  echo "@@HIGHLIGHT workspace @$workspace"
-}
-
-debian_85_remove_esq () {
-  configure_uv
-  configure_esq
-  esq clean --all
-  uv tool uninstall --force esq || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
-# Humanoid - Imitation Learning - the Robotics AI Suite track for teaching
-# robots tasks by demonstration (ACT and Pi0.5 RTC-OV imitation-learning
-# policies). Unlike the AMR and RVC components, this track is delivered as
-# Docker images built from the Robotics AI Suite container recipes, not as
-# native apt packages.
-# https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html
-configure_humanoid_imitation_learning () {
-  workspace="$(ensure_project_path)/humanoid-imitation-learning"
-  version=main
-  repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts.git"
-  container_dir="$workspace/samples/robotics/robotics-ai-suite-containers"
-  # sample: act-sample (default) or pi05-rtc-ov, selectable via a module arg
-  humanoid_sample=act-sample
-  [[ " $* " != *" pi05-rtc-ov "* && " $* " != *" --pi05-rtc-ov "* ]] || humanoid_sample=pi05-rtc-ov
-  humanoid_base_image=robotics-ai-suite:humanoid-imitation-learning-base
-  humanoid_sample_image=robotics-ai-suite:humanoid-imitation-learning-$humanoid_sample
-}
-
-debian_90_profile_humanoid_imitation_learning () {
-  echo "git curl edge_base docker"
-}
-
-verify_humanoid_imitation_learning () {
-  configure_humanoid_imitation_learning "$@"
-  docker image inspect "$humanoid_sample_image" > /dev/null 2>&1
-}
-
-debian_90_install_humanoid_imitation_learning () {
-  configure_humanoid_imitation_learning "$@"
-
-  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reset-humanoid_imitation_learning "* ]]; then
-    echo "Humanoid - Imitation Learning is already installed. Skipping..."
+debian_50_remove_ros2 () {
+  configure_ros2
+  if verify_ros2; then
+    ensure_apt autoremove -m -y ros-$ros_distro-desktop || true
   else
-    # The base image bundles the OpenVINO dev stack, Intel GPU runtime, oneAPI
-    # and a clone of edge-ai-suites; the sample image adds the policy packages.
-    ensure_disk_space 25000
-    ensure_git_clone "$workspace" "$version" "$repository" samples/robotics/robotics-ai-suite-containers
-
-    cd "$container_dir"
-    echo "Building $humanoid_base_image (this downloads the OpenVINO dev image and may take a while)..."
-    docker build -t "$humanoid_base_image" -f dockerfiles/humanoid-imitation-learning/base.dockerfile . || {
-      echo "Could not build the Humanoid - Imitation Learning base image." 1>&2
-      return 3
-    }
-    echo "Building $humanoid_sample_image ($humanoid_sample)..."
-    docker build -t "$humanoid_sample_image" -f "dockerfiles/humanoid-imitation-learning/$humanoid_sample.dockerfile" . || {
-      echo "Could not build the Humanoid - Imitation Learning $humanoid_sample image." 1>&2
-      return 3
-    }
+    echo "ROS 2 already removed. Skipping"
   fi
-
-  echo "@@HIGHLIGHT Humanoid - Imitation Learning image built: $humanoid_sample_image"
-  echo "@@HIGHLIGHT run @cd $container_dir && ./run.sh   # select humanoid-imitation-learning / $humanoid_sample"
-  echo "@@HIGHLIGHT docs @https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
 }
 
-debian_90_remove_humanoid_imitation_learning () {
-  configure_humanoid_imitation_learning "$@"
-  docker image rm -f "$humanoid_sample_image" "$humanoid_base_image" > /dev/null 2>&1 || true
-  ensure_sudo rm -rf "$workspace"
+debian_50_sbom_ros2 () {
+  configure_ros2 "$@"
+  cat <<EOF
+"pkg-list": ["software-properties-common","gnupg","lsb-release","ca-certificates"]
+---
+"pkg-list": ["ros-$ros_distro-desktop","ros-dev-tools"]
+"apt-repository": "universe"
+EOF
 }
 
 # OpenVINO(TM) Runtime (pinned to 2025.3.0) and the ROS 2 OpenVINO Toolkit
@@ -4222,48 +4345,80 @@ debian_90_remove_humanoid_imitation_learning () {
 # and adds the ROS OpenVINO node / wrapper packages.
 # https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
 configure_ros_openvino () {
+  ov_repo_name=apt.repos.intel.com
   ov_version=2025.3.0
-  ov_key_url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+  ov_key_url=https://$ov_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
   ov_key_file=/usr/share/keyrings/openvino-archive-keyring.gpg
   ov_list=/etc/apt/sources.list.d/intel-openvino.list
   ov_pref=/etc/apt/preferences.d/intel-openvino
+  ov_deb_entry="deb [signed-by=$ov_key_file] https://$ov_repo_name/openvino/2025 ${ID}${VERSION_ID%.*} main"
   case "$VERSION_CODENAME" in
   jammy) ros_distro=humble ;;
   noble) ros_distro=jazzy ;;
   *)     ros_distro=jazzy ;;
   esac
+  ov_deb_pref=(
+    "Package: openvino"
+    "Pin: version $ov_version"
+    "Pin-Priority: 1001"
+    "Package: ros-$ros_distro-openvino-wrapper-lib"
+    "Pin: version $ov_version*"
+    "Pin-Priority: 1002"
+    "Package: ros-$ros_distro-openvino-node"
+    "Pin: version $ov_version*"
+    "Pin-Priority: 1002"
+  )
+
+  # Autonomous Mobile Robot (AMR) apt feed - hosts the ROS OpenVINO node /
+  # wrapper packages (ros-<distro>-openvino-node) pulled in below. Previously
+  # provided by the standalone amr_apt_repo module.
+  # https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
+  amr_repo_name="amrdocs.intel.com"
+  amr_key_url=https://$amr_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-AMR.gpg
+  amr_key_file=/usr/share/keyrings/amr-archive-keyring.gpg
+  amr_list=/etc/apt/sources.list.d/amr.list
+  amr_pref=(
+    "Package: *"
+    "Pin: origin $amr_repo_name"
+    "Pin-Priority: 1001"
+  )
+  amr_pref_file=/etc/apt/preferences.d/amr
+  amr_deb_entry="$(printf 'deb [signed-by=%s] https://%s/repos/%s amr main' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
+  amr_deb_src_entry="$(printf 'deb-src [signed-by=%s] https://%s/repos/%s amr main\n' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
 }
 
 debian_55_profile_ros_openvino () {
-  echo "curl gpg ros2 amr_apt_repo edge_base"
+  echo "curl gpg ros2 edge_base libze1 debconf_utils"
 }
 
 verify_ros_openvino () {
   configure_ros_openvino
-  dpkg-query -l openvino 2> /dev/null | grep -q -F "$ov_version" || return 1
-  dpkg-query -l ros-$ros_distro-openvino-node > /dev/null 2>&1
+  [ -r "$amr_key_file" ] && [ -r "$amr_list" ] || return 1
+  ensure_apt_is_installed openvino=$ov_version ros-$ros_distro-openvino-node
 }
 
 debian_55_install_ros_openvino () {
   configure_ros_openvino
 
-  if verify_ros_openvino && [[ " $* " != *" --reset-ros_openvino "* ]]; then
+  if verify_ros_openvino && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
   else
+    ensure_apt install -y curl gnupg
+
+    # AMR apt feed (signing key + source + pin) providing the ROS OpenVINO node
+    ensure_sudo mkdir -p "$(dirname "$amr_key_file")"
+    ensure_apt_key "$amr_key_file" "$amr_key_url"
+    ensure_apt_source "$amr_list" "$amr_deb_entry" "$amr_deb_src_entry"
+    ensure_apt_preference "$amr_pref_file" "${amr_pref[@]}"
+
     # OpenVINO apt repository + signing key
-    ensure_sudo mkdir -p "$(dirname "$ov_key_file")"
-    no_proxy= NO_PROXY= curl -fsL "$ov_key_url" | gpg --dearmor | ensure_sudo tee "$ov_key_file" > /dev/null
-    echo "deb [signed-by=$ov_key_file] https://apt.repos.intel.com/openvino/2025 ${ID}${VERSION_ID%.*} main" | \
-      ensure_sudo tee "$ov_list" > /dev/null
+    ensure_apt_key $ov_key_file $ov_key_url --dearmor
+    ensure_apt_source $ov_list "$ov_deb_entry"
 
     # pin OpenVINO and the ROS OpenVINO packages to the same version
-    printf 'Package: openvino\nPin: version %s*\nPin-Priority: 1001\n\nPackage: ros-%s-openvino-wrapper-lib\nPin: version %s*\nPin-Priority: 1002\n\nPackage: ros-%s-openvino-node\nPin: version %s*\nPin-Priority: 1002\n' \
-      "$ov_version" "$ros_distro" "$ov_version" "$ros_distro" "$ov_version" | ensure_sudo tee "$ov_pref" > /dev/null
+    ensure_apt_preference $ov_pref "${ov_deb_pref[@]}"
 
     ensure_apt update -y
-
-    # Intel Graphics Compute Runtime for GPU inference + tooling
-    ensure_apt install -y libze1 libze-intel-gpu1 debconf-utils
 
     # clear any stale openvino-node debconf configuration
     ensure_apt purge -y ros-$ros_distro-openvino-node || true
@@ -4286,10 +4441,537 @@ debian_55_remove_ros_openvino () {
   configure_ros_openvino
   if verify_ros_openvino; then
     ensure_apt autoremove -m -y ros-$ros_distro-openvino-node openvino || true
-    ensure_sudo rm -f "$ov_key_file" "$ov_list" "$ov_pref"
+    ensure_sudo rm -f "$ov_key_file" "$ov_list" "$ov_pref" \
+      "$amr_key_file" "$amr_list" "$amr_pref_file"
   else
     echo "ROS 2 OpenVINO toolkit already removed. Skipping"
   fi
+}
+
+debian_55_sbom_ros_openvino () {
+  configure_ros_openvino
+(
+  IFS=$'|'
+  local pref_str="${ov_deb_pref[*]}"
+  local amr_pref_str="${amr_pref[*]}"
+  cat <<EOF
+"name": "$amr_repo_name"
+"gpg-key": "$amr_key_url"
+"key-file": "$amr_key_file"
+"apt-source": "$amr_deb_entry"
+"apt-src-source": "$amr_deb_src_entry"
+"apt-list-file": "$amr_list"
+"apt-pref": ["${amr_pref_str//'|'/'","'}"]
+"apt-pref-file": "$amr_pref_file"
+---
+"name": "$ov_repo_name"
+"gpg-key": "$ov_key_url"
+"key-file": "$ov_key_file"
+"apt-source": "$ov_deb_entry"
+"apt-list-file": "$ov_list"
+"pkg-list": ["openvino","ros-$ros_distro-openvino-node"]
+"apt-pref-file": "$ov_pref"
+"apt-pref": ["${pref_str//|/'","'}"]
+---
+"pkg-list": ["curl","gnupg"]
+EOF
+)
+}
+
+
+configure_smart_intersection () {
+  workspace="$(ensure_project_path)/smart-intersection"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+verify_smart_intersection () {
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/1122north_h264.ts ]
+}
+
+debian_90_profile_smart_intersection () {
+  echo "git curl gawk jq edge_base docker"
+}
+
+debian_90_install_smart_intersection () {
+  configure_smart_intersection
+  if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Smart intersection is already installed. Skipping"
+    return
+  fi
+
+  # clone the repository
+  ensure_disk_space 1500
+  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+
+  # setup
+  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+  sed -i 's|sudo chown|#sudo chown|' smart-intersection/install.sh
+  sed -i 's|curl -k |curl -f |' smart-intersection/init.sh
+  ./install.sh smart-intersection $(ensure_ip)
+  verify_smart_intersection
+}
+
+debian_90_start_smart_intersection () {
+  configure_smart_intersection
+  ensure_ports_open 443 debian_90_stop_smart_intersection
+
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+
+  local device=$(ensure_select_device $*)
+  sed -i -e "s|DETECTION_DEVICE=.*|DETECTION_DEVICE=$device|" -e "s|CLASSIFICATION_DEVICE=.*|CLASSIFICATION_DEVICE=$device|" docker-compose.yml
+  [ -e smart-intersection/src/dlstreamer-pipeline-server/config.json.orig ] || cp -f smart-intersection/src/dlstreamer-pipeline-server/config.json smart-intersection/src/dlstreamer-pipeline-server/config.json.orig
+  case "$device" in
+  cpu)
+    jq -r '.config.pipelines[].name | select(endswith("-gpu") or endswith("-npu") | not)' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
+    ;;
+  npu)
+    jq -r '.config.pipelines[].name | select(endswith("-npu"))' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
+    ;;
+  *)
+    jq -r '.config.pipelines[].name | select(endswith("-gpu"))' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
+    ;;
+  esac
+
+  export SUPASS=$(cat smart-intersection/src/secrets/supass)
+  docker compose up -d 
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
+  echo "@@HIGHLIGHT username/password: admin/$SUPASS"
+}
+
+debian_90_stop_smart_intersection () {
+  configure_smart_intersection
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  docker compose -f compose-scenescape.yml down -v --remove-orphans
+}
+
+debian_90_remove_smart_intersection () {
+  debian_90_stop_smart_intersection || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+configure_smart_parking () {
+  workspace="$(ensure_project_path)/smart-parking"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+verify_smart_parking () {
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_1.mp4 ]
+}
+
+debian_90_profile_smart_parking () {
+  echo "git curl gawk edge_base docker"
+}
+
+debian_90_install_smart_parking () {
+  configure_smart_parking
+  if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Smart parking is already installed. Skipping..."
+    return 0
+  fi
+
+  # clone the repository
+  ensure_disk_space 300
+  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+
+  # setup
+  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+  sed -i 's|curl | curl -f |' smart-parking/install.sh
+  ./install.sh smart-parking $(ensure_ip)
+  verify_smart_parking
+}
+
+debian_90_start_smart_parking () {
+  ensure_ports_open "80 443" debian_90_stop_smart_parking
+  configure_smart_parking
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  docker compose up -d
+  ./sample_start.sh $(ensure_select_device $*)
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT Grafana username/password: admin"
+}
+
+debian_90_stop_smart_parking () {
+  configure_smart_parking
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  ./sample_stop.sh || true
+  docker compose down -v --remove-orphans
+}
+
+debian_90_remove_smart_parking () {
+  debian_90_stop_smart_parking || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+
+# Stationary Robot Vision & Control (RVC) - vision-guided pick-and-place
+# reference application (UR5e + MoveIt) from the Robotics AI Suite.
+# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html
+#
+# RVC ships as the ROS 2 meta-package `ros-<distro>-rvc-simulation` from the
+# AMR apt feed, which pulls in `ros-<distro>-rvc`, `ros-<distro>-robot-config`
+# and `ros-<distro>-robot-config-plugins`.
+configure_stationary_robot_vision () {
+  case "$VERSION_CODENAME" in
+  jammy) ros_distro=humble ;;
+  noble) ros_distro=jazzy ;;
+  *)     ros_distro=jazzy ;;
+  esac
+  rvc_pkgs="ros-$ros_distro-rvc-simulation"
+
+  # Intel oneAPI Base Toolkit repo + version pins - the RVC robotics stack links
+  # the oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
+  oneapi_repo_name="apt.repos.intel.com"
+  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
+  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  oneapi_pref=(
+    "Package: intel-oneapi-runtime-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-compiler-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-mkl-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+  )
+  oneapi_pref_file=/etc/apt/preferences.d/oneapi
+  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
+}
+
+debian_90_profile_stationary_robot_vision () {
+  echo "git curl edge_base ros2 ros_openvino realsense"
+}
+
+verify_stationary_robot_vision () {
+  configure_stationary_robot_vision
+  ensure_apt_is_installed ros-$ros_distro-rvc
+}
+
+debian_90_install_stationary_robot_vision () {
+  configure_stationary_robot_vision
+
+  if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Stationary Robot Vision & Control is already installed. Skipping..."
+  else
+    ensure_disk_space 15000
+
+    # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
+    ensure_apt install -y software-properties-common curl gnupg wget
+    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
+    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
+    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
+
+    ensure_apt update -y
+    # RVC depends on Gazebo Harmonic (gz-harmonic); make sure the OSRF Gazebo
+    # apt repository is configured (shared with the AMR SDK component).
+    ! declare -F amr_setup_osrf_gazebo > /dev/null 2>&1 || amr_setup_osrf_gazebo
+    ensure_apt install -y $rvc_pkgs || {
+      echo "Could not install RVC packages ($rvc_pkgs)." 1>&2
+      echo "Confirm the exact package names at https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html" 1>&2
+      return 3
+    }
+  fi
+
+  echo "@@HIGHLIGHT Stationary Robot Vision & Control installed for ROS 2 $ros_distro"
+  echo "@@HIGHLIGHT docs @https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html"
+}
+
+debian_90_remove_stationary_robot_vision () {
+  configure_stationary_robot_vision
+  if verify_stationary_robot_vision; then
+    ensure_apt autoremove -m -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc \
+      ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true
+    ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
+  else
+    echo "Stationary Robot Vision & Control already removed. Skipping"
+  fi
+}
+
+debian_90_sbom_stationary_robot_vision () {
+  configure_stationary_robot_vision
+  (
+    IFS=$'|'
+    local oneapi_pref_str="${oneapi_pref[*]}"
+    cat <<EOF
+"name": "$oneapi_repo_name"
+"gpg-key": "$oneapi_key_url"
+"key-file": "$oneapi_key_file"
+"apt-source": "$oneapi_deb_entry"
+"apt-list-file": "$oneapi_list"
+"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
+"apt-pref-file": "$oneapi_pref_file"
+"pkg-list": ["intel-oneapi-runtime-*","intel-oneapi-compiler-*","intel-oneapi-mkl-*"]
+EOF
+  )
+  echo "---"
+  cat <<EOF
+"pkg-list": ["software-properties-common","curl","gnupg","wget"]
+EOF
+  echo "---"
+  configure_osrf_gazebo
+  cat <<EOF
+"name": "packages.ros.org"
+"gpg-key": "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key"
+"key-file": "usr/share/keyrings/ros-archive-keyring.gpg"
+"apt-source": "deb http://packages.ros.org/ros2/$ID $VERSION_CODENAME main"
+"apt-list-file": "/etc/apt/sources.list.d/ros2-latest.list"
+"pkg-list": ["${rvc_pkgs// /'","'}"]
+EOF
+}
+
+
+debian_10_install_unzip () {
+  if ensure_apt_is_installed unzip; then
+    echo "Unzip is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y unzip
+  fi
+}
+
+debian_10_sbom_unzip () {
+  cat <<EOF
+"pkg-list": ["unzip"]
+EOF
+}
+
+configure_uv () {
+  echo "$PATH" | grep -q -F ~/.local/bin || export PATH=$PATH:~/.local/bin
+}
+
+debian_10_profile_uv () {
+  echo "pipx"
+}
+
+debian_10_install_uv () {
+  configure_uv
+  if uv --version 2> /dev/null && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Uv is already installed. Skipping..."
+  else
+    pipx install uv
+  fi
+}
+
+
+configure_video_search_and_summarization () {
+  workspace="$(ensure_project_path)/video_search_and_summarization"
+  version=7f124d9ef54c843345f51bb74c86103cef819531
+  repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
+  used_ports="${APP_HOST_PORT:-12345} 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640"
+
+  local device=$(ensure_select_device $*)
+  export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+  export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en
+  export OD_MODEL_NAME=yolov8l-worldv2
+  export TEXT_EMBEDDING_MODEL=Qwen/qwen3-embedding-0.6b
+  export OVMS_LLM_MODEL_NAME=meta-llama/Llama-3.2-3B-Instruct
+  ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME
+
+  export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false
+  export MULTIMODAL_EMBEDDING_MODEL=CLIP/clip-vit-b-32
+  export FRAME_INTERVAL=15
+  export MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=true
+  export ROI_CONSOLIDATION_ENABLED=true
+  export ROI_CONSOLIDATION_IOU_THRESHOLD=0.2
+  export ROI_CONSOLIDATION_CLASS_AWARE=false
+  export ROI_CONSOLIDATION_CONTEXT_SCALE=0.2
+  export ENABLE_METRICS_MANAGER=true
+  export PM_VLM_CONCURRENT=6
+  export PM_LLM_CONCURRENT=1
+  export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+  export LLM_COMPRESSION_WEIGHT_FORMAT=int4
+  export SDK_USE_OPENVINO=true
+  export DATAPREP_EMBEDDING_DEVICE=${device^^}
+  export DATAPREP_DETECTION_DEVICE=${device^^}
+  export MME_EMBEDDING_DEVICE=${device^^}
+  export VLM_TARGET_DEVICE=${device^^}
+  export HUGGINGFACE_TOKEN=$HF_TOKEN
+  export HF_TOKEN=$HF_TOKEN
+  export HF_HUB_CACHE=\"$workspace/sample-applications/video-search-and-summarization/.cache\"
+  export GATED_MODEL=$([ -n "$HF_TOKEN" ] && echo true || echo false)
+  export LLM_TARGET_DEVICE=${device^^}
+  export PM_MULTI_FRAME_COUNT=34
+  export ENABLE_EMBEDDING_GPU=$([ "$device" = "gpu" ] && echo true || echo false)
+  export EMBEDDING_PROCESSING_MODE=sdk
+  export ENABLE_OBJECT_DETECTION=false
+  export MINIO_ROOT_USER=$(cat /dev/random | tr -dc a-z | head -c 5)
+  export MINIO_ROOT_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+  export POSTGRES_USER=$(cat /dev/random | tr -dc a-z | head -c 5)
+  export POSTGRES_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+  export RABBITMQ_USER=$(cat /dev/random | tr -dc a-z | head -c 5)
+  export RABBITMQ_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+  export REGISTRY_URL=intel
+  export TAG=latest
+}
+
+verify_video_search_and_summarization () {
+  local files_to_check=(
+    ov_models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml
+    ov_models/object-detection/ultralytics/public/yolov8l/FP16/yolov8l.xml
+    ov_models/ovms/openvino_models/gpu/int4/meta-llama/Llama-3.2-3B-Instruct/openvino_model.xml
+    ov_models/ovms/openvino_models/gpu/int4/Qwen/Qwen2.5-VL-3B-Instruct/openvino_config.json
+    ov_models/ovms/openvino_models/gpu/int4/config_all.json
+    ov_models/ovms/config.json
+  )
+  for f in "${files_to_check[@]}"; do
+    [ -e "$workspace"/sample-applications/video-search-and-summarization/$f ] || return 1
+  done
+}
+
+debian_85_profile_video_search_and_summarization () {
+  echo "git curl gawk python3_venv edge_base docker"
+}
+
+debian_85_install_video_search_and_summarization () {
+  configure_video_search_and_summarization $*
+  if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
+    echo "video_search_and_summarization is already installed. Skipping..."
+    return 0
+  fi
+
+  # clone the repository
+  ensure_disk_space 8000
+  ensure_ports_open "$used_ports" return 3
+  ensure_git_clone "$workspace" $version $repository sample-applications/video-search-and-summarization
+
+  # setup
+  cd "$workspace"/sample-applications/video-search-and-summarization
+  ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME                   
+
+  sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh
+  sed -i 's|FINAL_ARG=.*|FINAL_ARG="${FINAL_ARG:-up -d}"|' setup.sh
+  export FINAL_ARG=pull
+  . ./setup.sh --search-and-summary
+
+  verify_video_search_and_summarization
+}
+
+debian_85_start_video_search_and_summarization () {
+  configure_video_search_and_summarization $*
+  ensure_ports_open "$used_ports" debian_85_stop_video_search_and_summarization $*
+
+  cd "$workspace"/sample-applications/video-search-and-summarization
+  export FINAL_ARG=
+  . ./setup.sh --search-and-summary
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${APP_HOST_PORT}"
+}
+
+debian_85_stop_video_search_and_summarization () {
+  configure_video_search_and_summarization $*
+
+  cd "$workspace"/sample-applications/video-search-and-summarization
+  . ./setup.sh --stop || true
+  . ./setup.sh --clean-data || true
+}
+
+debian_85_remove_video_search_and_summarization () {
+  debian_85_stop_video_search_and_summarization $* || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+configure_vippet () {
+  workspace="$(ensure_project_path)/vippet"
+  version=release-2026.1.0
+  repository=https://github.com/open-edge-platform/edge-ai-libraries.git
+}
+
+verify_vippet () {
+  [ -r "$workspace/tools/visual-pipeline-and-platform-evaluation-tool/.env" ]
+}
+
+debian_90_profile_vippet () {
+  echo "docker make curl git edge_base"
+}
+
+debian_90_install_vippet () {
+  configure_vippet
+  if verify_vippet && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Vipet is already installed. Skipping..."
+  else
+    ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool
+    cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
+    make build-onvif-discovery
+    docker compose -f compose.yml pull --ignore-buildable
+  fi
+}
+
+debian_90_start_vippet () {
+  ensure_ports_open "80 7860 8000 9090 8554 8889" debian_90_stop_vippet
+  configure_vippet
+  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
+  make run
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+}
+
+debian_90_stop_vippet () {
+  configure_vippet
+  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
+  make stop || true
+}
+
+debian_90_remove_vippet () {
+  debian_90_stop_vippet $* || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+debian_05_install_yq () {
+  if ensure_apt_is_installed yq; then
+    echo "yq is already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y yq
+  fi
+}
+
+debian_05_sbom_yq () {
+  cat <<EOF
+"pkg-list": ["yq"]
+EOF
+}
+
+debian_99_profile_computer_vision () {
+  [ "$1" = "start" ] || echo "dlstreamer vippet geti anomalib"
+}
+
+
+debian_99_profile_federal_and_aerospace_ai_suite () {
+  [ "$1" = "start" ] || echo "handheld_multi_modal"
+}
+
+
+debian_99_profile_health_and_life_science_ai_suite () {
+  [ "$1" = "start" ] || echo "nicu_warmer"
+}
+
+debian_99_profile_inferencing () {
+  [ "$1" = "start" ] || echo "openvino"
+}
+
+
+debian_99_profile_manufacturing_ai_suite () {
+  # manufacturing ai suites cannot start at the same time
+  [ "$1" = "start" ] || echo "pallet_defect_detection pcb_anomaly_detection multimodal_weld_defect_detection"
+}
+
+debian_99_profile_metro_ai_suite () {
+  # metro ai suites cannot start at the same time
+  [ "$1" = "start" ] || echo "smart_intersection smart_parking loitering_detection live_video_captioning video_search_and_summarization"
+}
+
+
+debian_99_profile_retail_ai_suite () {
+  # metro ai suites cannot start at the same time
+  [ "$1" = "start" ] || echo "loss_prevention order_accuracy"
+}
+
+
+debian_99_profile_robotics_ai_suite () {
+  # native ROS 2 / APT components; grouped for install and removal
+  [ "$1" = "start" ] || echo "autonomous_mobile_robot stationary_robot_vision humanoid_imitation_learning physical_ai_framework physical_ai_studio"
 }
 [ "$0" != bash ] || set -- setup "$@"
 main "$@"

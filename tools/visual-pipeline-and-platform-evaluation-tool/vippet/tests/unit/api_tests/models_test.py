@@ -247,7 +247,9 @@ class TestModelsUploadAPI(unittest.TestCase):
         cls.client = TestClient(app)
 
     @staticmethod
-    def _make_uploaded_model() -> InternalSupportedModel:
+    def _make_uploaded_model(
+        description: str | None = None,
+    ) -> InternalSupportedModel:
         """Build a minimal InternalSupportedModel for a freshly uploaded model."""
         return InternalSupportedModel(
             name="my-detector",
@@ -270,6 +272,7 @@ class TestModelsUploadAPI(unittest.TestCase):
             default=False,
             unsupported_devices=None,
             download_request=None,
+            description=description,
         )
 
     def _post_upload(
@@ -279,17 +282,21 @@ class TestModelsUploadAPI(unittest.TestCase):
         category: str = "detection",
         file_bytes: bytes = b"fake-zip-bytes",
         file_name: str = "my-detector.zip",
+        description: str | None = None,
     ):
         """Helper to POST a multipart upload with the standard form fields."""
+        data = {"model_name": model_name, "category": category}
+        if description is not None:
+            data["description"] = description
         return self.client.post(
             "/models/upload",
-            data={"model_name": model_name, "category": category},
+            data=data,
             files={"file": (file_name, io.BytesIO(file_bytes), "application/zip")},
         )
 
     def test_upload_model_success_returns_201(self):
         """Happy path: ModelManager returns a model + 201, route mirrors it."""
-        model = self._make_uploaded_model()
+        model = self._make_uploaded_model(description="Detects vehicles")
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_cls.write_upload_to_tempfile.return_value = "/tmp/upload.zip"
             mock_manager_instance = MagicMock()
@@ -300,13 +307,14 @@ class TestModelsUploadAPI(unittest.TestCase):
             )
             mock_manager_cls.return_value = mock_manager_instance
 
-            response = self._post_upload()
+            response = self._post_upload(description="  Detects vehicles  ")
 
             self.assertEqual(response.status_code, 201)
             body = response.json()
             self.assertEqual(body["model"]["name"], "my-detector")
             self.assertEqual(body["model"]["source"], "custom")
             self.assertEqual(body["model"]["install_status"], "installed")
+            self.assertEqual(body["model"]["description"], "Detects vehicles")
 
             # The route must always delete the temp file, even on success.
             mock_manager_cls.cleanup_tempfile.assert_called_once_with("/tmp/upload.zip")
@@ -315,6 +323,7 @@ class TestModelsUploadAPI(unittest.TestCase):
             self.assertEqual(spec.model_name, "my-detector")
             self.assertEqual(spec.category, InternalModelCategory.DETECTION)
             self.assertEqual(spec.file_path, "/tmp/upload.zip")
+            self.assertEqual(spec.description, "Detects vehicles")
 
     def test_upload_model_manager_rejects_with_409(self):
         """When the manager returns ``(None, 409, msg)`` the route returns 409."""

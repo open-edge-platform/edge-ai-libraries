@@ -15,7 +15,7 @@ debian_90_profile_smart_intersection () {
 
 debian_90_install_smart_intersection () {
   configure_smart_intersection
-  if verify_smart_intersection && [[ " $* " != *" --reset-smart_intersection "* ]]; then
+  if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Smart intersection is already installed. Skipping"
     return
   fi
