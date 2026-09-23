@@ -46,7 +46,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   check:
@@ -75,6 +75,8 @@ jobs:
       github.actor != vars.AUTOMATION_ACTOR
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      contents: write
     steps:
       - name: Clean workspace
         run: |
