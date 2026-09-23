@@ -10,28 +10,18 @@ import { UIActions } from '../../redux/ui/ui.slice';
 import { MuxFeatures } from '../../redux/ui/ui.model';
 import { TimeFilterSelection } from '../../redux/search/search';
 import TimeFilterControl from '../Search/TimeFilterControl';
-import { FEATURE_SEARCH, FEATURE_MUX } from '../../config';
 import {
-  FEATURE_STATE,
-  FeatureMux,
   acceptedImageFormats,
   plainAcceptedImageFormats,
   MAX_IMAGE_SIZE_MB,
   IMAGE_SEARCH_MAX_DIMENSION,
 } from '../../utils/constant';
+import { imageSearchEnabled } from '../../utils/featureFlags';
 
 export interface SearchModalProps {
   showModal: boolean;
   closeModal: () => void;
 }
-
-// Image search is available only in frame-embedding deployments (--search/--dual).
-// The unified deployment (--unified) searches text summaries and is the only mode
-// that uses the SUMMARY_SEARCH mux, so derive capability from existing flags
-// rather than a dedicated one.
-const imageSearchEnabled =
-  FEATURE_SEARCH === FEATURE_STATE.ON &&
-  FEATURE_MUX !== FeatureMux.SUMMARY_SEARCH;
 
 /**
  * Validate and downscale a user-selected query image to a bounded base64 data URL.
@@ -209,7 +199,6 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
           <div>
             <div
               style={{
-                position: 'relative',
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
@@ -219,25 +208,29 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
                 minHeight: '120px',
               }}
             >
-              <img
-                src={imageData}
-                alt={t('searchByImage')}
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '220px',
-                  objectFit: 'contain',
-                  borderRadius: '4px',
-                }}
-              />
-              <IconButton
-                kind='secondary'
-                size='sm'
-                label={t('searchByImageRemove')}
-                onClick={removeImage}
-                style={{ position: 'absolute', top: '0.5rem', right: '0.5rem' }}
-              >
-                <Close />
-              </IconButton>
+              <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+                <img
+                  src={imageData}
+                  alt={t('searchByImage')}
+                  style={{
+                    display: 'block',
+                    maxWidth: '100%',
+                    maxHeight: '220px',
+                    objectFit: 'contain',
+                    borderRadius: '4px',
+                  }}
+                />
+                <div style={{ position: 'absolute', top: '0.5rem', right: '0.5rem' }}>
+                  <IconButton
+                    kind='secondary'
+                    size='sm'
+                    label={t('searchByImageRemove')}
+                    onClick={removeImage}
+                  >
+                    <Close />
+                  </IconButton>
+                </div>
+              </div>
             </div>
             <div
               style={{

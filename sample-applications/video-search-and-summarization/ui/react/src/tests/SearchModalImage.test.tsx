@@ -163,6 +163,30 @@ describe('SearchModal image search', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
+  it('anchors the remove control to the image rather than the full-width preview', async () => {
+    const { container } = renderComponent();
+    fireEvent.change(getFileInput(container), {
+      target: { files: [makeFile('frame.webp', 'image/webp')] },
+    });
+
+    const image = await screen.findByAltText('Uploaded image');
+    const button = screen.getByRole('button', { name: /remove image/i });
+    const imageAnchor = image.parentElement;
+
+    expect(imageAnchor).toHaveStyle({
+      display: 'inline-block',
+      position: 'relative',
+    });
+    expect(imageAnchor).toContainElement(button);
+    expect(imageAnchor?.children[1]).toContainElement(button);
+    expect(imageAnchor?.children[1]).toHaveStyle({
+      position: 'absolute',
+      top: '0.5rem',
+      right: '0.5rem',
+    });
+    expect(image).toHaveStyle({ display: 'block', maxWidth: '100%' });
+  });
+
   it('reports an error when canvas encoding fails', async () => {
     HTMLCanvasElement.prototype.toDataURL = vi.fn(() => {
       throw new Error('Canvas encoding failed');

@@ -25,6 +25,7 @@ import { VideoTile } from '../../redux/search/VideoTile';
 import { UIActions, uiSelector } from '../../redux/ui/ui.slice';
 import VideoGroupsView from '../VideoGroups/VideoGroupsView';
 import TelemetryAccordion from './TelemetryAccordion';
+import { imageSearchEnabled } from '../../utils/featureFlags';
 
 // Keying by clip identity rather than array position keeps unchanged tiles mounted when a
 // watched query refreshes, so their <video> elements are not torn down and reloaded.
@@ -442,8 +443,18 @@ const VideosContainer: FC = () => {
   if (selectedResults.length === 0) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: '#525252', fontStyle: 'italic' }}>
-        <p>{t('noSearchResults', 'No videos found matching your search query.')}</p>
-        <p>{t('tryDifferentSearch', 'Try using different keywords or check if videos have been uploaded.')}</p>
+        <p>{t('noSearchResults', 'No videos found matching your search.')}</p>
+        <p>
+          {imageSearchEnabled
+            ? t(
+                'tryDifferentSearch',
+                'Try a different keyword or image, or check if videos have been uploaded.',
+              )
+            : t(
+                'tryDifferentSearchTextOnly',
+                'Try using different keywords or check if videos have been uploaded.',
+              )}
+        </p>
       </div>
     );
   }
