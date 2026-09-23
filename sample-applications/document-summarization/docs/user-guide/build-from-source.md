@@ -40,7 +40,7 @@ Before you begin, ensure that you have the following prerequisites:
       ```bash
       # OVMS Configuration
       export VOLUME_OVMS=<model-export-path-for-OVMS>  # For example, use: export VOLUME_OVMS="$PWD"
-      export LLM_MODEL="Intel/neural-chat-7b-v3-3"
+      export LLM_MODEL="Qwen/Qwen3-4B-Instruct-2507"
 
       # Docker Image Registry Configuration
       export REGISTRY="intel/"

@@ -17,7 +17,7 @@
 #
 # Configuration:
 #   DEVICE                      - CPU (default)
-#   LLM_MODEL                   - LLM model name (default: Intel/neural-chat-7b-v3-3)
+#   LLM_MODEL                   - LLM model name (default: Qwen/Qwen3-4B-Instruct-2507)
 #   VOLUME_OVMS                 - Path to OVMS model volume (required)
 #   REGISTRY                    - Image registry (default: intel/)
 #   TAG                         - Image tag (default: 1.0.3)
@@ -46,7 +46,7 @@ DEFAULT_TAG := 1.0.3
 # Model Configuration
 # ==============================================================================
 
-LLM_MODEL ?= Intel/neural-chat-7b-v3-3
+LLM_MODEL ?= Qwen/Qwen3-4B-Instruct-2507
 
 # ==============================================================================
 # OVMS Configuration
@@ -670,7 +670,7 @@ help:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "  # Deploy with default settings"
 	@echo "  export VOLUME_OVMS=\$$PWD"
-	@echo "  export LLM_MODEL="Intel/neural-chat-7b-v3-3"
+	@echo "  export LLM_MODEL="Qwen/Qwen3-4B-Instruct-2507"
 	@echo "  make deploy"
 	@echo ""
 	@echo "  # Build and deploy"
