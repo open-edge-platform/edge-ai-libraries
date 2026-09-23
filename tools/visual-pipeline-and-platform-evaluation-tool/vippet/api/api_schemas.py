@@ -177,12 +177,17 @@ class DeviceFamily(str, Enum):
 
 class ModelCategory(str, Enum):
     """
-    **Model category for image classification, object detection, or vision-language tasks.**
+    **Model category for classification, detection, and other supported tasks.**
 
     ## Values
     - `IMAGE_CLASSIFICATION` - Image classification model
     - `OBJECT_DETECTION` - Object detection model
+    - `IMAGE_SEGMENTATION` - Image segmentation model
+    - `POSE_ESTIMATION` - Pose estimation model
     - `VISION_LANGUAGE_MODELS` - Vision-language model (for example VLM)
+    - `LARGE_LANGUAGE_MODELS` - Large language model (text-only, for example LLM)
+    - `AUTOMATIC_SPEECH_RECOGNITION` - Automatic speech recognition model
+    - `TEXT_TO_SPEECH` - Text-to-speech synthesis model
 
     ### Example
     ```json
@@ -192,7 +197,12 @@ class ModelCategory(str, Enum):
 
     IMAGE_CLASSIFICATION = "image_classification"
     OBJECT_DETECTION = "object_detection"
+    IMAGE_SEGMENTATION = "image_segmentation"
+    POSE_ESTIMATION = "pose_estimation"
     VISION_LANGUAGE_MODELS = "vision_language_models"
+    LARGE_LANGUAGE_MODELS = "large_language_models"
+    AUTOMATIC_SPEECH_RECOGNITION = "automatic_speech_recognition"
+    TEXT_TO_SPEECH = "text_to_speech"
 
 
 class OptimizationType(str, Enum):
@@ -2254,7 +2264,7 @@ class Model(BaseModel):
     ## Attributes
     - `name` - Internal model identifier used by the backend
     - `display_name` - Human-readable model name suitable for UI
-    - `category` - Logical model category (`image_classification`, `object_detection`, `vision_language_models`) or null when unknown
+    - `category` - Logical model category (`image_classification`, `object_detection`, `image_segmentation`, `pose_estimation`, `vision_language_models`, `large_language_models`, `automatic_speech_recognition`, `text_to_speech`) or null when unknown
     - `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)
     - `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)
     - `variants` - Selectable variants of this model (one per precision and optional model-proc)

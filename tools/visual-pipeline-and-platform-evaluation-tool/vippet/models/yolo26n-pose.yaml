@@ -4,7 +4,7 @@ display_name: YOLO 26n Pose
 description: "YOLO26 nano pose-estimation model providing lightweight, real-time human body keypoint detection."
 source: public
 hub: ultralytics
-type: object_detection
+type: pose_estimation
 precisions:
   - precision: FP32
     model_path: ultralytics/public/yolo26n-pose/FP32/yolo26n-pose.xml

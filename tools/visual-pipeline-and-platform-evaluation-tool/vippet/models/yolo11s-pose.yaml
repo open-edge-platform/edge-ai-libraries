@@ -4,7 +4,7 @@ display_name: YOLO 11s Pose
 description: "YOLO11 small pose-estimation model that detects people and predicts human body keypoints (skeleton joints) for each detected person."
 source: public
 hub: ultralytics
-type: object_detection
+type: pose_estimation
 precisions:
   - precision: FP32
     model_path: ultralytics/public/yolo11s-pose/FP32/yolo11s-pose.xml

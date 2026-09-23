@@ -4,7 +4,7 @@ display_name: YOLO 11s Segmentation
 description: "YOLO11 small instance-segmentation model that detects objects and outputs a pixel-level mask for each of the 80 COCO categories."
 source: public
 hub: ultralytics
-type: object_detection
+type: image_segmentation
 precisions:
   - precision: FP32
     model_path: ultralytics/public/yolo11s-seg/FP32/yolo11s-seg.xml

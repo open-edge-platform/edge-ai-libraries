@@ -4,7 +4,7 @@ display_name: YOLO 11n Pose
 description: "YOLO11 nano pose-estimation model that detects people and estimates their body keypoints for lightweight, real-time pose tracking."
 source: public
 hub: ultralytics
-type: object_detection
+type: pose_estimation
 precisions:
   - precision: FP32
     model_path: ultralytics/public/yolo11n-pose/FP32/yolo11n-pose.xml

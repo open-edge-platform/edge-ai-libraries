@@ -18,6 +18,8 @@ const REQUIRED_MODEL_FILES = ["model.bin", "model.xml"];
 const ALLOWED_CATEGORIES = [
   "image_classification",
   "object_detection",
+  "image_segmentation",
+  "pose_estimation",
   "vision_language_models",
 ] as const;
 const MAX_DESCRIPTION_LENGTH = 200;

@@ -4,7 +4,7 @@ display_name: YOLO 26s Segmentation
 description: "YOLO26 small instance-segmentation model that detects objects and outputs per-object pixel masks for the 80 COCO categories."
 source: public
 hub: ultralytics
-type: object_detection
+type: image_segmentation
 precisions:
   - precision: FP32
     model_path: ultralytics/public/yolo26s-seg/FP32/yolo26s-seg.xml

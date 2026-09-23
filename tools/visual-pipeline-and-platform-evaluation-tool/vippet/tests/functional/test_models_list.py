@@ -15,8 +15,12 @@ type ModelDict = dict[str, Any]
 VALID_MODEL_CATEGORIES: set[str] = {
     "object_detection",
     "image_classification",
-    "segmentation",
+    "image_segmentation",
+    "pose_estimation",
     "vision_language_models",
+    "large_language_models",
+    "automatic_speech_recognition",
+    "text_to_speech",
 }
 VALID_MODEL_PRECISIONS: set[str] = {"FP32", "FP16", "INT8", "INT4"}
 

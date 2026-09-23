@@ -15,7 +15,7 @@ import pytest
 import requests
 import yaml
 
-from helpers.config import DEFAULT_RECORDINGS_YAML, PROJECT_ROOT, SUPPORTED_MODELS_YAML
+from helpers.config import DEFAULT_RECORDINGS_YAML, PROJECT_ROOT, SUPPORTED_MODELS_CATALOG_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -76,10 +76,12 @@ def recorded_api_calls() -> set[tuple[str, str]]:
 
 @pytest.fixture(scope="session")
 def supported_models_config() -> list[dict[str, Any]]:
-    """Load supported_models.yaml as the source-of-truth for model tests."""
-    with SUPPORTED_MODELS_YAML.open() as f:
-        data = yaml.safe_load(f)
-    assert isinstance(data, list), "supported_models.yaml must be a list"
+    """Load vippet/models/*.yaml (one dict per file) as the source-of-truth for model tests."""
+    data = [
+        yaml.safe_load(path.read_text())
+        for path in sorted(SUPPORTED_MODELS_CATALOG_DIR.glob("*.yaml"))
+    ]
+    assert data, "No model catalog files found under vippet/models/"
     return data
 
 

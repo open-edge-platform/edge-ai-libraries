@@ -17,6 +17,11 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 │   │   └── routes/       # API route handlers (pipelines, models, jobs, etc.)
 │   ├── managers/         # Business logic managers (pipeline, camera, job)
 │   ├── pipelines/        # Built-in GStreamer pipeline definitions (YAML)
+│   ├── models/           # Model catalog (one YAML file per model, baked into image)
+│   ├── benchmarks/       # Built-in benchmark suite definitions (YAML)
+│   ├── db_seed.py        # Startup DB seeding from pipelines/, benchmarks/, models/
+│   ├── database.py       # Async SQLAlchemy engine/session setup
+│   ├── orm_models.py     # SQLAlchemy ORM models
 │   ├── benchmark.py      # Density benchmarking logic
 │   ├── pipeline_runner.py # Subprocess-based GStreamer pipeline executor
 │   ├── gst_runner.py     # Low-level GStreamer runner (called as subprocess)
@@ -170,7 +175,6 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `WEB_SERVER_LOG_LEVEL`           | Logging level for uvicorn web server                         | `WARNING`                                                  |
 | `GST_DEBUG`                      | GStreamer native debug level (integer, 0-9)                  | `1`                                                        |
 | `MODELS_PATH`                    | Path to downloaded models                                    | `/models/output`                                           |
-| `SUPPORTED_MODELS_FILE`          | Path to supported_models.yaml                                | `/models/supported_models.yaml`                            |
 | `AUTO_VIDEO_DIR`                 | Path to auto-downloaded videos                               | `/videos/input/auto`                                       |
 | `UPLOADED_VIDEO_DIR`             | Path to user-uploaded videos                                 | `/videos/input/uploaded`                                   |
 | `DEFAULT_RECORDINGS_FILE`        | Path to the YAML listing recordings to auto-download         | `/videos/default_recordings.yaml`                          |
@@ -196,6 +200,9 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 - Hardware device detection happens at startup via `device.py` (OpenVINO Core)
 - AI models are installed at runtime via the `model-download` microservice;
   vippet-app exposes `/api/v1/models` endpoints (and the UI Models page) to trigger installs
+- The model catalog lives in `vippet/models/` (one YAML file per model), baked into the
+  image at build time and synced insert-only into the DB at startup via `db_seed.py`;
+  adding/editing a model requires an image rebuild (`make build`), not just a restart
 - Video input sources: files from `shared/videos/input/`, USB cameras (`/dev/video*`), RTSP/ONVIF cameras
 
 ## Documentation Standards
@@ -394,6 +401,8 @@ Optional[str]
 
 - **Models not found**: Install required models through the UI (Models page) or the `/api/v1/models` endpoints;
   vippet-app proxies installs to the `model-download` service
+- **New model not showing up**: `vippet/models/*.yaml` is baked into the image, not volume-mounted;
+  rebuild (`make build`) and restart, or use `make run-dev` (bind-mounts `vippet/`) for a restart-only workflow
 - **Permission denied on /dev/video***: Add user to `video` group
 - **GPU not detected**: Check `setup_env.sh` output and Docker GPU support
 - **Port conflicts**: Check if ports 80, 7860, 8554 are available
