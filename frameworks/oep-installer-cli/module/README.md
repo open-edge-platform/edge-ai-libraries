@@ -135,7 +135,7 @@ debian_85_install_my_component () {
 #}
 ```
 
-> See [`git`](git/windows.ps1) for a windows module example.
+> See [`git`](git/windows) for a windows module example.
 
 ### @@HIGHLIGHT protocol
 
