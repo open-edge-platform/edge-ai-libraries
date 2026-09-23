@@ -173,8 +173,7 @@ pull-voice: env-setup ## Pull pre-built images for ViPPET with voice services
 build-voice: env-setup ## Build ViPPET and voice services locally from source
 	$(call voice-compose,build)
 
-run-voice: env-setup ## Build model-download and start ViPPET with pre-built voice services
-	$(call voice-compose,build model-download)
+run-voice: env-setup ## Start ViPPET with pre-built voice services
 	$(call voice-compose,up -d --no-build)
 
 stop-voice: ## Stop ViPPET with voice services, preserving named volumes

@@ -3,6 +3,7 @@
 
 import asyncio
 import io
+import json
 import unittest
 import wave
 from unittest.mock import patch
@@ -53,9 +54,13 @@ class VoiceTests(unittest.TestCase):
             200, content=wav_bytes(), headers={"content-type": "audio/wav"}
         )
 
-    def transcribe(self, content: bytes | None = None) -> httpx.Response:
+    def transcribe(
+        self, content: bytes | None = None, device: str | None = None
+    ) -> httpx.Response:
+        data = {"device": device} if device else None
         return self.client.post(
             "/voice/transcriptions",
+            data=data,
             files={
                 "file": (
                     "sentence.wav",
@@ -75,6 +80,39 @@ class VoiceTests(unittest.TestCase):
         for request in self.requests:
             self.assertNotIn(b"session_id", request.content)
             self.assertNotIn(b"prompt", request.content)
+            self.assertNotIn(b'name="device"', request.content)
+
+    def test_forwards_selected_devices(self) -> None:
+        transcription = self.transcribe(device="GPU")
+        speech = self.client.post(
+            "/voice/speech",
+            json={"input": "Hello world", "voice": "Angus", "device": "NPU"},
+        )
+
+        self.assertEqual(transcription.status_code, 200)
+        self.assertEqual(speech.status_code, 200)
+        self.assertIn(b'name="device"', self.requests[0].content)
+        self.assertIn(b"GPU", self.requests[0].content)
+        self.assertEqual(
+            json.loads(self.requests[1].content),
+            {
+                "input": "Hello world",
+                "voice": "Angus",
+                "response_format": "wav",
+                "device": "NPU",
+            },
+        )
+
+    def test_rejects_unknown_devices(self) -> None:
+        self.assertEqual(self.transcribe(device="AUTO").status_code, 422)
+        self.assertEqual(
+            self.client.post(
+                "/voice/speech",
+                json={"input": "Hello", "voice": "Ryan", "device": "AUTO"},
+            ).status_code,
+            422,
+        )
+        self.assertEqual(self.requests, [])
 
     def test_rejects_invalid_audio(self) -> None:
         for content in [

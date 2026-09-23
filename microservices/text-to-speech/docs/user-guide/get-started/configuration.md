@@ -43,6 +43,20 @@ TEXT_TO_SPEECH__MODELS__TTS__DEVICE=GPU python main.py
 - `models.tts.default_language`: keep this at `English`; other languages are not currently supported by the service API
 - `audio.output_format`: typically `wav`
 
+## Per-request TTS Device
+
+`POST /v1/audio/speech` accepts an optional JSON field named `device` with
+`CPU`, `GPU`, or `NPU`. When omitted, the endpoint uses `models.tts.device`.
+The selected device must be supported by the configured runtime and model and
+must be visible inside the service container. OpenVINO models can target visible
+CPU, GPU, or NPU devices; the PyTorch runtime supports CPU and available CUDA
+GPU devices; Kokoro supports CPU only.
+
+The service rejects unsupported or unavailable selections instead of silently
+falling back to CPU. The first request for a new device loads and compiles a
+separate cached model; later requests reuse it. Cached models remain resident
+until the process exits.
+
 ## Linux iGPU / OpenVINO GPU
 
 To use the Intel iGPU on Linux:

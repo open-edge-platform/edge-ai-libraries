@@ -155,6 +155,12 @@ def test_validate_asr_runtime_configuration_accepts_openvino_gpu_when_available(
     validate_asr_runtime_configuration(_cfg(asr_provider="openvino", asr_device="GPU"))
 
 
+def test_validate_asr_runtime_configuration_accepts_indexed_gpu(monkeypatch):
+    _install_fake_openvino(monkeypatch, available_devices=["CPU", "GPU.0"])
+
+    validate_asr_runtime_configuration(_cfg(asr_provider="openvino", asr_device="GPU"))
+
+
 def test_validate_asr_runtime_configuration_accepts_openvino_cpu_when_available(monkeypatch):
     _install_fake_openvino(monkeypatch, available_devices=["CPU", "GPU"])
 

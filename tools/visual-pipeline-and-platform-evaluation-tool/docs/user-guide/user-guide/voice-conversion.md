@@ -117,6 +117,24 @@ No host microphone devices are exposed; the browser captures recordings.
 The base application does not depend on their health. Without these services,
 conversion requests report unavailability while other ViPPET features work.
 
+### Per-request inference device
+
+Each Voice tab has an independent inference-device selector. The options come
+from ViPPET's existing `/devices` endpoint and are reduced to the `CPU`, `GPU`,
+and `NPU` device families. **Service default** omits the request override and
+uses the device configured through Compose or the service environment.
+
+Selecting a device sends it with that conversion request. Audio Analyzer and
+Text to Speech validate the selected device and load or reuse a model compiled
+for it. The first request on a new device includes model compilation and warm-up,
+so it can take substantially longer than subsequent requests. Models loaded for
+multiple devices remain resident until the service restarts.
+
+The `/devices` response describes devices visible to the ViPPET backend. It does
+not guarantee that the same device node is mounted in each Voice container or
+that the configured provider, runtime, and model support it. In those cases the
+conversion fails explicitly; it does not silently fall back to CPU.
+
 Export `AUDIO_ANALYZER_PORT` and `TEXT_TO_SPEECH_PORT` to change the host ports
 without changing container ports or the backend service URLs. Export
 `VOICE_BIND_ADDRESS` to change the bind address. For example, to avoid conflicts:
@@ -186,11 +204,12 @@ COMPOSE_PROFILES=npu docker compose -f compose.yml -f compose.npu.yml \
   up -d --no-build
 ```
 
-Export `VOICE_ASR_DEVICE` (`CPU`, `GPU`, or `NPU`) to override ASR inference.
+Export `VOICE_ASR_DEVICE` (`CPU`, `GPU`, or `NPU`) to set default ASR inference.
 The native GPU and NPU voice overrides also accept `VOICE_TTS_DEVICE` (`CPU` or
 `GPU`) and `VOICE_TTS_DTYPE`. The CPU and `igpu-wsl` profiles deliberately fix
 SpeechT5 to CPU/INT8. Device selection alone does not expose hardware: keep the
-corresponding Compose overrides. SpeechT5 does not document NPU support, so the
+corresponding Compose overrides. The UI can override these defaults per request,
+but it cannot add a missing container device mapping. SpeechT5 does not document NPU support, so the
 NPU profile defaults to GPU for TTS. For CPU inference on a native GPU or NPU
 host, export `VOICE_ASR_DEVICE=CPU VOICE_TTS_DEVICE=CPU VOICE_TTS_DTYPE=int8`.
 The former `gpu-wsl` profile has been replaced by `igpu-wsl`. Run `make run-voice`

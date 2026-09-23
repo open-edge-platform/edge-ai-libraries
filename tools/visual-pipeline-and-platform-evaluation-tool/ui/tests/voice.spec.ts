@@ -33,6 +33,34 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.includes("/voice/")) return route.fallback();
+    if (path.endsWith("/devices")) {
+      await route.fulfill({
+        json: [
+          {
+            device_name: "CPU",
+            full_device_name: "Intel CPU",
+            device_type: "INTEGRATED",
+            device_family: "CPU",
+            gpu_id: null,
+          },
+          {
+            device_name: "GPU.0",
+            full_device_name: "Intel GPU",
+            device_type: "INTEGRATED",
+            device_family: "GPU",
+            gpu_id: 0,
+          },
+          {
+            device_name: "NPU",
+            full_device_name: "Intel NPU",
+            device_type: "INTEGRATED",
+            device_family: "NPU",
+            gpu_id: null,
+          },
+        ],
+      });
+      return;
+    }
     const body =
       path.endsWith("/status") || path.endsWith("/health")
         ? { status: "ready" }
@@ -43,6 +71,52 @@ test.beforeEach(async ({ page }) => {
     route.fulfill({ contentType: "text/event-stream", body: ": ready\n\n" }),
   );
   await page.goto(process.env.VOICE_UI_URL ?? "http://127.0.0.1:5173/voice");
+});
+
+test("forwards independent STT and TTS devices", async ({ page }) => {
+  await page.route("**/voice/transcriptions", async (route) => {
+    const body = route.request().postData() ?? "";
+    expect(body).toContain('name="device"');
+    expect(body).toContain("GPU");
+    await route.fulfill({ json: { text: "Hello world" } });
+  });
+  await page.route("**/voice/speech", async (route) => {
+    expect(route.request().postDataJSON()).toEqual({
+      input: "Hello world",
+      voice: "Ryan",
+      device: "NPU",
+    });
+    await route.fulfill({ contentType: "audio/wav", body: wav() });
+  });
+
+  const sttDevice = page.getByLabel("Speech to text device");
+  await expect(sttDevice.locator("option")).toHaveText([
+    "Service default",
+    "CPU",
+    "GPU",
+    "NPU",
+  ]);
+  await sttDevice.selectOption("GPU");
+  await page.getByLabel("WAV file").setInputFiles({
+    name: "sentence.wav",
+    mimeType: "audio/wav",
+    buffer: wav(),
+  });
+  await page.getByRole("button", { name: "Transcribe", exact: true }).click();
+  await expect(page.getByLabel("Transcription")).toHaveValue("Hello world");
+
+  await page.getByRole("tab", { name: "Text to speech" }).click();
+  const ttsDevice = page.getByLabel("Text to speech device");
+  await expect(ttsDevice).toHaveValue("");
+  await ttsDevice.selectOption("NPU");
+  await page.getByLabel("Text input (English)").fill("Hello world");
+  await page.getByRole("button", { name: "Generate speech" }).click();
+  await expect(page.getByLabel("Generated speech")).toHaveJSProperty(
+    "readyState",
+    4,
+  );
+  await page.getByRole("tab", { name: "Speech to text" }).click();
+  await expect(page.getByLabel("Speech to text device")).toHaveValue("GPU");
 });
 
 for (const viewport of [

@@ -5026,6 +5026,22 @@
             "pattern": "^[a-z]{2}$",
             "title": "Language",
             "default": "en"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CPU",
+                  "GPU",
+                  "NPU"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
           }
         },
         "type": "object",
@@ -7305,6 +7321,22 @@
               "Angus"
             ],
             "title": "Voice"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CPU",
+                  "GPU",
+                  "NPU"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
           }
         },
         "additionalProperties": false,

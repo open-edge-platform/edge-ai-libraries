@@ -37,6 +37,7 @@ METRICS_HEADERS = {
 
 
 SpeechVoice = Literal["Ryan", "Miles", "Aaron", "Nora", "Elena", "Kabir", "Angus"]
+InferenceDevice = Literal["CPU", "GPU", "NPU"]
 
 
 class SpeechRequest(BaseModel):
@@ -44,6 +45,7 @@ class SpeechRequest(BaseModel):
 
     input: str = Field(min_length=1, max_length=5000)
     voice: SpeechVoice
+    device: InferenceDevice | None = None
 
 
 class TranscriptionResponse(BaseModel):
@@ -65,6 +67,7 @@ async def call_service(
     data: dict[str, str] | None = None,
     json: dict[str, str] | None = None,
     max_bytes: int = MAX_RESPONSE_BYTES,
+    rejected_detail: str = "The speech service rejected the input.",
 ) -> httpx.Response:
     started_at = perf_counter()
     try:
@@ -74,7 +77,7 @@ async def call_service(
             client.stream("POST", url, files=files, data=data, json=json) as upstream,
         ):
             if upstream.status_code in {400, 413, 422}:
-                raise HTTPException(400, "The speech service rejected the input.")
+                raise HTTPException(400, rejected_detail)
             if upstream.status_code == 429:
                 raise HTTPException(503, "The speech service is busy. Try again later.")
             if upstream.status_code != 200:
@@ -137,6 +140,7 @@ async def transcribe_voice(
         UploadFile, File(description="Mono PCM 16-bit WAV, up to 60 seconds and 10 MiB")
     ],
     language: Annotated[str, Form(pattern=r"^[a-z]{2}$")] = "en",
+    device: Annotated[InferenceDevice | None, Form()] = None,
 ) -> TranscriptionResponse:
     """Transcribe one independent recording. Previous recordings are never used as context."""
     try:
@@ -146,11 +150,23 @@ async def transcribe_voice(
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "Audio exceeds the 10 MiB upload limit.")
     validate_audio(content)
+    request_data = {
+        "language": language,
+        "response_format": "json",
+        "temperature": "0",
+    }
+    if device is not None:
+        request_data["device"] = device
     upstream = await call_service(
         f"{AUDIO_ANALYZER_URL.rstrip('/')}/v1/audio/transcriptions",
         files={"file": ("recording.wav", content, "audio/wav")},
-        data={"language": language, "response_format": "json", "temperature": "0"},
+        data=request_data,
         max_bytes=128 * 1024,
+        rejected_detail=(
+            "The selected speech-to-text device is unavailable."
+            if device is not None
+            else "The speech service rejected the input."
+        ),
     )
     try:
         result = TranscriptionResponse.model_validate(upstream.json())
@@ -180,13 +196,21 @@ async def transcribe_voice(
 )
 async def synthesize_voice(request: SpeechRequest) -> Response:
     """Synthesize one sentence with the selected voice. Returns WAV audio."""
+    request_json = {
+        "input": request.input,
+        "voice": request.voice,
+        "response_format": "wav",
+    }
+    if request.device is not None:
+        request_json["device"] = request.device
     upstream = await call_service(
         f"{TEXT_TO_SPEECH_URL.rstrip('/')}/v1/audio/speech",
-        json={
-            "input": request.input,
-            "voice": request.voice,
-            "response_format": "wav",
-        },
+        json=request_json,
+        rejected_detail=(
+            "The selected text-to-speech device is unavailable."
+            if request.device is not None
+            else "The speech service rejected the input."
+        ),
     )
     content = upstream.content
     if (

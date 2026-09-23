@@ -22,6 +22,10 @@ import { MetricsDashboard } from "@/features/metrics/MetricsDashboard";
 import { captureWav } from "./recording";
 import { VoiceMetrics, type ConversionMetrics } from "./VoiceMetrics";
 import { VoiceAudio } from "./VoiceAudio";
+import {
+  VoiceDeviceSelect,
+  type VoiceInferenceDevice,
+} from "./VoiceDeviceSelect";
 
 const SAMPLE_TEXTS = [
   "Welcome to Intel Performance Studio.",
@@ -91,6 +95,8 @@ export function VoiceConversion() {
   const [language, setLanguage] = useState("en");
   const [text, setText] = useState("");
   const [voice, setVoice] = useState<SpeechVoice>("Ryan");
+  const [sttDevice, setSttDevice] = useState<VoiceInferenceDevice | "">("");
+  const [ttsDevice, setTtsDevice] = useState<VoiceInferenceDevice | "">("");
   const [transcription, setTranscription] = useState<string | null>(null);
   const [speech, setSpeech] = useState<Blob | null>(null);
   const [sttMetrics, setSttMetrics] = useState<ConversionMetrics | null>(null);
@@ -171,6 +177,7 @@ export function VoiceConversion() {
         const data = new FormData();
         data.append("file", file);
         data.append("language", language);
+        if (sttDevice) data.append("device", sttDevice);
         const startedAt = performance.now();
         const response = await fetch(`${API_BASE_URL}/voice/transcriptions`, {
           method: "POST",
@@ -195,11 +202,17 @@ export function VoiceConversion() {
           readConversionMetrics(response, performance.now() - startedAt),
         );
       } else if (kind === "tts") {
+        const payload: {
+          input: string;
+          voice: SpeechVoice;
+          device?: VoiceInferenceDevice;
+        } = { input: text.trim(), voice };
+        if (ttsDevice) payload.device = ttsDevice;
         const startedAt = performance.now();
         const response = await fetch(`${API_BASE_URL}/voice/speech`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: text.trim(), voice }),
+          body: JSON.stringify(payload),
           signal: controller.signal,
           cache: "no-store",
         });
@@ -350,25 +363,41 @@ export function VoiceConversion() {
                     />
                   </div>
                 </div>
-                <div className="max-w-sm space-y-2 bg-muted p-3">
-                  <Label htmlFor="voice-language">Recognition language</Label>
-                  <select
-                    id="voice-language"
-                    value={language}
-                    disabled={busy}
-                    onChange={(event) => {
-                      setLanguage(event.target.value);
-                      setTranscription(null);
-                      setSttMetrics(null);
-                    }}
-                    className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
-                  >
-                    <option value="en">English</option>
-                    <option value="pl">Polish</option>
-                    <option value="de">German</option>
-                    <option value="fr">French</option>
-                    <option value="es">Spanish</option>
-                  </select>
+                <div className="grid max-w-4xl gap-4 md:grid-cols-2">
+                  <div className="space-y-2 bg-muted p-3">
+                    <Label htmlFor="voice-language">Recognition language</Label>
+                    <select
+                      id="voice-language"
+                      value={language}
+                      disabled={busy}
+                      onChange={(event) => {
+                        setLanguage(event.target.value);
+                        setTranscription(null);
+                        setSttMetrics(null);
+                      }}
+                      className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
+                    >
+                      <option value="en">English</option>
+                      <option value="pl">Polish</option>
+                      <option value="de">German</option>
+                      <option value="fr">French</option>
+                      <option value="es">Spanish</option>
+                    </select>
+                  </div>
+                  <div className="bg-muted p-3">
+                    <VoiceDeviceSelect
+                      id="stt-device"
+                      label="Speech to text device"
+                      value={sttDevice}
+                      disabled={busy}
+                      onChange={(value) => {
+                        setSttDevice(value);
+                        setTranscription(null);
+                        setSttMetrics(null);
+                        setError(null);
+                      }}
+                    />
+                  </div>
                 </div>
                 {file && (
                   <p className="text-muted-foreground break-all text-sm">
@@ -419,23 +448,37 @@ export function VoiceConversion() {
                 Text to Speech Workload Configuration
               </h2>
               <section className="min-w-0 space-y-4 rounded-sm bg-muted p-3 sm:p-4">
-                <div className="max-w-sm space-y-2">
-                  <Label htmlFor="speech-voice">Voice</Label>
-                  <select
-                    id="speech-voice"
-                    value={voice}
+                <div className="grid max-w-4xl gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="speech-voice">Voice</Label>
+                    <select
+                      id="speech-voice"
+                      value={voice}
+                      disabled={busy}
+                      onChange={(event) =>
+                        updateVoice(event.target.value as SpeechVoice)
+                      }
+                      className="border-input h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    >
+                      {SPEECH_VOICES.map((voiceName) => (
+                        <option key={voiceName} value={voiceName}>
+                          {voiceName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <VoiceDeviceSelect
+                    id="tts-device"
+                    label="Text to speech device"
+                    value={ttsDevice}
                     disabled={busy}
-                    onChange={(event) =>
-                      updateVoice(event.target.value as SpeechVoice)
-                    }
-                    className="border-input h-10 w-full rounded-md border bg-background px-3 text-sm"
-                  >
-                    {SPEECH_VOICES.map((voiceName) => (
-                      <option key={voiceName} value={voiceName}>
-                        {voiceName}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => {
+                      setTtsDevice(value);
+                      setSpeech(null);
+                      setTtsMetrics(null);
+                      setError(null);
+                    }}
+                  />
                 </div>
                 <Label htmlFor="voice-text" className="text-sm font-semibold">
                   Text input (English)

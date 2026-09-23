@@ -93,8 +93,10 @@ forward upstream error bodies or environment HTTP proxy settings to these calls.
 - ViPPET does not persist Voice content or request timings. Completed results
   and timings live in React state; each tab retains its latest result until
   replacement, input changes or unmount. Blob URLs are revoked during cleanup.
-- Hardware overrides determine the service devices. Telemetry reflects the
-  whole host and can include unrelated workloads on those devices.
+- Hardware overrides determine the default service devices and which device
+  nodes are mounted. Per-request Voice overrides select among compatible,
+  visible devices. Telemetry reflects the whole host and can include unrelated
+  workloads on those devices.
 
 ## C4 Level 3: Browser UI Components
 
@@ -112,6 +114,7 @@ flowchart TB
     dashboard["MetricsDashboard<br/>[Component: React / Recharts]<br/>useMetrics and useMetricHistory"]:::internal
     cards["MetricCard<br/>[Component: React]<br/>Shared numeric presentation"]:::internal
     voice -->|Async capture, AbortSignal| recorder
+    voice -->|Reads CPU/GPU/NPU families| store
     voice -->|Blob URL props| audio
     voice -->|Timing props| timings
     timings -->|Duration props| cards
@@ -183,11 +186,12 @@ sequenceDiagram
     end
     Operator->>UI: Transcribe
     UI->>UI: Clear STT result/timings, start performance.now()
-    UI->>Web: POST /api/v1/voice/transcriptions (file, language)
+    UI->>Web: POST /api/v1/voice/transcriptions (file, language, optional device)
     Web->>API: Forward multipart request (11 MiB envelope limit)
     API->>API: Validate size, language and mono PCM16 WAV / 8-48 kHz / up to 60 s
     API->>API: Start perf_counter(), enter upstream timeout
-    API->>ASR: POST /v1/audio/transcriptions (file, language, JSON format)
+    API->>ASR: POST /v1/audio/transcriptions (file, language, JSON format, optional device)
+    ASR->>ASR: Validate device; compile or reuse its cached model
     ASR-->>API: Transcription JSON body
     API->>API: Receive full body (up to 128 KiB), calculate service duration
     API->>API: Close upstream resources, validate transcript
@@ -214,12 +218,13 @@ sequenceDiagram
     participant Audio as VoiceAudio / browser
     Operator->>UI: Enter text or select sample, Generate speech
     UI->>UI: Clear TTS result/timings, start performance.now()
-    UI->>Web: POST /api/v1/voice/speech (JSON input)
+    UI->>Web: POST /api/v1/voice/speech (JSON input, optional device)
     Web->>API: Forward request
     API->>API: Trim text, validate 1-5000 characters, reject extra fields
     API->>API: Start perf_counter(), enter upstream timeout
-    API->>TTS: POST /v1/audio/speech (input, response_format=wav)
-    TTS->>TTS: Synthesize using service-configured model, device and voice
+    API->>TTS: POST /v1/audio/speech (input, response_format=wav, optional device)
+    TTS->>TTS: Validate device; compile or reuse its cached model
+    TTS->>TTS: Synthesize using selected device and voice
     TTS-->>API: WAV body
     API->>API: Receive full body (up to 64 MiB), calculate service duration
     API->>API: Close upstream resources, check MIME type and RIFF/WAVE signature

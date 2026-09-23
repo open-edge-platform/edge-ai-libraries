@@ -1714,10 +1714,12 @@ export type BodyTranscribeVoice = {
   /** Mono PCM 16-bit WAV, up to 60 seconds and 10 MiB */
   file: string;
   language?: string;
+  device?: ("CPU" | "GPU" | "NPU") | null;
 };
 export type SpeechRequest = {
   input: string;
   voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
+  device?: ("CPU" | "GPU" | "NPU") | null;
 };
 export const {
   useGetHealthQuery,
