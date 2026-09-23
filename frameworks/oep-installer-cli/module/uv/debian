@@ -9,7 +9,7 @@ debian_10_profile_uv () {
 
 debian_10_install_uv () {
   configure_uv
-  if uv --version 2> /dev/null && [[ "$*" != *"--reset-uv"* ]]; then
+  if uv --version 2> /dev/null && [[ " $* " != *" --reinstall "* ]]; then
     echo "Uv is already installed. Skipping..."
   else
     pipx install uv

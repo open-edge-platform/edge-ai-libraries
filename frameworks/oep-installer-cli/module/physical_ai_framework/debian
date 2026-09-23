@@ -37,7 +37,7 @@ debian_91_install_physical_ai_framework () {
   configure_physical_ai_framework "$@"
   configure_uv
 
-  if verify_physical_ai_framework "$@" && [[ " $* " != *" --reset-physical_ai_framework "* ]]; then
+  if verify_physical_ai_framework "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Framework is already installed. Skipping..."
   else
     ensure_disk_space 15000

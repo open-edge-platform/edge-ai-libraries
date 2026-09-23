@@ -23,7 +23,7 @@ debian_40_profile_gpu () {
 debian_40_install_gpu () {
   configure_gpu $*
 
-  if verify_gpu && [[ " $* " != *" --reset-gpu "* ]]; then
+  if verify_gpu && [[ " $* " != *" --reinstall "* ]]; then
     echo "Gpu drivers are already installed. Skipping..."
   else
     # remove legacies

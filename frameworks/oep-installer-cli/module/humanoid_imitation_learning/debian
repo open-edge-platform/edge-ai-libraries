@@ -29,7 +29,7 @@ verify_humanoid_imitation_learning () {
 debian_90_install_humanoid_imitation_learning () {
   configure_humanoid_imitation_learning "$@"
 
-  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reset-humanoid_imitation_learning "* ]]; then
+  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Humanoid - Imitation Learning is already installed. Skipping..."
   else
     # The base image bundles the OpenVINO dev stack, Intel GPU runtime, oneAPI

@@ -23,7 +23,7 @@ debian_40_profile_npu () {
 debian_40_install_npu () {
   configure_npu $*
 
-  if verify_npu && [[ " $* " != *" --reset-npu "* ]]; then
+  if verify_npu && [[ " $* " != *" --reinstall "* ]]; then
     echo "Npu drivers are already installed. Skipping..."
   else
     # remove legacies
