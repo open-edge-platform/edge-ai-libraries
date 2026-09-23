@@ -26,7 +26,7 @@ verify_ros2 () {
 debian_50_install_ros2 () {
   configure_ros2
 
-  if verify_ros2 && [[ " $* " != *" --reset-ros2 "* ]]; then
+  if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 $ros_distro is already installed. Skipping..."
   else
     ensure_apt update

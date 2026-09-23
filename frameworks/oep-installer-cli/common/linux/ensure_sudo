@@ -4,41 +4,22 @@ ensure_sudo () {
   if sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
     sudo "$@"
-  elif [ -n "${SUDO_PASSWORD:-}" ]; then
-    # password known: prefix it onto stdin, forward the rest so that
-    # `curl ... | ensure_sudo bash -s` and `... | ensure_sudo tee f` still work.
-    # -k is required: without it sudo may skip the read and leak the password
-    # into the invoked command's stdin.
-    (echo "$SUDO_PASSWORD"; cat) | sudo -kS "$@"
-  elif [ -t 0 ]; then
+  elif [ -t 0 ] && [ -z "$SUDO_PASSWORD" ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo "$@"
   else
     # write an askpass helper
     local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-    [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$HOME/.local/state/${installer_name:?}"
+    [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}"
     mkdir -p "$rundir" 2>/dev/null || return 1
-    local askpass_helper="$rundir"/askpass
     (
       flock -w 300 -e 9 || { echo "ensure_sudo: timed out waiting for another installer" >&2; exit 1; }
-      ( umask 077;cat > "$askpass_helper" <<'EOF'
-#!/bin/bash
-set -u
-exec 8<>/dev/tty 2>/dev/null || exit 1
-# size and style
-rows=$(stty size <&8 | cut -d' ' -f1)
-saved=$(stty -g <&8) || exit 1
-# restore screen
-trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
-stty -echo <&8
-# last row: _draw only ever writes rows 1..rows-1, so this is never repainted
-printf '\033[%d;1H\033[K%s' "$rows" "$1" >&8
-IFS= read -r pw <&8
-printf '\033[%d;1H\033[K' "$rows" >&8
-printf '%s\n' "$pw"
-EOF
-      ) && chmod 700 "$askpass_helper" || exit 1
-      SUDO_ASKPASS="$askpass_helper" sudo -A "$@"
+      if [ ! -x "$SUDO_ASKPASS" ]; then
+        askpass_helper="$rundir"/askpass
+        act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
+        export SUDO_ASKPASS="$askpass_helper"
+      fi
+      sudo -A "$@"
     ) 9< "$rundir"
   fi
 }

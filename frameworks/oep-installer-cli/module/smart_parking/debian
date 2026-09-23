@@ -15,7 +15,7 @@ debian_90_profile_smart_parking () {
 
 debian_90_install_smart_parking () {
   configure_smart_parking
-  if verify_smart_parking && [[ "$*" != *"--reset-smart_parking"* ]]; then
+  if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
     echo "Smart parking is already installed. Skipping..."
     return 0
   fi

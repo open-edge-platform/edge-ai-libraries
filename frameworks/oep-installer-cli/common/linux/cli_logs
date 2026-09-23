@@ -1058,3 +1058,28 @@ _handle_line() {
   _draw 1
 )}
 
+# create an askpass helper
+act_panelled_logs_askpass () {
+  local askpass_helper="$1"
+  ( umask 077;cat > "$askpass_helper" <<'EOF'
+#!/bin/bash
+if [ -n "$SUDO_PASSWORD" ]; then
+  printf '%s\n' "$SUDO_PASSWORD"
+else
+  exec 8<>/dev/tty 2>/dev/null || exit 1
+  # size and style
+  rows=$(stty size <&8 | cut -d' ' -f1)
+  saved=$(stty -g <&8) || exit 1
+  # restore screen
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  stty -echo <&8
+  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+  printf '\033[%d;1H\033[K%s' "${rows:-1}" "$1" >&8
+  IFS= read -r pw <&8
+  printf '\033[%d;1H\033[K' "${rows:-1}" >&8
+  printf '%s\n' "$pw"
+fi
+EOF
+  ) && chmod 700 "$askpass_helper"
+}
+

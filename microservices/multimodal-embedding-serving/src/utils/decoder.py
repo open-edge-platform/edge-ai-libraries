@@ -51,7 +51,7 @@ def _get_video_config():
             VIDEO_FRAME_DECODER_WORKERS = int(
                 os.getenv("VIDEO_FRAME_DECODER_WORKERS", "8")
             )
-            VIDEO_FRAME_BATCH_SIZE = int(os.getenv("VIDEO_FRAME_BATCH_SIZE", "128"))
+            VIDEO_FRAME_BATCH_SIZE = int(os.getenv("VIDEO_FRAME_BATCH_SIZE", "64"))
             VIDEO_FRAME_QUEUE_SIZE = int(os.getenv("VIDEO_FRAME_QUEUE_SIZE", "32"))
             VIDEO_FRAME_SHM_POOL_BLOCK_SIZE = int(
                 os.getenv("VIDEO_FRAME_SHM_POOL_BLOCK_SIZE", str(1920 * 1080 * 3))
@@ -75,8 +75,12 @@ class SharedMemoryPool:
         self.blocks = []
         self.in_use = set()
 
+        # An open handle costs 2 fds for the pool's lifetime, so a large pool
+        # would exhaust the fd limit. The segment lives until unlink() and is
+        # attached by name on demand, so release the descriptor here.
         for _ in range(max_blocks):
             shm = shared_memory.SharedMemory(create=True, size=block_size)
+            shm.close()
             self.blocks.append(shm)
             self.free.put(shm.name)
 
@@ -118,12 +122,12 @@ class SharedMemoryPool:
             shm.close()
 
     def unlink(self):
-        try:
-            for shm in self.blocks:
+        # Unlink per block so one missing segment cannot leak the rest.
+        for shm in self.blocks:
+            try:
                 shm.unlink()
-        except FileNotFoundError:
-            logger.info("Shared memory already unlinked")
-            pass
+            except FileNotFoundError:
+                logger.debug(f"Shared memory {shm.name} already unlinked")
 
     def shutdown(self):
         self.close()

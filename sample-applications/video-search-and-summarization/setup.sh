@@ -437,6 +437,12 @@ if [[ "${MME_EMBEDDING_DEVICE}" == GPU* ]] || [[ "${MME_EMBEDDING_DEVICE}" == NP
     export EMBEDDING_USE_OV=true
 fi
 
+# GPU decodes larger frame batches faster; CPU keeps the compose default (64).
+# INFER_BATCH_SIZE is omitted because its compose default (32) is already optimal.
+if [[ "${MME_EMBEDDING_DEVICE}" == GPU* ]]; then
+    export VIDEO_FRAME_BATCH_SIZE=${VIDEO_FRAME_BATCH_SIZE:-256}
+fi
+
 if [ $1 != "--summary" ]; then
     if [ "$1" = "--unified" ]; then
         embedding_model_display="${TEXT_EMBEDDING_MODEL:-"(not provided)"}"
