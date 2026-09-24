@@ -78,6 +78,26 @@ Hugging Face Hub.
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.
 
+## Optional: run pipelines on DL Streamer Pipeline Server 2.0 (experimental)
+
+By default, pipelines run inside the `vippet` container. To run them on a separate
+[DL Streamer Pipeline Server 2.0](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/dlsps2/README.md)
+container instead, add `DLSPS2=1`:
+
+```bash
+make build run DLSPS2=1
+make stop DLSPS2=1
+```
+
+This builds the server image from `microservices/dlstreamer-pipeline-server/dlsps2` in the
+same repository, gives it the same devices as `vippet`, and sets
+`VIPPET_EXECUTION_BACKEND=dlsps2`. Current limitations:
+
+- Only pipeline validation and single-stream performance tests run on the server. Density
+  tests, multi-stream performance tests and tests with latency metrics still run inside
+  `vippet`.
+- A pipeline that finishes in less than about one second reports 0 FPS.
+
 ## Stop the application
 
 Stop and remove all running containers:

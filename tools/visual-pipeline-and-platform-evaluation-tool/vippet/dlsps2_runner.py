@@ -12,9 +12,10 @@ Only a subset of :class:`~pipeline_runner.PipelineRunner`'s behaviour is
 supported today:
 
 * ``mode="validation"`` — maps onto ``POST /pipelines`` followed by polling
-  ``GET /pipelines/{id}/status`` until the instance leaves ``QUEUED``
-  (``RUNNING``/``COMPLETED`` ⇒ valid, ``ERROR``/``ABORTED`` ⇒ invalid), then
-  ``DELETE /pipelines/{id}`` to tear the instance back down.
+  ``GET /pipelines/{id}/status``. Like ``gst_runner.py --mode validation``,
+  the pipeline is valid if it stays ``RUNNING`` for ``max_runtime`` seconds or
+  reaches ``COMPLETED`` sooner; ``ERROR``/``ABORTED`` is invalid. The
+  instance is then torn down with ``DELETE /pipelines/{id}``.
 * ``mode="normal"`` with ``total_streams == 1`` (single-stream performance
   tests) — maps onto ``POST /pipelines``, polling
   ``GET /pipelines/{id}/status`` for ``avg_fps``, and
@@ -90,8 +91,6 @@ DLSPS2_POLL_INTERVAL_S: float = float(os.environ.get("DLSPS2_POLL_INTERVAL_S", "
 
 # States a dlsps2 pipeline instance can no longer leave on its own.
 _TERMINAL_STATES = frozenset({"COMPLETED", "ERROR", "ABORTED"})
-# States that mean "the pipeline was accepted and is/was executing".
-_VALID_STATES = frozenset({"RUNNING", "COMPLETED"})
 
 
 class Dlsps2PipelineRunner:
@@ -220,11 +219,25 @@ class Dlsps2PipelineRunner:
         response.raise_for_status()
         return response.json()
 
+    @staticmethod
+    def _error_detail(exc: httpx.HTTPError) -> str:
+        """Describe an HTTP error, preferring the server's FastAPI ``detail``."""
+        if isinstance(exc, httpx.HTTPStatusError):
+            try:
+                body = exc.response.json()
+            except ValueError:
+                body = None
+            detail = body.get("detail") if isinstance(body, dict) else None
+            if detail:
+                return f"HTTP {exc.response.status_code}: {detail}"
+        return str(exc)
+
     def _stop(self, client: httpx.Client, instance_id: str) -> None:
         """Best-effort DELETE /pipelines/{id}. Never raises."""
         try:
             response = client.delete(f"{self.base_url}/pipelines/{instance_id}")
-            if response.status_code not in (200, 404):
+            # 409: instance already finished; 404: already gone.
+            if response.status_code not in (200, 404, 409):
                 response.raise_for_status()
         except httpx.HTTPError as exc:
             self.logger.warning(
@@ -268,13 +281,15 @@ class Dlsps2PipelineRunner:
     def _run_validation(self, pipeline_command: str) -> PipelineResult:
         """Run pipeline in validation mode against DLSPS 2.0.
 
-        Validity is determined by whether the submitted instance leaves
-        ``QUEUED`` into ``RUNNING``/``COMPLETED`` (valid) or
-        ``ERROR``/``ABORTED`` (invalid) before ``hard_timeout`` elapses. The
+        Mirrors ``gst_runner.py --mode validation``: the pipeline is valid if
+        it stays ``RUNNING`` for ``max_runtime`` seconds without error, or
+        reaches ``COMPLETED`` (EOS) sooner. ``ERROR``/``ABORTED`` is invalid,
+        and so is not reaching a verdict within ``hard_timeout``. The
         instance is always stopped afterwards regardless of outcome, since a
         validation check should never leave a pipeline running.
         """
         deadline = time.monotonic() + self.hard_timeout
+        running_since: Optional[float] = None
 
         with self._client() as client:
             try:
@@ -282,7 +297,10 @@ class Dlsps2PipelineRunner:
             except httpx.HTTPError as exc:
                 return PipelineResult(
                     exit_code=1,
-                    stderr=[f"Failed to submit pipeline to DLSPS 2.0: {exc}"],
+                    stderr=[
+                        "Failed to submit pipeline to DLSPS 2.0: "
+                        f"{self._error_detail(exc)}"
+                    ],
                 )
 
             try:
@@ -298,9 +316,15 @@ class Dlsps2PipelineRunner:
                         )
 
                     state = status.get("state")
-                    if state in _VALID_STATES:
+                    if state == "COMPLETED":
                         return PipelineResult(exit_code=0, stderr=[])
-                    if state in _TERMINAL_STATES:
+                    if state == "RUNNING":
+                        now = time.monotonic()
+                        if running_since is None:
+                            running_since = now
+                        if now - running_since >= self.max_runtime:
+                            return PipelineResult(exit_code=0, stderr=[])
+                    elif state in _TERMINAL_STATES:
                         # Terminal but not valid: ERROR / ABORTED.
                         message = status.get("message") or (
                             f"Pipeline validation failed (state={state})"
@@ -312,7 +336,7 @@ class Dlsps2PipelineRunner:
                             exit_code=1,
                             stderr=[
                                 "Pipeline validation timed out: DLSPS 2.0 did not "
-                                f"accept the pipeline within {self.hard_timeout}s "
+                                f"reach a verdict within {self.hard_timeout}s "
                                 f"(last state={state})"
                             ],
                         )
@@ -339,7 +363,7 @@ class Dlsps2PipelineRunner:
                 instance_id = self._start(client, pipeline_command)
             except httpx.HTTPError as exc:
                 raise RuntimeError(
-                    f"Failed to submit pipeline to DLSPS 2.0: {exc}"
+                    f"Failed to submit pipeline to DLSPS 2.0: {self._error_detail(exc)}"
                 ) from exc
 
             start_time = time.monotonic()
