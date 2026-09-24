@@ -1,0 +1,43 @@
+
+# nested trap
+ensure_trap() {
+  local script="$1" sig var_sig; shift
+
+  for sig in "$@"; do
+    var_sig="${sig//[^a-zA-Z0-9_]/_}"
+    local -n stack="_ENSURE_TRAP_STACK_${var_sig}"
+
+    if [[ "$script" == "-" || -z "$script" ]]; then
+      # Pop / Restore mode
+      if (( ${#stack[@]} > 0 )); then
+        unset "stack[$((${#stack[@]} - 1))]"
+        stack=("${stack[@]}")
+      fi
+
+      # Reset signal handler to default if stack is empty
+      if (( ${#stack[@]} == 0 )); then
+        trap - "$sig"
+      fi
+    else 
+      # Register mode
+      if [[ -z "$(trap -p "$sig")" ]]; then
+        stack=()
+        trap "
+          _ENSURE_TRAP_IDX_${var_sig}=\$((\${#_ENSURE_TRAP_STACK_${var_sig}[@]} - 1))
+          while (( _ENSURE_TRAP_IDX_${var_sig} >= 0 )); do
+            eval \"\${_ENSURE_TRAP_STACK_${var_sig}[\$_ENSURE_TRAP_IDX_${var_sig}]}\"
+            (( _ENSURE_TRAP_IDX_${var_sig}-- )) || true
+          done
+          trap - \"$sig\"
+          case \"$sig\" in
+            EXIT|0|ERR|RETURN|DEBUG) ;;
+            *) kill -s \"$sig\" \$\$ ;;
+          esac
+        " "$sig"
+      fi
+
+      stack+=("$script")
+    fi
+  done
+}
+

@@ -18,6 +18,8 @@ export https_proxy=${https_proxy}
 export MILVUS_HOST=${host_ip}
 export MILVUS_PORT=19530
 export DOCKER_VOLUME_DIRECTORY="/opt"
+export MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
 
 # huggingface mirror 
 export HF_ENDPOINT=https://hf-mirror.com

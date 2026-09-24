@@ -16,19 +16,12 @@ jobs:
       github.actor != 'copilot-swe-agent[bot]' &&
       github.actor != 'Copilot' &&
       github.actor != vars.AUTOMATION_ACTOR
-    runs-on: [self-hosted, linux, oep-lab]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      # No checkout in this job, so gh can't infer the repo from a git remote.
+      GH_REPO: ${{ github.repository }}
     steps:
-      - name: Verify required tooling
-        run: |
-          set -euo pipefail
-          for tool in gh; do
-            if ! command -v "$tool" >/dev/null 2>&1; then
-              echo "::error::Missing required tool: ${tool}. Install ${tool} on the self-hosted runner and retry."
-              exit 1
-            fi
-          done
-
       - name: Guard — issue must carry NEEDS-GENERATION or match known title patterns
         env:
           GH_TOKEN: ${{ secrets.COPILOT_TASK_TOKEN }}

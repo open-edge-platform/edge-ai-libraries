@@ -1,0 +1,55 @@
+{
+  "title": "OEP CLI Installer",
+  "shareKeys": ["OP_SYSTEM", "PROFILE", "MODULE"],
+  "defaultOpSystem": "UBUNTU",
+
+  "opSystem": {
+    "key": "OP_SYSTEM",
+    "label": "Operating System",
+    "type": "single",
+    "options": [
+      { "label": "Ubuntu 24.04", "value": "UBUNTU" }
+    ]
+  },
+
+  "profileCategory": { "key": "PROFILE", "label": "Profile", "type": "single" },
+  "moduleCategory": { "key": "MODULE", "label": "Module", "type": "single" },
+
+  "profileOrder": [
+    "computer_vision",
+    "inferencing",
+    "metro_ai_suite",
+    "manufacturing_ai_suite",
+    "retail_ai_suite",
+    "health_and_life_sciences_ai_suite",
+    "federal_and_aerospace_ai_suite",
+    "robotics_ai_suite"
+  ],
+
+  "outputs": {
+    "install": {
+      "label": "Install",
+      "fallback": "Select a module to see a command…",
+      "genericRule": {
+        "when": { "OP_SYSTEM": "UBUNTU" },
+        "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
+      }
+    },
+    "nextsteps": {
+      "label": "Next Steps",
+      "fallback": "Select a module to see next steps…",
+      "startStop": {
+        "start": "openedge-cli start {{MODULE}}",
+        "stop": "openedge-cli stop {{MODULE}}"
+      }
+    },
+    "getstarted": {
+      "label": "Get Started",
+      "fallback": "Select a profile to see the getting started guide…"
+    },
+    "resources": {
+      "label": "Resources",
+      "fallback": "Select a profile to see resources…"
+    }
+  }
+}

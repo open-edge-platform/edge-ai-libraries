@@ -1,0 +1,16 @@
+{
+  "profile": { "label": "Inferencing", "value": "inferencing", "installAll": true },
+  "modules": [
+    { "label": "OpenVINO", "value": "openvino" }
+  ],
+  "install": {
+    "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install inferencing"
+  },
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openvino.ai/2026/get-started.html"
+  },
+  "resources": [
+    { "text": "OpenVINO", "url": "https://docs.openvino.ai/2026/get-started.html" }
+  ]
+}

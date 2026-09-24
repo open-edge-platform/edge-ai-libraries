@@ -33,7 +33,7 @@ debian_90_profile_nicu_warmer () {
 
 debian_90_install_nicu_warmer () {
   configure_nicu_warmer $*
-  if verify_nicu_warmer && [[ " $* " != *" --reset-nicu_warmer "* ]]; then
+  if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
     echo "NICU Warmer is already installed. Skipping" 1>&2
     return
   fi

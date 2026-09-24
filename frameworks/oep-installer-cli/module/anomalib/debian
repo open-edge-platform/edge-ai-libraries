@@ -18,7 +18,7 @@ debian_70_profile_anomalib () {
 
 debian_70_install_anomalib () {
   configure_anomalib $*
-  if verify_anomalib && [[ " $* " != *" --reset-anomalib "* ]]; then
+  if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
     echo "Anomalib already installed. Skipping"
   else
     ensure_disk_space 6000

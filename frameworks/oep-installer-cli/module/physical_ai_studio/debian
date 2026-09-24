@@ -31,7 +31,7 @@ configure_physical_ai_studio () {
 }
 
 debian_92_profile_physical_ai_studio () {
-  echo "git curl edge_base uv"
+  echo "git curl edge_base uv ffmpeg"
 }
 
 verify_physical_ai_studio () {
@@ -43,13 +43,10 @@ debian_92_install_physical_ai_studio () {
   configure_physical_ai_studio "$@"
   configure_uv
 
-  if verify_physical_ai_studio "$@" && [[ " $* " != *" --reset-physical_ai_studio "* ]]; then
+  if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Studio is already installed. Skipping..."
   else
     ensure_disk_space 20000
-    # LeRobot / video encoding dependencies require ffmpeg on the host
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y ffmpeg
     echo "Installing ${pais_pkg}[${pais_extra}] (PyTorch ${pais_extra} build; this may take a while)..."
     uv tool install --python 3.12 \
       --index "$pais_index" --index-strategy unsafe-best-match \

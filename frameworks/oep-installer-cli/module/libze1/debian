@@ -10,7 +10,7 @@ debian_10_profile_libze1 () {
 debian_10_install_libze1 () {
   configure_libze1 
 
-  if dpkg-query -L libze1 > /dev/null 2>&1; then
+  if ensure_apt_is_installed libze1; then
     echo "libze1 is already installed. Skipping..."
   else
     curl -fsSL "$libze1_deb" -o /tmp/libze1.deb && {
@@ -19,5 +19,12 @@ debian_10_install_libze1 () {
       }
     }
   fi
+}
+
+debian_10_sbom_libze1 () {
+  configure_libze1
+  cat <<EOF
+"pkg-list": ["$libze1_deb"]
+EOF
 }
 

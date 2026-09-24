@@ -1134,6 +1134,8 @@ class InternalSupportedModel:
         download_request: One body fragment or a list of fragments to POST to
             the model-download microservice in order to install this model.
             ``None`` when no automated download is wired up yet.
+        description: Human-readable explanation of what the model
+            detects/classifies. ``None`` when not provided in the YAML.
     """
 
     name: str
@@ -1147,6 +1149,7 @@ class InternalSupportedModel:
     default: bool = False
     unsupported_devices: str | None = None
     download_request: dict[str, Any] | list[dict[str, Any]] | None = None
+    description: str | None = None
 
 
 @dataclass
@@ -1167,12 +1170,15 @@ class InternalModelUploadSpec:
             model-download).
         original_filename: Original filename provided by the client,
             kept only for logging.
+        description: Optional human-readable explanation of what the
+            model detects/classifies. ``None`` when not provided.
     """
 
     model_name: str
     category: InternalModelCategory
     file_path: str
     original_filename: str
+    description: str | None = None
 
 
 @dataclass

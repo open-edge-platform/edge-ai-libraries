@@ -1,4 +1,4 @@
-## Task: update `module/{{NAME}}/debian`
+## Task: update `frameworks/oep-installer-cli/module/{{NAME}}/debian`
 
 The spec file `{{SPEC_FILE}}` was modified in `main`.  The existing
 implementation in `module/{{NAME}}/debian` must be **updated in place** to
@@ -109,6 +109,7 @@ If the spec changes a pinned version, tag, or workspace layout, `verify_{{NAME}}
    debian_<NN>_start_{{NAME}}
    debian_<NN>_stop_{{NAME}}
    debian_<NN>_license_{{NAME}}   # only if the spec requires a click-through license
+   debian_<NN>_sbom_{{NAME}}   # only if the component installs system-wide packages
    ```
 
    Use the **same two-digit order number** `<NN>` across all functions
@@ -201,14 +202,16 @@ the following lifecycle on real hardware:
 |------|----------------|
 | install | `openedge-cli install {{NAME}}` must exit 0 |
 | install (again) | Idempotency — must exit 0, must not re-run expensive steps |
-| install --reset-{{NAME}} | Forced reinstall must exit 0 |
+| install --reinstall | Forced reinstall must exit 0 |
+| install --validate | Install + feature validation must exit 0 |
 | start + port probe | `openedge-cli start {{NAME}}` must exit 0; declared ports reachable |
 | stop + port probe | `openedge-cli stop {{NAME}}` must exit 0; ports released |
 | remove + verify | `openedge-cli remove {{NAME}}` must exit 0; `verify_{{NAME}}` must fail |
 
 **Your updated component must therefore remain:**
 - Fully **idempotent**: second install detects existing state via `verify_{{NAME}}` and skips gracefully.
-- Supporting `--reset-{{NAME}}` for forced reinstallation.
+- Supporting `--reinstall` for forced reinstallation.
+- Optionally supporting `--validate` for feature validation.
 - Having a `stop` that fully releases bound ports.
 - Having a `remove` that leaves `verify_{{NAME}}` returning non-zero.
 
