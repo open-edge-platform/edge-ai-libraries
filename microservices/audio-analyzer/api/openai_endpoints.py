@@ -97,20 +97,6 @@ def transcribe_audio(
     if not os.path.isfile(filepath):
         raise HTTPException(status_code=400, detail=f"Audio file not found: {filepath}")
 
-    requested_device = device or config.models.asr.device
-    try:
-        resolved_device = resolve_asr_device(
-            config.models.asr.provider,
-            config.models.asr.name,
-            requested_device,
-        )
-    except RuntimeError as exc:
-        logger.warning("Rejected ASR device %s: %s", requested_device, exc)
-        raise HTTPException(
-            status_code=400,
-            detail="Requested ASR device is unavailable or unsupported.",
-        ) from exc
-
     pipeline = Pipeline(
         session_id=session_id,
         temperature=temperature,
