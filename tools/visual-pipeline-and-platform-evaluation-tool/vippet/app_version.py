@@ -2,24 +2,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Application build version for ViPPET.
+Application build identifiers for ViPPET.
 
-Resolves the release/build identifier exposed via ``GET /status`` and the FastAPI OpenAPI document.
+Resolves the release/build identifiers exposed via ``GET /status`` and the
+FastAPI OpenAPI document:
+
+- ``VIPPET_VERSION`` - release string / image tag (e.g. "2026.2.0-rc2").
+- ``VIPPET_REVISION`` - git commit hash of the source tree the image was
+  built from, suffixed with "-dirty" if the working tree had uncommitted
+  changes at build time (e.g. "a1b2c3d" or "a1b2c3d-dirty").
 """
 
 import os
-from datetime import datetime, timezone
 
-# Raw value injected at build time (see Dockerfile).
-_RAW_VERSION = os.environ.get("VIPPET_VERSION", "").strip()
+# Injected at build time from DOCKER_TAG (see Dockerfile / compose.yml).
+VIPPET_VERSION: str = os.environ.get("VIPPET_VERSION", "").strip() or "unknown"
 
-# Labels that don't identify a specific build are suffixed with a timestamp
-# so distinct dev/test runs remain distinguishable via GET /status.
-_FALLBACK_LABELS = ("", "test")
-
-if _RAW_VERSION in _FALLBACK_LABELS:
-    _label = _RAW_VERSION or "dev"
-    _timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    VIPPET_VERSION: str = f"{_label}-{_timestamp}"
-else:
-    VIPPET_VERSION = _RAW_VERSION
+# Injected at build time from the git commit hash (see setup_env.sh).
+VIPPET_REVISION: str = os.environ.get("VIPPET_REVISION", "").strip() or "unknown"

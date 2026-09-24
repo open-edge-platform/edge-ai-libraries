@@ -44,9 +44,17 @@ def test_status_endpoint_returns_valid_state(http_client: requests.Session) -> N
     assert isinstance(payload.get("ready"), bool), (
         f"Expected 'ready' to be a bool, got {payload.get('ready')!r}"
     )
+    assert isinstance(payload.get("version"), str) and payload.get("version"), (
+        f"Expected 'version' to be a non-empty string, got {payload.get('version')!r}"
+    )
+    assert isinstance(payload.get("revision"), str) and payload.get("revision"), (
+        f"Expected 'revision' to be a non-empty string, got {payload.get('revision')!r}"
+    )
     logger.info(
-        "Application status: status=%s ready=%s message=%s",
+        "Application status: status=%s ready=%s message=%s version=%s revision=%s",
         payload.get("status"),
         payload.get("ready"),
         payload.get("message"),
+        payload.get("version"),
+        payload.get("revision"),
     )

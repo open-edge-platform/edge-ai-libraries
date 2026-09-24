@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock
 
 from api.api_schemas import AppStatus
 from api.routes.health import router as health_router
-from app_version import VIPPET_VERSION
+from app_version import VIPPET_REVISION, VIPPET_VERSION
 
 
 class TestHealthAPI(unittest.TestCase):
@@ -84,6 +84,7 @@ class TestHealthAPI(unittest.TestCase):
         self.assertEqual(data["message"], "Loading video metadata...")
         self.assertFalse(data["ready"])
         self.assertEqual(data["version"], VIPPET_VERSION)
+        self.assertEqual(data["revision"], VIPPET_REVISION)
         mock_manager.is_ready.assert_called_once()
 
     @patch("api.routes.health.AppStateManager")
@@ -103,6 +104,7 @@ class TestHealthAPI(unittest.TestCase):
         self.assertIsNone(data["message"])
         self.assertTrue(data["ready"])
         self.assertEqual(data["version"], VIPPET_VERSION)
+        self.assertEqual(data["revision"], VIPPET_REVISION)
         mock_manager.is_ready.assert_called_once()
 
     @patch("api.routes.health.AppStateManager")
@@ -122,6 +124,7 @@ class TestHealthAPI(unittest.TestCase):
         self.assertIsNone(data["message"])
         self.assertFalse(data["ready"])
         self.assertEqual(data["version"], VIPPET_VERSION)
+        self.assertEqual(data["revision"], VIPPET_REVISION)
 
     @patch("api.routes.health.AppStateManager")
     def test_get_status_returns_shutdown_state(self, mock_app_state_manager_cls):
@@ -140,6 +143,7 @@ class TestHealthAPI(unittest.TestCase):
         self.assertEqual(data["message"], "Shutting down...")
         self.assertFalse(data["ready"])
         self.assertEqual(data["version"], VIPPET_VERSION)
+        self.assertEqual(data["revision"], VIPPET_REVISION)
 
     # ------------------------------------------------------------------
     # Router metadata tests

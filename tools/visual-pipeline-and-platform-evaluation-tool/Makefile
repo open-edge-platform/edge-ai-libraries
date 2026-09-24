@@ -99,7 +99,7 @@ generate_openapi: $(VENV_SENTINEL) env-setup ## Generate OpenAPI schema file
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	. ./.env ;\
 	cd $(PROJECT_NAME) ;\
-	PYTHONPATH=. SUPPORTED_MODELS_FILE=../shared/models/supported_models.yaml AUTO_VIDEO_DIR=../shared/videos/input/auto UPLOADED_VIDEO_DIR=../shared/videos/input/uploaded VIPPET_VERSION="$$DOCKER_TAG" python ../generate_openapi.py
+	PYTHONPATH=. SUPPORTED_MODELS_FILE=../shared/models/supported_models.yaml AUTO_VIDEO_DIR=../shared/videos/input/auto UPLOADED_VIDEO_DIR=../shared/videos/input/uploaded VIPPET_VERSION="$$DOCKER_TAG" VIPPET_REVISION="docs" python ../generate_openapi.py
 
 # Directory layout for the shared/ runtime volumes. Cheap and idempotent
 # but sentinel-gated so repeated invocations skip the chmod chatter.
