@@ -8,8 +8,7 @@ SHELL := bash -eu -o pipefail
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
 	build-videogenerator build-onvif-discovery docker-build env-setup build-test \
-	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental \
-	pull-voice build-voice run-voice stop-voice
+	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -150,8 +149,8 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery)
-	$(call base-compose,build)
+build: env-setup ## Build ViPPET core and Voice service images
+	$(call voice-compose,build)
 
 build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onvif-discovery)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
@@ -164,20 +163,8 @@ build-onvif-discovery: env-setup ## Build onvif discovery image
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run the base ViPPET services
-	$(call base-compose,up -d)
-
-pull-voice: env-setup ## Pull pre-built images for ViPPET with voice services
-	$(call voice-compose,pull)
-
-build-voice: env-setup ## Build ViPPET and voice services locally from source
-	$(call voice-compose,build)
-
-run-voice: env-setup ## Start ViPPET with pre-built voice services
-	$(call voice-compose,up -d --no-build)
-
-stop-voice: ## Stop ViPPET with voice services, preserving named volumes
-	$(call voice-compose,down)
+run: env-setup ## Run ViPPET core and Voice services
+	$(call voice-compose,up -d)
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
@@ -258,8 +245,8 @@ shell-metrics-manager: ## Open shell in metrics-manager container
 shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
-stop: ## Stop base ViPPET services, preserving named volumes
-	$(call base-compose,down)
+stop: ## Stop ViPPET core and Voice services, preserving named volumes
+	$(call voice-compose,down)
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator

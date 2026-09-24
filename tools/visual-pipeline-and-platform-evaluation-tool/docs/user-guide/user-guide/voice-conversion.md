@@ -12,60 +12,46 @@ memory; navigating away clears it. Models remain loaded across requests.
 
 Run from the ViPPET component directory. The Makefile detects the hardware
 profile using the standard environment setup and applies the matching voice
-hardware overrides. Install the Voice models before starting the services,
-because audio-analyzer and text-to-speech preload their selected models:
+hardware overrides. Build and start the complete application with the standard
+lifecycle:
 
 ```bash
-make pull-voice
+make build
 make run
 # In the Models page, install Whisper Base and SpeechT5 and wait for Installed.
-make run-voice
 ```
 
-If Voice services start before installation, they log that the selected model
-is unavailable and restart until the required artifacts appear. After both
-models show Installed, the next automatic startup loads them and the services
-become healthy.
+Audio-analyzer and text-to-speech preload their selected models. Before the
+models are installed, the services log that the artifacts are unavailable and
+restart. After both models show Installed, the next automatic startup loads
+them and the services become healthy.
 
-`make run` executes `env-setup`, loads `.env`, and runs the original `up -d`
-with only the base and detected hardware Compose files, without STT/TTS overrides.
-It preserves Compose's normal image pull/build behavior, including local builds
-when needed. `make run-voice` adds the voice Compose files, builds only
-`model-download` from this checkout to provide the Voice target API, and then
-passes `--no-build` when starting all services. An unavailable application or
-Voice service image produces an error instead of falling back to a local build.
-Existing local images can also be used without pulling first.
-`make stop` stops and removes only the base service containers; it does not
-remove orphan containers such as independently running STT/TTS services.
-Those services may keep the shared Compose network in use.
-`make stop-voice` stops and removes the base and STT/TTS containers together.
-Both stop targets preserve named volumes and use the existing `.env` without
-rerunning `env-setup`.
+`make build` and `make run` execute `env-setup`, load `.env`, and combine the
+base Compose file, detected hardware override, Voice Compose file, and matching
+Voice hardware override. `make build` builds the core and Voice images, while
+`make run` starts the complete service set with Compose's normal image behavior.
+`make stop` removes the core and Voice containers together while preserving
+named volumes. It uses the existing `.env` without rerunning `env-setup`.
 
 The Makefile defines and exports `AUDIO_ANALYZER_TAG` and `TEXT_TO_SPEECH_TAG`,
-both defaulting to `2026.1.0`. Plain `make pull-voice` and `make run-voice` use
-these defaults without any shell variable setup. Change the defaults in the
-Makefile or override them independently on the command line, for example:
+both defaulting to `2026.2.0`. Standard lifecycle targets use these defaults
+without any shell variable setup. Override them independently on the command
+line, for example:
 
 ```bash
-make pull-voice run-voice AUDIO_ANALYZER_TAG=2026.2.0 TEXT_TO_SPEECH_TAG=2026.2.0
+make build run AUDIO_ANALYZER_TAG=2026.2.0 TEXT_TO_SPEECH_TAG=2026.2.0
 ```
 
 Command-line values override inherited environment values and Makefile defaults.
-The selected tags must exist in the registry. Unset or empty tag variables use
-`2026.1.0`. Full image overrides remain available and take precedence over tags:
+Full image overrides remain available and take precedence over tags:
 
-- `AUDIO_ANALYZER_IMAGE=docker.io/intel/audio-analyzer:2026.1.0`
-- `TEXT_TO_SPEECH_IMAGE=docker.io/intel/text-to-speech:2026.1.0`
+- `AUDIO_ANALYZER_IMAGE=docker.io/intel/audio-analyzer:2026.2.0`
+- `TEXT_TO_SPEECH_IMAGE=docker.io/intel/text-to-speech:2026.2.0`
 
 Export these variables in the shell to select another version, registry, or
 image digest. Do not store overrides in `.env` when using Make: the standard
-`env-setup` prerequisite regenerates that file. ViPPET images still use the existing
-`DOCKER_TAG`. The selected backend/UI images must already contain the Voice
-feature; pulling an older ViPPET release will not add local source changes.
-Registry manifest availability has been checked for the default audio tags;
-their runtime compatibility with this configuration must be verified on the
-target deployment.
+`env-setup` prerequisite regenerates that file. ViPPET images still use the
+existing `DOCKER_TAG`.
 
 For direct Compose usage, select a matching hardware profile, for example CPU:
 
@@ -85,11 +71,10 @@ COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml -f compose
   audio-analyzer text-to-speech
 ```
 
-Local builds remain available explicitly with `make build-voice`, followed by
-`make run-voice`. They use this repository's microservice Dockerfiles and tag
-the results with the configured image names. Use distinct local image tags to
-avoid overwriting cached release images; a later pull replaces local images
-under the same tag. No sibling kiosk checkout is needed.
+`make build` uses this repository's microservice Dockerfiles and tags the
+results with the configured image names. Use distinct local image tags to avoid
+overwriting cached release images; a later pull replaces local images under the
+same tag. No sibling kiosk checkout is needed.
 
 Voice services do not download models during startup. Open the ViPPET
 **Models** page and install **Whisper Base** and **SpeechT5** before using Voice
@@ -141,7 +126,7 @@ without changing container ports or the backend service URLs. Export
 
 ```bash
 export AUDIO_ANALYZER_PORT=18010 TEXT_TO_SPEECH_PORT=18011
-make run-voice
+make run
 ```
 
 ### GPU, NPU and WSL
@@ -212,7 +197,7 @@ corresponding Compose overrides. The UI can override these defaults per request,
 but it cannot add a missing container device mapping. SpeechT5 does not document NPU support, so the
 NPU profile defaults to GPU for TTS. For CPU inference on a native GPU or NPU
 host, export `VOICE_ASR_DEVICE=CPU VOICE_TTS_DEVICE=CPU VOICE_TTS_DTYPE=int8`.
-The former `gpu-wsl` profile has been replaced by `igpu-wsl`. Run `make run-voice`
+The former `gpu-wsl` profile has been replaced by `igpu-wsl`. Run `make run`
 to regenerate the detected profile and recreate affected containers without
 deleting shared model artifacts or named cache volumes. For manual Compose commands, update
 both the profile and override filenames. Do not edit the generated `.env` file.

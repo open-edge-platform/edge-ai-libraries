@@ -3,16 +3,16 @@
 
 # Voice Architecture: STT, TTS and Metrics
 
-These diagrams describe the implemented Voice integration as of 2026-09-17.
+These diagrams describe the implemented Voice integration as of 2026-09-24.
 They follow the [C4 model](https://c4model.com/diagrams) at System Context,
 Container and Component levels only. Flow diagrams describe runtime behavior;
 there is no Code-level diagram.
 
 ## Scope and Notation
 
-- The system of interest is ViPPET. Audio Analyzer, Text to Speech and Metrics
-  Manager are independently deployable supporting software systems, even when
-  installed in the same Docker Compose stack.
+- The system of interest is ViPPET. Audio Analyzer, Text to Speech, Model
+  Download and Metrics Manager are independently deployable supporting software
+  systems, even when installed in the same Docker Compose stack.
 - A C4 container is an application or data store, not necessarily a Docker
   container. The browser SPA and its Nginx web server are separate C4 containers;
   Nginx serves the SPA from the `vippet-ui` Docker image.
@@ -36,10 +36,12 @@ flowchart TB
   vippet["ViPPET<br/>[Software system]<br/>Voice conversion and performance visualization"]:::internal
   asr["Audio Analyzer<br/>[External software system]<br/>Transcribes recordings"]:::external
   tts["Text to Speech<br/>[External software system]<br/>Synthesizes speech"]:::external
+  models["Model Download<br/>[External software system]<br/>Downloads and exports Voice models"]:::external
   telemetry["Metrics Manager<br/>[External software system]<br/>Collects host-wide telemetry"]:::external
   operator -->|Uses web UI| vippet
   vippet -->|Recording to transcript| asr
   vippet -->|Text to audio| tts
+  vippet -->|Requests Voice model installation| models
   vippet -->|Subscribes to platform metrics| telemetry
   classDef person fill:#08427b,color:#fff,stroke:#052e56
   classDef internal fill:#1168bd,color:#fff,stroke:#0b4884
@@ -56,18 +58,25 @@ flowchart TB
   operator["Operator<br/>[Person]"]:::person
   subgraph vippet[ViPPET - System]
     direction TB
-    spa["Browser UI<br/>[Container: React / TypeScript]<br/>Inputs, results, waveform and metrics"]:::internal
+    spa["Browser UI<br/>[Container: React / TypeScript]<br/>Voice workflow, model installation and metrics"]:::internal
     web["UI web server<br/>[Container: Nginx :80]<br/>Serves assets and proxies API / SSE"]:::internal
-    api["Backend<br/>[Container: FastAPI / Python :7860]<br/>Validation, STT/TTS calls and timing"]:::internal
-    spa -->|"Assets, Voice POST and SSE<br/>HTTP; HTTPS at deployment edge"| web
-    web -->|"/api/v1/voice/*<br/>HTTP :7860; JSON or WAV and timing header"| api
+    api["Backend<br/>[Container: FastAPI / Python :7860]<br/>Voice proxy, model jobs and validation"]:::internal
+    spa -->|"Assets, API requests and SSE<br/>HTTP; HTTPS at deployment edge"| web
+    web -->|"/api/v1/voice/* and model APIs<br/>HTTP :7860"| api
   end
   asr["Audio Analyzer<br/>[External software system]<br/>Whisper Base / OpenVINO"]:::external
   tts["Text to Speech<br/>[External software system]<br/>SpeechT5 / OpenVINO"]:::external
+  downloader["Model Download<br/>[External software system :8000]<br/>OpenVINO download and export jobs"]:::external
+  modelstore[("Shared Voice model storage<br/>[External data store]<br/>shared/models/output/voice")]:::external
   telemetry["Metrics Manager<br/>[External software system]<br/>FastAPI, Telegraf and hardware collectors"]:::external
   operator -->|Browser interaction| spa
   api -->|"POST /v1/audio/transcriptions<br/>HTTP multipart :8010; JSON response"| asr
   api -->|"POST /v1/audio/speech<br/>HTTP JSON :8011; WAV response"| tts
+  api -->|"Start and poll model jobs<br/>HTTP JSON :8000"| downloader
+  api -->|"Reads catalog and installed state"| modelstore
+  downloader -->|"Writes exported OpenVINO artifacts"| modelstore
+  asr -->|"Loads Whisper artifacts read-only"| modelstore
+  tts -->|"Loads SpeechT5 artifacts read-only"| modelstore
   web -->|"GET /metrics/stream<br/>HTTP / SSE :9090"| telemetry
   classDef person fill:#08427b,color:#fff,stroke:#052e56
   classDef internal fill:#1168bd,color:#fff,stroke:#0b4884
@@ -84,12 +93,19 @@ forward upstream error bodies or environment HTTP proxy settings to these calls.
   loopback host address. Network reachability depends on the host/firewall;
   these bindings are not restricted to localhost by this configuration.
   Protect direct access with deployment-level access control and TLS.
-- ASR uses `voice_asr_models`, `voice_asr_cache`, `voice_asr_chunks` and
-  `voice_asr_storage`. Recordings/transcripts can persist in its storage volume;
-  clear-on-startup is enabled, not a per-request retention guarantee.
-- TTS has model, cache and storage mounts, but `PERSIST_OUTPUTS=false` disables
-  pipeline output persistence. Model acquisition/caching belongs to the services,
-  not to the Voice UI or ViPPET model-download path.
+- The Models page starts ViPPET background jobs for Whisper Base and SpeechT5.
+  `ModelManager` forwards their OpenVINO requests to Model Download, polls the
+  returned jobs and tracks installed state. SpeechT5 installs INT8 and FP16 in
+  one ViPPET job.
+- Model Download exports device-neutral OpenVINO artifacts on CPU under
+  `shared/models/output/voice`. Audio Analyzer and Text to Speech mount the
+  shared model tree read-only and compile the selected artifact for the runtime
+  device when they load it.
+- ASR keeps runtime cache, chunks and storage in `voice_asr_cache`,
+  `voice_asr_chunks` and `voice_asr_storage`. Recordings/transcripts can persist
+  in its storage volume; clear-on-startup is enabled, not a per-request retention
+  guarantee. TTS keeps runtime cache and storage in `voice_tts_cache` and
+  `voice_tts_storage`, but `PERSIST_OUTPUTS=false` disables output persistence.
 - ViPPET does not persist Voice content or request timings. Completed results
   and timings live in React state; each tab retains its latest result until
   replacement, input changes or unmount. Blob URLs are revoked during cleanup.
@@ -106,6 +122,7 @@ flowchart TB
   subgraph spa[Browser UI - Container]
     direction TB
     voice["VoiceConversion<br/>[Component: React]<br/>Inputs, fetch, timing and cancellation"]:::internal
+    device["VoiceDeviceSelect<br/>[Component: React]<br/>Available CPU/GPU/NPU families and service default"]:::internal
     recorder["Recording adapter<br/>[Component: Web Audio]<br/>captureWav prepares local PCM WAV"]:::internal
     audio["VoiceAudio<br/>[Component: Web Audio / Recharts]<br/>Waveform and native audio playback"]:::internal
     timings["VoiceMetrics<br/>[Component: React]<br/>Successful request/service timings"]:::internal
@@ -114,7 +131,8 @@ flowchart TB
     dashboard["MetricsDashboard<br/>[Component: React / Recharts]<br/>useMetrics and useMetricHistory"]:::internal
     cards["MetricCard<br/>[Component: React]<br/>Shared numeric presentation"]:::internal
     voice -->|Async capture, AbortSignal| recorder
-    voice -->|Reads CPU/GPU/NPU families| store
+    voice -->|Selected request override| device
+    device -->|Reads available device families| store
     voice -->|Blob URL props| audio
     voice -->|Timing props| timings
     timings -->|Duration props| cards
@@ -145,23 +163,76 @@ flowchart TB
     stt["Transcription endpoint<br/>[Component: FastAPI / Pydantic / wave]<br/>Upload, language, WAV and transcript validation"]:::internal
     speech["Speech endpoint<br/>[Component: FastAPI / Pydantic]<br/>Text validation and WAV signature checks"]:::internal
     adapter["Upstream service adapter<br/>[Component: httpx / asyncio / perf_counter]<br/>Bounded reads, errors, timeout, cleanup and timing"]:::internal
+    modelapi["Model routes / ModelManager<br/>[Component: FastAPI / Python]<br/>Catalog, background jobs and installed state"]:::internal
+    catalog["Voice model catalog<br/>[Component: supported_models.yaml]<br/>Whisper and SpeechT5 requests and artifacts"]:::internal
     stt -->|Async call, response cap 128 KiB| adapter
     speech -->|Async call, response cap 64 MiB| adapter
+    modelapi -->|Resolves requests and required artifacts| catalog
   end
   asr["Audio Analyzer<br/>[External software system]<br/>Transcription service :8010"]:::external
   tts["Text to Speech<br/>[External software system]<br/>Synthesis service :8011"]:::external
+  downloader["Model Download<br/>[External software system]<br/>OpenVINO plugin :8000"]:::external
+  modelstore[("Shared Voice model storage<br/>[External data store]<br/>OpenVINO artifacts and installed registry")]:::external
   web -->|"POST /api/v1/voice/transcriptions<br/>HTTP multipart"| stt
   web -->|"POST /api/v1/voice/speech<br/>HTTP JSON"| speech
+  web -->|"Model list, install and job status<br/>HTTP JSON"| modelapi
   adapter -->|"POST /v1/audio/transcriptions<br/>HTTP multipart; JSON response"| asr
   adapter -->|"POST /v1/audio/speech<br/>HTTP JSON; WAV response"| tts
+  modelapi -->|"POST downloads; poll jobs"| downloader
+  modelapi -->|"Checks artifacts; records installed state"| modelstore
+  downloader -->|"Exports into voice target path"| modelstore
+  asr -->|"Loads model read-only"| modelstore
+  tts -->|"Loads model read-only"| modelstore
   classDef internal fill:#1168bd,color:#fff,stroke:#0b4884
   classDef external fill:#666,color:#fff,stroke:#444
 ```
 
-These logical components currently reside in the same router module. The adapter
-is `call_service` with `create_client`; WAV input validation is `validate_audio`.
-The routes publish `X-Voice-Service-Duration-Ms` only after successful payload
-validation. There is no shared mutable timing value between requests.
+The Voice endpoints and upstream adapter currently reside in the same router
+module. The adapter is `call_service` with `create_client`; WAV input validation
+is `validate_audio`. The routes publish `X-Voice-Service-Duration-Ms` only after
+successful payload validation. There is no shared mutable timing value between
+requests. Model routes and `ModelManager` are separate from the Voice router but
+run in the same backend container.
+
+## Flow: Install Voice Models
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Operator
+  participant UI as Models page / browser
+  participant Web as Nginx
+  participant API as ViPPET ModelManager
+  participant Download as Model Download
+  participant Store as shared/models/output/voice
+  participant Service as Audio Analyzer or Text to Speech
+  Operator->>UI: Install Whisper Base or SpeechT5
+  UI->>Web: POST /api/v1/models/download
+  Web->>API: Forward model names
+  API->>API: Validate catalog entry, installed state and running jobs
+  API-->>Web: 202 Accepted with ViPPET job ID
+  Web-->>UI: Forward response
+  API->>Download: POST /api/v1/models/download?download_path=voice
+  Note over API,Download: Whisper starts one export while SpeechT5 starts INT8 and FP16 exports
+  Download->>Store: Stage and publish complete OpenVINO artifacts
+  loop Until all external jobs complete or fail
+    API->>Download: GET /api/v1/jobs/{job_id}
+    Download-->>API: Processing, completed or failed
+    UI->>Web: Poll ViPPET model job status
+    Web->>API: Forward status request
+    API-->>Web: Aggregated progress
+    Web-->>UI: Forward status response
+  end
+  API->>Store: Verify required artifacts and record Installed state
+  Note over Service,Store: Voice services must start after installation
+  Service->>Store: Load selected precision read-only
+  Service->>Service: Compile for configured or per-request device
+```
+
+Voice services do not download models during startup. They preload models, so
+starting them before installation makes their health checks fail until the
+required artifacts exist and the services restart. Model Download stages
+exports before publishing complete artifacts; subsequent starts reuse them.
 
 ## Flow: Speech to Text
 
@@ -191,7 +262,7 @@ sequenceDiagram
     API->>API: Validate size, language and mono PCM16 WAV / 8-48 kHz / up to 60 s
     API->>API: Start perf_counter(), enter upstream timeout
     API->>ASR: POST /v1/audio/transcriptions (file, language, JSON format, optional device)
-    ASR->>ASR: Validate device; compile or reuse its cached model
+    ASR->>ASR: Validate device and compile or reuse its cached model
     ASR-->>API: Transcription JSON body
     API->>API: Receive full body (up to 128 KiB), calculate service duration
     API->>API: Close upstream resources, validate transcript
@@ -223,7 +294,7 @@ sequenceDiagram
     API->>API: Trim text, validate 1-5000 characters, reject extra fields
     API->>API: Start perf_counter(), enter upstream timeout
     API->>TTS: POST /v1/audio/speech (input, response_format=wav, optional device)
-    TTS->>TTS: Validate device; compile or reuse its cached model
+    TTS->>TTS: Validate device and compile or reuse its cached model
     TTS->>TTS: Synthesize using selected device and voice
     TTS-->>API: WAV body
     API->>API: Receive full body (up to 64 MiB), calculate service duration
@@ -333,6 +404,11 @@ Proxy-generated failures may differ from the backend's status mapping above.
   [audio preview](../../../ui/src/features/voice/VoiceAudio.tsx) and
   [request timing cards](../../../ui/src/features/voice/VoiceMetrics.tsx).
 - [Voice API and upstream adapter](../../../vippet/api/routes/voice.py).
+- [Models page](../../../ui/src/pages/Models.tsx),
+  [model installation hook](../../../ui/src/features/models/useModelInstall.ts),
+  [model routes](../../../vippet/api/routes/models.py),
+  [model manager](../../../vippet/managers/model_manager.py) and
+  [supported model catalog](../../../shared/models/supported_models.yaml).
 - [Metrics stream](../../../ui/src/hooks/useMetricsStream.ts),
   [local chart history](../../../ui/src/hooks/useMetricHistory.ts) and
   [shared dashboard](../../../ui/src/features/metrics/MetricsDashboard.tsx).

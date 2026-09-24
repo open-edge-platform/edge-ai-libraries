@@ -213,10 +213,9 @@ class ComposeProfileTest(unittest.TestCase):
 class MakeRoutingTest(unittest.TestCase):
     def test_hardware_overrides_for_lifecycle_targets(self) -> None:
         voice_targets = (
-            "run-voice",
-            "build-voice",
-            "pull-voice",
-            "stop-voice",
+            "run",
+            "stop",
+            "build",
         )
         experimental_targets = (
             "build-experimental",
@@ -227,19 +226,12 @@ class MakeRoutingTest(unittest.TestCase):
         targets = (
             *voice_targets,
             *experimental_targets,
-            "run",
-            "stop",
-            "build",
             "build-dev",
             "run-dev",
         )
         commands = {
             "run": ["up", "-d"],
-            "run-voice": ["up", "-d", "--no-build"],
-            "build-voice": ["build"],
-            "pull-voice": ["pull"],
             "stop": ["down"],
-            "stop-voice": ["down"],
             "build-experimental": ["build"],
             "run-experimental": ["up", "-d", "--remove-orphans"],
             "stop-experimental": ["down"],
@@ -290,14 +282,9 @@ class MakeRoutingTest(unittest.TestCase):
                     expected_args = ["compose"]
                     for filename in expected:
                         expected_args.extend(["-f", filename])
-                    expected_commands = [[*expected_args, *commands[target]]]
-                    if target == "run-voice":
-                        expected_commands.insert(
-                            0, [*expected_args, "build", "model-download"]
-                        )
                     self.assertEqual(
                         args,
-                        [argument for command in expected_commands for argument in command],
+                        [*expected_args, *commands[target]],
                     )
 
 

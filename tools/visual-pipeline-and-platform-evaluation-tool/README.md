@@ -94,11 +94,9 @@ selection from `setup_env.sh` and `.env`.
 
 The **Voice** page (`/voice`) provides independent speech-to-text and
 text-to-speech conversions, without a chat, conversation history, or kiosk-core.
-`make run` starts only the base ViPPET services, using the detected hardware
-profile and the usual Compose image pull/build behavior. `make stop` stops only
-the base services. Use `make run-voice` to start ViPPET together with audio-analyzer
-and text-to-speech, with automatic building disabled. `make stop-voice` stops
-the base and voice services. Both stop targets preserve named volumes.
+`make build`, `make run`, and `make stop` include ViPPET, audio-analyzer, and
+text-to-speech using the detected hardware profile. Stopping preserves named
+volumes.
 Under WSL 2, the detected `igpu-wsl` profile enables GPU inference for ASR and
 the backend's GPU (WSL) pipeline variants. SpeechT5 TTS uses CPU because measured
 WSL latency is lower than on the iGPU. The profile also configures WSL device
