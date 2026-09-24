@@ -216,6 +216,51 @@ class ServiceHardeningTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_pipeline.return_value.synthesize.call_args.kwargs["speaker"], "Nora")
 
+    def test_generate_speech_passes_requested_device_to_pipeline(self):
+        with patch("main.ensure_model"), patch("main.preload_models"), patch("main.Pipeline") as warmup_pipeline, patch("api.openai_endpoints.resolve_tts_device", return_value="GPU"), patch("api.openai_endpoints.Pipeline") as mock_pipeline:
+            warmup_pipeline.return_value.synthesize.return_value = self._warmup_result()
+            mock_pipeline.return_value.synthesize.return_value = self._synth_result("Ryan")
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/v1/audio/speech",
+                    json={
+                        "model": "microsoft/speecht5_tts",
+                        "input": "hello",
+                        "voice": "Ryan",
+                        "device": "GPU",
+                        "response_format": "wav",
+                    },
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_pipeline.call_args.kwargs["device"], "GPU")
+
+    def test_generate_speech_rejects_unknown_device(self):
+        with patch("main.ensure_model"), patch("main.preload_models"), patch("main.Pipeline") as warmup_pipeline:
+            warmup_pipeline.return_value.synthesize.return_value = self._warmup_result()
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/v1/audio/speech",
+                    json={"input": "hello", "device": "AUTO", "response_format": "wav"},
+                )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error"]["param"], "device")
+
+    def test_generate_speech_uses_configured_device_when_omitted(self):
+        with patch("main.ensure_model"), patch("main.preload_models"), patch("main.Pipeline") as warmup_pipeline, patch("api.openai_endpoints.resolve_tts_device", return_value="CPU") as resolve_device, patch("api.openai_endpoints.Pipeline") as mock_pipeline:
+            warmup_pipeline.return_value.synthesize.return_value = self._warmup_result()
+            mock_pipeline.return_value.synthesize.return_value = self._synth_result("Ryan")
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/v1/audio/speech",
+                    json={"input": "hello", "voice": "Ryan", "response_format": "wav"},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(resolve_device.call_args.args[2], main.config.models.tts.device)
+        self.assertEqual(mock_pipeline.call_args.kwargs["device"], "CPU")
+
     def test_generate_speech_accepts_speecht5_cmu_arctic_alias(self):
         """CMU Arctic ids are accepted as aliases for the display names."""
         with patch("main.ensure_model"), patch("main.preload_models"), patch("main.Pipeline") as warmup_pipeline, patch("api.openai_endpoints.Pipeline") as mock_pipeline:
