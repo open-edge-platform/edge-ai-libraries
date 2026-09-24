@@ -33,6 +33,7 @@ services:
         https_proxy:
         no_proxy:
     restart: on-failure:5
+    user: "1000:1000"
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/pipelines/status', timeout=5)"]
       interval: 10s
@@ -56,6 +57,7 @@ services:
       - ${RENDER_GROUP_ID}
     devices:
       - "/dev/dri:/dev/dri"
+      - "/dev/accel:/dev/accel"
     tmpfs:
       - /tmp
       - /var/tmp
@@ -63,6 +65,7 @@ services:
       - ./shared/videos/:/videos
       - ./shared/models/:/models
       - ./shared/images/:/images
+      - ./shared/metadata/:/metadata
 
   # Point VIPPET's validation / single-stream performance test path at the
   # dlstreamer-pipeline-server service above instead of local gst_runner.py.

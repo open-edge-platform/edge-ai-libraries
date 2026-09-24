@@ -139,7 +139,7 @@ build-onvif-discovery: env-setup ## Build onvif discovery image
 docker-build: build build-videogenerator ## Build all images
 
 run: env-setup ## Run the docker compose services
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f compose.dlsps2.yml up -d
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
@@ -195,11 +195,11 @@ test: build-test ## Run unit tests and generate coverage report
 
 test-smoke: $(VENV_SENTINEL) ## Run smoke functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
-	python -m pytest --log-cli-level=INFO -m smoke vippet/tests/functional/
+	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO -m smoke vippet/tests/functional/
 
 test-full: $(VENV_SENTINEL) ## Run full functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
-	python -m pytest --log-cli-level=INFO vippet/tests/functional/
+	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO vippet/tests/functional/
 
 test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full)
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
