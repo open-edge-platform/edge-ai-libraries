@@ -3,11 +3,11 @@ configure_libze1 () {
   libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb"
 }
 
-debian_10_profile_libze1 () {
+debian_15_profile_libze1 () {
   echo "curl"
 }
 
-debian_10_install_libze1 () {
+debian_15_install_libze1 () {
   configure_libze1 
 
   if ensure_apt_is_installed libze1; then
@@ -21,10 +21,10 @@ debian_10_install_libze1 () {
   fi
 }
 
-debian_10_sbom_libze1 () {
+debian_15_sbom_libze1 () {
   configure_libze1
   cat <<EOF
-"pkg-list": ["$libze1_deb"]
+$(ensure_sbom_format pkg-list "$libze1_deb")
 EOF
 }
 

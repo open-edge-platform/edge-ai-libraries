@@ -24,17 +24,15 @@ debian_20_remove_edge_pack_base_standard () {
 
 debian_20_sbom_edge_pack_base_standard () {
   configure_edge_pack_base_standard "$@"
-  IFS=$'|'
-  local pref_str="${edge_pack_pref[*]}"
   cat <<EOF
-"name": "$edge_pack_repo"
-"gpg-key": "$edge_pack_key_url"
-"key_file": "$edge_pack_key_file"
-"apt-source": "$edge_pack_source"
-"apt-list-file": "$edge_pack_list_file"
-"apt-pref": ["${pref_str//|/'","'}"]
-"apt-pref-file": "$edge_pack_pref_file"
-"pkg-list": ["intel-edge-base-standard=$version*"]
+$(ensure_sbom_format name "$edge_pack_repo")
+$(ensure_sbom_format gpg-key "$edge_pack_key_url")
+$(ensure_sbom_format key-file "$edge_pack_key_file")
+$(ensure_sbom_format apt-source "$edge_pack_source")
+$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
+$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
+$(ensure_sbom_format pkg-list "intel-edge-base-standard=$version*")
 EOF
 }
 

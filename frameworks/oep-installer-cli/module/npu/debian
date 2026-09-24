@@ -59,9 +59,8 @@ debian_40_sbom_npu () {
   configure_npu "$@"
   local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
   [ ${#packages[*]} -gt 0 ] || return 3
-  local packages_str="${packages[*]}"
   cat <<EOF
-"pkg-list": ["${packages_str// /'","'}"]
+$(ensure_sbom_format pkg-list "${packages[@]}")
 EOF
 }
 

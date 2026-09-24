@@ -1,15 +1,10 @@
 
-debian_05_install_jq () {
-  if ensure_apt_is_installed jq; then
-    echo "jq is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y jq
-  fi
+debian_15_install_jq () {
+  ensure_apt_install_package jq
 }
 
-debian_05_sbom_jq () {
+debian_15_sbom_jq () {
   cat <<EOF
-"pkg-list": ["jq"]
+$(ensure_sbom_format pkg-list jq)
 EOF
 }

@@ -110,31 +110,26 @@ debian_55_remove_ros_openvino () {
 
 debian_55_sbom_ros_openvino () {
   configure_ros_openvino
-(
-  IFS=$'|'
-  local pref_str="${ov_deb_pref[*]}"
-  local amr_pref_str="${amr_pref[*]}"
   cat <<EOF
-"name": "$amr_repo_name"
-"gpg-key": "$amr_key_url"
-"key-file": "$amr_key_file"
-"apt-source": "$amr_deb_entry"
-"apt-src-source": "$amr_deb_src_entry"
-"apt-list-file": "$amr_list"
-"apt-pref": ["${amr_pref_str//'|'/'","'}"]
-"apt-pref-file": "$amr_pref_file"
+$(ensure_sbom_format name "$amr_repo_name")
+$(ensure_sbom_format gpg-key "$amr_key_url")
+$(ensure_sbom_format key-file "$amr_key_file")
+$(ensure_sbom_format apt-source "$amr_deb_entry")
+$(ensure_sbom_format apt-src-source "$amr_deb_src_entry")
+$(ensure_sbom_format apt-list-file "$amr_list")
+$(ensure_sbom_format apt-pref "${amr_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$amr_pref_file")
 ---
-"name": "$ov_repo_name"
-"gpg-key": "$ov_key_url"
-"key-file": "$ov_key_file"
-"apt-source": "$ov_deb_entry"
-"apt-list-file": "$ov_list"
-"pkg-list": ["openvino","ros-$ros_distro-openvino-node"]
-"apt-pref-file": "$ov_pref"
-"apt-pref": ["${pref_str//|/'","'}"]
+$(ensure_sbom_format name "$ov_repo_name")
+$(ensure_sbom_format gpg-key "$ov_key_url")
+$(ensure_sbom_format key-file "$ov_key_file")
+$(ensure_sbom_format apt-source "$ov_deb_entry")
+$(ensure_sbom_format apt-list-file "$ov_list")
+$(ensure_sbom_format pkg-list "openvino" "ros-$ros_distro-openvino-node")
+$(ensure_sbom_format apt-pref-file "$ov_pref")
+$(ensure_sbom_format apt-pref "${ov_deb_pref[@]}")
 ---
-"pkg-list": ["curl","gnupg"]
+$(ensure_sbom_format pkg-list curl gnupg)
 EOF
-)
 }
 

@@ -78,11 +78,11 @@ debian_70_remove_openvino () {
 debian_70_sbom_openvino () {
   configure_openvino "$@"
   cat <<EOF
-"name": "$repo_name"
-"gpg-key": "$key_url"
-"key-file": "$key_file"
-"apt-source": "$apt_entry"
-"apt-list-file": "$apt_file"
-"pkg-list": ["openvino-$version"]
+$(ensure_sbom_format name "$repo_name")
+$(ensure_sbom_format gpg-key "$key_url")
+$(ensure_sbom_format key-file "$key_file")
+$(ensrue_sbom_format apt-source "$apt_entry")
+$(ensure_sbom_format apt-list-file "$apt_file")
+$(ensure_sbom_format pkg-list "openvino-$version")
 EOF
 }

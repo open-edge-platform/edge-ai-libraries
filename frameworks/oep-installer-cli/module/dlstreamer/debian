@@ -124,12 +124,12 @@ debian_75_remove_dlstreamer () {
 debian_75_sbom_dlstreamer () {
   configure_dlstreamer
   cat <<EOF
-"name": "$repo_name"
-"apt-source": "$deb_entry"
-"apt-list-file": "$list_file"
-"gpg-key": "$key_url"
-"key-file": "$key_file"
-"pkg-list": ["intel-dlstreamer=$version"]
+$(ensure_sbom_format name "$repo_name")
+$(ensure_sbom_format apt-source "$deb_entry")
+$(ensure_sbom_format apt-list-file "$list_file")
+$(ensure_sbom_format gpg-key "$key_url")
+$(ensure_sbom_format key-file "$key_file")
+$(ensure_sbom_format pkg-list "intel-dlstreamer=$version*")
 EOF
 }
 

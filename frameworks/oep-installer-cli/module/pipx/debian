@@ -1,15 +1,10 @@
 
-debian_05_install_pipx () {
-  if ensure_apt_is_installed pipx; then
-    echo "pipx is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y pipx
-  fi
+debian_15_install_pipx () {
+  ensure_apt_install_package pipx
 }
 
-debian_05_sbom_pipx () {
+debian_15_sbom_pipx () {
   cat <<EOF
-"pkg-list": ["pipx"]
+$(ensure_sbom_format pkg-list pipx)
 EOF
 }

@@ -1,0 +1,18 @@
+
+ensure_sbom_format () {
+  local key=$1; shift
+  case "$key" in
+  pkg-list|apt-pref)
+    IFS=$'|'
+    local pkg_str="$*"
+    echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
+    ;;
+  name|gpg-key|key-file|apt-source|apt-src-source|apt-list-file|apt-pref-file|apt-repository)
+    echo "\"$key\": \"$*\""
+    ;;
+  *)
+    echo "Unsupported SBOM keys: $key" 1>&2
+    exit 3
+    ;;
+  esac
+}

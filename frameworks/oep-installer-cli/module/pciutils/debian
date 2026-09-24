@@ -1,15 +1,10 @@
 
 debian_05_install_pciutils () {
-  if ensure_apt_is_installed pciutils; then
-    echo "Pciutils is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y pciutils
-  fi
+  ensure_apt_install_package pciutils
 }
 
 debian_05_sbom_pciutils () {
   cat <<EOF
-"pkg-list": ["pciutils"]
+$(ensure_sbom_format pkg-list pciutils)
 EOF
 }

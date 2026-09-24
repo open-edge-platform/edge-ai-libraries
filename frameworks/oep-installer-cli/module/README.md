@@ -11,7 +11,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
 - `<order>`: A number (prefixed with `0` if less than 10) from 0 to 99 to specify the installation order. The OEP installer will install components in the following order:
 
 ```
-00-29   kernel modules/drivers
+00-29   kernel modules/drivers and essential utilities
 30-59   low level libraries
 60-89   middle level libraries/microservices
 90-98   applications
