@@ -14,7 +14,7 @@ configure_edge_pack () {
 }
 
 debian_15_profile_edge_pack () {
-  echo "pre_system_scan core_types curl gpg"
+  echo "curl gpg"
 }
 
 debian_15_install_edge_pack () {
