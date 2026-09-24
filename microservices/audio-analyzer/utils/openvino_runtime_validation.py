@@ -116,10 +116,7 @@ def _probe_openvino_device_runtime(device: str) -> None:
 
 
 @lru_cache(maxsize=16)
-def resolve_asr_device(provider: str, model_name: str, requested_device: str) -> str:
-    provider = str(provider).strip().lower()
-    model_name = str(model_name).strip().lower()
-    device = str(requested_device).strip().upper()
+def _validate_asr_compatibility(provider: str, device: str) -> None:
     if provider not in _SUPPORTED_ASR_PROVIDERS:
         raise RuntimeError(
             "Invalid models.asr.provider value "
@@ -139,6 +136,13 @@ def resolve_asr_device(provider: str, model_name: str, requested_device: str) ->
             f"Invalid ASR provider/device combination: provider={provider}, device={device}. "
             f"Provider '{provider}' supports only: {supported}"
         )
+
+
+def resolve_asr_device(provider: str, model_name: str, requested_device: str) -> str:
+    provider = str(provider).strip().lower()
+    model_name = str(model_name).strip().lower()
+    device = str(requested_device).strip().upper()
+    _validate_asr_compatibility(provider, device)
 
     if provider != "openvino":
         return device

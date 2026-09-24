@@ -2,7 +2,6 @@ import json
 import logging
 import os
 from types import SimpleNamespace
-from typing import Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
@@ -19,7 +18,6 @@ from utils.subtitle_format import format_srt as _format_srt, format_vtt as _form
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-InferenceDevice = Literal["CPU", "GPU", "NPU"]
 
 
 def _sse_transcription_events(pipeline: Pipeline, filepath: str, language: str | None):
@@ -64,7 +62,7 @@ def transcribe_audio(
     response_format: str = Form("json"),
     temperature: float = Form(0.0),
     stream: bool = Form(False),
-    device: InferenceDevice | None = Form(None),
+    device: str | None = Form(None),
 ):
     language, _ = validate_transcription_options(
         temperature=temperature,
