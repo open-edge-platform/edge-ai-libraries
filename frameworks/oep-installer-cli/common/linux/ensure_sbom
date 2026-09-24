@@ -11,7 +11,7 @@ ensure_sbom_format () {
     echo "\"$key\": \"$*\""
     ;;
   *)
-    echo "Unsupported SBOM keys: $key" 1>&2
+    echo "Unsupported SBOM key: $key" 1>&2
     exit 3
     ;;
   esac
