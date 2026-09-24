@@ -1288,7 +1288,15 @@ export type ModelDownloadJobSummary = {
   model_name: string;
   source: ModelSource;
 };
-export type ModelCategory = "classification" | "detection" | "genai";
+export type ModelCategory =
+  | "image_classification"
+  | "object_detection"
+  | "image_segmentation"
+  | "pose_estimation"
+  | "vision_language_models"
+  | "large_language_models"
+  | "automatic_speech_recognition"
+  | "text_to_speech";
 export type ModelInstallStatus =
   | "installed"
   | "not_installed"
@@ -1334,6 +1342,7 @@ export type BodyUploadModel = {
   model_name: string;
   category: ModelCategory;
   file: string;
+  description?: string | null;
 };
 export type ModelDownloadJobItem = {
   /** Model name. */

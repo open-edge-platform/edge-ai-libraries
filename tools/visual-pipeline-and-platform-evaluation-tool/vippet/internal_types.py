@@ -164,14 +164,24 @@ class InternalModelCategory(str, Enum):
     Internal representation of model category.
 
     Values:
-        CLASSIFICATION: Classification model.
-        DETECTION: Detection model.
-        GENAI: Generative AI model (e.g. VLM/LLM).
+        IMAGE_CLASSIFICATION: Image classification model.
+        OBJECT_DETECTION: Object detection model.
+        IMAGE_SEGMENTATION: Image segmentation model.
+        POSE_ESTIMATION: Pose estimation model.
+        VISION_LANGUAGE_MODELS: Vision-language model (e.g. VLM).
+        LARGE_LANGUAGE_MODELS: Large language model (text-only, e.g. LLM).
+        AUTOMATIC_SPEECH_RECOGNITION: Automatic speech recognition model.
+        TEXT_TO_SPEECH: Text-to-speech synthesis model.
     """
 
-    CLASSIFICATION = "classification"
-    DETECTION = "detection"
-    GENAI = "genai"
+    IMAGE_CLASSIFICATION = "image_classification"
+    OBJECT_DETECTION = "object_detection"
+    IMAGE_SEGMENTATION = "image_segmentation"
+    POSE_ESTIMATION = "pose_estimation"
+    VISION_LANGUAGE_MODELS = "vision_language_models"
+    LARGE_LANGUAGE_MODELS = "large_language_models"
+    AUTOMATIC_SPEECH_RECOGNITION = "automatic_speech_recognition"
+    TEXT_TO_SPEECH = "text_to_speech"
 
 
 class InternalModelDownloadJobState(str, Enum):

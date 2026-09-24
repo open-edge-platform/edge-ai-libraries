@@ -88,7 +88,7 @@ async def get_models():
     is not currently used by any predefined pipeline.
     """
     try:
-        models = ModelManager().list_models()
+        models = await ModelManager().list_models()
         return [_internal_model_to_api(m) for m in models]
     except Exception:
         logger.error("Failed to list models", exc_info=True)
@@ -181,7 +181,7 @@ async def upload_model(
             original_filename=file.filename or f"{model_name}.zip",
             description=normalized_description,
         )
-        model, status, message = ModelManager().upload_model(spec)
+        model, status, message = await ModelManager().upload_model(spec)
         if model is None:
             return JSONResponse(
                 content=schemas.MessageResponse(message=message).model_dump(),
@@ -305,7 +305,7 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
     try:
         items: dict[str, schemas.ModelDownloadJobItem] = {}
         for name in body.names:
-            job_id, status, message = manager.start_download(name)
+            job_id, status, message = await manager.start_download(name)
             items[name] = schemas.ModelDownloadJobItem(
                 name=name,
                 job_id=job_id,
@@ -417,7 +417,7 @@ async def check_models_status(body: schemas.ModelCheckStatusRequest):
     """
     try:
         # Get all models and their current install status
-        all_models = ModelManager().list_models()
+        all_models = await ModelManager().list_models()
 
         # Build a map of display_name -> internal model for quick lookup
         display_name_map = {m.display_name: m for m in all_models}

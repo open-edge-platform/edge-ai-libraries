@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+name: yolo11s-seg
+display_name: YOLO 11s Segmentation
+description: "YOLO11 small instance-segmentation model that detects objects and outputs a pixel-level mask for each of the 80 COCO categories."
+source: public
+hub: ultralytics
+type: image_segmentation
+precisions:
+  - precision: FP32
+    model_path: ultralytics/public/yolo11s-seg/FP32/yolo11s-seg.xml
+    model_proc: ""
+  - precision: FP16
+    model_path: ultralytics/public/yolo11s-seg/FP16/yolo11s-seg.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: yolo11s-seg

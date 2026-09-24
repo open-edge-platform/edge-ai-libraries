@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+name: yolov8_license_plate_detector
+display_name: YOLO v8 License Plate Detector
+description: "YOLOv8-based detector that locates vehicle license plates in an image, returning a bounding box around each plate for downstream OCR."
+source: public
+hub: ultralytics
+type: object_detection
+precisions:
+  - precision: FP32
+    model_path: ultralytics/public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: "NPU"
+download_request:
+  hub: ultralytics
+  name: yolov8_license_plate_detector

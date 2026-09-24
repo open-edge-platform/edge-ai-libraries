@@ -1,582 +1,511 @@
-import importlib
+# SPDX-License-Identifier: Apache-2.0
+"""Unit tests for ``models.py``.
+
+``SupportedModel`` (path resolution, ``exists_on_disk``) has no DB
+dependency and is tested by direct construction. ``SupportedModelsManager``
+is an in-memory cache populated from the `models`/`model_variants` DB
+tables (see ``managers/model_manager_test.py``'s ``_AsyncDBTestCase`` for
+the async-DB-touching sibling of this pattern); since ``reload()`` bridges
+into async code via ``asyncio.run()`` internally, these tests stay plain
+(non-async) ``TestCase``s and drive DB setup/teardown with their own
+``asyncio.run`` calls.
+"""
+
+import asyncio
 import os
-import sys
+import shutil
 import tempfile
 import unittest
-from pathlib import Path
+from datetime import datetime, timezone
+from typing import Any
+
+import database
+import models as models_module
+from models import GENAI_SENTINEL_FILE, SupportedModel, SupportedModelsManager
+from orm_models import Model, ModelVariant
 
 
-# Helper to reload the models module with environment variables set.
-def _reload_models_module(supported_models_file: str, models_path: str):
+def _reset_supported_models_manager() -> None:
+    SupportedModelsManager._instance = None
+
+
+class TestSupportedModelPathsAndExists(unittest.TestCase):
+    """``SupportedModel`` path resolution and ``exists_on_disk`` — no DB involved."""
+
+    def setUp(self) -> None:
+        self._tmpdir = tempfile.mkdtemp(prefix="vippet-models-path-")
+        self._orig_models_path = models_module.MODELS_PATH
+        models_module.MODELS_PATH = self._tmpdir
+
+    def tearDown(self) -> None:
+        models_module.MODELS_PATH = self._orig_models_path
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_relative_model_path_and_exists(self) -> None:
+        xml_file = os.path.join(self._tmpdir, "modelA.xml")
+        with open(xml_file, "w") as f:
+            f.write("dummy")
+
+        sm = SupportedModel(
+            name="mA",
+            display_name="Model A",
+            source="public",
+            model_type="image_classification",
+            model_path="modelA.xml",
+            model_proc=None,
+        )
+        self.assertEqual(sm.model_path_full, xml_file)
+        self.assertTrue(sm.exists_on_disk())
+        self.assertEqual(sm.model_proc_full, "")
+
+    def test_relative_model_proc_is_joined_with_models_path(self) -> None:
+        proc_file = os.path.join(self._tmpdir, "proc.json")
+        with open(proc_file, "w") as f:
+            f.write("{}")
+
+        sm = SupportedModel(
+            name="mB",
+            display_name="Model B",
+            source="public",
+            model_type="object_detection",
+            model_path="missing.xml",
+            model_proc="proc.json",
+        )
+        self.assertEqual(sm.model_proc_full, proc_file)
+        self.assertFalse(sm.exists_on_disk())
+
+    def test_absolute_model_proc_is_used_as_is(self) -> None:
+        proc_file = os.path.join(self._tmpdir, "abs_proc.json")
+        with open(proc_file, "w") as f:
+            f.write("{}")
+
+        sm = SupportedModel(
+            name="mC",
+            display_name="Model C",
+            source="public",
+            model_type="object_detection",
+            model_path="missing.xml",
+            model_proc=proc_file,
+            model_proc_is_full_path=True,
+        )
+        self.assertEqual(sm.model_proc_full, proc_file)
+
+
+class TestSupportedModelGenAI(unittest.TestCase):
+    """GenAI (vision_language_models) directory-based ``exists_on_disk``."""
+
+    def setUp(self) -> None:
+        self._tmpdir = tempfile.mkdtemp(prefix="vippet-models-genai-")
+        self._orig_models_path = models_module.MODELS_PATH
+        models_module.MODELS_PATH = self._tmpdir
+
+    def tearDown(self) -> None:
+        models_module.MODELS_PATH = self._orig_models_path
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _make(self) -> SupportedModel:
+        return SupportedModel(
+            name="gemma3",
+            display_name="Gemma 3",
+            source="huggingface",
+            model_type="vision_language_models",
+            model_path="vlm/gemma3",
+            model_proc="",
+        )
+
+    def test_no_directory_is_not_installed(self) -> None:
+        self.assertFalse(self._make().exists_on_disk())
+
+    def test_empty_directory_is_not_installed(self) -> None:
+        model_dir = os.path.join(self._tmpdir, "vlm", "gemma3")
+        os.makedirs(model_dir)
+        self.assertFalse(self._make().exists_on_disk())
+
+    def test_directory_with_unrelated_files_is_not_installed(self) -> None:
+        model_dir = os.path.join(self._tmpdir, "vlm", "gemma3")
+        os.makedirs(model_dir)
+        with open(os.path.join(model_dir, "graph.pbtxt"), "w") as f:
+            f.write("dummy")
+        self.assertFalse(self._make().exists_on_disk())
+
+    def test_directory_with_sentinel_file_is_installed(self) -> None:
+        model_dir = os.path.join(self._tmpdir, "vlm", "gemma3")
+        os.makedirs(model_dir)
+        with open(os.path.join(model_dir, GENAI_SENTINEL_FILE), "w") as f:
+            f.write("<ir/>")
+        self.assertTrue(self._make().exists_on_disk())
+
+
+class _DBTestCase(unittest.TestCase):
+    """Base class wiring a fresh temp-file SQLite database + MODELS_PATH per test.
+
+    ``SupportedModelsManager.reload()`` bridges into async code via
+    ``asyncio.run()`` internally, so DB setup/teardown here uses its own
+    ``asyncio.run`` calls rather than ``IsolatedAsyncioTestCase``.
     """
-    Reload the models module after setting environment variables.
-    Ensures module-level constants are read from our test environment.
-    """
-    os.environ["SUPPORTED_MODELS_FILE"] = supported_models_file
-    os.environ["MODELS_PATH"] = models_path
-    # Load/reload the top-level 'models' module.
-    if "models" in sys.modules:
-        return importlib.reload(sys.modules["models"])
-    else:
-        import models as m
 
-        return importlib.reload(m)
+    def setUp(self) -> None:
+        _reset_supported_models_manager()
+        self._tmpdir = tempfile.mkdtemp(prefix="vippet-models-db-")
+        self._db_path = os.path.join(self._tmpdir, "test.db")
+        self._models_path = os.path.join(self._tmpdir, "models")
+        os.makedirs(self._models_path, exist_ok=True)
+
+        self._orig_database_url = database.DATABASE_URL
+        database.DATABASE_URL = f"sqlite+aiosqlite:///{self._db_path}"
+        self._orig_models_path = models_module.MODELS_PATH
+        models_module.MODELS_PATH = self._models_path
+
+        os.environ["DB_SEED_ON_STARTUP"] = "false"
+        asyncio.run(database.init_db())
+
+    def tearDown(self) -> None:
+        asyncio.run(database.close_db())
+        database.DATABASE_URL = self._orig_database_url
+        models_module.MODELS_PATH = self._orig_models_path
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+        _reset_supported_models_manager()
+
+    def _add_model(
+        self,
+        *,
+        name: str,
+        display_name: str | None = None,
+        category: str = "object_detection",
+        source: str = "public",
+        hub: str | None = None,
+        unsupported_devices: str | None = None,
+        variants: list[dict[str, Any]],
+    ) -> None:
+        async def _insert() -> None:
+            now = datetime.now(timezone.utc)
+            async with database.async_session_maker() as session:
+                model = Model(
+                    name=name,
+                    display_name=display_name or name,
+                    description=None,
+                    category=category,
+                    source=source,
+                    hub=hub or source,
+                    unsupported_devices=unsupported_devices,
+                    is_custom=False,
+                    install_status="not_installed",
+                    installed_at=None,
+                    download_request=None,
+                    created_at=now,
+                )
+                session.add(model)
+                await session.flush()
+                for v in variants:
+                    session.add(
+                        ModelVariant(
+                            model_id=model.id,
+                            name=v.get("name", name),
+                            display_name=v["display_name"],
+                            precision=v["precision"],
+                            model_path=v["model_path"],
+                            model_proc=v.get("model_proc"),
+                            installed=v.get("installed", False),
+                            installed_at=None,
+                        )
+                    )
+                await session.commit()
+
+        asyncio.run(_insert())
+
+    def _touch(self, relative_path: str) -> None:
+        """Create a real file under MODELS_PATH so ``exists_on_disk()`` sees it."""
+        full_path = os.path.join(self._models_path, relative_path)
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        open(full_path, "w").close()
 
 
-class TestModels(unittest.TestCase):
-    def test_supported_models_manager_rejects_long_descriptions(self):
-        """Test that model descriptions are limited to 200 characters."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "models"
-            models_dir.mkdir()
-            yaml_file = td_path / "supported_models.yaml"
-            yaml_file.write_text(
-                f"""
-- name: model
-  display_name: Model
-  description: {"x" * 201}
-  source: public
-  type: classification
-  precisions:
-    - precision: FP32
-      model_path: model.xml
-      model_proc: ""
-"""
-            )
+class TestSupportedModelsManagerReload(_DBTestCase):
+    """``reload()``/``reload_async()`` populate ``_models`` from the DB."""
 
-            m = _reload_models_module(str(yaml_file), str(models_dir))
-            if hasattr(m, "_supported_models_manager_instance"):
-                setattr(m, "_supported_models_manager_instance", None)
+    def test_reload_builds_one_supported_model_per_variant(self) -> None:
+        self._add_model(
+            name="inst",
+            display_name="Installed Model",
+            category="image_classification",
+            source="public",
+            unsupported_devices="NPU",
+            variants=[
+                {
+                    "precision": "FP32",
+                    "model_path": "inst.xml",
+                    "display_name": "Installed Model (FP32)",
+                }
+            ],
+        )
+        self._touch("inst.xml")
 
-            with self.assertRaises(RuntimeError):
-                m.SupportedModelsManager()
+        manager = SupportedModelsManager()
+        manager.reload()
 
-    def test_supported_models_manager_strips_descriptions(self):
-        """Test that YAML model descriptions are trimmed before storage."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "models"
-            models_dir.mkdir()
-            yaml_file = td_path / "supported_models.yaml"
-            yaml_file.write_text(
-                "- name: model\n"
-                "  display_name: Model\n"
-                '  description: "  Model description  "\n'
-                "  source: public\n"
-                "  type: classification\n"
-                "  precisions:\n"
-                "    - precision: FP32\n"
-                "      model_path: model.xml\n"
-                '      model_proc: ""\n'
-            )
+        all_supported = manager.get_all_supported_models()
+        self.assertEqual(len(all_supported), 1)
+        installed_models = manager.get_all_installed_models()
+        self.assertEqual(len(installed_models), 1)
+        self.assertEqual(installed_models[0].name, "inst")
+        self.assertEqual(installed_models[0].canonical_name, "inst")
+        self.assertEqual(installed_models[0].unsupported_devices, "NPU")
 
-            m = _reload_models_module(str(yaml_file), str(models_dir))
-            if hasattr(m, "_supported_models_manager_instance"):
-                setattr(m, "_supported_models_manager_instance", None)
+    def test_reload_async_populates_same_as_reload(self) -> None:
+        self._add_model(
+            name="a",
+            display_name="Model A",
+            variants=[{"precision": "FP32", "model_path": "a.xml", "display_name": "Model A (FP32)"}],
+        )
 
-            model = m.SupportedModelsManager().get_all_supported_models()[0]
-            self.assertEqual(model.description, "Model description")
+        async def _run() -> None:
+            await SupportedModelsManager().reload_async()
 
-    def test_supported_model_paths_and_exists(self):
-        """Test SupportedModel path and model_proc resolution and exists_on_disk."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "models_dir"
-            models_dir.mkdir()
-            xml_file = models_dir / "modelA.xml"
-            xml_file.write_text("dummy")
-            yaml_file = td_path / "supported.yaml"
-            yaml_file.write_text("[]")
+        asyncio.run(_run())
+        self.assertEqual(len(SupportedModelsManager().get_all_supported_models()), 1)
 
-            m = _reload_models_module(str(yaml_file), str(models_dir))
+    def test_extra_model_proc_alias_uses_absolute_path_flag(self) -> None:
+        """``model_proc_is_full_path`` is derived from ``os.path.isabs``."""
+        proc_abs = os.path.join(self._tmpdir, "extra_proc.json")
+        with open(proc_abs, "w") as f:
+            f.write("{}")
 
-            # instantiate SupportedModel with no model_proc
-            sm1 = m.SupportedModel(
-                name="mA",
-                display_name="Model A",
-                source="public",
-                model_type="classification",
-                model_path="modelA.xml",
-                model_proc=None,
-            )
-            # model_path_full should point inside MODELS_PATH and exists_on_disk should be True
-            self.assertEqual(sm1.model_path_full, str(models_dir / "modelA.xml"))
-            self.assertTrue(sm1.exists_on_disk())
-            # model_proc_full should be empty when model_proc is None
-            self.assertEqual(sm1.model_proc_full, "")
+        self._add_model(
+            name="eff",
+            display_name="EfficientNet",
+            variants=[
+                {
+                    "precision": "INT8",
+                    "model_path": "eff.xml",
+                    "display_name": "EfficientNet (INT8)",
+                    "model_proc": "eff.json",
+                },
+                {
+                    "name": "eff_extra_proc",
+                    "precision": "INT8",
+                    "model_path": "eff.xml",
+                    "display_name": "EfficientNet (INT8) [model-proc: extra_proc]",
+                    "model_proc": proc_abs,
+                },
+            ],
+        )
+        manager = SupportedModelsManager()
+        manager.reload()
+        supported = manager.get_all_supported_models()
+        by_name = {m.display_name: m for m in supported}
 
-            # instantiate with non-empty model_proc
-            proc_file = models_dir / "proc.json"
-            proc_file.write_text("{}")
-            sm2 = m.SupportedModel(
-                name="mB",
-                display_name="Model B",
-                source="public",
-                model_type="detection",
-                model_path="missing.xml",
-                model_proc="proc.json",
-            )
-            # model_proc_full should point to MODELS_PATH/proc.json
-            self.assertEqual(sm2.model_proc_full, str(models_dir / "proc.json"))
-            # model_path_full exists_on_disk should be False for missing.xml
-            self.assertFalse(sm2.exists_on_disk())
+        relative_variant = by_name["EfficientNet (INT8)"]
+        self.assertEqual(
+            relative_variant.model_proc_full,
+            os.path.join(self._models_path, "eff.json"),
+        )
+        extra_variant = by_name["EfficientNet (INT8) [model-proc: extra_proc]"]
+        self.assertEqual(extra_variant.model_proc_full, proc_abs)
 
-    def test_supported_models_manager_loads_and_basic_lookups(self):
-        """Test SupportedModelsManager loads YAML and lookup helpers."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "models"
-            models_dir.mkdir()
-            installed = models_dir / "inst.xml"
-            installed.write_text("x")
-            yaml_content = """
-- name: inst
-  display_name: Installed Model
-  source: public
-  type: classification
-  unsupported_devices: "NPU"
-  default: true
-  precisions:
-    - precision: FP32
-      model_path: inst.xml
-      model_proc: ""
-- name: miss
-  display_name: Missing Model
-  source: public
-  type: detection
-  unsupported_devices: ""
-  default: false
-  precisions:
-    - precision: FP32
-      model_path: miss.xml
-      model_proc: ""
-"""
-            yaml_file = td_path / "supported_models.yaml"
-            yaml_file.write_text(yaml_content)
 
-            m = _reload_models_module(str(yaml_file), str(models_dir))
-            # Reset singleton for safe instantiation
-            if hasattr(m, "_supported_models_manager_instance"):
-                setattr(m, "_supported_models_manager_instance", None)
+class TestFilterModels(_DBTestCase):
+    """``filter_*_models`` — 'Disabled' handling and default selection."""
 
-            manager = m.SupportedModelsManager()
-            # all supported models should be two
-            all_supported = manager.get_all_supported_models()
-            self.assertEqual(len(all_supported), 2)
-            # installed models should be only one
-            installed_models = manager.get_all_installed_models()
-            self.assertEqual(len(installed_models), 1)
-            self.assertEqual(installed_models[0].name, "inst")
+    def test_disabled_option_and_default_selection(self) -> None:
+        self._add_model(
+            name="a",
+            display_name="Model A",
+            variants=[{"precision": "FP32", "model_path": "a.xml", "display_name": "Model A (FP32)"}],
+        )
+        self._add_model(
+            name="b",
+            display_name="Model B",
+            variants=[{"precision": "FP32", "model_path": "b.xml", "display_name": "Model B (FP32)"}],
+        )
+        self._touch("a.xml")
+        self._touch("b.xml")
+        manager = SupportedModelsManager()
+        manager.reload()
 
-            # find by display name
-            found_by_disp = manager.find_installed_model_by_display_name(
-                "Installed Model (FP32)"
-            )
-            self.assertIsNotNone(found_by_disp)
-            self.assertEqual(found_by_disp.name, "inst")
+        model_names = ["Disabled", "Model A (FP32)", "Model B (FP32)"]
+        filtered, default = manager.filter_object_detection_models(
+            model_names, default_model="Disabled"
+        )
+        self.assertEqual(filtered[0], "Disabled")
+        self.assertEqual(default, "Disabled")
 
-            # find by model_path and model_proc_path
-            found_by_path = manager.find_model_by_model_and_proc_path(
-                str(installed), ""
-            )
-            self.assertIsNotNone(found_by_path)
-            self.assertEqual(found_by_path.name, "inst")
+        filtered2, default2 = manager.filter_object_detection_models(
+            ["Model A (FP32)", "Model B (FP32)"], default_model="NonExistent"
+        )
+        self.assertIn("Model A (FP32)", filtered2)
+        self.assertIn(default2, filtered2)
 
-    def test_filter_models_disabled_and_default_selection(self):
-        """Test filtering logic including 'Disabled' option and default selection rules."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "md"
-            models_dir.mkdir()
-            a = models_dir / "a.xml"
-            b = models_dir / "b.xml"
-            a.write_text("a")
-            b.write_text("b")
-            yaml_content = """
-- name: a
-  display_name: Model A
-  source: public
-  type: detection
-  unsupported_devices: ""
-  default: false
-  precisions:
-    - precision: FP32
-      model_path: a.xml
-      model_proc: ""
-- name: b
-  display_name: Model B
-  source: public
-  type: detection
-  unsupported_devices: ""
-  default: false
-  precisions:
-    - precision: FP32
-      model_path: b.xml
-      model_proc: ""
-"""
-            yaml_file = td_path / "supported.yaml"
-            yaml_file.write_text(yaml_content)
+    def test_no_models_on_disk_yields_empty_filtered_and_none_default(self) -> None:
+        self._add_model(
+            name="c",
+            display_name="Model C",
+            variants=[{"precision": "FP32", "model_path": "nofile.xml", "display_name": "Model C (FP32)"}],
+        )
+        manager = SupportedModelsManager()
+        manager.reload()
 
-            m = _reload_models_module(str(yaml_file), str(models_dir))
-            if hasattr(m, "_supported_models_manager_instance"):
-                setattr(m, "_supported_models_manager_instance", None)
-            manager = m.SupportedModelsManager()
+        filtered, default = manager.filter_object_detection_models(
+            ["Model C (FP32)"], default_model="Model C (FP32)"
+        )
+        self.assertEqual(filtered, [])
+        self.assertIsNone(default)
 
-            # If "Disabled" present in model_names, it should appear first
-            model_names = ["Disabled", "Model A (FP32)", "Model B (FP32)"]
-            filtered, default = manager.filter_detection_models(
-                model_names, default_model="Disabled"
-            )
-            self.assertEqual(filtered[0], "Disabled")
-            self.assertEqual(default, "Disabled")
 
-            # If default_model not present on disk, pick first available non-Disabled
-            filtered2, default2 = manager.filter_detection_models(
-                ["Model A (FP32)", "Model B (FP32)"], default_model="NonExistent"
-            )
-            self.assertIn("Model A (FP32)", filtered2)
-            self.assertIn(default2, filtered2)
+class TestIsModelSupportedOnDevice(_DBTestCase):
+    def test_unsupported_devices_parsed_case_insensitively(self) -> None:
+        self._add_model(
+            name="inst2",
+            display_name="Model2",
+            category="image_classification",
+            unsupported_devices="NPU, TPU",
+            variants=[{"precision": "FP32", "model_path": "inst2.xml", "display_name": "Model2 (FP32)"}],
+        )
+        self._touch("inst2.xml")
+        manager = SupportedModelsManager()
+        manager.reload()
 
-            # No models on disk: filtered empty and default None
-            yaml_file2 = td_path / "supported2.yaml"
-            yaml_file2.write_text(
-                """
-- name: c
-  display_name: Model C
-  source: public
-  type: detection
-  unsupported_devices: ""
-  default: false
-  precisions:
-    - precision: FP32
-      model_path: nofile.xml
-      model_proc: ""
-"""
-            )
-            m2 = _reload_models_module(str(yaml_file2), str(models_dir))
-            if hasattr(m2, "_supported_models_manager_instance"):
-                setattr(m2, "_supported_models_manager_instance", None)
-            manager2 = m2.SupportedModelsManager()
-            filtered3, default3 = manager2.filter_detection_models(
-                ["Model C (FP32)"], default_model="Model C (FP32)"
-            )
-            self.assertEqual(filtered3, [])
-            self.assertIsNone(default3)
+        self.assertFalse(manager.is_model_supported_on_device("Model2 (FP32)", "npu"))
+        self.assertTrue(manager.is_model_supported_on_device("Model2 (FP32)", "GPU"))
+        self.assertFalse(manager.is_model_supported_on_device("NoSuchModel", "cpu"))
 
-    def test_is_model_supported_on_device_and_missing_model(self):
-        """Test device support parsing and behavior when model not found."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "md2"
-            models_dir.mkdir()
-            inst = models_dir / "inst2.xml"
-            inst.write_text("x")
-            yaml_file = td_path / "sup.yaml"
-            yaml_file.write_text(
-                """
-- name: inst2
-  display_name: Model2
-  source: public
-  type: classification
-  unsupported_devices: "NPU, TPU"
-  default: true
-  precisions:
-    - precision: FP32
-      model_path: inst2.xml
-      model_proc: ""
-"""
-            )
-            m = _reload_models_module(str(yaml_file), str(models_dir))
-            if hasattr(m, "_supported_models_manager_instance"):
-                setattr(m, "_supported_models_manager_instance", None)
-            manager = m.SupportedModelsManager()
 
-            # 'npu' should be unsupported (case-insensitive)
-            self.assertFalse(
-                manager.is_model_supported_on_device("Model2 (FP32)", "npu")
-            )
-            # 'gpu' should be supported
-            self.assertTrue(
-                manager.is_model_supported_on_device("Model2 (FP32)", "GPU")
-            )
-            # model not found should return False
-            self.assertFalse(manager.is_model_supported_on_device("NoSuchModel", "cpu"))
+class TestFindModelByModelAndProcPath(_DBTestCase):
+    def test_matches_by_base_and_extra_model_proc(self) -> None:
+        extra_proc = os.path.join(self._tmpdir, "extra.json")
+        with open(extra_proc, "w") as f:
+            f.write("{}")
 
-    def test_find_model_by_model_and_proc_path_with_extra_model_procs(self):
-        """Test matching when extra_model_procs provides full-path model-proc variants."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "models"
-            models_dir.mkdir()
+        self._add_model(
+            name="m1",
+            display_name="Model Base",
+            variants=[
+                {
+                    "precision": "FP32",
+                    "model_path": "shared.xml",
+                    "display_name": "Model Base (FP32) [model-proc: base]",
+                    "model_proc": "base.json",
+                },
+                {
+                    "name": "m1_extra",
+                    "precision": "FP32",
+                    "model_path": "shared.xml",
+                    "display_name": "Model Base (FP32) [model-proc: extra]",
+                    "model_proc": extra_proc,
+                },
+            ],
+        )
+        self._touch("shared.xml")
+        self._touch("base.json")
+        manager = SupportedModelsManager()
+        manager.reload()
 
-            model_file = models_dir / "shared.xml"
-            model_file.write_text("model")
+        model_file = os.path.join(self._models_path, "shared.xml")
+        base_proc_file = os.path.join(self._models_path, "base.json")
 
-            base_proc = models_dir / "base.json"
-            extra_proc = models_dir / "extra.json"
-            base_proc.write_text("a")
-            extra_proc.write_text("b")
+        found_base = manager.find_model_by_model_and_proc_path(model_file, base_proc_file)
+        self.assertIsNotNone(found_base)
+        assert found_base is not None
+        self.assertIn("model-proc: base", found_base.display_name)
 
-            yaml_content = f"""
-- name: m1
-  display_name: Model Base
-  source: public
-  type: detection
-  extra_model_procs:
-    - {str(extra_proc)}
-  unsupported_devices: ""
-  default: false
-  precisions:
-    - precision: FP32
-      model_path: shared.xml
-      model_proc: {base_proc.name}
-"""
-            yaml_file = td_path / "supported.yaml"
-            yaml_file.write_text(yaml_content)
+        found_extra = manager.find_model_by_model_and_proc_path(model_file, extra_proc)
+        self.assertIsNotNone(found_extra)
+        assert found_extra is not None
+        self.assertIn("model-proc: extra", found_extra.display_name)
 
-            m = _reload_models_module(str(yaml_file), str(models_dir))
-            if hasattr(m, "_supported_models_manager_instance"):
-                setattr(m, "_supported_models_manager_instance", None)
-            manager = m.SupportedModelsManager()
+    def test_disambiguates_by_precision_directory(self) -> None:
+        self._add_model(
+            name="yolov10s",
+            display_name="YOLO v10s 640x640",
+            variants=[
+                {
+                    "precision": "INT8",
+                    "model_path": "public/yolov10s/INT8/yolov10s.xml",
+                    "display_name": "YOLO v10s 640x640 (INT8)",
+                },
+                {
+                    "precision": "FP16",
+                    "model_path": "public/yolov10s/FP16/yolov10s.xml",
+                    "display_name": "YOLO v10s 640x640 (FP16)",
+                },
+            ],
+        )
+        self._touch("public/yolov10s/INT8/yolov10s.xml")
+        self._touch("public/yolov10s/FP16/yolov10s.xml")
+        manager = SupportedModelsManager()
+        manager.reload()
 
-            # Find by base model_proc
-            found_base = manager.find_model_by_model_and_proc_path(
-                str(model_file), str(base_proc)
-            )
-            self.assertIsNotNone(found_base)
-            self.assertIn("model-proc: base", found_base.display_name)
+        self.assertEqual(len(manager.get_all_installed_models()), 2)
 
-            # Find by extra model_proc
-            found_extra = manager.find_model_by_model_and_proc_path(
-                str(model_file), str(extra_proc)
-            )
-            self.assertIsNotNone(found_extra)
-            self.assertIn("model-proc: extra", found_extra.display_name)
+        int8_path = os.path.join(self._models_path, "public/yolov10s/INT8/yolov10s.xml")
+        fp16_path = os.path.join(self._models_path, "public/yolov10s/FP16/yolov10s.xml")
 
-    def test_init_errors_invalid_yaml_and_empty_list(self):
-        """Test that invalid YAML formats and empty lists raise RuntimeError during manager init."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "md3"
-            models_dir.mkdir()
+        found_int8 = manager.find_model_by_model_and_proc_path(int8_path)
+        assert found_int8 is not None
+        self.assertEqual(found_int8.precision, "INT8")
 
-            # Invalid format: top-level YAML is a dict, not list
-            bad_yaml = td_path / "bad.yaml"
-            bad_yaml.write_text("key: value\n")
-            m = _reload_models_module(str(bad_yaml), str(models_dir))
-            if hasattr(m, "_supported_models_manager_instance"):
-                setattr(m, "_supported_models_manager_instance", None)
-            with self.assertRaises(RuntimeError):
-                m.SupportedModelsManager()
+        found_fp16 = manager.find_model_by_model_and_proc_path(fp16_path)
+        assert found_fp16 is not None
+        self.assertEqual(found_fp16.precision, "FP16")
+        self.assertIsNot(found_int8, found_fp16)
 
-            # Missing required field in entry (no 'name')
-            missing_field_yaml = td_path / "missfield.yaml"
-            missing_field_yaml.write_text(
-                """
-- display_name: Missing Name
-  source: public
-  type: classification
-  precisions:
-    - precision: FP32
-      model_path: something.xml
-      model_proc: ""
-"""
-            )
-            m2 = _reload_models_module(str(missing_field_yaml), str(models_dir))
-            if hasattr(m2, "_supported_models_manager_instance"):
-                setattr(m2, "_supported_models_manager_instance", None)
-            with self.assertRaises(RuntimeError):
-                m2.SupportedModelsManager()
+    def test_genai_directory_path_resolves_to_configured_entry(self) -> None:
+        self._add_model(
+            name="gemma3",
+            display_name="Gemma 3",
+            category="vision_language_models",
+            source="huggingface",
+            variants=[
+                {
+                    "precision": "INT8",
+                    "model_path": "vlm/gemma3",
+                    "display_name": "Gemma 3 (INT8)",
+                }
+            ],
+        )
+        model_dir = os.path.join(self._models_path, "vlm", "gemma3")
+        os.makedirs(model_dir)
+        with open(os.path.join(model_dir, GENAI_SENTINEL_FILE), "w") as f:
+            f.write("<ir/>")
 
-            # Empty list should also raise
-            empty_yaml = td_path / "empty.yaml"
-            empty_yaml.write_text("[]\n")
-            m3 = _reload_models_module(str(empty_yaml), str(models_dir))
-            if hasattr(m3, "_supported_models_manager_instance"):
-                setattr(m3, "_supported_models_manager_instance", None)
-            with self.assertRaises(RuntimeError):
-                m3.SupportedModelsManager()
+        manager = SupportedModelsManager()
+        manager.reload()
 
-    def test_find_model_by_model_and_proc_path_precision_dir_matching(self):
-        """Test that find_model_by_model_and_proc_path disambiguates models
-        with the same filename but different precision directories (e.g. INT8 vs FP16)."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "models"
+        found = manager.find_model_by_model_and_proc_path(model_dir)
+        self.assertIsNotNone(found)
+        assert found is not None
+        self.assertEqual(found.canonical_name, "gemma3")
+        self.assertEqual(found.model_type, "vision_language_models")
 
-            # Create the precision-based directory structure:
-            # models/public/yolov10s/INT8/yolov10s.xml
-            # models/public/yolov10s/FP16/yolov10s.xml
-            int8_dir = models_dir / "public" / "yolov10s" / "INT8"
-            fp16_dir = models_dir / "public" / "yolov10s" / "FP16"
-            int8_dir.mkdir(parents=True)
-            fp16_dir.mkdir(parents=True)
-            int8_xml = int8_dir / "yolov10s.xml"
-            fp16_xml = fp16_dir / "yolov10s.xml"
-            int8_xml.write_text("int8 model")
-            fp16_xml.write_text("fp16 model")
 
-            yaml_content = """
-- name: yolov10s
-  display_name: YOLO v10s 640x640
-  source: public
-  type: detection
-  extra_model_procs: []
-  unsupported_devices: ""
-  default: false
-  precisions:
-    - precision: INT8
-      model_path: public/yolov10s/INT8/yolov10s.xml
-      model_proc: ""
-    - precision: FP16
-      model_path: public/yolov10s/FP16/yolov10s.xml
-      model_proc: ""
-"""
-            yaml_file = td_path / "supported.yaml"
-            yaml_file.write_text(yaml_content)
+class TestFindInstalledModelByDisplayName(_DBTestCase):
+    def test_finds_installed_and_ignores_not_installed(self) -> None:
+        self._add_model(
+            name="inst",
+            display_name="Installed Model",
+            variants=[{"precision": "FP32", "model_path": "inst.xml", "display_name": "Installed Model (FP32)"}],
+        )
+        self._add_model(
+            name="miss",
+            display_name="Missing Model",
+            variants=[{"precision": "FP32", "model_path": "miss.xml", "display_name": "Missing Model (FP32)"}],
+        )
+        self._touch("inst.xml")
+        manager = SupportedModelsManager()
+        manager.reload()
 
-            m = _reload_models_module(str(yaml_file), str(models_dir))
-            if hasattr(m, "_supported_models_manager_instance"):
-                setattr(m, "_supported_models_manager_instance", None)
-            manager = m.SupportedModelsManager()
+        found = manager.find_installed_model_by_display_name("Installed Model (FP32)")
+        self.assertIsNotNone(found)
+        assert found is not None
+        self.assertEqual(found.name, "inst")
 
-            # Both precisions are installed — total 2 models
-            self.assertEqual(len(manager.get_all_installed_models()), 2)
+        self.assertIsNone(manager.find_installed_model_by_display_name("Missing Model (FP32)"))
 
-            # Searching by full path with INT8 dir should return the INT8 variant
-            found_int8 = manager.find_model_by_model_and_proc_path(str(int8_xml))
-            self.assertIsNotNone(found_int8)
-            self.assertEqual(found_int8.precision, "INT8")
-            self.assertIn("INT8", found_int8.display_name)
 
-            # Searching by full path with FP16 dir should return the FP16 variant
-            found_fp16 = manager.find_model_by_model_and_proc_path(str(fp16_xml))
-            self.assertIsNotNone(found_fp16)
-            self.assertEqual(found_fp16.precision, "FP16")
-            self.assertIn("FP16", found_fp16.display_name)
-
-            # The two results must be different model instances
-            self.assertIsNot(found_int8, found_fp16)
-
-    def test_supported_models_manager_singleton_behavior(self):
-        """Test SupportedModelsManager singleton pattern and behavior on failure."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "md4"
-            models_dir.mkdir()
-            yaml_file = td_path / "ok.yaml"
-            yaml_file.write_text(
-                """
-- name: s1
-  display_name: S1
-  source: public
-  type: classification
-  unsupported_devices: ""
-  default: false
-  precisions:
-    - precision: FP32
-      model_path: nofile.xml
-      model_proc: ""
-"""
-            )
-            m = _reload_models_module(str(yaml_file), str(models_dir))
-            if hasattr(m, "_supported_models_manager_instance"):
-                setattr(m, "_supported_models_manager_instance", None)
-
-            # Test that SupportedModelsManager can be instantiated
-            mgr = m.SupportedModelsManager()
-            self.assertIsNotNone(mgr)
-
-            # Test singleton behavior - second call returns same instance
-            mgr2 = m.SupportedModelsManager()
-            self.assertIs(mgr, mgr2)
-
-    def test_genai_model_exists_on_disk_requires_directory(self):
-        """GenAI model should only be considered installed when its directory AND
-        the main language model file (openvino_language_model.xml) are present.
-        An empty or partially-downloaded directory must NOT be treated as installed."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "models"
-            yaml_file = td_path / "supported.yaml"
-            yaml_file.write_text("[]")
-
-            m = _reload_models_module(str(yaml_file), str(models_dir))
-
-            genai_model = m.SupportedModel(
-                name="gemma3",
-                display_name="Gemma 3",
-                source="huggingface",
-                model_type="genai",
-                model_path="genai/gemma3",
-                model_proc="",
-            )
-
-            # No directory at all → not installed.
-            self.assertFalse(genai_model.exists_on_disk())
-
-            # Directory exists but is empty (e.g. partial/failed download) → not installed.
-            model_dir = models_dir / "genai" / "gemma3"
-            model_dir.mkdir(parents=True)
-            self.assertFalse(genai_model.exists_on_disk())
-
-            # Directory with unrelated files (e.g. .cache artefacts from a failed
-            # HF download) but no openvino_language_model.xml → not installed.
-            (model_dir / "graph.pbtxt").write_text("dummy")
-            self.assertFalse(genai_model.exists_on_disk())
-
-            # Directory with openvino_language_model.xml → installed.
-            xml_file = model_dir / "openvino_language_model.xml"
-            xml_file.write_text("<ir/>")
-            self.assertTrue(genai_model.exists_on_disk())
-
-            # Remove the main model file → not installed again.
-            xml_file.unlink()
-            self.assertFalse(genai_model.exists_on_disk())
-
-            # Remove the directory entirely → not installed.
-            import shutil
-
-            shutil.rmtree(str(model_dir))
-            self.assertFalse(genai_model.exists_on_disk())
-
-    def test_find_model_by_model_and_proc_path_for_genai_directory(self):
-        """Directory-based GenAI model path should map to the configured model entry."""
-        with tempfile.TemporaryDirectory() as td:
-            td_path = Path(td)
-            models_dir = td_path / "models"
-            model_dir = models_dir / "genai" / "gemma3"
-            model_dir.mkdir(parents=True)
-            # Create the main model file so exists_on_disk() returns True.
-            (model_dir / "openvino_language_model.xml").write_text("<ir/>")
-
-            yaml_file = td_path / "supported.yaml"
-            yaml_file.write_text(
-                """
-- name: gemma3
-  display_name: Gemma 3
-  source: huggingface
-  type: genai
-  unsupported_devices: ""
-  default: false
-  precisions:
-    - precision: INT8
-      model_path: genai/gemma3/
-      model_proc: ""
-"""
-            )
-
-            m = _reload_models_module(str(yaml_file), str(models_dir))
-            if hasattr(m, "_supported_models_manager_instance"):
-                setattr(m, "_supported_models_manager_instance", None)
-
-            manager = m.SupportedModelsManager()
-            found = manager.find_model_by_model_and_proc_path(str(model_dir))
-
-            self.assertIsNotNone(found)
-            self.assertEqual(found.name, "gemma3")
-            self.assertEqual(found.model_type, "genai")
+class TestSupportedModelsManagerSingleton(_DBTestCase):
+    def test_singleton_returns_same_instance(self) -> None:
+        a = SupportedModelsManager()
+        b = SupportedModelsManager()
+        self.assertIs(a, b)
 
 
 if __name__ == "__main__":

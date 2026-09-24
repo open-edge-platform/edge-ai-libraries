@@ -31,7 +31,6 @@ x-vippet: &vippet
     RUNNER_LOG_LEVEL: INFO
     WEB_SERVER_LOG_LEVEL: WARNING
     MODELS_PATH: /models/output
-    SUPPORTED_MODELS_FILE: /models/supported_models.yaml
     # Image-set uploads. Image sets are extracted into per-set
     # subdirectories of UPLOADED_IMAGES_DIR; no auto-downloaded image
     # content exists today, so only the 'uploaded' tree is mounted.
@@ -65,9 +64,6 @@ x-vippet: &vippet
     # model-management calls to model-download; the URL is internal to
     # the compose network.
     MODEL_DOWNLOAD_URL: ${MODEL_DOWNLOAD_URL:-http://model-download:8000}
-    # Path of the JSON registry tracking installed/uploaded models on
-    # the shared volume so it survives service restarts.
-    INSTALLED_MODELS_REGISTRY: ${INSTALLED_MODELS_REGISTRY:-/models/output/installed_models.json}
     # DLStreamer-bundled assets used during OMZ model post-processing
     # (copying model_proc JSON, injecting ImageNet labels for
     # mobilenet-v2-pytorch, ...). Override only if the DLStreamer

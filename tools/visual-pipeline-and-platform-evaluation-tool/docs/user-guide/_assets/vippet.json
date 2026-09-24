@@ -1919,7 +1919,7 @@
           "models"
         ],
         "summary": "Upload a custom model",
-        "description": "# Upload Model\n\nUpload a ZIP file with ``model.xml`` + ``model.bin`` at its root.\nThe upload is streamed to the model-download microservice and the\nresulting model is registered locally as a `custom` model so it\nappears immediately in `GET /models`.\n\n## Form fields\n\n- **`model_name`** *(required)* - Canonical identifier for the model\n- **`category`** *(required)* - Logical model category\n  (`classification`, `detection`, `genai`)\n- **`file`** *(required)* - ZIP file containing the OpenVINO IR\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 201  | `ModelUploadResponse` with the newly registered model |\n| 400  | Invalid form fields or ZIP contents |\n| 409  | A model with the same `model_name` already exists |\n| 413  | Uploaded file exceeds the configured size limit |\n| 502  | model-download microservice returned an error |\n| 500  | Unexpected error |",
+        "description": "# Upload Model\n\nUpload a ZIP file with ``model.xml`` + ``model.bin`` at its root.\nThe upload is streamed to the model-download microservice and the\nresulting model is registered locally as a `custom` model so it\nappears immediately in `GET /models`.\n\n## Form fields\n\n- **`model_name`** *(required)* - Canonical identifier for the model\n- **`category`** *(required)* - Logical model category\n  (`classification`, `detection`, `genai`)\n- **`description`** *(optional)* - Human-readable explanation of\n  what the model detects/classifies\n- **`file`** *(required)* - ZIP file containing the OpenVINO IR\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 201  | `ModelUploadResponse` with the newly registered model |\n| 400  | Invalid form fields or ZIP contents |\n| 409  | A model with the same `model_name` already exists |\n| 413  | Uploaded file exceeds the configured size limit |\n| 502  | model-download microservice returned an error |\n| 500  | Unexpected error |",
         "operationId": "upload_model",
         "requestBody": {
           "content": {
@@ -4938,6 +4938,18 @@
             "type": "string",
             "contentMediaType": "application/octet-stream",
             "title": "File"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           }
         },
         "type": "object",
@@ -5771,7 +5783,8 @@
           "description": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -5842,17 +5855,22 @@
           "install_status"
         ],
         "title": "Model",
-        "description": "**Description of a single supported model exposed by the models API.**\n\nLists every model known to vippet-app: both entries from\n`supported_models.yaml` (regardless of whether they are installed) and\nuser-uploaded models. Use `install_status` to know if the model is\nready to use, and `used_by_pipelines` to know whether installing it is\nrecommended (non-empty list means at least one predefined pipeline\nreferences it).\n\nThe `variants` array enumerates every selectable (precision,\nmodel-proc) combination \u2014 used by the pipeline builder to populate\nthe model dropdown. The install page collapses them under a single\n`display_name` and shows the unique precisions only.\n\n## Attributes\n- `name` - Internal model identifier used by the backend\n- `display_name` - Human-readable model name suitable for UI\n- `category` - Logical model category (`classification`, `detection`, `genai`) or null when unknown\n- `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)\n- `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)\n- `variants` - Selectable variants of this model (one per precision and optional model-proc)\n- `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation\n- `default` - Whether the model is marked as a default install candidate in `supported_models.yaml`. Used by the Models page to pre-select recommended models in the bulk-install UI.\n- `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)\n\n### Example\n```json\n{\n  \"name\": \"yolo11n\",\n  \"display_name\": \"YOLO 11n 640x640\",\n  \"category\": \"detection\",\n  \"source\": \"ultralytics\",\n  \"install_status\": \"installed\",\n  \"variants\": [\n    {\"name\": \"yolo11n_INT8\", \"display_name\": \"YOLO 11n 640x640 (INT8)\", \"precision\": \"INT8\"},\n    {\"name\": \"yolo11n_FP16\", \"display_name\": \"YOLO 11n 640x640 (FP16)\", \"precision\": \"FP16\"}\n  ],\n  \"used_by_pipelines\": [\"smart-nvr\", \"goods-detection\"],\n  \"unsupported_devices\": null\n}\n```"
+        "description": "**Description of a single supported model exposed by the models API.**\n\nLists every model known to vippet-app: both entries from\n`supported_models.yaml` (regardless of whether they are installed) and\nuser-uploaded models. Use `install_status` to know if the model is\nready to use, and `used_by_pipelines` to know whether installing it is\nrecommended (non-empty list means at least one predefined pipeline\nreferences it).\n\nThe `variants` array enumerates every selectable (precision,\nmodel-proc) combination \u2014 used by the pipeline builder to populate\nthe model dropdown. The install page collapses them under a single\n`display_name` and shows the unique precisions only.\n\n## Attributes\n- `name` - Internal model identifier used by the backend\n- `display_name` - Human-readable model name suitable for UI\n- `category` - Logical model category (`image_classification`, `object_detection`, `image_segmentation`, `pose_estimation`, `vision_language_models`, `large_language_models`, `automatic_speech_recognition`, `text_to_speech`) or null when unknown\n- `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)\n- `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)\n- `variants` - Selectable variants of this model (one per precision and optional model-proc)\n- `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation\n- `default` - Whether the model is marked as a default install candidate in `supported_models.yaml`. Used by the Models page to pre-select recommended models in the bulk-install UI.\n- `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)\n\n### Example\n```json\n{\n  \"name\": \"yolo11n\",\n  \"display_name\": \"YOLO 11n 640x640\",\n  \"category\": \"object_detection\",\n  \"source\": \"ultralytics\",\n  \"install_status\": \"installed\",\n  \"variants\": [\n    {\"name\": \"yolo11n_INT8\", \"display_name\": \"YOLO 11n 640x640 (INT8)\", \"precision\": \"INT8\"},\n    {\"name\": \"yolo11n_FP16\", \"display_name\": \"YOLO 11n 640x640 (FP16)\", \"precision\": \"FP16\"}\n  ],\n  \"used_by_pipelines\": [\"smart-nvr\", \"goods-detection\"],\n  \"unsupported_devices\": null\n}\n```"
       },
       "ModelCategory": {
         "type": "string",
         "enum": [
-          "classification",
-          "detection",
-          "genai"
+          "image_classification",
+          "object_detection",
+          "image_segmentation",
+          "pose_estimation",
+          "vision_language_models",
+          "large_language_models",
+          "automatic_speech_recognition",
+          "text_to_speech"
         ],
         "title": "ModelCategory",
-        "description": "**Model category for classification, detection, or GenAI tasks.**\n\n## Values\n- `CLASSIFICATION` - Classification model\n- `DETECTION` - Detection model\n- `GENAI` - Generative AI model (for example VLM)\n\n### Example\n```json\n\"detection\"\n```"
+        "description": "**Model category for classification, detection, and other supported tasks.**\n\n## Values\n- `IMAGE_CLASSIFICATION` - Image classification model\n- `OBJECT_DETECTION` - Object detection model\n- `IMAGE_SEGMENTATION` - Image segmentation model\n- `POSE_ESTIMATION` - Pose estimation model\n- `VISION_LANGUAGE_MODELS` - Vision-language model (for example VLM)\n- `LARGE_LANGUAGE_MODELS` - Large language model (text-only, for example LLM)\n- `AUTOMATIC_SPEECH_RECOGNITION` - Automatic speech recognition model\n- `TEXT_TO_SPEECH` - Text-to-speech synthesis model\n\n### Example\n```json\n\"object_detection\"\n```"
       },
       "ModelCheckStatusRequest": {
         "properties": {
@@ -6137,7 +6155,7 @@
           "model"
         ],
         "title": "ModelUploadResponse",
-        "description": "**Response body returned after a model has been successfully uploaded.**\n\nThe response is the freshly registered `Model` entry so that the UI\ncan update its state without an extra `GET /models` round-trip.\n\n## Attributes\n- `model` - Newly registered model entry\n\n### Example\n```json\n{\n  \"model\": {\n    \"name\": \"my-custom-detector\",\n    \"display_name\": \"My Custom Detector\",\n    \"category\": \"detection\",\n    \"source\": \"custom\",\n    \"install_status\": \"installed\",\n    \"variants\": [{\"name\": \"my-custom-detector\", \"display_name\": \"My Custom Detector (FP32)\", \"precision\": \"FP32\"}],\n    \"used_by_pipelines\": [],\n    \"unsupported_devices\": null\n  }\n}\n```"
+        "description": "**Response body returned after a model has been successfully uploaded.**\n\nThe response is the freshly registered `Model` entry so that the UI\ncan update its state without an extra `GET /models` round-trip.\n\n## Attributes\n- `model` - Newly registered model entry\n\n### Example\n```json\n{\n  \"model\": {\n    \"name\": \"my-custom-detector\",\n    \"display_name\": \"My Custom Detector\",\n    \"category\": \"object_detection\",\n    \"source\": \"custom\",\n    \"install_status\": \"installed\",\n    \"variants\": [{\"name\": \"my-custom-detector\", \"display_name\": \"My Custom Detector (FP32)\", \"precision\": \"FP32\"}],\n    \"used_by_pipelines\": [],\n    \"unsupported_devices\": null\n  }\n}\n```"
       },
       "ModelVariant": {
         "properties": {
