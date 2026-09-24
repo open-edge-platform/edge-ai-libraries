@@ -29,6 +29,7 @@ benchmark:
     skip_pipelines: []
     skip_variants: []
     require_models: true
+    on_unknown_id: "fail"
 
 results:
   output_dir: "./results"

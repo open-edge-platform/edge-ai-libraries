@@ -62,6 +62,12 @@ benchmark:
     # Only test pipelines with all required models installed
     require_models: true
 
+    # How to react when pipelines/skip_pipelines/skip_variants/variants above
+    # reference an id that doesn't exist (e.g. a typo):
+    # "fail" (default) aborts the run naming the bad id and valid ids.
+    # "warn" logs a warning and reports each bad id as an explicit skipped case.
+    on_unknown_id: "fail"
+
 # Hardware metrics collection
 metrics:
   # Metrics endpoint via nginx proxy (override with VIPPET_METRICS_URL env var)
