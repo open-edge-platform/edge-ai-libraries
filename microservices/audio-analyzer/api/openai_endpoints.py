@@ -1,6 +1,8 @@
 import json
+import logging
 import os
 from types import SimpleNamespace
+from typing import Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
@@ -8,12 +10,16 @@ from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from dto.audiosource import AudioSource
 from dto.transcription_dto import validate_transcription_options
 from pipeline import Pipeline
+from utils.config_loader import config
+from utils.openvino_runtime_validation import resolve_asr_device
 from utils.audio_util import save_audio_file
 from utils.session_manager import resolve_requested_session_id
 from utils.subtitle_format import format_srt as _format_srt, format_vtt as _format_vtt
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+InferenceDevice = Literal["CPU", "GPU", "NPU"]
 
 
 def _sse_transcription_events(pipeline: Pipeline, filepath: str, language: str | None):
@@ -58,6 +64,7 @@ def transcribe_audio(
     response_format: str = Form("json"),
     temperature: float = Form(0.0),
     stream: bool = Form(False),
+    device: InferenceDevice | None = Form(None),
 ):
     language, _ = validate_transcription_options(
         temperature=temperature,
@@ -75,11 +82,26 @@ def transcribe_audio(
     if not os.path.isfile(filepath):
         raise HTTPException(status_code=400, detail=f"Audio file not found: {filepath}")
 
+    requested_device = device or config.models.asr.device
+    try:
+        resolved_device = resolve_asr_device(
+            config.models.asr.provider,
+            config.models.asr.name,
+            requested_device,
+        )
+    except RuntimeError as exc:
+        logger.warning("Rejected ASR device %s: %s", requested_device, exc)
+        raise HTTPException(
+            status_code=400,
+            detail="Requested ASR device is unavailable or unsupported.",
+        ) from exc
+
     pipeline = Pipeline(
         session_id=session_id,
         temperature=temperature,
         append_to_session=continue_session,
         speaker_scope_id=speaker_scope_id,
+        device=resolved_device,
     )
 
     if stream:

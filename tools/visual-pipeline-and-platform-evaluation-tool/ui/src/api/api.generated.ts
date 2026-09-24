@@ -13,6 +13,7 @@ export const addTagTypes = [
   "videos",
   "images",
   "cameras",
+  "voice",
 ] as const;
 const injectedRtkApi = api
   .enhanceEndpoints({
@@ -592,6 +593,28 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["cameras"],
       }),
+      transcribeVoice: build.mutation<
+        TranscribeVoiceApiResponse,
+        TranscribeVoiceApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/transcriptions`,
+          method: "POST",
+          body: queryArg.bodyTranscribeVoice,
+        }),
+        invalidatesTags: ["voice"],
+      }),
+      synthesizeVoice: build.mutation<
+        SynthesizeVoiceApiResponse,
+        SynthesizeVoiceApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/speech`,
+          method: "POST",
+          body: queryArg.speechRequest,
+        }),
+        invalidatesTags: ["voice"],
+      }),
     }),
     overrideExisting: false,
   });
@@ -927,6 +950,16 @@ export type LoadCameraProfilesApiResponse =
 export type LoadCameraProfilesApiArg = {
   cameraId: string;
   cameraProfilesRequest: CameraProfilesRequest;
+};
+export type TranscribeVoiceApiResponse =
+  /** status 200 Successful Response */ TranscriptionResponse;
+export type TranscribeVoiceApiArg = {
+  bodyTranscribeVoice: BodyTranscribeVoice;
+};
+export type SynthesizeVoiceApiResponse =
+  /** status 200 Successful Response */ Blob;
+export type SynthesizeVoiceApiArg = {
+  speechRequest: SpeechRequest;
 };
 export type HealthResponse = {
   healthy: boolean;
@@ -1288,7 +1321,7 @@ export type ModelDownloadJobSummary = {
   model_name: string;
   source: ModelSource;
 };
-export type ModelCategory = "classification" | "detection" | "genai";
+export type ModelCategory = "classification" | "detection" | "genai" | "voice";
 export type ModelInstallStatus =
   | "installed"
   | "not_installed"
@@ -1676,6 +1709,20 @@ export type CameraProfilesRequest = {
   username: string;
   password: string;
 };
+export type TranscriptionResponse = {
+  text: string;
+};
+export type BodyTranscribeVoice = {
+  /** Mono PCM 16-bit WAV, up to 60 seconds and 10 MiB */
+  file: string;
+  language?: string;
+  device?: ("CPU" | "GPU" | "NPU") | null;
+};
+export type SpeechRequest = {
+  input: string;
+  voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
+  device?: ("CPU" | "GPU" | "NPU") | null;
+};
 export const {
   useGetHealthQuery,
   useLazyGetHealthQuery,
@@ -1789,4 +1836,6 @@ export const {
   useGetCameraQuery,
   useLazyGetCameraQuery,
   useLoadCameraProfilesMutation,
+  useTranscribeVoiceMutation,
+  useSynthesizeVoiceMutation,
 } = injectedRtkApi;

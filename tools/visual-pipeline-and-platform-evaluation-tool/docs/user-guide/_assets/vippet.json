@@ -3840,6 +3840,109 @@
           }
         }
       }
+    },
+    "/voice/transcriptions": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Transcribe Voice",
+        "description": "Transcribe one independent recording. Previous recordings are never used as context.",
+        "operationId": "transcribe_voice",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_transcribe_voice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "X-Voice-Service-Duration-Ms": {
+                "description": "Request-scoped upstream round-trip time in milliseconds, measured by ViPPET through receipt of the full response body. Includes service queueing and transport, not just model inference. Excludes browser upload/download.",
+                "schema": {
+                  "type": "number",
+                  "minimum": 0.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/speech": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Synthesize Voice",
+        "description": "Synthesize one sentence with the selected voice. Returns WAV audio.",
+        "operationId": "synthesize_voice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "X-Voice-Service-Duration-Ms": {
+                "description": "Request-scoped upstream round-trip time in milliseconds, measured by ViPPET through receipt of the full response body. Includes service queueing and transport, not just model inference. Excludes browser upload/download.",
+                "schema": {
+                  "type": "number",
+                  "minimum": 0.0
+                }
+              }
+            },
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4910,6 +5013,43 @@
         "title": "BenchmarkWorkloadRun",
         "description": "Historical run record for one workload within a suite run."
       },
+      "Body_transcribe_voice": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Mono PCM 16-bit WAV, up to 60 seconds and 10 MiB"
+          },
+          "language": {
+            "type": "string",
+            "pattern": "^[a-z]{2}$",
+            "title": "Language",
+            "default": "en"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CPU",
+                  "GPU",
+                  "NPU"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_transcribe_voice"
+      },
       "Body_upload_image_archive": {
         "properties": {
           "file": {
@@ -5842,17 +5982,18 @@
           "install_status"
         ],
         "title": "Model",
-        "description": "**Description of a single supported model exposed by the models API.**\n\nLists every model known to vippet-app: both entries from\n`supported_models.yaml` (regardless of whether they are installed) and\nuser-uploaded models. Use `install_status` to know if the model is\nready to use, and `used_by_pipelines` to know whether installing it is\nrecommended (non-empty list means at least one predefined pipeline\nreferences it).\n\nThe `variants` array enumerates every selectable (precision,\nmodel-proc) combination \u2014 used by the pipeline builder to populate\nthe model dropdown. The install page collapses them under a single\n`display_name` and shows the unique precisions only.\n\n## Attributes\n- `name` - Internal model identifier used by the backend\n- `display_name` - Human-readable model name suitable for UI\n- `category` - Logical model category (`classification`, `detection`, `genai`) or null when unknown\n- `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)\n- `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)\n- `variants` - Selectable variants of this model (one per precision and optional model-proc)\n- `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation\n- `default` - Whether the model is marked as a default install candidate in `supported_models.yaml`. Used by the Models page to pre-select recommended models in the bulk-install UI.\n- `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)\n\n### Example\n```json\n{\n  \"name\": \"yolo11n\",\n  \"display_name\": \"YOLO 11n 640x640\",\n  \"category\": \"detection\",\n  \"source\": \"ultralytics\",\n  \"install_status\": \"installed\",\n  \"variants\": [\n    {\"name\": \"yolo11n_INT8\", \"display_name\": \"YOLO 11n 640x640 (INT8)\", \"precision\": \"INT8\"},\n    {\"name\": \"yolo11n_FP16\", \"display_name\": \"YOLO 11n 640x640 (FP16)\", \"precision\": \"FP16\"}\n  ],\n  \"used_by_pipelines\": [\"smart-nvr\", \"goods-detection\"],\n  \"unsupported_devices\": null\n}\n```"
+        "description": "**Description of a single supported model exposed by the models API.**\n\nLists every model known to vippet-app: both entries from\n`supported_models.yaml` (regardless of whether they are installed) and\nuser-uploaded models. Use `install_status` to know if the model is\nready to use, and `used_by_pipelines` to know whether installing it is\nrecommended (non-empty list means at least one predefined pipeline\nreferences it).\n\nThe `variants` array enumerates every selectable (precision,\nmodel-proc) combination \u2014 used by the pipeline builder to populate\nthe model dropdown. The install page collapses them under a single\n`display_name` and shows the unique precisions only.\n\n## Attributes\n- `name` - Internal model identifier used by the backend\n- `display_name` - Human-readable model name suitable for UI\n- `category` - Logical model category (`classification`, `detection`, `genai`, `voice`) or null when unknown\n- `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)\n- `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)\n- `variants` - Selectable variants of this model (one per precision and optional model-proc)\n- `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation\n- `default` - Whether the model is marked as a default install candidate in `supported_models.yaml`. Used by the Models page to pre-select recommended models in the bulk-install UI.\n- `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)\n\n### Example\n```json\n{\n  \"name\": \"yolo11n\",\n  \"display_name\": \"YOLO 11n 640x640\",\n  \"category\": \"detection\",\n  \"source\": \"ultralytics\",\n  \"install_status\": \"installed\",\n  \"variants\": [\n    {\"name\": \"yolo11n_INT8\", \"display_name\": \"YOLO 11n 640x640 (INT8)\", \"precision\": \"INT8\"},\n    {\"name\": \"yolo11n_FP16\", \"display_name\": \"YOLO 11n 640x640 (FP16)\", \"precision\": \"FP16\"}\n  ],\n  \"used_by_pipelines\": [\"smart-nvr\", \"goods-detection\"],\n  \"unsupported_devices\": null\n}\n```"
       },
       "ModelCategory": {
         "type": "string",
         "enum": [
           "classification",
           "detection",
-          "genai"
+          "genai",
+          "voice"
         ],
         "title": "ModelCategory",
-        "description": "**Model category for classification, detection, or GenAI tasks.**\n\n## Values\n- `CLASSIFICATION` - Classification model\n- `DETECTION` - Detection model\n- `GENAI` - Generative AI model (for example VLM)\n\n### Example\n```json\n\"detection\"\n```"
+        "description": "**Model category for classification, detection, GenAI, or Voice tasks.**\n\n## Values\n- `CLASSIFICATION` - Classification model\n- `DETECTION` - Detection model\n- `GENAI` - Generative AI model (for example VLM)\n- `VOICE` - Speech recognition or synthesis model\n\n### Example\n```json\n\"detection\"\n```"
       },
       "ModelCheckStatusRequest": {
         "properties": {
@@ -7172,6 +7313,52 @@
         "title": "PipelineValidation",
         "description": "**Request body for pipeline validation.**\n\n## Attributes\n- `pipeline_graph` - Structured graph representation of the pipeline\n- `parameters` - Optional parameter set for validation (e.g., `{\"max-runtime\": 10}`)\n\n### Example\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [...],\n    \"edges\": [...]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```"
       },
+      "SpeechRequest": {
+        "properties": {
+          "input": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Input"
+          },
+          "voice": {
+            "type": "string",
+            "enum": [
+              "Ryan",
+              "Miles",
+              "Aaron",
+              "Nora",
+              "Elena",
+              "Kabir",
+              "Angus"
+            ],
+            "title": "Voice"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CPU",
+                  "GPU",
+                  "NPU"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "input",
+          "voice"
+        ],
+        "title": "SpeechRequest"
+      },
       "StatusResponse": {
         "properties": {
           "status": {
@@ -7229,6 +7416,20 @@
         ],
         "title": "TestJobState",
         "description": "**Generic state of a long-running test job (performance or density).**\n\n## Values\n- `RUNNING` - Job is still executing\n- `COMPLETED` - Job finished successfully\n- `FAILED` - Job finished unsuccessfully\n\n### Example\n```json\n\"RUNNING\"\n```"
+      },
+      "TranscriptionResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 16000,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "TranscriptionResponse"
       },
       "USBCameraDetails": {
         "properties": {

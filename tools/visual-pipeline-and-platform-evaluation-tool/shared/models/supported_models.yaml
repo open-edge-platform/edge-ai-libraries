@@ -297,6 +297,56 @@
       device: CPU
       cache_size: 10
 
+- name: voice-whisper-base
+  display_name: Whisper Base
+  source: huggingface
+  hub: huggingface
+  type: voice
+  precisions:
+    - precision: INT8
+      model_path: voice/audio-analyzer/openvino/whisper-base/openvino_encoder_model.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  download_request:
+    hub: openvino
+    name: openai/whisper-base
+    type: speech2text
+    target: audio-analyzer
+    config:
+      precision: int8
+      device: CPU
+
+- name: voice-speecht5
+  display_name: SpeechT5
+  source: huggingface
+  hub: huggingface
+  type: voice
+  precisions:
+    - precision: INT8
+      model_path: voice/text-to-speech/openvino/microsoft_speecht5_tts__int8/openvino_encoder_model.xml
+      model_proc: ""
+    - precision: FP16
+      model_path: voice/text-to-speech/openvino/microsoft_speecht5_tts__fp16/openvino_encoder_model.xml
+      model_proc: ""
+  extra_model_procs: []
+  unsupported_devices: ""
+  download_request:
+    - hub: openvino
+      name: microsoft/speecht5_tts
+      type: text2speech
+      target: text-to-speech
+      config:
+        precision: int8
+        device: CPU
+    - hub: openvino
+      name: microsoft/speecht5_tts
+      type: text2speech
+      target: text-to-speech
+      config:
+        precision: fp16
+        device: CPU
+
 - name: gemma4
   display_name: Gemma 4 E4B
   description: "Google Gemma multimodal vision-language model (E4B variant) that jointly processes images and text to produce natural-language descriptions and answers."

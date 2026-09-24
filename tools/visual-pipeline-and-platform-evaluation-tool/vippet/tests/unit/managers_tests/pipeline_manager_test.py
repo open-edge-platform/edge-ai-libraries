@@ -2262,8 +2262,11 @@ class TestPredefinedPipelinesStructure(unittest.TestCase):
         self.assertGreater(predefined_count, 0)
         self.assertEqual(predefined_count, len(MOCK_PIPELINE_CONFIGS))
 
+    @patch("managers.pipeline_manager.is_variant_supported", return_value=True)
     @patch("managers.pipeline_manager.PipelineLoader")
-    def test_predefined_pipelines_have_multiple_variants(self, mock_loader_cls):
+    def test_predefined_pipelines_have_multiple_variants(
+        self, mock_loader_cls, _mock_is_variant_supported
+    ):
         """Verify predefined pipelines have multiple variants (CPU/GPU/NPU)."""
         mock_loader_cls.list.return_value = mock_pipeline_loader_list()
         mock_loader_cls.config.side_effect = mock_pipeline_loader_config

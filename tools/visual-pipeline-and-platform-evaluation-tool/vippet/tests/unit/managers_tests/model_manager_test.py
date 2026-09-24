@@ -257,6 +257,19 @@ class TestComputeInstallStatus(unittest.TestCase):
         )
         self.assertEqual(status, InternalModelInstallStatus.INSTALLED)
 
+    def test_multi_request_requires_every_file_for_installed(self) -> None:
+        _DownloadRequestCache._data = {
+            "voice-speecht5": [{"precision": "int8"}, {"precision": "fp16"}]
+        }
+        entries = [
+            _make_supported_model(exists_on_disk=True),
+            _make_supported_model(exists_on_disk=False),
+        ]
+        status = self.mgr._compute_install_status(
+            name="voice-speecht5", entries=entries, active_jobs={}
+        )
+        self.assertEqual(status, InternalModelInstallStatus.NOT_INSTALLED)
+
     def test_registry_only_is_installed(self) -> None:
         self.mgr._registry["yolo11n"] = _InstalledModelRecord(
             name="yolo11n",
@@ -552,6 +565,43 @@ class TestListModels(unittest.TestCase):
         self.assertEqual(len(models), 1)
         self.assertEqual([p.precision for p in models[0].precisions], ["FP16", "INT8"])
 
+    def test_list_models_groups_speecht5_as_one_voice_model(self) -> None:
+        entries = [
+            _make_supported_model(
+                name="voice-speecht5",
+                canonical_name="voice-speecht5",
+                canonical_display_name="SpeechT5",
+                display_name="SpeechT5 (INT8)",
+                hub="huggingface",
+                model_type="voice",
+                precision="INT8",
+            ),
+            _make_supported_model(
+                name="voice-speecht5",
+                canonical_name="voice-speecht5",
+                canonical_display_name="SpeechT5",
+                display_name="SpeechT5 (FP16)",
+                hub="huggingface",
+                model_type="voice",
+                precision="FP16",
+            ),
+        ]
+        self._supported_cls.return_value.get_all_supported_models.return_value = entries
+        _DownloadRequestCache._data = {
+            "voice-speecht5": [{"precision": "int8"}, {"precision": "fp16"}]
+        }
+
+        models = ModelManager().list_models()
+
+        self.assertEqual(len(models), 1)
+        self.assertEqual(models[0].display_name, "SpeechT5")
+        self.assertEqual(models[0].category, InternalModelCategory.VOICE)
+        self.assertEqual(models[0].source, InternalModelSource.HUGGINGFACE)
+        self.assertEqual(
+            {precision.precision for precision in models[0].precisions},
+            {"INT8", "FP16"},
+        )
+
     def test_list_models_includes_registry_only_custom_models(self) -> None:
         """Custom uploaded models are listed even with no YAML entry."""
         existing_file = os.path.join(self._tmpdir, "custom.xml")
@@ -665,6 +715,28 @@ class TestStartDownload(unittest.TestCase):
         self.assertIsNone(job_id)
         self.assertEqual(status, 409)
         self.assertIn("already installed", msg)
+
+    @patch("managers.model_manager.threading.Thread")
+    def test_partial_multi_request_install_can_be_retried(self, mock_thread_cls) -> None:
+        entries = [
+            _make_supported_model(
+                canonical_name="voice-speecht5", exists_on_disk=True
+            ),
+            _make_supported_model(
+                canonical_name="voice-speecht5", exists_on_disk=False
+            ),
+        ]
+        self._supported_cls.return_value.get_all_supported_models.return_value = entries
+        _DownloadRequestCache._data = {
+            "voice-speecht5": [{"precision": "int8"}, {"precision": "fp16"}]
+        }
+
+        _job_id, status, _message = ModelManager().start_download(
+            "voice-speecht5"
+        )
+
+        self.assertEqual(status, 202)
+        mock_thread_cls.return_value.start.assert_called_once()
 
     def test_returns_409_when_a_job_is_already_running(self) -> None:
         entry = _make_supported_model(canonical_name="yolo11n", exists_on_disk=False)
@@ -852,6 +924,46 @@ class TestExecuteRemoteDownload(unittest.TestCase):
                 "job-1", "yolo11n", self.head, {"model_id": "yolo11n"}
             )
         fin.assert_called_once_with("job-1", "yolo11n", self.head)
+
+    def test_submits_multiple_requests_and_waits_for_every_job(self) -> None:
+        self._seed_job()
+        requests = [
+            {
+                "name": "microsoft/speecht5_tts",
+                "target": "text-to-speech",
+                "config": {"precision": "int8"},
+            },
+            {
+                "name": "microsoft/speecht5_tts",
+                "target": "text-to-speech",
+                "config": {"precision": "fp16"},
+            },
+        ]
+        client = _FakeHttpxClient(
+            post_response=_FakeResponse(json_body={"job_ids": ["ext-1", "ext-2"]}),
+            get_responses=[
+                _FakeResponse(json_body={"status": "completed"}),
+                _FakeResponse(json_body={"status": "completed"}),
+            ],
+        )
+        with (
+            patch("managers.model_manager.httpx.Client", return_value=client),
+            patch.object(self.mgr, "_finalize_success") as fin,
+        ):
+            self.mgr._execute_remote_download(
+                "job-1", "voice-speecht5", self.head, requests
+            )
+
+        self.assertEqual(client.posts[0][1]["json"], {"models": requests})
+        self.assertEqual(client.posts[0][1]["params"], {"download_path": "voice"})
+        self.assertEqual(
+            client.gets,
+            [
+                f"{mm_module.MODEL_DOWNLOAD_URL}/api/v1/jobs/ext-1",
+                f"{mm_module.MODEL_DOWNLOAD_URL}/api/v1/jobs/ext-2",
+            ],
+        )
+        fin.assert_called_once_with("job-1", "voice-speecht5", self.head)
 
     def test_fails_when_post_returns_no_job_ids(self) -> None:
         self._seed_job()
@@ -1301,6 +1413,38 @@ class TestJobLifecycle(unittest.TestCase):
         self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
         self.assertNotIn("gemma3", self.mgr._registry)
 
+    def test_finalize_multi_request_requires_every_precision(self) -> None:
+        int8 = _make_supported_model(
+            canonical_name="voice-speecht5",
+            canonical_display_name="SpeechT5 (INT8)",
+            precision="INT8",
+            model_path_full="/models/voice/speecht5-int8/openvino_encoder_model.xml",
+            exists_on_disk=True,
+        )
+        fp16 = _make_supported_model(
+            canonical_name="voice-speecht5",
+            canonical_display_name="SpeechT5 (FP16)",
+            precision="FP16",
+            model_path_full="/models/voice/speecht5-fp16/openvino_encoder_model.xml",
+            exists_on_disk=False,
+        )
+        self._supported_cls.return_value.get_all_supported_models.return_value = [
+            int8,
+            fp16,
+        ]
+        _DownloadRequestCache._data = {
+            "voice-speecht5": [{"config": {"precision": "int8"}}, {"config": {"precision": "fp16"}}]
+        }
+        job = _make_running_job(job_id="job-voice", model_name="voice-speecht5")
+        self.mgr._jobs["job-voice"] = job
+
+        self.mgr._finalize_success(
+            "job-voice", "voice-speecht5", int8
+        )
+
+        self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
+        self.assertNotIn("voice-speecht5", self.mgr._registry)
+
 
 # ----------------------------------------------------------------------
 
@@ -1324,6 +1468,31 @@ class TestDownloadRequestCache(unittest.TestCase):
         with patch("builtins.open", mock_open(read_data=yaml_payload)):
             value = _DownloadRequestCache.get("yolo11n")
         self.assertEqual(value, {"model_id": "yolo11n"})
+
+    def test_get_returns_request_list_for_known_name(self) -> None:
+        yaml_payload = (
+            "- name: voice-speecht5\n"
+            "  download_request:\n"
+            "    - name: microsoft/speecht5_tts\n"
+            "      config: {precision: int8}\n"
+            "    - name: microsoft/speecht5_tts\n"
+            "      config: {precision: fp16}\n"
+        )
+        with patch("builtins.open", mock_open(read_data=yaml_payload)):
+            value = _DownloadRequestCache.get("voice-speecht5")
+        self.assertEqual(
+            value,
+            [
+                {
+                    "name": "microsoft/speecht5_tts",
+                    "config": {"precision": "int8"},
+                },
+                {
+                    "name": "microsoft/speecht5_tts",
+                    "config": {"precision": "fp16"},
+                },
+            ],
+        )
 
     def test_get_returns_none_for_missing(self) -> None:
         with patch("builtins.open", mock_open(read_data="- name: x\n")):

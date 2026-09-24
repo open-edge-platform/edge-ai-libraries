@@ -177,12 +177,13 @@ class DeviceFamily(str, Enum):
 
 class ModelCategory(str, Enum):
     """
-    **Model category for classification, detection, or GenAI tasks.**
+    **Model category for classification, detection, GenAI, or Voice tasks.**
 
     ## Values
     - `CLASSIFICATION` - Classification model
     - `DETECTION` - Detection model
     - `GENAI` - Generative AI model (for example VLM)
+    - `VOICE` - Speech recognition or synthesis model
 
     ### Example
     ```json
@@ -193,6 +194,7 @@ class ModelCategory(str, Enum):
     CLASSIFICATION = "classification"
     DETECTION = "detection"
     GENAI = "genai"
+    VOICE = "voice"
 
 
 class OptimizationType(str, Enum):
@@ -2254,7 +2256,7 @@ class Model(BaseModel):
     ## Attributes
     - `name` - Internal model identifier used by the backend
     - `display_name` - Human-readable model name suitable for UI
-    - `category` - Logical model category (`classification`, `detection`, `genai`) or null when unknown
+    - `category` - Logical model category (`classification`, `detection`, `genai`, `voice`) or null when unknown
     - `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)
     - `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)
     - `variants` - Selectable variants of this model (one per precision and optional model-proc)

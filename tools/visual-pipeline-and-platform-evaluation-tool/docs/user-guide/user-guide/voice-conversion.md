@@ -1,0 +1,355 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+# Voice Conversion
+
+The Voice page at `/voice` converts a recording to text or text to WAV audio.
+Each request is independent. No conversation, previous transcript, LLM, or
+kiosk-core is involved. Only the latest result in each tab is held in browser
+memory; navigating away clears it. Models remain loaded across requests.
+
+## Deployment
+
+Run from the ViPPET component directory. The Makefile detects the hardware
+profile using the standard environment setup and applies the matching voice
+hardware overrides. Build and start the complete application with the standard
+lifecycle:
+
+```bash
+make build
+make run
+# In the Models page, install Whisper Base and SpeechT5 and wait for Installed.
+```
+
+Audio-analyzer and text-to-speech preload their selected models. Before the
+models are installed, the services log that the artifacts are unavailable and
+restart. After both models show Installed, the next automatic startup loads
+them and the services become healthy.
+
+`make build` and `make run` execute `env-setup`, load `.env`, and combine the
+base Compose file, detected hardware override, Voice Compose file, and matching
+Voice hardware override. `make build` builds the core and Voice images, while
+`make run` starts the complete service set with Compose's normal image behavior.
+`make stop` removes the core and Voice containers together while preserving
+named volumes. It uses the existing `.env` without rerunning `env-setup`.
+
+The Makefile defines and exports `AUDIO_ANALYZER_TAG` and `TEXT_TO_SPEECH_TAG`,
+both defaulting to `2026.2.0`. Standard lifecycle targets use these defaults
+without any shell variable setup. Override them independently on the command
+line, for example:
+
+```bash
+make build run AUDIO_ANALYZER_TAG=2026.2.0 TEXT_TO_SPEECH_TAG=2026.2.0
+```
+
+Command-line values override inherited environment values and Makefile defaults.
+Full image overrides remain available and take precedence over tags:
+
+- `AUDIO_ANALYZER_IMAGE=docker.io/intel/audio-analyzer:2026.2.0`
+- `TEXT_TO_SPEECH_IMAGE=docker.io/intel/text-to-speech:2026.2.0`
+
+Export these variables in the shell to select another version, registry, or
+image digest. Do not store overrides in `.env` when using Make: the standard
+`env-setup` prerequisite regenerates that file. ViPPET images still use the
+existing `DOCKER_TAG`.
+
+For direct Compose usage, select a matching hardware profile, for example CPU:
+
+```bash
+COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml \
+  -f compose.voice.yml up -d --no-build
+```
+
+To pull and start only the audio services alongside an already updated ViPPET:
+
+```bash
+COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml -f compose.voice.yml pull \
+  audio-analyzer text-to-speech
+COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml -f compose.voice.yml up -d --no-deps \
+  --no-build audio-analyzer text-to-speech
+COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml -f compose.voice.yml ps \
+  audio-analyzer text-to-speech
+```
+
+`make build` uses this repository's microservice Dockerfiles and tags the
+results with the configured image names. Use distinct local image tags to avoid
+overwriting cached release images; a later pull replaces local images under the
+same tag. No sibling kiosk checkout is needed.
+
+Voice services do not download models during startup. Open the ViPPET
+**Models** page and install **Whisper Base** and **SpeechT5** before using Voice
+Conversion. The existing background-jobs UI reports download and conversion
+progress. SpeechT5 installs INT8 and FP16 together and is marked Installed only
+after both artifacts are complete.
+
+Artifacts are retained on the host under `shared/models/output/voice`. The
+consumers mount only their own subdirectories read-only:
+
+```text
+shared/models/output/voice/audio-analyzer/openvino/whisper-base
+shared/models/output/voice/text-to-speech/openvino/microsoft_speecht5_tts__<precision>
+```
+
+Complete artifacts are reused on later starts. An interrupted or incomplete
+export is staged separately and never replaces the last complete artifact.
+The Models-page install exports device-neutral OpenVINO IR on CPU. Each Voice
+service selects CPU, GPU, or NPU when loading the artifact at runtime according
+to the active hardware profile.
+
+The services are reachable inside the Compose network and through host ports
+`127.0.0.1:8010` (audio-analyzer) and `127.0.0.1:8011` (text-to-speech).
+No host microphone devices are exposed; the browser captures recordings.
+The base application does not depend on their health. Without these services,
+conversion requests report unavailability while other ViPPET features work.
+
+### Per-request inference device
+
+Each Voice tab has an independent inference-device selector. The options come
+from ViPPET's existing `/devices` endpoint and are reduced to the `CPU`, `GPU`,
+and `NPU` device families. **Service default** omits the request override and
+uses the device configured through Compose or the service environment.
+
+Selecting a device sends it with that conversion request. Audio Analyzer and
+Text to Speech validate the selected device and load or reuse a model compiled
+for it. The first request on a new device includes model compilation and warm-up,
+so it can take substantially longer than subsequent requests. Models loaded for
+multiple devices remain resident until the service restarts.
+
+The `/devices` response describes devices visible to the ViPPET backend. It does
+not guarantee that the same device node is mounted in each Voice container or
+that the configured provider, runtime, and model support it. In those cases the
+conversion fails explicitly; it does not silently fall back to CPU.
+
+Export `AUDIO_ANALYZER_PORT` and `TEXT_TO_SPEECH_PORT` to change the host ports
+without changing container ports or the backend service URLs. Export
+`VOICE_BIND_ADDRESS` to change the bind address. For example, to avoid conflicts:
+
+```bash
+export AUDIO_ANALYZER_PORT=18010 TEXT_TO_SPEECH_PORT=18011
+make run
+```
+
+### GPU, NPU and WSL
+
+The configuration uses Whisper Base and SpeechT5 with OpenVINO. Make selects
+the following voice overrides for the detected ViPPET hardware profile:
+
+| Profile    | Voice Override               | ASR | TTS       |
+| ---------- | ---------------------------- | --- | --------- |
+| `cpu`      | None                         | CPU | CPU, INT8 |
+| `gpu`      | `compose.voice.gpu.yml`      | GPU | GPU, FP16 |
+| `npu`      | `compose.voice.npu.yml`      | NPU | GPU, FP16 |
+| `igpu-wsl` | `compose.voice.igpu-wsl.yml` | GPU | CPU, INT8 |
+
+The GPU override gives both services `/dev/dri` and the host's numeric
+`RENDER_GROUP_ID` as a supplementary group. The NPU override gives
+audio-analyzer `/dev/accel`, the `NPU_GROUP_ID` group (defaulting to
+`RENDER_GROUP_ID`), and `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so`, while
+text-to-speech gets `/dev/dri` and `RENDER_GROUP_ID` for GPU inference.
+The host must have the corresponding device nodes and compatible drivers;
+the images must include the required OpenVINO runtimes. No privileged mode or
+extra Linux capabilities are enabled.
+
+The `igpu-wsl` override gives both voice services `/dev/dxg` and a read-only
+`/usr/lib/wsl` library mount. It does not require `/dev/dri` or `RENDER_GROUP_ID`.
+Use this profile inside WSL 2, not the native `gpu` override. ASR uses the iGPU,
+while SpeechT5 TTS is fixed to CPU/INT8: measured synthesis took about 1 second
+on CPU versus 5 seconds on a warmed-up GPU, and the first GPU request spent
+about 75 seconds compiling kernels for dynamic shapes. The `/dev/dxg` mapping
+remains on the TTS service as part of the shared WSL service configuration, but
+OpenVINO selects CPU for synthesis. Docker Compose 2.24.4 or newer is required
+for the WSL override files.
+
+`setup_env.sh` detects `RENDER_GROUP_ID` for Make. When invoking Compose
+directly, set it to the host render group's numeric ID. If NPU device nodes
+belong to a different group, export their numeric group ID as `NPU_GROUP_ID`.
+For example, inspect it with `stat -c '%g' /dev/accel/accel0`.
+
+Direct GPU startup:
+
+```bash
+export RENDER_GROUP_ID=$(getent group render | cut -d: -f3)
+COMPOSE_PROFILES=gpu docker compose -f compose.yml -f compose.gpu.yml \
+  -f compose.voice.yml -f compose.voice.gpu.yml up -d --no-build
+```
+
+Direct WSL iGPU startup:
+
+```bash
+COMPOSE_PROFILES=igpu-wsl docker compose -f compose.yml -f compose.igpu-wsl.yml \
+  -f compose.voice.yml -f compose.voice.igpu-wsl.yml up -d --no-build
+```
+
+Direct NPU startup (use the NPU voice override instead of the GPU override):
+
+```bash
+export RENDER_GROUP_ID=$(getent group render | cut -d: -f3)
+COMPOSE_PROFILES=npu docker compose -f compose.yml -f compose.npu.yml \
+  -f compose.voice.yml -f compose.voice.npu.yml \
+  up -d --no-build
+```
+
+Export `VOICE_ASR_DEVICE` (`CPU`, `GPU`, or `NPU`) to set default ASR inference.
+The native GPU and NPU voice overrides also accept `VOICE_TTS_DEVICE` (`CPU` or
+`GPU`) and `VOICE_TTS_DTYPE`. The CPU and `igpu-wsl` profiles deliberately fix
+SpeechT5 to CPU/INT8. Device selection alone does not expose hardware: keep the
+corresponding Compose overrides. The UI can override these defaults per request,
+but it cannot add a missing container device mapping. SpeechT5 does not document NPU support, so the
+NPU profile defaults to GPU for TTS. For CPU inference on a native GPU or NPU
+host, export `VOICE_ASR_DEVICE=CPU VOICE_TTS_DEVICE=CPU VOICE_TTS_DTYPE=int8`.
+The former `gpu-wsl` profile has been replaced by `igpu-wsl`. Run `make run`
+to regenerate the detected profile and recreate affected containers without
+deleting shared model artifacts or named cache volumes. For manual Compose commands, update
+both the profile and override filenames. Do not edit the generated `.env` file.
+GPU utilization metrics may be unavailable under WSL even when inference works;
+the native Linux GPU collectors depend on driver interfaces not exposed by WSL.
+
+Diarization and sentiment analysis are disabled. TTS supports English in this
+configuration. Changing a language label alone does not add multilingual
+synthesis support.
+
+Installing models from the Models page requires network access to model
+sources. Subsequent starts reuse the shared host artifacts and named runtime
+cache volumes. Configure `http_proxy`, `https_proxy`, and `no_proxy` as required.
+Do not pass tokens through Docker build arguments.
+
+To stop only the optional services, preserving their caches:
+
+```bash
+COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml -f compose.voice.yml stop \
+  audio-analyzer text-to-speech
+```
+
+For GPU/NPU/WSL, use the same profile and override files as at startup.
+
+## Browser and Input Requirements
+
+- Microphone capture requires HTTPS or `localhost`, permission to use the
+  microphone, and browser support for MediaRecorder and Web Audio.
+- Recording stops automatically after 60 seconds and is converted in the
+  browser to mono PCM 16-bit WAV at 16 kHz. Uploaded WAV must be mono PCM
+  16-bit, 8-48 kHz, at most 60 seconds and 10 MiB.
+- Select a recognition language for STT. Default: English.
+- TTS input must contain 1-5000 characters after trimming whitespace.
+- Playback is explicit using the audio controls. Generated WAV can be downloaded.
+- The STT source section offers microphone recording and WAV upload. The selected
+  audio preview and transcription appear below the source controls.
+- The TTS **Sample text** menu fills the text input with an editable example.
+  Selecting a sample clears the previous generated audio and its request metrics.
+- The TTS **Voice** menu initially selects `Ryan`. It also offers `Miles`,
+  `Aaron`, `Nora`, `Elena`, `Kabir`, and `Angus`. Changing the voice preserves
+  the text and clears the previous generated audio, metrics, and error.
+- Audio previews display a waveform sampled from the actual decoded audio,
+  using browser Web Audio and the existing Recharts library. No audio is sent
+  to an additional visualization service. Waveforms are approximate amplitude
+  overviews, not interactive seek controls; use the native audio player to seek.
+  The vertical scale adapts to each clip's sampled peak, filling about 90% of
+  the plot height while preserving relative amplitudes. Silence stays flat.
+  This is display-only scaling: playback volume and downloaded audio are unchanged.
+  Waveform heights do not indicate absolute loudness across different clips.
+  If visualization fails, playback and WAV download remain available.
+- Voice uses the existing semantic color tokens, typography, shadcn controls
+  and metrics components in both light and dark themes. Global navigation is
+  unchanged. No model, device, or synthesis-rate selectors are added; those
+  settings remain service configuration. MP3 and bundled sample recordings are
+  not supported by this UI.
+- Cancel aborts the browser request or recording; it does not guarantee that
+  already-started inference in the upstream service stops immediately.
+
+## API
+
+`POST /api/v1/voice/transcriptions` accepts multipart `file` and optional
+two-letter `language` (default `en`). It returns `{"text": "..."}`.
+No upstream `session_id`, history, or prompt is forwarded.
+
+`POST /api/v1/voice/speech` accepts the following body and returns `audio/wav`:
+
+```json
+{"input": "Hello world", "voice": "Angus"}
+```
+
+Both fields are required. `voice` must be one of `Ryan`, `Miles`, `Aaron`,
+`Nora`, `Elena`, `Kabir`, or `Angus`; ViPPET forwards it for that request.
+
+Backend service locations are configured with `AUDIO_ANALYZER_URL` (default
+`http://audio-analyzer:8010`) and `TEXT_TO_SPEECH_URL` (default
+`http://text-to-speech:8011`). They must be deployment-controlled URLs, never
+user-provided targets. Internal service calls bypass environment HTTP proxies.
+
+The adapter uses a 5-second connection timeout and a 120-second total upstream
+deadline. Responses are limited to 128 KiB for STT and 64 MiB for TTS.
+Invalid input returns 400/422; oversized audio returns 413; invalid upstream
+responses return 502; unavailable/busy services return 503; timeouts return 504.
+Upstream error bodies are not forwarded. Nginx limits voice request bodies to
+11 MiB, including multipart overhead, and disables response caching.
+
+## Metrics
+
+Each successful conversion displays its own timing cards, reusing the existing
+ViPPET metrics UI. STT and TTS retain separate results in their respective tabs.
+
+| Metric             | Unit | Measurement interval                                                                            |
+| ------------------ | ---- | ----------------------------------------------------------------------------------------------- |
+| Request duration   | ms   | Browser fetch start through receipt and parsing of the complete JSON or WAV response.           |
+| Service round trip | ms   | ViPPET proxy start of the upstream POST through receipt of the complete upstream response body. |
+
+Both intervals use monotonic clocks. Request duration includes upload, proxy
+processing, the service call, download and browser response parsing; it excludes
+microphone recording, WAV preparation and playback. Service round trip includes
+connection setup, transport, service queueing and processing. Neither is a pure
+model inference measurement or time to first byte/token. Startup/model loading
+can increase the observed duration. The values are not aggregated benchmarks.
+
+Both successful API responses include `X-Voice-Service-Duration-Ms`, a decimal
+number in milliseconds, for example `250.000`. JSON and WAV bodies are unchanged.
+Failures do not include this success metric. No `/v1/performance` polling is used:
+the services' global `last_ms` cannot reliably identify a particular request.
+
+The previous result and its timings are cleared when the input or recognition
+language changes, a new recording starts, or a replacement conversion starts.
+Failed or cancelled requests do not publish results or timings. Switching tabs
+preserves completed results but cancels any pending request. Missing or invalid
+service timing headers show "Service round trip unavailable" while conversion
+and the browser-side duration remain available, including with older backends.
+
+Expand **Platform metrics (system-wide)** to use the existing live metrics
+dashboard for CPU, memory, GPU and available NPU telemetry. Video FPS and pipeline
+latency are hidden in Voice. These charts represent the whole platform, including
+other workloads, not isolated STT/TTS utilization or a snapshot of the conversion.
+They use the existing metrics-manager stream and do not start extra service polls.
+
+## Storage and Security
+
+ViPPET does not store or log recording contents, sentences, or transcripts.
+Both adapter responses use `Cache-Control: no-store`. TTS output persistence
+is disabled. Audio-analyzer still writes recordings/transcripts into its
+dedicated `voice_asr_storage` volume, clears storage on service startup, and
+deletes processed chunks. There is no automatic per-request retention deadline.
+This is not a zero-retention deployment; arrange storage cleanup according to
+your data policy before using sensitive recordings. Removing model/cache volumes
+is not necessary to clear session data.
+
+Deployment owners must provide HTTPS, access control, request-rate limits, and
+appropriate retention. The published audio ports expose upstream APIs directly,
+bypassing ViPPET's proxy validation and limits. Keep the default loopback bind
+unless network access is protected by appropriate access control and TLS.
+
+## Verification
+
+```bash
+PYTHONPATH=vippet .venv/bin/python -m unittest discover \
+  -s vippet/tests/unit/api_tests -p voice_test.py -v
+```
+
+Start the UI development server, then run the browser checks in another terminal:
+
+```bash
+cd ui
+npm run dev -- --host 127.0.0.1
+# In another terminal, from ui/:
+npx playwright install chromium
+npx playwright test tests/voice.spec.ts
+```
+
+Set `VOICE_UI_URL` when the server uses another port. Browser tests mock service
+responses and use a synthetic microphone; they do not validate model quality.
