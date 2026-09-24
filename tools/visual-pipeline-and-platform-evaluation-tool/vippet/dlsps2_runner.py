@@ -69,13 +69,14 @@ DEFAULT_METRICS_MANAGER_URL = "http://metrics-manager:9090"
 
 # Base URL of a running DLSPS 2.0 instance (no trailing slash).
 DLSPS2_BASE_URL: str = os.environ.get(
-    "DLSPS2_BASE_URL", "https://dlstreamer-pipeline-server:8443"
+    "DLSPS2_BASE_URL", "http://dlstreamer-pipeline-server:8080"
 ).rstrip("/")
 
-# Whether to verify the DLSPS 2.0 server's TLS certificate. Defaults to
-# False because dlsps2 deployments in this repo commonly terminate TLS with
-# a self-signed certificate behind an nginx sidecar.
-DLSPS2_VERIFY_TLS: bool = os.environ.get("DLSPS2_VERIFY_TLS", "false").strip().lower() in (
+# Whether to verify the DLSPS 2.0 server's TLS certificate when DLSPS2_BASE_URL
+# is https (e.g. behind a TLS-terminating proxy with a self-signed certificate).
+DLSPS2_VERIFY_TLS: bool = os.environ.get(
+    "DLSPS2_VERIFY_TLS", "false"
+).strip().lower() in (
     "1",
     "true",
     "yes",
@@ -411,6 +412,7 @@ class Dlsps2PipelineRunner:
                     f"{last_status.get('message') or f'state={state}'}"
                 )
 
+            message = last_status.get("message")
             return PipelineResult(
                 total_fps=avg_fps,
                 per_stream_fps=avg_fps,
@@ -418,7 +420,7 @@ class Dlsps2PipelineRunner:
                 exit_code=0,
                 cancelled=self.cancelled,
                 stdout=[],
-                stderr=[last_status.get("message")] if last_status.get("message") else [],
+                stderr=[str(message)] if message else [],
                 details=f"DLSPS 2.0 instance {instance_id} (state={state})",
                 latency_tracer_metrics=None,
             )

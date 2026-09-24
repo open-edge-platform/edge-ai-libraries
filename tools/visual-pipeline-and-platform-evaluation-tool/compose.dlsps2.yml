@@ -8,8 +8,8 @@
 # supported (density / multi-stream tests and latency metrics still use the
 # local runner regardless of this overlay).
 #
-# Usage (combine with the usual device-profile overlay, e.g. compose.cpu.yml):
-#   docker compose -f compose.yml -f compose.cpu.yml -f compose.dlsps2.yml up -d --build
+# Usage: make build run DLSPS2=1
+#   (or: docker compose -f compose.yml -f compose.$COMPOSE_PROFILES.yml -f compose.dlsps2.yml up -d)
 #
 # ./shared/videos and ./shared/models are mounted at the SAME container
 # paths as the vippet service (see compose.yml's AUTO_VIDEO_DIR/
@@ -19,14 +19,19 @@
 # dlstreamer-pipeline-server container.
 services:
   dlstreamer-pipeline-server:
-    image: dlsps2.0-21
+    # Same devices/groups/profile as vippet for the active device profile.
+    extends:
+      file: compose.${COMPOSE_PROFILES}.yml
+      service: vippet
+    image: ${DLSPS2_IMAGE:-dlstreamer-pipeline-server:2.0-local}
     hostname: dlstreamer-pipeline-server
     container_name: dlstreamer-pipeline-server
     build:
       context: ../../microservices/dlstreamer-pipeline-server/dlsps2
       dockerfile: docker/Dockerfile
       args:
-        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-intel/dlstreamer:2026.1.0-ubuntu24}
+        # Keep in sync with vippet/Dockerfile so both backends run the same DLStreamer.
+        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-intel/dlstreamer:2026.2.0-ubuntu24-rc3}
         UID: ${DLSPS2_UID:-1000}
         USER: ${DLSPS2_USER:-pipeline-server}
         http_proxy:
@@ -53,11 +58,6 @@ services:
       HTTP_PROXY: ${http_proxy}
       HTTPS_PROXY: ${https_proxy}
       NO_PROXY: "${no_proxy:+${no_proxy},}vippet,mediamtx"
-    group_add:
-      - ${RENDER_GROUP_ID}
-    devices:
-      - "/dev/dri:/dev/dri"
-      - "/dev/accel:/dev/accel"
     tmpfs:
       - /tmp
       - /var/tmp
