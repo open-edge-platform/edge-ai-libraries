@@ -6,8 +6,8 @@ The chart is published to the **same OCI repository as the container image**.
 
 | Artifact      | OCI Reference                                                                |
 |---------------|------------------------------------------------------------------------------|
-| Image         | `registry-1.docker.io/intel/metrics-manager:2026.1.0`                        |
-| Helm chart    | `oci://registry-1.docker.io/intel/metrics-manager:2026.1.0-helm`             |
+| Image         | `registry-1.docker.io/intel/metrics-manager:2026.2.0`                        |
+| Helm chart    | `oci://registry-1.docker.io/intel/metrics-manager:2026.2.0-helm`             |
 
 ## Prerequisites
 
@@ -28,7 +28,7 @@ To collect host CPU/GPU/NPU telemetry, enable the profile explicitly. It require
 ```bash
 helm install metrics-manager \
   oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --namespace observability --create-namespace \
   --set hardware.telemetry.enabled=true
 ```
@@ -51,7 +51,7 @@ The chart uses the native `appArmorProfile` field. On older clusters either upgr
 ```bash
 helm install metrics-manager \
   oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --namespace observability --create-namespace
 ```
 
@@ -60,22 +60,22 @@ helm install metrics-manager \
 ```bash
 helm template metrics-manager \
   oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm
+  --version 2026.2.0-helm
 ```
 
 ### Pull for Offline / Air-Gapped Deployments
 
 ```bash
 helm pull oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm
-# -> metrics-manager-2026.1.0-helm.tgz
+  --version 2026.2.0-helm
+# -> metrics-manager-2026.2.0-helm.tgz
 ```
 
 ### Show Default Values
 
 ```bash
 helm show values oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm
+  --version 2026.2.0-helm
 ```
 
 ---
@@ -86,7 +86,7 @@ helm show values oci://registry-1.docker.io/intel/metrics-manager \
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --set controller.kind=DaemonSet \
   --set hardware.telemetry.enabled=true
 ```
@@ -95,7 +95,7 @@ helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --set hardware.gpu.enabled=false \
   --set hardware.telemetry.enabled=true
 ```
@@ -104,7 +104,7 @@ helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --set config.hostnameOverride=lab-node-42
 ```
 
@@ -112,7 +112,7 @@ helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --set customMetrics.storage=pvc \
   --set customMetrics.size=1Gi \
   --set customMetrics.storageClassName=standard
@@ -122,7 +122,7 @@ helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --set-file telegraf.config=./my-telegraf.conf
 ```
 
@@ -130,7 +130,7 @@ helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.labels.release=prometheus
 ```
@@ -145,7 +145,7 @@ This creates a `ServiceMonitor` that Prometheus Operator can scrape via the `:92
 
 ```bash
 helm upgrade metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --reuse-values
 ```
 
@@ -289,7 +289,7 @@ Install with custom values:
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   -f my-values.yaml
 ```
 

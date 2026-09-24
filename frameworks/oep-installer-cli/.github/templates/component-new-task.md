@@ -1,4 +1,4 @@
-## Task: implement `module/{{NAME}}/debian`
+## Task: implement `frameworks/oep-installer-cli/module/{{NAME}}/debian`
 
 A new spec file `{{SPEC_FILE}}` was pushed to `main`. Implement the
 corresponding installer component following the rules below, then open a

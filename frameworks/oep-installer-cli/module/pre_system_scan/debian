@@ -134,22 +134,16 @@ system_scan_check_membank () {
 
 system_scan_check_network_access () {
   local check_urls=(
-    http://ubuntu.com
+    http://security.ubuntu.com
     https://apt.repos.intel.com
   ) url
 
   for url in "${check_urls[@]}"; do
-    if ! curl -fsSL --retry 2 $url > /dev/null; then
-      echo "$url by $(id -un)"
-      return
-    fi
+    curl -fsSL --retry 2 $url > /dev/null || { echo "$url by $(id -un)"; return 0; }
   done
 
   for url in "${check_urls[@]}"; do
-    if ! ensure_sudo curl -fsSL --retry 2 $url > /dev/null; then
-      echo "$url by root"
-      return
-    fi
+    ensure_sudo curl -fsSL --retry 2 $url > /dev/null || { echo "$url by root"; return 0; }
   done
   echo "registry reachable"
 }

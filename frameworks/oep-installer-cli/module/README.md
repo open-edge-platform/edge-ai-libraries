@@ -1,12 +1,12 @@
 
 ### Introduction
 
-Components are installable modules within the OEP installer. Their filenames are in the pattern of `<component-name>/linux` (distribution neutral) or `<component-name>/<OS_LIKE>` (distribution specific), where `<OS_LIKE>` is the OS family identifier (from `/etc/os-release`.) 
+Components are installable modules within the OEP installer. Their filenames are in the pattern of `<component-name>/linux` (distribution neutral) or `<component-name>/<OS_LIKE>` (distribution specific), where `<OS_LIKE>` is the OS family identifier (from `/etc/os-release`.) Windows modules use `OS_LIKE=windows`.  
 The component name should contain no whitespace or special character except '_'.  
 
 ### Develop a component
 
-A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<profile|install|remove|start|stop>_<component-name>`, where 
+A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<profile|install|remove|start|stop>_<component-name>` (Windows functions use the Camel case pattern: `Windows<order><Profile|Install|Remove|Start|Stop><Component-name>`), where 
 - `<OS_LIKE>`: The OS family identifier such as `debian`. You can get it from `/etc/os-release`.
 - `<order>`: A number (prefixed with `0` if less than 10) from 0 to 99 to specify the installation order. The OEP installer will install components in the following order:
 
@@ -134,6 +134,8 @@ debian_85_install_my_component () {
 #  echo "..." # LICENSE-TEXT or $(ensure_license_fetch <URL>) to fetch license text
 #}
 ```
+
+> See [`git`](git/windows.ps1) for a windows module example.
 
 ### @@HIGHLIGHT protocol
 

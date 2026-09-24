@@ -1,4 +1,4 @@
-## Task: update `module/{{NAME}}/debian`
+## Task: update `frameworks/oep-installer-cli/module/{{NAME}}/debian`
 
 The spec file `{{SPEC_FILE}}` was modified in `main`.  The existing
 implementation in `module/{{NAME}}/debian` must be **updated in place** to

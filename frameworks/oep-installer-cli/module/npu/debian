@@ -7,9 +7,9 @@ configure_npu () {
 }
 
 verify_npu () {
-  [ -b /dev/accel/accel0 ]
-  getent group render >/dev/null 2>&1 
-  id -nG | grep -qw render
+  [ -c /dev/accel/accel0 ] &&
+  getent group render >/dev/null 2>&1 &&
+  id -nG | grep -qw render &&
   (
     set -o pipefail
     ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
@@ -46,8 +46,8 @@ debian_40_install_npu () {
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
+    verify_npu
   fi
-  verify_npu
 }
 
 debian_40_remove_npu () {

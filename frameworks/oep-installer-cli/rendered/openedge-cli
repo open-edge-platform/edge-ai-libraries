@@ -1850,12 +1850,17 @@ ensure_select_device () {
 
 # perform sudo in automation or in tty
 ensure_sudo () {
+  local hp="${http_proxy:-$HTTP_PROXY}" sp="${https_proxy:-$HTTPS_PROXY}" np="${no_proxy:-$NO_PROXY}" proxy_args=()
+  [ -z "$hp" ] || proxy_args+=("http_proxy=$hp" "HTTP_PROXY=$hp")
+  [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp")
+  [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np")
+
   if sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
-    sudo "$@"
+    sudo env "${proxy_args[@]}" "$@"
   elif [ -t 0 ] && [ -z "$SUDO_PASSWORD" ]; then
     # genuine interactive terminal: safe to prompt for a password
-    sudo "$@"
+    sudo env "${proxy_args[@]}" "$@"
   else
     # write an askpass helper
     local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
@@ -1868,7 +1873,7 @@ ensure_sudo () {
         act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
         export SUDO_ASKPASS="$askpass_helper"
       fi
-      sudo -A "$@"
+      sudo -A env "${proxy_args[@]}" "$@"
     ) 9< "$rundir"
   fi
 }
@@ -2712,9 +2717,9 @@ configure_gpu () {
 }
 
 verify_gpu () {
-  [ -b /dev/render/renderD128 ]
-  getent group render >/dev/null 2>&1
-  id -nG | grep -qw render
+  [ -c /dev/dri/renderD128 ] &&
+  getent group render >/dev/null 2>&1 &&
+  id -nG | grep -qw render &&
   ensure_apt_is_installed intel-media-va-driver-non-free=$version
 }
 
@@ -2743,8 +2748,8 @@ debian_40_install_gpu () {
 
     # install the packages
     ensure_apt install --no-install-recommends -y $pkg_list
+    verify_gpu
   fi
-  verify_gpu
 }
 
 debian_40_remove_gpu () {
@@ -3448,9 +3453,9 @@ configure_npu () {
 }
 
 verify_npu () {
-  [ -b /dev/accel/accel0 ]
-  getent group render >/dev/null 2>&1 
-  id -nG | grep -qw render
+  [ -c /dev/accel/accel0 ] &&
+  getent group render >/dev/null 2>&1 &&
+  id -nG | grep -qw render &&
   (
     set -o pipefail
     ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
@@ -3487,8 +3492,8 @@ debian_40_install_npu () {
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
+    verify_npu
   fi
-  verify_npu
 }
 
 debian_40_remove_npu () {
@@ -4114,22 +4119,16 @@ system_scan_check_membank () {
 
 system_scan_check_network_access () {
   local check_urls=(
-    http://ubuntu.com
+    http://security.ubuntu.com
     https://apt.repos.intel.com
   ) url
 
   for url in "${check_urls[@]}"; do
-    if ! curl -fsSL --retry 2 $url > /dev/null; then
-      echo "$url by $(id -un)"
-      return
-    fi
+    curl -fsSL --retry 2 $url > /dev/null || { echo "$url by $(id -un)"; return 0; }
   done
 
   for url in "${check_urls[@]}"; do
-    if ! ensure_sudo curl -fsSL --retry 2 $url > /dev/null; then
-      echo "$url by root"
-      return
-    fi
+    ensure_sudo curl -fsSL --retry 2 $url > /dev/null || { echo "$url by root"; return 0; }
   done
   echo "registry reachable"
 }
