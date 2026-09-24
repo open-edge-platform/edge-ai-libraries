@@ -83,7 +83,7 @@ _CASE_IDS: list[str] | None = None
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_configure() -> None:
+def pytest_sessionstart() -> None:
     """Verify ViPPET readiness once before performance test collection."""
     run_preflight_or_exit(
         BASE_URL,
