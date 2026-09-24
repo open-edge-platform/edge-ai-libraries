@@ -1,0 +1,47 @@
+
+configure_edge_pack () {
+  edge_pack_repo="apt.repos.intel.com"
+  edge_pack_key_url="https://$edge_pack_repo/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  edge_pack_key_file=/etc/apt/keyrings/edgepack.gpg
+  edge_pack_source="deb [signed-by=$edge_pack_key_file] https://$edge_pack_repo/edgepack $VERSION_CODENAME stable"
+  edge_pack_list_file=/etc/apt/sources.list.d/edgepack.list
+  edge_pack_pref=(
+    "Package: *"
+    "Pin: origin $edge_pack_repo"
+    "Pin-Priority: 1001"
+  )
+  edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref
+}
+
+debian_15_profile_edge_pack () {
+  echo "pre_system_scan core_types curl gpg"
+}
+
+debian_15_install_edge_pack () {
+  configure_edge_pack "$@"
+  local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0)
+  local reconfigured=0
+  if [ ! -e "$edge_pack_key_file" ] || [ $reinstall -eq 1 ]; then
+    ensure_apt_key "$edge_pack_key_file" "$edge_pack_key_url" --dearmor
+    reconfigured=1
+  fi
+  if [ ! -e "$edge_pack_source_file" ] || [ $reinstall -eq 1 ]; then
+    ensure_apt_source "$edge_pack_list_file" "$edge_pack_source"
+    reconfigured=1
+  fi
+  if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
+    ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}"
+    reconfigured=1
+  fi
+  [ $reconfigured -eq 0 ] || ensure_apt update -y
+}
+
+debian_15_remove_edge_pack () {
+  configure_edge_pack "$@"
+  ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
+}
+
+#sbom by individual packs
+#debian_15_sbom_edge_pack () {
+#}
+

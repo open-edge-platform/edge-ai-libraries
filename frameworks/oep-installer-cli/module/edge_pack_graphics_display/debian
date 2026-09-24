@@ -1,0 +1,40 @@
+
+configure_edge_pack_graphics_display () {
+  configure_edge_pack "$@"
+  version="1.0"
+}
+
+debian_20_profile_edge_pack_graphics_display () {
+  echo "edge_pack"
+}
+
+debian_20_install_edge_pack_graphics_display () {
+  configure_edge_pack_graphics_display "$@"
+  if ensure_apt_is_installed intel-edge-graphics-display=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "intel-edge-graphics-display already installed. Skipping" 1>&2
+  else
+    debian_20_remove_edge_pack_graphics_display
+    ensure_apt install --no-install-recommends "intel-edge-graphics-display=$version*"
+  fi
+}
+
+debian_20_remove_edge_pack_graphics_display () {
+  ensure_apt autoremove -y intel-edge-graphics-display || true
+}
+
+debian_20_sbom_edge_pack_graphics_display () {
+  configure_edge_pack_graphics_display "$@"
+  IFS=$'|'
+  local pref_str="${edge_pack_pref[*]}"
+  cat <<EOF
+"name": "$edge_pack_repo"
+"gpg-key": "$edge_pack_key_url"
+"key_file": "$edge_pack_key_file"
+"apt-source": "$edge_pack_source"
+"apt-list-file": "$edge_pack_list_file"
+"apt-pref": ["${pref_str//|/'","'}"]
+"apt-pref-file": "$edge_pack_pref_file"
+"pkg-list": ["intel-edge-graphics-display=$version*"]
+EOF
+}
+
