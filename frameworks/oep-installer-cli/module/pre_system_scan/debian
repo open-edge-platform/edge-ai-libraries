@@ -139,11 +139,11 @@ system_scan_check_network_access () {
   ) url
 
   for url in "${check_urls[@]}"; do
-    no_proxy= NO_PROXY= curl -fsSL --retry 2 $url > /dev/null || { echo "$url by $(id -un)"; return 0; }
+    no_proxy= NO_PROXY= curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { echo "$url by $(id -un)"; return 0; }
   done
 
   for url in "${check_urls[@]}"; do
-    no_proxy= NO_PROXY= ensure_sudo curl -fsSL --retry 2 $url > /dev/null || { echo "$url by root"; return 0; }
+    no_proxy= NO_PROXY= ensure_sudo curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { echo "$url by root"; return 0; }
   done
   echo "registry reachable"
 }
