@@ -2,7 +2,8 @@
 
 The Model Download is a microservice that downloads models from multiple hubs as follows: Hugging Face, Ollama, Geti™ software, Ultralytics, Pipeline Zoo Models, Open Model Zoo (OMZ), remote URL, and HLS. It supports conversion to OpenVINO™ model server format for Hugging Face models, supports uploading custom model ZIP artifacts, and exposes a RESTful API for managing model downloads, uploads, and conversions.
 
-> **Note:** Model Download replaces Model Registry, which will be deprecated soon. See [Migrate from Model Registry to Model Download](./get-started/migration.md) for the migration guidelines.
+> [!NOTE]
+> Model Download replaces Model Registry, which will be deprecated soon. See [Migrate from Model Registry to Model Download](./get-started/migration.md) for the migration guidelines.
 
 ## Features
 
@@ -58,7 +59,8 @@ export GETI_SERVER_API_VERSION=v1
 export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
 ```
 
-> **Note:** For Geti™ software setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
+> [!NOTE]
+> For Geti™ software setup instructions, see the documentation [here](https://github.com/open-edge-platform/geti).
 
 To customize the `remote-url` hub allowlist (optional), set:
 
@@ -72,9 +74,10 @@ export EXTERNAL_SOURCES_URL_ALLOWLIST=<comma-separated host/path prefixes> # opt
 source scripts/run_service.sh up --plugins all --model-path <host path>
 ```
 
-> **Note:** For public models, no token is needed. Set the Hugging Face token via the `HUGGINGFACEHUB_API_TOKEN` environment variable to download GATED models and for conversion to OpenVINO IR format.
-
-> **Note:** Ensure the host path does not require privileged access for directory creation. Intel recommends using `$PWD/host_path` or a similar location within your work directory.
+> [!NOTE]
+>
+> - For public models, no token is needed. Set the Hugging Face token via the `HUGGINGFACEHUB_API_TOKEN` environment variable to download GATED models and for conversion to OpenVINO IR format.
+> - Ensure the host path does not require privileged access for directory creation. Intel recommends using `$PWD/host_path` or a similar location within your work directory.
 
 The `run_service.sh` script is a Docker Compose wrapper that builds and manages the model download service container with configurable plugins, model paths, and deployment options.
 
@@ -244,9 +247,11 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=yolo_mo
   }'
 ```
 
-> **Note:** YOLO vision models from Ultralytics model hub will be downloaded and converted to
-> the OpenVINO IR format with FP32 and FP16 precision by default.
-> **Note:** Ultralytics supports a single model name, comma-separated model names, or `"name": "all"`.
+> [!NOTE]
+>
+> - YOLO vision models from Ultralytics model hub will be downloaded and converted to
+>   the OpenVINO IR format with FP32 and FP16 precision by default.
+> - Ultralytics supports a single model name, comma-separated model names, or `"name": "all"`.
 
 **Download an Ultralytics model with INT8 quantization:**
 
@@ -268,15 +273,15 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=yolo_in
   }'
 ```
 
-> **Note: INT8 behavior for Ultralytics requests:**
+> [!NOTE]
+> **INT8 behavior for Ultralytics requests:**
 >
 > - Set `config.quantize` to request INT8 export.
 > - INT8 requests only support a single model name per request. Requests using comma-separated model names, `all`, or `yolo_all` with `quantize` are rejected.
 > - If INT8 is requested but no INT8 artifact is produced, the request fails and partial artifacts are cleaned up.
 > - Due to a limitation in the DL Streamer public model download script, requesting INT8 also downloads other supported precision artifacts for the model if present like FP32, FP16.
 > - Currently available datasets are coco, coco8 and coco128.
-
-**NOTE:** coco is a very large dataset of over 20GB and containing more than a 100,000 images. Quantization on this dataset can take a very long time. For development purposes, it is recommended to use coco128 or coco8 instead, which is much lighter.
+> - coco is a very large dataset of over 20GB and containing more than a 100,000 images. Quantization on this dataset can take a very long time. For development purposes, it is recommended to use coco128 or coco8 instead, which is much lighter.
 
 **Download a Hugging Face model and convert it to OpenVINO IR format:**
 
@@ -325,7 +330,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
 }'
 ```
 
-> **Note:**
+> [!NOTE]
 >
 > - Need additional OpenVINO export knobs? Review the parameter matrix in the [OpenVINO Model Server export guide](https://github.com/openvinotoolkit/model_server/blob/main/demos/common/export_models/README.md#quick-start) and pass the corresponding fields through `config`.
 > - Visual-language models automatically set `pipeline_type` to `VLM` for type 'VLM'.
@@ -353,7 +358,8 @@ curl -X POST 'http://<host-ip>:8200/api/v1/models/download?download_path=geti_fo
   }'
 ```
 
-> **Note:** The default precision is FP16.
+> [!NOTE]
+> The default precision is FP16.
 
 **Download a Pipeline Zoo model:**
 
@@ -371,7 +377,8 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=pipelin
   }'
 ```
 
-> **Note:** Pipeline Zoo supports a single model name, comma-separated model names (for example, `"name": "dbnet,yolov5m-320"`), or `"name": "all"` to download all available models from the `storage` directory.
+> [!NOTE]
+> Pipeline Zoo supports a single model name, comma-separated model names (for example, `"name": "dbnet,yolov5m-320"`), or `"name": "all"` to download all available models from the `storage` directory.
 
 **Download a tarball model at runtime from a remote URL (`remote-url` hub):**
 
@@ -401,9 +408,10 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=udf_tim
   }'
 ```
 
-> **Note:** The URL must point to a tar archive (ex: `.tar`, `.tar.gz`) containing a single model's files, and `name` must be a single value (comma-separated names and `all` are not supported for `remote-url`).
-
-> **Note:** Pass hub names (`pipeline-zoo-models`, `remote-url`) directly to `--plugins`. The internal plugin implementation is shared but not user-visible.
+> [!NOTE]
+>
+> - The URL must point to a tar archive (ex: `.tar`, `.tar.gz`) containing a single model's files, and `name` must be a single value (comma-separated names and `all` are not supported for `remote-url`).
+> - Pass hub names (`pipeline-zoo-models`, `remote-url`) directly to `--plugins`. The internal plugin implementation is shared but not user-visible.
 
 **Download an Open Model Zoo (OMZ) model:**
 
@@ -425,9 +433,11 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=omz_mod
   }'
 ```
 
-> **Note:** Models without a matching entry in `omz_rules.yaml` are downloaded and
-> converted, but no post-processing is applied.
-> **Note:** OMZ supports a single model name or comma-separated model names (for example, `"name": "mobilenet-v2-pytorch,face-detection-retail-0004"`). `"name": "all"` is not supported for OMZ because each model requires both download and conversion, and processing the full catalog can be very time-consuming and resource-intensive.
+> [!NOTE]
+>
+> - Models without a matching entry in `omz_rules.yaml` are downloaded and
+>   converted, but no post-processing is applied.
+> - OMZ supports a single model name or comma-separated model names (for example, `"name": "mobilenet-v2-pytorch,face-detection-retail-0004"`). `"name": "all"` is not supported for OMZ because each model requires both download and conversion, and processing the full catalog can be very time-consuming and resource-intensive.
 
 **Download fixed HLS models (3D pose, rPPG, AI-ECG):**
 
@@ -560,7 +570,8 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_ov
   }'
 ```
 
-> **Note:** When overriding a grouped set of keys (for example the `geti` group), all required keys in that group must be provided together. Use `GET /api/v1/plugins` to see which keys belong to each group.
+> [!NOTE]
+> When overriding a grouped set of keys (for example the `geti` group), all required keys in that group must be provided together. Use `GET /api/v1/plugins` to see which keys belong to each group.
 
 **Download a remote-url model with per-request allowlist override (`EXTERNAL_SOURCES_URL_ALLOWLIST`):**
 
@@ -590,7 +601,8 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=remote_
   }'
 ```
 
-> **Note:** The response format for downloads with `override_credentials` is the same as shown in the response section above for the corresponding hub plugin.
+> [!NOTE]
+> The response format for downloads with `override_credentials` is the same as shown in the response section above for the corresponding hub plugin.
 
 **Pre-validate credentials before download:**
 
@@ -629,7 +641,8 @@ curl -X POST "http://<host-ip>:8200/api/v1/jobs/<job_id>/cancel"
 }
 ```
 
-> **Note:** For hubs that do not support immediate interruption (`huggingface`, `geti`, `openvino`), the response includes an additional `warning` field. The transfer may continue briefly in the background; partial files are cleaned up automatically.
+> [!NOTE]
+> For hubs that do not support immediate interruption (`huggingface`, `geti`, `openvino`), the response includes an additional `warning` field. The transfer may continue briefly in the background; partial files are cleaned up automatically.
 
 **Upload a custom model ZIP:**
 
@@ -752,7 +765,8 @@ Hubs that support multiple precisions append a `<precision>/` subdirectory. Hubs
 | `remote-url` | `<download_path>/<hub>/<model_name>/` | `models/remote-url/wind-turbine-anomaly-detection/` |
 | `hls` | `<download_path>/<hub>/<model_name>/` | `models/hls/human-pose-estimation-3d-0001/` |
 
-> **Note:** For model names containing `/` (for example, `microsoft/Phi-3.5-mini-instruct`), the slash is replaced with `_` in the directory name.
+> [!NOTE]
+> For model names containing `/` (for example, `microsoft/Phi-3.5-mini-instruct`), the slash is replaced with `_` in the directory name.
 
 ## Best Practices
 

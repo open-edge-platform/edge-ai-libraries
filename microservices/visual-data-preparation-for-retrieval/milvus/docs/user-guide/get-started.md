@@ -41,7 +41,8 @@ export REGISTRY="intel/"
 export TAG="latest"
 ```
 
-> **Note:** If you are using a release version package, you will have a pre-defined docker compose file where image registry and tag are already set to the release version. In such case, you do not need to set the environment variables above, simply move forward to the next step. You may refer to the release notes for details on the version number or check the docker compose file that is used in the steps below.
+> [!NOTE]
+> If you are using a release version package, you will have a pre-defined docker compose file where image registry and tag are already set to the release version. In such case, you do not need to set the environment variables above, simply move forward to the next step. You may refer to the release notes for details on the version number or check the docker compose file that is used in the steps below.
 
 ### Step 2: Prepare host directories for data
 
@@ -53,7 +54,8 @@ Make sure to put all your data (images and video) in the created data directory 
 
 Additionally, make sure the created path matches with the `HOST_DATA_PATH` variable in `deployment/docker-compose/env.sh`.
 
-> **Note:** The supported media types are: jpg, png, mp4.
+> [!NOTE]
+> The supported media types are: jpg, png, mp4.
 
 ### Step 3: Deploy
 
@@ -72,11 +74,13 @@ Additionally, make sure the created path matches with the `HOST_DATA_PATH` varia
    source env.sh
    ```
 
-   > **Important:** You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
+   > [!IMPORTANT]
+   > You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
    > See [Supported Models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) for Multimodal Embedding Serving for available options.
 
-   > **Note:** `env.sh` sets `HF_ENDPOINT` to a Hugging Face mirror, which is necessary for users in the PRC to download models. Users in other regions may remove or unset this variable to use the default Hugging Face endpoint:
-   >
+   > [!NOTE]
+   > `env.sh` sets `HF_ENDPOINT` to a Hugging Face mirror, which is necessary for users in the PRC to download models. Users in other regions may remove or unset this variable to use the default Hugging Face endpoint:
+   > 
    > ```bash
    > unset HF_ENDPOINT
    > ```
@@ -128,7 +132,8 @@ curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 
 ### Ingest Files
 
-> **Note:** the file directory or single file sent in the request should be under the specific host directory created in Step 2.
+> [!NOTE]
+> the file directory or single file sent in the request should be under the specific host directory created in Step 2.
 
 - For Directory:
 

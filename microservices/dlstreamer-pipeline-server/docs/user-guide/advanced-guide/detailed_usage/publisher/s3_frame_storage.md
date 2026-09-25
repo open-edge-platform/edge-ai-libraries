@@ -27,14 +27,16 @@ The following parameters are supported to configure S3 publishing:
 - `folder_prefix`: Optional. Path of the file where frame will be stored inside the bucket. This path is relative to bucket name mentioned.
 - `block`: Optional. It is `false` by default, meaning s3 write will be asynchronous to MQTT publishing. As a result, there might be a scenario where metadata of frame is present but the s3 has still not finished writing the frame to the storage. If specified as `true`, then s3 write and MQTT publishing will be synchronous. In this case, metadata of the frame will be present in MQTT only after s3 has completed writing the frame to the storage.
 
-> **Note:** The frames are stored at `<bucket>/<folder_prefix>/<filename>.<extension>`. `<filename>` is a unique name for each frame given by DL Streamer Pipeline Server. If the `folder_prefix` is not specified or kept blank, then the frame will be stored at `<bucket>/<filename>.<extension>`
-
-> **Note:** DL Streamer Pipeline Server supports only writing of object data to S3 storage. It does not support creating, maintaining or deletion of buckets. It also does not support reading or deletion of objects from bucket. This documentation assumes that if you want to use this feature, then you already have a S3 storage with buckets configured.
+> [!NOTE]
+>
+> - The frames are stored at `<bucket>/<folder_prefix>/<filename>.<extension>`. `<filename>` is a unique name for each frame given by DL Streamer Pipeline Server. If the `folder_prefix` is not specified or kept blank, then the frame will be stored at `<bucket>/<filename>.<extension>`
+> - DL Streamer Pipeline Server supports only writing of object data to S3 storage. It does not support creating, maintaining or deletion of buckets. It also does not support reading or deletion of objects from bucket. This documentation assumes that if you want to use this feature, then you already have a S3 storage with buckets configured.
 
 After making changes to config.json, make sure to save it and restart DL Streamer Pipeline Server. Ensure that the changes made to the config.json are reflected in the container by volume mounting it as mentioned [here](../../../how-to-guides/change-dlstreamer-pipeline.md).
 
 - Once you start DL Streamer Pipeline Server with above changes, you should be able to see frames written to S3 storage. Since we are using Minio storage for our demonstration, you can see the frames being written to Minio by logging into Minio console. You can access the console in your browser - http://<S3_STORAGE_HOST>:9090 You can use the credentials specified above in the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` to login into console. After logging into console, you can go to your desired buckets and check the frames stored.
 
-> **Note:** Minio console runs at port 9090 by default.
+> [!NOTE]
+> Minio console runs at port 9090 by default.
 
 To learn how to publish frames to S3 storage, refer to the tutorial [here](../../../how-to-guides/store-s3-frame.md).

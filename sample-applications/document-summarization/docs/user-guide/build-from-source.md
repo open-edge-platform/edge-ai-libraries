@@ -2,8 +2,8 @@
 
 This section shows how to build the Document Summarization Sample Application from the source.
 
-> **Note:**
->
+> [!NOTE]
+> 
 > - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). It is recommended to use prebuilt images on Edge Microvisor Toolkit.
 
 ## Prerequisites
@@ -24,7 +24,8 @@ Before you begin, ensure that you have the following prerequisites:
       git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
       ```
 
-      > **Note:** Adjust the repo link appropriately in case of forked repo.
+      > [!NOTE]
+      > Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
 
@@ -58,9 +59,9 @@ Before you begin, ensure that you have the following prerequisites:
       # pass hugging face token
       ```
 
-      > **Note:**
+      > [!NOTE]
       > OpenTelemetry and OpenLit Configurations are optional. Set these only if there is an OTLP endpoint available.
-      >
+      > 
       > ```bash
       >  export OTLP_ENDPOINT=<OTLP-endpoint>
       >  export no_proxy=${no_proxy},$OTLP_ENDPOINT,

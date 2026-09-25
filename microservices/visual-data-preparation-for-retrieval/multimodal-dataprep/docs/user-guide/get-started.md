@@ -72,7 +72,8 @@ device. Each variable defaults to `CPU` when unset:
 - `MM_DATAPREP_EMBEDDING_DEVICE` — device for the in-process embedding pipeline.
 - `MM_DATAPREP_DETECTION_DEVICE` — device for object detection.
 
-> **Important:** These variables are read directly by the DataPrep container. You
+> [!IMPORTANT]
+> These variables are read directly by the DataPrep container. You
 > can `source` a setup script (which exports the `CPU` defaults) or set them
 > explicitly before running `docker compose up`.
 
@@ -126,7 +127,8 @@ export MM_DATAPREP_DETECTION_DEVICE="CPU"
 source ./setup.sh --nosetup
 ```
 
-> **Tip:** When you only need long-form text embeddings—such as the combined `--all` mode in the video search and summarization sample—set `EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"` before sourcing `setup.sh`. The script forwards this value to the DataPrep container as `MM_DATAPREP_EMBEDDING_MODEL_NAME`, enabling Qwen-backed text embeddings without any additional flags.
+> [!TIP]
+> When you only need long-form text embeddings—such as the combined `--all` mode in the video search and summarization sample—set `EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"` before sourcing `setup.sh`. The script forwards this value to the DataPrep container as `MM_DATAPREP_EMBEDDING_MODEL_NAME`, enabling Qwen-backed text embeddings without any additional flags.
 
 ## ROI consolidation (optional)
 
@@ -149,7 +151,8 @@ Use `source ./setup.sh --conf` to print the resolved Docker Compose configuratio
 
 ## Quick Start with Docker
 
-> **Important:** Do not run `docker build` directly against `docker/Dockerfile` from the `multimodal-dataprep` directory. Always execute `./build.sh` so the build uses the `microservices/` context and includes the local `multimodal-embedding-serving` source dependency.
+> [!IMPORTANT]
+> Do not run `docker build` directly against `docker/Dockerfile` from the `multimodal-dataprep` directory. Always execute `./build.sh` so the build uses the `microservices/` context and includes the local `multimodal-embedding-serving` source dependency.
 
 The user has an option to either [build the docker images](./get-started/build-from-source.md#steps-to-build) or use prebuilt images as documented below.
 

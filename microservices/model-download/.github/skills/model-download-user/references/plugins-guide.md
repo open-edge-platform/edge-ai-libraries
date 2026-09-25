@@ -182,7 +182,8 @@ curl -s -X POST \
 
 Downloads Ollama models by starting a local Ollama server inside the container and running `ollama pull`.
 
-> **Note:** Downloads are serialized — only one Ollama model downloads at a time even if multiple jobs are submitted.
+> [!NOTE]
+> Downloads are serialized — only one Ollama model downloads at a time even if multiple jobs are submitted.
 
 ### Request Body
 

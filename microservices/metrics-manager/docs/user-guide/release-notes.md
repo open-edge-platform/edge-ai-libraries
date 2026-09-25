@@ -120,6 +120,7 @@ None at this release. See GitHub issues for feature requests and discussions.
 - Python **3.12** runtime + FastAPI service
 - supervisord process supervisor
 
+> [!NOTE]
 > **Note on qmmd:** The default Metrics Manager already collects GPU metrics via `qmassa_reader.py` and Telegraf. Enable qmmd only if you need a standalone Prometheus exporter on a separate port. See [Environment Variables](./get-started/environment-variables.md#optional-components) for details.
 
 ## Support Matrix

@@ -2,7 +2,8 @@
 
 The Time Series Analytics Microservice provides an interactive Swagger UI at `http://localhost:5000/docs`.
 
-> **Note:** Use the link `http://localhost:30002/docs` to access the Swagger UI if doing a Helm-based deployment on a Kubernetes cluster.
+> [!NOTE]
+> Use the link `http://localhost:30002/docs` to access the Swagger UI if doing a Helm-based deployment on a Kubernetes cluster.
 
 ## Accessing the Swagger UI
 
@@ -20,7 +21,8 @@ The response displays the current configuration of the Time Series Analytics Mic
 3. Expand the endpoint, enter the new configuration in the request body, and click **Execute**.
 This enables dynamic configuration at runtime. The service will apply the updated configuration and start with the new configuration.
 
-> **Note:** If you restart the Time Series Analytics Microservice, it will start with the default configuration present in the `config.json` file.
+> [!NOTE]
+> If you restart the Time Series Analytics Microservice, it will start with the default configuration present in the `config.json` file.
 
 ### Send input data to the Time Series Analytics Microservice
 
@@ -60,7 +62,8 @@ The service will use the input for processing data.
 3. Expand the endpoint, enter the alert data in the request body, and click **Execute**.
 4. The service sends an alert to the OPC UA server as configured in the config.
 
-> **Note:** Before using the OPC UA alerts API, ensure that you have the OPC-UA server running and have added `opcua` to the `alerts` section in `config.json` file.
+> [!NOTE]
+> Before using the OPC UA alerts API, ensure that you have the OPC-UA server running and have added `opcua` to the `alerts` section in `config.json` file.
 
 ### Check the status of the Time Series Analytics Microservice
 

@@ -152,4 +152,5 @@ and push to this branch — the workflow will re-run automatically.
 
 ---
 
-> **Note**: generated PRs must be reviewed by a human before merging.
+> [!NOTE]
+> generated PRs must be reviewed by a human before merging.

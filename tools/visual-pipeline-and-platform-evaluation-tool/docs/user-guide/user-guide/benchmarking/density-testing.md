@@ -107,7 +107,8 @@ Before running the test, configure the workload in the **Density** tab.
 | **Output mode**            | `disabled` or `file`. Live streaming is not supported for density tests.                                         | `disabled`                           |
 | **Enable latency metrics** | When enabled, measures end-to-end pipeline latency (avg/min/max) per reporting interval.                         | `disabled`                           |
 
-> **Note:** USB cameras are not supported in density testing because the algorithm needs to spawn
+> [!NOTE]
+> USB cameras are not supported in density testing because the algorithm needs to spawn
 > multiple copies of the same pipeline, which is not possible with a single physical camera device.
 
 ![Density Testing](../../_assets/ViPPET-UI-Density-light.png)
@@ -135,7 +136,8 @@ to find out how many streams of a second pipeline the platform can run on top of
 | **Output mode**                    | `disabled` or `file`. Live streaming is not supported for density tests.                       | `disabled` |
 | **Enable latency metrics**         | When enabled, measures end-to-end pipeline latency (avg/min/max) per reporting interval.       | `disabled` |
 
-> **Note:** Mixed mode is restricted to **exactly two** pipelines with **exactly one** of
+> [!NOTE]
+> Mixed mode is restricted to **exactly two** pipelines with **exactly one** of
 > them setting `streams`. The backend rejects any other combination with HTTP 400.
 
 <!-- //TODO: Add screenshot of the Density tab configured in mixed mode
@@ -156,7 +158,8 @@ What happens during execution:
 - The process ends when the algorithm converges on the best stable configuration.
 - Progress is reported in real time via the job status details.
 
-> **Important:** If you cancel a density test while it is running, the job is marked as **FAILED**.
+> [!IMPORTANT]
+> If you cancel a density test while it is running, the job is marked as **FAILED**.
 > Partial density results are not reported because the algorithm has not yet converged on a reliable answer.
 
 ![Density Run](../../_assets/ViPPET-UI-Density-Run-light.png)

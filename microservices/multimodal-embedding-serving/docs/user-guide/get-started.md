@@ -191,7 +191,8 @@ export EMBEDDING_DEVICE=GPU.0
 source setup.sh
 ```
 
-> **Note**: When `EMBEDDING_DEVICE=GPU` is set, `setup.sh` applies GPU-friendly defaults, including setting `EMBEDDING_USE_OV=true`.
+> [!NOTE]
+> When `EMBEDDING_DEVICE=GPU` is set, `setup.sh` applies GPU-friendly defaults, including setting `EMBEDDING_USE_OV=true`.
 
 ### 3. Start the Service
 
@@ -217,7 +218,8 @@ curl --location --request GET 'http://localhost:9777/model/capabilities'
 export EMBEDDING_DEVICE=NPU
 ```
 
-> **Note**: NPU support is model-dependent. Verify that the selected model is supported on NPU by checking the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html).
+> [!NOTE]
+> NPU support is model-dependent. Verify that the selected model is supported on NPU by checking the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html).
 
 ### 2. Run the Setup Script
 
@@ -225,7 +227,8 @@ export EMBEDDING_DEVICE=NPU
 source setup.sh
 ```
 
-> **Note**: When `EMBEDDING_DEVICE=NPU` is set, `setup.sh` automatically enables `EMBEDDING_USE_OV=true`.
+> [!NOTE]
+> When `EMBEDDING_DEVICE=NPU` is set, `setup.sh` automatically enables `EMBEDDING_USE_OV=true`.
 
 ### 3. Start the Service with docker compose
 

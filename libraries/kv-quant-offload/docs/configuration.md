@@ -178,12 +178,14 @@ LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED=0 \
   bash integration/lmcache/vllm/vllm-start.sh
 ```
 
-> **Note:** All four variables only take effect on the data-transfer path used
+> [!NOTE]
+> All four variables only take effect on the data-transfer path used
 > by XPU. On CUDA the transfer context defaults to a handle-passing mode that
 > never applies KVWeave quantization, so setting them has no effect unless
 > `LMCACHE_MP_TRANSFER_MODE=data` is also set.
 
-> **Note:** `LMCACHE_MP_L1_KVWEAVE_QUANT` is read by both the L1 worker and the
+> [!NOTE]
+> `LMCACHE_MP_L1_KVWEAVE_QUANT` is read by both the L1 worker and the
 > L2 storage manager, with opposite effects. Setting it to `0` disables L1
 > quantization, but if an L2 adapter is configured with a `serde_config`, that
 > serde wrapper is then *enabled* — the two tiers are mutually exclusive by

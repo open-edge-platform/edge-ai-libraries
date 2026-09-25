@@ -63,9 +63,9 @@ Navigate to the application directory and build the Docker image:
 docker compose build
 ```
 
-> **Note:**
+> [!NOTE]
 > To include copyleft licensed sources when building the Docker image, use the below command:
->
+> 
 > ```bash
 > docker compose build --build-arg COPYLEFT_SOURCES=true
 > ```
@@ -88,7 +88,8 @@ To push images to a Docker registry:
 
 ## Configuration Details
 
-> **Note:** For the default deployment, no need to change anything in the configuration.
+> [!NOTE]
+> For the default deployment, no need to change anything in the configuration.
 
 **Time Series Analytics Microservice** uses the User Defined Function(UDF) deployment package(TICK Scripts, UDFs, Models) which is already built-in to the container image.
 By default, we have a simple UDF python script at `edge-ai-libraries/microservices/time-series-analytics/udfs/temperature_classifier.py` which does not use any model file for
@@ -111,7 +112,8 @@ The `udfs` section specifies the details of the UDFs used in the task.
 | ------ | --------------------------- | -------------------------- |
 | `name` | The name of the UDF script. | `"temperature_classifier"` |
 
-> **Note:** The maximum allowed size for `config.json` is 5 KB.
+> [!NOTE]
+> The maximum allowed size for `config.json` is 5 KB.
 
 **Alerts Configuration**: \<Optional>
 

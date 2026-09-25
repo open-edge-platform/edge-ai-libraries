@@ -19,7 +19,8 @@ The Alert Agent Service is a generic multimodal alert action dispatcher. It acce
 - Docker Compose v2 plugin (`docker compose`)
 - Sufficient disk space for the LLM model (approximately 4 GB for the default Phi-4-mini-instruct model)
 
-> **Note:** The default configuration uses `TARGET_DEVICE=GPU` for the OVMS LLM container. To run on CPU-only Intel devices, set `TARGET_DEVICE=CPU` in your environment. This increases LLM inference latency but requires no GPU.
+> [!NOTE]
+> The default configuration uses `TARGET_DEVICE=GPU` for the OVMS LLM container. To run on CPU-only Intel devices, set `TARGET_DEVICE=CPU` in your environment. This increases LLM inference latency but requires no GPU.
 
 See [System Requirements](./get-started/system-requirements.md) for full details.
 
@@ -73,7 +74,8 @@ export https_proxy=
 export no_proxy=localhost,127.0.0.1,ovms-llm
 ```
 
-> **Note:** `WEBHOOK_URL` and `MQTT_BROKER` are optional. If not set, the corresponding tools are skipped gracefully when invoked.
+> [!NOTE]
+> `WEBHOOK_URL` and `MQTT_BROKER` are optional. If not set, the corresponding tools are skipped gracefully when invoked.
 
 ### 3. Start the Services
 
@@ -308,7 +310,8 @@ subscriptions:
       enabled: false
 ```
 
-> **Note:** The `${WEBHOOK_URL}` placeholder is resolved at runtime from the environment variable.
+> [!NOTE]
+> The `${WEBHOOK_URL}` placeholder is resolved at runtime from the environment variable.
 
 ### MCP Server Configuration (`resources/mcp_servers.json`)
 

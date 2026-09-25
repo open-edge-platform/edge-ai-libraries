@@ -19,7 +19,8 @@ Pipeline requests sent to Pipeline Server REST API are JSON documents that have 
 
 Below is a sample request using curl to start an `user_defined_pipelines/pallet_defect_detection` pipeline that analyzes the video warehouse.avi and sends its results to `/tmp/results.jsonl`.
 
-> **Note:** Files specified as a source or destination need to be accessible from within the DL Streamer Pipeline Server container. Local files and directories can be volume mounted using standard docker volume mounted options in docker compose file i.e [WORKDIR/docker/docker-compose.yml].
+> [!NOTE]
+> Files specified as a source or destination need to be accessible from within the DL Streamer Pipeline Server container. Local files and directories can be volume mounted using standard docker volume mounted options in docker compose file i.e [WORKDIR/docker/docker-compose.yml].
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
@@ -72,7 +73,8 @@ Some of the common video sources are:
 - IP Camera (RTSP Source)
 - Web Camera
 
-> **Note:** See [Source Abstraction](./defining_pipelines.md#source-abstraction) to learn about GStreamer source elements set per request.
+> [!NOTE]
+> See [Source Abstraction](./defining_pipelines.md#source-abstraction) to learn about GStreamer source elements set per request.
 
 ### File Source
 
@@ -147,7 +149,8 @@ The request `source` object would be updated to:
 
 Depending on the configuration of your media source, during development and troubleshooting you may issue Pipeline Server requests that include RTSP URIs formatted as `rtsp://<user>:<password>@<ip_address>:<port>/<server_url>` where `<user>` and `<password>` are authentication credentials needed to connect to the stream/device at `<ip_address>`.
 
-> **Warning**: Keep in mind that basic authentication does not provide a secure method to access source inputs and to verify visual, metadata, and logged outputs. For this reason basic authentication is not recommended for production deployments, please use with caution.
+> [!WARNING]
+> Keep in mind that basic authentication does not provide a secure method to access source inputs and to verify visual, metadata, and logged outputs. For this reason basic authentication is not recommended for production deployments, please use with caution.
 
 ## Setting source properties
 
@@ -173,7 +176,8 @@ For example, to set property `buffer-size` on urisourcebin, source section can b
 
 For example, if you'd like to set `ntp-sync` property of the `rtspsrc` element to synchronize timestamps across RTSP source(s).
 
-> **Note:** This feature, enabled via GStreamer `source-setup` callback signal is only supported for `urisourcebin` element.
+> [!NOTE]
+> This feature, enabled via GStreamer `source-setup` callback signal is only supported for `urisourcebin` element.
 
 ```json
 {
@@ -350,7 +354,8 @@ Steps for visualizing output over RTSP assuming Pipeline Server and your VLC cli
    - sync-with-source: rate limit processing pipeline to encoded frame rate (e.g. 30 fps). Can be set to either `true` or `false`.
    - sync-with-destination (default True): block processing pipeline if rtsp pipeline is blocked.
 
-   > **Note:** If the RTSP stream playback is choppy this may be due to
+   > [!NOTE]
+   > If the RTSP stream playback is choppy this may be due to
    > network bandwidth. Decreasing the encoding-quality or increasing the
    > cache-length can help.
 
@@ -404,7 +409,8 @@ Use the following parameters to customize the request:
 - sync-with-source: rate limit processing pipeline to encoded frame rate (e.g. 30 fps). Can be set to either `true` or `false`.
 - sync-with-destination (default True): block processing pipeline if WebRTC pipeline is blocked.
 
-> **Note:** If WebRTC stream playback is choppy this may be due to
+> [!NOTE]
+> If WebRTC stream playback is choppy this may be due to
 > network bandwidth. Increasing the
 > cache-length can help.
 

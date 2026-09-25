@@ -38,18 +38,18 @@ are not bundled with the tool.
 | Build from source       | Base images, apt packages, Python and npm dependencies               | `docker.io`, distribution and language package registries        |
 | UI and API docs in use  | Web fonts and the Swagger UI bundle                                  | `fonts.googleapis.com`, `cdn.jsdelivr.net`                       |
 
-Notes:
-
-- Downloaded artifacts are cached under `shared/`, so subsequent starts need far less bandwidth. A connection
-  is still needed whenever a new model or sample video is installed, or after `make clean`.
-- The first start can take several minutes and download several GB, depending on the selected models.
-- Behind a corporate proxy, export `http_proxy`, `https_proxy`, and `no_proxy` in the shell before running
-  `make run`, and configure the [Docker daemon proxy](https://docs.docker.com/engine/daemon/proxy/) so that
-  image pulls succeed. `compose.yml` already appends the internal service names to `no_proxy`.
-- Access to the Hugging Face Hub additionally requires a token for gated or private repositories. See
-  [Pre-Installation Steps](./pre-installation-steps.md).
-- Inbound access is not required. The UI is served on port `80` and is reachable at `http://localhost` or
-  `http://<HOST-IP>` on the local network.
+> [!NOTE]
+>
+> - Downloaded artifacts are cached under `shared/`, so subsequent starts need far less bandwidth. A connection
+>   is still needed whenever a new model or sample video is installed, or after `make clean`.
+> - The first start can take several minutes and download several GB, depending on the selected models.
+> - Behind a corporate proxy, export `http_proxy`, `https_proxy`, and `no_proxy` in the shell before running
+>   `make run`, and configure the [Docker daemon proxy](https://docs.docker.com/engine/daemon/proxy/) so that
+>   image pulls succeed. `compose.yml` already appends the internal service names to `no_proxy`.
+> - Access to the Hugging Face Hub additionally requires a token for gated or private repositories. See
+>   [Pre-Installation Steps](./pre-installation-steps.md).
+> - Inbound access is not required. The UI is served on port `80` and is reachable at `http://localhost` or
+>   `http://<HOST-IP>` on the local network.
 
 ## Windows Subsystem for Linux (WSL)
 

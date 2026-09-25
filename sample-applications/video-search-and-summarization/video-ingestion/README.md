@@ -58,7 +58,8 @@ This project demonstrates video ingestion and processing using Deep Learning Str
     export MINIO_ROOT_PASSWORD=minio_minio
     ```
 
-    > **IMPORTANT :** Please note that docker compose deployment will fail, if above-mentioned variables are not set.
+    > [!IMPORTANT]
+    > Please note that docker compose deployment will fail, if above-mentioned variables are not set.
 
 4. **_(Optional)_** Docker Compose builds the _Video Ingestion Service_ with a default image and tag name. If you want to use a different image and tag, export these variables:
 
@@ -121,7 +122,8 @@ Upload the video to the MinIO server before running the pipeline. Follow these s
 
 To run a sample pipeline, use the following `curl` command.
 
-> **NOTE:** If you have uploaded a video other than mentioned in the example, replace the video name in `location` field of the request below, with the video of your choice.
+> [!NOTE]
+> If you have uploaded a video other than mentioned in the example, replace the video name in `location` field of the request below, with the video of your choice.
 
 ```bash
 curl http://${host_ip}:${EVAM_HOST_PORT}/pipelines/user_defined_pipelines/object_detection \
@@ -151,8 +153,8 @@ curl http://${host_ip}:${EVAM_HOST_PORT}/pipelines/user_defined_pipelines/object
   }'
 ```
 
-> **Note:**
->
+> [!NOTE]
+> 
 > - You can tweak `frame`, `chunk_duration` and `frame_width` parameter in above curl request to get results with different accuracy. However, note that increasing the `frame` and `frame_width` will cause significant performance degradation.
 > - Also note, these parameters have a minimum and maximum allowed value defined. For any invalid value outside the allowed limit, the pipeline will fail. Please refer to `resources\conf\config.json` file to verify the permitted values for these parameters in JSON Schema.
 
@@ -166,7 +168,8 @@ To view the frames and metadata:
 
 This setup allows you to monitor and analyze the processed video data efficiently.
 
-> **Note:** Due to current limitations in EVAM, the `frame` and `interval` values need to be specified in two different sections of the pipeline configuration.
+> [!NOTE]
+> Due to current limitations in EVAM, the `frame` and `interval` values need to be specified in two different sections of the pipeline configuration.
 
 This command will start the Video ingestion object detection pipeline using the specified video file and model, and publish the results RabbitMQ queue to the specified topic.
 

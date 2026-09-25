@@ -76,7 +76,8 @@ export VS_BATCH_JOB_POLL_INTERVAL_SECONDS=0.5
 export VS_BATCH_JOB_TIMEOUT_SECONDS=3600
 ```
 
-> **Note**: You only need to export these variables if you want to change the default behavior. The service works with default values when only `WATCH_DIRECTORY_HOST_PATH` is set.
+> [!NOTE]
+> You only need to export these variables if you want to change the default behavior. The service works with default values when only `WATCH_DIRECTORY_HOST_PATH` is set.
 
 ## Usage Instructions
 
@@ -84,7 +85,8 @@ export VS_BATCH_JOB_TIMEOUT_SECONDS=3600
 
 1. **Optional: Create a directory** on your host system to store video files:
 
-   > **Note:** Make sure that the directory is created with normal user access and not as the root user.
+   > [!NOTE]
+   > Make sure that the directory is created with normal user access and not as the root user.
 
    ```bash
    mkdir -p /home/user/videos

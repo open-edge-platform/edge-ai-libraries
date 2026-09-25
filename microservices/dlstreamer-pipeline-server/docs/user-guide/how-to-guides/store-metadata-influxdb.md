@@ -116,7 +116,8 @@ be launched together with DL Streamer Pipeline Server. To get started, follow th
     ```
     The frame destination sub-config for `influx_write` specifies that the frame metadata will be written to an InfluxDB instance under the organization `my-org` and bucket `dlstreamer-pipeline-results`. All frame metadata will be recorded under the same measurement, which defaults to `dlsps` if the `measurement` field is not explicitly provided. For example, frame metadata will be written to the measurement `dlsps` in the bucket `dlstreamer-pipeline-results` within the organization `my-org`.
 
-   > **Note:** DL Streamer Pipeline Server supports only writing of metadata to InfluxDB. It does
+   > [!NOTE]
+   > DL Streamer Pipeline Server supports only writing of metadata to InfluxDB. It does
    > not support creating, maintaining or deletion of buckets. It also does not support reading
    > or deletion of metadata from InfluxDB. Also, as mentioned before DL Streamer Pipeline Server
    > assumes that the user already has a InfluxDB with buckets configured.

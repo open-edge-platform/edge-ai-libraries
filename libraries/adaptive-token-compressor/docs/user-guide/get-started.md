@@ -320,7 +320,8 @@ These require passing `req_id` to `compress()` or using `manager.set_per_anchor(
 | `AvgOutputPerRequest` | Average output tokens per request | `sum(tokens_after) / unique_requests` |
 | `RequestCount` | Number of unique requests (source-agnostic) | `len(unique req_ids)` (or anchor count) |
 
-> **Note**: `RequestCount` is the only metric without a `sources` parameter — it counts requests across the whole manager, not per-compressor calls. Construct it with no arguments: `RequestCount()`.
+> [!NOTE]
+> `RequestCount` is the only metric without a `sources` parameter — it counts requests across the whole manager, not per-compressor calls. Construct it with no arguments: `RequestCount()`.
 
 **Example:**
 
@@ -449,7 +450,8 @@ print(f"  Total saved (all): {stats['total_saved_all']} tokens")
 print(f"  Avg duration per request (all): {stats['avg_dur_per_request_all']:.1f} ms")
 ```
 
-> **Note:** The PerRequest metrics (`AvgDurationPerRequest`, `AvgSavedPerRequest`,
+> [!NOTE]
+> The PerRequest metrics (`AvgDurationPerRequest`, `AvgSavedPerRequest`,
 > etc.) divide by the number of unique requests. You must either pass `req_id` to
 > `compressor.compress(ctx, req_id=...)` (as above), or call
 > `manager.set_per_anchor("<source>")` to use one compressor's call count as

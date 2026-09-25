@@ -29,9 +29,11 @@ export PROJECT_NAME="your-project-name"
 export TAG="your-tag"
 ```
 
-> **Note:** `PROJECT_NAME` will be suffixed to `REGISTRY_URL` to create a namespaced url. Final image name will be created/pulled by further suffixing the application name and tag with the namespaced url.
+> [!NOTE]
+> `PROJECT_NAME` will be suffixed to `REGISTRY_URL` to create a namespaced url. Final image name will be created/pulled by further suffixing the application name and tag with the namespaced url.
 
-> **Note:** If variables are set using above command, the final image names for _Multimodal Embedding Serving_ would be `<your-container-registry-url>/<your-project-name>/multimodal-embedding-serving:<your-tag>`.
+> [!NOTE]
+> If variables are set using above command, the final image names for _Multimodal Embedding Serving_ would be `<your-container-registry-url>/<your-project-name>/multimodal-embedding-serving:<your-tag>`.
 
 If variables are not set, in that case, the `TAG` will have default value as _latest_. Hence, final image will be `multimodal-embedding-serving:latest`.
 
@@ -45,7 +47,8 @@ cd edge-ai-libraries/microservices/multimodal-embedding-service
 2. **Set up environment values**:
 
 Follow all the instructions provided in the [Get Started](../get-started.md#set-environment-values) document to set up the environment variables.
-> **Note:** To build or run with GPU support, set `EMBEDDING_DEVICE=GPU` before sourcing `setup.sh`.
+> [!NOTE]
+> To build or run with GPU support, set `EMBEDDING_DEVICE=GPU` before sourcing `setup.sh`.
 
 3. **Build the Docker image**:
 

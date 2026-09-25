@@ -57,7 +57,8 @@ volumes:
   shared_models:
 ```
 
-> **Note:** The `shared_models` named volume ensures both containers operate on the same model files. The `:ro` flag on the DLSPS side is optional but recommended to prevent DLSPS from accidentally modifying downloaded models.
+> [!NOTE]
+> The `shared_models` named volume ensures both containers operate on the same model files. The `:ro` flag on the DLSPS side is optional but recommended to prevent DLSPS from accidentally modifying downloaded models.
 
 ### Downloading Models via the Model Download API
 

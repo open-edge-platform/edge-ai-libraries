@@ -35,7 +35,8 @@ DL Streamer inference elements also provide properties such as `pre-process-back
 
 ## Tutorial on how to use GPU/NPU specific pipelines
 
-> **Note:** DL Streamer Pipeline Server already provides a default `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`
+> [!NOTE]
+> DL Streamer Pipeline Server already provides a default `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`
 > file that includes the necessary GPU/NPU access to the container.
 
 - A sample config for GPU has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_gpu_decode_and_inference/config.json`.

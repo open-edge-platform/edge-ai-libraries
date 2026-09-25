@@ -21,7 +21,11 @@ The following are the Video Search pipeline's components:
 
 - **Reranking inference microservice**: Though an option, the reranker is currently not used in the pipeline. The OpenVINO™ model server runs the reranker models.
 
-Note: Although the reranker is shown in the figure, support for the reranker depends on the vector database used. The default Video Search pipeline uses the VDMS vector database, where there is no support for the reranker. See details on the system architecture below.
+> [!NOTE]
+> Although the reranker is shown in the figure, support for the reranker depends
+> on the vector database used. The default Video Search pipeline uses the VDMS
+> vector database, where there is no support for the reranker.
+> See details on the system architecture below.
 
 ## Detailed Architecture
 <!--

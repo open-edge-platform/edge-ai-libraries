@@ -94,7 +94,8 @@ Base64-encoded image input:
 ]
 ```
 
-> **Note:** `query` and `image` are mutually exclusive. Providing both in the same query block returns a `422` validation error. When using `image`, the response `query` field is set to `[image_url]` or `[image_base64]` to indicate the input modality.
+> [!NOTE]
+> `query` and `image` are mutually exclusive. Providing both in the same query block returns a `422` validation error. When using `image`, the response `query` field is set to `[image_url]` or `[image_base64]` to indicate the input modality.
 
 ### Quick contract reference
 

@@ -16,7 +16,8 @@ Before starting, ensure the following:
   [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/), then complete the
   [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run Docker as a non-root user.
 
-  > **Note:** Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU device on Linux (yet).
+  > [!NOTE]
+  > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU device on Linux (yet).
 
 - **Dependencies installed**:
   - **Make**: Standard build tool, typically provided by the `build-essential` (or equivalent) package on Linux.
@@ -26,7 +27,8 @@ For GPU and/or NPU usage, appropriate drivers must be installed. The recommended
 script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
 [Install Guide Ubuntu - Prerequisites](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
 
-> **Note:** The same steps apply to Ubuntu 24.04 running under WSL 2 on Windows - run all commands
+> [!NOTE]
+> The same steps apply to Ubuntu 24.04 running under WSL 2 on Windows - run all commands
 > inside the WSL distribution. On WSL, only the CPU and GPU (WSL) variants are supported. See
 > [System Requirements](./system-requirements.md#windows-subsystem-for-linux-wsl).
 
@@ -82,7 +84,8 @@ For alternative ways to set up the sample application, refer to
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.
 
-> **Note:** On the first start the `model-download` service may take several minutes to become
+> [!NOTE]
+> On the first start the `model-download` service may take several minutes to become
 > healthy because it provisions its plugin virtual environments. The other services wait for it
 > automatically.
 

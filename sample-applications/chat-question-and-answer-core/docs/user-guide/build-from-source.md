@@ -8,8 +8,8 @@ If you want to build the images via `docker compose`, please refer to the sectio
 
 Once all the images are built, you can proceed to start the service using the `docker compose` command as described in the [Get Started](./get-started.md) page.
 
-> **Note:**
->
+> [!NOTE]
+> 
 > - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). This guide recommends using prebuilt images on Edge Microvisor Toolkit.
 
 ## Building the Backend Image

@@ -39,8 +39,8 @@ Refer the following snippet for enabling the image ingestion feature for Jpg ima
 
   ```
 
->**Note:**
->
+> [!NOTE]
+> 
 > - The images should follow a naming convention and should be named in the format characters followed by digits in the sequential order. For e.g. `frame_001`, `frame_002`, `frame_003` and so on.
 > - Make use of the `%d` format specifier to specify the total digits present in the image filename.
 >   For e.g. If the images are named in the format `frame_0001`, `frame_0002`, then it has total 4 digits in the filename. Use `%04d` while providing the image name `<image_filename>%04d.jpg` in the pipeline.
@@ -59,7 +59,8 @@ Refer the following snippet for enabling the image ingestion feature for Jpg ima
 
   ```
 
-> **Note:** It is recommended to set the `loop` property of the `multifilesrc` element to false `loop=FALSE` to avoid memory leak issues.
+> [!NOTE]
+> It is recommended to set the `loop` property of the `multifilesrc` element to false `loop=FALSE` to avoid memory leak issues.
 
 - For BMP Images
 

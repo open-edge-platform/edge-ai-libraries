@@ -51,7 +51,8 @@ Following options are provided to build the microservice.
    ./build.sh
    ```
 
-   > **Note:** The script automatically honours `REGISTRY_URL`, `PROJECT_NAME`, and `TAG` (just like `setup.sh`).
+   > [!NOTE]
+   > The script automatically honours `REGISTRY_URL`, `PROJECT_NAME`, and `TAG` (just like `setup.sh`).
 
 4. Verify the configuration.
 

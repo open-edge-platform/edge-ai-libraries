@@ -29,7 +29,9 @@ export PROJECT_NAME="your-project-name"
 export TAG="your-tag"
 ```
 
-Note: `PROJECT_NAME` is suffixed to `REGISTRY_URL` to create a namespaced URL. Final image names are created by appending the service name and tag.
+> [!NOTE]
+> `PROJECT_NAME` is suffixed to `REGISTRY_URL` to create a namespaced URL.
+> Final image names are created by appending the service name and tag.
 
 Example: If variables are set using the commands above, final backend-flavor image names are:
 

@@ -70,7 +70,8 @@ Expected output files:
 The host must expose accelerator devices to Docker, and the relevant device entries must be mapped into the `behavioral-analysis` service,
 because that container performs the YOLO-Pose OpenVINO inference. For example, `/dev/dri:/dev/dri` (GPU).
 
-> **Note:** If `BA_GST_DEVICE=GPU` is used, the same accelerator device must be added to the
+> [!NOTE]
+> If `BA_GST_DEVICE=GPU` is used, the same accelerator device must be added to the
 > `behavioral-analysis` service's `devices:` section. Do this using a Docker Compose override
 > file instead of editing the tracked `docker-compose.yml` directly, so local device mappings
 > survive project updates without merge conflicts.
@@ -136,7 +137,8 @@ services:
 
 The global VLM switch is controlled exclusively by the environment variable `VLM_ENABLED`. The YAML `vlm_settings` block is used only for connection/model settings and does not control the global enable/disable state.
 
-Important: VLM is disabled by default. Enable it explicitly when the environment is configured for VLM confirmation. Ensure model artifacts are downloaded before launch. In Docker Compose, `ovms-vlm` mounts models from `${DOWNLOADED_MODEL_PATH}/vlm_models` and expects the model configuration to be available there.
+> [!IMPORTANT]
+> VLM is disabled by default. Enable it explicitly when the environment is configured for VLM confirmation. Ensure model artifacts are downloaded before launch. In Docker Compose, `ovms-vlm` mounts models from `${DOWNLOADED_MODEL_PATH}/vlm_models` and expects the model configuration to be available there.
 
 In Docker Compose, `ovms-vlm` is defined under the `vlm` profile and its `depends_on` from `behavioral-analysis` is optional (`required: false`). This means `ovms-vlm` only starts when the `vlm` profile is active. When `VLM_ENABLED=true`, activate the profile with `docker compose --profile vlm up -d` (or set `COMPOSE_PROFILES=vlm` in your env file); otherwise `ovms-vlm` never starts and VLM confirmation will not work even though the flag is enabled.
 

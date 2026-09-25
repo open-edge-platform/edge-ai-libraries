@@ -46,7 +46,8 @@ The following services must be running and accessible for the behavioral-analysi
 | MQTT Broker | Event messaging (`ba/requests` / `ba/results`) | `broker.scenescape.intel.com:1883` |
 | OpenVINO Model Server (OVMS) | VLM inference (Qwen2.5-VL-7B-Instruct) | `http://ovms-vlm:8001` |
 
-> **Note:** OVMS is only required when `VLM_ENABLED=true`. VLM is disabled by default,
+> [!NOTE]
+> OVMS is only required when `VLM_ENABLED=true`. VLM is disabled by default,
 > and the service starts and functions for pose-only detection unless it is explicitly enabled.
 
 ## YOLO-Pose Model

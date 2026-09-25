@@ -16,7 +16,8 @@ The pipeline ships with two variants — **CPU** and **GPU** — both pre-config
 OpenVINO™ model. They differ only in the target inference device and in the corresponding pre-converted
 OpenVINO™ model directory path used for that variant. Select the variant matching the hardware you want to benchmark.
 
-> **Note:** `gvagenai` runs the model through OpenVINO™, which does not yet support vision-language models on
+> [!NOTE]
+> `gvagenai` runs the model through OpenVINO™, which does not yet support vision-language models on
 > NPU (only text and speech). NPU variants will be added if OpenVINO™ adds VLM-on-NPU support in the future.
 
 ## Step 2. Configure the GVAGenAI element
@@ -40,7 +41,8 @@ The following parameters are exposed in the UI (defaults shown reflect the prede
 The downstream `gvametapublish` and `gvafpscounter` nodes are
 responsible for writing the JSON Lines output and reporting FPS, respectively.
 
-> **Note:** The Video Captioning VLM pipeline is *metadata-only* — it terminates in an unnamed `fakesink`
+> [!NOTE]
+> The Video Captioning VLM pipeline is *metadata-only* — it terminates in an unnamed `fakesink`
 > and does not produce a rendered output video. The **Save to file** and **Live stream** output modes
 > therefore have no effect for this pipeline; only the JSON Lines metadata file is generated.
 

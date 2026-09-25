@@ -9,7 +9,8 @@
 | Disk      | 10 GB free                                        | 20 GB free                     |
 | GPU       | _(optional)_ Intel® Arc™ / Flex / Data Center GPU | Intel® Arc™ A770 or equivalent |
 
-> **Note:** The default LLM (`Phi-4-mini-instruct-int4-ov`) can run on either GPU or CPU. Set
+> [!NOTE]
+> The default LLM (`Phi-4-mini-instruct-int4-ov`) can run on either GPU or CPU. Set
 > `TARGET_DEVICE=CPU` in your environment to use CPU-only inference. GPU provides significantly
 > lower latency and is recommended for production workloads with high alert frequency.
 

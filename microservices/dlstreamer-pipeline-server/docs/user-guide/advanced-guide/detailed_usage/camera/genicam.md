@@ -99,8 +99,8 @@ dlstreamer-pipeline-server:
 
 > - Refer [docs/basler_doc.md](./basler_doc.md) for more information/configuration on Basler camera.
 
-  > **Note:**
-  >
+  > [!NOTE]
+  > 
   > - Generic Plugin can work only with GenICam compliant cameras and only with gstreamer ingestor.
   > - The above gstreamer pipeline was tested with Basler and IDS GigE cameras.
   > - If `serial` is not provided, then the first connected camera in the device list will be used.

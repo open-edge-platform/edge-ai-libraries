@@ -69,11 +69,12 @@ Each notebook should follow the same sequence as `tests/functional/conftest.py` 
 5. **Run filter scenarios** from `FILTER_CASES`, covering operator, logical, legacy-alias, and edge-case behavior.
 6. **Teardown** with `docker compose ... down -v --remove-orphans` so the next notebook run starts cleanly.
 
-Notes that matter when reproducing the current suite behavior:
-
-- VDMS, Milvus, and FAISS currently need a `vector-retriever` restart after seeding so the running service reloads backend state exactly the way the pytest fixtures do.
-- FAISS uses an isolated `FAISS_INDEX_PATH` per run, so cleanup is part of keeping reruns deterministic.
-- The notebooks should validate the same API contract as the pytest suite, not backend internals.
+> [!IMPORTANT]
+> When reproducing the current suite behavior:
+>
+> - VDMS, Milvus, and FAISS currently need a `vector-retriever` restart after seeding so the running service reloads backend state exactly the way the pytest fixtures do.
+> - FAISS uses an isolated `FAISS_INDEX_PATH` per run, so cleanup is part of keeping reruns deterministic.
+> - The notebooks should validate the same API contract as the pytest suite, not backend internals.
 
 ## What each notebook covers
 

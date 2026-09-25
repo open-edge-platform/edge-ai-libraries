@@ -27,14 +27,16 @@ decodes it, and resizes it to 1280x720.
 "pipeline": "{auto_source} ! decodebin ! videoscale ! video/x-raw, width=1280,height=720 ! gvametapublish name=destination ! appsink name=appsink",
 ```
 
-> **Note:** If needed users can change pipeline name by updating `name` key in `config.json`.
+> [!NOTE]
+> If needed users can change pipeline name by updating `name` key in `config.json`.
 > If user is updating this field, accordingly endpoint in curl request needs to be changed to
 > `<SERVER-IP>:<PORT>/pipelines/user_defined_pipelines/<NEW-NAME>`. In this example, we are
 > only changing the pipeline.
 
 Once updated, the user needs to restart DL Streamer Pipeline Server containers to reflect this
 change. Run these commands from the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/` folder.
-> **Note:** To get you started, instruction to create sample docker compose file is available [here](../get-started.md#pull-the-image-and-start-container)
+> [!NOTE]
+> To get you started, instruction to create sample docker compose file is available [here](../get-started.md#pull-the-image-and-start-container)
 
 ```sh
 docker compose down
