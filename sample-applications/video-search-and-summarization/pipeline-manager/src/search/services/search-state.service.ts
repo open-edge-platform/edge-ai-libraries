@@ -172,11 +172,14 @@ export class SearchStateService {
     query: string,
     tags: string[] = [],
     timeFilter?: TimeFilterSelection | null,
+    image?: string | null,
   ) {
     const normalized = this.normalizeTimeFilter(timeFilter);
     const searchQuery: SearchQuery = {
       queryId: uuidV4(),
-      query,
+      // query column is non-null; image-only searches persist an empty string.
+      query: query ?? '',
+      image: image ?? null,
       watch: false,
       results: [],
       tags,
@@ -275,6 +278,7 @@ export class SearchStateService {
         query.tags,
         query.timeFilterStart,
         query.timeFilterEnd,
+        query.image,
       );
 
       console.log('=== SEARCH RESULTS PROCESSING ===');
@@ -347,12 +351,20 @@ export class SearchStateService {
     tags: string[],
     timeFilterStart?: string | null,
     timeFilterEnd?: string | null,
+    image?: string | null,
   ) {
     const queryShim: SearchShimQuery = {
-      query,
       query_id: queryId,
       tags,
     };
+
+    // Image-only search: send the image and omit the text query so search-ms
+    // takes the by-vector path. Otherwise send the text query.
+    if (image) {
+      queryShim.image_base64 = image;
+    } else {
+      queryShim.query = query;
+    }
 
     if (timeFilterStart && timeFilterEnd) {
       queryShim.time_filter = { start: timeFilterStart, end: timeFilterEnd };
