@@ -6,14 +6,13 @@ configure_gpu () {
   apt_entry="deb [signed-by=$key_file] https://$repo_name/gpu/${ID} ${VERSION_CODENAME} unified"
   apt_file="/etc/apt/sources.list.d/intel-graphics.list"
   pkg_list=(clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd)
-  version=26.2.2
 }
 
 verify_gpu () {
   [ -c /dev/dri/renderD128 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
-  ensure_apt_is_installed intel-media-va-driver-non-free=$version
+  ensure_apt_is_installed intel-media-va-driver-non-free
 }
 
 debian_40_profile_gpu () {

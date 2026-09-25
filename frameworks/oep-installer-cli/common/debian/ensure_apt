@@ -5,8 +5,7 @@ ensure_apt () {
   case "$1" in
   update)
     # apt-get update got executed only once unless -y is specified
-    [ ! -e /dev/shm/apt_update ] || [[ " $* " = *" -y "* ]] || return 0
-    ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
+    [[ -e /dev/shm/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
     touch /dev/shm/apt_update
     ;;
   autoremove|remove|purge)
@@ -27,6 +26,9 @@ ensure_apt () {
       fi
     fi
     ;;
+  install) # apt-get update runs at least once on the system
+    [ -e /dev/shm/apt_update ] || ensure_apt update -y
+    ;;&
   *)
     ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy%%,} apt-get -y "$@"
     ;;
@@ -43,7 +45,7 @@ ensure_apt_is_installed () {
 
 # install simple package
 ensure_apt_install_package () {
-  if ensure_apt_is_installed "${@%%*}"; then
+  if ensure_apt_is_installed "${@%%"*"}"; then
     echo "${*%%=*} is/are already installed. Skipping..."
   else
     ensure_apt update
