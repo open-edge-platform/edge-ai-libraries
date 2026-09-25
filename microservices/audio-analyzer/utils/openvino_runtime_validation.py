@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+from functools import lru_cache
 from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
@@ -114,10 +115,8 @@ def _probe_openvino_device_runtime(device: str) -> None:
         ) from exc
 
 
-def validate_asr_runtime_configuration(cfg: SimpleNamespace) -> None:
-    provider = _normalize_asr_provider(cfg)
-    device = _normalize_asr_device(cfg)
-
+@lru_cache(maxsize=16)
+def _validate_asr_compatibility(provider: str, device: str) -> None:
     if provider not in _SUPPORTED_ASR_PROVIDERS:
         raise RuntimeError(
             "Invalid models.asr.provider value "
@@ -138,8 +137,15 @@ def validate_asr_runtime_configuration(cfg: SimpleNamespace) -> None:
             f"Provider '{provider}' supports only: {supported}"
         )
 
+
+def resolve_asr_device(provider: str, model_name: str, requested_device: str) -> str:
+    provider = str(provider).strip().lower()
+    model_name = str(model_name).strip().lower()
+    device = str(requested_device).strip().upper()
+    _validate_asr_compatibility(provider, device)
+
     if provider != "openvino":
-        return
+        return device
 
     try:
         import openvino as ov
@@ -149,7 +155,10 @@ def validate_asr_runtime_configuration(cfg: SimpleNamespace) -> None:
         ) from exc
 
     available_devices = [str(item).upper() for item in ov.Core().available_devices]
-    if device not in available_devices:
+    available_families = {
+        item.split(".", maxsplit=1)[0] for item in available_devices
+    }
+    if device not in available_families:
         guidance = (
             "For GPU, ensure /dev/dri is exposed to the container and Intel/OpenVINO host GPU runtime is installed."
             if device == "GPU"
@@ -162,7 +171,6 @@ def validate_asr_runtime_configuration(cfg: SimpleNamespace) -> None:
         )
 
     if device == "NPU":
-        model_name = _normalize_asr_model_name(cfg)
         if model_name in _OPENVINO_NPU_INFERENCE_UNSUPPORTED:
             raise RuntimeError(
                 f"Model '{model_name}' with device=NPU is not supported on this NPU hardware "
@@ -175,6 +183,15 @@ def validate_asr_runtime_configuration(cfg: SimpleNamespace) -> None:
             )
 
     _probe_openvino_device_runtime(device)
+    return device
+
+
+def validate_asr_runtime_configuration(cfg: SimpleNamespace) -> None:
+    resolve_asr_device(
+        _normalize_asr_provider(cfg),
+        _normalize_asr_model_name(cfg),
+        _normalize_asr_device(cfg),
+    )
 
 
 def validate_openvino_npu_runtime(config: SimpleNamespace) -> None:
