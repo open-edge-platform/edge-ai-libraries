@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 
 from api.middleware import InitializationMiddleware
 from api.routes import health
+from app_version import VIPPET_VERSION
 from database import close_db, init_db
 from images import ImagesManager
 from internal_types import InternalAppStatus
@@ -175,7 +176,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Visual Pipeline and Platform Evaluation Tool API",
     description="API for Visual Pipeline and Platform Evaluation Tool",
-    version="1.0.0",
+    version=VIPPET_VERSION,
     root_path="/api/v1",
     # without explicitly setting servers to the same value as root_path,
     # generating openapi schema would omit whole servers section in vippet.json

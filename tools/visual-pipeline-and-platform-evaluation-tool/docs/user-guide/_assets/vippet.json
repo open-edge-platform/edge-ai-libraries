@@ -3,7 +3,7 @@
   "info": {
     "title": "Visual Pipeline and Platform Evaluation Tool API",
     "description": "API for Visual Pipeline and Platform Evaluation Tool",
-    "version": "1.0.0"
+    "version": "2026.2.0-rc2"
   },
   "servers": [
     {
@@ -39,7 +39,7 @@
           "health"
         ],
         "summary": "Application Status",
-        "description": "**Detailed status endpoint for monitoring initialization progress.**\n\n## Operation\nReturns the current application status, including initialization state,\nprogress messages, and readiness for serving API requests.\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\n**StatusResponse** with:\n- `status` - Current application status (`starting`, `initializing`, `ready`, `shutdown`)\n- `message` - Optional message describing current activity\n- `ready` - `true` if application is ready to serve API requests\n\n## Conditions\n\n### \u2705 Success\n- Application is running and status can be retrieved\n\n## Examples\n\n### Response (During Initialization)\n```json\n{\n  \"status\": \"initializing\",\n  \"message\": \"Loading video metadata...\",\n  \"ready\": false\n}\n```\n\n### Response (When Ready)\n```json\n{\n  \"status\": \"ready\",\n  \"message\": null,\n  \"ready\": true\n}\n```",
+        "description": "**Detailed status endpoint for monitoring initialization progress.**\n\n## Operation\nReturns the current application status, including initialization state,\nprogress messages, and readiness for serving API requests.\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\n**StatusResponse** with:\n- `status` - Current application status (`starting`, `initializing`, `ready`, `shutdown`)\n- `message` - Optional message describing current activity\n- `ready` - `true` if application is ready to serve API requests\n- `version` - Build version (image tag / release string) of the running application\n- `revision` - Git commit hash of the source tree the running image was built from,\n  suffixed with `-dirty` if the working tree had uncommitted changes at build time\n  (e.g. `a1b2c3d` or `a1b2c3d-dirty`); `unknown` if unavailable\n\n## Conditions\n\n### \u2705 Success\n- Application is running and status can be retrieved\n\n## Examples\n\n### Response (During Initialization)\n```json\n{\n  \"status\": \"initializing\",\n  \"message\": \"Loading video metadata...\",\n  \"ready\": false,\n  \"version\": \"2026.2.0-rc2\",\n  \"revision\": \"a1b2c3d\"\n}\n```\n\n### Response (When Ready)\n```json\n{\n  \"status\": \"ready\",\n  \"message\": null,\n  \"ready\": true,\n  \"version\": \"2026.2.0-rc2\",\n  \"revision\": \"a1b2c3d\"\n}\n```",
         "operationId": "get_status",
         "responses": {
           "200": {
@@ -1919,7 +1919,7 @@
           "models"
         ],
         "summary": "Upload a custom model",
-        "description": "# Upload Model\n\nUpload a ZIP file with ``model.xml`` + ``model.bin`` at its root.\nThe upload is streamed to the model-download microservice and the\nresulting model is registered locally as a `custom` model so it\nappears immediately in `GET /models`.\n\n## Form fields\n\n- **`model_name`** *(required)* - Canonical identifier for the model\n- **`category`** *(required)* - Logical model category\n  (`classification`, `detection`, `genai`)\n- **`file`** *(required)* - ZIP file containing the OpenVINO IR\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 201  | `ModelUploadResponse` with the newly registered model |\n| 400  | Invalid form fields or ZIP contents |\n| 409  | A model with the same `model_name` already exists |\n| 413  | Uploaded file exceeds the configured size limit |\n| 502  | model-download microservice returned an error |\n| 500  | Unexpected error |",
+        "description": "# Upload Model\n\nUpload a ZIP file with ``model.xml`` + ``model.bin`` at its root.\nThe upload is streamed to the model-download microservice and the\nresulting model is registered locally as a `custom` model so it\nappears immediately in `GET /models`.\n\n## Form fields\n\n- **`model_name`** *(required)* - Canonical identifier for the model\n- **`category`** *(required)* - Logical model category\n  (`classification`, `detection`, `genai`)\n- **`description`** *(optional)* - Human-readable explanation of\n  what the model detects/classifies\n- **`file`** *(required)* - ZIP file containing the OpenVINO IR\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 201  | `ModelUploadResponse` with the newly registered model |\n| 400  | Invalid form fields or ZIP contents |\n| 409  | A model with the same `model_name` already exists |\n| 413  | Uploaded file exceeds the configured size limit |\n| 502  | model-download microservice returned an error |\n| 500  | Unexpected error |",
         "operationId": "upload_model",
         "requestBody": {
           "content": {
@@ -4938,6 +4938,18 @@
             "type": "string",
             "contentMediaType": "application/octet-stream",
             "title": "File"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           }
         },
         "type": "object",
@@ -5771,7 +5783,8 @@
           "description": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -7191,16 +7204,26 @@
           "ready": {
             "type": "boolean",
             "title": "Ready"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
           }
         },
         "type": "object",
         "required": [
           "status",
           "message",
-          "ready"
+          "ready",
+          "version",
+          "revision"
         ],
         "title": "StatusResponse",
-        "description": "**Response model for status endpoint.**\n\nProvides detailed information about application initialization state\nand readiness to serve requests.\n\n## Attributes\n- `status` - Current application status (STARTING, INITIALIZING, READY, or SHUTDOWN)\n- `message` - Optional message describing current activity or initialization progress\n- `ready` - True if application is ready to serve API requests\n\n### Example\n```json\n{\n  \"status\": \"ready\",\n  \"message\": null,\n  \"ready\": true\n}\n```"
+        "description": "**Response model for status endpoint.**\n\nProvides detailed information about application initialization state\nand readiness to serve requests.\n\n## Attributes\n- `status` - Current application status (STARTING, INITIALIZING, READY, or SHUTDOWN)\n- `message` - Optional message describing current activity or initialization progress\n- `ready` - True if application is ready to serve API requests\n- `version` - Build version (image tag / release string) of the running application\n- `revision` - Git commit hash of the source tree the running image was built from, suffixed with \"-dirty\" if the working tree had uncommitted changes at build time (e.g. \"a1b2c3d\" or \"a1b2c3d-dirty\"); \"unknown\" if unavailable\n\n### Example\n```json\n{\n  \"status\": \"ready\",\n  \"message\": null,\n  \"ready\": true,\n  \"version\": \"2026.2.0-rc2\",\n  \"revision\": \"a1b2c3d\"\n}\n```"
       },
       "TestJobResponse": {
         "properties": {

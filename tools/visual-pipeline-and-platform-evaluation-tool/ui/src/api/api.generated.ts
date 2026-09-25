@@ -936,6 +936,8 @@ export type StatusResponse = {
   status: AppStatus;
   message: string | null;
   ready: boolean;
+  version: string;
+  revision: string;
 };
 export type BenchmarkTestCase = {
   id: number;
@@ -1334,6 +1336,7 @@ export type BodyUploadModel = {
   model_name: string;
   category: ModelCategory;
   file: string;
+  description?: string | null;
 };
 export type ModelDownloadJobItem = {
   /** Model name. */
