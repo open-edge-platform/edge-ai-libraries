@@ -24,8 +24,8 @@ you must configure it correctly:
    instructions on how to do this.
 2. **Create an ONVIF media profile** on the camera, defining the desired stream settings (resolution,
    encoding, frame rate, and so on).
-3. **Connect the camera to the same subnet** as the host machine running ViPPET. The ONVIF discovery
-   agent uses multicast to find cameras, so the camera must be reachable within the local network
+3. **Connect the camera to the same subnet** as the host machine running ViPPET. The Sensor Manager
+   service uses multicast to find cameras, so the camera must be reachable within the local network
    segment.
 
 Once the camera is properly configured and connected to the network, ViPPET automatically discovers

@@ -203,12 +203,15 @@ port, e.g., `http://localhost:8081`:
 
 ## 13. Network Camera Discovery does not find cameras
 
-If the ONVIF Discovery service does not find any cameras on the network, check the following:
+If the Sensor Manager service does not find any cameras on the network, check the following:
 
 - Ensure that the cameras are ONVIF‑compliant and support discovery.
 - Verify that the cameras have ONVIF services enabled.
 - Confirm that the cameras are on the same network segment as the ViPPET application.
-- Check for any firewall rules or network configurations that may block discovery traffic.
+- Check for any firewall rules or network configurations that may block discovery traffic
+  (UDP multicast `239.255.255.250:3702`).
+- Check that the `sensor-manager` container is running and reachable from the `vippet` container
+  (`docker logs sensor-manager`, `curl http://localhost:8090/api/v1/sensors` on the host).
 
 ---
 

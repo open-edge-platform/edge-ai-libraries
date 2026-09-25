@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "sensor-manager"
+version = "1.0.0"
+description = "Microservice for discovering and describing USB and ONVIF network cameras."
+readme = "README.md"
+requires-python = "==3.12.*"
+
+dependencies = [
+    "fastapi==0.136.3",
+    "pydantic==2.13.4",
+    "uvicorn==0.48.0",
+    "python-slugify==8.0.4",
+    "intel-dlstreamer",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.28.1,<1.0.0",
+    "ruff>=0.15.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+# dlstreamer.onvif is not published on PyPI; pinned to an audited commit.
+intel-dlstreamer = { git = "https://github.com/open-edge-platform/dlstreamer.git", rev = "9a5bdc1440b71878968cff9df4bacef089e9a5b9", subdirectory = "python" }
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+# v4l2-ctl is invoked with a fixed argument list, never through a shell.
+"src/core/usb.py" = ["S603", "S607"]

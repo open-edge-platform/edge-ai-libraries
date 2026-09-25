@@ -8,8 +8,9 @@ COMPOSE_PROFILES=""
 RENDER_GROUP_ID=""
 TIMESERIES_ANALYTICS_MICROSERVICE_IMAGE_SUFFIX="2026.2.0"
 TIMESERIES_ANALYTICS_MICROSERVICE_WEEKLY_BUILD_DATE=""
-HOST_UID="$(id -u)"
-HOST_GID="$(id -g)"
+# GID of the host 'video' group, required by sensor-manager to open /dev/video* devices
+VIDEO_GID="$(getent group video | cut -d: -f3)"
+VIDEO_GID="${VIDEO_GID:-44}"
 
 # Get host IP addresses as a comma-separated list
 HOST_IPS="$(hostname -I | xargs | tr ' ' ',')"
@@ -45,6 +46,5 @@ IMAGE_SUFFIX=${TIMESERIES_ANALYTICS_MICROSERVICE_IMAGE_SUFFIX}
 WEEKLY_BUILD_DATE=${TIMESERIES_ANALYTICS_MICROSERVICE_WEEKLY_BUILD_DATE}
 TIMESERIES_UID=2999
 TIMESERIES_USER_NAME=timeseries_user
-HOST_UID=${HOST_UID}
-HOST_GID=${HOST_GID}
+VIDEO_GID=${VIDEO_GID}
 EOF

@@ -7,7 +7,7 @@ SHELL := bash -eu -o pipefail
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
-	build-videogenerator build-onvif-discovery docker-build env-setup build-test \
+	build-videogenerator build-sensor-manager build-onvif-discovery docker-build env-setup build-test \
 	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental 
 
 # Project Variables
@@ -124,17 +124,19 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery)
+build: env-setup ## Build core images (vippet-app, vippet-ui, sensor-manager)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
 
-build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onvif-discovery)
+build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, sensor-manager)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
 
 build-videogenerator: env-setup ## Build videogenerator image
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build videogenerator
 
-build-onvif-discovery: env-setup ## Build onvif discovery image
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build onvif-discovery
+build-sensor-manager: env-setup ## Build sensor-manager image (from microservices/sensor-manager)
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build sensor-manager
+
+build-onvif-discovery: build-sensor-manager ## Deprecated alias of build-sensor-manager
 
 docker-build: build build-videogenerator ## Build all images
 
@@ -223,7 +225,7 @@ stop: ## Stop the docker compose services
 	docker compose down
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
-	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator
+	rm -rf shared/videos/input shared/videos/video-generator
 	rm -f $(ENV_DIRS_SENTINEL) $(TEST_IMAGE_SENTINEL)
 
 clean-model-download: ## Clean only model-download artifacts
