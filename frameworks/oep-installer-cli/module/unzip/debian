@@ -1,10 +1,10 @@
 
-debian_10_install_unzip () {
-  if dpkg-query -L unzip > /dev/null 2>&1; then
-    echo "Unzip is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y unzip
-  fi
+debian_15_install_unzip () {
+  ensure_apt_install_package unzip
 }
 
+debian_15_sbom_unzip () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list unzip)
+EOF
+}

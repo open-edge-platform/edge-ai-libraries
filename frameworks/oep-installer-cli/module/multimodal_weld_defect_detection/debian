@@ -132,7 +132,7 @@ debian_90_profile_multimodal_weld_defect_detection () {
 
 debian_90_install_multimodal_weld_defect_detection () {
   configure_multimodal_weld_defect_detection
-  if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reset-multimodal_weld_defect_detection "* ]]; then
+  if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Multimodal weld defect detection is already installed. Skipping"
   else
     local device

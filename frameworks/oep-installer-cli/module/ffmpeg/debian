@@ -1,0 +1,10 @@
+
+debian_70_install_ffmpeg () {
+  ensure_apt_install_package ffmpeg
+}
+
+debian_70_sbom_ffmpeg () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list ffmpeg)
+EOF
+}

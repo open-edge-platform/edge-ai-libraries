@@ -1,0 +1,38 @@
+
+configure_edge_pack_media_gst () {
+  configure_edge_pack "$@"
+  version="1.0"
+}
+
+debian_70_profile_edge_pack_media_gst () {
+  echo "edge_pack"
+}
+
+debian_70_install_edge_pack_media_gst () {
+  configure_edge_pack_media_gst "$@"
+  if ensure_apt_is_installed intel-edge-media-gst=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "intel-edge-media-gst already installed. Skipping" 1>&2
+  else
+    debian_20_remove_edge_pack_media_gst
+    ensure_apt install --no-install-recommends "intel-edge-media-gst=$version*"
+  fi
+}
+
+debian_70_remove_edge_pack_media_gst () {
+  ensure_apt autoremove -y intel-edge-media-gst || true
+}
+
+debian_70_sbom_edge_pack_media_gst () {
+  configure_edge_pack_media_gst "$@"
+  cat <<EOF
+$(ensure_sbom_format name "$edge_pack_repo")
+$(ensure_sbom_format gpg-key "$edge_pack_key_url")
+$(ensure_sbom_format key-file "$edge_pack_key_file")
+$(ensure_sbom_format apt-source "$edge_pack_source")
+$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
+$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
+$(ensure_sbom_format pkg-list "intel-edge-media-gst=$version*")
+EOF
+}
+

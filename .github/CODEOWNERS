@@ -127,9 +127,9 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 # the main folder lacks codeowners, needs resolution
 # /tools/npu-monitor-tool/
 
-/tools/visual-pipeline-and-platform-evaluation-tool/           @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka
-/tools/visual-pipeline-and-platform-evaluation-tool/docs/      @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @open-edge-platform/open-edge-platform-docs-write
-/tools/visual-pipeline-and-platform-evaluation-tool/README.md  @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/           @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya
+/tools/visual-pipeline-and-platform-evaluation-tool/docs/      @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/README.md  @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya @open-edge-platform/open-edge-platform-docs-write
 
 /tools/genai-applications-sizing/                              @bharagha @rudra-intel @madhuri-rai07 @hteeyeoh
 

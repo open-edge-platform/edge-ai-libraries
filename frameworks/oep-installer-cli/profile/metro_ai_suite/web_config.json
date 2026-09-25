@@ -1,0 +1,19 @@
+{
+  "profile": { "label": "Metro AI Suite", "value": "metro_ai_suite" },
+  "modules": [
+    { "label": "Smart Intersection", "value": "smart_intersection", "startStop": true },
+    { "label": "Smart Parking", "value": "smart_parking", "startStop": true },
+    { "label": "Loitering Detection", "value": "loitering_detection", "startStop": true },
+    { "label": "Video Search and Summarization", "value": "video_search_and_summarization", "startStop": true }
+  ],
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-metro.html"
+  },
+  "resources": [
+    { "text": "Smart Intersection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-intersection/index.html" },
+    { "text": "Smart Parking", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html" },
+    { "text": "Loitering Detection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/loitering-detection/index.html" },
+    { "text": "Video Search and Summarization", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html" }
+  ]
+}

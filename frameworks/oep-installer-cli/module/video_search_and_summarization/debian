@@ -1,11 +1,11 @@
 
 configure_video_search_and_summarization () {
   workspace="$(ensure_project_path)/video_search_and_summarization"
-  version=7f124d9ef54c843345f51bb74c86103cef819531
+  version=release-2026.2.0
   repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
   used_ports="${APP_HOST_PORT:-12345} 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640"
 
-  local device=$(ensure_select_device $*)
+  local device=$(ensure_select_device "$@")
   export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
   export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en
   export OD_MODEL_NAME=yolov8l-worldv2
@@ -70,26 +70,25 @@ debian_85_profile_video_search_and_summarization () {
 
 debian_85_install_video_search_and_summarization () {
   configure_video_search_and_summarization $*
-  if verify_video_search_and_summarization && [[ "$*" != *"--reset-video_search_and_summarization"* ]]; then
+  if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
     echo "video_search_and_summarization is already installed. Skipping..."
-    return 0
+  else
+    # clone the repository
+    ensure_disk_space 8000
+    ensure_ports_open "$used_ports" return 3
+    ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization
+
+    # setup
+    cd "$workspace"/sample-applications/video-search-and-summarization
+    ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME                   
+
+    sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh
+    sed -i 's|FINAL_ARG=.*|FINAL_ARG="${FINAL_ARG:-up -d}"|' setup.sh
+    export FINAL_ARG=pull
+    . ./setup.sh --search-and-summary
+
+    verify_video_search_and_summarization
   fi
-
-  # clone the repository
-  ensure_disk_space 8000
-  ensure_ports_open "$used_ports" return 3
-  ensure_git_clone "$workspace" $version $repository sample-applications/video-search-and-summarization
-
-  # setup
-  cd "$workspace"/sample-applications/video-search-and-summarization
-  ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME                   
-
-  sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh
-  sed -i 's|FINAL_ARG=.*|FINAL_ARG="${FINAL_ARG:-up -d}"|' setup.sh
-  export FINAL_ARG=pull
-  . ./setup.sh --search-and-summary
-
-  verify_video_search_and_summarization
 }
 
 debian_85_start_video_search_and_summarization () {

@@ -1,11 +1,10 @@
 
-debian_05_install_gpg () {
-  if dpkg-query -L gpg > /dev/null 2>&1; then
-    echo "Gpg is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y gpgv1
-  fi
+debian_15_install_gpg () {
+  ensure_apt_install_package gpgv1
 }
 
-
+debian_15_sbom_gpg () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list gpgv1)
+EOF
+}

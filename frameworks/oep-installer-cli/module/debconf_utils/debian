@@ -1,0 +1,10 @@
+
+debian_15_install_debconf_utils () {
+  ensure_apt_install_package debconf-utils
+}
+
+debian_15_sbom_debconf_utils () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list debconf-utils)
+EOF
+}

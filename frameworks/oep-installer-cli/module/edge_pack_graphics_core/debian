@@ -1,0 +1,38 @@
+
+configure_edge_pack_graphics_core () {
+  configure_edge_pack "$@"
+  version="1.0"
+}
+
+debian_20_profile_edge_pack_graphics_core () {
+  echo "edge_pack"
+}
+
+debian_20_install_edge_pack_graphics_core () {
+  configure_edge_pack_graphics_core "$@"
+  if ensure_apt_is_installed intel-edge-graphics-core=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "intel-edge-graphics-core already installed. Skipping" 1>&2
+  else
+    debian_20_remove_edge_pack_graphics_core
+    ensure_apt install --no-install-recommends "intel-edge-graphics-core=$version*"
+  fi
+}
+
+debian_20_remove_edge_pack_graphics_core () {
+  ensure_apt autoremove -y intel-edge-graphics-core || true
+}
+
+debian_20_sbom_edge_pack_graphics_core () {
+  configure_edge_pack_graphics_core "$@"
+  cat <<EOF
+$(ensure_sbom_format name "$edge_pack_repo")
+$(ensure_sbom_format gpg-key "$edge_pack_key_url")
+$(ensure_sbom_format key-file "$edge_pack_key_file")
+$(ensure_sbom_format apt-source "$edge_pack_source")
+$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
+$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
+$(ensure_sbom_format pkg-list "intel-edge-graphics-core=$version*")
+EOF
+}
+

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { FC, SyntheticEvent, useState } from 'react';
 import styled from 'styled-components';
-import { Checkbox, IconButton } from '@carbon/react';
+import { Checkbox, IconButton, InlineLoading } from '@carbon/react';
 import { TrashCan } from '@carbon/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch } from '../../redux/store';
@@ -68,6 +68,19 @@ const SidebarItemWrapper = styled.div`
     }
   }
 
+  &.running {
+    .text-container {
+      color: #0f62fe;
+    }
+  }
+
+  .running-indicator {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    margin-left: 0.5rem;
+  }
+
   &.selected,
   &:hover {
     border-radius: 0.25rem;
@@ -89,6 +102,7 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const hasError = item.queryStatus === SearchQueryStatus.ERROR;
+  const isRunning = item.queryStatus === SearchQueryStatus.RUNNING;
 
   const handleCheckboxChange = (checked: boolean) => {
     if (checked) {
@@ -119,7 +133,15 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
 
   return (
     <>
-      <SidebarItemWrapper className={(selected ? 'selected ' : '') + (isUnread ? 'unread ' : '') + (hasError ? 'error' : '')} onClick={onClick}>
+      <SidebarItemWrapper
+        className={
+          (selected ? 'selected ' : '') +
+          (isUnread ? 'unread ' : '') +
+          (isRunning ? 'running ' : '') +
+          (hasError ? 'error' : '')
+        }
+        onClick={onClick}
+      >
         <Checkbox
           checked={item.watch}
           onChange={(_, { checked }) => {
@@ -132,6 +154,12 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
         <span className='text-container'>
           {item.query}
         </span>
+
+        {isRunning && (
+          <span className='running-indicator' data-testid={`search-running-${item.queryId}`}>
+            <InlineLoading status='active' description='' aria-label={t('searchRunning')} />
+          </span>
+        )}
 
         <IconButton kind='ghost' label={t('queryDeleteLabel')} autoAlign onClick={handleDeleteClick}>
           <TrashCan />

@@ -1,0 +1,17 @@
+{
+  "profile": { "label": "My AI Suite", "value": "my_ai_suite" },
+  "modules": [
+    { "label": "My Module", "value": "my_module" },
+    { "label": "My Long-running Module", "value": "my_service_module", "startStop": true }
+  ],
+  "install": {
+    "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install my_ai_suite"
+  },
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-example.html"
+  },
+  "resources": [
+    { "text": "My Module", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/my-module/index.html" }
+  ]
+}
