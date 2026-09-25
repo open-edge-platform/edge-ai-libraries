@@ -17,11 +17,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -45,6 +40,7 @@ import {
   formatBenchmarkScore,
   renderBenchmarkStatus,
 } from "@/features/benchmarks/utils";
+import { LatencyMetrics } from "@/features/benchmarks/LatencyMetrics";
 
 const THUMBNAIL_PLACEHOLDER = "/src/assets/thumbnail_placeholder.png";
 
@@ -286,62 +282,20 @@ export const BenchmarkSuiteRunDetailsTable = ({
                                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                                   ) : typeof testCaseRun.latency_max_ms ===
                                     "number" ? (
-                                    <HoverCard openDelay={100} closeDelay={100}>
-                                      <HoverCardTrigger asChild>
-                                        <span className="cursor-default underline decoration-dotted underline-offset-2">
-                                          {`${testCaseRun.latency_max_ms.toFixed(1)} ms`}
-                                        </span>
-                                      </HoverCardTrigger>
-                                      <HoverCardContent
-                                        side="top"
-                                        className="w-auto text-sm"
-                                      >
-                                        <div className="grid grid-cols-[auto_auto_1fr] gap-x-3 gap-y-1">
-                                          <span>Latency Max</span>
-                                          <span className="font-bold text-right">
-                                            {`${testCaseRun.latency_max_ms.toFixed(1)} ms`}
-                                          </span>
-                                          <span className="text-muted-foreground">
-                                            (std dev:{" "}
-                                            {typeof testCaseRun.latency_max_stddev_ms ===
-                                            "number"
-                                              ? `${testCaseRun.latency_max_stddev_ms.toFixed(1)} ms`
-                                              : "N/A"}
-                                            )
-                                          </span>
-                                          <span>Latency Avg</span>
-                                          <span className="text-right">
-                                            {typeof testCaseRun.latency_avg_ms ===
-                                            "number"
-                                              ? `${testCaseRun.latency_avg_ms.toFixed(1)} ms`
-                                              : "-"}
-                                          </span>
-                                          <span className="text-muted-foreground">
-                                            (std dev:{" "}
-                                            {typeof testCaseRun.latency_avg_stddev_ms ===
-                                            "number"
-                                              ? `${testCaseRun.latency_avg_stddev_ms.toFixed(1)} ms`
-                                              : "N/A"}
-                                            )
-                                          </span>
-                                          <span>Latency Min</span>
-                                          <span className="text-right">
-                                            {typeof testCaseRun.latency_min_ms ===
-                                            "number"
-                                              ? `${testCaseRun.latency_min_ms.toFixed(1)} ms`
-                                              : "-"}
-                                          </span>
-                                          <span className="text-muted-foreground">
-                                            (std dev:{" "}
-                                            {typeof testCaseRun.latency_min_stddev_ms ===
-                                            "number"
-                                              ? `${testCaseRun.latency_min_stddev_ms.toFixed(1)} ms`
-                                              : "N/A"}
-                                            )
-                                          </span>
-                                        </div>
-                                      </HoverCardContent>
-                                    </HoverCard>
+                                    <LatencyMetrics
+                                      latencyMaxMs={testCaseRun.latency_max_ms}
+                                      latencyMaxStddevMs={
+                                        testCaseRun.latency_max_stddev_ms
+                                      }
+                                      latencyAvgMs={testCaseRun.latency_avg_ms}
+                                      latencyAvgStddevMs={
+                                        testCaseRun.latency_avg_stddev_ms
+                                      }
+                                      latencyMinMs={testCaseRun.latency_min_ms}
+                                      latencyMinStddevMs={
+                                        testCaseRun.latency_min_stddev_ms
+                                      }
+                                    />
                                   ) : (
                                     "-"
                                   )}
