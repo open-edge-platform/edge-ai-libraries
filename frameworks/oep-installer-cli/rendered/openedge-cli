@@ -138,20 +138,20 @@ subcommand_install () {
     echo
     return 0
   fi
-  act_helpper "install,Installation,Installing,Installed" "" "$@"
+  act_helper "install,Installation,Installing,Installed" "" "$@"
 }
 
 subcommand_remove () {
-  act_helpper "remove,Removal,Removing,Removed" "-r" "$@"
+  act_helper "remove,Removal,Removing,Removed" "-r" "$@"
 }
 
 subcommand_start () {
-  act_helpper "start,Start,Starting,Started" "" "$@"
+  act_helper "start,Start,Starting,Started" "" "$@"
 }
 
 subcommand_stop () {
   [[ " $* " != *" --help "* ]] || return
-  act_helpper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
+  act_helper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
 }
 
 subcommand_list () {
@@ -1498,7 +1498,7 @@ act_find_deps () {
   echo "${!handlers[*]}"
 }
 
-act_helpper () {
+act_helper () {
   local act_name=${1%%,*}
   local act_text="${1#*,}"
   local sort_options="$2"
@@ -1561,6 +1561,8 @@ act_helpper () {
     fi
 
     local rc=0 order=0
+    local installer_state=""
+    ensure_tmpdir create installer_state states /dev/shm
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
         local name1=${handler#*_*_*_}
@@ -1607,6 +1609,7 @@ act_helpper () {
     ) 2>&1
     # wait for background processes
     wait
+    ensure_tmpdir destroy $installer_state
     return $rc
   else
     echo "Component not found" 1>&2
@@ -1978,8 +1981,8 @@ ensure_apt () {
   case "$1" in
   update)
     # apt-get update got executed only once unless -y is specified
-    [[ -e /dev/shm/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
-    touch /dev/shm/apt_update
+    [[ -e "${installer_state:?}"/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
+    touch "$installer_state"/apt_update
     ;;
   autoremove|remove|purge)
     # make sure the package list exists
@@ -1999,10 +2002,9 @@ ensure_apt () {
       fi
     fi
     ;;
-  install) # apt-get update runs at least once on the system
-    [ -e /dev/shm/apt_update ] || ensure_apt update -y
-    ;;&
   *)
+    # apt-get update runs at least once on the system before apt-get install
+    [ "$1" != "install" ] || [ -e "${installer_state:?}"/apt_update ] || ensure_apt update -y
     ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get -y "$@"
     ;;
   esac
@@ -4700,6 +4702,19 @@ $(ensure_sbom_format apt-source "$rs_deb_entry")
 $(ensure_sbom_format apt-list-file "$rs_list")
 $(ensure_sbom_format pkg-list ros-$ros_distro-librealsense2 librealsense2-dkms librealsense2)
 EOF
+}
+
+
+configure_reboot () {
+  touch "${installer_state?}"/reboot_required
+}
+
+debian_29_install_reboot () {
+  [ -e "${installer_state?}"/reboot_required ] || return 
+  local delay=2
+  ensure_sudo shutdown -r +2 "$installer_name scheduled a reboot in $delay minutes. Rerun $* after system is back."
+  rm -f "${installer_state?}"/reboot_required
+  sleep infinity
 }
 
 
