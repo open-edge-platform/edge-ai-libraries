@@ -16,6 +16,7 @@ area-specific guides and summarizes what to expect from each.
 | [Backend](./contributing/backend.md)                        | FastAPI routes, managers, GStreamer/DL Streamer integration, pipeline execution and benchmarking. |
 | [How to add a new pipeline](./contributing/new-pipeline.md) | Built-in pipeline YAML files under `vippet/pipelines/` and user-created pipelines via the API.    |
 | [How to add a new element](./contributing/new-element.md)   | Custom `gvapython` modules and notes on element visibility in the simple/advanced views.          |
+| [UI end-to-end tests](./contributing/ui-e2e-testing.md)     | Playwright configuration, running tests locally, VS Code extension setup, adding new specs.       |
 
 <!--hide_directive Input for Frontend and Documentation needed
 | Area | What you can add or change |
