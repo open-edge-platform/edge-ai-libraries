@@ -711,6 +711,34 @@ class TestGstLogBridgeLatencyTracer(unittest.TestCase):
             user_data=None,
         )
 
+    def _invoke_bridge_with_obj(
+        self, text: str, level: int, obj_name: str | None
+    ) -> None:
+        """Call gst_log_bridge with a named GstObject-like `obj`.
+
+        When ``obj_name`` is ``None``, ``obj`` is passed as ``None`` to
+        mirror the tracer path. Otherwise ``obj`` is a mock exposing
+        ``get_name()`` returning ``obj_name``, mirroring the way
+        GStreamer forwards a ``GstObject`` reference to the log
+        function for element-scoped records.
+        """
+        fake_message = mock.MagicMock()
+        fake_message.get.return_value = text
+        fake_obj = None
+        if obj_name is not None:
+            fake_obj = mock.MagicMock()
+            fake_obj.get_name.return_value = obj_name
+        gst_runner.gst_log_bridge(
+            category=None,
+            level=level,
+            file=None,
+            function=None,
+            line=0,
+            obj=fake_obj,
+            message=fake_message,
+            user_data=None,
+        )
+
     def test_pipeline_interval_sample_is_promoted_to_info(self) -> None:
         """`latency_tracer_pipeline_interval,...` TRACE messages must be logged as INFO."""
         sample = (
@@ -746,6 +774,87 @@ class TestGstLogBridgeLatencyTracer(unittest.TestCase):
         with self.assertRaises(AssertionError):
             with self.assertLogs("gst_runner", level="INFO"):
                 self._invoke_bridge(per_frame, RealGst.DebugLevel.TRACE)
+
+    def test_element_name_prefixed_when_obj_is_named(self) -> None:
+        """`Added meta message:` INFO records from a named ``GstObject`` must be prefixed with ``<name>``.
+
+        Downstream parsers (currently the VLM-metrics parser in
+        ``pipeline_runner``) rely on this prefix to attribute a sample
+        to a specific stream in multi-stream runs, since after
+        ``unify_all_element_names`` the element name is unique per
+        stream (e.g. ``gvagenai_0_0``).
+        """
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            self._invoke_bridge_with_obj(
+                "Added meta message: {}",
+                RealGst.DebugLevel.INFO,
+                obj_name="gvagenai_0_0",
+            )
+
+        joined = "\n".join(captured.output)
+        self.assertIn("<gvagenai_0_0> Added meta message: {}", joined)
+
+    def test_non_marker_message_is_not_prefixed_even_with_named_obj(self) -> None:
+        """Only ``Added meta message:`` lines get the ``<name>`` prefix.
+
+        The prefixing behavior is scoped to the VLM-metrics marker so
+        that unrelated logs (errors, warnings, other INFOs) stay
+        byte-identical to the pre-change output — every existing
+        downstream parser sees exactly what it saw before.
+        """
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            self._invoke_bridge_with_obj(
+                "some unrelated info message",
+                RealGst.DebugLevel.INFO,
+                obj_name="gvagenai_0_0",
+            )
+
+        joined = "\n".join(captured.output)
+        self.assertNotIn("<gvagenai_0_0>", joined)
+        self.assertIn("some unrelated info message", joined)
+
+    def test_no_prefix_when_obj_is_none(self) -> None:
+        """A marker record without a source object must reach the logger unmodified."""
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            self._invoke_bridge_with_obj(
+                "Added meta message: {}",
+                RealGst.DebugLevel.INFO,
+                obj_name=None,
+            )
+
+        joined = "\n".join(captured.output)
+        self.assertNotIn("<", joined)
+        self.assertIn("Added meta message: {}", joined)
+
+    def test_no_prefix_when_named_obj_has_empty_name(self) -> None:
+        """An empty ``get_name()`` result must not produce a ``<>`` prefix."""
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            self._invoke_bridge_with_obj(
+                "Added meta message: {}",
+                RealGst.DebugLevel.INFO,
+                obj_name="",
+            )
+
+        joined = "\n".join(captured.output)
+        self.assertNotIn("<>", joined)
+        self.assertIn("Added meta message: {}", joined)
+
+    def test_tracer_line_is_not_prefixed_even_if_obj_is_named(self) -> None:
+        """The tracer promotion path must run BEFORE any marker-prefix logic."""
+        sample = (
+            "latency_tracer_pipeline_interval, pipeline_name=(string)pipeline0, "
+            "source_name=(string)filesrc0, sink_name=(string)sink0, "
+            "interval=(double)1000.0, avg=(double)5.0, min=(double)1.0, "
+            "max=(double)9.0, latency=(double)3.0, fps=(double)60.0"
+        )
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            self._invoke_bridge_with_obj(
+                sample, RealGst.DebugLevel.TRACE, obj_name="some_tracer"
+            )
+
+        joined = "\n".join(captured.output)
+        self.assertNotIn("<some_tracer>", joined)
+        self.assertIn("latency_tracer_pipeline_interval", joined)
 
 
 if __name__ == "__main__":
