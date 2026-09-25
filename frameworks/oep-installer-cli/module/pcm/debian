@@ -1,0 +1,40 @@
+
+configure_pcm () {
+  workspace="$(ensure_project_path)/pcm"
+  repository="https://github.com/intel/pcm.git"
+  version=tags/202604
+}
+
+verify_pcm () {
+  [ -e "$workspace" ]
+  [ -x /usr/local/pcm ]
+}
+
+debian_40_profile_pcm () {
+  echo "cmake make"
+}
+
+debian_40_install_pcm () {
+  configure_pcm
+  if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+    echo "pcm is installed. Skipping"
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    rm -rf "$workspace"/tests "$workspace"/examples
+    mkdir "$workspace"/build "$workspace"/tests "$workspace"/examples
+    touch "$workspace"/tests/CMakeLists.txt "$workspace"/examples/CMakeLists.txt
+    cd "$workspace"/build
+    cmake ..
+    cmake --build . 
+    ensure_sudo make install
+    make clean
+    verify_pcm
+  fi
+}
+
+debian_40_remove_pcm () {
+  configure_pcm
+  ensure_sudo rm -rf "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* \
+    /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM
+}
+
