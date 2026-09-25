@@ -5,13 +5,13 @@ ensure_select_device () {
   [ ! -e /dev/accel/accel0 ] || device="npu"
   [ ! -e /dev/dri/renderD128 ] || device="gpu"
   case " $* " in
-  *" --npu "*)
+  *" --NPU "*)
     [ ! -e /dev/accel/accel0 ] || device="npu"
     ;;
-  *" --cpu "*)
+  *" --CPU "*)
     device="cpu"
     ;;
-  *" --gpu "*)
+  *" --GPU "*)
     [ ! -e /dev/dri/renderD128 ] || device="gpu"
     ;;
   esac
