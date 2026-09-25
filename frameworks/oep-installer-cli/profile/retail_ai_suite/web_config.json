@@ -1,0 +1,30 @@
+{
+  "profile": {
+    "label": "Retail AI Suite",
+    "value": "retail_ai_suite"
+  },
+  "modules": [
+    {
+      "label": "Loss Prevention",
+      "value": "loss_prevention"
+    },
+    {
+      "label": "Order Accuracy",
+      "value": "order_accuracy"
+    }
+  ],
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-retail.html"
+  },
+  "resources": [
+    {
+      "text": "Loss Prevention",
+      "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/loss-prevention/index.html"
+    },
+    {
+      "text": "Order Accuracy",
+      "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/order-accuracy/index.html"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 
 configure_anomalib () {
   workspace="$(ensure_project_path)/anomalib"
-  version=2.6.0
+  version=2.6.2
   repository=https://github.com/open-edge-platform/anomalib.git
 }
 
@@ -18,7 +18,7 @@ debian_70_profile_anomalib () {
 
 debian_70_install_anomalib () {
   configure_anomalib $*
-  if verify_anomalib && [[ " $* " != *" --reset-anomalib "* ]]; then
+  if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
     echo "Anomalib already installed. Skipping"
   else
     ensure_disk_space 6000

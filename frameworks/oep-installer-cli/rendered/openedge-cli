@@ -133,8 +133,8 @@ subcommand_install () {
     echo "install options:"
     echo "  --dry-run       dry-run operations"
     echo "  --continue      ignore errors and proceed to the end"
-    echo "  --validate or --validate-<name>   perform sanity check of features after installation."
-    echo "  --reset-<name>  force reinstallation of the component if exit."
+    echo "  --validate      perform sanity check of features after installation."
+    echo "  --reinstall     force reinstallation of the component if exit."
     echo
     return 0
   fi
@@ -267,6 +267,8 @@ $(
       all_comps=()
       all_comps["--continue"]=""
       all_comps["--dry-run"]=""
+      all_comps["--reinstall"]=""
+      all_comps["--validate"]=""
       # sbom handlers are sparse; resolve its dependency graph as if it were install
       dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
       act_get prefix ${dcmd}_
@@ -288,7 +290,6 @@ $(
       done
       echo "  $cmd)"
       echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
-      echo "    for ((i=2;i<COMP_CWORD;i++)); do [[ -v all_comps[\${COMP_WORDS[\$i]}] && \"\${COMP_WORDS[\$i]}\" != --* ]] && all_comps[\"--reset-\${COMP_WORDS[\$i]}\"]=\"\"; done"
       echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
       echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
       echo "    ;;"
@@ -1684,6 +1685,12 @@ ensure_git_clone () {
   fi
 }
 
+# clone then remove .git
+ensure_git_export () {
+  ensure_git_clone "$@"
+  rm -rf "$1"/.git
+}
+
 
 # add groups and ensure user is part of the groups
 # use docker: for a system group
@@ -1828,29 +1835,63 @@ ensure_ram_size () {
 }
 
 
-# select --gpu/--npu from command line arguments
-ensure_select_device () {
-  case " $* " in
-  *" --npu "*)
-    echo npu
+ensure_sbom_format () {
+  local key=$1; shift
+  case "$key" in
+  pkg-list|apt-pref)
+    IFS=$'|'
+    local pkg_str="$*"
+    echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
     ;;
-  *" --cpu "*)
-    echo cpu
+  name|gpg-key|key-file|apt-source|apt-src-source|apt-list-file|apt-pref-file|apt-repository)
+    echo "\"$key\": \"$*\""
     ;;
   *)
-    echo gpu
+    echo "Unsupported SBOM key: $key" 1>&2
+    exit 3
     ;;
   esac
 }
 
+# select --gpu/--npu from command line arguments
+# default to best device for init and "" for start
+ensure_select_device () {
+  local device=""
+  case "$1" in
+  install)
+    device="cpu"
+    [ ! -e /dev/accel/accel0 ] || device="npu"
+    [ ! -e /dev/dri/renderD128 ] || device="gpu"
+    ;;
+  esac
+
+  case " $* " in
+  *" --NPU "*)
+    [ ! -e /dev/accel/accel0 ] || device="npu"
+    ;;
+  *" --CPU "*)
+    device="cpu"
+    ;;
+  *" --GPU "*)
+    [ ! -e /dev/dri/renderD128 ] || device="gpu"
+    ;;
+  esac
+  echo $device
+}
+
 # perform sudo in automation or in tty
 ensure_sudo () {
+  local hp="${http_proxy:-$HTTP_PROXY}" sp="${https_proxy:-$HTTPS_PROXY}" np="${no_proxy:-$NO_PROXY}" proxy_args=()
+  [ -z "$hp" ] || proxy_args+=("http_proxy=$hp" "HTTP_PROXY=$hp")
+  [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp")
+  [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np")
+
   if sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
-    sudo "$@"
+    sudo env "${proxy_args[@]}" "$@"
   elif [ -t 0 ] && [ -z "$SUDO_PASSWORD" ]; then
     # genuine interactive terminal: safe to prompt for a password
-    sudo "$@"
+    sudo env "${proxy_args[@]}" "$@"
   else
     # write an askpass helper
     local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
@@ -1863,7 +1904,7 @@ ensure_sudo () {
         act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
         export SUDO_ASKPASS="$askpass_helper"
       fi
-      sudo -A "$@"
+      sudo -A env "${proxy_args[@]}" "$@"
     ) 9< "$rundir"
   fi
 }
@@ -1917,10 +1958,11 @@ ensure_trap() {
             eval \"\${_ENSURE_TRAP_STACK_${var_sig}[\$_ENSURE_TRAP_IDX_${var_sig}]}\"
             (( _ENSURE_TRAP_IDX_${var_sig}-- )) || true
           done
-          if [[ \"$sig\" != \"EXIT\" && \"$sig\" != \"0\" && \"$sig\" != \"SIGEXIT\" ]]; then
-            trap - \"$sig\"
-            kill -s \"$sig\" \$\$
-          fi
+          trap - \"$sig\"
+          case \"$sig\" in
+            EXIT|0|ERR|RETURN|DEBUG) ;;
+            *) kill -s \"$sig\" \$\$ ;;
+          esac
         " "$sig"
       fi
 
@@ -1936,8 +1978,7 @@ ensure_apt () {
   case "$1" in
   update)
     # apt-get update got executed only once unless -y is specified
-    [ ! -e /dev/shm/apt_update ] || [[ " $* " = *" -y "* ]] || return 0
-    ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
+    [[ -e /dev/shm/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
     touch /dev/shm/apt_update
     ;;
   autoremove|remove|purge)
@@ -1954,12 +1995,15 @@ ensure_apt () {
     if [ ${#package_list[*]} -gt 0 ]; then
       local valid_packages=($(dpkg-query -W -f='${db:Status-Status} ${Package}\n' "${package_list[@]}" 2>/dev/null | awk '$1!="not-installed"{print $2}'))
       if [ ${#valid_packages[*]} -gt 0 ]; then
-        ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy%%,} apt-get $1 -y ${options[*]} ${valid_packages[*]}
+        ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get $1 -y ${options[*]} ${valid_packages[*]}
       fi
     fi
     ;;
+  install) # apt-get update runs at least once on the system
+    [ -e /dev/shm/apt_update ] || ensure_apt update -y
+    ;;&
   *)
-    ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy%%,} apt-get -y "$@"
+    ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get -y "$@"
     ;;
   esac
 }
@@ -1970,6 +2014,16 @@ ensure_apt_is_installed () {
     [ "$(dpkg-query -W -f='${db:Status-Status}' ${pkg%%=*} 2>/dev/null)" = "installed" ] || return 1
     [[ "$pkg" != *=* ]] || [[ "$(dpkg-query -W -f='${Version}' ${pkg%%=*} 2>/dev/null)" = "${pkg#*=}"* ]] || return 1
   done
+}
+
+# install simple package
+ensure_apt_install_package () {
+  if ensure_apt_is_installed "${@%%"*"}"; then
+    echo "${*%%=*} is/are already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y "$@"
+  fi
 }
 
 
@@ -2012,7 +2066,7 @@ ensure_apt_source_remove () {
 
 configure_anomalib () {
   workspace="$(ensure_project_path)/anomalib"
-  version=2.6.0
+  version=2.6.2
   repository=https://github.com/open-edge-platform/anomalib.git
 }
 
@@ -2029,7 +2083,7 @@ debian_70_profile_anomalib () {
 
 debian_70_install_anomalib () {
   configure_anomalib $*
-  if verify_anomalib && [[ " $* " != *" --reset-anomalib "* ]]; then
+  if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
     echo "Anomalib already installed. Skipping"
   else
     ensure_disk_space 6000
@@ -2114,7 +2168,7 @@ debian_90_install_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot
   [[ " $* " != *" --complete "* ]] || amr_sdk_pkg=ros-$ros_distro-robotics-sdk-complete
 
-  if verify_autonomous_mobile_robot && [[ " $* " != *" --reset-autonomous_mobile_robot "* ]]; then
+  if verify_autonomous_mobile_robot && [[ " $* " != *" --reinstall "* ]]; then
     echo "Autonomous Mobile Robot is already installed. Skipping..."
   else
     ensure_disk_space $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
@@ -2167,56 +2221,53 @@ debian_90_remove_autonomous_mobile_robot () {
 
 debian_90_sbom_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot
-  (
-    IFS=$'|'
-    local oneapi_pref_str="${oneapi_pref[*]}"
-    cat <<EOF
-"name": "$oneapi_repo_name"
-"gpg-key": "$oneapi_key_url"
-"key-file": "$oneapi_key_file"
-"apt-source": "$oneapi_deb_entry"
-"apt-list-file": "$oneapi_list"
-"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
-"apt-pref-file": "$oneapi_pref_file"
-"pkg-list": ["intel-oneapi-runtime-*","intel-oneapi-compiler-*","intel-oneapi-mkl-*"]
+  cat <<EOF
+$(ensure_sbom_format name "$oneapi_repo_name")
+$(ensure_sbom_format gpg-key "$oneapi_key_url")
+$(ensure_sbom_format key-file "$oneapi_key_file")
+$(ensure_sbom_format apt-source "$oneapi_deb_entry")
+$(ensure_sbom_format apt-list-file "$oneapi_list")
+$(ensure_sbom_format apt-pref "${oneapi_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$oneapi_pref_file")
+$(ensure_sbom_format pkg-list "intel-oneapi-runtime-*" "intel-oneapi-compiler-*" "intel-oneapi-mkl-*")
 EOF
-  )
   echo "---"
+
   # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
   if [ "$ros_distro" = humble ]; then
     cat <<EOF
-"pkg-list": ["gcc-12","g++-12"]
+$(ensure_sbom_format pkg-list gcc-12 g++-12)
 ---
 EOF
   fi
 
   cat <<EOF
-"pkg-list": ["software-properties-common","curl","gnupg","wget","lsb-release"]
+$(ensure_sbom_format pkg-list software-properties-common curl gnupg wget lsb-release)
 EOF
 
   if [ "$ros_distro" = jazzy ]; then
     configure_osrf_gazebo
     cat <<EOF
-"name": "$osrf_name"
-"apt-source": "$osrf_entry"
-"apt-list-file": "$osrf_list"
-"pkg-list": ["gz-harmonic"]
+$(ensure_sbom_format name $osrf_name)
+$(ensure_sbom_format apt-source "$osrf_entry")
+$(ensure_sbom_format apt-list-file "$osrf_list")
+$(ensure_sbom_format pkg-list gz-harmonic)
 ---
 EOF
   fi
 
   cat <<EOF
-"pkg-list": ["$amr_sdk_pkg","ros-$ros_distro-collab-slam-sse"]
+$(ensure_sbom_format pkg-list $amr_sdk_pkg "ros-$ros_distro-collab-slam-sse")
 EOF
 }
 
 
-debian_15_profile_core_types () {
+debian_20_profile_core_types () {
   [ "$1" != "install" ] || echo "cpuid curl"
 }
 
-debian_15_install_core_types () {
-  if [ -e /etc/core-types ] && [[ " $* " != *" --reset-core_types "* ]]; then
+debian_20_install_core_types () {
+  if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
     echo "/etc/core-types exists. Skipping"
     return
   fi
@@ -2230,48 +2281,33 @@ debian_15_install_core_types () {
 }
 
 
-debian_10_install_cpuid () {
-  if ensure_apt_is_installed cpuid; then
-    echo "Cpuid is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y cpuid
-  fi
+debian_15_install_cpuid () {
+  ensure_apt_install_package cpuid
 }
 
-debian_10_sbom_cpuid () {
+debian_15_sbom_cpuid () {
   cat <<EOF
-"pkg-list": ["cpuid"]
+$(ensure_sbom_format pkg-list cpuid)
 EOF
 }
 
 debian_05_install_curl () {
-  if ensure_apt_is_installed curl; then
-    echo "Curl is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y curl ca-certificates
-  fi
+  ensure_apt_install_package curl ca-certificates
 }
 
 debian_05_sbom_curl () {
   cat <<EOF
-"pkg-list": ["curl","ca-certificates"]
+$(ensure_sbom_format pkg-list curl ca-certificates)
 EOF
 }
 
-debian_05_install_debconf_utils () {
-  if ensure_apt_is_installed debconf-utils; then
-    echo "debconf-utils is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y debconf-utils
-  fi
+debian_15_install_debconf_utils () {
+  ensure_apt_install_package debconf-utils
 }
 
-debian_05_sbom_debconf_utils () {
+debian_15_sbom_debconf_utils () {
   cat <<EOF
-"pkg-list": ["debconf-utils"]
+$(ensure_sbom_format pkg-list debconf-utils)
 EOF
 }
 
@@ -2305,7 +2341,7 @@ verify_dlstreamer () {
 debian_75_install_dlstreamer () {
   configure_dlstreamer
   
-  if verify_dlstreamer && [[ " $* " != *" --reset-dlstreamer "* ]]; then
+  if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
     echo "dlstreamer-${version} already installed. Skipping"
   else
     # remove old versions
@@ -2332,7 +2368,7 @@ debian_75_install_dlstreamer () {
 
     echo "intel-dlstreamer=$version installed successfully."
 
-    if [[ " $* " = *" --validate "* || " $* " = *" --validate-dlstreamer "* ]]; then
+    if [[ " $* " = *" --validate "* ]]; then
       ( 
         mkdir -p models/${od_model%/*}
         set -x
@@ -2400,28 +2436,23 @@ debian_75_remove_dlstreamer () {
 debian_75_sbom_dlstreamer () {
   configure_dlstreamer
   cat <<EOF
-"name": "$repo_name"
-"apt-source": "$deb_entry"
-"apt-list-file": "$list_file"
-"gpg-key": "$key_url"
-"key-file": "$key_file"
-"pkg-list": ["intel-dlstreamer=$version"]
+$(ensure_sbom_format name "$repo_name")
+$(ensure_sbom_format apt-source "$deb_entry")
+$(ensure_sbom_format apt-list-file "$list_file")
+$(ensure_sbom_format gpg-key "$key_url")
+$(ensure_sbom_format key-file "$key_file")
+$(ensure_sbom_format pkg-list "intel-dlstreamer=$version*")
 EOF
 }
 
 
 debian_05_install_dmidecode () {
-  if ensure_apt_is_installed dmidecode; then
-    echo "Dmidecode is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y dmidecode
-  fi
+  ensure_apt_install_package dmidecode
 }
 
 debian_05_sbom_dmidecode () {
   cat <<EOF
-"pkg-list": ["dmidecode"]
+$(ensure_sbom_format pkg-list dmidecode)
 EOF
 }
 
@@ -2458,13 +2489,13 @@ EOF
   fi
 }
 
-debian_20_install_docker () {
-  if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
+debian_30_install_docker () {
+  if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
     echo "Docker is already installed. Skipping..."
-  elif ensure_apt_is_installed docker.io && [[ "$*" != *"--reset-docker"* ]]; then
+  elif ensure_apt_is_installed docker.io && [[ " $* " != *" --reinstall "* ]]; then
     ensure_apt update
     ensure_apt install -y docker-buildx docker-compose-v2
-  elif ensure_apt_is_installed docker-ce && [[ "$*" != *"--reset-docker"* ]]; then 
+  elif ensure_apt_is_installed docker-ce && [[ " $* " != *" --reinstall "* ]]; then 
     ensure_apt update
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
@@ -2518,14 +2549,365 @@ EOF
   configure_docker
 }
 
-debian_20_sbom_docker () {
+debian_30_sbom_docker () {
   cat <<EOF
-"pkg-list": [ "docker.io","docker-buildx","docker-compose-v2" ]
+$(ensure_sbom_format pkg-list docker.io docker-buildx docker-compose-v2)
 EOF
 }
 
 debian_99_profile_edge_base () {
   [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu npu core_types pre_system_scan"
+}
+
+
+configure_edge_pack () {
+  edge_pack_repo="apt.repos.intel.com"
+  edge_pack_key_url="https://$edge_pack_repo/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  edge_pack_key_file=/etc/apt/keyrings/edgepack.gpg
+  edge_pack_source="deb [signed-by=$edge_pack_key_file] https://$edge_pack_repo/edgepack $VERSION_CODENAME stable"
+  edge_pack_list_file=/etc/apt/sources.list.d/edgepack.list
+  edge_pack_pref=(
+    "Package: *"
+    "Pin: origin $edge_pack_repo"
+    "Pin-Priority: 1001"
+  )
+  edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref
+}
+
+debian_15_profile_edge_pack () {
+  echo "curl gpg"
+}
+
+debian_15_install_edge_pack () {
+  configure_edge_pack "$@"
+  local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0)
+  local reconfigured=0
+  if [ ! -e "$edge_pack_key_file" ] || [ $reinstall -eq 1 ]; then
+    ensure_apt_key "$edge_pack_key_file" "$edge_pack_key_url" --dearmor
+    reconfigured=1
+  fi
+  if [ ! -e "$edge_pack_source_file" ] || [ $reinstall -eq 1 ]; then
+    ensure_apt_source "$edge_pack_list_file" "$edge_pack_source"
+    reconfigured=1
+  fi
+  if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
+    ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}"
+    reconfigured=1
+  fi
+  [ $reconfigured -eq 0 ] || ensure_apt update -y
+}
+
+debian_15_remove_edge_pack () {
+  configure_edge_pack "$@"
+  ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
+}
+
+#sbom by individual packs
+#debian_15_sbom_edge_pack () {
+#}
+
+
+configure_edge_pack_base_realtime () {
+  configure_edge_pack "$@"
+  version="1.0"
+}
+
+debian_20_profile_edge_pack_base_realtime () {
+  echo "edge_pack"
+}
+
+debian_20_install_edge_pack_base_realtime () {
+  configure_edge_pack_base_realtime "$@"
+  if ensure_apt_is_installed intel-edge-base-realtime=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "intel-edge-base-realtime already installed. Skipping" 1>&2
+  else
+    debian_20_remove_edge_pack_base_realtime
+    ensure_apt install --no-install-recommends "intel-edge-base-realtime=$version*"
+  fi
+}
+
+debian_20_remove_edge_pack_base_realtime () {
+  ensure_apt autoremove -y intel-edge-base-realtime || true
+}
+
+debian_20_sbom_edge_pack_base_realtime () {
+  configure_edge_pack_base_realtime "$@"
+  cat <<EOF
+$(ensure_sbom_format name "$edge_pack_repo")
+$(ensure_sbom_format gpg-key "$edge_pack_key_url")
+$(ensure_sbom_format key-file "$edge_pack_key_file")
+$(ensure_sbom_format apt-source "$edge_pack_source")
+$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
+$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
+$(ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*")
+EOF
+}
+
+
+configure_edge_pack_base_standard () {
+  configure_edge_pack "$@"
+  version="1.0"
+}
+
+debian_20_profile_edge_pack_base_standard () {
+  echo "edge_pack"
+}
+
+debian_20_install_edge_pack_base_standard () {
+  configure_edge_pack_base_standard "$@"
+  if ensure_apt_is_installed intel-edge-base-standard=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "intel-edge-base-standard already installed. Skipping" 1>&2
+  else
+    debian_20_remove_edge_pack_base_standard
+    ensure_apt install --no-install-recommends "intel-edge-base-standard=$version*"
+  fi
+}
+
+debian_20_remove_edge_pack_base_standard () {
+  ensure_apt autoremove -y intel-edge-base-standard || true
+}
+
+debian_20_sbom_edge_pack_base_standard () {
+  configure_edge_pack_base_standard "$@"
+  cat <<EOF
+$(ensure_sbom_format name "$edge_pack_repo")
+$(ensure_sbom_format gpg-key "$edge_pack_key_url")
+$(ensure_sbom_format key-file "$edge_pack_key_file")
+$(ensure_sbom_format apt-source "$edge_pack_source")
+$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
+$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
+$(ensure_sbom_format pkg-list "intel-edge-base-standard=$version*")
+EOF
+}
+
+
+configure_edge_pack_graphics_core () {
+  configure_edge_pack "$@"
+  version="1.0"
+}
+
+debian_20_profile_edge_pack_graphics_core () {
+  echo "edge_pack"
+}
+
+debian_20_install_edge_pack_graphics_core () {
+  configure_edge_pack_graphics_core "$@"
+  if ensure_apt_is_installed intel-edge-graphics-core=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "intel-edge-graphics-core already installed. Skipping" 1>&2
+  else
+    debian_20_remove_edge_pack_graphics_core
+    ensure_apt install --no-install-recommends "intel-edge-graphics-core=$version*"
+  fi
+}
+
+debian_20_remove_edge_pack_graphics_core () {
+  ensure_apt autoremove -y intel-edge-graphics-core || true
+}
+
+debian_20_sbom_edge_pack_graphics_core () {
+  configure_edge_pack_graphics_core "$@"
+  cat <<EOF
+$(ensure_sbom_format name "$edge_pack_repo")
+$(ensure_sbom_format gpg-key "$edge_pack_key_url")
+$(ensure_sbom_format key-file "$edge_pack_key_file")
+$(ensure_sbom_format apt-source "$edge_pack_source")
+$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
+$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
+$(ensure_sbom_format pkg-list "intel-edge-graphics-core=$version*")
+EOF
+}
+
+
+configure_edge_pack_graphics_display () {
+  configure_edge_pack "$@"
+  version="1.0"
+}
+
+debian_20_profile_edge_pack_graphics_display () {
+  echo "edge_pack"
+}
+
+debian_20_install_edge_pack_graphics_display () {
+  configure_edge_pack_graphics_display "$@"
+  if ensure_apt_is_installed intel-edge-graphics-display=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "intel-edge-graphics-display already installed. Skipping" 1>&2
+  else
+    debian_20_remove_edge_pack_graphics_display
+    ensure_apt install --no-install-recommends "intel-edge-graphics-display=$version*"
+  fi
+}
+
+debian_20_remove_edge_pack_graphics_display () {
+  ensure_apt autoremove -y intel-edge-graphics-display || true
+}
+
+debian_20_sbom_edge_pack_graphics_display () {
+  configure_edge_pack_graphics_display "$@"
+  cat <<EOF
+$(ensure_sbom_format name "$edge_pack_repo")
+$(ensure_sbom_format gpg-key "$edge_pack_key_url")
+$(ensure_sbom_format key-file "$edge_pack_key_file")
+$(ensure_sbom_format apt-source "$edge_pack_source")
+$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
+$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
+$(ensure_sbom_format pkg-list "intel-edge-graphics-display=$version*")
+EOF
+}
+
+
+configure_edge_pack_media_core () {
+  configure_edge_pack "$@"
+  version="1.0"
+}
+
+debian_20_profile_edge_pack_media_core () {
+  echo "edge_pack"
+}
+
+debian_20_install_edge_pack_media_core () {
+  configure_edge_pack_media_core "$@"
+  if ensure_apt_is_installed intel-edge-media-core=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "intel-edge-media-core already installed. Skipping" 1>&2
+  else
+    debian_20_remove_edge_pack_media_core
+    ensure_apt install --no-install-recommends "intel-edge-media-core=$version*"
+  fi
+}
+
+debian_20_remove_edge_pack_media_core () {
+  ensure_apt autoremove -y intel-edge-media-core || true
+}
+
+debian_20_sbom_edge_pack_media_core () {
+  configure_edge_pack_media_core "$@"
+  cat <<EOF
+$(ensure_sbom_format name "$edge_pack_repo")
+$(ensure_sbom_format gpg-key "$edge_pack_key_url")
+$(ensure_sbom_format key-file "$edge_pack_key_file")
+$(ensure_sbom_format apt-source "$edge_pack_source")
+$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
+$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
+$(ensure_sbom_format pkg-list "intel-edge-media-core=$version*")
+EOF
+}
+
+
+configure_edge_pack_media_ffmpeg () {
+  configure_edge_pack "$@"
+  version="1.0"
+}
+
+debian_70_profile_edge_pack_media_ffmpeg () {
+  echo "edge_pack"
+}
+
+debian_70_install_edge_pack_media_ffmpeg () {
+  configure_edge_pack_media_ffmpeg "$@"
+  if ensure_apt_is_installed intel-edge-media-ffmpeg=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "intel-edge-media-ffmpeg already installed. Skipping" 1>&2
+  else
+    debian_20_remove_edge_pack_media_ffmpeg
+    ensure_apt install --no-install-recommends "intel-edge-media-ffmpeg=$version*"
+  fi
+}
+
+debian_70_remove_edge_pack_media_ffmpeg () {
+  ensure_apt autoremove -y intel-edge-media-ffmpeg || true
+}
+
+debian_70_sbom_edge_pack_media_ffmpeg () {
+  configure_edge_pack_media_ffmpeg "$@"
+  cat <<EOF
+$(ensure_sbom_format name "$edge_pack_repo")
+$(ensure_sbom_format gpg-key "$edge_pack_key_url")
+$(ensure_sbom_format key-file "$edge_pack_key_file")
+$(ensure_sbom_format apt-source "$edge_pack_source")
+$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
+$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
+$(ensure_sbom_format pkg-list "intel-edge-media-ffmpeg=$version*")
+EOF
+}
+
+
+configure_edge_pack_media_gst () {
+  configure_edge_pack "$@"
+  version="1.0"
+}
+
+debian_70_profile_edge_pack_media_gst () {
+  echo "edge_pack"
+}
+
+debian_70_install_edge_pack_media_gst () {
+  configure_edge_pack_media_gst "$@"
+  if ensure_apt_is_installed intel-edge-media-gst=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "intel-edge-media-gst already installed. Skipping" 1>&2
+  else
+    debian_20_remove_edge_pack_media_gst
+    ensure_apt install --no-install-recommends "intel-edge-media-gst=$version*"
+  fi
+}
+
+debian_70_remove_edge_pack_media_gst () {
+  ensure_apt autoremove -y intel-edge-media-gst || true
+}
+
+debian_70_sbom_edge_pack_media_gst () {
+  configure_edge_pack_media_gst "$@"
+  cat <<EOF
+$(ensure_sbom_format name "$edge_pack_repo")
+$(ensure_sbom_format gpg-key "$edge_pack_key_url")
+$(ensure_sbom_format key-file "$edge_pack_key_file")
+$(ensure_sbom_format apt-source "$edge_pack_source")
+$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
+$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
+$(ensure_sbom_format pkg-list "intel-edge-media-gst=$version*")
+EOF
+}
+
+
+configure_edge_pack_npu () {
+  configure_edge_pack "$@"
+  version="1.0"
+}
+
+debian_20_profile_edge_pack_npu () {
+  echo "edge_pack"
+}
+
+debian_20_install_edge_pack_npu () {
+  configure_edge_pack_npu "$@"
+  if ensure_apt_is_installed intel-edge-npu=$version && [[ " $* " != *" --reinstall "* ]]; then
+    echo "intel-edge-npu already installed. Skipping" 1>&2
+  else
+    debian_20_remove_edge_pack_npu
+    ensure_apt install --no-install-recommends "intel-edge-npu=$version*"
+  fi
+}
+
+debian_20_remove_edge_pack_npu () {
+  ensure_apt autoremove -y intel-edge-npu || true
+}
+
+debian_20_sbom_edge_pack_npu () {
+  configure_edge_pack_npu "$@"
+  cat <<EOF
+$(ensure_sbom_format name "$edge_pack_repo")
+$(ensure_sbom_format gpg-key "$edge_pack_key_url")
+$(ensure_sbom_format key-file "$edge_pack_key_file")
+$(ensure_sbom_format apt-source "$edge_pack_source")
+$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
+$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
+$(ensure_sbom_format pkg-list "intel-edge-npu=$version*")
+EOF
 }
 
 
@@ -2539,7 +2921,7 @@ debian_85_profile_esq () {
 
 debian_85_install_esq () {
   configure_uv
-  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reset-esq "* ]]; then
+  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
     echo "Esq is already installed. Skipping..."
   else
     curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true
@@ -2579,32 +2961,22 @@ debian_85_remove_esq () {
 }
 
 debian_70_install_ffmpeg () {
-  if ensure_apt_is_installed ffmpeg > /dev/null 2>&1; then
-    echo "ffmpeg is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y ffmpeg
-  fi
+  ensure_apt_install_package ffmpeg
 }
 
 debian_70_sbom_ffmpeg () {
   cat <<EOF
-"pkg-list": ["ffmpeg"]
+$(ensure_sbom_format pkg-list ffmpeg)
 EOF
 }
 
-debian_05_install_gawk () {
-  if ensure_apt_is_installed gawk > /dev/null 2>&1; then
-    echo "Gawk is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y gawk
-  fi
+debian_15_install_gawk () {
+  ensure_apt_install_package gawk
 }
 
-debian_05_sbom_gawk () {
+debian_15_sbom_gawk () {
   cat <<EOF
-"pkg-list": ["gawk"]
+$(ensure_sbom_format pkg-list gawk)
 EOF
 }
 
@@ -2626,7 +2998,7 @@ debian_90_profile_geti () {
 debian_90_install_geti () {
   configure_geti $*
 
-  if verify_geti && [[ " $* " != *" --reset-geti "* ]]; then
+  if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
     echo "Geti already installed. Skipping."
   else
     ensure_disk_space 40000
@@ -2665,33 +3037,23 @@ debian_90_remove_geti () {
 }
 
 
-debian_10_install_git () {
-  if ensure_apt_is_installed git > /dev/null 2>&1; then
-    echo "Git is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y git ca-certificates
-  fi
+debian_30_install_git () {
+  ensure_apt_install_package git ca-certificates
 }
 
-debian_10_sbom_git () {
+debian_30_sbom_git () {
   cat <<EOF
-"pkg-list": ["git","ca-certificates"]
+$(ensure_sbom_format pkg-list git ca-certificates)
 EOF
 }
 
-debian_05_install_gpg () {
-  if ensure_apt_is_installed gpg; then
-    echo "Gpg is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y gpgv1
-  fi
+debian_15_install_gpg () {
+  ensure_apt_install_package gpgv1
 }
 
-debian_05_sbom_gpg () {
+debian_15_sbom_gpg () {
   cat <<EOF
-"pkg-list": ["gpgv1"]
+$(ensure_sbom_format pkg-list gpgv1)
 EOF
 }
 
@@ -2701,15 +3063,14 @@ configure_gpu () {
   key_file="/usr/share/keyrings/intel-graphics.gpg"
   apt_entry="deb [signed-by=$key_file] https://$repo_name/gpu/${ID} ${VERSION_CODENAME} unified"
   apt_file="/etc/apt/sources.list.d/intel-graphics.list"
-  pkg_list="clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd"
-  version=26.2.2
+  pkg_list=(clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd)
 }
 
 verify_gpu () {
-  [ -b /dev/render/renderD128 ]
-  getent group render >/dev/null 2>&1
-  id -nG | grep -qw render
-  ensure_apt_is_installed intel-media-va-driver-non-free=$version
+  [ -c /dev/dri/renderD128 ] &&
+  getent group render >/dev/null 2>&1 &&
+  id -nG | grep -qw render &&
+  ensure_apt_is_installed intel-media-va-driver-non-free
 }
 
 debian_40_profile_gpu () {
@@ -2719,7 +3080,7 @@ debian_40_profile_gpu () {
 debian_40_install_gpu () {
   configure_gpu $*
 
-  if verify_gpu && [[ " $* " != *" --reset-gpu "* ]]; then
+  if verify_gpu && [[ " $* " != *" --reinstall "* ]]; then
     echo "Gpu drivers are already installed. Skipping..."
   else
     # remove legacies
@@ -2736,17 +3097,14 @@ debian_40_install_gpu () {
     ensure_apt update -y
 
     # install the packages
-    ensure_apt install --no-install-recommends -y $pkg_list
+    ensure_apt install --no-install-recommends -y "${pkg_list[@]}"
+    verify_gpu
   fi
 }
 
 debian_40_remove_gpu () {
   configure_gpu $*
-  if verify_gpu; then
-    ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
-  else
-    echo "Gpu drivers are removed already. Skipping"
-  fi
+  ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
   # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
   # intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same
@@ -2761,12 +3119,12 @@ debian_40_remove_gpu () {
 debian_40_sbom_gpu () {
   configure_gpu "$@"
   cat <<EOF
-"name": "$repo_name"
-"apt-source": "$apt_entry"
-"apt-list-file": "$apt_file"
-"gpg-key": "$key_url"
-"key-file": "$key_file"
-"pkg-list": ["${pkg_list// /'","'}"]
+$(ensure_sbom_format name "$repo_name")
+$(ensure_sbom_format apt-source "$apt_entry")
+$(ensure_sbom_format apt-list-file "$apt_file")
+$(ensure_sbom_format gpg-key "$key_url")
+$(ensure_sbom_format key-file "$key_file")
+$(ensure_sbom_format pkg-list "${pkg_list[@]}")
 EOF
 }
 
@@ -2787,7 +3145,7 @@ debian_90_profile_handheld_multi_modal () {
 
 debian_90_install_handheld_multi_modal () {
   configure_handheld_multi_modal
-  if verify_handheld_multi_modal $* && [[ " $* " != *" --reset-handheld_multi_modal "* ]]; then
+  if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
     echo "handheld_multi_modal already installed. Skipping"
   else
     ensure_disk_space 300
@@ -2853,7 +3211,7 @@ verify_humanoid_imitation_learning () {
 debian_90_install_humanoid_imitation_learning () {
   configure_humanoid_imitation_learning "$@"
 
-  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reset-humanoid_imitation_learning "* ]]; then
+  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Humanoid - Imitation Learning is already installed. Skipping..."
   else
     # The base image bundles the OpenVINO dev stack, Intel GPU runtime, oneAPI
@@ -2885,49 +3243,34 @@ debian_90_remove_humanoid_imitation_learning () {
   ensure_sudo rm -rf "$workspace"
 }
 
-debian_05_install_jq () {
-  if ensure_apt_is_installed jq; then
-    echo "jq is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y jq
-  fi
+debian_15_install_jq () {
+  ensure_apt_install_package jq
 }
 
-debian_05_sbom_jq () {
+debian_15_sbom_jq () {
   cat <<EOF
-"pkg-list": ["jq"]
+$(ensure_sbom_format pkg-list jq)
 EOF
 }
 
-debian_10_install_libgl1 () {
-  if ensure_apt_is_installed libgl1; then
-    echo "Libgl1 is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y libgl1
-  fi
+debian_15_install_libgl1 () {
+  ensure_apt_install_package libgl1
 }
 
-debian_10_sbom_libgl1 () {
+debian_15_sbom_libgl1 () {
   cat <<EOF
-"pkg-list": ["libgl1"]
+$(ensure_sbom_format pkg-list libgl1)
 EOF
 }
 
 
-debian_05_install_libtbb12 () {
-  if ensure_apt_is_installed libtbb12; then
-    echo "libtbb12 is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y libtbb12
-  fi
+debian_15_install_libtbb12 () {
+  ensure_apt_install_package libtbb12
 }
 
-debian_05_sbom_libtbb12 () {
+debian_15_sbom_libtbb12 () {
   cat <<EOF
-"pkg-list": ["libtbb12"]
+$(ensure_sbom_format pkg-list libtbb12)
 EOF
 }
 
@@ -2935,11 +3278,11 @@ configure_libze1 () {
   libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb"
 }
 
-debian_10_profile_libze1 () {
+debian_15_profile_libze1 () {
   echo "curl"
 }
 
-debian_10_install_libze1 () {
+debian_15_install_libze1 () {
   configure_libze1 
 
   if ensure_apt_is_installed libze1; then
@@ -2953,10 +3296,10 @@ debian_10_install_libze1 () {
   fi
 }
 
-debian_10_sbom_libze1 () {
+debian_15_sbom_libze1 () {
   configure_libze1
   cat <<EOF
-"pkg-list": ["$libze1_deb"]
+$(ensure_sbom_format pkg-list "$libze1_deb")
 EOF
 }
 
@@ -2978,7 +3321,7 @@ debian_90_profile_live_video_captioning () {
 
 debian_90_install_live_video_captioning () {
   configure_live_video_captioning
-  if verify_live_video_captioning && [[ " $* " != *" --reset-live_video_captioning "* ]]; then
+  if verify_live_video_captioning && [[ " $* " != *" --reinstall "* ]]; then
     echo "Live Video Captioning is already installed. Skipping"
     return
   fi
@@ -3038,28 +3381,30 @@ debian_90_profile_loitering_detection () {
 
 debian_90_install_loitering_detection () {
   configure_loitering_detection
-  if verify_loitering_detection && [[ " $* " != *" --reset-loitering_detection "* ]]; then
+  if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loitering detection is already installed. Skipping"
-    return
+  else
+    # clone the repository
+    ensure_disk_space 280
+    ensure_git_export "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+
+    # setup
+    cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+    sed -i 's|curl |curl -f |' loitering-detection/install.sh
+    ./install.sh loitering-detection $(ensure_ip)
+    verify_loitering_detection
   fi
 
-  # clone the repository
-  ensure_disk_space 280
-  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
-
-  # setup
-  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
-  sed -i 's|curl |curl -f |' loitering-detection/install.sh
-  ./install.sh loitering-detection $(ensure_ip)
-  verify_loitering_detection
+  local device=$(ensure_select_device "$@")
+  sed -i "/No device selected/,/fi/{s|defaulting to ...|defaulting to ${device^^}|;s|forced.*=.*$|forced${device^^}=true|}" "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/sample_start.sh
 }
 
 debian_90_start_loitering_detection () {
   ensure_ports_open "80 443" debian_90_stop_loitering_detection
   configure_loitering_detection
   cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
-  docker compose -f compose-without-scenescape.yml up -d
-  ./sample_start.sh $(ensure_select_device $*)
+  docker compose -f compose-without-scenescape.yml up -d --wait
+  ./sample_start.sh
   echo "@@HIGHLIGHT UI entrypoint: http://$(ensure_ip)"
   echo "@@HIGHLIGHT Grafana username/password: admin"
 }
@@ -3078,7 +3423,7 @@ debian_90_remove_loitering_detection () {
 
 configure_loss_prevention () {
   workspace="$(ensure_project_path)/loss_prevention"
-  version=v2026.1.0-rc2
+  version=v2026.2.0
   repository="https://github.com/intel-retail/loss-prevention.git"
 }
 
@@ -3092,7 +3437,7 @@ debian_90_profile_loss_prevention () {
 
 debian_90_install_loss_prevention () {
   configure_loss_prevention
-  if verify_loss_prevention && [[ "$*" != *"--reset-loss_prevention"* ]]; then
+  if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loss prevention is already installed. Skipping"
     return
   fi
@@ -3144,18 +3489,13 @@ debian_90_remove_loss_prevention () {
 }
 
 
-debian_10_install_make () {
-  if ensure_apt_is_installed make; then
-    echo "Make is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y make
-  fi
+debian_30_install_make () {
+  ensure_apt_install_package make
 }
 
-debian_10_sbom_make () {
+debian_30_sbom_make () {
   cat <<EOF
-"pkg-list": ["make"]
+$(ensure_sbom_format pkg-list make)
 EOF
 }
 
@@ -3292,7 +3632,7 @@ debian_90_profile_multimodal_weld_defect_detection () {
 
 debian_90_install_multimodal_weld_defect_detection () {
   configure_multimodal_weld_defect_detection
-  if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reset-multimodal_weld_defect_detection "* ]]; then
+  if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Multimodal weld defect detection is already installed. Skipping"
   else
     local device
@@ -3351,7 +3691,7 @@ debian_90_remove_multimodal_weld_defect_detection () {
 
 configure_nicu_warmer () {
   workspace="$(ensure_project_path)/nicu-warmer"
-  version=50e02996223da20a7375aaf7919faf3f1d50ed5c
+  version=release-2026.2.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
   device_env="configs/res/all-$(ensure_select_device $*).env"
   models=(
@@ -3383,7 +3723,7 @@ debian_90_profile_nicu_warmer () {
 
 debian_90_install_nicu_warmer () {
   configure_nicu_warmer $*
-  if verify_nicu_warmer && [[ " $* " != *" --reset-nicu_warmer "* ]]; then
+  if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
     echo "NICU Warmer is already installed. Skipping" 1>&2
     return
   fi
@@ -3445,9 +3785,9 @@ configure_npu () {
 }
 
 verify_npu () {
-  [ -b /dev/accel/accel0 ]
-  getent group render >/dev/null 2>&1 
-  id -nG | grep -qw render
+  [ -c /dev/accel/accel0 ] &&
+  getent group render >/dev/null 2>&1 &&
+  id -nG | grep -qw render &&
   (
     set -o pipefail
     ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
@@ -3461,7 +3801,7 @@ debian_40_profile_npu () {
 debian_40_install_npu () {
   configure_npu $*
 
-  if verify_npu && [[ " $* " != *" --reset-npu "* ]]; then
+  if verify_npu && [[ " $* " != *" --reinstall "* ]]; then
     echo "Npu drivers are already installed. Skipping..."
   else
     # remove legacies
@@ -3484,25 +3824,21 @@ debian_40_install_npu () {
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
+    verify_npu
   fi
 }
 
 debian_40_remove_npu () {
-  if verify_npu; then
-    ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
-    ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-  else
-    echo "npu drivers are removed already. Skipping"
-  fi
+  ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
 debian_40_sbom_npu () {
   configure_npu "$@"
   local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
   [ ${#packages[*]} -gt 0 ] || return 3
-  local packages_str="${packages[*]}"
   cat <<EOF
-"pkg-list": ["${packages_str// /'","'}"]
+$(ensure_sbom_format pkg-list "${packages[@]}")
 EOF
 }
 
@@ -3532,7 +3868,7 @@ verify_openvino () {
 debian_70_install_openvino () {
   configure_openvino $*
   
-  if verify_openvino && [[ " $* " != *" --reset-openvino "* ]]; then
+  if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
     echo "openvino-${version} already installed. Skipping"
   else
     # remove old versions
@@ -3558,7 +3894,7 @@ debian_70_install_openvino () {
 
     echo "openvino-${version} installed successfully."
 
-    if [[ " $* " = *" --validate "* || " $* " = *" --validate-openvino "* ]]; then
+    if [[ " $* " = *" --validate "* ]]; then
       [ -e "$workspace"/${model##*/} ] || curl -sSfL "$model" -o "$workspace"/${model##*/}
       for device in CPU GPU NPU; do
         echo "Validating ${model##*/} inferencing on $device..."
@@ -3586,18 +3922,18 @@ debian_70_remove_openvino () {
 debian_70_sbom_openvino () {
   configure_openvino "$@"
   cat <<EOF
-"name": "$repo_name"
-"gpg-key": "$key_url"
-"key-file": "$key_file"
-"apt-source": "$apt_entry"
-"apt-list-file": "$apt_file"
-"pkg-list": ["openvino-$version"]
+$(ensure_sbom_format name "$repo_name")
+$(ensure_sbom_format gpg-key "$key_url")
+$(ensure_sbom_format key-file "$key_file")
+$(ensrue_sbom_format apt-source "$apt_entry")
+$(ensure_sbom_format apt-list-file "$apt_file")
+$(ensure_sbom_format pkg-list "openvino-$version")
 EOF
 }
 
 configure_order_accuracy () {
   workspace="$(ensure_project_path)/order-accuracy"
-  version=fe872f5f5e475b9d75954f273f6d995bce95cdc6
+  version=v2026.2.0-rc1
   repository="https://github.com/intel-retail/order-accuracy.git"
 }
 
@@ -3612,7 +3948,7 @@ debian_90_profile_order_accuracy () {
 
 debian_90_install_order_accuracy () {
   configure_order_accuracy
-  if verify_order_accuracy && [[ "$*" != *"--reset-order_accuracy"* ]]; then
+  if verify_order_accuracy && [[ " $* " != *" --reinstall "* ]]; then
     echo "Order accuracy is already installed. Skipping"
     return
   fi
@@ -3664,18 +4000,16 @@ debian_90_profile_pallet_defect_detection () {
 
 debian_90_install_pallet_defect_detection () {
   configure_pallet_defect_detection
-  if verify_pallet_defect_detection && [[ "$*" != *"--reset-pallet_defect_detection"* ]]; then
+  if verify_pallet_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Pallet defect detection is already installed. Skipping"
-    return
-  fi
+  else
+    # clone the repository
+    ensure_disk_space 50
+    ensure_git_export "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
 
-  # clone the repository
-  ensure_disk_space 50
-  ensure_git_clone "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
-
-  # setup
-  cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
-  cat > .env <<EOF
+    # setup
+    cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+    cat > .env <<EOF
 $(cat .env_pallet-defect-detection)
 HOST_IP=$(ensure_ip)
 ENABLE_HTTPS_MODE=true
@@ -3684,8 +4018,12 @@ MINIO_SECRET_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | 
 MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 EOF
-  ./setup.sh
-  verify_pallet_defect_detection
+    ./setup.sh
+    verify_pallet_defect_detection
+  fi
+
+  local device="_$(ensure_select_device "$@")"
+  sed -i "s|^PIPELINE=.*$|PIPELINE=pallet_defect_detection${device//_cpu/}|" "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/sample_start.sh
 }
 
 debian_90_start_pallet_defect_detection () {
@@ -3695,7 +4033,7 @@ debian_90_start_pallet_defect_detection () {
   cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
   docker compose up -d --wait
 
-  ./sample_start.sh -p pallet_defect_detection$(ensure_select_device | sed -e 's|^|_|' -e 's|_cpu||')
+  ./sample_start.sh
   echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
 }
 
@@ -3727,18 +4065,16 @@ debian_90_profile_pcb_anomaly_detection () {
 
 debian_90_install_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  if verify_pcb_anomaly_detection && [[ "$*" != *"--reset-pcb_anomaly_detection"* ]]; then
+  if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "PCB anomaly detection is already installed. Skipping"
-    return
-  fi
+  else
+    # clone the repository
+    ensure_disk_space 60
+    ensure_git_export "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
 
-  # clone the repository
-  ensure_disk_space 60
-  ensure_git_clone "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
-
-  # setup
-  cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
-  cat > .env <<EOF
+    # setup
+    cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
+    cat > .env <<EOF
 $(cat .env_pcb-anomaly-detection)
 HOST_IP=$(ensure_ip)
 ENABLE_HTTPS_MODE=true
@@ -3747,8 +4083,12 @@ MINIO_SECRET_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | 
 MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 EOF
-  ./setup.sh
-  verify_pcb_anomaly_detection
+    ./setup.sh
+    verify_pcb_anomaly_detection
+  fi
+
+  local device="_$(ensure_select_device "$@")"
+  sed -i "s|^PIPELINE=.*$|PIPELINE=pcb_anomaly_detection${device//_cpu/}|" "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/sample_start.sh
 }
 
 debian_90_start_pcb_anomaly_detection () {
@@ -3758,7 +4098,7 @@ debian_90_start_pcb_anomaly_detection () {
   cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
   docker compose up -d --wait
 
-  ./sample_start.sh -p pcb_anomaly_detection$(ensure_select_device $* | sed -e 's|^|_|' -e 's|_cpu||')
+  ./sample_start.sh
   echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
 }
 
@@ -3772,6 +4112,16 @@ debian_90_stop_pcb_anomaly_detection () {
 debian_90_remove_pcb_anomaly_detection () {
   debian_90_stop_pcb_anomaly_detection || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+debian_05_install_pciutils () {
+  ensure_apt_install_package pciutils
+}
+
+debian_05_sbom_pciutils () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list pciutils)
+EOF
 }
 
 # Physical AI Framework - the Physical AI training/deployment SDK (the
@@ -3812,7 +4162,7 @@ debian_91_install_physical_ai_framework () {
   configure_physical_ai_framework "$@"
   configure_uv
 
-  if verify_physical_ai_framework "$@" && [[ " $* " != *" --reset-physical_ai_framework "* ]]; then
+  if verify_physical_ai_framework "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Framework is already installed. Skipping..."
   else
     ensure_disk_space 15000
@@ -3885,7 +4235,7 @@ debian_92_install_physical_ai_studio () {
   configure_physical_ai_studio "$@"
   configure_uv
 
-  if verify_physical_ai_studio "$@" && [[ " $* " != *" --reset-physical_ai_studio "* ]]; then
+  if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Studio is already installed. Skipping..."
   else
     ensure_disk_space 20000
@@ -3949,26 +4299,21 @@ debian_92_remove_physical_ai_studio () {
   ensure_sudo rm -rf "$pais_run_dir"
 }
 
-debian_05_install_pipx () {
-  if ensure_apt_is_installed pipx; then
-    echo "pipx is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y pipx
-  fi
+debian_15_install_pipx () {
+  ensure_apt_install_package pipx
 }
 
-debian_05_sbom_pipx () {
+debian_15_sbom_pipx () {
   cat <<EOF
-"pkg-list": ["pipx"]
+$(ensure_sbom_format pkg-list pipx)
 EOF
 }
 
-debian_10_profile_pre_system_scan () {
-  [ "$1" != "install" ] || echo "curl dmidecode"
+debian_08_profile_pre_system_scan () {
+  [ "$1" != "install" ] || echo "curl dmidecode pciutils"
 }
 
-debian_10_install_pre_system_scan () {
+debian_08_install_pre_system_scan () {
   set -o pipefail
   (
     echo "----------------------------------------------------------------"
@@ -4099,22 +4444,16 @@ system_scan_check_membank () {
 
 system_scan_check_network_access () {
   local check_urls=(
-    http://ubuntu.com
+    http://connectivity-check.ubuntu.com
     https://apt.repos.intel.com
   ) url
 
   for url in "${check_urls[@]}"; do
-    if ! curl -fsSL --retry 2 $url > /dev/null; then
-      echo "$url by $(id -un)"
-      return
-    fi
+    no_proxy= NO_PROXY= curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { echo "$url by $(id -un)"; return 0; }
   done
 
   for url in "${check_urls[@]}"; do
-    if ! ensure_sudo curl -fsSL --retry 2 $url > /dev/null; then
-      echo "$url by root"
-      return
-    fi
+    no_proxy= NO_PROXY= ensure_sudo curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { echo "$url by root"; return 0; }
   done
   echo "registry reachable"
 }
@@ -4170,18 +4509,13 @@ system_scan_check_pci_device () {
 }
 
 
-debian_05_install_python3_venv () {
-  if ensure_apt_is_installed python3-venv; then
-    echo "Python3-venv is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y python3-venv
-  fi
+debian_30_install_python3_venv () {
+  ensure_apt_install_package python3-venv
 }
 
-debian_05_sbom_python3_venv () {
+debian_30_sbom_python3_venv () {
   cat <<EOF
-"pkg-list": ["python3-venv"]
+$(ensure_sbom_format pkg-list python3-venv)
 EOF
 }
 
@@ -4213,7 +4547,7 @@ verify_realsense () {
 debian_55_install_realsense () {
   configure_realsense
 
-  if verify_realsense && [[ " $* " != *" --reset-realsense "* ]]; then
+  if verify_realsense && [[ " $* " != *" --reinstall "* ]]; then
     echo "RealSense SDK is already installed. Skipping..."
   else
     ensure_sudo mkdir -p /etc/apt/keyrings
@@ -4239,12 +4573,12 @@ debian_55_remove_realsense () {
 debian_05_sbom_realsense () {
   configure_realsense "$@"
   cat <<EOF
-"name": "$rs_repo_name"
-"gpg-key": "$rs_key_url"
-"key-file": "$rs_key_file"
-"apt-source": "$rs_deb_entry"
-"apt-list-file": "$rs_list"
-"pkg-list": ["ros-$ros_distro-librealsense2","librealsense2-dkms","librealsense2"]
+$(ensure_sbom_format name "$rs_repo_name")
+$(ensure_sbom_format gpg-key "$rs_key_url")
+$(ensure_sbom_format key-file "$rs_key_file")
+$(ensure_sbom_format apt-source "$rs_deb_entry")
+$(ensure_sbom_format apt-list-file "$rs_list")
+$(ensure_sbom_format pkg-list ros-$ros_distro-librealsense2 librealsense2-dkms librealsense2)
 EOF
 }
 
@@ -4276,7 +4610,7 @@ verify_ros2 () {
 debian_50_install_ros2 () {
   configure_ros2
 
-  if verify_ros2 && [[ " $* " != *" --reset-ros2 "* ]]; then
+  if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 $ros_distro is already installed. Skipping..."
   else
     ensure_apt update
@@ -4317,10 +4651,10 @@ debian_50_remove_ros2 () {
 debian_50_sbom_ros2 () {
   configure_ros2 "$@"
   cat <<EOF
-"pkg-list": ["software-properties-common","gnupg","lsb-release","ca-certificates"]
+$(ensure_sbom_format pkg-list software-properties-common gnupg lsb-release ca-certificates")
 ---
-"pkg-list": ["ros-$ros_distro-desktop","ros-dev-tools"]
-"apt-repository": "universe"
+$(ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools)
+$(ensure_sbom_format apt-repository universe)
 EOF
 }
 
@@ -4385,7 +4719,7 @@ verify_ros_openvino () {
 debian_55_install_ros_openvino () {
   configure_ros_openvino
 
-  if verify_ros_openvino && [[ " $* " != *" --reset-ros_openvino "* ]]; then
+  if verify_ros_openvino && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
   else
     ensure_apt install -y curl gnupg
@@ -4435,32 +4769,27 @@ debian_55_remove_ros_openvino () {
 
 debian_55_sbom_ros_openvino () {
   configure_ros_openvino
-(
-  IFS=$'|'
-  local pref_str="${ov_deb_pref[*]}"
-  local amr_pref_str="${amr_pref[*]}"
   cat <<EOF
-"name": "$amr_repo_name"
-"gpg-key": "$amr_key_url"
-"key-file": "$amr_key_file"
-"apt-source": "$amr_deb_entry"
-"apt-src-source": "$amr_deb_src_entry"
-"apt-list-file": "$amr_list"
-"apt-pref": ["${amr_pref_str//'|'/'","'}"]
-"apt-pref-file": "$amr_pref_file"
+$(ensure_sbom_format name "$amr_repo_name")
+$(ensure_sbom_format gpg-key "$amr_key_url")
+$(ensure_sbom_format key-file "$amr_key_file")
+$(ensure_sbom_format apt-source "$amr_deb_entry")
+$(ensure_sbom_format apt-src-source "$amr_deb_src_entry")
+$(ensure_sbom_format apt-list-file "$amr_list")
+$(ensure_sbom_format apt-pref "${amr_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$amr_pref_file")
 ---
-"name": "$ov_repo_name"
-"gpg-key": "$ov_key_url"
-"key-file": "$ov_key_file"
-"apt-source": "$ov_deb_entry"
-"apt-list-file": "$ov_list"
-"pkg-list": ["openvino","ros-$ros_distro-openvino-node"]
-"apt-pref-file": "$ov_pref"
-"apt-pref": ["${pref_str//|/'","'}"]
+$(ensure_sbom_format name "$ov_repo_name")
+$(ensure_sbom_format gpg-key "$ov_key_url")
+$(ensure_sbom_format key-file "$ov_key_file")
+$(ensure_sbom_format apt-source "$ov_deb_entry")
+$(ensure_sbom_format apt-list-file "$ov_list")
+$(ensure_sbom_format pkg-list "openvino" "ros-$ros_distro-openvino-node")
+$(ensure_sbom_format apt-pref-file "$ov_pref")
+$(ensure_sbom_format apt-pref "${ov_deb_pref[@]}")
 ---
-"pkg-list": ["curl","gnupg"]
+$(ensure_sbom_format pkg-list curl gnupg)
 EOF
-)
 }
 
 
@@ -4480,21 +4809,39 @@ debian_90_profile_smart_intersection () {
 
 debian_90_install_smart_intersection () {
   configure_smart_intersection
-  if verify_smart_intersection && [[ " $* " != *" --reset-smart_intersection "* ]]; then
+  if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Smart intersection is already installed. Skipping"
-    return
+  else
+    # clone the repository
+    ensure_disk_space 1500
+    ensure_git_export "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+
+    # setup
+    cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+    sed -i 's|sudo chown|#sudo chown|' smart-intersection/install.sh
+    sed -i 's|curl -k |curl -f |' smart-intersection/init.sh
+    ./install.sh smart-intersection $(ensure_ip)
+    verify_smart_intersection
   fi
 
-  # clone the repository
-  ensure_disk_space 1500
-  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
-
-  # setup
-  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
-  sed -i 's|sudo chown|#sudo chown|' smart-intersection/install.sh
-  sed -i 's|curl -k |curl -f |' smart-intersection/init.sh
-  ./install.sh smart-intersection $(ensure_ip)
-  verify_smart_intersection
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  local device=$(ensure_select_device "$@")
+  sed -i "s|_DEVICE=.*|_DEVICE=${device^^}|" docker-compose.yml
+  [ -e smart-intersection/src/dlstreamer-pipeline-server/config.json.orig ] || cp -f smart-intersection/src/dlstreamer-pipeline-server/config.json smart-intersection/src/dlstreamer-pipeline-server/config.json.orig
+  case "$device" in
+  cpu)
+    jq -r '.config.pipelines |= map(select(.name | test("-(gpu|npu)$") | not))' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
+    ;;
+  npu)
+    jq -r '.config.pipelines |= map(select(.name | endswith("-npu")))' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
+    ;;
+  gpu)
+    jq -r '.config.pipelines |= map(select(.name | endswith("-gpu")))' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
+    ;;
+  *)
+    cp -f smart-intersection/src/dlstreamer-pipeline-server/config.json.orig smart-intersection/src/dlstreamer-pipeline-server/config.json
+    ;;
+  esac
 }
 
 debian_90_start_smart_intersection () {
@@ -4502,22 +4849,6 @@ debian_90_start_smart_intersection () {
   ensure_ports_open 443 debian_90_stop_smart_intersection
 
   cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
-
-  local device=$(ensure_select_device $*)
-  sed -i -e "s|DETECTION_DEVICE=.*|DETECTION_DEVICE=$device|" -e "s|CLASSIFICATION_DEVICE=.*|CLASSIFICATION_DEVICE=$device|" docker-compose.yml
-  [ -e smart-intersection/src/dlstreamer-pipeline-server/config.json.orig ] || cp -f smart-intersection/src/dlstreamer-pipeline-server/config.json smart-intersection/src/dlstreamer-pipeline-server/config.json.orig
-  case "$device" in
-  cpu)
-    jq -r '.config.pipelines[].name | select(endswith("-gpu") or endswith("-npu") | not)' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
-    ;;
-  npu)
-    jq -r '.config.pipelines[].name | select(endswith("-npu"))' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
-    ;;
-  *)
-    jq -r '.config.pipelines[].name | select(endswith("-gpu"))' smart-intersection/src/dlstreamer-pipeline-server/config.json.orig > smart-intersection/src/dlstreamer-pipeline-server/config.json
-    ;;
-  esac
-
   export SUPASS=$(cat smart-intersection/src/secrets/supass)
   docker compose up -d 
   echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
@@ -4551,28 +4882,30 @@ debian_90_profile_smart_parking () {
 
 debian_90_install_smart_parking () {
   configure_smart_parking
-  if verify_smart_parking && [[ "$*" != *"--reset-smart_parking"* ]]; then
+  if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
     echo "Smart parking is already installed. Skipping..."
-    return 0
+  else
+    # clone the repository
+    ensure_disk_space 300
+    ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+
+    # setup
+    cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+    sed -i 's|curl | curl -f |' smart-parking/install.sh
+    ./install.sh smart-parking $(ensure_ip)
+    verify_smart_parking
   fi
 
-  # clone the repository
-  ensure_disk_space 300
-  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
-
-  # setup
-  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
-  sed -i 's|curl | curl -f |' smart-parking/install.sh
-  ./install.sh smart-parking $(ensure_ip)
-  verify_smart_parking
+  local device=$(ensure_select_device "$@")
+  sed -i "/No device selected/,/fi/{s|defaulting to ...|defaulting to ${device^^}|;s|forced.*=.*$|forced${device^^}=true|}" "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/sample_start.sh
 }
 
 debian_90_start_smart_parking () {
   ensure_ports_open "80 443" debian_90_stop_smart_parking
   configure_smart_parking
   cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
-  docker compose up -d
-  ./sample_start.sh $(ensure_select_device $*)
+  docker compose up -d --wait
+  ./sample_start.sh
   echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
   echo "@@HIGHLIGHT Grafana username/password: admin"
 }
@@ -4603,7 +4936,7 @@ configure_stationary_robot_vision () {
   noble) ros_distro=jazzy ;;
   *)     ros_distro=jazzy ;;
   esac
-  rvc_pkgs="ros-$ros_distro-rvc-simulation"
+  rvc_pkgs=("ros-$ros_distro-rvc-simulation")
 
   # Intel oneAPI Base Toolkit repo + version pins - the RVC robotics stack links
   # the oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
@@ -4638,7 +4971,7 @@ verify_stationary_robot_vision () {
 debian_90_install_stationary_robot_vision () {
   configure_stationary_robot_vision
 
-  if verify_stationary_robot_vision && [[ " $* " != *" --reset-stationary_robot_vision "* ]]; then
+  if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
     echo "Stationary Robot Vision & Control is already installed. Skipping..."
   else
     ensure_disk_space 15000
@@ -4653,8 +4986,8 @@ debian_90_install_stationary_robot_vision () {
     # RVC depends on Gazebo Harmonic (gz-harmonic); make sure the OSRF Gazebo
     # apt repository is configured (shared with the AMR SDK component).
     ! declare -F amr_setup_osrf_gazebo > /dev/null 2>&1 || amr_setup_osrf_gazebo
-    ensure_apt install -y $rvc_pkgs || {
-      echo "Could not install RVC packages ($rvc_pkgs)." 1>&2
+    ensure_apt install -y "${rvc_pkgs[@]}" || {
+      echo "Could not install RVC packages (${rvc_pkgs[*]})." 1>&2
       echo "Confirm the exact package names at https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html" 1>&2
       return 3
     }
@@ -4677,49 +5010,40 @@ debian_90_remove_stationary_robot_vision () {
 
 debian_90_sbom_stationary_robot_vision () {
   configure_stationary_robot_vision
-  (
-    IFS=$'|'
-    local oneapi_pref_str="${oneapi_pref[*]}"
-    cat <<EOF
-"name": "$oneapi_repo_name"
-"gpg-key": "$oneapi_key_url"
-"key-file": "$oneapi_key_file"
-"apt-source": "$oneapi_deb_entry"
-"apt-list-file": "$oneapi_list"
-"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
-"apt-pref-file": "$oneapi_pref_file"
-"pkg-list": ["intel-oneapi-runtime-*","intel-oneapi-compiler-*","intel-oneapi-mkl-*"]
+  cat <<EOF
+$(ensure_sbom_format name "$oneapi_repo_name")
+$(ensure_sbom_format gpg-key "$oneapi_key_url")
+$(ensure_sbom_format key-file "$oneapi_key_file")
+$(ensure_sbom_format apt-source "$oneapi_deb_entry")
+$(ensure_sbom_format apt-list-file "$oneapi_list")
+$(ensure_sbom_format apt-pref "${oneapi_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$oneapi_pref_file")
+$(ensure_sbom_format pkg-list "intel-oneapi-runtime-*" "intel-oneapi-compiler-*" "intel-oneapi-mkl-*")
 EOF
-  )
   echo "---"
   cat <<EOF
-"pkg-list": ["software-properties-common","curl","gnupg","wget"]
+$(ensure_sbom_format pkg-list "software-properties-common" "curl" "gnupg" "wget")
 EOF
   echo "---"
   configure_osrf_gazebo
   cat <<EOF
-"name": "packages.ros.org"
-"gpg-key": "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key"
-"key-file": "usr/share/keyrings/ros-archive-keyring.gpg"
-"apt-source": "deb http://packages.ros.org/ros2/$ID $VERSION_CODENAME main"
-"apt-list-file": "/etc/apt/sources.list.d/ros2-latest.list"
-"pkg-list": ["${rvc_pkgs// /'","'}"]
+$(ensure_sbom_format name "packages.ros.org")
+$(ensure_sbom_format gpg-key "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key")
+$(ensure_sbom_format key-file "/usr/share/keyrings/ros-archive-keyring.gpg")
+$(ensure_sbom_format apt-source "deb http://packages.ros.org/ros2/$ID $VERSION_CODENAME main")
+$(ensure_sbom_format apt-list-file "/etc/apt/sources.list.d/ros2-latest.list")
+$(ensure_sbom_format pkg-list "${rvc_pkgs[@]}")
 EOF
 }
 
 
-debian_10_install_unzip () {
-  if ensure_apt_is_installed unzip; then
-    echo "Unzip is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y unzip
-  fi
+debian_15_install_unzip () {
+  ensure_apt_install_package unzip
 }
 
-debian_10_sbom_unzip () {
+debian_15_sbom_unzip () {
   cat <<EOF
-"pkg-list": ["unzip"]
+$(ensure_sbom_format pkg-list unzip)
 EOF
 }
 
@@ -4727,13 +5051,13 @@ configure_uv () {
   echo "$PATH" | grep -q -F ~/.local/bin || export PATH=$PATH:~/.local/bin
 }
 
-debian_10_profile_uv () {
+debian_30_profile_uv () {
   echo "pipx"
 }
 
-debian_10_install_uv () {
+debian_30_install_uv () {
   configure_uv
-  if uv --version 2> /dev/null && [[ "$*" != *"--reset-uv"* ]]; then
+  if uv --version 2> /dev/null && [[ " $* " != *" --reinstall "* ]]; then
     echo "Uv is already installed. Skipping..."
   else
     pipx install uv
@@ -4743,11 +5067,11 @@ debian_10_install_uv () {
 
 configure_video_search_and_summarization () {
   workspace="$(ensure_project_path)/video_search_and_summarization"
-  version=7f124d9ef54c843345f51bb74c86103cef819531
+  version=release-2026.2.0
   repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
   used_ports="${APP_HOST_PORT:-12345} 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640"
 
-  local device=$(ensure_select_device $*)
+  local device=$(ensure_select_device "$@")
   export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
   export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en
   export OD_MODEL_NAME=yolov8l-worldv2
@@ -4812,26 +5136,25 @@ debian_85_profile_video_search_and_summarization () {
 
 debian_85_install_video_search_and_summarization () {
   configure_video_search_and_summarization $*
-  if verify_video_search_and_summarization && [[ "$*" != *"--reset-video_search_and_summarization"* ]]; then
+  if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
     echo "video_search_and_summarization is already installed. Skipping..."
-    return 0
+  else
+    # clone the repository
+    ensure_disk_space 8000
+    ensure_ports_open "$used_ports" return 3
+    ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization
+
+    # setup
+    cd "$workspace"/sample-applications/video-search-and-summarization
+    ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME                   
+
+    sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh
+    sed -i 's|FINAL_ARG=.*|FINAL_ARG="${FINAL_ARG:-up -d}"|' setup.sh
+    export FINAL_ARG=pull
+    . ./setup.sh --search-and-summary
+
+    verify_video_search_and_summarization
   fi
-
-  # clone the repository
-  ensure_disk_space 8000
-  ensure_ports_open "$used_ports" return 3
-  ensure_git_clone "$workspace" $version $repository sample-applications/video-search-and-summarization
-
-  # setup
-  cd "$workspace"/sample-applications/video-search-and-summarization
-  ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME                   
-
-  sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh
-  sed -i 's|FINAL_ARG=.*|FINAL_ARG="${FINAL_ARG:-up -d}"|' setup.sh
-  export FINAL_ARG=pull
-  . ./setup.sh --search-and-summary
-
-  verify_video_search_and_summarization
 }
 
 debian_85_start_video_search_and_summarization () {
@@ -4860,7 +5183,7 @@ debian_85_remove_video_search_and_summarization () {
 
 configure_vippet () {
   workspace="$(ensure_project_path)/vippet"
-  version=release-2026.1.0
+  version=release-2026.2.0
   repository=https://github.com/open-edge-platform/edge-ai-libraries.git
 }
 
@@ -4874,7 +5197,7 @@ debian_90_profile_vippet () {
 
 debian_90_install_vippet () {
   configure_vippet
-  if verify_vippet && [[ " $* " != *" --reset-vippet "* ]]; then
+  if verify_vippet && [[ " $* " != *" --reinstall "* ]]; then
     echo "Vipet is already installed. Skipping..."
   else
     ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool
@@ -4903,18 +5226,13 @@ debian_90_remove_vippet () {
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
-debian_05_install_yq () {
-  if ensure_apt_is_installed yq; then
-    echo "yq is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y yq
-  fi
+debian_15_install_yq () {
+  ensure_apt_install_package yq
 }
 
-debian_05_sbom_yq () {
+debian_15_sbom_yq () {
   cat <<EOF
-"pkg-list": ["yq"]
+$(ensure_sbom_format pkg-list yq)
 EOF
 }
 

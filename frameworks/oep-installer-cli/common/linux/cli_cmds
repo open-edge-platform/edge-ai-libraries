@@ -5,8 +5,8 @@ subcommand_install () {
     echo "install options:"
     echo "  --dry-run       dry-run operations"
     echo "  --continue      ignore errors and proceed to the end"
-    echo "  --validate or --validate-<name>   perform sanity check of features after installation."
-    echo "  --reset-<name>  force reinstallation of the component if exit."
+    echo "  --validate      perform sanity check of features after installation."
+    echo "  --reinstall     force reinstallation of the component if exit."
     echo
     return 0
   fi
@@ -139,6 +139,8 @@ $(
       all_comps=()
       all_comps["--continue"]=""
       all_comps["--dry-run"]=""
+      all_comps["--reinstall"]=""
+      all_comps["--validate"]=""
       # sbom handlers are sparse; resolve its dependency graph as if it were install
       dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
       act_get prefix ${dcmd}_
@@ -160,7 +162,6 @@ $(
       done
       echo "  $cmd)"
       echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
-      echo "    for ((i=2;i<COMP_CWORD;i++)); do [[ -v all_comps[\${COMP_WORDS[\$i]}] && \"\${COMP_WORDS[\$i]}\" != --* ]] && all_comps[\"--reset-\${COMP_WORDS[\$i]}\"]=\"\"; done"
       echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
       echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
       echo "    ;;"

@@ -1,7 +1,7 @@
 
 configure_order_accuracy () {
   workspace="$(ensure_project_path)/order-accuracy"
-  version=fe872f5f5e475b9d75954f273f6d995bce95cdc6
+  version=v2026.2.0-rc1
   repository="https://github.com/intel-retail/order-accuracy.git"
 }
 
@@ -16,7 +16,7 @@ debian_90_profile_order_accuracy () {
 
 debian_90_install_order_accuracy () {
   configure_order_accuracy
-  if verify_order_accuracy && [[ "$*" != *"--reset-order_accuracy"* ]]; then
+  if verify_order_accuracy && [[ " $* " != *" --reinstall "* ]]; then
     echo "Order accuracy is already installed. Skipping"
     return
   fi

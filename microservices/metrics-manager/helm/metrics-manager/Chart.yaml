@@ -21,8 +21,8 @@ description: |
   with a FastAPI REST surface and a Server-Sent Events stream suitable
   for live dashboards.
 type: application
-version: 2026.1.0-helm
-appVersion: "2026.1.0"
+version: 2026.2.0-helm
+appVersion: "2026.2.0"
 keywords:
   - metrics
   - telemetry

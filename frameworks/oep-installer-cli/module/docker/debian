@@ -31,13 +31,13 @@ EOF
   fi
 }
 
-debian_20_install_docker () {
-  if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ "$*" != *"--reset-docker"* ]]; then
+debian_30_install_docker () {
+  if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
     echo "Docker is already installed. Skipping..."
-  elif ensure_apt_is_installed docker.io && [[ "$*" != *"--reset-docker"* ]]; then
+  elif ensure_apt_is_installed docker.io && [[ " $* " != *" --reinstall "* ]]; then
     ensure_apt update
     ensure_apt install -y docker-buildx docker-compose-v2
-  elif ensure_apt_is_installed docker-ce && [[ "$*" != *"--reset-docker"* ]]; then 
+  elif ensure_apt_is_installed docker-ce && [[ " $* " != *" --reinstall "* ]]; then 
     ensure_apt update
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
@@ -91,8 +91,8 @@ EOF
   configure_docker
 }
 
-debian_20_sbom_docker () {
+debian_30_sbom_docker () {
   cat <<EOF
-"pkg-list": [ "docker.io","docker-buildx","docker-compose-v2" ]
+$(ensure_sbom_format pkg-list docker.io docker-buildx docker-compose-v2)
 EOF
 }

@@ -5,8 +5,7 @@ ensure_apt () {
   case "$1" in
   update)
     # apt-get update got executed only once unless -y is specified
-    [ ! -e /dev/shm/apt_update ] || [[ " $* " = *" -y "* ]] || return 0
-    ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
+    [[ -e /dev/shm/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
     touch /dev/shm/apt_update
     ;;
   autoremove|remove|purge)
@@ -23,12 +22,15 @@ ensure_apt () {
     if [ ${#package_list[*]} -gt 0 ]; then
       local valid_packages=($(dpkg-query -W -f='${db:Status-Status} ${Package}\n' "${package_list[@]}" 2>/dev/null | awk '$1!="not-installed"{print $2}'))
       if [ ${#valid_packages[*]} -gt 0 ]; then
-        ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy%%,} apt-get $1 -y ${options[*]} ${valid_packages[*]}
+        ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get $1 -y ${options[*]} ${valid_packages[*]}
       fi
     fi
     ;;
+  install) # apt-get update runs at least once on the system
+    [ -e /dev/shm/apt_update ] || ensure_apt update -y
+    ;;&
   *)
-    ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy%%,} apt-get -y "$@"
+    ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get -y "$@"
     ;;
   esac
 }
@@ -39,5 +41,15 @@ ensure_apt_is_installed () {
     [ "$(dpkg-query -W -f='${db:Status-Status}' ${pkg%%=*} 2>/dev/null)" = "installed" ] || return 1
     [[ "$pkg" != *=* ]] || [[ "$(dpkg-query -W -f='${Version}' ${pkg%%=*} 2>/dev/null)" = "${pkg#*=}"* ]] || return 1
   done
+}
+
+# install simple package
+ensure_apt_install_package () {
+  if ensure_apt_is_installed "${@%%"*"}"; then
+    echo "${*%%=*} is/are already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y "$@"
+  fi
 }
 

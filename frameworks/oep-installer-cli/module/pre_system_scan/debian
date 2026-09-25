@@ -1,9 +1,9 @@
 
-debian_10_profile_pre_system_scan () {
-  [ "$1" != "install" ] || echo "curl dmidecode"
+debian_08_profile_pre_system_scan () {
+  [ "$1" != "install" ] || echo "curl dmidecode pciutils"
 }
 
-debian_10_install_pre_system_scan () {
+debian_08_install_pre_system_scan () {
   set -o pipefail
   (
     echo "----------------------------------------------------------------"
@@ -134,22 +134,16 @@ system_scan_check_membank () {
 
 system_scan_check_network_access () {
   local check_urls=(
-    http://ubuntu.com
+    http://connectivity-check.ubuntu.com
     https://apt.repos.intel.com
   ) url
 
   for url in "${check_urls[@]}"; do
-    if ! curl -fsSL --retry 2 $url > /dev/null; then
-      echo "$url by $(id -un)"
-      return
-    fi
+    no_proxy= NO_PROXY= curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { echo "$url by $(id -un)"; return 0; }
   done
 
   for url in "${check_urls[@]}"; do
-    if ! ensure_sudo curl -fsSL --retry 2 $url > /dev/null; then
-      echo "$url by root"
-      return
-    fi
+    no_proxy= NO_PROXY= ensure_sudo curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { echo "$url by root"; return 0; }
   done
   echo "registry reachable"
 }

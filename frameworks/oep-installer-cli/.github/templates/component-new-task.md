@@ -1,4 +1,4 @@
-## Task: implement `module/{{NAME}}/debian`
+## Task: implement `frameworks/oep-installer-cli/module/{{NAME}}/debian`
 
 A new spec file `{{SPEC_FILE}}` was pushed to `main`. Implement the
 corresponding installer component following the rules below, then open a
@@ -131,7 +131,8 @@ corporate lab, which runs the following lifecycle on real hardware:
 |------|---------------|
 | install | `openedge-cli install {{NAME}}` must exit 0 |
 | install (again) | Idempotency — must exit 0, must not re-run expensive steps |
-| install --reset-{{NAME}} | Forced reinstall must exit 0 |
+| install --reinstall | Forced reinstall must exit 0 |
+| install --validate | Install + feature validation must exit 0 |
 | start + port probe | `openedge-cli start {{NAME}}` must exit 0; declared ports must be reachable |
 | stop + port probe | `openedge-cli stop {{NAME}}` must exit 0; ports must be released |
 | remove + verify | `openedge-cli remove {{NAME}}` must exit 0; `verify_{{NAME}}` must then fail |
@@ -139,7 +140,8 @@ corporate lab, which runs the following lifecycle on real hardware:
 **Your component must therefore:**
 - Be fully **idempotent**: the second install must detect the existing state
   via `verify_{{NAME}}` and skip gracefully.
-- Support `--reset-{{NAME}}` for forced reinstallation.
+- Support `--reinstall` for forced reinstallation.
+- Optionally support `--validate` for sanity feature validation.
 - Have a `stop` that fully releases any bound ports.
 - Have a `remove` that leaves `verify_{{NAME}}` returning non-zero and
   cleans up the workspace.
