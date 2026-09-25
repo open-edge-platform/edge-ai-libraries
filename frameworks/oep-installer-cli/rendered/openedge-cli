@@ -2262,6 +2262,27 @@ EOF
 }
 
 
+debian_30_install_chrony () {
+  ensure_apt_install_package chrony
+}
+
+debian_30_sbom_chrony () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list chrony)
+EOF
+}
+
+
+debian_30_install_cmake () {
+  ensure_apt_install_package cmake
+}
+
+debian_30_sbom_cmake () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list cmake)
+EOF
+}
+
 debian_20_profile_core_types () {
   [ "$1" != "install" ] || echo "cpuid curl"
 }
@@ -3243,6 +3264,17 @@ debian_90_remove_humanoid_imitation_learning () {
   ensure_sudo rm -rf "$workspace"
 }
 
+debian_30_install_intel_lpmd () {
+  ensure_apt_install_package intel-lpmd
+}
+
+debian_30_sbom_intel_lpmd () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list intel-lpmd)
+EOF
+}
+
+
 debian_15_install_jq () {
   ensure_apt_install_package jq
 }
@@ -3273,6 +3305,43 @@ debian_15_sbom_libtbb12 () {
 $(ensure_sbom_format pkg-list libtbb12)
 EOF
 }
+
+configure_libyang () {
+  workspace="$(ensure_project_path)/libyang"
+  repository="https://github.com/CESNET/libyang.git"
+  version=v4.2.2
+}
+  
+debian_40_profile_libyang () {
+  echo "cmake make"
+}
+
+verify_libyang () {
+  command yanglint > /dev/null 2>&1
+}
+
+debian_40_install_libyang () {
+  configure_libyang
+  if verify_libyang && [[ " $* " != *" --reinstall "* ]]; then
+    echo "libyang is installed. Skipping..." 1>&2
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    mkdir "$workspace"/build
+    cd "$workspace"/build
+    cmake ..
+    make
+    ensure_sudo make install
+    ensure_sudo ldconfig /usr/local/lib
+    make clean
+  fi
+}
+
+debian_40_remove_libyang () {
+  configure_libyang
+  cd "$workspace/build" && ensure_sudo make uninstall || true
+  rm -rf "$workspace"
+}
+
 
 configure_libze1 () {
   libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb"
@@ -3498,6 +3567,17 @@ debian_30_sbom_make () {
 $(ensure_sbom_format pkg-list make)
 EOF
 }
+
+debian_30_install_msr_tools () {
+  ensure_apt_install_package msr-tools
+}
+
+debian_30_sbom_msr_tools () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list msr-tools)
+EOF
+}
+
 
 configure_multimodal_weld_defect_detection () {
   workspace="$(ensure_project_path)/multimodal_weld_defect_detection"
@@ -4123,6 +4203,46 @@ debian_05_sbom_pciutils () {
 $(ensure_sbom_format pkg-list pciutils)
 EOF
 }
+
+configure_pcm () {
+  workspace="$(ensure_project_path)/pcm"
+  repository="https://github.com/intel/pcm.git"
+  version=tags/202604
+}
+
+verify_pcm () {
+  [ -e "$workspace" ]
+  [ -x /usr/local/pcm ]
+}
+
+debian_40_profile_pcm () {
+  echo "cmake make"
+}
+
+debian_40_install_pcm () {
+  configure_pcm
+  if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+    echo "pcm is installed. Skipping"
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    rm -rf "$workspace"/tests "$workspace"/examples
+    mkdir "$workspace"/build "$workspace"/tests "$workspace"/examples
+    touch "$workspace"/tests/CMakeLists.txt "$workspace"/examples/CMakeLists.txt
+    cd "$workspace"/build
+    cmake ..
+    cmake --build . 
+    ensure_sudo make install
+    make clean
+    verify_pcm
+  fi
+}
+
+debian_40_remove_pcm () {
+  configure_pcm
+  ensure_sudo rm -rf "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* \
+    /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM
+}
+
 
 # Physical AI Framework - the Physical AI training/deployment SDK (the
 # `physicalai-train` distribution, which also pulls in the `physicalai`
@@ -5034,6 +5154,64 @@ $(ensure_sbom_format apt-source "deb http://packages.ros.org/ros2/$ID $VERSION_C
 $(ensure_sbom_format apt-list-file "/etc/apt/sources.list.d/ros2-latest.list")
 $(ensure_sbom_format pkg-list "${rvc_pkgs[@]}")
 EOF
+}
+
+
+debian_30_install_stress_ng () {
+  ensure_apt_install_package stress-ng
+}
+
+debian_30_sbom_stress_ng () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list stress-ng)
+EOF
+}
+
+
+debian_30_install_sysbench () {
+  ensure_apt_install_package sysbench
+}
+
+debian_30_sbom_sysbench () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list sysbench)
+EOF
+}
+
+
+configure_time_confighub () {
+  workspace="$(ensure_project_path)/time_confighub"
+  repository="https://github.com/intel/time-confighub.git"
+  version=tags/archive/main_20261106
+}
+
+verify_time_confighub () {
+  [ -e "$workspace" ]
+  [ -d /opt/tch ]
+  [ -x /usr/local/bin/tch ]
+}
+
+debian_70_profile_time_confighub () {
+  echo "cmake make libyang"
+}
+
+debian_70_install_time_confighub () {
+  configure_time_confighub
+  if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+    echo "pcm is installed. Skipping"
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    cd "$workspace"
+    chmod a+rx install.sh uninstall.sh
+    ensure_sudo ./install.sh
+    verify_time_confighub
+  fi
+}
+
+debian_70_remove_time_confighub () {
+  configure_time_confighub
+  cd "$workspace" && ensure_sudo ./uninstall.sh --force || true
+  rm -rf "$workspace"
 }
 
 
