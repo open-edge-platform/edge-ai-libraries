@@ -40,6 +40,7 @@ Test parameters are controlled via YAML config files in `config/` and environmen
 | `PERF_CONFIG`           | `default`                         | Config preset (`default`, `quick`, `full`) |
 | `PERF_RESULTS_DIR`      | `./results`                       | Output directory for reports               |
 | `PERF_METRICS_INTERVAL` | `2.0`                             | HW sampling interval (seconds)             |
+| `PERF_ON_UNKNOWN_ID`    | `fail`                            | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning |
 
 ## Layout
 
