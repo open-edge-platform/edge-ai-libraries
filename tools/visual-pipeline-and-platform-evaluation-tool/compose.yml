@@ -23,7 +23,7 @@ x-vippet: &vippet
       condition: service_started
     model-download:
       condition: service_started
-    onvif-discovery:
+    sensor-manager:
       condition: service_started
   environment:
     GST_DEBUG: "1"
@@ -68,12 +68,17 @@ x-vippet: &vippet
     # Path of the JSON registry tracking installed/uploaded models on
     # the shared volume so it survives service restarts.
     INSTALLED_MODELS_REGISTRY: ${INSTALLED_MODELS_REGISTRY:-/models/output/installed_models.json}
+    # sensor-manager runs with host networking (ONVIF WS-Discovery), so it is
+    # reached through the host gateway instead of the compose network.
+    SENSOR_MANAGER_URL: ${SENSOR_MANAGER_URL:-http://host.docker.internal:${SENSOR_MANAGER_PORT:-8090}}
     # Database configuration (SQLite)
     DATABASE_URL: "sqlite+aiosqlite:////db/app.db"
     DB_ECHO: "false"
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
-    no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download"
+    no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download,host.docker.internal"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
   device_cgroup_rules:
     # Broad access to USB devices is required to support a wide range of USB cameras.
     - 'c 189:* rmw'
@@ -87,7 +92,6 @@ x-vippet: &vippet
     - ./shared/models/:/models
     - ./shared/videos/:/videos
     - ./shared/scripts/:/scripts
-    - ./shared/onvif/:/onvif
     - ./shared/metadata/:/metadata
     - ./shared/db:/db
 
@@ -217,33 +221,43 @@ services:
       - "8889:8889"     # WebRTC signaling/HTTP
       - "8189:8189/udp" # WebRTC/ICE UDP
     restart: unless-stopped
-  onvif-discovery:
-    image: docker.io/intel/vippet-onvif-discovery:${DOCKER_TAG}
+  sensor-manager:
+    image: docker.io/intel/sensor-manager:${DOCKER_TAG}
     build:
-      context: ./onvif_discovery
-      dockerfile: Dockerfile
+      context: ../../microservices/sensor-manager
+      dockerfile: docker/Dockerfile
       args:
         http_proxy:
         https_proxy:
         no_proxy:
-    container_name: onvif-discovery
+    container_name: sensor-manager
+    # WS-Discovery replies are unicast to the multicast sender and do not pass Docker NAT.
     network_mode: host
     restart: unless-stopped
     init: true
-    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
-    environment:
-      OUTPUT_FILE: /out/onvif_cameras.json
-      DISCOVERY_INTERVAL: 20
-      http_proxy: ${http_proxy}
-      https_proxy: ${https_proxy}
-      no_proxy: ${no_proxy}
+    read_only: true
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
-    read_only: true
+    group_add:
+      - "${VIDEO_GID:-44}"
+    device_cgroup_rules:
+      # 81 = video4linux, 189 = USB devices
+      - 'c 81:* rmw'
+      - 'c 189:* rmw'
     volumes:
-      - ./shared/onvif:/out
+      - /dev:/dev:ro
+    tmpfs:
+      - /tmp
+    environment:
+      SENSOR_MANAGER_HOST: ${SENSOR_MANAGER_HOST:-0.0.0.0}
+      SENSOR_MANAGER_PORT: ${SENSOR_MANAGER_PORT:-8090}
+      ONVIF_DISCOVERY_INTERVAL_S: 20
+      LOG_LEVEL: INFO
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
   videogenerator:
     profiles: [do-not-start]
     image: docker.io/intel/vippet-videogenerator:${DOCKER_TAG}

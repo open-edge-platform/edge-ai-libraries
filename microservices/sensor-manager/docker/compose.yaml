@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  sensor-manager:
+    image: ${REGISTRY:-}sensor-manager:${TAG:-latest}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:
+    container_name: sensor-manager
+    # WS-Discovery replies are unicast to the multicast sender and do not pass Docker NAT.
+    network_mode: host
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    group_add:
+      - "${VIDEO_GID:-44}"
+    device_cgroup_rules:
+      # 81 = video4linux, 189 = USB devices
+      - 'c 81:* rmw'
+      - 'c 189:* rmw'
+    volumes:
+      - /dev:/dev:ro
+    tmpfs:
+      - /tmp
+    environment:
+      SENSOR_MANAGER_HOST: ${SENSOR_MANAGER_HOST:-0.0.0.0}
+      SENSOR_MANAGER_PORT: ${SENSOR_MANAGER_PORT:-8090}
+      ONVIF_DISCOVERY_ENABLED: ${ONVIF_DISCOVERY_ENABLED:-true}
+      ONVIF_DISCOVERY_INTERVAL_S: ${ONVIF_DISCOVERY_INTERVAL_S:-20}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: ${no_proxy:-}

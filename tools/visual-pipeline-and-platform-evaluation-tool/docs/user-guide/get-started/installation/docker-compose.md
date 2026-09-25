@@ -48,21 +48,21 @@ For alternative ways to set up the sample application, refer to
    ```bash
    git clone -b main --sparse --filter=blob:none https://github.com/open-edge-platform/edge-ai-libraries.git
    cd edge-ai-libraries
-   git sparse-checkout set tools/visual-pipeline-and-platform-evaluation-tool
+   git sparse-checkout set tools/visual-pipeline-and-platform-evaluation-tool microservices/sensor-manager
    cd tools/visual-pipeline-and-platform-evaluation-tool
    ```
 
-1. Build the `vippet-onvif-discovery` image and start the application:
+1. Build the `sensor-manager` image and start the application:
 
    ```bash
-   make build-onvif-discovery run
+   make build-sensor-manager run
    ```
 
    These targets automatically:
 
    - run `setup_env.sh` to detect available hardware (CPU/GPU/NPU) and write `.env`,
    - create the required directories under `shared/`,
-   - build the `vippet-onvif-discovery` image locally (it is not published),
+   - build the `sensor-manager` image locally from `microservices/sensor-manager` (it is not published),
    - pull the pre-built images (`vippet-app`, `vippet-ui`, `model-download`,
      `metrics-manager`, `mediamtx`) and start all services.
 

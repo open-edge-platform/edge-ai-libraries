@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+global:
+  proxy:
+    http_proxy: ""
+    https_proxy: ""
+    no_proxy: ""
+
+image:
+  registry: intel/
+  repository: sensor-manager
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Required for ONVIF WS-Discovery (UDP multicast). The service then listens on the node's
+# interfaces on `port`; restrict access with NetworkPolicy/firewall rules.
+hostNetwork: true
+
+port: 8090
+
+env:
+  SENSOR_MANAGER_HOST: "0.0.0.0"
+  ONVIF_DISCOVERY_ENABLED: "true"
+  ONVIF_DISCOVERY_INTERVAL_S: "20"
+  LOG_LEVEL: INFO
+
+# USB cameras require mounting the node's /dev and a privileged container, because
+# Kubernetes has no equivalent of Docker's device_cgroup_rules. Enable only on trusted nodes.
+usb:
+  enabled: false
+  videoGroupId: 44
+
+service:
+  type: ClusterIP
+  port: 8090
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+nodeSelector: {}
+tolerations: []

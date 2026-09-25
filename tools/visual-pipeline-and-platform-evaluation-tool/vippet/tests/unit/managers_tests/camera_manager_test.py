@@ -1,735 +1,217 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+import json
 import unittest
 from typing import cast
-from unittest.mock import patch, MagicMock
+
+import httpx
 
 from internal_types import (
-    InternalCamera,
     InternalCameraType,
-    InternalCameraProfileInfo,
     InternalNetworkCameraDetails,
     InternalUSBCameraDetails,
-    InternalV4L2BestCapture,
 )
-from managers.camera_manager import CameraManager
+from managers.camera_manager import CameraManager, CameraServiceError
+
+NET_ID = "network-camera-192.168.1.100-80"
+MAIN_URL = "rtsp://192.168.1.100:554/main"
+
+USB_CAMERA = {
+    "device_id": "usb-camera-integrated-camera-0",
+    "device_name": "Integrated Camera",
+    "device_type": "USB",
+    "details": {
+        "device_path": "/dev/video0",
+        "best_capture": {"fourcc": "MJPG", "width": 1920, "height": 1080, "fps": 30.0},
+    },
+}
+NET_CAMERA = {
+    "device_id": NET_ID,
+    "device_name": "ONVIF Camera 192.168.1.100",
+    "device_type": "NETWORK",
+    "details": {
+        "ip": "192.168.1.100",
+        "port": 80,
+        "profiles": [],
+        "best_profile": None,
+    },
+}
+MAIN_PROFILE = {
+    "name": "Main",
+    "rtsp_url": MAIN_URL,
+    "resolution": "1920x1080",
+    "encoding": "H265",
+    "framerate": 30,
+    "bitrate": 4096,
+}
+NET_CAMERA_WITH_PROFILES = {
+    **NET_CAMERA,
+    "details": {
+        **NET_CAMERA["details"],
+        "profiles": [MAIN_PROFILE],
+        "best_profile": MAIN_PROFILE,
+    },
+}
 
 
 class TestCameraManager(unittest.TestCase):
-    """
-    Unit tests for CameraManager.
-
-    The tests focus on:
-      * singleton pattern implementation,
-      * camera discovery (USB and network),
-      * cache update logic,
-      * profile loading for network cameras,
-      * error handling.
-    """
+    """Unit tests for the sensor-manager backed CameraManager."""
 
     def setUp(self):
-        """Reset singleton state before each test."""
         CameraManager._instance = None
+        self.requests: list[httpx.Request] = []
+        self.sensors: list[dict] = [USB_CAMERA, NET_CAMERA]
+        self.profiles_response = httpx.Response(
+            200, json={"camera": NET_CAMERA_WITH_PROFILES}
+        )
+        self.manager = CameraManager()
+        self.manager._transport = httpx.MockTransport(self._handle)
 
     def tearDown(self):
-        """Reset singleton state after each test."""
         CameraManager._instance = None
 
-    def _build_camera(
-        self,
-        device_id: str,
-        camera_type: InternalCameraType = InternalCameraType.USB,
-        name: str = "Test Camera",
-        profiles: list | None = None,
-    ) -> InternalCamera:
-        """Helper that constructs an InternalCamera instance."""
-        if camera_type == InternalCameraType.USB:
-            best_capture = InternalV4L2BestCapture(
-                fourcc="MJPG",
-                width=1920,
-                height=1080,
-                fps=30.0,
-            )
-            details = InternalUSBCameraDetails(
-                device_path=f"/dev/video{device_id[-1]}",
-                best_capture=best_capture,
-            )
-        else:
-            # Convert string profile names to InternalCameraProfileInfo objects
-            profile_objects = []
-            if profiles:
-                for profile_name in profiles:
-                    if isinstance(profile_name, str):
-                        profile_objects.append(
-                            InternalCameraProfileInfo(
-                                name=profile_name,
-                                rtsp_url=f"rtsp://192.168.1.100:554/{profile_name.lower()}",
-                                resolution="1920x1080",
-                                encoding="H264",
-                                framerate=30,
-                                bitrate=4096,
-                            )
-                        )
-                    else:
-                        profile_objects.append(profile_name)
+    def _handle(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if request.method == "GET" and request.url.path == "/api/v1/sensors":
+            return httpx.Response(200, json=self.sensors)
+        if request.method == "POST" and request.url.path.endswith("/profiles"):
+            return self.profiles_response
+        return httpx.Response(404, json={"detail": "not found"})
 
-            details = InternalNetworkCameraDetails(
-                ip="192.168.1.100", port=80, profiles=profile_objects
-            )
-        return InternalCamera(
-            device_id=device_id,
-            device_name=name,
-            device_type=camera_type,
-            details=details,
+    def _fail_transport(self, request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    def test_singleton(self):
+        self.assertIs(CameraManager(), self.manager)
+
+    def test_discover_all_cameras_parses_sensors(self):
+        cameras = self.manager.discover_all_cameras()
+
+        self.assertEqual(self.requests[0].url.path, "/api/v1/sensors")
+        self.assertEqual(
+            [c.device_type for c in cameras],
+            [InternalCameraType.USB, InternalCameraType.NETWORK],
         )
+        usb = cast(InternalUSBCameraDetails, cameras[0].details)
+        self.assertEqual(usb.device_path, "/dev/video0")
+        assert usb.best_capture is not None
+        self.assertEqual(usb.best_capture.fourcc, "MJPG")
+        net = cast(InternalNetworkCameraDetails, cameras[1].details)
+        self.assertEqual((net.ip, net.port, net.profiles), ("192.168.1.100", 80, []))
 
-    # ------------------------------------------------------------------
-    # Singleton tests
-    # ------------------------------------------------------------------
+    def test_discover_all_cameras_returns_cache_when_service_unavailable(self):
+        self.manager.discover_all_cameras()
+        self.manager._transport = httpx.MockTransport(self._fail_transport)
 
-    def test_singleton_returns_same_instance(self):
-        """CameraManager() should return the same instance on multiple calls."""
-        instance1 = CameraManager()
-        instance2 = CameraManager()
-        self.assertIs(instance1, instance2)
+        cameras = self.manager.discover_all_cameras()
 
-    def test_singleton_only_initializes_once(self):
-        """Multiple calls should not re-initialize the singleton."""
-        manager1 = CameraManager()
-        original_usb_discovery = manager1.usb_discovery
-        original_onvif_discovery = manager1.onvif_discovery
+        self.assertEqual(len(cameras), 2)
 
-        manager2 = CameraManager()
-        self.assertIs(manager2.usb_discovery, original_usb_discovery)
-        self.assertIs(manager2.onvif_discovery, original_onvif_discovery)
+    def test_discover_all_cameras_handles_invalid_payload(self):
+        self.sensors = [{"device_id": "broken"}]
+        self.assertEqual(self.manager.discover_all_cameras(), [])
 
-    # ------------------------------------------------------------------
-    # Cache update logic tests
-    # ------------------------------------------------------------------
+    def test_get_camera_by_id_uses_cache_only(self):
+        self.assertIsNone(self.manager.get_camera_by_id(NET_ID))
+        self.manager.discover_all_cameras()
+        request_count = len(self.requests)
 
-    def test_update_camera_cache_keeps_existing_cameras(self):
-        """
-        _update_camera_cache should keep cameras that are still discovered.
-        """
-        manager = CameraManager()
+        camera = self.manager.get_camera_by_id(NET_ID)
 
-        cached_cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        cached_cam2 = self._build_camera("usb-camera-2", InternalCameraType.USB)
-        cached_cameras = [cached_cam1, cached_cam2]
+        assert camera is not None
+        self.assertEqual(camera.device_id, NET_ID)
+        self.assertEqual(len(self.requests), request_count)
 
-        discovered_cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        discovered_cam2 = self._build_camera("usb-camera-2", InternalCameraType.USB)
-        discovered_cameras = [discovered_cam1, discovered_cam2]
+    def test_get_usb_camera_details_by_device_path(self):
+        self.manager.discover_all_cameras()
 
-        updated = manager._update_camera_cache(cached_cameras, discovered_cameras)
+        details = self.manager.get_usb_camera_details_by_device_path("/dev/video0")
 
-        self.assertEqual(len(updated), 2)
-        # Should keep cached versions (preserves profiles)
-        self.assertIs(updated[0], cached_cam1)
-        self.assertIs(updated[1], cached_cam2)
-
-    def test_update_camera_cache_removes_unavailable_cameras(self):
-        """
-        _update_camera_cache should remove cameras that are no longer discovered.
-        """
-        manager = CameraManager()
-
-        cached_cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        cached_cam2 = self._build_camera("usb-camera-2", InternalCameraType.USB)
-        cached_cameras = [cached_cam1, cached_cam2]
-
-        # Only camera 1 is discovered this time
-        discovered_cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        discovered_cameras = [discovered_cam1]
-
-        updated = manager._update_camera_cache(cached_cameras, discovered_cameras)
-
-        self.assertEqual(len(updated), 1)
-        self.assertEqual(updated[0].device_id, "usb-camera-1")
-
-    def test_update_camera_cache_adds_new_cameras(self):
-        """
-        _update_camera_cache should add newly discovered cameras.
-        """
-        manager = CameraManager()
-
-        cached_cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        cached_cameras = [cached_cam1]
-
-        discovered_cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        discovered_cam2 = self._build_camera("usb-camera-2", InternalCameraType.USB)
-        discovered_cameras = [discovered_cam1, discovered_cam2]
-
-        updated = manager._update_camera_cache(cached_cameras, discovered_cameras)
-
-        self.assertEqual(len(updated), 2)
-        device_ids = {cam.device_id for cam in updated}
-        self.assertIn("usb-camera-1", device_ids)
-        self.assertIn("usb-camera-2", device_ids)
-
-    def test_update_camera_cache_empty_discovered_clears_cache(self):
-        """
-        _update_camera_cache should clear cache when no cameras are discovered.
-        """
-        manager = CameraManager()
-
-        cached_cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        cached_cam2 = self._build_camera("usb-camera-2", InternalCameraType.USB)
-        cached_cameras = [cached_cam1, cached_cam2]
-
-        discovered_cameras = []
-
-        updated = manager._update_camera_cache(cached_cameras, discovered_cameras)
-
-        self.assertEqual(len(updated), 0)
-
-    def test_update_camera_cache_empty_cache_with_discoveries(self):
-        """
-        _update_camera_cache should add all discovered cameras when cache is empty.
-        """
-        manager = CameraManager()
-
-        cached_cameras = []
-
-        discovered_cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        discovered_cam2 = self._build_camera("usb-camera-2", InternalCameraType.USB)
-        discovered_cameras = [discovered_cam1, discovered_cam2]
-
-        updated = manager._update_camera_cache(cached_cameras, discovered_cameras)
-
-        self.assertEqual(len(updated), 2)
-        self.assertIn(discovered_cam1, updated)
-        self.assertIn(discovered_cam2, updated)
-
-    # ------------------------------------------------------------------
-    # USB camera discovery tests
-    # ------------------------------------------------------------------
-
-    @patch("managers.camera_manager.USBCameraDiscovery")
-    def test_discover_usb_cameras_returns_discovered_cameras(
-        self, mock_usb_discovery_cls
-    ):
-        """
-        discover_usb_cameras should discover USB cameras and update cache.
-        """
-        mock_discovery = MagicMock()
-        cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        cam2 = self._build_camera("usb-camera-2", InternalCameraType.USB)
-        mock_discovery.discover_cameras.return_value = [cam1, cam2]
-        mock_usb_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-        result = manager.discover_usb_cameras()
-
-        self.assertEqual(len(result), 2)
-        device_ids = {cam.device_id for cam in result}
-        self.assertIn("usb-camera-1", device_ids)
-        self.assertIn("usb-camera-2", device_ids)
-        mock_discovery.discover_cameras.assert_called_once()
-
-    @patch("managers.camera_manager.USBCameraDiscovery")
-    def test_discover_usb_cameras_updates_cache_correctly(self, mock_usb_discovery_cls):
-        """
-        discover_usb_cameras should update internal cache.
-        """
-        mock_discovery = MagicMock()
-        cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        mock_discovery.discover_cameras.return_value = [cam1]
-        mock_usb_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-
-        # First discovery
-        result1 = manager.discover_usb_cameras()
-        self.assertEqual(len(result1), 1)
-
-        # Second discovery with different camera
-        cam2 = self._build_camera("usb-camera-2", InternalCameraType.USB)
-        mock_discovery.discover_cameras.return_value = [cam2]
-        result2 = manager.discover_usb_cameras()
-
-        self.assertEqual(len(result2), 1)
-        self.assertEqual(result2[0].device_id, "usb-camera-2")
-
-    @patch("managers.camera_manager.USBCameraDiscovery")
-    def test_discover_usb_cameras_keeps_cache_on_exception(
-        self, mock_usb_discovery_cls
-    ):
-        """
-        discover_usb_cameras should keep existing cache on discovery exception.
-        """
-        mock_discovery = MagicMock()
-        cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        mock_discovery.discover_cameras.return_value = [cam1]
-        mock_usb_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-
-        # First successful discovery
-        result1 = manager.discover_usb_cameras()
-        self.assertEqual(len(result1), 1)
-
-        # Second discovery fails
-        mock_discovery.discover_cameras.side_effect = RuntimeError("Discovery failed")
-        result2 = manager.discover_usb_cameras()
-
-        # Should still return cached camera
-        self.assertEqual(len(result2), 1)
-        self.assertEqual(result2[0].device_id, "usb-camera-1")
-
-    @patch("managers.camera_manager.USBCameraDiscovery")
-    def test_discover_usb_cameras_returns_copy_of_cache(self, mock_usb_discovery_cls):
-        """
-        discover_usb_cameras should return a copy to prevent external modification.
-        """
-        mock_discovery = MagicMock()
-        cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        mock_discovery.discover_cameras.return_value = [cam1]
-        mock_usb_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-        result1 = manager.discover_usb_cameras()
-        result2 = manager.discover_usb_cameras()
-
-        self.assertIsNot(result1, result2)
-        self.assertIsNot(result1, manager._usb_cameras)
-
-    # ------------------------------------------------------------------
-    # Network camera discovery tests
-    # ------------------------------------------------------------------
-
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_discover_network_cameras_returns_discovered_cameras(
-        self, mock_onvif_discovery_cls
-    ):
-        """
-        discover_network_cameras should discover network cameras and update cache.
-        """
-        mock_discovery = MagicMock()
-        cam1 = self._build_camera(
-            "network-camera-192.168.1.100-80", InternalCameraType.NETWORK
+        assert details is not None
+        assert details.best_capture is not None
+        self.assertEqual(details.best_capture.fourcc, "MJPG")
+        self.assertIsNone(
+            self.manager.get_usb_camera_details_by_device_path("/dev/video9")
         )
-        cam2 = self._build_camera(
-            "network-camera-192.168.1.101-80", InternalCameraType.NETWORK
+        self.assertIsNone(self.manager.get_usb_camera_details_by_device_path(""))
+
+    def test_load_camera_profiles_posts_credentials_and_caches_them(self):
+        self.manager.discover_all_cameras()
+
+        camera = self.manager.load_camera_profiles(NET_ID, "admin", "secret")
+
+        post = self.requests[-1]
+        self.assertEqual(post.url.path, f"/api/v1/sensors/{NET_ID}/profiles")
+        self.assertEqual(
+            json.loads(post.content), {"username": "admin", "password": "secret"}
         )
-        mock_discovery.discover_cameras.return_value = [cam1, cam2]
-        mock_onvif_discovery_cls.return_value = mock_discovery
+        net = cast(InternalNetworkCameraDetails, camera.details)
+        self.assertEqual((net.username, net.password), ("admin", "secret"))
 
-        manager = CameraManager()
-        result = manager.discover_network_cameras()
+        details = self.manager.get_network_camera_details_by_rtsp_url(f" {MAIN_URL} ")
+        assert details is not None
+        self.assertEqual((details.username, details.password), ("admin", "secret"))
+        self.assertEqual(self.manager.get_encoding_for_rtsp_url(MAIN_URL), "H265")
+        self.assertIsNone(self.manager.get_encoding_for_rtsp_url("rtsp://other/stream"))
 
-        self.assertEqual(len(result), 2)
-        device_ids = {cam.device_id for cam in result}
-        self.assertIn("network-camera-192.168.1.100-80", device_ids)
-        self.assertIn("network-camera-192.168.1.101-80", device_ids)
-        mock_discovery.discover_cameras.assert_called_once()
+    def test_credentials_survive_rediscovery(self):
+        self.manager.discover_all_cameras()
+        self.manager.load_camera_profiles(NET_ID, "admin", "secret")
+        self.sensors = [USB_CAMERA, NET_CAMERA_WITH_PROFILES]
 
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_discover_network_cameras_updates_cache_correctly(
-        self, mock_onvif_discovery_cls
-    ):
-        """
-        discover_network_cameras should update internal cache.
-        """
-        mock_discovery = MagicMock()
-        cam1 = self._build_camera(
-            "network-camera-192.168.1.100-80", InternalCameraType.NETWORK
+        self.manager.discover_all_cameras()
+
+        details = self.manager.get_network_camera_details_by_rtsp_url(MAIN_URL)
+        assert details is not None
+        self.assertEqual((details.username, details.password), ("admin", "secret"))
+
+    def test_credentials_dropped_when_camera_disappears(self):
+        self.manager.discover_all_cameras()
+        self.manager.load_camera_profiles(NET_ID, "admin", "secret")
+        self.sensors = [USB_CAMERA]
+        self.manager.discover_all_cameras()
+        self.sensors = [USB_CAMERA, NET_CAMERA_WITH_PROFILES]
+
+        self.manager.discover_all_cameras()
+
+        details = self.manager.get_network_camera_details_by_rtsp_url(MAIN_URL)
+        assert details is not None
+        self.assertIsNone(details.username)
+        self.assertIsNone(details.password)
+
+    def test_load_camera_profiles_raises_service_error_with_status(self):
+        for status, body, detail in [
+            (
+                401,
+                {"detail": "Failed to load profiles - invalid credentials"},
+                "invalid credentials",
+            ),
+            (404, {"detail": "Camera not reachable"}, "Camera not reachable"),
+            (422, {"detail": [{"msg": "too long"}]}, "Invalid camera request"),
+        ]:
+            self.profiles_response = httpx.Response(status, json=body)
+            with self.assertRaises(CameraServiceError) as ctx:
+                self.manager.load_camera_profiles(NET_ID, "admin", "wrong")
+            self.assertEqual(ctx.exception.status_code, status)
+            self.assertIn(detail, ctx.exception.detail)
+        self.assertIsNone(self.manager.get_camera_by_id(NET_ID))
+
+    def test_load_camera_profiles_service_unavailable(self):
+        self.manager._transport = httpx.MockTransport(self._fail_transport)
+
+        with self.assertRaises(CameraServiceError) as ctx:
+            self.manager.load_camera_profiles(NET_ID, "admin", "secret")
+
+        self.assertEqual(ctx.exception.status_code, 500)
+        self.assertEqual(ctx.exception.detail, "Camera service unavailable")
+
+    def test_load_camera_profiles_escapes_camera_id(self):
+        self.manager.load_camera_profiles("network-camera-a/b-80", "admin", "secret")
+        self.assertEqual(
+            self.requests[-1].url.raw_path,
+            b"/api/v1/sensors/network-camera-a%2Fb-80/profiles",
         )
-        mock_discovery.discover_cameras.return_value = [cam1]
-        mock_onvif_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-
-        # First discovery
-        result1 = manager.discover_network_cameras()
-        self.assertEqual(len(result1), 1)
-
-        # Second discovery with different camera
-        cam2 = self._build_camera(
-            "network-camera-192.168.1.101-80", InternalCameraType.NETWORK
-        )
-        mock_discovery.discover_cameras.return_value = [cam2]
-        result2 = manager.discover_network_cameras()
-
-        self.assertEqual(len(result2), 1)
-        self.assertEqual(result2[0].device_id, "network-camera-192.168.1.101-80")
-
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_discover_network_cameras_keeps_cache_on_exception(
-        self, mock_onvif_discovery_cls
-    ):
-        """
-        discover_network_cameras should keep existing cache on discovery exception.
-        """
-        mock_discovery = MagicMock()
-        cam1 = self._build_camera(
-            "network-camera-192.168.1.100-80", InternalCameraType.NETWORK
-        )
-        mock_discovery.discover_cameras.return_value = [cam1]
-        mock_onvif_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-
-        # First successful discovery
-        result1 = manager.discover_network_cameras()
-        self.assertEqual(len(result1), 1)
-
-        # Second discovery fails
-        mock_discovery.discover_cameras.side_effect = RuntimeError("Discovery failed")
-        result2 = manager.discover_network_cameras()
-
-        # Should still return cached camera
-        self.assertEqual(len(result2), 1)
-        self.assertEqual(result2[0].device_id, "network-camera-192.168.1.100-80")
-
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_discover_network_cameras_returns_copy_of_cache(
-        self, mock_onvif_discovery_cls
-    ):
-        """
-        discover_network_cameras should return a copy to prevent external modification.
-        """
-        mock_discovery = MagicMock()
-        cam1 = self._build_camera(
-            "network-camera-192.168.1.100-80", InternalCameraType.NETWORK
-        )
-        mock_discovery.discover_cameras.return_value = [cam1]
-        mock_onvif_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-        result1 = manager.discover_network_cameras()
-        result2 = manager.discover_network_cameras()
-
-        self.assertIsNot(result1, result2)
-        self.assertIsNot(result1, manager._network_cameras)
-
-    # ------------------------------------------------------------------
-    # Discover all cameras tests
-    # ------------------------------------------------------------------
-
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    @patch("managers.camera_manager.USBCameraDiscovery")
-    def test_discover_all_cameras_returns_combined_list(
-        self, mock_usb_discovery_cls, mock_onvif_discovery_cls
-    ):
-        """
-        discover_all_cameras should return combined list of USB and network cameras.
-        """
-        mock_usb_discovery = MagicMock()
-        usb_cam1 = self._build_camera("usb-camera-1", InternalCameraType.USB)
-        usb_cam2 = self._build_camera("usb-camera-2", InternalCameraType.USB)
-        mock_usb_discovery.discover_cameras.return_value = [usb_cam1, usb_cam2]
-        mock_usb_discovery_cls.return_value = mock_usb_discovery
-
-        mock_onvif_discovery = MagicMock()
-        net_cam1 = self._build_camera(
-            "network-camera-192.168.1.100-80", InternalCameraType.NETWORK
-        )
-        mock_onvif_discovery.discover_cameras.return_value = [net_cam1]
-        mock_onvif_discovery_cls.return_value = mock_onvif_discovery
-
-        manager = CameraManager()
-        result = manager.discover_all_cameras()
-
-        self.assertEqual(len(result), 3)
-        device_ids = {cam.device_id for cam in result}
-        self.assertIn("usb-camera-1", device_ids)
-        self.assertIn("usb-camera-2", device_ids)
-        self.assertIn("network-camera-192.168.1.100-80", device_ids)
-
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    @patch("managers.camera_manager.USBCameraDiscovery")
-    def test_discover_all_cameras_empty_when_no_cameras(
-        self, mock_usb_discovery_cls, mock_onvif_discovery_cls
-    ):
-        """
-        discover_all_cameras should return empty list when no cameras found.
-        """
-        mock_usb_discovery = MagicMock()
-        mock_usb_discovery.discover_cameras.return_value = []
-        mock_usb_discovery_cls.return_value = mock_usb_discovery
-
-        mock_onvif_discovery = MagicMock()
-        mock_onvif_discovery.discover_cameras.return_value = []
-        mock_onvif_discovery_cls.return_value = mock_onvif_discovery
-
-        manager = CameraManager()
-        result = manager.discover_all_cameras()
-
-        self.assertEqual(len(result), 0)
-
-    # ------------------------------------------------------------------
-    # Get camera by ID tests
-    # ------------------------------------------------------------------
-
-    @patch("managers.camera_manager.USBCameraDiscovery")
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_get_camera_by_id_returns_usb_camera(
-        self, mock_onvif_discovery_cls, mock_usb_discovery_cls
-    ):
-        """
-        get_camera_by_id should return a USB camera if found in cache.
-        """
-        mock_usb_discovery = MagicMock()
-        mock_onvif_discovery = MagicMock()
-        mock_usb_discovery_cls.return_value = mock_usb_discovery
-        mock_onvif_discovery_cls.return_value = mock_onvif_discovery
-
-        usb_camera = self._build_camera("usb-camera-0", InternalCameraType.USB)
-        mock_usb_discovery.discover_cameras.return_value = [usb_camera]
-        mock_onvif_discovery.discover_cameras.return_value = []
-
-        manager = CameraManager()
-        manager.discover_all_cameras()  # Populate cache
-
-        result = manager.get_camera_by_id("usb-camera-0")
-
-        self.assertIsNotNone(result)
-        assert result is not None  # for type checkers
-        self.assertEqual(result.device_id, "usb-camera-0")
-        self.assertEqual(result.device_type, InternalCameraType.USB)
-
-    @patch("managers.camera_manager.USBCameraDiscovery")
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_get_camera_by_id_returns_network_camera(
-        self, mock_onvif_discovery_cls, mock_usb_discovery_cls
-    ):
-        """
-        get_camera_by_id should return a network camera if found in cache.
-        """
-        mock_usb_discovery = MagicMock()
-        mock_onvif_discovery = MagicMock()
-        mock_usb_discovery_cls.return_value = mock_usb_discovery
-        mock_onvif_discovery_cls.return_value = mock_onvif_discovery
-
-        network_camera = self._build_camera(
-            "network-camera-192.168.1.100-80", InternalCameraType.NETWORK
-        )
-        mock_usb_discovery.discover_cameras.return_value = []
-        mock_onvif_discovery.discover_cameras.return_value = [network_camera]
-
-        manager = CameraManager()
-        manager.discover_all_cameras()  # Populate cache
-
-        result = manager.get_camera_by_id("network-camera-192.168.1.100-80")
-
-        self.assertIsNotNone(result)
-        assert result is not None  # for type checkers
-        self.assertEqual(result.device_id, "network-camera-192.168.1.100-80")
-        self.assertEqual(result.device_type, InternalCameraType.NETWORK)
-
-    @patch("managers.camera_manager.USBCameraDiscovery")
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_get_camera_by_id_returns_none_for_unknown_camera(
-        self, mock_onvif_discovery_cls, mock_usb_discovery_cls
-    ):
-        """
-        get_camera_by_id should return None if camera not found in cache.
-        """
-        mock_usb_discovery = MagicMock()
-        mock_onvif_discovery = MagicMock()
-        mock_usb_discovery_cls.return_value = mock_usb_discovery
-        mock_onvif_discovery_cls.return_value = mock_onvif_discovery
-
-        mock_usb_discovery.discover_cameras.return_value = []
-        mock_onvif_discovery.discover_cameras.return_value = []
-
-        manager = CameraManager()
-        manager.discover_all_cameras()  # Populate (empty) cache
-
-        result = manager.get_camera_by_id("nonexistent_camera")
-
-        self.assertIsNone(result)
-
-    @patch("managers.camera_manager.USBCameraDiscovery")
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_get_camera_by_id_works_with_mixed_cameras(
-        self, mock_onvif_discovery_cls, mock_usb_discovery_cls
-    ):
-        """
-        get_camera_by_id should find cameras from both USB and network caches.
-        """
-        mock_usb_discovery = MagicMock()
-        mock_onvif_discovery = MagicMock()
-        mock_usb_discovery_cls.return_value = mock_usb_discovery
-        mock_onvif_discovery_cls.return_value = mock_onvif_discovery
-
-        usb_camera = self._build_camera("usb-camera-0", InternalCameraType.USB)
-        network_camera = self._build_camera(
-            "network-camera-192.168.1.100-80", InternalCameraType.NETWORK
-        )
-        mock_usb_discovery.discover_cameras.return_value = [usb_camera]
-        mock_onvif_discovery.discover_cameras.return_value = [network_camera]
-
-        manager = CameraManager()
-        manager.discover_all_cameras()  # Populate cache
-
-        # Should find USB camera
-        result_usb = manager.get_camera_by_id("usb-camera-0")
-        self.assertIsNotNone(result_usb)
-        assert result_usb is not None  # for type checkers
-        self.assertEqual(result_usb.device_type, InternalCameraType.USB)
-
-        # Should find network camera
-        result_network = manager.get_camera_by_id("network-camera-192.168.1.100-80")
-        self.assertIsNotNone(result_network)
-        assert result_network is not None  # for type checkers
-        self.assertEqual(result_network.device_type, InternalCameraType.NETWORK)
-
-        # Should not find nonexistent camera
-        result_none = manager.get_camera_by_id("nonexistent")
-        self.assertIsNone(result_none)
-
-    # ------------------------------------------------------------------
-    # Load camera profiles tests
-    # ------------------------------------------------------------------
-
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_load_camera_profiles_returns_updated_camera(
-        self, mock_onvif_discovery_cls
-    ):
-        """
-        load_camera_profiles should authenticate and return camera with profiles.
-        """
-        mock_discovery = MagicMock()
-
-        # Initial camera without profiles
-        cam = self._build_camera(
-            "network-camera-192.168.1.100-80", InternalCameraType.NETWORK
-        )
-        mock_discovery.discover_cameras.return_value = [cam]
-
-        # Camera with loaded profiles
-        cam_with_profiles = self._build_camera(
-            "network-camera-192.168.1.100-80",
-            InternalCameraType.NETWORK,
-            profiles=["Profile1", "Profile2"],
-        )
-        mock_discovery.load_camera_profiles.return_value = cam_with_profiles
-
-        mock_onvif_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-        # Discover first to populate cache
-        manager.discover_network_cameras()
-
-        result = manager.load_camera_profiles(
-            "network-camera-192.168.1.100-80", "admin", "password123"
-        )
-
-        self.assertEqual(result.device_id, "network-camera-192.168.1.100-80")
-        self.assertIsInstance(result.details, InternalNetworkCameraDetails)
-        details = cast(InternalNetworkCameraDetails, result.details)
-        self.assertEqual(len(details.profiles), 2)
-        mock_discovery.load_camera_profiles.assert_called_once_with(
-            "network-camera-192.168.1.100-80", "admin", "password123"
-        )
-
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_load_camera_profiles_updates_cache(self, mock_onvif_discovery_cls):
-        """
-        load_camera_profiles should update the cached camera with profile info.
-        """
-        mock_discovery = MagicMock()
-
-        # Initial camera without profiles
-        cam = self._build_camera(
-            "network-camera-192.168.1.100-80", InternalCameraType.NETWORK
-        )
-        mock_discovery.discover_cameras.return_value = [cam]
-
-        # Camera with loaded profiles
-        cam_with_profiles = self._build_camera(
-            "network-camera-192.168.1.100-80",
-            InternalCameraType.NETWORK,
-            profiles=["Profile1"],
-        )
-        mock_discovery.load_camera_profiles.return_value = cam_with_profiles
-
-        mock_onvif_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-        manager.discover_network_cameras()
-
-        # Load profiles
-        manager.load_camera_profiles(
-            "network-camera-192.168.1.100-80", "admin", "password123"
-        )
-
-        # Verify cache is updated
-        self.assertEqual(len(manager._network_cameras), 1)
-        cached_cam = manager._network_cameras[0]
-        self.assertIsInstance(cached_cam.details, InternalNetworkCameraDetails)
-        details = cast(InternalNetworkCameraDetails, cached_cam.details)
-        self.assertEqual(len(details.profiles), 1)
-
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_load_camera_profiles_raises_error_for_usb_camera(
-        self, mock_onvif_discovery_cls
-    ):
-        """
-        load_camera_profiles should raise ValueError for USB cameras.
-        """
-        mock_discovery = MagicMock()
-        mock_onvif_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-
-        with self.assertRaises(ValueError) as ctx:
-            manager.load_camera_profiles("usb-camera-1", "admin", "password")
-
-        self.assertIn("only network cameras supported", str(ctx.exception))
-
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_load_camera_profiles_raises_error_for_unknown_camera(
-        self, mock_onvif_discovery_cls
-    ):
-        """
-        load_camera_profiles should raise ValueError for camera not in cache.
-        """
-        mock_discovery = MagicMock()
-        mock_discovery.discover_cameras.return_value = []
-        mock_onvif_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-        manager.discover_network_cameras()
-
-        with self.assertRaises(ValueError) as ctx:
-            manager.load_camera_profiles(
-                "network-camera-192.168.1.100-80", "admin", "password"
-            )
-
-        self.assertIn("not found in cached cameras", str(ctx.exception))
-
-    @patch("managers.camera_manager.ONVIFCameraDiscovery")
-    def test_load_camera_profiles_propagates_connection_errors(
-        self, mock_onvif_discovery_cls
-    ):
-        """
-        load_camera_profiles should propagate exceptions from ONVIF discovery.
-        """
-        mock_discovery = MagicMock()
-
-        # Camera in cache
-        cam = self._build_camera(
-            "network-camera-192.168.1.100-80", InternalCameraType.NETWORK
-        )
-        mock_discovery.discover_cameras.return_value = [cam]
-
-        # Loading profiles fails
-        mock_discovery.load_camera_profiles.side_effect = ConnectionError(
-            "Unable to connect"
-        )
-
-        mock_onvif_discovery_cls.return_value = mock_discovery
-
-        manager = CameraManager()
-        manager.discover_network_cameras()
-
-        with self.assertRaises(ConnectionError) as ctx:
-            manager.load_camera_profiles(
-                "network-camera-192.168.1.100-80", "admin", "password"
-            )
-
-        self.assertIn("Unable to connect", str(ctx.exception))
 
 
 if __name__ == "__main__":

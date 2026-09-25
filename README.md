@@ -144,7 +144,10 @@ indexing, and audio analysis.
 
   Microservices providing a multi-level, temporal-enhanced approach to generate high quality summaries for video files, especially for long videos.
 
-### Data Preparation and Retrieval 
+- [Sensor Manager](./microservices/sensor-manager)
+
+  Microservice discovering USB and ONVIF network cameras and describing
+  their best capture configurations and RTSP media profiles.
 
 Efficient data management and retrieval are crucial for AI performance
 and scalability. This group offers components for dataset curation,

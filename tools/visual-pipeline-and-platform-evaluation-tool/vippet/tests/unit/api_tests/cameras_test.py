@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
 from api.routes.cameras import router as cameras_router
+from managers.camera_manager import CameraServiceError
 from internal_types import (
     InternalCamera,
     InternalCameraType,
@@ -429,8 +430,8 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         mock_manager = MagicMock()
-        mock_manager.load_camera_profiles.side_effect = ValueError(
-            "Invalid camera_id format"
+        mock_manager.load_camera_profiles.side_effect = CameraServiceError(
+            400, "Invalid camera_id format"
         )
         mock_camera_manager_cls.return_value = mock_manager
 
@@ -455,8 +456,8 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         mock_manager = MagicMock()
-        mock_manager.load_camera_profiles.side_effect = ConnectionError(
-            "Camera not reachable"
+        mock_manager.load_camera_profiles.side_effect = CameraServiceError(
+            404, "Camera not reachable"
         )
         mock_camera_manager_cls.return_value = mock_manager
 
@@ -482,7 +483,9 @@ class TestCamerasAPI(unittest.TestCase):
         """
         # Arrange
         mock_manager = MagicMock()
-        mock_manager.load_camera_profiles.side_effect = Exception("unauthorized access")
+        mock_manager.load_camera_profiles.side_effect = CameraServiceError(
+            401, "Failed to load profiles - invalid credentials"
+        )
         mock_camera_manager_cls.return_value = mock_manager
 
         # Act
@@ -501,56 +504,56 @@ class TestCamerasAPI(unittest.TestCase):
         self.assertIn("invalid credentials", data["detail"])
 
     @patch("api.routes.cameras.CameraManager")
-    def test_load_camera_profiles_authentication_error(self, mock_camera_manager_cls):
+    def test_load_camera_profiles_service_unavailable(self, mock_camera_manager_cls):
         """
-        Test POST /cameras/{camera_id}/profiles returns 401 for authentication error.
+        Test POST /cameras/{camera_id}/profiles returns 500 when sensor-manager is unavailable.
         """
         # Arrange
         mock_manager = MagicMock()
-        mock_manager.load_camera_profiles.side_effect = Exception(
-            "authentication failed"
+        mock_manager.load_camera_profiles.side_effect = CameraServiceError(
+            500, "Camera service unavailable"
         )
         mock_camera_manager_cls.return_value = mock_manager
 
         # Act
         request_body = {
             "username": "admin",
-            "password": "wrongpassword",
+            "password": "admin123",
         }
         response = self.client.post(
             "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert
-        self.assertEqual(response.status_code, 401)
-        data = response.json()
-        self.assertIn("detail", data)
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Camera service unavailable")
 
     @patch("api.routes.cameras.CameraManager")
-    def test_load_camera_profiles_credentials_error(self, mock_camera_manager_cls):
+    def test_load_camera_profiles_maps_other_service_errors_to_500(
+        self, mock_camera_manager_cls
+    ):
         """
-        Test POST /cameras/{camera_id}/profiles returns 401 for credentials error.
+        Test POST /cameras/{camera_id}/profiles maps unexpected sensor-manager codes to 500.
         """
         # Arrange
         mock_manager = MagicMock()
-        mock_manager.load_camera_profiles.side_effect = Exception(
-            "invalid credentials provided"
+        mock_manager.load_camera_profiles.side_effect = CameraServiceError(
+            422, "Invalid camera request"
         )
         mock_camera_manager_cls.return_value = mock_manager
 
         # Act
         request_body = {
             "username": "admin",
-            "password": "wrongpassword",
+            "password": "admin123",
         }
         response = self.client.post(
             "/cameras/network-camera-192.168.1.100-80/profiles", json=request_body
         )
 
         # Assert
-        self.assertEqual(response.status_code, 401)
-        data = response.json()
-        self.assertIn("detail", data)
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Invalid camera request")
 
     @patch("api.routes.cameras.CameraManager")
     def test_load_camera_profiles_unexpected_error(self, mock_camera_manager_cls):
