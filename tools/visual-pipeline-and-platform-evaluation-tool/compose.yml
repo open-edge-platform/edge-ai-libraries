@@ -130,7 +130,7 @@ services:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
-    image: docker.io/intel/model-download:2026.2.0-rc2
+    image: docker.io/intel/model-download:2026.3.0-20260922-weekly
     container_name: model-download
     ports:
       - "8000:8000"
@@ -181,7 +181,7 @@ services:
     ports:
       - "7860:7860"
   metrics-manager:
-    image: docker.io/intel/metrics-manager:2026.2.0-rc3
+    image: docker.io/intel/metrics-manager:2026.3.0-20260922-weekly
     container_name: metrics-manager
     init: true
     ports:
@@ -215,7 +215,7 @@ services:
       start_period: 15s
       start_interval: 1s
   mediamtx:
-    image: bluenviron/mediamtx:1.20.1
+    image: bluenviron/mediamtx:1.21.1
     container_name: mediamtx
     environment:
       - MTX_LOGLEVEL=info
