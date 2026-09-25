@@ -150,11 +150,16 @@ find_rejected_prior_art () {
     issues_json="[]"
   fi
 
+  local prs_tmp issues_tmp
+  prs_tmp="$(mktemp)"; issues_tmp="$(mktemp)"
+  printf '%s' "$prs_json"    > "$prs_tmp"
+  printf '%s' "$issues_json" > "$issues_tmp"
+
   hit="$(jq -rn \
     --arg name "$name" \
     --arg needle "${name,,}" \
-    --argjson prs "$prs_json" \
-    --argjson issues "$issues_json" \
+    --slurpfile prs "$prs_tmp" \
+    --slurpfile issues "$issues_tmp" \
     '
       ($prs
         | map(
@@ -196,6 +201,8 @@ find_rejected_prior_art () {
         else "\($hit.kind)\t\($hit.number)\t\($hit.title)"
         end
     ')"
+
+  rm -f "$prs_tmp" "$issues_tmp"
 
   if [[ -n "$hit" ]]; then
     IFS=$'\t' read -r hit_kind hit_number hit_title <<< "$hit"

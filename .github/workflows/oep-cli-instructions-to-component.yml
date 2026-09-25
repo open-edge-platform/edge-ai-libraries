@@ -1,4 +1,4 @@
-name: Generate component from spec
+name: "[OEP CLI] Generate component from spec"
 
 on:
   push:

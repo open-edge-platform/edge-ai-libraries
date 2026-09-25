@@ -1,4 +1,4 @@
-name: Dispatch agent on GENERATE-COMPONENT label
+name: "[OEP CLI] Dispatch agent on GENERATE-COMPONENT label"
 
 on:
   issues:
