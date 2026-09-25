@@ -161,7 +161,7 @@ find_rejected_prior_art () {
     --slurpfile prs "$prs_tmp" \
     --slurpfile issues "$issues_tmp" \
     '
-      ($prs
+      ($prs[0]
         | map(
             select(.mergedAt == null)
             | select(
@@ -181,7 +181,7 @@ find_rejected_prior_art () {
                 updatedAt: (.updatedAt // "")
               }
           )) as $pr_hits
-      | ($issues
+      | ($issues[0]
           | map(
               select(
                 (.title // "") == ("Implement installer component: " + $name)
