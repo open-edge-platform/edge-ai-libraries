@@ -143,6 +143,12 @@ debian_85_install_my_component () {
 
 > See [`git`](git/windows) for a windows module example.
 
+---
+
+The general use pattern is `install`, `start`, `stop`, `install`, `start`, `stop`...`remove`, where `install` is also served as a way of reconfiguration, such as reconfiguring the acceleration device. Please implement reconfigurable options in `install`.  
+
+---
+
 ### @@HIGHLIGHT protocol
 
 `@@HIGHLIGHT` is a marker to display a short hint to the user in the left-pane summary after installation or component launch.  
