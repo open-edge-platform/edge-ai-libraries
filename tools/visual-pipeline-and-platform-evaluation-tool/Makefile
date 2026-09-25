@@ -19,6 +19,10 @@ COMPOSE_FILE := compose.yml
 DEV_COMPOSE_FILE := compose.dev.yml
 EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
 
+# Set DLSPS2=1 to run pipelines on a DLSPS 2.0 container (see compose.dlsps2.yml).
+DLSPS2 ?= 0
+DLSPS2_COMPOSE := $(if $(filter 1,$(DLSPS2)),-f compose.dlsps2.yml)
+
 # Speed up `docker compose build` by skipping provenance/SBOM attestations
 # (saves ~hundreds of ms per build on warm cache, more on cold).
 export BUILDX_NO_DEFAULT_ATTESTATIONS := 1
@@ -124,8 +128,8 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery)
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
+build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery); DLSPS2=1 adds DLSPS 2.0
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) build
 
 build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onvif-discovery)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
@@ -138,8 +142,8 @@ build-onvif-discovery: env-setup ## Build onvif discovery image
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run the docker compose services
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d
+run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) up -d
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
@@ -221,7 +225,7 @@ shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop the docker compose services
-	docker compose down
+	docker compose $(if $(DLSPS2_COMPOSE),-f $(COMPOSE_FILE) $(DLSPS2_COMPOSE)) down
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator
