@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Guard — issue must carry NEEDS-GENERATION or match known title patterns
         env:
-          GH_TOKEN: ${{ secrets.COPILOT_TASK_TOKEN }}
+          GH_TOKEN: ${{ secrets.OEP_CLI_COPILOT_TASK_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           set -euo pipefail
@@ -44,7 +44,7 @@ jobs:
 
       - name: Assign Copilot coding agent and update labels
         env:
-          GH_TOKEN: ${{ secrets.COPILOT_TASK_TOKEN }}
+          GH_TOKEN: ${{ secrets.OEP_CLI_COPILOT_TASK_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ACTOR: ${{ github.actor }}
         run: |

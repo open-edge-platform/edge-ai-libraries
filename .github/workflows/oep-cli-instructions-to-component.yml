@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     #
-    # This workflow now authenticates with a PAT (COPILOT_TASK_TOKEN) because
+    # This workflow now authenticates with a PAT (OEP_CLI_COPILOT_TASK_TOKEN) because
     # installation tokens cannot assign the Copilot coding agent. Unlike
     # GITHUB_TOKEN, pushes made with a PAT DO trigger workflows -- so a commit
     # under specification/** authored by our own automation would re-enter this
@@ -130,7 +130,7 @@ jobs:
         if: steps.specs.outputs.has_specs == 'true'
         working-directory: frameworks/oep-installer-cli
         env:
-          GH_TOKEN: ${{ secrets.COPILOT_TASK_TOKEN }}
+          GH_TOKEN: ${{ secrets.OEP_CLI_COPILOT_TASK_TOKEN }}
           FORCE_REGENERATE: ${{ github.event.inputs.force == 'true' && 'true' || 'false' }}
           MAX_TASKS_PER_RUN: ${{ github.event.inputs.max_tasks || '3' }}
           SPECS_FILE: ${{ steps.specs.outputs.specs_file }}
