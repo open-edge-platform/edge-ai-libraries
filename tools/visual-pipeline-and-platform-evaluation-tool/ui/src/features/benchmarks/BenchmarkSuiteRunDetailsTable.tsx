@@ -40,6 +40,7 @@ import {
   formatBenchmarkScore,
   renderBenchmarkStatus,
 } from "@/features/benchmarks/utils";
+import { LatencyMetrics } from "@/features/benchmarks/LatencyMetrics";
 
 const THUMBNAIL_PLACEHOLDER = "/src/assets/thumbnail_placeholder.png";
 
@@ -55,6 +56,7 @@ const TEST_CASE_COLUMNS: TestCaseColumn[] = [
   { key: "duration", width: 100 },
   { key: "total-fps", width: 100 },
   { key: "per-stream-fps", width: 120 },
+  { key: "latency", width: 90 },
   { key: "cpu", width: 80 },
   { key: "gpu", width: 80 },
   { key: "npu", width: 80 },
@@ -226,6 +228,7 @@ export const BenchmarkSuiteRunDetailsTable = ({
                           <TableHead>Duration</TableHead>
                           <TableHead>Total FPS</TableHead>
                           <TableHead>Per-stream FPS</TableHead>
+                          <TableHead>Latency</TableHead>
                           <TableHead>CPU</TableHead>
                           <TableHead>GPU</TableHead>
                           <TableHead>NPU</TableHead>
@@ -270,6 +273,29 @@ export const BenchmarkSuiteRunDetailsTable = ({
                                   ) : typeof testCaseRun.per_stream_fps ===
                                     "number" ? (
                                     testCaseRun.per_stream_fps.toFixed(2)
+                                  ) : (
+                                    "-"
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {testCaseRun.status === "running" ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                  ) : typeof testCaseRun.latency_max_ms ===
+                                    "number" ? (
+                                    <LatencyMetrics
+                                      latencyMaxMs={testCaseRun.latency_max_ms}
+                                      latencyMaxStddevMs={
+                                        testCaseRun.latency_max_stddev_ms
+                                      }
+                                      latencyAvgMs={testCaseRun.latency_avg_ms}
+                                      latencyAvgStddevMs={
+                                        testCaseRun.latency_avg_stddev_ms
+                                      }
+                                      latencyMinMs={testCaseRun.latency_min_ms}
+                                      latencyMinStddevMs={
+                                        testCaseRun.latency_min_stddev_ms
+                                      }
+                                    />
                                   ) : (
                                     "-"
                                   )}
@@ -405,7 +431,7 @@ export const BenchmarkSuiteRunDetailsTable = ({
                         ) : (
                           <TableRow>
                             <TableCell
-                              colSpan={13}
+                              colSpan={14}
                               className="text-center text-muted-foreground py-4"
                             >
                               No test cases found.

@@ -76,6 +76,7 @@ export const BenchmarkSuiteRunDetailsTableSkeleton = () => (
                     <TableHead>Media</TableHead>
                     <TableHead>Memory</TableHead>
                     <TableHead>Power</TableHead>
+                    <TableHead>Latency</TableHead>
                     <TableHead className="w-[3.125rem]">Status</TableHead>
                     <TableHead className="w-[1.25rem]"></TableHead>
                   </TableRow>
@@ -117,6 +118,9 @@ export const BenchmarkSuiteRunDetailsTableSkeleton = () => (
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-12" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-14" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-14" />

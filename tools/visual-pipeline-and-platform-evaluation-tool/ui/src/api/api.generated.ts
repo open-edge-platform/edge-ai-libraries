@@ -1014,6 +1014,12 @@ export type BenchmarkTestCaseRun = {
   media_usage: number | null;
   memory_usage: number | null;
   power_usage: number | null;
+  latency_avg_ms: number | null;
+  latency_avg_stddev_ms: number | null;
+  latency_max_ms: number | null;
+  latency_max_stddev_ms: number | null;
+  latency_min_ms: number | null;
+  latency_min_stddev_ms: number | null;
   score_total: number | null;
   score_performance: number | null;
   score_efficiency: number | null;
@@ -1077,6 +1083,12 @@ export type BenchmarkTestCaseRunDetails = {
   media_usage: number | null;
   memory_usage: number | null;
   power_usage: number | null;
+  latency_avg_ms: number | null;
+  latency_avg_stddev_ms: number | null;
+  latency_max_ms: number | null;
+  latency_max_stddev_ms: number | null;
+  latency_min_ms: number | null;
+  latency_min_stddev_ms: number | null;
   score_total: number | null;
   score_performance: number | null;
   score_efficiency: number | null;
