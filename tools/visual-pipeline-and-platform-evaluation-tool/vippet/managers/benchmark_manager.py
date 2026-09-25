@@ -558,6 +558,17 @@ class BenchmarkManager:
             test_case_run.memory_usage = metrics.memory_usage(parsed_metrics)
             test_case_run.power_usage = metrics.power_usage(parsed_metrics)
             test_case_run.latency_avg_ms = metrics.latency_avg_ms(parsed_metrics)
+            test_case_run.latency_avg_stddev_ms = metrics.latency_avg_stddev_ms(
+                parsed_metrics
+            )
+            test_case_run.latency_max_ms = metrics.latency_max_ms(parsed_metrics)
+            test_case_run.latency_max_stddev_ms = metrics.latency_max_stddev_ms(
+                parsed_metrics
+            )
+            test_case_run.latency_min_ms = metrics.latency_min_ms(parsed_metrics)
+            test_case_run.latency_min_stddev_ms = metrics.latency_min_stddev_ms(
+                parsed_metrics
+            )
             if (
                 total_fps is not None
                 and benchmark_test_case is not None

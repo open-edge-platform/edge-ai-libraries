@@ -17,6 +17,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import {
   Table,
   TableBody,
   TableCell,
@@ -55,13 +60,13 @@ const TEST_CASE_COLUMNS: TestCaseColumn[] = [
   { key: "duration", width: 100 },
   { key: "total-fps", width: 100 },
   { key: "per-stream-fps", width: 120 },
+  { key: "latency", width: 90 },
   { key: "cpu", width: 80 },
   { key: "gpu", width: 80 },
   { key: "npu", width: 80 },
   { key: "media", width: 80 },
   { key: "memory", width: 90 },
   { key: "power", width: 90 },
-  { key: "latency", width: 90 },
   { key: "status", width: 50 },
   { key: "actions", width: 20, exportIgnore: true },
 ];
@@ -227,13 +232,13 @@ export const BenchmarkSuiteRunDetailsTable = ({
                           <TableHead>Duration</TableHead>
                           <TableHead>Total FPS</TableHead>
                           <TableHead>Per-stream FPS</TableHead>
+                          <TableHead>Latency</TableHead>
                           <TableHead>CPU</TableHead>
                           <TableHead>GPU</TableHead>
                           <TableHead>NPU</TableHead>
                           <TableHead>Media</TableHead>
                           <TableHead>Memory</TableHead>
                           <TableHead>Power</TableHead>
-                          <TableHead>Latency</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead data-export-ignore></TableHead>
                         </TableRow>
@@ -272,6 +277,71 @@ export const BenchmarkSuiteRunDetailsTable = ({
                                   ) : typeof testCaseRun.per_stream_fps ===
                                     "number" ? (
                                     testCaseRun.per_stream_fps.toFixed(2)
+                                  ) : (
+                                    "-"
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {testCaseRun.status === "running" ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                  ) : typeof testCaseRun.latency_max_ms ===
+                                    "number" ? (
+                                    <HoverCard openDelay={100} closeDelay={100}>
+                                      <HoverCardTrigger asChild>
+                                        <span className="cursor-default underline decoration-dotted underline-offset-2">
+                                          {`${testCaseRun.latency_max_ms.toFixed(1)} ms`}
+                                        </span>
+                                      </HoverCardTrigger>
+                                      <HoverCardContent
+                                        side="top"
+                                        className="w-auto text-sm"
+                                      >
+                                        <div className="grid grid-cols-[auto_auto_1fr] gap-x-3 gap-y-1">
+                                          <span>Latency Max</span>
+                                          <span className="font-bold text-right">
+                                            {`${testCaseRun.latency_max_ms.toFixed(1)} ms`}
+                                          </span>
+                                          <span className="text-muted-foreground">
+                                            (std dev:{" "}
+                                            {typeof testCaseRun.latency_max_stddev_ms ===
+                                            "number"
+                                              ? `${testCaseRun.latency_max_stddev_ms.toFixed(1)} ms`
+                                              : "N/A"}
+                                            )
+                                          </span>
+                                          <span>Latency Avg</span>
+                                          <span className="text-right">
+                                            {typeof testCaseRun.latency_avg_ms ===
+                                            "number"
+                                              ? `${testCaseRun.latency_avg_ms.toFixed(1)} ms`
+                                              : "-"}
+                                          </span>
+                                          <span className="text-muted-foreground">
+                                            (std dev:{" "}
+                                            {typeof testCaseRun.latency_avg_stddev_ms ===
+                                            "number"
+                                              ? `${testCaseRun.latency_avg_stddev_ms.toFixed(1)} ms`
+                                              : "N/A"}
+                                            )
+                                          </span>
+                                          <span>Latency Min</span>
+                                          <span className="text-right">
+                                            {typeof testCaseRun.latency_min_ms ===
+                                            "number"
+                                              ? `${testCaseRun.latency_min_ms.toFixed(1)} ms`
+                                              : "-"}
+                                          </span>
+                                          <span className="text-muted-foreground">
+                                            (std dev:{" "}
+                                            {typeof testCaseRun.latency_min_stddev_ms ===
+                                            "number"
+                                              ? `${testCaseRun.latency_min_stddev_ms.toFixed(1)} ms`
+                                              : "N/A"}
+                                            )
+                                          </span>
+                                        </div>
+                                      </HoverCardContent>
+                                    </HoverCard>
                                   ) : (
                                     "-"
                                   )}
@@ -332,16 +402,6 @@ export const BenchmarkSuiteRunDetailsTable = ({
                                   ) : typeof testCaseRun.power_usage ===
                                     "number" ? (
                                     `${testCaseRun.power_usage.toFixed(1)} W`
-                                  ) : (
-                                    "-"
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {testCaseRun.status === "running" ? (
-                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                  ) : typeof testCaseRun.latency_avg_ms ===
-                                    "number" ? (
-                                    `${testCaseRun.latency_avg_ms.toFixed(1)} ms`
                                   ) : (
                                     "-"
                                   )}

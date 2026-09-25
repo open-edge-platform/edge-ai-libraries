@@ -1703,6 +1703,11 @@ class BenchmarkTestCaseRun(BaseModel):
     memory_usage: float | None
     power_usage: float | None
     latency_avg_ms: float | None
+    latency_avg_stddev_ms: float | None
+    latency_max_ms: float | None
+    latency_max_stddev_ms: float | None
+    latency_min_ms: float | None
+    latency_min_stddev_ms: float | None
     score_total: float | None
     score_performance: float | None
     score_efficiency: float | None

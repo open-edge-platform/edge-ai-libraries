@@ -10,6 +10,7 @@ All functions are side-effect free and operate on already parsed metric events
 
 import json
 import logging
+import statistics
 
 logger = logging.getLogger("benchmark_metrics")
 
@@ -23,6 +24,8 @@ _MEMORY_METRIC = "mem_used_percent"
 _NPU_METRIC = "npu_utilization"
 _GPU_ENGINE_METRIC = "gpu_engine_usage_usage"
 _GPU_POWER_METRIC = "gpu_power"
+_LATENCY_MAX_METRIC = "pipeline_latency_max_ms"
+_LATENCY_MIN_METRIC = "pipeline_latency_min_ms"
 _LATENCY_METRIC = "pipeline_latency_avg_ms"
 
 # GPU engine label groups.
@@ -305,3 +308,63 @@ def latency_avg_ms(parsed_metrics: list[dict]) -> float | None:
                 values.append(value)
 
     return _mean_of_trimmed(values)
+
+
+def latency_avg_stddev_ms(parsed_metrics: list[dict]) -> float | None:
+    """Population standard deviation of ``pipeline_latency_avg_ms`` samples.
+
+    Mirrors :func:`latency_max_stddev_ms`, applied to the per-interval average
+    latency instead of the peak.
+    """
+    values = _collect_metric_values(parsed_metrics, _LATENCY_METRIC)
+    return statistics.pstdev(values) if values else None
+
+
+def latency_max_ms(parsed_metrics: list[dict]) -> float | None:
+    """Peak per-frame pipeline latency (milliseconds) from ``pipeline_latency_max_ms``."""
+    values: list[float] = []
+
+    for event in parsed_metrics:
+        metrics = event.get("metrics")
+        if not isinstance(metrics, list):
+            continue
+
+        for metric in metrics:
+            if (
+                not isinstance(metric, dict)
+                or metric.get("name") != _LATENCY_MAX_METRIC
+            ):
+                continue
+
+            value = _extract_metric_field_value(metric, _LATENCY_MAX_METRIC)
+            if value is not None:
+                values.append(value)
+
+    return max(values) if values else None
+
+
+def latency_max_stddev_ms(parsed_metrics: list[dict]) -> float | None:
+    """Population standard deviation of ``pipeline_latency_max_ms`` samples.
+
+    Quantifies how much the reported peak latency swings between reporting
+    intervals over the run. Uses every collected sample (not a subset), so
+    population stdev (``statistics.pstdev``) applies rather than sample stdev.
+    """
+    values = _collect_metric_values(parsed_metrics, _LATENCY_MAX_METRIC)
+    return statistics.pstdev(values) if values else None
+
+
+def latency_min_ms(parsed_metrics: list[dict]) -> float | None:
+    """Lowest per-frame pipeline latency (milliseconds) from ``pipeline_latency_min_ms``."""
+    values = _collect_metric_values(parsed_metrics, _LATENCY_MIN_METRIC)
+    return min(values) if values else None
+
+
+def latency_min_stddev_ms(parsed_metrics: list[dict]) -> float | None:
+    """Population standard deviation of ``pipeline_latency_min_ms`` samples.
+
+    Mirrors :func:`latency_max_stddev_ms`, applied to the per-interval minimum
+    latency instead of the peak.
+    """
+    values = _collect_metric_values(parsed_metrics, _LATENCY_MIN_METRIC)
+    return statistics.pstdev(values) if values else None
