@@ -1,9 +1,16 @@
 
 # select --gpu/--npu from command line arguments
+# default to best device for init and "" for start
 ensure_select_device () {
-  local device="cpu"
-  [ ! -e /dev/accel/accel0 ] || device="npu"
-  [ ! -e /dev/dri/renderD128 ] || device="gpu"
+  local device=""
+  case "$1" in
+  install)
+    device="cpu"
+    [ ! -e /dev/accel/accel0 ] || device="npu"
+    [ ! -e /dev/dri/renderD128 ] || device="gpu"
+    ;;
+  esac
+
   case " $* " in
   *" --NPU "*)
     [ ! -e /dev/accel/accel0 ] || device="npu"

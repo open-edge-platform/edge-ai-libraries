@@ -34,7 +34,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
   - Use `$(ensure_project_path)/<component_name>` as the default installation path.  
   - The `install` function should cover the following conditions: (1) The component is not yet installed. (2) The component is previously installed but misconfigured. (3) The component of an older version is installed. After installation, it is assumed that the component is fully configured and ready to be launched (`start`).
   - If the component (of the same version) is already installed, the `install` function should skip the installation unless the `--reinstall` option is specified, in which case, the `install` function should reinstall the component cleanly.    
-  - For components that support multiple device accelerations, the `install` function must use the [`ensure_select_device`](../common/linux/ensure_select_device) function to take user input and configure the component accordingly.  
+  - For components that support multiple device accelerations, the `install` function must use the [`ensure_select_device`](../common/linux/ensure_select_device) function to take user input and configure the component accordingly. 
   - For components that require certain memory size or disk space, use the [`ensure_disk_space`](../common/linux/ensure_disk_space) and [`ensure_ram_size`](../common/linux/ensure_ram_size) functions to enforce the requirements and exit early.
   - For components that need to download AI models from huggingface, use the [`ensure_hf_token`](../common/linux/ensure_hf_token) function to set `HF_TOKEN`. The `ensure_hf_token` function can be used to check model access permissions for gated models.   
   - For components that download any dataset, video files, AI models, implement a check that the download files actually exist, to ensure there is no silent failure during installation/setup. The check can be part of the `verify_<component>` helper, which checks if a previous installation/setup is complete.   
@@ -102,6 +102,11 @@ debian_85_install_my_component () {
 
     verify_my_component "$@"   # final check after installation
   fi
+
+  # additional configurations such as configuring acceleration device
+  local device=$(ensure_select_device "$@")
+  ...
+
   # For a SDK, application or service, highlight what's next after installation
   echo "@@HIGHLIGHT next-steps"
 }
@@ -111,6 +116,7 @@ debian_85_install_my_component () {
 #  configure_my_component "$@"
 #  ensure_ports_open "80 443" debian_85_stop_my_component "$@"
 #  ...
+#
 #  # For an application or service, highlight what's next after starting the application or service.
 #  echo "@@HIGHLIGHT next-steps"    # ex. echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
 #}
