@@ -40,6 +40,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
   - For components that download any dataset, video files, AI models, implement a check that the download files actually exist, to ensure there is no silent failure during installation/setup. The check can be part of the `verify_<component>` helper, which checks if a previous installation/setup is complete.   
   - For libraries, SDKs, applications or tools, after installation, the `install` function should highlight what is next to the users. For example, for SDKs, show the workspace location and instructions of how to configure and play with samples included in the SDKs. See the [`@@HIGHLIGH`](#highlight-protocol) section for more details.
   - For libraries and SDKs specific and optional for others, if the `--validate` option is specified, the libraries and SDKs should perform a self validation to ensure the intended features work correctly on the installed platform. 
+  - For kernel drivers intallation (order 00-29), if a reboot is requried, specify `reboot` as a dependency in the `profile` function and invoke `configure_reboot "$@"` to request a reboot. The actual reboot is delayed until installation order 29.   
 
 - `remove`: The optional `remove` function removes the component from the system. If the component has a `stop` function, the `remove` function usually invokes the `stop` function to terminate the component before physically remove the component from the system.
 

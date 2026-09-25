@@ -1,0 +1,13 @@
+
+configure_reboot () {
+  touch "${installer_state?}"/reboot_required
+}
+
+debian_29_install_reboot () {
+  [ -e "${installer_state?}"/reboot_required ] || return 
+  local delay=2
+  ensure_sudo shutdown -r +2 "$installer_name scheduled a reboot in $delay minutes. Rerun $* after system is back."
+  rm -f "${installer_state?}"/reboot_required
+  sleep infinity
+}
+
