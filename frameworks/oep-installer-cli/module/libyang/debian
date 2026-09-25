@@ -1,0 +1,37 @@
+
+configure_libyang () {
+  workspace="$(ensure_project_path)/libyang"
+  repository="https://github.com/CESNET/libyang.git"
+  version=v4.2.2
+}
+  
+debian_40_profile_libyang () {
+  echo "cmake make"
+}
+
+verify_libyang () {
+  command yanglint > /dev/null 2>&1
+}
+
+debian_40_install_libyang () {
+  configure_libyang
+  if verify_libyang && [[ " $* " != *" --reinstall "* ]]; then
+    echo "libyang is installed. Skipping..." 1>&2
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    mkdir "$workspace"/build
+    cd "$workspace"/build
+    cmake ..
+    make
+    ensure_sudo make install
+    ensure_sudo ldconfig /usr/local/lib
+    make clean
+  fi
+}
+
+debian_40_remove_libyang () {
+  configure_libyang
+  cd "$workspace/build" && ensure_sudo make uninstall || true
+  rm -rf "$workspace"
+}
+
