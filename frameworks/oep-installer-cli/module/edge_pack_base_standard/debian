@@ -14,11 +14,7 @@ debian_20_install_edge_pack_base_standard () {
     echo "intel-edge-base-standard already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_standard
-    local options=("--no-install-recommends")
-    case " $* " in
-    *" --allow-downgrades "*) options+=("--allow-downgrades");;&
-    esac
-    ensure_apt install "${options[@]}" "intel-edge-base-standard=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*"
   fi
 }
 

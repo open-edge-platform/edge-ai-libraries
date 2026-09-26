@@ -14,11 +14,7 @@ debian_70_install_edge_pack_media_gst () {
     echo "intel-edge-media-gst already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_gst
-    local options=("--no-install-recommends")
-    case " $* " in
-    *" --allow-downgrades "*) options+=("--allow-downgrades");;&
-    esac
-    ensure_apt install "${options[@]}" "intel-edge-media-gst=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*"
   fi
 }
 
