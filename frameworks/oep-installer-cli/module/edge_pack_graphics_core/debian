@@ -14,7 +14,7 @@ debian_20_install_edge_pack_graphics_core () {
     echo "intel-edge-graphics-core already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_core
-    ensure_apt install --no-install-recommends "intel-edge-graphics-core=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
   fi
 }
 

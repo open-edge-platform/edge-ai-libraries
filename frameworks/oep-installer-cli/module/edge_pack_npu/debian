@@ -14,7 +14,7 @@ debian_20_install_edge_pack_npu () {
     echo "intel-edge-npu already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_npu
-    ensure_apt install --no-install-recommends "intel-edge-npu=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-npu=$version*"
   fi
 }
 

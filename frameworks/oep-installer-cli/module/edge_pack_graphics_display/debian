@@ -14,7 +14,7 @@ debian_20_install_edge_pack_graphics_display () {
     echo "intel-edge-graphics-display already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_display
-    ensure_apt install --no-install-recommends "intel-edge-graphics-display=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*"
   fi
 }
 
