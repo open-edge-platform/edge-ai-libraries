@@ -15,6 +15,12 @@ Client -> server events
     session.update              Update language / VAD / audio format.
     input_audio_buffer.append   {"audio": "<base64 pcm16>"}
     input_audio_buffer.commit   Force-close the current utterance.
+    input_audio_buffer.preview  Non-destructive: transcribe everything
+                                 buffered since the last real commit WITHOUT
+                                 clearing it, so a caller can get a fresh,
+                                 full-context transcript snapshot mid-speech
+                                 without waiting for (or costing) a real
+                                 commit. See ``_preview_utterance``.
     input_audio_buffer.clear    Discard buffered audio.
 
 Server -> client events
@@ -22,6 +28,7 @@ Server -> client events
     input_audio_buffer.speech_started / .speech_stopped / .committed / .cleared
     conversation.item.input_audio_transcription.delta
     conversation.item.input_audio_transcription.completed
+    conversation.item.input_audio_transcription.preview
     error
 """
 from __future__ import annotations
@@ -62,6 +69,18 @@ router = APIRouter()
 MAX_APPEND_BYTES = 5 * 1024 * 1024          # per-message cap
 MAX_UTTERANCE_SECONDS = 120.0               # force-commit runaway speech
 MIN_UTTERANCE_SECONDS = 0.20                # ignore blips too short to transcribe
+MIN_PREVIEW_SECONDS = 0.20                  # same floor for non-destructive previews
+# Bound each preview's decode cost so it doesn't grow with utterance length.
+# Without this, a preview re-transcribes the WHOLE buffered utterance every
+# tick -- on a several-second utterance the final preview (the one covering
+# the customer's actual last word) takes 700ms+ on CPU, dwarfing the ~160ms
+# per-utterance figure a bounded-window decode achieves. Previews only need
+# to resolve recent speech (earlier portions are already captured by the
+# adaptive-pause flush's real commits), so trimming to a trailing window is
+# safe for the preview's purpose (endpoint-completeness heuristic + fresh
+# transcript-ready signal) even though it is never used for the persisted
+# transcript.
+PREVIEW_MAX_WINDOW_SECONDS = 2.0
 SUPPORTED_AUDIO_FORMAT = "pcm16"
 
 
@@ -71,6 +90,11 @@ class RealtimeSession:
     def __init__(self, session_id: str, language: str | None):
         self.session_id = session_id
         self.language = language
+        # Speaker/diarization scope, set via session.update -- mirrors the
+        # file-based /v1/audio/transcriptions endpoint's Form fields so the
+        # two ASR paths stay at feature parity.
+        self.speaker_scope_id: str | None = None
+        self.diarization: bool | None = None
         self.sample_rate = DEFAULT_SAMPLE_RATE
         self.audio_format = SUPPORTED_AUDIO_FORMAT
         self.vad_enabled = True
@@ -87,6 +111,10 @@ class RealtimeSession:
         # Serializes transcription so utterances are emitted in order.
         self.lock = asyncio.Lock()
         self.utterance_index = 0
+        # Separate counter for non-destructive previews (see
+        # input_audio_buffer.preview) -- kept independent of utterance_index
+        # so real commit sequencing is unaffected by preview activity.
+        self.preview_index = 0
 
     def rebuild_audio_state(self) -> None:
         self.buffer = PcmStreamBuffer(sample_rate=self.sample_rate)
@@ -149,6 +177,13 @@ def _apply_session_update(session: RealtimeSession, patch: dict) -> None:
         language = transcription.get("language")
         session.language = language or None
 
+    if "speaker_scope_id" in patch:
+        session.speaker_scope_id = patch.get("speaker_scope_id") or None
+
+    if "diarization" in patch:
+        diarization = patch.get("diarization")
+        session.diarization = None if diarization is None else bool(diarization)
+
     if "turn_detection" in patch:
         turn_detection = patch.get("turn_detection")
         if turn_detection is None:
@@ -172,17 +207,31 @@ def _apply_session_update(session: RealtimeSession, patch: dict) -> None:
 
 
 def _transcribe_pcm(session_id: str, pcm: bytes, sample_rate: int, language: str | None,
-                    utterance_index: int) -> dict:
-    """Blocking: persist the utterance as WAV and run it through the Pipeline."""
+                    label: str, speaker_scope_id: str | None,
+                    diarization: bool | None, append_to_session: bool = True) -> dict:
+    """Blocking: persist the utterance as WAV and run it through the Pipeline.
+
+    ``append_to_session=False`` (used for non-destructive previews) runs a
+    throwaway Pipeline that neither reads nor writes session_state.json --
+    it only ever transcribes exactly the bytes passed in, so repeated
+    previews of a growing peeked buffer never corrupt or duplicate the real,
+    persisted session transcript built by actual commits.
+    """
     session_dir = get_session_dir(session_id)
     os.makedirs(session_dir, exist_ok=True)
-    wav_path = os.path.join(session_dir, f"realtime_{utterance_index:05d}.wav")
+    wav_path = os.path.join(session_dir, f"realtime_{label}.wav")
     write_wav(wav_path, pcm, sample_rate)
 
     try:
         # append_to_session accumulates transcript/sentiment across utterances so
-        # the socket produces one coherent session transcript.
-        pipeline = Pipeline(session_id=session_id, append_to_session=True)
+        # the socket produces one coherent session transcript. speaker_scope_id
+        # / diarization mirror the file-based endpoint for feature parity.
+        pipeline = Pipeline(
+            session_id=session_id,
+            append_to_session=append_to_session,
+            speaker_scope_id=speaker_scope_id,
+            diarization=diarization,
+        )
         return pipeline.transcribe(
             SimpleNamespace(audio_filename=wav_path, source_type=AudioSource.AUDIO_FILE),
             language=language,
@@ -220,7 +269,10 @@ async def _commit_utterance(ws: WebSocket, session: RealtimeSession, reason: str
                 pcm,
                 session.sample_rate,
                 session.language,
-                session.utterance_index,
+                f"{session.utterance_index:05d}",
+                session.speaker_scope_id,
+                session.diarization,
+                True,  # append_to_session -- real commit, persists session state
             )
         except Exception:
             logger.exception("Realtime transcription failed for session %s", session.session_id)
@@ -242,12 +294,79 @@ async def _commit_utterance(ws: WebSocket, session: RealtimeSession, reason: str
             "item_id": item_id,
             "content_index": 0,
             "transcript": text,
+            # Monotonically increasing per session -- lets a client discard a
+            # late/out-of-order event instead of overwriting a newer snapshot.
+            "sequence": session.utterance_index,
+            "segments": result.get("segments") or [],
         }
         if result.get("language"):
             completed["language"] = result["language"]
         if "sentiment_summary" in result:
             completed["sentiment_summary"] = result["sentiment_summary"]
         await _send(ws, completed)
+
+
+async def _preview_utterance(ws: WebSocket, session: RealtimeSession) -> None:
+    """Non-destructively transcribe everything buffered since the last real
+    commit, WITHOUT clearing the buffer or touching persisted session state.
+
+    This is what gives the client a fresh, full-context transcript snapshot
+    while speech is still ongoing: unlike splitting audio into independent
+    committed slices, the window always starts at the same fixed point (the
+    last real commit), so Whisper always sees the whole in-progress
+    utterance -- never a mid-word fragment -- and there is nothing to
+    deduplicate against the persisted transcript, because nothing here is
+    ever persisted.
+    """
+    async with session.lock:
+        pcm = session.buffer.peek_tail(PREVIEW_MAX_WINDOW_SECONDS)
+        duration = pcm_duration_sec(pcm, session.sample_rate)
+        if not pcm or duration < MIN_PREVIEW_SECONDS:
+            return
+
+        session.preview_index += 1
+        preview_index = session.preview_index
+
+        try:
+            result = await run_in_threadpool(
+                _transcribe_pcm,
+                session.session_id,
+                pcm,
+                session.sample_rate,
+                # Force None here, NOT session.language: the preview pool may
+                # run a different, English-only model than the final commit
+                # (see config.models.asr.preview / pipeline.py's per-pool
+                # model selection). openvino_genai.WhisperPipeline raises for
+                # ANY language token on an English-only checkpoint, so this
+                # scratch/throwaway call must never forward the session's
+                # (possibly multilingual-oriented) language hint -- the real,
+                # persisted commit below still gets session.language
+                # unchanged.
+                None,
+                f"preview_{preview_index:05d}",
+                session.speaker_scope_id,
+                # Force False here, NOT session.diarization: preview is a
+                # scratch/throwaway transcript (never persisted, no
+                # speaker-filter step consumes it) used only for endpoint-
+                # completeness/stability detection. Running pyannote
+                # diarization on every preview call (2-7x per turn) pays its
+                # full inference cost for output nobody reads -- the real,
+                # persisted commit below still gets session.diarization
+                # unchanged so speaker filtering keeps working there.
+                False,
+                False,  # append_to_session -- scratch, never persisted
+            )
+        except Exception:
+            logger.exception("Realtime preview transcription failed for session %s", session.session_id)
+            return
+
+        text = (result.get("text") or "").strip()
+        await _send(ws, {
+            "type": "conversation.item.input_audio_transcription.preview",
+            "sequence": preview_index,
+            "transcript": text,
+            "segments": result.get("segments") or [],
+        })
 
 
 async def _handle_append(ws: WebSocket, session: RealtimeSession, message: dict) -> None:
@@ -325,6 +444,9 @@ async def realtime_transcription(
 
             elif event_type == "input_audio_buffer.commit":
                 await _commit_utterance(websocket, session, reason="client_commit")
+
+            elif event_type == "input_audio_buffer.preview":
+                await _preview_utterance(websocket, session)
 
             elif event_type == "input_audio_buffer.clear":
                 session.buffer.clear()

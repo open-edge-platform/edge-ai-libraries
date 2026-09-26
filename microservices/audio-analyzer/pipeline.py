@@ -18,18 +18,39 @@ DELETE_CHUNK_AFTER_USE = getattr(config.pipeline, "delete_chunks_after_use", Tru
 SESSION_STATE_FILENAME = "session_state.json"
 
 class Pipeline:
-    def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None):
+    def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None,
+                 diarization: bool | None = None):
         logger.info("pipeline initialized")
         self.session_id = session_id or generate_session_id()
         self.append_to_session = append_to_session
         self.temperature = config.models.asr.temperature if temperature is None else temperature
+        # Preview pool (append_to_session=False, non-destructive scratch calls)
+        # may use a DIFFERENT model/device than the final pool -- see
+        # config.models.asr.preview. Falls back to the main asr config when no
+        # override is configured, so existing single-model deployments are
+        # unaffected. Rationale: preview calls happen on the ASR-latency
+        # critical path that gates the endpoint completeness shortcut (see
+        # docs/performance-improvements-2026-09.md), while the final,
+        # persisted commit is not as latency-sensitive and should stay on the
+        # proven-stable model/device.
+        _preview_cfg = getattr(config.models.asr, "preview", None)
+        if not append_to_session and _preview_cfg is not None:
+            asr_provider = getattr(_preview_cfg, "provider", None) or config.models.asr.provider
+            asr_model_name = getattr(_preview_cfg, "name", None) or config.models.asr.name
+            asr_device = getattr(_preview_cfg, "device", None) or config.models.asr.device
+        else:
+            asr_provider = config.models.asr.provider
+            asr_model_name = config.models.asr.name
+            asr_device = config.models.asr.device
         self.asr_component = ASRComponent(
             self.session_id,
-            provider=config.models.asr.provider,
-            model_name=config.models.asr.name,
-            device=config.models.asr.device,
+            provider=asr_provider,
+            model_name=asr_model_name,
+            device=asr_device,
             temperature=self.temperature,
             speaker_scope_id=speaker_scope_id,
+            diarization=diarization,
+            append_to_session=append_to_session,
         )
         self.sentiment_component = None
         if SENTIMENT_ENABLED:
@@ -45,7 +66,16 @@ class Pipeline:
             return self.sentiment_component.analyze(chunk_path)
         return {}
 
-    def _cleanup_chunk(self, chunk_path: str | None) -> None:
+    def _cleanup_chunk(self, chunk: dict | None) -> None:
+        """Delete a temporary chunk file produced by the chunker.
+
+        Skipped for ``passthrough`` chunks: those are not ffmpeg-derived
+        temporaries but the caller's own saved upload, which the storage
+        layer owns and other endpoints may still read.
+        """
+        if not chunk or chunk.get("passthrough"):
+            return
+        chunk_path = chunk.get("chunk_path")
         if DELETE_CHUNK_AFTER_USE and chunk_path and os.path.exists(chunk_path):
             os.remove(chunk_path)
 
@@ -140,7 +170,7 @@ class Pipeline:
 
         if not SENTIMENT_ENABLED:
             for chunk in self.asr_component.process(chunk_generator, language=language):
-                self._cleanup_chunk(chunk.get("chunk_path"))
+                self._cleanup_chunk(chunk)
                 yield chunk, {}
             return
 
@@ -150,7 +180,7 @@ class Pipeline:
                 chunk_path = chunk_transcription.get("chunk_path")
                 fut = pool.submit(self._run_sentiment, chunk_path)
                 sentiment = fut.result()
-                self._cleanup_chunk(chunk_path)
+                self._cleanup_chunk(chunk_transcription)
                 yield chunk_transcription, sentiment
 
     def _build_verbose_segment(self, segment_id: int, segment: dict, include_speaker: bool = False) -> dict:
@@ -246,7 +276,12 @@ class Pipeline:
                 recency_weight=getattr(config.sentiment, "recency_weight", 0.7),
                 peak_label=getattr(config.sentiment, "peak_label", "angry"),
             )
-        self._persist_session_outputs(detected_language, duration, final_text, all_segments, chunk_sentiments)
+        # append_to_session=False (non-destructive preview) must never mutate
+        # the persisted session_state.json — otherwise the next REAL commit's
+        # _load_session_state() picks up this scratch call's non-cumulative
+        # duration/segments, corrupting its offset math.
+        if self.append_to_session:
+            self._persist_session_outputs(detected_language, duration, final_text, all_segments, chunk_sentiments)
         yield final_event
 
     def transcribe(self, input, language: str | None = None) -> dict:
@@ -294,6 +329,10 @@ class Pipeline:
                 peak_label=getattr(config.sentiment, "peak_label", "angry"),
             )
 
-        self._persist_session_outputs(detected_language, duration, full_text, segments, chunk_sentiments)
+        # Same guard as stream_transcribe() -- see comment there. A scratch
+        # (append_to_session=False) call must be a pure read: it must not
+        # persist its own duration/segments over the real session's state.
+        if self.append_to_session:
+            self._persist_session_outputs(detected_language, duration, full_text, segments, chunk_sentiments)
 
         return result

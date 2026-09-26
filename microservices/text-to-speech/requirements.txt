@@ -23,5 +23,11 @@ transformers==5.3.0
 torch==2.11.0+cpu
 torchaudio==2.11.0+cpu
 
-# Kokoro-82M TTS (onnxruntime CPU). Pulls espeakng-loader, phonemizer, onnxruntime.
+# Kokoro-82M TTS (onnxruntime CPU). Pulls espeakng-loader, phonemizer,
+# onnxruntime. MIT-licensed package, Apache-2.0 licensed model weights
+# (downloaded at runtime, see utils/ensure_kokoro.py). onnxruntime is
+# CPU-only here; capped at 4 intra-op threads so it does not compete with
+# other models on the box. Pinned explicitly (not just pulled in
+# transitively via kokoro-onnx) for reproducible builds.
 kokoro-onnx==0.6.1
+onnxruntime==1.20.1
