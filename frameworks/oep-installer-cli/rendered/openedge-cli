@@ -2595,6 +2595,8 @@ configure_edge_pack () {
     "Pin-Priority: 1001"
   )
   edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref
+  edge_pack_install_options=("--no-install-recommends")
+  [[ " $* " != *" --allow-downgrades "* ]] || edge_pack_install_options+=("--allow-downgrades")
 }
 
 debian_15_profile_edge_pack () {
@@ -2645,7 +2647,7 @@ debian_20_install_edge_pack_base_realtime () {
     echo "intel-edge-base-realtime already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_realtime
-    ensure_apt install --no-install-recommends "intel-edge-base-realtime=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
   fi
 }
 
@@ -2683,7 +2685,7 @@ debian_20_install_edge_pack_base_standard () {
     echo "intel-edge-base-standard already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_standard
-    ensure_apt install --no-install-recommends "intel-edge-base-standard=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*"
   fi
 }
 
@@ -2721,7 +2723,7 @@ debian_20_install_edge_pack_graphics_core () {
     echo "intel-edge-graphics-core already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_core
-    ensure_apt install --no-install-recommends "intel-edge-graphics-core=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
   fi
 }
 
@@ -2759,7 +2761,7 @@ debian_20_install_edge_pack_graphics_display () {
     echo "intel-edge-graphics-display already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_display
-    ensure_apt install --no-install-recommends "intel-edge-graphics-display=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*"
   fi
 }
 
@@ -2797,7 +2799,7 @@ debian_20_install_edge_pack_media_core () {
     echo "intel-edge-media-core already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_core
-    ensure_apt install --no-install-recommends "intel-edge-media-core=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*"
   fi
 }
 
@@ -2835,7 +2837,7 @@ debian_70_install_edge_pack_media_ffmpeg () {
     echo "intel-edge-media-ffmpeg already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_ffmpeg
-    ensure_apt install --no-install-recommends "intel-edge-media-ffmpeg=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*"
   fi
 }
 
@@ -2873,7 +2875,7 @@ debian_70_install_edge_pack_media_gst () {
     echo "intel-edge-media-gst already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_gst
-    ensure_apt install --no-install-recommends "intel-edge-media-gst=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*"
   fi
 }
 
@@ -2911,7 +2913,7 @@ debian_20_install_edge_pack_npu () {
     echo "intel-edge-npu already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_npu
-    ensure_apt install --no-install-recommends "intel-edge-npu=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-npu=$version*"
   fi
 }
 
@@ -4712,7 +4714,7 @@ configure_reboot () {
 debian_29_install_reboot () {
   [ -e "${installer_state?}"/reboot_required ] || return 
   local delay=2
-  ensure_sudo shutdown -r +2 "$installer_name scheduled a reboot in $delay minutes. Rerun $* after system is back."
+  ensure_sudo shutdown -r +$delay "$installer_name scheduled a reboot in $delay minutes. Rerun $* after system is back."
   rm -f "${installer_state?}"/reboot_required
   sleep infinity
 }
