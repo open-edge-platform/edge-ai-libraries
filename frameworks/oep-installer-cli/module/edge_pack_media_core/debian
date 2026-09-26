@@ -14,7 +14,11 @@ debian_20_install_edge_pack_media_core () {
     echo "intel-edge-media-core already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_core
-    ensure_apt install --no-install-recommends "intel-edge-media-core=$version*"
+    local options=("--no-install-recommends")
+    case " $* " in
+    *" --allow-downgrades "*) options+=("--allow-downgrades");;&
+    esac
+    ensure_apt install "${options[@]}" "intel-edge-media-core=$version*"
   fi
 }
 

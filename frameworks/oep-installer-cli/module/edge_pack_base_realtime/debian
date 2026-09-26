@@ -14,7 +14,11 @@ debian_20_install_edge_pack_base_realtime () {
     echo "intel-edge-base-realtime already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_realtime
-    ensure_apt install --no-install-recommends "intel-edge-base-realtime=$version*"
+    local options=("--no-install-recommends")
+    case " $* " in
+    *" --allow-downgrades "*) options+=("--allow-downgrades");;&
+    esac
+    ensure_apt install "${options[@]}" "intel-edge-base-realtime=$version*"
   fi
 }
 
