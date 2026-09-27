@@ -1621,6 +1621,36 @@ class TestJobResponse(BaseModel):
     )
 
 
+class OvmsPocRunRequest(BaseModel):
+    """Request for the minimal file-to-file OVMS streaming proof of concept."""
+
+    input_video: str = Field(
+        ...,
+        min_length=1,
+        description="Path relative to INPUT_VIDEO_DIR, for example auto/obj_classification.mp4.",
+        examples=["auto/obj_classification.mp4"],
+    )
+    graph_name: Literal["publicDetection"] = Field(
+        default="publicDetection",
+        description="Name of the streaming MediaPipe graph configured in OVMS.",
+    )
+    max_parallel_requests: int = Field(
+        default=2,
+        ge=1,
+        le=8,
+        description="Maximum in-flight requests on the OVMS gRPC stream.",
+    )
+    max_inference_width: int = Field(default=1920, ge=1, le=7680)
+    max_inference_height: int = Field(default=1080, ge=1, le=4320)
+    request_timeout_s: float = Field(default=30, gt=0, le=300)
+
+
+class OvmsPocJobResponse(BaseModel):
+    """Identifier returned after an OVMS POC job has been started."""
+
+    job_id: str
+
+
 class BenchmarkJobResponse(BaseModel):
     """Simple envelope with a new benchmark job identifier."""
 

@@ -1,0 +1,17 @@
+{
+  "model_config_list": [
+    {
+      "config": {
+        "name": "public_ssdlite_object_detection",
+        "base_path": "/models/model_repository/public_detection/models/ssdlite_object_detection"
+      }
+    }
+  ],
+  "mediapipe_config_list": [
+    {
+      "name": "publicDetection",
+      "base_path": "/models/model_repository/public_detection",
+      "graph_path": "graph.pbtxt"
+    }
+  ]
+}

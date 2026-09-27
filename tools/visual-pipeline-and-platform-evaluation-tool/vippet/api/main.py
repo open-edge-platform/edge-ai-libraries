@@ -118,6 +118,7 @@ def register_routers(app: FastAPI) -> None:
         timeseries,
         videos,
         cameras,
+        ovms_poc,
     )
 
     # Include routers from different modules
@@ -137,6 +138,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(videos.router, prefix="/videos", tags=["videos"])
     app.include_router(images.router, prefix="/images", tags=["images"])
     app.include_router(cameras.router, prefix="/cameras", tags=["cameras"])
+    app.include_router(ovms_poc.router, prefix="/ovms-poc", tags=["ovms-poc"])
 
 
 @asynccontextmanager
