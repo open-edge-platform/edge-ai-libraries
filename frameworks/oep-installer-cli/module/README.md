@@ -18,7 +18,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
 99      profiles
 ```
 
-- `<start|stop|install|remove|profile|license|sbom>`: The `profile` function works similarly to a profile, which specifies the component dependencies, and the `install/remove/start/stop` functions perform their corresponding functions. At least one of thoses functions must be defined for the component. Others are optional.
+- `<start|stop|install|group|remove|profile|license|sbom>`: The `profile` function works similarly to a profile, which specifies the component dependencies, and the `install/group/remove/start/stop` functions perform their corresponding functions. At least one of thoses functions must be defined for the component. Others are optional.
 
   - For simple system-level packages, for example, `curl`, it is ok to define only an installation function without an uninstaller. The assumption is that `curl` can reside on the system for future use, while uninstalling it everytime is a bit overkill and may cause potentially unintended consequence. For other non-system components, there usually should define both an `install` function and a corresponding `remove` function.
   - The function argument is as follows: `<subcommand> [global-options] <complete list of component names> -- <this component specific arguments>`, where `<subcommand>` is one of `install`, `start`, `stop`, or `remove`. The list of installed components is useful to resolve any dependency issues. For example, `openvino` can use a newer version when installed standalone but a different version when installed together with `dlstreamer`. The arguments of this component can be used for component specific configurations, for example, selecting accelerator devices ([`ensure_select_device`](../common/linux/ensure_select_device)).   
@@ -29,6 +29,10 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
   - The dependency component name must be valid components under the `module` or `profile` directory.  
   - Applications, services and SDKs that use GPU or NPU should in general include [`edge_base`](edge_base) as a dependency, which is a virtual package for preparing the system for GPU and NPU acceleration. A similar [`edge_base_rt`](edge_base_rt) profile is available for physical AI deployment.  
   - Once a dependency component is resolved, all shell functions defined by the component are included in the finalized installer and can be utilized by parent components. See [`uv`](uv/debian) for an example. The `uv` component provides a public function `configure_uv` that can be used by other components.  
+
+- `group`: The optional `group` function is required if the component creates new groups **and** the user must be part of the groups. For example, a user cannot invoke `docker ps` if the user is not part of the `docker` group. The followings are some examples:   
+  - `docker:`: The component creates a `docker` group in the system value range. See [`docker`](docker/debian) for an example.  
+  - `render:992`: The component creates a `render` group with a preferred group value. See [`gpu`](gpu/debian) or [`npu`](npu/debian) for an example.  
 
 - `install`: The `install` function installs and configures the component.  
   - Use `$(ensure_project_path)/<component_name>` as the default installation path.  

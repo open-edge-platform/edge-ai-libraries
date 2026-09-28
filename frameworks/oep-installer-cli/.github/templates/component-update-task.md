@@ -105,6 +105,7 @@ If the spec changes a pinned version, tag, or workspace layout, `verify_{{NAME}}
 
    ```
    debian_<NN>_profile_{{NAME}}
+   debian_<NN>_group_{{NAME}}
    debian_<NN>_install_{{NAME}}
    debian_<NN>_remove_{{NAME}}
    debian_<NN>_start_{{NAME}}

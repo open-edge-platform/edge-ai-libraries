@@ -8,6 +8,10 @@ debian_20_profile_edge_pack_base_standard () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_base_standard () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_base_standard () {
   configure_edge_pack_base_standard "$@"
   if ensure_apt_is_installed intel-edge-base-standard=$version && [[ " $* " != *" --reinstall "* ]]; then

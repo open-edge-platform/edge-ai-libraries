@@ -8,6 +8,10 @@ debian_20_profile_edge_pack_npu () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_npu () {
+  echo "render:992"
+}
+
 debian_20_install_edge_pack_npu () {
   configure_edge_pack_npu "$@"
   if ensure_apt_is_installed intel-edge-npu=$version && [[ " $* " != *" --reinstall "* ]]; then

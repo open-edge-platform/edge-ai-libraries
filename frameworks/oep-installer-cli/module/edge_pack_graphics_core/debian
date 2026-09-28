@@ -8,6 +8,10 @@ debian_20_profile_edge_pack_graphics_core () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_graphics_core () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_graphics_core () {
   configure_edge_pack_graphics_core "$@"
   if ensure_apt_is_installed intel-edge-graphics-core=$version && [[ " $* " != *" --reinstall "* ]]; then

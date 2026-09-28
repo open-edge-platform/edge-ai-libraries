@@ -44,6 +44,7 @@ pull request adding `module/{{NAME}}/debian`.
    The six interface functions **must** follow the exact pattern:
    ```
    debian_<NN>_profile_{{NAME}}
+   debian_<NN>_group_{{NAME}}
    debian_<NN>_install_{{NAME}}
    debian_<NN>_remove_{{NAME}}
    debian_<NN>_start_{{NAME}}
