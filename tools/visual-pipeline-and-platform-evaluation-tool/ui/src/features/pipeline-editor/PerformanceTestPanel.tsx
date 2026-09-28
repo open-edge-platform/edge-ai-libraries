@@ -354,7 +354,9 @@ const PerformanceTestPanel = ({
               <TabsTrigger value="metadata">Metadata JSON</TabsTrigger>
             )}
             {showGenAIMetricsTab && (
-              <TabsTrigger value="genai-metrics">VLM Metrics</TabsTrigger>
+              <TabsTrigger value="genai-metrics">
+                Experimental VLM Metrics
+              </TabsTrigger>
             )}
           </TabsList>
         )}
