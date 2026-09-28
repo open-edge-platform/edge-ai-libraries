@@ -51,7 +51,8 @@ Make sure to put all your data (images and video) in the created data directory 
 
 Additionally, make sure the created path matches with the `HOST_DATA_PATH` variable in `deployment/docker-compose/env.sh`.
 
-> **Note:** The supported media types are: jpg, png, mp4.
+> [!NOTE]
+> The supported media types are: jpg, png, mp4.
 
 ### Step 3: Deploy
 
@@ -70,10 +71,12 @@ Additionally, make sure the created path matches with the `HOST_DATA_PATH` varia
    source env.sh
    ```
 
-   > **Important:** You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
+   > [!IMPORTANT]
+   > You must set `EMBEDDING_MODEL_NAME` before running `env.sh`.
    > See [Supported Models](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) for Multimodal Embedding Serving for available options.
 
-   > **Note:** `env.sh` sets `HF_ENDPOINT` to a Hugging Face mirror, which is necessary for users in the PRC to download models. Users in other regions may remove or unset this variable to use the default Hugging Face endpoint:
+   > [!NOTE]
+   > `env.sh` sets `HF_ENDPOINT` to a Hugging Face mirror, which is necessary for users in the PRC to download models. Users in other regions may remove or unset this variable to use the default Hugging Face endpoint:
    >
    > ```bash
    > unset HF_ENDPOINT
@@ -126,7 +129,8 @@ curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 
 ### Ingest Files
 
-> **Note:** the file directory or single file sent in the request should be under the specific host directory created in Step 2.
+> [!NOTE]
+> the file directory or single file sent in the request should be under the specific host directory created in Step 2.
 
 - For Directory:
 

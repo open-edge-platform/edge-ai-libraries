@@ -67,6 +67,7 @@ export SDK_VIDEO_SHM_BLOCK_SIZE=24883200   # 4K frame size
 export SDK_VIDEO_SHM_MAX_BLOCKS=128        # 128 x 24883200 ≈ 3.2 GB of /dev/shm
 ```
 
-> **Tip:** Pick the block size from the **largest** resolution you will ingest.
+> [!TIP]
+> Pick the block size from the **largest** resolution you will ingest.
 > A larger-than-needed block size is safe (it only wastes memory); a smaller one
 > triggers the failure above. If you mix resolutions, size for the largest.
