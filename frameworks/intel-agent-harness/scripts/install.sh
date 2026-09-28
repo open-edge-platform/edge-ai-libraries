@@ -56,8 +56,10 @@ usage() {
   Environment:
     HARNESS_AGENT               openclaw | deepagents-code | hermes (default: openclaw)
     HERMES_INSTALL_URL            Hermes's official installer URL (default: hermes-agent.nousresearch.com)
-    HERMES_INSTALL_SHA256         Pin the Hermes installer's expected SHA-256 (unset: verified for shape, hash logged)
-    DOCKER_INSTALL_SHA256         Pin get.docker.com's expected SHA-256 (non-apt hosts only; unset: verified for shape, hash logged)
+    HERMES_INSTALL_SHA256         Pin the Hermes installer's expected SHA-256 (required unless HERMES_ALLOW_UNVERIFIED_INSTALL=1)
+    HERMES_ALLOW_UNVERIFIED_INSTALL  Run the Hermes installer without a pinned checksum (not recommended)
+    DOCKER_INSTALL_SHA256         Pin get.docker.com's expected SHA-256 (non-apt hosts only; required unless DOCKER_ALLOW_UNVERIFIED_INSTALL=1)
+    DOCKER_ALLOW_UNVERIFIED_INSTALL  Run the Docker convenience script without a pinned checksum (not recommended)
     HARNESS_LLM_ENDPOINT         OpenAI-compatible endpoint (default: local OpenVINO Model Server)
     HARNESS_LLM_PROVIDER         ovms (default) — the only backend this installer manages itself
     HARNESS_LLM_ROUTER_ENDPOINT  Route to an existing external OpenAI-compatible router instead of OVMS
@@ -66,6 +68,8 @@ usage() {
     HARNESS_SANDBOX_NAME, HARNESS_SANDBOX_IMAGE, HARNESS_SANDBOX_PORT
     HARNESS_GPU_PROFILE, MIN_NODE_VERSION
     HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser hermes3)
+    HARNESS_OVMS_EXPORT_MODEL_PY_SHA256, HARNESS_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256  Pin export_model.py/requirements.txt when overriding HARNESS_OVMS_EXPORT_MODEL_REF
+    HARNESS_ALLOW_UNVERIFIED_OVMS_EXPORTER  Skip pinning for a custom HARNESS_OVMS_EXPORT_MODEL_REF (not recommended)
     EDGE_SERVICE_REPO_URL, EDGE_SERVICE_REF, EDGE_SERVICE_DOCKERFILE
     EDGE_SERVICE_BUILD_CONTEXT, EDGE_SERVICE_IMAGE, EDGE_SERVICE_ENV
     EDGE_SERVICE_CONTAINER_PORT, EDGE_SERVICE_MCP_PATH
@@ -74,6 +78,7 @@ usage() {
     HERMES_CONFIG                  Path to Hermes's config.yaml (default: ~/.hermes/config.yaml)
     HARNESS_MCP_REGISTER_CMD       Script to register an MCP endpoint with a non-Hermes agent
     HARNESS_ADVERTISED_HOST       Host/IP printed in endpoint URLs (default: 127.0.0.1)
+    HARNESS_BIND_HOST             Address Docker binds published ports to (default: same as HARNESS_ADVERTISED_HOST)
     HTTP_PROXY, HTTPS_PROXY, ALL_PROXY, NO_PROXY  Forwarded into OVMS/sandbox/gateway containers
     NON_INTERACTIVE=1, ACCEPT_THIRD_PARTY_SOFTWARE=1, SKIP_GPU_CHECK=1
 
@@ -99,6 +104,15 @@ maybe_prompt_advertised_host() {
     return 0
   fi
   [[ -n "$reply" ]] || return 0
+  # This value now also doubles as the literal docker -p bind address (via
+  # resolve_bind_host) unless HARNESS_BIND_HOST overrides it separately, so
+  # reject anything that isn't a plausible IPv4/IPv6/hostname literal before
+  # persisting it -- a typo here would otherwise surface later as a much
+  # more confusing "docker run" failure instead of just wrong display text.
+  if [[ ! "$reply" =~ ^[A-Za-z0-9.:-]+$ ]]; then
+    warn "'${reply}' doesn't look like a valid host/IP; keeping the previous value."
+    return 0
+  fi
   HARNESS_ADVERTISED_HOST="$reply"
   HARNESS_ADVERTISED_HOST_WAS_SET=1
   persist_advertised_host "$reply"
@@ -148,7 +162,7 @@ print_done() {
     printf "  ${C_DIM}Intel GPU render nodes are passed to sandboxes automatically.${C_RESET}\n"
   fi
   if sandbox_gateway_enabled; then
-    printf "  ${C_DIM}Sandboxes are routed through the harness gateway on port ${HARNESS_GATEWAY_PORT}.${C_RESET}\n"
+    printf "  ${C_DIM}Sandboxes are routed through the harness gateway on port $(resolve_gateway_port_for_display).${C_RESET}\n"
   fi
   printf "  ${C_BOLD}Sandboxes:${C_RESET}\n"
   list_sandboxes

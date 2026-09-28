@@ -49,11 +49,19 @@ EOF
 
 # install_docker_via_convenience_script — fallback for distros without a
 # signed-repo path above (non-apt). No vendor-published static checksum
-# exists for this rolling script; set DOCKER_INSTALL_SHA256 to pin it once
-# you've reviewed a known-good copy, otherwise it's verified for shape only.
+# exists for this rolling script; refuses to run it unverified by default
+# (this runs as root via sudo) -- set DOCKER_INSTALL_SHA256 once you've
+# reviewed a known-good copy, or DOCKER_ALLOW_UNVERIFIED_INSTALL=1 to accept
+# the risk and proceed without pinning.
 install_docker_via_convenience_script() {
   info "No signed apt repository available for this distro; falling back to
 the official convenience script (sudo required)."
+  if [[ -z "${DOCKER_INSTALL_SHA256:-}" && "${DOCKER_ALLOW_UNVERIFIED_INSTALL:-}" != "1" ]]; then
+    error "DOCKER_INSTALL_SHA256 is not set, so refusing to run get.docker.com's
+installer unverified as root. Download and review https://get.docker.com yourself,
+then set DOCKER_INSTALL_SHA256=<sha256> to pin it (or DOCKER_ALLOW_UNVERIFIED_INSTALL=1
+to accept the risk and proceed without pinning)."
+  fi
   local docker_tmp
   docker_tmp="$(mktemp)"
   fetch_and_verify "https://get.docker.com" "$docker_tmp" "Docker install script" \
@@ -105,10 +113,19 @@ grant it only on trusted single-user machines."
   docker info >/dev/null 2>&1 || error "Docker is installed but not reachable. Try: sudo systemctl start docker"
 }
 
-# Prints the --device args needed to pass Intel GPU render nodes into a container.
+# Prints the --device args for Intel-vendor render nodes only (never card
+# nodes -- containers only need render access, and passing card nodes would
+# grant more than the documented workload requires). Cross-references
+# /sys/class/drm's PCI vendor to avoid handing a container another GPU
+# vendor's render node.
 intel_gpu_docker_device_args() {
-  local node
-  for node in /dev/dri/renderD* /dev/dri/card*; do
+  local drm_dir vendor render_num node
+  for drm_dir in /sys/class/drm/renderD*; do
+    [[ -e "${drm_dir}/device/vendor" ]] || continue
+    vendor="$(cat "${drm_dir}/device/vendor" 2>/dev/null || true)"
+    [[ "$vendor" == "0x${INTEL_PCI_VENDOR_ID}" ]] || continue
+    render_num="${drm_dir##*/renderD}"
+    node="/dev/dri/renderD${render_num}"
     [[ -e "$node" ]] && printf ' --device=%s' "$node"
   done
 }

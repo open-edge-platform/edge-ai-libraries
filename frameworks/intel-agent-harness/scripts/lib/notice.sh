@@ -45,9 +45,12 @@ print_notice_body() {
 require_third_party_notice_acceptance() {
   local notice_json version title prompt answer
   notice_json="$(notice_config_path)"
-  [[ -f "$notice_json" ]] || return 0
+  [[ -f "$notice_json" ]] || error "Third-party notice config not found: ${notice_json}.
+This installer refuses to skip consent because of a missing/corrupt checkout
+— restore notice.json and retry."
   version="$(read_json_field "$notice_json" version)"
-  [[ -n "$version" ]] || return 0
+  [[ -n "$version" ]] || error "notice.json is missing a 'version' field: ${notice_json}.
+Refusing to skip third-party notice consent due to a malformed config."
 
   if notice_already_accepted "$version"; then
     return 0

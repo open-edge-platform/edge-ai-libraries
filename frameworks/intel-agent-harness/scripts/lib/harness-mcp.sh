@@ -52,7 +52,14 @@ data.setdefault("mcp_servers", {})[name] = {
     "timeout": 120,
 }
 
-with open(config_path, "w") as f:
+# Hermes's config can carry provider API keys, so write it 0600 -- plain
+# open(..., "w") would use the process umask (commonly 0644) -- and refuse
+# to follow a symlink swapped in at the destination path.
+import os
+
+flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+fd = os.open(config_path, flags, 0o600)
+with os.fdopen(fd, "w") as f:
     yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
 PY
   ok "Registered '${name}' with Hermes (${config})"

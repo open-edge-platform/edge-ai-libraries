@@ -20,15 +20,22 @@ detect_shell_profile() {
 
 # Idempotent — skips if the marker comment is already present.
 ensure_local_bin_in_profile() {
-  local profile
+  local profile shell_name path_line
   profile="$(detect_shell_profile)"
   [[ -n "$profile" ]] || return 0
   if [[ -f "$profile" ]] && grep -qF '# Intel Agent Harness PATH setup' "$profile" 2>/dev/null; then
     return 0
   fi
+  shell_name="$(basename "${SHELL:-bash}")"
+  case "$shell_name" in
+    fish) path_line="$(printf 'set -gx PATH "%s" $PATH' "$HARNESS_SHIM_DIR")" ;;
+    csh | tcsh) path_line="$(printf 'setenv PATH "%s:$PATH"' "$HARNESS_SHIM_DIR")" ;;
+    *) path_line="$(printf 'export PATH="%s:$PATH"' "$HARNESS_SHIM_DIR")" ;;
+  esac
+  mkdir -p "$(dirname "$profile")"
   {
     printf '\n# Intel Agent Harness PATH setup\n'
-    printf 'export PATH="%s:$PATH"\n' "$HARNESS_SHIM_DIR"
+    printf '%s\n' "$path_line"
     printf '# end Intel Agent Harness PATH setup\n'
   } >>"$profile"
 }

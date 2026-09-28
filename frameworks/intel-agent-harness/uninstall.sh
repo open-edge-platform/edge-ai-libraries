@@ -82,7 +82,9 @@ remove_state_dir() {
 
 main() {
   [[ -n "${HOME:-}" ]] || error "HOME is not set; refusing to guess the state directory to remove."
-  local agent="${HARNESS_AGENT:-openclaw}"
+  local installed_agent
+  installed_agent="$(cat "$(harness_state_root)/installed-agent" 2>/dev/null || true)"
+  local agent="${HARNESS_AGENT:-${installed_agent:-openclaw}}"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --yes) ASSUME_YES=1 ;;

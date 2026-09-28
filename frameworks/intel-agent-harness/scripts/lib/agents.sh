@@ -133,8 +133,8 @@ install_deepagents_runner() {
   "bin": { "deepagents-runner": "./index.mjs" },
   "dependencies": {
     "deepagents": "${version}",
-    "@langchain/langgraph": "*",
-    "@langchain/openai": "*"
+    "@langchain/langgraph": "^1.4.18",
+    "@langchain/openai": "^1.6.0"
   }
 }
 EOF
@@ -185,9 +185,17 @@ install_hermes() {
   local installer_tmp
   installer_tmp="$(mktemp)"
   info "Installing Hermes Agent from ${installer_url}…"
-  # Nous Research does not publish a static checksum for this installer; set
-  # HERMES_INSTALL_SHA256 to pin it once you've reviewed a known-good copy,
-  # otherwise it's verified for shape only and its hash is logged for review.
+  # Nous Research does not publish a static checksum for this installer.
+  # Refuse to run it unverified by default -- HTTPS + a shebang check alone
+  # don't establish artifact integrity. Set HERMES_INSTALL_SHA256 once you've
+  # reviewed a known-good copy, or HERMES_ALLOW_UNVERIFIED_INSTALL=1 to
+  # accept the risk and proceed without pinning.
+  if [[ -z "${HERMES_INSTALL_SHA256:-}" && "${HERMES_ALLOW_UNVERIFIED_INSTALL:-}" != "1" ]]; then
+    error "HERMES_INSTALL_SHA256 is not set, so refusing to run the Hermes installer
+unverified. Download and review ${installer_url} yourself, then set
+HERMES_INSTALL_SHA256=<sha256> to pin it (or HERMES_ALLOW_UNVERIFIED_INSTALL=1
+to accept the risk and proceed without pinning)."
+  fi
   fetch_and_verify "$installer_url" "$installer_tmp" "Hermes installer" "${HERMES_INSTALL_SHA256:-}"
   assert_shell_script "$installer_tmp" "Hermes installer"
   spin "Installing Hermes" bash "$installer_tmp" --skip-setup --non-interactive
@@ -208,6 +216,7 @@ install_selected_agent() {
   ensure_cli_shim "$(agent_cli_bin "$agent")" || true
   verify_agent_cli "$(agent_cli_bin "$agent")" \
     || error "$(agent_display_name "$agent") did not verify as runnable after install."
+  atomic_write_file "$(ensure_state_dir)/installed-agent" "$agent"
   ok "$(agent_display_name "$agent") installed"
 }
 

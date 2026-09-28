@@ -79,7 +79,13 @@ create_edge_service() {
 letters/digits/hyphens, start/end alphanumeric, no consecutive hyphens."
   image="$(resolve_edge_service_image "$name")"
   if [[ -n "${EDGE_SERVICE_CONTAINER_PORT:-}" ]]; then
-    port_spec="$(resolve_available_gateway_port):${EDGE_SERVICE_CONTAINER_PORT}"
+    if sandbox_gateway_enabled; then
+      # Gateway mode never publishes a host port, so there's no host-side
+      # availability to check -- just pass the logical container port.
+      port_spec="$EDGE_SERVICE_CONTAINER_PORT"
+    else
+      port_spec="$(resolve_available_gateway_port):${EDGE_SERVICE_CONTAINER_PORT}"
+    fi
   fi
   create_sandbox "$name" "$image" "$port_spec" "${EDGE_SERVICE_ENV:-}"
   ok "Edge service '${name}' endpoint: $(edge_service_endpoint "$name")"

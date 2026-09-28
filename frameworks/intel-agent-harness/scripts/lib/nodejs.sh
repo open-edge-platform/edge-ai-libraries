@@ -24,6 +24,13 @@ version_gte() {
   return 0
 }
 
+# openclaw's real engines constraint is a gap, not just a floor: node 25.x
+# and 26.0.x satisfy MIN_NODE_VERSION's >= check but aren't actually
+# supported (>=24.16.0 <25 || >=26.1.0).
+node_version_in_unsupported_gap() {
+  version_gte "$1" "25.0.0" && ! version_gte "$1" "26.1.0"
+}
+
 ensure_nvm_loaded() {
   # Always set NVM_DIR and (re-)source nvm.sh — sourcing it repeatedly is
   # safe/idempotent. A prior early-return here on "any node already on
@@ -53,10 +60,17 @@ npm_global_prefix_writable() {
 }
 
 install_nodejs() {
-  if command_exists node && version_gte "$(node --version | tr -d v)" "$MIN_NODE_VERSION" \
+  local current_version=""
+  command_exists node && current_version="$(node --version | tr -d v)"
+  if [[ -n "$current_version" ]] && version_gte "$current_version" "$MIN_NODE_VERSION" \
+    && ! node_version_in_unsupported_gap "$current_version" \
     && npm_global_prefix_writable; then
     info "Node.js found: $(node --version)"
     return 0
+  fi
+  if [[ -n "$current_version" ]] && node_version_in_unsupported_gap "$current_version"; then
+    info "System Node ${current_version} is in openclaw's unsupported gap (>=25.0.0
+<26.1.0); installing a supported version via nvm instead."
   fi
 
   info "Installing Node.js (>=${MIN_NODE_VERSION}) via nvm…"

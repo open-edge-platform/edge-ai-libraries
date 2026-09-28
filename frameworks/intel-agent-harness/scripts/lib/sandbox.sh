@@ -9,10 +9,12 @@
 HARNESS_SANDBOX_PREFIX="${HARNESS_SANDBOX_PREFIX:-iplat}"
 HARNESS_DEFAULT_SANDBOX_PORT="${HARNESS_DEFAULT_SANDBOX_PORT:-7860}"
 
+# Pure path computation -- does not create the state dir, so a read-only
+# caller (status, sandbox list) doesn't have the side effect of creating
+# ~/.intel-agent. Writers go through with_state_lock, which already creates
+# the state dir itself for the lock file.
 sandbox_registry_file() {
-  local state_dir
-  state_dir="$(ensure_state_dir)"
-  printf '%s/sandboxes.json' "$state_dir"
+  printf '%s/sandboxes.json' "$(harness_state_root)"
 }
 
 # Verifies a registry file is safe to read before any raw access to it.
@@ -69,6 +71,35 @@ _sandbox_registry_remove_entry_locked() {
     delete registry[name];
     process.stdout.write(JSON.stringify(registry, null, 2));
   ' "$reg_file" "$name" >"$tmp"
+  chmod 600 "$tmp"
+  mv -f "$tmp" "$reg_file"
+  assert_state_path_safe "$reg_file"
+  assert_owned_by_current_user "$reg_file"
+}
+
+# sandbox_registry_set_status name status — patches just the status field,
+# used by start_sandbox/stop_sandbox so `sandbox list` doesn't keep showing
+# "running" for a container that was actually stopped (or vice versa).
+sandbox_registry_set_status() {
+  local name="$1" status="$2"
+  with_state_lock sandbox-registry _sandbox_registry_set_status_locked "$name" "$status"
+}
+
+_sandbox_registry_set_status_locked() {
+  local name="$1" status="$2" reg_file tmp
+  reg_file="$(sandbox_registry_file)"
+  [[ -f "$reg_file" ]] || return 0
+  assert_state_path_safe "$reg_file"
+  assert_owned_by_current_user "$reg_file"
+  tmp="$(mktemp)"
+  node -e '
+    const fs = require("node:fs");
+    const [regFile, name, status] = process.argv.slice(1);
+    let registry = {};
+    try { registry = JSON.parse(fs.readFileSync(regFile, "utf8")); } catch {}
+    if (registry[name]) registry[name].status = status;
+    process.stdout.write(JSON.stringify(registry, null, 2));
+  ' "$reg_file" "$name" "$status" >"$tmp" || { rm -f "$tmp"; return 1; }
   chmod 600 "$tmp"
   mv -f "$tmp" "$reg_file"
   assert_state_path_safe "$reg_file"
@@ -156,7 +187,7 @@ sandbox_running() {
 # still worth rejecting before it reaches `docker run`.
 validate_image_reference() {
   local image="$1"
-  [[ "$image" =~ ^[A-Za-z0-9]([A-Za-z0-9._/:-]*[A-Za-z0-9])?$ ]] \
+  [[ "$image" =~ ^[A-Za-z0-9]([A-Za-z0-9._/:-]*[A-Za-z0-9])?(@sha256:[0-9a-fA-F]{64})?$ ]] \
     || error "Invalid image reference: ${image}"
 }
 
@@ -212,7 +243,7 @@ choose another name."
     info "Creating sandbox '${name}' from ${image} on port ${host_port}…"
     # shellcheck disable=SC2086
     docker run -d --name "$container" --restart unless-stopped \
-      -p "${host_port}:${container_port}" "${env_args[@]}" $gpu_args "$image" \
+      -p "$(resolve_bind_host):${host_port}:${container_port}" "${env_args[@]}" $gpu_args "$image" \
       || error "Could not start container for sandbox '${name}'."
   fi
 
@@ -237,6 +268,7 @@ start_sandbox() {
   local name="$1"
   sandbox_exists "$name" || error "Sandbox '$name' is not registered."
   docker start "$(sandbox_container_name "$name")" >/dev/null || error "Could not start sandbox '$name'."
+  sandbox_registry_set_status "$name" running
   ok "Sandbox '${name}' started"
 }
 
@@ -244,14 +276,22 @@ stop_sandbox() {
   local name="$1"
   sandbox_exists "$name" || error "Sandbox '$name' is not registered."
   docker stop "$(sandbox_container_name "$name")" >/dev/null || error "Could not stop sandbox '$name'."
+  sandbox_registry_set_status "$name" stopped
   ok "Sandbox '${name}' stopped"
 }
 
 destroy_sandbox() {
-  local name="$1" force="${2:-}"
+  local name="$1" force="${2:-}" container
+  container="$(sandbox_container_name "$name")"
   if sandbox_exists "$name"; then
-    if ! docker rm -f "$(sandbox_container_name "$name")" >/dev/null 2>&1 && [[ "$force" != "--force" ]]; then
-      error "Could not remove container for '$name'."
+    if ! docker rm -f "$container" >/dev/null 2>&1; then
+      # --force only tolerates a removal failure when the container turns
+      # out to already be gone (e.g. a race) -- a genuine removal failure
+      # must not silently drop the registry entry for a still-running
+      # container, regardless of --force.
+      if [[ "$force" != "--force" ]] || docker inspect "$container" >/dev/null 2>&1; then
+        error "Could not remove container for '$name'."
+      fi
     fi
   fi
   gateway_remove_route "$name"
@@ -275,7 +315,7 @@ list_sandboxes() {
         : (e.containerPort ? `${e.port}->${e.containerPort}` : e.port);
       console.log(`  ${name}\tport=${portInfo}\timage=${e.image}\tstatus=${e.status}`);
     }
-  ' "$reg_file" "$HARNESS_GATEWAY_PORT" "$(resolve_advertised_host)")"
+  ' "$reg_file" "$(resolve_gateway_port_for_display)" "$(resolve_advertised_host)")"
   # Same message whether the registry file is absent or just empty.
   if [[ -n "$out" ]]; then
     printf '%s\n' "$out"
@@ -294,7 +334,7 @@ connect_sandbox() {
 ./install.sh sandbox start $name"
   container="$(sandbox_container_name "$name")"
   for shell in bash sh; do
-    if docker exec "$container" command -v "$shell" >/dev/null 2>&1; then
+    if docker exec "$container" "$shell" -c 'exit 0' >/dev/null 2>&1; then
       info "Connecting to '${name}' (${shell})…"
       exec docker exec -it "$container" "$shell"
     fi
@@ -333,7 +373,7 @@ backup_all_sandboxes() {
 # its most recent backup image if the container is gone but the registry
 # entry remains.
 recover_sandbox() {
-  local name="$1" image port container_port port_spec latest_backup was_gateway_managed
+  local name="$1" image port container_port port_spec latest_backup was_gateway_managed env_pairs
   if sandbox_exists "$name"; then
     sandbox_running "$name" || start_sandbox "$name"
     ok "Sandbox '${name}' recovered (container present)"
@@ -348,13 +388,23 @@ recover_sandbox() {
   container_port="$(sandbox_registry_field "$name" containerPort)"
   was_gateway_managed="$(sandbox_registry_field "$name" gatewayManaged)"
   port_spec="${port}${container_port:+:${container_port}}"
+  env_pairs="$(node -e '
+    try {
+      const r = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+      const env = r[process.argv[2]]?.env;
+      if (Array.isArray(env)) process.stdout.write(env.join(" "));
+    } catch {}
+  ' "$(sandbox_registry_file)" "$name")"
   latest_backup="$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null \
     | grep "^$(sandbox_container_name "$name")-backup-" | sort | tail -1 || true)"
-  sandbox_registry_remove_entry "$name"
+  # Leave the existing registry entry in place until create_sandbox
+  # succeeds and overwrites it -- sandbox_exists checks the container, not
+  # the registry, so a stale entry here doesn't block recreation, and it's
+  # the only metadata left to retry from if this attempt fails partway.
   # Recreate under the mode it was originally created with, regardless of
   # this session's current HARNESS_GATEWAY_ENABLED setting.
   HARNESS_GATEWAY_ENABLED="$([[ "$was_gateway_managed" == "true" ]] && printf 1 || printf '')" \
-    create_sandbox "$name" "${latest_backup:-$image}" "$port_spec"
+    create_sandbox "$name" "${latest_backup:-$image}" "$port_spec" "$env_pairs"
   if [[ -n "$latest_backup" ]]; then
     warn "Recovered sandbox '${name}' from backup image ${latest_backup}."
   fi

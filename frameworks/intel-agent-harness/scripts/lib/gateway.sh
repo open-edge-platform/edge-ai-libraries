@@ -33,6 +33,24 @@ gateway_routes_file() {
   printf '%s/routes.json' "$(gateway_state_dir)"
 }
 
+gateway_port_file() {
+  printf '%s/port' "$(gateway_state_dir)"
+}
+
+# resolve_gateway_port_for_display -- the port the gateway container was
+# actually created with, if recorded, else the current HARNESS_GATEWAY_PORT.
+# Keeps `sandbox list`/`edge endpoint` accurate in a shell that doesn't have
+# the original HARNESS_GATEWAY_PORT re-exported.
+resolve_gateway_port_for_display() {
+  local file
+  file="$(gateway_port_file)"
+  if [[ -f "$file" ]]; then
+    cat "$file"
+  else
+    printf '%s' "$HARNESS_GATEWAY_PORT"
+  fi
+}
+
 # Regenerated on every gateway start so a container recreated from an older
 # image always runs this install's current proxy logic.
 ensure_gateway_proxy_script() {
@@ -119,14 +137,18 @@ ensure_gateway_running() {
   routes_file="$(gateway_routes_file)"
   [[ -f "$routes_file" ]] || printf '{}' >"$routes_file"
   if docker inspect "$HARNESS_GATEWAY_CONTAINER" >/dev/null 2>&1; then
+    # An existing container is still bound to whatever port it was created
+    # with -- leave the persisted value alone even if HARNESS_GATEWAY_PORT
+    # differs in this session.
     docker start "$HARNESS_GATEWAY_CONTAINER" >/dev/null 2>&1 || true
     return 0
   fi
+  atomic_write_file "$(gateway_port_file)" "$HARNESS_GATEWAY_PORT"
   docker_proxy_env_args_into proxy_args
   info "Starting harness gateway on port ${HARNESS_GATEWAY_PORT}…"
   docker run -d --name "$HARNESS_GATEWAY_CONTAINER" --restart unless-stopped \
     --network "$HARNESS_GATEWAY_NETWORK" \
-    -p "${HARNESS_GATEWAY_PORT}:${HARNESS_GATEWAY_PORT}" \
+    -p "$(resolve_bind_host):${HARNESS_GATEWAY_PORT}:${HARNESS_GATEWAY_PORT}" \
     -v "$(gateway_state_dir):/gateway:ro" \
     -e "GATEWAY_PORT=${HARNESS_GATEWAY_PORT}" -e "GATEWAY_ROUTES_FILE=/gateway/routes.json" \
     "${proxy_args[@]}" \
@@ -136,7 +158,10 @@ ensure_gateway_running() {
 }
 
 # gateway_set_route name target [auth_header] — registers/updates a route.
-# Read per-request by the proxy, so no gateway restart is needed.
+# Read per-request by the proxy, so no gateway restart is needed. The
+# optional auth_header isn't yet wired to any CLI/config path -- callers
+# that need it must call this function directly (e.g. from a custom script
+# sourcing this lib) until a secure way to supply it from the CLI exists.
 gateway_set_route() {
   local name="$1" target="$2" auth_header="${3:-}"
   with_state_lock gateway-routes _gateway_set_route_locked "$name" "$target" "$auth_header"
@@ -192,7 +217,7 @@ _gateway_remove_route_locked() {
 }
 
 gateway_route_url() {
-  printf 'http://%s:%s/%s' "$(resolve_advertised_host)" "$HARNESS_GATEWAY_PORT" "$1"
+  printf 'http://%s:%s/%s' "$(resolve_advertised_host)" "$(resolve_gateway_port_for_display)" "$1"
 }
 
 # Used by the uninstaller; best-effort, leaves the image untouched.

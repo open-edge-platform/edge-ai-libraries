@@ -61,7 +61,9 @@ reports it as "Routed externally").
    the configured minimum.
 5. **Inference backend** — starts OpenVINO Model Server (Docker, GPU
    passthrough); optionally exports a Hugging Face model to OpenVINO IR via
-   `optimum-cli` first (`--hf-model <id>`). Set `HARNESS_LLM_ROUTER_ENDPOINT`
+   OVMS's own `export_model.py` first (`--hf-model <id>`) — unlike plain
+   `optimum-cli`, it also generates the MediaPipe graph OVMS's
+   `/v3/chat/completions` endpoint needs. Set `HARNESS_LLM_ROUTER_ENDPOINT`
    instead to route the agent at an existing external OpenAI-compatible
    router/gateway and skip OVMS entirely.
 6. **Harness install** — `npm install -g openclaw`, or scaffolds a thin
@@ -174,7 +176,11 @@ curl -fsSL https://raw.githubusercontent.com/<you>/<your-fork>/main/install.sh |
 ```
 
 `HARNESS_INSTALL_REPO` has no default — this installer refuses to guess
-which repo to clone.
+which repo to clone. `HARNESS_INSTALL_REF` is also required in this mode —
+there's no local `.version` file to fall back to, and this installer refuses
+to silently run whatever `main` currently contains. If `HARNESS_INSTALL_REPO`
+is a monorepo where this installer lives under a subdirectory (rather than
+at the repo root), set `HARNESS_INSTALL_SUBDIR` to that path.
 
 For this repo specifically, with no local clone:
 
@@ -244,6 +250,10 @@ scripts/lib/express.sh        Intel hardware profile detection (Core Ultra iGPU/
   (the OVMS endpoint) rather than fabricating flags.
 - "Hermes" installs via its own official installer (curl | bash), not npm —
   this installer downloads and runs it unattended (`--skip-setup --non-interactive`).
+  Nous Research doesn't publish a static checksum for it, so this installer
+  refuses to run it unverified: set `HERMES_INSTALL_SHA256` (once you've
+  reviewed a known-good copy) or `HERMES_ALLOW_UNVERIFIED_INSTALL=1` before
+  installing the `hermes` agent, or it will fail with guidance.
 - The Docker-based sandbox manager (`scripts/lib/sandbox.sh`) publishes
   ports directly by default. `HARNESS_GATEWAY_ENABLED=1` routes sandbox
   traffic through a single shared reverse-proxy container instead (see

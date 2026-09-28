@@ -25,6 +25,12 @@ harness_state_root() {
 clone_git_ref() {
   local repo_url="$1" ref="$2" dest="$3"
   command_exists git || error "git is required to clone from ${repo_url}."
+  case "$repo_url" in
+    http://* | git://*)
+      error "Refusing to clone over an insecure transport (http:// or git://): ${repo_url}
+Use https:// or an SSH remote (git@...) instead."
+      ;;
+  esac
   git init --quiet "$dest"
   git -C "$dest" remote add origin "$repo_url"
   git -C "$dest" fetch --quiet --depth 1 origin "+${ref}:refs/harness-clone/target" \
@@ -32,10 +38,12 @@ clone_git_ref() {
   git -C "$dest" -c advice.detachedHead=false checkout --quiet --detach refs/harness-clone/target
 }
 
-# Refuses any path outside the state root, or one with a symlink component.
+# Refuses any path outside the state root, or one with a symlink component
+# (including the root itself, which ensure_state_dir would otherwise follow).
 assert_state_path_safe() {
   local target="$1" root current relative component
   root="$(harness_state_root)"
+  [[ -L "$root" ]] && error "Refusing symlinked state root: ${root}"
   case "$target" in
     "$root" | "$root"/*) ;;
     *) error "Refusing state path outside ${root}: ${target}" ;;
@@ -96,6 +104,7 @@ atomic_write_file() {
   local path="$1" content="$2" tmp
   assert_state_path_safe "$path"
   if command_exists node; then
+    tmp="$(mktemp "${path}.tmp.XXXXXX")"
     node -e '
       const fs = require("node:fs");
       const path = process.argv[1];
@@ -103,7 +112,8 @@ atomic_write_file() {
       const fd = fs.openSync(path, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW, 0o600);
       fs.writeFileSync(fd, content);
       fs.closeSync(fd);
-    ' "$path" <<<"$content" || error "Could not write ${path}"
+    ' "$tmp" <<<"$content" || { rm -f "$tmp"; error "Could not write ${path}"; }
+    mv -f "$tmp" "$path"
   else
     tmp="$(mktemp "${path}.tmp.XXXXXX")"
     chmod 600 "$tmp"
@@ -169,6 +179,19 @@ resolve_advertised_host() {
     return 0
   fi
   printf '127.0.0.1'
+}
+
+# resolve_bind_host — the address docker -p binds to. Defaults to whatever
+# resolve_advertised_host resolves to (so the common "advertise my LAN IP"
+# prompt flow keeps working end-to-end), but HARNESS_BIND_HOST overrides it
+# independently for operators who want a display-only advertised host (a
+# hostname, or a NAT/public IP) that Docker itself can't bind to directly.
+resolve_bind_host() {
+  if [[ -n "${HARNESS_BIND_HOST:-}" ]]; then
+    printf '%s' "$HARNESS_BIND_HOST"
+  else
+    resolve_advertised_host
+  fi
 }
 
 persist_advertised_host() {
