@@ -518,7 +518,7 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
         require_env "$required_var" || return 1
     done
     if [ "$1" != "--search" ]; then
-        for required_var in VLM_MODEL_NAME ENABLED_WHISPER_MODELS OD_MODEL_NAME; do
+        for required_var in VLM_MODEL_NAME OD_MODEL_NAME; do
             require_env "$required_var" "This is required for all modes except --search." || return 1
         done
     fi

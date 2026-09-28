@@ -49,10 +49,6 @@ spec:
               value: {{ .Values.audioanalyzer.env.DEBUG | quote }}
             - name: DEFAULT_DEVICE
               value: {{ .Values.audioanalyzer.env.DEFAULT_DEVICE | quote }}
-            - name: DEFAULT_WHISPER_MODEL
-              value: {{ .Values.audioanalyzer.env.DEFAULT_WHISPER_MODEL | quote }}
-            - name: ENABLED_WHISPER_MODELS
-              value: {{ .Values.audioanalyzer.env.ENABLED_WHISPER_MODELS | quote }}
             - name: MAX_FILE_SIZE
               value: {{ .Values.audioanalyzer.env.MAX_FILE_SIZE | quote }}
             - name: MINIO_ENDPOINT
