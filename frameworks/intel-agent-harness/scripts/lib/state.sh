@@ -18,6 +18,20 @@ harness_state_root() {
   printf '%s/%s' "$HOME" "$HARNESS_STATE_DIRNAME"
 }
 
+# clone_git_ref repo_url ref dest — shallow-clones a single ref into dest
+# without needing dest to already be a git checkout. Used anywhere this
+# installer fetches a caller-supplied repo (currently: edge.sh's
+# EDGE_SERVICE_REPO_URL).
+clone_git_ref() {
+  local repo_url="$1" ref="$2" dest="$3"
+  command_exists git || error "git is required to clone from ${repo_url}."
+  git init --quiet "$dest"
+  git -C "$dest" remote add origin "$repo_url"
+  git -C "$dest" fetch --quiet --depth 1 origin "+${ref}:refs/harness-clone/target" \
+    || error "Requested ref '$ref' is not available from ${repo_url}."
+  git -C "$dest" -c advice.detachedHead=false checkout --quiet --detach refs/harness-clone/target
+}
+
 # Refuses any path outside the state root, or one with a symlink component.
 assert_state_path_safe() {
   local target="$1" root current relative component

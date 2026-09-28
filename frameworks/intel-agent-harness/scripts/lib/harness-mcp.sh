@@ -64,10 +64,9 @@ harness_register_mcp_endpoint() {
   [[ -n "$name" && -n "$url" ]] || error "harness_register_mcp_endpoint requires a
 service name and an endpoint URL."
 
-  # Bring-your-own registration, same escape hatch as install-cli.sh's
-  # PROJECT_CLI_BIN: lets any agent be wired up via its own real config
-  # format without this installer having to guess or fabricate one. Gets
-  # the same canonicalized agent name as the built-in dispatch below.
+  # Bring-your-own registration: lets any agent be wired up via its own real
+  # config format without this installer having to guess or fabricate one.
+  # Gets the same canonicalized agent name as the built-in dispatch below.
   if [[ -n "${HARNESS_MCP_REGISTER_CMD:-}" ]]; then
     info "Registering '${name}' via HARNESS_MCP_REGISTER_CMD…"
     "$HARNESS_MCP_REGISTER_CMD" "$agent" "$name" "$url" \

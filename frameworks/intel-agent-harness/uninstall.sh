@@ -8,7 +8,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-for lib in colors state sudo shim gpu-intel docker-setup nodejs install-cli notice gateway sandbox onboard express openvino agents; do
+for lib in colors state sudo shim gpu-intel docker-setup nodejs notice gateway sandbox express openvino agents; do
   # shellcheck disable=SC1090
   . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
 done
@@ -97,13 +97,9 @@ main() {
   export KEEP_AGENT_DATA
 
   local agent_desc
-  if [[ -n "${PROJECT_CLI_BIN:-}" && -z "${HARNESS_AGENT:-}" ]]; then
-    agent_desc="'${PROJECT_CLI_BIN}'"
-  else
-    agent_desc="the installed agent ('$(canonical_agent_name "$agent")')"
-    if [[ "$(canonical_agent_name "$agent")" == "hermes" && -z "$KEEP_AGENT_DATA" ]]; then
-      agent_desc="${agent_desc}, including its ~/.hermes data (sessions/memories/skills)"
-    fi
+  agent_desc="the installed agent ('$(canonical_agent_name "$agent")')"
+  if [[ "$(canonical_agent_name "$agent")" == "hermes" && -z "$KEEP_AGENT_DATA" ]]; then
+    agent_desc="${agent_desc}, including its ~/.hermes data (sessions/memories/skills)"
   fi
 
   printf "\n${C_YELLOW}${C_BOLD}Intel Agent Harness — Uninstall${C_RESET}\n\n"
@@ -126,13 +122,8 @@ ${HARNESS_LLM_ROUTER_ENDPOINT}; this installer never started it)."
     ok "OpenVINO Model Server removed"
   fi
 
-  if [[ -n "${PROJECT_CLI_BIN:-}" && -z "${HARNESS_AGENT:-}" ]]; then
-    remove_cli_shim "$PROJECT_CLI_BIN" || true
-    remove_project_cli || true
-  else
-    remove_cli_shim "$(agent_cli_bin "$(canonical_agent_name "$agent")")" || true
-    remove_agent_package "$agent" || true
-  fi
+  remove_cli_shim "$(agent_cli_bin "$(canonical_agent_name "$agent")")" || true
+  remove_agent_package "$agent" || true
 
   if [[ -n "$DELETE_MODELS" ]]; then
     info "Deleting exported models (${HARNESS_MODELS_DIR})…"

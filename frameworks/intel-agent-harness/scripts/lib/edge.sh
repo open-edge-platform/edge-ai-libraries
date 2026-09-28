@@ -6,7 +6,7 @@
 # reports the endpoint so it can be registered with a Harness agent
 # (harness-mcp.sh). Not specific to any one project.
 #
-# Configure via env vars (mirrors PROJECT_* in install-cli.sh):
+# Configure via env vars:
 #   EDGE_SERVICE_REPO_URL       git remote containing the service's Dockerfile
 #   EDGE_SERVICE_REF            git ref/tag to build from (default: main)
 #   EDGE_SERVICE_DOCKERFILE     path to the Dockerfile within the repo
@@ -32,7 +32,7 @@ EDGE_SERVICE_IMAGE to use a prebuilt image instead."
   rm -rf "$src_dir"
   mkdir -p "$(dirname "$src_dir")"
   info "Cloning ${name} source from ${EDGE_SERVICE_REPO_URL}@${ref}…"
-  clone_project_ref "$EDGE_SERVICE_REPO_URL" "$ref" "$src_dir"
+  clone_git_ref "$EDGE_SERVICE_REPO_URL" "$ref" "$src_dir"
   printf '%s' "$src_dir"
 }
 

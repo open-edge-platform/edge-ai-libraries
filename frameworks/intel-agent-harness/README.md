@@ -25,7 +25,7 @@ This project has two parts:
 
 Uses a staged install flow (spinner/logging helpers, Node.js-via-nvm
 bootstrap, Docker setup, CLI verification, third-party notice, express
-install, onboarding session resume/failure classification) with a
+install) with a
 **Docker-based sandbox manager** for running containerized workloads —
 Intel GPUs don't need a CDI step, since render nodes under `/dev/dri` pass
 straight through to containers via `--device`.
@@ -87,9 +87,6 @@ export HARNESS_AGENT=openclaw
 export HARNESS_HF_MODEL=<huggingface-model-id>
 ./install.sh --non-interactive --yes-i-accept-third-party-software
 ```
-
-To deploy your *own* project instead of the agent catalog, use `--repo`/
-`--cli-bin` (unset `HARNESS_AGENT`) — see "Bring your own project" below.
 
 ### Sandbox management (for your own containerized project)
 
@@ -231,13 +228,11 @@ scripts/lib/docker-setup.sh   Docker install/group setup + GPU device args
 scripts/lib/nodejs.sh         Node.js-via-nvm bootstrap
 scripts/lib/openvino.sh       OpenVINO Model Server (OpenAI-compatible inference)
 scripts/lib/agents.sh         Harness catalog: openclaw / deepagents-code / hermes
-scripts/lib/install-cli.sh    pluggable "install your own CLI" step (bring-your-own-project path)
 scripts/lib/notice.sh         third-party notice acceptance flow
 scripts/lib/gateway.sh        optional shared reverse-proxy for sandbox traffic
 scripts/lib/sandbox.sh        Docker-based sandbox/gateway manager
 scripts/lib/edge.sh           generic Dockerized edge-microservice manager (clone/build/run)
 scripts/lib/harness-mcp.sh    registers an edge microservice's endpoint as an MCP server (Hermes only)
-scripts/lib/onboard.sh        sandbox onboarding + session resume/failure classification
 scripts/lib/express.sh        Intel hardware profile detection (Core Ultra iGPU/Arc)
 ```
 
@@ -282,14 +277,6 @@ See "Edge microservices" under Usage above for the generic `edge` mechanism.
 It's deliberately project-agnostic: any repo with a Dockerfile (or any
 prebuilt image) that exposes an HTTP/MCP endpoint fits the same
 `EDGE_SERVICE_*` env vars.
-
-## Bring your own project
-
-Swap `install_project_cli` in `scripts/lib/install-cli.sh` for whatever
-build/package steps your project actually needs (Python venv, Rust
-`cargo install`, etc.), and drive it with `--repo`/`--ref`/`--cli-bin`
-instead of `--agent`. The GPU/Docker/Node/OpenVINO steps are independent
-of that choice.
 
 ## Extending
 

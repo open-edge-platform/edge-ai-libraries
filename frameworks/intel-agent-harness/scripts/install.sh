@@ -11,7 +11,7 @@ set -euo pipefail
 
 # Repo root is one level up from this payload script.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
-for lib in colors verify state sudo shim gpu-intel docker-setup nodejs install-cli notice gateway sandbox onboard express openvino agents edge harness-mcp; do
+for lib in colors verify state sudo shim gpu-intel docker-setup nodejs notice gateway sandbox express openvino agents edge harness-mcp; do
   # shellcheck disable=SC1090
   . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
 done
@@ -20,8 +20,6 @@ TOTAL_STEPS=4
 NON_INTERACTIVE="${NON_INTERACTIVE:-}"
 ACCEPT_THIRD_PARTY_SOFTWARE="${ACCEPT_THIRD_PARTY_SOFTWARE:-}"
 SKIP_GPU_CHECK="${SKIP_GPU_CHECK:-}"
-FRESH=""
-RESUME=""
 
 usage() {
   cat <<EOF
@@ -37,7 +35,7 @@ usage() {
     ./install.sh skill <install|list|remove> [path|name]  Manage Hermes skills
     ./install.sh connect <name>                  Open a shell inside a running sandbox
     ./install.sh status                          Show Harness/OVMS/sandbox health
-    ./install.sh onboard [--fresh|--resume]      Re-run onboarding only
+    ./install.sh onboard                         Re-run onboarding only
 
   Sandbox verbs: list, create <name> <image> [env-pairs], start <name>, stop <name>,
                  destroy <name>, backup <name>, backup-all, recover <name>,
@@ -51,13 +49,8 @@ usage() {
     --non-interactive                Skip prompts (uses env vars / defaults)
     --yes-i-accept-third-party-software  Accept the third-party notice without prompting
     --skip-gpu-check                  Skip Intel GPU detection/driver checks
-    --fresh                           Discard any failed/in-progress onboarding session
-    --resume                          Resume an interrupted onboarding session
     --agent <openclaw|deepagents-code|hermes>  Real agent to install (sets HARNESS_AGENT)
     --hf-model <hf-model-id>          Hugging Face model to export to OpenVINO IR
-    --repo <git-url>                  Git repo to install (sets PROJECT_REPO_URL)
-    --ref <git-ref>                   Git ref/tag to install (sets PROJECT_INSTALL_REF)
-    --cli-bin <name>                  Expected CLI binary name (sets PROJECT_CLI_BIN)
     --help, -h                        Show this help message and exit
 
   Environment:
@@ -70,7 +63,6 @@ usage() {
     HARNESS_LLM_ROUTER_ENDPOINT  Route to an existing external OpenAI-compatible router instead of OVMS
     HARNESS_HF_MODEL             Hugging Face model to export/serve via OpenVINO
     HARNESS_OVMS_REST_PORT, HARNESS_MODELS_DIR
-    PROJECT_REPO_URL, PROJECT_INSTALL_REF, PROJECT_CLI_BIN, PROJECT_REPO_ROOT
     HARNESS_SANDBOX_NAME, HARNESS_SANDBOX_IMAGE, HARNESS_SANDBOX_PORT
     HARNESS_GPU_PROFILE, MIN_NODE_VERSION
     HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser hermes3)
@@ -197,14 +189,9 @@ print_status() {
 
   printf "\n${C_BOLD}Harness agent${C_RESET}\n"
   local display
-  if [[ -n "${PROJECT_CLI_BIN:-}" && -z "${HARNESS_AGENT:-}" ]]; then
-    cli_bin="$PROJECT_CLI_BIN"
-    display="$cli_bin"
-  else
-    agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
-    cli_bin="$(agent_cli_bin "$agent")"
-    display="$(agent_display_name "$agent")"
-  fi
+  agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
+  cli_bin="$(agent_cli_bin "$agent")"
+  display="$(agent_display_name "$agent")"
   if [[ -n "$cli_bin" ]] && command_exists "$cli_bin"; then
     ok "${display} installed ($(command -v "$cli_bin"))"
   elif [[ -n "$cli_bin" && -x "${HARNESS_SHIM_DIR}/${cli_bin}" ]]; then
@@ -302,20 +289,14 @@ main() {
       --non-interactive) NON_INTERACTIVE=1 ;;
       --yes-i-accept-third-party-software) ACCEPT_THIRD_PARTY_SOFTWARE=1 ;;
       --skip-gpu-check) SKIP_GPU_CHECK=1 ;;
-      --fresh) FRESH=1 ;;
-      --resume) RESUME=1 ;;
       --agent) HARNESS_AGENT="$2"; shift ;;
       --hf-model) HARNESS_HF_MODEL="$2"; shift ;;
-      --repo) PROJECT_REPO_URL="$2"; shift ;;
-      --ref) PROJECT_INSTALL_REF="$2"; shift ;;
-      --cli-bin) PROJECT_CLI_BIN="$2"; shift ;;
       --help | -h) usage; exit 0 ;;
       *) positional+=("$1") ;;
     esac
     shift
   done
   export NON_INTERACTIVE ACCEPT_THIRD_PARTY_SOFTWARE
-  export PROJECT_REPO_URL PROJECT_INSTALL_REF PROJECT_CLI_BIN
   export HARNESS_AGENT HARNESS_HF_MODEL
 
   if [[ "${positional[0]:-}" == "sandbox" ]]; then
@@ -354,14 +335,7 @@ main() {
     exit 0
   fi
   if [[ "${positional[0]:-}" == "onboard" ]]; then
-    if [[ -n "${PROJECT_REPO_URL:-}${HARNESS_SANDBOX_IMAGE:-}" && -z "${HARNESS_AGENT:-}" ]]; then
-      local -a onboard_args=()
-      [[ -n "$FRESH" ]] && onboard_args+=(--fresh)
-      [[ -n "$RESUME" ]] && onboard_args+=(--resume)
-      run_onboard "${onboard_args[@]}"
-    else
-      run_agent_onboard
-    fi
+    run_agent_onboard
     exit 0
   fi
 
