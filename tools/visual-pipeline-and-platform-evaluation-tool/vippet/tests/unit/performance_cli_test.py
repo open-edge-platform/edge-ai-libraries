@@ -8,7 +8,6 @@ import os
 import stat
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
@@ -221,38 +220,21 @@ class TestRunPytest(unittest.TestCase):
             self.assertEqual(seen["mode"], 0o600)
         self.assertFalse(seen["path"].exists(), "temp config must be removed")
 
-    def test_explicit_perf_selection_suppresses_default_dir(self) -> None:
-        test_file = cli.PERF_DIR / "test_pipeline_performance.py"
-        for arg in (
-            str(test_file),
-            f"{test_file}::test_pipeline_performance",
-            str(cli.PERF_DIR),
+    def test_perf_dir_always_passed_before_passthrough(self) -> None:
+        test_file = str(cli.PERF_DIR / "test_pipeline_performance.py")
+        for args in (
+            [],
+            ["-k", "cpu"],
+            ["--ignore", test_file],
+            ["--junitxml", "results/perf.xml"],
+            ["--rootdir", str(cli.PERF_DIR)],
+            [f"{test_file}::test_pipeline_performance"],
         ):
-            with self.subTest(arg=arg):
-                cmd = cli.build_pytest_command([arg])
-                self.assertEqual(cmd[-1], arg)
+            with self.subTest(args=args):
+                cmd = cli.build_pytest_command(args)
                 self.assertEqual(
-                    cmd.count(str(cli.PERF_DIR)), int(arg == str(cli.PERF_DIR))
+                    cmd[1:], ["-m", "pytest", "-m", "perf", str(cli.PERF_DIR), *args]
                 )
-
-    def test_option_values_do_not_suppress_default_dir(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            existing = Path(tmp) / "perf.xml"
-            existing.write_text("", encoding="utf-8")
-            outside_py = Path(tmp) / "conftest.py"
-            outside_py.write_text("", encoding="utf-8")
-            # Existing files that are not perf test selections: an option
-            # value, a non-.py file inside PERF_DIR, and a .py outside it.
-            for args in (
-                ["--junitxml", str(existing)],
-                ["-k", str(existing)],
-                [str(cli.PERF_DIR / "README.md")],
-                [str(outside_py)],
-            ):
-                with self.subTest(args=args):
-                    cmd = cli.build_pytest_command(args)
-                    self.assertIn(str(cli.PERF_DIR), cmd)
-                    self.assertEqual(cmd[-len(args) :], args)
 
 
 class TestSettingsEnv(unittest.TestCase):

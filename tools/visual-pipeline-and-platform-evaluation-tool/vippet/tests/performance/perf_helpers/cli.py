@@ -322,32 +322,9 @@ def run_report_only(settings: ResolvedSettings, *, stderr: TextIO | None = None)
 # --------------------------------------------------------------------------- #
 
 
-def _selects_perf_tests(arg: str) -> bool:
-    """True if *arg* is a test selection inside the performance directory.
-
-    Only ``.py`` files and directories (optionally with a ``::node`` suffix)
-    under :data:`PERF_DIR` count. Merely existing is not enough: option
-    values such as ``--junitxml results/perf.xml`` are separate argv items
-    and must not suppress the default test path, otherwise pytest would
-    collect from the current directory (the whole project).
-    """
-    if arg.startswith("-"):
-        return False
-    path = Path(arg.split("::", 1)[0]).expanduser().resolve()
-    if not (path.is_dir() or (path.is_file() and path.suffix == ".py")):
-        return False
-    return path == PERF_DIR or PERF_DIR in path.parents
-
-
 def build_pytest_command(pytest_args: Sequence[str]) -> list[str]:
-    """``python -m pytest -m perf [<perf dir>] <pytest_args>``.
-
-    The performance directory is appended unless the caller already selects
-    tests inside it (e.g. a single file or node id).
-    """
-    command = [sys.executable, "-m", "pytest", "-m", "perf"]
-    if not any(_selects_perf_tests(arg) for arg in pytest_args):
-        command.append(str(PERF_DIR))
+    """Build the command line to run pytest with the performance marker and the PERF_DIR."""
+    command = [sys.executable, "-m", "pytest", "-m", "perf", str(PERF_DIR)]
     command.extend(pytest_args)
     return command
 
