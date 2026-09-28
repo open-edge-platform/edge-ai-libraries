@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "title": "Third-Party Software Notice - Intel Agent Harness",
+  "interactivePrompt": "Type 'yes' to accept and continue [no]: ",
+  "body": [
+    "This installer downloads and runs third-party software on your system,",
+    "including Docker, Node.js, the Intel Compute Runtime, and whichever",
+    "project you point it at via --repo/PROJECT_REPO_URL.",
+    "",
+    "Review each project's license before use. Intel and the maintainers",
+    "of this installer are not responsible for third-party",
+    "software installed through it."
+  ]
+}
