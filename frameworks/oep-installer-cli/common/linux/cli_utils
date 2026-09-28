@@ -175,12 +175,12 @@ act_helper () {
           local state_path="$(ensure_project_path)/$installer_name/states/$name1"
           [ "$act_name" = "start" ] && mkdir -p "$state_path"
           echo "@@COMP $name1"
+          local rc1=0
           (
             set -e
             $handler $invoke_args &
             wait -n
-          )
-          local rc1=$?
+          ) || rc1=$?
           [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
