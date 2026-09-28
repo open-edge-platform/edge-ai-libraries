@@ -2,7 +2,8 @@
 
 The VSS MCP server exposes the [Video Search and Summarization (VSS)](./index.md) REST API to AI agents and IDE extensions using the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). It reads the live VSS OpenAPI spec at startup and registers a selected subset of endpoints as **MCP tools** and **resources**.
 
-> **Note:** The MCP server currently supports **Search mode** only.
+> [!NOTE]
+> The MCP server currently supports **Search mode** only.
 > Summary and combined Search + Summary modes will be supported in a future release.
 
 The server is controlled by a **filter file**, a small JSON document that lists exactly which VSS endpoints to expose and whether each appears as a tool or a resource. The bundled `search.json` filter covers the Search mode:
@@ -37,7 +38,8 @@ Docker Compose builds the MCP server and starts [MCP Inspector](https://github.c
    HOST_IP=<your-host-ip>
    ```
 
-   > **Note:** The `VSS_IP` variable is automatically appended to `no_proxy` inside the containers by `compose.yaml`, so the MCP server can always reach the VSS backend directly without going through the proxy.
+   > [!NOTE]
+   > The `VSS_IP` variable is automatically appended to `no_proxy` inside the containers by `compose.yaml`, so the MCP server can always reach the VSS backend directly without going through the proxy.
 
 3. **Build and start:**
 

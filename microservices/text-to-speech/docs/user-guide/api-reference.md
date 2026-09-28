@@ -61,7 +61,8 @@ status=$(
 if [ "$status" = "200" ]; then echo "Success: saved audio to speech.wav"; else echo "Failure: HTTP $status"; cat speech.wav; rm -f speech.wav; fi
 ```
 
-> **Note:** SpeechT5 supports seven bundled voices — `Ryan`, `Miles`, `Aaron`,
+> [!NOTE]
+> SpeechT5 supports seven bundled voices — `Ryan`, `Miles`, `Aaron`,
 > `Nora`, `Elena`, `Kabir`, `Angus` (the CMU Arctic ids `bdl`, `jmk`, `rms`,
 > `clb`, `slt`, `ksp`, `awb` are accepted as aliases). Omitting `voice` uses
 > `models.tts.default_speaker`. Only English is supported, and `instructions`

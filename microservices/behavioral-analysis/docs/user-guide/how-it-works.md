@@ -5,9 +5,6 @@
 The Behavioral Analysis Service is a single-process Python microservice that combines three distinct AI capabilities: skeletal pose extraction (YOLO-Pose via OpenVINO), declarative pattern matching (rule engine), and optional visual confirmation (VLM via OVMS). It is fully event-driven; processing is triggered by MQTT messages.
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 graph TD
     A[upstream service<br/>e.g., swlp-service] -- MQTT ba/requests --> B[BAQueueConsumer]
     subgraph Service["Behavioral Analysis Service"]
@@ -22,7 +19,8 @@ graph TD
     G -- MQTT ba/results --> H[downstream consumer]
 ```
 
-> **Note:** The `swlp-service` mentioned above as an example upstream service refers to
+> [!NOTE]
+> The `swlp-service` mentioned above as an example upstream service refers to
 > [Store-Wide Loss Prevention](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html). Follow the link for more details.
 
 ## Component Responsibilities
@@ -59,9 +57,6 @@ src/
 ## Request Lifecycle (MQTT Path)
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 sequenceDiagram
     participant US as Upstream Service
     participant MQ as MQTT Broker

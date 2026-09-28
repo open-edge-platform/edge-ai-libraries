@@ -93,7 +93,7 @@ act_find_deps () {
   echo "${!handlers[*]}"
 }
 
-act_helpper () {
+act_helper () {
   local act_name=${1%%,*}
   local act_text="${1#*,}"
   local sort_options="$2"
@@ -101,14 +101,10 @@ act_helpper () {
   shift
 
   if [[ " $* " = *" --help "* ]]; then
-    act_get prefix ${act_name}_
-    if [ ${#_act_reply[*]} -gt 0 ]; then
-      if [ "${act_name}" = "install" ]; then
-        echo "${act_name} options:"
-        echo "  --reset-<name>  force reinstallation of the component if exit."
-        echo
-      fi
-    fi
+    echo "${act_name} options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
+    echo
     return 0
   fi
 
@@ -160,6 +156,8 @@ act_helpper () {
     fi
 
     local rc=0 order=0
+    local installer_state=""
+    ensure_tmpdir create installer_state states /dev/shm
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
         local name1=${handler#*_*_*_}
@@ -206,6 +204,7 @@ act_helpper () {
     ) 2>&1
     # wait for background processes
     wait
+    ensure_tmpdir destroy $installer_state
     return $rc
   else
     echo "Component not found" 1>&2

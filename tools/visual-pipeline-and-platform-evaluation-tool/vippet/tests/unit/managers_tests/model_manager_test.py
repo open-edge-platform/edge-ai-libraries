@@ -6,18 +6,16 @@ The manager is a thread-safe singleton with three main concerns:
 * Reading the model catalog + install status from the `models`/
   `model_variants` DB tables (seeded from ``vippet/models/*.yaml``)
   and aggregating them into a single API-facing list.
-* Driving background download jobs (either OMZ subprocess or HTTP calls
-  to the model-download microservice) and tracking their state.
+* Driving background download jobs through the model-download
+    microservice and tracking their state.
 * Forwarding multipart model uploads to model-download and registering
   the resulting model directly in the DB.
 
-Tests that only exercise pure/in-memory logic (job bookkeeping, OMZ
-subprocess plumbing, static helpers) patch ``SupportedModelsManager`` and
-avoid the DB entirely. Tests covering the DB-backed async methods
-(``list_models``, ``start_download``, ``upload_model``,
-``_persist_download_result``) spin up a real temporary SQLite database
-per test (see ``_AsyncDBTestCase``) since that is the only way to
-exercise the actual SQLAlchemy queries.
+These tests avoid touching the real filesystem / network: every external
+dependency (``SupportedModelsManager``, ``PipelineManager``,
+``threading.Thread``, ``httpx``, ``os.path.*``) is
+patched. The singleton state is reset between tests so that ``_jobs``
+and ``_registry`` always start empty.
 """
 
 from __future__ import annotations
@@ -515,23 +513,32 @@ class TestStartDownload(_AsyncDBTestCase):
         self.assertEqual(target, self.mgr._execute_remote_download)
 
     @patch("managers.model_manager.threading.Thread")
-    async def test_returns_202_for_omz_without_download_request(
-        self, mock_thread_cls
-    ) -> None:
-        """OMZ source is allowed to start a download with no ``download_request``."""
+    async def test_omz_dispatches_to_remote_worker(self, mock_thread_cls) -> None:
         await self._add_model(
             name="age-gender-recognition-retail-0013",
             hub="omz",
             download_request=None,
         )
+        self._supported_cls.return_value.get_all_supported_models.return_value = [entry]
+        download_request = {
+            "hub": "omz",
+            "name": "age-gender-recognition-retail-0013",
+        }
+        _DownloadRequestCache._data = {
+            "age-gender-recognition-retail-0013": download_request
+        }
 
         job_id, status, _msg = await self.mgr.start_download(
             "age-gender-recognition-retail-0013"
         )
 
         self.assertEqual(status, 202)
-        target = mock_thread_cls.call_args.kwargs["target"]
-        self.assertEqual(target, self.mgr._execute_omz_download)
+        thread_args = mock_thread_cls.call_args.kwargs
+        self.assertEqual(thread_args["target"], self.mgr._execute_remote_download)
+        self.assertEqual(
+            thread_args["args"],
+            (job_id, "age-gender-recognition-retail-0013", entry, download_request),
+        )
 
 
 # ----------------------------------------------------------------------
@@ -1388,6 +1395,134 @@ class TestRunSubprocess(unittest.TestCase):
                 self.mgr._run_subprocess("job-1", ["omz_downloader", "--name", "x"])
         # stderr is forwarded so the caller can attach it to job details.
         self.assertIn("boom", cm.exception.stderr or "")
+
+
+# ----------------------------------------------------------------------
+# Uploaded-model fallback (used by graph.py to resolve custom models)
+# ----------------------------------------------------------------------
+
+
+class TestUploadedModelLookups(unittest.TestCase):
+    """Tests for ``find_installed_uploaded_model_by_display_name`` and
+    ``find_uploaded_model_by_path`` — the helpers consumed by
+    ``graph.py`` when a model is not in ``supported_models.yaml``.
+    """
+
+    def setUp(self) -> None:
+        _reset_manager()
+        self._supported_patcher = patch("managers.model_manager.SupportedModelsManager")
+        self._supported_patcher.start()
+        # Skip the registry file load: tests seed records directly.
+        with patch.object(ModelManager, "_load_registry", lambda self: None):
+            self.mgr = ModelManager()
+        # A temp directory acts as the "uploaded model" output dir.
+        self._tmp = tempfile.TemporaryDirectory()
+        self.upload_dir = self._tmp.name
+        self.xml_path = os.path.join(self.upload_dir, "custom.xml")
+        with open(self.xml_path, "w") as f:
+            f.write("<net/>")
+        with open(os.path.join(self.upload_dir, "custom.bin"), "wb") as f:
+            f.write(b"\x00")
+
+    def tearDown(self) -> None:
+        self._supported_patcher.stop()
+        self._tmp.cleanup()
+        _reset_manager()
+
+    def _seed_record(
+        self,
+        *,
+        name: str = "my-custom",
+        display_name: str | None = None,
+        path: str | None = None,
+    ) -> _InstalledModelRecord:
+        record = _InstalledModelRecord(
+            name=name,
+            display_name=display_name or name,
+            source=InternalModelSource.CUSTOM,
+            category=InternalModelCategory.DETECTION,
+            precisions=[
+                InternalModelPrecision(precision="", model_path=path or self.upload_dir)
+            ],
+        )
+        self.mgr._registry[record.name] = record
+        return record
+
+    # --- find_installed_uploaded_model_by_display_name --------------
+
+    def test_find_by_display_name_returns_adapter_for_directory(self) -> None:
+        self._seed_record(display_name="My Custom Model")
+        result = self.mgr.find_installed_uploaded_model_by_display_name(
+            "My Custom Model"
+        )
+        assert result is not None
+        # The adapter resolves the directory to the inner ``.xml``.
+        self.assertEqual(result.model_path_full, self.xml_path)
+        # Uploaded models never carry a model-proc.
+        self.assertEqual(result.model_proc_full, "")
+
+    def test_find_by_display_name_matches_by_name_too(self) -> None:
+        # The UI uses ``model_name`` as the dropdown value; uploaded
+        # records use the same string for ``name`` and ``display_name``.
+        self._seed_record(name="raw-name", display_name="raw-name")
+        result = self.mgr.find_installed_uploaded_model_by_display_name("raw-name")
+        self.assertIsNotNone(result)
+
+    def test_find_by_display_name_unknown_returns_none(self) -> None:
+        self._seed_record(display_name="Known")
+        self.assertIsNone(
+            self.mgr.find_installed_uploaded_model_by_display_name("Unknown")
+        )
+
+    def test_find_by_display_name_returns_none_when_files_missing(self) -> None:
+        # Registry points at a path that no longer exists on disk.
+        self._seed_record(display_name="Stale", path="/nonexistent/path/model_dir")
+        self.assertIsNone(
+            self.mgr.find_installed_uploaded_model_by_display_name("Stale")
+        )
+
+    def test_find_by_display_name_with_no_precisions_returns_none(self) -> None:
+        record = self._seed_record(display_name="NoPrec")
+        record.precisions = []
+        self.assertIsNone(
+            self.mgr.find_installed_uploaded_model_by_display_name("NoPrec")
+        )
+
+    # --- find_uploaded_model_by_path --------------------------------
+
+    def test_find_by_path_matches_registry_directory(self) -> None:
+        self._seed_record()
+        result = self.mgr.find_uploaded_model_by_path(self.upload_dir)
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual(result.name, "my-custom")
+
+    def test_find_by_path_matches_inner_xml(self) -> None:
+        # Pipeline strings reference the resolved ``.xml`` artefact, not
+        # the directory. The lookup must still succeed.
+        self._seed_record()
+        result = self.mgr.find_uploaded_model_by_path(self.xml_path)
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual(result.model_path_full, self.xml_path)
+
+    def test_find_by_path_ignores_model_proc_argument(self) -> None:
+        # Uploaded models have no model-proc; passing one must not break
+        # resolution.
+        self._seed_record()
+        result = self.mgr.find_uploaded_model_by_path(
+            self.xml_path, model_proc_path="/some/proc.json"
+        )
+        self.assertIsNotNone(result)
+
+    def test_find_by_path_unknown_returns_none(self) -> None:
+        self._seed_record()
+        self.assertIsNone(
+            self.mgr.find_uploaded_model_by_path("/totally/unrelated/path.xml")
+        )
+
+    def test_find_by_path_empty_registry_returns_none(self) -> None:
+        self.assertIsNone(self.mgr.find_uploaded_model_by_path(self.xml_path))
 
 
 if __name__ == "__main__":
