@@ -31,6 +31,12 @@ def generate_speech(request: SpeechRequest):
             instructions=request.instructions,
         )
     except ValueError as exc:
+        # Previously silent: a 400 here dropped the reply's audio with no
+        # trace of why. Logged as a warning (not .exception) since ValueErrors
+        # here are expected client-input rejections, not bugs — but the
+        # message is needed to tell "bad request" apart from "our validation
+        # is wrong" after the fact.
+        logger.warning("Speech synthesis rejected input: %s", exc)
         return openai_error_response(400, str(exc), code="invalid_request")
     except RuntimeError as exc:
         logger.exception("Speech synthesis runtime failure")

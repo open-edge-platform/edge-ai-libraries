@@ -273,8 +273,8 @@ class AudioUploadTests(unittest.TestCase):
 
 class ASRBackendSelectionTests(unittest.TestCase):
     def tearDown(self):
-        ASRComponent._model = None
-        ASRComponent._config = None
+        ASRComponent._models = {"preview": None, "final": None}
+        ASRComponent._model_configs = {"preview": None, "final": None}
 
     def test_whispercpp_backend_forces_cpu(self):
         with patch("components.asr_component.WhisperCpp") as whispercpp_cls:

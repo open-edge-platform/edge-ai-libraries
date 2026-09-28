@@ -1,4 +1,5 @@
 from components.tts.base import TTSServiceConfig
+from components.tts.kokoro import IMPLEMENTATIONS as KOKORO_IMPLEMENTATIONS
 from components.tts.openvino import IMPLEMENTATIONS as OPENVINO_IMPLEMENTATIONS
 from components.tts.pytorch import IMPLEMENTATIONS as PYTORCH_IMPLEMENTATIONS
 
@@ -10,6 +11,7 @@ def _normalize_runtime(runtime_name: str | None) -> str:
 _RUNTIME_IMPLEMENTATIONS = {
     "openvino": OPENVINO_IMPLEMENTATIONS,
     "pytorch": PYTORCH_IMPLEMENTATIONS,
+    "kokoro": KOKORO_IMPLEMENTATIONS,
 }
 
 
