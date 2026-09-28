@@ -171,95 +171,6 @@ _OMZ_MODEL_RULES: dict[str, dict[str, str]] = {
 
 
 # ----------------------------------------------------------------------
-# In-memory installed-model registry entry
-# ----------------------------------------------------------------------
-
-
-@dataclass
-class _InstalledModelRecord:
-    """Persisted record describing a model that lives on disk.
-
-    Records are only created on successful download/upload and are
-    removed (in-memory + on disk) at startup when the referenced files
-    no longer exist. Implicit invariant: every record in the registry
-    is currently ``INSTALLED``.
-    """
-
-    name: str
-    display_name: str
-    source: InternalModelSource
-    category: InternalModelCategory | None
-    precisions: list[InternalModelPrecision] = field(default_factory=list)
-    description: str | None = None
-
-
-# ----------------------------------------------------------------------
-# Adapter exposing uploaded models through the SupportedModel interface
-# ----------------------------------------------------------------------
-
-
-class _UploadedSupportedModel(SupportedModel):
-    """``SupportedModel`` view over an uploaded model registry record.
-
-    The registry stores absolute on-disk paths (e.g.
-    ``<MODELS_PATH>/custom_uploaded_models/<name>/``), while
-    ``SupportedModel`` normally joins relative ``model_path`` with
-    ``MODELS_PATH``. This adapter bypasses that join and additionally
-    resolves a single ``.xml`` artefact when the record points at a
-    directory, so the resulting ``model_path_full`` is directly usable
-    by GStreamer.
-
-    Uploaded models never carry a model-proc file (custom ZIPs only
-    contain ``.xml``/``.bin``), so ``model_proc_full`` stays empty.
-    """
-
-    def __init__(
-        self,
-        record: "_InstalledModelRecord",
-        precision: "InternalModelPrecision",
-    ) -> None:
-        # Initialise the base with a sentinel relative path; we override
-        # ``model_path_full`` below so the join with MODELS_PATH is moot.
-        super().__init__(
-            name=record.name,
-            display_name=record.display_name,
-            source=record.source.value,
-            model_type=(record.category.value if record.category else ""),
-            model_path=precision.model_path,
-            model_proc=None,
-            unsupported_devices=None,
-            precision=precision.precision or None,
-            default=False,
-            hub=record.source.value,
-            canonical_name=record.name,
-            canonical_display_name=record.display_name,
-        )
-        # Treat the registry path as absolute and resolve the actual
-        # ``.xml`` artefact when the record points at a directory.
-        absolute_path = precision.model_path
-        if os.path.isdir(absolute_path):
-            try:
-                xml_files = sorted(
-                    f for f in os.listdir(absolute_path) if f.endswith(".xml")
-                )
-            except OSError:
-                xml_files = []
-            if xml_files:
-                absolute_path = os.path.join(absolute_path, xml_files[0])
-        self.model_path_full = absolute_path
-        # Uploaded models never carry a model-proc.
-        self.model_proc_full = ""
-
-    def exists_on_disk(self) -> bool:  # pragma: no cover - thin wrapper
-        # Either the resolved ``.xml`` exists, or (genai-style) the
-        # registry path is a populated directory.
-        path = self.model_path_full
-        if os.path.isfile(path):
-            return True
-        return os.path.isdir(path)
-
-
-# ----------------------------------------------------------------------
 # Manager singleton
 # ----------------------------------------------------------------------
 
@@ -576,18 +487,9 @@ class ModelManager:
 
         assert download_request is not None
 
-        # Pick worker
-        if source == InternalModelSource.OMZ:
-            target = self._execute_omz_download
-            args: tuple[Any, ...] = (job_id, model_name)
-        else:
-            assert download_request is not None
-            target = self._execute_remote_download
-            args = (job_id, model_name, download_request)
-
         threading.Thread(
             target=self._execute_remote_download,
-            args=(job_id, model_name, head, download_request),
+            args=(job_id, model_name, download_request),
             name=f"model-download-{job_id}",
             daemon=True,
         ).start()
