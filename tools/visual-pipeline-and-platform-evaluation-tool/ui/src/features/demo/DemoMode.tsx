@@ -105,6 +105,7 @@ const nodeTypeToTag: Record<string, string> = {
   gvametaconvert: "Converter",
   gvametapublish: "Publisher",
   gvafpscounter: "Counter",
+  gvaproximitytrigger_py: "Trigger",
 
   // Video Processing
   videoconvert: "Converter",
@@ -115,6 +116,7 @@ const nodeTypeToTag: Record<string, string> = {
   // Sinks
   fakesink: "Sink",
   filesink: "Sink",
+  multifilesink: "Sink",
   autovideosink: "Sink",
   v4l2sink: "Sink",
   ximagesink: "Sink",

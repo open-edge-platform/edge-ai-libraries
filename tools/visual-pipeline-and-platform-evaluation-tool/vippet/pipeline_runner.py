@@ -1389,27 +1389,53 @@ class PipelineRunner:
         """
         Build the environment for the gst_runner.py subprocess.
 
-        Starts from a copy of the current process environment and adds the
-        GStreamer debug categories required by the metrics the runner
-        parses off the subprocess stdout:
+        Starts from a copy of the current process environment. Then:
 
-        - ``enable_latency_metrics`` adds ``GST_TRACER:7`` and sets
-          ``GST_TRACERS`` to ``latency_tracer(flags=pipeline,interval=1000)``,
-          activating the DLStreamer tracer in pipeline-only mode.
-        - a pipeline containing ``gvagenai`` adds ``gvagenai:4`` so the
-          element logs its JSON metadata (including the VLM ``metrics``
-          block) at INFO level.
+        - Prepends the bundled ``gst_plugins/`` directory to
+          ``GST_PLUGIN_PATH`` so custom Python elements shipped with ViPPET
+          (e.g. ``gvaproximitytrigger_py``) are discovered by GStreamer at
+          init time. Any ``.py`` file in ``gst_plugins/python/`` that defines
+          ``__gstelementfactory__`` becomes usable from any pipeline
+          description; unused ones are simply ignored.
+        - Adds the GStreamer debug categories required by the metrics the
+          runner parses off the subprocess stdout:
+
+          - ``enable_latency_metrics`` adds ``GST_TRACER:7`` and sets
+            ``GST_TRACERS`` to ``latency_tracer(flags=pipeline,interval=1000)``,
+            activating the DLStreamer tracer in pipeline-only mode.
+          - a pipeline containing ``gvagenai`` adds ``gvagenai:4`` so the
+            element logs its JSON metadata (including the VLM ``metrics``
+            block) at INFO level.
 
         ``GST_DEBUG`` is never overwritten: any pre-existing categories are
         preserved and the required ones are appended with a comma
-        separator. When no metric needs a category, the environment is
-        passed through unchanged.
+        separator. When no metric needs a category, the debug variables are
+        left untouched.
 
         Returns:
             A new dict suitable for passing as the ``env`` argument to
             ``subprocess.Popen``.
         """
         env = os.environ.copy()
+
+        # Make bundled custom GStreamer plugins discoverable. The path is
+        # resolved relative to this file so it works regardless of the
+        # subprocess working directory.
+        custom_plugins_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "gst_plugins"
+        )
+        if os.path.isdir(custom_plugins_dir):
+            existing_plugin_path = env.get("GST_PLUGIN_PATH", "")
+            if existing_plugin_path:
+                env["GST_PLUGIN_PATH"] = (
+                    f"{custom_plugins_dir}{os.pathsep}{existing_plugin_path}"
+                )
+            else:
+                env["GST_PLUGIN_PATH"] = custom_plugins_dir
+            # Python-based plugins can only be loaded in-process; disabling
+            # the registry-scan fork keeps GStreamer from silently skipping
+            # them during the first-time cache build.
+            env.setdefault("GST_REGISTRY_FORK", "no")
 
         gst_debug_categories: list[str] = []
 

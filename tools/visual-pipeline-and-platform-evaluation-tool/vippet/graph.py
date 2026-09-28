@@ -30,6 +30,30 @@ USB_DEVICE_PREFIX = "/dev/video"
 # delivery) instead of having it converted to OUTPUT_PLACEHOLDER.
 METADATA_ONLY_NODE_TYPES: frozenset[str] = frozenset({"gvagenai"})
 
+# Matches printf-style integer specifiers (e.g. %d, %05d, %-3d) as used by
+# GStreamer sinks like multifilesink for numbering the emitted files.
+_PRINTF_INT_SPEC_RE = re.compile(r"%[-+ #0]*\d*d")
+
+
+def _slugify_preserving_printf_int_spec(name: str) -> str:
+    """Slugify ``name`` while preserving printf-style integer specifiers.
+
+    The regular slugifier strips ``%`` (turning e.g. ``vlm_frame_%05d`` into
+    ``vlm_frame_-05d``), which breaks sinks that rely on the specifier to
+    number their output files.
+    """
+    if "%" not in name:
+        return slugify_text(name)
+    specs = _PRINTF_INT_SPEC_RE.findall(name)
+    chunks = _PRINTF_INT_SPEC_RE.split(name)
+    slugged = [slugify_text(chunk) if chunk else "" for chunk in chunks]
+    parts: list[str] = []
+    for i, chunk in enumerate(slugged):
+        parts.append(chunk)
+        if i < len(specs):
+            parts.append(specs[i])
+    return "".join(parts)
+
 
 def graph_is_metadata_only(nodes: list["Node"]) -> bool:
     """Return True if the pipeline produces only metadata (no video output)."""
@@ -820,7 +844,7 @@ class Graph:
                 continue
 
             path = Path(location)
-            file_name = slugify_text(Path(path.name).stem)
+            file_name = _slugify_preserving_printf_int_spec(Path(path.name).stem)
             ext = path.suffix if path.suffix else ".mp4"
             ext = slugify_text(ext)
 

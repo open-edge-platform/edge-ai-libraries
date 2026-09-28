@@ -1,0 +1,101 @@
+name: CV-Triggered VLM
+definition: >
+  CV-triggered VLM pipeline: object detection (yolo11s) drives a proximity trigger
+  that gates a Vision-Language Model (InternVL2) branch. Whenever objects of
+  ``class-a`` and ``class-b`` are within ``distance`` pixels for ``frames``
+  consecutive frames, exactly one frame is forwarded to the VLM, snapshotted as
+  JPEG, and captioned as JSON. The first tee branch records an annotated H.264
+  video with detection overlays; the ``fakesink name=default_output_sink`` on a
+  nested sub-branch is only used by ViPPET to route the live view / file output.
+tags:
+  - GenAi
+  - Safety and Security
+thumbnail: images/video-captioning.png
+type: vision
+variants:
+  - name: CPU
+    pipeline_description: >-
+      filesrc location=/videos/input/auto/people.mp4 !
+      decodebin3 !
+      videoconvert !
+      gvadetect model=/models/output/ultralytics/public/yolo11s/INT8/yolo11s.xml device=CPU !
+      queue !
+      tee name=t !
+      queue flush-on-eos=true !
+      gvawatermark !
+      gvafpscounter !
+      tee name=t2 !
+      queue !
+      fakesink name=default_output_sink
+      t2. !
+      queue !
+      videoconvert !
+      openh264enc !
+      h264parse !
+      mp4mux fragment-duration=1000 !
+      filesink location=/videos/output/cv_triggered_vlm.mp4
+      t. !
+      queue leaky=downstream max-size-buffers=1 flush-on-eos=true !
+      gvaproximitytrigger_py class-a=person class-b=bicycle distance=150 frames=10 !
+      videoconvertscale !
+      video/x-raw,width=796,height=448 !
+      gvagenai model-path=/models/output/openvino_models/cpu/int4/OpenGVLab/InternVL2-2B device=CPU prompt="Are people riding on bicycles? Answer yes or no." generation-config="max_new_tokens=10" chunk-size=1 metrics=true !
+      gvametapublish file-format=json-lines file-path=/metadata/cv_triggered_vlm.jsonl !
+      jpegenc !
+      multifilesink location=/images/output/vlm_frame_%05d.jpeg async=false
+  - name: GPU
+    pipeline_description: >-
+      filesrc location=/videos/input/auto/people.mp4 !
+      decodebin3 !
+      gvadetect model=/models/output/ultralytics/public/yolo11s/INT8/yolo11s.xml device=GPU !
+      queue !
+      tee name=t !
+      queue flush-on-eos=true !
+      gvawatermark !
+      gvafpscounter !
+      tee name=t2 !
+      queue !
+      fakesink name=default_output_sink
+      t2. !
+      queue !
+      vah264enc !
+      h264parse !
+      mp4mux fragment-duration=1000 !
+      filesink location=/videos/output/cv_triggered_vlm.mp4
+      t. !
+      queue leaky=downstream max-size-buffers=1 flush-on-eos=true !
+      gvaproximitytrigger_py class-a=person class-b=bicycle distance=150 frames=10 !
+      videoconvertscale !
+      video/x-raw,width=796,height=448 !
+      gvagenai model-path=/models/output/openvino_models/gpu/int4/OpenGVLab/InternVL2-2B device=GPU prompt="Are people riding on bicycles? Answer yes or no." generation-config="max_new_tokens=10" chunk-size=1 metrics=true !
+      gvametapublish file-format=json-lines file-path=/metadata/cv_triggered_vlm.jsonl !
+      jpegenc !
+      multifilesink location=/images/output/vlm_frame_%05d.jpeg async=false
+  - name: NPU
+    pipeline_description: >-
+      filesrc location=/videos/input/auto/people.mp4 !
+      decodebin3 !
+      gvadetect model=/models/output/ultralytics/public/yolo11s/INT8/yolo11s.xml device=NPU !
+      queue !
+      tee name=t !
+      queue flush-on-eos=true !
+      gvawatermark !
+      gvafpscounter !
+      tee name=t2 !
+      queue !
+      fakesink name=default_output_sink
+      t2. !
+      queue !
+      vah264enc !
+      h264parse !
+      mp4mux fragment-duration=1000 !
+      filesink location=/videos/output/cv_triggered_vlm.mp4
+      t. !
+      queue leaky=downstream max-size-buffers=1 flush-on-eos=true !
+      gvaproximitytrigger_py class-a=person class-b=bicycle distance=150 frames=10 !
+      videoconvertscale !
+      video/x-raw,width=796,height=448 !
+      gvagenai model-path=/models/output/openvino_models/gpu/int4/OpenGVLab/InternVL2-2B device=GPU prompt="Are people riding on bicycles? Answer yes or no." generation-config="max_new_tokens=10" chunk-size=1 metrics=true !
+      gvametapublish file-format=json-lines file-path=/metadata/cv_triggered_vlm.jsonl !
+      jpegenc !
+      multifilesink location=/images/output/vlm_frame_%05d.jpeg async=false

@@ -2,6 +2,7 @@ import DataSrcNode, { DataSrcNodeWidth } from "./DataSrcNode.tsx";
 import Decodebin3Node from "./Decodebin3Node.tsx";
 import FakeSinkNode from "./FakeSinkNode.tsx";
 import FileSinkNode from "./FileSinkNode.tsx";
+import MultiFileSinkNode from "./MultiFileSinkNode.tsx";
 import FileSrcNode, { FileSrcNodeWidth } from "./FileSrcNode.tsx";
 import GVAClassifyNode, { GVAClassifyNodeWidth } from "./GVAClassifyNode.tsx";
 import GVADetectNode, { GVADetectNodeWidth } from "./GVADetectNode.tsx";
@@ -52,6 +53,9 @@ import TsamIngestionNode, {
 import TsamOutputNode, { TsamOutputNodeWidth } from "./TsamOutputNode.tsx";
 import TsamUdfNode, { TsamUdfNodeWidth } from "./TsamUdfNode.tsx";
 import SourceNode, { SourceNodeWidth } from "./custom/SourceNode.tsx";
+import ProximityTriggerNode, {
+  ProximityTriggerNodeWidth,
+} from "./custom/ProximityTriggerNode.tsx";
 
 export const nodeTypes = {
   filesrc: FileSrcNode,
@@ -76,6 +80,7 @@ export const nodeTypes = {
   "video/x-raw": VideoXRawWithDimensionsNode,
   mp4mux: Mp4MuxNode,
   filesink: FileSinkNode,
+  multifilesink: MultiFileSinkNode,
   vah264enc: VAH264EncNode,
   decodebin3: Decodebin3Node,
   parsebin: ParsebinNode,
@@ -90,6 +95,7 @@ export const nodeTypes = {
   "tsam-udf": TsamUdfNode,
   "tsam-output": TsamOutputNode,
   source: SourceNode,
+  gvaproximitytrigger_py: ProximityTriggerNode,
 };
 
 export const nodeWidths: Record<string, number> = {
@@ -110,6 +116,7 @@ export const nodeWidths: Record<string, number> = {
   videoconvert: VideoConvertNodeWidth,
   splitmuxsink: SplitMuxSinkNodeWidth,
   source: SourceNodeWidth,
+  gvaproximitytrigger_py: ProximityTriggerNodeWidth,
 };
 
 export const defaultNodeWidth = 220;

@@ -5792,6 +5792,46 @@ class TestPrepareIntermediateOutputSinks(unittest.TestCase):
 
         self.assertIs(result, graph)
 
+    def test_multifilesink_preserves_printf_int_specifier(self):
+        """printf-style %05d in multifilesink location must survive slugify."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesink",
+                    data={"location": "/images/output/vlm_frame_%05d.jpeg"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        self.assertEqual(
+            result.nodes[0].data["location"],
+            "/output/dir/intermediate_stream000_vlm_frame_%05d.jpeg",
+        )
+
+    def test_filesink_preserves_bare_percent_d_specifier(self):
+        """A bare %d specifier must survive slugify as well."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesink",
+                    data={"location": "/tmp/frame_%d.png"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 3)
+
+        self.assertEqual(
+            result.nodes[0].data["location"],
+            "/output/dir/intermediate_stream003_frame_%d.png",
+        )
+
 
 class TestInjectMetadataFilePaths(unittest.TestCase):
     """Test cases for Graph.inject_metadata_file_paths method."""
