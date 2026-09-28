@@ -83,6 +83,7 @@ class GStreamerPipeline(Pipeline):
         self.stop_time = None
         self._avg_fps = 0
         self._frame_fps = 0
+        self._frame_interval = 0
         self._last_frame_count = 0
         self._last_frame_time = 0
         self._gst_launch_string = None
@@ -290,6 +291,7 @@ class GStreamerPipeline(Pipeline):
             "state": self.state,
             "avg_fps": self._avg_fps,
             "frame_fps": self._frame_fps,
+            "frame_interval": self._frame_interval,
             "start_time": self.start_time,
             "elapsed_time": elapsed_time,
             "message": message
@@ -793,6 +795,7 @@ class GStreamerPipeline(Pipeline):
 
         delta_time = current_time - self._last_frame_time
         if delta_time >= 1:
+          self._frame_interval = delta_time
           self._frame_fps = (self.frame_count - self._last_frame_count) / delta_time
           self._last_frame_count = self.frame_count
           self._last_frame_time = current_time
