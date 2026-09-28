@@ -12,7 +12,8 @@ how to use the GST element `timecodestamper` that adds timestamps to frames.
    "pipeline": "{auto_source} ! decodebin ! timecodestamper set=always ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
    ```
 
-   > **NOTE**: Make sure that proprety `set` of `timecodestamper` is set to `always`. The
+   > [!NOTE]
+   > Make sure that proprety `set` of `timecodestamper` is set to `always`. The
    > `timecodestamper` element follows SMPTE format of storing data (hours:minutes:seconds:frames).
 
    `set` property can have anyone of the 3 values shown below

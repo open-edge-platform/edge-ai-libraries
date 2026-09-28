@@ -5,8 +5,8 @@ ensure_apt () {
   case "$1" in
   update)
     # apt-get update got executed only once unless -y is specified
-    [[ -e /dev/shm/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
-    touch /dev/shm/apt_update
+    [[ -e "${installer_state:?}"/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
+    touch "$installer_state"/apt_update
     ;;
   autoremove|remove|purge)
     # make sure the package list exists
@@ -26,10 +26,9 @@ ensure_apt () {
       fi
     fi
     ;;
-  install) # apt-get update runs at least once on the system
-    [ -e /dev/shm/apt_update ] || ensure_apt update -y
-    ;;&
   *)
+    # apt-get update runs at least once on the system before apt-get install
+    [ "$1" != "install" ] || [ -e "${installer_state:?}"/apt_update ] || ensure_apt update -y
     ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get -y "$@"
     ;;
   esac

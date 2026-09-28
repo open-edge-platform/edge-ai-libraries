@@ -4,7 +4,8 @@ The spec file `{{SPEC_FILE}}` was modified in `main`.  The existing
 implementation in `module/{{NAME}}/debian` must be **updated in place** to
 enforce any new or changed requirements introduced by the spec edit.
 
-> **Note**: A maintainer added the `GENERATE-COMPONENT` label to authorise
+> [!NOTE]
+> A maintainer added the `GENERATE-COMPONENT` label to authorise
 > this task.  Do **not** rewrite the implementation from scratch — edit only
 > what the spec change requires.
 
@@ -104,6 +105,7 @@ If the spec changes a pinned version, tag, or workspace layout, `verify_{{NAME}}
 
    ```
    debian_<NN>_profile_{{NAME}}
+   debian_<NN>_group_{{NAME}}
    debian_<NN>_install_{{NAME}}
    debian_<NN>_remove_{{NAME}}
    debian_<NN>_start_{{NAME}}
@@ -221,4 +223,5 @@ re-runs automatically.
 
 ---
 
-> **Note**: generated PRs must be reviewed by a human before merging.
+> [!NOTE]
+> generated PRs must be reviewed by a human before merging.

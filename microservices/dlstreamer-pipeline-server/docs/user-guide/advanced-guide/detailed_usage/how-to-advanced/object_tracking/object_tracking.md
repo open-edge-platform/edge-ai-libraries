@@ -24,7 +24,8 @@ found in the DL Streamer [Object Tracking](https://docs.openedgeplatform.intel.c
 
 ## Usage
 
-> **Note:** By default, tracking is disabled.
+> [!NOTE]
+> By default, tracking is disabled.
 
 To enable object tracking in a video pipeline that has a UDFLoader element, two elements `gvapython` and `gvatrack` need to be inserted after the `udfloader` element in the pipeline. When tracking is enabled, the metadata will include the object ids starting from sequentially from `1` for each detection.
 

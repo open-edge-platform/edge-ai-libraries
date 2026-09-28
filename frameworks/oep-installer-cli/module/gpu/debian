@@ -19,6 +19,10 @@ debian_40_profile_gpu () {
   echo "curl gpg libze1"
 }
 
+debian_40_group_gpu () {
+  echo "render:992 video:"
+}
+
 debian_40_install_gpu () {
   configure_gpu $*
 

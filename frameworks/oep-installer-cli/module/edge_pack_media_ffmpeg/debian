@@ -14,7 +14,7 @@ debian_70_install_edge_pack_media_ffmpeg () {
     echo "intel-edge-media-ffmpeg already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_ffmpeg
-    ensure_apt install --no-install-recommends "intel-edge-media-ffmpeg=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*"
   fi
 }
 

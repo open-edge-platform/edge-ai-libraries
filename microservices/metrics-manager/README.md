@@ -36,7 +36,8 @@ cd siv-telemetry/metrics-manager
 # (Optional) If behind a proxy, edit .env and uncomment proxy settings
 ```
 
-> **Note:** The Docker build automatically resolves Python dependencies.
+> [!NOTE]
+> The Docker build automatically resolves Python dependencies.
 > No local `uv lock` or Python installation is required.
 
 ### Pulling the published image (no build required)
@@ -82,7 +83,8 @@ docker run --rm --privileged \
   intel/metrics-manager:2026.2.0
 ```
 
-> **Note:** On hosts that have **both** an Intel® GPU and NPU, add `--device
+> [!NOTE]
+> On hosts that have **both** an Intel® GPU and NPU, add `--device
 > /dev/dri` to the NPU command above to enable qmassa as well.
 
 On hosts without an Intel® GPU or NPU the corresponding readers detect

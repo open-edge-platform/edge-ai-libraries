@@ -20,7 +20,8 @@ DL Streamer Pipeline Server can execute multiple input streams in parallel. If s
    docker compose up -d
    ```
 
-   > **Note:** Run the above command in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/`.
+   > [!NOTE]
+   > Run the above command in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/`.
 
 4. Start the first pipeline with following curl command:
 
