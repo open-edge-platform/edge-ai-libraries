@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Real agent catalog — installs actual open-source agent projects, verified
 # against their public npm registry entries. PLATFORM_AGENT selects one.

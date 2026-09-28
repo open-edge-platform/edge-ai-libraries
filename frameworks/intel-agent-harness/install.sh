@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # Thin installer bootstrap. When run from a source checkout it just
 # delegates to scripts/install.sh; when fetched standalone (e.g. via
 # `curl | bash`) it clones the pinned ref of this installer's own repo to a

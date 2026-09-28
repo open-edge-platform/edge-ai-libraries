@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # CLI shim + PATH profile management — puts the installed CLI on PATH for
 # future shells even when npm's global bin isn't already there.

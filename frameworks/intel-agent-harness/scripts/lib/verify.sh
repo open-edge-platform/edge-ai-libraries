@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Shared helper for fetching third-party scripts/files before executing or
 # trusting them (OWASP A08:2021 Software and Data Integrity Failures) —

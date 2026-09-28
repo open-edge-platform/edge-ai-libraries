@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # Intel-platform installer payload — the actual install flow, invoked by the
 # thin bootstrap at the repo root (../install.sh). Staged install flow:
 # third-party notice, express install, host prep (GPU + Docker), Node.js,

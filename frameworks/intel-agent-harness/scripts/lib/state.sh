@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # State directory management — an owner-only, symlink-refusing state root
 # under the user's home directory.

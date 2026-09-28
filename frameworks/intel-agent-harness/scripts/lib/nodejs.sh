@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Node.js bootstrap via nvm — vendor-agnostic, reused as-is from the pattern.
 # Floor matches openclaw's real published engines constraint (>=24.16.0

@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # OpenVINO Model Server (OVMS) — serves an OpenAI-compatible chat-completions
 # endpoint on Intel Arc / Data Center GPU Max.

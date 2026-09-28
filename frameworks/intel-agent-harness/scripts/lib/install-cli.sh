@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Pluggable "install your own CLI" step — mirrors the source-checkout vs.
 # git-clone-a-release-ref pattern, but points at whatever repo/CLI you

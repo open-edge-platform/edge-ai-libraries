@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Intel hardware "express install" profiles — classifies the host by PCI
 # device family, since there is no fixed appliance SKU to detect against

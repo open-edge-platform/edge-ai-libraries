@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Registers an edge microservice's endpoint with the installed Harness agent
 # as an MCP server. Hermes's real, documented config.yaml shape is built in;

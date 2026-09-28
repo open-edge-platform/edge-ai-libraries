@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Generic Dockerized edge-microservice manager. Clones/builds (or uses a
 # prebuilt image), stands the result up as a sandbox via sandbox.sh, and

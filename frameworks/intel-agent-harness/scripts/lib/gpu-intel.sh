@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Intel GPU detection and compute-runtime readiness checks.
 # Covers discrete Arc / Data Center GPU Max (Ponte Vecchio) cards, which

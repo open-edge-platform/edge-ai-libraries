@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Docker install + daemon/group readiness, with Intel GPU device passthrough.
 # Intel GPUs need no CDI spec: render nodes under /dev/dri are passed

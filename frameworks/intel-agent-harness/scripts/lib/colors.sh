@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Color / logging helpers — disabled when NO_COLOR is set or stdout is not a TTY.
 if [[ -z "${NO_COLOR:-}" && -t 1 ]]; then

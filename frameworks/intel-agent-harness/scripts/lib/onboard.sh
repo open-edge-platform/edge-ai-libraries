@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Onboarding flow — session resume classification via an onboard-session.json
 # state machine (resume / fresh-recover / failed / complete / corrupt),

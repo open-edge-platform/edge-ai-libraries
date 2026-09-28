@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # Uninstaller — removes sandboxes, the OpenVINO Model Server, the installed
 # agent (package + CLI shim), and this installer's state directory. Leaves
 # Docker, Node.js/nvm, and the Intel compute runtime installed, since those

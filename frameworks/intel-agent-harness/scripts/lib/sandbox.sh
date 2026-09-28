@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Sandbox/gateway manager — each "sandbox" is a container with Intel GPU
 # device passthrough; state is tracked in a JSON registry under the state

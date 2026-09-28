@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Optional sandbox gateway — a single shared reverse-proxy container that
 # mediates traffic to sandboxes instead of each one publishing its own host

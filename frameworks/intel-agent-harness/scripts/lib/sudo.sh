@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Non-interactive-safe sudo authorization: probe passwordless sudo first,
 # else validate credentials through a TTY (stdin or /dev/tty for piped
