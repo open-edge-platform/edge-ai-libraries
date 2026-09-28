@@ -60,13 +60,17 @@ main () {
       else
         # critical group permissions
         local -A _groups=()
-        local _j _dep _rest_args=() _restart=0
+        local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0
         for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
           _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
-          for _dep in $(act_find_deps install install $(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]})); do
-            { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]]; } && _groups["render:992"]=1
-            [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] && _groups["video:"]=1
-            [[ "$_dep" = ${ID_LIKE}_*_install_docker ]] && _groups["docker:"]=1
+	  _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
+	  _deps=($(act_find_deps install install ${_resolved[*]}))
+          for _dep in ${_deps[*]}; do
+            _gf=${_dep/_install_/_group_}
+            declare -F $_gf > /dev/null 2>&1 || continue
+            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${ID_LIKE}_*_install_}" ${_resolved[*]})); do
+              _groups["$_g"]=1
+            done
           done
         done
 
@@ -138,20 +142,20 @@ subcommand_install () {
     echo
     return 0
   fi
-  act_helpper "install,Installation,Installing,Installed" "" "$@"
+  act_helper "install,Installation,Installing,Installed" "" "$@"
 }
 
 subcommand_remove () {
-  act_helpper "remove,Removal,Removing,Removed" "-r" "$@"
+  act_helper "remove,Removal,Removing,Removed" "-r" "$@"
 }
 
 subcommand_start () {
-  act_helpper "start,Start,Starting,Started" "" "$@"
+  act_helper "start,Start,Starting,Started" "" "$@"
 }
 
 subcommand_stop () {
   [[ " $* " != *" --help "* ]] || return
-  act_helpper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
+  act_helper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
 }
 
 subcommand_list () {
@@ -1498,7 +1502,7 @@ act_find_deps () {
   echo "${!handlers[*]}"
 }
 
-act_helpper () {
+act_helper () {
   local act_name=${1%%,*}
   local act_text="${1#*,}"
   local sort_options="$2"
@@ -1561,6 +1565,8 @@ act_helpper () {
     fi
 
     local rc=0 order=0
+    local installer_state=""
+    ensure_tmpdir create installer_state states /dev/shm
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
         local name1=${handler#*_*_*_}
@@ -1607,6 +1613,7 @@ act_helpper () {
     ) 2>&1
     # wait for background processes
     wait
+    ensure_tmpdir destroy $installer_state
     return $rc
   else
     echo "Component not found" 1>&2
@@ -1978,8 +1985,8 @@ ensure_apt () {
   case "$1" in
   update)
     # apt-get update got executed only once unless -y is specified
-    [[ -e /dev/shm/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
-    touch /dev/shm/apt_update
+    [[ -e "${installer_state:?}"/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
+    touch "$installer_state"/apt_update
     ;;
   autoremove|remove|purge)
     # make sure the package list exists
@@ -1999,10 +2006,9 @@ ensure_apt () {
       fi
     fi
     ;;
-  install) # apt-get update runs at least once on the system
-    [ -e /dev/shm/apt_update ] || ensure_apt update -y
-    ;;&
   *)
+    # apt-get update runs at least once on the system before apt-get install
+    [ "$1" != "install" ] || [ -e "${installer_state:?}"/apt_update ] || ensure_apt update -y
     ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get -y "$@"
     ;;
   esac
@@ -2262,6 +2268,27 @@ EOF
 }
 
 
+debian_30_install_chrony () {
+  ensure_apt_install_package chrony
+}
+
+debian_30_sbom_chrony () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list chrony)
+EOF
+}
+
+
+debian_30_install_cmake () {
+  ensure_apt_install_package cmake
+}
+
+debian_30_sbom_cmake () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list cmake)
+EOF
+}
+
 debian_20_profile_core_types () {
   [ "$1" != "install" ] || echo "cpuid curl"
 }
@@ -2489,6 +2516,10 @@ EOF
   fi
 }
 
+debian_30_group_docker () {
+  echo "docker:"
+}
+
 debian_30_install_docker () {
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
     echo "Docker is already installed. Skipping..."
@@ -2572,6 +2603,8 @@ configure_edge_pack () {
     "Pin-Priority: 1001"
   )
   edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref
+  edge_pack_install_options=("--no-install-recommends")
+  [[ " $* " != *" --allow-downgrades "* ]] || edge_pack_install_options+=("--allow-downgrades")
 }
 
 debian_15_profile_edge_pack () {
@@ -2622,7 +2655,7 @@ debian_20_install_edge_pack_base_realtime () {
     echo "intel-edge-base-realtime already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_realtime
-    ensure_apt install --no-install-recommends "intel-edge-base-realtime=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
   fi
 }
 
@@ -2654,13 +2687,17 @@ debian_20_profile_edge_pack_base_standard () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_base_standard () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_base_standard () {
   configure_edge_pack_base_standard "$@"
   if ensure_apt_is_installed intel-edge-base-standard=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-base-standard already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_standard
-    ensure_apt install --no-install-recommends "intel-edge-base-standard=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*"
   fi
 }
 
@@ -2692,13 +2729,17 @@ debian_20_profile_edge_pack_graphics_core () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_graphics_core () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_graphics_core () {
   configure_edge_pack_graphics_core "$@"
   if ensure_apt_is_installed intel-edge-graphics-core=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-graphics-core already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_core
-    ensure_apt install --no-install-recommends "intel-edge-graphics-core=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
   fi
 }
 
@@ -2730,13 +2771,17 @@ debian_20_profile_edge_pack_graphics_display () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_graphics_display () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_graphics_display () {
   configure_edge_pack_graphics_display "$@"
   if ensure_apt_is_installed intel-edge-graphics-display=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-graphics-display already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_display
-    ensure_apt install --no-install-recommends "intel-edge-graphics-display=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*"
   fi
 }
 
@@ -2774,7 +2819,7 @@ debian_20_install_edge_pack_media_core () {
     echo "intel-edge-media-core already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_core
-    ensure_apt install --no-install-recommends "intel-edge-media-core=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*"
   fi
 }
 
@@ -2812,7 +2857,7 @@ debian_70_install_edge_pack_media_ffmpeg () {
     echo "intel-edge-media-ffmpeg already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_ffmpeg
-    ensure_apt install --no-install-recommends "intel-edge-media-ffmpeg=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*"
   fi
 }
 
@@ -2850,7 +2895,7 @@ debian_70_install_edge_pack_media_gst () {
     echo "intel-edge-media-gst already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_gst
-    ensure_apt install --no-install-recommends "intel-edge-media-gst=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*"
   fi
 }
 
@@ -2882,13 +2927,17 @@ debian_20_profile_edge_pack_npu () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_npu () {
+  echo "render:992"
+}
+
 debian_20_install_edge_pack_npu () {
   configure_edge_pack_npu "$@"
   if ensure_apt_is_installed intel-edge-npu=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-npu already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_npu
-    ensure_apt install --no-install-recommends "intel-edge-npu=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-npu=$version*"
   fi
 }
 
@@ -3077,6 +3126,10 @@ debian_40_profile_gpu () {
   echo "curl gpg libze1"
 }
 
+debian_40_group_gpu () {
+  echo "render:992 video:"
+}
+
 debian_40_install_gpu () {
   configure_gpu $*
 
@@ -3243,6 +3296,17 @@ debian_90_remove_humanoid_imitation_learning () {
   ensure_sudo rm -rf "$workspace"
 }
 
+debian_30_install_intel_lpmd () {
+  ensure_apt_install_package intel-lpmd
+}
+
+debian_30_sbom_intel_lpmd () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list intel-lpmd)
+EOF
+}
+
+
 debian_15_install_jq () {
   ensure_apt_install_package jq
 }
@@ -3273,6 +3337,43 @@ debian_15_sbom_libtbb12 () {
 $(ensure_sbom_format pkg-list libtbb12)
 EOF
 }
+
+configure_libyang () {
+  workspace="$(ensure_project_path)/libyang"
+  repository="https://github.com/CESNET/libyang.git"
+  version=v4.2.2
+}
+  
+debian_40_profile_libyang () {
+  echo "cmake make"
+}
+
+verify_libyang () {
+  command yanglint > /dev/null 2>&1
+}
+
+debian_40_install_libyang () {
+  configure_libyang
+  if verify_libyang && [[ " $* " != *" --reinstall "* ]]; then
+    echo "libyang is installed. Skipping..." 1>&2
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    mkdir "$workspace"/build
+    cd "$workspace"/build
+    cmake ..
+    make
+    ensure_sudo make install
+    ensure_sudo ldconfig /usr/local/lib
+    make clean
+  fi
+}
+
+debian_40_remove_libyang () {
+  configure_libyang
+  cd "$workspace/build" && ensure_sudo make uninstall || true
+  rm -rf "$workspace"
+}
+
 
 configure_libze1 () {
   libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb"
@@ -3498,6 +3599,17 @@ debian_30_sbom_make () {
 $(ensure_sbom_format pkg-list make)
 EOF
 }
+
+debian_30_install_msr_tools () {
+  ensure_apt_install_package msr-tools
+}
+
+debian_30_sbom_msr_tools () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list msr-tools)
+EOF
+}
+
 
 configure_multimodal_weld_defect_detection () {
   workspace="$(ensure_project_path)/multimodal_weld_defect_detection"
@@ -3796,6 +3908,10 @@ verify_npu () {
 
 debian_40_profile_npu () {
   echo "libtbb12 jq libze1"
+}
+
+debian_40_gpu_npu () {
+  echo "render:992"
 }
 
 debian_40_install_npu () {
@@ -4123,6 +4239,46 @@ debian_05_sbom_pciutils () {
 $(ensure_sbom_format pkg-list pciutils)
 EOF
 }
+
+configure_pcm () {
+  workspace="$(ensure_project_path)/pcm"
+  repository="https://github.com/intel/pcm.git"
+  version=tags/202604
+}
+
+verify_pcm () {
+  [ -e "$workspace" ]
+  [ -x /usr/local/pcm ]
+}
+
+debian_40_profile_pcm () {
+  echo "cmake make"
+}
+
+debian_40_install_pcm () {
+  configure_pcm
+  if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+    echo "pcm is installed. Skipping"
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    rm -rf "$workspace"/tests "$workspace"/examples
+    mkdir "$workspace"/build "$workspace"/tests "$workspace"/examples
+    touch "$workspace"/tests/CMakeLists.txt "$workspace"/examples/CMakeLists.txt
+    cd "$workspace"/build
+    cmake ..
+    cmake --build . 
+    ensure_sudo make install
+    make clean
+    verify_pcm
+  fi
+}
+
+debian_40_remove_pcm () {
+  configure_pcm
+  ensure_sudo rm -rf "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* \
+    /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM
+}
+
 
 # Physical AI Framework - the Physical AI training/deployment SDK (the
 # `physicalai-train` distribution, which also pulls in the `physicalai`
@@ -4583,6 +4739,19 @@ EOF
 }
 
 
+configure_reboot () {
+  touch "${installer_state?}"/reboot_required
+}
+
+debian_29_install_reboot () {
+  [ -e "${installer_state?}"/reboot_required ] || return 
+  local delay=2
+  ensure_sudo shutdown -r +$delay "$installer_name scheduled a reboot in $delay minutes. Rerun $* after system is back."
+  rm -f "${installer_state?}"/reboot_required
+  sleep infinity
+}
+
+
 # ROS 2 distribution, auto-selected from the Ubuntu codename:
 #   Ubuntu 22.04 (jammy) -> ROS 2 Humble
 #   Ubuntu 24.04 (noble) -> ROS 2 Jazzy
@@ -5034,6 +5203,64 @@ $(ensure_sbom_format apt-source "deb http://packages.ros.org/ros2/$ID $VERSION_C
 $(ensure_sbom_format apt-list-file "/etc/apt/sources.list.d/ros2-latest.list")
 $(ensure_sbom_format pkg-list "${rvc_pkgs[@]}")
 EOF
+}
+
+
+debian_30_install_stress_ng () {
+  ensure_apt_install_package stress-ng
+}
+
+debian_30_sbom_stress_ng () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list stress-ng)
+EOF
+}
+
+
+debian_30_install_sysbench () {
+  ensure_apt_install_package sysbench
+}
+
+debian_30_sbom_sysbench () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list sysbench)
+EOF
+}
+
+
+configure_time_confighub () {
+  workspace="$(ensure_project_path)/time_confighub"
+  repository="https://github.com/intel/time-confighub.git"
+  version=tags/archive/main_20261106
+}
+
+verify_time_confighub () {
+  [ -e "$workspace" ]
+  [ -d /opt/tch ]
+  [ -x /usr/local/bin/tch ]
+}
+
+debian_70_profile_time_confighub () {
+  echo "cmake make libyang"
+}
+
+debian_70_install_time_confighub () {
+  configure_time_confighub
+  if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+    echo "pcm is installed. Skipping"
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    cd "$workspace"
+    chmod a+rx install.sh uninstall.sh
+    ensure_sudo ./install.sh
+    verify_time_confighub
+  fi
+}
+
+debian_70_remove_time_confighub () {
+  configure_time_confighub
+  cd "$workspace" && ensure_sudo ./uninstall.sh --force || true
+  rm -rf "$workspace"
 }
 
 

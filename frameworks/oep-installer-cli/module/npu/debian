@@ -20,6 +20,10 @@ debian_40_profile_npu () {
   echo "libtbb12 jq libze1"
 }
 
+debian_40_gpu_npu () {
+  echo "render:992"
+}
+
 debian_40_install_npu () {
   configure_npu $*
 

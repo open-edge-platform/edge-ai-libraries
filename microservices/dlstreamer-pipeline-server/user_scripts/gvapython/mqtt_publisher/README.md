@@ -50,7 +50,8 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X 
 
 ## Configuration
 
-> **Note:** Prerequisites for MQTT Publisher (setting up mqtt broker, subscriber) can be found [here](../../../docs/user-guide/advanced-guide/detailed_usage/publisher/mqtt_publish.md#prerequisites-for-mqtt-publishing)
+> [!NOTE]
+> Prerequisites for MQTT Publisher (setting up mqtt broker, subscriber) can be found [here](../../../docs/user-guide/advanced-guide/detailed_usage/publisher/mqtt_publish.md#prerequisites-for-mqtt-publishing)
 
 - Configuration
 

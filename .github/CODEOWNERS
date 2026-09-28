@@ -94,6 +94,10 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /microservices/visual-data-preparation-for-retrieval/docs/      @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
 /microservices/visual-data-preparation-for-retrieval/README.md  @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
 
+/microservices/stream-manager/                  @bharagha @rrajore @14pankaj @sa10-int @krish918
+/microservices/stream-manager/docs/             @bharagha @rrajore @14pankaj @sa10-int @krish918  @open-edge-platform/open-edge-platform-docs-write
+/microservices/stream-manager/README.md         @bharagha @rrajore @14pankaj @sa10-int @krish918  @open-edge-platform/open-edge-platform-docs-write
+
 
 # ============================================================================
 # Sample Applications
