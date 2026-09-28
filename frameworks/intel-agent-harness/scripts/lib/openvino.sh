@@ -4,32 +4,32 @@
 # OpenVINO Model Server (OVMS) — serves an OpenAI-compatible chat-completions
 # endpoint on Intel Arc / Data Center GPU Max.
 
-PLATFORM_OVMS_IMAGE="${PLATFORM_OVMS_IMAGE:-openvino/model_server:2026.4.0-gpu}"
-PLATFORM_OVMS_REST_PORT="${PLATFORM_OVMS_REST_PORT:-8000}"
-PLATFORM_MODELS_DIR="${PLATFORM_MODELS_DIR:-$HOME/.intel-agent/models}"
-PLATFORM_OVMS_CONTAINER="${PLATFORM_OVMS_CONTAINER:-intel-agent-ovms}"
+HARNESS_OVMS_IMAGE="${HARNESS_OVMS_IMAGE:-openvino/model_server:2026.4.0-gpu}"
+HARNESS_OVMS_REST_PORT="${HARNESS_OVMS_REST_PORT:-8000}"
+HARNESS_MODELS_DIR="${HARNESS_MODELS_DIR:-$HOME/.intel-agent/models}"
+HARNESS_OVMS_CONTAINER="${HARNESS_OVMS_CONTAINER:-intel-agent-ovms}"
 # Extra OVMS server flags, e.g. "--tool_parser hermes3 --task text_generation"
 # for Harness agents that need OpenAI-style tool calls.
-PLATFORM_OVMS_EXTRA_ARGS="${PLATFORM_OVMS_EXTRA_ARGS:-}"
+HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
 
-# Set PLATFORM_LLM_ROUTER_ENDPOINT to route the Harness agent at an existing
+# Set HARNESS_LLM_ROUTER_ENDPOINT to route the Harness agent at an existing
 # OpenAI-compatible router/gateway instead of this installer's own OVMS
 # container — e.g. an internal LiteLLM instance, a corporate API gateway, or
 # a cloud endpoint. When set, this installer never starts, stops, or
-# health-checks OVMS; PLATFORM_LLM_PROVIDER is then ignored.
-PLATFORM_LLM_PROVIDER="${PLATFORM_LLM_PROVIDER:-ovms}"
-PLATFORM_LLM_ROUTER_ENDPOINT="${PLATFORM_LLM_ROUTER_ENDPOINT:-}"
+# health-checks OVMS; HARNESS_LLM_PROVIDER is then ignored.
+HARNESS_LLM_PROVIDER="${HARNESS_LLM_PROVIDER:-ovms}"
+HARNESS_LLM_ROUTER_ENDPOINT="${HARNESS_LLM_ROUTER_ENDPOINT:-}"
 
 # export_model.py is OVMS's own model-export tool — unlike plain
 # `optimum-cli export openvino`, it also writes the graph.pbtxt MediaPipe
 # servable definition OVMS's /v3/chat/completions endpoint requires for LLMs.
-# Pinned to the release tag matching PLATFORM_OVMS_IMAGE for reproducible,
+# Pinned to the release tag matching HARNESS_OVMS_IMAGE for reproducible,
 # version-compatible exports.
-PLATFORM_OVMS_EXPORT_MODEL_REF="${PLATFORM_OVMS_EXPORT_MODEL_REF:-v2026.4.0}"
+HARNESS_OVMS_EXPORT_MODEL_REF="${HARNESS_OVMS_EXPORT_MODEL_REF:-v2026.4.0}"
 
 # Known-good SHA-256 for export_model.py / requirements.txt at the pinned
 # ref above (verified against openvinotoolkit/model_server). IMPORTANT:
-# update both hashes whenever PLATFORM_OVMS_EXPORT_MODEL_REF's default
+# update both hashes whenever HARNESS_OVMS_EXPORT_MODEL_REF's default
 # changes; they are only applied when the ref in use matches this exact tag.
 _OVMS_EXPORT_MODEL_PINNED_REF="v2026.4.0"
 _OVMS_EXPORT_MODEL_PY_SHA256="783df4b5bfbadd6b19574bef5a6deb3b5d51dc1218b8e375740a2a7edea2fb88"
@@ -39,8 +39,8 @@ _OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256="3068c47e01543fb2d8c4e4b30aadcf2922dc1288
 # this file itself on every export (appending to mediapipe_config_list), so
 # this must never overwrite an existing file or it would erase prior models.
 ensure_ovms_config() {
-  mkdir -p "$PLATFORM_MODELS_DIR"
-  local config_file="${PLATFORM_MODELS_DIR}/config.json"
+  mkdir -p "$HARNESS_MODELS_DIR"
+  local config_file="${HARNESS_MODELS_DIR}/config.json"
   [[ -f "$config_file" ]] || printf '{"model_config_list": [], "mediapipe_config_list": []}' >"$config_file"
 }
 
@@ -76,7 +76,7 @@ export step's HTTP client may not support (only http/https/socks5/socks5h are)."
 # (plain optimum-cli only produces IR weights, not a servable LLM graph).
 export_model_to_openvino() {
   local hf_model_id="$1" model_name="${2:-${1##*/}}" out_dir venv exporter requirements_file
-  out_dir="${PLATFORM_MODELS_DIR}/${model_name}"
+  out_dir="${HARNESS_MODELS_DIR}/${model_name}"
   if [[ -d "$out_dir" ]]; then
     info "Model '${model_name}' is already exported."
     return 0
@@ -84,7 +84,7 @@ export_model_to_openvino() {
   command_exists python3 || error "python3 is required to export models to OpenVINO IR."
   assert_proxy_scheme_supported
   ensure_ovms_config
-  venv="${PLATFORM_MODELS_DIR}/.export-venv"
+  venv="${HARNESS_MODELS_DIR}/.export-venv"
   [[ -d "$venv" ]] || python3 -m venv "$venv"
   # shellcheck disable=SC1091
   . "${venv}/bin/activate"
@@ -98,19 +98,19 @@ export_model_to_openvino() {
   # The pinned checksums above only apply to the exact ref they were taken
   # from; an operator-overridden ref has no known-good hash to check against.
   local expected_py_sha256="" expected_requirements_sha256=""
-  if [[ "$PLATFORM_OVMS_EXPORT_MODEL_REF" == "$_OVMS_EXPORT_MODEL_PINNED_REF" ]]; then
+  if [[ "$HARNESS_OVMS_EXPORT_MODEL_REF" == "$_OVMS_EXPORT_MODEL_PINNED_REF" ]]; then
     expected_py_sha256="$_OVMS_EXPORT_MODEL_PY_SHA256"
     expected_requirements_sha256="$_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256"
   fi
   if [[ ! -f "$exporter" ]]; then
-    info "Fetching OVMS's export_model.py (ref: ${PLATFORM_OVMS_EXPORT_MODEL_REF})…"
+    info "Fetching OVMS's export_model.py (ref: ${HARNESS_OVMS_EXPORT_MODEL_REF})…"
     fetch_and_verify \
-      "https://raw.githubusercontent.com/openvinotoolkit/model_server/${PLATFORM_OVMS_EXPORT_MODEL_REF}/demos/common/export_models/export_model.py" \
+      "https://raw.githubusercontent.com/openvinotoolkit/model_server/${HARNESS_OVMS_EXPORT_MODEL_REF}/demos/common/export_models/export_model.py" \
       "$exporter" "OVMS export_model.py" "$expected_py_sha256"
   fi
   if [[ ! -f "$requirements_file" ]]; then
     fetch_and_verify \
-      "https://raw.githubusercontent.com/openvinotoolkit/model_server/${PLATFORM_OVMS_EXPORT_MODEL_REF}/demos/common/export_models/requirements.txt" \
+      "https://raw.githubusercontent.com/openvinotoolkit/model_server/${HARNESS_OVMS_EXPORT_MODEL_REF}/demos/common/export_models/requirements.txt" \
       "$requirements_file" "OVMS export_model.py requirements.txt" "$expected_requirements_sha256"
   fi
   # httpx[socks]'s socksio dependency is what actually lets a socks5/socks5h
@@ -122,12 +122,12 @@ export_model_to_openvino() {
       --source_model "$hf_model_id" \
       --model_name "$model_name" \
       --weight-format int8 \
-      --config_file_path "${PLATFORM_MODELS_DIR}/config.json" \
-      --model_repository_path "$PLATFORM_MODELS_DIR" \
+      --config_file_path "${HARNESS_MODELS_DIR}/config.json" \
+      --model_repository_path "$HARNESS_MODELS_DIR" \
     || error "export_model.py failed to export ${hf_model_id}. Check network
-access to huggingface.co, and that PLATFORM_OVMS_EXPORT_MODEL_REF
-(${PLATFORM_OVMS_EXPORT_MODEL_REF}) is compatible with PLATFORM_OVMS_IMAGE
-(${PLATFORM_OVMS_IMAGE}) — run 'python3 ${exporter} text_generation --help'
+access to huggingface.co, and that HARNESS_OVMS_EXPORT_MODEL_REF
+(${HARNESS_OVMS_EXPORT_MODEL_REF}) is compatible with HARNESS_OVMS_IMAGE
+(${HARNESS_OVMS_IMAGE}) — run 'python3 ${exporter} text_generation --help'
 inside the venv to check its exact current flags if this keeps failing."
   deactivate
   ok "Exported ${hf_model_id} -> ${out_dir}"
@@ -137,60 +137,60 @@ ensure_openvino_model_server() {
   local gpu_args
   local -a proxy_args=()
   ensure_ovms_config
-  if docker inspect "$PLATFORM_OVMS_CONTAINER" >/dev/null 2>&1; then
-    docker restart "$PLATFORM_OVMS_CONTAINER" >/dev/null 2>&1 || true
-    ok "OpenVINO Model Server restarted (${PLATFORM_OVMS_CONTAINER})"
+  if docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
+    docker restart "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1 || true
+    ok "OpenVINO Model Server restarted (${HARNESS_OVMS_CONTAINER})"
     return 0
   fi
   gpu_args="$(intel_gpu_docker_device_args)"
   docker_proxy_env_args_into proxy_args
-  info "Starting OpenVINO Model Server on port ${PLATFORM_OVMS_REST_PORT}…"
+  info "Starting OpenVINO Model Server on port ${HARNESS_OVMS_REST_PORT}…"
   # shellcheck disable=SC2086
-  docker run -d --name "$PLATFORM_OVMS_CONTAINER" --restart unless-stopped \
-    -p "${PLATFORM_OVMS_REST_PORT}:8000" $gpu_args \
+  docker run -d --name "$HARNESS_OVMS_CONTAINER" --restart unless-stopped \
+    -p "${HARNESS_OVMS_REST_PORT}:8000" $gpu_args \
     "${proxy_args[@]}" \
-    -v "${PLATFORM_MODELS_DIR}:/models" \
-    "$PLATFORM_OVMS_IMAGE" \
-    --rest_port 8000 --config_path /models/config.json $PLATFORM_OVMS_EXTRA_ARGS \
+    -v "${HARNESS_MODELS_DIR}:/models" \
+    "$HARNESS_OVMS_IMAGE" \
+    --rest_port 8000 --config_path /models/config.json $HARNESS_OVMS_EXTRA_ARGS \
     || error "Could not start OpenVINO Model Server."
-  ok "OpenVINO Model Server is running on port ${PLATFORM_OVMS_REST_PORT}"
+  ok "OpenVINO Model Server is running on port ${HARNESS_OVMS_REST_PORT}"
 }
 
 # ensure_inference_backend — starts/health-checks whichever backend is
-# selected. An explicit router endpoint always wins over PLATFORM_LLM_PROVIDER,
+# selected. An explicit router endpoint always wins over HARNESS_LLM_PROVIDER,
 # since routing to infrastructure this installer doesn't own is the point.
 ensure_inference_backend() {
-  if [[ -n "$PLATFORM_LLM_ROUTER_ENDPOINT" ]]; then
-    if [[ -n "${PLATFORM_HF_MODEL:-}" ]]; then
-      warn "PLATFORM_HF_MODEL is ignored when PLATFORM_LLM_ROUTER_ENDPOINT is set —
+  if [[ -n "$HARNESS_LLM_ROUTER_ENDPOINT" ]]; then
+    if [[ -n "${HARNESS_HF_MODEL:-}" ]]; then
+      warn "HARNESS_HF_MODEL is ignored when HARNESS_LLM_ROUTER_ENDPOINT is set —
 no local model export happens; the external endpoint owns model selection."
     fi
-    info "Routing to external endpoint: ${PLATFORM_LLM_ROUTER_ENDPOINT}"
+    info "Routing to external endpoint: ${HARNESS_LLM_ROUTER_ENDPOINT}"
     info "This installer will not start, stop, or health-check that endpoint."
     return 0
   fi
-  case "$PLATFORM_LLM_PROVIDER" in
+  case "$HARNESS_LLM_PROVIDER" in
     ovms)
       ensure_openvino_model_server
-      if [[ -n "${PLATFORM_HF_MODEL:-}" ]]; then
-        export_model_to_openvino "$PLATFORM_HF_MODEL"
+      if [[ -n "${HARNESS_HF_MODEL:-}" ]]; then
+        export_model_to_openvino "$HARNESS_HF_MODEL"
         ensure_openvino_model_server
       fi
       ;;
     *)
-      error "Unknown PLATFORM_LLM_PROVIDER: ${PLATFORM_LLM_PROVIDER} (expected: ovms).
-Set PLATFORM_LLM_ROUTER_ENDPOINT instead to route to an existing external
+      error "Unknown HARNESS_LLM_PROVIDER: ${HARNESS_LLM_PROVIDER} (expected: ovms).
+Set HARNESS_LLM_ROUTER_ENDPOINT instead to route to an existing external
 OpenAI-compatible endpoint without this installer managing a backend."
       ;;
   esac
 }
 
-platform_llm_endpoint() {
-  if [[ -n "$PLATFORM_LLM_ROUTER_ENDPOINT" ]]; then
-    printf '%s' "$PLATFORM_LLM_ROUTER_ENDPOINT"
+harness_llm_endpoint() {
+  if [[ -n "$HARNESS_LLM_ROUTER_ENDPOINT" ]]; then
+    printf '%s' "$HARNESS_LLM_ROUTER_ENDPOINT"
     return 0
   fi
-  printf 'http://%s:%s/v3' "$(resolve_advertised_host)" "$PLATFORM_OVMS_REST_PORT"
+  printf 'http://%s:%s/v3' "$(resolve_advertised_host)" "$HARNESS_OVMS_REST_PORT"
 }
 
 # Rejects path-traversal/empty/current-dir/hidden names before any
@@ -202,7 +202,7 @@ validate_model_name() {
 }
 
 list_exported_models() {
-  local dir="$PLATFORM_MODELS_DIR" entry name found=0
+  local dir="$HARNESS_MODELS_DIR" entry name found=0
   [[ -d "$dir" ]] || { info "No models exported yet (${dir})."; return 0; }
   for entry in "$dir"/*/; do
     [[ -d "$entry" ]] || continue
@@ -220,7 +220,7 @@ list_exported_models() {
 # serving it. Lets you export/test/delete a small model repeatedly without
 # wiping every other exported model.
 remove_exported_model() {
-  local name="$1" dir="$PLATFORM_MODELS_DIR" model_dir config_file
+  local name="$1" dir="$HARNESS_MODELS_DIR" model_dir config_file
   [[ -n "$name" ]] || error "Usage: ./install.sh models remove <name>"
   validate_model_name "$name" || error "Invalid model name: ${name}"
   model_dir="${dir}/${name}"
@@ -229,9 +229,9 @@ remove_exported_model() {
   [[ -f "$config_file" ]] && with_state_lock ovms-config _remove_model_from_ovms_config_locked "$config_file" "$name"
   rm -rf -- "$model_dir"
   ok "Removed exported model '${name}' (${model_dir})"
-  if command_exists docker && docker inspect "$PLATFORM_OVMS_CONTAINER" >/dev/null 2>&1; then
-    docker restart "$PLATFORM_OVMS_CONTAINER" >/dev/null 2>&1 \
-      && info "Restarted ${PLATFORM_OVMS_CONTAINER} so it stops serving the removed model."
+  if command_exists docker && docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
+    docker restart "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1 \
+      && info "Restarted ${HARNESS_OVMS_CONTAINER} so it stops serving the removed model."
   fi
 }
 
@@ -257,7 +257,7 @@ _remove_model_from_ovms_config_locked() {
 # Used by the uninstaller; leaves the image and models dir untouched. No-op
 # when routed externally, since this installer never started that backend.
 remove_openvino_model_server() {
-  [[ -z "$PLATFORM_LLM_ROUTER_ENDPOINT" ]] || return 0
+  [[ -z "$HARNESS_LLM_ROUTER_ENDPOINT" ]] || return 0
   command_exists docker || return 0
-  docker rm -f "$PLATFORM_OVMS_CONTAINER" >/dev/null 2>&1 || true
+  docker rm -f "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1 || true
 }

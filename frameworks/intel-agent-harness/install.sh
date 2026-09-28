@@ -17,8 +17,8 @@ if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
 else
   SCRIPT_DIR=""
 fi
-PLATFORM_INSTALL_REPO="${PLATFORM_INSTALL_REPO:-}"
-PLATFORM_INSTALL_REF="${PLATFORM_INSTALL_REF:-}"
+HARNESS_INSTALL_REPO="${HARNESS_INSTALL_REPO:-}"
+HARNESS_INSTALL_REF="${HARNESS_INSTALL_REF:-}"
 
 is_source_checkout() {
   [[ -n "$SCRIPT_DIR" && -f "${SCRIPT_DIR}/scripts/install.sh" && -d "${SCRIPT_DIR}/scripts/lib" ]]
@@ -27,8 +27,8 @@ is_source_checkout() {
 # Version resolution order: explicit env var, then a repo-local .version
 # file, then "main" — mirrors checking an env var / git tag / version file.
 resolve_install_ref() {
-  if [[ -n "$PLATFORM_INSTALL_REF" ]]; then
-    printf '%s' "$PLATFORM_INSTALL_REF"
+  if [[ -n "$HARNESS_INSTALL_REF" ]]; then
+    printf '%s' "$HARNESS_INSTALL_REF"
   elif [[ -n "$SCRIPT_DIR" && -f "${SCRIPT_DIR}/.version" ]]; then
     tr -d '[:space:]' <"${SCRIPT_DIR}/.version"
   else
@@ -39,16 +39,16 @@ resolve_install_ref() {
 clone_installer_ref() {
   local ref="$1" dest="$2"
   command -v git >/dev/null 2>&1 || { echo "git is required to install." >&2; exit 1; }
-  case "$PLATFORM_INSTALL_REPO" in
+  case "$HARNESS_INSTALL_REPO" in
     http://*)
-      echo "PLATFORM_INSTALL_REPO must use https:// or an SSH remote (git@...), not plain http://: $PLATFORM_INSTALL_REPO" >&2
+      echo "HARNESS_INSTALL_REPO must use https:// or an SSH remote (git@...), not plain http://: $HARNESS_INSTALL_REPO" >&2
       exit 1
       ;;
   esac
   git init --quiet "$dest"
-  git -C "$dest" remote add origin "$PLATFORM_INSTALL_REPO"
+  git -C "$dest" remote add origin "$HARNESS_INSTALL_REPO"
   git -C "$dest" fetch --quiet --depth 1 origin "+${ref}:refs/installer-bootstrap/target" \
-    || { echo "Could not fetch ref '${ref}' from ${PLATFORM_INSTALL_REPO}." >&2; exit 1; }
+    || { echo "Could not fetch ref '${ref}' from ${HARNESS_INSTALL_REPO}." >&2; exit 1; }
   git -C "$dest" -c advice.detachedHead=false checkout --quiet --detach refs/installer-bootstrap/target
   # Git verifies object integrity itself (content-addressed by hash); print
   # the resolved commit so a mutable ref (e.g. a branch) is still auditable.
@@ -60,9 +60,9 @@ main() {
     exec "${SCRIPT_DIR}/scripts/install.sh" "$@"
   fi
 
-  [[ -n "$PLATFORM_INSTALL_REPO" ]] || {
+  [[ -n "$HARNESS_INSTALL_REPO" ]] || {
     echo "This script was fetched standalone (no local scripts/ checkout found)." >&2
-    echo "Set PLATFORM_INSTALL_REPO=<git-url> to this installer's own repo so it" >&2
+    echo "Set HARNESS_INSTALL_REPO=<git-url> to this installer's own repo so it" >&2
     echo "can be cloned, or run it from a full checkout instead — this installer" >&2
     echo "refuses to guess where its own source lives." >&2
     exit 1

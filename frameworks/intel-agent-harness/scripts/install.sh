@@ -53,7 +53,7 @@ usage() {
     --skip-gpu-check                  Skip Intel GPU detection/driver checks
     --fresh                           Discard any failed/in-progress onboarding session
     --resume                          Resume an interrupted onboarding session
-    --agent <openclaw|deepagents-code|hermes>  Real agent to install (sets PLATFORM_AGENT)
+    --agent <openclaw|deepagents-code|hermes>  Real agent to install (sets HARNESS_AGENT)
     --hf-model <hf-model-id>          Hugging Face model to export to OpenVINO IR
     --repo <git-url>                  Git repo to install (sets PROJECT_REPO_URL)
     --ref <git-ref>                   Git ref/tag to install (sets PROJECT_INSTALL_REF)
@@ -61,19 +61,19 @@ usage() {
     --help, -h                        Show this help message and exit
 
   Environment:
-    PLATFORM_AGENT               openclaw | deepagents-code | hermes (default: openclaw)
+    HARNESS_AGENT               openclaw | deepagents-code | hermes (default: openclaw)
     HERMES_INSTALL_URL            Hermes's official installer URL (default: hermes-agent.nousresearch.com)
     HERMES_INSTALL_SHA256         Pin the Hermes installer's expected SHA-256 (unset: verified for shape, hash logged)
     DOCKER_INSTALL_SHA256         Pin get.docker.com's expected SHA-256 (non-apt hosts only; unset: verified for shape, hash logged)
-    PLATFORM_LLM_ENDPOINT         OpenAI-compatible endpoint (default: local OpenVINO Model Server)
-    PLATFORM_LLM_PROVIDER         ovms (default) — the only backend this installer manages itself
-    PLATFORM_LLM_ROUTER_ENDPOINT  Route to an existing external OpenAI-compatible router instead of OVMS
-    PLATFORM_HF_MODEL             Hugging Face model to export/serve via OpenVINO
-    PLATFORM_OVMS_REST_PORT, PLATFORM_MODELS_DIR
+    HARNESS_LLM_ENDPOINT         OpenAI-compatible endpoint (default: local OpenVINO Model Server)
+    HARNESS_LLM_PROVIDER         ovms (default) — the only backend this installer manages itself
+    HARNESS_LLM_ROUTER_ENDPOINT  Route to an existing external OpenAI-compatible router instead of OVMS
+    HARNESS_HF_MODEL             Hugging Face model to export/serve via OpenVINO
+    HARNESS_OVMS_REST_PORT, HARNESS_MODELS_DIR
     PROJECT_REPO_URL, PROJECT_INSTALL_REF, PROJECT_CLI_BIN, PROJECT_REPO_ROOT
-    PLATFORM_SANDBOX_NAME, PLATFORM_SANDBOX_IMAGE, PLATFORM_GATEWAY_PORT
-    PLATFORM_GPU_PROFILE, MIN_NODE_VERSION
-    PLATFORM_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser hermes3)
+    HARNESS_SANDBOX_NAME, HARNESS_SANDBOX_IMAGE, HARNESS_SANDBOX_PORT
+    HARNESS_GPU_PROFILE, MIN_NODE_VERSION
+    HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser hermes3)
     EDGE_SERVICE_REPO_URL, EDGE_SERVICE_REF, EDGE_SERVICE_DOCKERFILE
     EDGE_SERVICE_BUILD_CONTEXT, EDGE_SERVICE_IMAGE, EDGE_SERVICE_ENV
     EDGE_SERVICE_CONTAINER_PORT, EDGE_SERVICE_MCP_PATH
@@ -81,7 +81,7 @@ usage() {
     HARNESS_GATEWAY_NETWORK, HARNESS_GATEWAY_CONTAINER, HARNESS_GATEWAY_PORT
     HERMES_CONFIG                  Path to Hermes's config.yaml (default: ~/.hermes/config.yaml)
     HARNESS_MCP_REGISTER_CMD       Script to register an MCP endpoint with a non-Hermes agent
-    PLATFORM_ADVERTISED_HOST       Host/IP printed in endpoint URLs (default: 127.0.0.1)
+    HARNESS_ADVERTISED_HOST       Host/IP printed in endpoint URLs (default: 127.0.0.1)
     HTTP_PROXY, HTTPS_PROXY, ALL_PROXY, NO_PROXY  Forwarded into OVMS/sandbox/gateway containers
     NON_INTERACTIVE=1, ACCEPT_THIRD_PARTY_SOFTWARE=1, SKIP_GPU_CHECK=1
 
@@ -107,8 +107,8 @@ maybe_prompt_advertised_host() {
     return 0
   fi
   [[ -n "$reply" ]] || return 0
-  PLATFORM_ADVERTISED_HOST="$reply"
-  PLATFORM_ADVERTISED_HOST_WAS_SET=1
+  HARNESS_ADVERTISED_HOST="$reply"
+  HARNESS_ADVERTISED_HOST_WAS_SET=1
   persist_advertised_host "$reply"
 }
 
@@ -181,15 +181,15 @@ print_status() {
   fi
 
   printf "\n${C_BOLD}Inference backend${C_RESET}\n"
-  if [[ -n "${PLATFORM_LLM_ROUTER_ENDPOINT:-}" ]]; then
-    ok "Routed externally — ${PLATFORM_LLM_ROUTER_ENDPOINT} (not managed by this installer)"
+  if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
+    ok "Routed externally — ${HARNESS_LLM_ROUTER_ENDPOINT} (not managed by this installer)"
   elif ! command_exists docker; then
     info "Docker not installed"
-  elif docker inspect "$PLATFORM_OVMS_CONTAINER" >/dev/null 2>&1; then
-    if [[ "$(docker inspect -f '{{.State.Running}}' "$PLATFORM_OVMS_CONTAINER" 2>/dev/null)" == "true" ]]; then
-      ok "Running — $(platform_llm_endpoint)"
+  elif docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
+    if [[ "$(docker inspect -f '{{.State.Running}}' "$HARNESS_OVMS_CONTAINER" 2>/dev/null)" == "true" ]]; then
+      ok "Running — $(harness_llm_endpoint)"
     else
-      warn "Container exists but is not running (${PLATFORM_OVMS_CONTAINER})"
+      warn "Container exists but is not running (${HARNESS_OVMS_CONTAINER})"
     fi
   else
     info "Not installed"
@@ -197,21 +197,21 @@ print_status() {
 
   printf "\n${C_BOLD}Harness agent${C_RESET}\n"
   local display
-  if [[ -n "${PROJECT_CLI_BIN:-}" && -z "${PLATFORM_AGENT:-}" ]]; then
+  if [[ -n "${PROJECT_CLI_BIN:-}" && -z "${HARNESS_AGENT:-}" ]]; then
     cli_bin="$PROJECT_CLI_BIN"
     display="$cli_bin"
   else
-    agent="$(canonical_agent_name "${PLATFORM_AGENT:-openclaw}")"
+    agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
     cli_bin="$(agent_cli_bin "$agent")"
     display="$(agent_display_name "$agent")"
   fi
   if [[ -n "$cli_bin" ]] && command_exists "$cli_bin"; then
     ok "${display} installed ($(command -v "$cli_bin"))"
-  elif [[ -n "$cli_bin" && -x "${PLATFORM_SHIM_DIR}/${cli_bin}" ]]; then
+  elif [[ -n "$cli_bin" && -x "${HARNESS_SHIM_DIR}/${cli_bin}" ]]; then
     # Shim exists but isn't resolvable via this shell's current PATH yet
     # (e.g. .bashrc was updated after this terminal started) — command -v
     # alone would wrongly report it as not installed.
-    warn "${display} installed (${PLATFORM_SHIM_DIR}/${cli_bin}) but not on this
+    warn "${display} installed (${HARNESS_SHIM_DIR}/${cli_bin}) but not on this
 shell's PATH yet — open a new terminal, or re-source your shell profile."
   else
     info "${display} not installed"
@@ -228,7 +228,7 @@ run_sandbox_command() {
   [[ -n "$verb" ]] || { usage; error "sandbox requires a verb (list/create/start/stop/destroy/backup/backup-all/recover/recover-all)."; }
   case "$verb" in
     list) list_sandboxes ;;
-    create) create_sandbox "$name" "${2:-${PLATFORM_SANDBOX_IMAGE:-}}" "" "${3:-}" ;;
+    create) create_sandbox "$name" "${2:-${HARNESS_SANDBOX_IMAGE:-}}" "" "${3:-}" ;;
     start) start_sandbox "$name" ;;
     stop) stop_sandbox "$name" ;;
     destroy) destroy_sandbox "$name" "${2:-}" ;;
@@ -251,7 +251,7 @@ run_edge_command() {
     create) create_edge_service "$name" ;;
     destroy) destroy_edge_service "$name" ;;
     endpoint) edge_service_endpoint "$name" ;;
-    register-mcp) harness_register_mcp_endpoint "${2:-${PLATFORM_AGENT:-hermes}}" "$name" "$(edge_service_endpoint "$name")" ;;
+    register-mcp) harness_register_mcp_endpoint "${2:-${HARNESS_AGENT:-hermes}}" "$name" "$(edge_service_endpoint "$name")" ;;
     *) usage; error "Unknown edge verb: $verb" ;;
   esac
 }
@@ -271,7 +271,7 @@ run_models_command() {
 # registry. Reuses harness_register_mcp_endpoint (Hermes built in;
 # HARNESS_MCP_REGISTER_CMD for anything else) — see harness-mcp.sh.
 run_mcp_command() {
-  local verb="${1:-}" name="${2:-}" url="${3:-}" agent="${4:-${PLATFORM_AGENT:-hermes}}"
+  local verb="${1:-}" name="${2:-}" url="${3:-}" agent="${4:-${HARNESS_AGENT:-hermes}}"
   [[ -n "$verb" ]] || { usage; error "mcp requires a verb (register)."; }
   case "$verb" in
     register)
@@ -304,8 +304,8 @@ main() {
       --skip-gpu-check) SKIP_GPU_CHECK=1 ;;
       --fresh) FRESH=1 ;;
       --resume) RESUME=1 ;;
-      --agent) PLATFORM_AGENT="$2"; shift ;;
-      --hf-model) PLATFORM_HF_MODEL="$2"; shift ;;
+      --agent) HARNESS_AGENT="$2"; shift ;;
+      --hf-model) HARNESS_HF_MODEL="$2"; shift ;;
       --repo) PROJECT_REPO_URL="$2"; shift ;;
       --ref) PROJECT_INSTALL_REF="$2"; shift ;;
       --cli-bin) PROJECT_CLI_BIN="$2"; shift ;;
@@ -316,7 +316,7 @@ main() {
   done
   export NON_INTERACTIVE ACCEPT_THIRD_PARTY_SOFTWARE
   export PROJECT_REPO_URL PROJECT_INSTALL_REF PROJECT_CLI_BIN
-  export PLATFORM_AGENT PLATFORM_HF_MODEL
+  export HARNESS_AGENT HARNESS_HF_MODEL
 
   if [[ "${positional[0]:-}" == "sandbox" ]]; then
     require_third_party_notice_acceptance
@@ -354,7 +354,7 @@ main() {
     exit 0
   fi
   if [[ "${positional[0]:-}" == "onboard" ]]; then
-    if [[ -n "${PROJECT_REPO_URL:-}${PLATFORM_SANDBOX_IMAGE:-}" && -z "${PLATFORM_AGENT:-}" ]]; then
+    if [[ -n "${PROJECT_REPO_URL:-}${HARNESS_SANDBOX_IMAGE:-}" && -z "${HARNESS_AGENT:-}" ]]; then
       local -a onboard_args=()
       [[ -n "$FRESH" ]] && onboard_args+=(--fresh)
       [[ -n "$RESUME" ]] && onboard_args+=(--resume)
@@ -375,8 +375,8 @@ main() {
 
   step 2 "$TOTAL_STEPS" "Inference routing"
   ensure_inference_backend
-  export PLATFORM_LLM_ENDPOINT="${PLATFORM_LLM_ENDPOINT:-$(platform_llm_endpoint)}"
-  ok "LLM endpoint: ${PLATFORM_LLM_ENDPOINT}"
+  export HARNESS_LLM_ENDPOINT="${HARNESS_LLM_ENDPOINT:-$(harness_llm_endpoint)}"
+  ok "LLM endpoint: ${HARNESS_LLM_ENDPOINT}"
 
   step 3 "$TOTAL_STEPS" "Agent install"
   install_selected_agent

@@ -35,9 +35,9 @@ usage() {
 
   Options:
     --yes               Skip the confirmation prompt
-    --delete-models     Also delete exported OpenVINO models (PLATFORM_MODELS_DIR)
+    --delete-models     Also delete exported OpenVINO models (HARNESS_MODELS_DIR)
     --keep-agent-data   Keep Hermes's ~/.hermes data directory (sets KEEP_AGENT_DATA=1)
-    --agent <name>       Agent to remove (default: PLATFORM_AGENT or openclaw)
+    --agent <name>       Agent to remove (default: HARNESS_AGENT or openclaw)
     --help, -h           Show this help message and exit
 
 EOF
@@ -47,7 +47,7 @@ confirm_uninstall() {
   local target="$1"
   [[ -n "$ASSUME_YES" ]] && return 0
   local prompt answer=""
-  prompt="  This removes sandboxes, the inference server, ${target}, and $(platform_state_root). Continue? [y/N]: "
+  prompt="  This removes sandboxes, the inference server, ${target}, and $(harness_state_root). Continue? [y/N]: "
   if [[ -t 0 ]]; then
     printf '%s' "$prompt"
     IFS= read -r answer || answer=""
@@ -68,10 +68,10 @@ confirm_uninstall() {
 # alone unless --delete-models already removed it above.
 remove_state_dir() {
   local state_root models_dir entry
-  state_root="$(platform_state_root)"
+  state_root="$(harness_state_root)"
   [[ -d "$state_root" ]] || return 0
   assert_state_path_safe "$state_root"
-  models_dir="$PLATFORM_MODELS_DIR"
+  models_dir="$HARNESS_MODELS_DIR"
   for entry in "$state_root"/* "$state_root"/.[!.]*; do
     [[ -e "$entry" ]] || continue
     [[ "$entry" == "$models_dir" ]] && continue
@@ -82,7 +82,7 @@ remove_state_dir() {
 
 main() {
   [[ -n "${HOME:-}" ]] || error "HOME is not set; refusing to guess the state directory to remove."
-  local agent="${PLATFORM_AGENT:-openclaw}"
+  local agent="${HARNESS_AGENT:-openclaw}"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --yes) ASSUME_YES=1 ;;
@@ -97,7 +97,7 @@ main() {
   export KEEP_AGENT_DATA
 
   local agent_desc
-  if [[ -n "${PROJECT_CLI_BIN:-}" && -z "${PLATFORM_AGENT:-}" ]]; then
+  if [[ -n "${PROJECT_CLI_BIN:-}" && -z "${HARNESS_AGENT:-}" ]]; then
     agent_desc="'${PROJECT_CLI_BIN}'"
   else
     agent_desc="the installed agent ('$(canonical_agent_name "$agent")')"
@@ -117,16 +117,16 @@ main() {
   remove_gateway
   ok "Harness gateway removed"
 
-  if [[ -n "${PLATFORM_LLM_ROUTER_ENDPOINT:-}" ]]; then
+  if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
     info "Skipping OpenVINO Model Server removal (routed externally to
-${PLATFORM_LLM_ROUTER_ENDPOINT}; this installer never started it)."
+${HARNESS_LLM_ROUTER_ENDPOINT}; this installer never started it)."
   else
     info "Removing OpenVINO Model Server…"
     remove_openvino_model_server
     ok "OpenVINO Model Server removed"
   fi
 
-  if [[ -n "${PROJECT_CLI_BIN:-}" && -z "${PLATFORM_AGENT:-}" ]]; then
+  if [[ -n "${PROJECT_CLI_BIN:-}" && -z "${HARNESS_AGENT:-}" ]]; then
     remove_cli_shim "$PROJECT_CLI_BIN" || true
     remove_project_cli || true
   else
@@ -135,12 +135,12 @@ ${PLATFORM_LLM_ROUTER_ENDPOINT}; this installer never started it)."
   fi
 
   if [[ -n "$DELETE_MODELS" ]]; then
-    info "Deleting exported models (${PLATFORM_MODELS_DIR})…"
-    rm -rf -- "${PLATFORM_MODELS_DIR:?}"
+    info "Deleting exported models (${HARNESS_MODELS_DIR})…"
+    rm -rf -- "${HARNESS_MODELS_DIR:?}"
     ok "Models deleted"
   fi
 
-  info "Removing state directory ($(platform_state_root))…"
+  info "Removing state directory ($(harness_state_root))…"
   remove_state_dir
   ok "State directory removed"
 

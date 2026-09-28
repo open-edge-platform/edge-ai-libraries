@@ -10,7 +10,7 @@
 #   0x0Bxx = Data Center GPU Max (Ponte Vecchio)
 # Habana Gaudi accelerators are a different PCI vendor (0x1da3, Habana Labs,
 # an Intel subsidiary) and are detected separately via /dev/accel + hl-smi.
-detect_intel_platform_profile() {
+detect_intel_harness_profile() {
   local dev vendor device root="/sys/bus/pci/devices"
 
   if command_exists hl-smi || { [[ -d /dev/accel ]] && compgen -G "/dev/accel/*" >/dev/null 2>&1; }; then
@@ -40,7 +40,7 @@ detect_intel_platform_profile() {
   fi
 }
 
-describe_platform_profile() {
+describe_harness_profile() {
   case "$1" in
     gaudi) printf 'Intel Gaudi accelerator (Habana SynapseAI)' ;;
     datacenter-gpu-max) printf 'Intel Data Center GPU Max (Ponte Vecchio)' ;;
@@ -55,13 +55,13 @@ describe_platform_profile() {
 # mirroring maybe_offer_express_install's Y/n prompt + env-var activation.
 maybe_offer_express_install() {
   [[ "${NON_INTERACTIVE:-}" != "1" ]] || return 0
-  [[ -z "${PLATFORM_GPU_PROFILE:-}" ]] || return 0
+  [[ -z "${HARNESS_GPU_PROFILE:-}" ]] || return 0
 
   local profile
-  profile="$(detect_intel_platform_profile)"
+  profile="$(detect_intel_harness_profile)"
   [[ "$profile" != "cpu-only" ]] || return 0
 
-  info "Detected: $(describe_platform_profile "$profile")"
+  info "Detected: $(describe_harness_profile "$profile")"
   if [[ ! -t 0 ]] && ! { exec 3</dev/tty; } 2>/dev/null; then
     info "Skipping express prompt (no TTY)."
     return 0
@@ -77,7 +77,7 @@ maybe_offer_express_install() {
   fi
   case "$(printf '%s' "$reply" | tr '[:upper:]' '[:lower:]')" in
     "" | y | yes)
-      export PLATFORM_GPU_PROFILE="$profile"
+      export HARNESS_GPU_PROFILE="$profile"
       info "Using express install for ${profile}."
       ;;
     *) info "Skipping express install. Continuing with the interactive flow." ;;

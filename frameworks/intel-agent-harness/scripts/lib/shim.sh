@@ -4,7 +4,7 @@
 # CLI shim + PATH profile management — puts the installed CLI on PATH for
 # future shells even when npm's global bin isn't already there.
 
-PLATFORM_SHIM_DIR="${PLATFORM_SHIM_DIR:-$HOME/.local/bin}"
+HARNESS_SHIM_DIR="${HARNESS_SHIM_DIR:-$HOME/.local/bin}"
 
 detect_shell_profile() {
   local profile="$HOME/.bashrc"
@@ -28,7 +28,7 @@ ensure_local_bin_in_profile() {
   fi
   {
     printf '\n# Intel Agent Harness PATH setup\n'
-    printf 'export PATH="%s:$PATH"\n' "$PLATFORM_SHIM_DIR"
+    printf 'export PATH="%s:$PATH"\n' "$HARNESS_SHIM_DIR"
     printf '# end Intel Agent Harness PATH setup\n'
   } >>"$profile"
 }
@@ -41,7 +41,7 @@ resolve_npm_bin() {
   printf '%s/bin' "$prefix"
 }
 
-# Creates a thin exec shim in PLATFORM_SHIM_DIR pointing at the resolved CLI,
+# Creates a thin exec shim in HARNESS_SHIM_DIR pointing at the resolved CLI,
 # so a stale PATH cache in the current shell doesn't hide a real install.
 # Refuses to clobber a shim that isn't a symlink-free file we own — that's
 # either an attacker-planted path or a real, unrelated binary.
@@ -50,7 +50,7 @@ ensure_cli_shim() {
   npm_bin="$(resolve_npm_bin)" || return 1
   cli_path="${npm_bin}/${cli_bin}"
   [[ -x "$cli_path" ]] || return 1
-  shim_path="${PLATFORM_SHIM_DIR}/${cli_bin}"
+  shim_path="${HARNESS_SHIM_DIR}/${cli_bin}"
 
   # Always (re-)create the shim, even if $cli_bin already resolves via PATH
   # in this process — with nvm-managed Node, that resolution is a
@@ -71,7 +71,7 @@ ensure_cli_shim() {
       || error "Refusing to replace shim not owned by the current user: ${shim_path}"
   fi
 
-  mkdir -p "$PLATFORM_SHIM_DIR"
+  mkdir -p "$HARNESS_SHIM_DIR"
   local tmp_shim
   tmp_shim="$(mktemp "${shim_path}.tmp.XXXXXX")"
   cat >"$tmp_shim" <<EOF
@@ -82,7 +82,7 @@ EOF
   mv -f "$tmp_shim" "$shim_path"
   [[ ! -L "$shim_path" ]] || error "Shim path became a symlink during publish: ${shim_path}"
   ensure_local_bin_in_profile
-  export PATH="${PLATFORM_SHIM_DIR}:${PATH}"
+  export PATH="${HARNESS_SHIM_DIR}:${PATH}"
   info "Created shim at ${shim_path}"
 }
 
@@ -91,7 +91,7 @@ EOF
 remove_cli_shim() {
   local cli_bin="$1" shim_path
   [[ -n "$cli_bin" ]] || return 0
-  shim_path="${PLATFORM_SHIM_DIR}/${cli_bin}"
+  shim_path="${HARNESS_SHIM_DIR}/${cli_bin}"
   [[ -e "$shim_path" || -L "$shim_path" ]] || return 0
   if [[ -L "$shim_path" ]]; then
     warn "Refusing to remove symlinked shim: ${shim_path}"

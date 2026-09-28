@@ -4,24 +4,24 @@
 # State directory management — an owner-only, symlink-refusing state root
 # under the user's home directory.
 
-PLATFORM_STATE_DIRNAME="${PLATFORM_STATE_DIRNAME:-.intel-agent}"
+HARNESS_STATE_DIRNAME="${HARNESS_STATE_DIRNAME:-.intel-agent}"
 # Host/IP advertised in printed endpoint URLs (OVMS, edge services, gateway
 # routes). Defaults to loopback; Docker's -p already binds 0.0.0.0, so this
 # only affects what gets displayed, not what's reachable. Captured before
 # defaulting so resolve_advertised_host can tell "caller set it explicitly
 # (even to 127.0.0.1)" apart from "never set" and let the former win over a
 # persisted choice from a previous interactive prompt.
-PLATFORM_ADVERTISED_HOST_WAS_SET="${PLATFORM_ADVERTISED_HOST+1}"
-PLATFORM_ADVERTISED_HOST="${PLATFORM_ADVERTISED_HOST:-127.0.0.1}"
+HARNESS_ADVERTISED_HOST_WAS_SET="${HARNESS_ADVERTISED_HOST+1}"
+HARNESS_ADVERTISED_HOST="${HARNESS_ADVERTISED_HOST:-127.0.0.1}"
 
-platform_state_root() {
-  printf '%s/%s' "$HOME" "$PLATFORM_STATE_DIRNAME"
+harness_state_root() {
+  printf '%s/%s' "$HOME" "$HARNESS_STATE_DIRNAME"
 }
 
 # Refuses any path outside the state root, or one with a symlink component.
 assert_state_path_safe() {
   local target="$1" root current relative component
-  root="$(platform_state_root)"
+  root="$(harness_state_root)"
   case "$target" in
     "$root" | "$root"/*) ;;
     *) error "Refusing state path outside ${root}: ${target}" ;;
@@ -40,7 +40,7 @@ assert_state_path_safe() {
 
 ensure_state_dir() {
   local root
-  root="$(platform_state_root)"
+  root="$(harness_state_root)"
   assert_state_path_safe "$root"
   (umask 077 && mkdir -p "$root")
   chmod 700 "$root"
@@ -108,7 +108,7 @@ atomic_write_file() {
 read_json_field() {
   local file="$1" field="$2" root
   [[ -f "$file" ]] || return 1
-  root="$(platform_state_root)"
+  root="$(harness_state_root)"
   case "$file" in
     "$root" | "$root"/*)
       assert_state_path_safe "$file"
@@ -131,11 +131,11 @@ read_json_field() {
   fi
 }
 
-platform_advertised_host_file() {
+harness_advertised_host_file() {
   printf '%s/advertised-host' "$(ensure_state_dir)"
 }
 
-# resolve_advertised_host — an explicit PLATFORM_ADVERTISED_HOST env var
+# resolve_advertised_host — an explicit HARNESS_ADVERTISED_HOST env var
 # always wins (even if explicitly set to 127.0.0.1); otherwise falls back to
 # a host previously chosen at the install prompt (persist_advertised_host),
 # then loopback. Deliberately does not create the state dir on a pure read —
@@ -143,11 +143,11 @@ platform_advertised_host_file() {
 # ~/.intel-agent as a side effect of just checking status.
 resolve_advertised_host() {
   local file
-  if [[ -n "$PLATFORM_ADVERTISED_HOST_WAS_SET" || "$PLATFORM_ADVERTISED_HOST" != "127.0.0.1" ]]; then
-    printf '%s' "$PLATFORM_ADVERTISED_HOST"
+  if [[ -n "$HARNESS_ADVERTISED_HOST_WAS_SET" || "$HARNESS_ADVERTISED_HOST" != "127.0.0.1" ]]; then
+    printf '%s' "$HARNESS_ADVERTISED_HOST"
     return 0
   fi
-  file="$(platform_state_root)/advertised-host"
+  file="$(harness_state_root)/advertised-host"
   if [[ -f "$file" ]]; then
     assert_state_path_safe "$file"
     assert_owned_by_current_user "$file"
@@ -158,5 +158,5 @@ resolve_advertised_host() {
 }
 
 persist_advertised_host() {
-  atomic_write_file "$(platform_advertised_host_file)" "$1"
+  atomic_write_file "$(harness_advertised_host_file)" "$1"
 }

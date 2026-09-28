@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Real agent catalog — installs actual open-source agent projects, verified
-# against their public npm registry entries. PLATFORM_AGENT selects one.
+# against their public npm registry entries. HARNESS_AGENT selects one.
 #
 # Verified real, public, MIT-licensed packages:
 #   openclaw        -> npm package "openclaw" (github.com/openclaw/openclaw)
@@ -45,7 +45,7 @@ agent_cli_is_trusted_path() {
   local cli_bin="$1" resolved npm_bin
   resolved="$(command -v "$cli_bin" 2>/dev/null)" || return 1
   npm_bin="$(resolve_npm_bin 2>/dev/null || true)"
-  [[ "$resolved" == "${PLATFORM_SHIM_DIR}/"* ]] && return 0
+  [[ "$resolved" == "${HARNESS_SHIM_DIR}/"* ]] && return 0
   [[ -n "$npm_bin" && "$resolved" == "${npm_bin}/"* ]] && return 0
   return 1
 }
@@ -112,7 +112,7 @@ installed_project_dep_version() {
 }
 
 # deepagents is a library, not a CLI. Scaffold a minimal runner project that
-# depends on it + langgraph, configured against PLATFORM_LLM_ENDPOINT (the
+# depends on it + langgraph, configured against HARNESS_LLM_ENDPOINT (the
 # OpenVINO Model Server's OpenAI-compatible endpoint).
 install_deepagents_runner() {
   local runner_dir="${HOME}/.local/share/deepagents-runner"
@@ -141,7 +141,7 @@ EOF
   cat >"${runner_dir}/index.mjs" <<'EOF'
 #!/usr/bin/env node
 // Minimal LangGraph Deep Agents runner wired to an OpenAI-compatible endpoint
-// (e.g. OpenVINO Model Server on Intel GPU) via PLATFORM_LLM_ENDPOINT.
+// (e.g. OpenVINO Model Server on Intel GPU) via HARNESS_LLM_ENDPOINT.
 import { createDeepAgent } from "deepagents";
 import { ChatOpenAI } from "@langchain/openai";
 
@@ -154,15 +154,15 @@ if (args.includes("--version") || args.includes("-v")) {
 }
 if (args.includes("--help") || args.includes("-h")) {
   console.log("Usage: deepagents-runner [prompt...]");
-  console.log("Runs a LangGraph Deep Agents prompt against PLATFORM_LLM_ENDPOINT.");
+  console.log("Runs a LangGraph Deep Agents prompt against HARNESS_LLM_ENDPOINT.");
   process.exit(0);
 }
 
-const endpoint = process.env.PLATFORM_LLM_ENDPOINT || "http://127.0.0.1:8000/v3";
+const endpoint = process.env.HARNESS_LLM_ENDPOINT || "http://127.0.0.1:8000/v3";
 const model = new ChatOpenAI({
-  model: process.env.PLATFORM_LLM_MODEL || "default",
+  model: process.env.HARNESS_LLM_MODEL || "default",
   configuration: { baseURL: endpoint },
-  apiKey: process.env.PLATFORM_LLM_API_KEY || "unused",
+  apiKey: process.env.HARNESS_LLM_API_KEY || "unused",
 });
 
 const agent = createDeepAgent({ model });
@@ -197,13 +197,13 @@ install_hermes() {
 
 install_selected_agent() {
   local agent
-  agent="$(canonical_agent_name "${PLATFORM_AGENT:-openclaw}")"
-  export PLATFORM_AGENT="$agent"
+  agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
+  export HARNESS_AGENT="$agent"
   case "$agent" in
     openclaw) install_openclaw ;;
     deepagents-code) install_deepagents_runner ;;
     hermes) install_hermes ;;
-    *) error "Unknown PLATFORM_AGENT: $agent (expected openclaw, deepagents-code, or hermes)" ;;
+    *) error "Unknown HARNESS_AGENT: $agent (expected openclaw, deepagents-code, or hermes)" ;;
   esac
   ensure_cli_shim "$(agent_cli_bin "$agent")" || true
   verify_agent_cli "$(agent_cli_bin "$agent")" \
@@ -254,7 +254,7 @@ remove_deepagents_runner_package() {
 # default behavior of Hermes-based reference projects' own uninstallers,
 # which also wipe this dir unless told to keep it.
 remove_hermes_package() {
-  local link_dir="${PLATFORM_SHIM_DIR}" bin hermes_home
+  local link_dir="${HARNESS_SHIM_DIR}" bin hermes_home
   for bin in hermes hermes-agent hermes-acp; do
     if [[ -f "${link_dir}/${bin}" && ! -L "${link_dir}/${bin}" ]]; then
       rm -f -- "${link_dir}/${bin}"
@@ -329,15 +329,15 @@ hermes_skill_remove() {
   ok "Removed Hermes skill '${name}'"
 }
 
-# run_agent_onboard — wires the installed agent to PLATFORM_LLM_ENDPOINT and
+# run_agent_onboard — wires the installed agent to HARNESS_LLM_ENDPOINT and
 # verifies it runs. Configuration specifics for OpenClaw's own provider setup
 # are intentionally not fabricated here — its exact CLI/config surface isn't
 # something this installer has verified beyond its published package.json.
 run_agent_onboard() {
   require_third_party_notice_acceptance
   local agent endpoint cli_bin
-  agent="$(canonical_agent_name "${PLATFORM_AGENT:-openclaw}")"
-  endpoint="${PLATFORM_LLM_ENDPOINT:-$(platform_llm_endpoint)}"
+  agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
+  endpoint="${HARNESS_LLM_ENDPOINT:-$(harness_llm_endpoint)}"
   cli_bin="$(agent_cli_bin "$agent")"
 
   case "$agent" in
@@ -351,11 +351,11 @@ provider-setup steps; this installer does not assume flags it hasn't verified."
     deepagents-code)
       command_exists "$cli_bin" || error "deepagents-runner not found after install."
       local model_hint=""
-      [[ -n "${PLATFORM_HF_MODEL:-}" ]] && model_hint="${PLATFORM_HF_MODEL##*/}"
+      [[ -n "${HARNESS_HF_MODEL:-}" ]] && model_hint="${HARNESS_HF_MODEL##*/}"
       info "Smoke-testing deepagents-runner against ${endpoint}…"
-      PLATFORM_LLM_ENDPOINT="$endpoint" PLATFORM_LLM_MODEL="${PLATFORM_LLM_MODEL:-$model_hint}" "$cli_bin" "Say hello." \
+      HARNESS_LLM_ENDPOINT="$endpoint" HARNESS_LLM_MODEL="${HARNESS_LLM_MODEL:-$model_hint}" "$cli_bin" "Say hello." \
         || warn "Smoke test failed — check that the model server at ${endpoint} is reachable and that
-PLATFORM_LLM_MODEL matches a model name registered with it."
+HARNESS_LLM_MODEL matches a model name registered with it."
       ;;
     hermes)
       command_exists "$cli_bin" || warn "'${cli_bin}' was not found on PATH after install."

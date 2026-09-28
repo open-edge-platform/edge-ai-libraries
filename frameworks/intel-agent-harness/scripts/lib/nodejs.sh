@@ -8,7 +8,7 @@
 MIN_NODE_VERSION="${MIN_NODE_VERSION:-24.16.0}"
 # Pinned to a specific LTS release (rather than a floating --lts) for
 # reproducible installs; bump deliberately when validating a newer LTS.
-PLATFORM_NODE_VERSION="${PLATFORM_NODE_VERSION:-24.21.0}"
+HARNESS_NODE_VERSION="${HARNESS_NODE_VERSION:-24.21.0}"
 
 version_gte() {
   [[ "$1" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || return 1
@@ -77,10 +77,10 @@ install_nodejs() {
   # calls the `nvm` function, restored before returning either way.
   set +u
   ensure_nvm_loaded
-  spin "Installing Node.js ${PLATFORM_NODE_VERSION}" bash -c "set +u; . \"$NVM_DIR/nvm.sh\" && nvm install ${PLATFORM_NODE_VERSION} --no-progress"
+  spin "Installing Node.js ${HARNESS_NODE_VERSION}" bash -c "set +u; . \"$NVM_DIR/nvm.sh\" && nvm install ${HARNESS_NODE_VERSION} --no-progress"
   ensure_nvm_loaded
-  nvm use "$PLATFORM_NODE_VERSION" --silent
+  nvm use "$HARNESS_NODE_VERSION" --silent
   set -u
   ok "Node.js installed: $(node --version)"
-  warn "Open a new terminal, or run: source \"\${NVM_DIR:-\$HOME/.nvm}/nvm.sh\" && nvm use ${PLATFORM_NODE_VERSION}"
+  warn "Open a new terminal, or run: source \"\${NVM_DIR:-\$HOME/.nvm}/nvm.sh\" && nvm use ${HARNESS_NODE_VERSION}"
 }

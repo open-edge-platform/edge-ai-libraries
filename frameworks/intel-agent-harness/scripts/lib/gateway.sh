@@ -167,7 +167,7 @@ gateway_remove_route() {
   # Existence check only — must not create the gateway state dir as a side
   # effect, since this runs on every sandbox destroy whether or not the
   # gateway feature is actually in use.
-  [[ -f "$(platform_state_root)/gateway/routes.json" ]] || return 0
+  [[ -f "$(harness_state_root)/gateway/routes.json" ]] || return 0
   with_state_lock gateway-routes _gateway_remove_route_locked "$name"
 }
 

@@ -6,8 +6,8 @@
 # directory. There is no CDI step here — Intel render nodes pass straight
 # through via --device.
 
-PLATFORM_SANDBOX_PREFIX="${PLATFORM_SANDBOX_PREFIX:-iplat}"
-PLATFORM_DEFAULT_GATEWAY_PORT="${PLATFORM_DEFAULT_GATEWAY_PORT:-7860}"
+HARNESS_SANDBOX_PREFIX="${HARNESS_SANDBOX_PREFIX:-iplat}"
+HARNESS_DEFAULT_SANDBOX_PORT="${HARNESS_DEFAULT_SANDBOX_PORT:-7860}"
 
 sandbox_registry_file() {
   local state_dir
@@ -91,7 +91,7 @@ sandbox_registry_field() {
 }
 
 sandbox_container_name() {
-  printf '%s-%s' "$PLATFORM_SANDBOX_PREFIX" "$1"
+  printf '%s-%s' "$HARNESS_SANDBOX_PREFIX" "$1"
 }
 
 # Sandbox name: lowercase letters/digits/single hyphens, 2-40 chars.
@@ -101,9 +101,9 @@ validate_sandbox_name() {
 }
 
 resolve_gateway_port() {
-  local port="${PLATFORM_GATEWAY_PORT:-$PLATFORM_DEFAULT_GATEWAY_PORT}"
+  local port="${HARNESS_SANDBOX_PORT:-$HARNESS_DEFAULT_SANDBOX_PORT}"
   [[ "$port" =~ ^[0-9]+$ ]] && ((port >= 1024 && port <= 65535)) \
-    || error "PLATFORM_GATEWAY_PORT must be an integer between 1024 and 65535."
+    || error "HARNESS_SANDBOX_PORT must be an integer between 1024 and 65535."
   printf '%s' "$port"
 }
 
@@ -120,7 +120,7 @@ port_is_available() {
   fi
 }
 
-# Only auto-picks an alternate port when PLATFORM_GATEWAY_PORT wasn't set
+# Only auto-picks an alternate port when HARNESS_SANDBOX_PORT wasn't set
 # explicitly — an explicit request that collides should fail loudly instead.
 resolve_available_gateway_port() {
   local port candidate
@@ -129,8 +129,8 @@ resolve_available_gateway_port() {
     printf '%s' "$port"
     return 0
   fi
-  if [[ -n "${PLATFORM_GATEWAY_PORT:-}" ]]; then
-    error "Port ${port} (PLATFORM_GATEWAY_PORT) is already in use. Choose a different
+  if [[ -n "${HARNESS_SANDBOX_PORT:-}" ]]; then
+    error "Port ${port} (HARNESS_SANDBOX_PORT) is already in use. Choose a different
 port or stop whatever is listening on it."
   fi
   for candidate in $(seq $((port + 1)) $((port + 20))); do
@@ -140,7 +140,7 @@ port or stop whatever is listening on it."
       return 0
     fi
   done
-  error "Could not find a free port near ${port}. Set PLATFORM_GATEWAY_PORT explicitly."
+  error "Could not find a free port near ${port}. Set HARNESS_SANDBOX_PORT explicitly."
 }
 
 sandbox_exists() {
@@ -172,7 +172,7 @@ create_sandbox() {
   local host_port container_port use_gateway
   validate_sandbox_name "$name" || error "Sandbox name '$name' must be lowercase
 letters/digits/hyphens, start/end alphanumeric, no consecutive hyphens."
-  [[ -n "$image" ]] || error "create_sandbox requires an image (set PLATFORM_SANDBOX_IMAGE)."
+  [[ -n "$image" ]] || error "create_sandbox requires an image (set HARNESS_SANDBOX_IMAGE)."
   validate_image_reference "$image"
   container="$(sandbox_container_name "$name")"
   use_gateway="$(sandbox_gateway_enabled && printf 1 || printf 0)"
@@ -182,7 +182,7 @@ letters/digits/hyphens, start/end alphanumeric, no consecutive hyphens."
   elif [[ "$use_gateway" == "1" ]]; then
     # Gateway mode never publishes a host port, so there's nothing to check
     # host-side availability against — just pick the logical target port.
-    host_port="${port_spec:-$PLATFORM_DEFAULT_GATEWAY_PORT}"
+    host_port="${port_spec:-$HARNESS_DEFAULT_SANDBOX_PORT}"
     container_port="$host_port"
   else
     host_port="${port_spec:-$(resolve_available_gateway_port)}"

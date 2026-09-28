@@ -38,7 +38,7 @@ classify_onboard_session() {
 }
 
 # run_onboard [--fresh] [--resume] — creates (or resumes) the default sandbox
-# from PLATFORM_SANDBOX_IMAGE.
+# from HARNESS_SANDBOX_IMAGE.
 run_onboard() {
   local fresh="" resume="" arg
   for arg in "$@"; do
@@ -50,9 +50,9 @@ run_onboard() {
 
   require_third_party_notice_acceptance
 
-  local sandbox_name="${PLATFORM_SANDBOX_NAME:-my-project}"
-  local image="${PLATFORM_SANDBOX_IMAGE:-}"
-  [[ -n "$image" ]] || error "Set PLATFORM_SANDBOX_IMAGE to the Docker image onboarding
+  local sandbox_name="${HARNESS_SANDBOX_NAME:-my-project}"
+  local image="${HARNESS_SANDBOX_IMAGE:-}"
+  [[ -n "$image" ]] || error "Set HARNESS_SANDBOX_IMAGE to the Docker image onboarding
 should run (your project's built image). Onboarding did not run."
 
   local session_state

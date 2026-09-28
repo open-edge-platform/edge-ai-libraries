@@ -17,7 +17,7 @@
 #   EDGE_SERVICE_MCP_PATH       MCP endpoint path for the printed URL (default: /mcp)
 
 edge_service_source_dir() {
-  printf '%s/edge-services/%s/source' "$(platform_state_root)" "$1"
+  printf '%s/edge-services/%s/source' "$(harness_state_root)" "$1"
 }
 
 resolve_edge_service_source() {
