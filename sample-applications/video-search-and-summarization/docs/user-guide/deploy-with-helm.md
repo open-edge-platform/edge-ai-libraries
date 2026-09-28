@@ -131,11 +131,13 @@ Update or edit the values in YAML file as follows:
 >   --set global.env.MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false -n $my_namespace
 > ```
 
-> **Tip:** Set `global.embeddingModelName` to pick the embedding model for all services. For search-only and dual UI mode, use a multimodal model (e.g., `CLIP/clip-vit-b-32`). For unified mode, use a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`). Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
+> [!TIP]
+> Set `global.embeddingModelName` to pick the embedding model for all services. For search-only and dual UI mode, use a multimodal model (e.g., `CLIP/clip-vit-b-32`). For unified mode, use a text embedding model (e.g., `QwenText/qwen3-embedding-0.6b`). Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
 
 > **DataPrep device override precedence:** `global.devices.multimodalDataprep.embedding.device` and `global.devices.multimodalDataprep.detection.device` are set independently in `user_values_override.yaml`. Each defaults to `CPU`; set `GPU`/`NPU` (with the matching resource `key`) to offload that component.
 
-> **Note:** `multimodal-embedding-ms` and `multimodal-dataprep` now use independent PVCs for model/cache data by default, so their device settings can be configured independently.
+> [!NOTE]
+> `multimodal-embedding-ms` and `multimodal-dataprep` now use independent PVCs for model/cache data by default, so their device settings can be configured independently.
 
 > **Single-source image override:** Set `global.registry`, `global.tag`, and `global.pullPolicy` once to apply across all VSS service images (pipeline-manager, video-ingestion, video-search, vss-ui, multimodal-dataprep, multimodal-embedding-serving, vector-retriever) instead of overriding each subchart. Leave any of them empty to keep that subchart's own default. Set `global.pullPolicy: Always` when you reuse a mutable tag and need a fresh pull on every pod start.
 
@@ -195,13 +197,15 @@ We will install the Helm chart in a new namespace. Create a shell variable to re
    kubectl create namespace $my_namespace
    ```
 
-> **Note:** All subsequent steps assume that you have `my_namespace` variable set and accessible on your shell with the desired namespace as its value.
+> [!NOTE]
+> All subsequent steps assume that you have `my_namespace` variable set and accessible on your shell with the desired namespace as its value.
 
 ### 5. Deploy the Helm Chart
 
 At present, there are multiple deployment modes for **Video Search and Summarization Application**. We will learn how to deploy each use-case using the Helm chart.
 
-> **Note:** Before switching to a different use-case always stop the current running use-case's application stack (if any) by uninstalling the chart : `helm uninstall vss -n $my_namespace`. This is not required if you are installing the Helm chart for the first time.
+> [!NOTE]
+> Before switching to a different use-case always stop the current running use-case's application stack (if any) by uninstalling the chart : `helm uninstall vss -n $my_namespace`. This is not required if you are installing the Helm chart for the first time.
 
 #### **Use Case 1: Video Summarization with OVMS (Default - CPU)**
 
@@ -213,7 +217,8 @@ helm install vss . -f summary_override.yaml -f user_values_override.yaml -n $my_
 
 This is the default and recommended deployment mode. OVMS hosts the VLM model specified in `global.vlmName` and uses it for both chunk-wise captioning and final summarization (shared-model mode).
 
-> **Note:** When deploying OVMS, the service may take longer to start on first run due to model conversion. Subsequent starts are faster as models are cached.
+> [!NOTE]
+> When deploying OVMS, the service may take longer to start on first run due to model conversion. Subsequent starts are faster as models are cached.
 
 #### **Use Case 1a: OVMS with Separate LLM Model (Split-Model Mode)**
 
@@ -256,7 +261,8 @@ Then deploy:
 helm install vss . -f summary_override.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
-> **Note:** GPU deployment requires the Intel device plugin to be installed on your cluster. Verify your GPU node label with `kubectl describe node <node-name>` and set the appropriate `key` value accordingly.
+> [!NOTE]
+> GPU deployment requires the Intel device plugin to be installed on your cluster. Verify your GPU node label with `kubectl describe node <node-name>` and set the appropriate `key` value accordingly.
 
 ##### Discovering Available Device Resource Keys
 
@@ -282,10 +288,11 @@ kubectl describe node <node-name> | grep -A20 "Allocatable:" | grep -E "gpu|npu|
 | Intel Discrete GPU (Arc/Flex) | `gpu.intel.com/xe` |
 | Intel NPU (AI Boost) | `npu.intel.com/accel` |
 
-> **Tip:** If no GPU/NPU resources appear, ensure the Intel device plugin is installed. See [Intel Device Plugins for Kubernetes](https://github.com/intel/intel-device-plugins-for-kubernetes).
->
+> [!TIP]
+> If no GPU/NPU resources appear, ensure the Intel device plugin is installed. See [Intel Device Plugins for Kubernetes](https://github.com/intel/intel-device-plugins-for-kubernetes).
+> 
 > **Split-device note:** When using different devices for VLM and LLM (e.g., GPU + NPU), ensure at least one node in your cluster has **both** resources available. The pod will only schedule on nodes that satisfy all resource requests.
->
+> 
 > **NPU Support:** Not all models support NPU execution. Verify model and hardware compatibility at the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
 
 ##### Model Weight Format
@@ -310,8 +317,9 @@ ovms:
     LLM_WEIGHT_FORMAT: "int8"
 ```
 
-> **Note:** Models from the `OpenVINO/` namespace (e.g., `OpenVINO/Phi-3.5-vision-instruct-int8-ov`) are pre-converted and do not undergo weight format conversion. The weight format in the model name indicates its native format.
->
+> [!NOTE]
+> Models from the `OpenVINO/` namespace (e.g., `OpenVINO/Phi-3.5-vision-instruct-int8-ov`) are pre-converted and do not undergo weight format conversion. The weight format in the model name indicates its native format.
+> 
 > **Storage Model Names:** Converted models are stored with device and weight format in the path (e.g., `Qwen_Qwen2.5-VL-3B-Instruct_GPU_int4`). Changing the device or weight format creates a new conversion, preserving existing models.
 
 #### **Use Case 2: Video Summarization with vLLM (CPU-based)**
@@ -354,14 +362,15 @@ To deploy the same search stack on the Milvus backend (equivalent to `VECTORDB_B
 helm install vss . -f search_override.yaml -f search_milvus_override.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
+> [!IMPORTANT]
 > **Important — clear persisted data when switching backends:** embeddings live only in the vector database, but uploaded videos and their metadata live in MinIO and the Pipeline Manager's PostgreSQL database, which are backed by PVCs shared across backends. Switching `global.vectordbBackend` without clearing them leaves the previously ingested videos visible in the UI while the new backend holds no embeddings for them, so search returns nothing for those videos. Uninstall the chart, delete the PVCs, then reinstall:
->
+> 
 > ```bash
 > helm uninstall vss -n $my_namespace
 > kubectl delete pvc --all -n $my_namespace
 > helm install vss . -f search_override.yaml -f search_milvus_override.yaml -f user_values_override.yaml -n $my_namespace
 > ```
->
+> 
 > `kubectl delete pvc --all` also removes the model-cache PVCs, so the first start after this re-downloads and re-converts the models. To keep those, delete only the data PVCs (MinIO, PostgreSQL, dataprep and the vector database) instead — list them with `kubectl get pvc -n $my_namespace`. Alternatively, re-ingest every video after the switch instead of clearing the PVCs.
 
 #### **Use Case 4: Unified Video Search and Summarization**
@@ -411,8 +420,8 @@ kubectl get pods -n $my_namespace
 
 2. Ensure all containers in each pod are _Ready_. As all pods are running single container only, this is typically denoted by mentioning **1/1** in the **READY** column.
 
-> **Important:**
->
+> [!IMPORTANT]
+> 
 > - When deployed for first time, it may take up-to around 50 Mins to bring all the pods/containers in running and ready state, as several containers try to download models which can take a while. The time to bring up all the pods depends on several factors including but not limited to node availability, node load average, network speed, compute availability, etc.
 > - If you want to persist the downloaded models and avoid delays pertaining to model downloads when re-installing the charts, set the `global.keepPvc` value to `true` in `user_values_override.yaml` file before installing the chart.
 
@@ -618,4 +627,5 @@ scrape_configs:
     metrics_path: '/ovms/metrics'
 ```
 
-> **Note:** Metrics are only available when OVMS is enabled (`ovms.enabled=true`). When using vLLM backend, this endpoint is not available.
+> [!NOTE]
+> Metrics are only available when OVMS is enabled (`ovms.enabled=true`). When using vLLM backend, this endpoint is not available.

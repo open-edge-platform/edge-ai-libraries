@@ -17,16 +17,14 @@ debian_90_install_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
   if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "PCB anomaly detection is already installed. Skipping"
-    return
-  fi
+  else
+    # clone the repository
+    ensure_disk_space 60
+    ensure_git_export "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
 
-  # clone the repository
-  ensure_disk_space 60
-  ensure_git_clone "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
-
-  # setup
-  cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
-  cat > .env <<EOF
+    # setup
+    cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
+    cat > .env <<EOF
 $(cat .env_pcb-anomaly-detection)
 HOST_IP=$(ensure_ip)
 ENABLE_HTTPS_MODE=true
@@ -35,8 +33,12 @@ MINIO_SECRET_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | 
 MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 EOF
-  ./setup.sh
-  verify_pcb_anomaly_detection
+    ./setup.sh
+    verify_pcb_anomaly_detection
+  fi
+
+  local device="_$(ensure_select_device "$@")"
+  sed -i "s|^PIPELINE=.*$|PIPELINE=pcb_anomaly_detection${device//_cpu/}|" "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/sample_start.sh
 }
 
 debian_90_start_pcb_anomaly_detection () {
@@ -46,7 +48,7 @@ debian_90_start_pcb_anomaly_detection () {
   cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
   docker compose up -d --wait
 
-  ./sample_start.sh -p pcb_anomaly_detection$(ensure_select_device $* | sed -e 's|^|_|' -e 's|_cpu||')
+  ./sample_start.sh
   echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
 }
 

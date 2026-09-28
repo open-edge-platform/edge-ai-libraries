@@ -83,7 +83,8 @@ Expected output (example with the default SpeechT5 model):
 }
 ```
 
-> **Note:** First startup may take longer than usual because the model is
+> [!NOTE]
+> First startup may take longer than usual because the model is
 > downloaded and converted during initialization. Subsequent starts are faster.
 
 ## Next Steps
