@@ -11,9 +11,9 @@ act_panelled_logs () {(
 #   @@HIGHLIGHT             (no argument) clear highlights, revert to log tail
 #   @@REPORT     <name>     start a REPORT section (e.g. a final summary).
 #                           Reports get no left-pane row; the right pane splits
-#                           with failing components CYCLING on top and the
+#                           with the first failure on top and the
 #                           report anchored to the BOTTOM.
-#   @@FOCUS      <name>     pin the right pane to <name>; stops cycling
+#   @@FOCUS      <name>     pin the right pane to <name>
 #   @@FOCUS                 (no argument) release the pin
 #   anything else           log line attributed to the current component
 #
@@ -24,15 +24,15 @@ act_panelled_logs () {(
 #   LEFT_MAX_PCT=<n>        cap for auto-sizing, percent of screen (default 34)
 #   REPORT_MAX_PCT=<n>      max share of the right pane for the report (default 55)
 #   SPLIT_MIN=<n>           min rows for either split section (default 6)
-#   CYCLE_SEC=<n>           seconds each failure is shown (default 4, 0=off)
-#   FINAL_SEC=<n>           TOTAL seconds spent cycling after EOF (default 6)
-#   HOLD_SEC=<n>            pause before exit when exactly one failure (default 3)
-#   CYCLE_END=last|first|rotate   where cycling settles on exit (default last)
 #   REDRAW_MS=<n>           min ms between repaints (default 50)
 #   TICK_SEC=<n>            idle poll interval, seconds (default 0.5)
 #   NARROW_GLYPHS=1         assume all glyphs are 1 cell (disable width table)
 #   FORCE_COLS / FORCE_ROWS override detected geometry
 #   LOG_FILE                save logs to the specified log file
+#   FAIL_ROWS=<n>           on failure, max height of the full-width error
+#                           panel raised at the bottom of the final frame;
+#                           shrinks to the actual error lines (default 20, 0=off)
+#   RAISE_MS=<n>            ms per row while the panel rises (default 15, 0=instant)
 
 set -o pipefail
 set -u
@@ -70,13 +70,11 @@ LEFT_WIDTH=${LEFT_WIDTH:-0}
 LEFT_MAX_PCT=${LEFT_MAX_PCT:-34}
 REPORT_MAX_PCT=${REPORT_MAX_PCT:-55}
 SPLIT_MIN=${SPLIT_MIN:-6}
-CYCLE_SEC=${CYCLE_SEC:-4}
-FINAL_SEC=${FINAL_SEC:-16}
-HOLD_SEC=${HOLD_SEC:-3}
-CYCLE_END=${CYCLE_END:-rotate}
 REDRAW_MS=${REDRAW_MS:-50}
 TICK_SEC=${TICK_SEC:-0.5}
 NARROW_GLYPHS=${NARROW_GLYPHS:-0}
+FAIL_ROWS=${FAIL_ROWS:-20}
+RAISE_MS=${RAISE_MS:-15}
 
 readonly CSI_FINAL='[A-Za-z@\[\\\]^_`{|}~]'
 readonly SEP_W=3
@@ -113,8 +111,6 @@ LEFT_VALID=0
 CURRENT=""
 FOCUS=""
 SHOWN=""
-CYCLE_IDX=0
-CYCLE_AT=0
 REVIEW=0
 LAST_DRAW=0
 WIDEST=0
@@ -132,6 +128,12 @@ PREV_LW=-1
 PREV_RW=-1
 FULL_CLEAR=1
 RW_NOW=0
+
+TITLE_WORD=completed
+FAIL_H=0
+PREV_FH=-1
+FAIL_TITLE=""
+declare -a FAILROWS=()
 
 # ------------------------------------------------------------------ geometry
 _open_tty() {
@@ -490,6 +492,32 @@ _header_text() {
   else HDRTXT="${name} [${SG_L}, ${REPLY}]"; fi
 }
 
+# Title line: " <Action> progress" while running, or
+# " <Action> <word>:  ✔ n  ✘ m" when final. Elapsed time appended.
+# $1 = 1 for final counts, $2 = word (default "completed")
+TITLE=""
+_title_text() {
+  local final=${1:-0} word=${2:-completed} name nok=0 nbad=0
+  TITLE=" ${ACT_TEXT[0]} progress "
+  if (( final )); then
+    for name in "${ORDER[@]}"; do
+      [[ -z $name ]] && continue
+      [[ -n ${REPORT[$name]:-} ]] && continue
+      case ${STATUS[$name]:-} in
+        ok)   nok=$(( nok + 1 ))   ;;
+        fail) nbad=$(( nbad + 1 )) ;;
+      esac
+    done
+    TITLE=" ${ACT_TEXT[0]} ${word}:  ${G_OK} ${nok}  ${G_FAIL} ${nbad}"
+  fi
+  if (( T_FIRST > 0 )); then
+    local endms=$T_LAST
+    (( endms == 0 )) && endms=$(_now_ms)
+    _fmt_elapsed $(( endms - T_FIRST ))
+    [[ -n $REPLY ]] && TITLE+="  ${REPLY}"
+  fi
+}
+
 _note_width() {
   local name=$1
   [[ -z $name ]] && return
@@ -525,8 +553,6 @@ _mark_fail() {
   LDIRTY[$name]=1; LEFT_VALID=0
   for f in "${FAILED[@]}"; do [[ $f == "$name" ]] && return; done
   FAILED+=("$name")
-  CYCLE_IDX=$(( ${#FAILED[@]} - 1 ))
-  CYCLE_AT=$(( $(_now_ms) + CYCLE_SEC * 1000 ))
 }
 
 _push_log() {
@@ -624,20 +650,6 @@ _timer_tick() {
   return $hit
 }
 
-# ------------------------------------------------------------------ cycling
-_cycle_tick() {
-  (( REVIEW )) || return 1
-  local n=${#FAILED[@]}
-  (( n < 2 )) && return 1
-  [[ -n $FOCUS ]] && return 1
-  (( CYCLE_SEC <= 0 )) && return 1
-  local now; now=$(_now_ms)
-  (( now < CYCLE_AT )) && return 1
-  CYCLE_IDX=$(( (CYCLE_IDX + 1) % n ))
-  CYCLE_AT=$(( now + CYCLE_SEC * 1000 ))
-  return 0
-}
-
 # ------------------------------------------------------------------ rendering
 _build_block() {
   local name=$1 lw=$2
@@ -716,8 +728,14 @@ _draw() {
     local k; for k in "${ORDER[@]}"; do [[ -n $k ]] && WRAPW[$k]=-1; done
   fi
 
-  local body=$(( rows - 3 ))
-  (( body < 1 )) && body=1
+  local full=$(( rows - 3 ))
+  (( full < 1 )) && full=1
+  # error panel takes rows from the bottom; top keeps at least SPLIT_MIN
+  local fh=$FAIL_H
+  (( fh > full - SPLIT_MIN )) && fh=$(( full - SPLIT_MIN ))
+  (( fh < 0 )) && fh=0
+  if (( fh != PREV_FH )); then PREV_FH=$fh; LEFT_VALID=0; fi
+  local body=$(( full - fh ))
   local name src i j
 
   local view=${FOCUS:-$CURRENT}
@@ -728,8 +746,7 @@ _draw() {
   if [[ -n $FOCUS ]]; then
     upper=$FOCUS
   elif (( REVIEW )) && (( nfail > 0 )); then
-    (( CYCLE_IDX >= nfail )) && CYCLE_IDX=0
-    upper=${FAILED[CYCLE_IDX]}
+    upper=${FAILED[0]}                  # first failure = likely root cause
   elif (( is_report )); then
     for (( j = ${#ORDER[@]} - 1; j >= 0; j-- )); do
       if [[ -z ${REPORT[${ORDER[j]}]:-} ]]; then upper=${ORDER[j]}; break; fi
@@ -785,10 +802,10 @@ _draw() {
   local -a right=()
   local counter=""
   if (( REVIEW )) && (( nfail > 1 )); then
-    if [[ -n $FOCUS ]]; then 
+    if [[ -n $FOCUS ]]; then
       counter="  (pinned, ${nfail} failed)"
-    elif (( CYCLE_SEC > 0 )); then 
-      counter="  ($(( CYCLE_IDX + 1 )) of ${nfail})"
+    else
+      counter="  (+$(( nfail - 1 )) more failed)"
     fi
   fi
 
@@ -847,26 +864,8 @@ _draw() {
   local out="" l r rowstr
   if (( FULL_CLEAR )); then PREV=(); FULL_CLEAR=0; fi
 
-  local title=" ${ACT_TEXT[0]} progress "
-  if (( REVIEW )); then
-    local name nok=0 nfail=0
-    for name in "${ORDER[@]}"; do
-      [[ -z $name ]] && continue
-      [[ -n ${REPORT[$name]:-} ]] && continue
-      case ${STATUS[$name]:-} in
-        ok)   nok=$(( nok + 1 ))     ;;
-        fail) nfail=$(( nfail + 1 )) ;;
-      esac
-    done
-    title=" ${ACT_TEXT[0]} completed:  ${G_OK} ${nok}  ${G_FAIL} ${nfail}"
-  fi
-  if (( T_FIRST > 0 )); then
-    local endms=$T_LAST
-    (( endms == 0 )) && endms=$(_now_ms)
-    _fmt_elapsed $(( endms - T_FIRST ))
-    [[ -n $REPLY ]] && title+="  ${REPLY}"
-  fi
-  _fit_v "$usable" "$title" 1
+  _title_text "$REVIEW" "$TITLE_WORD"
+  _fit_v "$usable" "$TITLE" 1
   rowstr="${C_BOLD}${FITTED}${C_RESET}"
   if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
     out+=$'\033[1;1H'"$rowstr"$'\033[K'; PREV[0]=$rowstr
@@ -889,6 +888,23 @@ _draw() {
     fi
   done
 
+  # full-width error panel: a labelled red rule, then plain copyable rows
+  if (( fh > 0 )); then
+    local frule
+    _dwidth "$FAIL_TITLE"
+    _hrule_v $(( usable - REPLY - 2 ))
+    frule="${C_RED}${BC_H}${BC_H}${FAIL_TITLE}${HRULE}${C_RESET}"
+    for (( i = 0; i < fh; i++ )); do
+      if (( i == 0 )); then rowstr=$frule
+      else rowstr=${FAILROWS[i-1]:-}; fi
+      j=$(( body + i + 2 ))
+      if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
+        printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( body + i + 3 )) "$rowstr"
+        PREV[j]=$rowstr
+      fi
+    done
+  fi
+
   [[ -n $out ]] && printf '%s' "$out"
 
   FRAMES=$(( FRAMES + 1 ))
@@ -903,14 +919,72 @@ _stop_all_timers() {
   for c in "${!TSTART[@]}"; do [[ -n $c ]] && _timer_stop "$c"; done
 }
 
+# Build FAILROWS: per failed component a red header + tail of its log,
+# wrapped plain (no SGR) at full width. FAIL_ROWS is shared evenly.
+# $1 = 1 if interrupted (also include the in-progress component), $2 = width
+_build_fail_rows() {
+  local interrupted=${1:-0} w=$2 name src per extra=0
+  local -a names=("${FAILED[@]}") tailrows
+  if (( interrupted )) && [[ -n $CURRENT && -z ${REPORT[$CURRENT]:-} \
+        && ${STATUS[$CURRENT]:-} != ok && ${STATUS[$CURRENT]:-} != fail ]]; then
+    names+=("$CURRENT")
+  fi
+  FAILROWS=()
+  (( ${#names[@]} == 0 || FAIL_ROWS <= 0 )) && return 1
+  [[ -n ${LOG_FILE:-} ]] && extra=1
+  per=$(( (FAIL_ROWS - ${#names[@]} - extra) / ${#names[@]} ))
+  (( per < 3 )) && per=3
+  for name in "${names[@]}"; do
+    [[ -z $name ]] && continue
+    tailrows=()
+    while IFS= read -r src; do
+      WRAPPED=(); _wrap_into "$w" "$src"
+      (( ${#WRAPPED[@]} )) && tailrows+=("${WRAPPED[@]}")
+    done < <(printf '%s' "${RBUF[$name]:-}" | tail -n "$per")
+    (( ${#tailrows[@]} > per )) && tailrows=("${tailrows[@]: -per}")
+    _fit_v "$w" "${G_FAIL} ${name}: last ${#tailrows[@]} lines" 1
+    FAILROWS+=("${C_RED}${FITTED}${C_RESET}")
+    (( ${#tailrows[@]} )) && FAILROWS+=("${tailrows[@]}")
+  done
+  if (( extra )); then
+    _fit_v "$w" "Full log: $LOG_FILE" 1
+    FAILROWS+=("${C_DIM}${FITTED}${C_RESET}")
+  fi
+  return 0
+}
+
+# Slide the error panel up from the bottom of the final frame.
+_raise_fail_panel() {
+  local interrupted=${1:-0} nf=${#FAILED[@]} h target cap d
+  (( GEOM_DIRTY )) && _read_geom
+  _build_fail_rows "$interrupted" "$TTY_COLS" || return 0
+  if (( nf == 0 )); then FAIL_TITLE=" interrupted - last log lines "
+  else FAIL_TITLE=" ${G_FAIL} ${nf} failed - error log "; fi
+  target=$(( ${#FAILROWS[@]} + 1 ))                 # +1 for the rule
+  (( target > FAIL_ROWS + 1 )) && target=$(( FAIL_ROWS + 1 ))
+  cap=$(( TTY_ROWS - 3 - SPLIT_MIN ))
+  (( target > cap )) && target=$cap
+  (( target < 2 )) && return 0
+  printf -v d '%d.%03d' $(( RAISE_MS / 1000 )) $(( RAISE_MS % 1000 ))
+  for (( h = 1; h <= target; h++ )); do
+    FAIL_H=$h; _draw 1
+    (( RAISE_MS > 0 && h < target )) && sleep "$d"
+  done
+  return 0
+}
+
 _finish() {
+  local rc=$?
   DRAWING=0
   _stop_all_timers
   (( T_LAST == 0 )) && T_LAST=$(_now_ms)
+  (( rc != 0 )) && { REVIEW=1; TITLE_WORD=interrupted; }
   FULL_CLEAR=1
   LEFT_VALID=0
   RCACHE_COMP=""; RCACHE_N=-1
   _draw 1
+  # success: frame stays as is; failure/interrupt: raise the error panel
+  _raise_fail_panel $(( rc != 0 ))
   printf '\033[?7h'
   printf '\033[%d;1H\033[K' "$TTY_ROWS"   # last row, cleared, NO newline
   printf '\033[?25h'
@@ -958,11 +1032,9 @@ _handle_line() {
       STATUS[$CURRENT]="ok"
       LEFT_VALID=0
       REVIEW=1
-      CYCLE_IDX=0
-      CYCLE_AT=$(( $(_now_ms) + CYCLE_SEC * 1000 ))
       _draw 1; return ;;
     @@FOCUS)
-      if [[ -z $rest ]]; then FOCUS=""; CYCLE_AT=0
+      if [[ -z $rest ]]; then FOCUS=""
       else _touch_comp "$rest"; FOCUS=$rest; fi
       _draw 1; return ;;
     @@OK|@@FAIL)
@@ -1019,14 +1091,12 @@ _handle_line() {
       rc=$?
       if (( rc > 128 )); then
         _timer_tick && _draw 1
-        _cycle_tick && _draw 1
         continue
       fi
       [[ -n $line ]] && _handle_line "$line"
       break
     fi
     _timer_tick && _draw
-    _cycle_tick && _draw 1
   done
 
   _stop_all_timers
@@ -1036,25 +1106,6 @@ _handle_line() {
   for c in "${ORDER[@]}"; do [[ -n $c ]] && LDIRTY[$c]=1; done
 
   REVIEW=1
-  local nfail=${#FAILED[@]}
-  if (( nfail > 1 && CYCLE_SEC > 0 && FINAL_SEC > 0 )) && [[ -z $FOCUS ]]; then
-    CYCLE_AT=0
-    _draw 1
-    local deadline=$(( $(_now_ms) + FINAL_SEC * 1000 ))
-    while (( $(_now_ms) < deadline )); do
-      sleep "$TICK_SEC"
-      _cycle_tick && _draw 1
-    done
-    case $CYCLE_END in
-      first) CYCLE_IDX=0 ;;
-      rotate) : ;;
-      *)     CYCLE_IDX=$(( nfail - 1 )) ;;
-    esac
-  elif (( nfail == 1 && HOLD_SEC > 0 )); then
-    # single failure: draw it, then hold briefly so it is readable
-    _draw 1
-    sleep "$HOLD_SEC"
-  fi
   _draw 1
 )}
 

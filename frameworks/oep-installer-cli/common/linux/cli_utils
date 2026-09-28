@@ -191,9 +191,9 @@ act_helper () {
           fi
         fi
       done
-      if [[ " $* " != *" --dry-run "* ]] && [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
+      if [[ " $* " != *" --dry-run "* && $rc -eq 0 && "$act_name" = "install" ]] && declare -F ${ID_LIKE}_08_${act_name}_pre_system_scan > /dev/null 2>&1; then
         echo "@@REPORT SYSTEM SUMMARY"
-        ${ID_LIKE}_10_${act_name}_pre_system_scan
+        ${ID_LIKE}_08_${act_name}_pre_system_scan
       fi
     } > >(
       LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
