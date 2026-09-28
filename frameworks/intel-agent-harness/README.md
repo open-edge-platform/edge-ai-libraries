@@ -38,7 +38,7 @@ projects** rather than something invented for Intel:
 |---|---|---|
 | `openclaw` | npm `openclaw` — github.com/openclaw/openclaw | MIT |
 | `deepagents-code` | npm `deepagents` (LangGraph) — github.com/langchain-ai/deepagentsjs | MIT |
-| `hermes` | Nous Research's official installer — github.com/NousResearch/hermes-agent (curl \| bash from hermes-agent.nousresearch.com, not npm) | See repo |
+| `hermes` | Nous Research's official installer — github.com/NousResearch/hermes-agent (curl \| bash from hermes-agent.nousresearch.com, not npm) | MIT |
 
 The inference backend is the **OpenVINO Model Server** (OVMS), which serves
 an OpenAI-compatible `/v3/chat/completions` endpoint on Intel Arc / Data
