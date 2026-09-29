@@ -17,7 +17,8 @@
 # syntax=docker/dockerfile:1.7
 
 # Use DLStreamer as the base image
-FROM intel/dlstreamer:2026.3.0-20260922-weekly-ubuntu24 AS prod
+ARG DLSTREAMER_IMAGE=intel/dlstreamer:latest
+FROM ${DLSTREAMER_IMAGE} AS prod
 
 # Switch to root user to install dependencies
 USER root

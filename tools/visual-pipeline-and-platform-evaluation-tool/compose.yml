@@ -6,7 +6,9 @@ x-vippet: &vippet
     context: .
     target: ${TARGET:-prod}
     dockerfile: vippet/Dockerfile
+    pull: true
     args:
+      DLSTREAMER_IMAGE:
       http_proxy:
       https_proxy:
       no_proxy:
@@ -119,7 +121,8 @@ services:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
-    image: docker.io/intel/model-download:2026.3.0-20260922-weekly
+    image: docker.io/intel/model-download:latest
+    pull_policy: daily
     container_name: model-download
     ports:
       - "8000:8000"
@@ -171,7 +174,8 @@ services:
     ports:
       - "7860:7860"
   metrics-manager:
-    image: docker.io/intel/metrics-manager:2026.3.0-20260922-weekly
+    image: docker.io/intel/metrics-manager:latest
+    pull_policy: daily
     container_name: metrics-manager
     init: true
     ports:
@@ -250,7 +254,9 @@ services:
     build:
       context: video_generator
       dockerfile: Dockerfile
+      pull: true
       args:
+        DLSTREAMER_IMAGE:
         http_proxy:
         https_proxy:
         no_proxy:
