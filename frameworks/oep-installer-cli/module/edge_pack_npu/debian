@@ -5,7 +5,7 @@ configure_edge_pack_npu () {
 }
 
 debian_20_profile_edge_pack_npu () {
-  echo "edge_pack"
+  echo "edge_pack libze1"
 }
 
 debian_20_group_edge_pack_npu () {
