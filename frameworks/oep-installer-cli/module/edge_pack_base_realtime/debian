@@ -20,6 +20,7 @@ debian_20_install_edge_pack_base_realtime () {
 
 debian_20_remove_edge_pack_base_realtime () {
   ensure_apt autoremove -y intel-edge-base-realtime || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_base_realtime () {
