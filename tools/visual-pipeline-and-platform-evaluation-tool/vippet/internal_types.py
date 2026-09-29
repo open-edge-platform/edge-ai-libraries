@@ -1113,8 +1113,9 @@ class InternalModelVariant:
 @dataclass
 class InternalSupportedModel:
     """
-    Internal representation of one entry in ``supported_models.yaml``
-    enriched with runtime state (install status, recommendation).
+    Internal representation of one model in the catalog
+    (``vippet/models/*.yaml``, seeded into the DB at startup) enriched
+    with runtime state (install status, recommendation).
 
     The route layer maps this into the API ``Model`` schema.
 
@@ -1133,8 +1134,8 @@ class InternalSupportedModel:
             installing / failed).
         used_by_pipelines: List of predefined-pipeline ids that reference
             this model. Empty list means the model is not recommended.
-        default: Whether this model is marked as a default choice in
-            ``supported_models.yaml`` (internal-only; not exposed via API).
+        default: Whether at least one predefined pipeline references this
+            model (mirrors ``used_by_pipelines``; internal-only, not exposed via API).
         unsupported_devices: Comma-separated string of devices on which
             the model cannot run (e.g. "NPU"). ``None`` when no
             restrictions exist.
@@ -1194,7 +1195,7 @@ class InternalModelDownloadRequest:
     Internal representation of a model download request.
 
     Attributes:
-        name: Supported model name (must exist in supported_models.yaml).
+        name: Supported model name (must exist in the model catalog).
     """
 
     name: str

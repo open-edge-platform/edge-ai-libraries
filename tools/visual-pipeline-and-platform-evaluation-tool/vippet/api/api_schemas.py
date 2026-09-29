@@ -2249,8 +2249,8 @@ class Model(BaseModel):
     """
     **Description of a single supported model exposed by the models API.**
 
-    Lists every model known to vippet-app: both entries from
-    `supported_models.yaml` (regardless of whether they are installed) and
+    Lists every model known to vippet-app: both entries from the model
+    catalog (`vippet/models/*.yaml`, seeded into the DB at startup) and
     user-uploaded models. Use `install_status` to know if the model is
     ready to use, and `used_by_pipelines` to know whether installing it is
     recommended (non-empty list means at least one predefined pipeline
@@ -2269,7 +2269,7 @@ class Model(BaseModel):
     - `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)
     - `variants` - Selectable variants of this model (one per precision and optional model-proc)
     - `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation
-    - `default` - Whether the model is marked as a default install candidate in `supported_models.yaml`. Used by the Models page to pre-select recommended models in the bulk-install UI.
+    - `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.
     - `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)
 
     ### Example
@@ -2326,10 +2326,9 @@ class Model(BaseModel):
     default: bool = Field(
         default=False,
         description=(
-            "Whether the model is marked as a default install "
-            "candidate in supported_models.yaml. The Models page uses "
-            "this flag to pre-select recommended models in the bulk-"
-            "install UI."
+            "Whether at least one predefined pipeline references this "
+            "model. The Models page uses this flag to pre-select "
+            "recommended models in the bulk-install UI."
         ),
     )
     unsupported_devices: Optional[str] = Field(
@@ -2375,7 +2374,7 @@ class ModelDownloadRequest(BaseModel):
     """
     **Request body for starting a batch of model download jobs.**
 
-    Each name must match an entry in `supported_models.yaml`. Names are
+    Each name must match an entry in the model catalog (`vippet/models/*.yaml`). Names are
     validated as a unique set: duplicates are rejected with 422 so the
     per-name map returned by the endpoint stays unambiguous. An empty
     list is also rejected (`min_length=1`).

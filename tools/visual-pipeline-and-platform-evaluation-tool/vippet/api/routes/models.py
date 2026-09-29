@@ -72,8 +72,8 @@ async def get_models():
     """
     # List Models
 
-    Return every model known to vippet-app: entries from
-    `supported_models.yaml` plus user-uploaded custom models.
+    Return every model known to vippet-app: entries from the model
+    catalog (`vippet/models/*.yaml`) plus user-uploaded custom models.
 
     ## Response
 
@@ -236,7 +236,7 @@ async def upload_model(
         404: {
             "description": (
                 "All requested models were rejected with `404` only "
-                "(unknown / not in `supported_models.yaml`). Takes "
+                "(unknown / not in the model catalog). Takes "
                 "precedence over `409` in the envelope status."
             ),
             "model": schemas.ModelDownloadJobResponse,
@@ -265,8 +265,8 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
     Start an asynchronous download job for each model in the request.
     Each entry of `names` is processed **independently** and produces
     its own per-model entry in the response map `jobs`. Names must be
-    declared in `supported_models.yaml`; all model sources are handled
-    by the model-download microservice.
+    declared in the model catalog (`vippet/models/*.yaml`); all model
+    sources are handled by the model-download microservice.
 
     Each accepted name spawns a background worker right away — the
     endpoint does **not** wait for any download to finish, so adding

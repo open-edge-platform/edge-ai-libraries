@@ -152,12 +152,12 @@ def test_all_models_present_in_api(
     http_client: requests.Session,
     supported_models_config: list[ModelDict],
 ) -> None:
-    """Every model defined in supported_models.yaml must be returned by the API
+    """Every model defined in the model catalog (vippet/models/*.yaml) must be returned by the API
     with the correct display_name, precision and category."""
     api_models = fetch_models(http_client)
 
     all_models = _expand_model_precisions(supported_models_config)
-    assert all_models, "No models found in supported_models.yaml"
+    assert all_models, "No models found in the model catalog (vippet/models/*.yaml)"
     logger.info("Verifying %d model variant(s) from config", len(all_models))
 
     _assert_models_present_in_api(api_models, all_models)

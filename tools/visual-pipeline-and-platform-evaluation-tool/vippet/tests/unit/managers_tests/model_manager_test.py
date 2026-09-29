@@ -1405,7 +1405,7 @@ class TestRunSubprocess(unittest.TestCase):
 class TestUploadedModelLookups(unittest.TestCase):
     """Tests for ``find_installed_uploaded_model_by_display_name`` and
     ``find_uploaded_model_by_path`` — the helpers consumed by
-    ``graph.py`` when a model is not in ``supported_models.yaml``.
+    ``graph.py`` when a model is not in the model catalog.
     """
 
     def setUp(self) -> None:

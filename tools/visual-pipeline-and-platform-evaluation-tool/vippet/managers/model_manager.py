@@ -141,7 +141,7 @@ OMZ_CONVERTER_BIN: str = os.environ.get(
 # model directory under a specific destination filename.
 #
 # Used by the OMZ fallback path for the subset of OMZ models still listed
-# in ``supported_models.yaml`` that model-download does not handle yet.
+# in the model catalog that model-download does not handle yet.
 _OMZ_MODEL_RULES: dict[str, dict[str, str]] = {
     "mobilenet-v2-pytorch": {
         "category": "public",
@@ -607,7 +607,7 @@ class ModelManager:
         plugins themselves prepend their own ``<hub>/`` subdirectory to
         ``output_dir`` (e.g. ``ultralytics/``, ``huggingface/``), and the
         download scripts they invoke further nest the files under
-        ``<source>/<model_name>/<precision>/...``. ``supported_models.yaml``
+        ``<source>/<model_name>/<precision>/...``. Model catalog entries'
         ``model_path`` entries must therefore include the full
         ``<hub>/<source>/<model_name>/<precision>/<file>`` prefix.
         """

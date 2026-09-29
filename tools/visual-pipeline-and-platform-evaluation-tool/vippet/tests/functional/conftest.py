@@ -100,7 +100,7 @@ def _skip_when_external_model_missing(request: pytest.FixtureRequest) -> None:
 
     Applies to pipelines listed in ``_EXTERNAL_MODEL_PATH_TEMPLATES`` (e.g. the
     VLM Video Captioning pipeline, which hard-codes its model path instead
-    of going through ``supported_models.yaml``).
+    of going through the model catalog).
     """
     case = getattr(request.node, "callspec", None)
     case_value = case.params.get("case") if case is not None else None
