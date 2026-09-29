@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
 import os
 import shutil
@@ -41,6 +40,7 @@ import tempfile
 import threading
 import time
 import uuid
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, BinaryIO
@@ -254,7 +254,9 @@ class ModelManager:
         return display_name
 
     @staticmethod
-    def _collect_precisions(db_variants: list[Any]) -> list[InternalModelPrecision]:
+    def _collect_precisions(
+        db_variants: Sequence[Any],
+    ) -> list[InternalModelPrecision]:
         """Build a unique list of precision variants for a canonical model."""
         seen: set[str] = set()
         precisions: list[InternalModelPrecision] = []
@@ -271,7 +273,7 @@ class ModelManager:
         return precisions
 
     @staticmethod
-    def _collect_variants(db_variants: list[Any]) -> list[InternalModelVariant]:
+    def _collect_variants(db_variants: Sequence[Any]) -> list[InternalModelVariant]:
         """Build the API-facing variant list for a canonical model.
 
         Emits one ``InternalModelVariant`` per `ModelVariant` row (one
