@@ -109,14 +109,7 @@ act_helper () {
   fi
 
   # scan for dependencies
-  local handles=($(
-    act_find_deps $act_name $(
-      # always included modules
-      for m in pre_system_scan core_types; do 
-        [[ -v _act_cache_functions[${act_name}_${m}] ]] && echo $m
-      done
-    ) "$@"
-  ))
+  local handles=($(act_find_deps $act_name "$@"))
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
@@ -175,12 +168,12 @@ act_helper () {
           local state_path="$(ensure_project_path)/$installer_name/states/$name1"
           [ "$act_name" = "start" ] && mkdir -p "$state_path"
           echo "@@COMP $name1"
+          local rc1=0
           (
             set -e
             $handler $invoke_args &
             wait -n
-          )
-          local rc1=$?
+          ) || rc1=$?
           [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
@@ -191,9 +184,9 @@ act_helper () {
           fi
         fi
       done
-      if [[ " $* " != *" --dry-run "* ]] && [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
+      if [[ " $* " != *" --dry-run "* && $rc -eq 0 && -v _act_cache_functions[${act_name}_pre_system_scan] ]]; then
         echo "@@REPORT SYSTEM SUMMARY"
-        ${ID_LIKE}_10_${act_name}_pre_system_scan
+        ${_act_cache_functions[${act_name}_pre_system_scan]}
       fi
     } > >(
       LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"

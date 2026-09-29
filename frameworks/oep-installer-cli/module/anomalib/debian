@@ -6,17 +6,16 @@ configure_anomalib () {
 }
 
 verify_anomalib () {
-  [ -r "$workspace"/venv/bin/activate ] || return 1
-  . "$workspace"/venv/bin/activate
-  set -o pipefail
-  pip show anomalib | grep -q -F $version || return 1
+  [ -r "$workspace"/.venv/bin/activate ]
+  . "$workspace"/.venv/bin/activate
+  python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
 }
 
-debian_70_profile_anomalib () {
+debian_80_profile_anomalib () {
   echo "python3_venv edge_base"
 }
 
-debian_70_install_anomalib () {
+debian_80_install_anomalib () {
   configure_anomalib $*
   if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
     echo "Anomalib already installed. Skipping"
@@ -24,15 +23,90 @@ debian_70_install_anomalib () {
     ensure_disk_space 6000
     mkdir -p "$workspace"
     cd "$workspace"
-    python3 -m venv venv
-    . venv/bin/activate
-    pip install anomalib==${version}
+    python3 -m venv .venv
+    . .venv/bin/activate
+    pip install "anomalib[openvino,cpu]==${version}"
+
+    if [[ " $* " = *" --validate "* ]]; then
+      mkdir -p test
+      python3 -c '
+from pathlib import Path
+from PIL import Image
+from anomalib.data import Folder
+from anomalib.models import Padim
+from anomalib.engine import Engine
+from anomalib.deploy import ExportType, OpenVINOInferencer
+import sys
+
+def create_mock_dataset(dataset_path):
+  train_good = dataset_path / "train" / "good"
+  test_good = dataset_path / "test" / "good"
+  test_defect = dataset_path / "test" / "defect"
+  for d in [train_good, test_good, test_defect]:
+    d.mkdir(parents=True, exist_ok=True)
+  for i in range(5):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    img.save(train_good / f"normal_{i}.png")
+    if i < 2:
+      img.save(test_good / f"normal_test_{i}.png")
+  for i in range(2):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    for x in range(100, 150):
+      for y in range(100, 150):
+        img.putpixel((x, y), (50, 50, 50))  # Synthetic anomaly block
+    img.save(test_defect / f"defect_{i}.png")
+
+def test_anomalib_pipeline(root_path, dataset_path, device):
+  datamodule = Folder(
+    name="synthetic_test",
+    root=dataset_path,
+    normal_dir="train/good",
+    abnormal_dir="test/defect",
+    normal_test_dir="test/good",
+    train_batch_size=2,
+    eval_batch_size=2,
+  )
+  model = Padim()
+  engine = Engine(
+    default_root_dir=root_path / "results",
+    max_epochs=1,
+    accelerator="auto",
+    devices=1,
+  )
+  engine.fit(model=model, datamodule=datamodule)
+  test_results = engine.test(model=model, datamodule=datamodule)
+  assert test_results is not None, "Evaluation test results returned None."
+  export_dir = root_path / "export"
+  engine.export(
+    model=model,
+    export_type=ExportType.OPENVINO,
+    export_root=export_dir,
+    input_size=(256, 256),
+  )
+  model_xml_files = list(export_dir.glob("**/*.xml"))
+  assert len(model_xml_files) > 0, "OpenVINO model XML representation was not generated."
+  inferencer = OpenVINOInferencer(
+    path=model_xml_files[0],
+    device=device,
+  )
+  sample_image_path = dataset_path / "test" / "defect" / "defect_0.png"
+  prediction = inferencer.predict(str(sample_image_path))
+  assert prediction is not None, "Inference prediction failed."
+  assert hasattr(prediction, "pred_score") or hasattr(prediction, "anomaly_map"), "Prediction output missing anomaly score or map attributes."
+
+root_path = Path(sys.argv[1])
+dataset_path = root_path / "mock_dataset"
+create_mock_dataset(dataset_path)
+test_anomalib_pipeline(root_path, dataset_path, sys.argv[2])
+' test $(ensure_select_device "$@" | tr 'a-z' 'A-Z') && echo "Anomalib test passed."
+      rm -rf test
+    fi
   fi
 
-  echo "@@HIGHLIGHT venv: $workspace/venv"
+  echo "@@HIGHLIGHT venv: $workspace/.venv"
 }
 
-debian_70_remove_anomalib () {
+debian_80_remove_anomalib () {
   configure_anomalib $*
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
