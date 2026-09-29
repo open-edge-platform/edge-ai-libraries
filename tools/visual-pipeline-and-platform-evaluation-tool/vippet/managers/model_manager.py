@@ -110,67 +110,6 @@ def _precision_is_complete(category: str | None, model_path: str) -> bool:
 
 
 # ----------------------------------------------------------------------
-# OMZ post-processing assets shipped with DLStreamer
-# ----------------------------------------------------------------------
-
-DLSTREAMER_MODEL_PROC_DIR: str = os.environ.get(
-    "DLSTREAMER_MODEL_PROC_DIR",
-    "/opt/intel/dlstreamer/samples/gstreamer/model_proc",
-)
-DLSTREAMER_LABELS_DIR: str = os.environ.get(
-    "DLSTREAMER_LABELS_DIR",
-    "/opt/intel/dlstreamer/samples/labels",
-)
-
-# Path of the dedicated venv where ``openvino-dev[onnx]==2024.6.0`` (and
-# the matching legacy ``openvino==2024.6.0``) live, isolated from the
-# main runtime which uses ``openvino==2026.x``. Built in the Dockerfile;
-# the env var lets local development override it.
-OMZ_VENV_DIR: str = os.environ.get("OMZ_VIRTUAL_ENV", "/home/dlstreamer/.omz-venv")
-OMZ_DOWNLOADER_BIN: str = os.environ.get(
-    "OMZ_DOWNLOADER_BIN", os.path.join(OMZ_VENV_DIR, "bin", "omz_downloader")
-)
-OMZ_CONVERTER_BIN: str = os.environ.get(
-    "OMZ_CONVERTER_BIN", os.path.join(OMZ_VENV_DIR, "bin", "omz_converter")
-)
-
-
-# Per-model custom post-processing for OMZ downloads. Each entry describes
-# the OMZ category prefix produced by ``omz_downloader`` (``intel`` or
-# ``public``) and an optional ``model_proc`` file to copy into the final
-# model directory under a specific destination filename.
-#
-# Used by the OMZ fallback path for the subset of OMZ models still listed
-# in the model catalog that model-download does not handle yet.
-_OMZ_MODEL_RULES: dict[str, dict[str, str]] = {
-    "mobilenet-v2-pytorch": {
-        "category": "public",
-        "model_proc_src": os.path.join(
-            DLSTREAMER_MODEL_PROC_DIR, "public", "preproc-aspect-ratio.json"
-        ),
-        "model_proc_dst": "mobilenet-v2.json",
-        "labels_src": os.path.join(DLSTREAMER_LABELS_DIR, "imagenet_2012.txt"),
-    },
-    "age-gender-recognition-retail-0013": {
-        "category": "intel",
-        "model_proc_src": os.path.join(
-            DLSTREAMER_MODEL_PROC_DIR,
-            "intel",
-            "age-gender-recognition-retail-0013.json",
-        ),
-        "model_proc_dst": "age-gender-recognition-retail-0013.json",
-    },
-    "face-detection-retail-0004": {
-        "category": "intel",
-        "model_proc_src": os.path.join(
-            DLSTREAMER_MODEL_PROC_DIR, "intel", "face-detection-retail-0004.json"
-        ),
-        "model_proc_dst": "face-detection-retail-0004.json",
-    },
-}
-
-
-# ----------------------------------------------------------------------
 # Manager singleton
 # ----------------------------------------------------------------------
 

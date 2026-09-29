@@ -64,20 +64,6 @@ x-vippet: &vippet
     # model-management calls to model-download; the URL is internal to
     # the compose network.
     MODEL_DOWNLOAD_URL: ${MODEL_DOWNLOAD_URL:-http://model-download:8000}
-    # DLStreamer-bundled assets used during OMZ model post-processing
-    # (copying model_proc JSON, injecting ImageNet labels for
-    # mobilenet-v2-pytorch, ...). Override only if the DLStreamer
-    # installation layout in the container changes.
-    DLSTREAMER_MODEL_PROC_DIR: ${DLSTREAMER_MODEL_PROC_DIR:-/opt/intel/dlstreamer/samples/gstreamer/model_proc}
-    DLSTREAMER_LABELS_DIR: ${DLSTREAMER_LABELS_DIR:-/opt/intel/dlstreamer/samples/labels}
-    # Isolated virtualenv where ``openvino-dev[onnx]==2024.6.0`` lives.
-    # vippet-app invokes ``omz_downloader``/``omz_converter`` from this
-    # venv so the legacy 2024.x ``openvino`` package never collides
-    # with the OpenVINO 2026.x runtime used for inference.
-    OMZ_VIRTUAL_ENV: ${OMZ_VIRTUAL_ENV:-/home/dlstreamer/.omz-venv}
-    # Path of the JSON registry tracking installed/uploaded models on
-    # the shared volume so it survives service restarts.
-    INSTALLED_MODELS_REGISTRY: ${INSTALLED_MODELS_REGISTRY:-/models/output/installed_models.json}
     # Database configuration (SQLite)
     DATABASE_URL: "sqlite+aiosqlite:////db/app.db"
     DB_ECHO: "false"
