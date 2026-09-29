@@ -3223,6 +3223,12 @@ verify_gpu () {
   [ -c /dev/dri/renderD128 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
+  verify_gpu_packages
+}
+
+# checks the driver packages only, independent of GPU hardware being present.
+# used to confirm a fresh install succeeded even on systems without a discrete/exposed GPU device.
+verify_gpu_packages () {
   ensure_apt_is_installed intel-media-va-driver-non-free
 }
 
@@ -3255,7 +3261,7 @@ debian_40_install_gpu () {
 
     # install the packages
     ensure_apt install --no-install-recommends -y "${pkg_list[@]}"
-    verify_gpu
+    verify_gpu_packages
   fi
 }
 
@@ -4000,6 +4006,12 @@ verify_npu () {
   [ -c /dev/accel/accel0 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
+  verify_npu_packages
+}
+
+# checks the driver packages only, independent of NPU hardware being present.
+# used to confirm a fresh install succeeded even on systems without an NPU device.
+verify_npu_packages () {
   (
     set -o pipefail
     ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
@@ -4040,7 +4052,7 @@ debian_40_install_npu () {
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
-    verify_npu
+    verify_npu_packages
   fi
 }
 
