@@ -1,53 +1,34 @@
 app:
   name: Audio Analyzer
   cleanup_on_exit: true
-  clear_storage_on_startup: true  # delete all session folders under storage/ at startup
-  use_ov_genai: True # True or False, applicable for provider: openvino
+  clear_storage_on_startup: true  # wipe storage/ sessions at startup
+  use_ov_genai: True # openvino only
 
 models:
   asr:
     provider: openvino  # openai | openvino | whispercpp | funasr
-    name: whisper-base  # whisper-tiny|base|small|medium|large (whisper providers); paraformer-zh|paraformer-en|paraformer-online (funasr)
-    device: CPU # CPU | GPU | NPU for openvino; CPU only for openai/whispercpp/funasr
-    weight_format: null # OpenVINO: int8 | fp16 | null. whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
+    name: whisper-base  # whisper-{tiny,base,small,medium,large}; funasr: paraformer-{zh,en,online}
+    device: CPU # CPU|GPU|NPU (openvino); CPU only (others)
+    weight_format: null # openvino: int8|fp16|null; whispercpp: q5*/q8*/int5/int8/null
     temperature: 0.0
-    diarization: False  # True or False, applicable for provider: openvino
-    hf_token: None  # needed only if diarization=true
+    diarization: False  # openvino only
+    hf_token: None  # only if diarization=true
     models_base_path: "models"
-    # Language: Whisper providers are multilingual — pass `language` per request
-    # (e.g. "en" or "zh"). For dedicated high-accuracy Chinese/English use the
-    # funasr provider with name: paraformer-zh | paraformer-en. FunASR needs the
-    # optional deps: pip install -r requirements-cjk.txt (or build --build-arg
-    # INSTALL_CJK=true). model_hub selects the download source for funasr models.
-    model_hub: modelscope  # modelscope | huggingface — used only by the funasr provider
+    # Whisper is multilingual (pass `language` per request). CJK: use funasr
+    # paraformer-zh/-en (needs requirements-cjk.txt).
+    model_hub: modelscope  # modelscope | huggingface (funasr only)
 
-    # Hallucination filtering — openai provider uses native no_speech_prob/avg_logprob.
-    # whispercpp derives the same values from per-token plog and ptsum.
-    # openvino genai pipelines do not expose these fields; filtering is skipped.
-    #
-    # Values below are tuned for live microphone input (noisy environment).
-    # Lower no_speech_threshold → stricter: flags more segments as potential noise.
-    # Higher logprob_threshold  → stricter: drops low-confidence transcriptions.
-    # Higher min_duration_sec / min_words → harder for noise bursts to earn the
-    #   "definitely speech, keep" safety net in _is_silent_segment().
+    # Hallucination filtering (openai/whispercpp only; skipped for openvino genai).
+    # Tuned for noisy mic input. Stricter = lower no_speech / higher logprob.
     no_speech_threshold: 0.3
     logprob_threshold: -0.3
     min_duration_sec: 0.5
     min_words: 2
 
-    # openai-whisper transcribe() native param: skip generation over silent
-    # regions longer than this many seconds.  Directly targets the
-    # noise-transcribed-as-text problem.  null = disabled.
+    # openai-whisper: skip silence longer than N sec. null = disabled.
     hallucination_silence_threshold: 1.0
 
-    # Backend-agnostic hallucination filter. Whisper (including the OpenVINO
-    # GenAI backend) hallucinates common subtitle phrases such as "Thank you"
-    # on silence / non-speech audio — usually the trailing silence captured
-    # after the speaker stops talking. Any transcript segment whose entire text
-    # matches one of these phrases (case- and punctuation-insensitive) is
-    # dropped. Unlike no_speech_threshold/logprob_threshold above, this also
-    # covers OpenVINO GenAI, which exposes no per-segment confidence signals.
-    # Set hallucination_phrase_filter: false to disable.
+    # Drop segments whose text matches these phrases (all backends incl. openvino genai).
     hallucination_phrase_filter: true
     hallucination_phrases:
       - "thank you"
@@ -59,66 +40,54 @@ models:
       - "you"
       - "bye"
 
-    # Post-processing repetition filter (all providers).
-    # 1.0 = disabled. Any value > 1.0 enables consecutive repeated-phrase
-    # removal (word n-gram dedup, window 1-8) and duplicate-segment stripping.
-    # Note: openai-whisper's DecodingOptions has no repetition_penalty field;
-    # this is applied after transcription, not inside the decoder.
+    # Repeated-phrase removal (all providers). 1.0 = disabled, >1.0 enables.
     repetition_penalty: 1.8
 
-    # Decoder controls — beam_size/best_of apply to openai and whispercpp.
-    # word_timestamps and threads are whisper.cpp specific.
+    # Decoder: beam_size/best_of (openai, whispercpp); word_timestamps/threads (whispercpp).
     beam_size: 1
     best_of: 1
     word_timestamps: false
     threads: 0
 
-  diarization: # Only applicable when models.asr.diarization is set to True
+  diarization: # only when models.asr.diarization: True
     provider: "huggingface"
     name: "pyannote/speaker-diarization-community-1"
     device: CPU  # CPU | GPU | NPU
     models_base_path: "models"
-    min_speakers: 1   # kiosk scenario: at most 1 customer + 1 staff member per chunk
+    min_speakers: 1
     max_speakers: 2
 
-    # Cross-chunk primary-speaker identity resolution. Reuses the speaker
-    # embeddings already computed by the diarization pipeline during
-    # clustering (pyannote DiarizeOutput.speaker_embeddings) — no extra
-    # model is loaded. See components/asr/diarization/speaker_identity.py
+    # Cross-chunk primary-speaker identity resolution.
     identity:
       enabled: true
-      similarity_threshold: 0.75   # cosine similarity to match stored primary
-      lock_min_duration_sec: 0.75  # min turn duration before it can be locked as primary
-      session_ttl_seconds: 1800    # evict idle session identity state after 30 min
+      similarity_threshold: 0.75   # cosine sim to match stored primary
+      lock_min_duration_sec: 0.75  # min turn duration to lock as primary
+      session_ttl_seconds: 1800    # evict idle session after 30 min
 
 audio_preprocessing:
   chunk_duration_sec: 15
-  silence_threshold: -35  # in dB
-  silence_duration: 0.3   # minimum silence length in seconds
-  search_window_sec: 1    # how far to look for silence if no silence exactly at chunk boundary
+  silence_threshold: -35  # dB
+  silence_duration: 0.3   # min silence length (sec)
+  search_window_sec: 1    # silence search window near chunk boundary
   chunk_output_path: chunks/
-  denoise: false          # set true for noisy mic/field audio (applies ffmpeg arnndn RNNoise filter)
-  denoise_model: ""       # path to .rnnn model file; leave empty to use ffmpeg built-in arnndn
+  denoise: false          # true for noisy audio (ffmpeg arnndn RNNoise)
+  denoise_model: ""       # .rnnn path; empty = ffmpeg built-in
 
 audio_util:
   max_size_mb: 200
-  allowed_extensions:
+  allowed_extensions:  # video containers: audio track auto-extracted via ffmpeg
     - .wav
     - .mp3
     - .m4a
-    - .mp4    # video containers accepted for VSS transcription requests;
-    - .mkv    # ffmpeg-based chunking extracts the audio track automatically,
-    - .mov    # no separate audio-extraction step is required.
+    - .mp4
+    - .mkv
+    - .mov
     - .avi
-  chunk_size: 52428800   # 1024 * 1024 * 50 = 50MB
+  chunk_size: 52428800   # 50MB
 
-# MinIO object storage — used only by the VSS-compatibility endpoint
-# (POST /transcriptions) to retrieve source videos and store transcripts
-# back into the same bucket the caller (VSS pipeline-manager) reads from.
-# Not used by any other endpoint. All values overridable via
-# AUDIO_ANALYZER__MINIO__<KEY> env vars.
+# MinIO — used only by POST /transcriptions. Override via AUDIO_ANALYZER__MINIO__<KEY>.
 minio:
-  endpoint: ""       # e.g. "minio-server:9000"; empty disables MinIO support
+  endpoint: ""       # e.g. "minio-server:9000"; empty disables MinIO
   access_key: ""
   secret_key: ""
   secure: false
@@ -127,13 +96,11 @@ pipeline:
   delete_chunks_after_use: true
 
 sentiment:
-  enabled: false                  # set true to enable parallel voice sentiment analysis
+  enabled: false                  # true = parallel voice sentiment analysis
   model: speechbrain/emotion-recognition-wav2vec2-IEMOCAP
-  device: CPU                     # CPU | GPU (openvino export only)
+  device: CPU                     # CPU | GPU (openvino only)
   provider: openvino              # openvino | pytorch
-  weight_format: int8             # Optional OpenVINO export precision, e.g. int8 | fp16
+  weight_format: int8             # openvino export precision: int8 | fp16
   models_base_path: "models"
-  # Aggregation — how to compute session-level sentiment from per-chunk results
-  # recency_weight: higher weight on recent chunks (good for kiosk drift detection)
   recency_weight: 0.7             # 0.0 = equal weight, 1.0 = last chunk only
-  peak_label: angry               # label to watch for peak/escalation detection
+  peak_label: angry               # label for peak/escalation detection

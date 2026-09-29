@@ -166,10 +166,11 @@ services:
       - DEBUG=false
       - MAX_FILE_SIZE=314572800 # 300MB
       - USE_FP16=${USE_FP16:-true} # Use FP16 on GPUs
-      - MINIO_ENDPOINT=${MINIO_HOST:-minio-service}:${MINIO_PORT:-80}
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
-      - STORAGE_BACKEND=${STORAGE_BACKEND:-minio} # can be minio or local
+      # 2026.x image maps AUDIO_ANALYZER__<SECTION>__<KEY> onto config.yaml; these override the minio: block so /transcriptions can fetch videos.
+      - AUDIO_ANALYZER__MINIO__ENDPOINT=${MINIO_HOST:-minio-service}:${MINIO_PORT:-80}
+      - AUDIO_ANALYZER__MINIO__ACCESS_KEY=${MINIO_ROOT_USER}
+      - AUDIO_ANALYZER__MINIO__SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - AUDIO_ANALYZER__MINIO__SECURE=false
     depends_on:
       minio-service:
         condition: service_healthy
