@@ -664,9 +664,7 @@ class ModelManager:
             variants = (
                 (
                     await session.execute(
-                        select(ModelVariant).where(
-                            ModelVariant.model_id == db_model.id
-                        )
+                        select(ModelVariant).where(ModelVariant.model_id == db_model.id)
                     )
                 )
                 .scalars()
@@ -832,9 +830,7 @@ class ModelManager:
             display_name=spec.model_name,
             category=spec.category,
             source=InternalModelSource.CUSTOM,
-            precisions=[
-                InternalModelPrecision(precision="", model_path=resolved_path)
-            ],
+            precisions=[InternalModelPrecision(precision="", model_path=resolved_path)],
             variants=[
                 InternalModelVariant(
                     name=spec.model_name,

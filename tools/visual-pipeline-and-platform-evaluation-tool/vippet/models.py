@@ -233,8 +233,7 @@ class SupportedModelsManager:
                             unsupported_devices=db_model.unsupported_devices,
                             precision=variant.precision,
                             model_proc_is_full_path=bool(
-                                variant.model_proc
-                                and os.path.isabs(variant.model_proc)
+                                variant.model_proc and os.path.isabs(variant.model_proc)
                             ),
                             hub=db_model.hub,
                             canonical_name=db_model.name,

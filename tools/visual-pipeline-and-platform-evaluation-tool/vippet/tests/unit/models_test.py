@@ -255,7 +255,13 @@ class TestSupportedModelsManagerReload(_DBTestCase):
         self._add_model(
             name="a",
             display_name="Model A",
-            variants=[{"precision": "FP32", "model_path": "a.xml", "display_name": "Model A (FP32)"}],
+            variants=[
+                {
+                    "precision": "FP32",
+                    "model_path": "a.xml",
+                    "display_name": "Model A (FP32)",
+                }
+            ],
         )
 
         async def _run() -> None:
@@ -310,12 +316,24 @@ class TestFilterModels(_DBTestCase):
         self._add_model(
             name="a",
             display_name="Model A",
-            variants=[{"precision": "FP32", "model_path": "a.xml", "display_name": "Model A (FP32)"}],
+            variants=[
+                {
+                    "precision": "FP32",
+                    "model_path": "a.xml",
+                    "display_name": "Model A (FP32)",
+                }
+            ],
         )
         self._add_model(
             name="b",
             display_name="Model B",
-            variants=[{"precision": "FP32", "model_path": "b.xml", "display_name": "Model B (FP32)"}],
+            variants=[
+                {
+                    "precision": "FP32",
+                    "model_path": "b.xml",
+                    "display_name": "Model B (FP32)",
+                }
+            ],
         )
         self._touch("a.xml")
         self._touch("b.xml")
@@ -339,7 +357,13 @@ class TestFilterModels(_DBTestCase):
         self._add_model(
             name="c",
             display_name="Model C",
-            variants=[{"precision": "FP32", "model_path": "nofile.xml", "display_name": "Model C (FP32)"}],
+            variants=[
+                {
+                    "precision": "FP32",
+                    "model_path": "nofile.xml",
+                    "display_name": "Model C (FP32)",
+                }
+            ],
         )
         manager = SupportedModelsManager()
         manager.reload()
@@ -358,7 +382,13 @@ class TestIsModelSupportedOnDevice(_DBTestCase):
             display_name="Model2",
             category="image_classification",
             unsupported_devices="NPU, TPU",
-            variants=[{"precision": "FP32", "model_path": "inst2.xml", "display_name": "Model2 (FP32)"}],
+            variants=[
+                {
+                    "precision": "FP32",
+                    "model_path": "inst2.xml",
+                    "display_name": "Model2 (FP32)",
+                }
+            ],
         )
         self._touch("inst2.xml")
         manager = SupportedModelsManager()
@@ -402,7 +432,9 @@ class TestFindModelByModelAndProcPath(_DBTestCase):
         model_file = os.path.join(self._models_path, "shared.xml")
         base_proc_file = os.path.join(self._models_path, "base.json")
 
-        found_base = manager.find_model_by_model_and_proc_path(model_file, base_proc_file)
+        found_base = manager.find_model_by_model_and_proc_path(
+            model_file, base_proc_file
+        )
         self.assertIsNotNone(found_base)
         assert found_base is not None
         self.assertIn("model-proc: base", found_base.display_name)
@@ -482,12 +514,24 @@ class TestFindInstalledModelByDisplayName(_DBTestCase):
         self._add_model(
             name="inst",
             display_name="Installed Model",
-            variants=[{"precision": "FP32", "model_path": "inst.xml", "display_name": "Installed Model (FP32)"}],
+            variants=[
+                {
+                    "precision": "FP32",
+                    "model_path": "inst.xml",
+                    "display_name": "Installed Model (FP32)",
+                }
+            ],
         )
         self._add_model(
             name="miss",
             display_name="Missing Model",
-            variants=[{"precision": "FP32", "model_path": "miss.xml", "display_name": "Missing Model (FP32)"}],
+            variants=[
+                {
+                    "precision": "FP32",
+                    "model_path": "miss.xml",
+                    "display_name": "Missing Model (FP32)",
+                }
+            ],
         )
         self._touch("inst.xml")
         manager = SupportedModelsManager()
@@ -498,7 +542,9 @@ class TestFindInstalledModelByDisplayName(_DBTestCase):
         assert found is not None
         self.assertEqual(found.name, "inst")
 
-        self.assertIsNone(manager.find_installed_model_by_display_name("Missing Model (FP32)"))
+        self.assertIsNone(
+            manager.find_installed_model_by_display_name("Missing Model (FP32)")
+        )
 
 
 class TestSupportedModelsManagerSingleton(_DBTestCase):

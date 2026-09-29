@@ -233,13 +233,22 @@ class TestStaticHelpers(unittest.TestCase):
     def test_collect_variants_dedupes_by_display_name(self) -> None:
         """Variants are deduped by display_name so duplicate precisions collapse."""
         a = self._variant(
-            precision="INT8", model_path="m.xml", display_name="m (INT8)", installed=True
+            precision="INT8",
+            model_path="m.xml",
+            display_name="m (INT8)",
+            installed=True,
         )
         b = self._variant(
-            precision="INT8", model_path="m.xml", display_name="m (INT8)", installed=True
+            precision="INT8",
+            model_path="m.xml",
+            display_name="m (INT8)",
+            installed=True,
         )
         c = self._variant(
-            precision="FP16", model_path="m.xml", display_name="m (FP16)", installed=False
+            precision="FP16",
+            model_path="m.xml",
+            display_name="m (FP16)",
+            installed=False,
         )
         a.name = b.name = "m_INT8"
         c.name = "m_FP16"
@@ -437,7 +446,9 @@ class TestListModels(_AsyncDBTestCase):
         await self._add_model(name="yolo11n", install_status="not_installed")
         self.mgr._jobs["job-1"] = _make_running_job(model_name="yolo11n")
         models = await self.mgr.list_models()
-        self.assertEqual(models[0].install_status, InternalModelInstallStatus.INSTALLING)
+        self.assertEqual(
+            models[0].install_status, InternalModelInstallStatus.INSTALLING
+        )
 
 
 # ----------------------------------------------------------------------
@@ -474,9 +485,7 @@ class TestStartDownload(_AsyncDBTestCase):
         self.assertIn("already installed", msg)
 
     async def test_returns_409_when_a_job_is_already_running(self) -> None:
-        await self._add_model(
-            name="yolo11n", download_request={"model_id": "yolo11n"}
-        )
+        await self._add_model(name="yolo11n", download_request={"model_id": "yolo11n"})
         self.mgr._jobs["existing"] = _make_running_job(
             job_id="existing", model_name="yolo11n"
         )
@@ -833,9 +842,7 @@ class TestUploadModel(_AsyncDBTestCase):
         """A model already present in the DB rejects a same-named upload."""
         await self._add_model(name="my-detector")
         client = _FakeHttpxClient(
-            post_response=_FakeResponse(
-                status_code=201, json_body={"output_dir": "/x"}
-            )
+            post_response=_FakeResponse(status_code=201, json_body={"output_dir": "/x"})
         )
         with patch("managers.model_manager.httpx.Client", return_value=client):
             model, status, msg = await self.mgr.upload_model(self.spec)

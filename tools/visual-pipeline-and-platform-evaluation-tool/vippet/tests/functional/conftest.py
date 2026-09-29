@@ -15,7 +15,11 @@ import pytest
 import requests
 import yaml
 
-from helpers.config import DEFAULT_RECORDINGS_YAML, PROJECT_ROOT, SUPPORTED_MODELS_CATALOG_DIR
+from helpers.config import (
+    DEFAULT_RECORDINGS_YAML,
+    PROJECT_ROOT,
+    SUPPORTED_MODELS_CATALOG_DIR,
+)
 
 logger = logging.getLogger(__name__)
 

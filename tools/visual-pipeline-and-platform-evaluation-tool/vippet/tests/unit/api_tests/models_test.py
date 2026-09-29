@@ -223,7 +223,9 @@ class TestModelsAPI(unittest.TestCase):
         """list_models raising should map to a 500 MessageResponse."""
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.list_models = AsyncMock(side_effect=RuntimeError("boom"))
+            mock_manager_instance.list_models = AsyncMock(
+                side_effect=RuntimeError("boom")
+            )
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.get("/models")
@@ -371,7 +373,9 @@ class TestModelsUploadAPI(unittest.TestCase):
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_cls.write_upload_to_tempfile.return_value = "/tmp/upload.zip"
             mock_manager_instance = MagicMock()
-            mock_manager_instance.upload_model = AsyncMock(side_effect=RuntimeError("nope"))
+            mock_manager_instance.upload_model = AsyncMock(
+                side_effect=RuntimeError("nope")
+            )
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self._post_upload()
@@ -387,7 +391,9 @@ class TestModelsUploadAPI(unittest.TestCase):
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_cls.write_upload_to_tempfile.return_value = "/tmp/upload.zip"
             mock_manager_instance = MagicMock()
-            mock_manager_instance.upload_model = AsyncMock(return_value=(model, 201, "ok"))
+            mock_manager_instance.upload_model = AsyncMock(
+                return_value=(model, 201, "ok")
+            )
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self._post_upload(file_name="archive.zip")
@@ -519,7 +525,9 @@ class TestModelsDownloadAPI(unittest.TestCase):
         """An unexpected error inside ``start_download`` maps to 500."""
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.start_download = AsyncMock(side_effect=RuntimeError("boom"))
+            mock_manager_instance.start_download = AsyncMock(
+                side_effect=RuntimeError("boom")
+            )
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.post("/models/download", json={"names": ["yolo11n"]})
