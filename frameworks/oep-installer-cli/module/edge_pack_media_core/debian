@@ -20,6 +20,7 @@ debian_20_install_edge_pack_media_core () {
 
 debian_20_remove_edge_pack_media_core () {
   ensure_apt autoremove -y intel-edge-media-core || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_media_core () {
