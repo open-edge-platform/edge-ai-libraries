@@ -33,7 +33,7 @@ debian_40_install_gpu () {
     debian_40_remove_gpu || true
 
     # create the render group
-    ensure_group_add render:992 video:
+    ensure_group_add $(debian_40_group_gpu)
 
     # product key & list 
     ensure_apt_key $key_file $key_url --dearmor
