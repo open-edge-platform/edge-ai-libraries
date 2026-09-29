@@ -60,6 +60,22 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 
 If an invalid provider/device combination is configured, startup fails with a clear validation error.
 
+### Per-request ASR device
+
+`POST /v1/audio/transcriptions` accepts an optional multipart form field named
+`device` with `CPU`, `GPU`, or `NPU`. When omitted, the endpoint uses
+`models.asr.device`. When provided, the service validates the provider/model
+combination and OpenVINO visibility, then compiles or reuses the model cached for
+that device. Unsupported or unavailable devices are rejected without falling
+back to CPU. The streaming and VSS-compatible endpoints continue to use the
+configured device, as does the realtime WebSocket endpoint. When diarization
+is enabled, its independently configured `models.diarization.device` is not
+changed by the ASR request override.
+
+The first request for a device can be slower because it loads and compiles the
+model. Models for previously requested devices remain cached until process exit,
+which increases memory use when several devices are selected.
+
 ### OpenVINO NPU Configuration
 
 Use this config structure:
