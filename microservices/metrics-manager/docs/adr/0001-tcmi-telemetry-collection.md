@@ -28,7 +28,7 @@ wrote small long-running `execd` readers that print InfluxDB line protocol:
   Reading the IMC free-running counters through `perf` doesn't depend on the model.
 
 We *don't* write a reader for turbostat. We used to — but `[[inputs.turbostat]]` landed in Telegraf
-v1.36.0, and this image builds 1.38.4, so the native plugin is already compiled in and covers the same
+v1.36.0, and this image builds 1.39.3, so the native plugin is already compiled in and covers the same
 IPC/SMI/per-core signals. Using it drops us from three custom scripts to two. It stays opt-in (ships
 disabled) because turbostat is tied to the kernel version and needs MSR access.
 
@@ -41,16 +41,17 @@ tool, counter, or permission isn't there, the reader parks itself instead of hot
 
 ## 2. Turn collectors on and off with `ENABLE_*` env vars
 
-`entrypoint.sh` renames `.conf` ↔ `.conf.disabled` at startup (and copies `.conf.example` for the
-opt-in ones), based on `ENABLE_*` env vars that show up in `.env.example` and `settings.py`.
-`--config-directory` then loads only what's enabled.
+`entrypoint.sh` rebuilds `/etc/telegraf/active.d` from scratch at startup, then copies in only the
+enabled `.conf` files from the read-only `/etc/telegraf/telegraf.d` source directory. The Telegraf
+`--config-directory /etc/telegraf/active.d` argument then loads only what's enabled. Changing a toggle
+requires recreating the container; there is no hot-reload.
 
 **Why bother:** the collectors need different things from the platform — turbostat wants a
 kernel-matched `linux-tools`, DRAM bandwidth wants perf and an exposed PMU. One switch per collector
 means a missing dependency can't take down the whole config, and you can pick a profile per deployment
 without editing Telegraf files by hand.
 
-**The catch:** startup does a little file shuffling. It's idempotent, so restarts are fine. The
+**The catch:** startup does a little file copying. It's idempotent, so restarts are fine. The
 alternative — one big static config — fails hard the moment a box is missing a dependency.
 
 ## 3. Filter interrupts by "is it numeric," not by a denylist
@@ -61,14 +62,12 @@ arch-specific ones). We started with a denylist of those symbols and it turned i
 PTL SoC alone had eight extras beyond the usual set. Keeping only the numbered lines gets exactly the
 device IRQs on any x86 box, with nothing to maintain per chip.
 
-## 4. Generate the Grafana dashboard from a script
+## 4. Keep visualization outside the service
 
-`dashboards/generate_dashboard.py` spits out the dashboard JSON instead of us hand-editing ~700 lines.
-The old→new metric mapping and the panel layout math live in one readable place, and you can retarget a
-different datasource UID with `--ds-uid`.
-
-**The catch:** if someone edits panels in the Grafana UI and someone else edits the generator, they'll
-drift apart. The generator is the source of truth — regenerate the JSON, don't hand-patch it.
+Metrics Manager exposes Prometheus-format metrics on `:9273` and keeps one scrape-job snippet under
+`dashboards/prometheus-scrape-job.yml`. It no longer ships generated Grafana dashboards or a bundled
+Prometheus/Grafana stack; operators can wire their own visualization layer without carrying deployment
+artifacts in the microservice.
 
 ## 5. Know which metrics are counters and which are gauges
 

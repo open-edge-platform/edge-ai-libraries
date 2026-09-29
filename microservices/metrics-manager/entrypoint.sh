@@ -84,6 +84,7 @@ enable_conf    "${ENABLE_DRAM_BW:-auto}"      "20-dram-bw"
 enable_conf    "${ENABLE_DISK_IO:-true}"      "30-disk"
 enable_conf    "${ENABLE_NET_IO:-true}"       "40-net"
 enable_conf    "${ENABLE_INTERRUPTS:-false}"  "50-interrupts"
+enable_conf    "${ENABLE_TEMP_STATS:-false}"  "70-temp-stats"
 enable_conf    "${ENABLE_PSYS_POWER:-false}"    "90-tcmi-execd"
 enable_conf    "${ENABLE_GPU_THROTTLE:-false}"  "91-gpu-throttle"
 # Opt-in engineering diagnostics (ship disabled; default off).

@@ -53,12 +53,12 @@ flowchart LR
 | Layer | Piece | Notes |
 |-------|-------|-------|
 | Collect | Telegraf native plugins | `intel_powerstat`, `diskio`, `net`, `ethtool`, `interrupts`, `temp` — set up as `telegraf.d/*.conf` drop-ins. |
-| Collect | execd readers (`scripts/*.py`) | Long-running processes that print InfluxDB line protocol. These cover what the plugins can't: psys power, DRAM bandwidth, turbostat, NPU, GPU. |
-| On/off | `entrypoint.sh` + `ENABLE_*` env | At startup it renames `.conf` ↔ `.conf.disabled` (and copies `.conf.example` for the opt-in ones) so `--config-directory` only picks up what's enabled. Running it again does no harm. |
+| Collect | execd readers (`scripts/*.py`) | Long-running processes that print InfluxDB line protocol. These cover what the plugins can't: psys power, DRAM bandwidth, NPU, GPU throttle. |
+| On/off | `entrypoint.sh` + `ENABLE_*` env | At startup it rebuilds `/etc/telegraf/active.d` from scratch and copies in only enabled drop-ins from `/etc/telegraf/telegraf.d`. Changing a toggle requires a container restart; there is no hot-reload. |
 | Expose | Telegraf `prometheus_client` | Serves `/metrics` on `:9273`. |
 | Expose | FastAPI relay | `:9090` — the SSE stream and custom-metric ingest. We didn't touch this. |
 | Consume | Prometheus | Scrapes `:9273` via the `metrics-manager` job (`dashboards/prometheus-scrape-job.yml`). |
-| Consume | Grafana | The `tcmi-mm-unified-v1` dashboard, built by `dashboards/generate_dashboard.py`. |
+| Consume | Grafana | Use an existing Grafana instance with panels backed by the Prometheus scrape job. |
 
 ## How a metric actually gets collected: pull vs push
 
@@ -114,7 +114,7 @@ Telegraf has a lot of plugins. There are only two, and each exists because the n
   counters through `perf` doesn't care about the model, so it just works.
 
 The R-dimension signals (IPC/SMI/per-core) *used* to be a third reader, but the native
-`[[inputs.turbostat]]` plugin (Telegraf 1.36+, and we build 1.38.4) covers them, so we dropped the
+`[[inputs.turbostat]]` plugin (Telegraf 1.36+, and we build 1.39.3) covers them, so we dropped the
 script and turned the plugin on instead — opt-in, since turbostat is kernel-coupled.
 
 Both readers follow the same rule: if the tool or counter or permission isn't there, the reader parks

@@ -271,10 +271,8 @@ COPY app ./app
 COPY scripts ./scripts
 COPY VERSION ./
 COPY telegraf.conf /etc/telegraf/telegraf.conf
-# Drop-in plugin configs (Intel PowerStat, diskio, net, ethtool, interrupts).
-# telegraf is launched with --config-directory /etc/telegraf/telegraf.d, so every
-# *.conf here is merged with the base config. *.conf.example files (platform-gated
-# intel_pmu/intel_rdt DRAM bandwidth, turbostat) are intentionally NOT loaded.
+# Drop-in plugin configs copied to the source dir; entrypoint.sh copies only
+# enabled files into /etc/telegraf/active.d before Telegraf starts.
 COPY telegraf.d/ /etc/telegraf/telegraf.d/
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY entrypoint.sh /entrypoint.sh

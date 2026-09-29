@@ -162,6 +162,8 @@ spec:
               value: {{ .Values.config.enableNetIo | default "true" | quote }}
             - name: ENABLE_INTERRUPTS
               value: {{ .Values.config.enableInterrupts | default "false" | quote }}
+            - name: ENABLE_TEMP_STATS
+              value: {{ .Values.config.enableTempStats | default "false" | quote }}
             - name: ENABLE_PSYS_POWER
               value: {{ .Values.config.enablePsysPower | default "false" | quote }}
             - name: ENABLE_GPU_THROTTLE

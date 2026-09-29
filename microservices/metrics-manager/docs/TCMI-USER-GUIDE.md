@@ -91,7 +91,7 @@ CPU/RAM/temperature metrics work almost everywhere.
 
 ### Dependencies baked into the image (you don't install these)
 
-* **Telegraf built from source (1.38.4)** — every native input plugin is compiled
+* **Telegraf built from source (1.39.3)** — every native input plugin is compiled
   in (`intel_powerstat`, `diskio`, `net`, `ethtool`, `interrupts`, `temp`,
   `turbostat`). Turning one on is pure config.
 * **`linux-perf`** — installed only when the image is built with `INSTALL_PERF=true` (default: `false`). Required only for DRAM-bandwidth collection (`ENABLE_DRAM_BW=auto`). Set `--build-arg INSTALL_PERF=true` when building if you need DRAM bandwidth.
@@ -143,6 +143,7 @@ Accepted "on" values are case-insensitive: `true` / `1` / `yes` / `on` / `auto`.
 | `ENABLE_DISK_IO` | `true` | load `30-disk.conf` (cheap, universally useful) |
 | `ENABLE_NET_IO` | `true` | load `40-net.conf` (cheap, universally useful) |
 | `ENABLE_INTERRUPTS` | **`false`** | load `50-interrupts.conf`. Emits one series per device IRQ — significant cardinality increase on many hosts. |
+| `ENABLE_TEMP_STATS` | **`false`** | load `70-temp-stats.conf` for opt-in 100ms CPU package temperature sampling plus per-second min/max/mean. |
 | `ENABLE_PSYS_POWER` | **`false`** | load `90-tcmi-execd.conf` (psys / platform RAPL power execd reader). Requires `--privileged`. |
 | `ENABLE_GPU_THROTTLE` | **`false`** | load `91-gpu-throttle.conf` (xe GPU frequency + throttle-reason execd reader). Idles silently on non-Intel-GPU hosts. |
 | `ENABLE_TURBOSTAT` | `false` | load `60-turbostat.conf` (IPC/SMI/per-core diagnostics, opt-in). Requires kernel-matched turbostat binary. |
@@ -414,8 +415,12 @@ rate(interrupts_total[1m])
 gpu_throttle_act_freq_mhz
 gpu_throttle_throttled
 
-# CPU package temperature
+# CPU package temperature (base 1s sample)
 temp_temp{sensor=~"coretemp_package_id_.*"}
+
+# High-frequency CPU package temperature stats — needs ENABLE_TEMP_STATS=true
+temp_highres_temp_max{sensor=~"coretemp_package_id_.*"}
+temp_highres_temp_mean{sensor=~"coretemp_package_id_.*"}
 
 # CPU usage
 100 - cpu_usage_idle
@@ -423,7 +428,7 @@ temp_temp{sensor=~"coretemp_package_id_.*"}
 # Memory used %
 100 - mem_available_percent
 
-# NPU power state (0=off, 1=on, 3=busy) — NPU hosts only
+# NPU PCI power state: -1=unknown/unavailable, D0=0, D1=1, D2=2, D3hot=3, D3cold=4
 npu_power_state
 
 # Turbostat IPC / SMI — needs ENABLE_TURBOSTAT=true
@@ -509,6 +514,7 @@ ENABLE_NET_IO=true
 # ENABLE_RAPL_POWER=true       # CPU/DRAM power, per-core freq/temp, C-states
 # ENABLE_DRAM_BW=auto          # auto | off  (requires INSTALL_PERF=true at build time)
 # ENABLE_INTERRUPTS=true       # per-device IRQ rates (high cardinality — see note below)
+# ENABLE_TEMP_STATS=true       # 100ms CPU package temp + min/max/mean stats
 # ENABLE_PSYS_POWER=true       # platform (psys) RAPL power execd reader
 # ENABLE_GPU_THROTTLE=true     # Intel xe GPU frequency + throttle reasons
 # ENABLE_TURBOSTAT=false       # R-dimension: IPC/SMI/per-core diagnostics (opt-in)
@@ -518,6 +524,10 @@ ENABLE_NET_IO=true
 > **Note on `ENABLE_INTERRUPTS`:** emits one Prometheus series per device IRQ
 > (e.g. 45 on a PTL box). Enable deliberately — the cardinality increase is real
 > for every existing Prometheus deployment.
+
+> **Note on `ENABLE_TEMP_STATS`:** the base `temp` input keeps the default 1s
+> sampling cadence. Enabling this toggle adds an opt-in `temp_highres_*` series
+> family sampled at 100ms with per-second min/max/mean aggregation.
 
 After changing any toggle: **`docker compose up -d`** (recreates the container; no hot-reload).
 

@@ -149,6 +149,7 @@ config:
   enableDiskIo: "true"
   enableNetIo: "true"
   enableInterrupts: "false"
+  enableTempStats: "false"
   enablePsysPower: "false"
   enableGpuThrottle: "false"
   enableTurbostat: "false"

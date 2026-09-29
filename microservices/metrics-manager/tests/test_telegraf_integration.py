@@ -164,8 +164,7 @@ class TestTelegrafConfigDirectoryLoaded:
     --config-directory. Guard the loader flag that makes them take effect."""
 
     def test_supervisord_passes_config_directory(self, supervisord_text: str):
-        assert "--config-directory" in supervisord_text
-        assert "/etc/telegraf/telegraf.d" in supervisord_text
+        assert "--config-directory /etc/telegraf/active.d" in supervisord_text
 
     def test_dockerfile_copies_dropins(self):
         text = DOCKERFILE.read_text(encoding="utf-8")
@@ -185,8 +184,8 @@ class TestTcmiCollectorWiring:
     # 60-turbostat and 91-gpu-throttle are opt-in but ship as .conf (gated by
     # ENABLE_TURBOSTAT / ENABLE_GPU_THROTTLE in entrypoint.sh, not by filename).
     ACTIVE_DROPINS = ["10-power", "20-dram-bw", "30-disk", "40-net",
-                      "50-interrupts", "60-turbostat", "90-tcmi-execd",
-                      "91-gpu-throttle"]
+                      "50-interrupts", "60-turbostat", "70-temp-stats",
+                      "90-tcmi-execd", "91-gpu-throttle"]
 
     def test_active_dropins_present(self):
         for base in self.ACTIVE_DROPINS:
@@ -212,9 +211,22 @@ class TestTcmiCollectorWiring:
     def test_entrypoint_gates_every_collector(self):
         text = ENTRYPOINT.read_text(encoding="utf-8")
         for env in ("ENABLE_RAPL_POWER", "ENABLE_DRAM_BW", "ENABLE_DISK_IO",
-                    "ENABLE_NET_IO", "ENABLE_INTERRUPTS", "ENABLE_PSYS_POWER",
-                    "ENABLE_GPU_THROTTLE", "ENABLE_TURBOSTAT"):
+                    "ENABLE_NET_IO", "ENABLE_INTERRUPTS", "ENABLE_TEMP_STATS",
+                    "ENABLE_PSYS_POWER", "ENABLE_GPU_THROTTLE", "ENABLE_TURBOSTAT"):
             assert env in text, f"entrypoint.sh does not gate on {env}"
+
+    def test_turbostat_interval_uses_env_var(self):
+        text = (self.TELEGRAF_D / "60-turbostat.conf").read_text(encoding="utf-8")
+        assert 'interval = "${TURBOSTAT_INTERVAL}s"' in text
+        assert 'interval = "7s"' in text.replace("${TURBOSTAT_INTERVAL}", "7")
+
+    def test_temp_stats_are_opt_in_dropin(self):
+        base_text = (REPO_ROOT / "telegraf.conf").read_text(encoding="utf-8")
+        dropin_text = (self.TELEGRAF_D / "70-temp-stats.conf").read_text(encoding="utf-8")
+        assert 'interval = "100ms"' not in base_text
+        assert "[[aggregators.basicstats]]" not in base_text
+        assert 'interval = "100ms"' in dropin_text
+        assert "[[aggregators.basicstats]]" in dropin_text
 
     def test_entrypoint_exports_enable_gpu_throttle(self):
         # ENABLE_GPU_THROTTLE must be gated separately from ENABLE_PSYS_POWER.
