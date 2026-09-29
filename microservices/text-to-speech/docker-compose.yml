@@ -17,12 +17,14 @@ services:
       - "${RENDER_GID:-992}"
     environment:
       HF_HOME: /app/text-to-speech/.cache/huggingface
-      HTTP_PROXY: ${HTTP_PROXY:-}
-      HTTPS_PROXY: ${HTTPS_PROXY:-}
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1}
       http_proxy: ${http_proxy:-}
       https_proxy: ${https_proxy:-}
-      no_proxy: ${no_proxy:-localhost,127.0.0.1}
+      ftp_proxy: ${ftp_proxy:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      FTP_PROXY: ${FTP_PROXY:-}
+      no_proxy: ${no_proxy:-}
+      NO_PROXY: ${NO_PROXY:-}
     volumes:
       - ./config.yaml:/app/text-to-speech/config.yaml:ro
       - text_to_speech_models:/app/text-to-speech/models
