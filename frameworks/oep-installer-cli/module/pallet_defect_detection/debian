@@ -7,6 +7,7 @@ configure_pallet_defect_detection () {
 
 verify_pallet_defect_detection () {
   [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pallet-defect-detection/videos/warehouse.avi ]
+  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/deployment/Detection/model/model.bin ]
 }
 
 debian_90_profile_pallet_defect_detection () {

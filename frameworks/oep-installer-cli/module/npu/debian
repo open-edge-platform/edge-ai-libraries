@@ -10,6 +10,12 @@ verify_npu () {
   [ -c /dev/accel/accel0 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
+  verify_npu_packages
+}
+
+# checks the driver packages only, independent of NPU hardware being present.
+# used to confirm a fresh install succeeded even on systems without an NPU device.
+verify_npu_packages () {
   (
     set -o pipefail
     ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
@@ -34,7 +40,7 @@ debian_40_install_npu () {
     ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
 
     # create the render group
-    ensure_group_add render:992
+    ensure_group_add $(debian_40_gpu_npu)
   
     mkdir -p "$workspace"
     cd "$workspace"
@@ -50,7 +56,7 @@ debian_40_install_npu () {
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
-    verify_npu
+    verify_npu_packages
   fi
 }
 

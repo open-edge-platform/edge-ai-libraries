@@ -1,10 +1,10 @@
 {
   "profile": { "label": "Metro AI Suite", "value": "metro_ai_suite" },
   "modules": [
-    { "label": "Smart Intersection", "value": "smart_intersection", "startStop": true },
-    { "label": "Smart Parking", "value": "smart_parking", "startStop": true },
-    { "label": "Loitering Detection", "value": "loitering_detection", "startStop": true },
-    { "label": "Video Search and Summarization", "value": "video_search_and_summarization", "startStop": true }
+    { "label": "Smart Intersection", "value": "smart_intersection", "startStop": true, "device": true },
+    { "label": "Smart Parking", "value": "smart_parking", "startStop": true, "device": true },
+    { "label": "Loitering Detection", "value": "loitering_detection", "startStop": true, "device": true },
+    { "label": "Video Search and Summarization", "value": "video_search_and_summarization", "startStop": true, "device": true }
   ],
   "getStarted": {
     "text": "Get Started",

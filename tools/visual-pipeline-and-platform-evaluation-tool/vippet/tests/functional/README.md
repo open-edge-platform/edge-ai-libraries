@@ -15,13 +15,14 @@ requests to the `model-download` microservice.
 
 ### Smoke tests
 
-Smoke tests require the default models (those marked `default: true` in
-`shared/models/supported_models.yaml`) to be installed.
+Smoke tests require the default-recommended models (those returned with
+`default: true` by the `/api/v1/models` API, i.e. models referenced by at
+least one predefined pipeline) to be installed.
 
 ### Full tests
 
-Full tests require **all** models listed in `shared/models/supported_models.yaml` to be
-installed.
+Full tests require **all** models defined under `vippet/models/*.yaml`
+(one YAML file per model) to be installed.
 
 ## Test behavior
 

@@ -335,9 +335,9 @@ act_panelled_logs () {(
 #   @@HIGHLIGHT             (no argument) clear highlights, revert to log tail
 #   @@REPORT     <name>     start a REPORT section (e.g. a final summary).
 #                           Reports get no left-pane row; the right pane splits
-#                           with failing components CYCLING on top and the
+#                           with the first failure on top and the
 #                           report anchored to the BOTTOM.
-#   @@FOCUS      <name>     pin the right pane to <name>; stops cycling
+#   @@FOCUS      <name>     pin the right pane to <name>
 #   @@FOCUS                 (no argument) release the pin
 #   anything else           log line attributed to the current component
 #
@@ -348,15 +348,15 @@ act_panelled_logs () {(
 #   LEFT_MAX_PCT=<n>        cap for auto-sizing, percent of screen (default 34)
 #   REPORT_MAX_PCT=<n>      max share of the right pane for the report (default 55)
 #   SPLIT_MIN=<n>           min rows for either split section (default 6)
-#   CYCLE_SEC=<n>           seconds each failure is shown (default 4, 0=off)
-#   FINAL_SEC=<n>           TOTAL seconds spent cycling after EOF (default 6)
-#   HOLD_SEC=<n>            pause before exit when exactly one failure (default 3)
-#   CYCLE_END=last|first|rotate   where cycling settles on exit (default last)
 #   REDRAW_MS=<n>           min ms between repaints (default 50)
 #   TICK_SEC=<n>            idle poll interval, seconds (default 0.5)
 #   NARROW_GLYPHS=1         assume all glyphs are 1 cell (disable width table)
 #   FORCE_COLS / FORCE_ROWS override detected geometry
 #   LOG_FILE                save logs to the specified log file
+#   FAIL_ROWS=<n>           on failure, max height of the full-width error
+#                           panel raised at the bottom of the final frame;
+#                           shrinks to the actual error lines (default 20, 0=off)
+#   RAISE_MS=<n>            ms per row while the panel rises (default 15, 0=instant)
 
 set -o pipefail
 set -u
@@ -394,13 +394,11 @@ LEFT_WIDTH=${LEFT_WIDTH:-0}
 LEFT_MAX_PCT=${LEFT_MAX_PCT:-34}
 REPORT_MAX_PCT=${REPORT_MAX_PCT:-55}
 SPLIT_MIN=${SPLIT_MIN:-6}
-CYCLE_SEC=${CYCLE_SEC:-4}
-FINAL_SEC=${FINAL_SEC:-16}
-HOLD_SEC=${HOLD_SEC:-3}
-CYCLE_END=${CYCLE_END:-rotate}
 REDRAW_MS=${REDRAW_MS:-50}
 TICK_SEC=${TICK_SEC:-0.5}
 NARROW_GLYPHS=${NARROW_GLYPHS:-0}
+FAIL_ROWS=${FAIL_ROWS:-20}
+RAISE_MS=${RAISE_MS:-15}
 
 readonly CSI_FINAL='[A-Za-z@\[\\\]^_`{|}~]'
 readonly SEP_W=3
@@ -437,8 +435,6 @@ LEFT_VALID=0
 CURRENT=""
 FOCUS=""
 SHOWN=""
-CYCLE_IDX=0
-CYCLE_AT=0
 REVIEW=0
 LAST_DRAW=0
 WIDEST=0
@@ -456,6 +452,12 @@ PREV_LW=-1
 PREV_RW=-1
 FULL_CLEAR=1
 RW_NOW=0
+
+TITLE_WORD=completed
+FAIL_H=0
+PREV_FH=-1
+FAIL_TITLE=""
+declare -a FAILROWS=()
 
 # ------------------------------------------------------------------ geometry
 _open_tty() {
@@ -814,6 +816,32 @@ _header_text() {
   else HDRTXT="${name} [${SG_L}, ${REPLY}]"; fi
 }
 
+# Title line: " <Action> progress" while running, or
+# " <Action> <word>:  ✔ n  ✘ m" when final. Elapsed time appended.
+# $1 = 1 for final counts, $2 = word (default "completed")
+TITLE=""
+_title_text() {
+  local final=${1:-0} word=${2:-completed} name nok=0 nbad=0
+  TITLE=" ${ACT_TEXT[0]} progress "
+  if (( final )); then
+    for name in "${ORDER[@]}"; do
+      [[ -z $name ]] && continue
+      [[ -n ${REPORT[$name]:-} ]] && continue
+      case ${STATUS[$name]:-} in
+        ok)   nok=$(( nok + 1 ))   ;;
+        fail) nbad=$(( nbad + 1 )) ;;
+      esac
+    done
+    TITLE=" ${ACT_TEXT[0]} ${word}:  ${G_OK} ${nok}  ${G_FAIL} ${nbad}"
+  fi
+  if (( T_FIRST > 0 )); then
+    local endms=$T_LAST
+    (( endms == 0 )) && endms=$(_now_ms)
+    _fmt_elapsed $(( endms - T_FIRST ))
+    [[ -n $REPLY ]] && TITLE+="  ${REPLY}"
+  fi
+}
+
 _note_width() {
   local name=$1
   [[ -z $name ]] && return
@@ -849,8 +877,6 @@ _mark_fail() {
   LDIRTY[$name]=1; LEFT_VALID=0
   for f in "${FAILED[@]}"; do [[ $f == "$name" ]] && return; done
   FAILED+=("$name")
-  CYCLE_IDX=$(( ${#FAILED[@]} - 1 ))
-  CYCLE_AT=$(( $(_now_ms) + CYCLE_SEC * 1000 ))
 }
 
 _push_log() {
@@ -948,20 +974,6 @@ _timer_tick() {
   return $hit
 }
 
-# ------------------------------------------------------------------ cycling
-_cycle_tick() {
-  (( REVIEW )) || return 1
-  local n=${#FAILED[@]}
-  (( n < 2 )) && return 1
-  [[ -n $FOCUS ]] && return 1
-  (( CYCLE_SEC <= 0 )) && return 1
-  local now; now=$(_now_ms)
-  (( now < CYCLE_AT )) && return 1
-  CYCLE_IDX=$(( (CYCLE_IDX + 1) % n ))
-  CYCLE_AT=$(( now + CYCLE_SEC * 1000 ))
-  return 0
-}
-
 # ------------------------------------------------------------------ rendering
 _build_block() {
   local name=$1 lw=$2
@@ -1040,8 +1052,14 @@ _draw() {
     local k; for k in "${ORDER[@]}"; do [[ -n $k ]] && WRAPW[$k]=-1; done
   fi
 
-  local body=$(( rows - 3 ))
-  (( body < 1 )) && body=1
+  local full=$(( rows - 3 ))
+  (( full < 1 )) && full=1
+  # error panel takes rows from the bottom; top keeps at least SPLIT_MIN
+  local fh=$FAIL_H
+  (( fh > full - SPLIT_MIN )) && fh=$(( full - SPLIT_MIN ))
+  (( fh < 0 )) && fh=0
+  if (( fh != PREV_FH )); then PREV_FH=$fh; LEFT_VALID=0; fi
+  local body=$(( full - fh ))
   local name src i j
 
   local view=${FOCUS:-$CURRENT}
@@ -1052,8 +1070,7 @@ _draw() {
   if [[ -n $FOCUS ]]; then
     upper=$FOCUS
   elif (( REVIEW )) && (( nfail > 0 )); then
-    (( CYCLE_IDX >= nfail )) && CYCLE_IDX=0
-    upper=${FAILED[CYCLE_IDX]}
+    upper=${FAILED[0]}                  # first failure = likely root cause
   elif (( is_report )); then
     for (( j = ${#ORDER[@]} - 1; j >= 0; j-- )); do
       if [[ -z ${REPORT[${ORDER[j]}]:-} ]]; then upper=${ORDER[j]}; break; fi
@@ -1109,10 +1126,10 @@ _draw() {
   local -a right=()
   local counter=""
   if (( REVIEW )) && (( nfail > 1 )); then
-    if [[ -n $FOCUS ]]; then 
+    if [[ -n $FOCUS ]]; then
       counter="  (pinned, ${nfail} failed)"
-    elif (( CYCLE_SEC > 0 )); then 
-      counter="  ($(( CYCLE_IDX + 1 )) of ${nfail})"
+    else
+      counter="  (+$(( nfail - 1 )) more failed)"
     fi
   fi
 
@@ -1171,26 +1188,8 @@ _draw() {
   local out="" l r rowstr
   if (( FULL_CLEAR )); then PREV=(); FULL_CLEAR=0; fi
 
-  local title=" ${ACT_TEXT[0]} progress "
-  if (( REVIEW )); then
-    local name nok=0 nfail=0
-    for name in "${ORDER[@]}"; do
-      [[ -z $name ]] && continue
-      [[ -n ${REPORT[$name]:-} ]] && continue
-      case ${STATUS[$name]:-} in
-        ok)   nok=$(( nok + 1 ))     ;;
-        fail) nfail=$(( nfail + 1 )) ;;
-      esac
-    done
-    title=" ${ACT_TEXT[0]} completed:  ${G_OK} ${nok}  ${G_FAIL} ${nfail}"
-  fi
-  if (( T_FIRST > 0 )); then
-    local endms=$T_LAST
-    (( endms == 0 )) && endms=$(_now_ms)
-    _fmt_elapsed $(( endms - T_FIRST ))
-    [[ -n $REPLY ]] && title+="  ${REPLY}"
-  fi
-  _fit_v "$usable" "$title" 1
+  _title_text "$REVIEW" "$TITLE_WORD"
+  _fit_v "$usable" "$TITLE" 1
   rowstr="${C_BOLD}${FITTED}${C_RESET}"
   if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
     out+=$'\033[1;1H'"$rowstr"$'\033[K'; PREV[0]=$rowstr
@@ -1213,6 +1212,23 @@ _draw() {
     fi
   done
 
+  # full-width error panel: a labelled red rule, then plain copyable rows
+  if (( fh > 0 )); then
+    local frule
+    _dwidth "$FAIL_TITLE"
+    _hrule_v $(( usable - REPLY - 2 ))
+    frule="${C_RED}${BC_H}${BC_H}${FAIL_TITLE}${HRULE}${C_RESET}"
+    for (( i = 0; i < fh; i++ )); do
+      if (( i == 0 )); then rowstr=$frule
+      else rowstr=${FAILROWS[i-1]:-}; fi
+      j=$(( body + i + 2 ))
+      if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
+        printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( body + i + 3 )) "$rowstr"
+        PREV[j]=$rowstr
+      fi
+    done
+  fi
+
   [[ -n $out ]] && printf '%s' "$out"
 
   FRAMES=$(( FRAMES + 1 ))
@@ -1227,14 +1243,72 @@ _stop_all_timers() {
   for c in "${!TSTART[@]}"; do [[ -n $c ]] && _timer_stop "$c"; done
 }
 
+# Build FAILROWS: per failed component a red header + tail of its log,
+# wrapped plain (no SGR) at full width. FAIL_ROWS is shared evenly.
+# $1 = 1 if interrupted (also include the in-progress component), $2 = width
+_build_fail_rows() {
+  local interrupted=${1:-0} w=$2 name src per extra=0
+  local -a names=("${FAILED[@]}") tailrows
+  if (( interrupted )) && [[ -n $CURRENT && -z ${REPORT[$CURRENT]:-} \
+        && ${STATUS[$CURRENT]:-} != ok && ${STATUS[$CURRENT]:-} != fail ]]; then
+    names+=("$CURRENT")
+  fi
+  FAILROWS=()
+  (( ${#names[@]} == 0 || FAIL_ROWS <= 0 )) && return 1
+  [[ -n ${LOG_FILE:-} ]] && extra=1
+  per=$(( (FAIL_ROWS - ${#names[@]} - extra) / ${#names[@]} ))
+  (( per < 3 )) && per=3
+  for name in "${names[@]}"; do
+    [[ -z $name ]] && continue
+    tailrows=()
+    while IFS= read -r src; do
+      WRAPPED=(); _wrap_into "$w" "$src"
+      (( ${#WRAPPED[@]} )) && tailrows+=("${WRAPPED[@]}")
+    done < <(printf '%s' "${RBUF[$name]:-}" | tail -n "$per")
+    (( ${#tailrows[@]} > per )) && tailrows=("${tailrows[@]: -per}")
+    _fit_v "$w" "${G_FAIL} ${name}: last ${#tailrows[@]} lines" 1
+    FAILROWS+=("${C_RED}${FITTED}${C_RESET}")
+    (( ${#tailrows[@]} )) && FAILROWS+=("${tailrows[@]}")
+  done
+  if (( extra )); then
+    _fit_v "$w" "Full log: $LOG_FILE" 1
+    FAILROWS+=("${C_DIM}${FITTED}${C_RESET}")
+  fi
+  return 0
+}
+
+# Slide the error panel up from the bottom of the final frame.
+_raise_fail_panel() {
+  local interrupted=${1:-0} nf=${#FAILED[@]} h target cap d
+  (( GEOM_DIRTY )) && _read_geom
+  _build_fail_rows "$interrupted" "$TTY_COLS" || return 0
+  if (( nf == 0 )); then FAIL_TITLE=" interrupted - last log lines "
+  else FAIL_TITLE=" ${G_FAIL} ${nf} failed - error log "; fi
+  target=$(( ${#FAILROWS[@]} + 1 ))                 # +1 for the rule
+  (( target > FAIL_ROWS + 1 )) && target=$(( FAIL_ROWS + 1 ))
+  cap=$(( TTY_ROWS - 3 - SPLIT_MIN ))
+  (( target > cap )) && target=$cap
+  (( target < 2 )) && return 0
+  printf -v d '%d.%03d' $(( RAISE_MS / 1000 )) $(( RAISE_MS % 1000 ))
+  for (( h = 1; h <= target; h++ )); do
+    FAIL_H=$h; _draw 1
+    (( RAISE_MS > 0 && h < target )) && sleep "$d"
+  done
+  return 0
+}
+
 _finish() {
+  local rc=$?
   DRAWING=0
   _stop_all_timers
   (( T_LAST == 0 )) && T_LAST=$(_now_ms)
+  (( rc != 0 )) && { REVIEW=1; TITLE_WORD=interrupted; }
   FULL_CLEAR=1
   LEFT_VALID=0
   RCACHE_COMP=""; RCACHE_N=-1
   _draw 1
+  # success: frame stays as is; failure/interrupt: raise the error panel
+  _raise_fail_panel $(( rc != 0 ))
   printf '\033[?7h'
   printf '\033[%d;1H\033[K' "$TTY_ROWS"   # last row, cleared, NO newline
   printf '\033[?25h'
@@ -1282,11 +1356,9 @@ _handle_line() {
       STATUS[$CURRENT]="ok"
       LEFT_VALID=0
       REVIEW=1
-      CYCLE_IDX=0
-      CYCLE_AT=$(( $(_now_ms) + CYCLE_SEC * 1000 ))
       _draw 1; return ;;
     @@FOCUS)
-      if [[ -z $rest ]]; then FOCUS=""; CYCLE_AT=0
+      if [[ -z $rest ]]; then FOCUS=""
       else _touch_comp "$rest"; FOCUS=$rest; fi
       _draw 1; return ;;
     @@OK|@@FAIL)
@@ -1343,14 +1415,12 @@ _handle_line() {
       rc=$?
       if (( rc > 128 )); then
         _timer_tick && _draw 1
-        _cycle_tick && _draw 1
         continue
       fi
       [[ -n $line ]] && _handle_line "$line"
       break
     fi
     _timer_tick && _draw
-    _cycle_tick && _draw 1
   done
 
   _stop_all_timers
@@ -1360,25 +1430,6 @@ _handle_line() {
   for c in "${ORDER[@]}"; do [[ -n $c ]] && LDIRTY[$c]=1; done
 
   REVIEW=1
-  local nfail=${#FAILED[@]}
-  if (( nfail > 1 && CYCLE_SEC > 0 && FINAL_SEC > 0 )) && [[ -z $FOCUS ]]; then
-    CYCLE_AT=0
-    _draw 1
-    local deadline=$(( $(_now_ms) + FINAL_SEC * 1000 ))
-    while (( $(_now_ms) < deadline )); do
-      sleep "$TICK_SEC"
-      _cycle_tick && _draw 1
-    done
-    case $CYCLE_END in
-      first) CYCLE_IDX=0 ;;
-      rotate) : ;;
-      *)     CYCLE_IDX=$(( nfail - 1 )) ;;
-    esac
-  elif (( nfail == 1 && HOLD_SEC > 0 )); then
-    # single failure: draw it, then hold briefly so it is readable
-    _draw 1
-    sleep "$HOLD_SEC"
-  fi
   _draw 1
 )}
 
@@ -1518,14 +1569,7 @@ act_helper () {
   fi
 
   # scan for dependencies
-  local handles=($(
-    act_find_deps $act_name $(
-      # always included modules
-      for m in pre_system_scan core_types; do 
-        [[ -v _act_cache_functions[${act_name}_${m}] ]] && echo $m
-      done
-    ) "$@"
-  ))
+  local handles=($(act_find_deps $act_name "$@"))
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
@@ -1584,12 +1628,12 @@ act_helper () {
           local state_path="$(ensure_project_path)/$installer_name/states/$name1"
           [ "$act_name" = "start" ] && mkdir -p "$state_path"
           echo "@@COMP $name1"
+          local rc1=0
           (
             set -e
             $handler $invoke_args &
             wait -n
-          )
-          local rc1=$?
+          ) || rc1=$?
           [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
@@ -1600,9 +1644,9 @@ act_helper () {
           fi
         fi
       done
-      if [[ " $* " != *" --dry-run "* ]] && [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
+      if [[ " $* " != *" --dry-run "* && $rc -eq 0 && -v _act_cache_functions[${act_name}_pre_system_scan] ]]; then
         echo "@@REPORT SYSTEM SUMMARY"
-        ${ID_LIKE}_10_${act_name}_pre_system_scan
+        ${_act_cache_functions[${act_name}_pre_system_scan]}
       fi
     } > >(
       LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
@@ -1863,26 +1907,14 @@ ensure_sbom_format () {
 # select --gpu/--npu from command line arguments
 # default to best device for init and "" for start
 ensure_select_device () {
-  local device=""
-  case "$1" in
-  install)
-    device="cpu"
-    [ ! -e /dev/accel/accel0 ] || device="npu"
-    [ ! -e /dev/dri/renderD128 ] || device="gpu"
-    ;;
-  esac
-
-  case " $* " in
-  *" --NPU "*)
-    [ ! -e /dev/accel/accel0 ] || device="npu"
-    ;;
-  *" --CPU "*)
-    device="cpu"
-    ;;
-  *" --GPU "*)
-    [ ! -e /dev/dri/renderD128 ] || device="gpu"
-    ;;
-  esac
+  local device="cpu"
+  # Match device flags case-insensitively so both --gpu and --GPU are accepted.
+  local args_uc=" ${*^^} "
+  [ ! -e /dev/accel/accel0 ] || device="npu"
+  [ ! -e /dev/dri/renderD128 ] || device="gpu"
+  [[ "$args_uc" != *" --CPU "* ]] || device="cpu"
+  [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu"
+  [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu"
   echo $device
 }
 
@@ -1926,11 +1958,11 @@ ensure_tmpdir () {
   case "$1" in
   create)
     printf -v $2 "%s" $(mktemp -d ${4:-/tmp}/openedge-cli-${3:-}.XXXXXX)
-    ensure_trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
+    ensure_trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" SIGINT EXIT
     ;;
   destroy)
     rm -rf "$2"
-    ensure_trap - ERR SIGINT EXIT
+    ensure_trap - SIGINT EXIT
     ;;
   esac
 }
@@ -2048,7 +2080,7 @@ ensure_apt_key () {
 
 ensure_apt_preference () {
   local pref_file=$1; shift
-  (IFS=$'\n';echo "$@") | ensure_sudo tee "$pref_file" > /dev/null
+  (IFS=$'\n';echo "$*") | ensure_sudo tee "$pref_file" > /dev/null
 }
 
 
@@ -2077,17 +2109,16 @@ configure_anomalib () {
 }
 
 verify_anomalib () {
-  [ -r "$workspace"/venv/bin/activate ] || return 1
-  . "$workspace"/venv/bin/activate
-  set -o pipefail
-  pip show anomalib | grep -q -F $version || return 1
+  [ -r "$workspace"/.venv/bin/activate ]
+  . "$workspace"/.venv/bin/activate
+  python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
 }
 
-debian_70_profile_anomalib () {
+debian_80_profile_anomalib () {
   echo "python3_venv edge_base"
 }
 
-debian_70_install_anomalib () {
+debian_80_install_anomalib () {
   configure_anomalib $*
   if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
     echo "Anomalib already installed. Skipping"
@@ -2095,15 +2126,90 @@ debian_70_install_anomalib () {
     ensure_disk_space 6000
     mkdir -p "$workspace"
     cd "$workspace"
-    python3 -m venv venv
-    . venv/bin/activate
-    pip install anomalib==${version}
+    python3 -m venv .venv
+    . .venv/bin/activate
+    pip install "anomalib[openvino,cpu]==${version}"
+
+    if [[ " $* " = *" --validate "* ]]; then
+      mkdir -p test
+      python3 -c '
+from pathlib import Path
+from PIL import Image
+from anomalib.data import Folder
+from anomalib.models import Padim
+from anomalib.engine import Engine
+from anomalib.deploy import ExportType, OpenVINOInferencer
+import sys
+
+def create_mock_dataset(dataset_path):
+  train_good = dataset_path / "train" / "good"
+  test_good = dataset_path / "test" / "good"
+  test_defect = dataset_path / "test" / "defect"
+  for d in [train_good, test_good, test_defect]:
+    d.mkdir(parents=True, exist_ok=True)
+  for i in range(5):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    img.save(train_good / f"normal_{i}.png")
+    if i < 2:
+      img.save(test_good / f"normal_test_{i}.png")
+  for i in range(2):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    for x in range(100, 150):
+      for y in range(100, 150):
+        img.putpixel((x, y), (50, 50, 50))  # Synthetic anomaly block
+    img.save(test_defect / f"defect_{i}.png")
+
+def test_anomalib_pipeline(root_path, dataset_path, device):
+  datamodule = Folder(
+    name="synthetic_test",
+    root=dataset_path,
+    normal_dir="train/good",
+    abnormal_dir="test/defect",
+    normal_test_dir="test/good",
+    train_batch_size=2,
+    eval_batch_size=2,
+  )
+  model = Padim()
+  engine = Engine(
+    default_root_dir=root_path / "results",
+    max_epochs=1,
+    accelerator="auto",
+    devices=1,
+  )
+  engine.fit(model=model, datamodule=datamodule)
+  test_results = engine.test(model=model, datamodule=datamodule)
+  assert test_results is not None, "Evaluation test results returned None."
+  export_dir = root_path / "export"
+  engine.export(
+    model=model,
+    export_type=ExportType.OPENVINO,
+    export_root=export_dir,
+    input_size=(256, 256),
+  )
+  model_xml_files = list(export_dir.glob("**/*.xml"))
+  assert len(model_xml_files) > 0, "OpenVINO model XML representation was not generated."
+  inferencer = OpenVINOInferencer(
+    path=model_xml_files[0],
+    device=device,
+  )
+  sample_image_path = dataset_path / "test" / "defect" / "defect_0.png"
+  prediction = inferencer.predict(str(sample_image_path))
+  assert prediction is not None, "Inference prediction failed."
+  assert hasattr(prediction, "pred_score") or hasattr(prediction, "anomaly_map"), "Prediction output missing anomaly score or map attributes."
+
+root_path = Path(sys.argv[1])
+dataset_path = root_path / "mock_dataset"
+create_mock_dataset(dataset_path)
+test_anomalib_pipeline(root_path, dataset_path, sys.argv[2])
+' test $(ensure_select_device "$@" | tr 'a-z' 'A-Z') && echo "Anomalib test passed."
+      rm -rf test
+    fi
   fi
 
-  echo "@@HIGHLIGHT venv: $workspace/venv"
+  echo "@@HIGHLIGHT venv: $workspace/.venv"
 }
 
-debian_70_remove_anomalib () {
+debian_80_remove_anomalib () {
   configure_anomalib $*
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
@@ -2631,8 +2737,10 @@ debian_15_install_edge_pack () {
 }
 
 debian_15_remove_edge_pack () {
-  configure_edge_pack "$@"
-  ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
+  dpkg -l | grep -q -F intel-edge- || { 
+    configure_edge_pack "$@"
+    ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
+  }
 }
 
 #sbom by individual packs
@@ -2649,18 +2757,25 @@ debian_20_profile_edge_pack_base_realtime () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_base_realtime () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@"
   if ensure_apt_is_installed intel-edge-base-realtime=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-base-realtime already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_realtime
+    ensure_group_add $(debian_20_group_edge_pack_base_realtime)
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_base_realtime () {
   ensure_apt autoremove -y intel-edge-base-realtime || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_base_realtime () {
@@ -2697,12 +2812,15 @@ debian_20_install_edge_pack_base_standard () {
     echo "intel-edge-base-standard already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_standard
+    ensure_group_add $(debian_20_group_edge_pack_base_standard)
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_base_standard () {
   ensure_apt autoremove -y intel-edge-base-standard || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_base_standard () {
@@ -2739,12 +2857,15 @@ debian_20_install_edge_pack_graphics_core () {
     echo "intel-edge-graphics-core already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_core
+    ensure_group_add $(debian_20_group_edge_pack_graphics_core)
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_graphics_core () {
   ensure_apt autoremove -y intel-edge-graphics-core || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_graphics_core () {
@@ -2781,12 +2902,15 @@ debian_20_install_edge_pack_graphics_display () {
     echo "intel-edge-graphics-display already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_display
+    ensure_group_add $(debian_20_group_edge_pack_graphics_display)
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_graphics_display () {
   ensure_apt autoremove -y intel-edge-graphics-display || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_graphics_display () {
@@ -2825,6 +2949,7 @@ debian_20_install_edge_pack_media_core () {
 
 debian_20_remove_edge_pack_media_core () {
   ensure_apt autoremove -y intel-edge-media-core || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_media_core () {
@@ -2863,6 +2988,7 @@ debian_70_install_edge_pack_media_ffmpeg () {
 
 debian_70_remove_edge_pack_media_ffmpeg () {
   ensure_apt autoremove -y intel-edge-media-ffmpeg || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_70_sbom_edge_pack_media_ffmpeg () {
@@ -2901,6 +3027,7 @@ debian_70_install_edge_pack_media_gst () {
 
 debian_70_remove_edge_pack_media_gst () {
   ensure_apt autoremove -y intel-edge-media-gst || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_70_sbom_edge_pack_media_gst () {
@@ -2924,7 +3051,7 @@ configure_edge_pack_npu () {
 }
 
 debian_20_profile_edge_pack_npu () {
-  echo "edge_pack"
+  echo "edge_pack libze1"
 }
 
 debian_20_group_edge_pack_npu () {
@@ -2937,12 +3064,15 @@ debian_20_install_edge_pack_npu () {
     echo "intel-edge-npu already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_npu
+    ensure_group_add $(debian_20_group_edge_pack_npu)
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-npu=$version*"
   fi
+  [ -c /dev/accel/accel0 ]
 }
 
 debian_20_remove_edge_pack_npu () {
   ensure_apt autoremove -y intel-edge-npu || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_npu () {
@@ -3096,11 +3226,11 @@ $(ensure_sbom_format pkg-list git ca-certificates)
 EOF
 }
 
-debian_15_install_gpg () {
+debian_10_install_gpg () {
   ensure_apt_install_package gpgv1
 }
 
-debian_15_sbom_gpg () {
+debian_10_sbom_gpg () {
   cat <<EOF
 $(ensure_sbom_format pkg-list gpgv1)
 EOF
@@ -3119,6 +3249,12 @@ verify_gpu () {
   [ -c /dev/dri/renderD128 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
+  verify_gpu_packages
+}
+
+# checks the driver packages only, independent of GPU hardware being present.
+# used to confirm a fresh install succeeded even on systems without a discrete/exposed GPU device.
+verify_gpu_packages () {
   ensure_apt_is_installed intel-media-va-driver-non-free
 }
 
@@ -3140,7 +3276,7 @@ debian_40_install_gpu () {
     debian_40_remove_gpu || true
 
     # create the render group
-    ensure_group_add render:992 video:
+    ensure_group_add $(debian_40_group_gpu)
 
     # product key & list 
     ensure_apt_key $key_file $key_url --dearmor
@@ -3151,7 +3287,7 @@ debian_40_install_gpu () {
 
     # install the packages
     ensure_apt install --no-install-recommends -y "${pkg_list[@]}"
-    verify_gpu
+    verify_gpu_packages
   fi
 }
 
@@ -3473,7 +3609,11 @@ configure_loitering_detection () {
 }
 
 verify_loitering_detection () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000101.mp4 ]
+  local v
+  for v in 101 102 103 104; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000$v.mp4 ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/FP16/pedestrian-and-vehicle-detector-adas-0001.bin ]
 }
 
 debian_90_profile_loitering_detection () {
@@ -3747,8 +3887,7 @@ debian_90_install_multimodal_weld_defect_detection () {
   if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Multimodal weld defect detection is already installed. Skipping"
   else
-    local device
-    device="$(ensure_select_device "$@")"
+    local device="$(ensure_select_device "$@")"
 
     ensure_disk_space 64000
     ensure_ram_size 16777216 # 16 GiB
@@ -3773,11 +3912,8 @@ debian_90_start_multimodal_weld_defect_detection () {
   }
 
   ensure_ports_open "$used_ports" debian_90_stop_multimodal_weld_defect_detection "$@"
-  case " $* " in
-  *" --cpu "*|*" --gpu "*|*" --npu "*)
-    configure_multimodal_weld_defect_detection_device "$(ensure_select_device "$@")"
-    ;;
-  esac
+  local device="$(ensure_select_device "$@")"
+  [[ " $* " != *" --${device^^} "* ]] || configure_multimodal_weld_defect_detection_device $device
 
   cd "$source_dir"
   make up
@@ -3805,7 +3941,7 @@ configure_nicu_warmer () {
   workspace="$(ensure_project_path)/nicu-warmer"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
-  device_env="configs/res/all-$(ensure_select_device $*).env"
+  device_env="configs/res/all-$(ensure_select_device "$@").env"
   models=(
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin"
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml"
@@ -3900,6 +4036,12 @@ verify_npu () {
   [ -c /dev/accel/accel0 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
+  verify_npu_packages
+}
+
+# checks the driver packages only, independent of NPU hardware being present.
+# used to confirm a fresh install succeeded even on systems without an NPU device.
+verify_npu_packages () {
   (
     set -o pipefail
     ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
@@ -3924,7 +4066,7 @@ debian_40_install_npu () {
     ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
 
     # create the render group
-    ensure_group_add render:992
+    ensure_group_add $(debian_40_gpu_npu)
   
     mkdir -p "$workspace"
     cd "$workspace"
@@ -3940,7 +4082,7 @@ debian_40_install_npu () {
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
-    verify_npu
+    verify_npu_packages
   fi
 }
 
@@ -4108,6 +4250,7 @@ configure_pallet_defect_detection () {
 
 verify_pallet_defect_detection () {
   [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pallet-defect-detection/videos/warehouse.avi ]
+  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/deployment/Detection/model/model.bin ]
 }
 
 debian_90_profile_pallet_defect_detection () {
@@ -4173,6 +4316,7 @@ configure_pcb_anomaly_detection () {
 
 verify_pcb_anomaly_detection () {
   [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
+  [ -e "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin" ]
 }
 
 debian_90_profile_pcb_anomaly_detection () {
@@ -4969,7 +5113,11 @@ configure_smart_intersection () {
 }
 
 verify_smart_intersection () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/1122north_h264.ts ]
+  local v
+  for v in 1122east_h264.ts 1122north_h264.ts 1122south_h264.ts 1122west_h264.ts; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/$v ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/models/intersection/openvino.bin ]
 }
 
 debian_90_profile_smart_intersection () {
@@ -5042,7 +5190,14 @@ configure_smart_parking () {
 }
 
 verify_smart_parking () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_1.mp4 ]
+  local i p
+  for i in 1 2 3 4; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_$i.mp4 ]
+  done
+  for p in FP16 FP32 INT8; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/public/yolo11s/$p/yolo11s.bin ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/colorcls2/colorcls2.bin ]
 }
 
 debian_90_profile_smart_parking () {

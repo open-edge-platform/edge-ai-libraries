@@ -1278,7 +1278,15 @@ export type ModelDownloadJobSummary = {
   model_name: string;
   source: ModelSource;
 };
-export type ModelCategory = "classification" | "detection" | "genai";
+export type ModelCategory =
+  | "image_classification"
+  | "object_detection"
+  | "image_segmentation"
+  | "pose_estimation"
+  | "vision_language_models"
+  | "large_language_models"
+  | "automatic_speech_recognition"
+  | "text_to_speech";
 export type ModelInstallStatus =
   "installed" | "not_installed" | "installing" | "failed";
 export type ModelVariant = {
@@ -1308,7 +1316,7 @@ export type Model = {
   variants?: ModelVariant[];
   /** List of predefined-pipeline ids that reference this model. Non-empty means the model is recommended. */
   used_by_pipelines?: string[];
-  /** Whether the model is marked as a default install candidate in supported_models.yaml. The Models page uses this flag to pre-select recommended models in the bulk-install UI. */
+  /** Whether at least one predefined pipeline references this model. The Models page uses this flag to pre-select recommended models in the bulk-install UI. */
   default?: boolean;
   /** Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist. */
   unsupported_devices?: string | null;
@@ -1321,6 +1329,7 @@ export type BodyUploadModel = {
   model_name: string;
   category: ModelCategory;
   file: string;
+  description?: string | null;
 };
 export type ModelDownloadJobItem = {
   /** Model name. */

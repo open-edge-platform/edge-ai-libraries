@@ -102,6 +102,8 @@ def build_config() -> dict:
             option["supports"] = {"PROFILE": [profile_value]}
             if module.get("startStop"):
                 option["startStop"] = True
+            if module.get("device"):
+                option["device"] = True
             module_options.append(option)
     module_cat["options"] = module_options
 
@@ -176,6 +178,7 @@ def build_config() -> dict:
     return {
         "title": base["title"],
         "shareKeys": base["shareKeys"],
+        "device": base["device"],
         "categories": categories,
         "outputs": [install_output, nextsteps_output, getstarted_output, resources_output],
     }
