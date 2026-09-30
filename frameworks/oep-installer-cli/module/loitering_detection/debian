@@ -6,7 +6,11 @@ configure_loitering_detection () {
 }
 
 verify_loitering_detection () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000101.mp4 ]
+  local v
+  for v in 101 102 103 104; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000$v.mp4 ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/FP16/pedestrian-and-vehicle-detector-adas-0001.bin ]
 }
 
 debian_90_profile_loitering_detection () {
