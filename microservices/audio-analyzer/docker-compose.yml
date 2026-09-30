@@ -4,6 +4,10 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       args:
+        # Set INSTALL_CJK=true to bundle the optional FunASR Paraformer provider
+        # (Chinese/English ASR). Defaults to false so the standard image is
+        # unchanged for existing consumers.
+        INSTALL_CJK: ${INSTALL_CJK:-false}
         http_proxy: ${http_proxy:-}
         https_proxy: ${https_proxy:-}
         ftp_proxy: ${ftp_proxy:-}

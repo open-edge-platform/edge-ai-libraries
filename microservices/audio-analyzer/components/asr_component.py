@@ -140,6 +140,14 @@ class ASRComponent(PipelineComponent):
         if normalized_provider == "whispercpp" and "whisper" in normalized_model_name:
             return WhisperCpp, (normalized_provider, normalized_model_name, requested_device.upper()), requested_device.upper()
 
+        if normalized_provider == "funasr" and "paraformer" in normalized_model_name:
+            # Optional Chinese/English provider. Imported lazily so funasr stays
+            # an opt-in dependency (requirements-cjk.txt) — the default image and
+            # existing Whisper/OpenVINO consumers never import it.
+            from components.asr.funasr.paraformer import Paraformer
+
+            return Paraformer, (normalized_provider, normalized_model_name, requested_device.lower()), requested_device.lower()
+
         raise ValueError(f"Unsupported ASR provider/model: {normalized_provider}/{normalized_model_name}")
 
     def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0, speaker_scope_id=None):
