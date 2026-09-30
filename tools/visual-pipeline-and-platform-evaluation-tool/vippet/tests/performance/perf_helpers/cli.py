@@ -308,7 +308,7 @@ def run_dry_run(
 
 
 def run_report_only(settings: ResolvedSettings, *, stderr: TextIO | None = None) -> int:
-    """Placeholder: report regeneration is implemented separately."""
+    """Placeholder: report regeneration will be implemented within ITEP-96716."""
     print(
         "error: --report-only is not yet implemented "
         f"(results dir: {settings['results.output_dir']})",
