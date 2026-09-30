@@ -26,7 +26,7 @@ verify_ros2 () {
 debian_50_install_ros2 () {
   configure_ros2
 
-  if verify_ros2 && [[ " $* " != *" --reset-ros2 "* ]]; then
+  if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 $ros_distro is already installed. Skipping..."
   else
     ensure_apt update
@@ -67,9 +67,9 @@ debian_50_remove_ros2 () {
 debian_50_sbom_ros2 () {
   configure_ros2 "$@"
   cat <<EOF
-"pkg-list": ["software-properties-common","gnupg","lsb-release","ca-certificates"]
+$(ensure_sbom_format pkg-list software-properties-common gnupg lsb-release ca-certificates")
 ---
-"pkg-list": ["ros-$ros_distro-desktop","ros-dev-tools"]
-"apt-repository": "universe"
+$(ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools)
+$(ensure_sbom_format apt-repository universe)
 EOF
 }

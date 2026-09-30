@@ -117,7 +117,8 @@ Add below configuration in appropriate `config.json` file in in `[WORKDIR]/edge-
 
   - `publish_frame` set this flag to '*true*' if you need frame blobs and metadata to be published. If it is set to '*false*' only metadata will be published.
 
-      NOTE: When publish_frame is set to 'true', it is advised to use a pipeline element such as `jpegenc` to do the frame encoding to publish over MQTT. If not present, frame is encoded to jpeg but it is limited to frames with the following image orders - `RGB`, `GRAY8`, `NV12` and `I420`. This capability is however limited and not performance efficient.
+    > [!NOTE]
+    > When publish_frame is set to 'true', it is advised to use a pipeline element such as `jpegenc` to do the frame encoding to publish over MQTT. If not present, frame is encoded to jpeg but it is limited to frames with the following image orders - `RGB`, `GRAY8`, `NV12` and `I420`. This capability is however limited and not performance efficient.
 
 Other parameters that can be part of `mqtt_publisher` config are mentioned below:
 

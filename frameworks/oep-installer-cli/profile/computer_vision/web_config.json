@@ -1,0 +1,22 @@
+{
+  "profile": { "label": "Computer Vision", "value": "computer_vision", "installAll": true },
+  "modules": [
+    { "label": "DL Streamer", "value": "dlstreamer" },
+    { "label": "ViPPET", "value": "vippet", "startStop": true },
+    { "label": "Intel Geti", "value": "geti", "startStop": true },
+    { "label": "Anomalib", "value": "anomalib" }
+  ],
+  "install": {
+    "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision"
+  },
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-libraries.html"
+  },
+  "resources": [
+    { "text": "DL Streamer", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/index.html" },
+    { "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html" },
+    { "text": "Intel Geti", "url": "https://github.com/open-edge-platform/geti" },
+    { "text": "Anomalib", "url": "https://github.com/open-edge-platform/anomalib" }
+  ]
+}

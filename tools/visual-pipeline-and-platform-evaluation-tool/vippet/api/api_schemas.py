@@ -2154,7 +2154,7 @@ class ModelSource(str, Enum):
     - `HUGGINGFACE` - HuggingFace Hub
     - `ULTRALYTICS` - Ultralytics model zoo
     - `PIPELINE_ZOO_MODELS` - OpenVINO Pipeline Zoo models
-    - `OMZ` - OpenVINO Open Model Zoo (handled locally by vippet-app)
+    - `OMZ` - OpenVINO Open Model Zoo
     - `CUSTOM` - User-uploaded model
 
     ### Example
@@ -2282,6 +2282,14 @@ class Model(BaseModel):
 
     name: str = Field(..., description="Internal model identifier.")
     display_name: str = Field(..., description="Human-readable model name.")
+    description: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description=(
+            "Human-readable explanation of what the model "
+            "detects or classifies, or null when not provided."
+        ),
+    )
     category: Optional[ModelCategory] = Field(
         default=None,
         description="Logical model category, or null when unknown.",

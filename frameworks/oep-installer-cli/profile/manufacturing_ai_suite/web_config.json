@@ -1,0 +1,15 @@
+{
+  "profile": { "label": "Manufacturing AI Suite", "value": "manufacturing_ai_suite" },
+  "modules": [
+    { "label": "Pallet Defect Detection", "value": "pallet_defect_detection", "startStop": true },
+    { "label": "PCB Anomaly Detection", "value": "pcb_anomaly_detection", "startStop": true }
+  ],
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-manufacturing.html"
+  },
+  "resources": [
+    { "text": "Pallet Defect Detection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-vision/index.html" },
+    { "text": "PCB Anomaly Detection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-vision/index.html" }
+  ]
+}

@@ -1,0 +1,31 @@
+
+# perform sudo in automation or in tty
+ensure_sudo () {
+  local hp="${http_proxy:-$HTTP_PROXY}" sp="${https_proxy:-$HTTPS_PROXY}" np="${no_proxy:-$NO_PROXY}" proxy_args=()
+  [ -z "$hp" ] || proxy_args+=("http_proxy=$hp" "HTTP_PROXY=$hp")
+  [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp")
+  [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np")
+
+  if sudo -n true 2>/dev/null; then
+    # cached timestamp still valid or passwordless sudo: no password needed
+    sudo env "${proxy_args[@]}" "$@"
+  elif [ -t 0 ] && [ -z "$SUDO_PASSWORD" ]; then
+    # genuine interactive terminal: safe to prompt for a password
+    sudo env "${proxy_args[@]}" "$@"
+  else
+    # write an askpass helper
+    local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}"
+    mkdir -p "$rundir" 2>/dev/null || return 1
+    (
+      flock -w 300 -e 9 || { echo "ensure_sudo: timed out waiting for another installer" >&2; exit 1; }
+      if [ ! -x "$SUDO_ASKPASS" ]; then
+        askpass_helper="$rundir"/askpass
+        act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
+        export SUDO_ASKPASS="$askpass_helper"
+      fi
+      sudo -A env "${proxy_args[@]}" "$@"
+    ) 9< "$rundir"
+  fi
+}
+
