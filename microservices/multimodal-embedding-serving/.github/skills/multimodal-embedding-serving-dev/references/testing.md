@@ -48,4 +48,4 @@ docker compose -f docker/compose.yaml down
   `src/models/registry.py` lookup/registration, `segment_config` priority
   handling in `src/utils/decoder.py`.
 - Test the **wrapper API** (`EmbeddingModel`) when changing it — it is the
-  SDK contract consumed by vdms-dataprep.
+  SDK contract consumed by multimodal-dataprep.

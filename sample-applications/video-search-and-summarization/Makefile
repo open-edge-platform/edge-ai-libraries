@@ -140,7 +140,7 @@ ALL_IMAGES  := $(DEP_IMAGES) $(APP_IMAGES)
 
 TEST_TARGETS := $(addprefix test-,$(TEST_COMPONENTS))
 
-.PHONY: build build-deps push check-docker check-poetry test clean help list \
+.PHONY: build build-deps push check-docker test clean help list \
         shellcheck pylint eslint \
         trivy-scan trivy-scan-fs trivy-scan-image trivy-scan-config \
         clamav-scan bandit-scan gitleaks-scan codeql-scan \
@@ -159,13 +159,7 @@ check-docker:
 	  { echo "docker is not installed or not in PATH."; \
 	    echo "   Install: https://docs.docker.com/get-docker/"; exit 1; }
 
-check-poetry:
-	@command -v poetry >/dev/null 2>&1 || \
-	  { echo "poetry is not installed or not in PATH."; \
-	    echo "   Required to build the multimodal-embedding wheel."; \
-	    echo "   Install: https://python-poetry.org/docs/#installation"; exit 1; }
-
-build: check-docker check-poetry
+build: check-docker
 	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
 	@echo "Building all application services..."
 	@$(foreach component,$(COMPONENTS), \
@@ -177,8 +171,7 @@ build: check-docker check-poetry
 	@echo "All application services built successfully."
 
 # Build external dependency microservices (multimodal-dataprep, multimodal-embedding-serving).
-# Requires poetry to build the multimodal-embedding wheel.
-build-deps: check-docker check-poetry
+build-deps: check-docker
 	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
 	@echo "Building dependency microservices..."
 	@echo "  → Building multimodal-dataprep via upstream build.sh..."
@@ -277,7 +270,18 @@ push: check-docker
 #   deploy-clean    → stop all containers and wipe user-data volumes
 # ==============================================================================
 
-WAIT_HEALTH_SCRIPT := .github/skills/vss-deploy/scripts/wait-health.sh
+define WAIT_FOR_VSS_HEALTH
+VSS_BASE="http://$${HOST_IP:-localhost}:$${APP_HOST_PORT:-12345}"; \
+deadline=$$(( $$(date +%s) + 300 )); \
+until curl -sf --max-time 5 "$$VSS_BASE/manager/health" >/dev/null; do \
+	if [ "$$(date +%s)" -ge "$$deadline" ]; then \
+		echo "VSS health check timed out: $$VSS_BASE/manager/health" >&2; \
+		docker compose ps; \
+		exit 1; \
+	fi; \
+	sleep 5; \
+done
+endef
 
 # Load .env into the shell before calling setup.sh.
 # Rules:
@@ -312,25 +316,25 @@ deploy:
 deploy-summary: build build-deps
 	@echo "Deploying VSS in summary mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary'
-	@$(WAIT_HEALTH_SCRIPT)
+	@$(WAIT_FOR_VSS_HEALTH)
 	@echo "VSS summary mode deployed."
 
 deploy-search: build build-deps
 	@echo "Deploying VSS in search mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --search'
-	@$(WAIT_HEALTH_SCRIPT)
+	@$(WAIT_FOR_VSS_HEALTH)
 	@echo "VSS search mode deployed."
 
 deploy-dual: build build-deps
 	@echo "Deploying VSS in dual (summary + search) mode..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary --search'
-	@$(WAIT_HEALTH_SCRIPT)
+	@$(WAIT_FOR_VSS_HEALTH)
 	@echo "VSS dual mode deployed."
 
 deploy-unified: build build-deps
 	@echo "Deploying VSS in unified mode (search over summaries)..."
 	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary-and-search'
-	@$(WAIT_HEALTH_SCRIPT)
+	@$(WAIT_FOR_VSS_HEALTH)
 	@echo "VSS unified mode deployed."
 
 deploy-stop:
@@ -345,7 +349,7 @@ deploy-clean:
 
 health-check:
 	@echo "Checking VSS health..."
-	@$(WAIT_HEALTH_SCRIPT)
+	@$(WAIT_FOR_VSS_HEALTH)
 
 
 # ==============================================================================
@@ -840,7 +844,7 @@ help:
 	@echo "  build            Build application service images (video-ingestion,"
 	@echo "                   pipeline-manager, video-search, vss-ui)"
 	@echo "  build-deps       Build dependency images (multimodal-dataprep,"
-	@echo "                   multimodal-embedding-serving) — requires poetry"
+	@echo "                   multimodal-embedding-serving)"
 	@echo "  push             Push all built images to the registry"
 	@echo "  test             Run all unit tests"
 	@echo "  test-pipeline-manager   Run pipeline-manager tests (NestJS/Jest)"

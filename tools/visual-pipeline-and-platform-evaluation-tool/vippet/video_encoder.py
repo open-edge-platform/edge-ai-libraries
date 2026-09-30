@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple
 
 from explore import GstInspector
 from utils import slugify_text
+from video_decoder import render_node_element
 
 # Constants for encoder device types
 ENCODER_DEVICE_CPU = "CPU"
@@ -118,6 +119,7 @@ class VideoEncoder:
         self,
         output_dir: str,
         encoder_device: str,
+        gpu_index: Optional[int] = None,
     ) -> str:
         """
         Create a sub-pipeline string for replacing a single fakesink with video encoder and file sink.
@@ -135,6 +137,8 @@ class VideoEncoder:
             encoder_device: Target encoder device. Must be one of the module constants:
                 - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
+            gpu_index: GPU index of the target device, used to pick the VA encoder
+                bound to the same render node (e.g. varenderD129h264lpenc for GPU.1).
 
         Returns:
             Sub-pipeline string for replacing fakesink.
@@ -144,7 +148,9 @@ class VideoEncoder:
         """
         # Select the best available h264 encoder element based on device type and
         # installed GStreamer plugins (e.g., vah264enc for GPU, openh264enc for CPU)
-        encoder_element = self._select_element(encoder_device, streaming=False)
+        encoder_element = self._select_element(
+            encoder_device, streaming=False, gpu_index=gpu_index
+        )
 
         if encoder_element is None:
             self.logger.error(
@@ -173,6 +179,7 @@ class VideoEncoder:
         pipeline_id: str,
         encoder_device: str,
         job_id: str,
+        gpu_index: Optional[int] = None,
     ) -> Tuple[str, str]:
         """
         Create a sub-pipeline string for replacing a single fakesink with live-streaming output.
@@ -189,6 +196,8 @@ class VideoEncoder:
                 - ENCODER_DEVICE_CPU ("CPU"): Use CPU-based encoder
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
             job_id: Unique job identifier used to generate unique stream name
+            gpu_index: GPU index of the target device, used to pick the VA encoder
+                bound to the same render node (e.g. varenderD129h264lpenc for GPU.1).
 
         Returns:
             Tuple of (sub-pipeline string, live stream URL)
@@ -207,7 +216,9 @@ class VideoEncoder:
 
         # Select the best available h264 streaming encoder element based on device type
         # and installed GStreamer plugins (e.g., vah264enc for GPU, openh264enc for CPU)
-        encoder_element = self._select_element(encoder_device, streaming=True)
+        encoder_element = self._select_element(
+            encoder_device, streaming=True, gpu_index=gpu_index
+        )
 
         if encoder_element is None:
             self.logger.error(
@@ -229,11 +240,16 @@ class VideoEncoder:
         self,
         encoder_device: str,
         streaming: bool = False,
+        gpu_index: Optional[int] = None,
     ) -> Optional[str]:
         """
         Select an appropriate h264 encoder element from available GStreamer elements.
 
         Uses ENCODER_CONFIG or STREAMING_ENCODER_CONFIG based on the streaming flag.
+
+        For a non-default GPU the render-node-qualified variant of a VA encoder
+        (e.g. varenderD129h264lpenc for GPU.1) is preferred, so the encoder consumes
+        VA surfaces from the GPU that produced them.
 
         Args:
             encoder_device: Target encoder device. Must be one of the module constants:
@@ -241,6 +257,8 @@ class VideoEncoder:
                 - ENCODER_DEVICE_GPU ("GPU"): Use GPU-based encoder (VAAPI)
             streaming: If True, use low-latency streaming encoder config.
                 If False, use standard file output encoder config.
+            gpu_index: GPU index of the target device, used to pick the encoder
+                bound to the matching render node.
 
         Returns:
             Selected encoder element string with properties, or None if not found
@@ -265,11 +283,24 @@ class VideoEncoder:
             )
             return None
 
+        available = {element[1] for element in self.gst_inspector.elements}
+
         for search, result in pairs:
-            for element in self.gst_inspector.elements:
-                if element[1] == search:
-                    self.logger.debug(f"Selected encoder element: {result}")
-                    return result
+            qualified_search = render_node_element(search, gpu_index)
+            if qualified_search is not None:
+                if qualified_search in available:
+                    # ``result`` carries encoder properties, so only swap the element name.
+                    qualified_result = result.replace(search, qualified_search, 1)
+                    self.logger.debug(f"Selected encoder element: {qualified_result}")
+                    return qualified_result
+                self.logger.warning(
+                    f"'{qualified_search}' is not available; encoding may not run "
+                    f"on GPU.{gpu_index}"
+                )
+
+            if search in available:
+                self.logger.debug(f"Selected encoder element: {result}")
+                return result
 
         self.logger.warning(
             f"No matching encoder element found for encoder_device: {encoder_device}"

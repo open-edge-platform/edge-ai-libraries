@@ -1,0 +1,245 @@
+/*
+ * Copyright (C) 2026 Intel Corporation
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.intel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding-inline: 12px;
+  border-radius: 6px;
+  font-size: var(--font-size-12);
+  font-weight: 600;
+  line-height: 1;
+
+  .anticon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  > .anticon + span {
+    margin-inline-start: 6px;
+  }
+
+  &.intel-btn-sm {
+    min-height: 28px;
+    height: 28px;
+    padding-inline: 10px;
+  }
+
+  &.intel-btn-circle.intel-btn-sm {
+    flex: 0 0 28px;
+    width: 28px;
+    min-width: 28px;
+    padding-inline: 0;
+  }
+
+  &.intel-btn-default:not(.intel-btn-background-ghost):not(:disabled),
+  &.intel-btn-primary:not(.intel-btn-background-ghost):not(:disabled) {
+    border-color: var(--color-primary);
+    background-color: var(--color-primary);
+    color: var(--color-white);
+
+    &:hover {
+      border-color: color-mix(
+        in srgb,
+        var(--color-primary) 78%,
+        var(--color-white)
+      );
+      background-color: color-mix(
+        in srgb,
+        var(--color-primary) 78%,
+        var(--color-white)
+      );
+      color: var(--color-white);
+    }
+  }
+
+  &.intel-btn-default.intel-btn-warning:not(:disabled) {
+    border-color: var(--color-warning-strong);
+    background-color: var(--color-warning-strong);
+    color: var(--color-white);
+
+    &:hover {
+      border-color: color-mix(
+        in srgb,
+        var(--color-warning-strong) 78%,
+        var(--color-white)
+      );
+      background-color: color-mix(
+        in srgb,
+        var(--color-warning-strong) 78%,
+        var(--color-white)
+      );
+      color: var(--color-white);
+    }
+  }
+
+  &.intel-btn-default.intel-btn-dangerous:not(.intel-btn-background-ghost):not(
+      :disabled
+    ) {
+    border-color: var(--color-error);
+    background-color: var(--color-error);
+    color: var(--color-white);
+
+    &:hover {
+      border-color: color-mix(
+        in srgb,
+        var(--color-error) 78%,
+        var(--color-white)
+      );
+      background-color: color-mix(
+        in srgb,
+        var(--color-error) 78%,
+        var(--color-white)
+      );
+      color: var(--color-white);
+    }
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
+
+  &.black-primary-button {
+    background-color: var(--bg-black-color);
+    border: 1px solid var(--border-black-color);
+
+    &:hover {
+      background-color: var(--bg-black-hover-color);
+    }
+  }
+
+  &.intel-btn-primary.intel-btn-background-ghost:not(:disabled):hover {
+    background-color: var(--color-primaryBg);
+  }
+
+  &.intel-btn-success {
+    border-color: var(--color-success);
+    background-color: var(--color-success);
+    color: var(--color-white);
+
+    &:hover {
+      border-color: color-mix(
+        in srgb,
+        var(--color-success) 78%,
+        var(--color-white)
+      );
+      background-color: color-mix(
+        in srgb,
+        var(--color-success) 78%,
+        var(--color-white)
+      );
+      color: var(--color-white);
+    }
+  }
+  &.intel-btn-primary-second {
+    color: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+
+    &:hover {
+      background-color: var(--color-primarySoft);
+    }
+  }
+}
+
+.intel-btn-sm {
+  font-size: var(--font-size-12);
+}
+
+.intel-table {
+  width: 100%;
+
+  th {
+    .p-10 !important;
+  }
+}
+
+.intel-btn-background-ghost:disabled,
+.ant-btn-background-ghost:disabled {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.intel-modal {
+  .intel-modal-content {
+    padding: 0;
+    .intel-modal-close {
+      top: 14px;
+    }
+    .intel-modal-header {
+      padding: 10px 24px;
+      border-bottom: 1px solid var(--border-main-color);
+      .intel-modal-title {
+        color: var(--font-main-color);
+      }
+    }
+
+    .intel-modal-body {
+      padding: 8px 24px;
+    }
+
+    .intel-modal-footer {
+      padding: 10px 24px;
+      border-top: 1px solid var(--border-main-color);
+    }
+  }
+}
+.intel-modal {
+  .intel-modal-content {
+    .error-icon {
+      color: var(--color-error);
+    }
+  }
+}
+.intel-notification {
+  .intel-notification-notice-message {
+    font-weight: 600;
+  }
+}
+
+.intel-drawer {
+  .intel-drawer-header {
+    padding: 12px 20px;
+
+    .intel-drawer-header-title {
+      position: relative;
+
+      .intel-drawer-title {
+        font-size: 18px;
+      }
+
+      .intel-drawer-close {
+        position: absolute;
+        right: 0;
+        color: var(--font-text-color);
+        margin-inline-end: 0;
+        margin-inline-start: 12px;
+      }
+    }
+  }
+
+  .intel-drawer-body {
+    padding: 16px 20px 20px 20px;
+  }
+  .intel-drawer-footer {
+    text-align: end;
+  }
+}
+.intel-pagination {
+  margin-top: 24px;
+  text-align: end;
+}
+
+.intel-tooltip {
+  max-width: 60vw;
+}
+.intel-tag-processing {
+  background-color: var(--color-primarySoft);
+  color: var(--color-primary-hover);
+  border-color: var(--border-primary);
+}

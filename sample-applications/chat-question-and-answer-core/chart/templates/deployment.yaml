@@ -18,6 +18,12 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        {{- if .Values.gpu.enabled }}
+        {{- with .Values.gpu.supplementalGroups }}
+        supplementalGroups:
+{{ toYaml . | indent 10 }}
+        {{- end }}
+        {{- end }}
       containers:
         - name: chatqna-core
           {{- if eq (.Values.global.MODEL_RUNTIME | lower) "ollama" }}
@@ -61,6 +67,10 @@ spec:
             - name: model-config
               mountPath: /tmp/model_config/config.yaml
               subPath: config.yaml
+            {{- end }}
+            {{- if .Values.gpu.enabled }}
+            - name: dri-device
+              mountPath: {{ .Values.gpu.devices }}
             {{- end }}
       volumes:
         - name: model-cache

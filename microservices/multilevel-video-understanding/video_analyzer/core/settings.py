@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     DEFAULT_LEVEL_SIZES: List = [1, 6, -1]                  # chunk group size for each level, -1 means use single group
     ## Subtitle payload size limit (bytes) for inline text or decompressed b64gzip
     MAX_SUBTITLE_BYTES: int = Field(10 * 1024 * 1024, env="MAX_SUBTITLE_BYTES")  # default: 10MB
+    VIDEO_ALLOWED_PATHS: List[str] = Field(
+        default_factory=lambda: ["/app", "/tmp"],
+        env="VIDEO_ALLOWED_PATHS",
+    )
+    PROMPT_URL_ALLOWLIST: List[str] = Field(
+        default_factory=list,
+        env="PROMPT_URL_ALLOWLIST",
+    )
     
     ## Frame processing settings
     DEFAULT_PROCESS_FPS: float = Field(1, env="DEFAULT_PROCESS_FPS")

@@ -416,6 +416,15 @@ def wait_for_job_completion(
     )
 
 
+def drain_job(session: requests.Session, status_url: str) -> None:
+    """Wait for a started job to finish, whatever state it ends in.
+
+    The backend runs at most one job at a time, so a test that starts a job and
+    walks away leaves the next submission failing with ``409``.
+    """
+    wait_for_job_completion(session, status_url, assert_initial_running=False)
+
+
 def run_job_with_retry(
     attempt_fn: JobAttemptFn,
     *,
@@ -546,6 +555,7 @@ def upload_model_file(
     *,
     filename: str | None = None,
     content_type: str = "application/zip",
+    description: str | None = None,
 ) -> requests.Response:
     """POST a multipart upload to ``/models/upload``.
 
@@ -555,6 +565,8 @@ def upload_model_file(
     """
     files = {"file": (filename or f"{model_name}.zip", payload, content_type)}
     data = {"model_name": model_name, "category": category}
+    if description is not None:
+        data["description"] = description
     response = session.post(
         f"{BASE_URL}/models/upload", data=data, files=files, timeout=120
     )

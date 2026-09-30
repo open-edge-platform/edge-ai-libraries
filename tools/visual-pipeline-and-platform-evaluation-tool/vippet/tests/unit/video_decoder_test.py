@@ -8,6 +8,8 @@ from video_decoder import (
     FOURCC_TO_CAPS_PREFIX,
     RAW_FOURCC_CODES,
     VideoDecoder,
+    render_node_element,
+    split_device_target,
 )
 
 
@@ -349,6 +351,119 @@ class TestSelectElement(unittest.TestCase):
         }
         result = decoder.select_element(field_dict, DECODER_DEVICE_CPU)
         self.assertIsNone(result)
+
+
+class TestSplitDeviceTarget(unittest.TestCase):
+    """Test video_decoder.split_device_target()."""
+
+    def test_plain_families(self):
+        self.assertEqual(split_device_target("CPU"), ("CPU", None))
+        self.assertEqual(split_device_target("NPU"), ("NPU", None))
+        self.assertEqual(split_device_target("GPU"), ("GPU", 0))
+
+    def test_indexed_gpu(self):
+        self.assertEqual(split_device_target("GPU.0"), ("GPU", 0))
+        self.assertEqual(split_device_target("GPU.1"), ("GPU", 1))
+
+    def test_lowercase_is_normalized(self):
+        self.assertEqual(split_device_target("gpu.2"), ("GPU", 2))
+
+    def test_unparseable_index_returns_none(self):
+        self.assertEqual(split_device_target("GPU.bad"), ("GPU", None))
+
+    def test_empty_device(self):
+        self.assertEqual(split_device_target(""), ("", None))
+
+
+class TestRenderNodeElement(unittest.TestCase):
+    """Test video_decoder.render_node_element()."""
+
+    def test_non_default_gpu_is_qualified(self):
+        self.assertEqual(render_node_element("vah264dec", 1), "varenderD129h264dec")
+        self.assertEqual(render_node_element("vapostproc", 2), "varenderD130postproc")
+
+    def test_default_gpu_is_not_qualified(self):
+        self.assertIsNone(render_node_element("vah264dec", 0))
+        self.assertIsNone(render_node_element("vah264dec", None))
+
+    def test_non_va_element_is_not_qualified(self):
+        self.assertIsNone(render_node_element("avdec_h264", 1))
+
+
+class TestMultiGpuDecoderSelection(unittest.TestCase):
+    """Test decoder/postproc selection for non-default GPU targets."""
+
+    def setUp(self):
+        VideoDecoder._instance = None
+
+    def tearDown(self):
+        VideoDecoder._instance = None
+
+    @patch("video_decoder.GstInspector")
+    def test_gpu_1_selects_render_node_decoder(self, mock_gst_inspector):
+        """GPU.1 selects the decoder bound to the matching render node."""
+        mock_instance = MagicMock()
+        mock_instance.elements = [
+            ("plugin", "vah264dec", "desc"),
+            ("plugin", "varenderD129h264dec", "desc"),
+            ("plugin", "avdec_h264", "desc"),
+        ]
+        mock_gst_inspector.return_value = mock_instance
+
+        decoder = VideoDecoder()
+        result = decoder.select_decoder("h264", "GPU.1")
+        self.assertEqual(result, "varenderD129h264dec")
+
+    @patch("video_decoder.GstInspector")
+    def test_gpu_0_selects_default_decoder(self, mock_gst_inspector):
+        """GPU.0 keeps the unqualified VA decoder."""
+        mock_instance = MagicMock()
+        mock_instance.elements = [
+            ("plugin", "vah264dec", "desc"),
+            ("plugin", "varenderD129h264dec", "desc"),
+        ]
+        mock_gst_inspector.return_value = mock_instance
+
+        decoder = VideoDecoder()
+        result = decoder.select_decoder("h264", "GPU.0")
+        self.assertEqual(result, "vah264dec")
+
+    @patch("video_decoder.GstInspector")
+    def test_gpu_1_falls_back_to_default_va_decoder(self, mock_gst_inspector):
+        """Missing render-node decoder falls back to the default VA decoder."""
+        mock_instance = MagicMock()
+        mock_instance.elements = [
+            ("plugin", "vah264dec", "desc"),
+            ("plugin", "avdec_h264", "desc"),
+        ]
+        mock_gst_inspector.return_value = mock_instance
+
+        decoder = VideoDecoder()
+        result = decoder.select_decoder("h264", "GPU.1")
+        self.assertEqual(result, "vah264dec")
+
+    @patch("video_decoder.GstInspector")
+    def test_select_postproc_for_gpu_1(self, mock_gst_inspector):
+        mock_instance = MagicMock()
+        mock_instance.elements = [
+            ("plugin", "vapostproc", "desc"),
+            ("plugin", "varenderD129postproc", "desc"),
+        ]
+        mock_gst_inspector.return_value = mock_instance
+
+        decoder = VideoDecoder()
+        self.assertEqual(decoder.select_postproc("GPU.1"), "varenderD129postproc")
+        self.assertEqual(decoder.select_postproc("GPU"), "vapostproc")
+        self.assertEqual(decoder.select_postproc("NPU"), "vapostproc")
+
+    @patch("video_decoder.GstInspector")
+    def test_select_postproc_falls_back_when_unavailable(self, mock_gst_inspector):
+        mock_instance = MagicMock()
+        mock_instance.elements = [("plugin", "vapostproc", "desc")]
+        mock_gst_inspector.return_value = mock_instance
+
+        decoder = VideoDecoder()
+        self.assertEqual(decoder.select_postproc("GPU.1"), "vapostproc")
 
 
 class TestConstants(unittest.TestCase):

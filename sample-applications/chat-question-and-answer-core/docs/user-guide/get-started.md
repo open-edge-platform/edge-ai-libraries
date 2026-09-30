@@ -28,7 +28,8 @@ By following this guide, you will learn how to:
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
    ```
 
-   > **Note:** Adjust the repo link appropriately in case of forked repo.
+   > [!NOTE]
+   > Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
 
@@ -44,17 +45,17 @@ By following this guide, you will learn how to:
 
    ```bash
    export REGISTRY="intel/"
-   export UI_TAG=core_2026.2.0-rc1
+   export UI_TAG=core_2026.2.0-rc2
 
    # If you prefer to use the default CPU device, set the following:
-   export BACKEND_TAG=core_2026.2.0-rc1
+   export BACKEND_TAG=core_2026.2.0-rc2
 
    # If you want to utilize GPU device for inferencing, set the following:
    # Note: This image also supports CPU devices.
-   export BACKEND_TAG=core_gpu_2026.2.0-rc1
+   export BACKEND_TAG=core_gpu_2026.2.0-rc2
 
    # For those who prefer Ollama framework, set the following:
-   export BACKEND_TAG=core_ollama_2026.2.0-rc1
+   export BACKEND_TAG=core_ollama_2026.2.0-rc2
    ```
 
    Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
@@ -117,19 +118,17 @@ By following this guide, you will learn how to:
        LLM_DEVICE: "GPU"
      ```
 
-     >**Note:**
-     >
+     > [!NOTE]
+     > 
      > - **GPU inferencing only supported for OpenVINO toolkit framework not Ollama framework.**
      > - If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel® GPU) It is done by specifying GPU.0, GPU.1
-     >
+     > 
      >   ```bash
      >   device_settings:
      >     EMBEDDING_DEVICE: "<GPU.0/GPU.1>"
      >     RERANKER_DEVICE: "<GPU.0/GPU.1>"
      >     LLM_DEVICE: "<GPU.0/GPU.1>"
      >   ```
-
-   - Refer to and use the same list of models as documented in [Chat Q&A](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/get-started.html#supported-models).
 
 6. **Start the Application**:
 

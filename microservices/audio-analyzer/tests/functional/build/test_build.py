@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -147,3 +148,77 @@ class TestDockerComposeBuild:
             f"`docker compose build` (REGISTRY='') failed (exit {result.returncode}).\n"
             f"Last stderr:\n{result.stderr.strip()[-1000:]}"
         )
+
+    @pytest.mark.tier3
+    def test_docker_compose_config_resolves_accel_mount_path(self):
+        """Ensure ACCEL_MOUNT_PATH host value maps to fixed container NPU path."""
+        if shutil.which("docker") is None:
+            pytest.skip("docker binary not found on PATH")
+
+        host_accel = "/dev/accel/accel0"
+        env = {**os.environ, "ACCEL_MOUNT_PATH": host_accel}
+        result = subprocess.run(
+            ["docker", "compose", "config"],
+            cwd=str(REPO_ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        assert result.returncode == 0, (
+            f"`docker compose config` failed (exit {result.returncode}).\n"
+            f"Last stderr:\n{result.stderr.strip()[-1000:]}"
+        )
+
+        cfg = yaml.safe_load(result.stdout)
+        service = cfg.get("services", {}).get("audio-analyzer", {})
+        devices = service.get("devices", [])
+
+        accel_map = next(
+            (
+                d for d in devices
+                if isinstance(d, dict)
+                and d.get("target") == "/dev/accel/accel0"
+            ),
+            None,
+        )
+        assert accel_map is not None, "Missing /dev/accel/accel0 device mapping in compose config"
+        assert accel_map.get("source") == host_accel
+
+    @pytest.mark.tier3
+    def test_docker_compose_config_accel_mount_path_fallbacks_to_dev_null(self):
+        """Ensure ACCEL_MOUNT_PATH fallback maps /dev/null when variable is unset."""
+        if shutil.which("docker") is None:
+            pytest.skip("docker binary not found on PATH")
+
+        env = {k: v for k, v in os.environ.items() if k != "ACCEL_MOUNT_PATH"}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=True) as empty_env_file:
+            result = subprocess.run(
+                ["docker", "compose", "--env-file", empty_env_file.name, "config"],
+                cwd=str(REPO_ROOT),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+        assert result.returncode == 0, (
+            f"`docker compose --env-file <empty> config` failed (exit {result.returncode}).\n"
+            f"Last stderr:\n{result.stderr.strip()[-1000:]}"
+        )
+
+        cfg = yaml.safe_load(result.stdout)
+        service = cfg.get("services", {}).get("audio-analyzer", {})
+        devices = service.get("devices", [])
+
+        accel_map = next(
+            (
+                d for d in devices
+                if isinstance(d, dict)
+                and d.get("target") == "/dev/accel/accel0"
+            ),
+            None,
+        )
+        assert accel_map is not None, "Missing /dev/accel/accel0 device mapping in compose config"
+        assert accel_map.get("source") == "/dev/null"

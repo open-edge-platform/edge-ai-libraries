@@ -19,12 +19,12 @@ See [System Requirements](./get-started/system-requirements.md) for detailed har
 Instead of building from source, you can pull the pre-built Docker image from the registry:
 
 ```bash
-docker pull intel/metrics-manager:2026.1.0
+docker pull intel/metrics-manager:2026.2.0
 ```
 
 The image is based on `python:3.12-slim` and includes:
 
-- Telegraf 1.37.3 (system metrics agent)
+- Telegraf 1.39.3 (system metrics agent)
 - qmassa 1.3.1 (Intel® GPU telemetry)
 - Intel® NPU reader (`npu_reader.py`)
 - Python 3.12 runtime with FastAPI
@@ -88,7 +88,7 @@ This passes proxy settings both to the Docker build and to the running container
 docker compose up --build
 ```
 
-First build takes 3–10 minutes (downloads Rust toolchain to compile qmassa, Telegraf .deb, Python packages). Subsequent builds are cached and take under a minute.
+First build takes 3–10 minutes (compiles qmassa and Telegraf, then installs Python packages). Subsequent builds are cached and take under a minute.
 
 To run in the background:
 
@@ -117,7 +117,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Then verify:
@@ -139,7 +139,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Verify GPU metrics:
@@ -159,7 +159,7 @@ docker run --rm --privileged \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Verify NPU metrics:
@@ -178,7 +178,7 @@ docker run --rm --privileged \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 ### With Custom Ports
@@ -192,7 +192,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Then access on the new ports:
@@ -215,7 +215,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 See [Environment Variables](./get-started/environment-variables.md) for all available variables.
@@ -234,7 +234,7 @@ docker run --rm \
   -v /run:/run:ro \
   -v ./my-scripts:/app/custom-metrics \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Drop your scripts in `./my-scripts/` (they must be executable: `chmod +x script.sh`).
@@ -251,7 +251,7 @@ docker run -d \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Stop it:
@@ -397,12 +397,12 @@ docker compose down --rmi local
 
 ## Troubleshooting Installation
 
-| Issue                 | Solution                                                 |
-| --------------------- | -------------------------------------------------------- |
-| Port already in use   | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
-| Build fails           | Run `docker builder prune` to clear cache                |
-| Container won't start | Check logs: `docker logs metrics-manager`                |
-| No GPU/NPU metrics    | Expected if hardware not present; other metrics continue |
+| Issue                    | Solution                                                 |
+| ------------------------ | -------------------------------------------------------- |
+| Port already in use      | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
+| Build fails              | Run `docker builder prune` to clear cache                |
+| Container will not start | Check logs: `docker logs metrics-manager`                |
+| No GPU/NPU metrics       | Expected if hardware not present; other metrics continue |
 
 See [Troubleshooting](./troubleshooting.md) for more issues.
 

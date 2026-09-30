@@ -1,10 +1,10 @@
-# Release Notes
+# Release Notes: Agent Quality Handler
 
 ## Version 2026.2.0
 
-**TBD**
+**Release Date:** September 9, 2026
 
-**New**
+**New**:
 
 - Standalone Agent Quality Handler with Policy, Analysis, Evidence, and Ticketing graph stages.
 - Direct REST API metrics on port `5002`.

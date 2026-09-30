@@ -10,6 +10,7 @@ from internal_types import (
     InternalValidationJobStatus,
     InternalValidationJobSummary,
 )
+from managers.execution_coordinator import ExecutionCoordinator
 from managers.validation_manager import ValidationManager
 from pipeline_runner import PipelineResult
 
@@ -54,10 +55,14 @@ class TestValidationManager(unittest.TestCase):
     def setUp(self):
         """Reset singleton state before each test."""
         ValidationManager._instance = None
+        # Workers are mocked out here, so they never release their execution
+        # lease; drop the coordinator to keep tests independent.
+        ExecutionCoordinator._instance = None
 
     def tearDown(self):
         """Reset singleton state after each test."""
         ValidationManager._instance = None
+        ExecutionCoordinator._instance = None
 
     def _build_internal_validation(
         self, parameters: dict | None = None
@@ -122,7 +127,7 @@ class TestValidationManager(unittest.TestCase):
 
         mock_execute.assert_called_once()
         called_job_id, called_pipe_desc, called_max_rt, called_hard_to = (
-            mock_execute.call_args[0]
+            mock_execute.call_args[0][:4]
         )
         self.assertEqual(called_job_id, job_id)
         self.assertEqual(called_pipe_desc, "filesrc ! decodebin3 ! autovideosink")
@@ -148,7 +153,7 @@ class TestValidationManager(unittest.TestCase):
         with patch.object(manager, "_execute_validation") as mock_execute:
             manager.run_validation(internal_request)
 
-        _, _, max_rt, hard_timeout = mock_execute.call_args[0]
+        _, _, max_rt, hard_timeout = mock_execute.call_args[0][:4]
         self.assertEqual(max_rt, 10)
         self.assertEqual(hard_timeout, 70)
 

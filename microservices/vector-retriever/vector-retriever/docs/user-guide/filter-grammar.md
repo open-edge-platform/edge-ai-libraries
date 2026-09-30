@@ -1,4 +1,4 @@
-# Filter Grammar
+# Filter Grammar Reference
 
 This page documents the primary filtering contract for Vector Retriever.
 
@@ -92,7 +92,7 @@ Existence operators:
 - Maximum list size for list operators: `100`
   Applies to `in`, `contains_any`, and `contains_all` to avoid oversized list scans.
 
-## 10 Examples by Use Case
+## Use Case Examples
 
 ### 1. Exact metadata match
 

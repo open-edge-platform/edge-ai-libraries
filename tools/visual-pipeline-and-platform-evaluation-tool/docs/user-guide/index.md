@@ -1,7 +1,5 @@
 # Visual Pipeline and Platform Evaluation Tool
 
-_Part of [Edge AI Libraries](https://docs.openedgeplatform.intel.com/dev/ai-libraries.html)_
-
 <!--hide_directive
 <div class="component_card_widget">
   <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool">
@@ -56,7 +54,8 @@ in one place, making it easier to identify bottlenecks and compare platform beha
 
 :::{toctree}
 :hidden:
-ViPPET Home Page <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html>
+
+Go back to Libraries <https://docs.openedgeplatform.intel.com/dev/ai-libraries.html>
 
 :::
 
@@ -64,6 +63,7 @@ ViPPET Home Page <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/
 :hidden:
 :caption: Get Started
 
+ViPPET Overview <https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html>
 ./get-started/installation
 ./get-started/quickstart
 

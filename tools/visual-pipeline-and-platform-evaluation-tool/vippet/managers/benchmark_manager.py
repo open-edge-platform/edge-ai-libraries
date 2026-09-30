@@ -39,6 +39,12 @@ from orm_models import (
 
 logger = logging.getLogger("benchmark_manager")
 
+# Each benchmark test case runs for a fixed duration; since output_mode is
+# DISABLED, a positive max_runtime also makes PipelineManager loop the input
+# video (see build_pipeline_command's needs_looping) so short source clips
+# still fill the whole measurement window.
+BENCHMARK_TEST_CASE_MAX_RUNTIME_SECONDS = 30
+
 
 _T = TypeVar("_T")
 
@@ -277,8 +283,8 @@ class BenchmarkManager:
                     suite_run.status = "failed"
                 elif "cancelled" in workload_statuses:
                     suite_run.status = "cancelled"
-                elif workload_statuses == {"passed"} or status == "passed":
-                    suite_run.status = "passed"
+                elif workload_statuses == {"completed"} or status == "completed":
+                    suite_run.status = "completed"
                     (
                         suite_run.score_performance,
                         suite_run.score_efficiency,
@@ -325,7 +331,7 @@ class BenchmarkManager:
             ],
             execution_config=InternalExecutionConfig(
                 output_mode=InternalOutputMode.DISABLED,
-                max_runtime=0,
+                max_runtime=BENCHMARK_TEST_CASE_MAX_RUNTIME_SECONDS,
                 metadata_mode=InternalMetadataMode.DISABLED,
             ),
             original_request={
@@ -341,7 +347,7 @@ class BenchmarkManager:
                 ],
                 "execution_config": {
                     "output_mode": "disabled",
-                    "max_runtime": 0,
+                    "max_runtime": BENCHMARK_TEST_CASE_MAX_RUNTIME_SECONDS,
                     "metadata_mode": "disabled",
                 },
             },
@@ -412,14 +418,14 @@ class BenchmarkManager:
                     workload_run.status = "failed"
                 elif "cancelled" in statuses:
                     workload_run.status = "cancelled"
-                elif statuses == {"passed"}:
-                    workload_run.status = "passed"
+                elif statuses == {"completed"}:
+                    workload_run.status = "completed"
                 else:
                     # Fallback for unexpected terminal combinations.
                     workload_run.status = "failed"
 
             if (
-                workload_run.status in {"passed", "failed", "cancelled"}
+                workload_run.status in {"completed", "failed", "cancelled"}
                 and workload_run.start_time is not None
                 and workload_run.execution_time is None
             ):
@@ -427,7 +433,7 @@ class BenchmarkManager:
                     int(time.time() * 1000) - workload_run.start_time
                 )
 
-            if workload_run.status == "passed":
+            if workload_run.status == "completed":
                 (
                     workload_run.score_performance,
                     workload_run.score_efficiency,
@@ -555,7 +561,7 @@ class BenchmarkManager:
             if cancelled:
                 test_case_run.status = "cancelled"
             elif total_fps is not None:
-                test_case_run.status = "passed"
+                test_case_run.status = "completed"
                 (
                     test_case_run.score_performance,
                     test_case_run.score_efficiency,
@@ -780,7 +786,7 @@ class BenchmarkManager:
                     self._run_db(
                         self._update_suite_run_status(
                             suite_run_id=plan.suite_run_id,
-                            status="passed",
+                            status="completed",
                         )
                     )
                     job.state = InternalTestJobState.COMPLETED

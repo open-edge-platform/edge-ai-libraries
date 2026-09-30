@@ -169,7 +169,7 @@ install_dependencies() {
             ;;
         ultralytics)
             echo -e "${BLUE}INFO:${NC} Downloading Ultralytics public models script from GitHub"
-            DLSTREAMER_SAMPLES_URL="https://raw.githubusercontent.com/open-edge-platform/dlstreamer/v2026.1.0/samples"
+            DLSTREAMER_SAMPLES_URL="https://raw.githubusercontent.com/open-edge-platform/dlstreamer/4d22f42ffe1df79800dc2ef1749f7e37f3d47bf1/samples"
             mkdir -p /opt/scripts/models
             if curl -fsSL -o /opt/scripts/download_public_models.sh "${DLSTREAMER_SAMPLES_URL}/download_public_models.sh"; then
                 chmod +x /opt/scripts/download_public_models.sh
@@ -392,12 +392,17 @@ for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
         OMZ_VENV="/opt/.venv-omz"
         print_info "Creating isolated OMZ venv at ${OMZ_VENV} with openvino-dev==2024.6.0"
         if UV_PROJECT_ENVIRONMENT="${OMZ_VENV}" uv sync --extra omz --no-dev; then
-            if "${OMZ_VENV}/bin/omz_downloader" --help > /dev/null 2>&1; then
-                print_success "OMZ venv created with openvino-dev and OMZ tools ready"
-                echo "OMZ_VENV=${OMZ_VENV}" >> "${PLUGIN_VENVS_FILE}"
+            if uv pip install --python "${OMZ_VENV}/bin/python" -r /opt/requirements/omz.txt --index-url https://pypi.org/simple --extra-index-url https://download.pytorch.org/whl/cpu; then
+                if "${OMZ_VENV}/bin/omz_downloader" --help > /dev/null 2>&1; then
+                    print_success "OMZ venv created with openvino-dev and OMZ tools ready"
+                    echo "OMZ_VENV=${OMZ_VENV}" >> "${PLUGIN_VENVS_FILE}"
+                else
+                    print_warning "OMZ downloader not found after sync; continuing anyway"
+                    echo "OMZ_VENV=${OMZ_VENV}" >> "${PLUGIN_VENVS_FILE}"
+                fi
             else
-                print_warning "OMZ downloader not found after sync; continuing anyway"
-                echo "OMZ_VENV=${OMZ_VENV}" >> "${PLUGIN_VENVS_FILE}"
+                print_error "Failed to install OMZ requirements from requirements/omz.txt"
+                exit 1
             fi
         else
             print_error "Failed to create OMZ venv with uv sync --extra omz"

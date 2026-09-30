@@ -105,6 +105,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go get github.com/moby/go-archive@v0.3.0 && \
     go mod tidy
+
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build \
@@ -185,6 +186,7 @@ CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
 FROM python:3.12-slim AS production
 
 ARG INSTALL_OPENVINO=false
+
 ARG METRICS_MANAGER_UID=10001
 ARG METRICS_MANAGER_GID=10001
 
@@ -298,7 +300,9 @@ RUN chmod +x /entrypoint.sh && \
 # Environment variables with defaults
 ENV METRICS_PORT=9090
 ENV TELEGRAF_PORT=9273
-ENV HARDWARE_TELEMETRY_ENABLED=false
+# Gates the qmassa GPU collector in supervisord. Set to false for deployments
+# that cannot grant /dev/dri access (the Helm chart does this explicitly).
+ENV HARDWARE_TELEMETRY_ENABLED=true
 ENV QMASSA_FIFO_PATH=/app/qmassa.fifo
 ENV QMASSA_LOG_TO_STDERR=false
 ENV NPU_READER_LOG_FILE=/app/npu_reader_trace.log
@@ -312,6 +316,9 @@ ENV TELEGRAF_CONFIG_PATH=/etc/telegraf/telegraf.conf
 # 9273 - Telegraf Prometheus metrics
 # 8186 - Telegraf HTTP listener (InfluxDB Line Protocol)
 EXPOSE 9090 9273 8186
+
+# No USER directive: host telemetry (PMT sysfs, dmidecode) is readable only by
+# root, so the image defaults to root; override with CONTAINER_USER to opt out.
 
 # OCI image metadata - version is read from the VERSION file at build time
 # (single source of truth used by Makefile / docker compose).

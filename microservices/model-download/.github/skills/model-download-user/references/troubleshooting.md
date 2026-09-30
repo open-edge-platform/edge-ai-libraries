@@ -19,7 +19,7 @@ source scripts/run_service.sh up --plugins huggingface,openvino --model-path $PW
 
 To see which plugins are currently active:
 ```bash
-curl -s http://localhost:8200/api/v1/plugins | python3 -m json.tool
+curl -s http://localhost:8200/api/v1/plugins | jq .
 ```
 
 ---
@@ -52,7 +52,7 @@ The token is picked up from the `HF_TOKEN` or `HUGGINGFACEHUB_API_TOKEN` environ
 docker logs model-download 2>&1 | tail -50
 
 # Verify the job status
-curl -s http://localhost:8200/api/v1/jobs/<job-id> | python3 -m json.tool
+curl -s http://localhost:8200/api/v1/jobs/<job-id> | jq .
 ```
 
 **Common causes:**
@@ -180,7 +180,10 @@ source scripts/run_service.sh down
 }
 ```
 
-**Fix for other plugins:** Manually remove the directory and re-submit the job:
+**Fix for other plugins:** Remove the partially downloaded model directory and
+re-submit the job. This deletion is irreversible, so print the resolved path and
+get the user's explicit confirmation before running it, and never widen the path
+beyond the single model directory:
 ```bash
 rm -rf $PWD/models/huggingface/model_name/
 ```
@@ -194,14 +197,14 @@ rm -rf $PWD/models/huggingface/model_name/
 curl http://localhost:8200/api/v1/health
 
 # Available plugins and their status
-curl -s http://localhost:8200/api/v1/plugins | python3 -m json.tool
+curl -s http://localhost:8200/api/v1/plugins | jq .
 
 # All jobs (paginated)
-curl -s http://localhost:8200/api/v1/jobs | python3 -m json.tool
+curl -s http://localhost:8200/api/v1/jobs | jq .
 
 # Specific job
-curl -s http://localhost:8200/api/v1/jobs/<job-id> | python3 -m json.tool
+curl -s http://localhost:8200/api/v1/jobs/<job-id> | jq .
 
 # All completed models
-curl -s http://localhost:8200/api/v1/models/results | python3 -m json.tool
+curl -s http://localhost:8200/api/v1/models/results | jq .
 ```

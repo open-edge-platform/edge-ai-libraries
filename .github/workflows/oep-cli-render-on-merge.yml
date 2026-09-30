@@ -1,0 +1,103 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "[OEP CLI]  Render OEP CLI on merge"
+run-name: "[OEP CLI]  Render OEP CLI on merge (by @${{ github.actor }} via ${{ github.event_name }})"
+
+# Keep the committed, ready-to-ship installer
+# (frameworks/oep-installer-cli/rendered/openedge-cli) in sync with its source.
+# After a PR merges (push to a tracked branch), regenerate the installer and, if
+# it drifted, commit the refreshed artifact straight back to that branch.
+#
+# The commit is pushed with the SIV_USER_TOKEN_GH token, which must be a bypass
+# actor on the protected-branch ruleset so it may push directly to main/release
+# branches. Because rendering happens after merge on this repo (never on a fork
+# branch), it works uniformly for same-repo and fork PRs.
+on:
+  push:
+    branches:
+      - main
+      - 'release-*'
+      - 'release/**'
+    paths:
+      - 'frameworks/oep-installer-cli/openedge-cli'
+      - 'frameworks/oep-installer-cli/common/**'
+      - 'frameworks/oep-installer-cli/license/**'
+      - 'frameworks/oep-installer-cli/module/**'
+      - 'frameworks/oep-installer-cli/profile/**'
+      - '.github/workflows/oep-cli-render-on-merge.yml'
+      # NOTE: rendered/** is intentionally NOT listed. The bot pushes its own
+      # regenerated file under rendered/, and excluding it here prevents the
+      # workflow from re-triggering itself in an infinite loop.
+
+# Serialize renders per branch so concurrent merges cannot race on the push.
+concurrency:
+  group: oep-cli-render-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    name: Regenerate rendered/openedge-cli
+    # Loop guard: never act on the bot's own render commit.
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      github.actor != 'copilot-swe-agent[bot]' &&
+      github.actor != 'Copilot' &&
+      github.actor != vars.AUTOMATION_ACTOR
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Verify required tooling
+        run: |
+          set -euo pipefail
+          for tool in bash git sed; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error::Missing required tool: ${tool}. Install it on the self-hosted runner and retry."
+              exit 1
+            fi
+          done
+
+      - name: Clean workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          clean: true
+          persist-credentials: true
+          token: ${{ secrets.SIV_USER_TOKEN_GH }}
+
+      - name: Regenerate installer
+        working-directory: frameworks/oep-installer-cli
+        run: |
+          set -euo pipefail
+          ./openedge-cli bootstrap
+
+      - name: Commit and push if the rendered installer changed
+        working-directory: frameworks/oep-installer-cli
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- rendered/openedge-cli; then
+            echo "::notice::rendered/openedge-cli already up to date — nothing to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # -f is required: rendered/.gitignore contains "*", which would otherwise
+          # block staging the (already tracked) rendered artifact.
+          git add -f rendered/openedge-cli
+          git commit -m "chore(oep-cli): regenerate rendered/openedge-cli"
+          git push origin "HEAD:${BRANCH}"
+
+          echo "::notice::Pushed regenerated rendered/openedge-cli to ${BRANCH}."

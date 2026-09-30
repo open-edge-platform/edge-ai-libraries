@@ -3512,6 +3512,91 @@ class TestNegativeCases(unittest.TestCase):
                 )
 
 
+class TestValidateInferenceDevicesShareVaDisplay(unittest.TestCase):
+    """Test cases for Graph.validate_inference_devices_share_va_display method."""
+
+    @staticmethod
+    def _graph(detect_device, detect_backend, classify_device, classify_backend):
+        return Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(
+                    id="2",
+                    type="gvadetect",
+                    data={
+                        "model": "d.xml",
+                        "device": detect_device,
+                        "pre-process-backend": detect_backend,
+                    },
+                ),
+                Node(
+                    id="3",
+                    type="gvaclassify",
+                    data={
+                        "model": "c.xml",
+                        "device": classify_device,
+                        "pre-process-backend": classify_backend,
+                    },
+                ),
+                Node(id="4", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+            ],
+        )
+
+    def test_same_indexed_gpu_is_allowed(self):
+        graph = self._graph(
+            "GPU.1", "va-surface-sharing", "GPU.1", "va-surface-sharing"
+        )
+        graph.validate_inference_devices_share_va_display()
+
+    def test_default_gpu_with_npu_is_allowed(self):
+        """NPU pins renderD128, which is what a bare GPU pipeline decodes into."""
+        graph = self._graph("GPU", "va-surface-sharing", "NPU", "va")
+        graph.validate_inference_devices_share_va_display()
+
+    def test_bare_gpu_adopts_upstream_display(self):
+        """A bare GPU element reuses the upstream display, so it fits any render node."""
+        graph = self._graph("GPU.1", "va-surface-sharing", "GPU", "va-surface-sharing")
+        graph.validate_inference_devices_share_va_display()
+
+    def test_two_different_indexed_gpus_are_rejected(self):
+        graph = self._graph(
+            "GPU.1", "va-surface-sharing", "GPU.2", "va-surface-sharing"
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            graph.validate_inference_devices_share_va_display()
+        message = str(cm.exception)
+        self.assertIn("gvaclassify", message)
+        self.assertIn("renderD129", message)
+        self.assertIn("renderD130", message)
+
+    def test_indexed_gpu_with_npu_is_rejected(self):
+        graph = self._graph("GPU.1", "va-surface-sharing", "NPU", "va")
+
+        with self.assertRaises(ValueError) as cm:
+            graph.validate_inference_devices_share_va_display()
+        message = str(cm.exception)
+        self.assertIn("NPU", message)
+        self.assertIn("renderD128", message)
+
+    def test_cpu_pipeline_is_not_checked(self):
+        """A CPU-decoded pipeline carries system memory, so there is no display to share."""
+        graph = self._graph("CPU", "opencv", "NPU", "va")
+        graph.validate_inference_devices_share_va_display()
+
+    def test_non_va_backend_is_ignored(self):
+        """An element that never touches a VA display cannot mismatch."""
+        graph = self._graph("GPU.1", "va-surface-sharing", "CPU", "opencv")
+        graph.validate_inference_devices_share_va_display()
+
+
 class TestGetRecommendedEncoderDevice(unittest.TestCase):
     """Test cases for Graph.get_recommended_encoder_device method."""
 
@@ -3718,6 +3803,31 @@ class TestToSimpleView(unittest.TestCase):
                         str(i),
                         f"Edge {i} ID should be sequential: expected {str(i)}, got {actual_edge.id}",
                     )
+
+    def test_simple_view_includes_videoscale(self):
+        """Test that videoscale is retained as a user-facing simple-view step."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(id="1", type="videoscale", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+        simple_view = graph.to_simple_view()
+
+        self.assertEqual(
+            [node.type for node in simple_view.nodes],
+            ["source", "videoscale", "fakesink"],
+        )
+        self.assertEqual(
+            [(edge.source, edge.target) for edge in simple_view.edges],
+            [("0", "1"), ("1", "2")],
+        )
 
     @patch("graph.SIMPLE_VIEW_INVISIBLE_ELEMENTS", "gvafpscounter,gvametapublish")
     def test_simple_view_with_invisible_elements(self):
@@ -7789,106 +7899,6 @@ class TestInternalMarkersStrippedFromPipelineDescription(unittest.TestCase):
         self.assertNotIn("__internal_marker", description)
         self.assertNotIn("should-not-leak", description)
         self.assertIn("num-buffers=10", description)
-
-
-class TestUploadedModelFallback(unittest.TestCase):
-    """Cover the ``ModelManager`` fallback added to ``_model_path_to_display_name``
-    and ``_model_display_name_to_path`` so uploaded (custom) models keep
-    working through the simple-graph / convert-to-advanced flow.
-    """
-
-    def _node(self, model_value: str, model_proc: str | None = None) -> Node:
-        data: dict[str, str] = {"model": model_value}
-        if model_proc is not None:
-            data["model-proc"] = model_proc
-        return Node(id="n1", type="gvadetect", data=data)
-
-    # --- path -> display name ---------------------------------------
-
-    def test_path_to_display_name_falls_back_to_model_manager(self) -> None:
-        from graph import _model_path_to_display_name
-
-        node = self._node("/models/output/custom_uploaded_models/face-custom/model.xml")
-
-        yaml_manager = MagicMock()
-        yaml_manager.find_model_by_model_and_proc_path.return_value = None
-        mm = MagicMock()
-        mm.find_uploaded_model_by_path.return_value = MagicMock(
-            display_name="face-custom"
-        )
-
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            _model_path_to_display_name([node])
-
-        self.assertEqual(node.data["model"], "face-custom")
-        # model-proc must be stripped after conversion.
-        self.assertNotIn("model-proc", node.data)
-        mm.find_uploaded_model_by_path.assert_called_once()
-
-    def test_path_to_display_name_empty_when_neither_resolves(self) -> None:
-        from graph import _model_path_to_display_name
-
-        node = self._node("/totally/unknown.xml")
-        yaml_manager = MagicMock()
-        yaml_manager.find_model_by_model_and_proc_path.return_value = None
-        mm = MagicMock()
-        mm.find_uploaded_model_by_path.return_value = None
-
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            _model_path_to_display_name([node])
-
-        self.assertEqual(node.data["model"], "")
-
-    # --- display name -> path ---------------------------------------
-
-    def test_display_name_to_path_falls_back_to_model_manager(self) -> None:
-        from graph import _model_display_name_to_path
-
-        node = self._node("my-uploaded-model")
-        yaml_manager = MagicMock()
-        yaml_manager.find_installed_model_by_display_name.return_value = None
-
-        uploaded = MagicMock()
-        uploaded.model_path_full = "/abs/path/my-uploaded-model.xml"
-        uploaded.model_proc_full = ""  # uploads have no model-proc
-        mm = MagicMock()
-        mm.find_installed_uploaded_model_by_display_name.return_value = uploaded
-
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            _model_display_name_to_path([node])
-
-        self.assertEqual(node.data["model"], "/abs/path/my-uploaded-model.xml")
-        # No model-proc must be injected when the model has none.
-        self.assertNotIn("model-proc", node.data)
-        mm.find_installed_uploaded_model_by_display_name.assert_called_once_with(
-            "my-uploaded-model"
-        )
-
-    def test_display_name_to_path_raises_when_unknown_everywhere(self) -> None:
-        from graph import _model_display_name_to_path
-
-        node = self._node("ghost-model")
-        yaml_manager = MagicMock()
-        yaml_manager.find_installed_model_by_display_name.return_value = None
-        mm = MagicMock()
-        mm.find_installed_uploaded_model_by_display_name.return_value = None
-
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            with self.assertRaises(ValueError) as cm:
-                _model_display_name_to_path([node])
-        self.assertIn("ghost-model", str(cm.exception))
 
 
 if __name__ == "__main__":

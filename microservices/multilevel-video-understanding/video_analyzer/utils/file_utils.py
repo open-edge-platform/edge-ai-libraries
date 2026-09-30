@@ -1,18 +1,72 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+import ipaddress
+import socket
 import traceback
 from pathlib import Path
-import os
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 import requests
 import tempfile
 import pathlib
 from fastapi import HTTPException, status
 from decord import VideoReader, cpu
+from video_analyzer.core.settings import settings
 from video_analyzer.schemas.summarization import ErrorResponse
 
 from video_analyzer.utils.logger import logger
+
+
+_PRIVATE_NETS = tuple(
+    ipaddress.ip_network(network)
+    for network in (
+        "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+        "169.254.0.0/16", "::1/128", "fc00::/7", "fe80::/10",
+    )
+)
+
+
+def _is_public_host(host: str) -> bool:
+    if not host or host.lower() == "localhost":
+        return False
+    try:
+        addresses = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False
+    for address in addresses:
+        try:
+            ip = ipaddress.ip_address(address[4][0])
+        except ValueError:
+            return False
+        if any(ip in network for network in _PRIVATE_NETS):
+            return False
+    return bool(addresses)
+
+
+def validate_remote_url(raw_url: str) -> str:
+    """Return a normalized public HTTP(S) URL suitable for a single fetch."""
+    parsed = urlparse(raw_url)
+    if parsed.scheme.lower() not in {"http", "https"} or not _is_public_host(parsed.hostname or ""):
+        raise ValueError("URL host is not allowed")
+    return urlunparse((parsed.scheme.lower(), parsed.netloc, parsed.path, "", parsed.query, ""))
+
+
+def validate_local_path(raw_path: str) -> str:
+    """Resolve a service-visible media path within configured input roots."""
+    requested_path = os.path.abspath(os.path.expanduser(raw_path))
+    for configured_root in settings.VIDEO_ALLOWED_PATHS:
+        root = Path(configured_root).expanduser().resolve()
+        relative_path = os.path.relpath(requested_path, root)
+        if relative_path != os.pardir and not relative_path.startswith(os.pardir + os.sep):
+            path = (root / relative_path).resolve()
+            if path.is_relative_to(root):
+                break
+    else:
+        raise ValueError("Local path is outside the configured video input paths")
+    if not path.is_file():
+        raise FileNotFoundError("Local file not found")
+    return str(path)
 
 
 def get_file_duration(file_path: Path) -> float:
@@ -74,11 +128,13 @@ def robust_video_reader(url, ctx=cpu(0), width=-1, height=-1, num_threads=0, ver
 
     # HTTP / HTTPS: download to temp file first
     if scheme in ("http", "https"):
-        logger.info("Downloading video from %s ...", url)
-        response = requests.get(url, stream=True, verify=(verify_ssl if scheme == "https" else True), timeout=60)
+        validated_url = validate_remote_url(url)
+        logger.info("Downloading video from approved remote host")
+        response = requests.get(validated_url, stream=True, allow_redirects=False,
+                    verify=(verify_ssl if scheme == "https" else True), timeout=60)
         response.raise_for_status()
 
-        suffix = os.path.splitext(urlparse(url).path)[1] or ".mp4"
+        suffix = ".mp4"
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
@@ -102,8 +158,9 @@ def download_to_temp(video_path: str) -> str | None:
     if scheme not in ("http", "https"):
         return None
 
-    logger.info("Downloading remote video to temp file: %s", video_path)
-    response = requests.get(video_path, stream=True, timeout=60)
+    validated_url = validate_remote_url(video_path)
+    logger.info("Downloading video from approved remote host")
+    response = requests.get(validated_url, stream=True, allow_redirects=False, timeout=60)
     response.raise_for_status()
 
     suffix = os.path.splitext(urlparse(video_path).path)[1] or ".mp4"
@@ -137,8 +194,9 @@ def validate_video_path(raw: str) -> str:
 
     if scheme in ("", "file"):
         local_path = parsed.path if scheme == "file" else raw
-        local_path = os.path.abspath(os.path.expanduser(local_path))
-        if not os.path.isfile(local_path):
+        try:
+            return validate_local_path(local_path)
+        except (ValueError, FileNotFoundError):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorResponse(
@@ -146,13 +204,11 @@ def validate_video_path(raw: str) -> str:
                     details=f"{local_path}"
                 ).model_dump()
             )
-        return local_path
-
     if scheme in ("http", "https"):
         # Simple syntax / extension check
         ext = pathlib.Path(parsed.path).suffix.lower()
         video_exts = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".flv", ".mpeg", ".mpg"}
-        if not parsed.netloc:
+        if not parsed.netloc or not _is_public_host(parsed.hostname or ""):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorResponse(
@@ -169,7 +225,7 @@ def validate_video_path(raw: str) -> str:
                     details=f"{ext}"
                 ).model_dump()
             )
-        return raw
+        return urlunparse((scheme, parsed.netloc, parsed.path, "", parsed.query, ""))
 
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,

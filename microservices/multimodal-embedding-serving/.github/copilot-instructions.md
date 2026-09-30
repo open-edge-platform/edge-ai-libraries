@@ -92,8 +92,8 @@ OpenVINO optional per model.
 - `INFER_BATCH_SIZE` compiles OpenVINO models to a **fixed batch shape**.
 - `video_file`/`frames_batch` inputs accept bare filenames only, resolved
   under the container's `/tmp/videoQnA` sandbox.
-- This package is a **path dependency of the VDMS DataPrep microservice**
-  (`visual-data-preparation-for-retrieval/vdms`) — changes to
+- This package is a **path dependency of the multimodal-dataprep microservice**
+  (`visual-data-preparation-for-retrieval/multimodal-dataprep`) — changes to
   `src/wrapper.py`'s API ripple there.
 
 ## Skills

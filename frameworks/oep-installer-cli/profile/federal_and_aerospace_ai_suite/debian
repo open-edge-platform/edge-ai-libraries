@@ -1,0 +1,5 @@
+
+debian_99_profile_federal_and_aerospace_ai_suite () {
+  [ "$1" = "start" ] || echo "handheld_multi_modal"
+}
+

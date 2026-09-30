@@ -858,6 +858,26 @@ class TestJobsAPI(unittest.TestCase):
         self.assertIn('data: {"frame": 1}', response.text)
 
     @patch("api.routes.jobs.MetadataManager")
+    def test_stream_metadata_returns_204_when_tailing_stopped(
+        self, mock_metadata_manager_cls
+    ):
+        """
+        A job that has stopped tailing must answer 204 so EventSource clients
+        stop reconnecting instead of looping on an immediately-closed stream.
+        """
+        mock_metadata_manager = MagicMock()
+        mock_metadata_manager.job_exists.return_value = True
+        mock_metadata_manager.is_tailing.return_value = False
+        mock_metadata_manager_cls.return_value = mock_metadata_manager
+
+        response = self.client.get(
+            "/jobs/tests/performance/job-1/metadata/pipe-a/0/stream"
+        )
+
+        self.assertEqual(response.status_code, 204)
+        mock_metadata_manager.resolve_file_index.assert_not_called()
+
+    @patch("api.routes.jobs.MetadataManager")
     def test_stream_metadata_forwards_keepalive_comments(
         self, mock_metadata_manager_cls
     ):

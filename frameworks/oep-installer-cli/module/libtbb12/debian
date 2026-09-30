@@ -1,0 +1,10 @@
+
+debian_15_install_libtbb12 () {
+  ensure_apt_install_package libtbb12
+}
+
+debian_15_sbom_libtbb12 () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list libtbb12)
+EOF
+}

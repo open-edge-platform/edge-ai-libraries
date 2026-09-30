@@ -2,28 +2,31 @@
 
 ## Version 2026.2.0
 
-**TBD**
+**Release Date:** September 9, 2026
 
 This release introduces **configurable external model sources**, **request-scoped credential overrides and startup model preloading**, **OpenVINO HETERO device conversion**, and **job cancellation**, along with validation, AI skill, and documentation improvements.
 
-**New**
+**New**:
 
 - **External Model Sources**: introduces a YAML-driven plugin for Pipeline Zoo models, time-series UDF tarballs, OpenVINO Model Zoo models, and allowlisted remote URLs.
 - **Credential Overrides and Startup Preloading**: adds validated per-request credential overrides and YAML-based startup model downloads, including parallel multi-model processing and OpenVINO conversion settings.
 - **HETERO Device Conversion**: adds OpenVINO conversion for ordered HETERO device combinations such as `HETERO:GPU,CPU`.
 - **Job Cancellation**: adds an endpoint to cancel queued or running jobs, stop active work where supported, and clean up only the affected model artifacts.
 
-**Improved**
+**Improved**:
 
 - **Model Download AI Skills**: expands developer and user skill guidance, examples, evaluations, integration patterns, and current API workflows.
 - **Model Storage Documentation**: documents deterministic, hub-specific model storage paths returned by completed jobs.
 
-**Fixed**
+**Fixed**:
 
 - **Uploaded Model Name Validation**: preserves letter case, converts spaces to underscores, and rejects unsafe or malformed names with clearer errors.
-- **Updated the default container UID/GID to 1000**: to align with host user permissions and simplify volume access
+- **Updated the default container UID/GID to 1000**: aligns with host user permissions and simplifies volume access
+- **Fixed security vulnerability issues**
 
----
+**Known Issues:**
+
+- **Intermittent curl SSL certificate errors**: Some plugins may intermittently fail with curl: (60) SSL certificate problem: unable to get local issuer certificate during HTTPS requests. The root cause is currently under investigation.
 
 ## Version 2026.1.0
 

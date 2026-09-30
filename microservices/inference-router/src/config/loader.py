@@ -24,8 +24,55 @@ from src.exceptions import ConfigurationError
 logger = logging.getLogger(__name__)
 
 
-# Matches ``${VAR}`` or ``${VAR:-default}`` anywhere in a string.
-_ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+_PLUGIN_TRIGGERS = {"prerouting", "postrouting", "postresponse"}
+
+
+# Matches ``${VAR}`` or ``${VAR:-default}`` anywhere in a string. The default
+# value is length-bounded (``{0,4096}``) rather than an open ``[^}]*`` so the
+# pattern stays linear on attacker-influenced config values — an unbounded
+# ``[^}]*`` re-scans to end-of-string from every ``${`` and is polynomial (a
+# ReDoS vector, CWE-1333). No real env-var default approaches this bound.
+_ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]{0,4096}))?\}")
+
+
+# Allowed characters for user-defined ``name`` fields.
+_NAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def resolve_workspace_dir() -> Path:
+    """Return the runtime workspace directory.
+
+    Precedence: ``$GATEWAY_WORKSPACE`` if set, else the directory containing
+    ``$GATEWAY_CONFIG`` (production points this at ``workspace/config.yaml``),
+    else ``<cwd>/workspace``. This is where operators drop overriding
+    ``policy.yaml`` / ``strategy.yaml`` files (see
+    :func:`src.rsd.policy.resolve_policy_file`).
+    """
+    override = os.environ.get("GATEWAY_WORKSPACE")
+    if override:
+        return Path(override).expanduser()
+    config_env = os.environ.get("GATEWAY_CONFIG")
+    if config_env:
+        return Path(config_env).expanduser().parent
+    return Path.cwd() / "workspace"
+
+
+def validate_name(value: str, kind: str) -> str:
+    """Validate a user-defined ``name`` field.
+
+    Names index providers/plugins/policies/strategies and surface in metric
+    labels and (for RSD files) on disk, so they are restricted to
+    ``[A-Za-z0-9._-]`` — no whitespace, path separators, or other special
+    characters. Raises :class:`ConfigurationError` on violation. This guards
+    *names* only; a provider's ``model`` identifier (e.g. ``Qwen/Qwen3.5-9B``)
+    is intentionally left unrestricted.
+    """
+    if not isinstance(value, str) or not _NAME_PATTERN.fullmatch(value):
+        raise ConfigurationError(
+            f"{kind} name {value!r} is invalid: only letters, digits, '.', '-', "
+            "and '_' are allowed (no spaces or special characters)."
+        )
+    return value
 
 
 def _expand_env_in_string(value: str) -> Optional[str]:
@@ -36,6 +83,11 @@ def _expand_env_in_string(value: str) -> Optional[str]:
     when the variable isn't set, instead of being passed through as the
     literal placeholder.
     """
+    # Lazy import: this module loads during early config parsing, before the
+    # router stack; ``src.router.logging_utils`` lives under the heavy
+    # ``src.router`` package, so importing it here avoids an import cycle.
+    from src.router.logging_utils import sanitize_for_log
+
     match = _ENV_VAR_PATTERN.fullmatch(value.strip())
     if match:
         var_name, default = match.group(1), match.group(2)
@@ -44,7 +96,7 @@ def _expand_env_in_string(value: str) -> Optional[str]:
             return env_val
         if default is not None:
             return default
-        logger.debug(f"Env var {var_name!r} not set; resolving to None")
+        logger.debug("Env var %r not set; resolving to None", sanitize_for_log(var_name))
         return None
 
     def _sub(m: re.Match) -> str:
@@ -54,7 +106,9 @@ def _expand_env_in_string(value: str) -> Optional[str]:
             return env_val
         if default is not None:
             return default
-        logger.debug(f"Env var {var_name!r} not set; substituting empty string")
+        logger.debug(
+            "Env var %r not set; substituting empty string", sanitize_for_log(var_name)
+        )
         return ""
 
     return _ENV_VAR_PATTERN.sub(_sub, value)
@@ -118,6 +172,16 @@ def _build_router_config(config_data: dict) -> RouterConfig:
     # Parse plugins - organized by prerouting/postrouting/postresponse sections
     plugins = []
     plugins_data = config_data.get("plugins") or {}
+    if not isinstance(plugins_data, dict):
+        raise ConfigurationError("Plugins configuration must be a mapping")
+
+    unknown_plugin_sections = set(plugins_data) - _PLUGIN_TRIGGERS
+    if unknown_plugin_sections:
+        unknown = ", ".join(sorted(unknown_plugin_sections))
+        allowed = ", ".join(sorted(_PLUGIN_TRIGGERS))
+        raise ConfigurationError(
+            f"Invalid plugin section(s): {unknown}. Allowed sections are: {allowed}"
+        )
 
     for plugin_data in plugins_data.get("prerouting") or []:
         plugin = _build_plugin_config(plugin_data, trigger="prerouting")
@@ -131,6 +195,15 @@ def _build_router_config(config_data: dict) -> RouterConfig:
     for plugin_data in plugins_data.get("postresponse") or []:
         plugin = _build_plugin_config(plugin_data, trigger="postresponse")
         plugins.append(plugin)
+
+    seen_plugins = set()
+    for plugin in plugins:
+        identity = (plugin.node, plugin.name)
+        if identity in seen_plugins:
+            raise ConfigurationError(
+                f"Duplicate plugin instance '{plugin.name}' for node '{plugin.node}'"
+            )
+        seen_plugins.add(identity)
 
     # Parse routing
     routing_data = config_data.get("routing", {})
@@ -171,6 +244,7 @@ def _build_provider_config(provider_data: dict) -> ProviderConfig:
     name = provider_data.get("name")
     if not name:
         raise ConfigurationError("Provider must have a 'name'")
+    validate_name(name, "Provider")
 
     provider_type = provider_data.get("type")
     if not provider_type:
@@ -187,6 +261,7 @@ def _build_provider_config(provider_data: dict) -> ProviderConfig:
         enabled=provider_data.get("enabled", True),
         metadata=provider_data.get("metadata", {}),
         settings=provider_data.get("settings", {}),
+        extra=provider_data.get("extra", {}),
     )
 
 
@@ -200,7 +275,7 @@ def _build_plugin_config(plugin_data: dict, trigger: str = "prerouting") -> Plug
     Raises:
         ConfigurationError: If required fields missing or invalid
     """
-    if trigger not in {"prerouting", "postrouting", "postresponse"}:
+    if trigger not in _PLUGIN_TRIGGERS:
         raise ConfigurationError(
             "Invalid plugin trigger: "
             f"{trigger}. Allowed values are 'prerouting', 'postrouting', and 'postresponse'"
@@ -209,6 +284,7 @@ def _build_plugin_config(plugin_data: dict, trigger: str = "prerouting") -> Plug
     name = plugin_data.get("name")
     if not name:
         raise ConfigurationError("Plugin must have a 'name'")
+    validate_name(name, "Plugin")
 
     plugin_node = plugin_data.get("node")
     if not plugin_node:
@@ -219,6 +295,5 @@ def _build_plugin_config(plugin_data: dict, trigger: str = "prerouting") -> Plug
         node=plugin_node,
         enabled=plugin_data.get("enabled", True),
         trigger=trigger,
-        nodes=plugin_data.get("nodes", []),
         settings=plugin_data.get("settings", {}),
     )

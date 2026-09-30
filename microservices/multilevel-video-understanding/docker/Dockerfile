@@ -1,8 +1,9 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-# Common base image with system dependencies
-FROM python:3.13-slim AS python-base
+# Common base image with system dependencies. Use the explicit trixie tag so
+# builds do not reuse a stale cached image for the floating 3.13-slim tag.
+FROM python:3.13-slim-trixie AS python-base
 
 # Setting env vars for python, pip and poetry
 ENV PYTHONUNBUFFERED=1 \
@@ -29,8 +30,12 @@ RUN groupadd appuser && useradd -m -s /bin/bash -g appuser appuser
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 ENV HOME=/home/appuser
 
-# Install dependencies to be used in final stages
-RUN apt update -y && apt install -y curl
+# Install runtime dependencies and available Debian security updates in all image stages.
+RUN apt-get update -y \
+    && apt-get upgrade -y \
+    && apt-get install --no-install-recommends -y curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip to the latest version
 RUN pip install --upgrade pip 
@@ -45,7 +50,7 @@ RUN apt-get update -y && apt-get install --no-install-recommends --fix-missing -
     && rm -rf /var/lib/apt/lists/*
 
 # Install poetry 2.4.1 - based on $POETRY_VERSION env var
-RUN set -o pipefail && curl -sSL https://install.python-poetry.org | python -
+RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
 
 WORKDIR $SETUP_PATH
 # Copy poetry configuration files
@@ -54,13 +59,10 @@ COPY pyproject.toml poetry.lock ./
 # Install dependencies without dev dependencies
 RUN poetry lock && poetry install --no-root --no-interaction --no-ansi
 
-# system-wide setuptools upgrade
-RUN pip install --upgrade "setuptools>=83.0.0"
-
-# Install video-chunking-utils from OEP/EAL source
-RUN git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Install video-chunking-utils from OEP/EAL source.
+RUN git clone --depth 1 https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
 RUN pip install $SETUP_PATH/edge-ai-libraries/libraries/video-chunking-utils/ && \
-    rm -rf $SETUP_PATH/edge-ai-libraries/libraries/video-chunking-utils
+    rm -rf $SETUP_PATH/edge-ai-libraries
 
 # JWT token clean up
 RUN [ -f $VENV_PATH/lib/python3.13/site-packages/skimage/data/_fetchers.py ] && \
@@ -77,7 +79,12 @@ RUN apt-get update -y && apt-get install --no-install-recommends -y \
     libsm6 \
     libxext6 \
     libxrender1 \
-    libgl1
+    libgl1 \
+    libssl3t64 \
+    openssl \
+    openssl-provider-legacy \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Download copyleft sources if requested
 RUN mkdir -p /copyleft_sources/deb
@@ -97,6 +104,18 @@ COPY . /app/
 # exist inside the image as an empty directory.
 RUN mkdir -p /home/appuser/.cache/.multilevel-video-understanding \
     && chown -R appuser:appuser /app /home/appuser/.cache
+
+# Drop pip from the runtime image. pip ships its own vendored dependency inventory
+# (pip/_vendor/vendor.txt + bom.cdx.json) pinning setuptools 70.3.0 and msgpack 1.1.2,
+# which scanners report as installed packages - independent of pyproject.toml,
+# poetry.lock or any setuptools upgrade. Nothing at runtime needs pip.
+RUN rm -rf /usr/local/lib/python3.13/site-packages/pip \
+           /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
+           /usr/local/lib/python3.13/ensurepip \
+           /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.13 \
+           $VENV_PATH/lib/python3.13/site-packages/pip \
+           $VENV_PATH/lib/python3.13/site-packages/pip-*.dist-info \
+           $VENV_PATH/bin/pip $VENV_PATH/bin/pip3 $VENV_PATH/bin/pip3.13
 
 USER appuser
 

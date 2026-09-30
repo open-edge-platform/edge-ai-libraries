@@ -1,7 +1,6 @@
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   useConvertSimpleToAdvancedMutation,
-  useCheckModelsStatusMutation,
   useGetPerformanceJobStatusQuery,
   useGetPipelineQuery,
   useRunPerformanceTestMutation,
@@ -14,11 +13,12 @@ import {
   type Node as ReactFlowNode,
   type Viewport,
 } from "@xyflow/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PipelineEditorCanvas, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { useDismissOnOutsidePointerDown } from "@/hooks/useDismissOnOutsidePointerDown";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
@@ -69,10 +69,9 @@ import {
 } from "lucide-react";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { NavigationGuard } from "@/components/shared/NavigationGuard";
-import {
-  PipelineModelsRequiredDialog,
-  type PipelineModelStatusItem,
-} from "@/features/models/PipelineModelsRequiredDialog.tsx";
+import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog.tsx";
+import { extractModelNamesFromNodes } from "@/features/models/modelNames.ts";
+import { useRequiredModelsStatus } from "@/features/models/useRequiredModelsStatus.ts";
 type UrlParams = {
   id: string;
   variant: string;
@@ -136,30 +135,6 @@ const buildGraphData = (
   })),
 });
 
-const extractModelsFromSimpleGraph = (
-  nodes: Array<{ data: { [key: string]: string } }> = [],
-): string[] => {
-  const uniqueModels = new Set<string>();
-
-  nodes.forEach((node) => {
-    const rawModel = node.data.model?.trim();
-    if (!rawModel) {
-      return;
-    }
-
-    // Models nodes may include trailing suffixes like "(FP16)" or
-    // "[model-proc: ...]". Api expects display name without details.
-    const normalizedModel = rawModel
-      .replace(/(?:\s*(?:\([^)]*\)|\[model-proc:[^[\]\n]*]?))+\s*$/i, "")
-      .trim();
-    if (normalizedModel) {
-      uniqueModels.add(normalizedModel);
-    }
-  });
-
-  return [...uniqueModels];
-};
-
 export const Pipelines = () => {
   const DEFAULT_LOOPING_RUNTIME_SECONDS = 60;
   const { id, variant } = useParams<UrlParams>();
@@ -189,10 +164,6 @@ export const Pipelines = () => {
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
     null,
   );
-  const [modelStatusDialogOpen, setModelStatusDialogOpen] = useState(false);
-  const [pipelineModelStatuses, setPipelineModelStatuses] = useState<
-    PipelineModelStatusItem[]
-  >([]);
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
   const [selectedNode, setSelectedNode] = useState<ReactFlowNode | null>(null);
   const [timeseriesStarted, setTimeseriesStarted] = useState(false);
@@ -230,7 +201,21 @@ export const Pipelines = () => {
     useStopPerformanceTestJobMutation();
   const [convertSimpleToAdvanced] = useConvertSimpleToAdvancedMutation();
   const [updateVariant] = useUpdateVariantMutation();
-  const [checkModelsStatus] = useCheckModelsStatusMutation();
+
+  const requiredModels = useMemo(() => {
+    const variantData = data?.variants.find((v) => v.id === variant);
+    return extractModelNamesFromNodes(variantData?.pipeline_graph.nodes);
+  }, [data, variant]);
+
+  const {
+    modelStatuses: pipelineModelStatuses,
+    isDialogOpen: modelStatusDialogOpen,
+    setIsDialogOpen: setModelStatusDialogOpen,
+    refresh: refreshRequiredModels,
+  } = useRequiredModelsStatus(requiredModels, {
+    skip: !data || !variant,
+    errorMessage: "Failed to check models used in pipeline",
+  });
 
   const {
     execute: runPipeline,
@@ -279,69 +264,6 @@ export const Pipelines = () => {
       false;
     setMetadataEnabled(isVlmPipeline);
   }, [variant, data]);
-
-  const verifyRequiredModels = useCallback(async () => {
-    if (!data || !variant) {
-      setPipelineModelStatuses([]);
-      setModelStatusDialogOpen(false);
-      return;
-    }
-
-    const variantData = data.variants.find((v) => v.id === variant);
-    const requiredModels = extractModelsFromSimpleGraph(
-      variantData?.pipeline_graph_simple.nodes,
-    );
-
-    if (requiredModels.length === 0) {
-      setPipelineModelStatuses([]);
-      setModelStatusDialogOpen(false);
-      return;
-    }
-
-    try {
-      const response = await checkModelsStatus({
-        modelCheckStatusRequest: {
-          display_names: requiredModels,
-        },
-      }).unwrap();
-
-      const installStatusByModel = new Map<
-        string,
-        PipelineModelStatusItem["installStatus"]
-      >();
-
-      response.models?.forEach((model) => {
-        installStatusByModel.set(model.display_name, model.install_status);
-        installStatusByModel.set(model.name, model.install_status);
-      });
-
-      const modelStatuses: PipelineModelStatusItem[] = requiredModels.map(
-        (model) => ({
-          model,
-          installStatus: installStatusByModel.get(model) ?? "not_installed",
-        }),
-      );
-
-      setPipelineModelStatuses(modelStatuses);
-      setModelStatusDialogOpen(
-        modelStatuses.some((item) => item.installStatus !== "installed"),
-      );
-    } catch (error) {
-      handleApiError(error, "Failed to check models used in pipeline");
-    }
-  }, [data, variant, checkModelsStatus]);
-
-  useEffect(() => {
-    const runVerification = async () => {
-      try {
-        await verifyRequiredModels();
-      } catch {
-        // handled in verifyRequiredModels
-      }
-    };
-
-    void runVerification();
-  }, [verifyRequiredModels]);
 
   const handleViewportChange = (viewport: Viewport) => {
     setCurrentViewport(viewport);
@@ -545,41 +467,24 @@ export const Pipelines = () => {
     setEditorKey((prev) => prev + 1); // Force PipelineEditor to re-initialize
   };
 
-  useEffect(() => {
-    if (!showDetailsPanel) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isResizingRef.current) return;
-
-      const target = event.target as HTMLElement;
-
-      if (target.closest("header")) return;
-
-      if (
-        detailsPanelRef.current &&
-        !detailsPanelRef.current.contains(target)
-      ) {
-        const isResizeHandle =
-          target.closest("[data-resize-handle]") ||
-          target.closest("[data-resize-handle-active]") ||
-          target.closest('[role="separator"]') ||
-          target.getAttribute("data-resize-handle") !== null;
-
-        if (!isResizeHandle) {
-          if (jobStatus?.state !== "RUNNING" && !completedVideoPath) {
-            setShowDetailsPanel(false);
-            setSelectedNode(null);
-          }
-        }
+  useDismissOnOutsidePointerDown({
+    ref: detailsPanelRef,
+    enabled: showDetailsPanel,
+    ignoreSelectors: [
+      "header",
+      "[data-resize-handle]",
+      "[data-resize-handle-active]",
+      '[role="separator"]',
+      ".react-flow__node",
+    ],
+    shouldIgnore: () => isResizingRef.current,
+    onDismiss: () => {
+      if (jobStatus?.state !== "RUNNING" && !completedVideoPath) {
+        setShowDetailsPanel(false);
+        setSelectedNode(null);
       }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showDetailsPanel, jobStatus?.state, completedVideoPath]);
+    },
+  });
 
   if (isSuccess && data) {
     const isTimeSeriesPipeline = data.tags?.includes("Time Series") ?? false;
@@ -1109,9 +1014,7 @@ export const Pipelines = () => {
                   defaultSize={runPanelSizeRef.current}
                   minSize={640}
                   onResize={(size) => {
-                    if (typeof size === "number") {
-                      runPanelSizeRef.current = size;
-                    }
+                    runPanelSizeRef.current = size.asPercentage;
                   }}
                 >
                   <div className="w-full h-full bg-background overflow-y-auto overflow-x-hidden relative [scrollbar-gutter:stable]">
@@ -1151,7 +1054,7 @@ export const Pipelines = () => {
           open={modelStatusDialogOpen}
           onOpenChange={setModelStatusDialogOpen}
           models={pipelineModelStatuses}
-          onModelsChanged={verifyRequiredModels}
+          onModelsChanged={refreshRequiredModels}
         />
       </div>
     );

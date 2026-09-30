@@ -1,6 +1,6 @@
 # VSS environment variables
 
-Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-started.md`, `docs/user-guide/get-started/system-requirements.md`, and `docs/user-guide/build-from-source.md`. Deployment reads the shell environment. The checked-in `.env.example` is a general application template, but this skill uses `vss.config.env` plus generated `vss.secrets.env` because those files track the current per-component device variables and keep credentials separate. If using a copied `.env` manually, source it before exporting secrets because its empty secret assignments overwrite existing values.
+Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs/user-guide/get-started.md`, `docs/user-guide/get-started/system-requirements.md`, and `docs/user-guide/build-from-source.md`. Deployment reads the shell environment. The checked-in `.env.example` is a general application template, but this skill uses `vss.config` plus the generated `$VSS_CREDENTIALS_FILE` (default `${XDG_CONFIG_HOME:-$HOME/.config}/vss/vss.credentials`) because they track the current per-component device variables while keeping credentials outside the checkout. If using a copied `.env` manually, source it before exporting credentials because its empty credential assignments overwrite existing values.
 
 ## Required before starting containers
 
@@ -41,9 +41,9 @@ container.
 
 | Variable | Default | What it controls |
 |---|---|---|
-| `MODEL_DOWNLOAD_IMAGE` | `intel/model-download:${MODEL_DOWNLOAD_TAG:-latest}` | Full image reference for the transient model-download service. |
-| `MODEL_DOWNLOAD_TAG` | `latest` | Fallback tag when `MODEL_DOWNLOAD_IMAGE` is unset. |
-| `MODEL_DOWNLOAD_OVMS_TAG` | `v2026.1` | OVMS release used by the OpenVINO export plugin. |
+| `MODEL_DOWNLOAD_IMAGE` | `intel/model-download:${MODEL_DOWNLOAD_TAG:-mcp-rc}` | Full image reference for the transient model-download service. |
+| `MODEL_DOWNLOAD_TAG` | `mcp-rc` | Fallback tag when `MODEL_DOWNLOAD_IMAGE` is unset. |
+| `MODEL_DOWNLOAD_OVMS_TAG` | `v2026.2.1` | OVMS release used by the OpenVINO export plugin. |
 | `MODEL_DOWNLOAD_HOST_PORT` | `8640` | Loopback-only REST port while setup downloads models. |
 | `MODEL_DOWNLOAD_JOB_TIMEOUT` | `5400` | Per-job timeout in seconds; `0` disables the wall-clock limit. |
 | `OVMS_MS_DOWNLOAD_PATH` | `ovms` | Subdirectory under `ov_models/` containing `config.json` and `openvino_models/`. |

@@ -18,6 +18,23 @@ from utils import slugify_text
 # Seconds to wait for the metadata file to be created by gvametapublish
 FILE_CREATION_TIMEOUT = 30
 
+# Seconds of silence before an SSE keepalive comment is emitted
+SSE_KEEPALIVE_INTERVAL = 10.0
+
+# Size of the padding carried by the SSE preamble and every keepalive comment.
+# Buffering HTTP intermediaries release a response only once their block buffer fills,
+# so a low-rate stream (e.g. one VLM summary every ~45 s) otherwise stays invisible until
+# the connection closes. 8 KiB clears the ~4 KiB buffer measured in ITEP-93483; raise it
+# via SSE_PADDING_BYTES for proxies with a larger buffer, or set 0 to disable padding.
+SSE_PADDING_BYTES = int(os.environ.get("SSE_PADDING_BYTES", "8192"))
+
+# Keepalive comment, padded so that it also flushes any record buffered ahead of it
+_SSE_KEEPALIVE = ":" + " " * SSE_PADDING_BYTES + "\n\n"
+
+# One-shot preamble. Measured against the ITEP-93483 intermediary: an 8 KiB opening write
+# takes ~2 keepalives to release the response head, 32 KiB releases it immediately.
+_SSE_PREAMBLE = ":" + " " * (SSE_PADDING_BYTES * 4) + "\n\n"
+
 # Default directory for metadata files
 _METADATA_DIR = "/metadata"
 
@@ -108,6 +125,12 @@ class MetadataManager:
         with self._jobs_lock:
             return job_id in self._jobs
 
+    def is_tailing(self, job_id: str) -> bool:
+        """Return True while the job is registered and still tailing its files."""
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+        return job is not None and not job.stopped
+
     def get_snapshot(
         self, job_id: str, file_index: int, limit: int = 100
     ) -> list[dict]:
@@ -179,12 +202,15 @@ class MetadataManager:
         """
         Async generator that yields raw JSON lines for a single file as they arrive.
 
-        Each yielded string is a single serialised JSON record (without newline).
-        Yields SSE keepalive comments (``": keepalive\\n\\n"``) every 30 s when
-        no new data arrives so that proxies and browsers do not time out.
+        The first yielded string is a padded SSE comment that forces buffering
+        intermediaries to release the response head immediately. Every subsequent
+        string is either a single serialised JSON record (without newline) or the
+        same padded comment, emitted after ``SSE_KEEPALIVE_INTERVAL`` seconds of
+        silence so that a buffered record cannot sit unseen for longer than that.
 
         The generator terminates when ``stop_tailing()`` is called for the job
-        (typically when the pipeline finishes).
+        (typically when the pipeline finishes), and returns immediately for a job
+        whose tailing has already stopped.
 
         Args:
             job_id: Unique job identifier.
@@ -236,6 +262,7 @@ class _MetadataFile:
         # List of (asyncio.Queue, event_loop) tuples for active SSE connections
         self._subscribers: list[tuple[asyncio.Queue, asyncio.AbstractEventLoop]] = []
         self._subscribers_lock = threading.Lock()
+        self._stopped = False
         self.logger = logging.getLogger(f"MetadataManager.file[{path}]")
 
     def get_records(self, limit: int) -> list[dict]:
@@ -250,10 +277,17 @@ class _MetadataFile:
 
     async def stream(self) -> AsyncIterator[str]:
         """Async generator bridging the tailing thread to SSE subscribers."""
+        yield _SSE_PREAMBLE
         q: asyncio.Queue = asyncio.Queue(maxsize=2000)
         loop = asyncio.get_running_loop()
         subscriber = (q, loop)
         with self._subscribers_lock:
+            if self._stopped:
+                self.logger.debug(
+                    "SSE subscriber arrived after stop for %s; closing stream",
+                    self.path,
+                )
+                return
             self._subscribers.append(subscriber)
             count = len(self._subscribers)
         self.logger.debug(
@@ -262,13 +296,16 @@ class _MetadataFile:
         try:
             while True:
                 try:
-                    item = await asyncio.wait_for(q.get(), timeout=30.0)
+                    item = await asyncio.wait_for(
+                        q.get(), timeout=SSE_KEEPALIVE_INTERVAL
+                    )
                     if item is None:  # sentinel: pipeline stopped
                         break
                     yield item
                 except asyncio.TimeoutError:
-                    # SSE keepalive comment – prevents proxy / browser timeouts
-                    yield ": keepalive\n\n"
+                    # Padded keepalive: keeps the connection alive and pushes any
+                    # record still sitting in an intermediary's buffer to the client.
+                    yield _SSE_KEEPALIVE
         finally:
             with self._subscribers_lock:
                 try:
@@ -318,8 +355,9 @@ class _MetadataFile:
                 loop.call_soon_threadsafe(_put)
 
     def stop(self) -> None:
-        """Send sentinel to all subscribers to terminate their SSE streams."""
+        """Send sentinel to all subscribers and close any that connect later."""
         with self._subscribers_lock:
+            self._stopped = True
             count = len(self._subscribers)
             for q, loop in self._subscribers:
                 try:
@@ -365,6 +403,11 @@ class _MetadataJob:
         self._stop_event.set()
         for meta_file in self.files:
             meta_file.stop()
+
+    @property
+    def stopped(self) -> bool:
+        """True once ``stop()`` has been called for this job."""
+        return self._stop_event.is_set()
 
     def get_records(self, file_index: int, limit: int) -> list[dict]:
         """Return the last ``limit`` records for a specific file."""

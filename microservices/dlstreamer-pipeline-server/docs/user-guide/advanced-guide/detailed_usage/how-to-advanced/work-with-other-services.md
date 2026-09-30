@@ -57,7 +57,8 @@ volumes:
   shared_models:
 ```
 
-> **Note:** The `shared_models` named volume ensures both containers operate on the same model files. The `:ro` flag on the DLSPS side is optional but recommended to prevent DLSPS from accidentally modifying downloaded models.
+> [!NOTE]
+> The `shared_models` named volume ensures both containers operate on the same model files. The `:ro` flag on the DLSPS side is optional but recommended to prevent DLSPS from accidentally modifying downloaded models.
 
 ### Downloading Models via the Model Download API
 
@@ -109,4 +110,4 @@ Wait until the response shows `"status": "completed"`. The `result.download_path
 ### Additional Resources
 
 - [Model Download Documentation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/index.html)
-- [Model Download API Reference](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/index.html) – full OpenAPI spec including upload, conversion, and job management endpoints
+- [Model Download API Reference](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/api-reference.html) – full OpenAPI spec including upload, conversion, and job management endpoints

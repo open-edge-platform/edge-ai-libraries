@@ -4,7 +4,7 @@ This microservice supports features based on the requirements of Video Search an
 
 ## Version 2026.2.0
 
-**Release Date:** August 4, 2026
+**Release Date:** September 9, 2026
 
 **New:**
 
@@ -23,6 +23,16 @@ This microservice supports features based on the requirements of Video Search an
 - Updated API docs and reference material for current endpoints and payloads, including optional request-field behavior clarifications.
 - Improved outbound media/proxy handling compatibility for newer `httpx` versions.
 - Documentation formatting fixes; 2025 release notes split into a separate document.
+
+**Fixed:**
+
+- Fixed file-descriptor exhaustion (`[Errno 24] Too many open files`) that failed video embedding requests with HTTP 500 at large `VIDEO_FRAME_BATCH_SIZE`; shared-memory pool blocks no longer each hold two open descriptors, and the container raises `nofile` to 65536.
+- Fixed shared-memory segments leaking into `/dev/shm` when pool teardown hit an already-unlinked block; blocks are now unlinked independently.
+- Fixed GPU batch-size defaults in `setup.sh` never applying: values were assigned before the device was tested, so GPU deployments silently ran at CPU batch sizes. Defaults are now resolved per device, and explicit values still take precedence.
+
+**Upgrade Notes:**
+
+- GPU deployments now default to `INFER_BATCH_SIZE=32` and `VIDEO_FRAME_BATCH_SIZE=256` (previously `16`/`64` in practice), the fastest measured combination for CLIP ViT-B/32. Export either variable before sourcing `setup.sh` to keep the old values.
 
 ## Version 2026.1.0
 

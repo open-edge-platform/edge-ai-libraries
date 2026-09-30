@@ -5,12 +5,15 @@
 
 from __future__ import annotations
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
+from src.config.loader import resolve_workspace_dir, validate_name
 from src.exceptions import ConfigurationError
 from src.models import ChatCompletionRequest
 from src.providers.base import ProviderAdapter
@@ -18,7 +21,7 @@ from src.rsd.rule import (
     ContextLengthRule,
     MessageContentRule,
     MetadataRule,
-    ModelNameRule,
+    IntelligentRule,
     QueryComplexityScoreRule,
     QueryComplexityZoneRule,
     Rule,
@@ -27,12 +30,12 @@ from src.rsd.rule import (
 
 
 RULE_CLASS_REGISTRY: Dict[str, type[Rule]] = {
-    "ModelNameRule": ModelNameRule,
     "MessageContentRule": MessageContentRule,
     "ToolCallsRule": ToolCallsRule,
     "MetadataRule": MetadataRule,
     "QueryComplexityScoreRule": QueryComplexityScoreRule,
     "QueryComplexityZoneRule": QueryComplexityZoneRule,
+    "IntelligentRule": IntelligentRule,
     "ContextLengthRule": ContextLengthRule,
 }
 
@@ -93,16 +96,40 @@ class ProviderCandidate:
     reason: str
 
 
+# Single-worker pool for rules flagged ``blocking_eval`` (only IntelligentRule
+# today), which run a synchronous OV/torch forward pass of tens-to-hundreds of ms.
+# Running that inline in the async ``execute`` would stall the event loop and
+# serialize every other in-flight request; offloading frees the loop. One worker
+# is deliberate: the OVModel infer request is not concurrency-safe and the
+# classifier's LRU cache is a plain OrderedDict, so serializing keeps both correct
+# without extra locking. Cheap rules are not offloaded — they run inline.
+_RULE_EVAL_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rule-eval")
+
+
 class StrategyExecutor:
     """Evaluate a request against a named rule set, then rank providers by metadata."""
 
-    def evaluate_rules(
+    async def evaluate_rules(
         self,
         request: ChatCompletionRequest,
         rule_set: List[RuleBinding],
     ) -> Dict[str, Any]:
-        """Evaluate the full rule set and return named outputs."""
-        return {binding.name: binding.rule.evaluate(request) for binding in rule_set}
+        """Evaluate the full rule set and return named outputs.
+
+        Rules flagged ``blocking_eval`` (e.g. model inference) are offloaded to a
+        worker thread so they don't stall the event loop; the rest run inline.
+        """
+        loop = asyncio.get_running_loop()
+        outputs: Dict[str, Any] = {}
+        for binding in rule_set:
+            rule = binding.rule
+            if getattr(rule, "blocking_eval", False):
+                outputs[binding.name] = await loop.run_in_executor(
+                    _RULE_EVAL_EXECUTOR, rule.evaluate, request
+                )
+            else:
+                outputs[binding.name] = rule.evaluate(request)
+        return outputs
 
     async def execute(
         self,
@@ -111,7 +138,7 @@ class StrategyExecutor:
         definition: StrategyDefinition,
     ) -> List[ProviderCandidate]:
         """Return sorted provider candidates for the given request."""
-        rule_outputs = self.evaluate_rules(request, definition.rules)
+        rule_outputs = await self.evaluate_rules(request, definition.rules)
 
         if not self._request_matches_rule_set(rule_outputs):
             return []
@@ -347,8 +374,17 @@ class StrategyExecutor:
 
 
 def resolve_strategy_file() -> Path:
-    """Return the canonical path to the strategy YAML file."""
-    return Path(__file__).with_name("strategy.yaml").expanduser().resolve()
+    """Return the path to the strategy YAML file.
+
+    Prefers ``<workspace>/strategy.yaml`` when it exists, so operators can
+    override the bundled defaults without editing the source tree; otherwise
+    falls back to the ``strategy.yaml`` shipped next to this module under
+    ``src/rsd``. See :func:`src.config.loader.resolve_workspace_dir`.
+    """
+    bundled = Path(__file__).with_name("strategy.yaml")
+    override = resolve_workspace_dir() / "strategy.yaml"
+    chosen = override if override.is_file() else bundled
+    return chosen.expanduser().resolve()
 
 
 def load_strategy_definitions(
@@ -387,6 +423,7 @@ def build_strategy_definition(strategy_data: Dict[str, Any]) -> StrategyDefiniti
     name = strategy_data.get("name")
     if not name:
         raise ConfigurationError("Strategy entry must have a 'name'")
+    validate_name(name, "Strategy")
 
     rules_data = strategy_data.get("rules", [])
     if not isinstance(rules_data, list):

@@ -32,6 +32,9 @@ BASE_URL: str = os.environ.get("VIPPET_BASE_URL") or str(
     _VIPPET_CFG.get("base_url", "http://localhost/api/v1")
 )
 REQUEST_TIMEOUT: float = float(_VIPPET_CFG.get("timeout", 600))
+READINESS_TIMEOUT_SECONDS: float = float(
+    _VIPPET_CFG.get("readiness_timeout_seconds", 60)
+)
 POLL_INTERVAL: float = float(_VIPPET_CFG.get("poll_interval", 2))
 POLL_TIMEOUT: float = float(_VIPPET_CFG.get("max_job_duration", 600))
 

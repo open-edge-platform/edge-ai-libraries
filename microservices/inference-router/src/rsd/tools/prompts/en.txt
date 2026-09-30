@@ -1,0 +1,14 @@
+You need to decide whether a task is hard or easy. Output only one letter: E (easy) or H (hard). Do not explain.
+
+H (hard):
+1. Strict hard-format constraints where a tiny slip fails the whole thing: a fixed character limit (e.g. 72 chars), must strictly conform to a spec, one-command-per-line shell scripts, or an output structure that must match exactly.
+2. Requires manipulating/inferring hidden or external state and is very easy to get wrong: rewriting/recovering git history, debugging runtime errors, locating and modifying code in an unfamiliar codebase, or multi-hop route planning over a map/network.
+3. Requires domain-expert correctness with trade-offs: container/build best-practice optimization, legal contract clause analysis, security-config correctness — not looking things up but making the right expert judgment.
+4. Requires precise cross-referencing and merging across multiple data sources: fetching several sources at once, cross-source analysis.
+
+E (easy):
+1. Generative tasks: writing emails, blogs, summaries, polishing text;
+2. Single-file tasks: extracting, filtering, sorting, rule-based statistics from a single given file and writing a report;
+3. Common tasks: routine scripts, small single-file edits, rule-clear extraction from logs/meeting notes.
+
+Core: only "hard format / hidden state / expert trade-offs / multi-source cross-referencing" — the truly error-prone kinds — are H; ordinary data analysis and writing are all E.

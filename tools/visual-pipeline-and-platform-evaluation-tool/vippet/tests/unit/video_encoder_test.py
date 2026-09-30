@@ -111,6 +111,68 @@ class TestVideoEncoderClass(unittest.TestCase):
         self.assertIsNone(result)
 
     @patch("video_encoder.GstInspector")
+    def test_select_element_gpu_index_uses_render_node_encoder(
+        self, mock_gst_inspector
+    ):
+        """Test that GPU.1 selects the encoder bound to renderD129."""
+        mock_gst_inspector_instance = MagicMock()
+        mock_gst_inspector_instance.elements = [
+            ("elem1", "vah264lpenc"),
+            ("elem2", "varenderD129h264lpenc"),
+        ]
+        mock_gst_inspector.return_value = mock_gst_inspector_instance
+
+        encoder = VideoEncoder()
+
+        result = encoder._select_element(ENCODER_DEVICE_GPU, gpu_index=1)
+        self.assertEqual(result, "varenderD129h264lpenc")
+
+    @patch("video_encoder.GstInspector")
+    def test_select_element_gpu_index_keeps_streaming_properties(
+        self, mock_gst_inspector
+    ):
+        """Test that render-node qualification preserves encoder properties."""
+        mock_gst_inspector_instance = MagicMock()
+        mock_gst_inspector_instance.elements = [("elem1", "varenderD129h264lpenc")]
+        mock_gst_inspector.return_value = mock_gst_inspector_instance
+
+        encoder = VideoEncoder()
+
+        result = encoder._select_element(
+            ENCODER_DEVICE_GPU, streaming=True, gpu_index=1
+        )
+        self.assertEqual(
+            result, "varenderD129h264lpenc bitrate=16000 target-usage=4 max-qp=30"
+        )
+
+    @patch("video_encoder.GstInspector")
+    def test_select_element_gpu_index_falls_back_to_default(self, mock_gst_inspector):
+        """Test fallback to the default VA encoder when the render node variant is missing."""
+        mock_gst_inspector_instance = MagicMock()
+        mock_gst_inspector_instance.elements = [("elem1", "vah264lpenc")]
+        mock_gst_inspector.return_value = mock_gst_inspector_instance
+
+        encoder = VideoEncoder()
+
+        result = encoder._select_element(ENCODER_DEVICE_GPU, gpu_index=1)
+        self.assertEqual(result, "vah264lpenc")
+
+    @patch("video_encoder.GstInspector")
+    def test_select_element_gpu_index_zero_uses_default(self, mock_gst_inspector):
+        """Test that GPU.0 keeps the unqualified VA encoder."""
+        mock_gst_inspector_instance = MagicMock()
+        mock_gst_inspector_instance.elements = [
+            ("elem1", "vah264lpenc"),
+            ("elem2", "varenderD129h264lpenc"),
+        ]
+        mock_gst_inspector.return_value = mock_gst_inspector_instance
+
+        encoder = VideoEncoder()
+
+        result = encoder._select_element(ENCODER_DEVICE_GPU, gpu_index=0)
+        self.assertEqual(result, "vah264lpenc")
+
+    @patch("video_encoder.GstInspector")
     def test_create_video_output_subpipeline(self, mock_gst_inspector):
         """Test creating video output subpipeline."""
         mock_gst_inspector_instance = MagicMock()

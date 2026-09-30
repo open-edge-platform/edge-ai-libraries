@@ -9,7 +9,7 @@ Configuration is managed via environment variables. All variables map directly t
 | `HOST` | `0.0.0.0` | API server bind address |
 | `METRICS_PORT` | `9090` | Metrics Manager API port |
 | `SERVICE_NAME` | `metrics-manager` | Service name used in logs and health checks |
-| `SERVICE_VERSION` | `2026.1.0` | Service version reported in health endpoints |
+| `SERVICE_VERSION` | `2026.2.0` | Service version reported in health endpoints |
 | `ENVIRONMENT` | `production` | Deployment environment: `development`, `staging`, `production`. Production disables `/docs` and `/redoc` Swagger endpoints |
 | `LOG_LEVEL` | `INFO` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `LOG_FORMAT` | `json` | Log format: `json` (structured, for log aggregators) or `text` (human-readable) |
@@ -17,6 +17,7 @@ Configuration is managed via environment variables. All variables map directly t
 | `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated or JSON array). Set to `http://localhost:3000,http://my-dashboard:3000` to restrict |
 | `CORS_ALLOW_CREDENTIALS` | `false` | Allow credentials in CORS requests (cookies, etc.) |
 | `METRICS_MANAGER_HOSTNAME` | _(unset)_ | Override the `host=` tag stamped on every metric (Telegraf, qmassa_reader.py, npu_reader.py). Unset = use kernel hostname. Set to a stable value (e.g., `lab-node-42`) to keep Grafana dashboards stable across reboots |
+| `HARDWARE_TELEMETRY_ENABLED` | `true` | Start the `qmassa` GPU collector under supervisord. Set to `false` where `/dev/dri` cannot be mapped into the container; CPU, memory, temperature and NPU metrics are unaffected |
 
 ## Metrics Storage
 
@@ -50,7 +51,8 @@ Configuration is managed via environment variables. All variables map directly t
 |----------|---------|-------------|
 | `TRUST_FORWARDED_HEADERS` | `false` | Honor `X-Forwarded-For` / `X-Real-IP` headers for client IP detection. Set to `true` ONLY when running behind a trusted reverse proxy (Nginx, Traefik, etc.) |
 
-> **Warning:** Setting this to `true` without a reverse proxy allows clients to spoof their IP and bypass rate limiting.
+> [!WARNING]
+> Setting this to `true` without a reverse proxy allows clients to spoof their IP and bypass rate limiting.
 
 ## Telegraf Settings (Application Configuration)
 
@@ -217,7 +219,7 @@ Any `*.conf` file dropped into `/etc/supervisor/conf.d/` is picked up automatica
 ### Pattern: Add a Program in Your Downstream Image
 
 ```dockerfile
-FROM intel/metrics-manager:2026.1.0
+FROM intel/metrics-manager:2026.2.0
 
 # Drop additional supervisord program units into the include directory.
 COPY my-extra-service.conf /etc/supervisor/conf.d/my-extra-service.conf

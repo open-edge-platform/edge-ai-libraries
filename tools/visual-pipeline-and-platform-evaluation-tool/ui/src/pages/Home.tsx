@@ -145,14 +145,14 @@ export const Home = () => {
         <div className="flex gap-3">
           <BookOpen className="w-6 h-6 text-brand-accent shrink-0" />
           <a
-            href="https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/get-started.html"
+            href="https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-brand-accent transition-colors"
           >
-            <h3 className="font-semibold text-base mb-1">Getting Started</h3>
+            <h3 className="font-semibold text-base mb-1">Documentation</h3>
             <p className="text-sm text-muted-foreground">
-              Learn the fundamentals to get the most out of the ViPPET
+              Browse ViPPET documentation materials
             </p>
           </a>
         </div>

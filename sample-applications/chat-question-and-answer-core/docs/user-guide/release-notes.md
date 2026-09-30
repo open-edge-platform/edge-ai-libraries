@@ -2,9 +2,9 @@
 
 ## Version 2026.2.0
 
-**Aug 4, 2026**
+**Release Date:** September 9, 2026
 
-**New**
+**New:**
 
 - Updated the Ollama runtime to version `0.30.10`.
 - Upgraded OpenVINO packages to version `2026.2.1`.

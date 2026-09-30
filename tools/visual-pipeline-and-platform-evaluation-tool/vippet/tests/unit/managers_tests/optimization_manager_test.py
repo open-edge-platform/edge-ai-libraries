@@ -12,6 +12,10 @@ from internal_types import (
     InternalPipelineRequestOptimize,
     InternalVariant,
 )
+from managers.execution_coordinator import (
+    ExecutionCoordinator,
+    JobExecutionConflictError,
+)
 from managers.optimization_manager import (
     OptimizationManager,
     OptimizationRunner,
@@ -97,10 +101,14 @@ class TestOptimizationManager(unittest.TestCase):
     def setUp(self):
         """Reset singleton state before each test."""
         OptimizationManager._instance = None
+        # Workers are mocked out here, so they never release their execution
+        # lease; drop the coordinator to keep tests independent.
+        ExecutionCoordinator._instance = None
 
     def tearDown(self):
         """Reset singleton state after each test."""
         OptimizationManager._instance = None
+        ExecutionCoordinator._instance = None
 
     # ------------------------------------------------------------------
     # Singleton tests
@@ -1049,10 +1057,14 @@ class TestOptimizationManagerWithVariant(unittest.TestCase):
     def setUp(self):
         """Reset singleton state before each test."""
         OptimizationManager._instance = None
+        # Workers are mocked out here, so they never release their execution
+        # lease; drop the coordinator to keep tests independent.
+        ExecutionCoordinator._instance = None
 
     def tearDown(self):
         """Reset singleton state after each test."""
         OptimizationManager._instance = None
+        ExecutionCoordinator._instance = None
 
     def test_run_optimization_stores_variant_graph_objects(self):
         """InternalVariant's Graph objects should be stored directly in job."""
@@ -1072,8 +1084,8 @@ class TestOptimizationManagerWithVariant(unittest.TestCase):
                 job.original_pipeline_graph_simple, variant.pipeline_graph_simple
             )
 
-    def test_run_optimization_with_different_variants(self):
-        """Different variants can be optimized independently."""
+    def test_run_optimization_rejects_second_concurrent_job(self):
+        """A second optimization is rejected while the first still holds the lease."""
         manager = OptimizationManager()
 
         cpu_variant = _create_internal_variant("CPU")
@@ -1084,12 +1096,12 @@ class TestOptimizationManagerWithVariant(unittest.TestCase):
         )
 
         with patch.object(manager, "_execute_optimization"):
-            job_id_1 = manager.run_optimization(cpu_variant, request)
-            job_id_2 = manager.run_optimization(gpu_variant, request)
+            job_id = manager.run_optimization(cpu_variant, request)
 
-            self.assertNotEqual(job_id_1, job_id_2)
-            self.assertIn(job_id_1, manager.jobs)
-            self.assertIn(job_id_2, manager.jobs)
+            with self.assertRaises(JobExecutionConflictError):
+                manager.run_optimization(gpu_variant, request)
+
+        self.assertEqual(list(manager.jobs), [job_id])
 
     def test_run_optimization_calls_to_pipeline_description(self):
         """run_optimization should call to_pipeline_description on variant's graph."""

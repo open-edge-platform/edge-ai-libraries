@@ -113,7 +113,8 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
+          severity-level: "HIGH"
           paths: "microservices/document-ingestion/"
           report_suffix: "-bandit-document-ingestion-CT161"
           
@@ -137,7 +138,7 @@ jobs:
         with:
           scan-scope: "all"  
           output-format: "txt" 
-          fail-on-findings: "false"
+          fail-on-findings: "true"
           paths: "microservices/document-ingestion/"
           exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
           

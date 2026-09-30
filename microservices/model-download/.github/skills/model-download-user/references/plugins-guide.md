@@ -182,7 +182,8 @@ curl -s -X POST \
 
 Downloads Ollama models by starting a local Ollama server inside the container and running `ollama pull`.
 
-> **Note:** Downloads are serialized — only one Ollama model downloads at a time even if multiple jobs are submitted.
+> [!NOTE]
+> Downloads are serialized — only one Ollama model downloads at a time even if multiple jobs are submitted.
 
 ### Request Body
 
@@ -485,5 +486,5 @@ Response includes one `job_id` per model:
 Before submitting a job, verify which plugins are active:
 
 ```bash
-curl -s http://localhost:8200/api/v1/plugins | python3 -m json.tool
+curl -s http://localhost:8200/api/v1/plugins | jq .
 ```

@@ -40,7 +40,7 @@ INTERVAL_S = 1.0
 # instead of restarting the process every Telegraf execd retry (~10s). This
 # keeps the Telegraf log quiet on hosts without an Intel NPU.
 IDLE_SLEEP_S = 3600
-DEBUG_LOG = "/app/npu_reader_trace.log"
+DEBUG_LOG = os.environ.get("NPU_READER_LOG_FILE", "/app/npu_reader_trace.log")
 
 file_handler = logging.FileHandler(DEBUG_LOG)
 file_handler.setFormatter(

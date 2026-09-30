@@ -29,7 +29,6 @@ class CompressionBackend(Protocol):
         force_tokens: list[str] | None = None,
         force_reserve_digit: bool = False,
         digit_neighbor_radius: int = 0,
-        question: str | None = None,
     ) -> str: ...
 
     def health_check(self, *, timeout: float = 5.0) -> HealthStatus: ...
@@ -64,7 +63,6 @@ class LinguaHTTPBackend:
         force_tokens: list[str] | None = None,
         force_reserve_digit: bool = False,
         digit_neighbor_radius: int = 0,
-        question: str | None = None,
     ) -> str:
         payload = {
             "text": text,
@@ -76,23 +74,19 @@ class LinguaHTTPBackend:
             payload["mode"] = mode
         if force_tokens is not None:
             payload["force_tokens"] = force_tokens
-        if mode == "longllmlingua" and question:
-            payload.update(
-                {
-                    "question": question,
-                }
-            )
         component = f"backend@{self._lingua_url}"
         try:
             resp = requests.post(self._lingua_url, json=payload, timeout=self._timeout)
             resp.raise_for_status()
         except requests.RequestException as e:
-            raise BackendError(f"HTTP request failed: {e}", component=component, cause=e) from e
+            logger.warning("Backend request failed for %s: %s", component, type(e).__name__)
+            raise BackendError("backend request failed", component=component, cause=e) from e
 
         try:
             body = resp.json()
         except ValueError as e:
-            raise BackendError(f"Invalid JSON response: {e}", component=component, cause=e) from e
+            logger.warning("Backend returned invalid JSON for %s: %s", component, type(e).__name__)
+            raise BackendError("backend returned invalid response", component=component, cause=e) from e
 
         # Prefer compressed_prompt, fall back to compressed_text.
         result = body.get("compressed_prompt") or body.get("compressed_text")
@@ -113,7 +107,8 @@ class LinguaHTTPBackend:
                 return HealthStatus.healthy(component, **body)
             return HealthStatus.degraded(component, f"status={status_val}", **body)
         except Exception as e:
-            return HealthStatus.unhealthy(component, str(e))
+            logger.warning("Backend health check failed for %s: %s", component, type(e).__name__)
+            return HealthStatus.unhealthy(component, "backend unavailable")
 
 
 class NoopBackend:
@@ -129,7 +124,6 @@ class NoopBackend:
         force_tokens: list[str] | None = None,
         force_reserve_digit: bool = False,
         digit_neighbor_radius: int = 0,
-        question: str | None = None,
     ) -> str:
         return text
 

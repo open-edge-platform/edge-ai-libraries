@@ -15,10 +15,20 @@ from datetime import datetime, timezone
 from typing import Optional, Protocol, runtime_checkable
 
 import structlog
-from vlm_metrics_logger import (
-    user_log_start_time, 
-    log_end_time
-)
+
+try:
+    from vlm_metrics_logger import (
+        user_log_start_time,
+        log_end_time,
+    )
+except ImportError:
+    def user_log_start_time(*args, **kwargs) -> None:
+        """No-op fallback when performance-tools is not installed."""
+        return None
+
+    def log_end_time(*args, **kwargs) -> None:
+        """No-op fallback when performance-tools is not installed."""
+        return None
 
 from models.events import EventType, RegionEvent
 from models.alerts import Alert

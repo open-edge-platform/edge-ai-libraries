@@ -4,12 +4,14 @@
 """FastAPI application factory."""
 
 import json
+import asyncio
 import logging
 import time
 import traceback
 from pathlib import Path
 from typing import Optional
 
+from fastapi.encoders import jsonable_encoder
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +19,7 @@ from fastapi.responses import JSONResponse
 
 from src.config import RouterConfig
 from src.router import RouterOrchestrator
-from src.router.logging_utils import log_to_gateway_file
+from src.router.logging_utils import log_to_gateway_file, sanitize_for_log
 from src.observability import Telemetry
 
 from src.api.concurrency import (
@@ -40,6 +42,7 @@ def create_app(
     config: RouterConfig,
     telemetry: Optional[Telemetry] = None,
     *,
+    config_path: Optional[Path] = None,
     max_concurrency: int = 0,
     verbose: bool = False,
     verbose_full: bool = False,
@@ -73,6 +76,8 @@ def create_app(
     app.state.plugin_manager = router.plugin_manager
     app.state.telemetry = telemetry
     app.state.config = config
+    app.state.config_path = config_path
+    app.state.config_lock = asyncio.Lock()
     app.state.verbose = verbose
     app.state.verbose_full = verbose_full
     app.state.log_dir = log_dir
@@ -91,9 +96,49 @@ def create_app(
     )
 
     # Import and include routers
+    from src.api.v1 import config as v1_config_router
+    from src.api.v1 import passthrough as v1_passthrough_router
+    from src.api.v1 import plugin as v1_plugin_router
+    from src.api.v1 import policy as v1_policy_router
+    from src.api.v1 import provider as v1_provider_router
     from src.api.v1 import router as v1_router
+    from src.api.v1 import strategy as v1_strategy_router
 
     app.include_router(v1_router.router, prefix="/v1")
+    app.include_router(v1_config_router.router, prefix="/v1")
+    # Pass-through routes carry their full public path (e.g. "/v1/ocr") from the
+    # service registry, so they are included without an extra prefix.
+    app.include_router(v1_passthrough_router.router)
+
+    # Generic plugin endpoint registry: mount any router a plugin *type* opts to
+    # contribute via ``PluginBaseNode.routes()``. Mounted once per type under
+    # ``/v1``, and BEFORE the generic plugin router so a plugin's specific paths
+    # (e.g. ``/plugins/dummy_logger/ping``) take precedence over the parametrized
+    # ``/plugins/{node}/{name}`` catch-all. A failing plugin must not break app
+    # assembly, so each mount is isolated — log and continue.
+    from src.plugins.manager import iter_registered_plugin_classes
+
+    for plugin_cls in iter_registered_plugin_classes():
+        try:
+            plugin_router = plugin_cls.routes()
+        except Exception:
+            logger.warning(
+                "Plugin %s.routes() raised; skipping its endpoints",
+                plugin_cls.__name__,
+                exc_info=True,
+            )
+            continue
+        if plugin_router is None:
+            continue
+        app.include_router(plugin_router, prefix="/v1")
+        logger.info(
+            "Mounted plugin-contributed routes for node '%s'", plugin_cls.plugin_type()
+        )
+
+    app.include_router(v1_plugin_router.router, prefix="/v1")
+    app.include_router(v1_provider_router.router, prefix="/v1")
+    app.include_router(v1_policy_router.router, prefix="/v1")
+    app.include_router(v1_strategy_router.router, prefix="/v1")
 
     # Root path — advertises the public endpoints.
     @app.get("/")
@@ -107,6 +152,16 @@ def create_app(
                 "chat": "/v1/chat/completions",
                 "models": "/v1/models",
                 "metrics": "/v1/metrics",
+                "config": "/v1/config",
+                "routing": "/v1/routing",
+                "providers": "/v1/providers",
+                "policies": "/v1/policies",
+                "strategies": "/v1/strategies",
+                "audio_transcriptions": "/v1/audio/transcriptions",
+                "audio_speech": "/v1/audio/speech",
+                "embeddings": "/v1/embeddings",
+                "rerank": "/v1/rerank",
+                "ocr": "/v1/ocr",
             },
         }
 
@@ -140,24 +195,32 @@ def create_app(
         raw_body = (await request.body()).decode("utf-8", errors="replace")
         error_details = _sanitize_validation_errors(exc.errors())
 
+        # Strip CR/LF from user-controlled values before they reach any log sink
+        # (stdout, gateway.log, logger) so a crafted body/path/errors can't forge
+        # additional log lines (CWE-117). ``error_details`` keeps its structured
+        # form for the JSON response below; only the logged rendering is sanitized.
+        safe_path = f"{sanitize_for_log(request.method)} {sanitize_for_log(request.url.path)}"
+        safe_body = sanitize_for_log(raw_body)
+        safe_errors = sanitize_for_log(error_details)
+
         msg = "❌ Request validation failed"
         print(msg)
         log_to_gateway_file(msg, log_dir)
-        logger.error(f"Request validation failed: {request.method} {request.url.path}")
+        logger.error(f"Request validation failed: {safe_path}")
 
-        msg = f"   Path: {request.method} {request.url.path}"
+        msg = f"   Path: {safe_path}"
         print(msg)
         log_to_gateway_file(msg, log_dir)
 
-        msg = f"   Body: {raw_body}"
+        msg = f"   Body: {safe_body}"
         print(msg)
         log_to_gateway_file(msg, log_dir)
-        logger.debug(f"Request body: {raw_body}")
+        logger.debug(f"Request body: {safe_body}")
 
-        msg = f"   Errors: {error_details}"
+        msg = f"   Errors: {safe_errors}"
         print(msg)
         log_to_gateway_file(msg, log_dir)
-        logger.error(f"Validation errors: {error_details}")
+        logger.error(f"Validation errors: {safe_errors}")
 
         return JSONResponse(
             status_code=422,

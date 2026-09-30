@@ -91,7 +91,8 @@ def _build_af_filter() -> list[str]:
     if DENOISE_MODEL:
         af = f"arnndn=m={DENOISE_MODEL}"
     else:
-        af = "arnndn"
+        # arnndn requires a model file — fall back to FFT denoiser when none is provided
+        af = "afftdn"
     return ["-af", af]
 
 

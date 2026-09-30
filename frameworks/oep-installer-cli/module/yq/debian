@@ -1,0 +1,10 @@
+
+debian_15_install_yq () {
+  ensure_apt_install_package yq
+}
+
+debian_15_sbom_yq () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list yq)
+EOF
+}

@@ -8,8 +8,8 @@ If you want to build the images via `docker compose`, please refer to the sectio
 
 Once all the images are built, you can proceed to start the service using the `docker compose` command as described in the [Get Started](./get-started.md) page.
 
-> **Note:**
->
+> [!NOTE]
+> 
 > - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). This guide recommends using prebuilt images on Edge Microvisor Toolkit.
 
 ## Building the Backend Image
@@ -181,8 +181,6 @@ After building the images for the `Chat Q&A Core` application, you can run the a
        ```
 
    Configure the models to be used (LLM, Embeddings, Rerankers) through a YAML configuration file, as outlined in the [Get-Started: Running The Application using Docker Compose](./get-started.md#running-the-application-using-docker-compose) section.
-
-   Refer to and use the same list of models for OpenVINO toolkit framework as documented in [Chat Q&A](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/get-started.html#supported-models).
 
 2. Start the Docker containers with the previously built images:
 

@@ -46,7 +46,7 @@ variants:
       gvametaconvert add-empty-results=true format=json !
       gvametapublish method=file file-path=/dev/null !
       videoscale !
-      video/x-raw,width=320,height=240 !
+      video/x-raw,width=1280,height=720 !
       fakesink name=default_output_sink
   - name: GPU
     pipeline_description: >-
@@ -89,7 +89,7 @@ variants:
       gvametaconvert add-empty-results=true format=json !
       gvametapublish method=file file-path=/dev/null !
       vapostproc !
-      video/x-raw(memory:VAMemory),width=320,height=240 !
+      video/x-raw(memory:VAMemory),width=1280,height=720 !
       fakesink name=default_output_sink
   - name: GPU (WSL)
     pipeline_description: >-
@@ -132,7 +132,7 @@ variants:
       gvametaconvert add-empty-results=true format=json !
       gvametapublish method=file file-path=/dev/null !
       videoscale !
-      video/x-raw,width=320,height=240 !
+      video/x-raw,width=1280,height=720 !
       fakesink name=default_output_sink
   - name: NPU
     pipeline_description: >-
@@ -174,7 +174,7 @@ variants:
       gvametaconvert add-empty-results=true format=json !
       gvametapublish method=file file-path=/dev/null !
       vapostproc !
-      video/x-raw(memory:VAMemory),width=320,height=240 !
+      video/x-raw(memory:VAMemory),width=1280,height=720 !
       fakesink name=default_output_sink
   - name: GPU_NPU
     pipeline_description: >-
@@ -216,7 +216,7 @@ variants:
       gvametaconvert add-empty-results=true format=json !
       gvametapublish method=file file-path=/dev/null !
       vapostproc !
-      video/x-raw(memory:VAMemory),width=320,height=240 !
+      video/x-raw(memory:VAMemory),width=1280,height=720 !
       fakesink name=default_output_sink
   - name: NPU_GPU
     pipeline_description: >-
@@ -258,5 +258,5 @@ variants:
       gvametaconvert add-empty-results=true format=json !
       gvametapublish method=file file-path=/dev/null !
       vapostproc !
-      video/x-raw(memory:VAMemory),width=320,height=240 !
+      video/x-raw(memory:VAMemory),width=1280,height=720 !
       fakesink name=default_output_sink

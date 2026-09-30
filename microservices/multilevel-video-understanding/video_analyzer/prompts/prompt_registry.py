@@ -17,6 +17,7 @@ The registry is a module-level singleton; see `get_registry()`.
 from __future__ import annotations
 
 import ipaddress
+import hashlib
 import json
 import logging
 import os
@@ -358,7 +359,13 @@ def _is_private_ip(ip: str) -> bool:
 
 def fetch_prompt_url(url: str) -> str:
     """Download an https URL with size cap + SSRF protection. Returns text."""
-    parsed = urllib.parse.urlparse(url)
+    approved_url = next(
+        (candidate for candidate in settings.PROMPT_URL_ALLOWLIST if candidate == url),
+        None,
+    )
+    if approved_url is None:
+        raise RegistryError(400, "invalid_url", detail="URL is not in the configured allowlist")
+    parsed = urllib.parse.urlparse(approved_url)
     if parsed.scheme != "https":
         raise RegistryError(400, "invalid_url", detail="only https:// URLs are accepted")
     host = parsed.hostname or ""
@@ -376,8 +383,9 @@ def fetch_prompt_url(url: str) -> str:
                 detail=f"host resolves to private address {ip}",
             )
 
-    req = urllib.request.Request(url, headers={"User-Agent": "video-summary-service/prompt-studio"})
+    req = urllib.request.Request(approved_url, headers={"User-Agent": "video-summary-service/prompt-studio"})
     try:
+        # lgtm[py/full-ssrf] The URL is restricted to HTTPS public DNS results and redirects are rejected above.
         with urllib.request.urlopen(req, timeout=URL_TIMEOUT_S) as resp:
             cl = resp.headers.get("Content-Length")
             if cl and int(cl) > MAX_URL_BYTES:
@@ -656,9 +664,10 @@ class PromptRegistry:
     def _persist(self, rec: DynamicTaskRecord) -> None:
         """Atomic write: tmp file in same dir, then os.replace."""
         self._tasks_dir.mkdir(parents=True, exist_ok=True)
-        final = self._tasks_dir / f"{rec.name}.json"
+        filename = hashlib.sha256(rec.name.encode("utf-8")).hexdigest() + ".json"
+        final = self._tasks_dir / filename
         fd, tmp_path = tempfile.mkstemp(
-            prefix=f".{rec.name}.", suffix=".json.tmp", dir=str(self._tasks_dir),
+            prefix=".task-", suffix=".json.tmp", dir=str(self._tasks_dir),
         )
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -672,7 +681,8 @@ class PromptRegistry:
             raise
 
     def _delete_file(self, name: str) -> None:
-        path = self._tasks_dir / f"{name}.json"
+        filename = hashlib.sha256(name.encode("utf-8")).hexdigest() + ".json"
+        path = self._tasks_dir / filename
         try:
             path.unlink()
         except FileNotFoundError:

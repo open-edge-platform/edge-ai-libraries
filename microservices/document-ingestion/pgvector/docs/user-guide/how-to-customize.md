@@ -80,8 +80,3 @@ source ./run.sh --build dataprep
 source ./run.sh --build dataprep my-registry/my-dataprep:v1.0
 ```
 **Note**: All built images are automatically labeled for easy management and cleanup.
-
-## Common Customizations
-
-Customization options are currently provided in the context of the sample application. Refer
-to the [Chat Q&A sample application](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/index.html) for details like Helm and customization options.

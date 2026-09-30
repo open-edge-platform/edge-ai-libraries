@@ -13,3 +13,5 @@ workspace
 .env
 .coverage
 **/outputs
+*.xlsx
+**/restler_output/**

@@ -12,7 +12,7 @@
 # Container image
 # -----------------------------------------------------------------------------
 image:
-  repository: intel/metrics-manager
+  repository: docker.io/intel/metrics-manager
   # tag defaults to .Chart.AppVersion (kept in sync with ./VERSION).
   # Override only when running a custom build.
   tag: ""
@@ -44,7 +44,9 @@ pod:
   # Required for the bundled npu_reader to read /proc/<pid>/... and the
   # Telegraf [[inputs.system]] / [[inputs.processes]] plugins to see all
   # processes on the host. Equivalent to `pid: host` in compose.yaml.
-  hostPID: true
+  hostPID: false
+  fsGroup: 10001
+  supplementalGroups: []
   # CPU/RAM/temperature/GPU/NPU readers all read sysfs from the host.
   # The pod itself does not need hostNetwork, but exposing the API on the
   # host's network namespace can simplify scraping by node-local agents.
@@ -69,17 +71,20 @@ pod:
 # -----------------------------------------------------------------------------
 # Container security context
 # -----------------------------------------------------------------------------
-# `privileged: true` matches the documented `docker run --privileged`
-# invocation that allows the bundled npu_reader to access
-# /sys/class/intel_pmt and the qmassa GPU monitor to enumerate render nodes.
-# Disable only if you are running CPU/RAM/temperature collection only.
+# Secure defaults run the container as non-root without host namespaces or
+# privileged access. Enable hardware.telemetry for full host telemetry.
 securityContext:
-  privileged: true
-  runAsNonRoot: false
-  readOnlyRootFilesystem: false
-  # AppArmor / seccomp Unconfined matches the compose.yaml `security_opt:
-  # apparmor:unconfined` knob (required when /proc is read-only or in
-  # nested containers).
+  privileged: false
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  # Secure defaults use RuntimeDefault profiles. The hardware telemetry
+  # profile switches to Unconfined to match the Compose hardware mode.
   #
   # `appArmorProfile` is a native container security-context field added in
   # Kubernetes 1.30. The chart auto-detects the API version and renders
@@ -89,18 +94,22 @@ securityContext:
   # even when KubeVersion reports an older minor (useful for `helm template`
   # when targeting a specific cluster).
   appArmorProfile:
-    type: Unconfined
+    type: RuntimeDefault
   appArmorProfileForce: false
   seccompProfile:
-    type: Unconfined
+    type: RuntimeDefault
 
 # -----------------------------------------------------------------------------
 # Hardware access
 # -----------------------------------------------------------------------------
 hardware:
-  # Mount /dev/dri so qmassa can enumerate Intel(R) GPU render nodes.
-  # On NPU-only or CPU-only hosts leave this disabled - qmassa will
-  # detect the absence of the device and idle silently.
+  # Set to true to enable host-level GPU/NPU and system telemetry. This
+  # requires privileged access, hostPID and hostPath mounts.
+  telemetry:
+    enabled: false
+  gpuRenderGroup: 992
+  # Mount /dev/dri so qmassa can enumerate Intel(R) GPU render nodes when
+  # hardware telemetry is enabled.
   gpu:
     enabled: true
   # NPU telemetry comes from /sys/class/intel_pmt which is exposed via
@@ -135,6 +144,7 @@ config:
   corsOrigins: "*"
   metricsRetentionSeconds: 300
   maxMetricsBatchSize: 1000
+  hardwareTelemetryEnabled: false
   # Optional: stable host label for Telegraf, qmassa_reader and npu_reader.
   # Empty -> kernel hostname (default Telegraf behaviour).
   hostnameOverride: ""

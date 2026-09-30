@@ -27,8 +27,8 @@ Restart the DL Streamer Pipeline Server container with the pipeline that has thi
 
 ### Deploying with Intel GPU K8S Extension
 
-If you're deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`,
-`vah264dec` etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
+If you are deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`,
+`vah264dec`, etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
 with Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
 appropriately in order to utilize the underlying GPU.
 
@@ -43,19 +43,19 @@ gpu:
 
 ### Deploying without Intel GPU K8S Extension
 
-If you're deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`, `vah264dec` etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`) without Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml` appropriately in order to utilize the underlying GPU.
+If you are deploying a GPU based pipeline (example: with VA-API elements like `vapostproc`, `vah264dec`, etc., and/or with `device=GPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`) without Intel GPU k8s Extension, ensure to set the below details in the file `helm/values.yaml` appropriately in order to utilize the underlying GPU.
 
 ```sh
 privileged_access_required: true
 ```
 
-Keep in mind that without GPU K8S extension gpu.enable must be set to false
+Keep in mind that without GPU K8S extension gpu.enable must be set to false.
 
 ---
 
 ### Deploying with Intel NPU K8S Extension
 
-If you're deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
+If you are deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
 with Intel NPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
 appropriately in order to utilize the underlying NPU.
 
@@ -69,7 +69,7 @@ npu:
 
 ### Deploying without Intel NPU K8S Extension
 
-If you're deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
+If you are deploying a GPU based pipeline (example: with `device=NPU` in `gvadetect` in `dlstreamer_pipeline_server_config.json`)
 without Intel NPU k8s Extension, ensure to set the below details in the file `helm/values.yaml`
 appropriately in order to utilize the underlying NPU.
 
@@ -77,7 +77,7 @@ appropriately in order to utilize the underlying NPU.
 privileged_access_required: true
 ```
 
-Keep in mind that without NPU K8S extension gpu.enable must be set to false
+Keep in mind that without NPU K8S extension npu.enable must be set to false.
 
 ---
 
@@ -169,7 +169,7 @@ sudo ufw disable
 
 ### Inferencing on NPU
 
-To perform inferencing on an NPU device (for platforms with NPU accelerators such as Ultra Core processors), ensure you have completed the required pre-requisites. Refer to the instructions [here](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/dev_guide/advanced_install/advanced_install_guide_prerequisites.md#optional-prerequisite-2---install-intel-npu-drivers) to install Intel NPU drivers.
+To perform inferencing on an NPU device (for platforms with NPU accelerators such as Ultra Core processors), ensure you have completed the required pre-requisites. Refer to the instructions [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/advanced_install/advanced_install_guide_prerequisites.html#optional-prerequisite-2-install-intel-npu-drivers) to install Intel NPU drivers.
 
 ---
 
@@ -184,7 +184,7 @@ There are few options to fix this.
 
 One is updating the kernel to `6.11.11-061111-generic` in the host system.
 
-Alternately, install OpenCL runtime packages in the host system. Refer to the instructions from OpenVINO documentation [here](https://docs.openvino.ai/2025/get-started/install-openvino/configurations/configurations-intel-gpu.html#linux) to install GPU drivers.
+Alternately, install OpenCL runtime packages in the host system. Refer to the instructions from OpenVINO™ documentation [here](https://docs.openvino.ai/2026/get-started/install-openvino/configurations/configurations-intel-gpu.html#linux) to install GPU drivers.
 
 ---
 

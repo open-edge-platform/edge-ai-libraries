@@ -22,10 +22,14 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-    uses: open-edge-platform/orch-ci/.github/workflows/pre-merge.yml@b5930c48c1fcdb6b34ffbcd465cff96dabfbde70  # 2026.0.17
+    # Untagged main commit: first revision with the TFLint install fix (orch-ci#1043).
+    # Revert to a tag once one is cut that contains it.
+    uses: open-edge-platform/orch-ci/.github/workflows/pre-merge.yml@5bf1c402a05b6492b724643e2be4bcc7de1dd67c
     with:
       runs_on: ubuntu-24.04-16core-64GB
       bootstrap_tools: 'nodejs'
+      # Keeps the newly blocking security gates non-blocking, as they were on 2026.0.17.
+      security_scans_advisory: true
       run_version_check: false
       run_build: false
       run_lint: true

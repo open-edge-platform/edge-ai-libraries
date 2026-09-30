@@ -2,13 +2,9 @@
 
 This section documents the REST API endpoint for batch frame analysis.
 
----
-
 ## 1. Endpoint Overview
 
 The batch analysis endpoint accepts multiple uploaded image frames in a single request, runs pose extraction and pattern detection, and optionally runs VLM confirmation for matched suspicious behavior.
-
----
 
 ## 2. HTTP Method and URL
 
@@ -16,16 +12,12 @@ The batch analysis endpoint accepts multiple uploaded image frames in a single r
 - URL: `/api/v1/analyze/batch`
 - Content-Type: `multipart/form-data`
 
----
-
 ## 3. Headers
 
 | Header | Required | Value | Description |
 |---|---|---|---|
-| `Content-Type` | Yes | `multipart/form-data` | Required for form fields plus image file uploads |
+| `Content-Type` | Yes | `multipart/form-data` | Required for form fields and image file uploads |
 | `Accept` | No | `application/json` | Recommended response content type |
-
----
 
 ## 4. Request Body
 
@@ -44,8 +36,6 @@ Validation notes:
 - At least one frame file is required.
 - If no valid images can be decoded, the request fails.
 
----
-
 ## 5. Request Example
 
 ### cURL example
@@ -62,14 +52,12 @@ curl -X POST "http://localhost:8085/api/v1/analyze/batch" \
   -F "frames=@frame_002_2.0s.jpg"
 ```
 
----
-
 ## 6. Response
 
 On success, the endpoint returns an `AnalyzeDirectResponse` JSON object.
 
 | Field | Type | Nullable | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `entity_id` | `string` | No | Entity identifier from request |
 | `status` | `string` | No | Analysis result status |
 | `pose_detected` | `boolean` | No | Whether pose extraction produced at least one pose |
@@ -84,8 +72,6 @@ Possible `status` values:
 - `pose_not_detected` (used when no poses are detected from submitted frames)
 - `no_match`
 - `suspicious`
-
----
 
 ## 7. Response Example
 
@@ -119,8 +105,6 @@ Possible `status` values:
 }
 ```
 
----
-
 ## 8. HTTP Status Codes
 
 | Status Code | Meaning | When Returned |
@@ -129,8 +113,6 @@ Possible `status` values:
 | `400` | Bad Request | No frames provided |
 | `422` | Unprocessable Entity | All uploaded frames invalid or undecodable |
 | `500` | Internal Server Error | Unexpected analysis/runtime failure |
-
----
 
 ## 9. Error Response Format
 
@@ -142,7 +124,7 @@ General error shape:
 {
   "detail": {
     "error_code": "STRING_CODE",
-    "message": "Human readable message",
+    "message": "Human-readable message",
     "invalid_frames": [
       [0, "Frame 0 exceeds 5MB limit"],
       [1, "Frame 1 is not a valid image format"]

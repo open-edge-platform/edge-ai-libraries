@@ -1,0 +1,26 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+//
+// Rename to tick_scripts/<udf_name>.tick. <udf_name> must match udfs.name in
+// config.json and the .py file under udfs/ -- see ../references/tickscript-basics.md.
+
+dbrp "datain"."autogen"
+var data0 = stream
+        |from()
+                // Must equal the "topic" field you send to POST /input --
+                // topic becomes the InfluxDB measurement name.
+                .measurement('REPLACE_WITH_TOPIC')
+data0
+    @REPLACE_WITH_UDF_NAME()
+
+// Optional: publish anomalies via Kapacitor's native MQTT alert handler
+// (only works if config.json's alerts.mqtt is set -- see
+// ../references/tickscript-basics.md#alerting-two-different-mechanisms-dont-conflate-them):
+//
+// data0
+//     @REPLACE_WITH_UDF_NAME()
+//     |alert()
+//         .message('Anomaly detected: {{ index .Fields "value" }}')
+//         .crit(lambda: TRUE)                    // required -- alert() never fires without a severity lambda
+//         .mqtt('REPLACE_WITH_ALERT_TOPIC')       // this is the MQTT topic, NOT the broker name
+//         .brokerName('REPLACE_WITH_MQTT_BROKER_NAME')  // must equal alerts.mqtt.name in config.json

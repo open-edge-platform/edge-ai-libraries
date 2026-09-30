@@ -13,7 +13,7 @@ Same patch file is COPY'd by ``deployment/lingua/Dockerfile``.
 from __future__ import annotations
 
 import argparse
-import subprocess
+import subprocess  # nosec B404 - build-time helper; runs `patch` with a fixed list argv, no shell, no untrusted input
 import sys
 from pathlib import Path
 

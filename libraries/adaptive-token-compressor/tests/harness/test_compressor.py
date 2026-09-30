@@ -438,8 +438,7 @@ class TestBackendErrorHandling:
         # On backend failure: section keeps original text
         assert result.messages[0]["content"] == content
         # Error surfaced via metrics
-        assert result.metrics.error is not None
-        assert "Simulated failure" in result.metrics.error
+        assert result.metrics.error == "entire_text: backend compression failed"
 
     def test_backend_failure_does_not_raise(self, monkeypatch):
         """compress() never raises — backend failures absorbed."""

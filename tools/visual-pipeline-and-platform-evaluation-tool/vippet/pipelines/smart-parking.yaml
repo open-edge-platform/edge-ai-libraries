@@ -16,6 +16,7 @@ variants:
         model=/models/output/public/yolo11s/INT8/yolo11s.xml
         pre-process-backend=opencv
         device=CPU
+        batch-size=2
         threshold=0.7
         inference-interval=3
         inference-region=full-frame
@@ -27,6 +28,7 @@ variants:
         model=/models/output/public/colorcls2/colorcls2.xml
         pre-process-backend=opencv
         device=CPU
+        batch-size=2
         inference-interval=3
         model-instance-id=inst1-cpu
         inference-region=roi-list !
@@ -34,6 +36,7 @@ variants:
       gvawatermark !
       gvametaconvert add-empty-results=true !
       queue !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       fakesink name=default_output_sink
   - name: GPU
@@ -68,6 +71,7 @@ variants:
       gvawatermark !
       gvametaconvert add-empty-results=true !
       queue !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       fakesink name=default_output_sink
   - name: GPU (WSL)
@@ -104,6 +108,7 @@ variants:
       gvawatermark !
       gvametaconvert add-empty-results=true !
       queue !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       fakesink name=default_output_sink
   - name: NPU
@@ -136,6 +141,7 @@ variants:
       gvawatermark !
       gvametaconvert add-empty-results=true !
       queue !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       fakesink name=default_output_sink
   - name: GPU_NPU
@@ -169,6 +175,7 @@ variants:
       gvawatermark !
       gvametaconvert add-empty-results=true !
       queue !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       fakesink name=default_output_sink
   - name: NPU_GPU
@@ -202,5 +209,6 @@ variants:
       gvawatermark !
       gvametaconvert add-empty-results=true !
       queue !
+      gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=100 !
       fakesink name=default_output_sink

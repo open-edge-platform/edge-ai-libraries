@@ -1,0 +1,46 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "schemaVersion": "1.0",
+  "description": "Harness-neutral discovery catalog for Time Series Analytics workflow skills. Paths are relative to the microservice root.",
+  "skillsRoot": ".github/skills",
+  "skills": [
+    {
+      "name": "time-series-analytics-user",
+      "path": ".github/skills/time-series-analytics-user/SKILL.md",
+      "description": "Build a new time-series analytics use case on top of the deployed microservice: author a UDF + TICKscript (threshold alert, rate-of-change, rolling z-score, or pretrained-model inference), package it, deploy it over REST, feed it data, and wire up MQTT/OPC UA alerting. Not for modifying the service's own source (use time-series-analytics-dev).",
+      "triggers": [
+        "build a udf",
+        "anomaly detection pipeline",
+        "flag sensor readings",
+        "deploy a tick script",
+        "wire up mqtt alerts",
+        "opc ua alerts",
+        "time series analytics use case",
+        "pretrained model inference udf"
+      ],
+      "requires": [
+        "docker",
+        "curl"
+      ]
+    },
+    {
+      "name": "time-series-analytics-dev",
+      "path": ".github/skills/time-series-analytics-dev/SKILL.md",
+      "description": "Develop the Time Series Analytics microservice itself: build/deploy via Docker Compose or Helm, run the unit and functional test suites, modify src/main.py, src/classifier_startup.py, or src/opcua_alerts.py, and follow release/versioning conventions. Not for merely deploying the prebuilt image to build a use case (use time-series-analytics-user).",
+      "triggers": [
+        "run the time series analytics tests",
+        "add an endpoint to time series analytics",
+        "debug time series analytics service code",
+        "build time series analytics from source",
+        "modify classifier_startup.py",
+        "cut a release for time series analytics"
+      ],
+      "requires": [
+        "repo clone",
+        "docker",
+        "python3"
+      ]
+    }
+  ]
+}

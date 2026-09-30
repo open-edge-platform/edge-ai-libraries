@@ -4,7 +4,9 @@ These tests validate:
 * Jobs submitted with ``metadata_mode=file`` complete successfully and include
   ``metadata_stream_urls`` in the status response.
 * The metadata snapshot endpoint returns a JSON array of records.
-* The metadata SSE stream endpoint responds with the correct headers.
+* Inference pipelines publish at least one object, tensor, or generated text result.
+* The metadata SSE stream endpoint reports 204 once the job has finished, so an
+  EventSource client stops reconnecting.
 * Error paths: unknown job, pipeline without ``gvametapublish``, density test
   with metadata enabled, and job with metadata disabled all return 404 / 400 /
   FAILED as appropriate.
@@ -19,6 +21,7 @@ import requests
 
 from helpers.api_helpers import (
     JsonDict,
+    drain_job,
     run_job_with_retry,
     start_density_job,
     start_performance_job,
@@ -36,56 +39,90 @@ logger = logging.getLogger(__name__)
 
 # Seconds to wait before retrying a failed job
 RETRY_DELAY_SECONDS: float = 5.0
+INFERENCE_ELEMENT_TYPES = frozenset(
+    {"gvadetect", "gvaclassify", "gvainference", "gvagenai"}
+)
+# Upper bound accepted by the metadata snapshot endpoint.
+SNAPSHOT_LIMIT: int = 1000
 
-# A known pipeline/variant that does NOT contain a gvametapublish element,
+# A known non-inference pipeline that does NOT contain a gvametapublish element,
 # used for error-path tests that need a valid (but metadata-free) pipeline.
-_PIPELINE_WITHOUT_METADATA = "smart-parking"
+_PIPELINE_WITHOUT_METADATA = "simple-nvr"
 _VARIANT_WITHOUT_METADATA = "cpu"
 
 
-def _has_gvametapublish(
-    session: requests.Session, pipeline_id: str, variant_id: str
-) -> bool:
-    """Return True if the advanced pipeline graph for *variant_id* contains a gvametapublish node."""
-    response = session.get(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
-    if response.status_code != 200:
-        return False
-    for variant in response.json().get("variants", []):
+def _has_inference_result(record: JsonDict) -> bool:
+    """Return True if a metadata record carries a detection, tensor or generated text."""
+    return bool(
+        record.get("objects")
+        or record.get("tensors")
+        or str(record.get("result", "")).strip()
+    )
+
+
+def _variant_node_types(
+    session: requests.Session,
+    pipeline_id: str,
+    variant_id: str,
+    cache: dict[str, JsonDict],
+) -> set[str]:
+    """Return advanced-graph node types for one pipeline variant."""
+    if pipeline_id not in cache:
+        response = session.get(f"{BASE_URL}/pipelines/{pipeline_id}", timeout=30)
+        response.raise_for_status()
+        cache[pipeline_id] = response.json()
+    for variant in cache[pipeline_id].get("variants", []):
         if variant.get("id") == variant_id:
             nodes = variant.get("pipeline_graph", {}).get("nodes", [])
-            return any(node.get("type") == "gvametapublish" for node in nodes)
-    return False
+            return {str(node.get("type", "")) for node in nodes}
+    raise ValueError(f"Pipeline {pipeline_id!r} has no variant {variant_id!r}")
 
 
 def _discover_metadata_pipeline_cases() -> tuple[
-    list[PipelineCase | object], list[str]
+    list[PipelineCase | object], list[str], set[tuple[str, str]]
 ]:
     """Discover (pipeline, variant) combinations that include a gvametapublish element."""
     reason = (
         "No pipeline/variant with a gvametapublish element was discovered from the VIPPET API. "
         "Ensure API reachability and at least one supported device (CPU/GPU/NPU)."
     )
+    inference_case_keys: set[tuple[str, str]] = set()
+    meta_cases: list[PipelineCase] = []
     try:
         with requests.Session() as session:
             session.headers.update({"Accept": "application/json"})
             all_cases = collect_pipeline_cases(session)
             missing = missing_models_per_pipeline(session)
-            meta_cases = [
-                case
-                for case in all_cases
-                if _has_gvametapublish(session, case.pipeline_id, case.variant_id)
-            ]
+            pipeline_cache: dict[str, JsonDict] = {}
+            for case in all_cases:
+                node_types = _variant_node_types(
+                    session, case.pipeline_id, case.variant_id, pipeline_cache
+                )
+                if "gvametapublish" not in node_types:
+                    continue
+                meta_cases.append(case)
+                if node_types & INFERENCE_ELEMENT_TYPES:
+                    inference_case_keys.add((case.pipeline_id, case.variant_id))
     except Exception:
         logger.exception("Failed to collect metadata pipeline cases from VIPPET API")
         meta_cases = []
         missing = {}
 
     if not meta_cases:
-        return [pytest.param(None, marks=pytest.mark.skip(reason=reason))], ["no-cases"]
-    return wrap_cases_for_pytest(meta_cases, missing)
+        return (
+            [pytest.param(None, marks=pytest.mark.skip(reason=reason))],
+            ["no-cases"],
+            set(),
+        )
+    params, ids = wrap_cases_for_pytest(meta_cases, missing)
+    return params, ids, inference_case_keys
 
 
-METADATA_PIPELINE_CASES, METADATA_CASE_IDS = _discover_metadata_pipeline_cases()
+(
+    METADATA_PIPELINE_CASES,
+    METADATA_CASE_IDS,
+    INFERENCE_CASE_KEYS,
+) = _discover_metadata_pipeline_cases()
 
 
 @pytest.fixture(autouse=True)
@@ -136,14 +173,15 @@ def test_performance_metadata_file_mode_job(
 ) -> None:
     """Verify end-to-end metadata_mode=file behaviour for a single job run.
 
-    Runs a performance job with ``metadata_mode=file`` and asserts all three
+    Runs a performance job with ``metadata_mode=file`` and asserts four
     observable outcomes in one pass:
 
     1. Job reaches COMPLETED state with a non-empty ``metadata_stream_urls`` dict.
     2. Each metadata snapshot endpoint (snapshot URL derived by stripping ``/stream``)
        returns HTTP 200 with a non-empty JSON array of records.
-    3. Each metadata SSE stream endpoint returns HTTP 200 with
-       ``Content-Type: text/event-stream``.
+    3. Inference variants publish at least one object, tensor or generated text
+       result across the sampled records.
+    4. Each metadata SSE stream endpoint returns HTTP 204 for the finished job.
 
     Only (pipeline, variant) pairs whose advanced graph contains a
     ``gvametapublish`` node are included in the parametrize set.
@@ -187,10 +225,16 @@ def test_performance_metadata_file_mode_job(
     )
 
     # --- 2. Snapshot endpoint ---
+    sampled_records = 0
+    result_records = 0
     for pipeline_key, stream_urls in metadata_stream_urls.items():
         for file_index, stream_url in enumerate(stream_urls):
             snapshot_url = stream_url.removesuffix("/stream")
-            response = http_client.get(f"{BASE_URL}{snapshot_url}", timeout=30)
+            response = http_client.get(
+                f"{BASE_URL}{snapshot_url}",
+                params={"limit": SNAPSHOT_LIMIT},
+                timeout=30,
+            )
             assert response.status_code == 200, (
                 f"Expected 200 from metadata snapshot endpoint "
                 f"(pipeline_key={pipeline_key!r}, file_index={file_index}), "
@@ -202,6 +246,10 @@ def test_performance_metadata_file_mode_job(
                 f"(pipeline_key={pipeline_key!r}, file_index={file_index}), "
                 f"got {type(records).__name__}: {records!r}"
             )
+            sampled_records += len(records)
+            result_records += sum(
+                1 for record in records if _has_inference_result(record)
+            )
             logger.info(
                 "%s snapshot pipeline_key=%s file_index=%d → %d record(s)",
                 pipeline_label,
@@ -210,31 +258,51 @@ def test_performance_metadata_file_mode_job(
                 len(records),
             )
 
-    # --- 3. SSE stream headers ---
+    # --- 3. Inference liveness ---
+    # The snapshot is a tail of at most SNAPSHOT_LIMIT records per file, which is
+    # enough to tell "inference never ran" from "inference produced something".
+    if (case.pipeline_id, case.variant_id) in INFERENCE_CASE_KEYS:
+        assert result_records > 0, (
+            f"{pipeline_label} published {sampled_records} metadata record(s) but not "
+            "one object, tensor or generated text result — inference produced nothing"
+        )
+        logger.info(
+            "%s published inference results in %d of %d sampled record(s)",
+            pipeline_label,
+            result_records,
+            sampled_records,
+        )
+
+    # --- 4. SSE stream endpoint after the job finished ---
+    # Tailing stops when the job leaves RUNNING, so the endpoint answers 204 to
+    # tell an EventSource client not to reconnect. A 200 is only possible in the
+    # narrow window before tailing is torn down, and must still be a real stream.
     for pipeline_key, stream_urls in metadata_stream_urls.items():
         for file_index, stream_url in enumerate(stream_urls):
             response = http_client.get(
                 f"{BASE_URL}{stream_url}", stream=True, timeout=30
             )
             try:
-                assert response.status_code == 200, (
-                    f"Expected 200 from metadata SSE stream endpoint "
-                    f"(pipeline_key={pipeline_key!r}, file_index={file_index}), "
-                    f"got {response.status_code}"
+                assert response.status_code in (200, 204), (
+                    f"Expected 204 (or 200 while still tailing) from metadata SSE "
+                    f"stream endpoint (pipeline_key={pipeline_key!r}, "
+                    f"file_index={file_index}), got {response.status_code}"
                 )
-                content_type = response.headers.get("Content-Type", "")
-                assert "text/event-stream" in content_type, (
-                    f"Expected 'text/event-stream' Content-Type from SSE stream endpoint "
-                    f"(pipeline_key={pipeline_key!r}, file_index={file_index}), "
-                    f"got {content_type!r}"
-                )
+                if response.status_code == 200:
+                    content_type = response.headers.get("Content-Type", "")
+                    assert "text/event-stream" in content_type, (
+                        f"Expected 'text/event-stream' Content-Type from SSE stream "
+                        f"endpoint (pipeline_key={pipeline_key!r}, "
+                        f"file_index={file_index}), got {content_type!r}"
+                    )
             finally:
                 response.close()
             logger.info(
-                "%s SSE stream pipeline_key=%s file_index=%d → 200 text/event-stream",
+                "%s SSE stream pipeline_key=%s file_index=%d → %d",
                 pipeline_label,
                 pipeline_key,
                 file_index,
+                response.status_code,
             )
 
 
@@ -269,6 +337,7 @@ def test_performance_metadata_snapshot_for_job_with_disabled_metadata_returns_40
 
     job_id = start_performance_job(http_client, payload)
     logger.info("Started non-metadata performance job %s", job_id)
+    drain_job(http_client, f"{BASE_URL}/jobs/tests/performance/{job_id}/status")
 
     response = http_client.get(
         f"{BASE_URL}/jobs/tests/performance/{job_id}/metadata/some-pipeline/0",

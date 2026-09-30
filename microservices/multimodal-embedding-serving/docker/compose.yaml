@@ -12,8 +12,8 @@ services:
       - "${EMBEDDING_SERVER_PORT}:8000"
     ipc: host
     environment:
-      no_proxy: ${no_proxy_env},vdms-dataprep-ms,localhost
-      no_proxy_env: ${no_proxy_env},vdms-dataprep-ms,localhost
+      no_proxy: ${no_proxy_env},multimodal-dataprep-ms,localhost
+      no_proxy_env: ${no_proxy_env},multimodal-dataprep-ms,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       # New unified model configuration
@@ -44,6 +44,11 @@ services:
       - ${VIDEO_GROUP_ID:-44}
       - ${RENDER_GROUP_ID:-1002}
     restart: unless-stopped
+    # Headroom above the 1024 default for pooled shared-memory segments.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)"]
       interval: 10s

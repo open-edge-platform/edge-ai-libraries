@@ -1,16 +1,18 @@
 # Stream Frames over WebRTC
 
 DL Streamer Pipeline Server supports streaming the frames over WebRTC protocol using a MediaMTX media server.
-There is a dedicated docker compose file for demonstrating WebRTC streaming for DL Streamer Pipeline Server. It is available in DL Streamer Pipeline Server's github repository, under the "docker" folder i.e., `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`
+There is a dedicated docker compose file for demonstrating WebRTC streaming for DL Streamer Pipeline Server. It is available in DL Streamer Pipeline Server's github repository, under the "docker" folder, i.e., `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`
 
 Once a pipeline is started, DL Streamer Pipeline Server sends a stream of images through WebRTC protocol to WebRTC browser client. This is done via the MediaMTX server used for signaling.
 
-> **Note:** As an optional recommendation, coturn server can be used to facilitate NAT traversal
+> [!NOTE]
+> As an optional recommendation, Coturn server can be used to facilitate NAT traversal
 > and ensure that the WebRTC stream is accessible on a non-native browser client and helps in
-> cases where firewall is enabled. See example usage of coturn server in WebRTC streaming
+> cases where firewall is enabled. See example usage of Coturn server in WebRTC streaming
 > [here](https://github.com/open-edge-platform/edge-ai-suites/tree/main/manufacturing-ai-suite/industrial-edge-insights-vision)
 
-Below are the necessary configuration to be aware of (or modify accordingly based on your deployment) in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` (They will be consumed appropriately in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`):
+Below is the necessary configuration to be aware of (or modify accordingly based on your deployment) in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` (They will be consumed appropriately in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`):
+
 ```sh
 WHIP_SERVER_IP=<HOST_IP> # It should be the IP address of the machine on which an open MediaMTX container is running.
 WHIP_SERVER_PORT=8889 # It is the port which is configured for the MediaMTX server. Default port is 8889.
@@ -23,11 +25,15 @@ To run it on GPU/NPU you must first grant the container user access to GPU/NPU d
   ```
 
 After setting all the above information, we can start the WebRTC streaming:
-- Start the services
+
+- Start the services:
+
     ```sh
         docker compose -f docker-compose-mediamtx.yml up
     ```
-- Open another terminal and start a pipeline in DL Streamer Pipeline Server with the below curl command.
+
+- Open another terminal and start a pipeline in DL Streamer Pipeline Server with the below curl command:
+
     ```sh
         curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
         "source": {
@@ -53,16 +59,19 @@ After setting all the above information, we can start the WebRTC streaming:
         }
     }'
     ```
+
 - Open `http://<HOST_IP>:8889/<peer-id>` in your browser to view the WebRTC stream:
     ![Stream output on browser using WebRTC](../_assets/sample_webrtc_mediamtx.png)
 
-> **Note:** You can control WebRTC frame overlays using `overlay` and `overlay-properties` in `destination.frame`.
+> [!NOTE]
+> You can control WebRTC frame overlays using `overlay` and `overlay-properties` in `destination.frame`.
 >
 > - If `"overlay": true`, `gvawatermark` is applied.
 > - If `"overlay": false`, `gvawatermark` is not applied and `overlay-properties` is ignored.
 > - If your pipeline in config.json already contains custom `gvawatermark` settings, use `"overlay": false` to avoid applying watermark twice.
 >
 > Example Webrtc frame destination with `overlay-properties`:
+>
 > ```json
 > "frame": {
 >     "type": "webrtc",
@@ -76,7 +85,8 @@ After setting all the above information, we can start the WebRTC streaming:
 > }
 > ```
 
-> **Note:** If you are using 4K or high resolution video make sure to increase the bitrate to
+> [!NOTE]
+> If you are using 4K or high resolution video make sure to increase the bitrate to
 > avoid choppy video streaming. You can set the bitrate by adding `"bitrate" : 5000` with the
 > WebRTC configurations in your Curl command.
 
@@ -88,6 +98,7 @@ After setting all the above information, we can start the WebRTC streaming:
                 }
     ```
 
-> **Note:** MediaMTX may fail to stream if the pipeline initialization takes longer than 10
-> seconds. To resolve this, you can increase the WHIP_SERVER_TIMEOUT value in the .env file
-> located in the [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/ directory.
+> [!NOTE]
+> MediaMTX may fail to stream if the pipeline initialization takes longer than 10
+> seconds. To resolve this, you can increase the `WHIP_SERVER_TIMEOUT` value in the
+> `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file.

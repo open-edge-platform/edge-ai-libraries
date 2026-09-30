@@ -1,0 +1,60 @@
+
+configure_loitering_detection () {
+  workspace="$(ensure_project_path)/loitering-detection"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+verify_loitering_detection () {
+  local v
+  for v in 101 102 103 104; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000$v.mp4 ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/FP16/pedestrian-and-vehicle-detector-adas-0001.bin ]
+}
+
+debian_90_profile_loitering_detection () {
+  echo "git curl gawk docker edge_base"
+}
+
+debian_90_install_loitering_detection () {
+  configure_loitering_detection
+  if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Loitering detection is already installed. Skipping"
+  else
+    # clone the repository
+    ensure_disk_space 280
+    ensure_git_export "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+
+    # setup
+    cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+    sed -i 's|curl |curl -f |' loitering-detection/install.sh
+    ./install.sh loitering-detection $(ensure_ip)
+    verify_loitering_detection
+  fi
+
+  local device=$(ensure_select_device "$@")
+  sed -i "/No device selected/,/fi/{s|defaulting to ...|defaulting to ${device^^}|;s|forced.*=.*$|forced${device^^}=true|}" "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/sample_start.sh
+}
+
+debian_90_start_loitering_detection () {
+  ensure_ports_open "80 443" debian_90_stop_loitering_detection
+  configure_loitering_detection
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  docker compose -f compose-without-scenescape.yml up -d --wait
+  ./sample_start.sh
+  echo "@@HIGHLIGHT UI entrypoint: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT Grafana username/password: admin"
+}
+
+debian_90_stop_loitering_detection () {
+  configure_loitering_detection
+  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  ./sample_stop.sh || true
+  docker compose -f compose-without-scenescape.yml down -v --remove-orphans
+}
+
+debian_90_remove_loitering_detection () {
+  debian_90_stop_loitering_detection || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}

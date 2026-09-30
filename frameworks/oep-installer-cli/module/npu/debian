@@ -1,0 +1,76 @@
+
+configure_npu () {
+  version=1.35.0
+  repository=https://api.github.com/repos/intel/linux-npu-driver
+  releases=https://github.com/intel/linux-npu-driver/releases
+  workspace="$(ensure_project_path)/npu"
+}
+
+verify_npu () {
+  [ -c /dev/accel/accel0 ] &&
+  getent group render >/dev/null 2>&1 &&
+  id -nG | grep -qw render &&
+  verify_npu_packages
+}
+
+# checks the driver packages only, independent of NPU hardware being present.
+# used to confirm a fresh install succeeded even on systems without an NPU device.
+verify_npu_packages () {
+  (
+    set -o pipefail
+    ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
+  )
+}
+
+debian_40_profile_npu () {
+  echo "libtbb12 jq libze1"
+}
+
+debian_40_gpu_npu () {
+  echo "render:992"
+}
+
+debian_40_install_npu () {
+  configure_npu $*
+
+  if verify_npu && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Npu drivers are already installed. Skipping..."
+  else
+    # remove legacies
+    ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+
+    # create the render group
+    ensure_group_add $(debian_40_gpu_npu)
+  
+    mkdir -p "$workspace"
+    cd "$workspace"
+
+    # download deb packages
+    local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+    [ ${#packages[*]} -gt 0 ] || return 3
+
+    for p in ${packages[*]}; do
+      curl -fsSL -A Mozilla/5.0 "$p" | tar xfz -
+    done 
+
+    # install the debs
+    ensure_apt install -y $(find . -name "*.deb" -print)
+    ensure_sudo rm -rf "$workspace"
+    verify_npu_packages
+  fi
+}
+
+debian_40_remove_npu () {
+  ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+debian_40_sbom_npu () {
+  configure_npu "$@"
+  local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+  [ ${#packages[*]} -gt 0 ] || return 3
+  cat <<EOF
+$(ensure_sbom_format pkg-list "${packages[@]}")
+EOF
+}
+

@@ -25,13 +25,13 @@ services:
   # Metrics Manager - Main service container
   # ---------------------------------------------------------------------------
   metrics-manager:
-    image: ${REGISTRY:-}metrics-manager:${TAG:-2026.1.0}
+    image: ${REGISTRY:-}metrics-manager:${TAG:-2026.2.0}
     build:
       context: .
       dockerfile: Dockerfile
       args:
         # Image version label (matches the tag, sourced from ./VERSION)
-        VERSION: ${TAG:-2026.1.0}
+        VERSION: ${TAG:-2026.2.0}
         # Pass proxy settings to Docker build
         http_proxy: ${http_proxy:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
@@ -39,7 +39,9 @@ services:
         HTTPS_PROXY: ${HTTPS_PROXY:-}
         no_proxy: ${no_proxy:-}
         NO_PROXY: ${NO_PROXY:-}
+        INSTALL_OPENVINO: ${INSTALL_OPENVINO:-false}
     container_name: metrics-manager
+    user: ${CONTAINER_USER:-0:0}
 
     # Environment configuration
     environment:
@@ -68,6 +70,7 @@ services:
       - TELEGRAF_CONFIG_PATH=/etc/telegraf/telegraf.conf
       - METRICS_RETENTION_SECONDS=${METRICS_RETENTION_SECONDS:-300}
       - MAX_METRICS_BATCH_SIZE=${MAX_METRICS_BATCH_SIZE:-1000}
+      - HARDWARE_TELEMETRY_ENABLED=${HARDWARE_TELEMETRY_ENABLED:-true}
 
       # Hardware-telemetry collector toggles (gate telegraf.d/*.conf in
       # entrypoint.sh). Every collector idles gracefully on hardware that
@@ -92,6 +95,8 @@ services:
 
     # Device access for system metrics
     privileged: ${PRIVILEGED:-true}
+    group_add:
+      - ${GPU_RENDER_GID:-992}
 
     # Security: Disable AppArmor (required when /proc is read-only or in nested containers)
     security_opt:
@@ -144,19 +149,20 @@ services:
   # Metrics Manager Tests - runs pytest and exits
   # ---------------------------------------------------------------------------
   metrics-manager-test:
-    image: ${REGISTRY:-}metrics-manager-test:${TAG:-2026.1.0}
+    image: ${REGISTRY:-}metrics-manager-test:${TAG:-2026.2.0}
     build:
       context: .
       dockerfile: Dockerfile
       target: test
       args:
-        VERSION: ${TAG:-2026.1.0}
+        VERSION: ${TAG:-2026.2.0}
         http_proxy: ${http_proxy:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
         https_proxy: ${https_proxy:-}
         HTTPS_PROXY: ${HTTPS_PROXY:-}
         no_proxy: ${no_proxy:-}
         NO_PROXY: ${NO_PROXY:-}
+        INSTALL_OPENVINO: ${INSTALL_OPENVINO:-false}
     container_name: metrics-manager-test
     restart: "no"
     profiles:

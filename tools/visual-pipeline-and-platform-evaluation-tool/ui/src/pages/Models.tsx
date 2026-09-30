@@ -15,7 +15,14 @@ import { ModelsTable } from "@/features/models/ModelsTable.tsx";
 import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 const REQUIRED_MODEL_FILES = ["model.bin", "model.xml"];
-const ALLOWED_CATEGORIES = ["classification", "detection", "genai"] as const;
+const ALLOWED_CATEGORIES = [
+  "image_classification",
+  "object_detection",
+  "image_segmentation",
+  "pose_estimation",
+  "vision_language_models",
+] as const;
+const MAX_DESCRIPTION_LENGTH = 200;
 
 const validateModelArchive = async (
   file: File,
@@ -104,6 +111,19 @@ export const Models = () => {
           <p className="text-muted-foreground mt-2">
             Ready-to-use models available in the platform
           </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Not every uploaded model will work in ViPPET. Check supported
+            models:{" "}
+            <a
+              href="https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium underline underline-offset-2"
+            >
+              DL Streamer supported models
+            </a>
+            .
+          </p>
         </div>
 
         <MultiFileUploader
@@ -132,6 +152,13 @@ export const Models = () => {
               required: true,
               type: "combobox" as const,
               options: [...ALLOWED_CATEGORIES],
+            },
+            {
+              name: "description",
+              label: "Description",
+              placeholder: "Optional description of what the model does",
+              required: false,
+              maxLength: MAX_DESCRIPTION_LENGTH,
             },
           ]}
           className="mb-8"

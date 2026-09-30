@@ -19,6 +19,7 @@ from internal_types import (
     InternalPerformanceTestSpec,
     InternalTestJobState,
 )
+from managers.execution_coordinator import ExecutionCoordinator
 from managers.tests_manager import TestsManager
 from managers.pipeline_manager import PipelineManager, PipelineCommand
 from pipeline_runner import PipelineRunner, PipelineResult
@@ -140,11 +141,15 @@ class TestTestsManager(unittest.TestCase):
         """Reset singleton state before each test."""
         TestsManager._instance = None
         PipelineManager._instance = None
+        # Workers are mocked out here, so they never release their execution
+        # lease; drop the coordinator to keep tests independent.
+        ExecutionCoordinator._instance = None
 
     def tearDown(self):
         """Reset singleton state after each test."""
         TestsManager._instance = None
         PipelineManager._instance = None
+        ExecutionCoordinator._instance = None
 
     @patch("managers.tests_manager.PipelineManager")
     def test_test_performance_calls_execute_performance_test_and_returns_job_id(
@@ -162,7 +167,8 @@ class TestTestsManager(unittest.TestCase):
             self.assertIsInstance(job_id, str)
             self.assertIn(job_id, manager.jobs)
             self.assertEqual(initial_count + 1, len(manager.jobs))
-            mock_execute.assert_called_once_with(job_id, internal_spec)
+            mock_execute.assert_called_once()
+            self.assertEqual(mock_execute.call_args[0][:2], (job_id, internal_spec))
 
     @patch("managers.tests_manager.PipelineManager")
     def test_test_performance_creates_job_with_running_state(
@@ -250,63 +256,77 @@ class TestTestsManager(unittest.TestCase):
             self.assertIsNone(job.end_time)
             self.assertEqual(job.details, [])
 
-            mock_execute.assert_called_once_with(job_id, internal_spec)
+            mock_execute.assert_called_once()
+            self.assertEqual(mock_execute.call_args[0][:2], (job_id, internal_spec))
 
     @patch("managers.tests_manager.PipelineManager")
     def test_get_job_statuses_by_type_returns_correct_statuses(
         self, mock_pipeline_manager_cls
     ):
+        """
+        get_job_statuses_by_type backs the two job listing endpoints, which read
+        from a single mixed jobs dict. It must return every job of the requested
+        type and no job of the other type, regardless of job state.
+        """
         mock_pipeline_manager_cls.return_value = MagicMock()
 
         manager = TestsManager()
 
-        # Create two jobs with different types
-        performance_spec = create_internal_performance_test_spec(
-            pipeline_specs=[
-                create_internal_performance_spec(
-                    pipeline_id="/pipelines/pipeline-perf123/variants/variant-perf",
-                )
-            ],
-        )
+        now = int(time.time() * 1000)
+        performance_request = {
+            "pipeline_performance_specs": [],
+            "execution_config": {},
+        }
+        density_request = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [],
+            "execution_config": {},
+        }
 
-        density_spec = create_internal_density_test_spec(
-            pipeline_specs=[
-                create_internal_density_spec(
-                    pipeline_id="/pipelines/pipeline-dens456/variants/variant-dens",
-                )
-            ],
+        # Only one job runs at a time, but finished jobs stay in the dict, so a
+        # mixed history is the normal state. Registered directly because
+        # test_performance/test_density would be rejected by the execution guard.
+        finished_performance = InternalPerformanceJobStatus(
+            id="job-performance-done",
+            request=performance_request,
+            start_time=now - 2000,
+            end_time=now - 1000,
+            state=InternalTestJobState.COMPLETED,
         )
-
-        with (
-            patch.object(manager, "_execute_performance_test"),
-            patch.object(manager, "_execute_density_test"),
-        ):
-            job_id_performance = manager.test_performance(performance_spec)
-            job_id_density = manager.test_density(density_spec)
+        running_performance = InternalPerformanceJobStatus(
+            id="job-performance-running",
+            request=performance_request,
+            start_time=now,
+            state=InternalTestJobState.RUNNING,
+        )
+        finished_density = InternalDensityJobStatus(
+            id="job-density-done",
+            request=density_request,
+            start_time=now - 4000,
+            end_time=now - 3000,
+            state=InternalTestJobState.COMPLETED,
+        )
+        for job in (finished_performance, running_performance, finished_density):
+            manager.jobs[job.id] = job
 
         performance_statuses = manager.get_job_statuses_by_type(
             InternalPerformanceJobStatus
         )
-        self.assertEqual(len(performance_statuses), 1)
-
         density_statuses = manager.get_job_statuses_by_type(InternalDensityJobStatus)
-        self.assertEqual(len(density_statuses), 1)
 
-        status_performance = next(
-            (s for s in performance_statuses if s.id == job_id_performance), None
-        )
-        status_density = next(
-            (s for s in density_statuses if s.id == job_id_density), None
-        )
+        for status in performance_statuses:
+            self.assertIsInstance(status, InternalPerformanceJobStatus)
+        for status in density_statuses:
+            self.assertIsInstance(status, InternalDensityJobStatus)
 
-        self.assertIsNotNone(status_performance)
-        self.assertIsNotNone(status_density)
-        assert status_performance is not None
-        assert status_density is not None
-        self.assertIsInstance(status_performance, InternalPerformanceJobStatus)
-        self.assertIsInstance(status_density, InternalDensityJobStatus)
-        self.assertEqual(status_performance.state, InternalTestJobState.RUNNING)
-        self.assertEqual(status_density.state, InternalTestJobState.RUNNING)
+        self.assertEqual(
+            {status.id for status in performance_statuses},
+            {finished_performance.id, running_performance.id},
+        )
+        self.assertEqual(
+            {status.id for status in density_statuses},
+            {finished_density.id},
+        )
 
     @patch("managers.tests_manager.PipelineManager")
     def test_get_job_status_returns_none_for_nonexistent_job(
@@ -1438,10 +1458,14 @@ class TestInlineGraphSupport(unittest.TestCase):
     def setUp(self):
         TestsManager._instance = None
         PipelineManager._instance = None
+        # Workers are mocked out here, so they never release their execution
+        # lease; drop the coordinator to keep tests independent.
+        ExecutionCoordinator._instance = None
 
     def tearDown(self):
         TestsManager._instance = None
         PipelineManager._instance = None
+        ExecutionCoordinator._instance = None
 
     @patch("managers.tests_manager.PipelineManager")
     def test_performance_test_with_inline_graph(self, mock_pipeline_manager_cls):
@@ -1460,7 +1484,8 @@ class TestInlineGraphSupport(unittest.TestCase):
             job_id = manager.test_performance(internal_spec)
             self.assertIsInstance(job_id, str)
             self.assertIn(job_id, manager.jobs)
-            mock_execute.assert_called_once_with(job_id, internal_spec)
+            mock_execute.assert_called_once()
+            self.assertEqual(mock_execute.call_args[0][:2], (job_id, internal_spec))
 
     @patch("managers.tests_manager.PipelineManager")
     def test_density_test_with_inline_graph(self, mock_pipeline_manager_cls):
@@ -1479,7 +1504,8 @@ class TestInlineGraphSupport(unittest.TestCase):
             job_id = manager.test_density(internal_spec)
             self.assertIsInstance(job_id, str)
             self.assertIn(job_id, manager.jobs)
-            mock_execute.assert_called_once_with(job_id, internal_spec)
+            mock_execute.assert_called_once()
+            self.assertEqual(mock_execute.call_args[0][:2], (job_id, internal_spec))
 
     @patch("managers.tests_manager.PipelineManager")
     def test_performance_test_with_mixed_sources(self, mock_pipeline_manager_cls):

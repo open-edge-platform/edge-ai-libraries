@@ -1,7 +1,7 @@
 # Get Started
 
 - **Time to Complete:** 30 minutes
-- **Programming Language:**  Python 3
+- **Programming Language:** Python 3
 
 ## Prerequisites
 
@@ -27,6 +27,7 @@
      ```
 
    - Configure the Docker daemon proxy as per [Systemd Unit File](https://docs.docker.com/engine/daemon/proxy/#systemd-unit-file).
+
 3. **Enable Log Rotation**:
    - Add the following configuration to `/etc/docker/daemon.json`:
 
@@ -62,9 +63,9 @@ Navigate to the application directory and build the Docker image:
 docker compose build
 ```
 
-> **Note:**
+> [!NOTE]
 > To include copyleft licensed sources when building the Docker image, use the below command:
->
+> 
 > ```bash
 > docker compose build --build-arg COPYLEFT_SOURCES=true
 > ```
@@ -74,7 +75,6 @@ docker compose build
 To push images to a Docker registry:
 
 1. Update the following fields in `edge-ai-libraries/microservices/time-series-analytics/docker/.env`:
-
    - `DOCKER_REGISTRY`
    - `DOCKER_USERNAME`
    - `DOCKER_PASSWORD`
@@ -88,7 +88,8 @@ To push images to a Docker registry:
 
 ## Configuration Details
 
-> **Note:** For the default deployment, no need to change anything in the configuration.
+> [!NOTE]
+> For the default deployment, no need to change anything in the configuration.
 
 **Time Series Analytics Microservice** uses the User Defined Function(UDF) deployment package(TICK Scripts, UDFs, Models) which is already built-in to the container image.
 By default, we have a simple UDF python script at `edge-ai-libraries/microservices/time-series-analytics/udfs/temperature_classifier.py` which does not use any model file for
@@ -99,19 +100,20 @@ Directory (`edge-ai-libraries/microservices/time-series-analytics/`) details are
 
 ### `config.json`
 
-| Key                     | Description                                                                                     | Example Value                          |
-|-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
-| `udfs`                  | Configuration for the User-Defined Functions (UDFs).                                            | See below for details.                 |
+| Key    | Description                                          | Example Value          |
+| ------ | ---------------------------------------------------- | ---------------------- |
+| `udfs` | Configuration for the User-Defined Functions (UDFs). | See below for details. |
 
 **UDFs Configuration**:
 
 The `udfs` section specifies the details of the UDFs used in the task.
 
-| Key     | Description                                                                 | Example Value                          |
-|---------|-----------------------------------------------------------------------------|----------------------------------------|
-| `name`  | The name of the UDF script.                                                 | `"temperature_classifier"`             |
+| Key    | Description                 | Example Value              |
+| ------ | --------------------------- | -------------------------- |
+| `name` | The name of the UDF script. | `"temperature_classifier"` |
 
-> **Note:** The maximum allowed size for `config.json` is 5 KB.
+> [!NOTE]
+> The maximum allowed size for `config.json` is 5 KB.
 
 **Alerts Configuration**: \<Optional>
 
@@ -122,11 +124,11 @@ Please note the MQTT broker needs to be available.
 
 The `mqtt` section specifies the MQTT broker details for sending alerts.
 
-| Key                 | Description                                                                 | Example Value          |
-|---------------------|-----------------------------------------------------------------------------|------------------------|
-| `mqtt_broker_host`  | The hostname or IP address of the MQTT broker.                              | `"ia-mqtt-broker"`     |
-| `mqtt_broker_port`  | The port number of the MQTT broker.                                         | `1883`                 |
-| `name`              | The name of the MQTT broker configuration.                                  | `"my_mqtt_broker"`     |
+| Key                | Description                                    | Example Value      |
+| ------------------ | ---------------------------------------------- | ------------------ |
+| `mqtt_broker_host` | The hostname or IP address of the MQTT broker. | `"ia-mqtt-broker"` |
+| `mqtt_broker_port` | The port number of the MQTT broker.            | `1883`             |
+| `name`             | The name of the MQTT broker configuration.     | `"my_mqtt_broker"` |
 
 ### `config/`
 
@@ -189,7 +191,7 @@ python3 simulator/temperature_input.py --port 5000
 
 Run the following commands to see the filtered temperature results:
 
-``` bash
+```bash
 docker logs -f ia-time-series-analytics-microservice
 ```
 

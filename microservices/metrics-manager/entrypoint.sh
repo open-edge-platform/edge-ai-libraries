@@ -10,13 +10,14 @@ set -e
 echo "[INFO] Starting Metrics Manager..."
 
 # Ensure directories exist
-mkdir -p /app/custom-metrics
+mkdir -p /app/custom-metrics 2>/dev/null || true
 
 # Ensure named pipe for qmassa exists
-if [ ! -p /app/qmassa.fifo ]; then
-    mkfifo /app/qmassa.fifo 2>/dev/null || true
+QMASSA_FIFO_PATH="${QMASSA_FIFO_PATH:-/app/qmassa.fifo}"
+if [ ! -p "$QMASSA_FIFO_PATH" ]; then
+    mkfifo "$QMASSA_FIFO_PATH" 2>/dev/null || true
 fi
-chmod 666 /app/qmassa.fifo 2>/dev/null || true
+chmod 666 "$QMASSA_FIFO_PATH" 2>/dev/null || true
 
 # Check if custom telegraf config is mounted
 if [ -n "$TELEGRAF_CONFIG_PATH" ] && [ -f "$TELEGRAF_CONFIG_PATH" ]; then

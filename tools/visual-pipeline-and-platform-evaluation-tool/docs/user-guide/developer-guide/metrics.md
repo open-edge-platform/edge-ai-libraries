@@ -13,16 +13,7 @@ single Server-Sent Events (SSE) channel at `/metrics/stream`:
   (CPU, memory, GPU, NPU) collected continuously by Telegraf embedded in the
   `metrics-manager` container, independently of any pipeline run.
 
-```text
-       ┌─────────────────────────┐
-       │ GStreamer pipeline      │──┐  per-job FPS / latency  (HTTP POST)
-       └─────────────────────────┘  │
-                                    ▼
-       ┌─────────────────────────┐  metrics-manager  ──▶  SSE /metrics/stream  ──▶  UI
-       │ Telegraf (CPU/mem/      │──┘
-       │   GPU/NPU collectors)   │  host telemetry  (Prometheus scrape)
-       └─────────────────────────┘
-```
+![Runtime Metrics Architecture](../_assets/metrics-runtime-arch.svg)
 
 Both data sources share the same delivery path, retention window and UI
 transport, which keeps the dashboard simple and consistent.
