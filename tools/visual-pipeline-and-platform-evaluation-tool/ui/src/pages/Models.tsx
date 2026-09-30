@@ -14,54 +14,10 @@ import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 import { ModelsTable } from "@/features/models/ModelsTable.tsx";
 import { AddModelDialog } from "@/features/models/AddModelDialog.tsx";
 import { useModelInstall } from "@/features/models/useModelInstall";
+import { CATEGORY_INFO } from "@/features/models/categoryInfo.ts";
 import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 const REQUIRED_MODEL_FILES = ["model.bin", "model.xml"];
-const CATEGORY_INFO: Record<
-  ModelCategory,
-  { label: string; description: string }
-> = {
-  object_detection: {
-    label: "Object Detection",
-    description:
-      "Object detection involves identifying and locating objects within an image or video using rectangular bounding boxes.",
-  },
-  image_segmentation: {
-    label: "Image Segmentation",
-    description:
-      "Instance segmentation provides pixel-level boundaries (polygons) for individual objects to capture their exact shape.",
-  },
-  pose_estimation: {
-    label: "Pose Estimation",
-    description:
-      "Pose estimation locates keypoints (joints) on individual subjects to capture their skeletal structure and posture.",
-  },
-  image_classification: {
-    label: "Image Classification",
-    description:
-      "Pose estimation locates keypoints (joints) on individual subjects to capture their skeletal structure and posture.",
-  },
-  vision_language_models: {
-    label: "Vision Language Models (VLMs)",
-    description:
-      "Vision-language models combine image understanding with natural language to answer questions about visual content.",
-  },
-  large_language_models: {
-    label: "Large Language Models (LLMs)",
-    description:
-      "Large language models generate and reason over text to interpret instructions and produce natural language responses.",
-  },
-  automatic_speech_recognition: {
-    label: "Automatic Speech Recognition (ASR)",
-    description:
-      "Automatic speech recognition transcribes spoken audio into written text to capture what was said.",
-  },
-  text_to_speech: {
-    label: "Text to Speech (TTS)",
-    description:
-      "Text-to-speech synthesizes written text into spoken audio to deliver natural-sounding voice output.",
-  },
-};
 
 const validateModelArchive = async (
   file: File,

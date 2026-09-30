@@ -77,7 +77,7 @@ export interface MultiFileUploaderProps {
         }
       | {
           type: "combobox";
-          options: string[];
+          options: Array<{ label: string; value: string }>;
           regex?: never;
           regexMessage?: never;
         }
@@ -768,8 +768,11 @@ export const MultiFileUploader = ({
                             <ComboboxContent portalContainer={portalContainer}>
                               <ComboboxList>
                                 {field.options.map((option) => (
-                                  <ComboboxItem key={option} value={option}>
-                                    {option}
+                                  <ComboboxItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
                                   </ComboboxItem>
                                 ))}
                               </ComboboxList>

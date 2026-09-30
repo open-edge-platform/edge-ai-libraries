@@ -16,14 +16,8 @@ import {
 import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
 import type { PreUploadMessage } from "@/features/upload/uploaderMessages";
 import { ENDPOINTS } from "@/api/apiEndpoints";
+import { CATEGORY_INFO } from "@/features/models/categoryInfo.ts";
 
-const ALLOWED_CATEGORIES = [
-  "image_classification",
-  "object_detection",
-  "image_segmentation",
-  "pose_estimation",
-  "vision_language_models",
-] as const;
 const MAX_DESCRIPTION_LENGTH = 200;
 
 type AddModelDialogProps = {
@@ -117,7 +111,9 @@ export const AddModelDialog = ({
                   placeholder: "Select a category",
                   required: true,
                   type: "combobox" as const,
-                  options: [...ALLOWED_CATEGORIES],
+                  options: Object.entries(CATEGORY_INFO).map(
+                    ([value, { label }]) => ({ label, value }),
+                  ),
                 },
                 {
                   name: "description",
