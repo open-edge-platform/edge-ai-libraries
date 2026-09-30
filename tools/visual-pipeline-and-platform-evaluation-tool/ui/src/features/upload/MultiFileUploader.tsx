@@ -55,6 +55,11 @@ export interface MultiFileUploaderProps {
     fields: Record<string, string>,
   ) => Promise<PreUploadMessage | null> | PreUploadMessage | null;
   preUploadImmediate?: boolean;
+  portalContainer?:
+    | HTMLElement
+    | ShadowRoot
+    | null
+    | React.RefObject<HTMLElement | ShadowRoot | null>;
   formFields?: Array<
     {
       name: string;
@@ -92,6 +97,7 @@ export const MultiFileUploader = ({
   maxConcurrentUploads = 3,
   preUpload,
   preUploadImmediate,
+  portalContainer,
   formFields,
   className,
 }: MultiFileUploaderProps) => {
@@ -759,7 +765,7 @@ export const MultiFileUploader = ({
                               placeholder={field.placeholder}
                               className="mt-1 w-full"
                             />
-                            <ComboboxContent>
+                            <ComboboxContent portalContainer={portalContainer}>
                               <ComboboxList>
                                 {field.options.map((option) => (
                                   <ComboboxItem key={option} value={option}>

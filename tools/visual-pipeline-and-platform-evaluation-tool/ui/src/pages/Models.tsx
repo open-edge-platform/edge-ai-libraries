@@ -1,28 +1,67 @@
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
-import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
 import {
   PRE_UPLOAD_MESSAGES,
   type PreUploadMessage as PRE_UPLOAD_MESSAGES_TYPE,
 } from "@/features/upload/uploaderMessages";
-import { ENDPOINTS } from "@/api/apiEndpoints";
-import { api } from "@/api/api.generated.ts";
+import { api, type ModelCategory } from "@/api/api.generated.ts";
 import JSZip from "jszip";
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
+import { Download, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button.tsx";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 import { ModelsTable } from "@/features/models/ModelsTable.tsx";
+import { AddModelDialog } from "@/features/models/AddModelDialog.tsx";
+import { useModelInstall } from "@/features/models/useModelInstall";
 import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 const REQUIRED_MODEL_FILES = ["model.bin", "model.xml"];
-const ALLOWED_CATEGORIES = [
-  "image_classification",
-  "object_detection",
-  "image_segmentation",
-  "pose_estimation",
-  "vision_language_models",
-] as const;
-const MAX_DESCRIPTION_LENGTH = 200;
+const CATEGORY_INFO: Record<
+  ModelCategory,
+  { label: string; description: string }
+> = {
+  object_detection: {
+    label: "Object Detection",
+    description:
+      "Object detection involves identifying and locating objects within an image or video using rectangular bounding boxes.",
+  },
+  image_segmentation: {
+    label: "Image Segmentation",
+    description:
+      "Instance segmentation provides pixel-level boundaries (polygons) for individual objects to capture their exact shape.",
+  },
+  pose_estimation: {
+    label: "Pose Estimation",
+    description:
+      "Pose estimation locates keypoints (joints) on individual subjects to capture their skeletal structure and posture.",
+  },
+  image_classification: {
+    label: "Image Classification",
+    description:
+      "Pose estimation locates keypoints (joints) on individual subjects to capture their skeletal structure and posture.",
+  },
+  vision_language_models: {
+    label: "Vision Language Models (VLMs)",
+    description:
+      "Vision-language models combine image understanding with natural language to answer questions about visual content.",
+  },
+  large_language_models: {
+    label: "Large Language Models (LLMs)",
+    description:
+      "Large language models generate and reason over text to interpret instructions and produce natural language responses.",
+  },
+  automatic_speech_recognition: {
+    label: "Automatic Speech Recognition (ASR)",
+    description:
+      "Automatic speech recognition transcribes spoken audio into written text to capture what was said.",
+  },
+  text_to_speech: {
+    label: "Text to Speech (TTS)",
+    description:
+      "Text-to-speech synthesizes written text into spoken audio to deliver natural-sounding voice output.",
+  },
+};
 
 const validateModelArchive = async (
   file: File,
@@ -50,6 +89,45 @@ export const Models = () => {
   const dispatch = useAppDispatch();
   const { registerJobGroup, unregisterJobGroup, updateJobs } =
     useBackgroundJobs();
+
+  const presentCategories = useMemo(() => {
+    const present = new Set(models.map((m) => m.category ?? null));
+    const ordered: (ModelCategory | null)[] = (
+      Object.keys(CATEGORY_INFO) as ModelCategory[]
+    ).filter((c) => present.has(c));
+    if (present.has(null)) ordered.push(null);
+    return ordered;
+  }, [models]);
+
+  const { pendingDownloads, installModels: runModelInstall } =
+    useModelInstall();
+
+  const requiredUninstalledModels = useMemo(
+    () =>
+      models.filter(
+        (model) =>
+          (model.used_by_pipelines?.length ?? 0) > 0 &&
+          (model.install_status === "not_installed" ||
+            model.install_status === "failed"),
+      ),
+    [models],
+  );
+
+  const installSelectedModels = useCallback(
+    async (names: readonly string[]) => {
+      if (names.length === 0) return;
+      await runModelInstall(names);
+    },
+    [runModelInstall],
+  );
+
+  const handleInstallRequiredModels = useCallback(
+    () =>
+      installSelectedModels(
+        requiredUninstalledModels.map((model) => model.name),
+      ),
+    [requiredUninstalledModels, installSelectedModels],
+  );
 
   useEffect(() => {
     registerJobGroup("models", "Model Uploads", ["/models"]);
@@ -111,60 +189,60 @@ export const Models = () => {
           <p className="text-muted-foreground mt-2">
             Ready-to-use models available in the platform
           </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Not every uploaded model will work in ViPPET. Check supported
-            models:{" "}
-            <a
-              href="https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html"
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium underline underline-offset-2"
-            >
-              DL Streamer supported models
-            </a>
-            .
-          </p>
         </div>
 
-        <MultiFileUploader
-          accept=".zip,application/zip"
-          uploadEndpoint={ENDPOINTS.UPLOAD_MODEL}
-          multiple={false}
-          maxSize={500 * 1024 * 1024} // 500 MB
-          preUpload={handlePreUpload}
-          preUploadImmediate
-          onUploadProgress={handleUploadProgress}
-          onUploadComplete={handleUploadComplete}
-          formFields={[
-            {
-              name: "model_name",
-              label: "Model name",
-              placeholder: "Enter model name",
-              required: true,
-              regex: /^[a-zA-Z0-9_\s-]+$/,
-              regexMessage:
-                "Only alphanumeric characters, spaces, underscores, and hyphens are allowed.",
-            },
-            {
-              name: "category",
-              label: "Category",
-              placeholder: "Select a category",
-              required: true,
-              type: "combobox" as const,
-              options: [...ALLOWED_CATEGORIES],
-            },
-            {
-              name: "description",
-              label: "Description",
-              placeholder: "Optional description of what the model does",
-              required: false,
-              maxLength: MAX_DESCRIPTION_LENGTH,
-            },
-          ]}
-          className="mb-8"
-        />
+        <div className="sticky top-0 z-10 mb-3 flex items-center justify-end gap-3 border-b bg-background py-3">
+          <Button
+            size="sm"
+            disabled={
+              requiredUninstalledModels.length === 0 ||
+              requiredUninstalledModels.some((model) =>
+                pendingDownloads.has(model.name),
+              )
+            }
+            onClick={handleInstallRequiredModels}
+          >
+            {requiredUninstalledModels.some((model) =>
+              pendingDownloads.has(model.name),
+            ) ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Download className="size-4" />
+            )}
+            Install required models
+            {requiredUninstalledModels.length > 0
+              ? ` (${requiredUninstalledModels.length})`
+              : ""}
+          </Button>
+          <AddModelDialog
+            onPreUpload={handlePreUpload}
+            onUploadProgress={handleUploadProgress}
+            onUploadComplete={handleUploadComplete}
+          />
+        </div>
 
-        <ModelsTable />
+        <div className="columns-1 gap-8 lg:columns-2">
+          {presentCategories.map((category) => (
+            <div
+              key={category ?? "uncategorized"}
+              className="mb-10 break-inside-avoid"
+            >
+              <h2 className="mb-1 text-xl font-semibold">
+                {category ? CATEGORY_INFO[category].label : "Uncategorized"}
+              </h2>
+              {category && (
+                <p className="mb-3 text-sm text-muted-foreground">
+                  {CATEGORY_INFO[category].description}
+                </p>
+              )}
+              <ModelsTable
+                category={category}
+                pendingDownloads={pendingDownloads}
+                onInstallOne={(name) => installSelectedModels([name])}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
