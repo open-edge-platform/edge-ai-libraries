@@ -1,0 +1,13 @@
+{
+  "profile": { "label": "Health and Life Sciences AI Suite", "value": "health_and_life_sciences_ai_suite" },
+  "modules": [
+    { "label": "NICU Warmer", "value": "nicu_warmer", "startStop": true }
+  ],
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-health-and-life-sciences.html"
+  },
+  "resources": [
+    { "text": "NICU Warmer", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/nicu-warmer/index.html" }
+  ]
+}

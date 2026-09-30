@@ -1,5 +1,6 @@
 - name: ch_PP-OCRv4_rec_infer
   display_name: PaddleOCR
+  description: "PaddleOCR v4 text-recognition model that reads and transcribes character sequences from cropped text regions, supporting Chinese and English optical character recognition."
   source: public
   hub: ultralytics
   type: classification
@@ -15,6 +16,7 @@
 
 - name: efficientnet-b0_INT8
   display_name: EfficientNet B0
+  description: "Lightweight EfficientNet-B0 image classifier that assigns a whole image to one of the 1000 ImageNet object categories with a strong accuracy-to-compute ratio."
   source: pipeline-zoo-models
   hub: pipeline-zoo-models
   type: classification
@@ -31,6 +33,7 @@
 
 - name: mobilenet-v2-pytorch
   display_name: MobileNet V2 PyTorch
+  description: "Efficient MobileNet V2 convolutional classifier that labels whole images across the 1000 ImageNet categories, optimized for low-latency inference on edge devices."
   source: omz
   hub: omz
   type: classification
@@ -46,6 +49,7 @@
 
 - name: age-gender-recognition-retail-0013
   display_name: Age Gender Recognition Retail 0013
+  description: "Estimates a person's approximate age and predicts gender from an already-detected face crop; intended for retail and audience-analytics scenarios."
   source: omz
   hub: omz
   type: classification
@@ -64,6 +68,7 @@
 
 - name: colorcls2
   display_name: Color Classification
+  description: "Classifies the dominant color of a detected object (such as a vehicle), returning a single color label for the cropped region."
   source: public
   hub: ultralytics
   type: classification
@@ -79,6 +84,7 @@
 
 - name: yolov8_license_plate_detector
   display_name: YOLO v8 License Plate Detector
+  description: "YOLOv8-based detector that locates vehicle license plates in an image, returning a bounding box around each plate for downstream OCR."
   source: public
   hub: ultralytics
   type: detection
@@ -94,6 +100,7 @@
 
 - name: yolov8n
   display_name: YOLO v8n 640x640
+  description: "YOLOv8 nano real-time object detector that localizes and classifies objects across the 80 COCO categories (people, vehicles, animals, and common everyday items)."
   source: public
   hub: ultralytics
   type: detection
@@ -117,6 +124,7 @@
 
 - name: yolo11n
   display_name: YOLO 11n 640x640
+  description: "YOLO11 nano object detector providing fast, real-time detection and classification of the 80 COCO object categories."
   source: public
   hub: ultralytics
   type: detection
@@ -137,6 +145,7 @@
 
 - name: yolo11s
   display_name: YOLO 11s 640x640
+  description: "YOLO11 small object detector offering higher accuracy than the nano variant while detecting the 80 COCO object categories in real time."
   source: public
   hub: ultralytics
   type: detection
@@ -157,6 +166,7 @@
 
 - name: yolo11s-pose
   display_name: YOLO 11s Pose
+  description: "YOLO11 small pose-estimation model that detects people and predicts human body keypoints (skeleton joints) for each detected person."
   source: public
   hub: ultralytics
   type: detection
@@ -175,6 +185,7 @@
 
 - name: yolo11n-pose
   display_name: YOLO 11n Pose
+  description: "YOLO11 nano pose-estimation model that detects people and estimates their body keypoints for lightweight, real-time pose tracking."
   source: public
   hub: ultralytics
   type: detection
@@ -193,6 +204,7 @@
 
 - name: yolo11s-seg
   display_name: YOLO 11s Segmentation
+  description: "YOLO11 small instance-segmentation model that detects objects and outputs a pixel-level mask for each of the 80 COCO categories."
   source: public
   hub: ultralytics
   type: detection
@@ -211,6 +223,7 @@
 
 - name: yolo11n-seg
   display_name: YOLO 11n Segmentation
+  description: "YOLO11 nano instance-segmentation model that produces per-object pixel masks for the 80 COCO categories with minimal compute."
   source: public
   hub: ultralytics
   type: detection
@@ -229,6 +242,7 @@
 
 - name: face-detection-retail-0004
   display_name: Face Detection Retail 0004
+  description: "Detects human faces in an image and returns a bounding box for each face; tuned for retail front-facing camera scenarios."
   source: omz
   hub: omz
   type: detection
@@ -247,6 +261,7 @@
 
 - name: pallet_defect_detection
   display_name: Pallet Defect Detection
+  description: "Detects damaged or defective warehouse pallets, flagging structural defects such as broken or missing boards for logistics quality control."
   source: public
   hub: ultralytics
   type: detection
@@ -262,6 +277,7 @@
 
 - name: gemma3
   display_name: Gemma 3
+  description: "Google Gemma 3 vision-language model that understands images together with text prompts to generate captions, descriptive answers, and visual reasoning."
   source: huggingface
   hub: huggingface
   type: genai
@@ -283,6 +299,7 @@
 
 - name: gemma4
   display_name: Gemma 4 E4B
+  description: "Google Gemma multimodal vision-language model (E4B variant) that jointly processes images and text to produce natural-language descriptions and answers."
   source: huggingface
   hub: huggingface
   type: genai
@@ -304,6 +321,7 @@
 
 - name: minicpm-v-2_6
   display_name: MiniCPM-V 2.6
+  description: "MiniCPM-V 2.6 multimodal vision-language model that analyzes images and answers questions about them, generating captions and visual descriptions."
   source: huggingface
   hub: huggingface
   type: genai
@@ -325,6 +343,7 @@
 
 - name: minicpm-v4_5
   display_name: MiniCPM-V 4.5 8B
+  description: "MiniCPM-V 4.5 (8B) vision-language model for high-quality image understanding, visual question answering, and detailed scene description."
   source: huggingface
   hub: huggingface
   type: genai
@@ -346,6 +365,7 @@
 
 - name: internvl2-2b
   display_name: InternVL2 2B
+  description: "InternVL2 2B vision-language model that combines image and text understanding to caption images and answer visual questions."
   source: huggingface
   hub: huggingface
   type: genai
@@ -367,6 +387,7 @@
 
 - name: yolo26s
   display_name: YOLO 26s
+  description: "YOLO26 small object detector delivering real-time detection and classification of the 80 COCO object categories."
   source: public
   hub: ultralytics
   type: detection
@@ -390,6 +411,7 @@
 
 - name: yolo26n
   display_name: YOLO 26n
+  description: "YOLO26 nano object detector for fast, lightweight real-time detection of the 80 COCO object categories."
   source: public
   hub: ultralytics
   type: detection
@@ -413,6 +435,7 @@
 
 - name: yolo26s-pose
   display_name: YOLO 26s Pose
+  description: "YOLO26 small pose-estimation model that detects people and predicts their body keypoints for human pose analysis."
   source: public
   hub: ultralytics
   type: detection
@@ -431,6 +454,7 @@
 
 - name: yolo26n-pose
   display_name: YOLO 26n Pose
+  description: "YOLO26 nano pose-estimation model providing lightweight, real-time human body keypoint detection."
   source: public
   hub: ultralytics
   type: detection
@@ -449,6 +473,7 @@
 
 - name: yolo26s-seg
   display_name: YOLO 26s Segmentation
+  description: "YOLO26 small instance-segmentation model that detects objects and outputs per-object pixel masks for the 80 COCO categories."
   source: public
   hub: ultralytics
   type: detection
@@ -467,6 +492,7 @@
 
 - name: yolo26n-seg
   display_name: YOLO 26n Segmentation
+  description: "YOLO26 nano instance-segmentation model producing per-object pixel masks for the 80 COCO categories with minimal compute."
   source: public
   hub: ultralytics
   type: detection
@@ -485,6 +511,7 @@
 
 - name: mars-small128
   display_name: Mars Small128 Re-ID
+  description: "Person re-identification feature extractor (Mars/DeepSORT) that generates a 128-dimensional appearance embedding used to match and track the same person across frames and cameras."
   source: public
   hub: ultralytics
   type: classification

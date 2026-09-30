@@ -7,6 +7,7 @@ import soundfile as sf
 from components.tts_component import TTSComponent
 from utils.app_paths import get_session_dir
 from utils.config_loader import config
+from utils.device_validation import resolve_tts_device
 from utils.latency_store import tts_latency
 from utils.session_manager import generate_session_id
 from utils.storage_manager import StorageManager
@@ -16,14 +17,19 @@ logger = logging.getLogger(__name__)
 
 
 class Pipeline:
-    def __init__(self, session_id=None):
+    def __init__(self, session_id=None, device: str | None = None):
         logger.info("text-to-speech pipeline initialized")
         self.session_id = session_id or generate_session_id()
+        resolved_device = resolve_tts_device(
+            getattr(config.models.tts, "runtime", "pytorch"),
+            config.models.tts.name,
+            device or config.models.tts.device,
+        )
         self.tts_component = TTSComponent(
             session_id=self.session_id,
             model_name=config.models.tts.name,
             runtime=getattr(config.models.tts, "runtime", "pytorch"),
-            device=config.models.tts.device,
+            device=resolved_device,
             dtype=config.models.tts.dtype,
             model_variant=config.models.tts.model_variant,
             default_speaker=config.models.tts.default_speaker,

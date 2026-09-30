@@ -48,7 +48,8 @@ The Pipeline Manager is the primary API for interacting with the application. It
 | **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched` | Search query management and execution |
 | **Summary** | `POST /summary`, `GET /summary`, `GET /summary/ui`, `GET /summary/{stateId}`, `GET /summary/{stateId}/raw`, `DELETE /summary/{stateId}` | Video summarization pipeline |
 
-> **Note:** When accessing the Pipeline Manager through nginx, all paths are prefixed with `/manager/` (for example, `GET /manager/health`).
+> [!NOTE]
+> When accessing the Pipeline Manager through nginx, all paths are prefixed with `/manager/` (for example, `GET /manager/health`).
 
 For full request/response schemas, refer to the interactive docs or the OpenAPI spec.
 

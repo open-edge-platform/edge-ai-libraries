@@ -766,17 +766,16 @@ export type GetModelDownloadJobStatusApiArg = {
 export type GetModelsApiResponse =
   /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
-export type UploadModelApiResponse = /** status 200 Successful Response */
-  | any
+export type UploadModelApiResponse =
+  | /** status 200 Successful Response */ any
   | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
-  /** status 200 Successful Response */
-    | any
-    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+  | /** status 200 Successful Response */ any
+  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };
@@ -962,12 +961,7 @@ export type MessageResponse = {
   message: string;
 };
 export type BenchmarkTestCaseRunStatus =
-  | "created"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "skipped";
+  "created" | "running" | "completed" | "failed" | "cancelled" | "skipped";
 export type BenchmarkSuiteRun = {
   id: number;
   suite_id: number;
@@ -1266,11 +1260,7 @@ export type ValidationJobSummary = {
   request: PipelineValidation;
 };
 export type ModelSource =
-  | "huggingface"
-  | "ultralytics"
-  | "pipeline-zoo-models"
-  | "omz"
-  | "custom";
+  "huggingface" | "ultralytics" | "pipeline-zoo-models" | "omz" | "custom";
 export type ModelDownloadJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type ModelDownloadJobStatus = {
   id: string;
@@ -1290,10 +1280,7 @@ export type ModelDownloadJobSummary = {
 };
 export type ModelCategory = "classification" | "detection" | "genai";
 export type ModelInstallStatus =
-  | "installed"
-  | "not_installed"
-  | "installing"
-  | "failed";
+  "installed" | "not_installed" | "installing" | "failed";
 export type ModelVariant = {
   /** Stable variant identifier. */
   name: string;
@@ -1309,6 +1296,8 @@ export type Model = {
   name: string;
   /** Human-readable model name. */
   display_name: string;
+  /** Human-readable explanation of what the model detects or classifies, or null when not provided. */
+  description?: string | null;
   /** Logical model category, or null when unknown. */
   category?: ModelCategory | null;
   /** Upstream hub the model is downloaded from. */

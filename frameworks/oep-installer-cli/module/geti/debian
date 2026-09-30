@@ -16,7 +16,7 @@ debian_90_profile_geti () {
 debian_90_install_geti () {
   configure_geti $*
 
-  if verify_geti && [[ " $* " != *" --reset-geti "* ]]; then
+  if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
     echo "Geti already installed. Skipping."
   else
     ensure_disk_space 40000

@@ -437,6 +437,12 @@ if [[ "${MME_EMBEDDING_DEVICE}" == GPU* ]] || [[ "${MME_EMBEDDING_DEVICE}" == NP
     export EMBEDDING_USE_OV=true
 fi
 
+# GPU decodes larger frame batches faster; CPU keeps the compose default (64).
+# INFER_BATCH_SIZE is omitted because its compose default (32) is already optimal.
+if [[ "${MME_EMBEDDING_DEVICE}" == GPU* ]]; then
+    export VIDEO_FRAME_BATCH_SIZE=${VIDEO_FRAME_BATCH_SIZE:-256}
+fi
+
 if [ $1 != "--summary" ]; then
     if [ "$1" = "--unified" ]; then
         embedding_model_display="${TEXT_EMBEDDING_MODEL:-"(not provided)"}"
@@ -561,9 +567,9 @@ fi
 
 # =================== Model Download Microservice (service mode) ===================
 # Image auto-pulled by `docker run` if absent. Override MODEL_DOWNLOAD_IMAGE to pin a tag.
-export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-intel/model-download:${MODEL_DOWNLOAD_TAG:-latest}}
+export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-intel/model-download:${MODEL_DOWNLOAD_TAG:-mcp-rc}}
 # OVMS release tag used by the openvino plugin's export_model.py.
-export MODEL_DOWNLOAD_OVMS_TAG=${MODEL_DOWNLOAD_OVMS_TAG:-v2026.1}
+export MODEL_DOWNLOAD_OVMS_TAG=${MODEL_DOWNLOAD_OVMS_TAG:-v2026.2.1}
 # Sub-path under the OVMS models dir for converted models (kept lowercase).
 export OVMS_MS_DOWNLOAD_PATH=${OVMS_MS_DOWNLOAD_PATH:-ovms}
 export MODEL_DOWNLOAD_HOST_PORT=${MODEL_DOWNLOAD_HOST_PORT:-8640}

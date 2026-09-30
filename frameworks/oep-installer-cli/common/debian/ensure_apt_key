@@ -1,0 +1,13 @@
+
+ensure_apt_key () {
+  local key_file=$1 key_url=$2
+  local no_proxy1=$(echo ${no_proxy:-$NO_PROXY} | tr ',' '\n' | grep -v -E '^[.]?intel.com$' | tr '\n' ',')
+
+  sudo mkdir -p $(dirname $key_file)
+  if [[ "$*" = *"--dearmor"* ]]; then
+    no_proxy=$no_proxy1 NO_PROXY=$no_proxy1 curl -fsSL "$key_url" | gpg --dearmor | ensure_sudo tee "$key_file" > /dev/null
+  else
+    no_proxy=$no_proxy1 NO_PROXY=$no_proxy1 curl -fsSL "$key_url" | ensure_sudo tee "$key_file" > /dev/null
+  fi
+}
+
