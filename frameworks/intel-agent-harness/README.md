@@ -4,24 +4,13 @@ A generic setup script for deploying your own Node.js-based CLI/agent
 project onto Intel hardware (tested against Intel Core Ultra iGPU and Arc
 (CRI) GPUs; degrades gracefully to CPU-only when no Intel GPU is present).
 
-## Vision: Harness + edge microservices
+## Vision: The Harness
 
-This project has two parts:
-
-1. **The Harness** — the standalone agent-plus-inference stack this repo
-   already installs (OpenClaw / LangGraph Deep Agents / Hermes, wired to a
-   local OpenVINO Model Server). This is what `./install.sh` sets up today,
-   and it's meant to run on its own, independent of any particular edge use
-   case. In the code/CLI this is still called the "agent" install step
-   (`HARNESS_AGENT`, `scripts/lib/agents.sh`) — "Harness" is the product
-   name for that same stack.
-2. **Edge/client microservices** — a separate, additive track: driving real
-   edge/client experiences by deploying independently-published edge
-   workloads alongside the Harness. Implemented as a generic mechanism
-   (`./install.sh edge ...`, see "Edge microservices" under Usage) rather
-   than anything project-specific — configure it via `EDGE_SERVICE_*` env
-   vars to clone/build/run any Dockerized service and optionally register
-   its endpoint with the Harness agent over MCP.
+The standalone agent-plus-inference stack this repo installs (OpenClaw /
+LangGraph Deep Agents / Hermes, wired to a local OpenVINO Model Server). In
+the code/CLI this is still called the "agent" install step (`HARNESS_AGENT`,
+`scripts/lib/agents.sh`) — "Harness" is the product name for that same
+stack.
 
 Uses a staged install flow (spinner/logging helpers, Node.js-via-nvm
 bootstrap, Docker setup, CLI verification, third-party notice, express
@@ -134,34 +123,6 @@ just enough to avoid publishing sandbox ports directly.
 Read-only combined health view: Docker/GPU, the OpenVINO Model Server, the
 installed Harness agent, and every registered sandbox in one place.
 
-### Edge microservices (generic — any Dockerized MCP/HTTP service)
-
-`edge` is a thin, project-agnostic layer over the sandbox manager: it
-clones a repo (or uses a prebuilt image), builds it, runs it as a sandbox,
-and can register its endpoint with the installed Harness agent as an MCP
-server. It has no knowledge of any specific project — configure it entirely
-via env vars:
-
-```bash
-export EDGE_SERVICE_REPO_URL=https://github.com/<org>/<repo>.git
-export EDGE_SERVICE_DOCKERFILE=path/to/Dockerfile   # relative to the repo root
-export EDGE_SERVICE_ENV="SOME_VAR=value"            # optional, space-separated KEY=VALUE
-export EDGE_SERVICE_CONTAINER_PORT=8000             # optional, if the image has a fixed listen port
-
-./install.sh edge create my-service
-./install.sh edge endpoint my-service
-./install.sh edge register-mcp my-service hermes
-./install.sh edge destroy my-service
-```
-
-Use `EDGE_SERVICE_IMAGE=<prebuilt-image>` instead of `EDGE_SERVICE_REPO_URL`/
-`EDGE_SERVICE_DOCKERFILE` to skip cloning and building entirely. MCP
-registration is built in for Hermes's real `~/.hermes/config.yaml` shape (via
-`HERMES_CONFIG`). For any other agent, set
-`HARNESS_MCP_REGISTER_CMD=<script>` to a program that takes
-`<agent> <name> <url>` and writes that agent's real config — this installer
-won't guess an unverified format, but it will call yours.
-
 ### Running without a checkout
 
 `install.sh` is a thin bootstrap: if it finds `scripts/install.sh` next to it
@@ -237,8 +198,7 @@ scripts/lib/agents.sh         Harness catalog: openclaw / deepagents-code / herm
 scripts/lib/notice.sh         third-party notice acceptance flow
 scripts/lib/gateway.sh        optional shared reverse-proxy for sandbox traffic
 scripts/lib/sandbox.sh        Docker-based sandbox/gateway manager
-scripts/lib/edge.sh           generic Dockerized edge-microservice manager (clone/build/run)
-scripts/lib/harness-mcp.sh    registers an edge microservice's endpoint as an MCP server (Hermes only)
+scripts/lib/harness-mcp.sh    registers an arbitrary MCP endpoint URL with an agent (Hermes only)
 scripts/lib/express.sh        Intel hardware profile detection (Core Ultra iGPU/Arc)
 ```
 
@@ -263,9 +223,8 @@ scripts/lib/express.sh        Intel hardware profile detection (Core Ultra iGPU/
   there's no dual-node pairing/reboot-resume receipt handling.
 - Model export (`optimum-cli export openvino`) is CPU/host-bound and can be
   slow for large models.
-- `edge`'s MCP registration has Hermes's config shape built in; other agents
-  need `HARNESS_MCP_REGISTER_CMD` set to a real registration script, and no
-  specific Dockerized microservice has been exercised end-to-end yet.
+- `mcp register` has Hermes's config shape built in; other agents need
+  `HARNESS_MCP_REGISTER_CMD` set to a real registration script.
 
 ## Design notes
 
@@ -273,20 +232,13 @@ This installer is deliberately lightweight and single-purpose: a
 bootstrap/payload split, nvm-based Node.js bootstrapping, and a real,
 verified agent catalog (openclaw, hermes, deepagents-code), built
 specifically for Intel Core Ultra iGPU / Arc (CRI) hardware (CPU fallback
-otherwise). About 3,100 lines across 21 focused files — no fixed appliance
+otherwise). About 2,800 lines across 18 focused files — no fixed appliance
 concept, no CDI (Intel render nodes pass through directly via `--device`),
 no gateway daemon beyond the optional single proxy container. Downloaded
 scripts/binaries are verified over HTTPS with SHA-256 pinning where a
 vendor checksum is available (`scripts/lib/verify.sh`), and shape-checked
 otherwise. Version resolution for the standalone-fetch bootstrap is env
 var, then `.version` file, then `main`. Uninstall is a plain bash script.
-
-## Edge microservices
-
-See "Edge microservices" under Usage above for the generic `edge` mechanism.
-It's deliberately project-agnostic: any repo with a Dockerfile (or any
-prebuilt image) that exposes an HTTP/MCP endpoint fits the same
-`EDGE_SERVICE_*` env vars.
 
 ## Extending
 

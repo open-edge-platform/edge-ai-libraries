@@ -11,7 +11,7 @@ set -euo pipefail
 
 # Repo root is one level up from this payload script.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
-for lib in colors verify state sudo shim gpu-intel docker-setup nodejs notice gateway sandbox express openvino agents edge harness-mcp; do
+for lib in colors verify state sudo shim gpu-intel docker-setup nodejs notice gateway sandbox express openvino agents harness-mcp; do
   # shellcheck disable=SC1090
   . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
 done
@@ -29,7 +29,6 @@ usage() {
   Usage:
     ./install.sh [options]                      Run the full install + onboarding
     ./install.sh sandbox <verb> [name]           Manage sandboxes directly
-    ./install.sh edge <verb> [name]              Manage generic edge microservices
     ./install.sh models <list|remove> [name]     List or delete exported OpenVINO models
     ./install.sh mcp register <name> <url> [agent]  Register an arbitrary MCP endpoint URL
     ./install.sh skill <install|list|remove> [path|name]  Manage Hermes skills
@@ -40,10 +39,6 @@ usage() {
   Sandbox verbs: list, create <name> <image> [env-pairs], start <name>, stop <name>,
                  destroy <name>, backup <name>, backup-all, recover <name>,
                  recover-all
-
-  Edge verbs: list, create <name>, destroy <name>, endpoint <name>,
-              register-mcp <name> [agent]
-              (configure the service to build/run via EDGE_SERVICE_* env vars)
 
   Options:
     --non-interactive                Skip prompts (uses env vars / defaults)
@@ -70,9 +65,6 @@ usage() {
     HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser hermes3)
     HARNESS_OVMS_EXPORT_MODEL_PY_SHA256, HARNESS_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256  Pin export_model.py/requirements.txt when overriding HARNESS_OVMS_EXPORT_MODEL_REF
     HARNESS_ALLOW_UNVERIFIED_OVMS_EXPORTER  Skip pinning for a custom HARNESS_OVMS_EXPORT_MODEL_REF (not recommended)
-    EDGE_SERVICE_REPO_URL, EDGE_SERVICE_REF, EDGE_SERVICE_DOCKERFILE
-    EDGE_SERVICE_BUILD_CONTEXT, EDGE_SERVICE_IMAGE, EDGE_SERVICE_ENV
-    EDGE_SERVICE_CONTAINER_PORT, EDGE_SERVICE_MCP_PATH
     HARNESS_GATEWAY_ENABLED       Route sandbox traffic through a shared gateway instead of publishing ports (default: off)
     HARNESS_GATEWAY_NETWORK, HARNESS_GATEWAY_CONTAINER, HARNESS_GATEWAY_PORT
     HERMES_CONFIG                  Path to Hermes's config.yaml (default: ~/.hermes/config.yaml)
@@ -89,7 +81,7 @@ EOF
 # non-loopback host/IP (e.g. this machine's LAN address) instead of the
 # 127.0.0.1 default, for setups accessed from another machine. Skipped
 # non-interactively or without a TTY; the chosen value is persisted so later
-# invocations (sandbox list, edge endpoint, status) keep showing it.
+# invocations (sandbox list, status) keep showing it.
 maybe_prompt_advertised_host() {
   [[ "${NON_INTERACTIVE:-}" != "1" ]] || return 0
   local reply=""
@@ -241,22 +233,6 @@ run_sandbox_command() {
   esac
 }
 
-# run_edge_command — generic edge-microservice management; see edge.sh /
-# harness-mcp.sh for the EDGE_SERVICE_* env vars this reads.
-run_edge_command() {
-  local verb="${1:-}" name="${2:-}"
-  shift || true
-  [[ -n "$verb" ]] || { usage; error "edge requires a verb (list/create/destroy/endpoint/register-mcp)."; }
-  case "$verb" in
-    list) list_sandboxes ;;
-    create) create_edge_service "$name" ;;
-    destroy) destroy_edge_service "$name" ;;
-    endpoint) edge_service_endpoint "$name" ;;
-    register-mcp) harness_register_mcp_endpoint "${2:-${HARNESS_AGENT:-hermes}}" "$name" "$(edge_service_endpoint "$name")" ;;
-    *) usage; error "Unknown edge verb: $verb" ;;
-  esac
-}
-
 run_models_command() {
   local verb="${1:-}" name="${2:-}"
   [[ -n "$verb" ]] || { usage; error "models requires a verb (list/remove)."; }
@@ -267,9 +243,8 @@ run_models_command() {
   esac
 }
 
-# run_mcp_command — registers an arbitrary MCP endpoint URL, unlike
-# `edge register-mcp` which only works for a URL derived from the sandbox
-# registry. Reuses harness_register_mcp_endpoint (Hermes built in;
+# run_mcp_command — registers an arbitrary MCP endpoint URL with an agent.
+# Reuses harness_register_mcp_endpoint (Hermes built in;
 # HARNESS_MCP_REGISTER_CMD for anything else) — see harness-mcp.sh.
 run_mcp_command() {
   local verb="${1:-}" name="${2:-}" url="${3:-}" agent="${4:-${HARNESS_AGENT:-hermes}}"
@@ -306,6 +281,7 @@ main() {
       --agent) HARNESS_AGENT="$2"; shift ;;
       --hf-model) HARNESS_HF_MODEL="$2"; shift ;;
       --help | -h) usage; exit 0 ;;
+      --) ;;
       *) positional+=("$1") ;;
     esac
     shift
@@ -316,11 +292,6 @@ main() {
   if [[ "${positional[0]:-}" == "sandbox" ]]; then
     require_third_party_notice_acceptance
     run_sandbox_command "${positional[@]:1}"
-    exit 0
-  fi
-  if [[ "${positional[0]:-}" == "edge" ]]; then
-    require_third_party_notice_acceptance
-    run_edge_command "${positional[@]:1}"
     exit 0
   fi
   if [[ "${positional[0]:-}" == "models" ]]; then
@@ -351,6 +322,10 @@ main() {
   if [[ "${positional[0]:-}" == "onboard" ]]; then
     run_agent_onboard
     exit 0
+  fi
+  if [[ -n "${positional[0]:-}" ]]; then
+    usage
+    error "Unknown command: ${positional[0]}"
   fi
 
   printf "\n${C_GREEN}${C_BOLD}Intel Agent Harness${C_RESET}\n\n"

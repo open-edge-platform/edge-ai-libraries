@@ -197,7 +197,7 @@ validate_image_reference() {
 # host publishing when HARNESS_GATEWAY_ENABLED=1 — the container port is
 # still used as the gateway's proxy target either way.
 # env_pairs: space-separated KEY=VALUE tokens forwarded as -e KEY=VALUE to
-# docker run (e.g. to parameterize a generic edge-microservice image).
+# docker run (e.g. to parameterize a generic sandbox image).
 create_sandbox() {
   local name="$1" image="$2" port_spec="${3:-}" env_pairs="${4:-}" container gpu_args entry
   local host_port container_port use_gateway

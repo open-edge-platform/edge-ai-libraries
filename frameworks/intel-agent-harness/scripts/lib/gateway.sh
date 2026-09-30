@@ -39,8 +39,8 @@ gateway_port_file() {
 
 # resolve_gateway_port_for_display -- the port the gateway container was
 # actually created with, if recorded, else the current HARNESS_GATEWAY_PORT.
-# Keeps `sandbox list`/`edge endpoint` accurate in a shell that doesn't have
-# the original HARNESS_GATEWAY_PORT re-exported.
+# Keeps `sandbox list` accurate in a shell that doesn't have the original
+# HARNESS_GATEWAY_PORT re-exported.
 resolve_gateway_port_for_display() {
   local file
   file="$(gateway_port_file)"
