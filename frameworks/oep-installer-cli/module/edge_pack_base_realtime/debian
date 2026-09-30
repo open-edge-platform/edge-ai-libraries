@@ -8,18 +8,25 @@ debian_20_profile_edge_pack_base_realtime () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_base_realtime () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@"
   if ensure_apt_is_installed intel-edge-base-realtime=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-base-realtime already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_realtime
+    ensure_group_add $(debian_20_group_edge_pack_base_realtime)
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_base_realtime () {
   ensure_apt autoremove -y intel-edge-base-realtime || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_base_realtime () {

@@ -135,8 +135,7 @@ debian_90_install_multimodal_weld_defect_detection () {
   if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Multimodal weld defect detection is already installed. Skipping"
   else
-    local device
-    device="$(ensure_select_device "$@")"
+    local device="$(ensure_select_device "$@")"
 
     ensure_disk_space 64000
     ensure_ram_size 16777216 # 16 GiB
@@ -161,11 +160,8 @@ debian_90_start_multimodal_weld_defect_detection () {
   }
 
   ensure_ports_open "$used_ports" debian_90_stop_multimodal_weld_defect_detection "$@"
-  case " $* " in
-  *" --cpu "*|*" --gpu "*|*" --npu "*)
-    configure_multimodal_weld_defect_detection_device "$(ensure_select_device "$@")"
-    ;;
-  esac
+  local device="$(ensure_select_device "$@")"
+  [[ " $* " != *" --${device^^} "* ]] || configure_multimodal_weld_defect_detection_device $device
 
   cd "$source_dir"
   make up

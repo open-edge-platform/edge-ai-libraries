@@ -7,6 +7,7 @@ from typing import Iterator
 from components.asr_component import ASRComponent
 from components.ffmpeg.audio_preprocessing import chunk_by_silence
 from utils.config_loader import config
+from utils.openvino_runtime_validation import resolve_asr_device
 from utils.app_paths import get_session_dir
 from utils.storage_manager import StorageManager
 from utils.session_manager import generate_session_id
@@ -18,16 +19,28 @@ DELETE_CHUNK_AFTER_USE = getattr(config.pipeline, "delete_chunks_after_use", Tru
 SESSION_STATE_FILENAME = "session_state.json"
 
 class Pipeline:
-    def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None):
+    def __init__(
+        self,
+        session_id=None,
+        temperature=None,
+        append_to_session: bool = False,
+        speaker_scope_id=None,
+        device: str | None = None,
+    ):
         logger.info("pipeline initialized")
         self.session_id = session_id or generate_session_id()
         self.append_to_session = append_to_session
         self.temperature = config.models.asr.temperature if temperature is None else temperature
+        resolved_device = resolve_asr_device(
+            config.models.asr.provider,
+            config.models.asr.name,
+            device or config.models.asr.device,
+        )
         self.asr_component = ASRComponent(
             self.session_id,
             provider=config.models.asr.provider,
             model_name=config.models.asr.name,
-            device=config.models.asr.device,
+            device=resolved_device,
             temperature=self.temperature,
             speaker_scope_id=speaker_scope_id,
         )

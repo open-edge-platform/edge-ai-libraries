@@ -20,6 +20,7 @@ debian_70_install_edge_pack_media_ffmpeg () {
 
 debian_70_remove_edge_pack_media_ffmpeg () {
   ensure_apt autoremove -y intel-edge-media-ffmpeg || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_70_sbom_edge_pack_media_ffmpeg () {
