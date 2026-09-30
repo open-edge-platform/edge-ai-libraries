@@ -2735,8 +2735,10 @@ debian_15_install_edge_pack () {
 }
 
 debian_15_remove_edge_pack () {
-  configure_edge_pack "$@"
-  ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
+  dpkg -l | grep -q -F intel-edge- || { 
+    configure_edge_pack "$@"
+    ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
+  }
 }
 
 #sbom by individual packs
@@ -2753,18 +2755,25 @@ debian_20_profile_edge_pack_base_realtime () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_base_realtime () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@"
   if ensure_apt_is_installed intel-edge-base-realtime=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-base-realtime already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_realtime
+    ensure_group_add $(debian_20_group_edge_pack_base_realtime)
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_base_realtime () {
   ensure_apt autoremove -y intel-edge-base-realtime || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_base_realtime () {
@@ -2801,12 +2810,15 @@ debian_20_install_edge_pack_base_standard () {
     echo "intel-edge-base-standard already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_standard
+    ensure_group_add $(debian_20_group_edge_pack_base_standard)
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_base_standard () {
   ensure_apt autoremove -y intel-edge-base-standard || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_base_standard () {
@@ -2843,12 +2855,15 @@ debian_20_install_edge_pack_graphics_core () {
     echo "intel-edge-graphics-core already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_core
+    ensure_group_add $(debian_20_group_edge_pack_graphics_core)
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_graphics_core () {
   ensure_apt autoremove -y intel-edge-graphics-core || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_graphics_core () {
@@ -2885,12 +2900,15 @@ debian_20_install_edge_pack_graphics_display () {
     echo "intel-edge-graphics-display already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_display
+    ensure_group_add $(debian_20_group_edge_pack_graphics_display)
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_graphics_display () {
   ensure_apt autoremove -y intel-edge-graphics-display || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_graphics_display () {
@@ -2929,6 +2947,7 @@ debian_20_install_edge_pack_media_core () {
 
 debian_20_remove_edge_pack_media_core () {
   ensure_apt autoremove -y intel-edge-media-core || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_media_core () {
@@ -2967,6 +2986,7 @@ debian_70_install_edge_pack_media_ffmpeg () {
 
 debian_70_remove_edge_pack_media_ffmpeg () {
   ensure_apt autoremove -y intel-edge-media-ffmpeg || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_70_sbom_edge_pack_media_ffmpeg () {
@@ -3005,6 +3025,7 @@ debian_70_install_edge_pack_media_gst () {
 
 debian_70_remove_edge_pack_media_gst () {
   ensure_apt autoremove -y intel-edge-media-gst || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_70_sbom_edge_pack_media_gst () {
@@ -3028,7 +3049,7 @@ configure_edge_pack_npu () {
 }
 
 debian_20_profile_edge_pack_npu () {
-  echo "edge_pack"
+  echo "edge_pack libze1"
 }
 
 debian_20_group_edge_pack_npu () {
@@ -3041,12 +3062,15 @@ debian_20_install_edge_pack_npu () {
     echo "intel-edge-npu already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_npu
+    ensure_group_add $(debian_20_group_edge_pack_npu)
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-npu=$version*"
   fi
+  [ -c /dev/accel/accel0 ]
 }
 
 debian_20_remove_edge_pack_npu () {
   ensure_apt autoremove -y intel-edge-npu || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_npu () {
@@ -3200,11 +3224,11 @@ $(ensure_sbom_format pkg-list git ca-certificates)
 EOF
 }
 
-debian_15_install_gpg () {
+debian_10_install_gpg () {
   ensure_apt_install_package gpgv1
 }
 
-debian_15_sbom_gpg () {
+debian_10_sbom_gpg () {
   cat <<EOF
 $(ensure_sbom_format pkg-list gpgv1)
 EOF
@@ -3223,6 +3247,12 @@ verify_gpu () {
   [ -c /dev/dri/renderD128 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
+  verify_gpu_packages
+}
+
+# checks the driver packages only, independent of GPU hardware being present.
+# used to confirm a fresh install succeeded even on systems without a discrete/exposed GPU device.
+verify_gpu_packages () {
   ensure_apt_is_installed intel-media-va-driver-non-free
 }
 
@@ -3244,7 +3274,7 @@ debian_40_install_gpu () {
     debian_40_remove_gpu || true
 
     # create the render group
-    ensure_group_add render:992 video:
+    ensure_group_add $(debian_40_group_gpu)
 
     # product key & list 
     ensure_apt_key $key_file $key_url --dearmor
@@ -3255,7 +3285,7 @@ debian_40_install_gpu () {
 
     # install the packages
     ensure_apt install --no-install-recommends -y "${pkg_list[@]}"
-    verify_gpu
+    verify_gpu_packages
   fi
 }
 
@@ -3577,7 +3607,11 @@ configure_loitering_detection () {
 }
 
 verify_loitering_detection () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000101.mp4 ]
+  local v
+  for v in 101 102 103 104; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000$v.mp4 ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/FP16/pedestrian-and-vehicle-detector-adas-0001.bin ]
 }
 
 debian_90_profile_loitering_detection () {
@@ -4000,6 +4034,12 @@ verify_npu () {
   [ -c /dev/accel/accel0 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
+  verify_npu_packages
+}
+
+# checks the driver packages only, independent of NPU hardware being present.
+# used to confirm a fresh install succeeded even on systems without an NPU device.
+verify_npu_packages () {
   (
     set -o pipefail
     ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
@@ -4024,7 +4064,7 @@ debian_40_install_npu () {
     ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
 
     # create the render group
-    ensure_group_add render:992
+    ensure_group_add $(debian_40_gpu_npu)
   
     mkdir -p "$workspace"
     cd "$workspace"
@@ -4040,7 +4080,7 @@ debian_40_install_npu () {
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
-    verify_npu
+    verify_npu_packages
   fi
 }
 
@@ -4208,6 +4248,7 @@ configure_pallet_defect_detection () {
 
 verify_pallet_defect_detection () {
   [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pallet-defect-detection/videos/warehouse.avi ]
+  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/deployment/Detection/model/model.bin ]
 }
 
 debian_90_profile_pallet_defect_detection () {
@@ -4273,6 +4314,7 @@ configure_pcb_anomaly_detection () {
 
 verify_pcb_anomaly_detection () {
   [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
+  [ -e "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin" ]
 }
 
 debian_90_profile_pcb_anomaly_detection () {
@@ -5069,7 +5111,11 @@ configure_smart_intersection () {
 }
 
 verify_smart_intersection () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/1122north_h264.ts ]
+  local v
+  for v in 1122east_h264.ts 1122north_h264.ts 1122south_h264.ts 1122west_h264.ts; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/$v ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/models/intersection/openvino.bin ]
 }
 
 debian_90_profile_smart_intersection () {
@@ -5142,7 +5188,14 @@ configure_smart_parking () {
 }
 
 verify_smart_parking () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_1.mp4 ]
+  local i p
+  for i in 1 2 3 4; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_$i.mp4 ]
+  done
+  for p in FP16 FP32 INT8; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/public/yolo11s/$p/yolo11s.bin ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/colorcls2/colorcls2.bin ]
 }
 
 debian_90_profile_smart_parking () {
