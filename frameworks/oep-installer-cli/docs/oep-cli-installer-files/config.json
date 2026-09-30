@@ -3,8 +3,29 @@
   "shareKeys": [
     "OP_SYSTEM",
     "PROFILE",
-    "MODULE"
+    "MODULE",
+    "DEVICE"
   ],
+  "device": {
+    "key": "DEVICE",
+    "label": "Device",
+    "type": "single",
+    "default": "gpu",
+    "options": [
+      {
+        "label": "CPU",
+        "value": "cpu"
+      },
+      {
+        "label": "GPU",
+        "value": "gpu"
+      },
+      {
+        "label": "NPU",
+        "value": "npu"
+      }
+    ]
+  },
   "categories": [
     {
       "key": "OP_SYSTEM",
@@ -118,7 +139,8 @@
               "metro_ai_suite"
             ]
           },
-          "startStop": true
+          "startStop": true,
+          "device": true
         },
         {
           "label": "Smart Parking",
@@ -128,7 +150,8 @@
               "metro_ai_suite"
             ]
           },
-          "startStop": true
+          "startStop": true,
+          "device": true
         },
         {
           "label": "Loitering Detection",
@@ -138,7 +161,8 @@
               "metro_ai_suite"
             ]
           },
-          "startStop": true
+          "startStop": true,
+          "device": true
         },
         {
           "label": "Video Search and Summarization",
@@ -148,7 +172,8 @@
               "metro_ai_suite"
             ]
           },
-          "startStop": true
+          "startStop": true,
+          "device": true
         },
         {
           "label": "Pallet Defect Detection",
@@ -158,7 +183,8 @@
               "manufacturing_ai_suite"
             ]
           },
-          "startStop": true
+          "startStop": true,
+          "device": true
         },
         {
           "label": "PCB Anomaly Detection",
@@ -168,7 +194,8 @@
               "manufacturing_ai_suite"
             ]
           },
-          "startStop": true
+          "startStop": true,
+          "device": true
         },
         {
           "label": "Loss Prevention",
@@ -196,7 +223,8 @@
               "health_and_life_sciences_ai_suite"
             ]
           },
-          "startStop": true
+          "startStop": true,
+          "device": true
         },
         {
           "label": "Handheld Multi-Modal",

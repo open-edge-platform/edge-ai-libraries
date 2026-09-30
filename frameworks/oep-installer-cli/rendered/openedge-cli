@@ -1908,11 +1908,13 @@ ensure_sbom_format () {
 # default to best device for init and "" for start
 ensure_select_device () {
   local device="cpu"
+  # Match device flags case-insensitively so both --gpu and --GPU are accepted.
+  local args_uc=" ${*^^} "
   [ ! -e /dev/accel/accel0 ] || device="npu"
   [ ! -e /dev/dri/renderD128 ] || device="gpu"
-  [[ " $* " != *" --CPU "* ]] || device="cpu"
-  [[ " $* " != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu"
-  [[ " $* " != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu"
+  [[ "$args_uc" != *" --CPU "* ]] || device="cpu"
+  [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu"
+  [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu"
   echo $device
 }
 
