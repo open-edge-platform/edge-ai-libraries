@@ -6,8 +6,8 @@ app:
 
 models:
   asr:
-    provider: funasr  # openai | openvino | whispercpp | funasr
-    name: paraformer-zh  # whisper-tiny|base|small|medium|large (whisper providers); paraformer-zh|paraformer-en|paraformer-online (funasr)
+    provider: openvino  # openai | openvino | whispercpp | funasr
+    name: whisper-base  # whisper-tiny|base|small|medium|large (whisper providers); paraformer-zh|paraformer-en|paraformer-online (funasr)
     device: CPU # CPU | GPU | NPU for openvino; CPU only for openai/whispercpp/funasr
     weight_format: null # OpenVINO: int8 | fp16 | null. whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
     temperature: 0.0
