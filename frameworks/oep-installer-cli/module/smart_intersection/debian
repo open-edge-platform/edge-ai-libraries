@@ -6,7 +6,11 @@ configure_smart_intersection () {
 }
 
 verify_smart_intersection () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/1122north_h264.ts ]
+  local v
+  for v in 1122east_h264.ts 1122north_h264.ts 1122south_h264.ts 1122west_h264.ts; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/$v ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/models/intersection/openvino.bin ]
 }
 
 debian_90_profile_smart_intersection () {

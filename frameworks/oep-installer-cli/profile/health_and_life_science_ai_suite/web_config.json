@@ -1,7 +1,7 @@
 {
   "profile": { "label": "Health and Life Sciences AI Suite", "value": "health_and_life_sciences_ai_suite" },
   "modules": [
-    { "label": "NICU Warmer", "value": "nicu_warmer", "startStop": true }
+    { "label": "NICU Warmer", "value": "nicu_warmer", "startStop": true, "device": true }
   ],
   "getStarted": {
     "text": "Get Started",

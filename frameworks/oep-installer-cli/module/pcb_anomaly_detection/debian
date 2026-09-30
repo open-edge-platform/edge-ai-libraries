@@ -7,6 +7,7 @@ configure_pcb_anomaly_detection () {
 
 verify_pcb_anomaly_detection () {
   [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
+  [ -e "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin" ]
 }
 
 debian_90_profile_pcb_anomaly_detection () {
