@@ -307,6 +307,7 @@ _sanitize_v() {
   local s=$1 keep=$2 out="" pre rest fin i ch
   s=${s//$'\t'/    }
   s=${s//$'\v'/ }; s=${s//$'\f'/ }; s=${s//$'\b'/}
+  while [[ $s == *$'\r' ]]; do s=${s%$'\r'}; done
   [[ $s == *$'\r'* ]] && s=${s##*$'\r'}
   if [[ $s == *$'\033'* ]]; then
     while [[ $s == *$'\033'* ]]; do
@@ -1001,6 +1002,8 @@ _handle_line() {
 
   _plain_v "$line"; plainkey=$PLAIN
   plainkey=${plainkey#"${plainkey%%[![:space:]]*}"}
+  [[ -z $plainkey ]] && return 0
+
   key=${plainkey%%[[:space:]]*}
   rest=${plainkey#"$key"}
   rest=${rest#"${rest%%[![:space:]]*}"}
