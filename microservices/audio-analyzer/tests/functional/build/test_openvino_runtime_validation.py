@@ -155,10 +155,24 @@ def test_validate_asr_runtime_configuration_accepts_openvino_gpu_when_available(
     validate_asr_runtime_configuration(_cfg(asr_provider="openvino", asr_device="GPU"))
 
 
+def test_validate_asr_runtime_configuration_rechecks_device_visibility(monkeypatch):
+    available_devices = ["CPU", "GPU"]
+    _install_fake_openvino(monkeypatch, available_devices=available_devices)
+
+    config = _cfg(asr_provider="openvino", asr_device="GPU")
+    validate_asr_runtime_configuration(config)
+    available_devices.remove("GPU")
+
+    with pytest.raises(RuntimeError, match="not visible in this runtime"):
+        validate_asr_runtime_configuration(config)
+
+
 def test_validate_asr_runtime_configuration_accepts_indexed_gpu(monkeypatch):
     _install_fake_openvino(monkeypatch, available_devices=["CPU", "GPU.0"])
 
-    validate_asr_runtime_configuration(_cfg(asr_provider="openvino", asr_device="GPU"))
+    validate_asr_runtime_configuration(
+        _cfg(asr_provider="openvino", asr_device="GPU", asr_model_name="whisper-base")
+    )
 
 
 def test_validate_asr_runtime_configuration_accepts_openvino_cpu_when_available(monkeypatch):

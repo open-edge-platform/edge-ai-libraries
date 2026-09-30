@@ -187,10 +187,35 @@ class ApiHardeningTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(pipeline_cls.call_args.kwargs["device"], "GPU")
 
+    def test_openai_transcription_rejects_unavailable_device_before_saving_upload(self):
+        with patch("main.ensure_model"), patch("main.preload_models"), patch(
+            "api.openai_endpoints.resolve_requested_session_id", return_value=("session-id", False)
+        ), patch(
+            "api.openai_endpoints.save_audio_file", return_value=("clip.wav", "/tmp/clip.wav")
+        ) as save_audio, patch(
+            "api.openai_endpoints.os.path.isfile", return_value=True
+        ), patch(
+            "api.openai_endpoints.resolve_asr_device", side_effect=RuntimeError("GPU unavailable")
+        ), patch("api.openai_endpoints.Pipeline") as pipeline_cls:
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/v1/audio/transcriptions",
+                    data={"device": "GPU"},
+                    files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                )
+
+        self.assertEqual(response.status_code, 400)
+        save_audio.assert_not_called()
+        pipeline_cls.assert_not_called()
+
     def test_openai_transcription_rejects_unknown_device(self):
         with patch("main.ensure_model"), patch("main.preload_models"), patch(
-            "api.openai_endpoints.Pipeline"
-        ) as pipeline_cls:
+            "api.openai_endpoints.resolve_requested_session_id", return_value=("session-id", False)
+        ), patch(
+            "api.openai_endpoints.resolve_asr_device", side_effect=RuntimeError("Unknown device")
+        ) as resolve_device, patch(
+            "api.openai_endpoints.save_audio_file"
+        ) as save_audio, patch("api.openai_endpoints.Pipeline") as pipeline_cls:
             with TestClient(main.app) as client:
                 response = client.post(
                     "/v1/audio/transcriptions",
@@ -198,7 +223,9 @@ class ApiHardeningTests(unittest.TestCase):
                     files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
                 )
 
-        self.assertEqual(response.status_code, 422)
+                self.assertEqual(response.status_code, 400)
+                resolve_device.assert_called_once()
+                save_audio.assert_not_called()
         pipeline_cls.assert_not_called()
 
 

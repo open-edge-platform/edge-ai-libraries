@@ -31,7 +31,7 @@ endef
 
 define voice-compose
 	$(call base-compose,$(1),,\
-		compose_files+=(-f $(VOICE_COMPOSE_FILE)) && \
+		compose_files+=($(DLSPS2_COMPOSE) -f $(VOICE_COMPOSE_FILE)) && \
 		case "$$COMPOSE_PROFILES" in \
 			(gpu|npu|igpu-wsl) compose_files+=(-f compose.voice.$$COMPOSE_PROFILES.yml) ;; \
 		esac)
@@ -43,6 +43,10 @@ define experimental-compose
 			(igpu-wsl) compose_files+=(-f compose.experimental.$$COMPOSE_PROFILES.yml) ;; \
 		esac)
 endef
+
+# Set DLSPS2=1 to run pipelines on a DLSPS 2.0 container (see compose.dlsps2.yml).
+DLSPS2 ?= 0
+DLSPS2_COMPOSE := $(if $(filter 1,$(DLSPS2)),-f compose.dlsps2.yml)
 
 # Speed up `docker compose build` by skipping provenance/SBOM attestations
 # (saves ~hundreds of ms per build on warm cache, more on cold).
@@ -132,7 +136,7 @@ $(ENV_DIRS_SENTINEL): Makefile
 	mkdir -p shared/db && chmod o+w shared/db
 	mkdir -p shared/models/output && chmod o+w shared/models/output
 	mkdir -p shared/model-download/cache && chmod o+w shared/model-download/cache
-	for v in base huggingface ultralytics pipeline-zoo-models openvino geti hls; do \
+	for v in base huggingface ultralytics pipeline-zoo-models omz openvino geti hls; do \
 		mkdir -p shared/model-download/venv-$$v && chmod o+w shared/model-download/venv-$$v ; \
 	done
 	mkdir -p shared/images/input && chmod o+w shared/images/input
@@ -149,7 +153,7 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build ViPPET core and Voice service images
+build: env-setup ## Build ViPPET core and Voice images; DLSPS2=1 adds DLSPS 2.0
 	$(call voice-compose,build)
 
 build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onvif-discovery)
@@ -163,7 +167,7 @@ build-onvif-discovery: env-setup ## Build onvif discovery image
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run ViPPET core and Voice services
+run: env-setup ## Run ViPPET core and Voice services; DLSPS2=1 uses DLSPS 2.0
 	$(call voice-compose,up -d)
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
@@ -194,7 +198,6 @@ clean-experimental: ## Clean experimental setup artifacts
 $(TEST_IMAGE_SENTINEL): $(PROJECT_NAME)/Dockerfile \
 		$(PROJECT_NAME)/requirements.txt \
 		$(PROJECT_NAME)/requirements-dev.txt \
-		$(PROJECT_NAME)/requirements-omz.txt \
 		.dockerignore \
 		| env-setup
 	. .env && TARGET=test DOCKER_TAG="test" docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build vippet

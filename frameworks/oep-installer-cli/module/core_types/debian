@@ -1,9 +1,9 @@
 
-debian_15_profile_core_types () {
+debian_20_profile_core_types () {
   [ "$1" != "install" ] || echo "cpuid curl"
 }
 
-debian_15_install_core_types () {
+debian_20_install_core_types () {
   if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
     echo "/etc/core-types exists. Skipping"
     return
