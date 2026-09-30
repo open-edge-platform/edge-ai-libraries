@@ -8,7 +8,7 @@ services:
       TEXT_TO_SPEECH_URL: http://text-to-speech:8011
 
   audio-analyzer:
-    image: ${AUDIO_ANALYZER_IMAGE:-docker.io/intel/audio-analyzer:${AUDIO_ANALYZER_TAG:-2026.1.0}}
+    image: ${AUDIO_ANALYZER_IMAGE:-docker.io/intel/audio-analyzer:${AUDIO_ANALYZER_TAG:-2026.2.0}}
     container_name: audio-analyzer
     ports:
       - "8010:8010"
@@ -53,7 +53,7 @@ services:
       retries: 5
 
   text-to-speech:
-    image: ${TEXT_TO_SPEECH_IMAGE:-docker.io/intel/text-to-speech:${TEXT_TO_SPEECH_TAG:-2026.1.0}}
+    image: ${TEXT_TO_SPEECH_IMAGE:-docker.io/intel/text-to-speech:${TEXT_TO_SPEECH_TAG:-2026.2.0}}
     container_name: text-to-speech
     ports:
       - "8011:8011"

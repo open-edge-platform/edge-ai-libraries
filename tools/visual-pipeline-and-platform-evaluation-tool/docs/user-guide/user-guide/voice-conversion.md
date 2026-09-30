@@ -120,15 +120,6 @@ not guarantee that the same device node is mounted in each Voice container or
 that the configured provider, runtime, and model support it. In those cases the
 conversion fails explicitly; it does not silently fall back to CPU.
 
-Export `AUDIO_ANALYZER_PORT` and `TEXT_TO_SPEECH_PORT` to change the host ports
-without changing container ports or the backend service URLs. Export
-`VOICE_BIND_ADDRESS` to change the bind address. For example, to avoid conflicts:
-
-```bash
-export AUDIO_ANALYZER_PORT=18010 TEXT_TO_SPEECH_PORT=18011
-make run
-```
-
 ### GPU, NPU and WSL
 
 The configuration uses Whisper Base and SpeechT5 with OpenVINO. Make selects
