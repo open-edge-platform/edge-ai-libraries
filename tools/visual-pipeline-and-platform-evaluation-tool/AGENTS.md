@@ -185,6 +185,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `LIVE_STREAM_SERVER_HOST`        | RTSP server hostname                                         | `mediamtx`                                                 |
 | `LIVE_STREAM_SERVER_PORT`        | RTSP server port                                             | `8554`                                                     |
 | `RTSPSRC_DEFAULT_LATENCY_MS`     | Default latency in ms for rtspsrc elements                   | `100`                                                      |
+| `BENCHMARK_ENABLE_LATENCY_METRICS` | Enable DLStreamer latency tracer for benchmark test cases  | `true`                                                     |
 | `COMPOSE_PROFILES`               | Hardware profile (cpu/gpu/npu)                               | Auto-detected                                              |
 | `PYTHONPATH`                     | Python module search path                                    | `/app`                                                     |
 
@@ -208,18 +209,18 @@ Swagger/OpenAPI automatically renders markdown as beautiful documentation
 Example:
 
 ```python
-@app.route('/pipelines', methods=['POST']) 
+@app.route('/pipelines', methods=['POST'])
 def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     """
     # Create Pipeline
-    
+
     Create a new user-defined pipeline with automatic metadata generation.
-    
+
     ## Operation
     1. Enforce `USER_CREATED` source
     2. Delegate to `PipelineManager.add_pipeline()`
     3. Return generated pipeline ID
-    
+
     ## Auto-Generated Fields
     The backend automatically sets:
     - Pipeline ID (generated from name)
@@ -227,7 +228,7 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     - Variant IDs (generated from variant names)
     - Variant `read_only=False` for all variants
     - Pipeline `thumbnail=None` (user-created pipelines)
-    
+
     ## Request Body
     **`PipelineDefinition`** with:
     - `name` *(required)* - Non-empty pipeline name
@@ -235,7 +236,7 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     - `source` *(ignored)* - Forced to `USER_CREATED`
     - `tags` *(optional)* - List of categorization tags
     - `variants` *(required)* - List of `VariantCreate` objects
-    
+
     ## Response Codes
 
     | Code | Description |
@@ -253,7 +254,7 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
     ### ❌ Failure
     - Invalid pipeline definition → 400
     - Unhandled error → 500
-    
+
     ## Examples
 
     ### Request
@@ -271,7 +272,7 @@ def create_pipeline(body: schemas.PipelineDefinition) -> JSONResponse:
       ]
     }
     ```
-    
+
     ### Success Response (201)
     ```json
     {
@@ -299,18 +300,18 @@ Example:
 def calculate_total(items, tax_rate=0.23):
     """
     Calculate total price including tax for given items.
-    
+
     Args:
         items (list): List of dictionaries containing item data with 'price' key
         tax_rate (float, optional): Tax rate as decimal. Defaults to 0.23.
-    
+
     Returns:
         float: Total price including tax, rounded to 2 decimal places
-    
+
     Raises:
         ValueError: If tax_rate is negative or items list is empty
         KeyError: If any item missing 'price' key
-    
+
     Example:
         >>> items = [{'price': 10.0}, {'price': 20.0}]
         >>> calculate_total(items, 0.20)
