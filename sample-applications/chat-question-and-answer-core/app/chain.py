@@ -12,9 +12,13 @@ from starlette.concurrency import run_in_threadpool
 import os
 import json
 import importlib
+import threading
 import pandas as pd
 
 vectorstore = None
+
+# One OpenVINO infer request serves the LLM: generations must not overlap.
+_generation_lock = threading.Lock()
 
 # The RUN_TEST flag is used to bypass the model download and conversion steps during pytest unit testing.
 # If RUN_TEST is set to "True", the model download and conversion steps are skipped.
@@ -153,7 +157,10 @@ def retrieve_documents(query: str):
         return []
 
     base_retriever = vectorstore.as_retriever(
-        search_kwargs={"k": 3, "fetch_k": config._FETCH_K},
+        search_kwargs={
+            "k": config.RETRIEVAL_K,
+            "fetch_k": max(config._FETCH_K, 2 * config.RETRIEVAL_K),
+        },
         search_type=config._SEARCH_METHOD,
     )
     candidates = base_retriever.invoke(query)
@@ -161,6 +168,7 @@ def retrieve_documents(query: str):
     if not config._ENABLE_RERANK or not candidates:
         return list(candidates)
 
+    reranker.top_n = config.RERANK_TOP_N
     reranked = reranker.compress_documents(candidates, query)
     results = []
     for doc in reranked:
@@ -261,6 +269,29 @@ def sse_data(chunk: str) -> str:
     return "".join(f"data: {line}\n" for line in chunk.split("\n")) + "\n"
 
 
+def retrieval_query(query: str) -> str:
+    """
+    Returns the text used for retrieval. With RETRIEVAL_TRANSLATE_PROMPT set (a template
+    with a `{question}` placeholder), the LLM first rewrites the question, for example
+    into English for an English-only embedding model; the answer still uses `query`.
+    """
+
+    template = config.RETRIEVAL_TRANSLATE_PROMPT
+    if not template or not hasattr(llm, "pipeline"):
+        return query
+
+    with _generation_lock:
+        out = llm.pipeline(
+            template.replace("{question}", query),
+            max_new_tokens=64,
+            do_sample=False,
+            return_full_text=False,
+        )
+    lines = [line.strip() for line in str(out[0]["generated_text"]).splitlines() if line.strip()]
+
+    return lines[0] if lines else query
+
+
 def answer_with_sources(query: str):
     """
     Answers a query with labelled context and returns the sources used.
@@ -272,32 +303,90 @@ def answer_with_sources(query: str):
         tuple[str, list[dict]]: The answer text and the sources.
     """
 
-    docs = retrieve_documents(query)
-    answer = build_answer_chain().invoke(
-        {"context": format_labelled_context(docs), "question": query}
-    )
+    docs = retrieve_documents(retrieval_query(query))
+    with _generation_lock:
+        answer = build_answer_chain().invoke(
+            {"context": format_labelled_context(docs), "question": query}
+        )
 
     return answer, build_sources(docs)
 
 
+def _generate(prompt_text: str, streamer, cancel: threading.Event, errors: list) -> None:
+    from transformers import StoppingCriteria, StoppingCriteriaList
+
+    class Cancelled(StoppingCriteria):
+        def __call__(self, input_ids, scores, **kwargs):
+            return cancel.is_set()
+
+    try:
+        with _generation_lock:
+            if not cancel.is_set():
+                llm.pipeline(
+                    prompt_text,
+                    streamer=streamer,
+                    stopping_criteria=StoppingCriteriaList([Cancelled()]),
+                    max_new_tokens=config.MAX_TOKENS,
+                    return_full_text=False,
+                )
+    except Exception as exc:
+        errors.append(exc)
+    finally:
+        # Unblocks the consumer also when generation failed or never started.
+        streamer.end()
+
+
+async def stream_answer(prompt_text: str):
+    """
+    Streams LLM text for a rendered prompt. Generation stops at the next token when the
+    consumer goes away (client disconnect), so the next request does not find the
+    infer request busy.
+    """
+
+    from transformers import TextIteratorStreamer
+
+    streamer = TextIteratorStreamer(
+        llm.pipeline.tokenizer, timeout=None, skip_prompt=True, skip_special_tokens=True
+    )
+    cancel = threading.Event()
+    errors: list = []
+    threading.Thread(
+        target=_generate, args=(prompt_text, streamer, cancel, errors), daemon=True
+    ).start()
+    try:
+        while True:
+            chunk = await run_in_threadpool(next, streamer, None)
+            if chunk is None:
+                break
+            yield chunk
+    finally:
+        cancel.set()
+
+    if errors:
+        raise errors[0]
+
+
 async def process_query_with_sources(query: str = ""):
     """
-    Streams an answer with labelled context, then a final `event: sources` frame.
+    Streams an `event: sources` frame first, then the answer with labelled context.
 
     Yields:
-        str: SSE frames. Token frames use standard multi-line `data:` encoding; the last
-        frame is `event: sources` with `{"sources": [...]}` as JSON data.
+        str: SSE frames. The first frame is `event: sources` with `{"sources": [...]}`
+        as JSON data; token frames use standard multi-line `data:` encoding.
     """
 
-    docs = await run_in_threadpool(retrieve_documents, query)
-    chain = build_answer_chain()
-
-    async for chunk in chain.astream(
-        {"context": format_labelled_context(docs), "question": query}
-    ):
-        yield sse_data(chunk)
-
+    docs = await run_in_threadpool(retrieve_documents, await run_in_threadpool(retrieval_query, query))
     yield f"event: sources\ndata: {json.dumps({'sources': build_sources(docs)})}\n\n"
+
+    inputs = {"context": format_labelled_context(docs), "question": query}
+    if hasattr(llm, "pipeline"):
+        # Same text as `prompt | llm` sends (ChatPromptValue.to_string()).
+        chunks = stream_answer(prompt.invoke(inputs).to_string())
+    else:
+        chunks = build_answer_chain().astream(inputs)
+
+    async for chunk in chunks:
+        yield sse_data(chunk)
 
 
 def create_faiss_vectordb(file_path: str = "", chunk_size=1000, chunk_overlap=200):

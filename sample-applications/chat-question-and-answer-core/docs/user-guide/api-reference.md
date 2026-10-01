@@ -273,15 +273,26 @@ When enabled:
   `page` is 0-based as set by the document loader (`null` for formats without pages).
   `page_label` is the printed page label when the PDF has one, otherwise `page + 1`.
   `relevance_score` is the reranker score (`null` when reranking is disabled).
-- A streamed response encodes each token chunk as standard SSE `data:` lines (one per line of
-  text, so newlines are preserved) and ends with one extra event:
+- A streamed response starts with one extra event, sent before the first token, so a client
+  can inspect the sources (for example, their `relevance_score`) without waiting for the answer:
 
   ```text
   event: sources
   data: {"sources": [ ... ]}
   ```
 
-`SOURCE_SNIPPET_CHARS` (default `300`) limits the snippet length.
+  Each token chunk that follows is encoded as standard SSE `data:` lines (one per line of
+  text, so newlines are preserved). With the OpenVINO runtime, generation stops at the next
+  token when the client disconnects, and generations run one at a time.
+
+Related settings (same `model_settings` section or environment variables):
+
+| Setting | Default | Description |
+|---|---|---|
+| `SOURCE_SNIPPET_CHARS` | `300` | Maximum snippet length. |
+| `RETRIEVAL_K` | `3` | Chunks retrieved from the vector store. |
+| `RERANK_TOP_N` | `2` | Chunks kept after reranking. |
+| `RETRIEVAL_TRANSLATE_PROMPT` | empty | Optional prompt with a `{question}` placeholder. When set, the LLM (OpenVINO runtime) rewrites the question before retrieval, for example into English for an English-only embedding model. The answer still uses the original question. |
 
 ### `GET /ollama-models` (Ollama runtime)
 
