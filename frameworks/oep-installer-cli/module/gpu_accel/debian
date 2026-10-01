@@ -1,5 +1,5 @@
 
-configure_gpu () {
+configure_gpu_accel () {
   repo_name="repositories.intel.com"
   key_url="https://$repo_name/gpu/intel-graphics.key"
   key_file="/usr/share/keyrings/intel-graphics.gpg"
@@ -8,38 +8,38 @@ configure_gpu () {
   pkg_list=(clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd)
 }
 
-verify_gpu () {
+verify_gpu_accel () {
   [ -c /dev/dri/renderD128 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
-  verify_gpu_packages
+  verify_gpu_accel_packages
 }
 
 # checks the driver packages only, independent of GPU hardware being present.
 # used to confirm a fresh install succeeded even on systems without a discrete/exposed GPU device.
-verify_gpu_packages () {
+verify_gpu_accel_packages () {
   ensure_apt_is_installed intel-media-va-driver-non-free
 }
 
-debian_40_profile_gpu () {
+debian_40_profile_gpu_accel () {
   echo "curl gpg libze1"
 }
 
-debian_40_group_gpu () {
+debian_40_group_gpu_accel () {
   echo "render:992 video:"
 }
 
-debian_40_install_gpu () {
-  configure_gpu $*
+debian_40_install_gpu_accel () {
+  configure_gpu_accel "$@"
 
-  if verify_gpu && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Gpu drivers are already installed. Skipping..."
   else
     # remove legacies
-    debian_40_remove_gpu || true
+    debian_40_remove_gpu_accel || true
 
     # create the render group
-    ensure_group_add $(debian_40_group_gpu)
+    ensure_group_add $(debian_40_group_gpu_accel)
 
     # product key & list 
     ensure_apt_key $key_file $key_url --dearmor
@@ -50,12 +50,12 @@ debian_40_install_gpu () {
 
     # install the packages
     ensure_apt install --no-install-recommends -y "${pkg_list[@]}"
-    verify_gpu_packages
+    verify_gpu_accel_packages
   fi
 }
 
-debian_40_remove_gpu () {
-  configure_gpu $*
+debian_40_remove_gpu_accel () {
+  configure_gpu_accel "$@"
   ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
   # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
@@ -68,8 +68,8 @@ debian_40_remove_gpu () {
   ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg $key_file $apt_file
 }
 
-debian_40_sbom_gpu () {
-  configure_gpu "$@"
+debian_40_sbom_gpu_accel () {
+  configure_gpu_accel "$@"
   cat <<EOF
 $(ensure_sbom_format name "$repo_name")
 $(ensure_sbom_format apt-source "$apt_entry")
