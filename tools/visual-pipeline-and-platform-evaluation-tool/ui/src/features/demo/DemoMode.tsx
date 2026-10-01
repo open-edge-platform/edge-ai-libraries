@@ -924,9 +924,9 @@ const DemoMode = () => {
     const getDefaultModelForNode = (nodeType: string) => {
       const category =
         nodeType === "gvadetect"
-          ? "detection"
+          ? "object_detection"
           : nodeType === "gvaclassify"
-            ? "classification"
+            ? "image_classification"
             : null;
 
       if (!category) return null;

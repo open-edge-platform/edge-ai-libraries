@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+/bin/
+/build/
+/dist/
+/vendor/
+
+coverage.out
+coverage.html
+go.work
+go.work.sum
+
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store

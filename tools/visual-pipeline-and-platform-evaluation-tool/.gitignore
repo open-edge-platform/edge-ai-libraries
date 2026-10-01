@@ -3,6 +3,7 @@ __pycache__
 .env
 .idea
 .venv/
+results/*
 shared/images/input/*
 shared/images/output/*
 shared/models/output/*
@@ -18,3 +19,5 @@ shared/db/*
 # Docker build context via the `shared` entry in .dockerignore.
 shared/.env-dirs.done
 shared/.vippet-test-image.stamp
+/report.html
+/report.xml

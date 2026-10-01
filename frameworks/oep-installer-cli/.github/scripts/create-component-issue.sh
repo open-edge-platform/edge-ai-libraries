@@ -150,13 +150,18 @@ find_rejected_prior_art () {
     issues_json="[]"
   fi
 
+  local prs_tmp issues_tmp
+  prs_tmp="$(mktemp)"; issues_tmp="$(mktemp)"
+  printf '%s' "$prs_json"    > "$prs_tmp"
+  printf '%s' "$issues_json" > "$issues_tmp"
+
   hit="$(jq -rn \
     --arg name "$name" \
     --arg needle "${name,,}" \
-    --argjson prs "$prs_json" \
-    --argjson issues "$issues_json" \
+    --slurpfile prs "$prs_tmp" \
+    --slurpfile issues "$issues_tmp" \
     '
-      ($prs
+      ($prs[0]
         | map(
             select(.mergedAt == null)
             | select(
@@ -176,7 +181,7 @@ find_rejected_prior_art () {
                 updatedAt: (.updatedAt // "")
               }
           )) as $pr_hits
-      | ($issues
+      | ($issues[0]
           | map(
               select(
                 (.title // "") == ("Implement installer component: " + $name)
@@ -196,6 +201,8 @@ find_rejected_prior_art () {
         else "\($hit.kind)\t\($hit.number)\t\($hit.title)"
         end
     ')"
+
+  rm -f "$prs_tmp" "$issues_tmp"
 
   if [[ -n "$hit" ]]; then
     IFS=$'\t' read -r hit_kind hit_number hit_title <<< "$hit"

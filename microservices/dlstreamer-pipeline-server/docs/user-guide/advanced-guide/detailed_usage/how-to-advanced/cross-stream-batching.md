@@ -20,13 +20,14 @@ Choosing the right batch size:
 - `Real time applications` Keep the batch-size small to minimize the latency. A larger batch size may cause the initial frames to wait until the batch is completely filled before the model begins processing. Additionally, a large batch size means higher memory utilization.
 - `High throughput` Keep the batch-size large to maximize the throughput. Some hardware are suited to process large number of frames in parallel, thus reducing overall time required to process all the frames.
 
-> **Note:** For optimal performance, set `batch-size` to an integer multiple of the stream count.
-> Typically, setting `batch-size` equal to the number of streams (`batch-size=<number of streams>`)
-> yields the best results.
-
-> **Note:** In a multi stream pipeline with a shared model instance, frames can be grouped
-> into a single batch either from multiple pipelines or exclusively from one pipeline,
-> depending on the timing of arrival of frames from the pipelines.
+> [!NOTE]
+>
+> - For optimal performance, set `batch-size` to an integer multiple of the stream count.
+>   Typically, setting `batch-size` equal to the number of streams (`batch-size=<number of streams>`)
+>   yields the best results.
+> - In a multi stream pipeline with a shared model instance, frames can be grouped
+>   into a single batch either from multiple pipelines or exclusively from one pipeline,
+>   depending on the timing of arrival of frames from the pipelines.
 
 The following curl command can be used to start the pipeline:
 

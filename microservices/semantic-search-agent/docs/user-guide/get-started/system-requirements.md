@@ -39,13 +39,11 @@ sudo apt-get install -y python3.11 python3.11-venv python3-pip
 
 Required only when you set `DEFAULT_MATCHING_STRATEGY` to `semantic` or `hybrid`.
 
-| Backend          | Requirement                                                                    |
-| ---------------- | ---------------------------------------------------------------------------    |
-| `ovms`           | Running OpenVINO model server instance with a vision-language model loaded.    |
-| `openvino_local` | OpenVINO IR^1^ model files on disk. `OPENVINO_MODEL_PATH` must point to them.  |
-| `openai`         | Valid `OPENAI_API_KEY` with access to the configured model.                    |
-
-> **Note**: 1. OpenVINO Intermediate Representation (IR).
+| Backend | Requirement |
+| --- | --- |
+| `ovms` | Running OpenVINO model server instance with a vision-language model loaded. |
+| `openvino_local` | OpenVINO Intermediate Representation (IR) model files on disk. `OPENVINO_MODEL_PATH` must point to them. |
+| `openai` | Valid `OPENAI_API_KEY` with access to the configured model. |
 
 ## Network Requirements
 

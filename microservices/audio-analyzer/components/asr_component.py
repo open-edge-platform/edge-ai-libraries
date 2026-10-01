@@ -12,6 +12,7 @@ from components.asr.openvino.whisper import Whisper as OV_Whisper
 from components.asr.openvino_genai.whisper import Whisper as OVGenAIWhisper
 from components.asr.whispercpp.whisper import WhisperCpp
 import logging
+import threading
 logger = logging.getLogger(__name__)
 
 ENABLE_DIARIZATION = config.models.asr.diarization
@@ -104,8 +105,8 @@ def _is_diarization_auth_error(exc: Exception) -> bool:
 
 class ASRComponent(PipelineComponent):
 
-    _model = None
-    _config = None
+    _models = {}
+    _models_lock = threading.Lock()
     # Shared across all ASRComponent instances/sessions — keyed by session_id
     # internally — so primary-speaker identity persists across chunk calls
     # for the same session regardless of which ASRComponent instance handles
@@ -174,11 +175,13 @@ class ASRComponent(PipelineComponent):
 
         backend_cls, model_config_key, resolved_device = self._resolve_backend(provider, model_name, device)
 
-        if ASRComponent._model is None or ASRComponent._config != model_config_key:
-            ASRComponent._model = backend_cls(model_name.lower(), resolved_device, None)
-            ASRComponent._config = model_config_key
+        with ASRComponent._models_lock:
+            if model_config_key not in ASRComponent._models:
+                ASRComponent._models[model_config_key] = backend_cls(
+                    model_name.lower(), resolved_device, None
+                )
 
-        self.asr = ASRComponent._model
+        self.asr = ASRComponent._models[model_config_key]
 
         self.pyannote_diarizer = None
         if self.enable_diarization:

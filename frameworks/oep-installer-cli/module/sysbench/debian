@@ -1,0 +1,11 @@
+
+debian_30_install_sysbench () {
+  ensure_apt_install_package sysbench
+}
+
+debian_30_sbom_sysbench () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list sysbench)
+EOF
+}
+

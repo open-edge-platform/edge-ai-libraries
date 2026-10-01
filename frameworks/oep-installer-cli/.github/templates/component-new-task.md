@@ -1,4 +1,4 @@
-## Task: implement `module/{{NAME}}/debian`
+## Task: implement `frameworks/oep-installer-cli/module/{{NAME}}/debian`
 
 A new spec file `{{SPEC_FILE}}` was pushed to `main`. Implement the
 corresponding installer component following the rules below, then open a
@@ -44,6 +44,7 @@ pull request adding `module/{{NAME}}/debian`.
    The six interface functions **must** follow the exact pattern:
    ```
    debian_<NN>_profile_{{NAME}}
+   debian_<NN>_group_{{NAME}}
    debian_<NN>_install_{{NAME}}
    debian_<NN>_remove_{{NAME}}
    debian_<NN>_start_{{NAME}}
@@ -152,4 +153,5 @@ and push to this branch — the workflow will re-run automatically.
 
 ---
 
-> **Note**: generated PRs must be reviewed by a human before merging.
+> [!NOTE]
+> generated PRs must be reviewed by a human before merging.

@@ -42,6 +42,11 @@ JSON body fields:
 | `instructions`    | No       | Optional speaking style guidance (where supported by the model).                    |
 | `response_format` | No       | `wav` (raw `audio/wav`) or `json` (metadata + base64-encoded WAV).                  |
 
+The optional `device` field accepts `CPU`, `GPU`, or `NPU` and defaults to the
+service configuration. The service validates it against the configured runtime,
+model, and devices visible inside its container. Unsupported or unavailable
+selections are rejected without falling back to CPU.
+
 Example — SpeechT5 (set `models.tts.name` to `microsoft/speecht5_tts` in
 `config.yaml`):
 
@@ -61,7 +66,8 @@ status=$(
 if [ "$status" = "200" ]; then echo "Success: saved audio to speech.wav"; else echo "Failure: HTTP $status"; cat speech.wav; rm -f speech.wav; fi
 ```
 
-> **Note:** SpeechT5 supports seven bundled voices — `Ryan`, `Miles`, `Aaron`,
+> [!NOTE]
+> SpeechT5 supports seven bundled voices — `Ryan`, `Miles`, `Aaron`,
 > `Nora`, `Elena`, `Kabir`, `Angus` (the CMU Arctic ids `bdl`, `jmk`, `rms`,
 > `clb`, `slt`, `ksp`, `awb` are accepted as aliases). Omitting `voice` uses
 > `models.tts.default_speaker`. Only English is supported, and `instructions`

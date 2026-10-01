@@ -45,7 +45,8 @@ Here is a sample directory listing:
                 │       └── pipeline.json
 ```
 
-> **Note:** While not required, pipeline definition files are named
+> [!NOTE]
+> While not required, pipeline definition files are named
 > `pipeline.json` by convention.
 
 ## Pipeline Definition
@@ -58,7 +59,8 @@ and behavior of a pipeline implemented in an underlying framework.
 
 ### GStreamer Pipeline Definition
 
-> **Note:** This section assumes an understanding of the GStreamer framework.
+> [!NOTE]
+> This section assumes an understanding of the GStreamer framework.
 
 GStreamer templates use the [GStreamer Pipeline Description](https://gstreamer.freedesktop.org/documentation/tools/gst-launch.html?gi-language=c#pipeline-description)
 syntax to concatenate elements into a pipeline. The Pipeline Server `pipeline_manager` and
@@ -80,7 +82,8 @@ dynamically defined by the calling application.
             " ! appsink name=appsink"
 ```
 
-> **Note:** The model used in the above pipeline is an example of how it can be used from
+> [!NOTE]
+> The model used in the above pipeline is an example of how it can be used from
 > [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
 > Refer to the documentation for DL Streamer on how to download any given model for your
 > usage [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
@@ -99,7 +102,8 @@ The GStreamer element is chosen based on the `type` specified in the source sect
             " ! appsink name=appsink"
 ```
 
-> **Note:** The model used in the above pipeline is an example of how it can be used from the
+> [!NOTE]
+> The model used in the above pipeline is an example of how it can be used from the
 > list of [supported models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
 > Refer to the documentation for DL Streamer on how to download any given model for your
 > usage [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
@@ -115,7 +119,8 @@ The GStreamer element is chosen based on the `type` specified in the source sect
             " ! appsink name=appsink"
 ```
 
-> **Note:** The model used in the above pipeline is an example of how it can be used from the
+> [!NOTE]
+> The model used in the above pipeline is an example of how it can be used from the
 > list of [supported models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
 > Refer to the documentation for DL Streamer on how to download any given model for
 > your usage [here](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html).
@@ -130,7 +135,8 @@ The GStreamer element is chosen based on the `type` specified in the source sect
 | Web camera | `urisourcebin`	| <pre> "source": { <br>   `"device": "/dev/video0`",<br>   type": "webcam",<br> }<br></pre> | <pre> `v4l2src device=/dev/video0` name=source ! `video/x-raw,format=YUY2` </pre> |         |
 | Custom GStreamer Element | `urisourcebin`	| <pre> "source": { <br>   "element": GStreamer Element name,<br>   "type": "gst"<br> }<br></pre> Example for microphone for an audio pipeline: <br> <pre> "source": { <br>   "element": `"alsasrc"`,<br>   "type": "gst",<br>   properties": { <br>        `"device": "hw:1,0"` <br>}<br></pre> | <pre> `alsasrc device=hw:1,0 name=source`</pre> |         |
 
-> **Note:** For a `type=gst` request, the container must support the corresponding element.
+> [!NOTE]
+> For a `type=gst` request, the container must support the corresponding element.
 
 Source request accepts the following optional fields set via the request:
 
@@ -413,7 +419,8 @@ the forms below.
    element properties for the `detection` element without explicitly defining each one. This
    can be enabled by setting `format` as `element-properties` for the parameter:
 
-   > **Note:** The property names are expected to match the GStreamer properties for the corresponding element.
+   > [!NOTE]
+   > The property names are expected to match the GStreamer properties for the corresponding element.
 
    ```json
    "parameters": {
@@ -481,7 +488,8 @@ Parameters default value in pipeline definitions can be set in section in one of
    The following snippet defines the parameter `detection-device` which sets the `device`
    property of the `detection` with default value from environment variable `DETECTION_DEVICE`:
 
-   > **Note:** If the environment variable is not set, pipeline server will not set a default
+   > [!NOTE]
+   > If the environment variable is not set, pipeline server will not set a default
    > and the element's built-in default will be used by the underlying framework.
 
    ```json
@@ -684,7 +692,8 @@ Pipeline Request:
 
 Parameter Resolution:
 
-> **Note:** Parameters defined this way are set via the GStreamer Python API. The following
+> [!NOTE]
+> Parameters defined this way are set via the GStreamer Python API. The following
 > pipeline string is provided for illustrative purposes only.
 
 ```
@@ -761,7 +770,8 @@ Some models might have a separate `.txt` file for `labels`, in addition to or in
 If such a file exists, the Pipeline Server automatically looks for this file in the path
 `models/model-alias/model-version/*.txt`.
 
-> **Note:** This DL Streamer functionality is **deprecated**.
+> [!NOTE]
+> This DL Streamer functionality is **deprecated**.
 > For more details on model proc and labels see [Model Proc File](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_proc_file.html).
 
 #### Deep Learning Streamer (DL Streamer)
@@ -787,12 +797,14 @@ The hierarchical directory structure is made up of four levels:
 
 `<model-root-directory>/<model-name>/<version>/<precision>`
 
-> **Note:** Not all models have a file for labels. In such cases, the labels could be listed
+> [!NOTE]
+> Not all models have a file for labels. In such cases, the labels could be listed
 > in the `model-proc`file.
 
 Here is a sample directory listing for the `yolo-v3-tf` model:
 
-> **Note:** The model in this example is taken from the list of [supported models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
+> [!NOTE]
+> The model in this example is taken from the list of [supported models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
 
 ```
 models/
