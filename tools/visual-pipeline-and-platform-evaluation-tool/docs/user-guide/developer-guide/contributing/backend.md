@@ -43,6 +43,8 @@ vippet/
 │   ├── app_state_manager.py
 │   └── tests_manager.py
 ├── pipelines/            # Built-in GStreamer pipeline YAMLs + loader
+├── models/               # Model catalog, one YAML file per model
+├── benchmarks/           # Benchmark suite YAMLs + loader
 ├── graph.py              # In-memory pipeline graph (parse / serialize / simple view)
 ├── pipeline_runner.py    # Subprocess-based pipeline executor
 ├── gst_runner.py         # Low-level GStreamer runner (invoked as subprocess)
@@ -53,7 +55,10 @@ vippet/
 ├── camera.py             # Camera enumeration helpers
 ├── videos.py             # Input/output video management
 ├── images.py             # Image set management
-├── models.py             # Supported models catalog
+├── models.py             # In-memory read cache of the models/model_variants DB tables
+├── orm_models.py         # SQLAlchemy ORM models (pipelines, benchmarks, models)
+├── database.py           # Async SQLAlchemy engine/session setup, schema creation
+├── db_seed.py            # Startup DB seeding from pipelines/*.yaml, benchmarks/*.yaml, models/*.yaml
 ├── resources.py          # Shared resource managers (labels, scripts, model-procs)
 ├── utils.py              # Generic helpers (ids, timestamps, slugify, ...)
 ├── internal_types.py     # Internal dataclasses used between managers
@@ -73,6 +78,13 @@ A few invariants worth knowing:
   builds a command line and starts `gst_runner.py` as a subprocess.
 - OpenVINO™ device detection (`device.py`) happens at startup and drives
   which hardware profile (`cpu`, `gpu`, `npu`) is selected at compose time.
+- The model catalog (`vippet/models/*.yaml`, one file per model) is copied
+  into the image at build time, not runtime-mounted. `db_seed.py` syncs it
+  into the `models`/`model_variants` DB tables at startup, insert-only:
+  existing rows are never updated or removed when a YAML file changes.
+  Adding or editing a model file therefore requires an image rebuild
+  (`make build`) unless you are running with `compose.dev.yml`, which
+  bind-mounts the whole `vippet/` source tree (a restart is then enough).
 
 ## Tech stack
 
@@ -213,10 +225,11 @@ Prerequisites:
   `VIPPET_BASE_URL` environment variable.
 - The models the tests rely on must already be **installed** through the
   Models page in the UI (or the `/api/v1/models` endpoints):
-  - `make test-smoke` needs the default models (those marked
-    `default: true` in `shared/models/supported_models.yaml`).
-  - `make test-full` needs **all** models listed in
-    `shared/models/supported_models.yaml`.
+  - `make test-smoke` needs the default-recommended models (those with
+    `default: true` in the API response, computed from models referenced
+    by at least one predefined pipeline).
+  - `make test-full` needs **all** models defined under
+    `vippet/models/*.yaml` (one YAML file per model).
 
 Tests that depend on optional hardware adapt automatically: pipeline
 variants are selected from the devices reported by `/devices`, and USB

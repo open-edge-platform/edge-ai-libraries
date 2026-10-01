@@ -1,8 +1,8 @@
 {
   "profile": { "label": "Manufacturing AI Suite", "value": "manufacturing_ai_suite" },
   "modules": [
-    { "label": "Pallet Defect Detection", "value": "pallet_defect_detection", "startStop": true },
-    { "label": "PCB Anomaly Detection", "value": "pcb_anomaly_detection", "startStop": true }
+    { "label": "Pallet Defect Detection", "value": "pallet_defect_detection", "startStop": true, "device": true },
+    { "label": "PCB Anomaly Detection", "value": "pcb_anomaly_detection", "startStop": true, "device": true }
   ],
   "getStarted": {
     "text": "Get Started",

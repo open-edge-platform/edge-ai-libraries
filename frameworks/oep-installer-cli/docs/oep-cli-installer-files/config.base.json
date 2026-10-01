@@ -1,7 +1,19 @@
 {
   "title": "OEP CLI Installer",
-  "shareKeys": ["OP_SYSTEM", "PROFILE", "MODULE"],
+  "shareKeys": ["OP_SYSTEM", "PROFILE", "MODULE", "DEVICE"],
   "defaultOpSystem": "UBUNTU",
+
+  "device": {
+    "key": "DEVICE",
+    "label": "Device",
+    "type": "single",
+    "default": "gpu",
+    "options": [
+      { "label": "CPU", "value": "cpu" },
+      { "label": "GPU", "value": "gpu" },
+      { "label": "NPU", "value": "npu" }
+    ]
+  },
 
   "opSystem": {
     "key": "OP_SYSTEM",

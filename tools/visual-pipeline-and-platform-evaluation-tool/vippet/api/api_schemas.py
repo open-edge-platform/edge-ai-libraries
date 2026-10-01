@@ -177,22 +177,32 @@ class DeviceFamily(str, Enum):
 
 class ModelCategory(str, Enum):
     """
-    **Model category for classification, detection, or GenAI tasks.**
+    **Model category for classification, detection, and other supported tasks.**
 
     ## Values
-    - `CLASSIFICATION` - Classification model
-    - `DETECTION` - Detection model
-    - `GENAI` - Generative AI model (for example VLM)
+    - `IMAGE_CLASSIFICATION` - Image classification model
+    - `OBJECT_DETECTION` - Object detection model
+    - `IMAGE_SEGMENTATION` - Image segmentation model
+    - `POSE_ESTIMATION` - Pose estimation model
+    - `VISION_LANGUAGE_MODELS` - Vision-language model (for example VLM)
+    - `LARGE_LANGUAGE_MODELS` - Large language model (text-only, for example LLM)
+    - `AUTOMATIC_SPEECH_RECOGNITION` - Automatic speech recognition model
+    - `TEXT_TO_SPEECH` - Text-to-speech synthesis model
 
     ### Example
     ```json
-    "detection"
+    "object_detection"
     ```
     """
 
-    CLASSIFICATION = "classification"
-    DETECTION = "detection"
-    GENAI = "genai"
+    IMAGE_CLASSIFICATION = "image_classification"
+    OBJECT_DETECTION = "object_detection"
+    IMAGE_SEGMENTATION = "image_segmentation"
+    POSE_ESTIMATION = "pose_estimation"
+    VISION_LANGUAGE_MODELS = "vision_language_models"
+    LARGE_LANGUAGE_MODELS = "large_language_models"
+    AUTOMATIC_SPEECH_RECOGNITION = "automatic_speech_recognition"
+    TEXT_TO_SPEECH = "text_to_speech"
 
 
 class OptimizationType(str, Enum):
@@ -2239,8 +2249,8 @@ class Model(BaseModel):
     """
     **Description of a single supported model exposed by the models API.**
 
-    Lists every model known to vippet-app: both entries from
-    `supported_models.yaml` (regardless of whether they are installed) and
+    Lists every model known to vippet-app: both entries from the model
+    catalog (`vippet/models/*.yaml`, seeded into the DB at startup) and
     user-uploaded models. Use `install_status` to know if the model is
     ready to use, and `used_by_pipelines` to know whether installing it is
     recommended (non-empty list means at least one predefined pipeline
@@ -2254,12 +2264,12 @@ class Model(BaseModel):
     ## Attributes
     - `name` - Internal model identifier used by the backend
     - `display_name` - Human-readable model name suitable for UI
-    - `category` - Logical model category (`classification`, `detection`, `genai`) or null when unknown
+    - `category` - Logical model category (`image_classification`, `object_detection`, `image_segmentation`, `pose_estimation`, `vision_language_models`, `large_language_models`, `automatic_speech_recognition`, `text_to_speech`) or null when unknown
     - `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)
     - `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)
     - `variants` - Selectable variants of this model (one per precision and optional model-proc)
     - `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation
-    - `default` - Whether the model is marked as a default install candidate in `supported_models.yaml`. Used by the Models page to pre-select recommended models in the bulk-install UI.
+    - `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.
     - `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)
 
     ### Example
@@ -2267,7 +2277,7 @@ class Model(BaseModel):
     {
       "name": "yolo11n",
       "display_name": "YOLO 11n 640x640",
-      "category": "detection",
+      "category": "object_detection",
       "source": "ultralytics",
       "install_status": "installed",
       "variants": [
@@ -2316,10 +2326,9 @@ class Model(BaseModel):
     default: bool = Field(
         default=False,
         description=(
-            "Whether the model is marked as a default install "
-            "candidate in supported_models.yaml. The Models page uses "
-            "this flag to pre-select recommended models in the bulk-"
-            "install UI."
+            "Whether at least one predefined pipeline references this "
+            "model. The Models page uses this flag to pre-select "
+            "recommended models in the bulk-install UI."
         ),
     )
     unsupported_devices: Optional[str] = Field(
@@ -2347,7 +2356,7 @@ class ModelUploadResponse(BaseModel):
       "model": {
         "name": "my-custom-detector",
         "display_name": "My Custom Detector",
-        "category": "detection",
+        "category": "object_detection",
         "source": "custom",
         "install_status": "installed",
         "variants": [{"name": "my-custom-detector", "display_name": "My Custom Detector (FP32)", "precision": "FP32"}],
@@ -2365,7 +2374,7 @@ class ModelDownloadRequest(BaseModel):
     """
     **Request body for starting a batch of model download jobs.**
 
-    Each name must match an entry in `supported_models.yaml`. Names are
+    Each name must match an entry in the model catalog (`vippet/models/*.yaml`). Names are
     validated as a unique set: duplicates are rejected with 422 so the
     per-name map returned by the endpoint stays unambiguous. An empty
     list is also rejected (`min_length=1`).
