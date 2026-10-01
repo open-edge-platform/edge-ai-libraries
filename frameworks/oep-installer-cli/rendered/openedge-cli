@@ -2703,7 +2703,7 @@ EOF
 }
 
 debian_99_profile_edge_base () {
-  [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu npu core_types pre_system_scan"
+  [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu_accel npu_accel core_types pre_system_scan"
 }
 
 
@@ -3246,7 +3246,7 @@ $(ensure_sbom_format pkg-list gpgv1)
 EOF
 }
 
-configure_gpu () {
+configure_gpu_accel () {
   repo_name="repositories.intel.com"
   key_url="https://$repo_name/gpu/intel-graphics.key"
   key_file="/usr/share/keyrings/intel-graphics.gpg"
@@ -3255,38 +3255,38 @@ configure_gpu () {
   pkg_list=(clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd)
 }
 
-verify_gpu () {
+verify_gpu_accel () {
   [ -c /dev/dri/renderD128 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
-  verify_gpu_packages
+  verify_gpu_accel_packages
 }
 
 # checks the driver packages only, independent of GPU hardware being present.
 # used to confirm a fresh install succeeded even on systems without a discrete/exposed GPU device.
-verify_gpu_packages () {
+verify_gpu_accel_packages () {
   ensure_apt_is_installed intel-media-va-driver-non-free
 }
 
-debian_40_profile_gpu () {
+debian_40_profile_gpu_accel () {
   echo "curl gpg libze1"
 }
 
-debian_40_group_gpu () {
+debian_40_group_gpu_accel () {
   echo "render:992 video:"
 }
 
-debian_40_install_gpu () {
-  configure_gpu $*
+debian_40_install_gpu_accel () {
+  configure_gpu_accel "$@"
 
-  if verify_gpu && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Gpu drivers are already installed. Skipping..."
   else
     # remove legacies
-    debian_40_remove_gpu || true
+    debian_40_remove_gpu_accel || true
 
     # create the render group
-    ensure_group_add $(debian_40_group_gpu)
+    ensure_group_add $(debian_40_group_gpu_accel)
 
     # product key & list 
     ensure_apt_key $key_file $key_url --dearmor
@@ -3297,12 +3297,12 @@ debian_40_install_gpu () {
 
     # install the packages
     ensure_apt install --no-install-recommends -y "${pkg_list[@]}"
-    verify_gpu_packages
+    verify_gpu_accel_packages
   fi
 }
 
-debian_40_remove_gpu () {
-  configure_gpu $*
+debian_40_remove_gpu_accel () {
+  configure_gpu_accel "$@"
   ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
   # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
@@ -3315,8 +3315,8 @@ debian_40_remove_gpu () {
   ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg $key_file $apt_file
 }
 
-debian_40_sbom_gpu () {
-  configure_gpu "$@"
+debian_40_sbom_gpu_accel () {
+  configure_gpu_accel "$@"
   cat <<EOF
 $(ensure_sbom_format name "$repo_name")
 $(ensure_sbom_format apt-source "$apt_entry")
@@ -4035,48 +4035,48 @@ debian_90_remove_nicu_warmer () {
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
-configure_npu () {
+configure_npu_accel () {
   version=1.35.0
   repository=https://api.github.com/repos/intel/linux-npu-driver
   releases=https://github.com/intel/linux-npu-driver/releases
   workspace="$(ensure_project_path)/npu"
 }
 
-verify_npu () {
+verify_npu_accel () {
   [ -c /dev/accel/accel0 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
-  verify_npu_packages
+  verify_npu_accel_packages
 }
 
 # checks the driver packages only, independent of NPU hardware being present.
 # used to confirm a fresh install succeeded even on systems without an NPU device.
-verify_npu_packages () {
+verify_npu_accel_packages () {
   (
     set -o pipefail
     ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
   )
 }
 
-debian_40_profile_npu () {
+debian_40_profile_npu_accel () {
   echo "libtbb12 jq libze1"
 }
 
-debian_40_gpu_npu () {
+debian_40_group_npu_accel () {
   echo "render:992"
 }
 
-debian_40_install_npu () {
-  configure_npu $*
+debian_40_install_npu_accel () {
+  configure_npu_accel "$@"
 
-  if verify_npu && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_npu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Npu drivers are already installed. Skipping..."
   else
     # remove legacies
     ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
 
     # create the render group
-    ensure_group_add $(debian_40_gpu_npu)
+    ensure_group_add $(debian_40_group_npu_accel)
   
     mkdir -p "$workspace"
     cd "$workspace"
@@ -4092,17 +4092,17 @@ debian_40_install_npu () {
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
-    verify_npu_packages
+    verify_npu_accel_packages
   fi
 }
 
-debian_40_remove_npu () {
+debian_40_remove_npu_accel () {
   ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
-debian_40_sbom_npu () {
-  configure_npu "$@"
+debian_40_sbom_npu_accel () {
+  configure_npu_accel "$@"
   local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
   [ ${#packages[*]} -gt 0 ] || return 3
   cat <<EOF

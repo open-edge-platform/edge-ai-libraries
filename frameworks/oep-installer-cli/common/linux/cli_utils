@@ -170,11 +170,8 @@ act_helper () {
           [ "$act_name" = "start" ] && mkdir -p "$state_path"
           echo "@@COMP $name1"
           local rc1=0
-          (
-            set -e
-            $handler $invoke_args &
-            wait -n
-          ) || rc1=$?
+          ( set -e; $handler $invoke_args) &
+          wait $! || rc1=$?
           [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
