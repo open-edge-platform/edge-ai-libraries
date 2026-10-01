@@ -164,22 +164,23 @@ flowchart TB
     speech["Speech endpoint<br/>[Component: FastAPI / Pydantic]<br/>Text validation and WAV signature checks"]:::internal
     adapter["Upstream service adapter<br/>[Component: httpx / asyncio / perf_counter]<br/>Bounded reads, errors, timeout, cleanup and timing"]:::internal
     modelapi["Model routes / ModelManager<br/>[Component: FastAPI / Python]<br/>Catalog, background jobs and installed state"]:::internal
-    catalog["Voice model catalog<br/>[Component: supported_models.yaml]<br/>Whisper and SpeechT5 requests and artifacts"]:::internal
+    catalog["Voice model catalog<br/>[Component: DB-backed models / model_variants]<br/>Seeded from vippet/models/*.yaml; requests, variants and install state"]:::internal
     stt -->|Async call, response cap 128 KiB| adapter
     speech -->|Async call, response cap 64 MiB| adapter
-    modelapi -->|Resolves requests and required artifacts| catalog
+    modelapi -->|Reads download requests and required variants| catalog
+    modelapi -->|Persists variant and aggregate install state| catalog
   end
   asr["Audio Analyzer<br/>[External software system]<br/>Transcription service :8010"]:::external
   tts["Text to Speech<br/>[External software system]<br/>Synthesis service :8011"]:::external
   downloader["Model Download<br/>[External software system]<br/>OpenVINO plugin :8000"]:::external
-  modelstore[("Shared Voice model storage<br/>[External data store]<br/>OpenVINO artifacts and installed registry")]:::external
+  modelstore[("Shared Voice model storage<br/>[External data store]<br/>OpenVINO artifacts")]:::external
   web -->|"POST /api/v1/voice/transcriptions<br/>HTTP multipart"| stt
   web -->|"POST /api/v1/voice/speech<br/>HTTP JSON"| speech
   web -->|"Model list, install and job status<br/>HTTP JSON"| modelapi
   adapter -->|"POST /v1/audio/transcriptions<br/>HTTP multipart; JSON response"| asr
   adapter -->|"POST /v1/audio/speech<br/>HTTP JSON; WAV response"| tts
   modelapi -->|"POST downloads; poll jobs"| downloader
-  modelapi -->|"Checks artifacts; records installed state"| modelstore
+  modelapi -->|"Checks required artifacts"| modelstore
   downloader -->|"Exports into voice target path"| modelstore
   asr -->|"Loads model read-only"| modelstore
   tts -->|"Loads model read-only"| modelstore
@@ -203,13 +204,14 @@ sequenceDiagram
   participant UI as Models page / browser
   participant Web as Nginx
   participant API as ViPPET ModelManager
+  participant Catalog as Models DB
   participant Download as Model Download
   participant Store as shared/models/output/voice
   participant Service as Audio Analyzer or Text to Speech
   Operator->>UI: Install Whisper Base or SpeechT5
   UI->>Web: POST /api/v1/models/download
   Web->>API: Forward model names
-  API->>API: Validate catalog entry, installed state and running jobs
+  API->>Catalog: Resolve requests, variants and current install state
   API-->>Web: 202 Accepted with ViPPET job ID
   Web-->>UI: Forward response
   API->>Download: POST /api/v1/models/download?download_path=voice
@@ -223,7 +225,9 @@ sequenceDiagram
     API-->>Web: Aggregated progress
     Web-->>UI: Forward status response
   end
-  API->>Store: Verify required artifacts and record Installed state
+  API->>Store: Verify required artifacts
+  API->>Catalog: Persist variant and aggregate install state
+  Note over API,Catalog: SpeechT5 is Installed only when INT8 and FP16 are complete
   Note over Service,Store: Voice services must start after installation
   Service->>Store: Load selected precision read-only
   Service->>Service: Compile for configured or per-request device
@@ -407,8 +411,10 @@ Proxy-generated failures may differ from the backend's status mapping above.
 - [Models page](../../../ui/src/pages/Models.tsx),
   [model installation hook](../../../ui/src/features/models/useModelInstall.ts),
   [model routes](../../../vippet/api/routes/models.py),
-  [model manager](../../../vippet/managers/model_manager.py) and
-  [supported model catalog](../../../shared/models/supported_models.yaml).
+  [model manager](../../../vippet/managers/model_manager.py),
+  [Whisper catalog entry](../../../vippet/models/voice-whisper-base.yaml),
+  [SpeechT5 catalog entry](../../../vippet/models/voice-speecht5.yaml) and
+  [catalog DB seeding](../../../vippet/db_seed.py).
 - [Metrics stream](../../../ui/src/hooks/useMetricsStream.ts),
   [local chart history](../../../ui/src/hooks/useMetricHistory.ts) and
   [shared dashboard](../../../ui/src/features/metrics/MetricsDashboard.tsx).
