@@ -59,7 +59,12 @@ class ProximityTrigger(GstBase.BaseTransform):
     _distance = 30
     _frames = 10
 
-    @GObject.Property(type=str, nick="class-a", blurb="First object class to monitor")
+    @GObject.Property(
+        type=str,
+        nick="class-a",
+        blurb="First object class to monitor",
+        default="person",
+    )
     def class_a(self):
         return self._class_a
 
@@ -67,7 +72,12 @@ class ProximityTrigger(GstBase.BaseTransform):
     def class_a(self, value):
         self._class_a = value
 
-    @GObject.Property(type=str, nick="class-b", blurb="Second object class to monitor")
+    @GObject.Property(
+        type=str,
+        nick="class-b",
+        blurb="Second object class to monitor",
+        default="bicycle",
+    )
     def class_b(self):
         return self._class_b
 
@@ -115,6 +125,9 @@ class ProximityTrigger(GstBase.BaseTransform):
 
     def _check_proximity(self, rmeta) -> bool:
         """Return True if any class-a object is within distance of a class-b object."""
+        if not self._class_a or not self._class_b:
+            return False
+
         class_a_centers: list[tuple[float, float]] = []
         class_b_centers: list[tuple[float, float]] = []
 
@@ -142,10 +155,6 @@ class ProximityTrigger(GstBase.BaseTransform):
         return False
 
     def do_transform_ip(self, buffer):
-        _, state, _ = self.get_state(0)
-        if state != Gst.State.PLAYING:
-            return GST_BASE_TRANSFORM_FLOW_DROPPED
-
         rmeta = GstAnalytics.buffer_get_analytics_relation_meta(buffer)
         if not rmeta:
             self._consecutive_count = 0

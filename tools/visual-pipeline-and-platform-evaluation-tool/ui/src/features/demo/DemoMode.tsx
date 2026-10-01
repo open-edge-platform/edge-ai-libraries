@@ -86,6 +86,8 @@ const nodeTypeToTag: Record<string, string> = {
 
   // Encoders
   vah264enc: "Encoder",
+  openh264enc: "Encoder",
+  jpegenc: "Encoder",
 
   // Demuxers/Muxers/Parsers
   qtdemux: "Demuxer",
@@ -109,6 +111,7 @@ const nodeTypeToTag: Record<string, string> = {
 
   // Video Processing
   videoconvert: "Converter",
+  videoconvertscale: "Transform",
   videoscale: "PostProc",
   vapostproc: "Transform",
   capsfilter: "Filter",
