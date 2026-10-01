@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+name: face-detection-retail-0004
+display_name: Face Detection Retail 0004
+description: "Detects human faces in an image and returns a bounding box for each face; tuned for retail front-facing camera scenarios."
+source: omz
+hub: omz
+type: object_detection
+precisions:
+  - precision: INT8
+    model_path: omz/face-detection-retail-0004/FP16-INT8/face-detection-retail-0004.xml
+    model_proc: omz/face-detection-retail-0004/face-detection-retail-0004.json
+  - precision: FP16
+    model_path: omz/face-detection-retail-0004/FP16/face-detection-retail-0004.xml
+    model_proc: omz/face-detection-retail-0004/face-detection-retail-0004.json
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: omz
+  name: face-detection-retail-0004

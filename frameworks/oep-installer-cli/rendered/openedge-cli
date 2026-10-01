@@ -631,6 +631,7 @@ _sanitize_v() {
   local s=$1 keep=$2 out="" pre rest fin i ch
   s=${s//$'\t'/    }
   s=${s//$'\v'/ }; s=${s//$'\f'/ }; s=${s//$'\b'/}
+  while [[ $s == *$'\r' ]]; do s=${s%$'\r'}; done
   [[ $s == *$'\r'* ]] && s=${s##*$'\r'}
   if [[ $s == *$'\033'* ]]; then
     while [[ $s == *$'\033'* ]]; do
@@ -1325,6 +1326,8 @@ _handle_line() {
 
   _plain_v "$line"; plainkey=$PLAIN
   plainkey=${plainkey#"${plainkey%%[![:space:]]*}"}
+  [[ -z $plainkey ]] && return 0
+
   key=${plainkey%%[[:space:]]*}
   rest=${plainkey#"$key"}
   rest=${rest#"${rest%%[![:space:]]*}"}
@@ -1908,11 +1911,13 @@ ensure_sbom_format () {
 # default to best device for init and "" for start
 ensure_select_device () {
   local device="cpu"
+  # Match device flags case-insensitively so both --gpu and --GPU are accepted.
+  local args_uc=" ${*^^} "
   [ ! -e /dev/accel/accel0 ] || device="npu"
   [ ! -e /dev/dri/renderD128 ] || device="gpu"
-  [[ " $* " != *" --CPU "* ]] || device="cpu"
-  [[ " $* " != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu"
-  [[ " $* " != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu"
+  [[ "$args_uc" != *" --CPU "* ]] || device="cpu"
+  [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu"
+  [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu"
   echo $device
 }
 
@@ -5209,7 +5214,7 @@ debian_90_install_smart_parking () {
   else
     # clone the repository
     ensure_disk_space 300
-    ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+    ensure_git_export "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
 
     # setup
     cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
@@ -5417,6 +5422,65 @@ debian_70_remove_time_confighub () {
 }
 
 
+configure_uav_mission_compute_sdk () {
+  workspace="$(ensure_project_path)/uav-mission-compute-sdk"
+  version="release-2026.2.0"
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+verify_uav_mission_compute_sdk () {
+  [ -e "$workspace" ]
+}
+
+debian_85_profile_uav_mission_compute_sdk () {
+  echo "docker git curl make v4l_utils"
+}
+
+debian_85_install_uav_mission_compute_sdk () {
+  configure_uav_mission_compute_sdk
+  if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
+    echo "UAV mission compute sdk is already installed. Skipping..." 1>&2
+  else
+    ensure_git_export "$workspace" "$version" "$repository" federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+    cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+    make init
+    sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env
+    export HTTP_PROXY="${HTTP_PROXY:-$http_proxy}" HTTPS_PROXY="${HTTPS_PROXY:-$https_proxy}" NO_PROXY="${NO_PROXY:-$no_proxy}"
+    make build
+    verify_uav_mission_compute_sdk
+  fi
+
+  local profile="sim-camera"
+  [[ " $* " != *" --sim "* ]] || profile="sim-camera"
+  [[ " $* " != *" --usb "* ]] || profile="usb-camera"
+  [[ " $* " != *" --realsense "* ]] || profile="realsense-camera"
+  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+  sed -i '/^PROFILE=/{d}' "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/.env
+  echo "PROFILE=$profile" >> "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/.env
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+}
+
+debian_85_start_uav_mission_compute_sdk () {
+  ensure_ports_open "8086 3000 9090 9273" debian_85_stop_uav_mission_compute_sdk "$@"
+  configure_uav_mission_compute_sdk
+  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+  . .env
+  export HTTP_PROXY="${HTTP_PROXY:-$http_proxy}" HTTPS_PROXY="${HTTPS_PROXY:-$https_proxy}" NO_PROXY="${NO_PROXY:-$no_proxy}"
+  make up-$PROFILE
+}
+
+debian_85_stop_uav_mission_compute_sdk () {
+  configure_uav_mission_compute_sdk
+  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk && make down || true
+}
+
+debian_85_remove_uav_mission_compute_sdk () {
+  debian_85_stop_uav_mission_compute_sdk "$@"
+  ensure_sudo rm -rf "$workspace"
+}
+
+
 debian_15_install_unzip () {
   ensure_apt_install_package unzip
 }
@@ -5442,6 +5506,17 @@ debian_30_install_uv () {
   else
     pipx install uv
   fi
+}
+
+
+debian_30_install_v4l_utils () {
+  ensure_apt_install_package v4l-utils
+}
+
+debian_30_sbom_v4l_utils () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list v4l-utils)
+EOF
 }
 
 

@@ -127,7 +127,7 @@ pyright: $(VENV_SENTINEL) ## Run pyright type checker
 generate_openapi: $(VENV_SENTINEL) ## Generate OpenAPI schema file
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	cd $(PROJECT_NAME) ;\
-	PYTHONPATH=. SUPPORTED_MODELS_FILE=../shared/models/supported_models.yaml AUTO_VIDEO_DIR=../shared/videos/input/auto UPLOADED_VIDEO_DIR=../shared/videos/input/uploaded python ../generate_openapi.py
+	PYTHONPATH=. AUTO_VIDEO_DIR=../shared/videos/input/auto UPLOADED_VIDEO_DIR=../shared/videos/input/uploaded python ../generate_openapi.py
 
 # Directory layout for the shared/ runtime volumes. Cheap and idempotent
 # but sentinel-gated so repeated invocations skip the chmod chatter.
@@ -223,11 +223,11 @@ test: build-test ## Run unit tests and generate coverage report
 
 test-smoke: $(VENV_SENTINEL) ## Run smoke functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
-	python -m pytest --log-cli-level=INFO -m smoke vippet/tests/functional/
+	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO -m smoke vippet/tests/functional/
 
 test-full: $(VENV_SENTINEL) ## Run full functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
-	python -m pytest --log-cli-level=INFO vippet/tests/functional/
+	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO vippet/tests/functional/
 
 test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full)
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
