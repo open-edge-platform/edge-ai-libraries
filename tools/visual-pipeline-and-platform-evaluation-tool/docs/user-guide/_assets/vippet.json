@@ -3,7 +3,7 @@
   "info": {
     "title": "Visual Pipeline and Platform Evaluation Tool API",
     "description": "API for Visual Pipeline and Platform Evaluation Tool",
-    "version": "2026.2.0-rc2"
+    "version": "2026.3.0-dev"
   },
   "servers": [
     {
