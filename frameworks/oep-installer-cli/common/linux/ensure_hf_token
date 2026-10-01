@@ -27,10 +27,8 @@ ensure_hf_token () {
       local askpass_helper="$rundir"/askpass-hftoken
       act_panelled_logs_askpass "$askpass_helper" HF_TOKEN || { echo "ensure_hf_token: failed to create askpass helper" >&2; return 1; }
       export HF_TOKEN="$("$askpass_helper" 'HF_TOKEN:' | tr -d '\n')"
-      echo "HF_TOKEN=$HF_TOKEN" 1>&2
     } 9< "$rundir"
 
-    echo "HF_TOKEN=$HF_TOKEN" 1>&2
     ensure_hf_token_check_models "$@"
   fi
 }

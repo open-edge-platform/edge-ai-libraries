@@ -42,9 +42,7 @@ debian_90_install_order_accuracy_dine_in () {
 
     # setup
     local model="$(. .env; echo "$OVMS_MODEL_NAME")"
-    model="meta-llama/Llama-3.1-8B-Instruct"
     ensure_hf_token "${model/MiniCPM-V-4_5-int4/MiniCPM-V-4_5}"
-    echo "sts=$?" 1>&2
 
     sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
     sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=|" .env
