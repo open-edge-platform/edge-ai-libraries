@@ -76,7 +76,8 @@ This should resolve OpenCV-related dependency issues and allow the summary stack
    source setup.sh --search
    ```
 
-> **Note:** Removing the `ov-models` or `docker_ov-models` volume will delete any previously cached or converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
+> [!NOTE]
+> Removing the `ov-models` or `docker_ov-models` volume will delete any previously cached or converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
 
 **Prevention**: This issue has been fixed in the current version of the VLM microservice Dockerfile. New installations will automatically create the volume with correct permissions.
 
@@ -119,7 +120,8 @@ Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` envi
 - For CPU: `Qwen/Qwen2.5-VL-7B-Instruct` (larger version)
 - For GPU: Consider other supported VLM models with higher parameter counts
 
-> **Note:** Larger models will require more system resources (RAM or VRAM) and may have longer inference times, but typically provide more accurate and coherent summaries.
+> [!NOTE]
+> Larger models will require more system resources (RAM or VRAM) and may have longer inference times, but typically provide more accurate and coherent summaries.
 
 ## Final Summary Stuck or OVMS Container Stopped
 
@@ -268,7 +270,8 @@ Alternatively, switch to a model with a larger context window.
 
 3. Re-deploy (or `helm upgrade`) and confirm the pod now lists `['CPU','NPU']` (or `GPU`) and loads the model on the accelerator.
 
-> **Note:** Nodes are heterogeneous, so the gid can differ per node. The chart cannot auto-detect it (templates render client-side), which is why `global.accelGroupIds` is an explicit override. On first GPU/NPU start the model is compiled and cached to `ovCacheDir` (`/app/ov_models/ov_cache`); allow the DataPrep `startupProbe` budget to complete this one-time compile.
+> [!NOTE]
+> Nodes are heterogeneous, so the gid can differ per node. The chart cannot auto-detect it (templates render client-side), which is why `global.accelGroupIds` is an explicit override. On first GPU/NPU start the model is compiled and cached to `ovCacheDir` (`/app/ov_models/ov_cache`); allow the DataPrep `startupProbe` budget to complete this one-time compile.
 
 ## OVMS KV Cache Exhaustion
 
@@ -317,7 +320,8 @@ source setup.sh --summary   # or --search
 
 The updated cache size is applied to the existing model configuration on the next run — no re-export is required.
 
-> **Note:** On integrated GPUs (iGPU), memory is shared with the system. Setting a very large cache size may leave insufficient memory for model weights and cause `CL_OUT_OF_RESOURCES` errors. Start with modest increases (e.g., 4 → 6 → 8 GB) and monitor both cache usage and GPU memory utilization.
+> [!NOTE]
+> On integrated GPUs (iGPU), memory is shared with the system. Setting a very large cache size may leave insufficient memory for model weights and cause `CL_OUT_OF_RESOURCES` errors. Start with modest increases (e.g., 4 → 6 → 8 GB) and monitor both cache usage and GPU memory utilization.
 
 ## 4K/8K Video Ingestion Stalls with a Worker Timeout
 
@@ -368,7 +372,8 @@ The updated cache size is applied to the existing model configuration on the nex
    source setup.sh --search
    ```
 
-> **Note:** Always size the block from the **largest** resolution you will ingest — an oversized block only wastes memory, while an undersized one triggers the failure above. For the full explanation, see the DataPrep [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/docs/user-guide/get-started.md#advanced-tuning).
+> [!NOTE]
+> Always size the block from the **largest** resolution you will ingest — an oversized block only wastes memory, while an undersized one triggers the failure above. For the full explanation, see the DataPrep [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/docs/user-guide/get-started.md#advanced-tuning).
 
 ## Accuracy of search results
 

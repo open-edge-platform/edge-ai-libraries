@@ -334,7 +334,7 @@ function Get-SourceEntrypointPaths {
     foreach ($relativeRoot in @('module', 'profile')) {
         $scanRoot = Join-Path $root $relativeRoot
         if (Test-Path $scanRoot) {
-            foreach ($item in @(Get-ChildItem -Path $scanRoot -Filter 'windows.ps1' -File -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName | Group-Object DirectoryName | ForEach-Object { $_.Group | Select-Object -First 1 })) {
+            foreach ($item in @(Get-ChildItem -Path $scanRoot -Filter 'windows' -File -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName | Group-Object DirectoryName | ForEach-Object { $_.Group | Select-Object -First 1 })) {
                 [void]$resolvedPaths.Add($item.FullName)
             }
         }
@@ -371,12 +371,12 @@ function SubcommandBootstrap {
         $profiles = @()
         $profileRoot = Join-Path $root 'profile'
         if (Test-Path $profileRoot) {
-            $profiles = @(Get-ChildItem -Path $profileRoot -Filter 'windows.ps1' -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object { $_.Directory.Name } | Sort-Object -Unique)
+            $profiles = @(Get-ChildItem -Path $profileRoot -Filter 'windows' -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object { $_.Directory.Name } | Sort-Object -Unique)
         }
         $modules = @()
         $moduleRoot = Join-Path $root 'module'
         if (Test-Path $moduleRoot) {
-            $modules = @(Get-ChildItem -Path $moduleRoot -Filter 'windows.ps1' -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object { $_.Directory.Name } | Sort-Object -Unique)
+            $modules = @(Get-ChildItem -Path $moduleRoot -Filter 'windows' -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object { $_.Directory.Name } | Sort-Object -Unique)
         }
 
         if ($profiles.Count -gt 0) {
@@ -444,14 +444,14 @@ function SubcommandBootstrap {
         $profileNames = @{}
         $profileRoot = Join-Path $root 'profile'
         if (Test-Path $profileRoot) {
-            foreach ($item in Get-ChildItem -Path $profileRoot -Filter 'windows.ps1' -File -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName) {
+            foreach ($item in Get-ChildItem -Path $profileRoot -Filter 'windows' -File -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName) {
                 $profileNames[$item.Directory.Name] = $true
                 [void]$selectedModules.Add($item.Directory.Name)
             }
         }
         $moduleRoot = Join-Path $root 'module'
         if (Test-Path $moduleRoot) {
-            foreach ($item in Get-ChildItem -Path $moduleRoot -Filter 'windows.ps1' -File -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName) {
+            foreach ($item in Get-ChildItem -Path $moduleRoot -Filter 'windows' -File -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName) {
                 if (-not $profileNames.ContainsKey($item.Directory.Name)) {
                     [void]$selectedModules.Add($item.Directory.Name)
                 }
@@ -480,8 +480,8 @@ function SubcommandBootstrap {
         }
 
         $seenNames[$name] = $true
-        $profilePath = Join-Path $root (Join-Path 'profile' (Join-Path $name 'windows.ps1')).Replace('\', '/')
-        $modulePath = Join-Path $root (Join-Path 'module' (Join-Path $name 'windows.ps1')).Replace('\', '/')
+        $profilePath = Join-Path $root (Join-Path 'profile' (Join-Path $name 'windows')).Replace('\', '/')
+        $modulePath = Join-Path $root (Join-Path 'module' (Join-Path $name 'windows')).Replace('\', '/')
 
         if (Test-Path $profilePath) {
             $selectedScripts[$profilePath] = $true
@@ -507,7 +507,7 @@ function SubcommandBootstrap {
 
     if ($selectedScripts.Count -eq 0) {
         foreach ($fallbackModule in @($Context.Modules)) {
-            $fallbackPath = Join-Path $root (Join-Path 'module' (Join-Path $fallbackModule 'windows.ps1')).Replace('\', '/')
+            $fallbackPath = Join-Path $root (Join-Path 'module' (Join-Path $fallbackModule 'windows')).Replace('\', '/')
             if (Test-Path $fallbackPath) {
                 $selectedScripts[$fallbackPath] = $true
             }

@@ -69,6 +69,23 @@ On first run the service may:
 
 Later starts reuse those cached files and should be much faster.
 
+## Model Download Times Out Behind A Proxy
+
+If model downloads work on the host but time out in the container, export the
+host proxy variables before starting Compose. The Compose configuration passes
+both uppercase and lowercase variants to the service:
+
+```bash
+export HTTP_PROXY="http://proxy.example.com:8080"
+export HTTPS_PROXY="$HTTP_PROXY"
+export NO_PROXY="localhost,127.0.0.1"
+docker compose up -d --force-recreate
+docker compose logs -f text-to-speech
+```
+
+Do not commit proxy URLs containing credentials. Configure authenticated proxy
+values in the shell or another approved secret-management mechanism.
+
 ## `health` Endpoint Fails
 
 For Docker:

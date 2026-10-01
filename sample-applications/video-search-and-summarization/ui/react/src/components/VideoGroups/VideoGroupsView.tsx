@@ -1,10 +1,10 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { FC, useMemo } from 'react';
+import { FC, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import { InlineLoading } from '@carbon/react';
 import { useAppSelector } from '../../redux/store';
-import { Video } from '../../redux/video/video';
 import { ScoreBreakdown, SearchResult } from '../../redux/search/search';
 import { videosSelector } from '../../redux/video/videoSlice';
 import { SearchSelector } from '../../redux/search/searchSlice';
@@ -105,6 +105,16 @@ const VideoTag = styled.span`
   font-weight: 400;
 `;
 
+const TimestampBadge = styled.span`
+  background-color: var(--color-dark-7, #343a3f);
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+`;
+
 const RelevanceScore = styled.div`
   color: var(--color-text-primary);
   padding: 0.25rem 0.5rem;
@@ -145,86 +155,219 @@ const TAG_COLORS = [
   '#F5F5F5', // Light Grey
 ];
 
+/**
+ * A single search hit (one clip of one video at one timestamp).
+ *
+ * Grouping is done per search result rather than per video: a query can return
+ * many hits from the same video at different timestamps, and every one of them
+ * must stay visible, exactly as in the ungrouped result list.
+ */
+interface SearchClip {
+  /** Stable identity of the search hit, unique even within one video. */
+  key: string;
+  videoId: string;
+  name: string;
+  url: string;
+  tags: string[];
+  timestamp: number;
+  relevanceScore: number;
+  scoreBreakdown?: ScoreBreakdown;
+}
+
 interface TagGroup {
   tag: string;
-  videos: Video[];
+  clips: SearchClip[];
+  videoCount: number;
   color: string;
 }
+
+const formatTimestamp = (seconds: number): string => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '00:00';
+  const total = Math.floor(seconds);
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
+
+/** Tag entries can arrive as plain strings or as objects from the search index. */
+interface TagObject {
+  tag?: unknown;
+  name?: unknown;
+  label?: unknown;
+}
+
+/**
+ * Search metadata as consumed here. `SearchResult['metadata']` is typed against
+ * the interval-based index, but the frame/crop index adds and omits fields, so
+ * everything this view reads is treated as optional.
+ */
+type ClipMetadata = Partial<SearchResult['metadata']> & {
+  title?: string;
+  name?: string;
+};
+
+/** Normalize `metadata.tags`, which may be an array, a CSV string, or objects. */
+const normalizeTags = (rawTags: unknown): string[] => {
+  let entries: unknown[] = [];
+  if (Array.isArray(rawTags)) {
+    entries = rawTags;
+  } else if (typeof rawTags === 'string' && rawTags.trim()) {
+    entries = rawTags.split(',');
+  }
+
+  return entries
+    .map((entry) => {
+      if (typeof entry === 'string') return entry.trim();
+      if (entry && typeof entry === 'object') {
+        const { tag, name, label } = entry as TagObject;
+        const tagValue = tag ?? name ?? label ?? '';
+        return typeof tagValue === 'string' ? tagValue.trim() : '';
+      }
+      return String(entry ?? '').trim();
+    })
+    .filter((tag) => tag.length > 0);
+};
+
+interface ClipCardProps {
+  clip: SearchClip;
+  resolvedUrl: string;
+}
+
+/**
+ * Renders one search hit and seeks the player to the hit's timestamp.
+ *
+ * The seek has to be driven by `loadedmetadata` because `load()` resets
+ * `currentTime` and duration is unknown until the container is parsed. This
+ * mirrors the ungrouped `VideoTile` behavior.
+ */
+const ClipCard: FC<ClipCardProps> = ({ clip, resolvedUrl }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const videoEl = videoRef.current;
+    if (!videoEl || !resolvedUrl) return undefined;
+
+    const seekToTimestamp = () => {
+      if (clip.timestamp > 0 && Number.isFinite(videoEl.duration)) {
+        videoEl.currentTime = Math.min(clip.timestamp, Math.max(videoEl.duration - 0.1, 0));
+      }
+    };
+
+    videoEl.addEventListener('loadedmetadata', seekToTimestamp);
+    videoEl.load();
+
+    return () => videoEl.removeEventListener('loadedmetadata', seekToTimestamp);
+  }, [resolvedUrl, clip.timestamp]);
+
+  return (
+    <VideoCard>
+      <VideoCardWrapper>
+        {resolvedUrl ? (
+          <VideoPlayer ref={videoRef} controls preload='metadata'>
+            <source src={resolvedUrl} type='video/mp4' />
+            Your browser does not support the video tag.
+          </VideoPlayer>
+        ) : (
+          <VideoPlaceholder>Video not available</VideoPlaceholder>
+        )}
+      </VideoCardWrapper>
+
+      <BottomInfo>
+        <RelevanceScore>
+          <ScoreDisplay relevanceScore={clip.relevanceScore} scoreBreakdown={clip.scoreBreakdown} />
+        </RelevanceScore>
+        <TimestampBadge>{formatTimestamp(clip.timestamp)}</TimestampBadge>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+          {clip.tags.map((tag, idx) => (
+            <VideoTag key={`${clip.key}-tag-${idx}-${tag}`}>{tag}</VideoTag>
+          ))}
+        </div>
+      </BottomInfo>
+    </VideoCard>
+  );
+};
 
 export const VideoGroupsView: FC = () => {
   const { t } = useTranslation();
   const { getVideoUrl } = useAppSelector(videosSelector);
-  const { selectedResults } = useAppSelector(SearchSelector);
+  const { selectedResults, isSelectedInitialLoading } = useAppSelector(SearchSelector);
 
-  // Build a map of relevance scores from search results
-  const videoRelevanceMap = useMemo(() => {
-    const map = new Map<string, number>();
-    selectedResults?.forEach((result: SearchResult) => {
-      const vid = result.metadata?.video_id;
-      const score = result.metadata?.relevance_score;
-      if (vid && typeof score === 'number') map.set(vid, score);
-    });
-    return map;
-  }, [selectedResults]);
-
-  // Keep the full score breakdown so raw scores can be shown alongside the
-  // normalized relevance score.
-  const videoScoreBreakdownMap = useMemo(() => {
-    const map = new Map<string, ScoreBreakdown>();
-    selectedResults?.forEach((result: SearchResult) => {
-      const vid = result.metadata?.video_id;
-      const breakdown = result.metadata?.score_breakdown;
-      if (vid && breakdown && !map.has(vid)) map.set(vid, breakdown);
-    });
-    return map;
-  }, [selectedResults]);
-
-  // Convert selected results into minimal Video objects for grouping
-  const searchVideos: Video[] = useMemo(() => {
+  // One clip per search result, so hits from the same video at different
+  // timestamps are all preserved.
+  const searchClips: SearchClip[] = useMemo(() => {
     if (!selectedResults || selectedResults.length === 0) return [];
+
+    // Stable, position-independent keys so refreshing a watched query does not remount
+    // clips that are still in the result set. Identical video/timestamp pairs are rare
+    // but get a suffix so React keys stay unique.
+    const seen = new Map<string, number>();
+
     return selectedResults
       .map((result: SearchResult) => {
-        const meta: any = result.metadata ?? {};
-        const vid = meta.video_id || meta.id;
-        if (!vid) return null;
+        const meta: ClipMetadata = result.metadata ?? {};
+        const videoId = meta.video_id || meta.id;
+        if (!videoId) return null;
 
-        // Normalize tags: can be array or comma-separated string or array of objects
-        let tagsArrRaw: any[] = [];
-        if (Array.isArray(meta.tags)) {
-          tagsArrRaw = meta.tags;
-        } else if (typeof meta.tags === 'string' && meta.tags.trim()) {
-          tagsArrRaw = meta.tags.split(',').map((s: string) => s.trim()).filter(Boolean);
-        }
-
-        // Convert any tag entry into a safe string
-        const tagsArr: string[] = tagsArrRaw
-          .map((t) => {
-            if (typeof t === 'string') return t.trim();
-            if (t && typeof t === 'object') {
-              const tagValue = t.tag ?? t.name ?? t.label ?? '';
-              return typeof tagValue === 'string' ? tagValue.trim() : '';
-            }
-            return String(t || '').trim();
-          })
-          .filter((s) => s && s.length > 0); // More strict filtering
+        const timestamp = typeof meta.timestamp === 'number' ? meta.timestamp : 0;
+        const baseKey = `${videoId}-${timestamp}`;
+        const occurrence = seen.get(baseKey) ?? 0;
+        seen.set(baseKey, occurrence + 1);
 
         return {
-          videoId: vid,
-          name: meta.name ?? meta.title ?? vid,
+          key: occurrence === 0 ? baseKey : `${baseKey}-${occurrence}`,
+          videoId,
+          name: meta.name ?? meta.title ?? videoId,
           // Fall back to the object store directly. The dataprep download URLs in
           // metadata are not browser-addressable and do not support ranges.
           url:
             resolveVideoUrl(result.video, ASSETS_ENDPOINT) ||
             resolveSearchResultVideoUrl(meta, ASSETS_ENDPOINT) ||
             '',
-          tags: tagsArr,
-          createdAt: (meta.date_time as string) ?? (meta.date as string) ?? '',
-          updatedAt: '',
-          dataStore: result.video?.dataStore,
-        } as Video;
+          tags: normalizeTags(meta.tags),
+          timestamp,
+          relevanceScore: typeof meta.relevance_score === 'number' ? meta.relevance_score : 0,
+          scoreBreakdown: meta.score_breakdown as ScoreBreakdown | undefined,
+        } as SearchClip;
       })
-        .filter((v: Video | null): v is Video => v !== null);
+      .filter((clip: SearchClip | null): clip is SearchClip => clip !== null);
   }, [selectedResults]);
+
+  const tagGroups: TagGroup[] = useMemo(() => {
+    const groups = new Map<string, SearchClip[]>();
+
+    const addToGroup = (tag: string, clip: SearchClip) => {
+      if (!groups.has(tag)) groups.set(tag, []);
+      groups.get(tag)!.push(clip);
+    };
+
+    searchClips.forEach((clip) => {
+      if (clip.tags.length === 0) {
+        addToGroup('Untagged', clip);
+      } else {
+        clip.tags.forEach((tag) => addToGroup(tag, clip));
+      }
+    });
+
+    return Array.from(groups.entries()).map(([tag, clips], i) => ({
+      tag,
+      clips: [...clips].sort((a, b) => b.relevanceScore - a.relevanceScore),
+      videoCount: new Set(clips.map((clip) => clip.videoId)).size,
+      color: TAG_COLORS[i % TAG_COLORS.length],
+    }));
+  }, [searchClips]);
+
+  // First run of the query: show placeholders rather than a misleading "no results" state.
+  // A refresh keeps its existing groups mounted and relies on the QueryInfo chip instead.
+  if (isSelectedInitialLoading) {
+    return (
+      <VideoGroupsContainer data-testid='video-groups-skeleton'>
+        <GroupHeader>{t('VideoGroups', 'Video Groups by Tags')}</GroupHeader>
+        <EmptyState>
+          <InlineLoading status='active' description={t('searchRunning')} />
+        </EmptyState>
+      </VideoGroupsContainer>
+    );
+  }
 
   // If no search results, show a helpful empty state
   if (!selectedResults || selectedResults.length === 0) {
@@ -238,47 +381,6 @@ export const VideoGroupsView: FC = () => {
       </VideoGroupsContainer>
     );
   }
-
-  // Group the converted videos by tag
-  const tagGroups: TagGroup[] = useMemo(() => {
-    const groups = new Map<string, Video[]>();
-    
-    searchVideos.forEach((video) => {
-      const tags = Array.isArray(video.tags) ? video.tags : [];
-      // Filter out any empty or whitespace-only tags
-      const validTags = tags.filter((tag) => tag && typeof tag === 'string' && tag.trim().length > 0);
-      
-      if (validTags.length === 0) {
-        // Video has no valid tags - add to Untagged group
-        if (!groups.has('Untagged')) groups.set('Untagged', []);
-        const untaggedVideos = groups.get('Untagged')!;
-        if (!untaggedVideos.some((existing) => existing.videoId === video.videoId)) {
-          untaggedVideos.push(video);
-        }
-      } else {
-        // Video has valid tags - add to each tag group
-        validTags.forEach((tag) => {
-          const trimmedTag = tag.trim();
-          if (!groups.has(trimmedTag)) groups.set(trimmedTag, []);
-          const tagVideos = groups.get(trimmedTag)!;
-          if (!tagVideos.some((existing) => existing.videoId === video.videoId)) {
-            tagVideos.push(video);
-          }
-        });
-      }
-    });
-
-    const arr = Array.from(groups.entries()).map(([tag, vids], i) => ({
-      tag,
-      videos: vids.sort((a, b) => {
-        const sa = videoRelevanceMap.get(a.videoId) ?? 0;
-        const sb = videoRelevanceMap.get(b.videoId) ?? 0;
-        return sb - sa; // descending
-      }),
-      color: TAG_COLORS[i % TAG_COLORS.length],
-    }));
-    return arr;
-  }, [searchVideos, videoRelevanceMap]);
 
   if (tagGroups.length === 0) {
     return (
@@ -300,47 +402,19 @@ export const VideoGroupsView: FC = () => {
         <TagGroup key={group.tag} $backgroundColor={group.color}>
           <TagHeader>
             {group.tag}
-            <TagBadge>{group.videos.length} videos</TagBadge>
+            <TagBadge>{group.videoCount} videos</TagBadge>
+            <TagBadge>{group.clips.length} results</TagBadge>
           </TagHeader>
 
           <VideoGrid>
-            {group.videos.map((video) => {
-              const reduxVideoUrl = getVideoUrl ? getVideoUrl(video.videoId) : null;
-              const videoUrl = reduxVideoUrl || video.url;
-              const relevanceScore = videoRelevanceMap.get(video.videoId) ?? 0;
-              const scoreBreakdown = videoScoreBreakdownMap.get(video.videoId);
-
+            {group.clips.map((clip) => {
+              const reduxVideoUrl = getVideoUrl ? getVideoUrl(clip.videoId) : null;
               return (
-                <VideoCard key={`${group.tag}-${video.videoId}`}>
-                  <VideoCardWrapper>
-                    {videoUrl ? (
-                      <VideoPlayer controls preload="metadata">
-                        <source src={videoUrl} type="video/mp4" />
-                        Your browser does not support the video tag.
-                      </VideoPlayer>
-                    ) : (
-                      <VideoPlaceholder>Video not available</VideoPlaceholder>
-                    )}
-                  </VideoCardWrapper>
-
-                  <BottomInfo>
-                    <RelevanceScore>
-                      <ScoreDisplay relevanceScore={relevanceScore} scoreBreakdown={scoreBreakdown} />
-                    </RelevanceScore>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                      {Array.isArray(video.tags) && video.tags.map((rawTag, idx) => {
-                        const tAny: any = rawTag;
-                        const displayTag = typeof rawTag === 'string'
-                          ? rawTag
-                          : tAny && typeof tAny === 'object'
-                            ? tAny.tag ?? tAny.name ?? tAny.label ?? JSON.stringify(tAny)
-                            : String(rawTag);
-                        const key = `${video.videoId}-tag-${idx}-${displayTag}`;
-                        return <VideoTag key={key}>{displayTag}</VideoTag>;
-                      })}
-                    </div>
-                  </BottomInfo>
-                </VideoCard>
+                <ClipCard
+                  key={`${group.tag}-${clip.key}`}
+                  clip={clip}
+                  resolvedUrl={reduxVideoUrl || clip.url}
+                />
               );
             })}
           </VideoGrid>

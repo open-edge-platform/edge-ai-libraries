@@ -2,7 +2,8 @@
 
 This is the **MCP (Model Context Protocol) server** for the [Video Search and Summarization (VSS)](https://github.com/open-edge-platform/edge-ai-libraries) sample application. It proxies VSS REST endpoints to MCP clients (agents, IDE extensions, MCP Inspector, etc.) as **tools** and **resources**.
 
-> **Note:** The MCP server currently supports **Search mode** only.
+> [!NOTE]
+> The MCP server currently supports **Search mode** only.
 > Summary and combined Search + Summary modes will be supported in a future release.
 
 

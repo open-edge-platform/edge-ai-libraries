@@ -1,6 +1,10 @@
 .gradio/*
 .idea/*
 
+# Adding the go workspace files for handling the local path of go modules
+go.work
+go.work.sum
+
 # For skills eval benchmark directories, we will include only two benchmark files and ignore rest.
 **/.github/skills/*/benchmark/*
 !**/.github/skills/*/benchmark/benchmark.md

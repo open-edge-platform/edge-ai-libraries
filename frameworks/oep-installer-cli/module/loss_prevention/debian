@@ -1,7 +1,7 @@
 
 configure_loss_prevention () {
   workspace="$(ensure_project_path)/loss_prevention"
-  version=v2026.1.0-rc2
+  version=v2026.2.0
   repository="https://github.com/intel-retail/loss-prevention.git"
 }
 
@@ -15,7 +15,7 @@ debian_90_profile_loss_prevention () {
 
 debian_90_install_loss_prevention () {
   configure_loss_prevention
-  if verify_loss_prevention && [[ "$*" != *"--reset-loss_prevention"* ]]; then
+  if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loss prevention is already installed. Skipping"
     return
   fi

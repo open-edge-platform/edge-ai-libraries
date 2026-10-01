@@ -50,7 +50,8 @@ The following parameters are exposed in the UI:
 | **pixel-diff-threshold** | `25`         | Minimum per-pixel intensity difference (0-255) for a pixel to count as changed when comparing consecutive frames.                                                        |
 | **min-rel-area**         | `0.005`      | Minimum relative area (fraction of the full frame) for a detected motion region to be reported. Filters out very small specks of motion.                                 |
 
-> **Note:** The defaults shown above are the UI defaults applied when you place a fresh
+> [!NOTE]
+> The defaults shown above are the UI defaults applied when you place a fresh
 > `gvamotiondetect` node on the canvas. The predefined **Motion Detection** pipeline overrides two of
 > them in its variants: `motion-threshold=0.07` and `min-persistence=2`, which makes the detector
 > noticeably more sensitive than the bare UI defaults. Edit these values in the panel to match your

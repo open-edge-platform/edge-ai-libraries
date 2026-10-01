@@ -1,15 +1,10 @@
 
-debian_10_install_git () {
-  if ensure_apt_is_installed git > /dev/null 2>&1; then
-    echo "Git is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y git ca-certificates
-  fi
+debian_30_install_git () {
+  ensure_apt_install_package git ca-certificates
 }
 
-debian_10_sbom_git () {
+debian_30_sbom_git () {
   cat <<EOF
-"pkg-list": ["git","ca-certificates"]
+$(ensure_sbom_format pkg-list git ca-certificates)
 EOF
 }

@@ -68,8 +68,16 @@ def startup_event():
             "Runtime configuration validation failed — service will start but "
             "some inference paths may not be available: %s", exc
         )
-    ensure_model()
-    preload_models()
+    try:
+        ensure_model()
+        preload_models()
+    except Exception as exc:
+        logger.warning(
+            "ASR model is unavailable. "
+            "Startup will be retried by the container runtime: %s",
+            exc,
+        )
+        raise
 
 
 app.include_router(openai_router)

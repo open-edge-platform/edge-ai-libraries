@@ -19,11 +19,11 @@ For a detailed overview of the service architecture, capabilities, and design, s
 
 All runtime behavior is driven by **environment variables and one YAML pattern file**:
 
-> **Important:**
->
+> [!IMPORTANT]
+> 
 > - Configuration is mandatory for all runs: quick start, Docker
 >   deployment, and host deployment.
->
+> 
 > - The service may start with default values,
 >   but successful analysis requires deployment-specific configuration.
 
@@ -40,7 +40,8 @@ The service supports two deployment modes configured by the `DEPLOYMENT_MODE` en
 
 Default mode: `standalone+api` (as defined in the project `.env` file).
 
-> **Tip:** Start with `standalone+api` unless you specifically need
+> [!TIP]
+> Start with `standalone+api` unless you specifically need
 > storage-backed async processing with SeaweedFS and MQTT.
 
 ### Run in Docker (Recommended)

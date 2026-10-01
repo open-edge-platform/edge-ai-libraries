@@ -5,7 +5,8 @@ There is a dedicated docker compose file for demonstrating WebRTC streaming for 
 
 Once a pipeline is started, DL Streamer Pipeline Server sends a stream of images through WebRTC protocol to WebRTC browser client. This is done via the MediaMTX server used for signaling.
 
-> **Note:** As an optional recommendation, Coturn server can be used to facilitate NAT traversal
+> [!NOTE]
+> As an optional recommendation, Coturn server can be used to facilitate NAT traversal
 > and ensure that the WebRTC stream is accessible on a non-native browser client and helps in
 > cases where firewall is enabled. See example usage of Coturn server in WebRTC streaming
 > [here](https://github.com/open-edge-platform/edge-ai-suites/tree/main/manufacturing-ai-suite/industrial-edge-insights-vision)
@@ -62,7 +63,8 @@ After setting all the above information, we can start the WebRTC streaming:
 - Open `http://<HOST_IP>:8889/<peer-id>` in your browser to view the WebRTC stream:
     ![Stream output on browser using WebRTC](../_assets/sample_webrtc_mediamtx.png)
 
-> **Note:** You can control WebRTC frame overlays using `overlay` and `overlay-properties` in `destination.frame`.
+> [!NOTE]
+> You can control WebRTC frame overlays using `overlay` and `overlay-properties` in `destination.frame`.
 >
 > - If `"overlay": true`, `gvawatermark` is applied.
 > - If `"overlay": false`, `gvawatermark` is not applied and `overlay-properties` is ignored.
@@ -83,7 +85,8 @@ After setting all the above information, we can start the WebRTC streaming:
 > }
 > ```
 
-> **Note:** If you are using 4K or high resolution video make sure to increase the bitrate to
+> [!NOTE]
+> If you are using 4K or high resolution video make sure to increase the bitrate to
 > avoid choppy video streaming. You can set the bitrate by adding `"bitrate" : 5000` with the
 > WebRTC configurations in your Curl command.
 
@@ -95,6 +98,7 @@ After setting all the above information, we can start the WebRTC streaming:
                 }
     ```
 
-> **Note:** MediaMTX may fail to stream if the pipeline initialization takes longer than 10
+> [!NOTE]
+> MediaMTX may fail to stream if the pipeline initialization takes longer than 10
 > seconds. To resolve this, you can increase the `WHIP_SERVER_TIMEOUT` value in the
 > `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file.

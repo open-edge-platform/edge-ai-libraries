@@ -105,13 +105,13 @@ PLUGINS = {
 }
 ```
 
-Important runtime detail:
-
-- `ENABLED_PLUGINS` controls which modules are imported by `src/plugins/__init__.py`
-- `ACTIVATED_PLUGINS` in `/opt/activated_plugins.env` is what `PluginRegistry` checks later
-
-If the plugin is implemented but does not appear in `/api/v1/plugins`, assume one of those
-registration or activation surfaces is out of sync before you assume the core plugin logic is wrong.
+> [!IMPORTANT]
+>
+> - `ENABLED_PLUGINS` controls which modules are imported by `src/plugins/__init__.py`
+> - `ACTIVATED_PLUGINS` in `/opt/activated_plugins.env` is what `PluginRegistry` checks later
+>
+> If the plugin is implemented but does not appear in `/api/v1/plugins`, assume one of those
+> registration or activation surfaces is out of sync before you assume the core plugin logic is wrong.
 
 ---
 

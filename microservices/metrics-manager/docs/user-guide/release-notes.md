@@ -112,7 +112,7 @@ None at this release. See GitHub issues for feature requests and discussions.
 
 ### Current Image
 
-- Intel® Metrics Manager **2026.1.0**
+- Intel® Metrics Manager **2026.2.0**
 - Telegraf **1.39.3** (system metrics agent)
 - qmassa **1.3.1** (Intel® GPU telemetry via named pipe)
 - qmmd **0.1.1** _(optional)_ — Lightweight Prometheus GPU exporter (bundled but **not started by default**; use only if you need a separate GPU metrics port)
@@ -120,6 +120,7 @@ None at this release. See GitHub issues for feature requests and discussions.
 - Python **3.12** runtime + FastAPI service
 - supervisord process supervisor
 
+> [!NOTE]
 > **Note on qmmd:** The default Metrics Manager already collects GPU metrics via `qmassa_reader.py` and Telegraf. Enable qmmd only if you need a standalone Prometheus exporter on a separate port. See [Environment Variables](./get-started/environment-variables.md#optional-components) for details.
 
 ## Support Matrix

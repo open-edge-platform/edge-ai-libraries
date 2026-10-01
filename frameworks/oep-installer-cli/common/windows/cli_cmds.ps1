@@ -248,5 +248,39 @@ function SubcommandSetup {
     )
     [System.IO.File]::WriteAllLines($completionPath, [string[]]$completionScript)
     Write-Output ('PowerShell completion created at {0}' -f $completionPath)
+
+    $commandShimPath = Join-Path $installerDirectory 'openedge-cli.cmd'
+    $commandShim = @(
+        '@echo off',
+        'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0openedge-cli.ps1" %*'
+    )
+    [System.IO.File]::WriteAllLines($commandShimPath, [string[]]$commandShim)
+    Write-Output ('Command shim created at {0}' -f $commandShimPath)
+
+    $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+    $pathEntries = New-Object System.Collections.ArrayList
+    if (-not [string]::IsNullOrEmpty($userPath)) {
+        foreach ($entry in ($userPath -split ';')) {
+            if (-not [string]::IsNullOrEmpty($entry)) {
+                [void]$pathEntries.Add($entry)
+            }
+        }
+    }
+    $normalizedTarget = $installerDirectory.TrimEnd('\')
+    $alreadyOnPath = $false
+    foreach ($entry in $pathEntries) {
+        if ($entry.TrimEnd('\') -ieq $normalizedTarget) {
+            $alreadyOnPath = $true
+            break
+        }
+    }
+    if (-not $alreadyOnPath) {
+        [void]$pathEntries.Add($installerDirectory)
+        [Environment]::SetEnvironmentVariable('PATH', ($pathEntries -join ';'), 'User')
+        Write-Output ('Added {0} to your user PATH. Restart your terminal to use ''openedge-cli''.' -f $installerDirectory)
+    }
+    if (($env:PATH -split ';') -notcontains $installerDirectory) {
+        $env:PATH = '{0};{1}' -f $env:PATH, $installerDirectory
+    }
     return 0
 }

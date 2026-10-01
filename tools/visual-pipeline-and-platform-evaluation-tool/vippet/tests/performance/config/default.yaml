@@ -7,6 +7,9 @@ vippet:
   # Connection timeout in seconds
   timeout: 600
 
+  # Maximum time to wait for ViPPET to become ready before discovery
+  readiness_timeout_seconds: 60
+
   # Job status polling interval in seconds
   poll_interval: 2
 

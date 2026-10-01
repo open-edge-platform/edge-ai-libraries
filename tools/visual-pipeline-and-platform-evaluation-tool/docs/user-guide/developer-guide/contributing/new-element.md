@@ -32,7 +32,8 @@ the filename to an absolute container path
 (`/scripts/<file>.py`) when building the runnable pipeline command, and
 maps it back to the bare filename when storing the graph.
 
-> **Note:** The `shared/scripts` directory is excluded from linter checks, as it
+> [!NOTE]
+> The `shared/scripts` directory is excluded from linter checks, as it
 > contains custom scripts that may not conform to standard linting rules.
 
 ### Limitations

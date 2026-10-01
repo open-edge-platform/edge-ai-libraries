@@ -7,7 +7,8 @@ The microservice is **vector-database and storage agnostic**: the vector store
 startup behind a factory, using [VDMS](https://github.com/IntelLabs/vdms) and
 Milvus LangChain integrations. See [Pluggable Backends](docs/user-guide/pluggable-backends.md).
 
-> **Note:** Videos must be MP4. Supported image formats are JPG/JPEG, PNG, WEBP, BMP, and GIF.
+> [!NOTE]
+> Videos must be MP4. Supported image formats are JPG/JPEG, PNG, WEBP, BMP, and GIF.
 
 Follow the links below to the detailed documentation to help you get started, configure, and deploy the microservice.
 

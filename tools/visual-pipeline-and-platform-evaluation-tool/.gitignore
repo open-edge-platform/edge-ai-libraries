@@ -18,3 +18,5 @@ shared/db/*
 # Docker build context via the `shared` entry in .dockerignore.
 shared/.env-dirs.done
 shared/.vippet-test-image.stamp
+/report.html
+/report.xml

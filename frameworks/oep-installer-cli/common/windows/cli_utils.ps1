@@ -267,7 +267,8 @@ function ActHelper {
         if ($actName -eq 'install') {
             $handlers = @(ActGet -Operation 'prefix' -Prefix ($actName + '_') -Context $Context)
             if ($handlers.Count -gt 0) {
-                Write-Output '  --reset-<name>  force reinstallation of the component if present.'
+                Write-Output '  --reinstall  force reinstallation of the component if present.'
+                Write-Output '  --validate   validate component features if present.'
             }
         }
         Write-Output ''

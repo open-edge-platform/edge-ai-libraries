@@ -16,7 +16,7 @@ debian_90_profile_live_video_captioning () {
 
 debian_90_install_live_video_captioning () {
   configure_live_video_captioning
-  if verify_live_video_captioning && [[ " $* " != *" --reset-live_video_captioning "* ]]; then
+  if verify_live_video_captioning && [[ " $* " != *" --reinstall "* ]]; then
     echo "Live Video Captioning is already installed. Skipping"
     return
   fi

@@ -294,7 +294,8 @@ python profile-runner.py \
   --collect_resource_metrics=yes
 ```
 
-> **Note**: The `--request_count` parameter is not applicable for live captioning as it operates on continuous streams.
+> [!NOTE]
+> The `--request_count` parameter is not applicable for live captioning as it operates on continuous streams.
 
 #### Key Configuration Options
 

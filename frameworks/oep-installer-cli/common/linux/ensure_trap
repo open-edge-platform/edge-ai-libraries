@@ -28,10 +28,11 @@ ensure_trap() {
             eval \"\${_ENSURE_TRAP_STACK_${var_sig}[\$_ENSURE_TRAP_IDX_${var_sig}]}\"
             (( _ENSURE_TRAP_IDX_${var_sig}-- )) || true
           done
-          if [[ \"$sig\" != \"EXIT\" && \"$sig\" != \"0\" && \"$sig\" != \"SIGEXIT\" ]]; then
-            trap - \"$sig\"
-            kill -s \"$sig\" \$\$
-          fi
+          trap - \"$sig\"
+          case \"$sig\" in
+            EXIT|0|ERR|RETURN|DEBUG) ;;
+            *) kill -s \"$sig\" \$\$ ;;
+          esac
         " "$sig"
       fi
 

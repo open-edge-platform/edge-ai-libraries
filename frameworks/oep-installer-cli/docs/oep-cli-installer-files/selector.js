@@ -85,6 +85,11 @@ function init() {
     const first = cat.options?.[0]?.value;
     if (first != null) defaults[cat.key] = first;
   });
+  // Device is not a normal category (it renders as its own section before
+  // Install), so seed its default separately.
+  if (CONFIG.device) {
+    defaults[CONFIG.device.key] = CONFIG.device.default ?? CONFIG.device.options?.[0]?.value;
+  }
 
   // state from URL (shareable)
   STATE = { ...defaults, ...parseQuery(CONFIG.shareKeys || []) };
@@ -164,6 +169,52 @@ function renderCategories() {
     sec.append(title, content);
     host.append(sec);
   });
+
+  renderDevice();
+}
+
+// Render the Device (CPU/GPU/NPU) pills into the dedicated section that sits
+// before Install. Only modules that declare `device: true` support accelerator
+// selection, so the whole section is shown for those modules and hidden
+// otherwise (including for installAll profiles, which have no single module).
+// Display labels are uppercase (CPU/GPU/NPU) while the stored value / emitted
+// command flag is lowercase (cpu/gpu/npu).
+function renderDevice() {
+  const section = $("#deviceSection");
+  const host = $("#deviceOptions");
+  if (!section || !host || !CONFIG.device) return;
+
+  const deviceKey = CONFIG.device.key;
+  const selectedModule = findSelectedOption("MODULE", STATE);
+  const supportsDevice = !isInstallAllProfile(STATE) && Boolean(selectedModule?.device);
+
+  if (!supportsDevice) {
+    section.style.display = "none";
+    host.innerHTML = "";
+    return;
+  }
+
+  host.innerHTML = "";
+  (CONFIG.device.options || []).forEach((opt) => {
+    const btn = el("button", "spark-button spark-button-size-l spark-button-ghost");
+    const inner = el("span", "spark-button-content");
+    inner.append(el("span", "", opt.label));
+    btn.append(inner);
+
+    if (STATE[deviceKey] === opt.value) {
+      btn.classList.add("spark-toggle-button-clicked-ghost", "pill-active");
+    }
+
+    btn.addEventListener("click", () => {
+      STATE[deviceKey] = opt.value;
+      renderDevice();
+      updateOutputsAndUrl();
+    });
+
+    host.append(btn);
+  });
+
+  section.style.display = "";
 }
 
 // Return true if `opt` in category `cat` is compatible with the rest of `state`.
@@ -267,13 +318,23 @@ function updateOutputsAndUrl() {
   // keep URL in sync
   const shareUrl = writeQuery(STATE, CONFIG.shareKeys || []);
 
+  // When the selected module supports accelerator selection, the chosen device
+  // is appended as a lowercase flag (e.g. " --gpu") to both the install and
+  // start commands. Returns "" for modules without device support.
+  const deviceFlag = () => {
+    const selectedModule = findSelectedOption("MODULE", STATE);
+    if (isInstallAllProfile(STATE) || !selectedModule?.device || !CONFIG.device) return "";
+    const device = STATE[CONFIG.device.key];
+    return device ? ` --${device}` : "";
+  };
+
   // compute outputs
   (CONFIG.outputs || []).forEach((o) => {
     const matched = firstMatch(o.rules, STATE);
 
     if (o.id === "install") {
       const finalText = matched?.text ? interpolate(String(matched.text), STATE) : (o.fallback ?? "");
-      $("#installText").textContent = finalText;
+      $("#installText").textContent = finalText === (o.fallback ?? "") ? finalText : finalText + deviceFlag();
     }
 
     if (o.id === "nextsteps") {
@@ -292,7 +353,7 @@ function updateOutputsAndUrl() {
       // so hide Next Steps (Start/Stop) entirely for them.
       if (!isInstallAllProfile(STATE) && selectedModule?.startStop && startStop) {
         if (startStop.start) {
-          const startText = interpolate(String(startStop.start), STATE);
+          const startText = interpolate(String(startStop.start), STATE) + deviceFlag();
           container.appendChild(makeStepLabel("Start"));
           container.appendChild(makeCommandBox(startText, "copyNextStart"));
         }

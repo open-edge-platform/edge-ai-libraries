@@ -12,7 +12,7 @@ export const gvaInferenceConfig = {
       defaultValue: "",
       description: "Path to inference model network file",
       params: {
-        filter: "classification",
+        filter: "image_classification",
       },
     },
     {

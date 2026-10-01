@@ -11,9 +11,7 @@ POLL_INTERVAL_SECONDS: float = float(os.environ.get("VIPPET_JOB_POLL_INTERVAL", 
 # helpers/ -> functional/ -> tests/ -> vippet/ -> <project-root>)
 PROJECT_ROOT: Path = Path(__file__).parents[4]
 
-SUPPORTED_MODELS_YAML: Path = (
-    PROJECT_ROOT / "shared" / "models" / "supported_models.yaml"
-)
+SUPPORTED_MODELS_CATALOG_DIR: Path = PROJECT_ROOT / "vippet" / "models"
 DEFAULT_RECORDINGS_YAML: Path = (
     PROJECT_ROOT / "shared" / "videos" / "default_recordings.yaml"
 )

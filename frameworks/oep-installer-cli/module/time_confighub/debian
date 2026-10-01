@@ -1,0 +1,36 @@
+
+configure_time_confighub () {
+  workspace="$(ensure_project_path)/time_confighub"
+  repository="https://github.com/intel/time-confighub.git"
+  version=tags/archive/main_20261106
+}
+
+verify_time_confighub () {
+  [ -e "$workspace" ]
+  [ -d /opt/tch ]
+  [ -x /usr/local/bin/tch ]
+}
+
+debian_70_profile_time_confighub () {
+  echo "cmake make libyang"
+}
+
+debian_70_install_time_confighub () {
+  configure_time_confighub
+  if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+    echo "pcm is installed. Skipping"
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    cd "$workspace"
+    chmod a+rx install.sh uninstall.sh
+    ensure_sudo ./install.sh
+    verify_time_confighub
+  fi
+}
+
+debian_70_remove_time_confighub () {
+  configure_time_confighub
+  cd "$workspace" && ensure_sudo ./uninstall.sh --force || true
+  rm -rf "$workspace"
+}
+

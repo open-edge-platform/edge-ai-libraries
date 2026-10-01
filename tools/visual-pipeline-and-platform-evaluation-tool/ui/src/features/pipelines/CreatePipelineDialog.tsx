@@ -668,8 +668,12 @@ export const CreatePipelineDialog = ({
                             </SelectTrigger>
                             <SelectContent>
                               {models
-                                ?.filter(
-                                  (model) => model.category === "detection",
+                                ?.filter((model) =>
+                                  [
+                                    "object_detection",
+                                    "image_segmentation",
+                                    "pose_estimation",
+                                  ].includes(model.category ?? ""),
                                 )
                                 .flatMap((model) =>
                                   (model.variants ?? [])
@@ -718,7 +722,8 @@ export const CreatePipelineDialog = ({
                                   {models
                                     ?.filter(
                                       (model) =>
-                                        model.category === "classification",
+                                        model.category ===
+                                        "image_classification",
                                     )
                                     .flatMap((model) =>
                                       (model.variants ?? [])

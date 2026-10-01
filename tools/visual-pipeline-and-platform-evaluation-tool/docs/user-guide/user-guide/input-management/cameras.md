@@ -31,7 +31,8 @@ you must configure it correctly:
 Once the camera is properly configured and connected to the network, ViPPET automatically discovers
 and displays it in the *Cameras* tab.
 
-> **Note:** If a network camera does not appear in the *Cameras* tab, verify that the ONVIF service is
+> [!NOTE]
+> If a network camera does not appear in the *Cameras* tab, verify that the ONVIF service is
 > enabled, a valid media profile exists, and the camera is on the same subnet as the host machine.
 
 ### Network camera authorization
@@ -47,7 +48,8 @@ To authorize a camera:
 
 ![Camera Authentication](../../_assets/ViPPET-UI-Cameras-Auth-light.png)
 
-> **Note:** If authorization fails, verify that the username and password are correct, and ensure that
+> [!NOTE]
+> If authorization fails, verify that the username and password are correct, and ensure that
 > the clock on the camera is synchronized with the clock on the host machine. Time skew between the
 > camera and the host is a common cause of ONVIF authentication failures.
 
@@ -71,6 +73,7 @@ Then, from the *Source* dropdown, select the desired camera.
 
 The selected camera will now be used as the pipeline input.
 
-> **Note:** A network camera that has not been authorized yet appears grayed out in the list and cannot
+> [!NOTE]
+> A network camera that has not been authorized yet appears grayed out in the list and cannot
 > be selected. To authorize the camera first, follow the steps in the
 > [Network camera authorization](#network-camera-authorization) section.

@@ -45,7 +45,8 @@ The runtime calls `similarity_search_with_score(query, k, fetch_k=..., filter=..
    - `str` for expression-style filters (for example Milvus `expr`)
    - `None` when no filters apply
 
-   > **Note:** The primary request grammar is `where`. Backends currently receive a pushdown-safe subset translated into `tags`, `time_filter`, and legacy `filters`; unsupported clauses are handled in the service fallback path.
+   > [!NOTE]
+   > The primary request grammar is `where`. Backends currently receive a pushdown-safe subset translated into `tags`, `time_filter`, and legacy `filters`; unsupported clauses are handled in the service fallback path.
 
 4. Register backend in `src/retriever/backends/registry.py`.
 

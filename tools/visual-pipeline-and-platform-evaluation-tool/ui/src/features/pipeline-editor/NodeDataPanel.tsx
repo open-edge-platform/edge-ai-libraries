@@ -413,7 +413,9 @@ const NodeDataPanel = ({
                         .filter(
                           (model) =>
                             !propConfig?.params?.filter ||
-                            model.category === propConfig.params.filter,
+                            propConfig.params.filter
+                              .split(",")
+                              .includes(model.category ?? ""),
                         )
                         .flatMap((model) =>
                           (model.variants ?? [])

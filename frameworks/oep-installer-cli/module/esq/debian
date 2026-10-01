@@ -9,7 +9,7 @@ debian_85_profile_esq () {
 
 debian_85_install_esq () {
   configure_uv
-  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reset-esq "* ]]; then
+  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
     echo "Esq is already installed. Skipping..."
   else
     curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true

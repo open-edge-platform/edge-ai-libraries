@@ -22,7 +22,8 @@ Two platforms have been validated:
 - At least **32 GB swap** — so the model load and KV cache can spill under peak memory pressure
 - At least 128 GB disk space (model weights + Hugging Face cache)
 
-> **Note:** To fit smaller-memory hosts, lower `MAX_MODEL_LEN` or use `awq` / `sym_int4` quantization in `docker/set_env.sh`.
+> [!NOTE]
+> To fit smaller-memory hosts, lower `MAX_MODEL_LEN` or use `awq` / `sym_int4` quantization in `docker/set_env.sh`.
 
 **Hardware — Platform #2: Intel® Xeon™ + Intel® Arc™ Pro B60, discrete-GPU serving host**
 
@@ -31,7 +32,8 @@ Two platforms have been validated:
 - At least **64 GB RAM**
 - At least 128 GB disk space (model weights + Hugging Face cache)
 
-> **Note:** On this platform, deploy vLLM-IPEX ([llm-scaler](https://github.com/intel/llm-scaler)) on the B60 host and point the microservice at its endpoint via `VLM_BASE_URL` / `LLM_BASE_URL`.
+> [!NOTE]
+> On this platform, deploy vLLM-IPEX ([llm-scaler](https://github.com/intel/llm-scaler)) on the B60 host and point the microservice at its endpoint via `VLM_BASE_URL` / `LLM_BASE_URL`.
 
 <!-- ## Minimum Requirements
 - As per sample application documentation. -->

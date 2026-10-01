@@ -1,0 +1,10 @@
+
+debian_30_install_cmake () {
+  ensure_apt_install_package cmake
+}
+
+debian_30_sbom_cmake () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list cmake)
+EOF
+}
