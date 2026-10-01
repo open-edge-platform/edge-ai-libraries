@@ -31,6 +31,7 @@ from perf_helpers.config import (
     POLL_INTERVAL,
     POLL_TIMEOUT,
     READINESS_TIMEOUT_SECONDS,
+    REQUIRE_MODELS,
     REQUEST_TIMEOUT,
     RESULT_FORMATS,
     SKIP_PIPELINES,
@@ -192,7 +193,9 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         return
 
     if _PIPELINE_CASES is None or _CASE_IDS is None:
-        _PIPELINE_CASES, _CASE_IDS = discover_pipeline_cases_for_pytest()
+        _PIPELINE_CASES, _CASE_IDS = discover_pipeline_cases_for_pytest(
+            require_models=REQUIRE_MODELS
+        )
 
     for invalid_param in _validate_filter_ids(_PIPELINE_CASES):
         invalid_case, _, _ = _unwrap_case(invalid_param)
