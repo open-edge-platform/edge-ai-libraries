@@ -79,7 +79,8 @@ Enable only the plugins your integration needs:
 - `pipeline-zoo-models` for DL Streamer model bundles
 - `hls` for healthcare demo assets
 
-Important consequence: if the app submits a request for a hub whose plugin was not activated at startup, the job fails with a plugin-availability error. Application-side code should surface that clearly.
+> [!IMPORTANT]
+> If the app submits a request for a hub whose plugin was not activated at startup, the job fails with a plugin-availability error. Application-side code should surface that clearly.
 
 ## 5. Polling strategy
 

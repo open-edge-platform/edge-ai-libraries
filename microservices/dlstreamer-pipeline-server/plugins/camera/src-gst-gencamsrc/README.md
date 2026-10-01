@@ -63,8 +63,9 @@ If it returns information about the plugin it is installed successfully and can 
 5. **GStreamer MSVC x86_64** — install both the *runtime* and *development* packages from [gstreamer.freedesktop.org](https://gstreamer.freedesktop.org/download/)
 6. **DL Streamer runtime environment** — Follow the [Windows installation guide](https://github.com/open-edge-platform/dlstreamer/blob/main/docs/user-guide/install/install_guide_windows.md) to install the latest version of Deep Learning Streamer (DL Streamer).
 
-   > **Note:** Set `$dlsRoot` once to your DL Streamer installation root before running any of the commands below. The default path is shown; adjust if you installed elsewhere:
-   >
+   > [!NOTE]
+   > Set `$dlsRoot` once to your DL Streamer installation root before running any of the commands below. The default path is shown; adjust if you installed elsewhere:
+   > 
    > ```powershell
    > $dlsRoot = "C:\Program Files\Intel\dlstreamer"  # adjust if installed elsewhere
    > ```
@@ -315,5 +316,6 @@ The following are the list of properties supported by the `gencamsrc` gstreamer 
 
 - The maximum grab delay is set to 5 seconds after which the plugin would timeout and throw "No frame received from the camera" exception. This error can be caused by performance problems of the network hardware used, i.e., network adapter, switch, or ethernet cable. Make sure the camera is and the system are connected to the same gigabit switch or try increasing the camera's interpacket delay using `packet-delay` property.
 
-> **Note:** The sample pipelines mentioned in this readme were tested using gst-launch-1.0 tool.
+> [!NOTE]
+> The sample pipelines mentioned in this readme were tested using gst-launch-1.0 tool.
 > For working with DLStreamer Pipeline Server service refer to the [DL Streamer Pipeline Server README](../../../docs/user-guide/advanced-guide/detailed_usage/camera/genicam.md#genicam-gige-or-usb3-cameras) for the ingestor configurations.

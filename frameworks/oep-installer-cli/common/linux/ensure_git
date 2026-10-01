@@ -31,3 +31,9 @@ ensure_git_clone () {
   fi
 }
 
+# clone then remove .git
+ensure_git_export () {
+  ensure_git_clone "$@"
+  rm -rf "$1"/.git
+}
+
