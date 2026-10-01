@@ -34,9 +34,12 @@ from perf_helpers.hw_monitor import HardwareMonitor
 
 logger = logging.getLogger(__name__)
 
-# How long to wait, after cancelling a timed-out job, for the backend to release 
+# How long to wait, after cancelling a timed-out job, for the backend to release
 # its single-job execution lease before the next attempt submits a new job.
-STOP_POLL_TIMEOUT_SECONDS = 10.0
+# Kept comfortably above RETRY_DELAY_SECONDS / POLL_INTERVAL so the lease has
+# time to clear even under slower backend teardown before the retry loop
+# submits the next attempt.
+STOP_POLL_TIMEOUT_SECONDS = 30.0
 
 
 def _build_performance_payload(case: PipelineCase, streams: int) -> dict[str, Any]:
