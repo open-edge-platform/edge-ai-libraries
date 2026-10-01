@@ -237,6 +237,16 @@
           "startStop": true
         },
         {
+          "label": "UAV Mission Compute SDK",
+          "value": "uav_mission_compute_sdk",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite"
+            ]
+          },
+          "startStop": true
+        },
+        {
           "label": "Autonomous Mobile Robot",
           "value": "autonomous_mobile_robot",
           "supports": {
@@ -511,6 +521,10 @@
             {
               "text": "Handheld Multi-Modal Application",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
+            },
+            {
+              "text": "UAV Mission Compute SDK",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
             }
           ]
         },

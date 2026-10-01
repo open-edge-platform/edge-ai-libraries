@@ -1,5 +1,5 @@
 
 debian_99_profile_federal_and_aerospace_ai_suite () {
-  [ "$1" = "start" ] || echo "handheld_multi_modal"
+  [ "$1" = "start" ] || echo "handheld_multi_modal uav_mission_compute_sdk"
 }
 

@@ -24,7 +24,7 @@ marketing segments. The table lists the profiles and their components.
 | `manufacturing_ai_suite` | Industrial inspection and defect detection | `pallet_defect_detection`, `pcb_anomaly_detection`, `multimodal_weld_defect_detection` |
 | `retail_ai_suite` | Retail buying-process monitoring | `loss_prevention`, `order_accuracy` |
 | `robotics_ai_suite` | Robotics and Physical AI workflows | `autonomous_mobile_robot`, `stationary_robot_vision`, `humanoid_imitation_learning`, `physical_ai_framework`, `physical_ai_studio` |
-| `federal_and_aerospace_ai_suite` | Multi-modal federal and aerospace use cases | `handheld_multi_modal` |
+| `federal_and_aerospace_ai_suite` | Multi-modal federal and aerospace use cases | `handheld_multi_modal`, `uav_mission_compute_sdk` |
 | `health_and_life_science_ai_suite` | Patient and vitals monitoring | `nicu_warmer` |
 
 ### Module reference
@@ -47,6 +47,7 @@ marketing segments. The table lists the profiles and their components.
 | `loss_prevention` | A Retail loss-prevention sample. |
 | `order_accuracy` | A Retail order-accuracy verification sample. |
 | `handheld_multi_modal` | A handheld multi-modal sample for federal/aerospace use cases. |
+| `uav_mission_compute_sdk` | A UAV mission-compute SDK sample for federal/aerospace use cases. |
 | `nicu_warmer` | A NICU warmer patient-monitoring sample. |
 | `autonomous_mobile_robot` | Robotics AI Suite ROS 2 SDK for sensing, SLAM, and navigation. |
 | `stationary_robot_vision` | Vision-guided pick-and-place reference sample (RVC). |
