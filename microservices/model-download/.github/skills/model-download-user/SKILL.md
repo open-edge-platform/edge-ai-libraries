@@ -80,6 +80,42 @@ raw `curl` requests.
 | Pipeline Zoo | `pipeline-zoo-models` | Downloads DL Streamer pipeline-zoo models | — |
 | HLS | `hls` | Downloads healthcare AI models (3d-pose, rppg, ai-ecg) | — |
 
+## Gated HuggingFace Models — Token Handling
+
+Applies to **both** `hub: "huggingface"` and `hub: "openvino"` (the OpenVINO
+converter downloads the source weights from HuggingFace before converting, so
+gated-model auth works identically for conversion requests).
+
+There are **two distinct ways** to supply an HF token, and they use **different
+encodings** — mixing them up is the most common gated-model failure:
+
+| Path | Where the token goes | Encoding |
+|------|----------------------|----------|
+| Compose/service startup (`run_service.sh up`) or `get_model.sh` CLI | `HUGGINGFACEHUB_API_TOKEN` / `HF_TOKEN` environment variable on the host | **Plain text** (`hf_...`), never base64 |
+| Per-request override via REST/MCP `download_model` call | top-level `override_credentials.HF_TOKEN` field on the model entry — a **sibling of `name`/`hub`/`config`**, not nested inside `config` | **Base64-encoded**, always — required even though the field also supports a `sensitive` flag |
+
+Encode a token before putting it in `override_credentials`:
+```bash
+echo -n 'hf_xxx' | base64
+```
+
+**If the user's request arrives through the MCP client and the model is gated**,
+prefer `override_credentials` with a base64-encoded `HF_TOKEN` over asking them to
+restart the whole service with a new environment variable — it avoids a container
+restart. For `is_ovms` conversion requests, also set `validate_credentials: true`
+so a bad/wrongly-encoded token is caught before the (often multi-minute)
+conversion runs, instead of failing only after it completes.
+
+**CLI failure scenario:** If a base64-encoded token is exported for
+`get_model.sh` (or passed as `HUGGINGFACEHUB_API_TOKEN`/`HF_TOKEN` to
+`run_service.sh up`), authentication fails with `401 Unauthorized` /
+`Repository ... is gated` even though the token looks "set" — the CLI and
+compose startup path send the value through unmodified, so a base64 string is
+not a valid HF token. This applies to `--hub huggingface` and `--hub openvino`
+CLI invocations alike. See
+[troubleshooting.md](./references/troubleshooting.md#huggingface-authentication-errors)
+for the fix.
+
 ## Ollama Quick-Reference
 
 > **Always use these exact field names for Ollama requests — the API differs from what
