@@ -17,8 +17,12 @@ HOST_GID="$(id -g)"
 # Falls back to "unknown" when not run from within a git repository (e.g. an
 # extracted source tarball). Suffixed with "-dirty" when the working tree
 # has uncommitted changes, so it stays visually distinct from a clean build.
+# This is a monorepo, so the dirty check is scoped to this tool's own
+# directory (via the pathspec "-- .") and does not trigger on changes
+# elsewhere in the repository.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GIT_REVISION="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
-if [ "$GIT_REVISION" != "unknown" ] && [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+if [ "$GIT_REVISION" != "unknown" ] && [ -n "$(git -C "$SCRIPT_DIR" status --porcelain -- . 2>/dev/null)" ]; then
     GIT_REVISION="${GIT_REVISION}-dirty"
 fi
 
