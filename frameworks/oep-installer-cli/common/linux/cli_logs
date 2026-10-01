@@ -200,10 +200,11 @@ _cellw() {
   elif (( cp >= 0xFFE0  && cp <= 0xFFE6  )); then w=2
   elif (( cp >= 0x1F300 && cp <= 0x1FAFF )); then w=2
   elif (( cp >= 0x20000 && cp <= 0x3FFFD )); then w=2
-  elif (( cp == 0x26A0 || cp == 0x26D4 || cp == 0x2757 || cp == 0x2753 )); then w=2
+  elif (( cp == 0x26D4 || cp == 0x2757 || cp == 0x2753 )); then w=2
   elif (( cp >= 0x25B6 && cp <= 0x25C0 )); then w=1
   elif (( cp >= 0x2B00 && cp <= 0x2BFF )); then w=2
   elif (( cp >= 0x0300 && cp <= 0x036F )); then w=0
+  elif (( cp >= 0xFE00 && cp <= 0xFE0F )); then w=0   # variation selectors
   fi
   WCACHE[$ch]=$w
   REPLY=$w
