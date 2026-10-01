@@ -6,9 +6,11 @@ description: >
   Ollama, Ultralytics, Geti, or Pipeline Zoo; convert a model to OpenVINO IR
   format for OVMS; download healthcare AI models (3D Pose, rPPG, AI-ECG) via
   the HLS plugin; set up the model download service; submit a download or
-  conversion job via the REST API; or ask "how do I get model X working with
-  OVMS?". Also trigger on phrases like "download model", "download weights",
-  "convert to int4", "OVMS-ready model", "prepare model for inference".
+  conversion job via the REST API or the MCP server; connect an MCP client
+  (Claude Desktop, Copilot) to model-download; or ask "how do I get model X
+  working with OVMS?". Also trigger on phrases like "download model",
+  "download weights", "convert to int4", "OVMS-ready model", "prepare model
+  for inference", "model-download MCP server".
 metadata:
   argument-hint: >
     Describe the model you want (e.g. "download Llama-3.2-1B from HuggingFace
@@ -23,7 +25,7 @@ SPDX-License-Identifier: Apache-2.0
 # Model Download Agent
 
 Set up the Model Download microservice and walk the user through downloading
-or converting any supported model using the REST API.
+or converting any supported model using the REST API or the MCP server.
 
 > **Preview:** This skill is in preview — share feedback to help improve it.
 
@@ -36,6 +38,36 @@ or converting any supported model using the REST API.
 - User wants to download healthcare AI models (3D Pose, rPPG, AI-ECG)
 - User is integrating model downloads into a Docker Compose workflow
 
+## MCP Server (Alternative to REST)
+
+Every Model Download deployment also exposes an **MCP server** at `/mcp`
+alongside the REST API, so agents like Claude Desktop, GitHub Copilot, and
+custom MCP clients can call the service directly as tools instead of issuing
+raw `curl` requests.
+
+- Same service, same port (`8200`) — no separate process required for the
+  container deployment; `uv run python -m src.mcp` runs it standalone (stdio)
+  for local/agent-only use.
+- Tools mirror the REST surface: `health_check`, `download_model`,
+  `get_job_status`, `list_jobs`, `cancel_job`, `get_model_jobs`,
+  `get_model_results`, `list_plugins`, `list_hub_models`.
+- Resources: `models://jobs`, `models://jobs/{job_id}`, `models://results`,
+  `models://plugins`.
+- **If the user's request comes through an MCP client (Claude Desktop,
+  Copilot with the `model-download` MCP server connected, etc.), prefer
+  calling the matching MCP tool directly** instead of constructing a `curl`
+  command — the tool signatures accept the same fields (`name`, `hub`,
+  `type`, `is_ovms`, `config`, `revision`, `download_path`).
+- Full client setup (Claude Desktop / Copilot config, HTTP client example,
+  verification steps) lives in
+  `docs/user-guide/get-started/using-mcp-server.md` — read it when the user
+  asks to configure or troubleshoot an MCP client.
+
+> Note: this skill's "Supported Hubs at a Glance" table and the
+> `example-prompts/` files are also served live as MCP prompts by
+> `src/mcp/prompts.py`. Keep the heading text and file names stable when
+> editing them.
+
 ## Supported Hubs at a Glance
 
 | Hub | `hub` value | What it does | Required env vars |
@@ -47,6 +79,42 @@ or converting any supported model using the REST API.
 | Geti | `geti` | Downloads trained models from Intel Geti platform | `GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID` |
 | Pipeline Zoo | `pipeline-zoo-models` | Downloads DL Streamer pipeline-zoo models | — |
 | HLS | `hls` | Downloads healthcare AI models (3d-pose, rppg, ai-ecg) | — |
+
+## Gated HuggingFace Models — Token Handling
+
+Applies to **both** `hub: "huggingface"` and `hub: "openvino"` (the OpenVINO
+converter downloads the source weights from HuggingFace before converting, so
+gated-model auth works identically for conversion requests).
+
+There are **two distinct ways** to supply an HF token, and they use **different
+encodings** — mixing them up is the most common gated-model failure:
+
+| Path | Where the token goes | Encoding |
+|------|----------------------|----------|
+| Compose/service startup (`run_service.sh up`) or `get_model.sh` CLI | `HUGGINGFACEHUB_API_TOKEN` / `HF_TOKEN` environment variable on the host | **Plain text** (`hf_...`), never base64 |
+| Per-request override via REST/MCP `download_model` call | top-level `override_credentials.HF_TOKEN` field on the model entry — a **sibling of `name`/`hub`/`config`**, not nested inside `config` | **Base64-encoded**, always — required even though the field also supports a `sensitive` flag |
+
+Encode a token before putting it in `override_credentials`:
+```bash
+echo -n 'hf_xxx' | base64
+```
+
+**If the user's request arrives through the MCP client and the model is gated**,
+prefer `override_credentials` with a base64-encoded `HF_TOKEN` over asking them to
+restart the whole service with a new environment variable — it avoids a container
+restart. For `is_ovms` conversion requests, also set `validate_credentials: true`
+so a bad/wrongly-encoded token is caught before the (often multi-minute)
+conversion runs, instead of failing only after it completes.
+
+**CLI failure scenario:** If a base64-encoded token is exported for
+`get_model.sh` (or passed as `HUGGINGFACEHUB_API_TOKEN`/`HF_TOKEN` to
+`run_service.sh up`), authentication fails with `401 Unauthorized` /
+`Repository ... is gated` even though the token looks "set" — the CLI and
+compose startup path send the value through unmodified, so a base64 string is
+not a valid HF token. This applies to `--hub huggingface` and `--hub openvino`
+CLI invocations alike. See
+[troubleshooting.md](./references/troubleshooting.md#huggingface-authentication-errors)
+for the fix.
 
 ## Ollama Quick-Reference
 

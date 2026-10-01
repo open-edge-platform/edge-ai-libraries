@@ -49,6 +49,7 @@ COPY --from=python-base /usr/local/lib/python3.12/site-packages /usr/local/lib/p
 COPY --from=python-base /usr/local/bin /usr/local/bin
 
 COPY src /opt/src
+COPY .github/skills/model-download-user /opt/.github/skills/model-download-user
 COPY scripts /opt/scripts
 COPY requirements /opt/requirements
 COPY pyproject.toml /opt/

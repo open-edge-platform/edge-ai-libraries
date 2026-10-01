@@ -44,7 +44,7 @@ Downloads any public or gated model from HuggingFace Hub using `snapshot_downloa
 | `hub` | string | Yes | Must be `"huggingface"` |
 | `revision` | string | No | Branch, tag, or commit hash (default: `main`) |
 
-**Environment:** For compose-based startup, set `HUGGINGFACEHUB_API_TOKEN` on the host. Docker maps it into the container as `HF_TOKEN`.
+**Environment:** For compose-based startup, set `HUGGINGFACEHUB_API_TOKEN` on the host. Docker maps it into the container as `HF_TOKEN`. This value is used **as-is (plain text, not base64)** — it's injected directly into the container environment.
 
 ### Output Path
 
@@ -66,6 +66,41 @@ curl -s -X POST \
     ]
   }'
 ```
+
+### Gated Models — Per-Request Token Override
+
+For gated repos (e.g. `meta-llama/Llama-3.1-8B-Instruct`), accept the model's
+license on the HF model page first. Instead of restarting the service with a
+new `HUGGINGFACEHUB_API_TOKEN`, pass the token per-request via a top-level
+`override_credentials.HF_TOKEN` field on the model entry (a sibling of
+`name`/`hub`/`config`, **not** nested inside `config`). **This value must be
+base64-encoded** — unlike the host env var above, the API/MCP request field
+always expects base64, regardless of the `sensitive` flag:
+
+```bash
+# Encode the token first
+echo -n 'hf_xxx' | base64
+# e.g. aGZfeHh4
+
+curl -s -X POST \
+  "http://localhost:8200/api/v1/models/download?download_path=hf-gated" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "meta-llama/Llama-3.1-8B-Instruct",
+        "hub": "huggingface",
+        "override_credentials": {
+          "HF_TOKEN": "<base64_HF_token>"
+        }
+      }
+    ]
+  }'
+```
+
+When calling this through the MCP `download_model` tool, pass the same
+base64-encoded value as the tool's top-level `override_credentials.HF_TOKEN`
+argument — do not send the raw token, and do not nest it under `config`.
 
 ---
 
@@ -175,6 +210,50 @@ curl -s -X POST \
     ]
   }'
 ```
+
+### Gated Models — Conversion Requires the Same Token Rules as HuggingFace
+
+The `openvino` hub downloads the source weights from HuggingFace before
+converting, so gated/private models (e.g. `meta-llama/Llama-3.2-1B`) need the
+same authentication as the HuggingFace plugin — and the **same two paths with
+different encodings** apply:
+
+- Service/compose startup or `get_model.sh` CLI: set `HUGGINGFACEHUB_API_TOKEN`
+  on the host as the **raw** token (plain text, not base64).
+- Per-request override: add a top-level `override_credentials.HF_TOKEN` field
+  (sibling of `name`/`hub`/`config`) with the token **base64-encoded**.
+
+```bash
+echo -n 'hf_xxx' | base64
+
+curl -s -X POST \
+  "http://localhost:8200/api/v1/models/download?download_path=llm-models" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "meta-llama/Llama-3.2-1B",
+        "hub": "openvino",
+        "type": "llm",
+        "is_ovms": true,
+        "config": {
+          "precision": "int4",
+          "device": "CPU",
+          "cache_size": 4
+        },
+        "override_credentials": {
+          "HF_TOKEN": "<base64_HF_token>"
+        },
+        "validate_credentials": true
+      }
+    ]
+  }'
+```
+
+**Tip:** Set `validate_credentials: true` for conversion jobs. It runs a quick
+credential pre-check before the (often multi-minute) conversion starts, so a
+bad or wrongly-encoded token surfaces immediately instead of after the job has
+been running for several minutes.
 
 ---
 
