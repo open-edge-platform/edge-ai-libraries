@@ -1,6 +1,11 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Get Started
 
-The Agent Quality Handler is a standalone, configuration-driven agent service. It reads detections from an external storage API and runs the Policy, Analysis, Evidence, and Ticketing agents.
+The Agent Quality Handler is a standalone, configuration-driven agent service. It reads detections from an external storage API and runs the built-in Policy, Analysis, Evidence, and Ticketing specialists by default. That default set is now configurable and extensible through `agent_registry` in `agents.yaml`.
 
 ## Prerequisites
 

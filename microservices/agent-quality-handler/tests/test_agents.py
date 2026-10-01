@@ -138,7 +138,8 @@ def test_policy_agent_fallback(monkeypatch, tmp_path):
     monkeypatch.setattr(pa.storage_client, "get_summary", lambda **kwargs: summary)
     monkeypatch.setattr(pa, "llm_client", lc)
 
-    result = pa.run("test-case", {})
+    from src.agents.context import AgentContext
+    result = pa.run(AgentContext(use_case_id="test-case", config={}))
     assert result["mode"] == "fallback"
     assert any(v["label"] == "Rupture" for v in result["violations"])
     assert not any(v["label"] == "Deformation" for v in result["violations"])
@@ -165,7 +166,8 @@ def test_policy_agent_fallback_uses_configured_action(monkeypatch, tmp_path):
         },
     )
 
-    result = pa.run("test-case", {})
+    from src.agents.context import AgentContext
+    result = pa.run(AgentContext(use_case_id="test-case", config={}))
 
     assert result["violations"][0]["action"] == "MONITOR"
     assert result["recommendation"] == "MONITOR"
@@ -196,9 +198,12 @@ def test_analysis_agent_fallback(monkeypatch):
 
     monkeypatch.setattr(aa.storage_client, "get_detections", get_detections)
 
+    from src.agents.context import AgentContext
     result = aa.run(
-        "test-case",
-        {"analysis": {"min_confidence": 0.65, "max_detections_per_run": 25}},
+        AgentContext(
+            use_case_id="test-case",
+            config={"analysis": {"min_confidence": 0.65, "max_detections_per_run": 25}},
+        )
     )
     assert result["mode"] == "fallback"
     assert result["total_detections"] == 3
@@ -230,7 +235,8 @@ def test_evidence_agent_fallback(monkeypatch):
     monkeypatch.setattr(ea, "llm_client", lc)
     monkeypatch.setattr(ea.storage_client, "get_summary", lambda **kwargs: summary)
 
-    result = ea.run("test-case", {})
+    from src.agents.context import AgentContext
+    result = ea.run(AgentContext(use_case_id="test-case", config={}))
     assert result["mode"] == "fallback"
     assert result["record_count"] == 3
     assert result["unique_labels"] == ["Rupture", "Disconnect"]
@@ -286,7 +292,14 @@ def test_ticketing_agent_fallback(monkeypatch):
     policy = {"violations": [{"label": "Rupture", "avg_confidence": 0.9}], "recommendation": "Halt pipeline"}
     analysis = {"total_detections": 15, "mode": "fallback"}
 
-    result = ta.run("test-case", {}, policy, analysis)
+    from src.agents.context import AgentContext
+    result = ta.run(
+        AgentContext(
+            use_case_id="test-case",
+            config={},
+            upstream_results={"policy": policy, "analysis": analysis},
+        )
+    )
     assert result["mode"] == "fallback"
     assert result["priority"] == "HIGH"
     assert "TICKET-" in result["ticket_id"]

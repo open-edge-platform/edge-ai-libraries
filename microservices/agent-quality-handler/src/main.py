@@ -27,6 +27,8 @@ from .batch_event_subscriber import (
     start_subscriber,
 )
 from .meta_agent import run_pipeline
+from .routing.agent_registry import load_registry, resolve_run_callable
+from .utility.config_loader import load_config
 from .utility.output_store import AgentOutputStore, OutputStoreError
 from .utility.runtime_config import load_runtime_settings
 
@@ -41,12 +43,25 @@ _runs_lock = threading.RLock()
 _pending_deliveries: dict[str, list[BatchDelivery]] = {}
 _RUN_RETENTION_SECONDS = int(os.environ.get("RUN_RETENTION_SECONDS", "86400"))
 _MAX_RETAINED_RUNS = int(os.environ.get("MAX_RETAINED_RUNS", "1000"))
-_output_store = AgentOutputStore(
-    os.environ.get("OUTPUT_DIR", "/tmp/agent-quality-handler-output")
-)
-
 _CONFIG_PATH = os.environ.get("AGENTS_CONFIG_PATH")
 _PROMPTS_DIR = os.environ.get("USE_CASE_PROMPTS_DIR")
+_OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/tmp/agent-quality-handler-output")
+
+
+def _build_output_store(config_path: str | None) -> AgentOutputStore:
+    """Create the process-wide output store from the configured agent registry.
+
+    AQH exposes one shared retained-output history for the whole process, so
+    the store derives its valid agent names from the startup config rather than
+    per-request overrides.
+    """
+    specs = load_registry(load_config(config_path))
+    for spec in specs:
+        resolve_run_callable(spec)
+    return AgentOutputStore(_OUTPUT_DIR, specs=specs)
+
+
+_output_store = _build_output_store(_CONFIG_PATH)
 
 
 @dataclass(frozen=True)

@@ -16,6 +16,7 @@ from enum import Enum
 from typing import Any
 
 from ..utility import llm_client, storage_client, prompt_loader
+from .agent_registry import load_registry
 from .route_utils import normalize_route
 
 log = logging.getLogger(__name__)
@@ -78,13 +79,14 @@ def classify(
     if llm_client.is_fallback_mode():
         return _fallback_classify(summary, config)
 
-    return _llm_classify(use_case_id, summary, prompts_dir)
+    return _llm_classify(use_case_id, summary, prompts_dir, config)
 
 
 def _llm_classify(
     use_case_id: str,
     summary: dict[str, Any],
     prompts_dir: str | None,
+    config: dict[str, Any] | None = None,
 ) -> RoutingDecision:
     """Use the LLM to classify severity."""
     system_prompt = prompt_loader.get_section(use_case_id, "SYSTEM", prompts_dir)
@@ -137,7 +139,7 @@ def _llm_classify(
 
     # Normalize: drop unknown agent names, dedupe, and guarantee ticketing
     # runs after policy/analysis regardless of the order the LLM returned.
-    route = normalize_route(raw_route)
+    route = normalize_route(raw_route, load_registry(config) if config is not None else None)
     if not route:
         route = SEVERITY_ROUTES[severity]
     elif route != raw_route:

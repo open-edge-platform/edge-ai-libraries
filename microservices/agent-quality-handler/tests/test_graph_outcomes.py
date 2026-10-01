@@ -44,19 +44,19 @@ def test_bounds_are_passed_to_all_reading_agents(monkeypatch):
     monkeypatch.setattr(
         meta_agent.policy_agent,
         "run",
-        lambda *args: calls.append(("policy", args[-2:])) or {},
+        lambda context: calls.append(("policy", (context.min_id, context.max_id))) or {},
     )
     monkeypatch.setattr(
         meta_agent.analysis_agent,
         "run",
-        lambda *args: calls.append(("analysis", args[-2:])) or {},
+        lambda context: calls.append(("analysis", (context.min_id, context.max_id))) or {},
     )
     monkeypatch.setattr(
         meta_agent.evidence_agent,
         "run",
-        lambda *args: calls.append(("evidence", args[-2:])) or {},
+        lambda context: calls.append(("evidence", (context.min_id, context.max_id))) or {},
     )
-    monkeypatch.setattr(meta_agent.ticketing_agent, "run", lambda *args: {})
+    monkeypatch.setattr(meta_agent.ticketing_agent, "run", lambda context: {})
 
     meta_agent.run_pipeline(min_id=10, max_id=20)
 

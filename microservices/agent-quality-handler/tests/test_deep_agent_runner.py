@@ -3,8 +3,115 @@
 
 """Tests for the deep-agent runner's route execution and plan normalization."""
 
+import sys
+import types
+
 from src.routing.deep_agent_runner import build_tools, _run_tools_directly, _run_with_deep_agent
 from src.routing.router import RoutingDecision, Severity
+
+
+# ── build_tools — schema stability and registry expansion ────────────────────
+
+def test_build_tools_preserves_builtin_tool_schemas():
+    tools = build_tools("case", {}, None, None, None)
+
+    assert [
+        (tool.name, list(tool.args.keys()), tool.description)
+        for tool in tools
+    ] == [
+        (
+            "run_policy_agent",
+            ["reason"],
+            "Run the policy agent to generate inspection policies from detection data.\n"
+            "        Call this when the routing decision includes 'policy' in the route.",
+        ),
+        (
+            "run_analysis_agent",
+            ["policy_result_json"],
+            "Run the analysis agent to produce a structured analysis report.\n"
+            "        Call this when the routing decision includes 'analysis' in the route.\n"
+            "        Pass the policy result JSON string from run_policy_agent if available.",
+        ),
+        (
+            "run_evidence_agent",
+            ["reason"],
+            "Run the evidence agent to build an audit trail for compliance.\n"
+            "        Call this when the routing decision includes 'evidence' in the route.",
+        ),
+        (
+            "run_ticketing_agent",
+            ["policy_result_json", "analysis_result_json"],
+            "Run the ticketing agent to generate a maintenance ticket.\n"
+            "        Call this when the routing decision includes 'ticketing' in the route.\n"
+            "        Pass policy and analysis results as JSON strings.",
+        ),
+    ]
+
+
+def test_build_tools_supports_registry_defined_agent(monkeypatch):
+    import src.routing.deep_agent_runner as dar
+
+    monkeypatch.setattr(dar.policy_agent, "run", lambda *a, **k: {"recommendation": "HALT_PIPELINE"})
+
+    custom_module = types.ModuleType("tests.fake_followup_agent")
+    captured = {}
+
+    def fake_followup_run(context):
+        captured["policy_result"] = context.upstream("policy")
+        return {"followup": "queued"}
+
+    custom_module.run = fake_followup_run
+    monkeypatch.setitem(sys.modules, "tests.fake_followup_agent", custom_module)
+
+    config = {
+        "agent_registry": [
+            {
+                "name": "policy",
+                "module": "src.agents.policy_agent",
+                "depends_on": [],
+                "prompt_section": "POLICY",
+            },
+            {
+                "name": "followup",
+                "module": "tests.fake_followup_agent",
+                "depends_on": ["policy"],
+                "prompt_section": "FOLLOWUP",
+            },
+        ]
+    }
+
+    tools = build_tools("case", config, None, None, None)
+    assert [(tool.name, list(tool.args.keys())) for tool in tools] == [
+        ("run_policy_agent", ["reason"]),
+        ("run_followup_agent", ["policy_result_json"]),
+    ]
+
+    decision = RoutingDecision(
+        severity=Severity.HIGH,
+        reason="test",
+        route=["policy", "followup"],
+        summary={},
+    )
+    results = _run_tools_directly(decision, tools)
+
+    assert captured["policy_result"] == {"recommendation": "HALT_PIPELINE"}
+    assert results["followup"] == {"followup": "queued"}
+
+
+def test_build_tools_resolves_run_callable_at_invocation_time(monkeypatch):
+    import src.routing.deep_agent_runner as dar
+
+    tools = build_tools("case", {}, None, None, None)
+    monkeypatch.setattr(dar.policy_agent, "run", lambda *a, **k: {"late_patch": True})
+
+    decision = RoutingDecision(
+        severity=Severity.MEDIUM,
+        reason="late patch",
+        route=["policy"],
+        summary={},
+    )
+
+    assert _run_tools_directly(decision, tools)["policy"] == {"late_patch": True}
 
 
 # ── _run_tools_directly — data threading across agents ───────────────────────
@@ -22,9 +129,9 @@ def test_run_tools_directly_threads_policy_and_analysis_into_ticketing(monkeypat
     )
     captured_ticket_inputs = {}
 
-    def fake_ticketing_run(use_case_id, config, policy_result, analysis_result, prompts_dir):
-        captured_ticket_inputs["policy_result"] = policy_result
-        captured_ticket_inputs["analysis_result"] = analysis_result
+    def fake_ticketing_run(context):
+        captured_ticket_inputs["policy_result"] = context.upstream("policy")
+        captured_ticket_inputs["analysis_result"] = context.upstream("analysis")
         return {"ticket_id": "T-1"}
 
     monkeypatch.setattr(dar.ticketing_agent, "run", fake_ticketing_run)
@@ -55,8 +162,8 @@ def test_run_tools_directly_ticketing_first_gets_empty_context(monkeypatch):
     monkeypatch.setattr(dar.policy_agent, "run", lambda *a, **k: {"p": 1})
     captured = {}
 
-    def fake_ticketing_run(use_case_id, config, policy_result, analysis_result, prompts_dir):
-        captured["policy_result"] = policy_result
+    def fake_ticketing_run(context):
+        captured["policy_result"] = context.upstream("policy")
         return {"ticket_id": "T-2"}
 
     monkeypatch.setattr(dar.ticketing_agent, "run", fake_ticketing_run)
@@ -125,9 +232,9 @@ def test_run_with_deep_agent_normalizes_unsafe_plan_order(monkeypatch):
     monkeypatch.setattr(dar.analysis_agent, "run", lambda *a, **k: {"a": 1})
     captured = {}
 
-    def fake_ticketing_run(use_case_id, config, policy_result, analysis_result, prompts_dir):
-        captured["policy_result"] = policy_result
-        captured["analysis_result"] = analysis_result
+    def fake_ticketing_run(context):
+        captured["policy_result"] = context.upstream("policy")
+        captured["analysis_result"] = context.upstream("analysis")
         return {"ticket_id": "T-3"}
 
     monkeypatch.setattr(dar.ticketing_agent, "run", fake_ticketing_run)

@@ -6,11 +6,11 @@
 import json
 import pytest
 
+from src.routing.agent_registry import AgentSpec, DEFAULT_REGISTRY
 from src.routing.router import (
     Severity,
     RoutingDecision,
     SEVERITY_ROUTES,
-    classify,
     _fallback_classify,
     _llm_classify,
 )
@@ -30,6 +30,52 @@ def _summary(by_class):
     return {"by_class": by_class}
 
 
+def _legacy_normalize_route(route: list[str]) -> list[str]:
+    """Phase 1 hardcoded behavior retained as the default compatibility oracle."""
+    known_agents = frozenset({"policy", "analysis", "evidence", "ticketing"})
+    ticketing_dependencies = ("policy", "analysis")
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for agent in route:
+        if agent in known_agents and agent not in seen:
+            seen.add(agent)
+            deduped.append(agent)
+
+    if "ticketing" not in seen:
+        return deduped
+
+    if not any(dependency in seen for dependency in ticketing_dependencies):
+        return deduped
+
+    others = [agent for agent in deduped if agent != "ticketing"]
+    others.append("ticketing")
+    return others
+
+
+@pytest.mark.parametrize(
+    ("route", "expected"),
+    [
+        (["policy", "policy", "bogus", "analysis"], ["policy", "analysis"]),
+        (["ticketing", "policy", "analysis"], ["policy", "analysis", "ticketing"]),
+        (["ticketing", "analysis"], ["analysis", "ticketing"]),
+        (["evidence", "analysis", "policy"], ["evidence", "analysis", "policy"]),
+        (["ticketing", "evidence"], ["ticketing", "evidence"]),
+        ([], []),
+        (
+            ["ticketing", "policy", "policy", "unknown_agent", "analysis"],
+            ["policy", "analysis", "ticketing"],
+        ),
+    ],
+)
+def test_normalize_route_default_registry_matches_phase1_behavior(route, expected):
+    assert normalize_route(route) == expected
+    assert normalize_route(route) == _legacy_normalize_route(route)
+
+
+# ── Fallback classification ──────────────────────────────────────────────────
+
+
 def test_fallback_critical_high_confidence():
     summary = _summary([
         {"label": "Rupture", "count": 3, "avg_confidence": 0.85, "max_confidence": 0.92},
@@ -39,12 +85,14 @@ def test_fallback_critical_high_confidence():
     assert decision.route == SEVERITY_ROUTES[Severity.CRITICAL]
 
 
+
 def test_fallback_critical_high_count():
     summary = _summary([
         {"label": "Obstacle", "count": 60, "avg_confidence": 0.4, "max_confidence": 0.5},
     ])
     decision = _fallback_classify(summary, _CONFIG)
     assert decision.severity == Severity.CRITICAL
+
 
 
 def test_fallback_high_critical_class_present():
@@ -56,6 +104,7 @@ def test_fallback_high_critical_class_present():
     assert "analysis" in decision.route
 
 
+
 def test_fallback_medium():
     summary = _summary([
         {"label": "Deformation", "count": 8, "avg_confidence": 0.55, "max_confidence": 0.58},
@@ -63,6 +112,7 @@ def test_fallback_medium():
     decision = _fallback_classify(summary, _CONFIG)
     assert decision.severity == Severity.MEDIUM
     assert decision.route == ["policy", "analysis", "ticketing"]
+
 
 
 def test_fallback_low():
@@ -74,9 +124,11 @@ def test_fallback_low():
     assert decision.route == ["policy", "ticketing"]
 
 
+
 def test_fallback_empty_summary():
     decision = _fallback_classify(_summary([]), _CONFIG)
     assert decision.severity == Severity.LOW
+
 
 
 def test_routing_decision_should_run():
@@ -90,6 +142,7 @@ def test_routing_decision_should_run():
     assert decision.should_run("ticketing")
     assert not decision.should_run("analysis")
     assert not decision.should_run("evidence")
+
 
 
 def test_routing_decision_to_dict():
@@ -127,6 +180,7 @@ def test_llm_classify_parses_valid_json(monkeypatch):
     assert "policy" in decision.route
 
 
+
 def test_llm_classify_handles_malformed_response(monkeypatch):
     monkeypatch.setattr(
         "src.routing.router.llm_client.call_llm",
@@ -139,6 +193,7 @@ def test_llm_classify_handles_malformed_response(monkeypatch):
 
     decision = _llm_classify("test-case", _summary([]), None)
     assert decision.severity == Severity.HIGH  # safe default
+
 
 
 def test_llm_classify_extracts_json_from_code_fence(monkeypatch):
@@ -154,6 +209,7 @@ def test_llm_classify_extracts_json_from_code_fence(monkeypatch):
 
     decision = _llm_classify("test-case", _summary([]), None)
     assert decision.severity == Severity.LOW
+
 
 
 def test_llm_classify_normalizes_out_of_order_and_duplicate_route(monkeypatch):
@@ -185,11 +241,13 @@ def test_normalize_route_dedupes_and_drops_unknown_agents():
     ]
 
 
+
 def test_normalize_route_moves_ticketing_after_policy_and_analysis():
     assert normalize_route(["ticketing", "policy", "analysis"]) == [
         "policy", "analysis", "ticketing",
     ]
     assert normalize_route(["ticketing", "analysis"]) == ["analysis", "ticketing"]
+
 
 
 def test_normalize_route_leaves_independent_ordering_untouched():
@@ -200,14 +258,52 @@ def test_normalize_route_leaves_independent_ordering_untouched():
     ]
 
 
+
 def test_normalize_route_ticketing_only_needs_no_reorder():
     # No policy/analysis in the route at all — ticketing can stay wherever
     # it was (nothing to be unsafe about).
     assert normalize_route(["ticketing", "evidence"]) == ["ticketing", "evidence"]
 
 
+
 def test_normalize_route_empty_input():
     assert normalize_route([]) == []
+
+
+
+def test_normalize_route_reorders_custom_agent_after_dependency():
+    specs = [
+        *DEFAULT_REGISTRY,
+        AgentSpec(
+            name="sensor_correlation",
+            module="src.agents.sensor_correlation_agent",
+            depends_on=("policy",),
+        ),
+    ]
+
+    assert normalize_route(["sensor_correlation", "policy", "evidence"], specs=specs) == [
+        "policy", "sensor_correlation", "evidence",
+    ]
+
+
+
+def test_normalize_route_applies_transitive_dependency_reordering():
+    specs = [
+        AgentSpec(name="followup", module="m", depends_on=("ticketing",)),
+        AgentSpec(name="ticketing", module="m", depends_on=("analysis",)),
+        AgentSpec(name="analysis", module="m", depends_on=("policy",)),
+        AgentSpec(name="policy", module="m"),
+    ]
+
+    assert normalize_route(["followup", "analysis", "policy", "ticketing"], specs=specs) == [
+        "policy", "analysis", "ticketing", "followup",
+    ]
+
+
+
+def test_normalize_route_drops_agents_missing_from_custom_registry():
+    specs = [AgentSpec(name="policy", module="src.agents.policy_agent")]
+    assert normalize_route(["ghost", "policy", "ghost"], specs=specs) == ["policy"]
 
 
 # ── Routing graph integration ────────────────────────────────────────────────
@@ -248,6 +344,7 @@ def test_routing_graph_low_severity_skips_analysis_and_evidence(monkeypatch):
     assert result["analysis"] == {}
     assert result["evidence"] == {}
     assert result["ticket"] == {"ticket": True}
+
 
 
 def test_routing_graph_high_severity_runs_all_agents(monkeypatch):
