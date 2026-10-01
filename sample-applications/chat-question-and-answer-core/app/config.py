@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     # Opt-in: label context chunks [S1..Sn] in the prompt and return them as `sources`.
     RETURN_SOURCES: bool = False
     SOURCE_SNIPPET_CHARS: int = 300
+    # Chunks fetched from FAISS and kept after reranking (stock: 3 and 2).
+    RETRIEVAL_K: int = 3
+    RERANK_TOP_N: int = 2
+    # Optional LLM prompt with `{question}` that rewrites the question for retrieval.
+    RETRIEVAL_TRANSLATE_PROMPT: str = ""
 
     # These fields will not be affected by environment variables
     _ENABLE_RERANK: bool = PrivateAttr(True)
