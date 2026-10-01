@@ -92,6 +92,12 @@ verify_my_component () {
 ...
 }
 
+# optional function if the component has dependencies
+# $1 is the subcomamnd name
+#debian_85_profile_my_component () {
+#  [ "$1" = "start" ] || echo "docker"
+#}
+
 debian_85_install_my_component () {
   configure_my_component "$@"
   if verify_my_component "$@" && [[ " $* " != *" --reinstall "* ]]; then
