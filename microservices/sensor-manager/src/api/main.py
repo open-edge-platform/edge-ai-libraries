@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sensor Manager API",
     description="Discovery and description of USB and ONVIF network cameras.",
-    version="1.0.0",
+    version="2026.3.0-dev",
     lifespan=lifespan,
 )
 app.include_router(health.router, prefix=API_PREFIX, tags=["health"])
