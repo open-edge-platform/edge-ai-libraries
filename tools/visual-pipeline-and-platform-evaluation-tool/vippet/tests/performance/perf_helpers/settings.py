@@ -364,6 +364,17 @@ SPECS: tuple[SettingSpec, ...] = (
         "run-time behaviour of --no-require-models is pending.",
         negative_flag="--no-require-models",
     ),
+    SettingSpec(
+        "benchmark.filters.on_unknown_id",
+        "--on-unknown-id",
+        "choice",
+        "fail",
+        "How to react to an unknown id in pipelines/skip_pipelines/"
+        "skip_variants/variants: 'fail' aborts the run, 'warn' logs and "
+        "reports each bad id as an explicit skipped case.",
+        env="PERF_ON_UNKNOWN_ID",
+        choices=("fail", "warn"),
+    ),
     # --- metrics ---
     SettingSpec(
         "metrics.metrics_url",
