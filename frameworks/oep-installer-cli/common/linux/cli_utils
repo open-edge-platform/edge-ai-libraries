@@ -113,9 +113,6 @@ act_helper () {
   local explicit_mods="$(act_extract_modules $act_name "$@")"
   set -- $(act_resolve_args $act_name "$@")
 
-  local _explicit="$(act_extract_modules $act_name "$@")"
-  set -- $(act_resolve_args $act_name "$@")
-
   # scan for dependencies
   local handles=($(act_find_deps $act_name "$@"))
 
@@ -209,9 +206,12 @@ act_helper () {
 
     # pass on modules to subsequent command
     if [[ " $* " != *" --dry-run "* ]]; then
-      mkdir -p "${mods_file%/*}"
-      rm -f "$mods_file"
-      [[ $rc -ne 0 && -n "${explicit_mods// }" ]] && echo "$explicit_mods" > "$mods_file"
+      if [ $rc -ne 0 ]; then
+        rm -f "$mods_file"
+      elif [ -n "${explicit_mods// }" ]; then
+        mkdir -p "${mods_file%/*}"
+        echo $explicit_mods > "$mods_file"
+      fi
     fi
 
     return $rc
