@@ -149,6 +149,8 @@ indexing, and audio analysis.
   Microservice discovering USB and ONVIF network cameras and describing
   their best capture configurations and RTSP media profiles.
 
+### Data Preparation and Retrieval
+
 Efficient data management and retrieval are crucial for AI performance
 and scalability. This group offers components for dataset curation,
 vector search, and document ingestion across multimodal data. 
