@@ -1,53 +1,81 @@
 
-configure_order_accuracy () {
-  workspace="$(ensure_project_path)/order-accuracy"
-  version=v2026.2.0-rc1
+configure_order_accuracy_dine_in () {
+  workspace="$(ensure_project_path)/order-accuracy-dine-in"
+  version=v2026.2.0
   repository="https://github.com/intel-retail/order-accuracy.git"
+  ports=(7861 8083 8002 8011 9000 8081 9091)
 }
 
-verify_order_accuracy () {
+configure_order_accuracy_dine_in_device () {
+  local default_device=$(grep -E "^TARGET_DEVICE=" "$workspace"/dine-in/.env | tail -n1 | cut -f2 -d=)
+  local selected_device=$(ensure_select_device "$@")
+  if [ "$default_device" != "${selected_device^^}" ]; then
+    sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=${selected_device^^}|" "$workspace"/dine-in/.env
+    cd "$workspace"/ovms-service
+    ./setup_models.sh --app dine-in
+  fi
+}
+
+verify_order_accuracy_dine_in () {
+  
+    local model="$(. .env; echo "$OVMS_MODEL_NAME")"
   [ -e "$workspace"/ovms-service/models/openbmb/MiniCPM-V-4_5-int4/openvino_language_model.bin ]
   [ -e "$workspace"/take-away/models/yolo11n_int8_openvino_model/yolo11n.bin ]
 }
 
-debian_90_profile_order_accuracy () {
+debian_90_profile_order_accuracy_dine_in () {
   echo "git curl gawk make python3_venv docker edge_base"
 }
 
-debian_90_install_order_accuracy () {
-  configure_order_accuracy
-  if verify_order_accuracy && [[ " $* " != *" --reinstall "* ]]; then
+debian_90_install_order_accuracy_dine_in () {
+  configure_order_accuracy_dine_in
+  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+
+  if verify_order_accuracy_dine_in && [[ " $* " != *" --reinstall "* ]]; then
     echo "Order accuracy is already installed. Skipping"
-    return
+  else 
+    # clone the repository
+    ensure_disk_space 10000
+    ensure_git_clone "$workspace" $version $repository
+
+    # initialize .env
+    cd "$workspace"/dine-in
+    make init-env
+
+    # setup
+    local model="$(. .env; echo "$OVMS_MODEL_NAME")"
+    ensure_hf_token "${model/MiniCPM-V-4_5-int4/MiniCPM-V-4_5}"
+
+    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
+    sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=|" .env
+
+    cd "$workspace"/dine-in
+    make build
   fi
 
-  # clone the repository
-  ensure_disk_space 10000
-  ensure_git_clone "$workspace" $version $repository
-
-  # setup
-  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
-  ensure_hf_token Qwen/Qwen2.5-VL-7B-Instruct openbmb/MiniCPM-V-4_5 
-
-  for app in dine-in take-away; do
-    cd "$workspace"/$app
-    make init-env
-    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
-    cd ../ovms-service
-    ./setup_models.sh --app $app
-    cd "$workspace"/$app
-    make build
-  done
-  
-  cd "$workspace"
-  verify_order_accuracy
+  configure_order_accuracy_dine_in_device "$@"
+  verify_order_accuracy_dine_in
 
   echo "@@HIGHLIGHT workspace @$workspace"
-  echo "@@HIGHLIGHT cd dine-in[|take-away] && make up"
+  echo "@@HIGHLIGHT $installer_name start order_accuracy_dine_in"
 }
 
-debian_90_remove_order_accuracy () {
-  configure_order_accuracy
+debian_90_start_order_accuracy_dine_in () {
+  configure_order_accuracy_dine_in "$@"
+  ensure_ports_open "${ports[*]}" debian_90_stop_order_accuracy_dine_in "$@"
+  cd "$workspace"/dine-in
+  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+  make up
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${ports[0]}"
+}
+
+debian_90_stop_order_accuracy_dine_in () {
+  configure_order_accuracy_dine_in "$@"
+  cd "$workspace"/dine-in && make down || true
+}
+
+debian_90_remove_order_accuracy_dine_in () {
+  debian_90_stop_order_accuracy_dine_in "$@"
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 

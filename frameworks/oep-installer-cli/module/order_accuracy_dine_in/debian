@@ -12,13 +12,13 @@ configure_order_accuracy_dine_in_device () {
   if [ "$default_device" != "${selected_device^^}" ]; then
     sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=${selected_device^^}|" "$workspace"/dine-in/.env
     cd "$workspace"/ovms-service
-    sed -i 's|2026/1|2026/4|' setup_models.sh
     ./setup_models.sh --app dine-in
   fi
 }
 
 verify_order_accuracy_dine_in () {
-  [ -e "$workspace"/ovms-service/models/openbmb/MiniCPM-V-4_5-int4/openvino_language_model.bin ]
+  local model="$(. "$workspace"/dine-in/.env; echo "$OVMS_MODEL_NAME")"
+  [ -e "$workspace"/ovms-service/models/$model/openvino_language_model.bin ]
 }
 
 debian_90_profile_order_accuracy_dine_in () {
