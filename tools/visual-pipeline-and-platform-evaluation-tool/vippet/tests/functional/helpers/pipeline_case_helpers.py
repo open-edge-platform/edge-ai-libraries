@@ -126,19 +126,21 @@ def collect_pipeline_cases(session: requests.Session) -> list[PipelineCase]:
 def wrap_cases_for_pytest(
     cases: list[PipelineCase],
     missing_models_by_pipeline: dict[str, set[str]],
+    require_models: bool = True,
 ) -> tuple[list[PipelineCase | object], list[str]]:
     """Return ``(params, ids)`` ready for ``pytest.mark.parametrize``.
 
-    Pipeline cases whose required models are not installed are wrapped
-    in ``pytest.param(..., marks=pytest.mark.skip(reason=...))`` so the
-    pytest report shows an explicit ``SKIPPED`` with the missing model
-    names. Other cases are passed through unchanged.
+    When ``require_models`` is false, cases whose required models are not
+    installed are wrapped in ``pytest.param(..., marks=pytest.mark.skip(reason=...))``
+    so the pytest report shows an explicit ``SKIPPED`` with the missing
+    model names. When true, those cases are passed through unchanged and
+    are allowed to fail at runtime.
     """
     params: list[PipelineCase | object] = []
     ids: list[str] = []
     for case in cases:
         missing = missing_models_by_pipeline.get(case.pipeline_id)
-        if missing:
+        if missing and not require_models:
             reason = (
                 f"Pipeline {case.pipeline_name!r} requires model(s) that are "
                 f"not installed: {sorted(missing)}. Install them through "
@@ -155,14 +157,14 @@ def wrap_cases_for_pytest(
 def discover_pipeline_cases_for_pytest(
     *,
     skip_reason: str | None = None,
+    require_models: bool = True,
 ) -> tuple[list[PipelineCase | object], list[str]]:
     """Return pytest parameter values and ids for pipeline-driven tests.
 
-    Pipeline cases whose required models are not installed are kept in
-    the parametrize list but wrapped in ``pytest.mark.skip`` with the
-    list of missing model display names, so the pytest report shows an
-    explicit ``SKIPPED`` instead of silently dropping the case from
-    collection.
+    When ``require_models`` is false, pipeline cases whose required
+    models are not installed are wrapped in ``pytest.mark.skip`` with
+    the missing model display names. Set it to true to schedule them
+    without a skip mark.
 
     If discovery fails or yields no runnable combinations at all,
     returns a single skipped parameter to keep collection stable and
@@ -192,7 +194,9 @@ def discover_pipeline_cases_for_pytest(
     if not cases:
         return [pytest.param(None, marks=pytest.mark.skip(reason=reason))], ["no-cases"]
 
-    return wrap_cases_for_pytest(cases, missing_models_by_pipeline)
+    return wrap_cases_for_pytest(
+        cases, missing_models_by_pipeline, require_models=require_models
+    )
 
 
 def skip_if_pipeline_models_missing(
