@@ -168,5 +168,109 @@ class TestPerformancePreflight(unittest.TestCase):
         self.assertEqual(preflight.FATAL_PREFLIGHT_EXIT_CODE, 2)
 
 
+class TestFetchDiscoveredDevices(unittest.TestCase):
+    """Unit tests for the /devices snapshot captured at pre-flight time."""
+
+    def test_returns_payload_on_success(self) -> None:
+        requested_paths: list[str] = []
+        devices = [
+            {"device_name": "CPU", "full_device_name": "Intel(R) Core(TM) Ultra 7"},
+            {"device_name": "GPU.0", "full_device_name": "Intel(R) Arc(TM) Graphics"},
+        ]
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requested_paths.append(request.url.path)
+            return httpx.Response(200, json=devices)
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_discovered_devices(
+                "http://localhost/api/v1/",
+                10,
+                client=client,
+                report=reports.append,
+            )
+
+        self.assertEqual(requested_paths, ["/api/v1/devices"])
+        self.assertEqual(result, devices)
+        self.assertIn(
+            "GET http://localhost/api/v1/devices: OK (2 device(s))", reports[0]
+        )
+
+    def test_returns_empty_list_on_unreachable_endpoint(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("connection refused", request=request)
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_discovered_devices(
+                "http://localhost/api/v1", 10, client=client, report=reports.append
+            )
+
+        self.assertEqual(result, [])
+        self.assertIn("/devices: FAILED", reports[-1])
+        self.assertIn("ConnectError", reports[-1])
+
+    def test_returns_empty_list_on_non_list_payload(self) -> None:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"not": "a list"})
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_discovered_devices(
+                "http://localhost/api/v1", 10, client=client, report=reports.append
+            )
+
+        self.assertEqual(result, [])
+        self.assertIn("/devices: FAILED", reports[-1])
+        self.assertIn("expected a list, got dict", reports[-1])
+
+    def test_returns_empty_list_on_http_error_status(self) -> None:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(500, json={"message": "boom"})
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_discovered_devices(
+                "http://localhost/api/v1", 10, client=client, report=reports.append
+            )
+
+        self.assertEqual(result, [])
+        self.assertIn("/devices: FAILED", reports[-1])
+
+    def test_closes_owned_client_when_none_provided(self) -> None:
+        devices = [{"device_name": "CPU", "full_device_name": "Some CPU"}]
+        created_clients: list[httpx.Client] = []
+        real_client_cls = httpx.Client
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=devices)
+
+        def fake_client_ctor(**_kwargs: object) -> httpx.Client:
+            created = real_client_cls(transport=httpx.MockTransport(handler))
+            created_clients.append(created)
+            return created
+
+        with patch.object(preflight.httpx, "Client", side_effect=fake_client_ctor):
+            result = preflight.fetch_discovered_devices("http://localhost/api/v1", 10)
+
+        self.assertEqual(result, devices)
+        self.assertEqual(len(created_clients), 1)
+        self.assertTrue(created_clients[0].is_closed)
+
+    def test_does_not_close_externally_provided_client(self) -> None:
+        devices = [{"device_name": "CPU", "full_device_name": "Some CPU"}]
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=devices)
+
+        with _client(handler) as client:
+            result = preflight.fetch_discovered_devices(
+                "http://localhost/api/v1", 10, client=client
+            )
+            self.assertEqual(result, devices)
+            self.assertFalse(client.is_closed)
+
+
 if __name__ == "__main__":
     unittest.main()
