@@ -3,7 +3,10 @@
 
 import json
 import os
+import shutil
 import subprocess
+import tempfile
+import threading
 from collections import deque
 from enum import Enum
 from typing import Dict, Any, Optional, List
@@ -15,6 +18,32 @@ from src.utils.logging import logger
 # Default OVMS release tag for export_model.py script
 OVMS_RELEASE_TAG = os.getenv("OVMS_RELEASE_TAG", "v2026.0")
 INTERNAL_CONFIG_PARAMS = frozenset({"resolved_config", "_active_processes", "_model_download_dir"})
+
+_VOICE_REQUIRED_FILES = {
+    "audio-analyzer": (
+        "config.json",
+        "openvino_encoder_model.xml",
+        "openvino_encoder_model.bin",
+        "openvino_decoder_model.xml",
+        "openvino_decoder_model.bin",
+    ),
+    "text-to-speech": (
+        "config.json",
+        "generation_config.json",
+        "openvino_encoder_model.xml",
+        "openvino_encoder_model.bin",
+        "openvino_decoder_model.xml",
+        "openvino_decoder_model.bin",
+        "openvino_postnet.xml",
+        "openvino_postnet.bin",
+        "openvino_vocoder.xml",
+        "openvino_vocoder.bin",
+        "openvino_tokenizer.xml",
+        "openvino_tokenizer.bin",
+    ),
+}
+
+_VOICE_PUBLISH_LOCK = threading.Lock()
 
 # Graph templates for OVMS serving configuration (aligned with export_model.py)
 TEXT_GENERATION_GRAPH_TEMPLATE = """# OVMS_GRAPH_QUEUE_MAX_SIZE: AUTO
@@ -593,6 +622,124 @@ class OpenVINOConverter(ModelDownloadPlugin):
         
         return command
 
+    @staticmethod
+    def _voice_artifact_exists(target: str, output_dir: str) -> bool:
+        required_files = _VOICE_REQUIRED_FILES[target]
+        return all(os.path.isfile(os.path.join(output_dir, name)) for name in required_files)
+
+    @staticmethod
+    def _publish_voice_artifact(staged_model_dir: str, output_dir: str) -> None:
+        parent_dir = os.path.dirname(output_dir)
+        backup_dir = f"{output_dir}.previous"
+        shutil.rmtree(backup_dir, ignore_errors=True)
+
+        had_existing = os.path.exists(output_dir)
+        if had_existing:
+            os.replace(output_dir, backup_dir)
+        try:
+            os.replace(staged_model_dir, output_dir)
+        except Exception:
+            if had_existing and os.path.exists(backup_dir):
+                os.replace(backup_dir, output_dir)
+            raise
+        else:
+            shutil.rmtree(backup_dir, ignore_errors=True)
+            os.makedirs(parent_dir, exist_ok=True)
+
+    def _convert_voice_artifact(
+        self,
+        model_name: str,
+        output_dir: str,
+        hf_token: Optional[str],
+        target: str,
+        model_type: str,
+        target_device: str,
+        weight_format: str,
+        config: Dict[str, Any],
+        active_processes=None,
+        model_download_dirs=None,
+    ) -> Dict[str, Any]:
+        if target not in _VOICE_REQUIRED_FILES:
+            raise ValueError(f"Unsupported Voice artifact target: {target}")
+
+        with _VOICE_PUBLISH_LOCK:
+            if self._voice_artifact_exists(target, output_dir):
+                logger.info(
+                    "voice_artifact_cached",
+                    target=target,
+                    model_name=model_name,
+                    output_dir=output_dir,
+                )
+                return {
+                    "model_name": model_name,
+                    "source": "openvino",
+                    "type": model_type,
+                    "target": target,
+                    "conversion_path": output_dir,
+                    "is_ovms": False,
+                    "success": True,
+                    "mode": "cached",
+                }
+
+            parent_dir = os.path.dirname(output_dir)
+            os.makedirs(parent_dir, exist_ok=True)
+            staging_dir = tempfile.mkdtemp(prefix=".model-download-", dir=parent_dir)
+            if model_download_dirs is not None:
+                model_download_dirs.append(staging_dir)
+
+            try:
+                export_config = config.copy()
+                export_config.pop("target", None)
+                if target == "text-to-speech":
+                    export_config["vocoder"] = "microsoft/speecht5_hifigan"
+
+                result = self.convert_to_ovms_format(
+                    model_name=model_name,
+                    weight_format=weight_format,
+                    huggingface_token=hf_token,
+                    model_type=model_type,
+                    target_device=target_device,
+                    model_directory=staging_dir,
+                    config_dict=export_config,
+                    active_processes=active_processes,
+                )
+                if result["returncode"] != 0:
+                    raise RuntimeError(
+                        f"Voice model conversion failed: {result['stderr']}"
+                    )
+
+                staged_model_dir = os.path.join(staging_dir, model_name)
+                missing_files = [
+                    name
+                    for name in _VOICE_REQUIRED_FILES[target]
+                    if not os.path.isfile(os.path.join(staged_model_dir, name))
+                ]
+                if missing_files:
+                    raise RuntimeError(
+                        f"Incomplete {target} artifact; missing files: "
+                        f"{', '.join(missing_files)}"
+                    )
+
+                self._publish_voice_artifact(staged_model_dir, output_dir)
+                logger.info(
+                    "voice_artifact_published",
+                    target=target,
+                    model_name=model_name,
+                    output_dir=output_dir,
+                )
+                return {
+                    "model_name": model_name,
+                    "source": "openvino",
+                    "type": model_type,
+                    "target": target,
+                    "conversion_path": output_dir,
+                    "is_ovms": False,
+                    "success": True,
+                    "mode": "convert",
+                }
+            finally:
+                shutil.rmtree(staging_dir, ignore_errors=True)
+
     def convert(self, model_name: str, output_dir: str, hf_token: str, **kwargs) -> Dict[str, Any]:
         """
         Convert a model to OpenVINO Model Server (OVMS) format.
@@ -618,6 +765,21 @@ class OpenVINOConverter(ModelDownloadPlugin):
         huggingface_token = resolved_config.get("HF_TOKEN") or hf_token
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         version = kwargs.get("version", "")
+        target = kwargs.get("target")
+
+        if target in _VOICE_REQUIRED_FILES:
+            return self._convert_voice_artifact(
+                model_name=model_name,
+                output_dir=output_dir,
+                hf_token=huggingface_token,
+                target=target,
+                model_type=model_type,
+                target_device=target_device,
+                weight_format=weight_format,
+                config=kwargs,
+                active_processes=kwargs.get("_active_processes"),
+                model_download_dirs=kwargs.get("_model_download_dir"),
+            )
 
         # Register the exact model dir so cancellation removes only this model's
         # folder within the precision tree, never sibling models/precisions.
@@ -694,16 +856,22 @@ class OpenVINOConverter(ModelDownloadPlugin):
         
         try:
             # Perform the conversion
+            conversion_kwargs = {
+                "model_name": model_name,
+                "weight_format": weight_format,
+                "huggingface_token": huggingface_token,
+                "model_type": model_type,
+                "target_device": target_device,
+                "model_directory": output_dir,
+                "version": version,
+                "config_dict": config_for_export,
+            }
+            active_processes = kwargs.get("_active_processes")
+            if active_processes is not None:
+                conversion_kwargs["active_processes"] = active_processes
+
             result = self.convert_to_ovms_format(
-                model_name=model_name,
-                weight_format=weight_format,
-                huggingface_token=huggingface_token,
-                model_type=model_type,
-                target_device=target_device,
-                model_directory=output_dir,
-                version=version,
-                config_dict=config_for_export,
-                active_processes=kwargs.get("_active_processes"),
+                **conversion_kwargs
             )
 
             host_path = output_dir

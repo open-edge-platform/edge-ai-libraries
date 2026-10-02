@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  audio-analyzer:
+    devices:
+      - "/dev/accel:/dev/accel"
+    group_add:
+      - "${NPU_GROUP_ID:-${RENDER_GROUP_ID:?Set RENDER_GROUP_ID to the host render group ID}}"
+    environment:
+      AUDIO_ANALYZER__MODELS__ASR__DEVICE: ${VOICE_ASR_DEVICE:-NPU}
+      ZE_ENABLE_ALT_DRIVERS: libze_intel_npu.so
+
+  text-to-speech:
+    devices:
+      - "/dev/dri:/dev/dri"
+    group_add:
+      - "${RENDER_GROUP_ID:?Set RENDER_GROUP_ID to the host render group ID}"
+    environment:
+      TEXT_TO_SPEECH__MODELS__TTS__DEVICE: ${VOICE_TTS_DEVICE:-GPU}
+      TEXT_TO_SPEECH__MODELS__TTS__DTYPE: ${VOICE_TTS_DTYPE:-fp16}

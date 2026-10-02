@@ -79,6 +79,133 @@ class TestOpenVINOConverter:
         with pytest.raises(NotImplementedError, match="OpenVINO plugin is a converter, not a downloader"):
             asyncio.run(openvino_plugin.download("test-model", temp_dir))
 
+    @staticmethod
+    def _create_voice_artifact(path, target):
+        required_files = {
+            "audio-analyzer": (
+                "config.json",
+                "openvino_encoder_model.xml",
+                "openvino_encoder_model.bin",
+                "openvino_decoder_model.xml",
+                "openvino_decoder_model.bin",
+            ),
+            "text-to-speech": (
+                "config.json",
+                "generation_config.json",
+                "openvino_encoder_model.xml",
+                "openvino_encoder_model.bin",
+                "openvino_decoder_model.xml",
+                "openvino_decoder_model.bin",
+                "openvino_postnet.xml",
+                "openvino_postnet.bin",
+                "openvino_vocoder.xml",
+                "openvino_vocoder.bin",
+                "openvino_tokenizer.xml",
+                "openvino_tokenizer.bin",
+            ),
+        }
+        os.makedirs(path, exist_ok=True)
+        for filename in required_files[target]:
+            with open(os.path.join(path, filename), "w", encoding="utf-8") as file:
+                file.write("test")
+
+    @pytest.mark.parametrize(
+        "target,model_name,model_type",
+        [
+            ("audio-analyzer", "openai/whisper-base", "speech2text"),
+            ("text-to-speech", "microsoft/speecht5_tts", "text2speech"),
+        ],
+    )
+    def test_convert_publishes_complete_voice_artifact(
+        self,
+        openvino_plugin,
+        temp_dir,
+        target,
+        model_name,
+        model_type,
+    ):
+        output_dir = os.path.join(temp_dir, "published")
+
+        def create_export(**kwargs):
+            model_dir = os.path.join(kwargs["model_directory"], model_name)
+            self._create_voice_artifact(model_dir, target)
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+        with patch.object(
+            openvino_plugin,
+            "convert_to_ovms_format",
+            side_effect=create_export,
+        ) as convert:
+            result = openvino_plugin.convert(
+                model_name=model_name,
+                output_dir=output_dir,
+                hf_token="test_token",
+                precision="int8",
+                device="CPU",
+                type=model_type,
+                target=target,
+            )
+
+        assert result["conversion_path"] == output_dir
+        assert result["target"] == target
+        assert result["is_ovms"] is False
+        assert openvino_plugin._voice_artifact_exists(target, output_dir)
+        export_config = convert.call_args.kwargs["config_dict"]
+        assert "target" not in export_config
+        if target == "text-to-speech":
+            assert export_config["vocoder"] == "microsoft/speecht5_hifigan"
+
+    def test_convert_reuses_complete_voice_artifact(self, openvino_plugin, temp_dir):
+        self._create_voice_artifact(temp_dir, "audio-analyzer")
+
+        with patch.object(openvino_plugin, "convert_to_ovms_format") as convert:
+            result = openvino_plugin.convert(
+                model_name="openai/whisper-base",
+                output_dir=temp_dir,
+                hf_token="test_token",
+                type="speech2text",
+                target="audio-analyzer",
+            )
+
+        convert.assert_not_called()
+        assert result["mode"] == "cached"
+
+    def test_incomplete_voice_export_preserves_existing_directory(
+        self,
+        openvino_plugin,
+        temp_dir,
+    ):
+        output_dir = os.path.join(temp_dir, "published")
+        os.makedirs(output_dir)
+        marker = os.path.join(output_dir, "existing.txt")
+        with open(marker, "w", encoding="utf-8") as file:
+            file.write("keep")
+
+        def create_incomplete_export(**kwargs):
+            os.makedirs(
+                os.path.join(kwargs["model_directory"], "openai/whisper-base"),
+                exist_ok=True,
+            )
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+        with (
+            patch.object(
+                openvino_plugin,
+                "convert_to_ovms_format",
+                side_effect=create_incomplete_export,
+            ),
+            pytest.raises(RuntimeError, match="Incomplete audio-analyzer artifact"),
+        ):
+            openvino_plugin.convert(
+                model_name="openai/whisper-base",
+                output_dir=output_dir,
+                hf_token="test_token",
+                type="speech2text",
+                target="audio-analyzer",
+            )
+
+        assert os.path.isfile(marker)
+
     @patch.object(OpenVINOConverter, 'convert_to_ovms_format')
     @patch('os.getenv')
     def test_convert_success(self, mock_getenv, mock_convert_to_ovms, openvino_plugin, temp_dir):

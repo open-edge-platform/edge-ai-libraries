@@ -84,7 +84,7 @@ class ModelCatalogSpec(TypedDict):
     unsupported_devices: str | None
     precisions: list[ModelPrecisionSpec]
     extra_model_procs: list[str]
-    download_request: dict[str, Any] | None
+    download_request: dict[str, Any] | list[dict[str, Any]] | None
 
 
 def _validate_benchmark_suite_spec(
@@ -398,9 +398,14 @@ def _validate_model_catalog_spec(
         else []
     )
     download_request_raw = loaded.get("download_request")
-    download_request = (
-        download_request_raw if isinstance(download_request_raw, dict) else None
-    )
+    download_request = download_request_raw if (
+        isinstance(download_request_raw, dict)
+        or (
+            isinstance(download_request_raw, list)
+            and download_request_raw
+            and all(isinstance(request, dict) for request in download_request_raw)
+        )
+    ) else None
 
     return ModelCatalogSpec(
         name=name.strip(),

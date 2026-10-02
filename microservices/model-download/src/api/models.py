@@ -119,6 +119,11 @@ class ModelType(str, Enum):
     AI_ECG = "ai-ecg"
 
 
+class ModelTarget(str, Enum):
+    AUDIO_ANALYZER = "audio-analyzer"
+    TEXT_TO_SPEECH = "text-to-speech"
+
+
 class OpenVINOOptimizationConfig(BaseModel):
     """
     OpenVINO-specific optimization parameters aligned with export_model.py arguments.
@@ -360,6 +365,15 @@ class ModelRequest(BaseModel):
     )
     hub: ModelHub
     type: Optional[ModelType] = None
+    target: Optional[ModelTarget] = Field(
+        default=None,
+        description=(
+            "Optional artifact layout target. Use 'audio-analyzer' or "
+            "'text-to-speech' for the supported Voice runtime layouts. "
+            "Voice exports require config.device='CPU'. "
+            "Use is_ovms for the existing OVMS repository layout."
+        ),
+    )
     is_ovms: bool = False
     revision: Optional[str] = None
     config: Optional[Config] = None

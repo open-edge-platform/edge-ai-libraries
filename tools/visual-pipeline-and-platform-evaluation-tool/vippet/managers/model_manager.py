@@ -91,6 +91,12 @@ HTTP_REQUEST_TIMEOUT_S: float = float(
 # Upload streaming chunk size.
 UPLOAD_CHUNK_SIZE: int = 8 * 1024 * 1024  # 8 MiB
 
+DownloadRequest = dict[str, Any] | list[dict[str, Any]]
+
+
+def _normalize_download_requests(request: DownloadRequest) -> list[dict[str, Any]]:
+    return [request] if isinstance(request, dict) else request
+
 
 def _precision_is_complete(category: str | None, model_path: str) -> bool:
     """Return True only when the model files at *model_path* are complete.
@@ -445,13 +451,13 @@ class ModelManager:
         self,
         job_id: str,
         model_name: str,
-        download_request: dict[str, Any],
+        download_request: DownloadRequest,
     ) -> None:
         """Run a download via the model-download microservice."""
         try:
-            download_path = self._resolve_download_path()
+            download_path = self._resolve_download_path(download_request)
             url = f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/models/download"
-            body = {"models": [download_request]}
+            body = {"models": _normalize_download_requests(download_request)}
 
             self._append_detail(
                 job_id,
@@ -541,10 +547,12 @@ class ModelManager:
             self._fail_job(job_id, f"Unexpected error: {exc}")
 
     @staticmethod
-    def _resolve_download_path() -> str:
+    def _resolve_download_path(download_request: DownloadRequest) -> str:
         """Pick the ``download_path`` query value passed to model-download.
 
-        We always pass ``.`` (i.e. the MODELS_PATH root). The model-download
+        Voice runtime artifacts are grouped below ``voice/`` because that is
+        the host directory mounted read-only by their consumers. Other models
+        use ``.`` (i.e. the MODELS_PATH root). The model-download
         plugins themselves prepend their own ``<hub>/`` subdirectory to
         ``output_dir`` (e.g. ``ultralytics/``, ``huggingface/``), and the
         download scripts they invoke further nest the files under
@@ -552,7 +560,8 @@ class ModelManager:
         ``model_path`` entries must therefore include the full
         ``<hub>/<source>/<model_name>/<precision>/<file>`` prefix.
         """
-        return "."
+        requests = _normalize_download_requests(download_request)
+        return "voice" if all(request.get("target") for request in requests) else "."
 
     # ------------------------------------------------------------------
     # Job state transitions
@@ -672,30 +681,35 @@ class ModelManager:
             )
 
             now = datetime.now(timezone.utc)
-            any_installed = False
+            variant_results: list[bool] = []
             model_path: str | None = None
             for variant in variants:
                 full_path = os.path.join(MODELS_PATH, variant.model_path)
                 is_installed = _precision_is_complete(db_model.category, full_path)
                 variant.installed = is_installed
                 variant.installed_at = now if is_installed else None
+                variant_results.append(is_installed)
                 if is_installed:
-                    any_installed = True
                     if model_path is None:
                         model_path = full_path
 
+            installation_complete = bool(variant_results) and (
+                all(variant_results)
+                if isinstance(db_model.download_request, list)
+                else any(variant_results)
+            )
             db_model.install_status = (
                 InternalModelInstallStatus.INSTALLED.value
-                if any_installed
+                if installation_complete
                 else InternalModelInstallStatus.NOT_INSTALLED.value
             )
-            db_model.installed_at = now if any_installed else None
+            db_model.installed_at = now if installation_complete else None
             await session.commit()
 
-        if any_installed:
+        if installation_complete:
             await SupportedModelsManager().reload_async()
 
-        return any_installed, model_path
+        return installation_complete, model_path if installation_complete else None
 
     # ------------------------------------------------------------------
     # Public: upload

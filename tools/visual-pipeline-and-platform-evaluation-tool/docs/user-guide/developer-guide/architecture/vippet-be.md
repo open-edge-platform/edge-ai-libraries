@@ -38,7 +38,8 @@ and lifecycles.
 
 The backend ships as a container and is composed with sibling services (`vippet-ui`, `mediamtx`,
 `model-download`, `metrics-manager`) via Docker Compose. Hardware capabilities are selected through
-`COMPOSE_PROFILES` (`cpu`, `gpu`, `npu`), which is auto-detected by `setup_env.sh`.
+`COMPOSE_PROFILES` (`cpu`, `gpu`, `npu`, `igpu-wsl`), which is auto-detected by `setup_env.sh`.
+The WSL profile exposes `/dev/dxg` and read-only `/usr/lib/wsl` libraries instead of native DRM devices.
 
 ### Developer Tooling
 
