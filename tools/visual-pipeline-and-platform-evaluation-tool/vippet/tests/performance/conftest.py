@@ -1,10 +1,12 @@
-# Copyright (C) 2026 Intel Corporation
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """Shared fixtures for VIPPET performance benchmark tests."""
 
+import dataclasses
 import logging
 import os
+import sys
 import time
 from collections.abc import Generator
 from datetime import datetime
@@ -13,42 +15,67 @@ from typing import Any
 
 import pytest
 import httpx
-
+from perf_helpers.settings import SettingsError
 from helpers.api_helpers import fetch_devices
 from helpers.pipeline_case_helpers import (
     SUPPORTED_DEVICE_FAMILIES,
     PipelineCase,
-    discover_pipeline_cases_for_pytest,
 )
-from perf_helpers.config import (
-    BASE_URL,
-    CREATE_LATEST_LINK,
-    METRICS_SAMPLE_INTERVAL,
-    METRICS_URL,
-    ON_UNKNOWN_FILTER_ID,
-    PERF_RESULTS_DIR,
-    PIPELINE_FILTER,
-    POLL_INTERVAL,
-    POLL_TIMEOUT,
-    READINESS_TIMEOUT_SECONDS,
-    REQUEST_TIMEOUT,
-    RESULT_FORMATS,
-    SKIP_PIPELINES,
-    SKIP_VARIANTS,
-    STREAM_COUNTS,
-    VARIANT_FILTER,
-)
+
 from perf_helpers.hw_monitor import HardwareMonitor
 from perf_helpers.preflight import run_preflight_or_exit
 from perf_helpers.reporters import ResultExporter, generate_html_report
 
+try:
+    from perf_helpers.config import (
+        BASE_URL,
+        CREATE_LATEST_LINK,
+        METRICS_SAMPLE_INTERVAL,
+        METRICS_URL,
+        ON_UNKNOWN_FILTER_ID,
+        PERF_RESULTS_DIR,
+        PIPELINE_FILTER,
+        POLL_INTERVAL,
+        POLL_TIMEOUT,
+        READINESS_TIMEOUT_SECONDS,
+        REQUEST_TIMEOUT,
+        RESULT_FORMATS,
+        SKIP_PIPELINES,
+        SKIP_VARIANTS,
+        SETTINGS,
+        STREAM_COUNTS,
+        VARIANT_FILTER,
+    )
+except SettingsError as exc:
+    # Same message and exit code (2) as the CLI instead of a traceback.
+    # pytest.exit() cannot be used here: pytest wraps any Exception raised
+    # while importing a conftest (including pytest's Exit) into a
+    # ConftestImportFailure and prints a traceback with exit code 4.
+    # SystemExit is a BaseException and is not wrapped.
+    print(f"error: invalid performance config: {exc}", file=sys.stderr)
+    raise SystemExit(2) from None
+
+# Propagate perf config to env vars consumed by functional helpers. This must
+# run BEFORE importing ``helpers.*``: helpers.config reads these env vars once
+# at import time. These keys are env-backed in perf_helpers.settings, so an
+# already-exported value is what BASE_URL/POLL_* resolved to; setdefault only
+# fills in YAML/default values.
+os.environ.setdefault("VIPPET_BASE_URL", BASE_URL)
+os.environ.setdefault("VIPPET_JOB_TIMEOUT_SECONDS", str(POLL_TIMEOUT))
+os.environ.setdefault("VIPPET_JOB_POLL_INTERVAL", str(POLL_INTERVAL))
+
+from helpers.pipeline_case_helpers import (  # noqa: E402
+    wrap_cases_for_pytest,
+)
+from perf_helpers.discovery import discover_matrix  # noqa: E402
+from perf_helpers.matrix import MatrixFilters  # noqa: E402
+
 logger = logging.getLogger(__name__)
 
-# Propagate perf YAML config to env vars consumed by functional helpers.
-# Only set if not already overridden by the environment.
-os.environ.setdefault("VIPPET_BASE_URL", BASE_URL)
-os.environ.setdefault("VIPPET_JOB_TIMEOUT_SECONDS", str(int(POLL_TIMEOUT)))
-os.environ.setdefault("VIPPET_JOB_POLL_INTERVAL", str(POLL_INTERVAL))
+_NO_CASES_REASON = (
+    "No pipeline/variant test cases were discovered from VIPPET API. "
+    "Ensure API reachability and at least one supported device (CPU/GPU/NPU)."
+)
 
 
 def _collect_system_info(session: httpx.Client | None = None) -> dict[str, Any]:
@@ -181,6 +208,46 @@ def pytest_sessionstart() -> None:
     )
 
 
+def _discover_case_params() -> tuple[list[PipelineCase | object], list[str]]:
+    """Build the filtered matrix and wrap it for ``pytest.mark.parametrize``.
+
+    Filtering (pipelines / variants / skip lists / host families) is done by
+    :func:`perf_helpers.matrix.build_matrix`; missing-model handling stays in
+    :func:`wrap_cases_for_pytest`.
+    """
+    try:
+        matrix = discover_matrix(MatrixFilters.from_settings(SETTINGS))
+    except Exception:
+        logger.exception("Failed to collect pipeline cases from VIPPET API")
+        skip = pytest.mark.skip(reason=_NO_CASES_REASON)
+        return [pytest.param(None, marks=skip)], ["no-cases"]
+
+    logger.info("Available device families: %s", matrix.available_families)
+    for excl in matrix.excluded:
+        logger.info(
+            "Excluded pipeline=%s variant=%s reason=%s (%s)",
+            excl.pipeline_id,
+            excl.variant,
+            excl.reason.value,
+            excl.detail,
+        )
+
+    if not matrix.included:
+        reason = (
+            f"All {len(matrix.excluded)} discovered pipeline/variant case(s) "
+            "were excluded by config or host capabilities. Run the CLI with "
+            "--dry-run to see why."
+            if matrix.excluded
+            else _NO_CASES_REASON
+        )
+        skip = pytest.mark.skip(reason=reason)
+        return [pytest.param(None, marks=skip)], ["no-cases"]
+
+    cases = [PipelineCase(**dataclasses.asdict(case)) for case in matrix.included]
+    missing = {pid: set(models) for pid, models in matrix.missing_models.items()}
+    return wrap_cases_for_pytest(cases, missing)
+
+
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Generate the cross-product parametrization: pipeline_case x stream_count."""
     global _PIPELINE_CASES, _CASE_IDS
@@ -192,7 +259,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         return
 
     if _PIPELINE_CASES is None or _CASE_IDS is None:
-        _PIPELINE_CASES, _CASE_IDS = discover_pipeline_cases_for_pytest()
+        _PIPELINE_CASES, _CASE_IDS = _discover_case_params()
 
     for invalid_param in _validate_filter_ids(_PIPELINE_CASES):
         invalid_case, _, _ = _unwrap_case(invalid_param)
@@ -204,37 +271,8 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     params = []
     ids = []
 
-    _allowed_variants = {v.upper() for v in VARIANT_FILTER}
-    _skip_pipelines = {p.lower() for p in SKIP_PIPELINES}
-    _skip_variants = {v.upper() for v in SKIP_VARIANTS}
-
     for case_param, case_id in zip(_PIPELINE_CASES, _CASE_IDS):
         actual_case, skip_marks, is_skipped = _unwrap_case(case_param)
-
-        if not is_skipped and actual_case is not None:
-            # Apply pipeline filter from config
-            if PIPELINE_FILTER != "*":
-                allowed_ids = (
-                    PIPELINE_FILTER
-                    if isinstance(PIPELINE_FILTER, list)
-                    else [PIPELINE_FILTER]
-                )
-                if actual_case.pipeline_id not in allowed_ids:
-                    continue
-
-            # Apply skip lists
-            if actual_case.pipeline_id.lower() in _skip_pipelines:
-                continue
-
-            device_family = actual_case.device_family.upper()
-            variant_parts = set(device_family.split("_"))
-
-            if device_family in _skip_variants:
-                continue
-
-            # Apply variant filter — all parts must be in allowed variants
-            if not variant_parts <= _allowed_variants:
-                continue
 
         for streams in STREAM_COUNTS:
             marks: list[Any] = [pytest.mark.perf]
