@@ -126,7 +126,6 @@ def collect_pipeline_cases(session: requests.Session) -> list[PipelineCase]:
 def wrap_cases_for_pytest(
     cases: list[PipelineCase],
     missing_models_by_pipeline: dict[str, set[str]],
-    *,
     require_models: bool = True,
 ) -> tuple[list[PipelineCase | object], list[str]]:
     """Return ``(params, ids)`` ready for ``pytest.mark.parametrize``.
