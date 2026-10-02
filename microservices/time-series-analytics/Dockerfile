@@ -44,7 +44,7 @@ WORKDIR /app
 ARG KAPACITOR_VERSION
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    libgomp1 && \
+    curl libgomp1 && \
     mkdir -p /etc/init.d && \
     curl --fail --location --output /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_VERSION}-1_amd64.deb" || exit 1 && \
     dpkg -i /tmp/kapacitor.deb || true && apt-get install -y --no-install-recommends -f && \
