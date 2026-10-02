@@ -35,11 +35,14 @@ tools/visual-pipeline-and-platform-evaluation-tool/
 │   └── tests/          # pytest / unittest suites
 ├── ui/                 # Frontend (React 19, TypeScript, Vite)
 ├── video_generator/    # Synthetic test-video generator
-├── onvif_discovery/    # ONVIF camera discovery agent
 ├── shared/             # Runtime-mounted volumes (models, videos, scripts, metadata)
 ├── compose*.yml        # Docker Compose files (hardware profiles)
 └── Makefile            # Main build / run / lint / test targets
 ```
+
+Camera discovery (USB and ONVIF) is provided by the
+[Sensor Manager](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/sensor-manager) microservice
+(`microservices/sensor-manager`), which is built together with ViPPET by `make build`.
 
 For the architecture of each layer see the
 [Architecture](./architecture.md) section.
