@@ -1,12 +1,24 @@
 
 configure_loss_prevention () {
-  workspace="$(ensure_project_path)/loss_prevention"
+  workspace="$(ensure_project_path)/loss-prevention"
   version=v2026.2.0
   repository="https://github.com/intel-retail/loss-prevention.git"
 }
 
 verify_loss_prevention () {
-  [ -e "$workspace"/performance-tools/sample-media/face-detection-3249935-1080-15-bench.mp4 ]
+  local videos=(
+    face-detection-3249935-1080-15-bench.mp4
+    items-in-basket-32658421-1080-15-bench.mp4
+    fake-scan-detection-32658425-1920-15-bench.mp4
+    obj_classification-1920-15-bench-1920-15-bench.mp4
+    hidden-items-product-switching-32658426-1080-15-bench.mp4
+  ) v
+  for v in ${videos[*]}; do
+    [ -e "$workspace"/performance-tools/sample-media/$v ] || { echo "Failed to download $v" 1>&2; return 1; }
+  done
+
+  cd "$workspace"
+  ! ./check_models.sh
 }
 
 debian_90_profile_loss_prevention () {
@@ -17,16 +29,14 @@ debian_90_install_loss_prevention () {
   configure_loss_prevention
   if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loss prevention is already installed. Skipping"
-    return
-  fi
+  else 
+    # clone the repository
+    ensure_disk_space 300
+    ensure_git_clone "$workspace" $version $repository
 
-  # clone the repository
-  ensure_disk_space 300
-  ensure_git_clone "$workspace" $version $repository
-
-  # setup
-  pushd "$workspace" > /dev/null
-  cat > src/.env <<EOF
+    # setup
+    pushd "$workspace" > /dev/null
+    cat > src/.env <<EOF
 MINIO_ROOT_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 MINIO_ROOT_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 MINIO_API_HOST_PORT="4000"
@@ -47,22 +57,60 @@ LOCAL_UID=$(id -u)
 LOCAL_GID=$(id -g)
 EOF
 
-  # download videos
+    # download videos
+    export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+    set -a
+    . src/.env
+    set +a
+    make download-sample-videos CAMERA_STREAM=camera_to_workload_asc_object_detection.json
+    make download-sample-videos CAMERA_STREAM=camera_to_workload_asc_object_detection_classification.json
+    make download-sample-videos CAMERA_STREAM=camera_to_workload_asc_age_verification.json
+
+    # download models
+    make download-models
+
+    # download images
+    make build-benchmark
+
+    verify_loss_prevention
+  fi
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start loss_prevention --od [--gpu|cpu|npu]"
+  echo "@@HIGHLIGHT $installer_name start loss_prevention --oc [--gpu|cpu|npu]"
+  echo "@@HIGHLIGHT $installer_name start loss_prevention --age [--gpu|cpu|npu]"
+  echo "@@HIGHLIGHT $installer_name start loss_prevention --lp [--gpu|cpu|npu]"
+  echo "@@HIGHLIGHT $installer_name start loss_prevention --lvlm [--gpu|cpu|npu]"
+}
+
+debian_90_start_loss_prevention () {
+  configure_loss_prevention
+
+  cd "$workspace"
   export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
-  set -a
-  . src/.env
-  set +a
-  make download-sample-videos
 
-  # download models
-  make download-models
+  local device=$(ensure_select_device "$@")
+  local cmds=()
 
-  verify_loss_prevention
-  popd > /dev/null
+  [[ " $* " != *" --od "* ]] || cmds+=("echo 'Benchmarking Automatic Self Checkout -- Object Detection' && make benchmark-stream-density CAMERA_STREAM=camera_to_workload_asc_object_detection.json WORKLOAD_DIST=workload_to_pipeline_asc_object_detection_$device.json")
+
+  [[ " $* " != *" --oc "* ]] || cmds+=("echo 'Benchmarking Automatic Self Checkout -- Object Classification' && make benchmark-stream-density CAMERA_STREAM=camera_to_workload_asc_object_detection_classification.json WORKLOAD_DIST=workload_to_pipeline_asc_object_detection_classification_$device.json")
+
+  [[ " $* " != *" --age "* ]] || cmds+=("echo 'Benchmarking Automatic Self Checkout -- Age Verification' && make benchmark-stream-density CAMERA_STREAM=camera_to_workload_asc_age_verification.json WORKLOAD_DIST=workload_to_pipeline_asc_age_verification_$device.json")
+
+  [[ " $* " != *" --lpvlm "* ]] || cmds+=("echo 'Benchmarking Loss Prevention' && benchmark CAMERA_STREAM=camera_to_workload_vlm.json WORKLOAD_DIST=workload_to_pipeline_vlm.json TARGET_DEVICE=${device^^} VLM_DEVICE=${device^^}")
+
+  [[ " $* " != *" --lp "* && ${#cmds[*]} -gt 0 ]] || cmds+=("echo 'Benchmarking Loss Prevention' && make benchmark-stream-density TARGET_DEVICE=${device^^}")
+
+  local cmd1
+  for cmd1 in "${cmds[@]}"; do
+    eval "$cmd1"
+  done
 }
 
 debian_90_remove_loss_prevention () {
   configure_loss_prevention
+  cd "$workspace" && make down-lp || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
