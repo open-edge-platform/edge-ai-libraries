@@ -39,6 +39,21 @@ import { gvaMetaConvertConfig } from "@/features/pipeline-editor/nodes/GVAMetaCo
 import { gvaTrackConfig } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
+import { dataSrcConfig } from "@/features/pipeline-editor/nodes/DataSrcNode.config.ts";
+import { fakeSinkConfig } from "@/features/pipeline-editor/nodes/FakeSinkNode.config.ts";
+import { fileSinkConfig } from "@/features/pipeline-editor/nodes/FileSinkNode.config.ts";
+import { fileSrcConfig } from "@/features/pipeline-editor/nodes/FileSrcNode.config.ts";
+import { gvaFpsCounterConfig } from "@/features/pipeline-editor/nodes/GVAFpsCounterNode.config.ts";
+import { gvaMetaPublishConfig } from "@/features/pipeline-editor/nodes/GVAMetaPublishNode.config.ts";
+import { mp4MuxConfig } from "@/features/pipeline-editor/nodes/Mp4MuxNode.config.ts";
+import { multiFileSinkConfig } from "@/features/pipeline-editor/nodes/MultiFileSinkNode.config.ts";
+import { queueConfig } from "@/features/pipeline-editor/nodes/QueueNode.config.ts";
+import { splitMuxSinkConfig } from "@/features/pipeline-editor/nodes/SplitMuxSinkNode.config.ts";
+import { teeConfig } from "@/features/pipeline-editor/nodes/TeeNode.config.ts";
+import { tsamIngestionConfig } from "@/features/pipeline-editor/nodes/TsamIngestionNode.config.ts";
+import { tsamOutputConfig } from "@/features/pipeline-editor/nodes/TsamOutputNode.config.ts";
+import { tsamUdfConfig } from "@/features/pipeline-editor/nodes/TsamUdfNode.config.ts";
+import { proximityTriggerConfig } from "@/features/pipeline-editor/nodes/custom/ProximityTriggerNode.config.ts";
 import thumbnailPlaceholder from "@/assets/thumbnail_placeholder.png";
 import type { Pipeline } from "@/api/api.generated";
 import { useMetricHistory } from "@/hooks/useMetricHistory.ts";
@@ -167,6 +182,37 @@ const getNodeConfig = (nodeType: string): NodeConfig | null => {
       return gvaClassifyConfig;
     case "gvadetect":
       return gvaDetectConfig;
+    case "gvaproximitytrigger_py":
+      return proximityTriggerConfig;
+    case "multifilesink":
+      return multiFileSinkConfig;
+    case "filesink":
+      return fileSinkConfig;
+    case "fakesink":
+      return fakeSinkConfig;
+    case "filesrc":
+      return fileSrcConfig;
+    case "tee":
+      return teeConfig;
+    case "queue":
+    case "queue2":
+      return queueConfig;
+    case "mp4mux":
+      return mp4MuxConfig;
+    case "gvafpscounter":
+      return gvaFpsCounterConfig;
+    case "gvametapublish":
+      return gvaMetaPublishConfig;
+    case "splitmuxsink":
+      return splitMuxSinkConfig;
+    case "datasrc":
+      return dataSrcConfig;
+    case "tsam-ingestion":
+      return tsamIngestionConfig;
+    case "tsam-udf":
+      return tsamUdfConfig;
+    case "tsam-output":
+      return tsamOutputConfig;
     default:
       return null;
   }
