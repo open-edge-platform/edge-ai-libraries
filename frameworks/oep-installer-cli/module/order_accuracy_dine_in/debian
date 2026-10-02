@@ -17,7 +17,7 @@ configure_order_accuracy_dine_in_device () {
 }
 
 verify_order_accuracy_dine_in () {
-  local model="$(. "$workspace"/dine-in/.env; echo "$OVMS_MODEL_NAME")"
+  local model="$(. "$workspace"/dine-in/.env 2> /dev/null || . "$workspace"/dine-in/.env.example 2> /dev/null; echo "$OVMS_MODEL_NAME")"
   [ -e "$workspace"/ovms-service/models/$model/openvino_language_model.bin ]
 }
 
@@ -55,16 +55,19 @@ debian_90_install_order_accuracy_dine_in () {
   verify_order_accuracy_dine_in
 
   echo "@@HIGHLIGHT workspace @$workspace"
-  echo "@@HIGHLIGHT $installer_name start order_accuracy_dine_in"
+  echo "@@HIGHLIGHT $installer_name start"
 }
 
 debian_90_start_order_accuracy_dine_in () {
   configure_order_accuracy_dine_in "$@"
+  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+
   ensure_ports_open "${ports[*]}" debian_90_stop_order_accuracy_dine_in "$@"
   cd "$workspace"/dine-in
-  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
   make up
   echo "@@HIGHLIGHT URL: http://$(ensure_ip):${ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_stop_order_accuracy_dine_in () {
