@@ -1,16 +1,13 @@
 name: CV-Triggered VLM
 definition: >
-  CV-triggered VLM pipeline: object detection (yolo11s) drives a proximity trigger
-  that gates a Vision-Language Model (InternVL2) branch. Whenever objects of
-  ``class-a`` and ``class-b`` are within ``distance`` pixels for ``frames``
-  consecutive frames, exactly one frame is forwarded to the VLM, snapshotted as
-  JPEG, and captioned as JSON. The first tee branch records an annotated H.264
-  video with detection overlays; the ``fakesink name=default_output_sink`` on a
-  nested sub-branch is only used by ViPPET to route the live view / file output.
+  Object detection gates a VLM branch via a proximity trigger: when objects of
+  ``class-a`` and ``class-b`` stay within ``distance`` pixels for ``frames``
+  consecutive frames, one frame is captioned by the VLM (JPEG + JSON). A parallel
+  tee branch records the annotated H.264 video.
 tags:
   - GenAi
   - Safety and Security
-thumbnail: images/video-captioning.png
+thumbnail: images/cv-triggered-vlm.png
 type: vision
 variants:
   - name: CPU
