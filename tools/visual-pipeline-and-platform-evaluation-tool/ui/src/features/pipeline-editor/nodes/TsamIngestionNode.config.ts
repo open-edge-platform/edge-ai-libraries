@@ -23,8 +23,8 @@ export const tsamIngestionConfig: NodeConfig = {
     {
       key: "port",
       label: "Port",
-      type: "number",
-      defaultValue: 5000,
+      type: "text",
+      defaultValue: "5000",
       description: "Time Series Analytics ingestion service port",
     },
   ],

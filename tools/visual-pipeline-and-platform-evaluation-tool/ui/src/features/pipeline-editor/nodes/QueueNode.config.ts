@@ -33,8 +33,8 @@ export const queueConfig: NodeConfig = {
     {
       key: "max-size-buffers",
       label: "Max size buffers",
-      type: "number",
-      defaultValue: 200,
+      type: "text",
+      defaultValue: "200",
       description: "Maximum number of buffers to hold in the queue",
     },
     {

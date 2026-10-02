@@ -30,16 +30,16 @@ export const proximityTriggerConfig: NodeConfig = {
     {
       key: "distance",
       label: "Distance",
-      type: "number",
-      defaultValue: 30,
+      type: "text",
+      defaultValue: "30",
       description:
         "Maximum center-to-center distance in pixels to consider the two objects as being in proximity",
     },
     {
       key: "frames",
       label: "Frames",
-      type: "number",
-      defaultValue: 10,
+      type: "text",
+      defaultValue: "10",
       description:
         "Number of consecutive frames the proximity condition must hold before a trigger frame is forwarded",
     },

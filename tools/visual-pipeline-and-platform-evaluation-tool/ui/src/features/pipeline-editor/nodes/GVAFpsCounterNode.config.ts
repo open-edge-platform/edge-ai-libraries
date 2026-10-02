@@ -16,8 +16,8 @@ export const gvaFpsCounterConfig: NodeConfig = {
     {
       key: "starting-frame",
       label: "Starting frame",
-      type: "number",
-      defaultValue: 0,
+      type: "text",
+      defaultValue: "0",
       description:
         "Skip this many frames before starting to measure FPS so warm-up time is excluded",
     },

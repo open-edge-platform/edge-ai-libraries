@@ -16,8 +16,8 @@ export const mp4MuxConfig: NodeConfig = {
     {
       key: "fragment-duration",
       label: "Fragment duration",
-      type: "number",
-      defaultValue: 0,
+      type: "text",
+      defaultValue: "0",
       description:
         "Fragment length in milliseconds when writing a fragmented MP4 (0 disables fragmentation)",
     },
