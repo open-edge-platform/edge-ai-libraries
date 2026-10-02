@@ -95,9 +95,12 @@ def get_sensor(sensor_id: SensorId, manager: Manager):
     response_model=schemas.CameraAuthResponse,
     summary="Load ONVIF profiles of a network sensor",
     responses={
-        400: {"model": schemas.MessageResponse, "description": "Invalid sensor ID."},
+        400: {
+            "model": schemas.MessageResponse,
+            "description": "Invalid sensor ID or sensor not found.",
+        },
         401: {"model": schemas.MessageResponse, "description": "Invalid credentials."},
-        404: {"model": schemas.MessageResponse, "description": "Not found or unreachable."},
+        404: {"model": schemas.MessageResponse, "description": "Camera not reachable."},
         500: {"model": schemas.MessageResponse},
     },
 )
@@ -116,7 +119,7 @@ def load_sensor_profiles(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
     except CameraNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from None
+        raise HTTPException(status_code=400, detail=str(e)) from None
     except CameraAuthError:
         raise HTTPException(
             status_code=401, detail="Failed to load profiles - invalid credentials"

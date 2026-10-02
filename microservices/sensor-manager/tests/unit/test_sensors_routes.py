@@ -146,7 +146,7 @@ def test_load_sensor_profiles(client, manager):
     ("error", "status", "detail"),
     [
         (ValueError("Invalid camera_id format"), 400, "Invalid camera_id format"),
-        (CameraNotFoundError("not found"), 404, "not found"),
+        (CameraNotFoundError("not found"), 400, "not found"),
         (CameraAuthError("Sender not Authorized"), 401, "invalid credentials"),
         (CameraUnreachableError("timed out"), 404, "Camera not reachable"),
         (RuntimeError("zeep fault"), 500, "Unexpected error"),

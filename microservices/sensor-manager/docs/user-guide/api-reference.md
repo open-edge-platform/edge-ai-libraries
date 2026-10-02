@@ -94,8 +94,8 @@ Response:
 | Code | Description |
 |------|-------------|
 | 200 | Profiles loaded |
-| 400 | `sensor_id` is not a valid network camera identifier |
+| 400 | `sensor_id` is not a valid network camera identifier or camera not discovered |
 | 401 | Credentials rejected by the camera |
-| 404 | Camera not discovered or not reachable |
+| 404 | Camera not reachable |
 | 422 | Invalid request body |
 | 500 | Unexpected ONVIF error |
