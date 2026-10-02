@@ -19,7 +19,7 @@ variants:
         generation-config="max_new_tokens=64"
         frame-rate=1
         chunk-size=4
-        metrics=false !
+        metrics=true !
       gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=10 !
       fakesink sync=false async=false
@@ -37,7 +37,7 @@ variants:
         generation-config="max_new_tokens=64"
         frame-rate=1
         chunk-size=4
-        metrics=false !
+        metrics=true !
       gvametapublish method=file file-format=json-lines file-path=/dev/null !
       gvafpscounter starting-frame=10 !
       fakesink sync=false async=false

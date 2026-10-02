@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+name: mobilenet-v2-pytorch
+display_name: MobileNet V2 PyTorch
+description: "Efficient MobileNet V2 convolutional classifier that labels whole images across the 1000 ImageNet categories, optimized for low-latency inference on edge devices."
+source: omz
+hub: omz
+type: image_classification
+precisions:
+  - precision: FP16
+    model_path: omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml
+    model_proc: omz/mobilenet-v2-pytorch/mobilenet-v2.json
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: omz
+  name: mobilenet-v2-pytorch

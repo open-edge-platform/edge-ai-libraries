@@ -27,7 +27,8 @@ The sample application has been validated with a few models just to validate the
    |--------------|-------------------|
    | `OVMS` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen3-4B-Instruct-2507`, `Qwen/Qwen2.5-7B-Instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
 
-Note: Limited validation was done on DeepSeek model.
+> [!NOTE]
+> Limited validation was done on DeepSeek model.
 
 ### Getting access to models
 
@@ -48,7 +49,8 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
      ```
 
-     > **Note:** Adjust the repo link appropriately in case of forked repo.
+     > [!NOTE]
+     > Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
 
@@ -83,7 +85,7 @@ Visit the [Hugging Face tokens](https://huggingface.co/settings/tokens) page to 
      # pass hugging face token
      ```
 
-     > **Note:**
+     > [!NOTE]
      > OpenTelemetry and OpenLit configurations are optional. Set these only if there is an OTLP endpoint available.
      >
      > ```bash

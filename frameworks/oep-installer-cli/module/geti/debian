@@ -14,7 +14,7 @@ debian_90_profile_geti () {
 }
 
 debian_90_install_geti () {
-  configure_geti $*
+  configure_geti "$@"
 
   if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
     echo "Geti already installed. Skipping."
@@ -26,7 +26,7 @@ debian_90_install_geti () {
 }
 
 debian_90_start_geti () {
-  configure_geti $*
+  configure_geti "$@"
   ensure_ports_open "$port" debian_90_stop_geti
 
   mkdir -p "$workspace"/geti-data
@@ -45,12 +45,12 @@ debian_90_start_geti () {
 }
 
 debian_90_stop_geti () {
-  configure_geti $*
+  configure_geti "$@"
   docker rm -f geti-app || true
 }
 
 debian_90_remove_geti () {
-  debian_90_stop_geti $* || true
+  debian_90_stop_geti "$@"
   docker image rm $image_name || true
 }
 

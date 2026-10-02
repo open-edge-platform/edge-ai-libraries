@@ -232,4 +232,5 @@ helm uninstall vss -n ${NAMESPACE}
 kubectl delete namespace ${NAMESPACE}
 ```
 
-> **Note:** By default, PVCs are deleted with the Helm release. If you set `global.keepPvc: true`, PVCs are retained and reusable in future deployments to avoid re-downloading models.
+> [!NOTE]
+> By default, PVCs are deleted with the Helm release. If you set `global.keepPvc: true`, PVCs are retained and reusable in future deployments to avoid re-downloading models.

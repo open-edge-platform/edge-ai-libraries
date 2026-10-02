@@ -60,13 +60,17 @@ main () {
       else
         # critical group permissions
         local -A _groups=()
-        local _j _dep _rest_args=() _restart=0
+        local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0
         for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
           _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
-          for _dep in $(act_find_deps install install $(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]})); do
-            { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]]; } && _groups["render:992"]=1
-            [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] && _groups["video:"]=1
-            [[ "$_dep" = ${ID_LIKE}_*_install_docker ]] && _groups["docker:"]=1
+	  _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
+	  _deps=($(act_find_deps install ${_resolved[*]}))
+          for _dep in ${_deps[*]}; do
+            _gf=${_dep/_install_/_group_}
+            declare -F $_gf > /dev/null 2>&1 || continue
+            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${ID_LIKE}_*_install_}" ${_resolved[*]})); do
+              _groups["$_g"]=1
+            done
           done
         done
 
@@ -138,20 +142,20 @@ subcommand_install () {
     echo
     return 0
   fi
-  act_helpper "install,Installation,Installing,Installed" "" "$@"
+  act_helper "install,Installation,Installing,Installed" "" "$@"
 }
 
 subcommand_remove () {
-  act_helpper "remove,Removal,Removing,Removed" "-r" "$@"
+  act_helper "remove,Removal,Removing,Removed" "-r" "$@"
 }
 
 subcommand_start () {
-  act_helpper "start,Start,Starting,Started" "" "$@"
+  act_helper "start,Start,Starting,Started" "" "$@"
 }
 
 subcommand_stop () {
   [[ " $* " != *" --help "* ]] || return
-  act_helpper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
+  act_helper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
 }
 
 subcommand_list () {
@@ -310,10 +314,13 @@ subcommand_sbom () {
   [[ " $* " != *" --help "* ]] || return
 
   # scan for dependencies
-  local handler
-  for handler in $(act_find_deps install $(act_resolve_args install "$@") | tr ' ' '\n' | sort); do
-    declare -F ${handler/_install_/_sbom_} > /dev/null 2>&1 || continue
-    ${handler/_install_/_sbom_} $(act_extract_args sbom ${handler#*_*_*_} "${handles[*]#${ID_LIKE}_*_sbom_}" "$@")
+  local handles=($(act_find_deps install $(act_resolve_args install "$@")))
+  local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}"
+  local handler sbomer
+  for handler in $(printf '%s\n' "${handles[@]}" | sort); do
+    sbomer=${handler/_install_/_sbom_}
+    declare -F $sbomer > /dev/null 2>&1 || continue
+    $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@")
     echo "---"
   done
 }
@@ -331,9 +338,9 @@ act_panelled_logs () {(
 #   @@HIGHLIGHT             (no argument) clear highlights, revert to log tail
 #   @@REPORT     <name>     start a REPORT section (e.g. a final summary).
 #                           Reports get no left-pane row; the right pane splits
-#                           with failing components CYCLING on top and the
+#                           with the first failure on top and the
 #                           report anchored to the BOTTOM.
-#   @@FOCUS      <name>     pin the right pane to <name>; stops cycling
+#   @@FOCUS      <name>     pin the right pane to <name>
 #   @@FOCUS                 (no argument) release the pin
 #   anything else           log line attributed to the current component
 #
@@ -344,15 +351,15 @@ act_panelled_logs () {(
 #   LEFT_MAX_PCT=<n>        cap for auto-sizing, percent of screen (default 34)
 #   REPORT_MAX_PCT=<n>      max share of the right pane for the report (default 55)
 #   SPLIT_MIN=<n>           min rows for either split section (default 6)
-#   CYCLE_SEC=<n>           seconds each failure is shown (default 4, 0=off)
-#   FINAL_SEC=<n>           TOTAL seconds spent cycling after EOF (default 6)
-#   HOLD_SEC=<n>            pause before exit when exactly one failure (default 3)
-#   CYCLE_END=last|first|rotate   where cycling settles on exit (default last)
 #   REDRAW_MS=<n>           min ms between repaints (default 50)
 #   TICK_SEC=<n>            idle poll interval, seconds (default 0.5)
 #   NARROW_GLYPHS=1         assume all glyphs are 1 cell (disable width table)
 #   FORCE_COLS / FORCE_ROWS override detected geometry
 #   LOG_FILE                save logs to the specified log file
+#   FAIL_ROWS=<n>           on failure, max height of the full-width error
+#                           panel raised at the bottom of the final frame;
+#                           shrinks to the actual error lines (default 20, 0=off)
+#   RAISE_MS=<n>            ms per row while the panel rises (default 15, 0=instant)
 
 set -o pipefail
 set -u
@@ -390,13 +397,11 @@ LEFT_WIDTH=${LEFT_WIDTH:-0}
 LEFT_MAX_PCT=${LEFT_MAX_PCT:-34}
 REPORT_MAX_PCT=${REPORT_MAX_PCT:-55}
 SPLIT_MIN=${SPLIT_MIN:-6}
-CYCLE_SEC=${CYCLE_SEC:-4}
-FINAL_SEC=${FINAL_SEC:-16}
-HOLD_SEC=${HOLD_SEC:-3}
-CYCLE_END=${CYCLE_END:-rotate}
 REDRAW_MS=${REDRAW_MS:-50}
 TICK_SEC=${TICK_SEC:-0.5}
 NARROW_GLYPHS=${NARROW_GLYPHS:-0}
+FAIL_ROWS=${FAIL_ROWS:-20}
+RAISE_MS=${RAISE_MS:-15}
 
 readonly CSI_FINAL='[A-Za-z@\[\\\]^_`{|}~]'
 readonly SEP_W=3
@@ -433,8 +438,6 @@ LEFT_VALID=0
 CURRENT=""
 FOCUS=""
 SHOWN=""
-CYCLE_IDX=0
-CYCLE_AT=0
 REVIEW=0
 LAST_DRAW=0
 WIDEST=0
@@ -452,6 +455,12 @@ PREV_LW=-1
 PREV_RW=-1
 FULL_CLEAR=1
 RW_NOW=0
+
+TITLE_WORD=completed
+FAIL_H=0
+PREV_FH=-1
+FAIL_TITLE=""
+declare -a FAILROWS=()
 
 # ------------------------------------------------------------------ geometry
 _open_tty() {
@@ -518,10 +527,11 @@ _cellw() {
   elif (( cp >= 0xFFE0  && cp <= 0xFFE6  )); then w=2
   elif (( cp >= 0x1F300 && cp <= 0x1FAFF )); then w=2
   elif (( cp >= 0x20000 && cp <= 0x3FFFD )); then w=2
-  elif (( cp == 0x26A0 || cp == 0x26D4 || cp == 0x2757 || cp == 0x2753 )); then w=2
+  elif (( cp == 0x26D4 || cp == 0x2757 || cp == 0x2753 )); then w=2
   elif (( cp >= 0x25B6 && cp <= 0x25C0 )); then w=1
   elif (( cp >= 0x2B00 && cp <= 0x2BFF )); then w=2
   elif (( cp >= 0x0300 && cp <= 0x036F )); then w=0
+  elif (( cp >= 0xFE00 && cp <= 0xFE0F )); then w=0   # variation selectors
   fi
   WCACHE[$ch]=$w
   REPLY=$w
@@ -625,6 +635,7 @@ _sanitize_v() {
   local s=$1 keep=$2 out="" pre rest fin i ch
   s=${s//$'\t'/    }
   s=${s//$'\v'/ }; s=${s//$'\f'/ }; s=${s//$'\b'/}
+  while [[ $s == *$'\r' ]]; do s=${s%$'\r'}; done
   [[ $s == *$'\r'* ]] && s=${s##*$'\r'}
   if [[ $s == *$'\033'* ]]; then
     while [[ $s == *$'\033'* ]]; do
@@ -810,6 +821,32 @@ _header_text() {
   else HDRTXT="${name} [${SG_L}, ${REPLY}]"; fi
 }
 
+# Title line: " <Action> progress" while running, or
+# " <Action> <word>:  ✔ n  ✘ m" when final. Elapsed time appended.
+# $1 = 1 for final counts, $2 = word (default "completed")
+TITLE=""
+_title_text() {
+  local final=${1:-0} word=${2:-completed} name nok=0 nbad=0
+  TITLE=" ${ACT_TEXT[0]} progress "
+  if (( final )); then
+    for name in "${ORDER[@]}"; do
+      [[ -z $name ]] && continue
+      [[ -n ${REPORT[$name]:-} ]] && continue
+      case ${STATUS[$name]:-} in
+        ok)   nok=$(( nok + 1 ))   ;;
+        fail) nbad=$(( nbad + 1 )) ;;
+      esac
+    done
+    TITLE=" ${ACT_TEXT[0]} ${word}:  ${G_OK} ${nok}  ${G_FAIL} ${nbad}"
+  fi
+  if (( T_FIRST > 0 )); then
+    local endms=$T_LAST
+    (( endms == 0 )) && endms=$(_now_ms)
+    _fmt_elapsed $(( endms - T_FIRST ))
+    [[ -n $REPLY ]] && TITLE+="  ${REPLY}"
+  fi
+}
+
 _note_width() {
   local name=$1
   [[ -z $name ]] && return
@@ -845,8 +882,6 @@ _mark_fail() {
   LDIRTY[$name]=1; LEFT_VALID=0
   for f in "${FAILED[@]}"; do [[ $f == "$name" ]] && return; done
   FAILED+=("$name")
-  CYCLE_IDX=$(( ${#FAILED[@]} - 1 ))
-  CYCLE_AT=$(( $(_now_ms) + CYCLE_SEC * 1000 ))
 }
 
 _push_log() {
@@ -944,20 +979,6 @@ _timer_tick() {
   return $hit
 }
 
-# ------------------------------------------------------------------ cycling
-_cycle_tick() {
-  (( REVIEW )) || return 1
-  local n=${#FAILED[@]}
-  (( n < 2 )) && return 1
-  [[ -n $FOCUS ]] && return 1
-  (( CYCLE_SEC <= 0 )) && return 1
-  local now; now=$(_now_ms)
-  (( now < CYCLE_AT )) && return 1
-  CYCLE_IDX=$(( (CYCLE_IDX + 1) % n ))
-  CYCLE_AT=$(( now + CYCLE_SEC * 1000 ))
-  return 0
-}
-
 # ------------------------------------------------------------------ rendering
 _build_block() {
   local name=$1 lw=$2
@@ -1036,8 +1057,14 @@ _draw() {
     local k; for k in "${ORDER[@]}"; do [[ -n $k ]] && WRAPW[$k]=-1; done
   fi
 
-  local body=$(( rows - 3 ))
-  (( body < 1 )) && body=1
+  local full=$(( rows - 3 ))
+  (( full < 1 )) && full=1
+  # error panel takes rows from the bottom; top keeps at least SPLIT_MIN
+  local fh=$FAIL_H
+  (( fh > full - SPLIT_MIN )) && fh=$(( full - SPLIT_MIN ))
+  (( fh < 0 )) && fh=0
+  if (( fh != PREV_FH )); then PREV_FH=$fh; LEFT_VALID=0; fi
+  local body=$(( full - fh ))
   local name src i j
 
   local view=${FOCUS:-$CURRENT}
@@ -1048,8 +1075,7 @@ _draw() {
   if [[ -n $FOCUS ]]; then
     upper=$FOCUS
   elif (( REVIEW )) && (( nfail > 0 )); then
-    (( CYCLE_IDX >= nfail )) && CYCLE_IDX=0
-    upper=${FAILED[CYCLE_IDX]}
+    upper=${FAILED[0]}                  # first failure = likely root cause
   elif (( is_report )); then
     for (( j = ${#ORDER[@]} - 1; j >= 0; j-- )); do
       if [[ -z ${REPORT[${ORDER[j]}]:-} ]]; then upper=${ORDER[j]}; break; fi
@@ -1105,10 +1131,10 @@ _draw() {
   local -a right=()
   local counter=""
   if (( REVIEW )) && (( nfail > 1 )); then
-    if [[ -n $FOCUS ]]; then 
+    if [[ -n $FOCUS ]]; then
       counter="  (pinned, ${nfail} failed)"
-    elif (( CYCLE_SEC > 0 )); then 
-      counter="  ($(( CYCLE_IDX + 1 )) of ${nfail})"
+    else
+      counter="  (+$(( nfail - 1 )) more failed)"
     fi
   fi
 
@@ -1167,26 +1193,8 @@ _draw() {
   local out="" l r rowstr
   if (( FULL_CLEAR )); then PREV=(); FULL_CLEAR=0; fi
 
-  local title=" ${ACT_TEXT[0]} progress "
-  if (( REVIEW )); then
-    local name nok=0 nfail=0
-    for name in "${ORDER[@]}"; do
-      [[ -z $name ]] && continue
-      [[ -n ${REPORT[$name]:-} ]] && continue
-      case ${STATUS[$name]:-} in
-        ok)   nok=$(( nok + 1 ))     ;;
-        fail) nfail=$(( nfail + 1 )) ;;
-      esac
-    done
-    title=" ${ACT_TEXT[0]} completed:  ${G_OK} ${nok}  ${G_FAIL} ${nfail}"
-  fi
-  if (( T_FIRST > 0 )); then
-    local endms=$T_LAST
-    (( endms == 0 )) && endms=$(_now_ms)
-    _fmt_elapsed $(( endms - T_FIRST ))
-    [[ -n $REPLY ]] && title+="  ${REPLY}"
-  fi
-  _fit_v "$usable" "$title" 1
+  _title_text "$REVIEW" "$TITLE_WORD"
+  _fit_v "$usable" "$TITLE" 1
   rowstr="${C_BOLD}${FITTED}${C_RESET}"
   if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
     out+=$'\033[1;1H'"$rowstr"$'\033[K'; PREV[0]=$rowstr
@@ -1209,6 +1217,23 @@ _draw() {
     fi
   done
 
+  # full-width error panel: a labelled red rule, then plain copyable rows
+  if (( fh > 0 )); then
+    local frule
+    _dwidth "$FAIL_TITLE"
+    _hrule_v $(( usable - REPLY - 2 ))
+    frule="${C_RED}${BC_H}${BC_H}${FAIL_TITLE}${HRULE}${C_RESET}"
+    for (( i = 0; i < fh; i++ )); do
+      if (( i == 0 )); then rowstr=$frule
+      else rowstr=${FAILROWS[i-1]:-}; fi
+      j=$(( body + i + 2 ))
+      if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
+        printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( body + i + 3 )) "$rowstr"
+        PREV[j]=$rowstr
+      fi
+    done
+  fi
+
   [[ -n $out ]] && printf '%s' "$out"
 
   FRAMES=$(( FRAMES + 1 ))
@@ -1223,14 +1248,72 @@ _stop_all_timers() {
   for c in "${!TSTART[@]}"; do [[ -n $c ]] && _timer_stop "$c"; done
 }
 
+# Build FAILROWS: per failed component a red header + tail of its log,
+# wrapped plain (no SGR) at full width. FAIL_ROWS is shared evenly.
+# $1 = 1 if interrupted (also include the in-progress component), $2 = width
+_build_fail_rows() {
+  local interrupted=${1:-0} w=$2 name src per extra=0
+  local -a names=("${FAILED[@]}") tailrows
+  if (( interrupted )) && [[ -n $CURRENT && -z ${REPORT[$CURRENT]:-} \
+        && ${STATUS[$CURRENT]:-} != ok && ${STATUS[$CURRENT]:-} != fail ]]; then
+    names+=("$CURRENT")
+  fi
+  FAILROWS=()
+  (( ${#names[@]} == 0 || FAIL_ROWS <= 0 )) && return 1
+  [[ -n ${LOG_FILE:-} ]] && extra=1
+  per=$(( (FAIL_ROWS - ${#names[@]} - extra) / ${#names[@]} ))
+  (( per < 3 )) && per=3
+  for name in "${names[@]}"; do
+    [[ -z $name ]] && continue
+    tailrows=()
+    while IFS= read -r src; do
+      WRAPPED=(); _wrap_into "$w" "$src"
+      (( ${#WRAPPED[@]} )) && tailrows+=("${WRAPPED[@]}")
+    done < <(printf '%s' "${RBUF[$name]:-}" | tail -n "$per")
+    (( ${#tailrows[@]} > per )) && tailrows=("${tailrows[@]: -per}")
+    _fit_v "$w" "${G_FAIL} ${name}: last ${#tailrows[@]} lines" 1
+    FAILROWS+=("${C_RED}${FITTED}${C_RESET}")
+    (( ${#tailrows[@]} )) && FAILROWS+=("${tailrows[@]}")
+  done
+  if (( extra )); then
+    _fit_v "$w" "Full log: $LOG_FILE" 1
+    FAILROWS+=("${C_DIM}${FITTED}${C_RESET}")
+  fi
+  return 0
+}
+
+# Slide the error panel up from the bottom of the final frame.
+_raise_fail_panel() {
+  local interrupted=${1:-0} nf=${#FAILED[@]} h target cap d
+  (( GEOM_DIRTY )) && _read_geom
+  _build_fail_rows "$interrupted" "$TTY_COLS" || return 0
+  if (( nf == 0 )); then FAIL_TITLE=" interrupted - last log lines "
+  else FAIL_TITLE=" ${G_FAIL} ${nf} failed - error log "; fi
+  target=$(( ${#FAILROWS[@]} + 1 ))                 # +1 for the rule
+  (( target > FAIL_ROWS + 1 )) && target=$(( FAIL_ROWS + 1 ))
+  cap=$(( TTY_ROWS - 3 - SPLIT_MIN ))
+  (( target > cap )) && target=$cap
+  (( target < 2 )) && return 0
+  printf -v d '%d.%03d' $(( RAISE_MS / 1000 )) $(( RAISE_MS % 1000 ))
+  for (( h = 1; h <= target; h++ )); do
+    FAIL_H=$h; _draw 1
+    (( RAISE_MS > 0 && h < target )) && sleep "$d"
+  done
+  return 0
+}
+
 _finish() {
+  local rc=$?
   DRAWING=0
   _stop_all_timers
   (( T_LAST == 0 )) && T_LAST=$(_now_ms)
+  (( rc != 0 )) && { REVIEW=1; TITLE_WORD=interrupted; }
   FULL_CLEAR=1
   LEFT_VALID=0
   RCACHE_COMP=""; RCACHE_N=-1
   _draw 1
+  # success: frame stays as is; failure/interrupt: raise the error panel
+  _raise_fail_panel $(( rc != 0 ))
   printf '\033[?7h'
   printf '\033[%d;1H\033[K' "$TTY_ROWS"   # last row, cleared, NO newline
   printf '\033[?25h'
@@ -1247,6 +1330,8 @@ _handle_line() {
 
   _plain_v "$line"; plainkey=$PLAIN
   plainkey=${plainkey#"${plainkey%%[![:space:]]*}"}
+  [[ -z $plainkey ]] && return 0
+
   key=${plainkey%%[[:space:]]*}
   rest=${plainkey#"$key"}
   rest=${rest#"${rest%%[![:space:]]*}"}
@@ -1278,11 +1363,9 @@ _handle_line() {
       STATUS[$CURRENT]="ok"
       LEFT_VALID=0
       REVIEW=1
-      CYCLE_IDX=0
-      CYCLE_AT=$(( $(_now_ms) + CYCLE_SEC * 1000 ))
       _draw 1; return ;;
     @@FOCUS)
-      if [[ -z $rest ]]; then FOCUS=""; CYCLE_AT=0
+      if [[ -z $rest ]]; then FOCUS=""
       else _touch_comp "$rest"; FOCUS=$rest; fi
       _draw 1; return ;;
     @@OK|@@FAIL)
@@ -1339,14 +1422,12 @@ _handle_line() {
       rc=$?
       if (( rc > 128 )); then
         _timer_tick && _draw 1
-        _cycle_tick && _draw 1
         continue
       fi
       [[ -n $line ]] && _handle_line "$line"
       break
     fi
     _timer_tick && _draw
-    _cycle_tick && _draw 1
   done
 
   _stop_all_timers
@@ -1356,25 +1437,6 @@ _handle_line() {
   for c in "${ORDER[@]}"; do [[ -n $c ]] && LDIRTY[$c]=1; done
 
   REVIEW=1
-  local nfail=${#FAILED[@]}
-  if (( nfail > 1 && CYCLE_SEC > 0 && FINAL_SEC > 0 )) && [[ -z $FOCUS ]]; then
-    CYCLE_AT=0
-    _draw 1
-    local deadline=$(( $(_now_ms) + FINAL_SEC * 1000 ))
-    while (( $(_now_ms) < deadline )); do
-      sleep "$TICK_SEC"
-      _cycle_tick && _draw 1
-    done
-    case $CYCLE_END in
-      first) CYCLE_IDX=0 ;;
-      rotate) : ;;
-      *)     CYCLE_IDX=$(( nfail - 1 )) ;;
-    esac
-  elif (( nfail == 1 && HOLD_SEC > 0 )); then
-    # single failure: draw it, then hold briefly so it is readable
-    _draw 1
-    sleep "$HOLD_SEC"
-  fi
   _draw 1
 )}
 
@@ -1498,7 +1560,7 @@ act_find_deps () {
   echo "${!handlers[*]}"
 }
 
-act_helpper () {
+act_helper () {
   local act_name=${1%%,*}
   local act_text="${1#*,}"
   local sort_options="$2"
@@ -1514,20 +1576,14 @@ act_helpper () {
   fi
 
   # scan for dependencies
-  local handles=($(
-    act_find_deps $act_name $(
-      # always included modules
-      for m in pre_system_scan core_types; do 
-        [[ -v _act_cache_functions[${act_name}_${m}] ]] && echo $m
-      done
-    ) "$@"
-  ))
+  local handles=($(act_find_deps $act_name "$@"))
 
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
     if [ "$act_name" = "install" ]; then
       # build license gate
       local -A licenses=() licenses_text=()
+      local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}"
       for licenser in ${handles[*]/_install_/_license_}; do
         if declare -F $licenser > /dev/null 2>&1; then
           local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0
@@ -1540,7 +1596,7 @@ act_helpper () {
               ;;
             esac
             [ $license_keep -eq 1 ] && licenses_text[$license_id]+="${license_line}"$'\n'
-          done < <($licenser "$@")
+          done < <($licenser $(act_extract_args install $name1 "$all_install_modules" "$@"))
         fi
       done
       if [ ${#licenses[*]} -gt 0 ]; then
@@ -1561,6 +1617,8 @@ act_helpper () {
     fi
 
     local rc=0 order=0
+    local installer_state=""
+    ensure_tmpdir create installer_state states /dev/shm
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
         local name1=${handler#*_*_*_}
@@ -1578,12 +1636,9 @@ act_helpper () {
           local state_path="$(ensure_project_path)/$installer_name/states/$name1"
           [ "$act_name" = "start" ] && mkdir -p "$state_path"
           echo "@@COMP $name1"
-          (
-            set -e
-            $handler $invoke_args &
-            wait -n
-          )
-          local rc1=$?
+          local rc1=0
+          ( set -e; $handler $invoke_args) &
+          wait $! || rc1=$?
           [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
@@ -1594,9 +1649,11 @@ act_helpper () {
           fi
         fi
       done
-      if [[ " $* " != *" --dry-run "* ]] && [ $rc -eq 0 ] && declare -F ${ID_LIKE}_10_${act_name}_pre_system_scan > /dev/null 2>&1; then
+      # final summary: rerun pre_system_scan only if it is part of the dependency chain
+      local scan_handler="${_act_cache_functions[${act_name}_pre_system_scan]:-}"
+      if [[ " $* " != *" --dry-run "* && $rc -eq 0 && -n "$scan_handler" && " ${handles[*]} " = *" $scan_handler "* ]]; then
         echo "@@REPORT SYSTEM SUMMARY"
-        ${ID_LIKE}_10_${act_name}_pre_system_scan
+        $scan_handler $(act_extract_args $act_name pre_system_scan "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")
       fi
     } > >(
       LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
@@ -1607,6 +1664,7 @@ act_helpper () {
     ) 2>&1
     # wait for background processes
     wait
+    ensure_tmpdir destroy $installer_state
     return $rc
   else
     echo "Component not found" 1>&2
@@ -1856,26 +1914,14 @@ ensure_sbom_format () {
 # select --gpu/--npu from command line arguments
 # default to best device for init and "" for start
 ensure_select_device () {
-  local device=""
-  case "$1" in
-  install)
-    device="cpu"
-    [ ! -e /dev/accel/accel0 ] || device="npu"
-    [ ! -e /dev/dri/renderD128 ] || device="gpu"
-    ;;
-  esac
-
-  case " $* " in
-  *" --NPU "*)
-    [ ! -e /dev/accel/accel0 ] || device="npu"
-    ;;
-  *" --CPU "*)
-    device="cpu"
-    ;;
-  *" --GPU "*)
-    [ ! -e /dev/dri/renderD128 ] || device="gpu"
-    ;;
-  esac
+  local device="cpu"
+  # Match device flags case-insensitively so both --gpu and --GPU are accepted.
+  local args_uc=" ${*^^} "
+  [ ! -e /dev/accel/accel0 ] || device="npu"
+  [ ! -e /dev/dri/renderD128 ] || device="gpu"
+  [[ "$args_uc" != *" --CPU "* ]] || device="cpu"
+  [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu"
+  [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu"
   echo $device
 }
 
@@ -1919,11 +1965,11 @@ ensure_tmpdir () {
   case "$1" in
   create)
     printf -v $2 "%s" $(mktemp -d ${4:-/tmp}/openedge-cli-${3:-}.XXXXXX)
-    ensure_trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" ERR SIGINT EXIT
+    ensure_trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" SIGINT EXIT
     ;;
   destroy)
     rm -rf "$2"
-    ensure_trap - ERR SIGINT EXIT
+    ensure_trap - SIGINT EXIT
     ;;
   esac
 }
@@ -1978,8 +2024,8 @@ ensure_apt () {
   case "$1" in
   update)
     # apt-get update got executed only once unless -y is specified
-    [[ -e /dev/shm/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
-    touch /dev/shm/apt_update
+    [[ -e "${installer_state:?}"/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get "$@"
+    touch "$installer_state"/apt_update
     ;;
   autoremove|remove|purge)
     # make sure the package list exists
@@ -1999,10 +2045,9 @@ ensure_apt () {
       fi
     fi
     ;;
-  install) # apt-get update runs at least once on the system
-    [ -e /dev/shm/apt_update ] || ensure_apt update -y
-    ;;&
   *)
+    # apt-get update runs at least once on the system before apt-get install
+    [ "$1" != "install" ] || [ -e "${installer_state:?}"/apt_update ] || ensure_apt update -y
     ensure_sudo env DEBIAN_FRONTEND=noninteractive no_proxy=${no_proxy1%%,} NO_PROXY=${no_proxy1%%,} apt-get -y "$@"
     ;;
   esac
@@ -2042,7 +2087,7 @@ ensure_apt_key () {
 
 ensure_apt_preference () {
   local pref_file=$1; shift
-  (IFS=$'\n';echo "$@") | ensure_sudo tee "$pref_file" > /dev/null
+  (IFS=$'\n';echo "$*") | ensure_sudo tee "$pref_file" > /dev/null
 }
 
 
@@ -2071,17 +2116,16 @@ configure_anomalib () {
 }
 
 verify_anomalib () {
-  [ -r "$workspace"/venv/bin/activate ] || return 1
-  . "$workspace"/venv/bin/activate
-  set -o pipefail
-  pip show anomalib | grep -q -F $version || return 1
+  [ -r "$workspace"/.venv/bin/activate ]
+  . "$workspace"/.venv/bin/activate
+  python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
 }
 
-debian_70_profile_anomalib () {
+debian_80_profile_anomalib () {
   echo "python3_venv edge_base"
 }
 
-debian_70_install_anomalib () {
+debian_80_install_anomalib () {
   configure_anomalib $*
   if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
     echo "Anomalib already installed. Skipping"
@@ -2089,15 +2133,90 @@ debian_70_install_anomalib () {
     ensure_disk_space 6000
     mkdir -p "$workspace"
     cd "$workspace"
-    python3 -m venv venv
-    . venv/bin/activate
-    pip install anomalib==${version}
+    python3 -m venv .venv
+    . .venv/bin/activate
+    pip install "anomalib[openvino,cpu]==${version}"
+
+    if [[ " $* " = *" --validate "* ]]; then
+      mkdir -p test
+      python3 -c '
+from pathlib import Path
+from PIL import Image
+from anomalib.data import Folder
+from anomalib.models import Padim
+from anomalib.engine import Engine
+from anomalib.deploy import ExportType, OpenVINOInferencer
+import sys
+
+def create_mock_dataset(dataset_path):
+  train_good = dataset_path / "train" / "good"
+  test_good = dataset_path / "test" / "good"
+  test_defect = dataset_path / "test" / "defect"
+  for d in [train_good, test_good, test_defect]:
+    d.mkdir(parents=True, exist_ok=True)
+  for i in range(5):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    img.save(train_good / f"normal_{i}.png")
+    if i < 2:
+      img.save(test_good / f"normal_test_{i}.png")
+  for i in range(2):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    for x in range(100, 150):
+      for y in range(100, 150):
+        img.putpixel((x, y), (50, 50, 50))  # Synthetic anomaly block
+    img.save(test_defect / f"defect_{i}.png")
+
+def test_anomalib_pipeline(root_path, dataset_path, device):
+  datamodule = Folder(
+    name="synthetic_test",
+    root=dataset_path,
+    normal_dir="train/good",
+    abnormal_dir="test/defect",
+    normal_test_dir="test/good",
+    train_batch_size=2,
+    eval_batch_size=2,
+  )
+  model = Padim()
+  engine = Engine(
+    default_root_dir=root_path / "results",
+    max_epochs=1,
+    accelerator="auto",
+    devices=1,
+  )
+  engine.fit(model=model, datamodule=datamodule)
+  test_results = engine.test(model=model, datamodule=datamodule)
+  assert test_results is not None, "Evaluation test results returned None."
+  export_dir = root_path / "export"
+  engine.export(
+    model=model,
+    export_type=ExportType.OPENVINO,
+    export_root=export_dir,
+    input_size=(256, 256),
+  )
+  model_xml_files = list(export_dir.glob("**/*.xml"))
+  assert len(model_xml_files) > 0, "OpenVINO model XML representation was not generated."
+  inferencer = OpenVINOInferencer(
+    path=model_xml_files[0],
+    device=device,
+  )
+  sample_image_path = dataset_path / "test" / "defect" / "defect_0.png"
+  prediction = inferencer.predict(str(sample_image_path))
+  assert prediction is not None, "Inference prediction failed."
+  assert hasattr(prediction, "pred_score") or hasattr(prediction, "anomaly_map"), "Prediction output missing anomaly score or map attributes."
+
+root_path = Path(sys.argv[1])
+dataset_path = root_path / "mock_dataset"
+create_mock_dataset(dataset_path)
+test_anomalib_pipeline(root_path, dataset_path, sys.argv[2])
+' test $(ensure_select_device "$@" | tr 'a-z' 'A-Z') && echo "Anomalib test passed."
+      rm -rf test
+    fi
   fi
 
-  echo "@@HIGHLIGHT venv: $workspace/venv"
+  echo "@@HIGHLIGHT venv: $workspace/.venv"
 }
 
-debian_70_remove_anomalib () {
+debian_80_remove_anomalib () {
   configure_anomalib $*
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
@@ -2261,6 +2380,27 @@ $(ensure_sbom_format pkg-list $amr_sdk_pkg "ros-$ros_distro-collab-slam-sse")
 EOF
 }
 
+
+debian_30_install_chrony () {
+  ensure_apt_install_package chrony
+}
+
+debian_30_sbom_chrony () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list chrony)
+EOF
+}
+
+
+debian_30_install_cmake () {
+  ensure_apt_install_package cmake
+}
+
+debian_30_sbom_cmake () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list cmake)
+EOF
+}
 
 debian_20_profile_core_types () {
   [ "$1" != "install" ] || echo "cpuid curl"
@@ -2489,6 +2629,10 @@ EOF
   fi
 }
 
+debian_30_group_docker () {
+  echo "docker:"
+}
+
 debian_30_install_docker () {
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
     echo "Docker is already installed. Skipping..."
@@ -2556,7 +2700,7 @@ EOF
 }
 
 debian_99_profile_edge_base () {
-  [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu npu core_types pre_system_scan"
+  [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu_accel npu_accel core_types pre_system_scan"
 }
 
 
@@ -2572,6 +2716,8 @@ configure_edge_pack () {
     "Pin-Priority: 1001"
   )
   edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref
+  edge_pack_install_options=("--no-install-recommends")
+  [[ " $* " != *" --allow-downgrades "* ]] || edge_pack_install_options+=("--allow-downgrades")
 }
 
 debian_15_profile_edge_pack () {
@@ -2598,8 +2744,10 @@ debian_15_install_edge_pack () {
 }
 
 debian_15_remove_edge_pack () {
-  configure_edge_pack "$@"
-  ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
+  dpkg -l | grep -q -F intel-edge- || { 
+    configure_edge_pack "$@"
+    ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
+  }
 }
 
 #sbom by individual packs
@@ -2616,18 +2764,25 @@ debian_20_profile_edge_pack_base_realtime () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_base_realtime () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@"
   if ensure_apt_is_installed intel-edge-base-realtime=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-base-realtime already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_realtime
-    ensure_apt install --no-install-recommends "intel-edge-base-realtime=$version*"
+    ensure_group_add $(debian_20_group_edge_pack_base_realtime)
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_base_realtime () {
   ensure_apt autoremove -y intel-edge-base-realtime || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_base_realtime () {
@@ -2654,18 +2809,25 @@ debian_20_profile_edge_pack_base_standard () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_base_standard () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_base_standard () {
   configure_edge_pack_base_standard "$@"
   if ensure_apt_is_installed intel-edge-base-standard=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-base-standard already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_base_standard
-    ensure_apt install --no-install-recommends "intel-edge-base-standard=$version*"
+    ensure_group_add $(debian_20_group_edge_pack_base_standard)
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_base_standard () {
   ensure_apt autoremove -y intel-edge-base-standard || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_base_standard () {
@@ -2692,18 +2854,25 @@ debian_20_profile_edge_pack_graphics_core () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_graphics_core () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_graphics_core () {
   configure_edge_pack_graphics_core "$@"
   if ensure_apt_is_installed intel-edge-graphics-core=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-graphics-core already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_core
-    ensure_apt install --no-install-recommends "intel-edge-graphics-core=$version*"
+    ensure_group_add $(debian_20_group_edge_pack_graphics_core)
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_graphics_core () {
   ensure_apt autoremove -y intel-edge-graphics-core || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_graphics_core () {
@@ -2730,18 +2899,25 @@ debian_20_profile_edge_pack_graphics_display () {
   echo "edge_pack"
 }
 
+debian_20_group_edge_pack_graphics_display () {
+  echo "render:992 video:"
+}
+
 debian_20_install_edge_pack_graphics_display () {
   configure_edge_pack_graphics_display "$@"
   if ensure_apt_is_installed intel-edge-graphics-display=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-graphics-display already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_graphics_display
-    ensure_apt install --no-install-recommends "intel-edge-graphics-display=$version*"
+    ensure_group_add $(debian_20_group_edge_pack_graphics_display)
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*"
   fi
+  [ -c /dev/dri/renderD128 ]
 }
 
 debian_20_remove_edge_pack_graphics_display () {
   ensure_apt autoremove -y intel-edge-graphics-display || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_graphics_display () {
@@ -2774,12 +2950,13 @@ debian_20_install_edge_pack_media_core () {
     echo "intel-edge-media-core already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_core
-    ensure_apt install --no-install-recommends "intel-edge-media-core=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*"
   fi
 }
 
 debian_20_remove_edge_pack_media_core () {
   ensure_apt autoremove -y intel-edge-media-core || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_media_core () {
@@ -2812,12 +2989,13 @@ debian_70_install_edge_pack_media_ffmpeg () {
     echo "intel-edge-media-ffmpeg already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_ffmpeg
-    ensure_apt install --no-install-recommends "intel-edge-media-ffmpeg=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*"
   fi
 }
 
 debian_70_remove_edge_pack_media_ffmpeg () {
   ensure_apt autoremove -y intel-edge-media-ffmpeg || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_70_sbom_edge_pack_media_ffmpeg () {
@@ -2850,12 +3028,13 @@ debian_70_install_edge_pack_media_gst () {
     echo "intel-edge-media-gst already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_media_gst
-    ensure_apt install --no-install-recommends "intel-edge-media-gst=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*"
   fi
 }
 
 debian_70_remove_edge_pack_media_gst () {
   ensure_apt autoremove -y intel-edge-media-gst || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_70_sbom_edge_pack_media_gst () {
@@ -2879,7 +3058,11 @@ configure_edge_pack_npu () {
 }
 
 debian_20_profile_edge_pack_npu () {
-  echo "edge_pack"
+  echo "edge_pack libze1"
+}
+
+debian_20_group_edge_pack_npu () {
+  echo "render:992"
 }
 
 debian_20_install_edge_pack_npu () {
@@ -2888,12 +3071,15 @@ debian_20_install_edge_pack_npu () {
     echo "intel-edge-npu already installed. Skipping" 1>&2
   else
     debian_20_remove_edge_pack_npu
-    ensure_apt install --no-install-recommends "intel-edge-npu=$version*"
+    ensure_group_add $(debian_20_group_edge_pack_npu)
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-npu=$version*"
   fi
+  [ -c /dev/accel/accel0 ]
 }
 
 debian_20_remove_edge_pack_npu () {
   ensure_apt autoremove -y intel-edge-npu || true
+  debian_15_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_npu () {
@@ -2996,7 +3182,7 @@ debian_90_profile_geti () {
 }
 
 debian_90_install_geti () {
-  configure_geti $*
+  configure_geti "$@"
 
   if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
     echo "Geti already installed. Skipping."
@@ -3008,7 +3194,7 @@ debian_90_install_geti () {
 }
 
 debian_90_start_geti () {
-  configure_geti $*
+  configure_geti "$@"
   ensure_ports_open "$port" debian_90_stop_geti
 
   mkdir -p "$workspace"/geti-data
@@ -3027,12 +3213,12 @@ debian_90_start_geti () {
 }
 
 debian_90_stop_geti () {
-  configure_geti $*
+  configure_geti "$@"
   docker rm -f geti-app || true
 }
 
 debian_90_remove_geti () {
-  debian_90_stop_geti $* || true
+  debian_90_stop_geti "$@"
   docker image rm $image_name || true
 }
 
@@ -3047,17 +3233,17 @@ $(ensure_sbom_format pkg-list git ca-certificates)
 EOF
 }
 
-debian_15_install_gpg () {
+debian_10_install_gpg () {
   ensure_apt_install_package gpgv1
 }
 
-debian_15_sbom_gpg () {
+debian_10_sbom_gpg () {
   cat <<EOF
 $(ensure_sbom_format pkg-list gpgv1)
 EOF
 }
 
-configure_gpu () {
+configure_gpu_accel () {
   repo_name="repositories.intel.com"
   key_url="https://$repo_name/gpu/intel-graphics.key"
   key_file="/usr/share/keyrings/intel-graphics.gpg"
@@ -3066,28 +3252,38 @@ configure_gpu () {
   pkg_list=(clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd)
 }
 
-verify_gpu () {
+verify_gpu_accel () {
   [ -c /dev/dri/renderD128 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
+  verify_gpu_accel_packages
+}
+
+# checks the driver packages only, independent of GPU hardware being present.
+# used to confirm a fresh install succeeded even on systems without a discrete/exposed GPU device.
+verify_gpu_accel_packages () {
   ensure_apt_is_installed intel-media-va-driver-non-free
 }
 
-debian_40_profile_gpu () {
+debian_40_profile_gpu_accel () {
   echo "curl gpg libze1"
 }
 
-debian_40_install_gpu () {
-  configure_gpu $*
+debian_40_group_gpu_accel () {
+  echo "render:992 video:"
+}
 
-  if verify_gpu && [[ " $* " != *" --reinstall "* ]]; then
+debian_40_install_gpu_accel () {
+  configure_gpu_accel "$@"
+
+  if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Gpu drivers are already installed. Skipping..."
   else
     # remove legacies
-    debian_40_remove_gpu || true
+    debian_40_remove_gpu_accel || true
 
     # create the render group
-    ensure_group_add render:992 video:
+    ensure_group_add $(debian_40_group_gpu_accel)
 
     # product key & list 
     ensure_apt_key $key_file $key_url --dearmor
@@ -3098,12 +3294,12 @@ debian_40_install_gpu () {
 
     # install the packages
     ensure_apt install --no-install-recommends -y "${pkg_list[@]}"
-    verify_gpu
+    verify_gpu_accel_packages
   fi
 }
 
-debian_40_remove_gpu () {
-  configure_gpu $*
+debian_40_remove_gpu_accel () {
+  configure_gpu_accel "$@"
   ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
   # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
@@ -3116,8 +3312,8 @@ debian_40_remove_gpu () {
   ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg $key_file $apt_file
 }
 
-debian_40_sbom_gpu () {
-  configure_gpu "$@"
+debian_40_sbom_gpu_accel () {
+  configure_gpu_accel "$@"
   cat <<EOF
 $(ensure_sbom_format name "$repo_name")
 $(ensure_sbom_format apt-source "$apt_entry")
@@ -3243,6 +3439,17 @@ debian_90_remove_humanoid_imitation_learning () {
   ensure_sudo rm -rf "$workspace"
 }
 
+debian_30_install_intel_lpmd () {
+  ensure_apt_install_package intel-lpmd
+}
+
+debian_30_sbom_intel_lpmd () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list intel-lpmd)
+EOF
+}
+
+
 debian_15_install_jq () {
   ensure_apt_install_package jq
 }
@@ -3273,6 +3480,43 @@ debian_15_sbom_libtbb12 () {
 $(ensure_sbom_format pkg-list libtbb12)
 EOF
 }
+
+configure_libyang () {
+  workspace="$(ensure_project_path)/libyang"
+  repository="https://github.com/CESNET/libyang.git"
+  version=v4.2.2
+}
+  
+debian_40_profile_libyang () {
+  echo "cmake make"
+}
+
+verify_libyang () {
+  command yanglint > /dev/null 2>&1
+}
+
+debian_40_install_libyang () {
+  configure_libyang
+  if verify_libyang && [[ " $* " != *" --reinstall "* ]]; then
+    echo "libyang is installed. Skipping..." 1>&2
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    mkdir "$workspace"/build
+    cd "$workspace"/build
+    cmake ..
+    make
+    ensure_sudo make install
+    ensure_sudo ldconfig /usr/local/lib
+    make clean
+  fi
+}
+
+debian_40_remove_libyang () {
+  configure_libyang
+  cd "$workspace/build" && ensure_sudo make uninstall || true
+  rm -rf "$workspace"
+}
+
 
 configure_libze1 () {
   libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb"
@@ -3372,7 +3616,11 @@ configure_loitering_detection () {
 }
 
 verify_loitering_detection () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000101.mp4 ]
+  local v
+  for v in 101 102 103 104; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000$v.mp4 ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/FP16/pedestrian-and-vehicle-detector-adas-0001.bin ]
 }
 
 debian_90_profile_loitering_detection () {
@@ -3498,6 +3746,17 @@ debian_30_sbom_make () {
 $(ensure_sbom_format pkg-list make)
 EOF
 }
+
+debian_30_install_msr_tools () {
+  ensure_apt_install_package msr-tools
+}
+
+debian_30_sbom_msr_tools () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list msr-tools)
+EOF
+}
+
 
 configure_multimodal_weld_defect_detection () {
   workspace="$(ensure_project_path)/multimodal_weld_defect_detection"
@@ -3635,8 +3894,7 @@ debian_90_install_multimodal_weld_defect_detection () {
   if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Multimodal weld defect detection is already installed. Skipping"
   else
-    local device
-    device="$(ensure_select_device "$@")"
+    local device="$(ensure_select_device "$@")"
 
     ensure_disk_space 64000
     ensure_ram_size 16777216 # 16 GiB
@@ -3661,11 +3919,8 @@ debian_90_start_multimodal_weld_defect_detection () {
   }
 
   ensure_ports_open "$used_ports" debian_90_stop_multimodal_weld_defect_detection "$@"
-  case " $* " in
-  *" --cpu "*|*" --gpu "*|*" --npu "*)
-    configure_multimodal_weld_defect_detection_device "$(ensure_select_device "$@")"
-    ;;
-  esac
+  local device="$(ensure_select_device "$@")"
+  [[ " $* " != *" --${device^^} "* ]] || configure_multimodal_weld_defect_detection_device $device
 
   cd "$source_dir"
   make up
@@ -3693,7 +3948,7 @@ configure_nicu_warmer () {
   workspace="$(ensure_project_path)/nicu-warmer"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
-  device_env="configs/res/all-$(ensure_select_device $*).env"
+  device_env="configs/res/all-$(ensure_select_device "$@").env"
   models=(
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin"
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml"
@@ -3777,38 +4032,48 @@ debian_90_remove_nicu_warmer () {
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
-configure_npu () {
+configure_npu_accel () {
   version=1.35.0
   repository=https://api.github.com/repos/intel/linux-npu-driver
   releases=https://github.com/intel/linux-npu-driver/releases
   workspace="$(ensure_project_path)/npu"
 }
 
-verify_npu () {
+verify_npu_accel () {
   [ -c /dev/accel/accel0 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
+  verify_npu_accel_packages
+}
+
+# checks the driver packages only, independent of NPU hardware being present.
+# used to confirm a fresh install succeeded even on systems without an NPU device.
+verify_npu_accel_packages () {
   (
     set -o pipefail
     ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
   )
 }
 
-debian_40_profile_npu () {
+debian_40_profile_npu_accel () {
   echo "libtbb12 jq libze1"
 }
 
-debian_40_install_npu () {
-  configure_npu $*
+debian_40_group_npu_accel () {
+  echo "render:992"
+}
 
-  if verify_npu && [[ " $* " != *" --reinstall "* ]]; then
+debian_40_install_npu_accel () {
+  configure_npu_accel "$@"
+
+  if verify_npu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Npu drivers are already installed. Skipping..."
   else
     # remove legacies
     ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
 
     # create the render group
-    ensure_group_add render:992
+    ensure_group_add $(debian_40_group_npu_accel)
   
     mkdir -p "$workspace"
     cd "$workspace"
@@ -3824,17 +4089,17 @@ debian_40_install_npu () {
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
-    verify_npu
+    verify_npu_accel_packages
   fi
 }
 
-debian_40_remove_npu () {
+debian_40_remove_npu_accel () {
   ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
-debian_40_sbom_npu () {
-  configure_npu "$@"
+debian_40_sbom_npu_accel () {
+  configure_npu_accel "$@"
   local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
   [ ${#packages[*]} -gt 0 ] || return 3
   cat <<EOF
@@ -3992,6 +4257,7 @@ configure_pallet_defect_detection () {
 
 verify_pallet_defect_detection () {
   [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pallet-defect-detection/videos/warehouse.avi ]
+  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/deployment/Detection/model/model.bin ]
 }
 
 debian_90_profile_pallet_defect_detection () {
@@ -4057,6 +4323,7 @@ configure_pcb_anomaly_detection () {
 
 verify_pcb_anomaly_detection () {
   [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
+  [ -e "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin" ]
 }
 
 debian_90_profile_pcb_anomaly_detection () {
@@ -4123,6 +4390,46 @@ debian_05_sbom_pciutils () {
 $(ensure_sbom_format pkg-list pciutils)
 EOF
 }
+
+configure_pcm () {
+  workspace="$(ensure_project_path)/pcm"
+  repository="https://github.com/intel/pcm.git"
+  version=tags/202604
+}
+
+verify_pcm () {
+  [ -e "$workspace" ]
+  [ -x /usr/local/pcm ]
+}
+
+debian_40_profile_pcm () {
+  echo "cmake make"
+}
+
+debian_40_install_pcm () {
+  configure_pcm
+  if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+    echo "pcm is installed. Skipping"
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    rm -rf "$workspace"/tests "$workspace"/examples
+    mkdir "$workspace"/build "$workspace"/tests "$workspace"/examples
+    touch "$workspace"/tests/CMakeLists.txt "$workspace"/examples/CMakeLists.txt
+    cd "$workspace"/build
+    cmake ..
+    cmake --build . 
+    ensure_sudo make install
+    make clean
+    verify_pcm
+  fi
+}
+
+debian_40_remove_pcm () {
+  configure_pcm
+  ensure_sudo rm -rf "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* \
+    /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM
+}
+
 
 # Physical AI Framework - the Physical AI training/deployment SDK (the
 # `physicalai-train` distribution, which also pulls in the `physicalai`
@@ -4326,7 +4633,7 @@ debian_08_install_pre_system_scan () {
 
     pass=$ok
     membank_info="$(system_scan_check_membank)"
-    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Configuration}"
+    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}"
     echo -e "RAM|$membank_info|$pass"
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2
 
@@ -4583,6 +4890,19 @@ EOF
 }
 
 
+configure_reboot () {
+  touch "${installer_state?}"/reboot_required
+}
+
+debian_29_install_reboot () {
+  [ -e "${installer_state?}"/reboot_required ] || return 
+  local delay=2
+  ensure_sudo shutdown -r +$delay "$installer_name scheduled a reboot in $delay minutes. Rerun $* after system is back."
+  rm -f "${installer_state?}"/reboot_required
+  sleep infinity
+}
+
+
 # ROS 2 distribution, auto-selected from the Ubuntu codename:
 #   Ubuntu 22.04 (jammy) -> ROS 2 Humble
 #   Ubuntu 24.04 (noble) -> ROS 2 Jazzy
@@ -4800,7 +5120,11 @@ configure_smart_intersection () {
 }
 
 verify_smart_intersection () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/1122north_h264.ts ]
+  local v
+  for v in 1122east_h264.ts 1122north_h264.ts 1122south_h264.ts 1122west_h264.ts; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/videos/$v ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-intersection/src/dlstreamer-pipeline-server/models/intersection/openvino.bin ]
 }
 
 debian_90_profile_smart_intersection () {
@@ -4873,7 +5197,14 @@ configure_smart_parking () {
 }
 
 verify_smart_parking () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_1.mp4 ]
+  local i p
+  for i in 1 2 3 4; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_$i.mp4 ]
+  done
+  for p in FP16 FP32 INT8; do
+    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/public/yolo11s/$p/yolo11s.bin ]
+  done
+  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/colorcls2/colorcls2.bin ]
 }
 
 debian_90_profile_smart_parking () {
@@ -4887,7 +5218,7 @@ debian_90_install_smart_parking () {
   else
     # clone the repository
     ensure_disk_space 300
-    ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+    ensure_git_export "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
 
     # setup
     cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
@@ -5037,6 +5368,123 @@ EOF
 }
 
 
+debian_30_install_stress_ng () {
+  ensure_apt_install_package stress-ng
+}
+
+debian_30_sbom_stress_ng () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list stress-ng)
+EOF
+}
+
+
+debian_30_install_sysbench () {
+  ensure_apt_install_package sysbench
+}
+
+debian_30_sbom_sysbench () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list sysbench)
+EOF
+}
+
+
+configure_time_confighub () {
+  workspace="$(ensure_project_path)/time_confighub"
+  repository="https://github.com/intel/time-confighub.git"
+  version=tags/archive/main_20261106
+}
+
+verify_time_confighub () {
+  [ -e "$workspace" ]
+  [ -d /opt/tch ]
+  [ -x /usr/local/bin/tch ]
+}
+
+debian_70_profile_time_confighub () {
+  echo "cmake make libyang"
+}
+
+debian_70_install_time_confighub () {
+  configure_time_confighub
+  if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+    echo "pcm is installed. Skipping"
+  else
+    ensure_git_export "$workspace" "$version" "$repository"
+    cd "$workspace"
+    chmod a+rx install.sh uninstall.sh
+    ensure_sudo ./install.sh
+    verify_time_confighub
+  fi
+}
+
+debian_70_remove_time_confighub () {
+  configure_time_confighub
+  cd "$workspace" && ensure_sudo ./uninstall.sh --force || true
+  rm -rf "$workspace"
+}
+
+
+configure_uav_mission_compute_sdk () {
+  workspace="$(ensure_project_path)/uav-mission-compute-sdk"
+  version="release-2026.2.0"
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+verify_uav_mission_compute_sdk () {
+  [ -e "$workspace" ]
+}
+
+debian_85_profile_uav_mission_compute_sdk () {
+  echo "docker git curl make v4l_utils"
+}
+
+debian_85_install_uav_mission_compute_sdk () {
+  configure_uav_mission_compute_sdk
+  if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
+    echo "UAV mission compute sdk is already installed. Skipping..." 1>&2
+  else
+    ensure_git_export "$workspace" "$version" "$repository" federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+    cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+    make init
+    sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env
+    export HTTP_PROXY="${HTTP_PROXY:-$http_proxy}" HTTPS_PROXY="${HTTPS_PROXY:-$https_proxy}" NO_PROXY="${NO_PROXY:-$no_proxy}"
+    make build
+    verify_uav_mission_compute_sdk
+  fi
+
+  local profile="sim-camera"
+  [[ " $* " != *" --sim "* ]] || profile="sim-camera"
+  [[ " $* " != *" --usb "* ]] || profile="usb-camera"
+  [[ " $* " != *" --realsense "* ]] || profile="realsense-camera"
+  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+  sed -i '/^PROFILE=/{d}' "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/.env
+  echo "PROFILE=$profile" >> "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/.env
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+}
+
+debian_85_start_uav_mission_compute_sdk () {
+  ensure_ports_open "8086 3000 9090 9273" debian_85_stop_uav_mission_compute_sdk "$@"
+  configure_uav_mission_compute_sdk
+  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+  . .env
+  export HTTP_PROXY="${HTTP_PROXY:-$http_proxy}" HTTPS_PROXY="${HTTPS_PROXY:-$https_proxy}" NO_PROXY="${NO_PROXY:-$no_proxy}"
+  make up-$PROFILE
+}
+
+debian_85_stop_uav_mission_compute_sdk () {
+  configure_uav_mission_compute_sdk
+  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk && make down || true
+}
+
+debian_85_remove_uav_mission_compute_sdk () {
+  debian_85_stop_uav_mission_compute_sdk "$@"
+  ensure_sudo rm -rf "$workspace"
+}
+
+
 debian_15_install_unzip () {
   ensure_apt_install_package unzip
 }
@@ -5062,6 +5510,17 @@ debian_30_install_uv () {
   else
     pipx install uv
   fi
+}
+
+
+debian_30_install_v4l_utils () {
+  ensure_apt_install_package v4l-utils
+}
+
+debian_30_sbom_v4l_utils () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list v4l-utils)
+EOF
 }
 
 
@@ -5242,7 +5701,7 @@ debian_99_profile_computer_vision () {
 
 
 debian_99_profile_federal_and_aerospace_ai_suite () {
-  [ "$1" = "start" ] || echo "handheld_multi_modal"
+  [ "$1" = "start" ] || echo "handheld_multi_modal uav_mission_compute_sdk"
 }
 
 

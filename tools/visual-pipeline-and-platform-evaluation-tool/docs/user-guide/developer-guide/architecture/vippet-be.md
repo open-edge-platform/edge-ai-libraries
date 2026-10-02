@@ -159,11 +159,10 @@ user-defined pipeline. Key methods: `get_templates()`, `get_template_by_id()`.
 
 ### ModelManager
 
-Owns the catalog of supported models (`supported_models.yaml`) and the registry of installed models on disk.
+Owns the model catalog (`vippet/models/*.yaml`, seeded into the DB at startup) and tracks install state per model.
 Triggers downloads through the `model-download` microservice, tracks download jobs, supports user uploads of
 custom models, and computes the `used_by_pipelines` field shown in the UI. Key methods: `list_models()`,
-`start_download()`, `upload_model()`, `get_job()`, `get_all_jobs()`,
-`find_installed_uploaded_model_by_display_name()`.
+`start_download()`, `upload_model()`, `get_job()`, `get_all_jobs()`.
 
 ### CameraManager
 

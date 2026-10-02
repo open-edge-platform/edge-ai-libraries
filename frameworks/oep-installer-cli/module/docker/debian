@@ -31,6 +31,10 @@ EOF
   fi
 }
 
+debian_30_group_docker () {
+  echo "docker:"
+}
+
 debian_30_install_docker () {
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
     echo "Docker is already installed. Skipping..."

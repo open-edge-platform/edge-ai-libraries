@@ -24,7 +24,8 @@ cd ./video-chunking-utils
 pip install .
 ```
 
-> **Note:** If you are using a virtual environment, you can install the module
+> [!NOTE]
+> If you are using a virtual environment, you can install the module
 > within the environment to avoid conflicts with other packages.
 
 ## Usage

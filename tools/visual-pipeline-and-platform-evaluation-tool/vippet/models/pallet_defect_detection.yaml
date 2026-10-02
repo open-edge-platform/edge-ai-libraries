@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+name: pallet_defect_detection
+display_name: Pallet Defect Detection
+description: "Detects damaged or defective warehouse pallets, flagging structural defects such as broken or missing boards for logistics quality control."
+source: public
+hub: ultralytics
+type: object_detection
+precisions:
+  - precision: INT8
+    model_path: ultralytics/public/pallet_defect_detection/INT8/pallet_defect_detection.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: pallet_defect_detection

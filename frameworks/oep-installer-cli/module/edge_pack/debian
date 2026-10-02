@@ -11,6 +11,8 @@ configure_edge_pack () {
     "Pin-Priority: 1001"
   )
   edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref
+  edge_pack_install_options=("--no-install-recommends")
+  [[ " $* " != *" --allow-downgrades "* ]] || edge_pack_install_options+=("--allow-downgrades")
 }
 
 debian_15_profile_edge_pack () {
@@ -37,8 +39,10 @@ debian_15_install_edge_pack () {
 }
 
 debian_15_remove_edge_pack () {
-  configure_edge_pack "$@"
-  ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
+  dpkg -l | grep -q -F intel-edge- || { 
+    configure_edge_pack "$@"
+    ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
+  }
 }
 
 #sbom by individual packs

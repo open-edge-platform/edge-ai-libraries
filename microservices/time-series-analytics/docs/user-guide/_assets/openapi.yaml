@@ -131,9 +131,7 @@ paths:
         in: query
         required: false
         schema:
-          anyOf:
-          - type: boolean
-          - type: 'null'
+          type: boolean
           description: Restart the Time Series Analytics Microservice UDF deployment
             if true
           default: false

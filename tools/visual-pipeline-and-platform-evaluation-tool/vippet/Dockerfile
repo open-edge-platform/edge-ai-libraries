@@ -17,13 +17,14 @@
 # syntax=docker/dockerfile:1.7
 
 # Use DLStreamer as the base image
-FROM intel/dlstreamer:2026.2.0-ubuntu24-rc3 AS prod
+FROM intel/dlstreamer:2026.3.0-20260922-weekly-ubuntu24 AS prod
 
 # Switch to root user to install dependencies
 USER root
 
 # Set environment variable to non-interactive mode (avoids some prompts)
 ENV DEBIAN_FRONTEND=noninteractive
+
 
 # Install necessary dependencies
 # BuildKit cache mounts keep apt downloads/metadata between builds. The
@@ -74,8 +75,18 @@ COPY --chown=dlstreamer:dlstreamer \
 
 COPY --chown=dlstreamer:dlstreamer vippet/pipelines/ /home/dlstreamer/vippet/pipelines
 COPY --chown=dlstreamer:dlstreamer vippet/benchmarks/ /home/dlstreamer/vippet/benchmarks
+COPY --chown=dlstreamer:dlstreamer vippet/models/ /home/dlstreamer/vippet/models
 COPY --chown=dlstreamer:dlstreamer vippet/api/ /home/dlstreamer/vippet/api
 COPY --chown=dlstreamer:dlstreamer vippet/managers/ /home/dlstreamer/vippet/managers
+
+# Build-time release identifiers. Injected via --build-arg (see compose.yml,
+# which sources VIPPET_VERSION from DOCKER_TAG and VIPPET_REVISION from the
+# git commit hash). Left empty when not provided; app_version.py falls back
+# to "unknown" at runtime in that case.
+ARG VIPPET_VERSION
+ARG VIPPET_REVISION
+ENV VIPPET_VERSION=${VIPPET_VERSION}
+ENV VIPPET_REVISION=${VIPPET_REVISION}
 
 # Make scripts executable
 RUN chmod +x ./entrypoint.sh
