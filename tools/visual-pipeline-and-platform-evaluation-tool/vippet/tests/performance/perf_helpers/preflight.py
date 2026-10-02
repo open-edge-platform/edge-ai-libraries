@@ -134,3 +134,41 @@ def run_preflight_or_exit(
         )
     except PreflightError as exc:
         pytest.exit(str(exc), returncode=FATAL_PREFLIGHT_EXIT_CODE)
+
+
+def fetch_discovered_devices(
+    base_url: str,
+    request_timeout: float,
+    *,
+    client: httpx.Client | None = None,
+    report: Callable[[str], None] = print,
+) -> list[dict[str, Any]]:
+    """Fetch the ``/devices`` discovery payload for later hardware reporting.
+
+    Called once at pre-flight time (after readiness is confirmed) so that the
+    discovered hardware is captured independent of any individual test
+    outcome -- a run where every case fails or is skipped still has this
+    snapshot available for the report.
+
+    Best-effort: any failure is logged via *report* and results in an empty
+    list being returned rather than raised, so a transient discovery error
+    does not abort the performance run; the eventual report simply omits the
+    hardware block.
+    """
+    devices_url = f"{base_url.rstrip('/')}/devices"
+    owned_client = client is None
+    active_client = client or httpx.Client(headers={"Accept": "application/json"})
+    try:
+        response = active_client.get(devices_url, timeout=request_timeout)
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, list):
+            raise ValueError(f"expected a list, got {type(payload).__name__}")
+        report(f"[pre-flight] GET {devices_url}: OK ({len(payload)} device(s))")
+        return payload
+    except (httpx.HTTPError, ValueError) as exc:
+        report(f"[pre-flight] GET {devices_url}: FAILED ({type(exc).__name__}: {exc})")
+        return []
+    finally:
+        if owned_client:
+            active_client.close()
