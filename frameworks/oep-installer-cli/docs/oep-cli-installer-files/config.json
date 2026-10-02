@@ -14,15 +14,15 @@
     "options": [
       {
         "label": "CPU",
-        "value": "cpu"
+        "value": "CPU"
       },
       {
         "label": "GPU",
-        "value": "gpu"
+        "value": "GPU"
       },
       {
         "label": "NPU",
-        "value": "npu"
+        "value": "NPU"
       }
     ]
   },
@@ -237,6 +237,16 @@
           "startStop": true
         },
         {
+          "label": "UAV Mission Compute SDK",
+          "value": "uav_mission_compute_sdk",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite"
+            ]
+          },
+          "startStop": true
+        },
+        {
           "label": "Autonomous Mobile Robot",
           "value": "autonomous_mobile_robot",
           "supports": {
@@ -296,20 +306,20 @@
             "PROFILE": "computer_vision",
             "OP_SYSTEM": "UBUNTU"
           },
-          "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision"
         },
         {
           "when": {
             "PROFILE": "inferencing",
             "OP_SYSTEM": "UBUNTU"
           },
-          "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install inferencing"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install inferencing"
         },
         {
           "when": {
             "OP_SYSTEM": "UBUNTU"
           },
-          "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
+          "text": "curl -sSfL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
         }
       ]
     },
@@ -511,6 +521,10 @@
             {
               "text": "Handheld Multi-Modal Application",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
+            },
+            {
+              "text": "UAV Mission Compute SDK",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
             }
           ]
         },

@@ -162,16 +162,17 @@ Notes:
 
 Environment variable defaults:
 
-| Env var                      | Default                           | Description                                 |
-|------------------------------|-----------------------------------|---------------------------------------------|
-| `VIPPET_BASE_URL`            | `http://localhost/api/v1`         | VIPPET API endpoint                         |
-| `VIPPET_METRICS_URL`         | `http://localhost/metrics/stream` | Metrics endpoint (via nginx proxy)          |
+| Env var                 | Default                           | Description                                |
+|-------------------------|-----------------------------------|--------------------------------------------|
+| `VIPPET_BASE_URL`       | `http://localhost/api/v1`         | VIPPET API endpoint                        |
+| `VIPPET_METRICS_URL`    | `http://localhost/metrics/stream` | Metrics endpoint (via nginx proxy)         |
 | `VIPPET_JOB_POLL_INTERVAL`   | `2.0`                             | Job status polling interval (seconds)       |
 | `VIPPET_JOB_TIMEOUT_SECONDS` | `600`                             | Max wait for a job, whole seconds           |
-| `PERF_CONFIG`                | `default`                         | Config preset (`default`, `quick`, `full`)  |
+| `PERF_CONFIG`           | `default`                         | Config preset (`default`, `quick`, `full`) |
 | `PERF_CONFIG_FILE`           | (unset)                           | Explicit YAML path; wins over `PERF_CONFIG` |
-| `PERF_RESULTS_DIR`           | `./results`                       | Output directory for reports                |
-| `PERF_METRICS_INTERVAL`      | `2.0`                             | HW sampling interval (seconds)              |
+| `PERF_RESULTS_DIR`      | `./results`                       | Output directory for reports               |
+| `PERF_METRICS_INTERVAL` | `2.0`                             | HW sampling interval (seconds)             |
+| `PERF_ON_UNKNOWN_ID`    | `fail`                            | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning |
 
 `VIPPET_JOB_POLL_INTERVAL` and `VIPPET_JOB_TIMEOUT_SECONDS` are also read by the
 functional-test helpers. The CLI and direct pytest both resolve them the same way.

@@ -10,6 +10,8 @@ x-vippet: &vippet
       http_proxy:
       https_proxy:
       no_proxy:
+      VIPPET_VERSION: ${DOCKER_TAG}
+      VIPPET_REVISION: ${GIT_REVISION:-unknown}
   healthcheck:
     test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:7860/api/v1/health"]
     interval: 10s

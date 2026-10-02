@@ -935,6 +935,8 @@ export type StatusResponse = {
   status: AppStatus;
   message: string | null;
   ready: boolean;
+  version: string;
+  revision: string;
 };
 export type BenchmarkTestCase = {
   id: number;

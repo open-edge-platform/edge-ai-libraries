@@ -38,6 +38,15 @@ SKIP_PIPELINES: list[str] = SETTINGS["benchmark.filters.skip_pipelines"]
 SKIP_VARIANTS: list[str] = SETTINGS["benchmark.filters.skip_variants"]
 REQUIRE_MODELS: bool = SETTINGS["benchmark.filters.require_models"]
 
+ON_UNKNOWN_FILTER_ID: str = str(
+    os.environ.get("PERF_ON_UNKNOWN_ID", _FILTERS_CFG.get("on_unknown_id", "fail"))
+)
+if ON_UNKNOWN_FILTER_ID not in {"fail", "warn"}:
+    raise ValueError(
+        "benchmark.filters.on_unknown_id must be 'fail' or 'warn', got "
+        f"{ON_UNKNOWN_FILTER_ID!r}"
+    )
+
 # --- results section ---
 PERF_RESULTS_DIR: str = SETTINGS["results.output_dir"]
 RESULT_FORMATS: list[str] = SETTINGS["results.formats"]

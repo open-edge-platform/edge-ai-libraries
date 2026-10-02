@@ -64,7 +64,7 @@ main () {
         for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
           _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
 	  _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
-	  _deps=($(act_find_deps install install ${_resolved[*]}))
+	  _deps=($(act_find_deps install ${_resolved[*]}))
           for _dep in ${_deps[*]}; do
             _gf=${_dep/_install_/_group_}
             declare -F $_gf > /dev/null 2>&1 || continue
@@ -314,10 +314,13 @@ subcommand_sbom () {
   [[ " $* " != *" --help "* ]] || return
 
   # scan for dependencies
-  local handler
-  for handler in $(act_find_deps install $(act_resolve_args install "$@") | tr ' ' '\n' | sort); do
-    declare -F ${handler/_install_/_sbom_} > /dev/null 2>&1 || continue
-    ${handler/_install_/_sbom_} $(act_extract_args sbom ${handler#*_*_*_} "${handles[*]#${ID_LIKE}_*_sbom_}" "$@")
+  local handles=($(act_find_deps install $(act_resolve_args install "$@")))
+  local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}"
+  local handler sbomer
+  for handler in $(printf '%s\n' "${handles[@]}" | sort); do
+    sbomer=${handler/_install_/_sbom_}
+    declare -F $sbomer > /dev/null 2>&1 || continue
+    $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@")
     echo "---"
   done
 }
@@ -524,10 +527,11 @@ _cellw() {
   elif (( cp >= 0xFFE0  && cp <= 0xFFE6  )); then w=2
   elif (( cp >= 0x1F300 && cp <= 0x1FAFF )); then w=2
   elif (( cp >= 0x20000 && cp <= 0x3FFFD )); then w=2
-  elif (( cp == 0x26A0 || cp == 0x26D4 || cp == 0x2757 || cp == 0x2753 )); then w=2
+  elif (( cp == 0x26D4 || cp == 0x2757 || cp == 0x2753 )); then w=2
   elif (( cp >= 0x25B6 && cp <= 0x25C0 )); then w=1
   elif (( cp >= 0x2B00 && cp <= 0x2BFF )); then w=2
   elif (( cp >= 0x0300 && cp <= 0x036F )); then w=0
+  elif (( cp >= 0xFE00 && cp <= 0xFE0F )); then w=0   # variation selectors
   fi
   WCACHE[$ch]=$w
   REPLY=$w
@@ -631,6 +635,7 @@ _sanitize_v() {
   local s=$1 keep=$2 out="" pre rest fin i ch
   s=${s//$'\t'/    }
   s=${s//$'\v'/ }; s=${s//$'\f'/ }; s=${s//$'\b'/}
+  while [[ $s == *$'\r' ]]; do s=${s%$'\r'}; done
   [[ $s == *$'\r'* ]] && s=${s##*$'\r'}
   if [[ $s == *$'\033'* ]]; then
     while [[ $s == *$'\033'* ]]; do
@@ -1325,6 +1330,8 @@ _handle_line() {
 
   _plain_v "$line"; plainkey=$PLAIN
   plainkey=${plainkey#"${plainkey%%[![:space:]]*}"}
+  [[ -z $plainkey ]] && return 0
+
   key=${plainkey%%[[:space:]]*}
   rest=${plainkey#"$key"}
   rest=${rest#"${rest%%[![:space:]]*}"}
@@ -1576,6 +1583,7 @@ act_helper () {
     if [ "$act_name" = "install" ]; then
       # build license gate
       local -A licenses=() licenses_text=()
+      local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}"
       for licenser in ${handles[*]/_install_/_license_}; do
         if declare -F $licenser > /dev/null 2>&1; then
           local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0
@@ -1588,7 +1596,7 @@ act_helper () {
               ;;
             esac
             [ $license_keep -eq 1 ] && licenses_text[$license_id]+="${license_line}"$'\n'
-          done < <($licenser "$@")
+          done < <($licenser $(act_extract_args install $name1 "$all_install_modules" "$@"))
         fi
       done
       if [ ${#licenses[*]} -gt 0 ]; then
@@ -1629,11 +1637,8 @@ act_helper () {
           [ "$act_name" = "start" ] && mkdir -p "$state_path"
           echo "@@COMP $name1"
           local rc1=0
-          (
-            set -e
-            $handler $invoke_args &
-            wait -n
-          ) || rc1=$?
+          ( set -e; $handler $invoke_args) &
+          wait $! || rc1=$?
           [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
@@ -1644,9 +1649,11 @@ act_helper () {
           fi
         fi
       done
-      if [[ " $* " != *" --dry-run "* && $rc -eq 0 && -v _act_cache_functions[${act_name}_pre_system_scan] ]]; then
+      # final summary: rerun pre_system_scan only if it is part of the dependency chain
+      local scan_handler="${_act_cache_functions[${act_name}_pre_system_scan]:-}"
+      if [[ " $* " != *" --dry-run "* && $rc -eq 0 && -n "$scan_handler" && " ${handles[*]} " = *" $scan_handler "* ]]; then
         echo "@@REPORT SYSTEM SUMMARY"
-        ${_act_cache_functions[${act_name}_pre_system_scan]}
+        $scan_handler $(act_extract_args $act_name pre_system_scan "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")
       fi
     } > >(
       LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
@@ -2693,7 +2700,7 @@ EOF
 }
 
 debian_99_profile_edge_base () {
-  [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu npu core_types pre_system_scan"
+  [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu_accel npu_accel core_types pre_system_scan"
 }
 
 
@@ -3175,7 +3182,7 @@ debian_90_profile_geti () {
 }
 
 debian_90_install_geti () {
-  configure_geti $*
+  configure_geti "$@"
 
   if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
     echo "Geti already installed. Skipping."
@@ -3187,7 +3194,7 @@ debian_90_install_geti () {
 }
 
 debian_90_start_geti () {
-  configure_geti $*
+  configure_geti "$@"
   ensure_ports_open "$port" debian_90_stop_geti
 
   mkdir -p "$workspace"/geti-data
@@ -3206,12 +3213,12 @@ debian_90_start_geti () {
 }
 
 debian_90_stop_geti () {
-  configure_geti $*
+  configure_geti "$@"
   docker rm -f geti-app || true
 }
 
 debian_90_remove_geti () {
-  debian_90_stop_geti $* || true
+  debian_90_stop_geti "$@"
   docker image rm $image_name || true
 }
 
@@ -3236,7 +3243,7 @@ $(ensure_sbom_format pkg-list gpgv1)
 EOF
 }
 
-configure_gpu () {
+configure_gpu_accel () {
   repo_name="repositories.intel.com"
   key_url="https://$repo_name/gpu/intel-graphics.key"
   key_file="/usr/share/keyrings/intel-graphics.gpg"
@@ -3245,38 +3252,38 @@ configure_gpu () {
   pkg_list=(clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd)
 }
 
-verify_gpu () {
+verify_gpu_accel () {
   [ -c /dev/dri/renderD128 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
-  verify_gpu_packages
+  verify_gpu_accel_packages
 }
 
 # checks the driver packages only, independent of GPU hardware being present.
 # used to confirm a fresh install succeeded even on systems without a discrete/exposed GPU device.
-verify_gpu_packages () {
+verify_gpu_accel_packages () {
   ensure_apt_is_installed intel-media-va-driver-non-free
 }
 
-debian_40_profile_gpu () {
+debian_40_profile_gpu_accel () {
   echo "curl gpg libze1"
 }
 
-debian_40_group_gpu () {
+debian_40_group_gpu_accel () {
   echo "render:992 video:"
 }
 
-debian_40_install_gpu () {
-  configure_gpu $*
+debian_40_install_gpu_accel () {
+  configure_gpu_accel "$@"
 
-  if verify_gpu && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Gpu drivers are already installed. Skipping..."
   else
     # remove legacies
-    debian_40_remove_gpu || true
+    debian_40_remove_gpu_accel || true
 
     # create the render group
-    ensure_group_add $(debian_40_group_gpu)
+    ensure_group_add $(debian_40_group_gpu_accel)
 
     # product key & list 
     ensure_apt_key $key_file $key_url --dearmor
@@ -3287,12 +3294,12 @@ debian_40_install_gpu () {
 
     # install the packages
     ensure_apt install --no-install-recommends -y "${pkg_list[@]}"
-    verify_gpu_packages
+    verify_gpu_accel_packages
   fi
 }
 
-debian_40_remove_gpu () {
-  configure_gpu $*
+debian_40_remove_gpu_accel () {
+  configure_gpu_accel "$@"
   ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
   # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
@@ -3305,8 +3312,8 @@ debian_40_remove_gpu () {
   ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg $key_file $apt_file
 }
 
-debian_40_sbom_gpu () {
-  configure_gpu "$@"
+debian_40_sbom_gpu_accel () {
+  configure_gpu_accel "$@"
   cat <<EOF
 $(ensure_sbom_format name "$repo_name")
 $(ensure_sbom_format apt-source "$apt_entry")
@@ -4025,48 +4032,48 @@ debian_90_remove_nicu_warmer () {
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
-configure_npu () {
+configure_npu_accel () {
   version=1.35.0
   repository=https://api.github.com/repos/intel/linux-npu-driver
   releases=https://github.com/intel/linux-npu-driver/releases
   workspace="$(ensure_project_path)/npu"
 }
 
-verify_npu () {
+verify_npu_accel () {
   [ -c /dev/accel/accel0 ] &&
   getent group render >/dev/null 2>&1 &&
   id -nG | grep -qw render &&
-  verify_npu_packages
+  verify_npu_accel_packages
 }
 
 # checks the driver packages only, independent of NPU hardware being present.
 # used to confirm a fresh install succeeded even on systems without an NPU device.
-verify_npu_packages () {
+verify_npu_accel_packages () {
   (
     set -o pipefail
     ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
   )
 }
 
-debian_40_profile_npu () {
+debian_40_profile_npu_accel () {
   echo "libtbb12 jq libze1"
 }
 
-debian_40_gpu_npu () {
+debian_40_group_npu_accel () {
   echo "render:992"
 }
 
-debian_40_install_npu () {
-  configure_npu $*
+debian_40_install_npu_accel () {
+  configure_npu_accel "$@"
 
-  if verify_npu && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_npu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Npu drivers are already installed. Skipping..."
   else
     # remove legacies
     ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
 
     # create the render group
-    ensure_group_add $(debian_40_gpu_npu)
+    ensure_group_add $(debian_40_group_npu_accel)
   
     mkdir -p "$workspace"
     cd "$workspace"
@@ -4082,17 +4089,17 @@ debian_40_install_npu () {
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
     ensure_sudo rm -rf "$workspace"
-    verify_npu_packages
+    verify_npu_accel_packages
   fi
 }
 
-debian_40_remove_npu () {
+debian_40_remove_npu_accel () {
   ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
-debian_40_sbom_npu () {
-  configure_npu "$@"
+debian_40_sbom_npu_accel () {
+  configure_npu_accel "$@"
   local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
   [ ${#packages[*]} -gt 0 ] || return 3
   cat <<EOF
@@ -4626,7 +4633,7 @@ debian_08_install_pre_system_scan () {
 
     pass=$ok
     membank_info="$(system_scan_check_membank)"
-    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Configuration}"
+    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}"
     echo -e "RAM|$membank_info|$pass"
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2
 
@@ -5211,7 +5218,7 @@ debian_90_install_smart_parking () {
   else
     # clone the repository
     ensure_disk_space 300
-    ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+    ensure_git_export "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
 
     # setup
     cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
@@ -5419,6 +5426,65 @@ debian_70_remove_time_confighub () {
 }
 
 
+configure_uav_mission_compute_sdk () {
+  workspace="$(ensure_project_path)/uav-mission-compute-sdk"
+  version="release-2026.2.0"
+  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+}
+
+verify_uav_mission_compute_sdk () {
+  [ -e "$workspace" ]
+}
+
+debian_85_profile_uav_mission_compute_sdk () {
+  echo "docker git curl make v4l_utils"
+}
+
+debian_85_install_uav_mission_compute_sdk () {
+  configure_uav_mission_compute_sdk
+  if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
+    echo "UAV mission compute sdk is already installed. Skipping..." 1>&2
+  else
+    ensure_git_export "$workspace" "$version" "$repository" federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+    cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+    make init
+    sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env
+    export HTTP_PROXY="${HTTP_PROXY:-$http_proxy}" HTTPS_PROXY="${HTTPS_PROXY:-$https_proxy}" NO_PROXY="${NO_PROXY:-$no_proxy}"
+    make build
+    verify_uav_mission_compute_sdk
+  fi
+
+  local profile="sim-camera"
+  [[ " $* " != *" --sim "* ]] || profile="sim-camera"
+  [[ " $* " != *" --usb "* ]] || profile="usb-camera"
+  [[ " $* " != *" --realsense "* ]] || profile="realsense-camera"
+  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+  sed -i '/^PROFILE=/{d}' "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/.env
+  echo "PROFILE=$profile" >> "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/.env
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+}
+
+debian_85_start_uav_mission_compute_sdk () {
+  ensure_ports_open "8086 3000 9090 9273" debian_85_stop_uav_mission_compute_sdk "$@"
+  configure_uav_mission_compute_sdk
+  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+  . .env
+  export HTTP_PROXY="${HTTP_PROXY:-$http_proxy}" HTTPS_PROXY="${HTTPS_PROXY:-$https_proxy}" NO_PROXY="${NO_PROXY:-$no_proxy}"
+  make up-$PROFILE
+}
+
+debian_85_stop_uav_mission_compute_sdk () {
+  configure_uav_mission_compute_sdk
+  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk && make down || true
+}
+
+debian_85_remove_uav_mission_compute_sdk () {
+  debian_85_stop_uav_mission_compute_sdk "$@"
+  ensure_sudo rm -rf "$workspace"
+}
+
+
 debian_15_install_unzip () {
   ensure_apt_install_package unzip
 }
@@ -5444,6 +5510,17 @@ debian_30_install_uv () {
   else
     pipx install uv
   fi
+}
+
+
+debian_30_install_v4l_utils () {
+  ensure_apt_install_package v4l-utils
+}
+
+debian_30_sbom_v4l_utils () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list v4l-utils)
+EOF
 }
 
 
@@ -5624,7 +5701,7 @@ debian_99_profile_computer_vision () {
 
 
 debian_99_profile_federal_and_aerospace_ai_suite () {
-  [ "$1" = "start" ] || echo "handheld_multi_modal"
+  [ "$1" = "start" ] || echo "handheld_multi_modal uav_mission_compute_sdk"
 }
 
 

@@ -64,7 +64,7 @@ main () {
         for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
           _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
 	  _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
-	  _deps=($(act_find_deps install install ${_resolved[*]}))
+	  _deps=($(act_find_deps install ${_resolved[*]}))
           for _dep in ${_deps[*]}; do
             _gf=${_dep/_install_/_group_}
             declare -F $_gf > /dev/null 2>&1 || continue
@@ -235,8 +235,8 @@ subcommand_bootstrap () {
       cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
     fi
     [ $license_common -eq 0 ] || {
-      cat "$mydir"/license/linux/license_* >> "$rendered" 2> /dev/null || true
-      cat "$mydir"/license/${ID_LIKE}/license_* >> "$rendered" 2> /dev/null || true
+      cat "$mydir"/license/linux/ensure_license_* >> "$rendered" 2> /dev/null || true
+      cat "$mydir"/license/${ID_LIKE}/ensure_license_* >> "$rendered" 2> /dev/null || true
     }
   fi
 

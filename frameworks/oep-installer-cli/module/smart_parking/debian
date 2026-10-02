@@ -27,7 +27,7 @@ debian_90_install_smart_parking () {
   else
     # clone the repository
     ensure_disk_space 300
-    ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+    ensure_git_export "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
 
     # setup
     cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"

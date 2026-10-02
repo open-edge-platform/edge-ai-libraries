@@ -21,7 +21,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
 - `<start|stop|install|group|remove|profile|license|sbom>`: The `profile` function works similarly to a profile, which specifies the component dependencies, and the `install/group/remove/start/stop` functions perform their corresponding functions. At least one of thoses functions must be defined for the component. Others are optional.
 
   - For simple system-level packages, for example, `curl`, it is ok to define only an installation function without an uninstaller. The assumption is that `curl` can reside on the system for future use, while uninstalling it everytime is a bit overkill and may cause potentially unintended consequence. For other non-system components, there usually should define both an `install` function and a corresponding `remove` function.
-  - The function argument is as follows: `<subcommand> [global-options] <complete list of component names> -- <this component specific arguments>`, where `<subcommand>` is one of `install`, `start`, `stop`, or `remove`. The list of installed components is useful to resolve any dependency issues. For example, `openvino` can use a newer version when installed standalone but a different version when installed together with `dlstreamer`. The arguments of this component can be used for component specific configurations, for example, selecting accelerator devices ([`ensure_select_device`](../common/linux/ensure_select_device)).   
+  - The function arguments are as follows: `[global-options] <complete list of component names> -- <this component specific arguments>`, with exception of the `profile` function, where `<subcommand>` such as `install`, `start`, `stop`, and `remove` are inserted as the very first argument. The list of installed components is useful to resolve any dependency issues. For example, `openvino` can use a newer version when installed standalone but a different version when installed together with `dlstreamer`. The arguments of this component can be used for component specific configurations, for example, selecting accelerator devices ([`ensure_select_device`](../common/linux/ensure_select_device)).   
   - All component shell scripts run with `set -e` to terminate early on any errors.
   - It is highly recommended to reuse common functions defined under the [`debian`](../common/debian), [`linux`](../common/linux), or [`windows`](../common/windows) folders. Do not reinvent the wheels. 
 
@@ -91,6 +91,12 @@ configure_my_component () {
 verify_my_component () {
 ...
 }
+
+# optional function if the component has dependencies
+# $1 is the subcomamnd name
+#debian_85_profile_my_component () {
+#  [ "$1" = "start" ] || echo "docker"
+#}
 
 debian_85_install_my_component () {
   configure_my_component "$@"

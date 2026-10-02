@@ -3,6 +3,7 @@ __pycache__
 .env
 .idea
 .venv/
+results/*
 shared/images/input/*
 shared/images/output/*
 shared/models/output/*
