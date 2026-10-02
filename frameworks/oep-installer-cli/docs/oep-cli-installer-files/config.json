@@ -306,20 +306,20 @@
             "PROFILE": "computer_vision",
             "OP_SYSTEM": "UBUNTU"
           },
-          "text": "curl -sSf https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision"
         },
         {
           "when": {
             "PROFILE": "inferencing",
             "OP_SYSTEM": "UBUNTU"
           },
-          "text": "curl -sSf https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install inferencing"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install inferencing"
         },
         {
           "when": {
             "OP_SYSTEM": "UBUNTU"
           },
-          "text": "curl -sSf https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
+          "text": "curl -sSfL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
         }
       ]
     },

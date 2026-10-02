@@ -108,6 +108,11 @@ act_helper () {
     return 0
   fi
 
+  # fill in the saved module list if none is named; remember explicit ones
+  local mods_file="$(ensure_project_path)/$installer_name/modules"
+  local explicit_mods="$(act_extract_modules $act_name "$@")"
+  set -- $(act_resolve_args $act_name "$@")
+
   # scan for dependencies
   local handles=($(act_find_deps $act_name "$@"))
 
@@ -198,9 +203,21 @@ act_helper () {
     # wait for background processes
     wait
     ensure_tmpdir destroy $installer_state
+
+    # pass on modules to subsequent command
+    if [[ " $* " != *" --dry-run "* ]]; then
+      if [ $rc -ne 0 ]; then
+        rm -f "$mods_file"
+      elif [ -n "${explicit_mods// }" ]; then
+        mkdir -p "${mods_file%/*}"
+        echo $explicit_mods > "$mods_file"
+      fi
+    fi
+
     return $rc
   else
     echo "Component not found" 1>&2
+    [[ " $* " = *" --dry-run "* ]] || rm -f "$mods_file"
     exit 3
   fi
 }
@@ -212,7 +229,9 @@ act_resolve_args () {
   if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
     local state_path="$(ensure_project_path)/$installer_name/states"
     [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
+  elif [ "$act_name" != "stop" ] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
+    local mods_file="$(ensure_project_path)/$installer_name/modules"
+    [ ! -r "$mods_file" ] || args=($(< "$mods_file") "${args[@]}")
   fi
   echo "${args[*]}"
 }
-

@@ -60,10 +60,17 @@ main () {
       else
         # critical group permissions
         local -A _groups=()
-        local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0
+	local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0 _m _carry=""
         for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
           _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
-	  _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
+	  # pass module names forward within this command line so groups are checked against actual use
+          _m="$(act_extract_modules ${_cmds[$_j]} ${_args[$_j]})"
+          [ -n "${_m// }" ] && _carry="$_m"
+          if [ -z "${_m// }" ] && [ -n "$_carry" ] && [ "${_cmds[$_j]}" != "stop" ]; then
+            _resolved=(${_globals[*]} $_carry ${_args[$_j]})
+          else
+            _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
+          fi
 	  _deps=($(act_find_deps install ${_resolved[*]}))
           for _dep in ${_deps[*]}; do
             _gf=${_dep/_install_/_group_}
@@ -1575,6 +1582,11 @@ act_helper () {
     return 0
   fi
 
+  # fill in the saved module list if none is named; remember explicit ones
+  local mods_file="$(ensure_project_path)/$installer_name/modules"
+  local explicit_mods="$(act_extract_modules $act_name "$@")"
+  set -- $(act_resolve_args $act_name "$@")
+
   # scan for dependencies
   local handles=($(act_find_deps $act_name "$@"))
 
@@ -1637,11 +1649,8 @@ act_helper () {
           [ "$act_name" = "start" ] && mkdir -p "$state_path"
           echo "@@COMP $name1"
           local rc1=0
-          (
-            set -e
-            $handler $invoke_args &
-            wait -n
-          ) || rc1=$?
+          ( set -e; $handler $invoke_args) &
+          wait $! || rc1=$?
           [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
@@ -1668,9 +1677,21 @@ act_helper () {
     # wait for background processes
     wait
     ensure_tmpdir destroy $installer_state
+
+    # pass on modules to subsequent command
+    if [[ " $* " != *" --dry-run "* ]]; then
+      if [ $rc -ne 0 ]; then
+        rm -f "$mods_file"
+      elif [ -n "${explicit_mods// }" ]; then
+        mkdir -p "${mods_file%/*}"
+        echo $explicit_mods > "$mods_file"
+      fi
+    fi
+
     return $rc
   else
     echo "Component not found" 1>&2
+    [[ " $* " = *" --dry-run "* ]] || rm -f "$mods_file"
     exit 3
   fi
 }
@@ -1682,10 +1703,12 @@ act_resolve_args () {
   if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
     local state_path="$(ensure_project_path)/$installer_name/states"
     [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
+  elif [ "$act_name" != "stop" ] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
+    local mods_file="$(ensure_project_path)/$installer_name/modules"
+    [ ! -r "$mods_file" ] || args=($(< "$mods_file") "${args[@]}")
   fi
   echo "${args[*]}"
 }
-
 
 # show output in columns, allowing merged last row and ignoring color sequence
 ensure_columns () {

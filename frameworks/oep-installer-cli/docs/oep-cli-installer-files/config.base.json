@@ -44,7 +44,7 @@
       "fallback": "Select a module to see a command…",
       "genericRule": {
         "when": { "OP_SYSTEM": "UBUNTU" },
-        "text": "curl -sSf https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
+        "text": "curl -sSfL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
       }
     },
     "nextsteps": {
