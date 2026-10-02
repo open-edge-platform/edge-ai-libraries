@@ -1,4 +1,4 @@
-# Copyright (C) 2026 Intel Corporation
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """Shared configuration constants for VIPPET performance tests.
@@ -10,7 +10,6 @@ the fully resolved YAML to pytest through ``PERF_CONFIG_FILE``, so direct
 """
 
 import os
-from .settings import CONFIG_DIR as CONFIG_DIR
 from .settings import ResolvedSettings, resolve_settings
 
 PERF_CONFIG: str = os.environ.get("PERF_CONFIG", "default")
