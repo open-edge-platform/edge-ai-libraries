@@ -9,8 +9,7 @@ configure_multimodal_weld_defect_detection () {
   pipeline_config="$source_dir/configs/dlstreamer-pipeline-server/config.json"
   pipeline_request="$source_dir/configs/dlstreamer-pipeline-server/pipeline-request-cpu.json"
   selected_device_file="$source_dir/.oep_device"
-  ui_port=3000
-  used_ports="$ui_port 3478"
+  used_ports=(3000 3478 8010 8200)
 }
 
 generate_multimodal_weld_defect_detection_username () {
@@ -166,7 +165,7 @@ debian_90_start_multimodal_weld_defect_detection () {
   cd "$source_dir"
   make up
 
-  echo "@@HIGHLIGHT URL: https://$(ensure_ip):$ui_port"
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT Grafana login: $(multimodal_weld_defect_detection_env_value VISUALIZER_GRAFANA_USER)/$(multimodal_weld_defect_detection_env_value VISUALIZER_GRAFANA_PASSWORD)"
   echo "@@HIGHLIGHT device: $(current_multimodal_weld_defect_detection_device)"
 }

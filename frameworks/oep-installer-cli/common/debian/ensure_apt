@@ -2,6 +2,12 @@
 # apt with apt update executed only once
 ensure_apt () {
   local no_proxy1=$(echo ${no_proxy:-$NO_PROXY} | tr ',' '\n' | grep -v -E '^[.]?intel.com$' | tr '\n' ',')
+
+  while fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1; do
+    echo "Waiting for apt/unattended-upgrades to finish..." 1>&2
+    sleep 5
+  done
+
   case "$1" in
   update)
     # apt-get update got executed only once unless -y is specified

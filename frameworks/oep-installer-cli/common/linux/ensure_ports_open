@@ -1,11 +1,20 @@
 
 # ensure ports are open
 ensure_ports_open () {
-  local ports="$1"
+  local ports="$1"; shift
   for port in $ports; do
-    ensure_sudo lsof -i TCP:$port > /dev/null 2>&1 || continue
-    "${@:2}" || true
-    ensure_sudo lsof -i TCP:$port > /dev/null 2>&1 || continue
+    if command -v ss > /dev/null; then
+      [ -n "$(ensure_sudo ss -Hltn "sport = :$port")" ] || continue
+      "$@" || true
+      [ -n "$(ensure_sudo ss -Hltn "sport = :$port")" ] || continue
+    elif command -v lsof > /dev/null; then
+      ensure_sudo lsof -nP -i TCP:$port -s TCP:LISTEN > /dev/null 2>&1 || continue
+      "$@" || true
+      ensure_sudo lsof -nP -i TCP:$port -s TCP:LISTEN > /dev/null 2>&1 || continue
+    else
+      echo "Missing ss or lsof" 1>&2
+      return 1
+    fi
     echo "TCP port $port is occupied" 1>&2
     return 3
   done
