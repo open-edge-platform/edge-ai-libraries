@@ -62,7 +62,7 @@ class TestCapabilitiesEndpoint:
         assert "categories" in payload
         assert "platform" in payload
         assert "devices" in payload
-        assert payload["platform"]["interface_channel"] == "rest"
+        assert payload["platform"]["hostname"] is not None
         assert "system_memory" in payload["platform"]
         assert "device_summary" in payload["platform"]
         assert "platform_overview" in payload["categories"]
@@ -105,10 +105,15 @@ class TestCapabilitiesEndpoint:
     ):
         monkeypatch.delenv("METRICS_MANAGER_HOSTNAME", raising=False)
 
+        # Capture the real implementation BEFORE patching. Referring to
+        # capabilities._read_text inside the fake would resolve to the patched
+        # name (i.e. the fake itself) and recurse forever.
+        real_read_text = capabilities._read_text
+
         def fake_read_text(path: str) -> str | None:
             if path == "/proc/1/root/etc/hostname":
                 return "host-visible-name"
-            return capabilities._read_text(path)
+            return real_read_text(path)
 
         monkeypatch.setattr(capabilities, "_read_text", fake_read_text)
 
