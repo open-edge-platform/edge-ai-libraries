@@ -5,20 +5,54 @@ configure_loss_prevention () {
   repository="https://github.com/intel-retail/loss-prevention.git"
 }
 
-verify_loss_prevention () {
-  local videos=(
-    face-detection-3249935-1080-15-bench.mp4
-    items-in-basket-32658421-1080-15-bench.mp4
-    fake-scan-detection-32658425-1920-15-bench.mp4
-    obj_classification-1920-15-bench-1920-15-bench.mp4
-    hidden-items-product-switching-32658426-1080-15-bench.mp4
-  ) v
-  for v in ${videos[*]}; do
-    [ -e "$workspace"/performance-tools/sample-media/$v ] || { echo "Failed to download $v" 1>&2; return 1; }
-  done
+configure_loss_prevention_options () {
+  local device="$1"; shift
 
   cd "$workspace"
-  ! ./check_models.sh
+  sed -i -e "s|^TARGET_DEVICE [?]= .*|TARGET_DEVICE ?= ${device^^}|" -e "s|^VLM_DEVICE [?]= .*|VLM_DEVICE ?= ${device^^}|" Makefile
+
+  local camera_stream="$(grep -m1 -E '^CAMREA_STREAM [?]=' | cut -f2 -d= | tr -d ' ')"
+  local workload_dist="$(grep -m1 -E '^WORKLOAD_DIST [?]=' | cut -f2 -d= | tr -d ' ')"
+
+  if [[ " $* " = *" --od "* ]]; then
+    camera_stream="camera_to_workload_asc_object_detection.json"
+    workload_dist="workload_to_pipeline_asc_object_detection_$device.json"
+  elif [[ " $* " = *" --oc "* ]]; then
+    camera_stream="camera_to_workload_asc_object_detection_classification.json"
+    workload_dist="workload_to_pipeline_asc_object_detection_classification_$device.json"
+  elif [[ " $* " = *" --age "* ]]; then
+    camera_stream="camera_to_workload_asc_age_verification.json"
+    workload_dist="workload_to_pipeline_asc_age_verification_$device.json"
+  elif [[ " $* " = *" --lpvlm "* ]]; then
+    camera_stream="camera_to_workload_vlm.json"
+    workload_dist="workload_to_pipeline_vlm.json"
+  elif [[ " $* " = *" --lp "* ]]; then
+    camera_stream="camera_to_workload.json"
+    workload_dist="workload_to_pipeline_${device/npu/gpu-npu}.json"
+  fi
+  sed -i -e "s|^CAMERA_STREAM [?]= .*|CAMERA_STREAM ?= $camera_stream|" -e "s|^WORKLOAD_DIST [?]= .*|WORKLOAD_DIST ?= $workload_dist|" Makefile
+
+  make download-sample-videos && {
+    local v rc=0
+    for v in $(grep '"fileSrc":' configs/$camera_stream | cut -f4 -d'"' | cut -f1 -d'|'); do
+      [ $(find performance-tools/sample-media -name "${v/.mp4}-*.mp4" | wc -l) -gt 0 ] || { echo "Failed to find video $v" 1>&2; rc=1; }
+    done
+    [ $rc -eq 0 ]
+  }
+
+  make download-models && {
+    local m rc=0
+    for m in $(grep -E '"model":|"vlm_model":' configs/$workload_dist | cut -f4 -d'"'); do
+      [ $(find models -ipath "*/$m/*" -name "*.bin" -print | wc -l) -gt 0 ] || { echo "Failed to find model $m" 1>&2; rc=1; }
+    done
+    [ $rc -eq 0 ]
+  }
+}
+
+verify_loss_prevention () {
+  [ -d "$workspace" ]
+  [ -e "$workspace"/src/.env ]
+  [ -e "$workspace"/Makefile ]
 }
 
 debian_90_profile_loss_prevention () {
@@ -27,6 +61,8 @@ debian_90_profile_loss_prevention () {
 
 debian_90_install_loss_prevention () {
   configure_loss_prevention
+  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+
   if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loss prevention is already installed. Skipping"
   else 
@@ -57,55 +93,53 @@ LOCAL_UID=$(id -u)
 LOCAL_GID=$(id -g)
 EOF
 
-    # download videos
-    export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
-    set -a
-    . src/.env
-    set +a
-    make download-sample-videos CAMERA_STREAM=camera_to_workload_asc_object_detection.json
-    make download-sample-videos CAMERA_STREAM=camera_to_workload_asc_object_detection_classification.json
-    make download-sample-videos CAMERA_STREAM=camera_to_workload_asc_age_verification.json
-
-    # download models
-    make download-models
-
-    # download images
+    # build images
     make build-benchmark
 
+    # create benchmark venv
+    ( 
+      cd performance-tools/benchmark-scripts
+      python3 -m venv venv
+      . venv/bin/activate
+      pip3 install -r requirements.txt
+    )
+
+    # modify Makefile so venv does not always rebuild
+    sed -i -e 's|python3* -m venv venv|echo|' -e 's|pip3* install -r requirements.txt|echo|' Makefile
+    
     verify_loss_prevention
   fi
 
+  local device=$(ensure_select_device "$@")
+  configure_loss_prevention_options "$device" "$@" --lp   # --lp as default
+
   echo "@@HIGHLIGHT workspace: $workspace"
-  echo "@@HIGHLIGHT $installer_name start loss_prevention --od [--gpu|cpu|npu]"
-  echo "@@HIGHLIGHT $installer_name start loss_prevention --oc [--gpu|cpu|npu]"
-  echo "@@HIGHLIGHT $installer_name start loss_prevention --age [--gpu|cpu|npu]"
-  echo "@@HIGHLIGHT $installer_name start loss_prevention --lp [--gpu|cpu|npu]"
-  echo "@@HIGHLIGHT $installer_name start loss_prevention --lvlm [--gpu|cpu|npu]"
+  echo "@@HIGHLIGHT $installer_name start --od"
+  echo "@@HIGHLIGHT $installer_name start --oc"
+  echo "@@HIGHLIGHT $installer_name start --age"
+  echo "@@HIGHLIGHT $installer_name start --lp"
+  echo "@@HIGHLIGHT $installer_name start --lpvlm"
 }
 
 debian_90_start_loss_prevention () {
   configure_loss_prevention
-
-  cd "$workspace"
   export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
 
-  local device=$(ensure_select_device "$@")
-  local cmds=()
+  cd "$workspace"
+  local device1=$(ensure_select_device "$@")
+  local device2=$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ')
+  [[ " $* " = *" --$device1 "* || " $* " = *" --${device1^^} "* ]] || device1="${device2,,}"
+  configure_loss_prevention_options "$device1" "$@"
 
-  [[ " $* " != *" --od "* ]] || cmds+=("echo 'Benchmarking Automatic Self Checkout -- Object Detection' && make benchmark-stream-density CAMERA_STREAM=camera_to_workload_asc_object_detection.json WORKLOAD_DIST=workload_to_pipeline_asc_object_detection_$device.json")
+  make down-lp 2> /dev/null || true
+  make -o build-benchmark -o download-sample-videos -o download-models benchmark-stream-density
 
-  [[ " $* " != *" --oc "* ]] || cmds+=("echo 'Benchmarking Automatic Self Checkout -- Object Classification' && make benchmark-stream-density CAMERA_STREAM=camera_to_workload_asc_object_detection_classification.json WORKLOAD_DIST=workload_to_pipeline_asc_object_detection_classification_$device.json")
-
-  [[ " $* " != *" --age "* ]] || cmds+=("echo 'Benchmarking Automatic Self Checkout -- Age Verification' && make benchmark-stream-density CAMERA_STREAM=camera_to_workload_asc_age_verification.json WORKLOAD_DIST=workload_to_pipeline_asc_age_verification_$device.json")
-
-  [[ " $* " != *" --lpvlm "* ]] || cmds+=("echo 'Benchmarking Loss Prevention' && benchmark CAMERA_STREAM=camera_to_workload_vlm.json WORKLOAD_DIST=workload_to_pipeline_vlm.json TARGET_DEVICE=${device^^} VLM_DEVICE=${device^^}")
-
-  [[ " $* " != *" --lp "* && ${#cmds[*]} -gt 0 ]] || cmds+=("echo 'Benchmarking Loss Prevention' && make benchmark-stream-density TARGET_DEVICE=${device^^}")
-
-  local cmd1
-  for cmd1 in "${cmds[@]}"; do
-    eval "$cmd1"
-  done
+  echo "@@HIGHLIGHT $installer_name start --od"
+  echo "@@HIGHLIGHT $installer_name start --oc"
+  echo "@@HIGHLIGHT $installer_name start --age"
+  echo "@@HIGHLIGHT $installer_name start --lp"
+  echo "@@HIGHLIGHT $installer_name start --lpvlm"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_remove_loss_prevention () {

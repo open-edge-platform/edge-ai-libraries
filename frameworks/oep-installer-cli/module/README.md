@@ -188,3 +188,12 @@ echo "@@HIGHLIGHT workspace: $workspace"
 echo "@@HIGHLIGHT setup env: setup-vars.sh"
 echo "@@HIGHLIGHT make help to see full list of build targets"
 ```
+
+### Custom Options
+
+A component can define custom options, for example, `--gpu`, `--npu`, or `--cpu`. The `ensure_select_device` can help parse the options and return `cpu`, `gpu`, or `npu`. Such options are usually handled at the `install` function, which has more flexibility in changing configurations and downloading new models, based on the specified options. Special care must be taken to **pass on** the options to the `start` function, which may or may not carry the same options.  
+
+The component implementation must support the following common use patterns:
+- **`install --gpu start`**: This is the default use pattern. An option is specified at the installation time and then inherited at the `start` time, which does not repeat the same options. This is usually implemented as modifying the component defaults to the specified values. See [smart parking](smart_parking/debian) for an example implementation.    
+- `install --gpu start --npu`: This is optional to change options at the start time, useful for quick configuration without performing the installation again. See [loss prevention](loss_prevention/debian) for an example implemnetation.   
+
