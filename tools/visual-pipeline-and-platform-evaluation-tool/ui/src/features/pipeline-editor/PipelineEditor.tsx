@@ -8,6 +8,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useEdgesState,
+  useNodesInitialized,
   useNodesState,
   useReactFlow,
   type Viewport,
@@ -18,9 +19,14 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useRef,
   useState,
 } from "react";
-import { nodeTypes } from "@/features/pipeline-editor/nodes";
+import {
+  defaultNodeWidth,
+  nodeTypes,
+  nodeWidths,
+} from "@/features/pipeline-editor/nodes";
 import { type Pipeline } from "@/api/api.generated";
 import {
   createGraphLayout,
@@ -78,7 +84,9 @@ const PipelineEditorContent = forwardRef<
   ) => {
     const [nodes, setNodes, onNodesChange] = useNodesState<ReactFlowNode>([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge>([]);
-    const { getViewport, setViewport, fitView } = useReactFlow();
+    const { getNodes, getViewport, setViewport, fitView } = useReactFlow();
+    const nodesInitialized = useNodesInitialized();
+    const hasRecenteredRef = useRef(false);
     const [hasInitialized, setHasInitialized] = useState(false);
 
     const onNodeClick: NodeMouseHandler = (event, node) => {
@@ -127,7 +135,47 @@ const PipelineEditorContent = forwardRef<
 
     useEffect(() => {
       setHasInitialized(false);
+      hasRecenteredRef.current = false;
     }, [isSimpleGraph]);
+
+    // One-shot post-measurement re-layout: dagre lays nodes out using the
+    // declared widths in `nodeWidths`, but PipelineNodeCard uses `min-width`
+    // and grows with its content. Once React Flow has measured every node,
+    // feed the actual rendered widths back into dagre so both the per-chain
+    // centering and the sibling spacing match what the user sees on screen.
+    useEffect(() => {
+      if (
+        !hasInitialized ||
+        !nodesInitialized ||
+        hasRecenteredRef.current ||
+        nodes.length === 0
+      ) {
+        return;
+      }
+      const measured = getNodes();
+      const widthByNodeId = new Map<string, number>();
+      let hasOverride = false;
+      for (const node of measured) {
+        const declaredW = nodeWidths[node.type ?? "default"] ?? defaultNodeWidth;
+        const measuredW = node.measured?.width ?? node.width;
+        if (measuredW && Math.abs(measuredW - declaredW) >= 1) {
+          widthByNodeId.set(node.id, measuredW);
+          hasOverride = true;
+        }
+      }
+      if (!hasOverride) {
+        hasRecenteredRef.current = true;
+        return;
+      }
+      const relaid = createGraphLayout(
+        measured,
+        edges,
+        LayoutDirection.TopToBottom,
+        widthByNodeId,
+      );
+      setNodes(relaid);
+      hasRecenteredRef.current = true;
+    }, [hasInitialized, nodesInitialized, nodes, edges, getNodes, setNodes]);
 
     // Adjust viewport when panel opens/closes
     useEffect(() => {
