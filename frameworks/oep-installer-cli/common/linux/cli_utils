@@ -108,9 +108,19 @@ act_scope_reinstall () {
     out+=("$a")
   done
   if [ $hit -eq 1 ]; then
+    local bound=0
     for m in $(act_extract_modules $act_name "${out[@]}"); do
+      if [ -z "${_act_cache_functions[${act_name}_$m]:-}" ]; then
+        echo "note: --reinstall skipped for profile '$m'" >&2
+        continue
+      fi
       out+=("--$m" "--reinstall")
+      bound=1
     done
+    if [ $bound -eq 0 ]; then
+      echo "--reinstall requires at least one module (profiles are not reinstalled)" >&2
+      return 1
+    fi
   fi
   echo "${out[*]}"
 }
