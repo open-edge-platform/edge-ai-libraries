@@ -20,7 +20,7 @@ marketing segments. The table lists the profiles and their components.
 | ------- | ------ | ------- |
 | `inferencing` | Core AI inferencing runtime | `openvino` |
 | `computer_vision` | Computer-vision pipelines, models, and runtimes | `dlstreamer`, `vippet`, `geti`, `anomalib` |
-| `metro_ai_suite` | City monitoring and traffic management | `smart_intersection`, `smart_parking`, `loitering_detection`, `live_video_captioning`, `video_search_and_summarization` |
+| `metro_ai_suite` | City monitoring and traffic management | `smart_intersection`, `smart_parking`, `loitering_detection`, `live_video_captioning`, `live_video_captioning_rag`, `live_video_search`, `live_video_alert_agent`, `video_search_and_summarization` |
 | `manufacturing_ai_suite` | Industrial inspection and defect detection | `pallet_defect_detection`, `pcb_anomaly_detection`, `multimodal_weld_defect_detection`, `wind_turbine_anomaly_detection` |
 | `retail_ai_suite` | Retail buying-process monitoring | `loss_prevention`, `order_accuracy` |
 | `robotics_ai_suite` | Robotics and Physical AI workflows | `autonomous_mobile_robot`, `stationary_robot_vision`, `humanoid_imitation_learning`, `physical_ai_framework`, `physical_ai_studio` |
@@ -40,6 +40,9 @@ marketing segments. The table lists the profiles and their components.
 | `smart_parking` | A smart-parking occupancy and monitoring sample. |
 | `loitering_detection` | A loitering-detection video analytics sample. |
 | `live_video_captioning` | A real-time video captioning sample. |
+| `live_video_captioning RAG` | A real-time video captioning with RAG sample. |
+| `live_video_search` | A real-time video search sample. |
+| `live_video_alert_agent` | A real-time video alert service sample. |
 | `video_search_and_summarization` | A video search and summarization (VLM-based) sample. |
 | `pallet_defect_detection` | A pallet defect-detection inspection sample. |
 | `pcb_anomaly_detection` | A PCB anomaly-detection inspection sample. |

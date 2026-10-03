@@ -5,11 +5,21 @@ configure_live_video_captioning () {
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(4173 8040 1883 9090 8889 9273 8556)
   get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh"
+  models=(OpenGVLab/InternVL2-1B)
+}
+
+configure_live_video_captioning_device () {
+  local device="$1"
+
+  cd "$workspace/live-video-analysis/live-video-captioning"
+  export MODEL_DOWNLOAD_EPHEMERAL_SCRIPT_URL="$get_model_script"
+  rm -rf ov_models ov_detection_models ovms_models
+  ./model_download_scripts/download_models.sh --model ${models[0]} --type vlm --weight-format int8 --device $device
+  ./model_download_scripts/download_models.sh --model yolov8s --type vision --device $device
 }
 
 verify_live_video_captioning () {
-  [ -e "$workspace"/live-video-analysis/live-video-captioning/ov_models/gpu/InternVL2-1B/config.json ]
-  [ -e "$workspace"/live-video-analysis/live-video-captioning/ov_detection_models/yolov8s/public/yolov8s/FP16/yolov8s.bin ]
+  [ -e "$workspace"/live-video-analysis/live-video-captioning/.env ]
 }
 
 debian_90_profile_live_video_captioning () {
@@ -29,17 +39,16 @@ debian_90_install_live_video_captioning () {
     # setup
     cd "$workspace/live-video-analysis/live-video-captioning"
     sed -i "s|^ENABLE_DETECTION_PIPELINE=.*|ENABLE_DETECTION_PIPELINE=true|" .env.example
-    ensure_hf_token OpenGVLab/InternVL2-1B
+    ensure_hf_token "${models[@]}"
     sed -i "s|^HUGGINGFACEHUB_API_TOKEN=.*|HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN|" .env.example
     bash scripts/setup_env.sh
 
-    local device=$(ensure_select_device "$@")
-    export MODEL_DOWNLOAD_EPHEMERAL_SCRIPT_URL="$get_model_script"
-    ./model_download_scripts/download_models.sh --model OpenGVLab/InternVL2-1B --type vlm --weight-format int8 --device $device
-    ./model_download_scripts/download_models.sh --model yolov8s --type vision --device $device
     docker compose -f compose.yaml pull 
     verify_live_video_captioning
   fi
+
+  local device=$(ensure_select_device "$@")
+  configure_live_video_captioning_device "${device^^}"
 
   echo "@@HIGHLIGHT workspace: $workspace"
   echo "@@HIGHLIGHT $installer_name start|remove"
@@ -48,6 +57,9 @@ debian_90_install_live_video_captioning () {
 debian_90_start_live_video_captioning () {
   configure_live_video_captioning
   ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_captioning
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_device "${device^^}"
 
   cd "$workspace"/live-video-analysis/live-video-captioning
   docker compose -f compose.yaml up -d

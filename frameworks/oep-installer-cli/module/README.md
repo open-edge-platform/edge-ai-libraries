@@ -197,3 +197,37 @@ The component implementation must support the following common use patterns:
 - **`install --gpu start`**: This is the default use pattern. An option is specified at the installation time and then inherited at the `start` time, which does not repeat the same options. This is usually implemented as modifying the component defaults to the specified values. See [smart parking](smart_parking/debian) for an example implementation.    
 - `install --gpu start --npu`: This is optional to change options at the start time, useful for quick configuration without performing the installation again. See [loss prevention](loss_prevention/debian) for an example implemnetation.   
 
+The following is a skeleton of common implementation:
+
+```
+configure_my_component_device () {
+  local device="$1"
+  # modify component defaults with the device setting
+}
+
+debian_90_install_my_component () {
+  ...
+  if verify_my_component && [[ " $* " != *" --reinstall "* ]]; then
+    ...
+  else
+    ensure_git_clone ...
+    # setup
+    ...
+    verify_my_component
+  fi
+
+  # configure device
+  local device=$(ensure_select_device "$@")
+  configure_my_component_device "${device^^}"
+  ...
+}
+
+debian_90_start_my_component () {
+  ...
+  # if --gpu is specifed, reconfigure. Otherwise use default from installation
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_my_component_device "${device^^}"
+  ...
+}
+```
+
