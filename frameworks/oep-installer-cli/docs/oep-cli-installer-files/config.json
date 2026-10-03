@@ -176,6 +176,16 @@
           "device": true
         },
         {
+          "label": "Visual Pipeline and Platform Evaluation Tool (ViPPET)",
+          "value": "vippet",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true
+        },
+        {
           "label": "Pallet Defect Detection",
           "value": "pallet_defect_detection",
           "supports": {
@@ -496,6 +506,10 @@
             {
               "text": "Video Search and Summarization",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html"
+            },
+            {
+              "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
             }
           ]
         },
