@@ -1,0 +1,148 @@
+
+configure_wind_turbine_anomaly_detection () {
+  workspace="$(ensure_project_path)/wind-turbine-anomaly-detection"
+  version="release-2026.2.0"
+  repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
+  nstreams=40
+  npoints=5000
+  duration=7200
+  database="datain"
+  table="wind-turbine-anomaly-data"
+  used_ports=(3000 1883)
+}
+
+configure_wind_turbine_anomaly_detection_device () {
+  local device="$1"
+  cd "$workspace"/industrial-edge-insights-time-series
+  sed -i "s|\"device\":.*$|\"device\": \"$device\"|" apps/wind-turbine-anomaly-detection/time-series-analytics-config/config.json apps/wind-turbine-anomaly-detection/time-series-analytics-config/config-batch.json
+}
+
+verify_wind_turbine_anomaly_detection () {
+  [ -d "$workspace"/industrial-edge-insights-time-series ]
+  [ -n "$(grep -E ^INFLUXDB_PASSWORD= "$workspace"/industrial-edge-insights-time-series/.env 2> /dev/null | tail -n1 | cut -f2 -d=)" ]
+}
+
+debian_90_profile_wind_turbine_anomaly_detection () {
+  echo "git gawk curl make docker edge_base"
+}
+
+debian_90_install_wind_turbine_anomaly_detection () {
+  configure_wind_turbine_anomaly_detection
+  if verify_wind_turbine_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Wind turbine anomaly detection already installed. Skipping..." 1>&2
+  else
+    ensure_disk_space 64000
+    ensure_ram_size 16777216 # 16 GiB
+    ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series
+    cd "$workspace"/industrial-edge-insights-time-series
+
+    cat >> .env <<EOF
+INFLUXDB_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
+INFLUXDB_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
+VISUALIZER_GRAFANA_USER=$(cat /dev/urandom | tr -dc a-z | head -c 10)
+VISUALIZER_GRAFANA_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
+SAMPLE_APP=wind-turbine-anomaly-detection
+EOF
+
+    verify_wind_turbine_anomaly_detection
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_wind_turbine_anomaly_detection_device "$device"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_wind_turbine_anomaly_detection () {
+  configure_wind_turbine_anomaly_detection
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_wind_turbine_anomaly_detection "$@"
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --${device} "* ]] || configure_wind_turbine_anomaly_detection_device "$device"
+
+  cd "$workspace"/industrial-edge-insights-time-series
+  make -o check_env_variables up_mqtt_ingestion app=wind-turbine-anomaly-detection num_of_streams=$nstreams num_of_data_points_per_stream=$npoints batch
+
+  echo "@@HIGHLIGHT Grafana URL: https://$(ensure_ip):${used_ports[0]}"
+  local gf_user="$(grep -E ^VISUALIZER_GRAFANA_USER= .env | tail -n1 | cut -f2 -d=)"
+  local gf_pwd="$(grep -E ^VISUALIZER_GRAFANA_PASSWORD= .env | tail -n1 | cut -f2 -d=)"
+  echo "@@HIGHLIGHT Grafana AUTH: $gf_user/$gf_pwd"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  local infx_user="$(grep -E ^INFLUXDB_USERNAME= .env | tail -n1 | cut -f2 -d=)"
+  local infx_pwd="$(grep -E ^INFLUXDB_PASSWORD= .env | tail -n1 | cut -f2 -d=)"
+  local total_points=$(( npoints * nstreams ))
+  local start_time=$SECONDS nsamples
+  while [ $(( SECONDS - start_time )) -lt $duration ]; do
+    docker compose exec ia-influxdb influx -username "$infx_user" -password "$infx_pwd" -database "$database" -execute "select * from \"$table\"" > sample-data
+    nsamples=$(cat sample-data | wc -l || echo 0)
+    echo "Processed $nsamples of samples, elapsed $(( SECONDS - start_time )) seconds"
+    [ "$nsamples" -lt $total_points ] || break
+    sleep 5s
+  done
+
+  gawk '
+/^[0-9][0-9]*/ && /ia[-]telegraf/ && /mqtt-publisher/ {
+  s=gensub(/mqtt-publisher-/,"",1,$(NF-2))
+  if ($(NF-3)*1>0) {
+    throughput[s][++throughput_ct[s]]=$(NF-3)
+    latency[s][throughput_ct[s]]=$(NF-3)/1000.0
+    end2end[s][throughput_ct[s]]=$(NF-6)/1000.0
+    ingest_time[s][throughput_ct[s]] = $1/1000.0
+    if (throughput_ct[s]>1) {
+      ingest_delta[s][throughput_ct[s]-1] = ingest_time[s][throughput_ct[s]] - ingest_time[s][throughput_ct[s]-1]
+      if (throughput_ct[s]==2)
+        ingest_delta[s][1] = ingest_delta[s][2]
+    }
+  }
+}
+function calc_avg(values, i,m) {
+  m=0
+  for (i in values)
+    m+=values[i]
+  return length(values)>0?m/length(values):0
+}
+END {
+  n=length(throughput)
+  if (n>0) {
+    m_acc=0
+    m_acc_latency=0
+    m_acc_end2end=0
+    m_acc_ingest=0
+    for (i=1;i<=n;i++) {
+      m=1000000000/calc_avg(throughput[i])
+      m_acc_latency+=calc_avg(latency[i])
+      m_acc_end2end+=calc_avg(end2end[i])
+      m_acc_ingest+=calc_avg(ingest_delta[i])
+      m_acc+=m
+    }
+    print primary"throughput average: "(n>0?int(m_acc/n*100)/100:0)
+    print "throughput cumulative: "int(m_acc*100)/100
+    print "latency average (us): "(n>0?int(m_acc_latency/n*100)/100:0)
+    print "end2end average (us): "(n>0?int(m_acc_end2end/n*100)/100:0)
+    print "ingest average (us): "(n>0?int(m_acc_ingest/n*100)/100:0)
+    for (i=1;i<=n;i++) {
+      m=1000000000/calc_avg(throughput[i])
+      print "throughput #"i": "m
+      print "latency #"i" (us): "calc_avg(latency[i])
+      print "end2end #"i" (us): "calc_avg(end2end[i])
+      print "ingest #"i" (us): "calc_avg(ingest_delta[i])
+    }
+  }
+}
+' samples
+}
+
+debian_90_stop_wind_turbine_anomaly_detection () {
+  configure_wind_turbine_anomaly_detection
+  cd "$workspace"/industrial-edge-insights-time-series && make down || true
+}
+
+debian_90_remove_wind_turbine_anomaly_detection () {
+  debian_90_stop_wind_turbine_anomaly_detection "$@"
+  rm -rf "$workspace" || ensure_sudo rm -rf "$workspace"
+}
+

@@ -2,7 +2,9 @@
   "profile": { "label": "Manufacturing AI Suite", "value": "manufacturing_ai_suite" },
   "modules": [
     { "label": "Pallet Defect Detection", "value": "pallet_defect_detection", "startStop": true, "device": true },
-    { "label": "PCB Anomaly Detection", "value": "pcb_anomaly_detection", "startStop": true, "device": true }
+    { "label": "PCB Anomaly Detection", "value": "pcb_anomaly_detection", "startStop": true, "device": true },
+    { "label": "Wind Turbine Anormaly Detection", "value": "wind_turbine_anomaly_detection", "startStop": true, "device": true },
+    { "label": "Multimodal Weld Defect Detection", "value": "multimodal_weld_defect_detection", "startStop": true, "device": true }
   ],
   "getStarted": {
     "text": "Get Started",
@@ -10,6 +12,8 @@
   },
   "resources": [
     { "text": "Pallet Defect Detection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-vision/index.html" },
-    { "text": "PCB Anomaly Detection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-vision/index.html" }
+    { "text": "PCB Anomaly Detection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-vision/index.html" },
+    { "text": "Wind Turbine Anormaly Detection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/wind-turbine-anomaly-detection/index.html" },
+    { "text": "Multimodal Weld Defect Detection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-multimodal/index.html" }
   ]
 }
