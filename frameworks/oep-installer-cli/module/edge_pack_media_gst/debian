@@ -13,7 +13,7 @@ debian_70_install_edge_pack_media_gst () {
   if ensure_apt_is_installed intel-edge-media-gst=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-media-gst already installed. Skipping" 1>&2
   else
-    debian_70_remove_edge_pack_media_gst
+    ensure_apt autoremove -y intel-edge-media-gst || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*"
   fi
 }

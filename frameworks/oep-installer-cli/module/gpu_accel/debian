@@ -50,7 +50,7 @@ debian_40_install_gpu_accel () {
     ensure_apt update -y
 
     # install the packages
-    ensure_apt_check_downgrades "${allow_downgrades[*]}" --no-install-recommends "${pkg_list[@]}"
+    ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends "${pkg_list[@]}"
     ensure_apt install --no-install-recommends --allow-downgrades -y "${pkg_list[@]}"
     verify_gpu_accel_packages
   fi

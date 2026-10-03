@@ -59,13 +59,13 @@ ensure_apt_install_package () {
 }
 
 # check downgrades
-ensure_apt_check_downgrades () {
+ensure_apt_allow_downgrades () {
   local allow_downgrades=($1); shift
   local dg downgrades=()
   for dg in $(apt-get install -s "$@" | awk '
-/The following packages will be DOWNGRADED:/ {flag=1; next}
-/^[^ ]/ {flag=0}
-flag && $1 {print $1}
+/The following packages will be DOWNGRADED:/{flag=1;next}
+/^[^ ]/{flag=0}
+flag&&$1{for(i=1;i<=NF;i++)print$i}
 '); do
     [[ " ${allow_downgrades[*]} " = *" $dg "* ]] || downgrades+=("$dg")
   done

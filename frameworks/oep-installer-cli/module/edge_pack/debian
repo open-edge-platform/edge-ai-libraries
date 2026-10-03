@@ -12,7 +12,7 @@ configure_edge_pack () {
   )
   edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref
   edge_pack_install_options=("--no-install-recommends")
-  [[ " $* " != *" --allow-downgrades "* ]] || edge_pack_install_options+=("--allow-downgrades")
+  edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston)
 }
 
 debian_15_profile_edge_pack () {
