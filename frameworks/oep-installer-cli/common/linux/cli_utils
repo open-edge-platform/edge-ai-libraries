@@ -93,6 +93,28 @@ act_find_deps () {
   echo "${!handlers[*]}"
 }
 
+# Change scope of global --reinstall to explicitly named modules excluding dependencies
+act_scope_reinstall () {
+  local act_name=$1; shift
+  if [ "$act_name" != "install" ] || [[ " $* " != *" --reinstall "* ]]; then
+    echo "$*"; return
+  fi
+  local all=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} "
+  local -a out=()
+  local scoped=0 hit=0 a m
+  for a in "$@"; do
+    [[ "$a" = --* && "$all" = *" ${a#--} "* ]] && scoped=1   # module sections start
+    if [[ $scoped -eq 0 && "$a" = "--reinstall" ]]; then hit=1; continue; fi
+    out+=("$a")
+  done
+  if [ $hit -eq 1 ]; then
+    for m in $(act_extract_modules $act_name "${out[@]}"); do
+      out+=("--$m" "--reinstall")
+    done
+  fi
+  echo "${out[*]}"
+}
+
 act_helper () {
   local act_name=${1%%,*}
   local act_text="${1#*,}"
@@ -112,6 +134,7 @@ act_helper () {
   local mods_file="$(ensure_project_path)/$installer_name/modules"
   local explicit_mods="$(act_extract_modules $act_name "$@")"
   set -- $(act_resolve_args $act_name "$@")
+  set -- $(act_scope_reinstall $act_name "$@")
 
   # scan for dependencies
   local handles=($(act_find_deps $act_name "$@"))
