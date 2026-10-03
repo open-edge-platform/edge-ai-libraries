@@ -113,9 +113,6 @@ act_helper () {
   local explicit_mods="$(act_extract_modules $act_name "$@")"
   set -- $(act_resolve_args $act_name "$@")
 
-  echo "@=$*"
-  exit 3
-
   # scan for dependencies
   local handles=($(act_find_deps $act_name "$@"))
 
