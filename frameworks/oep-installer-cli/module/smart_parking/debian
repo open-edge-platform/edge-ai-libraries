@@ -2,18 +2,23 @@
 configure_smart_parking () {
   workspace="$(ensure_project_path)/smart-parking"
   version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+}
+
+configure_smart_parking_device () {
+  local device="$1"
+  sed -i "/No device selected/,/fi/{s|defaulting to ...|defaulting to ${device^^}|;s|forced.*=.*$|forced${device^^}=true|}" "$workspace"/metro-vision-ai-app-recipe/smart-parking/sample_start.sh
 }
 
 verify_smart_parking () {
   local i p
   for i in 1 2 3 4; do
-    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_$i.mp4 ]
+    [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_$i.mp4 ]
   done
   for p in FP16 FP32 INT8; do
-    [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/public/yolo11s/$p/yolo11s.bin ]
+    [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/public/yolo11s/$p/yolo11s.bin ]
   done
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/colorcls2/colorcls2.bin ]
+  [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/colorcls2/colorcls2.bin ]
 }
 
 debian_90_profile_smart_parking () {
@@ -27,32 +32,42 @@ debian_90_install_smart_parking () {
   else
     # clone the repository
     ensure_disk_space 300
-    ensure_git_export "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+    ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
     # setup
-    cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
+    cd "$workspace/metro-vision-ai-app-recipe"
     sed -i 's|curl | curl -f |' smart-parking/install.sh
     ./install.sh smart-parking $(ensure_ip)
     verify_smart_parking
   fi
 
   local device=$(ensure_select_device "$@")
-  sed -i "/No device selected/,/fi/{s|defaulting to ...|defaulting to ${device^^}|;s|forced.*=.*$|forced${device^^}=true|}" "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/smart-parking/sample_start.sh
+  configure_smart_parking_device "$device"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]" 
 }
 
 debian_90_start_smart_parking () {
   ensure_ports_open "80 443" debian_90_stop_smart_parking
   configure_smart_parking
-  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_smart_parking_device "$device"
+
+  cd "$workspace"/metro-vision-ai-app-recipe
   docker compose up -d --wait
   ./sample_start.sh
+
   echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
-  echo "@@HIGHLIGHT Grafana username/password: admin"
+  echo "@@HIGHLIGHT Grafana AUTH: admin/admin"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]" 
+  echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 debian_90_stop_smart_parking () {
   configure_smart_parking
-  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  cd "$workspace"/metro-vision-ai-app-recipe
   ./sample_stop.sh || true
   docker compose down -v --remove-orphans
 }
