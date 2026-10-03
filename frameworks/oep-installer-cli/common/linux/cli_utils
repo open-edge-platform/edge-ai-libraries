@@ -205,12 +205,9 @@ act_helper () {
     ensure_tmpdir destroy $installer_state
 
     # pass on modules to subsequent command
-    if [[ " $* " != *" --dry-run "* ]]; then
-      rm -f "$mods_file"
-      if [ -n "${explicit_mods// }" ]; then
-        mkdir -p "${mods_file%/*}"
-        echo "$explicit_mods" > "$mods_file"
-      fi
+    if [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]]; then
+      mkdir -p "${mods_file%/*}"
+      echo "$explicit_mods" > "$mods_file"
     fi
 
     return $rc
