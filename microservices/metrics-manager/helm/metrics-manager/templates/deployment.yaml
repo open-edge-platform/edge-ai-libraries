@@ -61,7 +61,7 @@ spec:
         supplementalGroups:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-      hostNetwork: {{ .Values.pod.hostNetwork }}
+      hostNetwork: {{ if .Values.hardware.telemetry.enabled }}true{{ else }}{{ .Values.pod.hostNetwork }}{{ end }}
       {{- /*
         dnsPolicy:
           - explicit value wins
@@ -69,9 +69,10 @@ spec:
             rejects ClusterFirst in that combination), so default it here
           - otherwise fall back to ClusterFirst
       */ -}}
+      {{- $hostNetwork := or .Values.hardware.telemetry.enabled .Values.pod.hostNetwork }}
       {{- $dnsPolicy := .Values.pod.dnsPolicy }}
       {{- if not $dnsPolicy }}
-        {{- if .Values.pod.hostNetwork }}
+        {{- if $hostNetwork }}
           {{- $dnsPolicy = "ClusterFirstWithHostNet" }}
         {{- else }}
           {{- $dnsPolicy = "ClusterFirst" }}

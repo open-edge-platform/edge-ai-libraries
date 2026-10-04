@@ -590,10 +590,12 @@ R panels stay empty (no crash — just no data).
 | Variable | Default | Purpose |
 |---|---|---|
 | `METRICS_MANAGER_HOSTNAME` | kernel hostname | stable `host=` tag so Grafana `$host` stays constant across restarts |
-| `HOST_METRICS_PORT` | `9090` | host port for the API + SSE |
-| `HOST_TELEGRAF_PORT` | `9273` | host port for the Prometheus endpoint |
 | `PRIVILEGED` | `true` | set `false` only if you want CPU/RAM/temp and nothing hardware-privileged |
 | `DRAM_BW_INTERVAL` | `1` | perf sampling window (seconds) for DRAM bandwidth |
+
+> The service runs with `network_mode: host`, so the API (`:9090`), Prometheus
+> endpoint (`:9273`) and Telegraf HTTP listener (`:8186`) are published directly
+> on the host and cannot be remapped to other host ports.
 
 ### Prometheus scrape job
 
