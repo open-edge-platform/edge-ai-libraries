@@ -9,9 +9,9 @@
     "type": "single",
     "default": "gpu",
     "options": [
-      { "label": "CPU", "value": "cpu" },
-      { "label": "GPU", "value": "gpu" },
-      { "label": "NPU", "value": "npu" }
+      { "label": "CPU", "value": "CPU" },
+      { "label": "GPU", "value": "GPU" },
+      { "label": "NPU", "value": "NPU" }
     ]
   },
 
@@ -44,7 +44,7 @@
       "fallback": "Select a module to see a command…",
       "genericRule": {
         "when": { "OP_SYSTEM": "UBUNTU" },
-        "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
+        "text": "curl -sSfL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
       }
     },
     "nextsteps": {
