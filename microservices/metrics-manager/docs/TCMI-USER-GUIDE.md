@@ -313,9 +313,11 @@ scrape_configs:
   - job_name: metrics-manager
     static_configs:
       - targets:
-          # Use the MM container name when both stacks share a Docker network,
-          # or host.docker.internal if Prometheus runs on a separate network.
-          - metrics-manager:9273
+          # Metrics Manager runs with network_mode: host, so reach its :9273
+          # endpoint via host.docker.internal from a bridged Prometheus
+          # container (requires the extra_hosts mapping below), or localhost:9273
+          # if Prometheus also runs with host networking.
+          - host.docker.internal:9273
 ```
 
 **Step 5a-2 — Create `docker-compose.viz.yaml`**
@@ -334,8 +336,10 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --web.enable-lifecycle       # enables POST /-/reload
-    networks:
-      - metric-network               # same network as metrics-manager
+    # Metrics Manager runs on the host network namespace, so reach its :9273
+    # endpoint through the host gateway rather than a shared Docker network.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   grafana:
@@ -347,17 +351,10 @@ services:
       - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
-    networks:
-      - metric-network
     restart: unless-stopped
 
 volumes:
   grafana-data:
-
-networks:
-  metric-network:
-    external: true    # reuse the network created by metrics-manager's compose.yaml
-    name: metrics-manager_metric-network
 ```
 
 **Step 5a-3 — Start the visualization stack**

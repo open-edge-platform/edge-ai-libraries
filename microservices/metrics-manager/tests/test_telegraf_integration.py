@@ -112,6 +112,11 @@ class TestComposeWiring:
         assert "8186" in compose_text  # HTTP listener
         assert "9090" in compose_text  # API + SSE
 
+    def test_host_network_mode(self, compose_text: str):
+        # inputs.net/inputs.ethtool must read the host's physical NICs, not the
+        # container's virtual eth0, so the service runs in the host netns.
+        assert "network_mode: host" in compose_text
+
 
 class TestSupervisordOrdering:
     """Telegraf must come up before metrics-manager so the API has a Prometheus

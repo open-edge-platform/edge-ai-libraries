@@ -13,6 +13,9 @@ Prometheus format on `:9273`, Prometheus scrapes that, Grafana reads Prometheus.
 actually added are a few small Python readers for the metrics Telegraf's plugins can't reach on their
 own, and a little switchboard (`.env` → entrypoint) for turning each collector on or off.
 
+The container runs in the host network namespace (`network_mode: host`) so the `net` and `ethtool`
+collectors read the host's physical NICs rather than the container's virtual `eth0`.
+
 ## The flow
 
 ```mermaid

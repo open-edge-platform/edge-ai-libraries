@@ -48,8 +48,10 @@ pod:
   fsGroup: 10001
   supplementalGroups: []
   # CPU/RAM/temperature/GPU/NPU readers all read sysfs from the host.
-  # The pod itself does not need hostNetwork, but exposing the API on the
-  # host's network namespace can simplify scraping by node-local agents.
+  # Enable hostNetwork so the net/ethtool collectors read the host's physical
+  # NICs rather than the pod's virtual interface — the same reason compose.yaml
+  # uses network_mode: host. It also exposes the API on the node's network
+  # namespace, simplifying scraping by node-local agents.
   hostNetwork: false
   # Leave dnsPolicy empty to let the chart pick a sensible default:
   #   * ClusterFirstWithHostNet when hostNetwork=true (required by the

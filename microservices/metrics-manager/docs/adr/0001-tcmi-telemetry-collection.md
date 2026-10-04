@@ -32,6 +32,11 @@ v1.36.0, and this image builds 1.39.3, so the native plugin is already compiled 
 IPC/SMI/per-core signals. Using it drops us from three custom scripts to two. It stays opt-in (ships
 disabled) because turbostat is tied to the kernel version and needs MSR access.
 
+The container runs in the host network namespace (compose `network_mode: host`, Helm `pod.hostNetwork`)
+so `net` and `ethtool` observe the host's physical NICs. On a bridge network they would only see the
+container's virtual `eth0`; `ethtool` in particular issues netlink/ioctl calls bound to the running
+namespace and cannot be redirected with `HOST_PROC`, so the host netns is required rather than optional.
+
 **What we didn't do, and why:** Intel PCM (a heavy external binary, more CVE surface to worry about);
 `inputs.intel_pmu` (dead on arrival because of the masked model); leaving the TCMI scripts as a
 separate stack (which is the whole thing we were trying to get rid of).
