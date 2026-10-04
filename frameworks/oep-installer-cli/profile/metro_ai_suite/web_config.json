@@ -9,6 +9,7 @@
     { "label": "Live Video Search", "value": "live_video_search", "startStop": true, "device": true },
     { "label": "Live Video Alert Agent", "value": "live_video_alert_agent", "startStop": true, "device": true },
     { "label": "Video Search and Summarization", "value": "video_search_and_summarization", "startStop": true, "device": true },
+    { "label": "Agentic Predictive Maintenance Pipeline", "value": "agentic_predictive_maintenance_pipeline", "startStop": true, "device": true },
     { "label": "Visual Pipeline and Platform Evaluation Tool (ViPPET)", "value": "vippet", "startStop": true, "device": false }
   ],
   "getStarted": {
@@ -24,6 +25,7 @@
     { "text": "Live Video Search", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-search/index.html" },
     { "text": "Live Video Alert Agent", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-alert-agent/index.html" },
     { "text": "Video Search and Summarization", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html" },
+    { "text": "Agentic Predictive Maintenance Pipeline", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-predictive-maintenance-pipeline/index.html" },
     { "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html" }
   ]
 }
