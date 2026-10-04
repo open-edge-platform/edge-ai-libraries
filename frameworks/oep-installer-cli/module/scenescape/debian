@@ -1,0 +1,56 @@
+
+configure_scenescape () {
+  workspace="$(ensure_project_path)/scenescape"
+  version=release-2026.2.0
+  repository=https://github.com/open-edge-platform/scenescape.git
+  used_ports=(443)
+}
+
+verify_scenescape () {
+  [ -d "$workspace" ]
+}
+
+debian_90_profile_scenescape () {
+  echo "docker curl git make unzip rsync python3_venv"
+}
+
+debian_90_install_scenescape () {
+  configure_scenescape
+  if verify_scenescape && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Scenescape already installed. Skipping" 1>&2
+  else
+    ensure_disk_space 300
+    ensure_git_export "$workspace" "$version" "$repository"
+    verify_scenescape
+  fi
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_scenescape () {
+  configure_scenescape
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_scenescape "$@"
+
+  cd "$workspace"
+  export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5)
+  make init-secrets
+  make demo-all DEMO_REBUILD_IMAGES=false
+
+  echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT SUPASS: $SUPASS"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_scenescape () {
+  configure_scenescape
+  cd "$workspace" && make demo-close || true
+}
+
+debian_90_remove_scenescape () {
+  debian_90_stop_scenescape "$@"
+  cd "$workspace" && make clean-all || true
+  ensure_sudo rm -rf "$workspace"
+}
+
