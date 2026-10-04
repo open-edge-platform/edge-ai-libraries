@@ -2211,6 +2211,89 @@ ensure_apt_source_remove () {
 }
 
 
+configure_agentic_predictive_maintenance_pipeline () {
+  workspace="$(ensure_project_path)/agentic-predictive-maintenance-pipeline"
+  version=release-2026.2.0
+  repository=https://github.com/open-edge-platform/metro-ai-suite.git
+  used_ports=(8080 8010 8554 8200 9091 9090)
+  models=(Qwen/Qwen2.5-1.5B-Instruct microsoft/Phi-4-mini-instruct)
+}
+
+configure_agentic_predictive_maintenance_pipeline_device () {
+  local device="$1"
+  cd "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection
+  sed -i -e "s|^LLM_DEVICE=.*|LLM_DEVICE=$device|" -e "s|^DL_DEVICE=.*|DL_DEVICE=$device|" .env_pipeline-defect-detection
+
+  rm -rf models/llm_model_pipeline-defect-detection
+  cd ../..
+  . ./scripts/download_llm_model.sh --use-case pipeline-defect-detection
+}
+
+verify_agentic_predictive_maintenance_pipeline () {
+  [ -f "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection/resources/videos/datastream.mp4 ]
+}
+
+debian_90_profile_agentic_predictive_maintenance_pipeline () {
+  echo "git curl gawk jq edge_base docker"
+}
+
+debian_90_install_agentic_predictive_maintenance_pipeline () {
+  configure_agentic_predictive_maintenance_pipeline
+  if verify_agentic_predictive_maintenance_pipeline && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Agentic Predictive Maintenance Pipeline already installed. Skipping" 1>&2
+  else
+    ensure_disk_space 60
+    ensure_git_export "$workspace" "$version" "$repository" agentic-predictive-maintenance-pipeline
+
+    cd "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection
+    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env_pipeline-defect-detection
+    sed -i "s|^REGISTRY=.*|REGISTRY=intel/|" .env_pipeline-defect-detection
+    ensure_hf_token "${models[@]}"
+    echo "HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN" >> .env_pipeline-defect-detection
+
+    # download video
+    curl -fsSL https://github.com/open-edge-platform/edge-ai-resources/raw/c13b8dbf23d514c2667d39b66615bd1400cb889d/videos/anomalib_pcb_test.avi -o resources/videos/datastream.mp4
+
+    verify_agentic_predictive_maintenance_pipeline
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_agentic_predictive_maintenance_pipeline_device "${device^^}"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start|remove"
+}
+
+debian_90_start_agentic_predictive_maintenance_pipeline () {
+  configure_agentic_predictive_maintenance_pipeline
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_agentic_predictive_maintenance_pipeline "$@"
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_agentic_predictive_maintenance_pipeline_device "${device^^}"
+
+  cd "$workspace"/agentic-predictive-maintenance-pipeline
+  . ./setup.sh --use-case pipeline-defect-detection
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_agentic_predictive_maintenance_pipeline () {
+  configure_agentic_predictive_maintenance_pipeline
+  cd "$workspace"/agentic-predictive-maintenance-pipeline && {
+    . ./setup.sh --stop || true
+    . ./setup.sh --clean-data
+  } || true
+}
+
+debian_90_remove_agentic_predictive_maintenance_pipeline () {
+  debian_90_stop_agentic_predictive_maintenance_pipeline "$@"
+  ensure_sudo rm -rf "$workspace"
+}
+
+
 configure_anomalib () {
   workspace="$(ensure_project_path)/anomalib"
   version=2.6.2
@@ -4834,12 +4917,17 @@ debian_90_remove_order_accuracy_take_away () {
 configure_pallet_defect_detection () {
   workspace="$(ensure_project_path)/pallet-defect-detection"
   version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
+}
+
+configure_pallet_defect_detection_device () {
+  local device="$1"
+  sed -i "s|^PIPELINE=.*$|PIPELINE=pallet_defect_detection${device//_cpu/}|" "$workspace"/industrial-edge-insights-vision/sample_start.sh
 }
 
 verify_pallet_defect_detection () {
-  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pallet-defect-detection/videos/warehouse.avi ]
-  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/deployment/Detection/model/model.bin ]
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/videos/warehouse.avi ]
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/deployment/Detection/model/model.bin ]
 }
 
 debian_90_profile_pallet_defect_detection () {
@@ -4853,10 +4941,10 @@ debian_90_install_pallet_defect_detection () {
   else
     # clone the repository
     ensure_disk_space 50
-    ensure_git_export "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
+    ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision
 
     # setup
-    cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+    cd "$workspace"/industrial-edge-insights-vision
     cat > .env <<EOF
 $(cat .env_pallet-defect-detection)
 HOST_IP=$(ensure_ip)
@@ -4870,24 +4958,34 @@ EOF
     verify_pallet_defect_detection
   fi
 
-  local device="_$(ensure_select_device "$@")"
-  sed -i "s|^PIPELINE=.*$|PIPELINE=pallet_defect_detection${device//_cpu/}|" "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/sample_start.sh
+  local device=$(ensure_select_device "$@")
+  configure_pallet_defect_detection_device "_$device"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_start_pallet_defect_detection () {
+  configure_pallet_defect_detection
   ensure_ports_open "80 443" debian_90_stop_pallet_defect_detection
 
-  configure_pallet_defect_detection
-  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_pallet_defect_detection_device "_$device"
+
+  cd "$workspace"/industrial-edge-insights-vision
   docker compose up -d --wait
 
   ./sample_start.sh
   echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_stop_pallet_defect_detection () {
   configure_pallet_defect_detection
-  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  cd "$workspace"/industrial-edge-insights-vision
   ./sample_stop.sh || true
   docker compose down -v
 }
@@ -4900,12 +4998,17 @@ debian_90_remove_pallet_defect_detection () {
 configure_pcb_anomaly_detection () {
   workspace="$(ensure_project_path)/pcb-anomaly-detection"
   version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
+}
+
+configure_pcb_anomaly_detection_device () {
+  local device="$1"
+  sed -i "s|^PIPELINE=.*$|PIPELINE=pcb_anomaly_detection${device//_cpu/}|" "$workspace"/industrial-edge-insights-vision/sample_start.sh
 }
 
 verify_pcb_anomaly_detection () {
-  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
-  [ -e "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin" ]
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin ]
 }
 
 debian_90_profile_pcb_anomaly_detection () {
@@ -4919,10 +5022,10 @@ debian_90_install_pcb_anomaly_detection () {
   else
     # clone the repository
     ensure_disk_space 60
-    ensure_git_export "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
+    ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision
 
     # setup
-    cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
+    cd "$workspace/industrial-edge-insights-vision"
     cat > .env <<EOF
 $(cat .env_pcb-anomaly-detection)
 HOST_IP=$(ensure_ip)
@@ -4936,24 +5039,34 @@ EOF
     verify_pcb_anomaly_detection
   fi
 
-  local device="_$(ensure_select_device "$@")"
-  sed -i "s|^PIPELINE=.*$|PIPELINE=pcb_anomaly_detection${device//_cpu/}|" "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/sample_start.sh
+  local device=$(ensure_select_device "$@")
+  configure_pcb_anomaly_detection_device "_$device"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|--npu|--cpu]"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_start_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
   ensure_ports_open "80 443" debian_90_stop_pcb_anomaly_detection
 
-  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_pcb_anomaly_detection_device "_$device"
+  
+  cd "$workspace"/industrial-edge-insights-vision
   docker compose up -d --wait
 
   ./sample_start.sh
   echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 debian_90_stop_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  cd "$workspace"/industrial-edge-insights-vision
   ./sample_stop.sh || true
   docker compose down -v --remove-orphans
 }
@@ -5833,7 +5946,9 @@ debian_90_install_smart_parking () {
   configure_smart_parking_device "$device"
 
   echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]" 
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]" 
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_start_smart_parking () {
@@ -6481,7 +6596,7 @@ debian_99_profile_manufacturing_ai_suite () {
 
 debian_99_profile_metro_ai_suite () {
   # metro ai suites cannot start at the same time
-  [ "$1" = "start" ] || echo "vippet smart_intersection smart_parking loitering_detection live_video_captioning live_video_captioning_rag live_video_search live_video_alert_agent video_search_and_summarization"
+  [ "$1" = "start" ] || echo "vippet smart_intersection smart_parking loitering_detection live_video_captioning live_video_captioning_rag live_video_search live_video_alert_agent video_search_and_summarization agentic_predictive_maintenance_pipeline"
 }
 
 

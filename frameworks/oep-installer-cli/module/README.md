@@ -191,11 +191,11 @@ echo "@@HIGHLIGHT make help to see full list of build targets"
 
 ### Custom Options
 
-A component can define custom options, for example, `--gpu`, `--npu`, or `--cpu`. The `ensure_select_device` can help parse the options and return `cpu`, `gpu`, or `npu`. Such options are usually handled at the `install` function, which has more flexibility in changing configurations and downloading new models, based on the specified options. Special care must be taken to **pass on** the options to the `start` function, which may or may not carry the same options.  
+A component can define custom options, for example, `--gpu`, `--npu`, or `--cpu`. Such options are usually handled at the `install` function, which has more flexibility in changing configurations and downloading new models, based on the specified options. Special care must be taken to **pass on** the options to the `start` function, which may or may not carry the same options.  
 
 The component implementation must support the following common use patterns:
-- **`install --gpu start`**: This is the default use pattern. An option is specified at the installation time and then inherited at the `start` time, which does not repeat the same options. This is usually implemented as modifying the component defaults to the specified values. See [smart parking](smart_parking/debian) for an example implementation.    
-- `install --gpu start --npu`: This is optional to change options at the start time, useful for quick configuration without performing the installation again. See [loss prevention](loss_prevention/debian) for an example implemnetation.   
+- **`install --gpu start`**: This is the default use pattern. An option is specified at the installation time and then inherited at the `start` time, which does not repeat the option. This is usually implemented as modifying the component defaults to the specified values.     
+- `install --gpu start --npu`: If the `start` function also accepts options, then the component must be re-configured on top of the installation options.  
 
 The following is a skeleton of common implementation:
 
@@ -203,6 +203,12 @@ The following is a skeleton of common implementation:
 configure_my_component_device () {
   local device="$1"
   # modify component defaults with the device setting
+  # download models and/or videos if required
+  # verify downloads
+}
+
+verify_my_component () {
+  # check workspace download and installation time configurations
 }
 
 debian_90_install_my_component () {
@@ -216,18 +222,23 @@ debian_90_install_my_component () {
     verify_my_component
   fi
 
-  # configure device
+  # configure device (default GPU)
   local device=$(ensure_select_device "$@")
   configure_my_component_device "${device^^}"
   ...
+  echo "@@HIGHLIGHTS $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHTS $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHTS $installer_name remove"
 }
 
 debian_90_start_my_component () {
   ...
-  # if --gpu is specifed, reconfigure. Otherwise use default from installation
+  # Reconfigure only if a device option is specified
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_my_component_device "${device^^}"
   ...
+  echo "@@HIGHLIGHTS $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHTS $installer_name stop|remove"
 }
 ```
 
