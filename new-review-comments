@@ -1,0 +1,36 @@
+Hi @Mutra, Vamsi
+
+Thank you for addressing the follow-up comments and sharing the validation results. The PR is looking much better now, particularly the opt-in temperature statistics, the corrected loader test, and the updated NPU power-state documentation.
+
+Most of the previous concerns are resolved, and we are close to wrapping up the review. One functional detail remains to confirm, along with a small diagram correction.
+
+1. Confirm that network metrics cover the host interfaces rather than the container’s eth0
+
+The comment in 40-net.conf(https://github.com/open-edge-platform/edge-ai-libraries/blob/1744cc9723592c19c5539f59a4c6db043a2f6a66/microservices/metrics-manager/telegraf.d/40-net.conf#L11)  says “Physical NICs only,” using the interface-name patterns eth*, en*, and wl*.
+
+This excludes names such as docker0, br-, and veth, but the container’s own virtual interface is typically named eth0, which also matches eth*. The filter selects interfaces by name; it does not distinguish physical NICs from virtual ones.
+
+Because the service uses a bridge network in Compose(https://github.com/open-edge-platform/edge-ai-libraries/blob/1744cc9723592c19c5539f59a4c6db043a2f6a66/microservices/metrics-manager/compose.yaml#L186), Telegraf runs in the container’s network namespace. Although “pid: host” is enabled, it shares the PID namespace, not the network namespace. Consequently, /proc/net/dev provides the container’s network counters rather than those of the host’s physical interfaces.
+
+Could you please compare /proc/net/dev on the host and inside the container, then check which interface names appear in the exported net_bytes_* metrics? For example, if the host has enp1s0 but the exported metrics only show the container’s eth0, we are measuring container traffic rather than host NIC traffic. Generating traffic on the host, outside the Metrics Manager container, would also help verify the expected behavior.
+
+If confirmed, please adjust the collection setup so that both net and ethtool monitor the intended host interfaces. A targeted solution would be preferable to switching the entire service to host networking unless necessary.
+
+2. Small correction to the architecture diagram
+
+In architecture-tcmi-integration.md, line 43, the diagram includes turbostat (TS) in the group pointing to EXECD.
+
+The implementation correctly uses the dedicated inputs.turbostat plugin rather than inputs.execd. Could you therefore remove TS from the shared arrow to EXECD and add a separate arrow from TS to NATIVE?
+
+This is only a minor documentation correction; no implementation change is needed for this point.
+
+Next steps
+
+On our side, we will build the updated image, run it through Docker Compose, and validate the integration with ViPPET to make sure everything works correctly and existing behavior is preserved.
+
+Once we address these final details and our ViPPET validation passes, we should be ready to merge the changes.
+
+Thank you again for your patience, the improvements made throughout the review, and the constructive collaboration!
+
+Michal
+

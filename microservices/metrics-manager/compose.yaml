@@ -43,6 +43,15 @@ services:
     container_name: metrics-manager
     user: ${CONTAINER_USER:-0:0}
 
+    # Host network namespace. Required so inputs.net and inputs.ethtool read the
+    # host's physical NICs (e.g. enp*/eth*) rather than the container's virtual
+    # eth0. On a bridge network Telegraf lives in the container netns, so
+    # /proc/net/dev and ethtool ioctls only see the veth pair — not the host
+    # interfaces the I-dimension envelope cares about. ethtool in particular
+    # cannot be redirected with HOST_PROC; it needs the host netns directly.
+    # Ports 9090/9273/8186 bind straight onto the host, so the URLs are unchanged.
+    network_mode: host
+
     # Environment configuration
     environment:
       # Proxy settings
@@ -87,11 +96,9 @@ services:
       - ENABLE_TURBOSTAT=${ENABLE_TURBOSTAT:-false}
       - TURBOSTAT_INTERVAL=${TURBOSTAT_INTERVAL:-5}
 
-    # Port mappings (external:internal - internal ports are fixed)
-    ports:
-      - "${HOST_METRICS_PORT:-9090}:9090"      # Metrics Manager API
-      - "${HOST_TELEGRAF_PORT:-9273}:9273"     # Telegraf Prometheus
-      - "${HOST_TELEGRAF_HTTP_PORT:-8186}:8186" # Telegraf HTTP listener
+    # Ports 9090 (API), 9273 (Telegraf Prometheus) and 8186 (Telegraf HTTP) are
+    # published directly on the host via network_mode: host above; no explicit
+    # port mapping is possible or needed.
 
     # Device access for system metrics
     privileged: ${PRIVILEGED:-true}
@@ -140,10 +147,6 @@ services:
 
     # Restart policy
     restart: unless-stopped
-
-    # Networking
-    networks:
-      - metric-network
 
   # ---------------------------------------------------------------------------
   # Metrics Manager Tests - runs pytest and exits

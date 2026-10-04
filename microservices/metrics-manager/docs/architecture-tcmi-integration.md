@@ -40,8 +40,9 @@ flowchart LR
   PROM["Prometheus\n(scrape :9273)"]
   GRAF["Grafana\ntcmi-mm-unified-v1\nT/C/M/I + R"]
 
-  RAPL & IMC & PMT & DRM & TS --> EXECD
+  RAPL & IMC & PMT & DRM --> EXECD
   PROC --> NATIVE
+  TS --> NATIVE
   ENV -.turns on/off.-> COLL
   NATIVE & EXECD --> PROMCLI
   EXECD --> API
