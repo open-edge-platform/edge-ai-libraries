@@ -14,50 +14,20 @@ as well as virtual groups (**profiles**).
 ## Profiles and Modules
 
 Profiles are groupings of installable components targeting specific domain workloads or
-marketing segments. The table lists the profiles and their components.  
+marketing segments. The table lists the profiles:
 
-| Profile | Domain | Modules |
-| ------- | ------ | ------- |
-| `inferencing` | Core AI inferencing runtime | `openvino` |
-| `computer_vision` | Computer-vision pipelines, models, and runtimes | `dlstreamer`, `vippet`, `geti`, `anomalib` |
-| `metro_ai_suite` | City monitoring and traffic management | `smart_intersection`, `smart_parking`, `loitering_detection`, `live_video_captioning`, `live_video_captioning_rag`, `live_video_search`, `live_video_alert_agent`, `video_search_and_summarization` |
-| `manufacturing_ai_suite` | Industrial inspection and defect detection | `pallet_defect_detection`, `pcb_anomaly_detection`, `multimodal_weld_defect_detection`, `wind_turbine_anomaly_detection` |
-| `retail_ai_suite` | Retail buying-process monitoring | `loss_prevention`, `order_accuracy` |
-| `robotics_ai_suite` | Robotics and Physical AI workflows | `autonomous_mobile_robot`, `stationary_robot_vision`, `humanoid_imitation_learning`, `physical_ai_framework`, `physical_ai_studio` |
-| `federal_and_aerospace_ai_suite` | Multi-modal federal and aerospace use cases | `handheld_multi_modal`, `uav_mission_compute_sdk` |
-| `health_and_life_science_ai_suite` | Patient and vitals monitoring | `nicu_warmer` |
+| Profile | Description |
+|: ------- |: ------ |
+| `inferencing` | Core AI inferencing runtime |
+| `computer_vision` | Computer-vision pipelines, models, and runtimes | 
+| `metro_ai_suite` | City monitoring and traffic management |
+| `manufacturing_ai_suite` | Industrial inspection and defect detection |
+| `retail_ai_suite` | Retail buying-process monitoring |
+| `robotics_ai_suite` | Robotics and Physical AI workflows |
+| `federal_and_aerospace_ai_suite` | Multi-modal federal and aerospace use cases |
+| `health_and_life_science_ai_suite` | Patient and vitals monitoring |
 
-### Module reference
-
-| Module | Description |
-| ------ | ----------- |
-| `openvino` | The OpenVINO™ inference runtime and toolkit. |
-| `dlstreamer` | The Intel® DL Streamer video-analytics pipeline framework. |
-| `vippet` | The Visual Pipeline and Platform Evaluation Tool. |
-| `geti` | The Intel® Geti™ computer-vision model training platform. |
-| `anomalib` | The deep-learning library for visual anomaly detection. |
-| `smart_intersection` | A traffic-intersection monitoring reference sample. |
-| `smart_parking` | A smart-parking occupancy and monitoring sample. |
-| `loitering_detection` | A loitering-detection video analytics sample. |
-| `live_video_captioning` | A real-time video captioning sample. |
-| `live_video_captioning RAG` | A real-time video captioning with RAG sample. |
-| `live_video_search` | A real-time video search sample. |
-| `live_video_alert_agent` | A real-time video alert service sample. |
-| `video_search_and_summarization` | A video search and summarization (VLM-based) sample. |
-| `pallet_defect_detection` | A pallet defect-detection inspection sample. |
-| `pcb_anomaly_detection` | A PCB anomaly-detection inspection sample. |
-| `multimodal_weld_defect_detection` | A multi-modal weld defect-detection sample. |
-| `wind_turbine_anomaly_detection` | A wind turbine defect detection sample. |
-| `loss_prevention` | A Retail loss-prevention sample. |
-| `order_accuracy` | A Retail order-accuracy verification sample. |
-| `handheld_multi_modal` | A handheld multi-modal sample for federal/aerospace use cases. |
-| `uav_mission_compute_sdk` | A UAV mission-compute SDK sample for federal/aerospace use cases. |
-| `nicu_warmer` | A NICU warmer patient-monitoring sample. |
-| `autonomous_mobile_robot` | Robotics AI Suite ROS 2 SDK for sensing, SLAM, and navigation. |
-| `stationary_robot_vision` | Vision-guided pick-and-place reference sample (RVC). |
-| `humanoid_imitation_learning` | Imitation-learning track (ACT and Pi0.5 policies). |
-| `physical_ai_framework` | Physical AI training/deployment SDK (`physicalai` CLI). |
-| `physical_ai_studio` | Physical AI Studio backend + web UI for data collection and training. |
+> See [`module`](module) for the list of available modules.   
 
 ## Installation
 
