@@ -55,12 +55,13 @@ debian_90_start_loitering_detection () {
 
   cd "$workspace"/metro-vision-ai-app-recipe
   docker compose -f compose-without-scenescape.yml up -d --wait
-  ./sample_start.sh
 
   echo "@@HIGHLIGHT UI: http://$(ensure_ip)"
   echo "@@HIGHLIGHT Grafana AUTH: admin/admin"
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  ./sample_start.sh && ./sample_status.sh
 }
 
 debian_90_stop_loitering_detection () {

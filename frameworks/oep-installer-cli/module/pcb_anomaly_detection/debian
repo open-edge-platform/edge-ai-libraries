@@ -11,8 +11,14 @@ configure_pcb_anomaly_detection_device () {
 }
 
 verify_pcb_anomaly_detection () {
-  [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
-  [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin ]
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ] || {
+    echo "anomalib_pcb_test.avi missing" 1>&2
+    return 1
+  }
+  [ -e "$workspace/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin" ] || {
+    echo "model.bin missing" 1>&2
+    return 1
+  }
 }
 
 debian_90_profile_pcb_anomaly_detection () {
@@ -38,7 +44,10 @@ MINIO_ACCESS_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | 
 MINIO_SECRET_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+S3_STORAGE_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+S3_STORAGE_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 EOF
+    sed -i 's|curl |curl -f |' apps/pcb-anomaly-detection/setup.sh
     ./setup.sh
     verify_pcb_anomaly_detection
   fi
@@ -62,10 +71,11 @@ debian_90_start_pcb_anomaly_detection () {
   cd "$workspace"/industrial-edge-insights-vision
   docker compose up -d --wait
 
-  ./sample_start.sh
   echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
   echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]"
   echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  ./sample_start.sh && ./sample_status.sh
 }
 
 debian_90_stop_pcb_anomaly_detection () {
