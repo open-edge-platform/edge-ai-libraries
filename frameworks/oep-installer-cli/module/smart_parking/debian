@@ -45,7 +45,9 @@ debian_90_install_smart_parking () {
   configure_smart_parking_device "$device"
 
   echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]" 
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]" 
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_start_smart_parking () {
