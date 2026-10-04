@@ -2,17 +2,17 @@
 configure_pcb_anomaly_detection () {
   workspace="$(ensure_project_path)/pcb-anomaly-detection"
   version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
 }
 
 configure_pcb_anomaly_detection_device () {
   local device="$1"
-  sed -i "s|^PIPELINE=.*$|PIPELINE=pcb_anomaly_detection${device//_cpu/}|" "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/sample_start.sh
+  sed -i "s|^PIPELINE=.*$|PIPELINE=pcb_anomaly_detection${device//_cpu/}|" "$workspace"/industrial-edge-insights-vision/sample_start.sh
 }
 
 verify_pcb_anomaly_detection () {
-  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
-  [ -e "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin" ]
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin ]
 }
 
 debian_90_profile_pcb_anomaly_detection () {
@@ -26,10 +26,10 @@ debian_90_install_pcb_anomaly_detection () {
   else
     # clone the repository
     ensure_disk_space 60
-    ensure_git_export "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
+    ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision
 
     # setup
-    cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
+    cd "$workspace/industrial-edge-insights-vision"
     cat > .env <<EOF
 $(cat .env_pcb-anomaly-detection)
 HOST_IP=$(ensure_ip)
@@ -59,7 +59,7 @@ debian_90_start_pcb_anomaly_detection () {
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_pcb_anomaly_detection_device "_$device"
   
-  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  cd "$workspace"/industrial-edge-insights-vision
   docker compose up -d --wait
 
   ./sample_start.sh
@@ -70,7 +70,7 @@ debian_90_start_pcb_anomaly_detection () {
 
 debian_90_stop_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  cd "$workspace"/industrial-edge-insights-vision
   ./sample_stop.sh || true
   docker compose down -v --remove-orphans
 }
