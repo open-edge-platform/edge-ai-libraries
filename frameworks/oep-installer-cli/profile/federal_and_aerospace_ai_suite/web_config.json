@@ -1,13 +1,15 @@
 {
   "profile": { "label": "Federal and Aerospace", "value": "federal_and_aerospace_ai_suite" },
   "modules": [
-    { "label": "Handheld Multi-Modal", "value": "handheld_multi_modal", "startStop": true }
+    { "label": "Handheld Multi-Modal", "value": "handheld_multi_modal", "startStop": true },
+    { "label": "UAV Mission Compute SDK", "value": "uav_mission_compute_sdk", "startStop": true }
   ],
   "getStarted": {
     "text": "Get Started",
     "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
   },
   "resources": [
-    { "text": "Handheld Multi-Modal Application", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html" }
+    { "text": "Handheld Multi-Modal Application", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html" },
+    { "text": "UAV Mission Compute SDK", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html" }
   ]
 }

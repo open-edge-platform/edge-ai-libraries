@@ -4,6 +4,7 @@
 vippet:
   base_url: "http://localhost/api/v1"
   timeout: 600
+  readiness_timeout_seconds: 60
   poll_interval: 2
   max_job_duration: 600
 
@@ -34,6 +35,7 @@ benchmark:
     skip_pipelines: []
     skip_variants: []
     require_models: true
+    on_unknown_id: "fail"
 
 results:
   output_dir: "./results"

@@ -15,6 +15,7 @@ services:
             SEARCH_ENDPOINT: http://${VS_HOST:-video-search}:8000
             SEARCH_DATAPREP_ENDPOINT: http://${MM_DATAPREP_HOST:-multimodal-dataprep}:8000
             SEARCH_FEATURE: "FEATURE_ON"
+            VS_INDEX_NAME: ${VS_INDEX_NAME}
 
     video-search:
         image: ${REGISTRY:-}video-search:${TAG:-latest}

@@ -54,6 +54,6 @@ dependent applications for direct access and reuse.
 Model Download becomes a mandatory runtime dependency to ensure models
 are available and ready before application startup.
 
-> **Note:**
+> [!NOTE]
 > Currently, Model Download provides Helm charts for Kubernetes
 > deployments and is integrated into the application-level deployment package.

@@ -103,10 +103,12 @@ the same conventions used by the other built-in pipelines:
 
 ### 4. Models and videos
 
-- Add any new models to the supported models catalog so they can be
-  installed at runtime by the `model-download` service. The catalog
-  resolution is driven by `SUPPORTED_MODELS_FILE`
-  (default `/models/supported_models.yaml`).
+- Add any new models as a YAML file under
+  [`vippet/models/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/models)
+  (one file per model) so they can be installed at runtime by the
+  `model-download` service. This catalog is copied into the image at build
+  time and synced into the database at startup, so adding or editing a
+  model file requires an image rebuild (`make build`), not just a restart.
 - Sample input videos must be downloadable via the recordings YAML
   (`DEFAULT_RECORDINGS_FILE`, default `/videos/default_recordings.yaml`)
   or uploaded by the user, never commit binary media to the repo.

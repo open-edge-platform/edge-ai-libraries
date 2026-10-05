@@ -1,0 +1,86 @@
+
+configure_live_video_alert_agent () {
+  workspace="$(ensure_project_path)/live-video-alert-agent"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(9000 9090 8000 8001 8002 1883 9273)
+  get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh"
+  models=(Openvino/Phi-3.5-vision-instruct-int4-ov OpenVINO/Phi-4-mini-instruct-int4-ov)
+}
+
+configure_live_video_alert_agent_device () {
+  local device="$1"
+  cat > "$workspace"/live-video-analysis/live-video-alert-agent/docker/.env <<EOF
+REGISTRY_URL=intel
+
+RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/renderD128 2> /dev/null || echo 992)
+
+HF_TOKEN=$HF_TOKEN
+
+OVMS_TARGET_DEVICE=${device}
+VLM_TARGET_DEVICE=${device}
+LLM_TARGET_DEVICE=${device}
+APP_HOST_PORT=${used_ports[0]}
+OVMS_SOURCE_MODEL=${models[0]}
+
+COMPOSE_PROFILES=adk-llm
+LLM_MODEL=${models[1]}
+AGENT_MODE=true
+EOF
+}
+
+verify_live_video_alert_agent () {
+  [ -e "$workspace"/live-video-analysis/live-video-alert-agent ]
+}
+
+debian_90_profile_live_video_alert_agent () {
+  echo "git curl gawk jq edge_base docker"
+}
+
+debian_90_install_live_video_alert_agent () {
+  configure_live_video_alert_agent
+  if verify_live_video_alert_agent && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Live Video Alert Agent is already installed. Skipping"
+  else
+    # clone the repository
+    ensure_disk_space 64000
+    ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-alert-agent
+    verify_live_video_alert_agent
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_live_video_alert_agent_device "${device^^}"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start|remove"
+}
+
+debian_90_start_live_video_alert_agent () {
+  configure_live_video_alert_agent
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_alert_agent
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_alert_agent_device "${device^^}"
+
+  cd "$workspace"/live-video-analysis/live-video-alert-agent
+  if [[ "$(< docker/.env)" = *"LLM_TARGET_DEVICE=NPU"* ]]; then
+    docker compose -f docker/docker-compose.yml -f docker/docker-compose.npu.yml up -d
+  else
+    docker compose -f docker/docker-compose.yml up -d
+  fi
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_live_video_alert_agent () {
+  configure_live_video_alert_agent
+  cd "$workspace"/live-video-analysis/live-video-alert-agent && docker compose -f docker/docker-compose.yml -f docker/docker-compose.npu.yml down -v --remove-orphans || true
+}
+
+debian_90_remove_live_video_alert_agent () {
+  debian_90_stop_live_video_alert_agent "$@"
+  rm -rf "$workspace" 2> /dev/null || ensure_sudo rm -rf "$workspace" 
+}

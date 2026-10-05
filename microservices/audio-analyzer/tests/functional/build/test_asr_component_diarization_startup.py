@@ -76,8 +76,7 @@ def _cfg(*, diarization: bool = True, diarization_device: str = "CPU"):
 
 
 def _reset(asr_mod):
-    asr_mod.ASRComponent._model = None
-    asr_mod.ASRComponent._config = None
+    asr_mod.ASRComponent._models.clear()
     asr_mod.ASRComponent._pyannote_diarizer = None
     asr_mod.ASRComponent._pyannote_diarizer_key = None
     asr_mod.ASRComponent._speaker_identity_store = None
