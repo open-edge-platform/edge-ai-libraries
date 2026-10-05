@@ -122,6 +122,19 @@ curl -sS -X POST http://localhost:12345/manager/search/query \
   | python3 -m json.tool
 ```
 
+Search by image (`--search`/`--dual` only). Upload the image once, then pass its
+URL instead of `query`:
+
+```bash
+IMG=$(curl -sS -F image=@query.jpg http://localhost:12345/manager/search/images)
+curl -sS -X POST http://localhost:12345/manager/search/query \
+  -H 'Content-Type: application/json' \
+  -d "{\"imageUrl\":\"$(echo "$IMG" | jq -r .imageUrl)\"}" | python3 -m json.tool
+curl -sS -X DELETE "http://localhost:12345/manager/search/images/$(echo "$IMG" | jq -r .imageId)"
+```
+
+Only images stored by that upload endpoint are accepted; other URLs return 400.
+
 Managed query lifecycle:
 
 - `POST /manager/search` creates and runs a saved query.

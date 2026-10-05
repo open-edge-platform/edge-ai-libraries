@@ -23,6 +23,18 @@ Source: `pipeline-manager/src/search/models/*` (`SearchQueryDTO`,
 }
 ```
 
+To search by image instead of text (`--search`/`--dual` only), replace
+`query` with exactly one of:
+
+- `"image": "data:image/jpeg;base64,..."` - inline base64 or data URL.
+- `"imageUrl": "<imageUrl | imagePath | imageId>"` - an image previously
+  uploaded with `POST /manager/search/images` (multipart field `image`;
+  `.jpg`/`.jpeg`/`.png`/`.webp`, at most 2 MB). The response gives `imageId`,
+  `imageUrl` (the gateway URL `$HOST/datastore/<bucket>/search-images/<id>`)
+  and `imagePath` (the same path without the host). Any host is accepted in
+  `imageUrl`; only the path is used. Delete it with
+  `DELETE /manager/search/images/{imageId}`.
+
 `timeFilter` is normalized server-side into `{ start, end }`. Use **relative**
 (`value`+`unit`) for "last 7 days" style, or **absolute** (`start`/`end`) for a
 fixed window. Omit entirely for no time constraint.
@@ -66,6 +78,16 @@ fixed window. Omit entirely for no time constraint.
 
 Sort by `metadata.relevance_score`. Surface `segment_start`/`segment_end` +
 `seek_timestamp` + `video_url` so the user can jump to the clip.
+
+One additional top-level field is attached per result hit (sibling to
+`metadata`, not inside it), when the hit's `video_id` matches a still-known
+video in `GET /manager/videos`:
+
+- `videoPlaybackUrl` - datastore-relative path to the full source video, e.g.
+  `/my-bucket/<videoId>/source.mp4`. Prefix with the datastore base URL (same
+  host as the search request, `/datastore` in place of `/manager`) for a
+  fetchable link.
+It is absent if the video was deleted after being indexed.
 
 **No filename in the result.** `metadata` has `video_id` but no `video` /
 `file_name`. Join `video_id` against the video list to get the filename

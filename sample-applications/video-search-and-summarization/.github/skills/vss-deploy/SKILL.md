@@ -274,7 +274,9 @@ or credentials sourced first.
 ```bash
 source setup.sh --stop       # stop/remove containers across all VSS overlays/profiles
 source setup.sh --down       # alias for --stop
-source setup.sh --clean-data # also removes the VSS application data volumes
+source setup.sh --clean-data # also removes the VSS application data volumes (asks first)
+source setup.sh --mcp        # add the MCP tool server to a running deployment (no MCP Inspector)
+source setup.sh --stop-mcp   # stop/remove only the MCP server; VSS keeps running
 source setup.sh --help       # full help
 ```
 
