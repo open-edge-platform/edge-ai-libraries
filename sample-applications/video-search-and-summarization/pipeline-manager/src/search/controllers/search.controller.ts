@@ -11,11 +11,12 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBody, ApiParam, ApiOkResponse, ApiCreatedResponse, ApiBadRequestResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBody, ApiParam, ApiOkResponse, ApiCreatedResponse, ApiBadRequestResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { SearchQueryDTO, SearchShimQuery, RefetchBodyDTO, WatchBodyDTO } from '../model/search.model';
 import { SearchStateService } from '../services/search-state.service';
 import { SearchDbService } from '../services/search-db.service';
 import { SearchShimService } from '../services/search-shim.service';
+import { SearchImageService } from '../services/search-image.service';
 import { FeaturesService } from 'src/features/features.service';
 import { lastValueFrom } from 'rxjs';
 
@@ -29,27 +30,47 @@ export class SearchController {
     private $searchDB: SearchDbService,
     private $searchShim: SearchShimService,
     private $feature: FeaturesService,
+    private $searchImage: SearchImageService,
   ) {}
 
-  private assertValidSearchInput(reqBody: SearchQueryDTO): boolean {
-    const hasImage =
-      typeof reqBody.image === 'string' && reqBody.image.trim().length > 0;
-    const hasText =
-      typeof reqBody.query === 'string' && reqBody.query.trim().length > 0;
-    if (hasImage && hasText) {
+  private static isNonBlank(value: unknown): value is string {
+    return typeof value === 'string' && value.trim().length > 0;
+  }
+
+  /**
+   * Validate that exactly one search input is given and return the query
+   * image as base64/data URL, or `null` for a text search. An `imageUrl`
+   * is resolved from the object store here, so everything downstream keeps
+   * handling a single inline-image form.
+   */
+  private async resolveSearchImage(
+    reqBody: SearchQueryDTO,
+  ): Promise<string | null> {
+    const hasImage = SearchController.isNonBlank(reqBody.image);
+    const hasImageUrl = SearchController.isNonBlank(reqBody.imageUrl);
+    const hasText = SearchController.isNonBlank(reqBody.query);
+    if (hasImage && hasImageUrl) {
+      throw new BadRequestException(
+        'Provide either an image or an imageUrl, not both.',
+      );
+    }
+    if ((hasImage || hasImageUrl) && hasText) {
       throw new BadRequestException(
         'Provide either a text query or an image, not both.',
       );
     }
-    if (!hasImage && !hasText) {
+    if (!hasImage && !hasImageUrl && !hasText) {
       throw new BadRequestException('Search query cannot be empty.');
     }
-    if (hasImage && !this.$feature.isImageSearchEnabled()) {
+    if ((hasImage || hasImageUrl) && !this.$feature.isImageSearchEnabled()) {
       throw new BadRequestException(
         'Image search is not supported in this deployment mode.',
       );
     }
-    return hasImage;
+    if (hasImageUrl) {
+      return await this.$searchImage.resolveToDataUrl(reqBody.imageUrl!);
+    }
+    return hasImage ? reqBody.image! : null;
   }
 
   @Get('')
@@ -71,7 +92,7 @@ export class SearchController {
   @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query' })
   @ApiOkResponse({ description: 'Search query details' })
   async getQuery(@Param() params: { queryId: string }) {
-    return await this.$searchDB.read(params.queryId);
+    return await this.$search.getQuery(params.queryId);
   }
 
   @Post('')
@@ -79,8 +100,9 @@ export class SearchController {
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search query created' })
   @ApiBadRequestResponse({ description: 'Search query is empty or invalid' })
+  @ApiNotFoundResponse({ description: 'imageUrl does not refer to a stored image' })
   async addQuery(@Body() reqBody: SearchQueryDTO) {
-    const hasImage = this.assertValidSearchInput(reqBody);
+    const image = await this.resolveSearchImage(reqBody);
 
     try {
       let tags: string[] = [];
@@ -95,7 +117,7 @@ export class SearchController {
         searchQuery,
         tags,
         reqBody.timeFilter,
-        hasImage ? reqBody.image : null,
+        image,
       );
       return query;
     } catch (error) {
@@ -123,8 +145,9 @@ export class SearchController {
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search results' })
   @ApiBadRequestResponse({ description: 'Search query is empty or invalid' })
+  @ApiNotFoundResponse({ description: 'imageUrl does not refer to a stored image' })
   async searchQuery(@Body() reqBody: SearchQueryDTO) {
-    const hasImage = this.assertValidSearchInput(reqBody);
+    const image = await this.resolveSearchImage(reqBody);
 
     const normalized = this.$search.buildTimeFilterRange(reqBody.timeFilter);
     const tags = reqBody.tags
@@ -139,8 +162,8 @@ export class SearchController {
     if (tags.length > 0) {
       queryShim.tags = tags;
     }
-    if (hasImage) {
-      queryShim.image_base64 = reqBody.image;
+    if (image) {
+      queryShim.image_base64 = image;
     } else {
       queryShim.query = reqBody.query;
     }
@@ -148,7 +171,13 @@ export class SearchController {
       queryShim.time_filter = normalized.range;
     }
     const res = await lastValueFrom(this.$searchShim.search([queryShim]));
-    return res.data;
+    const data = res.data;
+    // Same join the persisted-query path applies, so a one-off search hit
+    // is playable without a separate GET /videos round trip.
+    for (const body of data?.results ?? []) {
+      body.results = await this.$search.enrichResultsWithVideos(body.results);
+    }
+    return data;
   }
 
   @Patch(':queryId/watch')

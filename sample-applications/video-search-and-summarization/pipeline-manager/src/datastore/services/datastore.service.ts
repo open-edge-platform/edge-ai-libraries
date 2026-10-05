@@ -135,4 +135,53 @@ export class DatastoreService {
   async deleteObject(objectName: string): Promise<void> {
     await this.client.removeObject(this.bucket, objectName);
   }
+
+  static isNotFoundError(error: unknown): boolean {
+    const code = (error as { code?: string } | null)?.code;
+    return code === 'NotFound' || code === 'NoSuchKey';
+  }
+
+  async uploadBuffer(objectName: string, content: Buffer, contentType: string) {
+    return this.client.putObject(
+      this.bucket,
+      objectName,
+      content,
+      content.length,
+      { 'Content-Type': contentType },
+    );
+  }
+
+  /** Stat an object in the app bucket; `null` when it does not exist. */
+  async statObject(objectName: string) {
+    try {
+      return await this.client.statObject(this.bucket, objectName);
+    } catch (error) {
+      if (DatastoreService.isNotFoundError(error)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Read an object fully into memory, aborting once it exceeds `maxBytes` so
+   * a large object can never exhaust the process heap.
+   */
+  async getObjectBuffer(objectName: string, maxBytes: number): Promise<Buffer> {
+    const stream = await this.client.getObject(this.bucket, objectName);
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of stream) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buf.length;
+      if (total > maxBytes) {
+        stream.destroy();
+        throw new Error(
+          `Object ${objectName} exceeds the maximum size of ${maxBytes} bytes`,
+        );
+      }
+      chunks.push(buf);
+    }
+    return Buffer.concat(chunks);
+  }
 }

@@ -17,6 +17,10 @@ export default () => ({
     bucketName: process.env.MINIO_BUCKET,
     maxFileSize: process.env.MAX_FILE_SIZE ?? 1_000_000_000,
   },
+  gateway: {
+    // Externally reachable nginx gateway base URL, e.g. http://<HOST_IP>:12345.
+    publicBaseUrl: process.env.PM_PUBLIC_BASE_URL,
+  },
   search: {
     endpoint: process.env.SEARCH_ENDPOINT,
     dataPrep: process.env.SEARCH_DATAPREP_ENDPOINT,

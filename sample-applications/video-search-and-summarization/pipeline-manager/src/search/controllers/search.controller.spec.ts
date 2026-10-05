@@ -7,6 +7,7 @@ import { SearchStateService } from '../services/search-state.service';
 import { SearchDbService } from '../services/search-db.service';
 import { SearchShimService } from '../services/search-shim.service';
 import { FeaturesService } from 'src/features/features.service';
+import { SearchImageService } from '../services/search-image.service';
 import { of } from 'rxjs';
 
 jest.mock('uuid', () => ({
@@ -19,6 +20,7 @@ describe('SearchController', () => {
   let searchDbService: jest.Mocked<SearchDbService>;
   let searchShimService: jest.Mocked<SearchShimService>;
   let featuresService: jest.Mocked<FeaturesService>;
+  let searchImageService: jest.Mocked<SearchImageService>;
 
   const mockQuery = {
     queryId: 'test-query-123',
@@ -37,6 +39,7 @@ describe('SearchController', () => {
           provide: SearchStateService,
           useValue: {
             getQueries: jest.fn().mockResolvedValue(mockQueries),
+            getQuery: jest.fn().mockResolvedValue(mockQuery),
             newQuery: jest.fn().mockResolvedValue(mockQuery),
             reRunQuery: jest.fn().mockResolvedValue(mockQuery),
             addToWatch: jest.fn().mockResolvedValue(true),
@@ -45,6 +48,9 @@ describe('SearchController', () => {
               selection: null,
               range: null,
             }),
+            enrichResultsWithVideos: jest
+              .fn()
+              .mockImplementation((results) => Promise.resolve(results)),
           }
         },
         {
@@ -68,6 +74,14 @@ describe('SearchController', () => {
           useValue: {
             isImageSearchEnabled: jest.fn().mockReturnValue(true),
           }
+        },
+        {
+          provide: SearchImageService,
+          useValue: {
+            resolveToDataUrl: jest
+              .fn()
+              .mockResolvedValue('data:image/png;base64,UE5H'),
+          }
         }
       ]
     }).compile();
@@ -77,6 +91,7 @@ describe('SearchController', () => {
     searchDbService = module.get(SearchDbService);
     searchShimService = module.get(SearchShimService);
     featuresService = module.get(FeaturesService);
+    searchImageService = module.get(SearchImageService);
   });
 
   it('should be defined', () => {
@@ -107,7 +122,7 @@ describe('SearchController', () => {
       const result = await controller.getQuery({ queryId });
       
       expect(result).toEqual(mockQuery);
-      expect(searchDbService.read).toHaveBeenCalledWith(queryId);
+      expect(searchStateService.getQuery).toHaveBeenCalledWith(queryId);
     });
   });
 
@@ -135,6 +150,49 @@ describe('SearchController', () => {
         ),
       );
       expect(searchStateService.newQuery).not.toHaveBeenCalled();
+    });
+
+    it('should resolve imageUrl and persist the image-only query', async () => {
+      await controller.addQuery({
+        imageUrl: '/video-summary/search-images/x.png',
+      });
+
+      expect(searchImageService.resolveToDataUrl).toHaveBeenCalledWith(
+        '/video-summary/search-images/x.png',
+      );
+      expect(searchStateService.newQuery).toHaveBeenCalledWith(
+        '',
+        [],
+        undefined,
+        'data:image/png;base64,UE5H',
+      );
+    });
+
+    it('should reject a search with both image and imageUrl', async () => {
+      await expect(
+        controller.addQuery({
+          image: 'data:image/jpeg;base64,abc',
+          imageUrl: '/video-summary/search-images/x.png',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Provide either an image or an imageUrl, not both.',
+        ),
+      );
+      expect(searchImageService.resolveToDataUrl).not.toHaveBeenCalled();
+    });
+
+    it('should reject a search with both text and imageUrl', async () => {
+      await expect(
+        controller.addQuery({
+          query: 'forklift',
+          imageUrl: '/video-summary/search-images/x.png',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Provide either a text query or an image, not both.',
+        ),
+      );
     });
 
     it('should add a new query without tags', async () => {
@@ -261,6 +319,30 @@ describe('SearchController', () => {
       }]);
     });
 
+    it('should send an imageUrl search as the resolved base64 image', async () => {
+      await controller.searchQuery({
+        imageUrl: 'http://192.168.1.10:12345/datastore/video-summary/search-images/x.png',
+      });
+
+      expect(searchImageService.resolveToDataUrl).toHaveBeenCalledWith(
+        'http://192.168.1.10:12345/datastore/video-summary/search-images/x.png',
+      );
+      expect(searchShimService.search).toHaveBeenCalledWith([{
+        query_id: expect.any(String),
+        image_base64: 'data:image/png;base64,UE5H',
+      }]);
+    });
+
+    it('should reject imageUrl search when image search is disabled', async () => {
+      featuresService.isImageSearchEnabled.mockReturnValueOnce(false);
+
+      await expect(
+        controller.searchQuery({ imageUrl: '/video-summary/search-images/x.png' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(searchImageService.resolveToDataUrl).not.toHaveBeenCalled();
+      expect(searchShimService.search).not.toHaveBeenCalled();
+    });
+
     it('should reject image search when disabled', async () => {
       featuresService.isImageSearchEnabled.mockReturnValueOnce(false);
 
@@ -268,6 +350,30 @@ describe('SearchController', () => {
         controller.searchQuery({ image: 'base64-image' }),
       ).rejects.toThrow(BadRequestException);
       expect(searchShimService.search).not.toHaveBeenCalled();
+    });
+
+    it('enriches each nested hit with video/playback info before returning', async () => {
+      const hit = { id: 'r1', metadata: { video_id: 'video-1' } };
+      searchShimService.search.mockReturnValueOnce(
+        of({
+          data: {
+            results: [
+              { query_id: 'q1', results: [hit] },
+            ],
+          },
+        }) as any,
+      );
+      const enrichedHit = { ...hit, videoPlaybackUrl: '/bucket/video-1/source.mp4' };
+      searchStateService.enrichResultsWithVideos.mockResolvedValueOnce([
+        enrichedHit,
+      ] as any);
+
+      const result = await controller.searchQuery({ query: 'forklift' });
+
+      expect(searchStateService.enrichResultsWithVideos).toHaveBeenCalledWith([
+        hit,
+      ]);
+      expect(result.results[0].results).toEqual([enrichedHit]);
     });
   });
 
@@ -314,7 +420,7 @@ describe('SearchController', () => {
 
   describe('error handling', () => {
     it('should handle service errors gracefully', async () => {
-      searchDbService.read.mockRejectedValueOnce(new Error('Service error'));
+      searchStateService.getQuery.mockRejectedValueOnce(new Error('Service error'));
       
       await expect(controller.getQuery({ queryId: 'failing-query' }))
         .rejects.toThrow('Service error');
