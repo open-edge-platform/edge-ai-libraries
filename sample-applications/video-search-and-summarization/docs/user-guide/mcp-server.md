@@ -1,14 +1,10 @@
 # MCP Server for VSS
 
-The VSS MCP server exposes the [Video Search and Summarization (VSS)](./index.md) REST API to AI agents and IDE extensions using the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). It reads the live VSS OpenAPI spec at startup and registers a selected subset of endpoints as **MCP tools** and **resources**.
-
-> [!NOTE]
-> The MCP server currently supports **Search mode** only.
-> Summary and combined Search + Summary modes will be supported in a future release.
-
-The server is controlled by a **filter file**, a small JSON document that lists exactly which VSS endpoints to expose and whether each appears as a tool or a resource. The bundled `search.json` filter covers the Search mode:
-
-
+The VSS MCP server exposes [Video Search and Summarization (VSS)](./index.md) to
+AI agents and IDE extensions using the
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io/). It is served
+over **Streamable HTTP** and presents a set of tools over the VSS
+Pipeline Manager API.
 ## Prerequisites
 
 - The **VSS application must be running and reachable** before starting this server.
@@ -17,93 +13,81 @@ The server is controlled by a **filter file**, a small JSON document that lists 
 
 ## Quick Start
 
-Navigate to the `mcp/` directory first, all commands below assume you are there:
+All commands below are run from the application root:
 
 ```bash
-cd sample-applications/video-search-and-summarization/mcp
+cd sample-applications/video-search-and-summarization
 ```
 
-Docker Compose builds the MCP server and starts [MCP Inspector](https://github.com/modelcontextprotocol/inspector) alongside it for interactive testing and debugging.
+The MCP server is a **profile of the VSS deployment**, not a stack of its own, every tool it exposes is a call into Pipeline Manager.
 
-1. **Create your `.env` file:**
-
-   ```bash
-   cp .env.example .env
-   ```
-
-2. **Edit `.env`** — set the VSS backend IP and HOST IP:
-
-   ```
-   VSS_IP=<your-vss-ip>
-   HOST_IP=<your-host-ip>
-   ```
-
-   > [!NOTE]
-   > The `VSS_IP` variable is automatically appended to `no_proxy` inside the containers by `compose.yaml`, so the MCP server can always reach the VSS backend directly without going through the proxy.
-
-3. **Build and start:**
+1. **Build and start.**:
 
    ```bash
-   docker compose up --build -d
+   source setup.sh --mcp
    ```
 
-4. **Access the services:**
+   No exports are needed. `setup.sh` detects `HOST_IP` itself, then asks for
+   `VSS_IP` — the VSS gateway host the MCP server calls and puts in every URL
+   it returns to agents:
+
+   ```
+   VSS_IP (VSS gateway host reachable by your agent) [<detected HOST_IP>]:
+   ```
+
+   Press Enter to use the detected address, or type the host your agent
+   reaches VSS on. If `VSS_IP` is already exported or set in `.env`, it is
+   used without asking. Without a terminal, `HOST_IP` is used.
+
+2. **Connect an Agent.** Point any MCP client or agent that supports the
+   **Streamable HTTP** transport at:
 
    | Service        | URL                              | Description                        |
    |----------------|----------------------------------|------------------------------------|
    | MCP Server     | `http://<HOST_IP>:8000/mcp`      | Streamable HTTP MCP endpoint       |
-   | MCP Inspector  | `http://<HOST_IP>:6274`          | Web UI for testing the MCP server  |
 
-5. **Connect Inspector to MCP Server:**
-   - Open `http://<HOST_IP>:6274` in your browser.
-   - Select **Streamable HTTP** transport.
-   - Enter `http://<HOST_IP>:8000/mcp` as the URL.
-   - Click **Connect**.
-
-6. **Stop:**
+3. **Stop.** Stop only the MCP server and leave VSS running:
 
    ```bash
-   docker compose down
+   source setup.sh --stop-mcp
    ```
+
+   `source setup.sh --stop` brings the MCP server down with the rest of VSS.
 
 
 ## Runtime Configuration
 
 | Variable                    | Required          | Default            | Description                                           |
 |-----------------------------|-------------------|--------------------|-------------------------------------------------------|
-| `API_SPEC_URL`              | **Yes**           | -                 | URL to the VSS OpenAPI/Swagger JSON document          |
-| `API_BASE_URL`              | **Yes**           | -                  | Base URL of the running VSS REST service              |
-| `FILTER_FILE_PATH`          | **Yes**           | -                  | Path to the filter config file inside the container   |
-| `REQUEST_TIMEOUT`           | No                | `60`               | Outbound request timeout in seconds                   |
-| `LOG_LEVEL`                 | No                | `INFO`             | Python log level (`DEBUG`, `INFO`, `WARNING`, …)      |
+| `VSS_IP`                    | **Yes**           | asked by `setup.sh --mcp` (default `HOST_IP`) | Host of the VSS gateway, reachable by your agent; every VSS URL is built from it. Not asked for when already set |
+| `HOST_IP`                   | No                | auto-detected by `setup.sh` | This host's address; fallback for `VSS_IP` and the host in the MCP URL |
+| `APP_HOST_PORT`             | No                | `12345`            | VSS gateway port                                      |
 | `MCP_HOST`                  | No                | `0.0.0.0`          | Bind address                                          |
 | `MCP_PORT`                  | No                | `8000`             | Listening port                                        |
-| `MCP_PATH`                  | No                | `/mcp`             | Streamable HTTP endpoint path                         |
-
-
+| `MCP_PATH`                  | No                | `/mcp`             | Streamable HTTP endpoint path                         |            |
 
 ## What MCP Clients See
 
-At startup the server reads the VSS OpenAPI spec and the filter file, then registers exactly the operations listed in the filter.
+### Available tools
 
-**Tools** (state-changing or parameterised operations), examples from `search.json`:
+The **Needs** column is the VSS feature a tool requires. `vss_get_deployment_info` reports
+the feature set behind the decision.
 
-| Tool name                            | VSS endpoint                                   |
-|--------------------------------------|------------------------------------------------|
-| `vss_run_search_query`               | `POST /search/query`                           |
-| `vss_get_all_videos`                 | `GET /videos`                                  |
-| `vss_get_video`                      | `GET /videos/{videoId}`                        |
-| `vss_create_video_search_embeddings` | `POST /videos/search-embeddings/{videoId}`     |
-| `vss_get_tags`                       | `GET /tags`                                    |
-| `vss_delete_tag`                     | `DELETE /tags/{tagId}`                         |
+| Tool | Needs | Purpose |
+|---|---|---|
+| `vss_get_deployment_info` | — | Which features are on, and how much of the library is indexed (search only) |
+| `vss_list_videos` | — | Library listing, each entry with an `indexed` flag (search only) |
+| `vss_list_tags` | — | The tags videos are labelled with |
+| `vss_resolve_video` | — | Turn "the warehouse clip" into a video id |
+| `vss_index_video` | search | Make a video searchable (call once per video) |
+| `vss_search_video` | search | Find moments across indexed videos; the search is saved in VSS's search history |
+| `vss_get_search` | search | A saved search and its latest results |
+| `vss_list_searches` | search | Saved searches, newest first |
+| `vss_refetch_search` | search | Re-run a saved search |
+| `vss_watch_search` | search | Watch a saved search so VSS re-runs it when new videos are indexed |
+| `vss_summarize_video` | summary | Summarize a video: a timeline plus, by default, a final summary |
+| `vss_get_video_timeline` | summary | Timeline (and final summary, if produced) of an already-summarized video |
 
-Tool names are built from `prefix` + `name` in the filter file, forming names like `"vss_run_search_query"`.
-
-**Resources** (read-only, GET only) are named from `prefix` + `name` in the filter file. For example, a resource with `prefix: "vss"` and `name: "app_features"` is reachable as:
-
-```
-resource://vss_app_features
-```
 
 ## Video Upload
 

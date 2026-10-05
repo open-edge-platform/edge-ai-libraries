@@ -1,161 +1,205 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Video Search and Summarization MCP Server
 
-This is the **MCP (Model Context Protocol) server** for the [Video Search and Summarization (VSS)](https://github.com/open-edge-platform/edge-ai-libraries) sample application. It proxies VSS REST endpoints to MCP clients (agents, IDE extensions, MCP Inspector, etc.) as **tools** and **resources**.
+The **MCP (Model Context Protocol) server** for the
+[Video Search and Summarization (VSS)](https://github.com/open-edge-platform/edge-ai-libraries)
+sample application. It exposes VSS as a set of tools for agents, and IDE extensions.
 
-> [!NOTE]
-> The MCP server currently supports **Search mode** only.
-> Summary and combined Search + Summary modes will be supported in a future release.
-
-
-## Project Structure
+## Project structure
 
 ```
-mcp/                             ← cd here before running any commands
-├── pyproject.toml               # Project metadata and dependencies (poetry-managed)
-├── poetry.lock                  # Locked dependency tree
+mcp/                             ← cd here for tests and source work
+├── pyproject.toml
 ├── Dockerfile
-├── search.json                  # Filter: search-only endpoints
+├── compose.yaml                 # dev stack: server + MCP Inspector (not used by setup.sh)
 │
 ├── src/
-│   ├── main.py                  # Server bootstrap
-│   ├── server.py                # MCP factory and singleton
-│   ├── core/
-│   │   ├── config.py            # Settings, env parsing, path resolution
-│   │   └── logging.py           # Logging setup
-│   ├── filters/
-│   │   └── config.py            # Filter validation, ProxyFilterConfig, ApiConfig
-│   └── openapi/
-│       ├── loader.py            # Spec fetching and parsing
-│       └── mapping.py           # Route classification, tool/resource naming
+│   ├── main.py                  # Process entrypoint
+│   ├── server.py                # FastMCP factory, tool registration
+│   ├── features.py              # Startup probe: what this deployment can do
+│   ├── context.py               # Resources and prompts
+│   ├── projections.py           # Wire payloads → agent-sized results
+│   ├── core/config.py           # Settings and environment parsing
+│   ├── clients/vss.py           # Typed Pipeline Manager client
+│   └── tools/
+│       ├── _deps.py             # Shared dependencies and domain helpers
+│       ├── discovery.py         # deployment info, list, tags, resolve
+│       ├── ingest.py            # index one, index many
+│       ├── summary.py           # summarize, timeline
+│       └── search.py            # search, search within a video
 │
-└── tests/
-    ├── test_config.py           # Settings and environment parsing tests
-    └── test_filters.py          # Filter config validation tests
-    └── test_mapping.py          # FastMCP OpenAPI mapping callbacks tests
+└── tests/                       # unit tests, no deployment required
 ```
 
 
-## How It Works
+## Tools
 
-1. **Spec fetch** : on startup, the server GETs the VSS OpenAPI JSON from `API_SPEC_URL`.
-2. **Filter load** : the filter file is read and validated.
-3. **Route mapping** : for every operation in the spec, the server checks the
-   filter: expose as `tool`, `resource`, or exclude.
-4. **Name mapping** : tool names are resolved to `{prefix}_{tool_name}` and
-   resource names to `{prefix}_{resource_name}`.
-5. **Serve** : the MCP server runs on streamable HTTP at `MCP_HOST:MCP_PORT/MCP_PATH`.
+The **Needs** column is what a deployment must have for the tool to exist at
+all: at startup the server reads `GET /app/features` and registers only the
+tools that deployment can serve.
+
+| Tool | Needs | Purpose |
+|---|---|---|
+| `vss_get_deployment_info` | — | Which features are on, how much of the library is indexed (search only), and where to upload a video |
+| `vss_list_videos` | — | Library listing, each with an `indexed` flag (search only) |
+| `vss_list_tags` | — | The tag vocabulary a filter has to be drawn from |
+| `vss_resolve_video` | — | Turn "the warehouse clip" into a video id |
+| `vss_index_video` | search | Make a video searchable (call once per video) |
+| `vss_search_video` | search | Find moments across indexed videos, by text query or by image; the search is saved in VSS's search history |
+| `vss_get_search` | search | A saved search and its latest results, by `query_id` |
+| `vss_list_searches` | search | Saved searches (VSS search history), newest first |
+| `vss_refetch_search` | search | Re-run a saved search, optionally over a new time range |
+| `vss_watch_search` | search | Watch a saved search so VSS re-runs it when new videos are indexed |
+| `vss_summarize_video` | summary | Summarize a video: a timeline plus, by default, a final summary; sampling, EVAM pipeline and audio are configurable, with the VSS UI defaults |
+| `vss_get_video_timeline` | summary | Timeline (and final summary, if produced) of an already-summarized video |
+
+**Uploading a video is not a tool.** This server has no way to accept file
+bytes over MCP that is both safe and reliable across deployments: reading a
+path only works when the caller's file already lives on this server's own
+filesystem, and a general-purpose HTTP tool would turn this server into an
+open proxy onto its network for one narrow feature. Call
+`vss_get_deployment_info` for `upload_url`
+(`http://<VSS_IP>:<APP_HOST_PORT>/manager/videos`); have the file POSTed there — by the user or their own
+tooling, outside this server — as `multipart/form-data` with field `video`,
+then pass the returned `videoId` to `vss_index_video`.
 
 
 ## Quick start
 
-All commands below assume you are in the `mcp/` directory:
+**The MCP server sits on top of VSS — bring VSS up first.** Every tool it
+exposes is a call into Pipeline Manager, so on its own it has nothing to serve.
+
+It is a **profile of the VSS deployment** rather than a stack of its own: same
+Compose project, same `vs_network`, same `.env`. Its compose file lives in
+[`../docker`](../docker) with the rest of the stack, and `setup.sh` starts it:
 
 ```bash
-cd sample-applications/video-search-and-summarization/mcp
+cd sample-applications/video-search-and-summarization
+source setup.sh --mcp
 ```
 
-Docker Compose builds the MCP server and runs it alongside [MCP Inspector](https://github.com/modelcontextprotocol/inspector) for interactive testing.
+`setup.sh --mcp` needs no exports:
 
-1. **Create your `.env` file:**
+- **`HOST_IP`** is detected from `ip route get 1`, as for a normal deploy.
+  Export it only to override the detected address.
+- **`VSS_IP`** — the VSS gateway host the server calls and puts in every URL it
+  returns — is asked for at the prompt, defaulting to `HOST_IP` (press Enter to
+  accept). If `VSS_IP` is already exported, or set in `.env`, it is used as-is
+  and nothing is asked. Without a terminal (CI, scripts) it falls back to
+  `HOST_IP` with a notice. It must be a bare IP or hostname reachable by your
+  agent, never `localhost`.
 
-   ```bash
-   cp .env.example .env
-   ```
+`source setup.sh --stop-mcp` (or `make stop-mcp`) stops only the MCP server
+and leaves VSS running; `--stop` brings it down with everything else.
 
-2.  **Edit `.env`** — set the VSS backend IP and HOST IP:
-
-   ```dotenv
-   VSS_IP=<your-vss-ip>
-   HOST_IP=<your-host-ip>
-   ```
-
-   If you are behind a corporate proxy, also set `http_proxy`, `https_proxy`, and `no_proxy`.
-   The `VSS_IP` is automatically appended to `no_proxy` inside the containers by `compose.yaml`.
-
-3. **Start the services:**
-
-   ```bash
-   docker compose up --build -d
-   ```
-
-4. **Access:**
-
-   | Service        | URL                              |
-   |----------------|----------------------------------|
-   | MCP Server     | `http://<HOST_IP>:8000/mcp`      |
-   | MCP Inspector  | `http://<HOST_IP>:6274`          |
-
-   In MCP Inspector, select **Streamable HTTP** transport and enter `http://<HOST_IP>:8000/mcp` to connect.
-
-5. **Stop:**
-
-   ```bash
-   docker compose down
-   ```
-
-See [docs/user-guide/mcp-server.md](../docs/user-guide/mcp-server.md) for the full guide, runtime configuration, filter file format, and how to extend the server.
-
-
-## Filter File Format
-
-Each filter file is a JSON object:
-
-```json
-{
-  "server_name": "vss_search_mcp",
-  "prefix": "vss",
-  "apis": {
-    "GET /app/features": { "type": "resource", "name": "app_features" },
-    "POST /search/query": { "type": "tool", "name": "run_search_query" },
-    "DELETE /tags/{tagId}": {
-      "type": "tool",
-      "name": "delete_tag",
-      "description": "Remove a tag from the VSS index."
-    }
-  }
-}
-```
-
-**Top-level fields:**
-
-| Field         | Description                                                                              |
-|---------------|------------------------------------------------------------------------------------------|
-| `server_name` | MCP server name reported to clients                                                      |
-| `prefix`      | Prefix applied to every tool and resource name (e.g. `"vss"` → `"vss_run_search_query"`) |
-| `apis`        | Map of `"METHOD /path"` → exposure config (entries not listed here are excluded)         |
-
-**Per-API entry fields:**
-
-| Field         | Required | Description                                                                              |
-|---------------|----------|------------------------------------------------------------------------------------------|
-| `type`        | yes      | `"tool"` or `"resource"`, selects the MCP component kind. Resources are GET-only.       |
-| `name`        | yes      | Identifier suffix; combined with `prefix` to form the final MCP name                     |
-| `description` | no       | Optional override prepended to the OpenAPI description for this tool/resource            |
-
-To exclude an endpoint, simply omit it from `apis`.
-
-
-## Adding a New Endpoint
-
-1. Open the relevant filter file (or create a new one) in the `mcp/` directory.
-2. Add a `"METHOD /path"` entry under `"apis"` with the desired `type` and `name`.
-3. Restart the container, the server re-reads the spec and filter on each start.
-
-No code changes are needed.
-
-
-## Running the Tests
-
-### Prerequisites
-
-Ensure you have `poetry` installed. If not, install it from [https://python-poetry.org/docs/#installation](https://python-poetry.org/docs/#installation).
-
-### Run All Tests
-
-From the `mcp/` directory:
+To run it by hand, from the repository root:
 
 ```bash
-poetry run python -m unittest discover tests -v
+export VSS_IP=$(ip route get 1 | awk '{print $7}')
+COMPOSE_IGNORE_ORPHANS=true docker compose --env-file .env \
+  -f docker/compose.base.yaml -f docker/compose.mcp.yaml \
+  --profile mcp up --build -d mcp-server
 ```
 
-This discovers and runs all test files in the `tests/` directory with verbose output.
+Both leading pieces are load-bearing:
+
+- **`--env-file .env`** — Compose resolves the default `.env` against the
+  *project directory*, which is the directory of the first `-f` file (`docker/`),
+  not against your shell's cwd. Without the flag settings such as
+  `APP_HOST_PORT` and `VSS_IP` in the root `.env` are ignored.
+- **`VSS_IP`** — the only required setting when running Compose by hand
+  (`setup.sh` fills it in for you). Every URL the server calls or hands to
+  agents is built from it.
+- **`COMPOSE_IGNORE_ORPHANS=true`** — passing a subset of the project's compose
+  files makes every other VSS container look like an orphan. Don't "fix" that
+  warning with `--remove-orphans`; it would take the rest of the deployment down.
+
+Behind a corporate proxy set `http_proxy`, `https_proxy` and `no_proxy`;
+`HOST_IP` and `VSS_IP` are appended to `no_proxy` inside the container so the
+server always reaches the gateway directly.
+
+| Service | URL |
+|---|---|
+| MCP Server | `http://<HOST_IP>:8000/mcp` |
+
+To try the tools interactively, point any MCP client that supports the
+**Streamable HTTP** transport at that URL, or use MCP Inspector as described
+next.
+
+
+## Debugging with MCP Inspector
+
+`setup.sh` does not start MCP Inspector. To debug the server from this folder,
+with VSS running:
+
+```bash
+(cd .. && source setup.sh --stop-mcp)   # if the setup.sh server is running
+HOST_IP=<vss-host-ip> docker compose up --build -d
+```
+
+This builds and runs the same image (`${REGISTRY}vss-mcp-server:${TAG}`,
+default `vss-mcp-server:latest`) and the same `vss-mcp-server` container on
+port 8000 as `setup.sh --mcp`, plus `vss-mcp-inspector`, with
+`LOG_LEVEL=DEBUG`. Run one or the other, not both; a dev build also replaces
+the image `setup.sh --mcp` runs.
+
+Open **`http://<HOST_IP>:6274`**, choose **Streamable HTTP**, and connect to
+**`http://mcp-server:8000/mcp`**. Stop it with `docker compose down`.
+
+> **Warning:** Inspector auth is disabled in this dev stack. Use it only on a
+> trusted network.
+
+
+## Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VSS_IP` | asked by `setup.sh --mcp`, defaulting to `HOST_IP` | Host of the VSS gateway, reachable by your agent; a bare IP or hostname. Not asked for when already set |
+| `HOST_IP` | auto-detected by `setup.sh` | This host's address; the fallback for `VSS_IP` and the host shown in the MCP URL |
+| `APP_HOST_PORT` | `12345` | VSS gateway port |
+| `MCP_HOST` / `MCP_PORT` / `MCP_PATH` | `0.0.0.0` / `8000` / `/mcp` | Listener |
+| `REQUEST_TIMEOUT` | `60` | Per-HTTP-call timeout, seconds |
+| `POLL_INTERVAL` | `5` | Delay between pipeline polls, seconds |
+| `DEFAULT_WAIT_SECONDS` | `600` | Budget for tools that wait on a pipeline |
+| `VSS_INDEX_STRATEGY` | `auto` | `auto`, `summary`, or `embeddings` |
+| `LOG_LEVEL` | `INFO` | Python log level |
+
+Every VSS URL is derived from those three: Pipeline Manager at
+`http://<VSS_IP>:<APP_HOST_PORT>/manager` (also the upload and frame links
+handed to agents) and the datastore at `.../datastore`. The server always
+goes through the gateway rather than the internal `pipeline-manager:3000`
+address, so the links it returns are the ones it has itself reached.
+Configuration comes from the application's root `.env`; there is no separate
+MCP env file.
+
+
+## Adding a tool
+
+Tools are code now, so adding one is a small edit rather than a config change —
+the trade for no longer being able to expose an endpoint by listing it.
+
+1. Add an async function to the relevant module in `src/tools/`, taking `Deps`
+   as its first argument, and returning a projected dict.
+2. Register it inside that module's `register()` with an `@mcp.tool` wrapper
+   whose docstring is written for a model to read.
+3. Add a test in `tests/test_tools.py` against `FakeVss` (from `tests/fakes.py`).
+
+Two rules for anything new: return a projection rather than the upstream
+payload, and keep results inside the byte budget with `cap_payload`.
+
+
+## Tests
+
+From `mcp/`:
+
+```bash
+uv run pytest                                   # whole suite
+uv run pytest tests/test_tools.py -k search     # a subset
+```
+
+`uv run` creates `.venv` from `pyproject.toml` and `uv.lock`, including the `dev` dependency group. Poetry reads the same `pyproject.toml` (`poetry install --with dev && poetry run pytest`).
+
