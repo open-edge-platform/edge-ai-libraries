@@ -23,6 +23,7 @@ import { TagEntity } from './video-upload/models/tags.entity';
 import { SummaryModule } from './summary/summary.module';
 import { HealthModule } from './health/health.module';
 import { DataPrepModule } from './data-prep/data-prep.module';
+import { StreamsModule } from './streams/streams.module';
 
 const OpenTelemetryModuleConfig = OpenTelemetryModule.forRoot({
   metrics: {
@@ -58,6 +59,7 @@ const OpenTelemetryModuleConfig = OpenTelemetryModule.forRoot({
     SummaryModule,
     HealthModule,
     DataPrepModule,
+    StreamsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

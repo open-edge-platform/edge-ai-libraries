@@ -34,8 +34,22 @@ export default () => ({
       ? Number(process.env.SEARCH_DATAPREP_POLL_RETRY_DELAY_MS)
       : 500,
   },
-  database: {
-    host: process.env.DB_HOST,
+  streams: {
+    // Deliberately falls back to SEARCH_DATAPREP_ENDPOINT: dataprep is a
+    // single service, and a second URL for the same host would silently drift.
+    // Empty (summary-only mode) disables the feature rather than failing.
+    endpoint:
+      process.env.STREAMS_DATAPREP_ENDPOINT ??
+      process.env.SEARCH_DATAPREP_ENDPOINT ??
+      '',
+    timeoutMs: process.env.STREAMS_TIMEOUT_MS
+      ? Number(process.env.STREAMS_TIMEOUT_MS)
+      : 15000,
+    pollIntervalMs: process.env.STREAMS_POLL_INTERVAL_MS
+      ? Number(process.env.STREAMS_POLL_INTERVAL_MS)
+      : 5000,
+  },
+  database: {    host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,

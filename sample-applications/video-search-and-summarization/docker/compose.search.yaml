@@ -55,7 +55,7 @@ services:
             BATCH_JOB_TIMEOUT_SECONDS: ${VS_BATCH_JOB_TIMEOUT_SECONDS:-3600}
             # Frame-to-Video Aggregation Settings
             AGGREGATION_ENABLED: ${AGGREGATION_ENABLED:-true}
-            AGGREGATION_SEGMENT_DURATION: ${AGGREGATION_SEGMENT_DURATION:-8}
+            AGGREGATION_SEGMENT_DURATION: ${AGGREGATION_SEGMENT_DURATION:-10}
             AGGREGATION_MIN_GAP: ${AGGREGATION_MIN_GAP:-0}
             AGGREGATION_MAX_RESULTS: ${AGGREGATION_MAX_RESULTS:-20}
             AGGREGATION_INITIAL_K: ${AGGREGATION_INITIAL_K:-1000}
@@ -129,6 +129,14 @@ services:
             MM_DATAPREP_ENABLE_OBJECT_DETECTION: ${ENABLE_OBJECT_DETECTION:-true}
             MM_DATAPREP_DETECTION_CONFIDENCE: ${DETECTION_CONFIDENCE:-0.85}
             MM_DATAPREP_FRAMES_TEMP_DIR: ${FRAMES_TEMP_DIR:-/tmp/dataprep}
+
+            # Live (RTSP) stream ingestion
+            # Retention defaults to 24h here rather than the service default of
+            # 0 (keep forever): a live stream writes continuously, so an
+            # unbounded index is a guaranteed disk-exhaustion path in a demo
+            # deployment. Set LIVE_RETENTION_HOURS=0 to keep everything.
+            MM_DATAPREP_LIVE_STREAM_ENABLED: ${LIVE_STREAM_ENABLED:-true}
+            MM_DATAPREP_LIVE_RETENTION_HOURS: ${LIVE_RETENTION_HOURS:-24}
 
             # YOLOX model volume configuration for object detection
             MM_DATAPREP_DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
