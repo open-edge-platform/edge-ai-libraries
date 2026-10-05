@@ -1,11 +1,15 @@
 
 configure_video_search_and_summarization () {
-  workspace="$(ensure_project_path)/video_search_and_summarization"
+  workspace="$(ensure_project_path)/video-search-and-summarization"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
-  used_ports="${APP_HOST_PORT:-12345} 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640"
 
+  export APP_HOST_PORT=${APP_HOST_PORT:-12345}
+  used_ports=($APP_HOST_PORT 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640)
+
+  [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$workspace"/.device_from_install)"
   local device=$(ensure_select_device "$@")
+
   export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
   export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en
   export OD_MODEL_NAME=yolov8l-worldv2
@@ -33,7 +37,7 @@ configure_video_search_and_summarization () {
   export VLM_TARGET_DEVICE=${device^^}
   export HUGGINGFACE_TOKEN=$HF_TOKEN
   export HF_TOKEN=$HF_TOKEN
-  export HF_HUB_CACHE=\"$workspace/sample-applications/video-search-and-summarization/.cache\"
+  export HF_HUB_CACHE="$workspace"/sample-applications/video-search-and-summarization/.cache
   export GATED_MODEL=$([ -n "$HF_TOKEN" ] && echo true || echo false)
   export LLM_TARGET_DEVICE=${device^^}
   export PM_MULTI_FRAME_COUNT=34
@@ -69,13 +73,13 @@ debian_85_profile_video_search_and_summarization () {
 }
 
 debian_85_install_video_search_and_summarization () {
-  configure_video_search_and_summarization $*
+  configure_video_search_and_summarization "$@"
   if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
-    echo "video_search_and_summarization is already installed. Skipping..."
+    echo "Video Search and Summarization is already installed. Skipping..."
   else
     # clone the repository
     ensure_disk_size 8000
-    ensure_ports_open "$used_ports" return 3
+    ensure_ports_open "${used_ports[*]}" return 3
     ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization
 
     # setup
@@ -89,28 +93,36 @@ debian_85_install_video_search_and_summarization () {
 
     verify_video_search_and_summarization
   fi
+
+  local device=$(ensure_select_device "$@")
+  echo "$device" > "$workspace"/.device_from_install
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT start|stop|remove"
 }
 
 debian_85_start_video_search_and_summarization () {
-  configure_video_search_and_summarization $*
-  ensure_ports_open "$used_ports" debian_85_stop_video_search_and_summarization $*
+  configure_video_search_and_summarization "$@"
+  ensure_ports_open "${used_ports[*]}" debian_85_stop_video_search_and_summarization $*
 
   cd "$workspace"/sample-applications/video-search-and-summarization
   export FINAL_ARG=
   . ./setup.sh --search-and-summary
 
   echo "@@HIGHLIGHT URL: http://$(ensure_ip):${APP_HOST_PORT}"
+  echo "@@HIGHLIGHT stop|remove"
 }
 
 debian_85_stop_video_search_and_summarization () {
-  configure_video_search_and_summarization $*
+  configure_video_search_and_summarization "$@"
 
-  cd "$workspace"/sample-applications/video-search-and-summarization
+  cd "$workspace"/sample-applications/video-search-and-summarization && {
   . ./setup.sh --stop || true
-  . ./setup.sh --clean-data || true
+  . ./setup.sh --clean-data
+  } || true
 }
 
 debian_85_remove_video_search_and_summarization () {
-  debian_85_stop_video_search_and_summarization $* || true
+  debian_85_stop_video_search_and_summarization "$@"
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
