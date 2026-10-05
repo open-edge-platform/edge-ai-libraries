@@ -6,7 +6,7 @@ import {
   GVA_TRACKING_TYPES,
   gvaTrackConfig,
 } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
-import GVATrackDeepSortFields from "@/features/pipeline-editor/nodes/GVATrackDeepSortFields.tsx";
+import GVATrackNodeDeepSortParams from "@/features/pipeline-editor/nodes/GVATrackNodeDeepSortParams.tsx";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
 import { gvaInferenceConfig } from "@/features/pipeline-editor/nodes/GVAInferenceNode.config.ts";
@@ -603,7 +603,7 @@ const NodeDataPanel = ({
       )}
 
       {selectedNode.type === "gvatrack" && (
-        <GVATrackDeepSortFields
+        <GVATrackNodeDeepSortParams
           nodeId={selectedNode.id}
           data={editableData}
           onDataChange={applyDataUpdate}
