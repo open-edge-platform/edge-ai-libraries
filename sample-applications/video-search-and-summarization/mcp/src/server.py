@@ -7,107 +7,148 @@ from __future__ import annotations
 
 import logging
 
-import httpx
 from fastmcp import FastMCP
 
+from .clients import VssClient
 from .core import Settings, configure_logging, get_settings
-from .filters import load_filter_config
-from .openapi import (
-    build_component_fn,
-    build_mcp_names,
-    build_route_map_fn,
-    fetch_openapi_spec,
-)
+from . import context
+from .features import Features, detect_features
+from .tools import Deps, register_all
 
 logger = logging.getLogger(__name__)
 
+SERVER_NAME = "vss"
 
-def create_mcp(settings: Settings | None = None) -> FastMCP:
-    """Build a :class:`FastMCP` server from the configured spec and JSON filter.
+#: Opening line, always true.
+_INSTRUCTIONS_HEADER = """\
+Tools for the Intel Video Search and Summarization (VSS) system. Tool results
+are JSON matching each tool's output schema.
 
-    The factory performs four steps in order:
+When presenting a clip, give its `url` exactly as returned -- complete path,
+query string and fragment, never abbreviated -- with its times as separate
+text. Only use returned URLs; do not invent paths.
+"""
 
-    1. Resolve runtime settings and configure logging.
-    2. Load and validate the JSON filter file.
-    3. Download the live OpenAPI spec and decide on a backend base URL.
-    4. Hand the spec, an :class:`httpx.AsyncClient`, and the filter-derived
-       hooks to :func:`FastMCP.from_openapi`.
+#: What to do with each capability, and the mistakes each one invites. Only the
+#: sections for the enabled features reach the client: instructions describing
+#: a tool that is not registered cost context and invite calls that cannot be
+#: made.
+_INSTRUCTIONS_SUMMARY = """\
+Summarization:
+  * "What is in this video?" -> resolve_video, then summarize_video.
+  * summarize_video returns chunk-level captions as a timeline. Ask for a
+    single overall narrative only when the user wants one; it is much slower.
+"""
 
-    Args:
-        settings: Optional pre-built :class:`Settings`. When ``None`` (the
-            default), settings are read from the environment via
-            :func:`get_settings`.
+_INSTRUCTIONS_SEARCH = """\
+Search:
+  * "Find X"                -> search_video, with a time window if one was implied.
+  * "Find X in this video"  -> search_video library-wide, then keep only hits
+    whose `video_id` matches the video in question. There is no dedicated
+    single-video search endpoint.
+  * "Add this file"         -> this server cannot upload video bytes. Call
+    vss_get_deployment_info for its `upload` target, have the file
+    POSTed there by the user's own tooling (outside this server), then call
+    vss_index_video with the returned videoId.
+  * A video is only findable by search once it has been indexed. list_videos
+    reports `indexed` from each video's own status; null means unknown, not
+    unindexed. Search normally; do not recommend re-indexing based on
+    unknown status.
+  * To restrict by time, work out the range yourself and pass start and end
+    as ISO-8601 UTC timestamps. vss_get_deployment_info reports
+    server_time_utc for resolving phrases like "the last 2 hours".
+"""
 
-    Returns:
-        A fully wired :class:`FastMCP` instance ready for ``run()``.
+#: Closing note when a capability is missing. A model that cannot find a search
+#: tool otherwise assumes it is holding the wrong name and hunts for it.
+_INSTRUCTIONS_LIMITS = """\
+Enabled in this deployment: {enabled}. Tools for anything else are not
+registered, not hidden -- do not look for them, and say plainly that the
+deployment cannot do it when asked.
+"""
 
-    Raises:
-        ValueError: If required environment variables or filter rules are
-            missing or malformed, or if the spec cannot be fetched.
+
+def build_instructions(features: Features) -> str:
+    """Assemble the instructions sent on connect, for enabled features only."""
+
+    parts = [_INSTRUCTIONS_HEADER]
+    if features.summary:
+        parts.append(_INSTRUCTIONS_SUMMARY)
+    if features.search:
+        parts.append(_INSTRUCTIONS_SEARCH)
+    if not (features.summary and features.search):
+        parts.append(_INSTRUCTIONS_LIMITS.format(enabled=features.describe()))
+    return "\n".join(parts)
+
+
+def make_client(settings: Settings) -> VssClient:
+    """Return the Pipeline Manager client described by ``settings``.
+
+    The only place the server opens a real HTTP connection pool; tests and
+    embedders inject their own client instead.
     """
 
-    resolved_settings = settings or get_settings()
-    configure_logging(resolved_settings.log_level)
+    return VssClient(
+        settings.vss_base_url,
+        timeout_seconds=settings.request_timeout_seconds,
+    )
 
-    logger.info("Loading filter configuration from %s", resolved_settings.filter_config_path)
-    filter_config = load_filter_config(resolved_settings.filter_config_path)
+
+def create_mcp(
+    settings: Settings,
+    features: Features,
+    *,
+    client: VssClient | None = None,
+) -> FastMCP:
+    """Build the VSS tool surface for ``features``.
+
+    ``features`` is required because it cannot be guessed; :func:`build_mcp`
+    resolves it from the deployment. ``client`` is built from ``settings``
+    when omitted.
+    """
+
+    deps = Deps(
+        client=client or make_client(settings), settings=settings, features=features
+    )
+
+    # VssError messages are written for the agent and pass through; anything
+    # else is a bug whose details (paths, internal URLs) stay in the log.
+    mcp = FastMCP(
+        name=SERVER_NAME,
+        instructions=build_instructions(features),
+        mask_error_details=True,
+    )
+    register_all(mcp, deps)
+    context.register(mcp, deps)
+
     logger.info(
-        "Filter loaded: server_name=%s, prefix=%s, declared_apis=%d",
-        filter_config.server_name,
-        filter_config.prefix,
-        len(filter_config.apis),
-    )
-
-    spec = fetch_openapi_spec(
-        resolved_settings.spec_url, resolved_settings.request_timeout_seconds
-    )
-
-    client = httpx.AsyncClient(
-        base_url=resolved_settings.api_base_url,
-        timeout=resolved_settings.request_timeout_seconds,
-    )
-    logger.info(
-        "HTTP client configured (base_url=%s, timeout=%.1fs)",
-        resolved_settings.api_base_url,
-        resolved_settings.request_timeout_seconds,
-    )
-
-    mcp_names = build_mcp_names(spec, filter_config)
-    route_map_fn = build_route_map_fn(filter_config)
-    component_fn = build_component_fn(filter_config)
-
-    mcp = FastMCP.from_openapi(
-        openapi_spec=spec,
-        client=client,
-        name=filter_config.server_name,
-        mcp_names=mcp_names,
-        route_map_fn=route_map_fn,
-        mcp_component_fn=component_fn,
-    )
-
-    counters = getattr(route_map_fn, "counters", {})
-    logger.info(
-        "MCP server '%s' assembled: %d tool(s), %d resource(s), %d resource template(s), %d excluded route(s)",
-        filter_config.server_name,
-        counters.get("tool", 0),
-        counters.get("resource", 0),
-        counters.get("resource_template", 0),
-        counters.get("excluded", 0),
+        "VSS MCP server built (backend=%s, features=[%s])",
+        settings.vss_base_url,
+        features.describe(),
     )
     return mcp
 
 
-_mcp_singleton: FastMCP | None = None
+async def build_mcp(
+    settings: Settings | None = None,
+    *,
+    client: VssClient | None = None,
+) -> FastMCP:
+    """Ask the deployment what it can do, then build the matching server.
 
+    ``settings`` defaults to the environment and ``client`` to
+    :func:`make_client`; pass both to build without a live deployment.
 
-def get_mcp() -> FastMCP:
-    """Return the lazily initialised MCP server, creating it on first call.
-
-    Returns:
-        The process-wide :class:`FastMCP` instance.
+    Raises:
+        ValueError: If the environment is missing or invalid.
+        VssError: If the deployment cannot be reached. Fatal on purpose: the
+            container's restart policy is the retry.
     """
 
-    global _mcp_singleton
-    if _mcp_singleton is None:
-        _mcp_singleton = create_mcp()
-    return _mcp_singleton
+    resolved = settings or get_settings()
+    configure_logging(resolved.log_level)
+
+    resolved_client = client or make_client(resolved)
+    features = await detect_features(resolved_client)
+    logger.info("Deployment features: [%s].", features.describe())
+    return create_mcp(resolved, features, client=resolved_client)
