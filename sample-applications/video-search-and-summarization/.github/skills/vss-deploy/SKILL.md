@@ -106,6 +106,12 @@ to overwrite an existing non-VSS clone destination.
 
 If the user is ambiguous, ask which mode; do **not** default silently.
 
+If the user wants to index **live RTSP cameras**, route to `--search` or
+`--dual`. Live ingestion is deliberately off in `--summary` (no dataprep) and
+in `--unified` (text-only embedding model, which cannot embed video frames).
+See [references/modes-and-overlays.md](references/modes-and-overlays.md) for the
+`UI_LIVE_STREAMS_FEATURE` / `LIVE_STREAM_ENABLED` / `LIVE_RETENTION_HOURS` knobs.
+
 ## Quick deployment flow
 
 1. Work from the app root:

@@ -1,6 +1,6 @@
 ---
 name: vss-search-index
-description: Search a video library with natural language via the VSS Pipeline Manager - upload a video (POST /videos), generate its embeddings (POST /videos/search-embeddings/{id}), then run a query (POST /search/query) with optional tag and time filters and read the ranked clip results. Use when the user says "search my videos", "find something in the videos", "when did X happen", or wants to ingest/index a video for search. Requires a search-capable deployment (--search, --dual, or --unified).
+description: Search a video library with natural language via the VSS Pipeline Manager - upload a video (POST /videos), generate its embeddings (POST /videos/search-embeddings/{id}), then run a query (POST /search/query) with optional tag and time filters and read the ranked clip results. Also covers continuously indexing a live RTSP camera (POST /streams). Use when the user says "search my videos", "find something in the videos", "when did X happen", wants to ingest/index a video for search, or wants to add/pause/remove a live camera from the index. Requires a search-capable deployment (--search, --dual, or --unified); live RTSP cameras require --search or --dual.
 license: Apache-2.0
 metadata:
   version: "1.0.0"
@@ -108,6 +108,56 @@ A video is **not searchable until embeddings exist**. Trigger them after upload
 curl -s -X POST "$HOST/manager/videos/search-embeddings/<VIDEO_ID>" | jq .
 ```
 Wait for completion (re-check the video record) before querying.
+
+## 2b. Index a live RTSP camera (alternative to 1 + 2)
+
+A registered camera is decoded, embedded, and indexed **continuously** - there
+is no separate embeddings step, and results appear while the camera runs.
+
+Available in `--search` and `--dual` only. It is **not** available in
+`--unified`, where the index holds text embeddings of summaries rather than
+video frame embeddings, so there is nothing a live frame could be matched
+against. If these routes return `503`, the deployment has no dataprep endpoint
+configured - that is summary-only mode, not a fault.
+
+```bash
+# Register and start. Returns immediately; ingestion runs in the background.
+STREAM_ID=$(curl -s -X POST "$HOST/manager/streams" \
+  -H 'Content-Type: application/json' \
+  -d '{"stream_url":"rtsp://camera-host:554/stream","stream_name":"lobby-cam","tags":["lobby"]}' \
+  | jq -r .stream_id)
+
+# Poll state: pending -> starting -> running. `reconnecting` is transient;
+# `error` means the reconnect budget is exhausted - read `last_error`.
+curl -s "$HOST/manager/streams/$STREAM_ID" | jq '{state, last_error, stats}'
+
+curl -s "$HOST/manager/streams" | jq '.streams[] | {stream_id, stream_name, state}'
+```
+
+Manage a registered camera:
+
+```bash
+# Pause / resume - keeps the registration, stops or restarts ingestion.
+curl -s -X PATCH "$HOST/manager/streams/$STREAM_ID" \
+  -H 'Content-Type: application/json' -d '{"state":"paused"}' | jq .
+
+# Stop and deregister. Footage and embeddings are RETAINED unless purged.
+curl -s -X DELETE "$HOST/manager/streams/$STREAM_ID?purge_embeddings=true&purge_media=true" | jq .
+```
+
+Two things to tell the user rather than discover the hard way:
+
+- **`stream_url` cannot be changed.** There is no such field on the update
+  request. To repoint a camera, delete it and re-create it.
+- **Responses carry a redacted URL.** If the camera needs
+  `rtsp://user:pass@host/...`, the credential is accepted on create but never
+  echoed back, logged, or written to the index. Do not expect to read it back.
+
+A `503` on create with a "maximum number of concurrent live streams" message
+means the dataprep concurrency cap is reached - pause or delete a camera first.
+
+Query results from a live camera are returned by the same `POST /search/query`
+below; no special handling is needed.
 
 ## 3. Query
 

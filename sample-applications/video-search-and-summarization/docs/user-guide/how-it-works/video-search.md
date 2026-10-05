@@ -56,13 +56,17 @@ The Visual Data Prep. microservice ingests common video formats, converts them i
 ### Application Flow
 
 1. **Input Sources**:
-   - **Videos**: The Visual Data Prep. microservice ingests common video formats. Currently, the ingestion only supports video files; it does not support live-streaming inputs.
+   - **Videos**: The Visual Data Prep. microservice ingests common video formats.
+
+   - **Live RTSP streams**: Registered RTSP cameras are decoded continuously and indexed alongside uploaded videos. A live stream is a long-lived resource with its own identity, so its embeddings are listed, filtered, and deleted like any other ingested video. Register and manage cameras from the **Live Streams** button in the UI toolbar, or through the Pipeline Manager `/streams` endpoints.
 
 2. **Create Context**
 
    - **Upload input videos**: The UI microservice allows you to interact with the application through the defined application API, and provides an interface for you to upload videos. The application stores the videos in the MinIO database. Videos can be ingested continuously from pre-configured folder locations, for surveillance scenarios.
 
    - **Convert to embeddings space**: The Video Ingestion microservice creates the embeddings from the uploaded videos using the embedded microservice. The application stores the embeddings in Visual Data Management System (VDMS).
+
+   - **Ingest live cameras**: For a registered RTSP stream, a dedicated worker in the Visual Data Prep. microservice decodes frames continuously, embeds them, and records short playback segments so that a search hit on live footage can still be played back. The worker reconnects on transport failures and, when a retention window is configured, a sweeper removes embeddings and media older than that window. Credentials supplied in an RTSP URL are used to connect but are redacted from every API response, log line, and search result.
 
 3. **Query Flow**
 

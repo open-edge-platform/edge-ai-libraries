@@ -46,7 +46,16 @@ The Pipeline Manager is the primary API for interacting with the application. It
 | **Tags** | `GET /tags`, `DELETE /tags/{tagId}` | Tag management |
 | **Video** | `POST /videos`, `GET /videos`, `GET /videos/{videoId}`, `POST /videos/search-embeddings/{videoId}` | Video upload, listing, and embedding creation |
 | **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched` | Search query management and execution |
+| **Live Streams** | `POST /streams`, `POST /streams/batch`, `GET /streams`, `GET /streams/{streamId}`, `PATCH /streams/{streamId}`, `DELETE /streams/{streamId}`, `DELETE /streams` | RTSP camera registration and lifecycle (search deployments only) |
 | **Summary** | `POST /summary`, `GET /summary`, `GET /summary/ui`, `GET /summary/{stateId}`, `GET /summary/{stateId}/raw`, `DELETE /summary/{stateId}` | Video summarization pipeline |
+
+> [!NOTE]
+> The **Live Streams** endpoints are a thin pass-through to the
+> Multimodal DataPrep service. They are available only when
+> `SEARCH_DATAPREP_ENDPOINT` (or `STREAMS_DATAPREP_ENDPOINT`) is configured,
+> which is the case in `--search` and `--dual` deployments. In summary-only
+> deployments these routes return an error explaining that the feature is
+> not configured.
 
 > [!NOTE]
 > When accessing the Pipeline Manager through nginx, all paths are prefixed with `/manager/` (for example, `GET /manager/health`).

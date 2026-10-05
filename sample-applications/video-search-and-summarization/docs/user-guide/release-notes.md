@@ -1,5 +1,20 @@
 # Release Notes: Video Search and Summarization Sample Application
 
+## Version 2026.3.0
+
+**New:**
+
+- **Live RTSP stream ingestion:** Register RTSP cameras from the new **Live Streams** panel in the search UI and ingest them continuously into the search index. Cameras can be listed, filtered by state or tag, paused, resumed, reconfigured, and removed, with live frame and embedding counts refreshed over the existing websocket. Backed by new Pipeline Manager `/streams` endpoints that proxy the Multimodal DataPrep live-stream API. Available in `--search` and `--dual` (`--summary --search`) modes, but not in `--summary-and-search`/`--unified`, where the index holds text embeddings of summaries; enable or disable the UI with `UI_LIVE_STREAMS_FEATURE` and bound index growth with `LIVE_RETENTION_HOURS` (defaults to 24 hours). RTSP credentials are redacted from all API responses, logs, and search results.
+
+**Improved:**
+
+- **Dependency refresh:** Updated the Pipeline Manager and UI dependency sets to the latest in-range patch/minor releases. UI advisories drop from 6 to **0**; Pipeline Manager drops from 19 to **8**. The residual Pipeline Manager advisories come from three transitive packages, each unfixable without causing a regression:
+  - `braces` (via the `@swc/cli` build tool, dev-only) has no patched release — every published version is affected.
+  - `stream-json` and `decode-uri-component` arrive through `minio@8.0.7`, the latest release. `npm audit fix --force` "fixes" them by **downgrading** minio to `7.1.3`, and minio only imports `stream-json/jsonl/Parser.js`, not the vulnerable `pick`/`ignore`/`filter`/`replace` filters named in the advisory. Overriding `decode-uri-component` to the patched `0.5.0` is also not viable: that release is ESM-only and would make minio's CommonJS build throw `ERR_REQUIRE_ESM` at runtime.
+- **Dependency override cleanup:** Removed 9 now-redundant `overrides` entries from Pipeline Manager (`sha.js`, `qs`, `systeminformation`, `fast-xml-parser`, `socket.io-parser`, `lodash`, `body-parser`, `multer`, `serialize-javascript`) and all 9 from the UI, after confirming each one no longer changes dependency resolution. The remaining Pipeline Manager overrides are retained because dropping them measurably readmits older duplicate copies (`ajv`, `minimatch`, `picomatch`, `glob`, `webpack`) or downgrades a package outright (`diff` 8.0.4 → 4.0.4).
+
+---
+
 ## Version 2026.2.0
 
 **Release Date:** September 9, 2026
