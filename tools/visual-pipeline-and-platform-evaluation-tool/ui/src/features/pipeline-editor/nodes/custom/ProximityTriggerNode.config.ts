@@ -17,7 +17,7 @@ export const proximityTriggerConfig: NodeConfig = {
       key: "class-a",
       label: "Class A",
       type: "text",
-      defaultValue: "",
+      defaultValue: "person",
       description: "First object class label to monitor (e.g. 'person')",
     },
     {
