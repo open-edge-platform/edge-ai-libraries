@@ -8,7 +8,6 @@ on:
       - release-*
     paths:
       - 'tools/visual-pipeline-and-platform-evaluation-tool/**'
-      - 'microservices/sensor-manager/**'
   workflow_dispatch:
 
 concurrency:
