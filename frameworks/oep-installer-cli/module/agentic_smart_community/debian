@@ -33,7 +33,7 @@ debian_90_install_agentic_smart_community () {
     echo "Agentic Smart Community already installed. Skipping" 1>&2
   else
     ensure_disk_size 128000
-    ensure_ram_size 62000000 32000000
+    ensure_ram_size 65011712 33554432 # 62 GiB and 32 GiB
 
     ensure_git_export "$workspace" "$version" "$repository" agentic-smart-community
     mkdir -p "${mlvu_workspace%/*}"
