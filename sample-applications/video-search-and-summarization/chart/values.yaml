@@ -194,6 +194,9 @@ pipelinemanager:
     SUMMARY_FEATURE: "FEATURE_OFF"
     SEARCH_FEATURE: "FEATURE_OFF"
     SEARCH_DATAPREP_TIMEOUT_MS: "600000"
+    # Externally reachable gateway URL (e.g. https://vss.example.com) used in
+    # links Pipeline Manager returns. Empty: derived from request headers.
+    PM_PUBLIC_BASE_URL: ""
     SEARCH_DATAPREP_POLL_MAX_RETRIES: "3"
     SEARCH_DATAPREP_POLL_TIMEOUT_MS: "10000"
     SEARCH_DATAPREP_POLL_RETRY_DELAY_MS: "500"

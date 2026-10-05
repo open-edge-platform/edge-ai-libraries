@@ -220,6 +220,8 @@ spec:
               value: "http://{{ .Values.multimodaldataprep.name }}:{{ .Values.multimodaldataprep.service.port }}"
             - name: SEARCH_DATAPREP_TIMEOUT_MS
               value: "{{ .Values.pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS }}"
+            - name: PM_PUBLIC_BASE_URL
+              value: {{ .Values.pipelinemanager.env.PM_PUBLIC_BASE_URL | default "" | quote }}
             - name: SEARCH_DATAPREP_POLL_MAX_RETRIES
               value: "{{ .Values.pipelinemanager.env.SEARCH_DATAPREP_POLL_MAX_RETRIES }}"
             - name: SEARCH_DATAPREP_POLL_TIMEOUT_MS

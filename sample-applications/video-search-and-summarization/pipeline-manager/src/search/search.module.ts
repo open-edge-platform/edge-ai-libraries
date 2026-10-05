@@ -13,6 +13,9 @@ import { FeaturesModule } from 'src/features/features.module';
 import { SearchIndexVersionService } from './services/search-index-version.service';
 import { SearchRefreshConfigService } from './services/search-refresh-config.service';
 import { SearchRefreshSchedulerService } from './services/search-refresh-scheduler.service';
+import { DatastoreModule } from 'src/datastore/datastore.module';
+import { SearchImageService } from './services/search-image.service';
+import { SearchImageController } from './controllers/search-image.controller';
 
 @Module({
   providers: [
@@ -22,13 +25,17 @@ import { SearchRefreshSchedulerService } from './services/search-refresh-schedul
     SearchIndexVersionService,
     SearchRefreshConfigService,
     SearchRefreshSchedulerService,
+    SearchImageService,
   ],
-  controllers: [SearchController],
+  // SearchImageController first so `search/images` is matched before the
+  // `search/:queryId` routes.
+  controllers: [SearchImageController, SearchController],
   imports: [
     HttpModule,
     TypeOrmModule.forFeature([SearchEntity]),
     VideoUploadModule,
     FeaturesModule,
+    DatastoreModule,
   ],
   exports: [],
 })
