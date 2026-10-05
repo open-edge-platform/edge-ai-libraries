@@ -312,6 +312,17 @@ const injectedRtkApi = api
         query: () => ({ url: `/models` }),
         providesTags: ["models"],
       }),
+      listHubModels: build.mutation<
+        ListHubModelsApiResponse,
+        ListHubModelsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/models/list`,
+          method: "POST",
+          body: queryArg.modelHubListRequest,
+        }),
+        invalidatesTags: ["models"],
+      }),
       uploadModel: build.mutation<UploadModelApiResponse, UploadModelApiArg>({
         query: (queryArg) => ({
           url: `/models/upload`,
@@ -766,16 +777,22 @@ export type GetModelDownloadJobStatusApiArg = {
 export type GetModelsApiResponse =
   /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
-export type UploadModelApiResponse =
-  | /** status 200 Successful Response */ any
+export type ListHubModelsApiResponse =
+  /** status 200 Successful Response */ ModelHubListResponse;
+export type ListHubModelsApiArg = {
+  modelHubListRequest: ModelHubListRequest;
+};
+export type UploadModelApiResponse = /** status 200 Successful Response */
+  | any
   | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
-  | /** status 200 Successful Response */ any
-  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+  /** status 200 Successful Response */
+    | any
+    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };
@@ -961,7 +978,12 @@ export type MessageResponse = {
   message: string;
 };
 export type BenchmarkTestCaseRunStatus =
-  "created" | "running" | "completed" | "failed" | "cancelled" | "skipped";
+  | "created"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "skipped";
 export type BenchmarkSuiteRun = {
   id: number;
   suite_id: number;
@@ -1260,7 +1282,11 @@ export type ValidationJobSummary = {
   request: PipelineValidation;
 };
 export type ModelSource =
-  "huggingface" | "ultralytics" | "pipeline-zoo-models" | "omz" | "custom";
+  | "huggingface"
+  | "ultralytics"
+  | "pipeline-zoo-models"
+  | "omz"
+  | "custom";
 export type ModelDownloadJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type ModelDownloadJobStatus = {
   id: string;
@@ -1288,7 +1314,10 @@ export type ModelCategory =
   | "automatic_speech_recognition"
   | "text_to_speech";
 export type ModelInstallStatus =
-  "installed" | "not_installed" | "installing" | "failed";
+  | "installed"
+  | "not_installed"
+  | "installing"
+  | "failed";
 export type ModelVariant = {
   /** Stable variant identifier. */
   name: string;
@@ -1320,6 +1349,29 @@ export type Model = {
   default?: boolean;
   /** Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist. */
   unsupported_devices?: string | null;
+};
+export type ModelHubListResponse = {
+  hub: string;
+  items: {
+    [key: string]: any;
+  }[];
+  total?: number | null;
+  limit: number;
+  offset: number;
+};
+export type ModelHubListRequest = {
+  /** Model hub to search, such as huggingface. */
+  hub: string;
+  /** Hub-specific listing filters, such as author, search, or tags. */
+  filters?: {
+    [key: string]: any;
+  };
+  limit?: number;
+  offset?: number;
+  /** Optional Base64-encoded connection overrides for this request. */
+  override_credentials?: {
+    [key: string]: string;
+  } | null;
 };
 export type ModelUploadResponse = {
   /** Newly registered model entry. */
@@ -1741,6 +1793,7 @@ export const {
   useLazyGetModelDownloadJobStatusQuery,
   useGetModelsQuery,
   useLazyGetModelsQuery,
+  useListHubModelsMutation,
   useUploadModelMutation,
   useStartModelDownloadMutation,
   useCheckModelsStatusMutation,
