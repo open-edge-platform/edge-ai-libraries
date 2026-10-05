@@ -33,8 +33,10 @@ from __future__ import annotations
 import io
 import threading
 import time
+from bisect import bisect_right
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 from src.common import logger, sanitize_for_log, settings
 from src.core.live.segments import frame_object_name, segment_object_name, segment_start
@@ -79,6 +81,7 @@ class LiveMediaRecorder:
         frame_interval: Optional[int] = None,
         store_segments: Optional[bool] = None,
         store_frames: Optional[bool] = None,
+        frame_upload_workers: Optional[int] = None,
         storage=None,
     ) -> None:
         self.stream_id = stream_id
@@ -93,10 +96,35 @@ class LiveMediaRecorder:
             settings.LIVE_STORE_SEGMENTS if store_segments is None else store_segments
         )
         self.store_frames = settings.LIVE_STORE_FRAMES if store_frames is None else store_frames
+        self.frame_upload_workers = max(
+            1,
+            int(
+                settings.LIVE_FRAME_UPLOAD_WORKERS
+                if frame_upload_workers is None
+                else frame_upload_workers
+            ),
+        )
         self.stats = RecorderStats()
+        self._stats_lock = threading.Lock()
         self._storage = storage
         self._thread: Optional[threading.Thread] = None
         self._redacted_url = redact_stream_url(stream_url)
+        self._bucket_ready = False
+        self._bucket_lock = threading.Lock()
+        # Frame JPEGs are uploaded through a bounded pool so the decode loop is
+        # not blocked on per-object storage latency (object stores have no
+        # multi-object batch PUT; each frame is its own request). ``_frame_pool``
+        # and ``_frame_inflight`` are created lazily when recording starts.
+        self._frame_pool: Optional[ThreadPoolExecutor] = None
+        self._frame_inflight: Optional[threading.BoundedSemaphore] = None
+        # Actual start epochs of the segments this recorder has opened. Segments
+        # are cut on keyframes, so with a GOP longer than ``segment_duration`` a
+        # segment can span several time buckets. The embedding pipeline resolves
+        # a frame to the segment that *covers* it via ``resolve_segment_start``
+        # rather than guessing a bucket, which would reference a file that was
+        # never written (404 on playback).
+        self._segment_starts: List[float] = []
+        self._segment_lock = threading.Lock()
 
     # -- lifecycle ---------------------------------------------------------
     @property
@@ -124,6 +152,30 @@ class LiveMediaRecorder:
         if self._thread is not None:
             self._thread.join(timeout=timeout)
 
+    # -- segment boundary tracking -----------------------------------------
+    def _record_segment_start(self, start_epoch: float) -> None:
+        """Remember that a segment was opened at ``start_epoch``."""
+        with self._segment_lock:
+            if not self._segment_starts or start_epoch > self._segment_starts[-1]:
+                self._segment_starts.append(float(start_epoch))
+
+    def resolve_segment_start(self, epoch: float) -> Optional[float]:
+        """Start epoch of the recorded segment that covers ``epoch``.
+
+        Returns the greatest segment start at or before ``epoch`` (the segment
+        actually containing that instant), or ``None`` if no segment has been
+        opened yet. Callers fall back to time-bucketing in that case.
+        """
+        with self._segment_lock:
+            if not self._segment_starts:
+                return None
+            idx = bisect_right(self._segment_starts, float(epoch))
+            if idx == 0:
+                # Frame predates the first recorded segment; best-effort anchor
+                # to the earliest one rather than a bucket that was never stored.
+                return self._segment_starts[0]
+            return self._segment_starts[idx - 1]
+
     # -- storage helpers ---------------------------------------------------
     def _get_storage(self):
         """Resolve the storage backend lazily so construction stays cheap."""
@@ -137,7 +189,21 @@ class LiveMediaRecorder:
         """Write ``payload`` to storage, returning success."""
         try:
             storage = self._get_storage()
-            storage.ensure_bucket_exists(self.bucket_name)
+            if not self._bucket_ready:
+                # Frame uploads now run on a pool, so this can be entered by
+                # several threads at once (plus the record-loop thread writing
+                # segments). Serialise the one-time bucket setup so the bucket is
+                # created and made public exactly once, with no racing creates.
+                with self._bucket_lock:
+                    if not self._bucket_ready:
+                        storage.ensure_bucket_exists(self.bucket_name)
+                        # Recorded segments/frames are played back by the browser
+                        # directly from the object store (via the gateway's
+                        # /datastore proxy), so the live-stream bucket needs the
+                        # same anonymous read policy as the uploaded-video bucket,
+                        # or MinIO returns 403.
+                        storage.ensure_public_read(self.bucket_name)
+                        self._bucket_ready = True
             storage.upload_video(self.bucket_name, object_name, io.BytesIO(payload), len(payload))
             return True
         except Exception as exc:  # noqa: BLE001 - media loss must not kill ingestion
@@ -147,6 +213,56 @@ class LiveMediaRecorder:
                 sanitize_for_log(str(exc), max_length=256),
             )
             return False
+
+    # -- frame upload pool -------------------------------------------------
+    def _ensure_frame_pool(self) -> None:
+        """Lazily create the bounded frame-upload pool."""
+        if self._frame_pool is None:
+            self._frame_pool = ThreadPoolExecutor(
+                max_workers=self.frame_upload_workers,
+                thread_name_prefix=f"live-frameup-{self.stream_id[:8]}",
+            )
+            # Bound in-flight uploads (queued + running) to apply backpressure:
+            # when storage cannot keep up, the decode loop blocks on acquire
+            # instead of accumulating unbounded JPEG payloads in memory.
+            self._frame_inflight = threading.BoundedSemaphore(self.frame_upload_workers * 2)
+
+    def _shutdown_frame_pool(self) -> None:
+        """Drain and dispose of the frame-upload pool, waiting for in-flight PUTs."""
+        pool = self._frame_pool
+        if pool is None:
+            return
+        self._frame_pool = None
+        self._frame_inflight = None
+        try:
+            pool.shutdown(wait=True)
+        except Exception:  # noqa: BLE001 - best-effort cleanup
+            logger.debug("Error shutting down live frame-upload pool", exc_info=True)
+
+    def _submit_frame_upload(self, object_name: str, payload: bytes) -> None:
+        """Hand a JPEG payload to the pool, blocking only when it is saturated."""
+        self._ensure_frame_pool()
+        semaphore = self._frame_inflight
+        pool = self._frame_pool
+        if semaphore is None or pool is None:  # pragma: no cover - defensive
+            return
+        semaphore.acquire()
+        try:
+            pool.submit(self._upload_frame_task, object_name, payload, semaphore)
+        except RuntimeError:
+            # Pool already shut down (stream stopping); release and drop.
+            semaphore.release()
+
+    def _upload_frame_task(
+        self, object_name: str, payload: bytes, semaphore: threading.BoundedSemaphore
+    ) -> None:
+        """Pool worker: upload one frame JPEG and update stats."""
+        try:
+            if self._put_object(object_name, payload):
+                with self._stats_lock:
+                    self.stats.frames_stored += 1
+        finally:
+            semaphore.release()
 
     # -- recording ---------------------------------------------------------
     def run(self) -> None:
@@ -179,6 +295,8 @@ class LiveMediaRecorder:
                     container.close()
                 except Exception:  # noqa: BLE001 - best-effort cleanup
                     logger.debug("Error closing recorder container", exc_info=True)
+            # Wait for any frame uploads still in flight before the thread exits.
+            self._shutdown_frame_pool()
 
     @staticmethod
     def _add_remux_stream(out_container, in_stream):
@@ -200,6 +318,9 @@ class LiveMediaRecorder:
         out_container = None
         out_stream = None
         current_start: Optional[float] = None
+        # Decode-timestamp of the first packet written to the current segment.
+        # Every segment is rebased to start at 0 (see the mux block below).
+        segment_base_dts: Optional[int] = None
         frame_counter = 0
 
         def flush() -> None:
@@ -248,9 +369,25 @@ class LiveMediaRecorder:
                             flush()
                             buffer = io.BytesIO()
                             try:
-                                out_container = av.open(buffer, mode="w", format="mp4")
+                                out_container = av.open(
+                                    buffer,
+                                    mode="w",
+                                    format="mp4",
+                                    # NOTE: do NOT enable movflags +faststart
+                                    # here. The segment is muxed to an in-memory
+                                    # BytesIO (no real filename); faststart runs
+                                    # a second pass that reopens the output by
+                                    # name, which fails with "No such file or
+                                    # directory: '<none>'" and loses every
+                                    # segment. Correct duration comes from the
+                                    # per-segment DTS/PTS rebase below, not from
+                                    # faststart; small segments download fully so
+                                    # a trailing moov atom is fine for playback.
+                                )
                                 out_stream = self._add_remux_stream(out_container, in_stream)
                                 current_start = bucket_start
+                                segment_base_dts = None
+                                self._record_segment_start(bucket_start)
                             except Exception as exc:  # noqa: BLE001
                                 logger.warning(
                                     "Live stream %s cannot be remuxed to MP4 (%s); "
@@ -266,7 +403,22 @@ class LiveMediaRecorder:
 
                     if out_container is not None and out_stream is not None:
                         try:
+                            # Rebase every segment to start at DTS 0. Packets
+                            # arrive carrying the source's running timestamps, so
+                            # a segment cut 40s into the stream would otherwise
+                            # open at DTS ~40s. Browsers then read a moov whose
+                            # duration spans that offset and only converge on the
+                            # true length after decoding to the end (the player's
+                            # end time visibly jumps on play). Subtracting the
+                            # first packet's DTS makes the container duration
+                            # exact and keeps seeking accurate.
+                            if segment_base_dts is None:
+                                segment_base_dts = packet.dts
                             packet.stream = out_stream
+                            if packet.dts is not None:
+                                packet.dts = packet.dts - segment_base_dts
+                            if packet.pts is not None:
+                                packet.pts = packet.pts - segment_base_dts
                             out_container.mux(packet)
                         except Exception as exc:  # noqa: BLE001
                             logger.debug(
@@ -293,7 +445,11 @@ class LiveMediaRecorder:
         return frame_counter
 
     def _store_frame(self, frame, frame_number: int) -> None:
-        """Encode one decoded frame as JPEG and write it to storage."""
+        """Encode one decoded frame as JPEG and queue it for upload.
+
+        Encoding happens on the recording thread, but the upload is handed to a
+        bounded pool so per-object storage latency does not stall decoding.
+        """
         try:
             image = frame.to_image()
             buffer = io.BytesIO()
@@ -303,8 +459,7 @@ class LiveMediaRecorder:
                 segment_start(time.time(), self.segment_duration),
                 frame_number,
             )
-            if self._put_object(object_name, buffer.getvalue()):
-                self.stats.frames_stored += 1
+            self._submit_frame_upload(object_name, buffer.getvalue())
         except Exception as exc:  # noqa: BLE001 - frame loss is non-fatal
             logger.debug(
                 "Failed to store a sampled live frame: %s",

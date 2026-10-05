@@ -226,3 +226,32 @@ class TestSourceRedactionInStreamMetadata:
     def test_bytes_source_is_not_disclosed(self):
         rendered = _redact_source_for_metadata(VideoInput.auto_detect(b"\x00\x01raw"))
         assert rendered == "BYTES_SOURCE"
+
+
+class TestFrameMetadataIngestEpoch:
+    """Each sampled frame must carry its own host ingest epoch.
+
+    Live frames are aggregated into batches that can span several recorded
+    segments. The segment a frame belongs to is resolved from this per-frame
+    host timestamp, not the batch-processing time, so a batch spanning two 10s
+    segments is split across them correctly instead of collapsing onto the last.
+    """
+
+    def test_ingest_epoch_round_trips_through_to_dict(self):
+        from src.core.embedding.decoder import FrameMetadata
+
+        fm = FrameMetadata(
+            stream_id=1,
+            frame_id=42,
+            shm="shm-0",
+            shape="(1080, 1920, 3)",
+            dtype="uint8",
+            ingest_epoch=1791187445.5,
+        )
+        assert fm.to_dict()["ingest_epoch"] == 1791187445.5
+
+    def test_ingest_epoch_defaults_to_none_for_non_live(self):
+        from src.core.embedding.decoder import FrameMetadata
+
+        fm = FrameMetadata(stream_id=1, frame_id=0, shm="shm-0", shape="(2,2,3)", dtype="uint8")
+        assert fm.to_dict()["ingest_epoch"] is None

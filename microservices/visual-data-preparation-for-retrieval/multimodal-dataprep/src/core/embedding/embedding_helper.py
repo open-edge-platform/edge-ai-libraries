@@ -1372,6 +1372,7 @@ def _process_video_from_memory_simple_pipeline(
             live_context.get("segment_duration_seconds") or settings.LIVE_SEGMENT_DURATION_SECONDS
         )
         live_segment_url_builder = live_context.get("segment_url_builder")
+        live_segment_start_resolver = live_context.get("segment_start_resolver")
 
         # Ensure created_at exists for downstream time filtering
         created_at_value = metadata_dict.get("created_at", None)
@@ -1426,12 +1427,28 @@ def _process_video_from_memory_simple_pipeline(
                     # recorder buckets by its own wall clock, and the two must
                     # agree on which segment a frame lands in. Capture time is
                     # used only for correlating against externally stored media.
-                    frame_epoch = time.time()
-                    frame_segment_start = (
-                        live_segment_start(frame_epoch, live_segment_seconds)
-                        if live_stream_id
-                        else None
-                    )
+                    #
+                    # Use each frame's OWN host ingest epoch (captured when it was
+                    # sampled in the decoder), not time.time() here. Frames are
+                    # aggregated into batches up to LIVE_BATCH_MAX_AGE_SECONDS, so
+                    # a single batch can span several 10s segments; resolving on
+                    # batch-processing time would collapse every frame onto the
+                    # latest segment. The per-frame ingest epoch maps each frame
+                    # to the segment that actually covers it. Falls back to now
+                    # only if the decoder did not supply one (non-live paths).
+                    frame_epoch = frame_metadata.get("ingest_epoch") or time.time()
+                    frame_segment_start = None
+                    if live_stream_id:
+                        # Prefer the recorder's real segment boundaries: segments
+                        # are cut on keyframes, so a frame can fall inside a
+                        # segment that opened in an earlier time bucket. Fall back
+                        # to time-bucketing only before the first segment exists.
+                        if live_segment_start_resolver is not None:
+                            frame_segment_start = live_segment_start_resolver(frame_epoch)
+                        if frame_segment_start is None:
+                            frame_segment_start = live_segment_start(
+                                frame_epoch, live_segment_seconds
+                            )
                     frame_capture_epoch = frame_metadata.get("capture_epoch")
                     frame_capture_source = (
                         frame_metadata.get("capture_time_source") or "ingest_estimated"
@@ -1448,13 +1465,24 @@ def _process_video_from_memory_simple_pipeline(
                         bucket_name=bucket_name,
                         extended_frame_id=f"{video_id}_stream_{frame_metadata['frame_id']}",
                         frame_number=frame_metadata["frame_id"],
-                        timestamp=(
-                            frame_metadata["frame_id"] / float(stream_metadata["fps"])
-                            if stream_metadata["fps"]
-                            else None
-                        ),
                         frame_type="FULL_FRAME",
                         tags=tags,
+                        timestamp=(
+                            # Live frames play back from their ~N-second segment,
+                            # not the whole stream, so the seek offset must be
+                            # relative to that segment's start (0..segment length)
+                            # -- not the running frame_id/fps counter, which grows
+                            # unboundedly and would clamp every hit to the segment
+                            # end (e.g. 0:09/0:09) and surface as a bogus
+                            # whole-stream timestamp (e.g. 02:13) in grouped views.
+                            max(0.0, frame_epoch - frame_segment_start)
+                            if live_stream_id and frame_segment_start is not None
+                            else (
+                                frame_metadata["frame_id"] / float(stream_metadata["fps"])
+                                if stream_metadata["fps"]
+                                else None
+                            )
+                        ),
                         video_url=(
                             live_segment_url_builder(frame_segment_start)
                             if live_stream_id and live_segment_url_builder

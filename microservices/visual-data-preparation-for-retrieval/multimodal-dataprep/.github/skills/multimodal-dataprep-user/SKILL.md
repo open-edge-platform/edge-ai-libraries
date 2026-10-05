@@ -5,7 +5,8 @@ description: >
   repository checkout. Use for configuring VDMS or Milvus vector storage,
   MinIO or local media storage, checking service dependencies, and ingesting,
   listing, streaming, or deleting videos and images; submitting batch jobs;
-  adding text-summary embeddings; and inspecting telemetry. This service
+  registering and managing live RTSP camera streams; adding text-summary
+  embeddings; and inspecting telemetry. This service
   prepares retrieval data but does not execute semantic search. Use
   multimodal-dataprep-dev for source changes, tests, or image builds.
 ---

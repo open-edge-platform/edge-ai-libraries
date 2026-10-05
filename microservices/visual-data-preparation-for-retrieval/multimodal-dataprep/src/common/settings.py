@@ -52,6 +52,7 @@ class Settings(BaseSettings):
         if not path.startswith("/"):
             raise ValueError(f"APP_ROOT_PATH must start with '/', got: {path!r}")
         return path if path == "/" else path.rstrip("/")
+
     APP_PORT: int = 8000
     APP_HOST: str = ""
 
@@ -201,6 +202,16 @@ class Settings(BaseSettings):
         default=True,
         description="Persist sampled live-stream frames as JPEG images.",
     )
+    LIVE_FRAME_UPLOAD_WORKERS: int = Field(
+        default=4,
+        ge=1,
+        le=32,
+        description="Number of worker threads used to upload sampled live-stream frame "
+        "JPEGs to storage in parallel. Object stores have no multi-object batch PUT, so "
+        "each frame is a separate request; uploading them concurrently overlaps the "
+        "per-object network latency and keeps the recorder's decode loop from blocking "
+        "on storage. In-flight uploads are bounded to this many to bound memory use.",
+    )
     LIVE_BATCH_MAX_AGE_SECONDS: float = Field(
         default=20.0,
         ge=0,
@@ -224,8 +235,7 @@ class Settings(BaseSettings):
     LIVE_RECONNECT_WINDOW_SECONDS: float = Field(
         default=60.0,
         gt=0,
-        description="Healthy duration after which a stream's reconnect attempt "
-        "budget is reset.",
+        description="Healthy duration after which a stream's reconnect attempt " "budget is reset.",
     )
     LIVE_RETENTION_HOURS: float = Field(
         default=0.0,
@@ -257,7 +267,9 @@ class Settings(BaseSettings):
 
     # Embedding settings
     # Note: EMBEDDING_MODEL_NAME is used for model selection
-    USE_OPENVINO: bool = True  # Whether to use OpenVINO optimization (default: True for better performance)
+    USE_OPENVINO: bool = (
+        True  # Whether to use OpenVINO optimization (default: True for better performance)
+    )
     MAX_PARALLEL_WORKERS: int | None = Field(
         default=None,
         description="Hard cap for parallel worker threads; auto-calculated when unset",
@@ -279,7 +291,9 @@ class Settings(BaseSettings):
         default=None,
         description="Device for object detection; when unset, config/default value is used",
     )
-    OV_MODELS_DIR: str = "/app/ov_models"  # Directory for OpenVINO models (used by the embedding pipeline)
+    OV_MODELS_DIR: str = (
+        "/app/ov_models"  # Directory for OpenVINO models (used by the embedding pipeline)
+    )
 
     # Video pipeline settings
     VIDEO_SHM_MAX_BLOCKS: int = Field(
@@ -409,6 +423,7 @@ class Settings(BaseSettings):
     def effective_bucket_name(self) -> str:
         """Get the effective bucket name, checking environment variables first"""
         import os
+
         return os.getenv(
             "MM_DATAPREP_PM_MINIO_BUCKET",
             os.getenv("MM_DATAPREP_DEFAULT_BUCKET_NAME", self.DEFAULT_BUCKET_NAME),
@@ -421,5 +436,6 @@ class Settings(BaseSettings):
         if value in (None, ""):
             return None
         return value
+
 
 settings = Settings()

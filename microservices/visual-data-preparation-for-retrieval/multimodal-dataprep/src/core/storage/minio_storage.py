@@ -70,6 +70,10 @@ class MinioStorage(BaseStorage):
         """Implements :meth:`BaseStorage.ensure_bucket_exists`."""
         self._client.ensure_bucket_exists(bucket_name)
 
+    def ensure_public_read(self, bucket_name: str) -> None:
+        """Implements :meth:`BaseStorage.ensure_public_read`."""
+        self._client.set_anonymous_read_policy(bucket_name)
+
     # --- object existence / naming -----------------------------------------
     def compose_object_name(self, video_id: str, object_name: str) -> str:
         """Implements :meth:`BaseStorage.compose_object_name`."""
@@ -87,16 +91,12 @@ class MinioStorage(BaseStorage):
             return False
 
     # --- listing ------------------------------------------------------------
-    def list_objects_in_directory(
-        self, bucket_name: str, video_id: str
-    ) -> List[StorageObject]:
+    def list_objects_in_directory(self, bucket_name: str, video_id: str) -> List[StorageObject]:
         """Implements :meth:`BaseStorage.list_objects_in_directory`."""
         safe_video_id = self._client._validate_object_component(video_id, "Video ID")
         prefix = f"{safe_video_id}/"
         try:
-            objects = self._client.client.list_objects(
-                bucket_name, prefix=prefix, recursive=True
-            )
+            objects = self._client.client.list_objects(bucket_name, prefix=prefix, recursive=True)
             return [
                 StorageObject(
                     object_name=obj.object_name,
@@ -130,9 +130,7 @@ class MinioStorage(BaseStorage):
         return self._client.get_video_in_directory(bucket_name, video_id, return_prefix)
 
     # --- read / write -------------------------------------------------------
-    def download_video_stream(
-        self, bucket_name: str, object_name: str
-    ) -> Optional[io.BytesIO]:
+    def download_video_stream(self, bucket_name: str, object_name: str) -> Optional[io.BytesIO]:
         """Implements :meth:`BaseStorage.download_video_stream`."""
         return self._client.download_video_stream(bucket_name, object_name)
 
@@ -162,9 +160,7 @@ class MinioStorage(BaseStorage):
         filename: str = "metadata.json",
     ) -> str:
         """Implements :meth:`BaseStorage.save_metadata_file`."""
-        return self._client.save_metadata_file(
-            bucket_name, metadata_content, video_id, filename
-        )
+        return self._client.save_metadata_file(bucket_name, metadata_content, video_id, filename)
 
     def get_object_metadata(self, bucket_name: str, object_name: str) -> dict:
         """Implements :meth:`BaseStorage.get_object_metadata`."""

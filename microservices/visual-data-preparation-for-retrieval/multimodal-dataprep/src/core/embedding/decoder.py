@@ -247,6 +247,13 @@ class FrameMetadata:
     capture_epoch: Optional[float] = None
     #: Which tier ``capture_epoch`` came from; see ``capture_clock``.
     capture_time_source: Optional[str] = None
+    #: Host wall-clock epoch when this frame was sampled from the stream. Unlike
+    #: ``capture_epoch`` (which may ride the camera/RTCP clock, and can be skewed
+    #: from this host), this is always ``time.time()`` on the ingesting host, so
+    #: it is directly comparable to the recorder's segment boundaries. It lets a
+    #: batched frame be mapped to the segment that actually covers it even when
+    #: the batch spans several segments. ``None`` for non-live sources.
+    ingest_epoch: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -394,6 +401,7 @@ def convert_and_store_frame(
     shm_pool: SharedMemoryPool,
     capture_epoch: Optional[float] = None,
     capture_time_source: Optional[str] = None,
+    ingest_epoch: Optional[float] = None,
 ):
     rgb = frame.to_ndarray(format="rgb24")
 
@@ -423,6 +431,7 @@ def convert_and_store_frame(
         dtype=rgb.dtype.name,
         capture_epoch=capture_epoch,
         capture_time_source=capture_time_source,
+        ingest_epoch=ingest_epoch,
     )
 
 
@@ -457,6 +466,7 @@ def decode_stream_and_batch_generator(
                     shm_pool,
                     capture_epoch=item[2] if len(item) > 2 else None,
                     capture_time_source=item[3] if len(item) > 3 else None,
+                    ingest_epoch=item[4] if len(item) > 4 else None,
                 ),
                 batch,
             )
@@ -543,9 +553,17 @@ def decode_stream_and_batch_generator(
                         continue
 
                     capture_epoch, capture_source = capture_clock.capture_epoch(frame)
+                    # Host wall-clock at the instant this frame is sampled. This
+                    # is the clock the recorder buckets segments on, so it -- not
+                    # the batch-processing time -- is what maps a frame to its
+                    # covering segment. Captured per frame so a batch spanning
+                    # multiple segments is split across them correctly.
+                    ingest_epoch = time.time()
                     if not batch:
                         batch_opened_at = time.monotonic()
-                    batch.append((global_frame_idx, frame, capture_epoch, capture_source))
+                    batch.append(
+                        (global_frame_idx, frame, capture_epoch, capture_source, ingest_epoch)
+                    )
                     global_frame_idx += 1
 
                     if len(batch) >= batch_size or batch_is_stale():
@@ -861,9 +879,7 @@ class VideoFrameExtractor:
                             video_index=video_index,
                             stream_id=stream.index,
                             stream_name=stream.name,
-                            stream_source=(
-                                _redact_source_for_metadata(video_input)
-                            ),
+                            stream_source=(_redact_source_for_metadata(video_input)),
                             time_base=str(stream.time_base),
                             source_type=str(video_input.source_type),
                             total_frames=stream.frames,

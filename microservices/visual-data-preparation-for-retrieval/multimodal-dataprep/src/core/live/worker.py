@@ -151,33 +151,50 @@ class LiveStreamWorker:
 
         return generate_rtsp_video_embedding_pipeline
 
-    def _metadata_dict(self) -> Dict[str, Any]:
+    def _metadata_dict(self, recorder: Optional[Any] = None) -> Dict[str, Any]:
         """Build the pipeline metadata that gives this stream a stable identity."""
         stream = self.stream
         bucket = stream.bucket_name or settings.LIVE_STREAM_BUCKET
         redacted = redact_stream_url(stream.stream_url)
 
         def segment_url(start_epoch: Optional[float]) -> str:
-            """Storage path of the segment covering ``start_epoch``."""
+            """Object-store path of the segment covering ``start_epoch``.
+
+            Emitted as a root-relative path (leading ``/``) rather than a bare
+            ``bucket/key``: consumers resolve it by prefixing their own object
+            store gateway, and a path without the leading slash is
+            indistinguishable from a relative URL, so it gets rejected and the
+            caller silently falls back to a non-existent object.
+            """
             if start_epoch is None:
                 return ""
-            return f"{bucket}/{segment_object_name(stream.stream_id, start_epoch)}"
+            return f"/{bucket}/{segment_object_name(stream.stream_id, start_epoch)}"
+
+        live: Dict[str, Any] = {
+            "stream_id": stream.stream_id,
+            "stream_name": stream.stream_name,
+            "sensor_id": stream.effective_sensor_id,
+            # Redacted at the source: credentials must never reach the
+            # vector database.
+            "stream_url": redacted,
+            "segment_duration_seconds": settings.LIVE_SEGMENT_DURATION_SECONDS,
+            "segment_url_builder": segment_url,
+        }
+        if recorder is not None:
+            # Let the pipeline map each frame to the segment that actually
+            # covers it. Segments are cut on keyframes, so a pure time-bucket
+            # guess would reference files that were never written when the GOP
+            # exceeds the segment duration.
+            resolver = getattr(recorder, "resolve_segment_start", None)
+            if callable(resolver):
+                live["segment_start_resolver"] = resolver
 
         return {
             "bucket_name": bucket,
             "video_id": stream.stream_id,
             "filename": f"{stream.stream_id}.live",
             "tags": list(stream.tags),
-            "live": {
-                "stream_id": stream.stream_id,
-                "stream_name": stream.stream_name,
-                "sensor_id": stream.effective_sensor_id,
-                # Redacted at the source: credentials must never reach the
-                # vector database.
-                "stream_url": redacted,
-                "segment_duration_seconds": settings.LIVE_SEGMENT_DURATION_SECONDS,
-                "segment_url_builder": segment_url,
-            },
+            "live": live,
         }
 
     # -- supervisor --------------------------------------------------------
@@ -306,7 +323,7 @@ class LiveStreamWorker:
                 result = (
                     pipeline(
                         video_uris=[self.stream.stream_url],
-                        metadata_dict=self._metadata_dict(),
+                        metadata_dict=self._metadata_dict(recorder),
                         frame_interval=self.stream.frame_interval,
                         enable_object_detection=self.stream.enable_object_detection,
                         detection_confidence=self.stream.detection_confidence,
