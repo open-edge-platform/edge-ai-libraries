@@ -4,7 +4,6 @@ configure_smart_parking () {
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(80 443)
-  duration=120
 }
 
 configure_smart_parking_device () {

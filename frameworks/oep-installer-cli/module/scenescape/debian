@@ -11,7 +11,7 @@ verify_scenescape () {
 }
 
 debian_90_profile_scenescape () {
-  echo "docker curl git make unzip rsync python3_venv"
+  echo "docker curl git make unzip rsync python3_venv edge_base"
 }
 
 debian_90_install_scenescape () {

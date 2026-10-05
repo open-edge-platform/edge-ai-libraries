@@ -30,6 +30,8 @@ debian_99_profile_metro_ai_suites () {
 ```
 where the `_profile_` function arguments are as follows: `<subcommand> [global options] [list of components] -- [component specific options]`.  
 
+> If your profile function returns different list of components based on component options, you need to additionally return a superset of all components when the subcommand is `bootstrap`, critical to include all components that the profile depends on. See [`edge_base`](../module/edge_base/debian) for an example.    
+
 ### Web UI configuration
 
 The [OEP CLI Installer Web UI](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)
