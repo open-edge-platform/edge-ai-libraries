@@ -161,6 +161,31 @@ Check these in order:
 That separation matters because a working Whisper or SpeechT5 GPU path does not
 guarantee that Qwen GPU initialization will also succeed.
 
+## NPU Does Not Behave As Expected
+
+No TTS model in this service can currently complete a request on NPU, even
+though `NPU` is an accepted `device` value. `utils/device_validation.py`
+rejects it for most cases before any model loads, but the exact error
+depends on the model/runtime:
+
+- **Kokoro**: rejected immediately — `"The configured Kokoro model
+  supports only CPU inference."`
+- **`models.tts.runtime: pytorch`** (any model): rejected immediately —
+  `"The PyTorch TTS runtime does not support NPU inference."`
+- **`models.tts.runtime: openvino` + SpeechT5**: if no NPU device is
+  visible to OpenVINO, rejected with `"Requested TTS device 'NPU' is not
+  visible in this runtime."`. If an NPU device *is* visible, this check
+  passes, but the request then fails during model compilation with a raw
+  OpenVINO compiler error (a `Reshape` / dynamic-dimension error) — this
+  is a model limitation that device validation does not catch.
+- **`models.tts.runtime: openvino` + Qwen3-TTS or Parler-TTS**: fails with
+  a dependency error on startup regardless of device (`CPU`, `GPU`, or
+  `NPU`) — see
+  [Configuration > Qwen3-TTS dependency limitation](./get-started/configuration.md#qwen3-tts-dependency-limitation).
+
+See [Configuration > NPU](./get-started/configuration.md#npu) for the
+full per-model breakdown.
+
 ## Permission Errors On Mounted Folders
 
 The container runs as UID/GID `1000:1000` (baked into the image).

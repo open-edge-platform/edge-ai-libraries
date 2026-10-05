@@ -3,6 +3,16 @@
 This page tracks releases of the Text To Speech microservice. The most
 recent release is listed first; older entries are preserved for history.
 
+## Unreleased
+
+**Fixed:**
+
+- `models.tts.runtime: pytorch` no longer silently falls back to CPU when
+  `models.tts.device: NPU` is configured. PyTorch has no Intel NPU
+  execution backend, so this now fails fast at startup with a clear
+  error instead of silently running on CPU. See
+  [Configuration > NPU](./get-started/configuration.md#npu).
+
 ## Version 2026.2.0
 
 **Release Date:** September 9, 2026
@@ -30,6 +40,9 @@ recent release is listed first; older entries are preserved for history.
 - The `model` request parameter is accepted for API compatibility but the
   configured service model is always used.
 - Unknown voice names return HTTP `400`.
+- `models.tts.device: NPU` is not supported by any model. See
+  [Configuration > NPU](./get-started/configuration.md#npu) for the
+  exact behavior per model/runtime.
 
 ## v1.0.0
 
