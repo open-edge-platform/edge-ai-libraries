@@ -1858,10 +1858,10 @@ class PipelineEvent(BaseModel):
     ## Attributes
     - `timestamp_ms` - Wall-clock time the event was observed, in ms since epoch
     - `source` - Event origin, e.g. `proximity-trigger` or `vlm`
-    - `text` - Human-readable description of the event (or the VLM answer)
+    - `text` - Human-readable description of the event (or the VLM answer). Truncated to 4096 characters, with `... [truncated]` appended when the original was longer
     - `element` - Name of the emitting GStreamer element, when known
     - `pts_seconds` - Stream position the event refers to, in seconds, when known
-    - `prompt` - Prompt that produced a VLM answer (`source` = `vlm`), when known
+    - `prompt` - Prompt that produced a VLM answer (`source` = `vlm`), when known. Truncated to 1024 characters, with `... [truncated]` appended when the original was longer
     """
 
     timestamp_ms: int
@@ -1921,7 +1921,8 @@ class PerformanceJobStatus(TestsJobStatus):
     **Status of a performance test job.**
 
     Inherits all fields from TestsJobStatus and adds live_stream_urls and
-    metadata_stream_urls for live-streaming output mode support.
+    metadata_stream_urls for live-streaming output mode support, plus events
+    carrying recent live pipeline events.
 
     ## Attributes
     - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths

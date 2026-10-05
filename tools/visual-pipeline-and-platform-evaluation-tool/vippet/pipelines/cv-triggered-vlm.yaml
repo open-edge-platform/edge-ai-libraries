@@ -70,4 +70,3 @@ variants:
       gvametapublish file-format=json-lines file-path=/metadata/cv_triggered_vlm.jsonl !
       jpegenc !
       multifilesink location=/images/output/vlm_frame_%05d.jpeg async=false
-      

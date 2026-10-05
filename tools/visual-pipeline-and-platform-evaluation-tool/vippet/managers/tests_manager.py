@@ -57,6 +57,21 @@ METRICS_STREAM_MAX_EVENTS: int = int(
 )
 # Upper bound on live pipeline events kept per performance job.
 MAX_PIPELINE_EVENTS_PER_JOB = 200
+# Per-field caps on event payloads. `text` and `prompt` originate from
+# pipeline/VLM output and are otherwise unbounded, so without these the
+# retained window could hold (and every status poll return) arbitrarily
+# large strings.
+MAX_PIPELINE_EVENT_TEXT_CHARS = 4096
+MAX_PIPELINE_EVENT_PROMPT_CHARS = 1024
+PIPELINE_EVENT_TRUNCATION_SUFFIX = "... [truncated]"
+
+
+def _truncate_event_field(value: str | None, max_chars: int) -> str | None:
+    """Clamp an event string to ``max_chars`` including the truncation marker."""
+    if value is None or len(value) <= max_chars:
+        return value
+    keep = max(max_chars - len(PIPELINE_EVENT_TRUNCATION_SUFFIX), 0)
+    return value[:keep] + PIPELINE_EVENT_TRUNCATION_SUFFIX[:max_chars]
 
 
 class _MetricsSSECollector:
@@ -877,19 +892,29 @@ class TestsManager:
                 ExecutionCoordinator().release(execution_lease)
 
     def _record_pipeline_event(self, job_id: str, event: PipelineEvent) -> None:
-        """Append a live pipeline event to the job status (bounded)."""
+        """Append a live pipeline event to the job status (bounded).
+
+        The event count is capped at ``MAX_PIPELINE_EVENTS_PER_JOB`` and the
+        free-form ``text``/``prompt`` fields are truncated to
+        ``MAX_PIPELINE_EVENT_TEXT_CHARS`` / ``MAX_PIPELINE_EVENT_PROMPT_CHARS``
+        (marker included), which bounds the memory held per job and the size of
+        every status response.
+        """
         with self._jobs_lock:
             job = self.jobs.get(job_id)
             if not isinstance(job, InternalPerformanceJobStatus):
                 return
+            text = _truncate_event_field(event.text, MAX_PIPELINE_EVENT_TEXT_CHARS)
             job.events.append(
                 InternalPipelineEvent(
                     timestamp_ms=event.timestamp_ms,
                     source=event.source,
-                    text=event.text,
+                    text=text if text is not None else "",
                     element=event.element,
                     pts_seconds=event.pts_seconds,
-                    prompt=event.prompt,
+                    prompt=_truncate_event_field(
+                        event.prompt, MAX_PIPELINE_EVENT_PROMPT_CHARS
+                    ),
                 )
             )
             if len(job.events) > MAX_PIPELINE_EVENTS_PER_JOB:

@@ -1,11 +1,13 @@
 import itertools
 import json
+import os
 import signal
 import subprocess
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pipeline_runner
 from pipeline_runner import (
     PipelineRunner,
     PipelineResult,
@@ -855,6 +857,59 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
             "2,GST_ELEMENT_PADS:5,GST_TRACER:7,gvagenai:4",
         )
         self._assert_tracer_env_applied(env)
+
+    # --- Pure _build_subprocess_env unit tests: bundled plugin path -----------
+
+    @staticmethod
+    def _bundled_plugins_dir() -> str:
+        """The ``gst_plugins/`` directory as resolved by the production code."""
+        return os.path.join(
+            os.path.dirname(os.path.abspath(pipeline_runner.__file__)),
+            "gst_plugins",
+        )
+
+    @patch("pipeline_runner.os.path.isdir", return_value=True)
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_sets_plugin_path_when_unset(self, _mock_isdir):
+        """With no GST_PLUGIN_PATH, the bundled plugin dir becomes the whole value."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_PLUGIN_PATH"], self._bundled_plugins_dir())
+        self.assertEqual(env["GST_REGISTRY_FORK"], "no")
+
+    @patch("pipeline_runner.os.path.isdir", return_value=True)
+    @patch.dict(
+        "os.environ",
+        {"GST_PLUGIN_PATH": "/opt/vendor/plugins"},
+        clear=True,
+    )
+    def test_build_env_prepends_plugin_path_to_existing_value(self, _mock_isdir):
+        """An existing GST_PLUGIN_PATH must be preserved after the bundled dir."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        env = runner._build_subprocess_env()
+        self.assertEqual(
+            env["GST_PLUGIN_PATH"],
+            f"{self._bundled_plugins_dir()}{os.pathsep}/opt/vendor/plugins",
+        )
+        self.assertEqual(env["GST_REGISTRY_FORK"], "no")
+
+    @patch("pipeline_runner.os.path.isdir", return_value=True)
+    @patch.dict("os.environ", {"GST_REGISTRY_FORK": "yes"}, clear=True)
+    def test_build_env_preserves_existing_registry_fork(self, _mock_isdir):
+        """An explicit GST_REGISTRY_FORK from the environment is not overridden."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_REGISTRY_FORK"], "yes")
+        self.assertEqual(env["GST_PLUGIN_PATH"], self._bundled_plugins_dir())
+
+    @patch("pipeline_runner.os.path.isdir", return_value=False)
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_skips_plugin_vars_when_dir_missing(self, _mock_isdir):
+        """Without the bundled directory neither plugin-related var is introduced."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        env = runner._build_subprocess_env()
+        self.assertNotIn("GST_PLUGIN_PATH", env)
+        self.assertNotIn("GST_REGISTRY_FORK", env)
 
     # --- Popen-level integration: normal mode ---------------------------------
 
