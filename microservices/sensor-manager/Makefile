@@ -10,10 +10,10 @@ UV_VERSION := 0.9.10
 LOCAL_UV := .tools/uv/bin/uv
 UV := $(or $(shell command -v uv 2>/dev/null),$(LOCAL_UV))
 
-.PHONY: help env build run stop logs install test coverage lint format clean
+.PHONY: help env build docker-build run stop logs install test coverage lint format clean
 
 help: ## Show available targets
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
 # Fallback for environments without uv (e.g. CI runners).
 $(LOCAL_UV):
@@ -27,6 +27,8 @@ env: .env ## Create .env from .env.example if missing
 
 build: .env ## Build the Docker image
 	$(COMPOSE) build
+
+docker-build: build ## Alias of build, invoked by the orch-ci pre-merge pipeline
 
 run: .env ## Start the service in the background
 	$(COMPOSE) up -d
