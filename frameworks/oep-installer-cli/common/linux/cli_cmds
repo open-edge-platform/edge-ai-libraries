@@ -10,6 +10,33 @@ subcommand_install () {
     echo
     return 0
   fi
+
+  # bind --reinstall to explicitly listed modules
+  if [[ " $* " = *" --reinstall "* ]]; then
+    local all=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} " scoped=0 hit=0 a out=() bind=()
+    for a in "$@"; do
+      if [[ "$a" = --* && "$all" = *" ${a#--} "* ]]; then
+        scoped=1                                               # module sections start
+      elif [ $scoped -eq 0 ]; then
+        if [ "$a" = "--reinstall" ]; then hit=1; continue; fi  # drop global copy only
+        if [[ "$a" != -* && "$all" = *" $a "* ]]; then          # explicit module name
+          if [ -n "${_act_cache_functions[install_$a]:-}" ]; then
+            bind+=("--$a" "--reinstall")
+          else
+            echo "note: --reinstall skipped for profile '$a'" >&2
+          fi
+        fi
+      fi
+      out+=("$a")
+    done
+    if [ $hit -eq 1 ] && [ ${#bind[@]} -eq 0 ]; then
+      echo "--reinstall requires at least one explicitly named module" >&2
+      return 3
+    fi
+    [ $hit -eq 1 ] && out+=("${bind[@]}")
+    set -- "${out[*]}"
+  fi
+
   act_helper "install,Installation,Installing,Installed" "" "$@"
 }
 

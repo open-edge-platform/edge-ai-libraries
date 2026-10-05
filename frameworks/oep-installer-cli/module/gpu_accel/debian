@@ -6,6 +6,7 @@ configure_gpu_accel () {
   apt_entry="deb [signed-by=$key_file] https://$repo_name/gpu/${ID} ${VERSION_CODENAME} unified"
   apt_file="/etc/apt/sources.list.d/intel-graphics.list"
   pkg_list=(clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd)
+  allow_downgrades=(libva-wayland2)
 }
 
 verify_gpu_accel () {
@@ -49,7 +50,8 @@ debian_40_install_gpu_accel () {
     ensure_apt update -y
 
     # install the packages
-    ensure_apt install --no-install-recommends -y "${pkg_list[@]}"
+    ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends "${pkg_list[@]}"
+    ensure_apt install --no-install-recommends --allow-downgrades -y "${pkg_list[@]}"
     verify_gpu_accel_packages
   fi
 }

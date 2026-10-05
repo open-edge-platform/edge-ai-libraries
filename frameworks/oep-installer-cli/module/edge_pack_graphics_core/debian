@@ -19,7 +19,8 @@ debian_20_install_edge_pack_graphics_core () {
   else
     debian_20_remove_edge_pack_graphics_core
     ensure_group_add $(debian_20_group_edge_pack_graphics_core)
-    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
+    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
+    ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
   fi
   [ -c /dev/dri/renderD128 ]
 }

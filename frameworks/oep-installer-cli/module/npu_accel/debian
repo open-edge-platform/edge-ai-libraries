@@ -1,6 +1,6 @@
 
 configure_npu_accel () {
-  version=1.35.0
+  version=1.38.0
   repository=https://api.github.com/repos/intel/linux-npu-driver
   releases=https://github.com/intel/linux-npu-driver/releases
   workspace="$(ensure_project_path)/npu"
