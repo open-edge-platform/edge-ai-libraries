@@ -15,7 +15,7 @@ def get_aggregation_config():
     """Get aggregation configuration from settings with fallback defaults."""
     return {
         "strategy": "temporal_segment_clustering",
-        "segment_duration_seconds": getattr(settings, 'AGGREGATION_SEGMENT_DURATION', 8),
+        "segment_duration_seconds": getattr(settings, 'AGGREGATION_SEGMENT_DURATION', 10),
         "min_temporal_gap_seconds": getattr(settings, 'AGGREGATION_MIN_GAP', 0),
         "final_max_results": getattr(settings, 'AGGREGATION_MAX_RESULTS', 20),
         # Baseline duration is retained for metadata fallbacks only (no length bonus applied)
@@ -53,7 +53,7 @@ def get_aggregation_config():
 
 def create_temporal_segments(
     frame_matches: List[Dict],
-    segment_duration: int = 8,
+    segment_duration: int = 10,
     aggregation_config: Optional[Dict[str, Any]] = None,
 ) -> List[Dict]:
     """
@@ -100,22 +100,60 @@ def create_temporal_segments(
                 raw_duration = None
         if raw_duration is None or raw_duration <= 0:
             raw_duration = baseline_duration
-        
-        segment_id = int(timestamp // segment_duration)
-        key = f"{video_id}_seg_{segment_id}"
-        segment_start = segment_id * segment_duration
-        segment_end = (segment_id + 1) * segment_duration
-        
+
+        # Live-stream results need a different grouping key. For an uploaded
+        # video, `video_id` is unique per file and `timestamp` is a position in
+        # that whole file, so `timestamp // segment_duration` yields many
+        # distinct temporal buckets. For a live stream, every embedding shares
+        # one `video_id` (the stream id) and `timestamp` is the offset *within*
+        # its ~10s recorded segment (each a distinct playable file / video_url).
+        # Bucketing that by `timestamp // 8` collapses an entire stream into just
+        # the [0,8) and [8,16) buckets -> only two result tiles per stream that
+        # never grow. Group live results by the recorded segment itself instead,
+        # so each matched segment is its own tile and the count grows with the
+        # stream.
+        is_live = str(metadata.get("is_live", "")).strip().lower() in ("true", "1")
+        if is_live:
+            live_segment_key = (
+                metadata.get("segment_id")
+                or metadata.get("segment_start_time")
+                or metadata.get("video_url")
+                or timestamp
+            )
+            key = f"{video_id}_live_{live_segment_key}"
+            # The tile represents one recorded segment; the per-frame timestamp
+            # (in-segment offset) still drives seeking. Start/end are refined to
+            # the matched frames' span below.
+            segment_start = timestamp
+            segment_end = timestamp
+        else:
+            segment_id = int(timestamp // segment_duration)
+            key = f"{video_id}_seg_{segment_id}"
+            segment_start = segment_id * segment_duration
+            segment_end = (segment_id + 1) * segment_duration
+
         logger.debug(f"Frame at {timestamp}s (score={relevance_score:.4f}) → Segment [{segment_start}-{segment_end}s] in video {video_id[:8]}...")
         
         if key not in segments:
             segments[key] = {
                 "video_id": video_id,
+                # Overlap de-duplication identity. For an uploaded video this is
+                # the video itself, so temporally close matches in one file
+                # collapse. For a live stream every segment shares one video_id
+                # but is a distinct playable file, so the segment key is used --
+                # otherwise the overlap filter, seeing identical in-segment
+                # offsets across different segments, would discard all but one.
+                "dedup_id": key if is_live else video_id,
                 "segment_start": segment_start,
                 "segment_end": segment_end,
                 "frames": [],
                 "video_duration": raw_duration,
             }
+        elif is_live:
+            # Widen the live tile's displayed range to cover all matched frames
+            # in this segment.
+            segments[key]["segment_start"] = min(segments[key]["segment_start"], segment_start)
+            segments[key]["segment_end"] = max(segments[key]["segment_end"], segment_end)
         
         segments[key]["frames"].append(frame)
     
@@ -382,7 +420,9 @@ def apply_temporal_overlap_filtering(segments: List[Dict], min_gap_seconds: int 
         should_keep = True
 
         for kept_segment in filtered_segments:
-            if segment["video_id"] != kept_segment["video_id"]:
+            if segment.get("dedup_id", segment["video_id"]) != kept_segment.get(
+                "dedup_id", kept_segment["video_id"]
+            ):
                 continue
 
             segment_start = segment["segment_start"]

@@ -119,7 +119,7 @@ All knobs are surfaced as environment variables (and mirrored in `config.yaml`).
 | --- | --- | --- | --- |
 | `AGGREGATION_ENABLED` | `true` | Master switch for aggregation. When `false`, we return raw frame hits. | Disable only for debugging or when aggregation latency must be zero. |
 | `AGGREGATION_INITIAL_K` | `1000` | Size of the frame pool fetched from VDMS before aggregation. | Increase for long videos or very diverse scenes; decrease to reduce VDMS load. |
-| `AGGREGATION_SEGMENT_DURATION` | `8` | Segment length (seconds). | Shorten for fast action scenes; lengthen for slow-moving footage. |
+| `AGGREGATION_SEGMENT_DURATION` | `10` | Segment length (seconds). | Shorten for fast action scenes; lengthen for slow-moving footage. |
 | `AGGREGATION_MIN_GAP` | `0` | Minimum allowed gap between winning segments from the same video. | Raise to suppress near-duplicates; keep at `0` for continuous coverage. |
 | `AGGREGATION_MAX_RESULTS` | `20` | Final number of video segments returned. | Trim for snappier UX or expand for investigative tooling. |
 | `AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS` | `0.0` | How far to rewind from the best frame when choosing the seek timestamp. | Add 1–2 s to give viewers extra context before the key moment. |
