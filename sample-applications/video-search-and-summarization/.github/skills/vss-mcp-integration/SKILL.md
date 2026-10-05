@@ -56,7 +56,7 @@ process exits instead of guessing, and the container restart policy retries.
 | Tool | Needs |
 |---|---|
 | `vss_get_deployment_info`, `vss_list_videos`, `vss_list_tags`, `vss_resolve_video` | — |
-| `vss_index_video`, `vss_search_video`, `vss_get_search`, `vss_list_searches`, `vss_refetch_search`, `vss_watch_search` | search |
+| `vss_index_video`, `vss_search_video`, `vss_get_search`, `vss_list_searches`, `vss_refetch_search`, `vss_watch_search`, `vss_get_media_frame` | search |
 | `vss_summarize_video`, `vss_get_video_timeline` | summary |
 
 Resources: `vss://deployment`, `vss://videos`, `vss://tags`, plus

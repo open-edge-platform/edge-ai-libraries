@@ -41,6 +41,12 @@ it hands to an agent is one it has reached itself.
   `vss_watch_search` wrap `GET /search`, `POST /search/{id}/refetch` and
   `PATCH /search/{id}/watch`. A failed query (`queryStatus: "error"`) is
   returned as a tool error.
+- **Hits locate their best frame.** A hit's `frame` is the search backend's
+  `best_frame_info` cut down to what `GET /frames` takes (`video_id`,
+  `timestamp`, `bucket_name`, `media_path` for live streams, `crop_bbox` for
+  detected objects); `label` names the detected object. `vss_get_media_frame`
+  passes those to `GET /frames?format=json` and returns the JPEG as MCP image
+  content plus the frame metadata.
 - **Indexing path is chosen for you.** When a frame-embedding index is
   deployed (dual or search-only mode; `imageSearchEnabled` in
   `/app/features`), the standalone frame-embedding endpoint
