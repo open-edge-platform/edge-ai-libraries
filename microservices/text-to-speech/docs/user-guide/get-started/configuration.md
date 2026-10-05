@@ -73,16 +73,32 @@ it still depends on the host having working Intel GPU support.
 
 Intel NPU (e.g. Intel AI Boost) is accepted as a `models.tts.device` /
 per-request `device` value, but no model in this service can currently
-run on it end-to-end:
+run on it end-to-end.
 
-- **Kokoro**: `utils/device_validation.py::resolve_tts_device` enforces
-  CPU-only for Kokoro regardless of what is requested; `NPU` is rejected
-  before any model loading happens (`"The configured Kokoro model
-  supports only CPU inference."`).
-- **`models.tts.runtime: pytorch`** (SpeechT5/Qwen3-TTS/Parler-TTS
-  pytorch implementations): `NPU` is rejected before model loading
-  (`"The PyTorch TTS runtime does not support NPU inference."`). PyTorch
-  has no Intel NPU execution backend.
+Device validation (`utils/device_validation.py::resolve_tts_device`) only
+runs for **per-request** `device` selections on `POST /v1/audio/speech`
+and `/v1/audio/speech/stream`, and during the one-time GPU warmup
+synthesis at startup. It is **not** used by `preload_models()`, which
+loads the configured model directly with `models.tts.device` at startup;
+the warmup synthesis that follows it does go through
+`resolve_tts_device`, but a warmup failure is only logged as a warning
+and does not stop the service from starting. In other words, an invalid
+`models.tts.device` can still let the service start, while a per-request
+`device` value is rejected immediately, before that request's model is
+loaded:
+
+- **Kokoro**: `resolve_tts_device` enforces CPU-only for Kokoro
+  regardless of what is requested — checked before any runtime-specific
+  logic — and rejects `NPU` with `"The configured Kokoro model supports
+  only CPU inference."` for per-request selections. Because
+  `preload_models()` does not call `resolve_tts_device`, Kokoro
+  configured with `models.tts.device: NPU` loads normally at startup on
+  CPU (Kokoro ignores the device setting), and the mismatch only
+  surfaces as a logged GPU-warmup warning, not a startup failure.
+- **`models.tts.runtime: pytorch`** (non-Kokoro models — SpeechT5,
+  Qwen3-TTS, Parler-TTS pytorch implementations): per-request `NPU` is
+  rejected with `"The PyTorch TTS runtime does not support NPU
+  inference."`. PyTorch has no Intel NPU execution backend.
 - **`models.tts.runtime: openvino` + SpeechT5**: device validation only
   checks that an NPU device is visible to OpenVINO
   (`ov.Core().available_devices`); it does not know that this specific
@@ -99,9 +115,14 @@ run on it end-to-end:
   On hardware without a visible NPU device, this is instead rejected
   earlier by `resolve_tts_device` with `"... is not visible in this
   runtime."`.
-- **`models.tts.runtime: openvino` + Qwen3-TTS or Parler-TTS**: both fail
-  at startup with a dependency error before any device is used, on `CPU`,
-  `GPU`, or `NPU` alike — see "Qwen3-TTS dependency limitation" below.
+- **Qwen3-TTS**: fails with a dependency error regardless of device
+  (`CPU`, `GPU`, or `NPU`) — see "Qwen3-TTS dependency limitation" below.
+- **Parler-TTS**: fails with a separate, unrelated error — the
+  `parler-tts` package is not listed in `requirements.txt` and is not
+  installed, so `utils/parler_tts_compat.py` raises
+  `"parler-tts is not installed..."` on import, before any device is
+  used. This is not the same issue as the Qwen3-TTS dependency conflict
+  below.
 
 Of all models, only Qwen3-TTS has NPU-specific handling in this
 repository (`utils/openvino_qwen3_tts_helper.py`), which is why it is the

@@ -5,12 +5,11 @@ recent release is listed first; older entries are preserved for history.
 
 ## Unreleased
 
-**Fixed:**
+**Documentation:**
 
-- `models.tts.runtime: pytorch` no longer silently falls back to CPU when
-  `models.tts.device: NPU` is configured. PyTorch has no Intel NPU
-  execution backend, so this now fails fast at startup with a clear
-  error instead of silently running on CPU. See
+- Corrected the documented default model to Kokoro and clarified current
+  model/runtime device support, NPU limitations, and the Qwen3-TTS
+  dependency conflict. No runtime behavior changed. See
   [Configuration > NPU](./get-started/configuration.md#npu).
 
 ## Version 2026.2.0

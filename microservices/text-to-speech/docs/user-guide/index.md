@@ -40,7 +40,8 @@ return either raw WAV audio or a JSON payload with metadata.
 - **Kokoro** — `kokoro` (default). Runs on onnxruntime CPU only; this is
   the model used out of the box.
 - **SpeechT5** — `microsoft/speecht5_tts`. Lightweight, English-only, runs
-  on CPU or GPU. Does not support NPU.
+  on CPU or GPU with `models.tts.runtime: openvino`. Its PyTorch
+  implementation is not available. Does not support NPU.
 - **Qwen3-TTS** — `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` with
   `model_variant: custom_voice` or `voice_design` for richer voice
   control. This is the only model with NPU-specific code, but it cannot
