@@ -3,7 +3,7 @@ configure_wind_turbine_anomaly_detection () {
   workspace="$(ensure_project_path)/wind-turbine-anomaly-detection"
   version="release-2026.2.0"
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
-  nstreams=40
+  nstreams=20
   npoints=500
   duration=7200
   database="datain"
@@ -32,7 +32,7 @@ debian_90_install_wind_turbine_anomaly_detection () {
     echo "Wind turbine anomaly detection already installed. Skipping..." 1>&2
   else
     ensure_disk_size 64000
-    ensure_ram_size 16777216 # 16 GiB
+    ensure_ram_size 16000000 # 16 GiB
     ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series
     cd "$workspace"/industrial-edge-insights-time-series
 

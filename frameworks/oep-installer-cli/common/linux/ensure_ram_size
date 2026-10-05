@@ -2,18 +2,18 @@
 # check ram size
 ensure_ram_size () {
   local ram_size=$1            # in KiB
-  local mem_total=$(awk '/^MemTotal:/{if(/kB/)r=$2;if(/mB/)r=$2*1000;if(/gB/)r=$2*1000000}END{print int(r)}' /proc/meminfo)
+  local mem_total=$(awk '/^MemTotal:/{print$2}' /proc/meminfo)
   if [ "$ram_size" -gt "$mem_total" ]; then
-    echo "Not enough RAM: required ${ram_size}KiB and available ${mem_total}KiB" 1>&2
+    echo "Not enough RAM: required ${ram_size} KiB and available ${mem_total} KiB" 1>&2
     return 3
   fi
 
   local swap_size=${2:-0}      # in KiB
-  local swap_total=$(awk '/^SwapTotal:/{if(/kB/)r=$2;if(/mB/)r=$2*1000;if(/gB/)r=$2*1000000}END{print int(r)}' /proc/meminfo)
-  if [ "$(( ram_size + swap_size ))" -gt "$(( mem_toal + swap_total ))" ]; then
+  local swap_total=$(awk '/^SwapTotal:/{print$2}' /proc/meminfo)
+  if [ "$(( ram_size + swap_size ))" -gt "$(( mem_total + swap_total ))" ]; then
     echo "Not enough RAM or swap space:" 1>&2
-    echo " required swap ${swap_size}KiB and available ${swap_total}KiB" 1>&2
-    echo " required mem+swap $(( ram_size + swap_size ))KiB and available $(( mem_total + swap_total ))KiB" 1>&2
+    echo " required swap ${swap_size} KiB and available ${swap_total} KiB" 1>&2
+    echo " required mem+swap $(( ram_size + swap_size )) KiB and available $(( mem_total + swap_total )) KiB" 1>&2
     return 3
   fi
 }
