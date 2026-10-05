@@ -1,0 +1,73 @@
+
+configure_agentic_smart_community () {
+  workspace="$(ensure_project_path)/agentic-smart-community"
+  version="release-2026.2.0"
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(3100 3101 41091 8192 8999)
+
+  mlvu_workspace="$workspace/agentic-smart-community/.external/edge-ai-libraries"
+  mlvu_version="release-2026.2.0"
+  mlvu_repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
+  mlvu_subpath="microservices/multilevel-video-understanding"
+
+  export HF_HOME="$workspace/models/huggingface"
+  export VIDEO_SUMMARY_CACHE_HOST="$workspace/.cache/.multilevel-video-understanding"
+  export SMART_COMMUNITY_DATA_DIR="$workspace/.mcp-smart-community"
+  export MODEL_DIR="$workspace/models"
+  export PREFILTER_MODEL="$workspace/models/openvino/yolo11s/FP16/yolo11s.xml"
+  export MCP_BIND_HOST="0.0.0.0"
+}
+
+verify_agentic_smart_community () {
+  [ -e "$workspace"/agentic-smart-community/config.yaml.example ]
+  [ -d "$mlvu_workspace"/$mlvu_subpath ]
+}
+
+debian_90_profile_agentic_smart_community () {
+  echo "curl wget git jq python3_venv ffmpeg nodejs docker edge_base mediamtx"
+}
+
+debian_90_install_agentic_smart_community () {
+  configure_agentic_smart_community
+  if verify_agentic_smart_community && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Agentic Smart Community already installed. Skipping" 1>&2
+  else
+    ensure_disk_space 128000
+    ensure_ram_size 62000000 32000000
+
+    ensure_git_export "$workspace" "$version" "$repository" agentic-smart-community
+    mkdir -p "${mlvu_workspace%/*}"
+    ensure_git_clone "$mlvu_workspace" "${mlvu_version}" "$mlvu_repository" "$mlvu_subpath"
+
+    verify_agentic_smart_community
+  fi
+
+  echo "@@HIGHLIGHT worksapce: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|stop|remove"
+}
+
+debian_90_start_agentic_smart_community () {
+  configure_agentic_smart_community
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_agentic_smart_community "$@"
+
+  cd "$workspace"/agentic-smart-community
+  bash setup_docker.sh
+
+  echo "@@HIGHLIGHT UI: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  # check health
+  curl -fsS -X POST http://localhost:${used_ports[0]}/mcp -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"startup-check","version":"1.0"}}}'
+  curl -fsS http://localhost:${used_ports[1]}/health
+}
+
+debian_90_stop_agentic_smart_community () {
+  configure_agentic_smart_community
+  cd "$workspace"/agentic-smart-community && bash setup_docker.sh --down || true
+}
+
+debian_90_remove_agentic_smart_community () {
+  debian_90_stop_agentic_smart_community "$@"
+  ensure_sudo rm -rf "$workspace"
+}
+

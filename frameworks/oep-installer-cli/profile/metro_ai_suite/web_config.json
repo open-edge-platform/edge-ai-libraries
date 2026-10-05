@@ -1,15 +1,16 @@
 {
   "profile": { "label": "Metro AI Suite", "value": "metro_ai_suite" },
   "modules": [
-    { "label": "Smart Intersection", "value": "smart_intersection", "startStop": true, "device": true },
-    { "label": "Smart Parking", "value": "smart_parking", "startStop": true, "device": true },
-    { "label": "Loitering Detection", "value": "loitering_detection", "startStop": true, "device": true },
+    { "label": "Agentic Predictive Maintenance Pipeline", "value": "agentic_predictive_maintenance_pipeline", "startStop": true, "device": true },
+    { "label": "Agentic Smart Community", "value": "agentic_smart_community", "startStop": true, "device": false },
     { "label": "Live Video Captioning", "value": "live_video_captioning", "startStop": true, "device": true },
     { "label": "Live Video Captioning RAG", "value": "live_video_captioning_rag", "startStop": true, "device": true },
     { "label": "Live Video Search", "value": "live_video_search", "startStop": true, "device": true },
     { "label": "Live Video Alert Agent", "value": "live_video_alert_agent", "startStop": true, "device": true },
+    { "label": "Loitering Detection", "value": "loitering_detection", "startStop": true, "device": true },
+    { "label": "Smart Intersection", "value": "smart_intersection", "startStop": true, "device": true },
+    { "label": "Smart Parking", "value": "smart_parking", "startStop": true, "device": true },
     { "label": "Video Search and Summarization", "value": "video_search_and_summarization", "startStop": true, "device": true },
-    { "label": "Agentic Predictive Maintenance Pipeline", "value": "agentic_predictive_maintenance_pipeline", "startStop": true, "device": true },
     { "label": "Visual Pipeline and Platform Evaluation Tool (ViPPET)", "value": "vippet", "startStop": true, "device": false }
   ],
   "getStarted": {
@@ -17,15 +18,16 @@
     "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-metro.html"
   },
   "resources": [
-    { "text": "Smart Intersection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-intersection/index.html" },
-    { "text": "Smart Parking", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html" },
-    { "text": "Loitering Detection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/loitering-detection/index.html" },
+    { "text": "Agentic Predictive Maintenance Pipeline", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-predictive-maintenance-pipeline/index.html" },
+    { "text": "Agentic Smart Community", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-smart-community/index.html" },
     { "text": "Live Video Captioning", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-captioning/index.html" },
     { "text": "Live Video Captioning RAG", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-captioning-rag/index.html" },
     { "text": "Live Video Search", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-search/index.html" },
     { "text": "Live Video Alert Agent", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-alert-agent/index.html" },
+    { "text": "Loitering Detection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/loitering-detection/index.html" },
+    { "text": "Smart Intersection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-intersection/index.html" },
+    { "text": "Smart Parking", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html" },
     { "text": "Video Search and Summarization", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html" },
-    { "text": "Agentic Predictive Maintenance Pipeline", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-predictive-maintenance-pipeline/index.html" },
     { "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html" }
   ]
 }
