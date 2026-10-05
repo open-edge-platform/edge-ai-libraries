@@ -33,7 +33,7 @@ debian_90_install_order_accuracy_take_away () {
     echo "Order accuracy is already installed. Skipping"
   else 
     # clone the repository
-    ensure_disk_space 10000
+    ensure_disk_size 10000
     ensure_git_clone "$workspace" $version $repository
 
     # initialize .env

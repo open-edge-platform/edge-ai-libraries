@@ -32,7 +32,7 @@ debian_90_install_agentic_smart_community () {
   if verify_agentic_smart_community && [[ " $* " != *" --reinstall "* ]]; then
     echo "Agentic Smart Community already installed. Skipping" 1>&2
   else
-    ensure_disk_space 128000
+    ensure_disk_size 128000
     ensure_ram_size 62000000 32000000
 
     ensure_git_export "$workspace" "$version" "$repository" agentic-smart-community

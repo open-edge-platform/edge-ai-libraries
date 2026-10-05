@@ -51,7 +51,7 @@ debian_90_install_multimodal_weld_defect_detection () {
   else
     local device="$(ensure_select_device "$@")"
 
-    ensure_disk_space 64000
+    ensure_disk_size 64000
     ensure_ram_size 16777216 # 16 GiB
     ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal
 

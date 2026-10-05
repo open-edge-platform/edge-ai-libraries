@@ -31,7 +31,7 @@ debian_90_install_wind_turbine_anomaly_detection () {
   if verify_wind_turbine_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Wind turbine anomaly detection already installed. Skipping..." 1>&2
   else
-    ensure_disk_space 64000
+    ensure_disk_size 64000
     ensure_ram_size 16777216 # 16 GiB
     ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series
     cd "$workspace"/industrial-edge-insights-time-series

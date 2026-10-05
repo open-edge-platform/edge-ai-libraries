@@ -31,7 +31,7 @@ debian_90_install_pcb_anomaly_detection () {
     echo "PCB anomaly detection is already installed. Skipping"
   else
     # clone the repository
-    ensure_disk_space 60
+    ensure_disk_size 60
     ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision
 
     # setup

@@ -32,7 +32,7 @@ debian_90_install_live_video_captioning () {
     echo "Live Video Captioning is already installed. Skipping"
   else
     # clone the repository
-    ensure_disk_space 64000
+    ensure_disk_size 64000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning
     export -n socks_server ftp_proxy
 

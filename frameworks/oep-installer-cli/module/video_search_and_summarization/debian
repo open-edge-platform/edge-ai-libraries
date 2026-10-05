@@ -74,7 +74,7 @@ debian_85_install_video_search_and_summarization () {
     echo "video_search_and_summarization is already installed. Skipping..."
   else
     # clone the repository
-    ensure_disk_space 8000
+    ensure_disk_size 8000
     ensure_ports_open "$used_ports" return 3
     ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization
 

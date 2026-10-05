@@ -44,7 +44,7 @@ debian_90_install_smart_intersection () {
     echo "Smart intersection is already installed. Skipping"
   else
     # clone the repository
-    ensure_disk_space 1500
+    ensure_disk_size 1500
     ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
     # setup
