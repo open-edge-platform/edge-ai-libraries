@@ -1311,8 +1311,10 @@ class Graph:
 
     def get_recommended_encoder_device(self) -> str:
         """
-        Iterate backwards through nodes to find the last video/x-raw node
-        and return the recommended encoder device based on memory type.
+        Find the video/x-raw caps feeding the main output sink (walking edges
+        backwards from it) and return the recommended encoder device based on
+        memory type. Falls back to the last video/x-raw node in the list when
+        the main output sink cannot be identified.
 
         Note: NPU variants are not considered because NPUs do not provide dedicated
         memory accessible for GStreamer pipeline buffering; they operate exclusively
@@ -1326,14 +1328,58 @@ class Graph:
         from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
         # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
 
-        for node in reversed(self.nodes):
-            if not node.type.startswith("video/x-raw"):
-                continue
-            if "memory:VAMemory" in node.type:
+        def _device_for_caps(caps_type: str) -> str:
+            if "memory:VAMemory" in caps_type:
                 return ENCODER_DEVICE_GPU
             return ENCODER_DEVICE_CPU
 
+        # Prefer caps on the path feeding the main output sink; caps on other
+        # tee branches (e.g. a sysmem VLM branch) must not decide the encoder.
+        main_sink = self._find_main_output_sink()
+        if main_sink is not None:
+            nodes_by_id = {node.id: node for node in self.nodes}
+            sources_by_target: dict[str, list[str]] = defaultdict(list)
+            for edge in self.edges:
+                sources_by_target[edge.target].append(edge.source)
+
+            visited: set[str] = set()
+            pending = list(sources_by_target.get(main_sink.id, []))
+            while pending:
+                node_id = pending.pop(0)
+                if node_id in visited:
+                    continue
+                visited.add(node_id)
+                node = nodes_by_id.get(node_id)
+                if node is None:
+                    continue
+                if node.type.startswith("video/x-raw"):
+                    return _device_for_caps(node.type)
+                pending.extend(sources_by_target.get(node_id, []))
+            return ENCODER_DEVICE_CPU
+
+        for node in reversed(self.nodes):
+            if node.type.startswith("video/x-raw"):
+                return _device_for_caps(node.type)
+
         return ENCODER_DEVICE_CPU
+
+    def _find_main_output_sink(self) -> Optional[Node]:
+        """Return the sink that ``prepare_main_output_placeholder`` would replace, if unambiguous."""
+        for node in self.nodes:
+            if node.type == OUTPUT_PLACEHOLDER:
+                return node
+        named = [
+            node
+            for node in self.nodes
+            if node.type == "fakesink"
+            and node.data.get("name") == "default_output_sink"
+        ]
+        if len(named) == 1:
+            return named[0]
+        fakesinks = [node for node in self.nodes if node.type == "fakesink"]
+        if len(fakesinks) == 1:
+            return fakesinks[0]
+        return None
 
     def to_simple_view(self) -> "Graph":
         """

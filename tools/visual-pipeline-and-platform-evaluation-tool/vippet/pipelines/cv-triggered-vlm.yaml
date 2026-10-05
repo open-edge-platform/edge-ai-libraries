@@ -62,7 +62,7 @@ variants:
       t. !
       queue leaky=downstream max-size-buffers=1 flush-on-eos=true !
       gvaproximitytrigger_py class-a=person class-b=bicycle distance=150 frames=10 !
-      videoconvertscale !
+      vapostproc !
       video/x-raw,width=796,height=448 !
       gvagenai model-path=/models/output/openvino_models/gpu/int4/OpenGVLab/InternVL2-2B device=GPU prompt="Are people riding on bicycles? Answer yes or no." generation-config="max_new_tokens=10" chunk-size=1 metrics=true !
       gvametapublish file-format=json-lines file-path=/metadata/cv_triggered_vlm.jsonl !
