@@ -164,6 +164,95 @@ class Settings(BaseSettings):
         description="Maximum number of finished batch jobs retained in memory for status polling.",
     )
 
+    # ------------------------------------------------------------------
+    # Live (RTSP) stream ingestion settings
+    # ------------------------------------------------------------------
+    LIVE_STREAM_ENABLED: bool = Field(
+        default=True,
+        description="Enable the live-stream ingestion subsystem and its CRUD endpoints.",
+    )
+    LIVE_STREAM_STATE_PATH: str = Field(
+        default="/tmp/dataprep/live_streams.db",
+        description="SQLite file backing the live-stream registry. Lives on the "
+        "existing dataprep volume so registrations survive a restart.",
+    )
+    LIVE_STREAM_BUCKET: str = Field(
+        default="live-streams",
+        description="Storage bucket and vector-metadata bucket_name used for live "
+        "stream media and embeddings.",
+    )
+    LIVE_STREAM_MAX_CONCURRENT: int = Field(
+        default=8,
+        ge=1,
+        description="Maximum number of concurrently running live streams. Each "
+        "running stream holds decode/detect/embed threads and shared-memory blocks.",
+    )
+    LIVE_SEGMENT_DURATION_SECONDS: int = Field(
+        default=10,
+        ge=1,
+        le=600,
+        description="Duration of each recorded live-stream video segment, in seconds.",
+    )
+    LIVE_STORE_SEGMENTS: bool = Field(
+        default=True,
+        description="Persist N-second video segments of live streams for playback.",
+    )
+    LIVE_STORE_FRAMES: bool = Field(
+        default=True,
+        description="Persist sampled live-stream frames as JPEG images.",
+    )
+    LIVE_BATCH_MAX_AGE_SECONDS: float = Field(
+        default=20.0,
+        ge=0,
+        description="Force a partially filled frame batch from a live stream into the "
+        "embedding pipeline once its oldest frame reaches this age, in seconds. Live "
+        "sources never reach end-of-stream, so without this they stall until "
+        "VIDEO_EXTRACTION_BATCH_SIZE sampled frames accumulate, which at a low sampling "
+        "rate takes minutes and pins that many shared-memory blocks. 0 disables the timer.",
+    )
+    LIVE_RECONNECT_INTERVAL_SECONDS: float = Field(
+        default=5.0,
+        gt=0,
+        description="Base delay between live-stream reconnect attempts, in seconds.",
+    )
+    LIVE_RECONNECT_MAX_ATTEMPTS: int = Field(
+        default=10,
+        ge=0,
+        description="Consecutive reconnect attempts before a stream moves to 'error'. "
+        "0 retries forever.",
+    )
+    LIVE_RECONNECT_WINDOW_SECONDS: float = Field(
+        default=60.0,
+        gt=0,
+        description="Healthy duration after which a stream's reconnect attempt "
+        "budget is reset.",
+    )
+    LIVE_RETENTION_HOURS: float = Field(
+        default=0.0,
+        ge=0,
+        description="Delete live-stream embeddings and media older than this many "
+        "hours. 0 (default) retains everything forever.",
+    )
+    LIVE_RETENTION_SWEEP_MINUTES: float = Field(
+        default=15.0,
+        gt=0,
+        description="Interval between live-stream retention sweeps, in minutes.",
+    )
+    LIVE_CLOCK_CHECK_ENABLED: bool = Field(
+        default=True,
+        description="On starting a live stream, probe the camera's HTTP Date header "
+        "and log a warning when its clock is adrift from this host. Purely "
+        "diagnostic: ingestion timestamps always come from the host clock. A camera "
+        "with a wrong clock cannot be used as a shared time reference when "
+        "correlating embeddings with an external recording service.",
+    )
+    LIVE_CLOCK_SKEW_WARN_SECONDS: float = Field(
+        default=2.0,
+        gt=0,
+        description="Camera-to-host clock drift, in seconds, above which "
+        "LIVE_CLOCK_CHECK_ENABLED logs a warning.",
+    )
+
     EMBEDDING_MODEL_NAME: str = ""  # Model name - must be explicitly set
 
     # Embedding settings

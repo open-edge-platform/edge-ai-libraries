@@ -38,7 +38,7 @@ The microservice handles multimodal ingestion with a unified media pipeline:
 
 ## Feature Highlights
 
-- **REST API surface mounted at `/v1/dataprep`** with endpoints for health, media ingest (`/media/upload`, `/media/ingest`, `/media/process`), batch ingest (`/media/upload/batch`, `/media/ingest/batch`, `/media/process/batch`, `/media/ingest-dir`) with async job polling (`/media/jobs/{job_id}`), metadata retrieval (`/media`), range-aware download (`/media/download`), deletion, RTSP ingest (`/media/rtsp`), and summary ingestion (`/summary`).
+- **REST API surface mounted at `/v1/dataprep`** with endpoints for health, media ingest (`/media/upload`, `/media/ingest`, `/media/process`), batch ingest (`/media/upload/batch`, `/media/ingest/batch`, `/media/process/batch`, `/media/ingest-dir`) with async job polling (`/media/jobs/{job_id}`), metadata retrieval (`/media`), range-aware download (`/media/download`), deletion, live RTSP stream CRUD (`/media/streams`), and summary ingestion (`/summary`).
 - **Three image transports** — multipart binary (`/media/upload`), inline base64 and remote URL (`/media/ingest`, typed on a `type` discriminator).
 - **Object detection first-class support** for both video and images with per-request overrides (`enable_object_detection`, `detection_confidence`) and automatic fallback when a model is unavailable.
 - **Tags and summaries** that link curated text back to the precise video segment, enabling multi-modal search.

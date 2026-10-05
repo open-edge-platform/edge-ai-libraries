@@ -88,6 +88,49 @@ def test_canonical_fields_present():
         assert required in CANONICAL_FIELDS
 
 
+def test_every_frame_metadata_field_is_canonical():
+    """Guard against emitting a field the storage contract silently drops.
+
+    ``FrameMetadata`` is what the pipeline actually produces per frame. Any
+    field declared there but missing from :data:`CANONICAL_FIELDS` is computed
+    and then thrown away by ``project_to_canonical`` before it reaches the
+    vector store -- a silent data-loss bug rather than a visible failure. The
+    only legitimate exclusion is the caller-metadata carrier key, which is
+    flattened rather than persisted under its own name.
+    """
+    import dataclasses
+
+    from src.core.embedding.embedding_helper import FrameMetadata
+    from src.core.vectorstores.metadata import CUSTOM_METADATA_KEY
+
+    declared = {f.name for f in dataclasses.fields(FrameMetadata)}
+    dropped = declared - set(CANONICAL_FIELDS) - {CUSTOM_METADATA_KEY}
+    assert not dropped, f"FrameMetadata fields would be silently dropped: {sorted(dropped)}"
+
+
+@pytest.mark.parametrize("backend", ["vdms", "milvus"])
+def test_external_correlation_fields_survive_storage(backend):
+    """The stream-manager correlation fields must reach the vector store.
+
+    These are the only fields that let a consumer match an embedding to a
+    recording owned by another service, so losing them defeats the purpose of
+    capturing them at all.
+    """
+    metadata = {
+        "video_id": "stream-1",
+        "bucket_name": "live-streams",
+        "sensor_id": "front-door-cam",
+        "capture_time": "2026-09-29T04:39:34.229365+00:00",
+        "capture_time_source": "rtcp_sender_report",
+        "media_owner": "self",
+    }
+    cleaned = _make_store(backend).clean_metadata(metadata)
+    assert cleaned["sensor_id"] == "front-door-cam"
+    assert cleaned["capture_time"] == "2026-09-29T04:39:34.229365+00:00"
+    assert cleaned["capture_time_source"] == "rtcp_sender_report"
+    assert cleaned["media_owner"] == "self"
+
+
 def _make_store(backend):
     if backend == "vdms":
         from src.core.vectorstores.vdms_store import VDMSVectorStore

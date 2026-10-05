@@ -45,6 +45,17 @@ async def check_health() -> HealthResponse:
     # Report the active storage backend.
     health_status["storage_backend"] = settings.STORAGE_BACKEND
 
+    # Report live-stream ingestion status so a monitor can spot a camera that
+    # silently moved to 'error' without polling every stream.
+    health_status["live_streams_enabled"] = settings.LIVE_STREAM_ENABLED
+    if settings.LIVE_STREAM_ENABLED:
+        try:
+            from src.core.live import get_live_stream_manager
+
+            health_status["live_streams"] = get_live_stream_manager().counts()
+        except Exception:  # pragma: no cover - health must never fail on this
+            health_status["live_streams"] = {"total": 0}
+
     try:
         from src.core.utils.config_utils import get_config
 

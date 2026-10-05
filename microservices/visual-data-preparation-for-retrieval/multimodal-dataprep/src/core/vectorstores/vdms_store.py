@@ -217,6 +217,37 @@ class VDMSVectorStore(BaseVectorStore):
         logger.info("Deleted VDMS vectors for bucket %s", bucket_name)
         return -1
 
+    def delete_embeddings_before(
+        self, bucket_name: str, video_id: str, cutoff_epoch: float
+    ) -> int:
+        """Delete a video's VDMS vectors older than ``cutoff_epoch``.
+
+        Uses a constraint on the numeric ``ingest_epoch`` property written by the
+        live-ingestion pipeline. VDMS does not report an exact deleted count, so
+        this returns ``-1`` on success.
+        """
+        self.connect()
+        cutoff = float(cutoff_epoch)
+        constraints = {
+            "video_id": ["==", video_id],
+            "bucket_name": ["==", bucket_name],
+            "ingest_epoch": ["<", cutoff],
+        }
+        try:
+            self.video_db.delete(constraints=constraints)
+        except Exception as exc:
+            logger.error(
+                "VDMS retention delete failed for %s/%s: %s", bucket_name, video_id, exc
+            )
+            raise
+        logger.info(
+            "Pruned VDMS vectors for %s/%s older than %.0f",
+            bucket_name,
+            video_id,
+            cutoff,
+        )
+        return -1
+
     def health(self) -> dict:
         status = {"backend": "vdms", "collection": self.collection_name}
         try:

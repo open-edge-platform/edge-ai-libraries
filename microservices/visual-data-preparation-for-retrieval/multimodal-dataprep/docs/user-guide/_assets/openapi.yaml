@@ -375,159 +375,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /media/rtsp:
-    post:
-      tags:
-      - Media Processing APIs
-      summary: Provide list of RTSP Stream URLs to process and generate embeddings.
-      description: '### Process RTSP stream URLs for frame-based embedding generation.
-
-
-        This endpoint accepts a list of RTSP stream URLs, validates them, and generates embeddings
-
-        using frame-based processing with optional object detection.
-
-
-        Each RTSP stream is processed by extracting individual frames at regular intervals (every Nth
-        frame).
-
-        Each frame generates its own embedding. When object detection is enabled and suppose 3 objects
-        are detected per frame on average, this results in approximately 240 embeddings
-
-        (60 frames + 180 object crops) per video. The generated embeddings are stored in the vector database
-        with associated metadata and tags.
-
-
-        #### Query Params:
-
-        - **rtsp_urls (list(str), required) :** List of RTSP stream URLs to process. Each URL will be
-        validated and processed for embedding generation.
-
-        - **frame_interval (int, optional) :** Extract every Nth frame for processing (range: 1-60; defaults
-        to the service''s configured frame_interval, 15 unless overridden)
-
-        - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (defaults
-        to the service''s configured setting, enabled unless overridden)
-
-        - **detection_confidence (float, optional) :** Confidence threshold for object detection (range:
-        0.1-1.0; defaults to the service''s configured threshold, 0.85 unless overridden)
-
-        - **tags (list(str), optional) :** A list of tags to be associated with the videos. Useful for
-        filtering the search.
-
-
-        #### Raises:
-
-        - **400 Bad Request :** If any of the RTSP URLs are invalid or fail validation.
-
-        - **502 Bad Gateway :** When the configured storage backend cannot be reached, or during stream
-        access.
-
-        - **500 Internal Server Error :** When some internal error occurs at DataPrep API server.
-
-
-        Returns:
-
-        - **response (json) :** A response JSON containing status and message.'
-      operationId: processRtspStreams
-      parameters:
-      - name: rtsp_urls
-        in: query
-        required: true
-        schema:
-          type: array
-          items:
-            type: string
-          description: List of RTSP stream URLs to process. Each URL will be validated and processed for
-            embedding generation.
-          title: Rtsp Urls
-        description: List of RTSP stream URLs to process. Each URL will be validated and processed for
-          embedding generation.
-      - name: frame_interval
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: integer
-            maximum: 60
-            minimum: 1
-          - type: 'null'
-          description: Extract every Nth frame for processing (defaults to the service's configured frame_interval,
-            15 unless overridden)
-          title: Frame Interval
-        description: Extract every Nth frame for processing (defaults to the service's configured frame_interval,
-          15 unless overridden)
-      - name: enable_object_detection
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: boolean
-          - type: 'null'
-          description: Enable object detection and crop extraction (defaults to the service's configured
-            setting, enabled unless overridden)
-          title: Enable Object Detection
-        description: Enable object detection and crop extraction (defaults to the service's configured
-          setting, enabled unless overridden)
-      - name: detection_confidence
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: number
-            maximum: 1.0
-            minimum: 0.1
-          - type: 'null'
-          description: Confidence threshold for object detection (defaults to the service's configured
-            threshold, 0.85 unless overridden)
-          title: Detection Confidence
-        description: Confidence threshold for object detection (defaults to the service's configured threshold,
-          0.85 unless overridden)
-      - name: tags
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: array
-            items:
-              type: string
-          - type: 'null'
-          description: List of tags to be associated with the videos. Useful for filtering the search.
-          title: Tags
-        description: List of tags to be associated with the videos. Useful for filtering the search.
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DataPrepResponse'
-        '400':
-          description: Required parameters are missing, malformed, or fail validation (for example an
-            unsupported media type or an out-of-range value).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DataPrepResponse'
-        '502':
-          description: The configured storage backend or vector database could not be reached or returned
-            an error.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DataPrepResponse'
-        '500':
-          description: An unexpected error occurred inside the DataPrep service.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DataPrepResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /media/upload/batch:
     post:
       tags:
@@ -991,6 +838,547 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /media/streams:
+    post:
+      tags:
+      - Live Stream APIs
+      summary: Register an RTSP stream and start ingesting it.
+      description: "### Register a live RTSP stream and begin continuous ingestion.\n\nThe call returns\
+        \ as soon as the stream is registered; frames are decoded,\nembedded, and stored by a background\
+        \ worker that keeps running until the\nstream is paused or deleted. The worker also records N-second\
+        \ video segments\nand sampled frames so retrieval hits are playable.\n\n#### Request Body:\n-\
+        \ **stream_url (str, required) :** RTSP source URL. Credentials embedded in\n  the URL are used\
+        \ to connect but are never returned or persisted to the\n  vector database.\n- **stream_name (str,\
+        \ optional) :** Friendly label; defaults to the redacted URL.\n- **description (str, optional)\
+        \ :** Free-text description.\n- **sensor_id (str, optional) :** Stable logical identity of the\
+        \ physical\n  source, recorded on every embedding so externally stored media for the\n  same source\
+        \ can be correlated back to it. Defaults to the stream_id.\n- **frame_interval (int, optional)\
+        \ :** Sample every Nth frame (1-60).\n- **enable_object_detection (bool, optional) :** Enable\
+        \ crop extraction.\n- **detection_confidence (float, optional) :** Detection threshold (0.1-1.0).\n\
+        - **tags (list(str), optional) :** Tags applied to every embedding.\n- **start (bool, optional)\
+        \ :** Register without starting when false.\n\n#### Raises:\n- **400 Bad Request :** The URL is\
+        \ not a valid RTSP URL.\n- **503 Service Unavailable :** The concurrency limit is reached, or\
+        \ live\n  ingestion is disabled.\n- **500 Internal Server Error :** Unexpected failure while registering.\n\
+        \nReturns:\n- **response (json) :** The registered stream, with its credentials redacted."
+      operationId: createLiveStream
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveStreamCreateRequest'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveStreamResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '503':
+          description: The service cannot accept the request in its current state, for example because
+            the live-stream concurrency limit is already reached or the live-stream subsystem is disabled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - Live Stream APIs
+      summary: List registered live streams.
+      description: "### List every registered live stream and its current state.\n\n#### Query Params:\n\
+        - **state (str, optional) :** Filter by lifecycle state (`running`,\n  `paused`, `reconnecting`,\
+        \ `error`, ...).\n- **tags (list(str), optional) :** Only streams carrying all given tags.\n\n\
+        Returns:\n- **response (json) :** Count and the list of streams (URLs redacted)."
+      operationId: listLiveStreams
+      parameters:
+      - name: state
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/LiveStreamStateEnum'
+          - type: 'null'
+          description: Only return streams in this state.
+          title: State
+        description: Only return streams in this state.
+      - name: tags
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          description: Only return streams carrying all of these tags.
+          title: Tags
+        description: Only return streams carrying all of these tags.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveStreamListResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Live Stream APIs
+      summary: Stop and deregister several live streams.
+      description: '### Stop and deregister a batch of live streams.
+
+
+        Streams are processed independently; an unknown id is reported on its own
+
+        item rather than failing the whole call.
+
+
+        #### Request Body:
+
+        - **stream_ids (list(str), required) :** Streams to stop and deregister.
+
+
+        #### Query Params:
+
+        - **purge_embeddings (bool, optional) :** Delete the streams'' vectors.
+
+        - **purge_media (bool, optional) :** Delete the streams'' recorded media.
+
+
+        Returns:
+
+        - **response (json) :** Accepted/rejected counts and a per-item result list.'
+      operationId: deleteLiveStreamsBatch
+      parameters:
+      - name: purge_embeddings
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Also delete embeddings generated from these streams.
+          default: false
+          title: Purge Embeddings
+        description: Also delete embeddings generated from these streams.
+      - name: purge_media
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Also delete the streams' recorded media.
+          default: false
+          title: Purge Media
+        description: Also delete the streams' recorded media.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveStreamDeleteRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveStreamBatchResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '503':
+          description: The service cannot accept the request in its current state, for example because
+            the live-stream concurrency limit is already reached or the live-stream subsystem is disabled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /media/streams/batch:
+    post:
+      tags:
+      - Live Stream APIs
+      summary: Register several RTSP streams in one call.
+      description: "### Register a batch of live RTSP streams.\n\nItems are processed independently: one\
+        \ rejected URL (or a stream that would\nexceed the concurrency limit) does not prevent the rest\
+        \ from being\nregistered. The response reports the outcome per item.\n\n#### Request Body:\n-\
+        \ **items (list, required) :** Live stream definitions, each matching the\n  body of `POST /media/streams`.\n\
+        \n#### Raises:\n- **400 Bad Request :** The batch body is malformed or empty.\n- **503 Service\
+        \ Unavailable :** Live ingestion is disabled.\n\nReturns:\n- **response (json) :** Accepted/rejected\
+        \ counts and a per-item result list."
+      operationId: createLiveStreamsBatch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveStreamBatchCreateRequest'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveStreamBatchResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '503':
+          description: The service cannot accept the request in its current state, for example because
+            the live-stream concurrency limit is already reached or the live-stream subsystem is disabled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /media/streams/{stream_id}:
+    get:
+      tags:
+      - Live Stream APIs
+      summary: Get one live stream's configuration, state, and statistics.
+      description: "### Return a single live stream.\n\n#### Path Params:\n- **stream_id (str, required)\
+        \ :** Identifier returned at registration.\n\n#### Raises:\n- **404 Not Found :** No stream is\
+        \ registered with this id.\n\nReturns:\n- **response (json) :** The stream, including ingestion\
+        \ counters and the\n  last error observed by its worker."
+      operationId: getLiveStream
+      parameters:
+      - name: stream_id
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Identifier returned at registration.
+          title: Stream Id
+        description: Identifier returned at registration.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveStreamResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Live Stream APIs
+      summary: Update a live stream, or pause/resume its ingestion.
+      description: "### Update a registered live stream.\n\nOnly the supplied fields change. Setting `state`\
+        \ to `paused` stops ingestion\nwhile keeping the registration; setting it to `running` resumes.\
+        \ Changing a\nprocessing parameter on a running stream restarts its ingestion session so\nthe\
+        \ new value takes effect immediately.\n\n#### Path Params:\n- **stream_id (str, required) :**\
+        \ Identifier returned at registration.\n\n#### Request Body:\n- **stream_name / description (str,\
+        \ optional) :** Descriptive fields.\n- **frame_interval / enable_object_detection / detection_confidence\
+        \ (optional) :**\n  Processing parameters.\n- **tags (list(str), optional) :** Replaces the existing\
+        \ tag list.\n- **state (str, optional) :** `paused` or `running`.\n\n#### Raises:\n- **400 Bad\
+        \ Request :** An unsupported state transition was requested.\n- **404 Not Found :** No stream\
+        \ is registered with this id.\n- **503 Service Unavailable :** Resuming would exceed the concurrency\
+        \ limit.\n\nReturns:\n- **response (json) :** The updated stream."
+      operationId: updateLiveStream
+      parameters:
+      - name: stream_id
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Identifier returned at registration.
+          title: Stream Id
+        description: Identifier returned at registration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveStreamUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveStreamResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '503':
+          description: The service cannot accept the request in its current state, for example because
+            the live-stream concurrency limit is already reached or the live-stream subsystem is disabled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Live Stream APIs
+      summary: Stop a live stream and deregister it.
+      description: '### Stop ingesting a live stream and remove its registration.
+
+
+        Stored embeddings and recorded media are kept by default so that historical
+
+        search results keep working after a camera is decommissioned. Set the purge
+
+        flags to remove them.
+
+
+        #### Path Params:
+
+        - **stream_id (str, required) :** Identifier returned at registration.
+
+
+        #### Query Params:
+
+        - **purge_embeddings (bool, optional) :** Delete this stream''s vectors.
+
+        - **purge_media (bool, optional) :** Delete this stream''s recorded media.
+
+
+        #### Raises:
+
+        - **404 Not Found :** No stream is registered with this id.
+
+        - **502 Bad Gateway :** The vector database or storage backend failed during purge.
+
+
+        Returns:
+
+        - **response (json) :** The stream id and, when purging, how much was removed.'
+      operationId: deleteLiveStream
+      parameters:
+      - name: stream_id
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Identifier returned at registration.
+          title: Stream Id
+        description: Identifier returned at registration.
+      - name: purge_embeddings
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Also delete every embedding generated from this stream.
+          default: false
+          title: Purge Embeddings
+        description: Also delete every embedding generated from this stream.
+      - name: purge_media
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Also delete the stream's recorded segments and frames.
+          default: false
+          title: Purge Media
+        description: Also delete the stream's recorded segments and frames.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveStreamDeleteResponse'
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '503':
+          description: The service cannot accept the request in its current state, for example because
+            the live-stream concurrency limit is already reached or the live-stream subsystem is disabled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '502':
+          description: The configured storage backend or vector database could not be reached or returned
+            an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /telemetry:
     get:
       tags:
@@ -1139,6 +1527,10 @@ paths:
         - **download (bool, optional) :** Set to true to force a file download (``attachment``) instead
         of inline streaming.
 
+        - **media_path (str, optional) :** Relative path to a specific object inside the ``video_id``
+        directory (e.g. ``segments/1790655530.mp4``). Required for live-stream media, which is stored
+        under ``<stream_id>/segments/`` and ``<stream_id>/frames/``.
+
 
         #### Raises:
 
@@ -1185,6 +1577,20 @@ paths:
           default: false
           title: Download
         description: Set to true to download the file instead of streaming it
+      - name: media_path
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Relative path to a specific object inside the video_id directory, e.g. 'segments/1790655530.mp4'.
+            Required for live-stream media, which is stored under <stream_id>/segments/ and <stream_id>/frames/.
+            When omitted, the single media object in the video_id directory is served.
+          title: Media Path
+        description: Relative path to a specific object inside the video_id directory, e.g. 'segments/1790655530.mp4'.
+          Required for live-stream media, which is stored under <stream_id>/segments/ and <stream_id>/frames/.
+          When omitted, the single media object in the video_id directory is served.
       responses:
         '200':
           description: Full media stream. The Content-Type reflects the stored media (for example video/mp4
@@ -1822,6 +2228,19 @@ components:
           - type: string
           - type: 'null'
           title: Default Bucket Name
+        live_streams_enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Live Streams Enabled
+        live_streams:
+          anyOf:
+          - additionalProperties:
+              type: integer
+            type: object
+          - type: 'null'
+          title: Live Streams
+          description: Histogram of registered live streams by state, plus a 'total'.
       type: object
       required:
       - status
@@ -1978,6 +2397,419 @@ components:
       - image_url
       title: ImageSourceTypeEnum
       description: Discriminator for a JSON image source (mirrors MME's typed input).
+    LiveStreamBatchCreateRequest:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/LiveStreamCreateRequest'
+          type: array
+          minItems: 1
+          title: Items
+          description: Live streams to register.
+      type: object
+      required:
+      - items
+      title: LiveStreamBatchCreateRequest
+      description: Request model for registering several live streams in one call.
+    LiveStreamBatchItemResult:
+      properties:
+        identifier:
+          type: string
+          title: Identifier
+          description: Redacted stream URL or stream_id.
+        stream_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stream Id
+        status:
+          $ref: '#/components/schemas/BatchItemStatusEnum'
+          default: pending
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+      type: object
+      required:
+      - identifier
+      title: LiveStreamBatchItemResult
+      description: Per-item outcome of a bulk live-stream create or delete.
+    LiveStreamBatchResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: success
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        accepted:
+          type: integer
+          title: Accepted
+          default: 0
+        rejected:
+          type: integer
+          title: Rejected
+          default: 0
+        items:
+          items:
+            $ref: '#/components/schemas/LiveStreamBatchItemResult'
+          type: array
+          title: Items
+      type: object
+      title: LiveStreamBatchResponse
+      description: Response for bulk live-stream create/delete operations.
+    LiveStreamCreateRequest:
+      properties:
+        stream_url:
+          type: string
+          title: Stream Url
+          description: RTSP source URL (rtsp:// or rtsps://). Embedded credentials are accepted for connection
+            but are never returned by the API nor written to the vector database.
+        stream_name:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Stream Name
+          description: Friendly label; defaults to the redacted URL.
+        description:
+          anyOf:
+          - type: string
+            maxLength: 1024
+          - type: 'null'
+          title: Description
+          description: Free-text description of the stream.
+        sensor_id:
+          anyOf:
+          - type: string
+            maxLength: 128
+            pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          - type: 'null'
+          title: Sensor Id
+          description: Stable logical identity of the physical source (camera/sensor). Recorded on every
+            embedding so externally stored media for the same source can be correlated back to it. Defaults
+            to the generated stream_id.
+        frame_interval:
+          anyOf:
+          - type: integer
+            maximum: 60.0
+            minimum: 1.0
+          - type: 'null'
+          title: Frame Interval
+          description: Sample every Nth frame (defaults to the service's configured frame_interval).
+        enable_object_detection:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Enable Object Detection
+          description: Enable object detection and crop extraction.
+        detection_confidence:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.1
+          - type: 'null'
+          title: Detection Confidence
+          description: Object detection confidence threshold.
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+          description: Tags associated with every embedding from this stream.
+        start:
+          type: boolean
+          title: Start
+          description: Start ingesting immediately. False registers the stream in the paused state.
+          default: true
+      type: object
+      required:
+      - stream_url
+      title: LiveStreamCreateRequest
+      description: Request model for registering and starting a live RTSP stream.
+    LiveStreamDeleteRequest:
+      properties:
+        stream_ids:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Stream Ids
+          description: Streams to stop and deregister.
+      type: object
+      required:
+      - stream_ids
+      title: LiveStreamDeleteRequest
+      description: Request model for deleting several live streams in one call.
+    LiveStreamDeleteResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: success
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        stream_id:
+          type: string
+          title: Stream Id
+        embeddings_purged:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Embeddings Purged
+          description: Embeddings deleted; -1 when the backend does not report a count.
+        media_purged:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Media Purged
+          description: Stored media objects deleted.
+      type: object
+      required:
+      - stream_id
+      title: LiveStreamDeleteResponse
+      description: Response returned after stopping and deregistering a live stream.
+    LiveStreamInfo:
+      properties:
+        stream_id:
+          type: string
+          title: Stream Id
+        stream_url:
+          type: string
+          title: Stream Url
+          description: Source URL with credentials redacted.
+        stream_name:
+          type: string
+          title: Stream Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        state:
+          $ref: '#/components/schemas/LiveStreamStateEnum'
+          default: pending
+        bucket_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Bucket Name
+        video_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Video Id
+          description: Identity this stream's embeddings and media are stored under. Always equal to stream_id,
+            so GET /media, GET /media/download and DELETE /media/{bucket_name}/{video_id} work on live
+            data.
+        sensor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sensor Id
+          description: Stable logical identity of the physical source, recorded on every embedding from
+            this stream. Equal to stream_id unless the caller supplied one at registration.
+        frame_interval:
+          type: integer
+          title: Frame Interval
+        enable_object_detection:
+          type: boolean
+          title: Enable Object Detection
+        detection_confidence:
+          type: number
+          title: Detection Confidence
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        stats:
+          $ref: '#/components/schemas/LiveStreamStats'
+        last_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Error
+        created_ts:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Created Ts
+        updated_ts:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Updated Ts
+      type: object
+      required:
+      - stream_id
+      - stream_url
+      - stream_name
+      - frame_interval
+      - enable_object_detection
+      - detection_confidence
+      title: LiveStreamInfo
+      description: 'A registered live stream as exposed by the API.
+
+
+        ``stream_url`` is always the redacted form of the source URL: any embedded
+
+        credentials are stripped before the value leaves the registry.'
+    LiveStreamListResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: success
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        count:
+          type: integer
+          title: Count
+          default: 0
+        streams:
+          items:
+            $ref: '#/components/schemas/LiveStreamInfo'
+          type: array
+          title: Streams
+      type: object
+      title: LiveStreamListResponse
+      description: Response carrying all registered live streams.
+    LiveStreamResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: success
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        stream:
+          $ref: '#/components/schemas/LiveStreamInfo'
+      type: object
+      required:
+      - stream
+      title: LiveStreamResponse
+      description: Response carrying a single live stream record.
+    LiveStreamStateEnum:
+      type: string
+      enum:
+      - pending
+      - starting
+      - running
+      - paused
+      - reconnecting
+      - error
+      - stopped
+      title: LiveStreamStateEnum
+      description: Lifecycle states of a registered live (RTSP) stream.
+    LiveStreamStats:
+      properties:
+        frames_processed:
+          type: integer
+          title: Frames Processed
+          default: 0
+        embeddings_created:
+          type: integer
+          title: Embeddings Created
+          default: 0
+        segments_stored:
+          type: integer
+          title: Segments Stored
+          default: 0
+        frames_stored:
+          type: integer
+          title: Frames Stored
+          default: 0
+        reconnect_count:
+          type: integer
+          title: Reconnect Count
+          default: 0
+        last_frame_ts:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Last Frame Ts
+        started_ts:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Started Ts
+        uptime_seconds:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Uptime Seconds
+      type: object
+      title: LiveStreamStats
+      description: Runtime counters for a live stream.
+    LiveStreamUpdateRequest:
+      properties:
+        stream_name:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Stream Name
+        description:
+          anyOf:
+          - type: string
+            maxLength: 1024
+          - type: 'null'
+          title: Description
+        frame_interval:
+          anyOf:
+          - type: integer
+            maximum: 60.0
+            minimum: 1.0
+          - type: 'null'
+          title: Frame Interval
+        enable_object_detection:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Enable Object Detection
+        detection_confidence:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.1
+          - type: 'null'
+          title: Detection Confidence
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+          description: Replaces the existing tag list when supplied.
+        state:
+          anyOf:
+          - $ref: '#/components/schemas/LiveStreamStateEnum'
+          - type: 'null'
+          description: Only 'running' (resume) and 'paused' (pause) are accepted. Use DELETE to stop and
+            deregister a stream.
+      type: object
+      title: LiveStreamUpdateRequest
+      description: 'Request model for updating a registered live stream.
+
+
+        Every field is optional; only supplied fields are changed. Setting ``state``
+
+        to ``paused`` or ``running`` pauses or resumes ingestion without
+
+        deregistering the stream.'
     StatusEnum:
       type: string
       enum:
@@ -2399,6 +3231,9 @@ tags:
     media.
 - name: Media Management APIs
   description: List, download, and delete stored media together with their embeddings.
+- name: Live Stream APIs
+  description: Register, inspect, update, pause/resume, and delete live RTSP streams. Ingestion runs on
+    background workers; source URLs are always returned with their credentials redacted.
 - name: Status APIs
   description: Service health and readiness.
 - name: Telemetry APIs

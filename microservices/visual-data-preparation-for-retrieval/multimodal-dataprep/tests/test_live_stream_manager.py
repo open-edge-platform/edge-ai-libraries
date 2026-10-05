@@ -1,0 +1,570 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+"""Unit tests for the live-stream manager, worker lifecycle, and retention."""
+
+import threading
+import time
+from typing import Any, Dict, List, Optional
+
+import pytest
+
+from src.common import settings
+from src.common.schema import LiveStreamStateEnum
+from src.core.live.manager import (
+    LiveStreamLimitError,
+    LiveStreamManager,
+    LiveStreamNotFoundError,
+    _object_is_older_than,
+)
+from src.core.live.models import LiveStream
+from src.core.live.segments import segment_object_name, segment_start
+from src.core.live.store import InMemoryLiveStreamStore
+from src.core.live.urls import InvalidStreamUrlError
+from src.core.live.worker import LiveStreamWorker
+
+CREDENTIALED_URL = "rtsp://admin:s3cr3t@camera-1.local:554/stream1"
+
+
+class FakeWorker:
+    """A worker stand-in that records lifecycle calls without touching RTSP."""
+
+    instances: List["FakeWorker"] = []
+
+    def __init__(self, stream: LiveStream, *, on_update=None, **_kwargs) -> None:
+        self.stream = stream
+        self._on_update = on_update
+        self.calls: List[str] = []
+        self.alive = False
+        FakeWorker.instances.append(self)
+
+    @property
+    def stream_id(self) -> str:
+        return self.stream.stream_id
+
+    def is_alive(self) -> bool:
+        return self.alive
+
+    def start(self, paused: bool = False) -> None:
+        self.alive = True
+        self.calls.append("start(paused)" if paused else "start")
+        self.stream.state = LiveStreamStateEnum.paused if paused else LiveStreamStateEnum.running
+        if self._on_update:
+            self._on_update(self.stream)
+
+    def pause(self) -> None:
+        self.calls.append("pause")
+        self.stream.state = LiveStreamStateEnum.paused
+        self.stream.desired_state = LiveStreamStateEnum.paused
+
+    def resume(self) -> None:
+        self.calls.append("resume")
+        self.stream.state = LiveStreamStateEnum.running
+        self.stream.desired_state = LiveStreamStateEnum.running
+
+    def stop(self, join: bool = True, timeout: float = 0.0) -> None:
+        self.calls.append("stop")
+        self.alive = False
+        self.stream.state = LiveStreamStateEnum.stopped
+
+
+@pytest.fixture
+def manager():
+    FakeWorker.instances = []
+    yield LiveStreamManager(InMemoryLiveStreamStore(), worker_factory=FakeWorker)
+
+
+# --------------------------------------------------------------------------
+# Create / read
+# --------------------------------------------------------------------------
+def test_create_registers_persists_and_starts(manager):
+    stream = manager.create(stream_url=CREDENTIALED_URL, stream_name="cam")
+
+    assert manager.store.get(stream.stream_id) is not None
+    assert FakeWorker.instances[0].calls == ["start"]
+    assert stream.desired_state == LiveStreamStateEnum.running
+    # Identity that makes live data addressable by the media endpoints.
+    assert stream.bucket_name == settings.LIVE_STREAM_BUCKET
+
+
+def test_create_with_start_false_registers_without_ingesting(manager):
+    stream = manager.create(stream_url=CREDENTIALED_URL, start=False)
+
+    assert FakeWorker.instances[0].calls == ["start(paused)"]
+    assert stream.desired_state == LiveStreamStateEnum.paused
+
+
+def test_create_applies_defaults_from_settings(manager):
+    stream = manager.create(stream_url=CREDENTIALED_URL)
+    assert stream.frame_interval == settings.FRAME_INTERVAL
+    assert stream.detection_confidence == settings.DETECTION_CONFIDENCE
+
+
+def test_create_rejects_a_non_rtsp_url(manager):
+    with pytest.raises(InvalidStreamUrlError):
+        manager.create(stream_url="http://camera-1.local/stream")
+    assert manager.list() == []
+
+
+def test_create_enforces_the_concurrency_limit(manager, monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_STREAM_MAX_CONCURRENT", 1)
+    manager.create(stream_url="rtsp://cam-a/stream")
+
+    with pytest.raises(LiveStreamLimitError):
+        manager.create(stream_url="rtsp://cam-b/stream")
+    # The rejected stream must not linger in the registry.
+    assert len(manager.list()) == 1
+
+
+def test_paused_streams_do_not_consume_the_concurrency_budget(manager, monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_STREAM_MAX_CONCURRENT", 1)
+    manager.create(stream_url="rtsp://cam-a/stream", start=False)
+    # A paused stream is registered but not ingesting, so there is still room.
+    assert manager.create(stream_url="rtsp://cam-b/stream")
+
+
+def test_get_unknown_stream_raises(manager):
+    with pytest.raises(LiveStreamNotFoundError):
+        manager.get("nope")
+
+
+def test_list_filters_by_state_and_tags(manager):
+    running = manager.create(stream_url="rtsp://cam-a/stream", tags=["lobby", "hd"])
+    manager.create(stream_url="rtsp://cam-b/stream", tags=["garage"], start=False)
+
+    assert [s.stream_id for s in manager.list(state=LiveStreamStateEnum.running)] == [
+        running.stream_id
+    ]
+    assert [s.stream_id for s in manager.list(tags=["lobby"])] == [running.stream_id]
+    # Tag filtering is a conjunction.
+    assert manager.list(tags=["lobby", "garage"]) == []
+
+
+def test_counts_reports_a_state_histogram(manager):
+    manager.create(stream_url="rtsp://cam-a/stream")
+    manager.create(stream_url="rtsp://cam-b/stream", start=False)
+
+    counts = manager.counts()
+    assert counts["total"] == 2
+    assert counts[LiveStreamStateEnum.running.value] == 1
+    assert counts[LiveStreamStateEnum.paused.value] == 1
+
+
+# --------------------------------------------------------------------------
+# Update
+# --------------------------------------------------------------------------
+def test_update_changes_descriptive_fields(manager):
+    stream = manager.create(stream_url=CREDENTIALED_URL, start=False)
+    updated = manager.update(stream.stream_id, stream_name="lobby-cam", description="d", tags=["a"])
+
+    assert updated.stream_name == "lobby-cam"
+    assert updated.description == "d"
+    assert updated.tags == ["a"]
+    assert manager.store.get(stream.stream_id).stream_name == "lobby-cam"
+
+
+def test_update_pauses_and_resumes(manager):
+    stream = manager.create(stream_url=CREDENTIALED_URL)
+    worker = FakeWorker.instances[0]
+
+    manager.update(stream.stream_id, state=LiveStreamStateEnum.paused)
+    assert "pause" in worker.calls
+    assert manager.get(stream.stream_id).desired_state == LiveStreamStateEnum.paused
+
+    manager.update(stream.stream_id, state=LiveStreamStateEnum.running)
+    assert "resume" in worker.calls
+    assert manager.get(stream.stream_id).desired_state == LiveStreamStateEnum.running
+
+
+def test_update_bounces_the_session_when_processing_params_change(manager):
+    stream = manager.create(stream_url=CREDENTIALED_URL)
+    worker = FakeWorker.instances[0]
+    worker.calls.clear()
+
+    manager.update(stream.stream_id, frame_interval=30)
+
+    assert manager.get(stream.stream_id).frame_interval == 30
+    # Restarting the session is what makes the new interval take effect now.
+    assert worker.calls == ["pause", "resume"]
+
+
+def test_update_does_not_bounce_a_paused_stream(manager):
+    stream = manager.create(stream_url=CREDENTIALED_URL, start=False)
+    worker = FakeWorker.instances[0]
+    worker.calls.clear()
+
+    manager.update(stream.stream_id, frame_interval=30)
+    assert worker.calls == []
+
+
+def test_update_unknown_stream_raises(manager):
+    with pytest.raises(LiveStreamNotFoundError):
+        manager.update("nope", description="x")
+
+
+# --------------------------------------------------------------------------
+# Delete / purge
+# --------------------------------------------------------------------------
+def test_delete_stops_the_worker_and_deregisters(manager):
+    stream = manager.create(stream_url=CREDENTIALED_URL)
+    worker = FakeWorker.instances[0]
+
+    _, embeddings, media = manager.delete(stream.stream_id)
+
+    assert "stop" in worker.calls
+    assert manager.store.get(stream.stream_id) is None
+    # Data is retained unless a purge is explicitly requested.
+    assert embeddings is None and media is None
+
+
+def test_delete_can_purge_embeddings(manager, monkeypatch):
+    stream = manager.create(stream_url=CREDENTIALED_URL)
+    calls: Dict[str, Any] = {}
+
+    class FakeStore:
+        def delete_embeddings(self, bucket, video_id):
+            calls["args"] = (bucket, video_id)
+            return 12
+
+    monkeypatch.setattr(
+        "src.core.vectorstores.get_vector_store", lambda: FakeStore(), raising=False
+    )
+    _, embeddings, _ = manager.delete(stream.stream_id, purge_embeddings=True)
+
+    assert embeddings == 12
+    assert calls["args"] == (settings.LIVE_STREAM_BUCKET, stream.stream_id)
+
+
+def test_purge_embeddings_reports_failure_instead_of_raising(manager, monkeypatch):
+    stream = manager.create(stream_url=CREDENTIALED_URL, start=False)
+
+    class ExplodingStore:
+        def delete_embeddings(self, bucket, video_id):
+            raise RuntimeError("vector db down")
+
+    monkeypatch.setattr(
+        "src.core.vectorstores.get_vector_store",
+        lambda: ExplodingStore(),
+        raising=False,
+    )
+    # A failed purge must not prevent the stream from being deregistered.
+    assert manager.purge_embeddings(stream) == -1
+
+
+def test_delete_unknown_stream_raises(manager):
+    with pytest.raises(LiveStreamNotFoundError):
+        manager.delete("nope")
+
+
+def test_object_age_filter_uses_the_segment_epoch():
+    start = segment_start(1_000_000.0, 10)
+    name = segment_object_name("abc", start)
+    assert _object_is_older_than(name, cutoff_epoch=start + 1) is True
+    assert _object_is_older_than(name, cutoff_epoch=start - 1) is False
+    # An unparseable name must never be deleted by accident.
+    assert _object_is_older_than("abc/segments/not-an-epoch.mp4", 1e12) is False
+
+
+# --------------------------------------------------------------------------
+# Restore on startup
+# --------------------------------------------------------------------------
+def test_restore_restarts_streams_that_were_running(manager):
+    store = manager.store
+    running = LiveStream.new(stream_url="rtsp://cam-a/stream", start=True)
+    paused = LiveStream.new(stream_url="rtsp://cam-b/stream", start=False)
+    store.upsert(running)
+    store.upsert(paused)
+
+    restored = LiveStreamManager(store, worker_factory=FakeWorker)
+    FakeWorker.instances = []
+    result = restored.restore()
+
+    assert len(result) == 2
+    calls = {w.stream_id: w.calls for w in FakeWorker.instances}
+    assert calls[running.stream_id] == ["start"]
+    assert calls[paused.stream_id] == ["start(paused)"]
+
+
+def test_restore_respects_the_concurrency_limit(manager, monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_STREAM_MAX_CONCURRENT", 1)
+    store = manager.store
+    for index in range(2):
+        store.upsert(LiveStream.new(stream_url=f"rtsp://cam-{index}/s", start=True))
+
+    restored = LiveStreamManager(store, worker_factory=FakeWorker)
+    FakeWorker.instances = []
+    restored.restore()
+
+    started = [w for w in FakeWorker.instances if w.calls == ["start"]]
+    deferred = [w for w in FakeWorker.instances if w.calls == ["start(paused)"]]
+    assert len(started) == 1
+    assert len(deferred) == 1
+    assert "concurrency limit" in deferred[0].stream.last_error
+
+
+def test_restore_is_a_no_op_when_live_ingestion_is_disabled(manager, monkeypatch):
+    manager.store.upsert(LiveStream.new(stream_url="rtsp://cam/s", start=True))
+    monkeypatch.setattr(settings, "LIVE_STREAM_ENABLED", False)
+    FakeWorker.instances = []
+
+    assert manager.restore() == []
+    assert FakeWorker.instances == []
+
+
+def test_stop_all_stops_every_worker(manager):
+    manager.create(stream_url="rtsp://cam-a/stream")
+    manager.create(stream_url="rtsp://cam-b/stream")
+
+    manager.stop_all()
+
+    assert all("stop" in w.calls for w in FakeWorker.instances)
+    assert manager.counts()["total"] == 2  # registrations survive a shutdown
+
+
+# --------------------------------------------------------------------------
+# Worker behaviour (real worker, fake pipeline + recorder)
+# --------------------------------------------------------------------------
+class FakeRecorder:
+    """Stands in for the media recorder; never opens a connection."""
+
+    def __init__(self, **kwargs) -> None:
+        self.kwargs = kwargs
+        self.stats = type("S", (), {"segments_stored": 2, "frames_stored": 5})()
+
+    def start(self) -> None:
+        pass
+
+    def join(self, timeout: Optional[float] = None) -> None:
+        pass
+
+
+def _worker(pipeline, stream: Optional[LiveStream] = None) -> LiveStreamWorker:
+    stream = stream or LiveStream.new(stream_url=CREDENTIALED_URL)
+    return LiveStreamWorker(
+        stream,
+        on_update=lambda _s: None,
+        pipeline=pipeline,
+        recorder_factory=lambda **kwargs: FakeRecorder(**kwargs),
+    )
+
+
+def test_worker_metadata_gives_live_embeddings_a_real_identity():
+    stream = LiveStream.new(stream_url=CREDENTIALED_URL, tags=["lobby"])
+    metadata = _worker(lambda **_: {})._metadata_dict()
+
+    assert metadata["bucket_name"] == settings.LIVE_STREAM_BUCKET
+    assert metadata["tags"] == []
+    live = metadata["live"]
+    # Credentials must never reach the vector database.
+    assert "s3cr3t" not in live["stream_url"]
+    assert live["stream_url"].startswith("rtsp://***@camera-1.local")
+    assert callable(live["segment_url_builder"])
+    assert live["segment_url_builder"](None) == ""
+
+
+def test_worker_segment_url_builder_points_at_the_recorded_segment():
+    worker = _worker(lambda **_: {})
+    live = worker._metadata_dict()["live"]
+    start = segment_start(1_000_000.0, settings.LIVE_SEGMENT_DURATION_SECONDS)
+
+    url = live["segment_url_builder"](start)
+    assert url == (
+        f"{settings.LIVE_STREAM_BUCKET}/" f"{segment_object_name(worker.stream_id, start)}"
+    )
+
+
+def test_worker_runs_the_pipeline_and_accumulates_stats(monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_RECONNECT_MAX_ATTEMPTS", 0)
+    started = threading.Event()
+
+    def pipeline(**kwargs):
+        started.set()
+        # A live pipeline never returns totals while it runs, so progress is
+        # reported per stored batch through the callback instead.
+        report = kwargs["progress_callback"]
+        report(20, 2)
+        report(10, 1)
+        return {"stored_ids": ["a", "b", "c"], "total_frames_processed": 30}
+
+    worker = _worker(pipeline)
+    monkeypatch.setattr(worker, "_record_telemetry", lambda *a, **k: None)
+    worker._resume.set()  # the supervisor normally does this before a session
+
+    error = worker._run_session()
+
+    assert started.is_set()
+    # Counted once, from the callback -- the returned totals must not be added on
+    # top or every live stream would report double.
+    assert worker.stream.stats.embeddings_created == 3
+    assert worker.stream.stats.frames_processed == 30
+    assert worker.stream.stats.segments_stored == 2
+    assert worker.stream.stats.frames_stored == 5
+    # The pipeline returning on its own means the source went away.
+    assert error is not None
+
+
+def test_worker_reports_progress_before_the_pipeline_returns(monkeypatch):
+    """Stats must be observable mid-session; a live source never returns."""
+    monkeypatch.setattr(settings, "LIVE_RECONNECT_MAX_ATTEMPTS", 0)
+    seen = {}
+
+    def pipeline(**kwargs):
+        report = kwargs["progress_callback"]
+        report(15, 4)
+        # Snapshot what an in-flight GET /media/streams/{id} would observe.
+        seen["frames"] = worker.stream.stats.frames_processed
+        seen["embeddings"] = worker.stream.stats.embeddings_created
+        return {}
+
+    worker = _worker(pipeline)
+    monkeypatch.setattr(worker, "_record_telemetry", lambda *a, **k: None)
+    worker._resume.set()
+
+    worker._run_session()
+
+    assert seen == {"frames": 15, "embeddings": 4}
+
+
+def test_worker_surfaces_a_pipeline_failure_as_an_error(monkeypatch):
+    def pipeline(**kwargs):
+        raise RuntimeError("connection refused")
+
+    worker = _worker(pipeline)
+    monkeypatch.setattr(worker, "_record_telemetry", lambda *a, **k: None)
+    worker._resume.set()
+
+    error = worker._run_session()
+    assert "connection refused" in error
+
+
+def test_worker_marks_a_stream_in_error_after_exhausting_reconnects(monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_RECONNECT_MAX_ATTEMPTS", 2)
+    monkeypatch.setattr(settings, "LIVE_RECONNECT_INTERVAL_SECONDS", 0.01)
+    monkeypatch.setattr(settings, "LIVE_RECONNECT_WINDOW_SECONDS", 3600)
+    attempts: List[int] = []
+
+    def pipeline(**kwargs):
+        attempts.append(1)
+        raise RuntimeError("unreachable")
+
+    worker = _worker(pipeline)
+    monkeypatch.setattr(worker, "_record_telemetry", lambda *a, **k: None)
+    worker.start()
+
+    deadline = time.time() + 10
+    while worker.is_alive() and time.time() < deadline:
+        time.sleep(0.05)
+
+    assert worker.stream.state == LiveStreamStateEnum.error
+    assert worker.stream.last_error
+    # The initial attempt plus the budgeted retries.
+    assert len(attempts) == 3
+    assert worker.stream.stats.reconnect_count >= 1
+
+
+def test_worker_pause_and_stop_are_not_treated_as_failures(monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_RECONNECT_INTERVAL_SECONDS", 0.01)
+    running = threading.Event()
+
+    def pipeline(shutdown_event=None, **kwargs):
+        running.set()
+        while not shutdown_event.is_set():
+            time.sleep(0.01)
+        return {"stored_ids": [], "total_frames_processed": 1}
+
+    worker = _worker(pipeline)
+    monkeypatch.setattr(worker, "_record_telemetry", lambda *a, **k: None)
+    worker.start()
+    assert running.wait(timeout=5)
+
+    worker.pause()
+    assert worker.stream.state == LiveStreamStateEnum.paused
+
+    running.clear()
+    worker.resume()
+    assert running.wait(timeout=5)
+
+    worker.stop(timeout=5)
+    assert worker.stream.state == LiveStreamStateEnum.stopped
+    assert not worker.is_alive()
+    # A deliberate stop is not a reconnect.
+    assert worker.stream.last_error is None
+
+
+def test_worker_telemetry_reports_this_sessions_counts(monkeypatch):
+    """Telemetry must carry the session's own work, not zeros or a running total.
+
+    The live pipeline aggregates per stream and returns no top-level totals, so
+    the counts have to come from the per-batch progress callback. Stream stats
+    are cumulative across sessions, so the record must use the delta.
+    """
+    monkeypatch.setattr(settings, "LIVE_RECONNECT_MAX_ATTEMPTS", 0)
+    captured = {}
+
+    def pipeline(**kwargs):
+        report = kwargs["progress_callback"]
+        report(20, 2)
+        report(10, 1)
+        return {}
+
+    worker = _worker(pipeline)
+    # Pretend an earlier session already ran, so a cumulative read would be wrong.
+    worker.stream.stats.frames_processed = 100
+    worker.stream.stats.embeddings_created = 7
+    monkeypatch.setattr(
+        worker,
+        "_record_telemetry",
+        lambda result, ts, **kw: captured.update(kw),
+    )
+    worker._resume.set()
+
+    worker._run_session()
+
+    assert captured == {"frames": 30, "embeddings": 3}
+
+
+def test_clock_check_never_delays_ingestion_start(monkeypatch):
+    """Regression: the camera clock probe must stay off the ingestion path.
+
+    The probe resolves DNS and connects to the device's HTTP port, which may be
+    slow, firewalled, or blackholed. Running it inline once delayed the first
+    session by seconds; it must not delay it at all.
+    """
+    monkeypatch.setattr(settings, "LIVE_CLOCK_CHECK_ENABLED", True)
+    probe_entered = threading.Event()
+    release_probe = threading.Event()
+
+    def slow_probe(*_args, **_kwargs):
+        probe_entered.set()
+        release_probe.wait(timeout=10)
+
+    monkeypatch.setattr("src.core.live.worker.log_clock_skew", slow_probe)
+
+    running = threading.Event()
+
+    def pipeline(shutdown_event=None, **kwargs):
+        running.set()
+        while not shutdown_event.is_set():
+            time.sleep(0.01)
+        return {"stored_ids": [], "total_frames_processed": 1}
+
+    worker = _worker(pipeline)
+    monkeypatch.setattr(worker, "_record_telemetry", lambda *a, **k: None)
+    worker.start()
+    try:
+        assert probe_entered.wait(timeout=5), "clock probe never ran"
+        # The pipeline must start while the probe is still blocked.
+        assert running.wait(timeout=5), "ingestion waited on the clock probe"
+    finally:
+        release_probe.set()
+        worker.stop()
+
+
+def test_clock_check_is_skipped_when_disabled(monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_CLOCK_CHECK_ENABLED", False)
+    called = threading.Event()
+    monkeypatch.setattr("src.core.live.worker.log_clock_skew", lambda *a, **k: called.set())
+
+    worker = _worker(lambda **_: {})
+    worker._check_camera_clock()
+    assert not called.wait(timeout=0.5)

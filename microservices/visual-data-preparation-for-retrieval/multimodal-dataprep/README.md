@@ -7,6 +7,11 @@ The microservice is **vector-database and storage agnostic**: the vector store
 startup behind a factory, using [VDMS](https://github.com/IntelLabs/vdms) and
 Milvus LangChain integrations. See [Pluggable Backends](docs/user-guide/pluggable-backends.md).
 
+Live RTSP cameras are supported as well: register one with
+`POST /v1/dataprep/media/streams` and the service ingests it continuously in the
+background, recording playback segments and reconnecting on failure. See
+[Live stream ingestion](docs/user-guide/api-reference.md#live-stream-ingestion-mediastreams).
+
 > [!NOTE]
 > Videos must be MP4. Supported image formats are JPG/JPEG, PNG, WEBP, BMP, and GIF.
 

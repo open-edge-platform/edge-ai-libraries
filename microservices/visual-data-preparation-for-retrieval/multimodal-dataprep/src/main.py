@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 
 from src.common import logger, settings
 from src.common.schema import DataPrepResponse, StatusEnum
+from src.core.live import get_live_stream_manager, get_retention_sweeper
 from src.core.metrics_manager import start_metrics_publisher, stop_metrics_publisher
 from src.core.vectorstores import get_vector_store
 from src.endpoints import (
@@ -29,6 +30,7 @@ from src.endpoints import (
     download_video_router,
     ingest_image_router,
     list_videos_router,
+    live_streams_router,
     process_document_router,
     process_minio_video_router,
     telemetry_router,
@@ -142,10 +144,37 @@ async def lifespan(app: FastAPI):
     await start_metrics_publisher()
     await _run_startup_preloads()
 
+    # Bring back live streams registered before the last restart. Restoration is
+    # logged stream by stream so an operator can see exactly what ingestion the
+    # service resumed on its own.
+    live_manager = None
+    retention_sweeper = None
+    if settings.LIVE_STREAM_ENABLED:
+        try:
+            live_manager = get_live_stream_manager()
+            live_manager.restore()
+            retention_sweeper = get_retention_sweeper()
+            retention_sweeper.start()
+        except Exception as exc:  # pragma: no cover - startup must stay resilient
+            logger.error("Live-stream restore failed: %s", exc)
+
     try:
         yield
     finally:
         await stop_metrics_publisher()
+
+        if retention_sweeper is not None:
+            try:
+                retention_sweeper.stop()
+            except Exception as exc:  # pragma: no cover - best effort logging
+                logger.error(f"Error stopping the live retention sweeper: {exc}")
+
+        if live_manager is not None:
+            try:
+                logger.info("Stopping live stream workers . . .")
+                live_manager.stop_all()
+            except Exception as exc:  # pragma: no cover - best effort logging
+                logger.error(f"Error stopping live stream workers: {exc}")
 
         # Flush/refresh the active vector store index before teardown. This is a
         # backend-agnostic call: VDMS persists its descriptor-set index, Milvus
@@ -188,6 +217,12 @@ OPENAPI_TAGS = [
         "name": "Media Management APIs",
         "description": "List, download, and delete stored media together with their "
         "embeddings.",
+    },
+    {
+        "name": "Live Stream APIs",
+        "description": "Register, inspect, update, pause/resume, and delete live "
+        "RTSP streams. Ingestion runs on background workers; source URLs are always "
+        "returned with their credentials redacted.",
     },
     {"name": "Status APIs", "description": "Service health and readiness."},
     {
@@ -266,6 +301,9 @@ app.include_router(process_minio_video_router)
 app.include_router(upload_and_process_video_router)
 app.include_router(batch_ingest_router)
 app.include_router(ingest_image_router)
+
+# Live (RTSP) stream lifecycle endpoints
+app.include_router(live_streams_router)
 
 # Telemetry endpoints
 app.include_router(telemetry_router)

@@ -41,6 +41,21 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_MAX_PARALLEL_WORKERS` | Optional | _(auto)_ | Hard cap for parallel workers when auto-scaling is too aggressive for the host. |
 | `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` | Optional | `true` | When `false`, an upload whose byte content is identical to an already-ingested video is rejected with `409 Conflict`. Detection is content-based (SHA-256) and applies to `/media/upload`, `/media/upload/batch`, `/media/ingest-dir`, `/media/process`, and `/media/process/batch` (per item, reported in the job status). |
 | `MM_DATAPREP_FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
+| `MM_DATAPREP_LIVE_STREAM_ENABLED` | Optional | `true` | Enables the live (RTSP) stream CRUD endpoints and their background workers. |
+| `MM_DATAPREP_LIVE_STREAM_STATE_PATH` | Optional | `/tmp/dataprep/live_streams.db` | SQLite registry of live-stream registrations. Keep it on a persisted volume so streams survive a restart. |
+| `MM_DATAPREP_LIVE_STREAM_BUCKET` | Optional | `live-streams` | Bucket (or local directory) holding recorded live segments and frames. Live embeddings use this as their `bucket_name`. |
+| `MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT` | Optional | `8` | Maximum simultaneously ingesting streams. Further `POST /media/streams` calls return `503`. |
+| `MM_DATAPREP_LIVE_SEGMENT_DURATION_SECONDS` | Optional | `10` | Length of each recorded MP4 playback segment. |
+| `MM_DATAPREP_LIVE_STORE_SEGMENTS` | Optional | `true` | Record MP4 segments (remuxed, not re-encoded) for playback. |
+| `MM_DATAPREP_LIVE_STORE_FRAMES` | Optional | `true` | Store sampled JPEG frames alongside the segments. Sampling reuses `MM_DATAPREP_FRAME_INTERVAL`. |
+| `MM_DATAPREP_LIVE_BATCH_MAX_AGE_SECONDS` | Optional | `20` | Flush a partially filled frame batch from a live source once its oldest frame reaches this age. A live stream never reaches end-of-stream, so without this the pipeline waits for a full `MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE` batch before producing any embedding. `0` disables the timer. |
+| `MM_DATAPREP_LIVE_RECONNECT_INTERVAL_SECONDS` | Optional | `5` | Delay between reconnect attempts after a live source drops. |
+| `MM_DATAPREP_LIVE_RECONNECT_MAX_ATTEMPTS` | Optional | `10` | Reconnect budget before a stream is marked `error`. `0` retries forever. |
+| `MM_DATAPREP_LIVE_RECONNECT_WINDOW_SECONDS` | Optional | `60` | Healthy-session duration after which the reconnect budget resets. |
+| `MM_DATAPREP_LIVE_RETENTION_HOURS` | Optional | `0` | Retention window for live embeddings and media. `0` keeps everything forever — the index then grows without bound. |
+| `MM_DATAPREP_LIVE_RETENTION_SWEEP_MINUTES` | Optional | `15` | How often the retention sweeper runs when retention is enabled. |
+| `MM_DATAPREP_LIVE_CLOCK_CHECK_ENABLED` | Optional | `true` | On starting a live stream, probe the camera's HTTP `Date` header and log a warning when its clock is adrift from the host. Purely diagnostic — ingestion timestamps always come from the host clock. |
+| `MM_DATAPREP_LIVE_CLOCK_SKEW_WARN_SECONDS` | Optional | `2` | Camera-to-host drift, in seconds, above which the clock check warns. |
 | `MM_DATAPREP_ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles YOLOX-based crop extraction. |
 | `MM_DATAPREP_DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |
 | `MM_DATAPREP_ROI_CONSOLIDATION_ENABLED` | Optional | `false` | Enables ROI consolidation (merging overlapping detections). |

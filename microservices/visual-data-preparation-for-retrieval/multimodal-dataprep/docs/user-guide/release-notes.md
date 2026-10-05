@@ -1,5 +1,44 @@
 # Release Notes: Multimodal Data Preparation for Retrieval
 
+## Version 2026.3.0
+
+**Release Date**: TBD
+
+**New**:
+
+- **Live (RTSP) stream ingestion as a managed resource:** the new `/media/streams` CRUD surface registers a camera and ingests it continuously on a background worker — create (single and batch), list with `state`/`tags` filters, inspect stats, pause/resume and reconfigure via `PATCH`, and delete (single and batch) with optional `purge_embeddings` / `purge_media`. Registrations are persisted and restored on restart, dropped sources reconnect with a bounded budget, and live embeddings are addressable through the existing media endpoints (`bucket_name` = `MM_DATAPREP_LIVE_STREAM_BUCKET`, `video_id` = `stream_id`).
+- **Playback media for live streams:** each stream records N-second MP4 segments (`MM_DATAPREP_LIVE_SEGMENT_DURATION_SECONDS`, default 10) and sampled JPEG frames, and every live embedding points at the segment covering its frame — so a retrieval hit on a live camera is playable.
+- **Live retention:** `MM_DATAPREP_LIVE_RETENTION_HOURS` (default `0` = keep forever) prunes live embeddings and media past the window; requires the new vector-store `delete_embeddings_before()` operation, implemented for both VDMS and Milvus.
+- **Live telemetry and health:** live sessions are recorded by `GET /telemetry`, and `GET /health` reports live-stream counts per state.
+- **External media correlation contract:** every live embedding now records `sensor_id` (stable identity of the physical source, settable at registration and defaulting to the `stream_id`), `capture_time` with an explicit `capture_time_source`, and `media_owner`. These let media stored by another service be matched back to an embedding without changing the decode or embedding path. See [Stream Manager Integration Readiness](../integration/stream-manager-readiness.md).
+- **Camera-clock capture timestamps for live streams:** `capture_time` is derived from each frame's PTS anchored to the best available clock, rather than from the ingest instant. This removes per-frame pipeline jitter and lets an independent consumer of the same RTSP feed resolve the same frame. The source degrades through `rtcp_sender_report` → `stream_anchored` → `ingest_estimated`, reported in `capture_time_source`; implausible camera clocks are rejected rather than trusted. Segment bucketing is unchanged and still uses ingest time. **In practice expect `stream_anchored`:** validation against a Hikvision DS-2CD1023G0E-I found the camera emits no RTCP at all — a raw probe saw 4316 RTP packets and 0 RTCP packets over 45 s on TCP, and none on UDP — so no client can recover an NTP mapping. Always branch on `capture_time_source` rather than assuming camera-clock accuracy.
+- **Camera clock-skew warning:** starting a live stream probes the device's HTTP `Date` header and logs a warning when its clock disagrees with the host by more than `MM_DATAPREP_LIVE_CLOCK_SKEW_WARN_SECONDS` (default 2). The check is vendor-neutral, sends no credentials, runs off the ingestion path, and never alters a stored timestamp — it surfaces the otherwise-invisible condition that makes a camera unusable as a shared time reference when correlating with an external recorder. It distinguishes genuine drift from embedded web servers that stamp local time but label it `GMT`. Disable with `MM_DATAPREP_LIVE_CLOCK_CHECK_ENABLED=false`.
+
+**Fixed**:
+
+- **Live streams now produce embeddings promptly.** Batches were only flushed once `MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE` sampled frames had accumulated, and the "drain whatever is left" path only runs at end-of-stream — which an RTSP source never reaches. A camera at 12.5 fps with `frame_interval=15` therefore produced nothing for roughly five minutes while pinning shared-memory blocks. Partially filled batches from live sources are now flushed once the oldest frame reaches `MM_DATAPREP_LIVE_BATCH_MAX_AGE_SECONDS` (default 20).
+- **Live stream statistics no longer stay at zero.** `frames_processed` and `embeddings_created` were only updated after the ingestion pipeline returned, which for a continuous stream never happens. Progress is now reported per stored batch, so `GET /media/streams/{stream_id}` reflects ingestion while it runs.
+- **Recorded live media is now downloadable.** `GET /media` lists live objects under `<stream_id>/segments/...` and `<stream_id>/frames/...`, but `GET /media/download` rejected the `/` in those paths and a bare `video_id` returned an arbitrary frame — so a retrieval hit on a live camera could not be played back. The endpoint accepts a new `media_path` query parameter resolved strictly within the stream's own prefix.
+- **External correlation fields now reach the vector database.** `sensor_id`, `capture_time`, `capture_time_source`, and `media_owner` were computed per frame but were not part of the enforced canonical metadata contract, so they were stripped before storage and never appeared in retrieval results.
+- **Live sessions now appear in `GET /telemetry`.** Records were built with a `-1` "unknown" stream index that failed the non-negative schema constraint, so every live record was silently discarded; the counts were also reported as zero because the live pipeline does not surface totals at the top level of its result.
+- **Camera credentials no longer reach the service logs.** The decoder recorded the raw RTSP URL as the stream's source in the metadata it logs verbatim, disclosing any embedded `user:pass@`. That value is now redacted with the same helper used for API responses and vector metadata.
+- Live ingestion no longer stores embeddings under a placeholder identity (`RTSP_BUCKET` / `video_id=-1`), which made them impossible to list, filter, or delete.
+- **Ingestion no longer hangs when a decoder thread dies.** A frame larger than the shared-memory block size (for example 4K portrait video against the 1920x1080 default) killed the producer thread without signalling completion, leaving the request spinning forever and never returning. Decoder failures are now forwarded to the consumer and raised, and the request is rejected with `400 Bad Request` naming `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` and the required byte count instead of an opaque `500`. The failure path also shuts down the shared-memory pools, which previously leaked on every failed request.
+- **Concurrent embedding requests no longer abort the worker.** Two overlapping inference calls could overwrite each other's async completion callback, writing a result into a wrong-sized buffer and terminating the process with SIGABRT. Inference submission is now serialized per model instance and callback exceptions are re-raised in the submitting thread.
+
+**Upgrade Notes**:
+
+- **Breaking:** `POST /media/rtsp` has been removed. Register the source with
+  `POST /media/streams` instead; the call returns immediately with a `stream_id`
+  rather than holding the request open for the life of the stream, and
+  `DELETE /media/streams/{stream_id}` replaces client-disconnect as the stop
+  signal.
+- Live-stream registrations are stored in a SQLite file on the existing
+  `data-prep` volume (`MM_DATAPREP_LIVE_STREAM_STATE_PATH`). Deployments that do
+  not persist that volume will lose registrations across restarts.
+- Live ingestion grows the vector index indefinitely unless
+  `MM_DATAPREP_LIVE_RETENTION_HOURS` is set.
+
 ## Version 2026.2.0
 
 **Release Date**: September 9, 2026

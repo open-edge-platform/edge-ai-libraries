@@ -29,35 +29,34 @@ import signal
 import tempfile
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import as_completed
-from dataclasses import asdict
-from dataclasses import dataclass
-from dataclasses import field
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass, field
 from multiprocessing import shared_memory
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 from PIL import Image
 
-from src.common import logger
-from src.common import settings
-from src.common import sanitize_for_log
-from src.common import get_tracer
-from src.common import shutdown_tracer
-from src.common import init_tracer
-from src.common import now_us
-from src.common import Tracer
-
-from src.core.embedding.decoder import SharedMemoryPool
-from src.core.embedding.decoder import SharedMemoryPoolExhausted
-from src.core.embedding.decoder import VideoFrameConfig
-from src.core.embedding.decoder import VideoFrameExtractor
+from src.common import (
+    Tracer,
+    get_tracer,
+    init_tracer,
+    logger,
+    now_us,
+    sanitize_for_log,
+    settings,
+    shutdown_tracer,
+)
 from src.core.embedding.client import EmbeddingClient
+from src.core.embedding.decoder import (
+    SharedMemoryPool,
+    SharedMemoryPoolExhausted,
+    VideoFrameConfig,
+    VideoFrameExtractor,
+    is_live_source,
+)
+from src.core.live.segments import segment_id as live_segment_id
+from src.core.live.segments import segment_start as live_segment_start
 
 # Global SDK client instance (initialized once per worker process)
 _embedding_client: Optional[EmbeddingClient] = None
@@ -88,7 +87,37 @@ class FrameMetadata:
     video_index: int = 0
     created_at: Optional[datetime.datetime] = None
     custom_metadata: Dict[str, Any] = field(default_factory=dict)
-
+    # Live (RTSP) ingestion fields. Populated only when the pipeline is driven by
+    # a registered live stream; they stay None/False for file-based ingestion.
+    live_stream_id: Optional[str] = None
+    live_stream_name: Optional[str] = None
+    stream_url: Optional[str] = None  # ALWAYS the credential-redacted URL
+    is_live: bool = False
+    segment_id: Optional[str] = None
+    segment_start_time: Optional[float] = None
+    wall_clock_time: Optional[str] = None
+    ingest_epoch: Optional[float] = None
+    # -- External media correlation -------------------------------------------
+    # These describe *what the frame is of* and *when it happened*, as opposed to
+    # where this service happened to put its own copy. They are the contract an
+    # external recorder (e.g. a stream manager owning the stored video) is
+    # correlated against, so they must stay independent of our storage layout.
+    #: Stable logical identity of the physical source. Survives re-registration
+    #: of the stream, so it outlives ``live_stream_id``.
+    sensor_id: Optional[str] = None
+    #: Best available capture time of the frame, RFC 3339 UTC. This is the field
+    #: to query an external recorder with. Distinct from ``wall_clock_time``,
+    #: which is the *ingest* instant and therefore lags capture by the decode and
+    #: queue latency.
+    capture_time: Optional[str] = None
+    #: How far ``capture_time`` can be trusted. ``ingest_estimated`` means it was
+    #: derived from our ingest clock rather than read from the source, so it
+    #: carries pipeline latency and must be matched with a tolerance window.
+    capture_time_source: Optional[str] = None
+    #: Which service owns the playable media this embedding points at. ``self``
+    #: means the segment recorded by our own recorder; an external owner is set
+    #: when media lives in another service.
+    media_owner: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -266,7 +295,7 @@ def get_global_detector(enable_object_detection: bool = True, detection_confiden
                     "Global object detector initialized with confidence threshold: %s",
                     sanitize_for_log(detection_confidence, max_length=32),
                 )
-                
+
         except Exception as e:
             logger.error(f"Failed to initialize global object detector: {e}")
             _global_detector = None
@@ -490,9 +519,10 @@ class SimplePipelineManager:
                 "Using global object detector with confidence threshold: %s",
                 sanitize_for_log(self.detection_confidence, max_length=32),
             )
-        
-    
-    def _process_frame_with_detection(self, frame_numpy: np.ndarray, frame_metadata: Dict[str, Any]) -> List[Tuple[Image.Image, Dict[str, Any]]]:
+
+    def _process_frame_with_detection(
+        self, frame_numpy: np.ndarray, frame_metadata: Dict[str, Any]
+    ) -> List[Tuple[Image.Image, Dict[str, Any]]]:
         """
         Process a single frame and optionally detect objects to create crops.
 
@@ -671,15 +701,15 @@ class SimplePipelineManager:
         logger.info(
             "Processing %s frames with %s maximum parallel workers",
             sanitize_for_log(len(all_frames), max_length=32),
-            sanitize_for_log(self.config['pipeline_count'], max_length=32),
+            sanitize_for_log(self.config["pipeline_count"], max_length=32),
         )
-        
+
         if self.enable_object_detection:
             logger.info(
                 "Object detection enabled with confidence threshold: %s",
                 sanitize_for_log(self.detection_confidence, max_length=32),
             )
-        
+
         try:
             # Create batches of frames for parallel processing
             logger.info(
@@ -963,7 +993,9 @@ class SimplePipelineManager:
                 f"[Batch {batch_index}/{total_batches}] Using parallel mode - no locking needed with infer_new_request"
             )
             embedding_start = time.time()
-            embeddings = thread_embedding_client.generate_embeddings_for_images(all_images_for_embedding)
+            embeddings = thread_embedding_client.generate_embeddings_for_images(
+                all_images_for_embedding
+            )
             embedding_time = time.time() - embedding_start
             logger.debug(
                 f"[Batch {batch_index}/{total_batches}] Step 2 completed: Generated {len(embeddings)} "
@@ -1109,7 +1141,7 @@ def generate_video_embedding_pipeline(
         "Starting video processing with frame_interval=%s",
         sanitize_for_log(frame_interval, max_length=32),
     )
-    
+
     try:
         # Get SDK client
         embedding_client = get_embedding_client()
@@ -1168,6 +1200,7 @@ def _process_video_from_memory_simple_pipeline(
     enable_object_detection: bool,
     detection_confidence: float,
     shutdown_event: Optional[threading.Event] = None,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> Dict[str, Any]:
     """
     Process a video source using the simple parallel pipeline approach.
@@ -1176,17 +1209,26 @@ def _process_video_from_memory_simple_pipeline(
     stores them in bulk. ``video_source`` may be in-memory bytes (uploaded file),
     a file path, an RTSP URL, or a list of any of these; ``VideoFrameExtractor``
     auto-detects the source type for each input.
+
+    ``progress_callback`` is invoked as ``(frames_in_batch, embeddings_stored)``
+    after each batch is persisted. Endless sources never reach the final return,
+    so it is the only way a caller can observe progress on a live stream.
     """
     method_start_time = now_us()
 
     shutdown_event = shutdown_event or threading.Event()
     logger.info(settings.model_dump_json())
     logger.info("Processing video using simple parallel pipeline....")
+    # Bound up front so the error handler can always clean up, even if the
+    # failure happens before these are created.
+    _shm_pool = None
+    _crop_pool = None
+    detection_thread = embed_thread = store_thread = result_thread = None
     try:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         tracer = init_tracer(
-            output_file=os.path.join(tempfile.gettempdir(), f"trace_{timestamp}.json"), 
-            enabled=settings.ENABLE_TRACING
+            output_file=os.path.join(tempfile.gettempdir(), f"trace_{timestamp}.json"),
+            enabled=settings.ENABLE_TRACING,
         )
         tracer.set_process_name("decode_detect_embed_store_pipeline")
 
@@ -1201,12 +1243,9 @@ def _process_video_from_memory_simple_pipeline(
         # do not fit a block are embedded from the heap rather than dropped.
         _crop_pool = (
             SharedMemoryPool(
-                max_blocks=(
-                    settings.VIDEO_CROP_SHM_MAX_BLOCKS or _shm_pool.max_blocks * 2
-                ),
+                max_blocks=(settings.VIDEO_CROP_SHM_MAX_BLOCKS or _shm_pool.max_blocks * 2),
                 block_size=(
-                    settings.VIDEO_CROP_SHM_BLOCK_SIZE
-                    or max(1, _shm_pool.block_size // 2)
+                    settings.VIDEO_CROP_SHM_BLOCK_SIZE or max(1, _shm_pool.block_size // 2)
                 ),
             )
             if enable_object_detection
@@ -1217,6 +1256,12 @@ def _process_video_from_memory_simple_pipeline(
             batch_size=settings.VIDEO_EXTRACTION_BATCH_SIZE,  # Large batch for efficient extraction
             frame_interval=frame_interval,
             keyframes_only=False,
+            # Live sources never hit EOF, so a partial batch must be flushed on a
+            # timer, otherwise the first embeddings only appear once a full batch
+            # of sampled frames accumulates. Finite sources drain at EOF instead.
+            max_batch_age_seconds=(
+                settings.LIVE_BATCH_MAX_AGE_SECONDS if is_live_source(video_source) else 0.0
+            ),
         )
 
         # Create video input from the source and extract frames
@@ -1290,7 +1335,7 @@ def _process_video_from_memory_simple_pipeline(
         store_thread = threading.Thread(
             target=store_worker,
             name="store_thread",
-            args=(store_queue, result_queue, shutdown_event, tracer),
+            args=(store_queue, result_queue, shutdown_event, tracer, progress_callback),
         )
 
         result_thread = threading.Thread(
@@ -1316,11 +1361,22 @@ def _process_video_from_memory_simple_pipeline(
         video_rel_url = metadata_dict.get("video_rel_url", "")
         source_path = metadata_dict.get("source_path", "") or ""
         custom_metadata = metadata_dict.get("custom_metadata") or {}
+        # Live-stream context, set only when a registered live stream drives the
+        # pipeline. ``live_stream_url`` is already redacted by the caller.
+        live_context = metadata_dict.get("live") or {}
+        live_stream_id = live_context.get("stream_id")
+        live_stream_name = live_context.get("stream_name")
+        live_stream_url = live_context.get("stream_url")
+        live_sensor_id = live_context.get("sensor_id") or live_stream_id
+        live_segment_seconds = int(
+            live_context.get("segment_duration_seconds") or settings.LIVE_SEGMENT_DURATION_SECONDS
+        )
+        live_segment_url_builder = live_context.get("segment_url_builder")
 
         # Ensure created_at exists for downstream time filtering
-        created_at_value = metadata_dict.get('created_at', None)
-        if isinstance(created_at_value, dict) and '_date' in created_at_value:
-            created_at_value = created_at_value.get('_date')
+        created_at_value = metadata_dict.get("created_at", None)
+        if isinstance(created_at_value, dict) and "_date" in created_at_value:
+            created_at_value = created_at_value.get("_date")
         if created_at_value is None:
             created_at_value = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
@@ -1340,9 +1396,13 @@ def _process_video_from_memory_simple_pipeline(
         total_wall_time_start = now_us()
         # Assuming single video input; can be extended for multiple videos
         frame_generator = extractor.decode_frames()
+        # Bound before the loop: if the generator raises on the very first batch,
+        # the except handler below must still be able to report the batch index
+        # instead of masking the real error with an UnboundLocalError.
+        i = -1
         try:
             for i, (batch_frame_metadata, batch_times) in enumerate(frame_generator):
-                
+
                 logger.info(f"Processing batch {i} of frames")
                 logger.info(_shm_pool.stats())
                 logger.info(_crop_pool.stats() if _crop_pool else "No crop pool configured")
@@ -1358,6 +1418,27 @@ def _process_video_from_memory_simple_pipeline(
 
                 def extend_frame_metadata(frame_metadata):
                     stream_metadata = all_stream_metadata[frame_metadata["stream_id"]]
+                    # For a live stream, positional metadata is wall-clock based:
+                    # the frame belongs to whichever recorded segment covers the
+                    # instant it was ingested (see core.live.segments).
+                    #
+                    # Segment bucketing deliberately stays on ingest time: the
+                    # recorder buckets by its own wall clock, and the two must
+                    # agree on which segment a frame lands in. Capture time is
+                    # used only for correlating against externally stored media.
+                    frame_epoch = time.time()
+                    frame_segment_start = (
+                        live_segment_start(frame_epoch, live_segment_seconds)
+                        if live_stream_id
+                        else None
+                    )
+                    frame_capture_epoch = frame_metadata.get("capture_epoch")
+                    frame_capture_source = (
+                        frame_metadata.get("capture_time_source") or "ingest_estimated"
+                    )
+                    if frame_capture_epoch is None:
+                        frame_capture_epoch = frame_epoch
+                        frame_capture_source = "ingest_estimated"
                     fm = FrameMetadata(
                         video_index=frame_metadata[
                             "stream_id"
@@ -1374,7 +1455,11 @@ def _process_video_from_memory_simple_pipeline(
                         ),
                         frame_type="FULL_FRAME",
                         tags=tags,
-                        video_url=video_url,
+                        video_url=(
+                            live_segment_url_builder(frame_segment_start)
+                            if live_stream_id and live_segment_url_builder
+                            else video_url
+                        ),
                         video_rel_url=video_rel_url,
                         source_path=source_path,
                         custom_metadata=custom_metadata,
@@ -1390,6 +1475,38 @@ def _process_video_from_memory_simple_pipeline(
                             else None
                         ),
                         created_at=created_at_value,
+                        live_stream_id=live_stream_id,
+                        live_stream_name=live_stream_name,
+                        stream_url=live_stream_url,
+                        is_live=bool(live_stream_id),
+                        segment_id=(
+                            live_segment_id(live_stream_id, frame_segment_start)
+                            if live_stream_id
+                            else None
+                        ),
+                        segment_start_time=frame_segment_start,
+                        wall_clock_time=(
+                            datetime.datetime.fromtimestamp(
+                                frame_epoch, datetime.timezone.utc
+                            ).isoformat()
+                            if live_stream_id
+                            else None
+                        ),
+                        ingest_epoch=frame_epoch if live_stream_id else None,
+                        sensor_id=live_sensor_id if live_stream_id else None,
+                        # Capture time comes from the camera clock when an RTCP
+                        # Sender Report is available, degrading through
+                        # stream-anchored to ingest-estimated. The tier is
+                        # recorded so consumers know what tolerance to apply.
+                        capture_time=(
+                            datetime.datetime.fromtimestamp(
+                                frame_capture_epoch, datetime.timezone.utc
+                            ).isoformat()
+                            if live_stream_id
+                            else None
+                        ),
+                        capture_time_source=(frame_capture_source if live_stream_id else None),
+                        media_owner=("self" if live_stream_id else None),
                     ).to_dict()
                     frame_metadata.update(fm)
                     return frame_metadata
@@ -1414,7 +1531,8 @@ def _process_video_from_memory_simple_pipeline(
                 )
 
         except Exception as e:
-            logger.error(f"Error processing frame {i}: {e.with_traceback(e.__traceback__)}")
+            where = "before the first batch" if i < 0 else f"in batch {i}"
+            logger.error(f"Error processing frames {where}: {e}", exc_info=True)
             raise
 
         finally:
@@ -1468,7 +1586,6 @@ def _process_video_from_memory_simple_pipeline(
         logger.info("Shutdown Tracer!")
         shutdown_tracer()
 
-
         logger.info("Simple pipeline processing completed successfully")
 
         return processed_result
@@ -1477,6 +1594,26 @@ def _process_video_from_memory_simple_pipeline(
         method_time = (now_us() - method_start_time) / 1_000_000
         shutdown_event.set()  # Ensure all workers are signaled to shut down on error
         logger.error(f"Simple pipeline processing failed after {method_time:.3f}s: {e}")
+
+        # The success path joins workers and shuts the pools down explicitly. On
+        # failure that never runs, so release the shared-memory segments here or
+        # every failed request leaks its whole pool into /dev/shm.
+        for thread in (detection_thread, embed_thread, store_thread, result_thread):
+            if thread is None:
+                continue
+            try:
+                thread.join(timeout=5.0)
+            except Exception:  # pragma: no cover - defensive
+                logger.warning("Failed to join %s during error cleanup", thread.name)
+
+        for pool in (_shm_pool, _crop_pool):
+            if pool is None:
+                continue
+            try:
+                pool.shutdown()
+            except Exception:  # pragma: no cover - defensive
+                logger.warning("Failed to shut down a shared-memory pool during error cleanup")
+
         raise
 
 
@@ -1632,7 +1769,7 @@ def _map_shared_frame(d, to_pil=True):
     # PIL from buffer
     # assert arr.dtype == np.uint8
     # assert arr.flags["C_CONTIGUOUS"]
-    
+
     # if arr.ndim == 3 and arr.shape[2] == 3:
     #     mode = "RGB"
     #     h, w, _ = arr.shape
@@ -1679,6 +1816,7 @@ def allocate_detected_crops(
 
         # ---- Phase 2: Parallel detection ----
         if mapped:
+
             def _task(args):
                 arr, meta = args
                 return process_frame_detection(arr, meta, detector=detector, crop_pool=crop_pool)
@@ -1743,7 +1881,6 @@ def detection_worker(
             batch_size = batch["batch_size"]
             flow_id = f"s{stream_id}_b{batch_id}"
 
-
             if tracer and tracer.should_trace():
                 tracer.flow_step(flow_id, tid=tid, ts=batch["enqueue_ts"])
                 tracer.emit_complete(
@@ -1752,9 +1889,7 @@ def detection_worker(
                     ts_deq,
                     tid=tid,
                     cat="queue",
-                    args={
-                        "flow_id": flow_id
-                    }
+                    args={"flow_id": flow_id},
                 )
 
             detection_start_time = now_us()
@@ -1879,7 +2014,7 @@ def embed_worker(
 
             frame_batch = list(thread_pool.map(_map_shared_frame, batch["frames"]))
             shm_handles, batch_frame_pil, batch_frame_meta = tuple(map(list, zip(*frame_batch)))
-            
+
             # ---- EMBEDDING ----
             embedding_time = now_us()
 
@@ -1938,11 +2073,13 @@ def embed_worker(
         finally:
             if batch_frame_pil:
                 del batch_frame_pil  # Ensure PIL images are dereferenced before SHM cleanup
-            
+
             if frame_batch is not None:
                 del frame_batch
 
-            logger.info(f"Closing {len(shm_handles)} shared memory handles in finally block of embed_worker")
+            logger.info(
+                f"Closing {len(shm_handles)} shared memory handles in finally block of embed_worker"
+            )
             for shm in shm_handles:
                 if shm is None:
                     continue  # heap-backed crop, nothing to close
@@ -1962,7 +2099,7 @@ def embed_worker(
                         shm_pool.release(meta["shm"])
                 except Exception as e:
                     logger.warning(f"release failed {meta['shm']}: {e}")
-            
+
             del shm_handles
             gc.collect()
 
@@ -1979,6 +2116,7 @@ def store_worker(
     result_queue: queue.Queue,
     shutdown_event: threading.Event,
     tracer: Tracer,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
 ):
     _embedding_client = get_embedding_client()
 
@@ -2028,14 +2166,13 @@ def store_worker(
                     cat="queue",
                     args={
                         "flow_id": flow_id,
-                    }
+                    },
                 )
 
             storage_time = now_us()
 
             if tracer and tracer.should_trace():
                 tracer.flow_step(flow_id, tid=tid, ts=storage_time)
-            
 
             saved_ids = _embedding_client.store_frame_embeddings(embedding, batch_frame_meta)
             batch["stored_ids"] = saved_ids
@@ -2068,6 +2205,14 @@ def store_worker(
             logger.info(
                 f"[EMBED_WORKER] Worker stored embeddings for {len(saved_ids)} frames/crops in {(storage_end_time - storage_time) / 1_000_000}s"
             )
+
+            if progress_callback is not None:
+                # Endless sources never return a final result, so progress has to be
+                # reported per batch or the caller's counters stay at zero forever.
+                try:
+                    progress_callback(batch_size, len(saved_ids))
+                except Exception:  # noqa: BLE001 - reporting must never kill ingestion
+                    logger.warning("Live progress callback failed", exc_info=True)
 
             stats["total"] = (
                 stats["decode"][2] + stats["detect"][2] + stats["embed"][2] + stats["store"][2]
@@ -2103,11 +2248,13 @@ def store_worker(
 
             # Throughput
             metrics["decode_batch_tput_fps"] = batch.get("batch_size", 0) / stats["decode"][2]
-            metrics["detect_batch_tput_fps"] = batch.get("batch_size", 0) / (stats["detect"][2] + 1e-8)
+            metrics["detect_batch_tput_fps"] = batch.get("batch_size", 0) / (
+                stats["detect"][2] + 1e-8
+            )
             metrics["embed_batch_tput_fps"] = batch.get("total", 0) / stats["embed"][2]
             metrics["store_batch_tput_fps"] = batch.get("total", 0) / stats["store"][2]
-            metrics["raw_embed_infer_batch_tput_fps"] = (
-                batch.get("total", 0) / stats.get("embed_infer_time", 1e-8)
+            metrics["raw_embed_infer_batch_tput_fps"] = batch.get("total", 0) / stats.get(
+                "embed_infer_time", 1e-8
             )
 
             result_queue.put(batch)
@@ -2378,6 +2525,7 @@ def generate_rtsp_video_embedding_pipeline(
     enable_object_detection: bool = True,
     detection_confidence: float = 0.85,
     shutdown_event: Optional[threading.Event] = None,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> Dict[str, Any]:
     """
     Generate RTSP video embeddings with parallel processing.
@@ -2389,12 +2537,17 @@ def generate_rtsp_video_embedding_pipeline(
         enable_object_detection: Whether to enable object detection (currently not implemented)
         detection_confidence: Confidence threshold (currently not used)
         shutdown_event: Optional threading.Event to signal graceful shutdown
+        progress_callback: Called as ``(frames_in_batch, embeddings_stored)`` after
+            each batch is persisted. An RTSP session only returns when the source
+            ends, so this is the only progress signal available while it runs.
 
     Returns:
         Dictionary containing processing results and timing information
     """
     total_start_time = now_us()
-    logger.info("ID of shutdown_event in generate_rtsp_video_embedding_pipeline: %s", id(shutdown_event))
+    logger.info(
+        "ID of shutdown_event in generate_rtsp_video_embedding_pipeline: %s", id(shutdown_event)
+    )
     try:
         # Get SDK client
         embedding_client = get_embedding_client()
@@ -2435,6 +2588,7 @@ def generate_rtsp_video_embedding_pipeline(
             enable_object_detection=enable_object_detection,
             detection_confidence=detection_confidence,
             shutdown_event=shutdown_event,
+            progress_callback=progress_callback,
         )
 
         total_time = (now_us() - total_start_time) / 1_000_000

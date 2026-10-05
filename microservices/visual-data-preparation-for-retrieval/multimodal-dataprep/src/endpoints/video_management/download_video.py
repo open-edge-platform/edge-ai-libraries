@@ -22,7 +22,7 @@ from src.common import DataPrepException, Strings, logger, settings
 from src.common.api_responses import error_responses
 from src.core.media import content_type_for_filename
 from src.core.utils.video_utils import resolve_media_source
-from src.core.validation import validate_params
+from src.core.validation import sanitize_media_subpath, validate_params
 
 router = APIRouter(tags=["Media Management APIs"])
 
@@ -129,6 +129,17 @@ async def download_video(
         bool,
         Query(description="Set to true to download the file instead of streaming it"),
     ] = False,
+    media_path: Annotated[
+        Optional[str],
+        Query(
+            description=(
+                "Relative path to a specific object inside the video_id directory, "
+                "e.g. 'segments/1790655530.mp4'. Required for live-stream media, which "
+                "is stored under <stream_id>/segments/ and <stream_id>/frames/. When "
+                "omitted, the single media object in the video_id directory is served."
+            )
+        ),
+    ] = None,
 ) -> StreamingResponse:
     """
     ### Download or stream a video from storage.
@@ -149,6 +160,7 @@ async def download_video(
     - **video_id (str, required) :** The video ID (directory) containing the video to download.
     - **bucket_name (str, optional) :** The bucket where the video is stored. Defaults to the configured bucket.
     - **download (bool, optional) :** Set to true to force a file download (``attachment``) instead of inline streaming.
+    - **media_path (str, optional) :** Relative path to a specific object inside the ``video_id`` directory (e.g. ``segments/1790655530.mp4``). Required for live-stream media, which is stored under ``<stream_id>/segments/`` and ``<stream_id>/frames/``.
 
     #### Raises:
     - **400 Bad Request :** If required parameters are missing or invalid.
@@ -164,9 +176,10 @@ async def download_video(
     file_size = 0
 
     try:
+        media_path = sanitize_media_subpath(media_path)
         # Resolve the concrete media + size without downloading it. This covers
         # both stored objects and media referenced in place on the ingest mount.
-        source = resolve_media_source(bucket_name, video_id)
+        source = resolve_media_source(bucket_name, video_id, media_path=media_path)
         file_size = source.size(bucket_name)
         # Serve the media with its real MIME type (video/mp4, image/png, ...)
         # derived from the filename extension.
