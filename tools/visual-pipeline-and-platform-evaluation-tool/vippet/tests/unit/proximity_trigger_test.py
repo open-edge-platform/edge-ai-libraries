@@ -44,7 +44,9 @@ except (ImportError, ValueError):
     _GST_AVAILABLE = False
 
 
-def _make_odmtd(label: str, x: float, y: float, w: float, h: float, success: bool = True):
+def _make_odmtd(
+    label: str, x: float, y: float, w: float, h: float, success: bool = True
+):
     """Create a MagicMock that passes ``isinstance(_, GstAnalytics.ODMtd)``.
 
     ``get_obj_type()`` returns the label directly (a stand-in for the quark),
@@ -147,12 +149,13 @@ class TestDoTransformIp(unittest.TestCase):
 
     def _run(self, has_rmeta: bool, proximity: bool):
         rmeta = MagicMock() if has_rmeta else None
-        with patch.object(
-            proximity_trigger.GstAnalytics,
-            "buffer_get_analytics_relation_meta",
-            return_value=rmeta,
-        ), patch.object(
-            self.trigger, "_check_proximity", return_value=proximity
+        with (
+            patch.object(
+                proximity_trigger.GstAnalytics,
+                "buffer_get_analytics_relation_meta",
+                return_value=rmeta,
+            ),
+            patch.object(self.trigger, "_check_proximity", return_value=proximity),
         ):
             buffer = MagicMock()
             buffer.pts = Gst.CLOCK_TIME_NONE
@@ -183,6 +186,27 @@ class TestDoTransformIp(unittest.TestCase):
         result = self._run(has_rmeta=True, proximity=True)
         self.assertEqual(result, Gst.FlowReturn.OK)
         self.assertEqual(self.trigger._consecutive_count, 0)
+
+    def test_posts_event_message_when_trigger_fires(self):
+        self.trigger._consecutive_count = self.trigger._frames - 1
+        self.trigger._last_distance = 12.3
+        with patch.object(self.trigger, "post_message") as post_message:
+            self._run(has_rmeta=True, proximity=True)
+
+        post_message.assert_called_once()
+        structure = post_message.call_args[0][0].get_structure()
+        self.assertEqual(
+            structure.get_name(), proximity_trigger.PIPELINE_EVENT_STRUCTURE
+        )
+        self.assertEqual(structure.get_value("source"), "proximity-trigger")
+        self.assertIn("person near bicycle", structure.get_value("text"))
+        self.assertIn("12 px", structure.get_value("text"))
+        self.assertIn("3 consecutive frames", structure.get_value("text"))
+
+    def test_does_not_post_event_below_threshold(self):
+        with patch.object(self.trigger, "post_message") as post_message:
+            self._run(has_rmeta=True, proximity=True)
+        post_message.assert_not_called()
 
 
 if __name__ == "__main__":

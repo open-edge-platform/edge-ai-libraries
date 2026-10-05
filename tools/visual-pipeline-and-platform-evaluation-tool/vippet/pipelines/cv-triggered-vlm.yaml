@@ -26,6 +26,7 @@ variants:
       fakesink name=default_output_sink
       t2. !
       queue !
+      videorate !
       videoconvert !
       openh264enc !
       h264parse !
@@ -55,6 +56,7 @@ variants:
       fakesink name=default_output_sink
       t2. !
       queue !
+      videorate !
       vah264enc !
       h264parse !
       mp4mux fragment-duration=1000 !

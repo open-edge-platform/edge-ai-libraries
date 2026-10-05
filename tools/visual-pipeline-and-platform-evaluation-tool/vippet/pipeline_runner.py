@@ -21,8 +21,34 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from subprocess import PIPE, Popen
+from typing import Callable
 
 import psutil as ps
+
+
+@dataclass
+class PipelineEvent:
+    """
+    Live, human-readable event observed while a pipeline is running.
+
+    Runner-local for the same reason as :class:`LatencyTracerSample`;
+    mirrored by :class:`internal_types.InternalPipelineEvent`.
+
+    Attributes:
+        timestamp_ms: Wall-clock time the event was parsed, in ms since epoch.
+        source: Event origin, e.g. ``"proximity-trigger"`` or ``"vlm"``.
+        text: Human-readable event description (or VLM answer).
+        element: Emitting element name, when known.
+        pts_seconds: Stream position the event refers to, when known.
+        prompt: Prompt that produced a VLM answer, when known.
+    """
+
+    timestamp_ms: int
+    source: str
+    text: str
+    element: str | None = None
+    pts_seconds: float | None = None
+    prompt: str | None = None
 
 
 @dataclass
@@ -230,6 +256,9 @@ class PipelineRunner:
         "generate_duration_ms": "generate_duration_mean",
     }
 
+    # Must match ``gst_runner.PIPELINE_EVENT_MARKER``.
+    _PIPELINE_EVENT_MARKER = "Pipeline event:"
+
     # ------------------------------------------------------------------
     # latency_tracer output parser
     #
@@ -301,6 +330,7 @@ class PipelineRunner:
         hard_timeout: int | None = None,
         enable_latency_metrics: bool = False,
         job_id: str | None = None,
+        on_event: Callable[[PipelineEvent], None] | None = None,
     ):
         """
         Initialize the PipelineRunner.
@@ -340,6 +370,10 @@ class PipelineRunner:
                 API, but validation mode never pushes metrics
                 (no ``gvafpscounter`` / tracer is attached), so the
                 value is effectively unused there.
+            on_event: Optional callback invoked (from the runner thread)
+                for every live :class:`PipelineEvent` parsed in normal
+                mode: ``vippet-event`` element messages (e.g. proximity
+                trigger fired) and ``gvagenai`` text results.
         """
         self.mode = mode
         self.max_runtime = max_runtime
@@ -368,6 +402,7 @@ class PipelineRunner:
         self._metrics_manager_batch_url = f"{self.metrics_manager_url}/api/v1/metrics"
         self.enable_latency_metrics = enable_latency_metrics
         self.job_id = job_id
+        self.on_event = on_event
         self.logger = logging.getLogger("PipelineRunner")
         self.logger_level = self._get_log_level()
         self.logger.setLevel(self.logger_level)
@@ -766,6 +801,12 @@ class PipelineRunner:
                             and self._GENAI_METRICS_MARKER in line_str
                         ):
                             self._parse_and_push_genai_sample(line_str)
+
+                        if (
+                            self.on_event is not None
+                            and self._PIPELINE_EVENT_MARKER in line_str
+                        ):
+                            self._parse_and_emit_pipeline_event(line_str)
 
                     elif r == process.stderr:
                         process_stderr.append(line)
@@ -1242,7 +1283,31 @@ class PipelineRunner:
             return
 
         try:
-            metrics = json.loads(line[json_start:])["metrics"]
+            payload = json.loads(line[json_start:])
+        except ValueError:
+            return
+        if not isinstance(payload, dict):
+            return
+
+        element_match = self._GENAI_METRICS_ELEMENT_PATTERN.search(line)
+        stream_id = element_match.group("element") if element_match else None
+
+        result = payload.get("result")
+        if self.on_event is not None and isinstance(result, str) and result.strip():
+            pts_seconds = payload.get("timestamp_seconds")
+            prompt = payload.get("prompt")
+            self._emit_event(
+                source="vlm",
+                text=result.strip(),
+                element=stream_id,
+                pts_seconds=pts_seconds
+                if isinstance(pts_seconds, (int, float))
+                else None,
+                prompt=prompt if isinstance(prompt, str) else None,
+            )
+
+        try:
+            metrics = payload["metrics"]
             fields = {
                 dst: float(metrics[src])
                 for dst, src in self._GENAI_METRIC_FIELDS.items()
@@ -1250,12 +1315,57 @@ class PipelineRunner:
         except (KeyError, TypeError, ValueError):
             return
 
-        element_match = self._GENAI_METRICS_ELEMENT_PATTERN.search(line)
-        stream_id = element_match.group("element") if element_match else None
-
         self._push_vlm_metrics_sample(fields, stream_id=stream_id)
         self.logger.debug(
             "gvagenai metrics sample: stream=%s fields=%s", stream_id, fields
+        )
+
+    def _parse_and_emit_pipeline_event(self, line: str) -> None:
+        """
+        Parse a ``Pipeline event: {json}`` line logged by ``gst_runner``
+        and forward it to ``on_event``. Malformed lines are dropped.
+        """
+        json_start = line.find("{", line.find(self._PIPELINE_EVENT_MARKER))
+        if json_start == -1:
+            return
+        try:
+            payload = json.loads(line[json_start:])
+        except ValueError:
+            return
+        if not isinstance(payload, dict):
+            return
+        text = payload.get("text")
+        if not isinstance(text, str) or not text.strip():
+            return
+        source = payload.get("source")
+        element = payload.get("element")
+        pts_seconds = payload.get("pts-seconds")
+        self._emit_event(
+            source=source if isinstance(source, str) else "pipeline",
+            text=text.strip(),
+            element=element if isinstance(element, str) else None,
+            pts_seconds=pts_seconds if isinstance(pts_seconds, (int, float)) else None,
+        )
+
+    def _emit_event(
+        self,
+        source: str,
+        text: str,
+        element: str | None,
+        pts_seconds: float | None,
+        prompt: str | None = None,
+    ) -> None:
+        if self.on_event is None:
+            return
+        self.on_event(
+            PipelineEvent(
+                timestamp_ms=int(time.time() * 1000),
+                source=source,
+                text=text,
+                element=element,
+                pts_seconds=float(pts_seconds) if pts_seconds is not None else None,
+                prompt=prompt,
+            )
         )
 
     def _push_vlm_metrics_sample(

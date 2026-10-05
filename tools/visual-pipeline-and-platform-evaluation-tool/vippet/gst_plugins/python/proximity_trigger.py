@@ -33,6 +33,10 @@ Gst.init_python()
 # buffer must be dropped without treating it as an error.
 GST_BASE_TRANSFORM_FLOW_DROPPED = Gst.FlowReturn.CUSTOM_SUCCESS
 
+# Name of the element-message structure ViPPET's gst_runner forwards to the
+# parent process as a live pipeline event (shown under the live preview).
+PIPELINE_EVENT_STRUCTURE = "vippet-event"
+
 
 class ProximityTrigger(GstBase.BaseTransform):
     """Drop every frame unless two object classes are close for N frames."""
@@ -118,6 +122,7 @@ class ProximityTrigger(GstBase.BaseTransform):
     def __init__(self):
         super().__init__()
         self._consecutive_count = 0
+        self._last_distance: float | None = None
 
     @staticmethod
     def _get_center(x: float, y: float, w: float, h: float) -> tuple[float, float]:
@@ -147,12 +152,32 @@ class ProximityTrigger(GstBase.BaseTransform):
             elif label == self._class_b:
                 class_b_centers.append(center)
 
-        for ca in class_a_centers:
-            for cb in class_b_centers:
-                dist = math.sqrt((ca[0] - cb[0]) ** 2 + (ca[1] - cb[1]) ** 2)
-                if dist <= self._distance:
-                    return True
-        return False
+        self._last_distance = min(
+            (
+                math.hypot(ca[0] - cb[0], ca[1] - cb[1])
+                for ca in class_a_centers
+                for cb in class_b_centers
+            ),
+            default=None,
+        )
+        return self._last_distance is not None and self._last_distance <= self._distance
+
+    def _post_trigger_event(self, pts_sec: float) -> None:
+        """Post an element message describing the fired trigger on the bus."""
+        closest = (
+            f"{self._last_distance:.0f} px \u2264 "
+            if self._last_distance is not None
+            else "\u2264 "
+        )
+        text = (
+            f"Trigger fired at {pts_sec:.2f}s: {self._class_a} near {self._class_b} "
+            f"({closest}{self._distance} px) for {self._frames} consecutive frames"
+        )
+        structure = Gst.Structure.new_empty(PIPELINE_EVENT_STRUCTURE)
+        structure.set_value("source", "proximity-trigger")
+        structure.set_value("text", text)
+        structure.set_value("pts-seconds", float(pts_sec))
+        self.post_message(Gst.Message.new_element(self, structure))
 
     def do_transform_ip(self, buffer):
         rmeta = GstAnalytics.buffer_get_analytics_relation_meta(buffer)
@@ -175,6 +200,7 @@ class ProximityTrigger(GstBase.BaseTransform):
                 f"[proximity] Trigger fired at {pts_sec:.2f}s - "
                 f"{self._class_a} near {self._class_b} for {self._frames} frames"
             )
+            self._post_trigger_event(pts_sec)
             return Gst.FlowReturn.OK
 
         return GST_BASE_TRANSFORM_FLOW_DROPPED

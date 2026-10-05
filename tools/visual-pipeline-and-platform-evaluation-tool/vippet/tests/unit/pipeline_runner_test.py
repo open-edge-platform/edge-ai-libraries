@@ -1712,6 +1712,52 @@ class TestVlmMetricsPush(unittest.TestCase):
         mock_urlopen.assert_not_called()
 
 
+class TestPipelineEvents(unittest.TestCase):
+    """Live events forwarded to ``on_event``: VLM answers and ``vippet-event`` lines."""
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_vlm_result_is_emitted_as_event(self, _mock_urlopen):
+        events = []
+        runner = PipelineRunner(mode="normal", on_event=events.append)
+
+        runner._parse_and_push_genai_sample(
+            "gst_runner - INFO - <gvagenai_0_0> Added meta message: "
+            '{"result": " Yes ", "timestamp_seconds": 9.97, "prompt": "Riding?"}'
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].source, "vlm")
+        self.assertEqual(events[0].text, "Yes")
+        self.assertEqual(events[0].prompt, "Riding?")
+        self.assertEqual(events[0].element, "gvagenai_0_0")
+        self.assertEqual(events[0].pts_seconds, 9.97)
+
+    def test_pipeline_event_line_is_emitted(self):
+        events = []
+        runner = PipelineRunner(mode="normal", on_event=events.append)
+
+        runner._parse_and_emit_pipeline_event(
+            "gst_runner - INFO - Pipeline event: "
+            '{"source": "proximity-trigger", "text": "person near bicycle", '
+            '"pts-seconds": 1.5, "element": "gvaproximitytrigger_py0"}'
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].source, "proximity-trigger")
+        self.assertEqual(events[0].text, "person near bicycle")
+        self.assertEqual(events[0].element, "gvaproximitytrigger_py0")
+        self.assertEqual(events[0].pts_seconds, 1.5)
+
+    def test_malformed_pipeline_event_is_dropped(self):
+        events = []
+        runner = PipelineRunner(mode="normal", on_event=events.append)
+
+        runner._parse_and_emit_pipeline_event("Pipeline event: not-json")
+        runner._parse_and_emit_pipeline_event('Pipeline event: {"source": "x"}')
+
+        self.assertEqual(events, [])
+
+
 class TestPipelineResultRepr(unittest.TestCase):
     """Coverage for the custom ``PipelineResult.__repr__``.
 
