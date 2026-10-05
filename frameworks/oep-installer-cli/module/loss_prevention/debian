@@ -1,12 +1,58 @@
 
 configure_loss_prevention () {
-  workspace="$(ensure_project_path)/loss_prevention"
+  workspace="$(ensure_project_path)/loss-prevention"
   version=v2026.2.0
   repository="https://github.com/intel-retail/loss-prevention.git"
 }
 
+configure_loss_prevention_options () {
+  local device="$1"; shift
+
+  cd "$workspace"
+  sed -i -e "s|^TARGET_DEVICE [?]= .*|TARGET_DEVICE ?= ${device^^}|" -e "s|^VLM_DEVICE [?]= .*|VLM_DEVICE ?= ${device^^}|" Makefile
+
+  local camera_stream="$(grep -m1 -E '^CAMREA_STREAM [?]=' | cut -f2 -d= | tr -d ' ')"
+  local workload_dist="$(grep -m1 -E '^WORKLOAD_DIST [?]=' | cut -f2 -d= | tr -d ' ')"
+
+  if [[ " $* " = *" --od "* ]]; then
+    camera_stream="camera_to_workload_asc_object_detection.json"
+    workload_dist="workload_to_pipeline_asc_object_detection_$device.json"
+  elif [[ " $* " = *" --oc "* ]]; then
+    camera_stream="camera_to_workload_asc_object_detection_classification.json"
+    workload_dist="workload_to_pipeline_asc_object_detection_classification_$device.json"
+  elif [[ " $* " = *" --age "* ]]; then
+    camera_stream="camera_to_workload_asc_age_verification.json"
+    workload_dist="workload_to_pipeline_asc_age_verification_$device.json"
+  elif [[ " $* " = *" --lpvlm "* ]]; then
+    camera_stream="camera_to_workload_vlm.json"
+    workload_dist="workload_to_pipeline_vlm.json"
+  elif [[ " $* " = *" --lp "* ]]; then
+    camera_stream="camera_to_workload.json"
+    workload_dist="workload_to_pipeline_${device/npu/gpu-npu}.json"
+  fi
+  sed -i -e "s|^CAMERA_STREAM [?]= .*|CAMERA_STREAM ?= $camera_stream|" -e "s|^WORKLOAD_DIST [?]= .*|WORKLOAD_DIST ?= $workload_dist|" Makefile
+
+  make download-sample-videos && {
+    local v rc=0
+    for v in $(grep '"fileSrc":' configs/$camera_stream | cut -f4 -d'"' | cut -f1 -d'|'); do
+      [ $(find performance-tools/sample-media -name "${v/.mp4}-*.mp4" | wc -l) -gt 0 ] || { echo "Failed to find video $v" 1>&2; rc=1; }
+    done
+    [ $rc -eq 0 ]
+  }
+
+  make download-models && {
+    local m rc=0
+    for m in $(grep -E '"model":|"vlm_model":' configs/$workload_dist | cut -f4 -d'"'); do
+      [ $(find models -ipath "*/$m/*" -name "*.bin" -print | wc -l) -gt 0 ] || { echo "Failed to find model $m" 1>&2; rc=1; }
+    done
+    [ $rc -eq 0 ]
+  }
+}
+
 verify_loss_prevention () {
-  [ -e "$workspace"/performance-tools/sample-media/face-detection-3249935-1080-15-bench.mp4 ]
+  [ -d "$workspace" ]
+  [ -e "$workspace"/src/.env ]
+  [ -e "$workspace"/Makefile ]
 }
 
 debian_90_profile_loss_prevention () {
@@ -15,18 +61,18 @@ debian_90_profile_loss_prevention () {
 
 debian_90_install_loss_prevention () {
   configure_loss_prevention
+  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+
   if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loss prevention is already installed. Skipping"
-    return
-  fi
+  else 
+    # clone the repository
+    ensure_disk_space 300
+    ensure_git_clone "$workspace" $version $repository
 
-  # clone the repository
-  ensure_disk_space 300
-  ensure_git_clone "$workspace" $version $repository
-
-  # setup
-  pushd "$workspace" > /dev/null
-  cat > src/.env <<EOF
+    # setup
+    pushd "$workspace" > /dev/null
+    cat > src/.env <<EOF
 MINIO_ROOT_USER="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 MINIO_ROOT_PASSWORD="$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)"
 MINIO_API_HOST_PORT="4000"
@@ -47,22 +93,58 @@ LOCAL_UID=$(id -u)
 LOCAL_GID=$(id -g)
 EOF
 
-  # download videos
+    # build images
+    make build-benchmark
+
+    # create benchmark venv
+    ( 
+      cd performance-tools/benchmark-scripts
+      python3 -m venv venv
+      . venv/bin/activate
+      pip3 install -r requirements.txt
+    )
+
+    # modify Makefile so venv does not always rebuild
+    sed -i -e 's|python3* -m venv venv|echo|' -e 's|pip3* install -r requirements.txt|echo|' Makefile
+    
+    verify_loss_prevention
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_loss_prevention_options "$device" "$@" --lp   # --lp as default
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start --od"
+  echo "@@HIGHLIGHT $installer_name start --oc"
+  echo "@@HIGHLIGHT $installer_name start --age"
+  echo "@@HIGHLIGHT $installer_name start --lp"
+  echo "@@HIGHLIGHT $installer_name start --lpvlm"
+}
+
+debian_90_start_loss_prevention () {
+  configure_loss_prevention
   export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
-  set -a
-  . src/.env
-  set +a
-  make download-sample-videos
 
-  # download models
-  make download-models
+  cd "$workspace"
+  local device1=$(ensure_select_device "$@")
+  local device2=$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ')
+  [[ " $* " = *" --$device1 "* || " $* " = *" --${device1^^} "* ]] || device1="${device2,,}"
+  configure_loss_prevention_options "$device1" "$@"
 
-  verify_loss_prevention
-  popd > /dev/null
+  make down-lp 2> /dev/null || true
+  make -o build-benchmark -o download-sample-videos -o download-models benchmark-stream-density
+
+  echo "@@HIGHLIGHT $installer_name start --od"
+  echo "@@HIGHLIGHT $installer_name start --oc"
+  echo "@@HIGHLIGHT $installer_name start --age"
+  echo "@@HIGHLIGHT $installer_name start --lp"
+  echo "@@HIGHLIGHT $installer_name start --lpvlm"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_remove_loss_prevention () {
   configure_loss_prevention
+  cd "$workspace" && make down-lp || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 

@@ -1,0 +1,82 @@
+
+configure_order_accuracy_take_away () {
+  workspace="$(ensure_project_path)/order-accuracy-take-away"
+  version=v2026.2.0
+  repository="https://github.com/intel-retail/order-accuracy.git"
+  ports=(7861 8083 8002 8011 9000 8081 9091)
+}
+
+configure_order_accuracy_take_away_device () {
+  local default_device=$(grep -E "^TARGET_DEVICE=" "$workspace"/take-away/.env | tail -n1 | cut -f2 -d=)
+  local selected_device=$(ensure_select_device "$@")
+  if [ "$default_device" != "${selected_device^^}" ]; then
+    sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=${selected_device^^}|" "$workspace"/take-away/.env
+    cd "$workspace"/ovms-service
+    ./setup_models.sh --app take-away
+  fi
+}
+
+verify_order_accuracy_take_away () {
+  local model="$(. "$workspace"/take-away/.env 2> /dev/null || . "$workspace"/take-away/.env.example 2> /dev/null; echo "$OVMS_MODEL_NAME")"
+  [ -e "$workspace"/ovms-service/models/$model/openvino_language_model.bin ]
+}
+
+debian_90_profile_order_accuracy_take_away () {
+  echo "git curl gawk make python3_venv docker edge_base"
+}
+
+debian_90_install_order_accuracy_take_away () {
+  configure_order_accuracy_take_away
+  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+
+  if verify_order_accuracy_take_away && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Order accuracy is already installed. Skipping"
+  else 
+    # clone the repository
+    ensure_disk_space 10000
+    ensure_git_clone "$workspace" $version $repository
+
+    # initialize .env
+    cd "$workspace"/take-away
+    make init-env
+
+    # setup
+    local model="$(. .env; echo "$OVMS_MODEL_NAME")"
+    ensure_hf_token "${model/MiniCPM-V-4_5-int4/MiniCPM-V-4_5}"
+
+    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
+    sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=|" .env
+
+    cd "$workspace"/take-away
+    make build
+  fi
+
+  configure_order_accuracy_take_away_device "$@"
+  verify_order_accuracy_take_away
+
+  echo "@@HIGHLIGHT workspace @$workspace"
+  echo "@@HIGHLIGHT $installer_name start"
+}
+
+debian_90_start_order_accuracy_take_away () {
+  configure_order_accuracy_take_away "$@"
+  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
+
+  ensure_ports_open "${ports[*]}" debian_90_stop_order_accuracy_take_away "$@"
+  cd "$workspace"/take-away
+  make up
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_stop_order_accuracy_take_away () {
+  configure_order_accuracy_take_away "$@"
+  cd "$workspace"/take-away && make down || true
+}
+
+debian_90_remove_order_accuracy_take_away () {
+  debian_90_stop_order_accuracy_take_away "$@"
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
