@@ -117,46 +117,43 @@ debian_90_remove_autonomous_mobile_robot () {
 
 debian_90_sbom_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot
-  (
-    IFS=$'|'
-    local oneapi_pref_str="${oneapi_pref[*]}"
-    cat <<EOF
-"name": "$oneapi_repo_name"
-"gpg-key": "$oneapi_key_url"
-"key-file": "$oneapi_key_file"
-"apt-source": "$oneapi_deb_entry"
-"apt-list-file": "$oneapi_list"
-"apt-pref": ["${oneapi_pref_str//'|'/'","'}"]
-"apt-pref-file": "$oneapi_pref_file"
-"pkg-list": ["intel-oneapi-runtime-*","intel-oneapi-compiler-*","intel-oneapi-mkl-*"]
+  cat <<EOF
+$(ensure_sbom_format name "$oneapi_repo_name")
+$(ensure_sbom_format gpg-key "$oneapi_key_url")
+$(ensure_sbom_format key-file "$oneapi_key_file")
+$(ensure_sbom_format apt-source "$oneapi_deb_entry")
+$(ensure_sbom_format apt-list-file "$oneapi_list")
+$(ensure_sbom_format apt-pref "${oneapi_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$oneapi_pref_file")
+$(ensure_sbom_format pkg-list "intel-oneapi-runtime-*" "intel-oneapi-compiler-*" "intel-oneapi-mkl-*")
 EOF
-  )
   echo "---"
+
   # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
   if [ "$ros_distro" = humble ]; then
     cat <<EOF
-"pkg-list": ["gcc-12","g++-12"]
+$(ensure_sbom_format pkg-list gcc-12 g++-12)
 ---
 EOF
   fi
 
   cat <<EOF
-"pkg-list": ["software-properties-common","curl","gnupg","wget","lsb-release"]
+$(ensure_sbom_format pkg-list software-properties-common curl gnupg wget lsb-release)
 EOF
 
   if [ "$ros_distro" = jazzy ]; then
     configure_osrf_gazebo
     cat <<EOF
-"name": "$osrf_name"
-"apt-source": "$osrf_entry"
-"apt-list-file": "$osrf_list"
-"pkg-list": ["gz-harmonic"]
+$(ensure_sbom_format name $osrf_name)
+$(ensure_sbom_format apt-source "$osrf_entry")
+$(ensure_sbom_format apt-list-file "$osrf_list")
+$(ensure_sbom_format pkg-list gz-harmonic)
 ---
 EOF
   fi
 
   cat <<EOF
-"pkg-list": ["$amr_sdk_pkg","ros-$ros_distro-collab-slam-sse"]
+$(ensure_sbom_format pkg-list $amr_sdk_pkg "ros-$ros_distro-collab-slam-sse")
 EOF
 }
 

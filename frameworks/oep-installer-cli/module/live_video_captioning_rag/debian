@@ -1,0 +1,85 @@
+
+configure_live_video_captioning_rag () {
+  workspace="$(ensure_project_path)/live-video-captioning-rag"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(4173 4172 8040 1883 9090 8889 9273 8556)
+  get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh"
+  models=("OpenGVLab/InternVL2-1B" "Qwen/qwen3-embedding-0.6b" "microsoft/Phi-3.5-mini-instruct")
+}
+
+configure_live_video_captioning_rag_device () {
+  local device="$1"
+
+  cd "$workspace/live-video-analysis/live-video-captioning-rag"
+  export MODEL_DOWNLOAD_EPHEMERAL_SCRIPT_URL="$get_model_script"
+  rm -rf ov_detection_models ov_models llm_models 
+  ./model_download_scripts/download_models.sh --model ${models[0]} --type vlm --weight-format int8 --device ${device}
+  ./model_download_scripts/download_models.sh --model ${models[1]} --type llm --weight-format int8 --device ${device}
+  ./model_download_scripts/download_models.sh --model yolov8s --type vision --device ${device}
+  sed -i -e "s|^LLM_DEVICE=.*|LLM_DEVICE=${device}|" -e "s|^EMBEDDING_DEVICE=.*|EMBEDDING_DEVICE=${device}|" .env
+}
+
+verify_live_video_captioning_rag () {
+  [ -e "$workspace"/live-video-analysis/live-video-captioning-rag/.env ]
+  [ -d "$workspace"/live-video-analysis/live-video-captioning ]
+}
+
+debian_90_profile_live_video_captioning_rag () {
+  echo "git curl gawk jq edge_base docker"
+}
+
+debian_90_install_live_video_captioning_rag () {
+  configure_live_video_captioning_rag
+  if verify_live_video_captioning_rag && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Live Video Captioning RAG is already installed. Skipping"
+  else
+    # clone the repository
+    ensure_disk_space 64000
+    ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning live-video-analysis/live-video-captioning-rag
+    export -n socks_server ftp_proxy
+
+    # setup
+    cd "$workspace/live-video-analysis/live-video-captioning-rag"
+    sed -i "s|^ENABLE_DETECTION_PIPELINE=.*|ENABLE_DETECTION_PIPELINE=true|" .env.example
+    ensure_hf_token "${models[@]}"
+    sed -i "s|^HUGGINGFACEHUB_API_TOKEN=.*|HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN|" .env.example
+
+    bash scripts/setup_env.sh
+    docker compose -f compose.yaml pull 
+
+    verify_live_video_captioning_rag
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_live_video_captioning_rag_device "${device^^}"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start|remove"
+}
+
+debian_90_start_live_video_captioning_rag () {
+  configure_live_video_captioning_rag
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_captioning_rag
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_rag_device "${device^^}"
+
+  cd "$workspace"/live-video-analysis/live-video-captioning-rag
+  docker compose -f compose.yaml up -d
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_live_video_captioning_rag () {
+  configure_live_video_captioning_rag
+  cd "$workspace"/live-video-analysis/live-video-captioning-rag
+  docker compose -f compose.yaml down -v --remove-orphans
+}
+
+debian_90_remove_live_video_captioning_rag () {
+  debian_90_stop_live_video_captioning_rag || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}

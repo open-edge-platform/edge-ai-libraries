@@ -1,15 +1,10 @@
 
 debian_70_install_ffmpeg () {
-  if ensure_apt_is_installed ffmpeg > /dev/null 2>&1; then
-    echo "ffmpeg is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y ffmpeg
-  fi
+  ensure_apt_install_package ffmpeg
 }
 
 debian_70_sbom_ffmpeg () {
   cat <<EOF
-"pkg-list": ["ffmpeg"]
+$(ensure_sbom_format pkg-list ffmpeg)
 EOF
 }

@@ -9,7 +9,8 @@ taskset_cmds=()
 case "$CORE_PINNING" in
 e-cores)
     detected_core_list_name=e_cores
-    # shellcheck disable=SC1091 - sourced at runtime relative to the container workdir; shellcheck cannot resolve this path statically
+    # sourced at runtime relative to the container workdir; shellcheck cannot resolve this path statically
+    # shellcheck disable=SC1091
     . ./detect-cores.sh
     declare -n core_list="${detected_core_list_name}"
     core_csv=$(IFS=,; echo "${core_list[*]}")
@@ -17,7 +18,8 @@ e-cores)
     ;;
 p-cores)
     detected_core_list_name=p_cores
-    # shellcheck disable=SC1091 - sourced at runtime relative to the container workdir; shellcheck cannot resolve this path statically
+    # sourced at runtime relative to the container workdir; shellcheck cannot resolve this path statically
+    # shellcheck disable=SC1091
     . ./detect-cores.sh
     declare -n core_list="${detected_core_list_name}"
     core_csv=$(IFS=,; echo "${core_list[*]}")
@@ -25,7 +27,8 @@ p-cores)
     ;;
 lp-cores|lpe-cores)
     detected_core_list_name=lpe_cores
-    # shellcheck disable=SC1091 - sourced at runtime relative to the container workdir; shellcheck cannot resolve this path statically
+    # sourced at runtime relative to the container workdir; shellcheck cannot resolve this path statically
+    # shellcheck disable=SC1091
     . ./detect-cores.sh
     declare -n core_list="${detected_core_list_name}"
     core_csv=$(IFS=,; echo "${core_list[*]}")

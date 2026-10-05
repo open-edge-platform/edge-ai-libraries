@@ -162,7 +162,8 @@ applies based on its `description`. You generally don't name skills explicitly.
 
 #### Some Examples:
 
-> **Note:** These are most  examples and are not guaranteed or only way to invoke the skills.
+> [!NOTE]
+> These are most  examples and are not guaranteed or only way to invoke the skills.
 
 | You say… | Skill that fires |
 |---|---|
