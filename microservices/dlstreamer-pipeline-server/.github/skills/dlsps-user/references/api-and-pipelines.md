@@ -91,7 +91,8 @@ For pipeline definition schema (`config.json`) and how to define/customize pipel
 {auto_source} ! parsebin ! vah264dec ! vapostproc ! video/x-raw(memory:VAMemory) ! queue ! gvadetect name=detection model-instance-id=inst0 device=GPU pre-process-backend=va-surface-sharing ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! queue ! gvafpscounter ! appsink name=appsink
 ```
 
-> **Important:** If using RTSP or MQTT with GPU pipeline, add `vapostproc ! video/x-raw`
+> [!IMPORTANT]
+> If using RTSP or MQTT with GPU pipeline, add `vapostproc ! video/x-raw`
 > before `appsink` to convert from GPU memory to CPU buffer.
 
 ### GPU Decode + GPU Inference + RTSP Output
@@ -106,5 +107,6 @@ For pipeline definition schema (`config.json`) and how to define/customize pipel
 {auto_source} ! decodebin3 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! videoconvert ! video/x-raw, format=(string)NV12 ! appsink name=appsink
 ```
 
-> **Note:** UDF pipelines with RGB/BGR output need `videoconvert ! video/x-raw, format=(string)NV12`
+> [!NOTE]
+> UDF pipelines with RGB/BGR output need `videoconvert ! video/x-raw, format=(string)NV12`
 > before `appsink` for RTSP compatibility.

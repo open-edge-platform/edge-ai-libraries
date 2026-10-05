@@ -15,7 +15,7 @@ debian_90_profile_handheld_multi_modal () {
 
 debian_90_install_handheld_multi_modal () {
   configure_handheld_multi_modal
-  if verify_handheld_multi_modal $* && [[ " $* " != *" --reset-handheld_multi_modal "* ]]; then
+  if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
     echo "handheld_multi_modal already installed. Skipping"
   else
     ensure_disk_space 300

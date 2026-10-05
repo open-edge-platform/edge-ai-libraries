@@ -5,25 +5,52 @@ subcommand_install () {
     echo "install options:"
     echo "  --dry-run       dry-run operations"
     echo "  --continue      ignore errors and proceed to the end"
-    echo "  --validate or --validate-<name>   perform sanity check of features after installation."
-    echo "  --reset-<name>  force reinstallation of the component if exit."
+    echo "  --validate      perform sanity check of features after installation."
+    echo "  --reinstall     force reinstallation of the component if exit."
     echo
     return 0
   fi
-  act_helpper "install,Installation,Installing,Installed" "" "$@"
+
+  # bind --reinstall to explicitly listed modules
+  if [[ " $* " = *" --reinstall "* ]]; then
+    local all=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} " scoped=0 hit=0 a out=() bind=()
+    for a in "$@"; do
+      if [[ "$a" = --* && "$all" = *" ${a#--} "* ]]; then
+        scoped=1                                               # module sections start
+      elif [ $scoped -eq 0 ]; then
+        if [ "$a" = "--reinstall" ]; then hit=1; continue; fi  # drop global copy only
+        if [[ "$a" != -* && "$all" = *" $a "* ]]; then          # explicit module name
+          if [ -n "${_act_cache_functions[install_$a]:-}" ]; then
+            bind+=("--$a" "--reinstall")
+          else
+            echo "note: --reinstall skipped for profile '$a'" >&2
+          fi
+        fi
+      fi
+      out+=("$a")
+    done
+    if [ $hit -eq 1 ] && [ ${#bind[@]} -eq 0 ]; then
+      echo "--reinstall requires at least one explicitly named module" >&2
+      return 3
+    fi
+    [ $hit -eq 1 ] && out+=("${bind[@]}")
+    set -- "${out[*]}"
+  fi
+
+  act_helper "install,Installation,Installing,Installed" "" "$@"
 }
 
 subcommand_remove () {
-  act_helpper "remove,Removal,Removing,Removed" "-r" "$@"
+  act_helper "remove,Removal,Removing,Removed" "-r" "$@"
 }
 
 subcommand_start () {
-  act_helpper "start,Start,Starting,Started" "" "$@"
+  act_helper "start,Start,Starting,Started" "" "$@"
 }
 
 subcommand_stop () {
   [[ " $* " != *" --help "* ]] || return
-  act_helpper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
+  act_helper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
 }
 
 subcommand_list () {
@@ -139,6 +166,8 @@ $(
       all_comps=()
       all_comps["--continue"]=""
       all_comps["--dry-run"]=""
+      all_comps["--reinstall"]=""
+      all_comps["--validate"]=""
       # sbom handlers are sparse; resolve its dependency graph as if it were install
       dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
       act_get prefix ${dcmd}_
@@ -160,7 +189,6 @@ $(
       done
       echo "  $cmd)"
       echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
-      echo "    for ((i=2;i<COMP_CWORD;i++)); do [[ -v all_comps[\${COMP_WORDS[\$i]}] && \"\${COMP_WORDS[\$i]}\" != --* ]] && all_comps[\"--reset-\${COMP_WORDS[\$i]}\"]=\"\"; done"
       echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
       echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
       echo "    ;;"
@@ -181,10 +209,13 @@ subcommand_sbom () {
   [[ " $* " != *" --help "* ]] || return
 
   # scan for dependencies
-  local handler
-  for handler in $(act_find_deps install $(act_resolve_args install "$@") | tr ' ' '\n' | sort); do
-    declare -F ${handler/_install_/_sbom_} > /dev/null 2>&1 || continue
-    ${handler/_install_/_sbom_} $(act_extract_args sbom ${handler#*_*_*_} "${handles[*]#${ID_LIKE}_*_sbom_}" "$@")
+  local handles=($(act_find_deps install $(act_resolve_args install "$@")))
+  local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}"
+  local handler sbomer
+  for handler in $(printf '%s\n' "${handles[@]}" | sort); do
+    sbomer=${handler/_install_/_sbom_}
+    declare -F $sbomer > /dev/null 2>&1 || continue
+    $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@")
     echo "---"
   done
 }

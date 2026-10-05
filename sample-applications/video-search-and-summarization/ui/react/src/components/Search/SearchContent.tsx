@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { FC } from 'react';
+import { FC, useState } from 'react';
 import styled from 'styled-components';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,8 @@ import {
   Button,
   Accordion,
   AccordionItem,
+  Modal,
+  ModalBody,
   InlineLoading,
   SkeletonPlaceholder,
   SkeletonText,
@@ -23,6 +25,7 @@ import { VideoTile } from '../../redux/search/VideoTile';
 import { UIActions, uiSelector } from '../../redux/ui/ui.slice';
 import VideoGroupsView from '../VideoGroups/VideoGroupsView';
 import TelemetryAccordion from './TelemetryAccordion';
+import { imageSearchEnabled } from '../../utils/featureFlags';
 
 // Keying by clip identity rather than array position keeps unchanged tiles mounted when a
 // watched query refreshes, so their <video> elements are not torn down and reloaded.
@@ -295,15 +298,54 @@ export const QueryInfo: FC = () => {
   const { selectedQuery, isSelectedRefreshing } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
+  const [showImageModal, setShowImageModal] = useState(false);
 
   if (!selectedQuery) return null;
 
   return (
     <QueryBar>
       <span className='query-label'>{t('userQueryLabel', 'User Query:')}</span>
-      <Tooltip align='bottom' label={selectedQuery.query}>
-        <strong className='query-text'>{selectedQuery.query}</strong>
-      </Tooltip>
+      {selectedQuery.image ? (
+        <>
+          <img
+            src={selectedQuery.image}
+            alt={t('searchByImage', 'Uploaded image')}
+            onClick={() => setShowImageModal(true)}
+            style={{
+              maxWidth: '48px',
+              maxHeight: '48px',
+              borderRadius: '4px',
+              objectFit: 'cover',
+              cursor: 'pointer',
+            }}
+          />
+          <strong className='query-text'>{t('searchByImage', 'Uploaded image')}</strong>
+          <Modal
+            open={showImageModal}
+            onRequestClose={() => setShowImageModal(false)}
+            modalHeading={t('searchByImage', 'Uploaded image')}
+            passiveModal
+          >
+            <ModalBody>
+              <img
+                src={selectedQuery.image}
+                alt={t('searchByImage', 'Uploaded image')}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '70vh',
+                  objectFit: 'contain',
+                  display: 'block',
+                  margin: '0 auto',
+                }}
+              />
+            </ModalBody>
+          </Modal>
+        </>
+      ) : (
+        <Tooltip align='bottom' label={selectedQuery.query}>
+          <strong className='query-text'>{selectedQuery.query}</strong>
+        </Tooltip>
+      )}
       {selectedQuery.tags.length > 0 && (
         <TagsContainer>
           {selectedQuery.tags.map((tag, index) => (
@@ -401,8 +443,18 @@ const VideosContainer: FC = () => {
   if (selectedResults.length === 0) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: '#525252', fontStyle: 'italic' }}>
-        <p>{t('noSearchResults', 'No videos found matching your search query.')}</p>
-        <p>{t('tryDifferentSearch', 'Try using different keywords or check if videos have been uploaded.')}</p>
+        <p>{t('noSearchResults', 'No videos found matching your search.')}</p>
+        <p>
+          {imageSearchEnabled
+            ? t(
+                'tryDifferentSearch',
+                'Try a different keyword or image, or check if videos have been uploaded.',
+              )
+            : t(
+                'tryDifferentSearchTextOnly',
+                'Try using different keywords or check if videos have been uploaded.',
+              )}
+        </p>
       </div>
     );
   }

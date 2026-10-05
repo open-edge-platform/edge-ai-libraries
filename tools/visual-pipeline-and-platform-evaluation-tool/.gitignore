@@ -3,6 +3,7 @@ __pycache__
 .env
 .idea
 .venv/
+results/*
 shared/images/input/*
 shared/images/output/*
 shared/models/output/*
@@ -19,3 +20,5 @@ shared/db/*
 shared/.env-dirs.done
 shared/.vippet-test-image.stamp
 shared/.ui-*.stamp
+/report.html
+/report.xml
