@@ -12,7 +12,9 @@ The default is ``0``, meaning *keep everything forever* — the sweeper does not
 even start. Operators who enable it get one background thread that wakes every
 ``MM_DATAPREP_LIVE_RETENTION_SWEEP_MINUTES`` minutes and, for each registered
 stream, deletes embeddings whose ``ingest_epoch`` precedes the cutoff along with
-the media objects covering the same window.
+the media objects covering the same window. Streams a caller deregistered
+without purging leave a tombstone behind so their retained data is swept too,
+and the tombstone is dropped once all of that data is past the window.
 """
 
 from __future__ import annotations
@@ -91,18 +93,36 @@ class LiveRetentionSweeper:
         """Prune every registered stream once; returns the number swept."""
         if not self.enabled:
             return 0
-        cutoff = (now or time.time()) - float(settings.LIVE_RETENTION_HOURS) * 3600.0
+        now = now or time.time()
+        window = float(settings.LIVE_RETENTION_HOURS) * 3600.0
+        cutoff = now - window
         streams = self.manager.list()
         for stream in streams:
             self.manager.purge_embeddings(stream, before_epoch=cutoff)
             self.manager.purge_media(stream, before_epoch=cutoff)
-        if streams:
+
+        # Tombstones are streams a caller deregistered without purging. Their
+        # data is orphaned from the registry, so sweep it here too and drop the
+        # tombstone once all of it is guaranteed older than the window.
+        tombstones = self.manager.list_tombstones()
+        for stream in tombstones:
+            tombstoned_ts = stream.tombstoned_ts or 0.0
+            if now - tombstoned_ts >= window:
+                self.manager.drop_tombstone(stream)
+            else:
+                self.manager.purge_embeddings(stream, before_epoch=cutoff)
+                self.manager.purge_media(stream, before_epoch=cutoff)
+
+        total = len(streams) + len(tombstones)
+        if total:
             logger.info(
-                "Live-stream retention sweep pruned data older than %s across %d stream(s).",
+                "Live-stream retention sweep pruned data older than %s across %d stream(s) "
+                "(%d tombstoned).",
                 time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(cutoff)),
-                len(streams),
+                total,
+                len(tombstones),
             )
-        return len(streams)
+        return total
 
 
 _sweeper: Optional[LiveRetentionSweeper] = None

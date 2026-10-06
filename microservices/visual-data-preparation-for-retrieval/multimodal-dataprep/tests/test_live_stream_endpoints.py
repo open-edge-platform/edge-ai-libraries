@@ -299,6 +299,20 @@ def test_delete_unknown_stream_returns_404(client):
     assert client.delete(f"{BASE}/nope").status_code == HTTPStatus.NOT_FOUND
 
 
+def test_delete_returns_502_and_keeps_the_stream_when_purge_fails(client, monkeypatch):
+    stream_id = _create(client).json()["stream"]["stream_id"]
+
+    monkeypatch.setattr(
+        "src.core.live.manager.LiveStreamManager.purge_embeddings",
+        staticmethod(lambda stream, before_epoch=None: -1),
+    )
+
+    resp = client.delete(f"{BASE}/{stream_id}", params={"purge_embeddings": True})
+    assert resp.status_code == HTTPStatus.BAD_GATEWAY
+    # The stream is still registered, so the caller can retry.
+    assert client.get(f"{BASE}/{stream_id}").status_code == HTTPStatus.OK
+
+
 def test_batch_delete_isolates_unknown_ids(client):
     stream_id = _create(client).json()["stream"]["stream_id"]
 

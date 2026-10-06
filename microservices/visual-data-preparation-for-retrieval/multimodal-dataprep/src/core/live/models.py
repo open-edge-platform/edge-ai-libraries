@@ -77,6 +77,17 @@ class LiveStream:
     stats: LiveStreamStatsRecord = field(default_factory=LiveStreamStatsRecord)
     created_ts: float = field(default_factory=time.time)
     updated_ts: float = field(default_factory=time.time)
+    #: Epoch at which the stream was deregistered while keeping its data. A
+    #: tombstone is hidden from the API but kept so the retention sweeper can
+    #: still age out the data the caller chose not to purge; it is dropped once
+    #: that data is guaranteed past the retention window. ``None`` for a live
+    #: registration.
+    tombstoned_ts: Optional[float] = None
+
+    @property
+    def is_tombstone(self) -> bool:
+        """True when this record is a deregistered stream kept only for sweeping."""
+        return self.tombstoned_ts is not None
 
     @classmethod
     def new(
@@ -188,6 +199,7 @@ class LiveStream:
             "stats": self.stats.to_dict(),
             "created_ts": self.created_ts,
             "updated_ts": self.updated_ts,
+            "tombstoned_ts": self.tombstoned_ts,
         }
 
     @classmethod
@@ -214,4 +226,5 @@ class LiveStream:
             stats=LiveStreamStatsRecord.from_dict(row.get("stats")),
             created_ts=float(row.get("created_ts") or time.time()),
             updated_ts=float(row.get("updated_ts") or time.time()),
+            tombstoned_ts=row.get("tombstoned_ts"),
         )

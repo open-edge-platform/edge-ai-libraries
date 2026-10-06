@@ -44,6 +44,25 @@ class LiveStreamNotFoundError(KeyError):
     """Raised when an operation references an unknown ``stream_id``."""
 
 
+class LiveStreamPurgeError(RuntimeError):
+    """Raised when a requested purge failed, so the stream was *not* deleted.
+
+    The registration is kept (marked ``error``) so the caller still owns the
+    ``stream_id`` and can retry the delete once the backend recovers.
+    """
+
+    def __init__(self, stream_id: str, *, embeddings_failed: bool, media_failed: bool) -> None:
+        self.stream_id = stream_id
+        self.embeddings_failed = embeddings_failed
+        self.media_failed = media_failed
+        targets = [
+            name
+            for name, failed in (("embeddings", embeddings_failed), ("media", media_failed))
+            if failed
+        ]
+        super().__init__(f"Failed to purge {' and '.join(targets)} for stream {stream_id}.")
+
+
 class LiveStreamManager:
     """Owns every registered live stream and its worker."""
 
@@ -170,7 +189,7 @@ class LiveStreamManager:
             if worker is not None:
                 return worker.stream
         stream = self.store.get(stream_id)
-        if stream is None:
+        if stream is None or stream.is_tombstone:
             raise LiveStreamNotFoundError(stream_id)
         return stream
 
@@ -187,6 +206,8 @@ class LiveStreamManager:
         # Include workers not yet flushed to the store (belt and braces).
         known = {s.stream_id for s in streams}
         streams.extend(s for sid, s in live_records.items() if sid not in known)
+        # Tombstones are deregistered streams kept only for the retention sweep.
+        streams = [s for s in streams if not s.is_tombstone]
 
         if state is not None:
             streams = [s for s in streams if s.state == state]
@@ -308,8 +329,40 @@ class LiveStreamManager:
         if purge_media:
             media_purged = self.purge_media(stream)
 
-        self.store.delete(stream_id)
+        # A purge that hit a backend error returns -1. Do not deregister when a
+        # requested purge failed: keep the registration (marked error) so the
+        # caller still owns the id and can retry once the backend recovers.
+        embeddings_failed = purge_embeddings and embeddings_purged == -1
+        media_failed = purge_media and media_purged == -1
+        if embeddings_failed or media_failed:
+            stream.state = LiveStreamStateEnum.error
+            stream.last_error = "Delete aborted: data purge failed; retry the delete."
+            self._persist(stream)
+            raise LiveStreamPurgeError(
+                stream_id,
+                embeddings_failed=bool(embeddings_failed),
+                media_failed=bool(media_failed),
+            )
+
         stream.state = LiveStreamStateEnum.stopped
+        # When retention is on and the caller kept some data (the default), the
+        # stream is tombstoned rather than forgotten, so the sweeper can still
+        # age out that data. Purging both, or running with retention off, drops
+        # the record outright.
+        data_retained = not (purge_embeddings and purge_media)
+        if data_retained and float(settings.LIVE_RETENTION_HOURS) > 0:
+            stream.tombstoned_ts = time.time()
+            self._persist(stream)
+            logger.info(
+                "Tombstoned live stream %s; retained data will be swept by retention "
+                "(purge_embeddings=%s purge_media=%s)",
+                sanitize_for_log(stream_id, max_length=64),
+                purge_embeddings,
+                purge_media,
+            )
+            return stream, embeddings_purged, media_purged
+
+        self.store.delete(stream_id)
         logger.info(
             "Deleted live stream %s (purge_embeddings=%s purge_media=%s)",
             sanitize_for_log(stream_id, max_length=64),
@@ -362,7 +415,8 @@ class LiveStreamManager:
                 sanitize_for_log(stream.stream_id, max_length=64),
                 sanitize_for_log(str(exc), max_length=256),
             )
-            return 0
+            # -1 distinguishes "the backend failed" from "nothing to delete".
+            return -1
 
         for obj in objects:
             name = getattr(obj, "object_name", None) or getattr(obj, "name", "")
@@ -378,6 +432,28 @@ class LiveStreamManager:
                     sanitize_for_log(str(exc), max_length=256),
                 )
         return deleted
+
+    # -- tombstones --------------------------------------------------------
+    def list_tombstones(self) -> List[LiveStream]:
+        """Return deregistered streams whose retained data still needs sweeping."""
+        try:
+            return [s for s in self.store.list() if s.is_tombstone]
+        except Exception as exc:  # noqa: BLE001 - never break the sweeper
+            logger.error(
+                "Could not read tombstoned live streams: %s",
+                sanitize_for_log(str(exc), max_length=256),
+            )
+            return []
+
+    def drop_tombstone(self, stream: LiveStream) -> None:
+        """Purge any remaining data for a tombstone and remove its record."""
+        self.purge_embeddings(stream)
+        self.purge_media(stream)
+        self.store.delete(stream.stream_id)
+        logger.info(
+            "Retention removed tombstoned live stream %s and its remaining data.",
+            sanitize_for_log(stream.stream_id, max_length=64),
+        )
 
     # -- startup / shutdown ------------------------------------------------
     def restore(self) -> List[LiveStream]:
@@ -400,6 +476,8 @@ class LiveStreamManager:
             )
             return []
 
+        # Tombstones are not live registrations; leave them for the sweeper.
+        streams = [s for s in streams if not s.is_tombstone]
         if not streams:
             logger.info("No live streams registered; nothing to restore.")
             return []

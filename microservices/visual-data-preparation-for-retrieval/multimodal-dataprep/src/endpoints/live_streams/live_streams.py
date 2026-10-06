@@ -45,6 +45,7 @@ from src.core.live import (
     InvalidStreamUrlError,
     LiveStreamLimitError,
     LiveStreamNotFoundError,
+    LiveStreamPurgeError,
     get_live_stream_manager,
     redact_stream_url,
 )
@@ -391,6 +392,14 @@ async def delete_live_stream(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
             detail=f"No live stream registered with id {sanitize_for_log(stream_id, max_length=64)}.",
+        ) from exc
+    except LiveStreamPurgeError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_GATEWAY,
+            detail=(
+                "Failed to purge the stream's data; the stream was not deleted. "
+                "Retry once the vector database or storage backend recovers."
+            ),
         ) from exc
     return LiveStreamDeleteResponse(
         message="Live stream stopped and deregistered.",

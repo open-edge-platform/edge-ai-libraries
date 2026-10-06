@@ -1038,6 +1038,12 @@ Stop ingestion and deregister the stream. Embeddings and recorded media are
 **kept by default**, so historical search results keep working after a camera is
 decommissioned.
 
+When retention is enabled (`MM_DATAPREP_LIVE_RETENTION_HOURS > 0`) and you delete
+without purging, the kept data is still aged out by the retention sweeper and
+removed once it passes the retention window. If a requested purge fails, the
+stream is **not** deleted (it is marked `error`) and the call returns `502` so
+you can retry once the backend recovers.
+
 **Query Parameters:**
 
 | Parameter          | Type    | Default | Description                                        |

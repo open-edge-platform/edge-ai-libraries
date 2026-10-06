@@ -89,6 +89,31 @@ def test_sweep_is_a_no_op_without_registered_streams(monkeypatch):
     assert sweep.sweep() == 0
 
 
+def test_sweep_prunes_tombstoned_streams_within_the_window(monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_RETENTION_HOURS", 2.0)
+    tombstone = LiveStream.new(stream_url=CREDENTIALED_URL)
+    tombstone.tombstoned_ts = 10_000.0  # just now relative to the sweep
+    manager = RecordingManager([tombstone])
+    sweep = LiveRetentionSweeper(manager)
+
+    assert sweep.sweep(now=10_000.0) == 1
+    # Still within the window: pruned but not dropped.
+    assert manager.store.get(tombstone.stream_id) is not None
+    assert [p["kind"] for p in manager.purges] == ["embeddings", "media"]
+
+
+def test_sweep_drops_tombstones_past_the_window(monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_RETENTION_HOURS", 2.0)
+    tombstone = LiveStream.new(stream_url=CREDENTIALED_URL)
+    tombstone.tombstoned_ts = 10_000.0
+    manager = RecordingManager([tombstone])
+    sweep = LiveRetentionSweeper(manager)
+
+    # Sweep well past the 2h window: the tombstone and its data are removed.
+    assert sweep.sweep(now=10_000.0 + 3 * 3600.0) == 1
+    assert manager.store.get(tombstone.stream_id) is None
+
+
 def test_sweeper_start_and_stop_are_idempotent(sweeper, monkeypatch):
     sweep, _ = sweeper
     monkeypatch.setattr(settings, "LIVE_RETENTION_HOURS", 1.0)

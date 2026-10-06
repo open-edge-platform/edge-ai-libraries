@@ -15,6 +15,7 @@ from src.core.live.manager import (
     LiveStreamLimitError,
     LiveStreamManager,
     LiveStreamNotFoundError,
+    LiveStreamPurgeError,
     _object_is_older_than,
 )
 from src.core.live.models import LiveStream
@@ -254,6 +255,54 @@ def test_purge_embeddings_reports_failure_instead_of_raising(manager, monkeypatc
 def test_delete_unknown_stream_raises(manager):
     with pytest.raises(LiveStreamNotFoundError):
         manager.delete("nope")
+
+
+def test_delete_aborts_and_keeps_the_stream_when_a_purge_fails(manager, monkeypatch):
+    stream = manager.create(stream_url=CREDENTIALED_URL, start=False)
+
+    class ExplodingStore:
+        def delete_embeddings(self, bucket, video_id):
+            raise RuntimeError("vector db down")
+
+    monkeypatch.setattr(
+        "src.core.vectorstores.get_vector_store", lambda: ExplodingStore(), raising=False
+    )
+
+    with pytest.raises(LiveStreamPurgeError):
+        manager.delete(stream.stream_id, purge_embeddings=True)
+
+    # The registration survives so the caller can retry the delete.
+    kept = manager.store.get(stream.stream_id)
+    assert kept is not None
+    assert kept.state == LiveStreamStateEnum.error
+    assert kept.last_error
+
+
+def test_delete_without_purge_tombstones_when_retention_is_on(manager, monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_RETENTION_HOURS", 24.0)
+    stream = manager.create(stream_url=CREDENTIALED_URL)
+
+    manager.delete(stream.stream_id)
+
+    # Hidden from the API but kept for the sweeper.
+    record = manager.store.get(stream.stream_id)
+    assert record is not None and record.is_tombstone
+    assert stream.stream_id not in {s.stream_id for s in manager.list()}
+    assert stream.stream_id in {s.stream_id for s in manager.list_tombstones()}
+    with pytest.raises(LiveStreamNotFoundError):
+        manager.get(stream.stream_id)
+
+
+def test_delete_purging_everything_removes_the_record_even_with_retention(manager, monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_RETENTION_HOURS", 24.0)
+    stream = manager.create(stream_url=CREDENTIALED_URL)
+    monkeypatch.setattr(LiveStreamManager, "purge_embeddings", lambda self, s, before_epoch=None: 0)
+    monkeypatch.setattr(LiveStreamManager, "purge_media", lambda self, s, before_epoch=None: 0)
+
+    manager.delete(stream.stream_id, purge_embeddings=True, purge_media=True)
+
+    assert manager.store.get(stream.stream_id) is None
+    assert manager.list_tombstones() == []
 
 
 def test_object_age_filter_uses_the_segment_epoch():
