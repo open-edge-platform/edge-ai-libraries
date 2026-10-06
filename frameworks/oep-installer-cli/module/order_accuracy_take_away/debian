@@ -32,6 +32,7 @@ debian_90_install_order_accuracy_take_away () {
   if verify_order_accuracy_take_away && [[ " $* " != *" --reinstall "* ]]; then
     echo "Order accuracy is already installed. Skipping"
   else 
+    ensure_ports_open "${ports[*]}" return 3
     # clone the repository
     ensure_disk_size 10000
     ensure_git_clone "$workspace" $version $repository

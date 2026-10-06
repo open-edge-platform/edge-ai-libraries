@@ -3,6 +3,7 @@ configure_pcb_anomaly_detection () {
   workspace="$(ensure_project_path)/pcb-anomaly-detection"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
+  used_ports=(80 443)
 }
 
 configure_pcb_anomaly_detection_device () {
@@ -30,6 +31,7 @@ debian_90_install_pcb_anomaly_detection () {
   if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "PCB anomaly detection is already installed. Skipping"
   else
+    ensure_ports_open "${used_ports[*]}" return 3
     # clone the repository
     ensure_disk_size 60
     ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision
@@ -63,7 +65,7 @@ EOF
 
 debian_90_start_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  ensure_ports_open "80 443" debian_90_stop_pcb_anomaly_detection
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_pcb_anomaly_detection
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_pcb_anomaly_detection_device "_$device"
@@ -71,7 +73,7 @@ debian_90_start_pcb_anomaly_detection () {
   cd "$workspace"/industrial-edge-insights-vision
   docker compose up -d --wait
 
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]"
   echo "@@HIGHLIGHT $installer_name stop|remove"
 
@@ -80,12 +82,13 @@ debian_90_start_pcb_anomaly_detection () {
 
 debian_90_stop_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  cd "$workspace"/industrial-edge-insights-vision
-  ./sample_stop.sh || true
-  docker compose down -v --remove-orphans
+  cd "$workspace"/industrial-edge-insights-vision && {
+    ./sample_stop.sh || true
+    docker compose down -v --remove-orphans
+  } || true
 }
 
 debian_90_remove_pcb_anomaly_detection () {
-  debian_90_stop_pcb_anomaly_detection || true
+  debian_90_stop_pcb_anomaly_detection
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }

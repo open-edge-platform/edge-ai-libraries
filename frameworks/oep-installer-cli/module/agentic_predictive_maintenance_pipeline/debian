@@ -30,6 +30,7 @@ debian_90_install_agentic_predictive_maintenance_pipeline () {
   if verify_agentic_predictive_maintenance_pipeline && [[ " $* " != *" --reinstall "* ]]; then
     echo "Agentic Predictive Maintenance Pipeline already installed. Skipping" 1>&2
   else
+    ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 60
     ensure_git_export "$workspace" "$version" "$repository" agentic-predictive-maintenance-pipeline
 

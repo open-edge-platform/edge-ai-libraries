@@ -3,6 +3,7 @@ configure_smart_intersection () {
   workspace="$(ensure_project_path)/smart-intersection"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(443)
 }
 
 configure_smart_intersection_device () {
@@ -43,7 +44,7 @@ debian_90_install_smart_intersection () {
   if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Smart intersection is already installed. Skipping"
   else
-    # clone the repository
+    ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 1500
     ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
@@ -65,7 +66,7 @@ debian_90_install_smart_intersection () {
 
 debian_90_start_smart_intersection () {
   configure_smart_intersection
-  ensure_ports_open 443 debian_90_stop_smart_intersection
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_intersection
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_smart_intersection_device "$device"
@@ -74,7 +75,7 @@ debian_90_start_smart_intersection () {
   export SUPASS=$(cat smart-intersection/src/secrets/supass)
   docker compose up -d 
 
-  echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT username/password: admin/$SUPASS"
   echo "@@HIGHLIGHT $install_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $install_name stop|remove"
@@ -82,11 +83,10 @@ debian_90_start_smart_intersection () {
 
 debian_90_stop_smart_intersection () {
   configure_smart_intersection
-  cd "$workspace"/metro-vision-ai-app-recipe
-  docker compose -f compose-scenescape.yml down -v --remove-orphans
+  cd "$workspace"/metro-vision-ai-app-recipe && docker compose -f compose-scenescape.yml down -v --remove-orphans || true
 }
 
 debian_90_remove_smart_intersection () {
-  debian_90_stop_smart_intersection || true
+  debian_90_stop_smart_intersection
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }

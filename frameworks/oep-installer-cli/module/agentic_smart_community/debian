@@ -32,6 +32,7 @@ debian_90_install_agentic_smart_community () {
   if verify_agentic_smart_community && [[ " $* " != *" --reinstall "* ]]; then
     echo "Agentic Smart Community already installed. Skipping" 1>&2
   else
+    ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 128000
     ensure_ram_size 65011712 33554432 # 62 GiB and 32 GiB
 

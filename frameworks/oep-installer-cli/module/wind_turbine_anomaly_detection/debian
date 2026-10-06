@@ -33,6 +33,7 @@ debian_90_install_wind_turbine_anomaly_detection () {
   else
     ensure_disk_size 64000
     ensure_ram_size 16777216 # 16 GiB
+    ensure_ports_open "${used_ports[*]}" return 3
     ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series
     cd "$workspace"/industrial-edge-insights-time-series
 
