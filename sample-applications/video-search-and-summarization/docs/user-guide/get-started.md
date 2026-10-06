@@ -24,7 +24,8 @@ The application supports **four** deployment modes. Each mode deploys only the s
 | **Dual UI** | Video Summarization and Video Search | Two separate UIs available at `/summary/` and `/search/` URI. | **Embedding used for search:** Video frame embeddings | `--summary --search` |
 | **Unified UI** | Video Summarization and **Modified** Video Search | A single unified UI available at `/` (root URI). | **Embedding used for search:** Summarized content text embeddings | `--summary-and-search` |
 
-> **NOTE :** The video search in **Unified UI** mode is modified for creating the embeddings of video summary texts and searching over them, rather than creating and using video frame embeddings. Hence, this mode includes video summarization feature, as well, in the same UI.
+> [!NOTE]
+> The video search in **Unified UI** mode is modified for creating the embeddings of video summary texts and searching over them, rather than creating and using video frame embeddings. Hence, this mode includes video summarization feature, as well, in the same UI.
 
 ## Prerequisites
 
@@ -160,7 +161,8 @@ Before running the application, you need to set several environment variables:
       export TEXT_EMBEDDING_MODEL="QwenText/qwen3-embedding-0.6b"
       ```
 
-      > **Note:** Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model names.
+      > [!NOTE]
+      > Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model names.
 
 4. **Configure summarization to use audio transcript (Summary and Dual UI mode):**
 
@@ -233,7 +235,8 @@ Before running the application, you need to set several environment variables:
    IoU(A, B) = \frac{|A \cap B|}{|A \cup B|}
    $$
 
-   > **Note:** Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
+   > [!NOTE]
+   > Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
 
 9. **(Optional) Metrics Manager (Search, Dual UI, and Unified UI modes)**:
 
@@ -267,7 +270,8 @@ Before running the application, you need to set several environment variables:
     export PM_LLM_CONCURRENT=1
     ```
 
-    > **Note:** For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
+    > [!NOTE]
+    > For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
 
 11. **Override OVMS Model Weight Compression Format (Summary and Dual UI mode)**:
 
@@ -281,7 +285,8 @@ Before running the application, you need to set several environment variables:
     export LLM_COMPRESSION_WEIGHT_FORMAT=int4
     ```
 
-    > **Note:** Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
+    > [!NOTE]
+    > Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
 
 12. **Configure Embedding Execution (Search and Dual UI mode)**:
 
@@ -295,7 +300,8 @@ Before running the application, you need to set several environment variables:
     export SDK_USE_OPENVINO=true
     ```
 
-    > **Note:** `multimodal-dataprep` embeds in-process (no separate embedding service is required for indexing). The standalone `multimodal-embedding-serving` service is used by `vector-retriever` to embed queries at search time.
+    > [!NOTE]
+    > `multimodal-dataprep` embeds in-process (no separate embedding service is required for indexing). The standalone `multimodal-embedding-serving` service is used by `vector-retriever` to embed queries at search time.
 
 13. **Select devices per processing component (Search and Unified UI mode)**:
 
@@ -355,7 +361,8 @@ Before running the application, you need to set several environment variables:
     - Reduces concurrency to prevent GPU memory issues
     - Launches `vllm-xpu-service` with GPU device access
 
-    > **Note:** See the [Run the Application](#run-the-application) section below for complete usage examples with `ENABLE_VLLM_GPU=true`.
+    > [!NOTE]
+    > See the [Run the Application](#run-the-application) section below for complete usage examples with `ENABLE_VLLM_GPU=true`.
 
 **Work with Gated Models**:
 
@@ -374,7 +381,8 @@ Once exported, run the setup script as mentioned [here](#run-the-application). S
 
 The Video Search and Summarization application supports multiple deployment modes, each served behind a single nginx reverse proxy on one port. The mode determines which services and UI(s) are brought up.
 
-> **Note:** The application runs on port 12345 by default. You can change this by setting `APP_HOST_PORT` environment variable to another port number.
+> [!NOTE]
+> The application runs on port 12345 by default. You can change this by setting `APP_HOST_PORT` environment variable to another port number.
 
 | Mode | Command Option | UI Instances | Default URL(s) |
 | ---- | -------------- | ------------ | -------------- |
@@ -383,7 +391,8 @@ The Video Search and Summarization application supports multiple deployment mode
 | Dual UI | `--summary --search` | Separate Summary and Search UIs | `http://<host-ip>:12345/summary/` and `http://<host-ip>:12345/search/` |
 | Unified UI | `--summary-and-search` | Single unified UI (summary + search) | `http://<host-ip>:12345/` |
 
-> **Note:** In `--summary --search` mode, visiting `http://<host-ip>:12345/` redirects to the Video Summarization UI.
+> [!NOTE]
+> In `--summary --search` mode, visiting `http://<host-ip>:12345/` redirects to the Video Summarization UI.
 
 In modes, where Video Search is available (Search, Dual UI and Unified UI mode), the Vector DB index, the modality of input being used for creating embeddings and the embedding models would differ with modes.
 
@@ -408,8 +417,8 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 | vLLM-only CPU | vLLM-hosted VLM on CPU | Same vLLM-hosted VLM on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | All-vLLM mode for CPU-only deployments. |
 | 🧪 vLLM-only GPU/XPU (**EXPERIMENTAL**) | vLLM-hosted VLM on Intel Arc Pro B-series GPU | Same vLLM-hosted VLM on Intel Arc Pro B-series GPU | `ENABLE_VLLM_GPU=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | **EXPERIMENTAL**: All-vLLM mode with Intel Arc Pro B-series GPU/XPU acceleration. Early-stage feature. |
 
-> **Note:**
->
+> [!NOTE]
+> 
 > 1) Chunk-Wise Summary is a method of summarization where it breaks videos into chunks and then summarizes each chunk.
 > 2) Final Summary is a method of summarization where it summarizes the whole video.
 > 3) Mixed OVMS+vLLM deployments are not supported in the compose setup. Choose either OVMS-only, vLLM-CPU-only, or vLLM-GPU-only for summarization.
@@ -430,8 +439,8 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 | Split CPU/GPU | In-process embedding in `multimodal-dataprep` on CPU | Detection on GPU | `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=GPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection only while keeping embedding on CPU. |
 | Split CPU/NPU (Detection) | In-process embedding in `multimodal-dataprep` on CPU | Detection on NPU | `DATAPREP_EMBEDDING_DEVICE=CPU` + `DATAPREP_DETECTION_DEVICE=NPU` | Search/Dual: `CLIP/clip-vit-b-32` | Offload object detection to NPU while keeping embedding on CPU. |
 
-> **Note:**
->
+> [!NOTE]
+> 
 > 1) These options apply to modes where search is enabled: `--search`, `--summary --search`, and `--summary-and-search`.
 > 2) Each component device defaults to `CPU` and is set independently — there is no "baseline" device.
 > 3) Embedding for indexing runs **in-process** in `multimodal-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`; object detection follows `DATAPREP_DETECTION_DEVICE`.
@@ -458,20 +467,21 @@ export VECTORDB_BACKEND=milvus
 source setup.sh --search
 ```
 
-> **Note:**
->
+> [!NOTE]
+> 
 > - For **both** backends, `video-search` delegates the raw vector search to the always-on `vector-retriever` microservice and never talks to a vector database directly. `VECTORDB_BACKEND` selects the backend-baked `vector-retriever` image (`vector-retriever-${VECTORDB_BACKEND}`, via the `RETRIEVER_BACKEND` build arg). The frame-to-video aggregation still runs in `video-search`, so search results are identical in shape across backends.
 > - `setup.sh` applies exactly one vector-DB overlay, so only the selected backend's containers start. `VECTORDB_BACKEND=vdms` (default) adds `docker/compose.search.vdms.yaml`, which starts `vdms-vector-db`; `VECTORDB_BACKEND=milvus` adds `docker/compose.search.milvus.yaml`, which starts a Milvus standalone stack (`milvus-etcd` + `milvus-standalone`) and no VDMS container. `multimodal-dataprep` writes embeddings to the selected backend and the matching `vector-retriever` image reads them back.
 > - The similarity metric/index (`VDB_METRIC_TYPE=IP`, `VDB_INDEX_TYPE=FLAT`) is shared between `multimodal-dataprep` and `vector-retriever` and must match on both — the defaults already align.
 
+> [!IMPORTANT]
 > **Important — clean the data when switching backends:** embeddings live only in the vector database, but uploaded videos and their metadata live in MinIO and the Pipeline Manager's PostgreSQL database, which are shared across backends. Switching `VECTORDB_BACKEND` without clearing them leaves the previously ingested videos visible in the UI while the new backend holds no embeddings for them, so search returns nothing for those videos. Always wipe the user data first:
->
+> 
 > ```bash
 > source setup.sh --clean-data
 > export VECTORDB_BACKEND=milvus   # or vdms
 > source setup.sh --search
 > ```
->
+> 
 > `--clean-data` stops the stack and removes the MinIO, PostgreSQL, dataprep, VDMS and Milvus data volumes. Model-cache volumes are preserved, so no models are re-downloaded. Alternatively, re-ingest every video after the switch instead of cleaning.
 
 ## Using Edge Microvisor Toolkit
@@ -535,7 +545,8 @@ Follow these steps to run the application:
       source setup.sh --stop    # or, `source setup.sh --down`
       ```
 
-      > **IMPORTANT:** You should always run the above command before changing modes _(for example: changing from --summary mode to --search mode)_.
+      > [!IMPORTANT]
+      > You should always run the above command before changing modes _(for example: changing from --summary mode to --search mode)_.
 
       > **Clean-up Tip**: If you encounter issues or want to completely reset the application data, use `source setup.sh --clean-data` to stop all containers and remove all Docker volumes including user data. This provides a fresh start for troubleshooting.
 
@@ -601,7 +612,7 @@ Follow these steps to run the application:
       ENABLE_VLLM=true source setup.sh --summary-and-search      # for Unified UI mode
       ```
 
-    > **Note:**
+    > [!NOTE]
     > - The vLLM configuration has been tested on Intel® Xeon® 6 processors.
     > - Review [docker/compose.vllm.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
 
@@ -646,7 +657,7 @@ Follow these steps to run the application:
       ENABLE_VLLM_GPU=true source setup.sh --summary
       ```
 
-    > **Note:**
+    > [!NOTE]
     > - When `ENABLE_VLLM_GPU=true`, the application automatically sets `VLLM_HOST=vllm-xpu-service` and disables OVMS completely
     > - The same VLM model is used for both chunk captioning and final summarization (split-model mode is not supported)
     > - Default concurrency is reduced to `PM_VLM_CONCURRENT=1` and `PM_LLM_CONCURRENT=1` to prevent GPU memory pressure
@@ -679,12 +690,14 @@ Follow these steps to run the application:
 
 ### Use GPU/NPU Acceleration
 
-> **Note:** Offloading models to different devices (e.g., VLM on CPU and LLM on NPU) is only supported with the OVMS backend. The vLLM backend runs a single model on a single device.
->
+> [!NOTE]
+> Offloading models to different devices (e.g., VLM on CPU and LLM on NPU) is only supported with the OVMS backend. The vLLM backend runs a single model on a single device.
+> 
 > **⚠️ NPU Support is Experimental:** Running VLM/LLM models on NPU is experimental and may not work with all models or configurations. Not all model architectures are supported on NPU. If you encounter issues, verify model compatibility at the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page and consider falling back to CPU or GPU.
 
-> **Note:** To bring down a running deployment before re-running with different options, run:
->
+> [!NOTE]
+> To bring down a running deployment before re-running with different options, run:
+> 
 > ```bash
 > source setup.sh --stop    # or, `source setup.sh --down`
 > ```
@@ -715,7 +728,8 @@ Follow these steps to run the application:
    LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Qwen/Qwen3-4B-Instruct-2507 source setup.sh --summary-and-search
    ```
 
-> **Note:** Search-indexing embedding runs in-process in `multimodal-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`. `MME_EMBEDDING_DEVICE` controls `multimodal-embedding-serving`, which `video-search` uses for query-time embeddings. `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`.
+> [!NOTE]
+> Search-indexing embedding runs in-process in `multimodal-dataprep` and follows `DATAPREP_EMBEDDING_DEVICE`. `MME_EMBEDDING_DEVICE` controls `multimodal-embedding-serving`, which `video-search` uses for query-time embeddings. `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`.
 
 To offload only specific DataPrep components during search (for example, keep embedding on CPU and move detection to GPU):
 
@@ -785,9 +799,11 @@ To verify the configuration and resolved environment variables without running t
    DATAPREP_EMBEDDING_DEVICE=CPU DATAPREP_DETECTION_DEVICE=GPU source setup.sh --search config
    ```
 
-> **Tip:** `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU` (default), `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution with fallback.
+> [!TIP]
+> `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU` (default), `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution with fallback.
 
-> **Note:** Avoid setting the `ENABLE_VLM_GPU`, `ENABLE_OVMS_LLM_SUMMARY_GPU`, or `ENABLE_EMBEDDING_GPU` flags explicitly on the shell using `export`, because you need to switch these flags off as well, to return to the CPU configuration.
+> [!NOTE]
+> Avoid setting the `ENABLE_VLM_GPU`, `ENABLE_OVMS_LLM_SUMMARY_GPU`, or `ENABLE_EMBEDDING_GPU` flags explicitly on the shell using `export`, because you need to switch these flags off as well, to return to the CPU configuration.
 
 ## Access the Application
 

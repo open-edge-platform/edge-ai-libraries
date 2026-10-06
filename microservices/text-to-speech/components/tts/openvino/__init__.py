@@ -4,7 +4,9 @@ def normalize_device(device_name: str) -> str:
         return "GPU"
     if n == "npu":
         return "NPU"
-    return "CPU"
+    if n == "cpu":
+        return "CPU"
+    raise ValueError(f"Unsupported OpenVINO TTS device: {device_name}")
 
 
 from components.tts.kokoro import kokoro_tts  # noqa: E402

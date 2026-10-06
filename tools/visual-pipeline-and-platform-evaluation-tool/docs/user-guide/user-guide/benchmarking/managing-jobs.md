@@ -56,7 +56,8 @@ To stop a job that is currently running:
 - **Density tests** — Cancelled density tests always transition to FAILED because partial results
   from an incomplete search algorithm are not meaningful.
 
-> **Note:** Stopping a job sends a cancellation signal to the underlying GStreamer subprocesses.
+> [!NOTE]
+> Stopping a job sends a cancellation signal to the underlying GStreamer subprocesses.
 > The actual termination may take a few seconds while pipelines flush their buffers.
 
 ## API endpoints

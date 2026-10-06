@@ -37,6 +37,9 @@ Form fields:
 | `temperature`     | No       | Decoding temperature.                                                       |
 | `stream`          | No       | `true` streams the result as OpenAI-compatible SSE (see below).             |
 
+The optional `device` field accepts `CPU`, `GPU`, or `NPU`. When omitted, it
+uses the service configuration.
+
 Example:
 
 ```bash
@@ -80,9 +83,15 @@ data: [DONE]
 `stream=true` requires `response_format` to be `json` or `verbose_json`;
 other formats return HTTP 400.
 
+The optional `device` applies to both single-response and `stream=true`
+requests on this endpoint. It controls ASR inference only. Diarization, when
+enabled, continues to use `models.diarization.device`.
+
 ## `POST /v1/audio/transcriptions/stream`
 
 Streaming transcription endpoint that emits NDJSON events.
+This endpoint uses the service-configured ASR device and does not accept a
+per-request device override.
 
 Form fields:
 
