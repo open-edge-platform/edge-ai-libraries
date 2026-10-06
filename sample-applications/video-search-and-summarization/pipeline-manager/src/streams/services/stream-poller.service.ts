@@ -39,10 +39,19 @@ export class StreamPollerService implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
   private subscribers = 0;
   /**
-   * Number of registered streams still `running` as of the last poll. Together
-   * with `subscribers` this decides whether the poll loop stays alive: a
-   * running stream keeps producing embeddings, so the loop must continue even
-   * with the Live Streams view closed so watched queries keep refreshing.
+   * Number of registered streams in a non-terminal state as of the last poll.
+   * Together with `subscribers` this decides whether the poll loop stays alive.
+   *
+   * This counts every state except the terminal `stopped`/`error` — not just
+   * `running` — on purpose. After a pipeline-manager or dataprep restart a
+   * stream spends time in `pending`/`starting`/`reconnecting` before it reaches
+   * `running`, and a `paused` stream can be resumed out-of-band on dataprep. If
+   * the loop self-terminated during any of those windows, the later transition
+   * to `running` happens entirely on the dataprep side with nothing to restart
+   * the poll, so live embeddings would silently stop driving EMBEDDINGS_UPDATE
+   * and watched ("checkmarked") queries would freeze. Keeping the loop alive
+   * while any stream is non-terminal closes that gap; an all-`stopped`/`error`
+   * (or empty) registry still lets it idle out.
    */
   private activeStreams = 0;
   private lastError: string | null = null;
@@ -158,11 +167,19 @@ export class StreamPollerService implements OnModuleInit, OnModuleDestroy {
       this.lastError = null;
       this.$emitter.emit(SocketEvent.STREAMS_SYNC, streams ?? []);
 
-      // Keep the loop alive while any stream is still running, independent of
-      // UI subscribers, so live embeddings continue to drive watched-query
-      // refreshes with the Live Streams view closed.
+      // Keep the loop alive while any stream is non-terminal (not stopped or
+      // errored), independent of UI subscribers, so live embeddings continue to
+      // drive watched-query refreshes with the Live Streams view closed — and
+      // so a stream still reconnecting/starting after a restart, or resumed
+      // out-of-band, is not missed.
+      const TERMINAL_STATES: ReadonlySet<LiveStreamState> = new Set([
+        LiveStreamState.STOPPED,
+        LiveStreamState.ERROR,
+      ]);
       this.activeStreams = (streams ?? []).filter(
-        (stream) => stream?.state === LiveStreamState.RUNNING,
+        (stream) =>
+          stream?.state != null &&
+          !TERMINAL_STATES.has(stream.state as LiveStreamState),
       ).length;
 
       // Trigger watched-query refresh when live ingestion produced new

@@ -201,6 +201,47 @@ describe('StreamPollerService', () => {
       await flush();
       expect(service.isPolling).toBe(false);
     });
+
+    it('keeps polling while a stream is non-terminal (reconnecting) with no subscribers', async () => {
+      // A stream reconnecting/starting after a restart is not RUNNING yet, but
+      // the loop must stay alive so the eventual running transition (which
+      // happens on the dataprep side) still drives watched-query refresh.
+      list.mockResolvedValue({
+        count: 1,
+        streams: [{ stream_id: 's1', state: LiveStreamState.RECONNECTING }],
+      });
+      service.onModuleInit();
+      await flush();
+      expect(service.isPolling).toBe(true);
+
+      list.mockClear();
+      jest.advanceTimersByTime(5000);
+      await flush();
+      expect(list).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps polling while a stream is paused so an out-of-band resume is caught', async () => {
+      list.mockResolvedValue({
+        count: 1,
+        streams: [{ stream_id: 's1', state: LiveStreamState.PAUSED }],
+      });
+      service.onModuleInit();
+      await flush();
+      expect(service.isPolling).toBe(true);
+    });
+
+    it('self-terminates when every stream is terminal (stopped/error)', async () => {
+      list.mockResolvedValue({
+        count: 2,
+        streams: [
+          { stream_id: 's1', state: LiveStreamState.STOPPED },
+          { stream_id: 's2', state: LiveStreamState.ERROR },
+        ],
+      });
+      service.onModuleInit();
+      await flush();
+      expect(service.isPolling).toBe(false);
+    });
   });
 
   describe('endpoint gate', () => {
