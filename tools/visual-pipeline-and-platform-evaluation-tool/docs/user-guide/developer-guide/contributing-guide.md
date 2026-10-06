@@ -86,6 +86,7 @@ listed at the bottom of each contributing page.
 ./contributing/backend
 ./contributing/new-pipeline
 ./contributing/new-element
+./contributing/ui-e2e-testing
 
 :::
 hide_directive-->

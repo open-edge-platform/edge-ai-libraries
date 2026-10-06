@@ -184,7 +184,7 @@ you ticked above.
 Optional workspace-level defaults (env vars, browser reuse) can be added
 under `.vscode/settings.json`, for example:
 
-```jsonc
+```json
 // tools/visual-pipeline-and-platform-evaluation-tool/.vscode/settings.json
 {
   "playwright.env": {
