@@ -1,0 +1,1344 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+openapi: 3.0.3
+info:
+  title: Stream Manager API
+  version: 0.1.0-draft
+  description: |
+    WORKING DRAFT - this API may still change.
+
+    Stream Manager attaches live sources, keeps a bounded per-stream buffer,
+    saves media around events, and returns timestamp-correlated clips and frames.
+
+servers:
+  - url: /v1
+    description: API base path
+tags:
+  - name: Stream Attachment APIs
+    description: Attach sources, inspect buffers, resize buffers, and detach.
+  - name: Recording Storage APIs
+    description: Start, stop, import, find, read, and delete recordings.
+  - name: Replay APIs
+    description: Extracts frames and clips, extracting media directly or handing back a link to it.
+  - name: Service
+    description: Health and version.
+
+paths:
+  /streams:
+    post:
+      tags: [Stream Attachment APIs]
+      summary: Attach a source
+      description: Attaches a source and starts reading and buffering it. The reply returns before any history has built up.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StreamCreate'
+      responses:
+        '201':
+          description: Stream attached.
+          headers:
+            Location:
+              description: URI of the created stream.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stream'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: Unknown sensor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: That sensor is already attached; the existing stream_id is named in error_detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '415':
+          description: Unsupported protocol or codec.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/Error429'
+        '503':
+          description: Sensor Manager could not be reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Stream Attachment APIs]
+      summary: List streams
+      description: Returns all attached streams in one page. Paging is not supported yet.
+      responses:
+        '200':
+          description: Page of Stream objects.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StreamPage'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+
+  /streams/{stream-id}:
+    get:
+      tags: [Stream Attachment APIs]
+      summary: Get a stream
+      description: Returns the complete stream, including its buffer and statistics.
+      parameters:
+        - $ref: '#/components/parameters/StreamId'
+      responses:
+        '200':
+          description: The Stream object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stream'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: The stream is unknown or has been detached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Stream Attachment APIs]
+      summary: Detach a stream
+      description: Stops reading the source and frees the buffer memory. Finished recordings stay retrievable.
+      parameters:
+        - $ref: '#/components/parameters/StreamId'
+      responses:
+        '200':
+          description: Stream detached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deletion'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: Not attached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: A recording is still using the stream.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: The buffer could not be released safely.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /streams/{stream-id}/buffer:
+    put:
+      tags: [Stream Attachment APIs]
+      summary: Resize a stream buffer
+      description: Not implemented yet; returns 501 not_implemented. Set the buffer size with buffer_length when the stream is attached. Planned behavior sets the buffer size in seconds; setting a size does not create that much history at once.
+      parameters:
+        - $ref: '#/components/parameters/StreamId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BufferUpdate'
+      responses:
+        '200':
+          description: Buffer status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BufferStatus'
+        '400':
+          description: Invalid value.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: Unknown stream.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: A running recording still needs the data that would be freed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Not enough memory left to grow the buffer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '501':
+          description: Resizing is not implemented yet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /records/start:
+    post:
+      tags: [Recording Storage APIs]
+      summary: Start a recording
+      description: Saves the video around an event from one attached stream. If the stream lacks the requested history, no record is created. Video is copied as whole keyframe-aligned MPEG-TS slices without re-encoding; the stored window can extend to the enclosing keyframes, and ready records report those actual bounds.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordStart'
+      responses:
+        '201':
+          description: Record accepted in the recording state. Acceptance does not mean the media is finished.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordStartResult'
+        '400':
+          description: Invalid stream_id or times.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: Unknown stream.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Requested history unavailable, or the stream is not buffering with NTP-synced timestamps.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Recording capacity reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /records/stop:
+    post:
+      tags: [Recording Storage APIs]
+      summary: Stop an open recording
+      description: Stops an open recording. The stop time is fixed and does not move if the request is repeated. An already finished recording returns 200 with the current record.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordStop'
+      responses:
+        '200':
+          description: The recording was already finished; the current record is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recording'
+        '202':
+          description: Record accepted for finalizing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recording'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: Unknown record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: The record is not an active open recording. Repeated stops while finalizing retain the original stop target and return 202.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /records:
+    get:
+      tags: [Recording Storage APIs]
+      summary: Find records
+      description: Returns a page of records. All query parameters are optional and AND-combined. A match only shows the recorded window overlaps the filter.
+      parameters:
+        - name: sensor_id
+          in: query
+          description: Only records from this sensor, imported ones as well as live ones.
+          required: false
+          schema:
+            type: string
+        - name: stream_id
+          in: query
+          description: Only records from this stream, which never includes imports.
+          required: false
+          schema:
+            type: string
+        - name: start_ts
+          in: query
+          description: Keep only records whose covered window overlaps this one; this is its near end. The window is [start_ts, end_ts).
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: end_ts
+          in: query
+          description: The far end of that same window. It must be later than start_ts when both are supplied.
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: expiry_ts
+          in: query
+          description: Filter by expiry timestamp (e.g., recordings set to expire before this time).
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: state
+          in: query
+          description: One of recording, finalizing, ready, failed.
+          required: false
+          schema:
+            type: string
+            enum: [recording, finalizing, ready, failed]
+        - name: metadata[key]
+          in: query
+          description: One or more of the metadata keys and their values to match against.
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Page of Recording objects.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingPage'
+        '400':
+          description: Invalid filter, cursor or limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+
+  /records/{recording-id}:
+    get:
+      tags: [Recording Storage APIs]
+      summary: Get a record
+      description: Returns the complete record, available in every state. A failed record carries error_detail.
+      parameters:
+        - $ref: '#/components/parameters/RecordingId'
+      responses:
+        '200':
+          description: The Recording object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recording'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: Unknown or deleted record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Recording Storage APIs]
+      summary: Delete a record
+      description: Deletes the record and its media. The reply comes only once both the media and its row are gone. Deleting again, or reading it afterwards, returns 404.
+      parameters:
+        - $ref: '#/components/parameters/RecordingId'
+      responses:
+        '200':
+          description: Record deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deletion'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: Unknown or already deleted record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Record is still recording or finalizing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Storage cleanup failed, leaving the record for retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /replays/{recording-id}/frame:
+    get:
+      tags: [Replay APIs]
+      summary: Extracts a frame
+      description: Extracts a frame from a ready record, or gets a http link to the frame, depending on the Accept header.
+      parameters:
+        - $ref: '#/components/parameters/RecordingId'
+        - name: timestamp
+          in: query
+          description: The time wanted. Must fall inside the record's covered window [start_ts, end_ts).
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: format
+          in: query
+          description: Image format.
+          required: false
+          schema:
+            type: string
+            enum: [jpeg, png]
+            default: jpeg
+        - name: match
+          in: query
+          description: nearest returns the closest frame, choosing the earlier one on a tie. exact returns 404 when no frame sits at exactly that time.
+          required: false
+          schema:
+            type: string
+            enum: [nearest, exact]
+            default: nearest
+      responses:
+        '200':
+          description: MediaResult, or the image bytes when an image Accept header is used.
+          headers:
+            X-Frame-Timestamp:
+              description: The real time of the returned frame.
+              schema:
+                type: string
+            X-Exact-Match:
+              description: Whether the frame landed on the exact time requested.
+              schema:
+                type: string
+                enum: ['true', 'false']
+            Cache-Control:
+              description: no-store on JSON replies.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaResult'
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid timestamp, format or match.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: Record not found, timestamp outside coverage or exact frame missing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '406':
+          description: Incompatible Accept header.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Record not ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '415':
+          description: Undecodable profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Extraction capacity reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Extraction or storage failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /replays/{recording-id}/frame/url:
+    get:
+      tags: [Replay APIs]
+      summary: Gets an HTTP link to a frame
+      description: Extracts the same frame as /replays/{recording-id}/frame, but always gets an HTTP link to the frame.
+      parameters:
+        - $ref: '#/components/parameters/RecordingId'
+        - name: timestamp
+          in: query
+          description: The time wanted. Must fall inside the record's covered window [start_ts, end_ts).
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: format
+          in: query
+          description: Image format.
+          required: false
+          schema:
+            type: string
+            enum: [jpeg, png]
+            default: jpeg
+        - name: match
+          in: query
+          description: nearest returns the closest frame, choosing the earlier one on a tie. exact returns 404 when no frame sits at exactly that time.
+          required: false
+          schema:
+            type: string
+            enum: [nearest, exact]
+            default: nearest
+      responses:
+        '200':
+          description: MediaResult.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaResult'
+        '400':
+          description: Invalid timestamp, format or match.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: Record not found, timestamp outside coverage or exact frame missing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '406':
+          description: Incompatible Accept header.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Record not ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '415':
+          description: Undecodable profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Extraction capacity reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Extraction or storage failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /replays/{recording-id}/clip:
+    get:
+      tags: [Replay APIs]
+      summary: Extracts a clip
+      description: Extracts a clip from a ready record, or gets an HTTP link to the clip, depending on the Accept header. The whole span must be covered; a gap gives 404.
+      parameters:
+        - $ref: '#/components/parameters/RecordingId'
+        - name: start_ts
+          in: query
+          description: Where the clip starts, that moment included.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: duration
+          in: query
+          description: How long the clip should be in seconds, within the configured limit.
+          required: true
+          schema:
+            type: number
+        - name: format
+          in: query
+          description: Clip format, mp4 (default), mkv or webm.
+          required: false
+          schema:
+            type: string
+            enum: [mp4, mkv, webm]
+            default: mp4
+      responses:
+        '200':
+          description: MediaResult, or the video bytes when a video Accept header is used.
+          headers:
+            X-Frame-Timestamp:
+              description: The real time of the first returned frame.
+              schema:
+                type: string
+            X-Exact-Match:
+              description: Whether the first frame landed on the exact time requested.
+              schema:
+                type: string
+                enum: ['true', 'false']
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaResult'
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/x-matroska:
+              schema:
+                type: string
+                format: binary
+            video/webm:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid range or both end selectors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: Interval not covered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '406':
+          description: Incompatible Accept header.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Record not ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '415':
+          description: Unavailable output profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Extraction capacity reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Extraction or storage failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /replays/{recording-id}/clip/url:
+    get:
+      tags: [Replay APIs]
+      summary: Gets an HTTP link to a clip
+      description: Extracts the same clip as /replays/{recording-id}/clip, but always gets an HTTP link to the clip.
+      parameters:
+        - $ref: '#/components/parameters/RecordingId'
+        - name: start_ts
+          in: query
+          description: Where the clip starts, that moment included.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: duration
+          in: query
+          description: How long the clip should be in seconds, within the configured limit.
+          required: true
+          schema:
+            type: number
+        - name: format
+          in: query
+          description: Clip format, mp4 (default), mkv or webm.
+          required: false
+          schema:
+            type: string
+            enum: [mp4, mkv, webm]
+            default: mp4
+      responses:
+        '200':
+          description: MediaResult.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaResult'
+        '400':
+          description: Invalid range or both end selectors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          description: Interval not covered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '406':
+          description: Incompatible Accept header.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Record not ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '415':
+          description: Unavailable output profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Extraction capacity reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Extraction or storage failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      tags: [Service]
+      summary: Service health
+      description: 200 while the service is started and can reach its database and media storage; 503 otherwise. Having no streams attached is healthy.
+      responses:
+        '200':
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          description: The service or a dependency is not reachable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /version:
+    get:
+      tags: [Service]
+      summary: Service version
+      description: Reports build details held locally.
+      responses:
+        '200':
+          description: Version information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Version'
+
+components:
+  parameters:
+    StreamId:
+      name: stream-id
+      in: path
+      required: true
+      description: Attached stream, for example str-1.
+      schema:
+        type: string
+    RecordingId:
+      name: recording-id
+      in: path
+      required: true
+      description: The recording, for example rec-2.
+      schema:
+        type: string
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: The cursor handed back by a previous page.
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: How many items per page, 1-100, default 20.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    Error400:
+      description: The request is malformed, or its fields contradict each other.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Error401:
+      description: No credentials were supplied, or the access token is not valid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Error403:
+      description: The caller is not allowed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Error413:
+      description: The upload is bigger or longer than the configured limit.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Error429:
+      description: No room left for another stream, more memory or another extraction.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      description: Returned by every failure on every endpoint.
+      required: [status, error_code, error_detail]
+      properties:
+        status:
+          type: integer
+          description: The HTTP status code, repeated inside the body.
+        error_code:
+          type: string
+          description: A short, stable code meant to be matched by software.
+          enum:
+            - invalid_request
+            - invalid_selector
+            - invalid_timestamp
+            - unauthenticated
+            - forbidden
+            - stream_not_found
+            - record_not_found
+            - frame_not_found
+            - not_acceptable
+            - stream_exists
+            - record_not_ready
+            - history_unavailable
+            - active_dependency
+            - payload_too_large
+            - unsupported_media
+            - capacity_exhausted
+            - internal_error
+            - storage_unavailable
+            - not_implemented
+        error_detail:
+          type: string
+          description: A short explanation for a person. Never contains file paths, source addresses, credentials or FFmpeg output.
+      example:
+        status: 409
+        error_code: history_unavailable
+        error_detail: Requested pre-event history is not in the buffer.
+
+    StreamCreate:
+      type: object
+      description: Attaches an RTSP or RTSPS source. The buffer holds buffer_length seconds of history, or the deployment's default of 30 seconds when omitted.
+      required: [sensor_id, source_uri]
+      properties:
+        sensor_id:
+          type: string
+          description: Sensor identity; the name the recordings will be filed under.
+        source_uri:
+          type: string
+          description: The address of the source, with no credentials in it, up to 2048 characters.
+          maxLength: 2048
+        buffer_length:
+          type: integer
+          description: How many seconds of history the buffer holds, 5-300. Default is 30. Setting a size does not conjure up that much history straight away.
+          minimum: 5
+          maximum: 300
+          default: 30
+      example:
+        sensor_id: external-cam-1
+        source_uri: rtsp://camera.example.com/live
+        buffer_length: 30
+
+    BufferUpdate:
+      type: object
+      required: [buffer_length]
+      properties:
+        buffer_length:
+          type: integer
+          description: The new size in seconds, 5-300. Setting a size does not conjure up that much history straight away.
+          minimum: 5
+          maximum: 300
+      example:
+        buffer_length: 60
+
+    BufferStatus:
+      type: object
+      properties:
+        capacity:
+          type: integer
+          description: How many seconds of video the buffer is set up to hold, 5-300.
+          minimum: 5
+          maximum: 300
+        held_bytes:
+          type: integer
+          description: How many bytes the buffer is holding right now.
+        oldest_ts:
+          type: string
+          format: date-time
+          nullable: true
+          description: The oldest time still held; empty while the buffer has nothing in it.
+        newest_ts:
+          type: string
+          format: date-time
+          nullable: true
+          description: The newest time still held; empty while the buffer has nothing in it.
+      example:
+        capacity: 60
+        held_bytes: 12
+        oldest_ts: '2026-09-16T09:11:48.000000000Z'
+        newest_ts: '2026-09-16T09:12:00.000000000Z'
+
+    Stream:
+      type: object
+      properties:
+        stream_id:
+          type: string
+          description: Identity given to the stream when it was attached.
+        sensor_id:
+          type: string
+          description: Identity of the sensor. For a uri source this is simply the name the caller chose for it.
+        state:
+          type: string
+          enum: [connecting, buffering, reconnecting, failed]
+        sync_confidence:
+          type: string
+          description: How far the timestamps on the incoming video can be trusted.
+          enum: [ntp_synced, best_effort, unverified]
+        buffer:
+          $ref: '#/components/schemas/BufferStatus'
+        stats:
+          type: object
+          properties:
+            framerate:
+              type: number
+              description: Frames arriving per second, measured over the last second.
+            dropped_frames:
+              type: integer
+              description: Frames known to have been lost or unusable since the stream was attached.
+        creation_ts:
+          type: string
+          format: date-time
+          description: When the stream was attached.
+      example:
+        stream_id: str-1
+        sensor_id: cam-07
+        state: buffering
+        sync_confidence: best_effort
+        buffer:
+          capacity: 30
+          held_bytes: 6000000
+          oldest_ts: '2026-09-16T09:11:48.000000000Z'
+          newest_ts: '2026-09-16T09:12:00.000000000Z'
+        stats:
+          framerate: 30
+          dropped_frames: 0
+        creation_ts: '2026-09-16T09:11:48.000000000Z'
+
+    Recording:
+      type: object
+      description: One record is one recording of one sensor, and matches exactly one row of the records table.
+      properties:
+        recording_id:
+          type: string
+          description: Recording identity.
+        sensor_id:
+          type: string
+          description: Recorded sensor.
+        stream_id:
+          type: string
+          nullable: true
+          description: The stream it was recorded from; empty for an imported recording.
+        state:
+          type: string
+          description: Media can only be retrieved once the record is ready.
+          enum: [recording, finalizing, ready, failed]
+        start_ts:
+          type: string
+          format: date-time
+          description: The first moment covered, itself included.
+        end_ts:
+          type: string
+          format: date-time
+          nullable: true
+          description: The moment coverage stops, that instant not itself included; empty while an open recording is still running.
+        size_bytes:
+          type: integer
+          nullable: true
+          description: Size of the finished media; empty until the record is ready.
+        metadata:
+          type: object
+          description: Whatever metadata the caller supplied, or {} if none was.
+          additionalProperties: true
+        creation_ts:
+          type: string
+          format: date-time
+          description: Record creation time.
+        expiry_ts:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the recording is due to be deleted; empty when the deployment default applies.
+        error_detail:
+          type: string
+          nullable: true
+          description: A short reason, given only when the state is failed.
+      example:
+        recording_id: rec-2
+        sensor_id: cam-07
+        stream_id: str-1
+        state: ready
+        start_ts: '2026-09-16T09:12:00.400000000Z'
+        end_ts: '2026-09-16T09:12:08.400000000Z'
+        size_bytes: 4194304
+        metadata:
+          incident_id: incident-17
+        creation_ts: '2026-09-16T09:12:03.600000000Z'
+        expiry_ts: null
+
+    MediaResult:
+      type: object
+      description: What the frame and clip endpoints return when the reply is JSON rather than raw media.
+      properties:
+        recording_id:
+          type: string
+          description: The record the media was taken from.
+        sensor_id:
+          type: string
+          description: The sensor the media belongs to.
+        media_type:
+          type: string
+          enum: [frame, clip]
+        content_type:
+          type: string
+          description: The type of file that was produced, for example image/jpeg or video/mp4.
+        requested_start_ts:
+          type: string
+          format: date-time
+          description: The time the caller asked for.
+        requested_end_ts:
+          type: string
+          format: date-time
+          nullable: true
+          description: The end the caller asked for, that instant not included; empty for a single frame.
+        start_ts:
+          type: string
+          format: date-time
+          description: The real time of the frame returned, or of the first frame of the clip.
+        end_ts:
+          type: string
+          format: date-time
+          nullable: true
+          description: Where the clip really ends, that instant not included; empty for a single frame.
+        url:
+          type: string
+          description: A short-lived link to the file that was produced. It never points at the original recording.
+        expiry_ts:
+          type: string
+          format: date-time
+          description: Expiry of url. It is same as the lifetime of the recording.
+      example:
+        recording_id: rec-2
+        sensor_id: cam-07
+        media_type: frame
+        content_type: image/jpeg
+        requested_start_ts: '2026-09-16T09:12:03.400000000Z'
+        requested_end_ts: null
+        start_ts: '2026-09-16T09:12:03.400000000Z'
+        end_ts: null
+        url: https://sm.example.com/v1/media/eyJ0eXAi...
+        expiry_ts: '2026-09-16T09:20:00.000000000Z'
+
+    RecordStart:
+      type: object
+      required: [stream_id, start_ts]
+      description: Records one attached stream. Recording several streams in one request is planned.
+      properties:
+        stream_id:
+          type: string
+          description: The attached stream to record.
+        start_ts:
+          type: string
+          format: date-time
+          description: The moment the event happened, called T. It cannot be in the future.
+        duration:
+          type: number
+          description: How many seconds to record after T. Give it for a fixed-length recording, leave it out for an open one that will be ended with stop.
+        pre_event_duration:
+          type: number
+          description: How many seconds from before T to keep, 0-300, default 0. That history must really be in the buffer, not merely fit inside its configured size.
+          minimum: 0
+          maximum: 300
+          default: 0
+        metadata:
+          type: object
+          description: Metadata to store with the record.
+          additionalProperties: true
+      example:
+        stream_id: str-1
+        start_ts: '2026-09-16T09:12:03.400000000Z'
+        duration: 5
+        pre_event_duration: 3
+        metadata:
+          incident_id: incident-17
+
+    RecordStartResult:
+      type: object
+      properties:
+        recordings:
+          type: array
+          description: Holds exactly one Record, in the recording state; an array so that multi-stream requests can be added later. start_ts is the enclosing starting keyframe; end_ts is the planned end for a fixed-length recording, and empty for an open one. Once ready, end_ts is the actual ending slice boundary.
+          items:
+            $ref: '#/components/schemas/Recording'
+
+    RecordStop:
+      type: object
+      required: [recording_id]
+      properties:
+        recording_id:
+          type: string
+          description: The open recording to stop. Active fixed-length and failed recordings are refused. Repeated stops while finalizing retain their target; ready recordings return their current record.
+      example:
+        recording_id: rec-open-1
+
+    RecordImport:
+      type: object
+      required: [file, attributes]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: The video itself. Its container and codec are checked by looking inside the file. For now only a single video track is accepted.
+        attributes:
+          $ref: '#/components/schemas/RecordImportAttributes'
+
+    RecordImportAttributes:
+      type: object
+      description: application/json part of the import request.
+      required: [sensor_id, timestamp_start]
+      properties:
+        sensor_id:
+          type: string
+          description: The sensor the footage came from. It does not have to be attached or known.
+        timestamp_start:
+          type: string
+          format: date-time
+          description: The UTC time of the very first frame in the file.
+        metadata:
+          type: object
+          description: Any metadata to keep with the recording.
+          additionalProperties: true
+        expires_at:
+          type: string
+          format: date-time
+          description: When the recording should be deleted. Must be in the future and allowed by deployment policy.
+      example:
+        sensor_id: cam-archive-1
+        timestamp_start: '2026-09-16T08:00:00.000000000Z'
+        metadata:
+          incident_id: incident-17
+          label: entrance
+        expires_at: '2026-09-23T08:00:00.000000000Z'
+
+    StreamPage:
+      type: object
+      properties:
+        items:
+          type: array
+          description: A list of Stream objects. No matches gives 200 with an empty list, never 404.
+          items:
+            $ref: '#/components/schemas/Stream'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Always null, since stream listing is not paged yet.
+      example:
+        items: []
+        next_cursor: null
+
+    RecordingPage:
+      type: object
+      properties:
+        items:
+          type: array
+          description: A list of Record objects. No matches gives 200 with an empty list, never 404.
+          items:
+            $ref: '#/components/schemas/Recording'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Where the next page starts; empty once there are no more pages.
+      example:
+        items: []
+        next_cursor: null
+
+    Deletion:
+      type: object
+      properties:
+        resource:
+          type: string
+          enum: [stream, recording]
+        id:
+          type: string
+          description: Which resource was deleted.
+        deleted:
+          type: boolean
+          description: Always true, and sent only once the deletion has finished.
+      example:
+        resource: recording
+        id: rec-2
+        deleted: true
+
+    Health:
+      type: object
+      properties:
+        service:
+          type: string
+        status:
+          type: string
+        checked_at:
+          type: string
+          format: date-time
+      example:
+        service: stream-manager
+        status: ok
+        checked_at: '2026-09-16T09:15:00.000000000Z'
+
+    Version:
+      type: object
+      properties:
+        service:
+          type: string
+        version:
+          type: string
+        api_version:
+          type: string
+        build_time:
+          type: string
+          format: date-time
+        git_commit:
+          type: string
+      example:
+        service: stream-manager
+        version: 0.1.0
+        api_version: v1
+        build_time: '2026-09-16T00:00:00.000000000Z'
+        git_commit: 9f1c0b2d4e6a8c0e2f4a6b8d0c2e4f6a8b0d2c4e
