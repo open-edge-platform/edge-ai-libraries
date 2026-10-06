@@ -19,7 +19,7 @@ debian_90_install_scenescape () {
   if verify_scenescape && [[ " $* " != *" --reinstall "* ]]; then
     echo "Scenescape already installed. Skipping" 1>&2
   else
-    ensure_disk_space 300
+    ensure_disk_size 300
     ensure_git_export "$workspace" "$version" "$repository"
     verify_scenescape
   fi

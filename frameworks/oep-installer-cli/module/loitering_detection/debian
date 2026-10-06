@@ -28,7 +28,7 @@ debian_90_install_loitering_detection () {
     echo "Loitering detection is already installed. Skipping"
   else
     # clone the repository
-    ensure_disk_space 280
+    ensure_disk_size 280
     ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
     # setup
