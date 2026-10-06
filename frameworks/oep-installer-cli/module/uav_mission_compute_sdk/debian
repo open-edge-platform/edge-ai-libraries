@@ -24,7 +24,6 @@ debian_85_install_uav_mission_compute_sdk () {
     cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
     make init
     sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env
-    export HTTP_PROXY="${HTTP_PROXY:-$http_proxy}" HTTPS_PROXY="${HTTPS_PROXY:-$https_proxy}" NO_PROXY="${NO_PROXY:-$no_proxy}"
     make build
     verify_uav_mission_compute_sdk
   fi
@@ -45,7 +44,6 @@ debian_85_start_uav_mission_compute_sdk () {
   configure_uav_mission_compute_sdk
   cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
   . .env
-  export HTTP_PROXY="${HTTP_PROXY:-$http_proxy}" HTTPS_PROXY="${HTTPS_PROXY:-$https_proxy}" NO_PROXY="${NO_PROXY:-$no_proxy}"
   make up-$PROFILE
 }
 
