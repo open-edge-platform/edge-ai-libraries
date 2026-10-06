@@ -38,7 +38,8 @@ To create a pipeline from a GST description string, switch to the *From Descript
 Once you provide this information, click the *Create* button. Once the pipeline description is validated, the pipeline
 is shown as a graph in the Pipeline Builder view.
 
-> **Note:** To view the output video or live stream in ViPPET, your pipeline must include a `fakesink` element with
+> [!NOTE]
+> To view the output video or live stream in ViPPET, your pipeline must include a `fakesink` element with
 > the `name=default_output_sink` property. This serves as a placeholder that ViPPET automatically replaces with the
 > appropriate output configuration when you run the pipeline. For example: `... ! gvawatermark ! fakesink name=default_output_sink`.
 

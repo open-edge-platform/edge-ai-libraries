@@ -51,7 +51,8 @@ Configuration is managed via environment variables. All variables map directly t
 |----------|---------|-------------|
 | `TRUST_FORWARDED_HEADERS` | `false` | Honor `X-Forwarded-For` / `X-Real-IP` headers for client IP detection. Set to `true` ONLY when running behind a trusted reverse proxy (Nginx, Traefik, etc.) |
 
-> **Warning:** Setting this to `true` without a reverse proxy allows clients to spoof their IP and bypass rate limiting.
+> [!WARNING]
+> Setting this to `true` without a reverse proxy allows clients to spoof their IP and bypass rate limiting.
 
 ## Telegraf Settings (Application Configuration)
 

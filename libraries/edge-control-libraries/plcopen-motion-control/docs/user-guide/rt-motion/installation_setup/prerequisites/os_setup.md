@@ -17,17 +17,79 @@ Do the following to prepare the target system:
 
    **Note**: The available configurations depend on the platform, BIOS in use, or both. Modify as many configurations as possible.
 
-<!--hide_directive
-```{include} bios_generic.md
-```
-hide_directive-->
+   <!--hide_directive ::::{tab-set} hide_directive-->
+   <!--hide_directive :::{tab-item} hide_directive--> **Real-time Optimization**
+
+   | Setting Name | Option | Setting Menu |
+   | --- | --- | --- |
+   | Hyper-Threading | Disabled | Intel Advanced Menu ⟶ CPU Configuration |
+   | Intel (VMX) Virtualization | Enabled | Intel Advanced Menu ⟶ CPU Configuration |
+   | X2APIC | Enabled | Intel Advanced Menu ⟶ CPU Configuration |
+   | Active SOC-North Efficient-cores | 0 | Intel Advanced Menu ⟶ CPU Configuration |
+   | Intel(R) SpeedStep | Enabled | Intel Advanced Menu ⟶ Power & Performance ⟶ CPU - Power Management Control |
+   | Intel(R) Shift Technology | Enabled | Intel Advanced Menu ⟶ Power & Performance ⟶ CPU - Power Management Control |
+   | Intel(R) Turbo Mode | Enabled | Intel Advanced Menu ⟶ Power & Performance ⟶ CPU - Power Management Control |
+   | C States | Enabled | Intel Advanced Menu ⟶ Power & Performance ⟶ CPU - Power Management Control |
+   | RC6 (Render Standby) | Disabled | Intel Advanced Menu ⟶ Power & Performance ⟶ GT - Power Management Control |
+   | MC6 (Media Standby) | Enabled | Intel Advanced Menu ⟶ Power & Performance ⟶ GT - Power Management Control |
+   | Disable Turbo GT frequency | Disabled | Intel Advanced Menu ⟶ Power & Performance ⟶ GT - Power Management Control |
+   | Maximum GT frequency | Default Max Frequency | Intel Advanced Menu ⟶ Power & Performance ⟶ GT - Power Management Control |
+   | Page Close Idle Timeout | Disabled | Intel Advanced Menu ⟶ Memory Configuration |
+   | Power Down Mode | Disabled | Intel Advanced Menu ⟶ Memory Configuration |
+   | SA GV | Disabled | Intel Advanced Menu ⟶ Memory Configuration |
+   | VT-d | Enabled | Intel Advanced Menu ⟶ System Agent (SA) Configuration |
+   | ACPI S3 Support | Disabled | Intel Advanced Menu ⟶ ACPI Settings |
+   | Low Power S0 Idle Capability | Disabled | Intel Advanced Menu ⟶ ACPI Settings |
+   | Native ASPM | Disabled | Intel Advanced Menu ⟶ ACPI Settings |
+   | Legacy IO Low Latency | Enabled | Intel Advanced Menu ⟶ PCH-IO Configuration |
+
+   <!--hide_directive ::: hide_directive-->
+   <!--hide_directive :::{tab-item} hide_directive--> **Generic (non-real-time)**
+
+   | Setting Name | Option | Setting Menu |
+   | --- | --- | --- |
+   | Hyper-Threading | Enabled | Intel Advanced Menu ⟶ CPU Configuration |
+   | Intel (VMX) Virtualization | Enabled | Intel Advanced Menu ⟶ CPU Configuration |
+   | X2APIC | Enabled | Intel Advanced Menu ⟶ CPU Configuration |
+   | Active SOC-North Efficient-cores | All | Intel Advanced Menu ⟶ CPU Configuration |
+   | Intel(R) SpeedStep | Enabled | Intel Advanced Menu ⟶ Power & Performance ⟶ CPU - Power Management Control |
+   | Intel(R) Shift Technology | Enabled | Intel Advanced Menu ⟶ Power & Performance ⟶ CPU - Power Management Control |
+   | Intel(R) Turbo Mode | Enabled | Intel Advanced Menu ⟶ Power & Performance ⟶ CPU - Power Management Control |
+   | C States | Enabled | Intel Advanced Menu ⟶ Power & Performance ⟶ CPU - Power Management Control |
+   | RC6 (Render Standby) | Enabled | Intel Advanced Menu ⟶ Power & Performance ⟶ GT - Power Management Control |
+   | MC6 (Media Standby) | Enabled | Intel Advanced Menu ⟶ Power & Performance ⟶ GT - Power Management Control |
+   | Disable Turbo GT frequency | Disabled | Intel Advanced Menu ⟶ Power & Performance ⟶ GT - Power Management Control |
+   | Maximum GT frequency | Default Max Frequency | Intel Advanced Menu ⟶ Power & Performance ⟶ GT - Power Management Control |
+   | Page Close Idle Timeout | Enabled | Intel Advanced Menu ⟶ Memory Configuration |
+   | Power Down Mode | Auto | Intel Advanced Menu ⟶ Memory Configuration |
+   | SA GV | Enabled | Intel Advanced Menu ⟶ Memory Configuration |
+   | VT-d | Enabled | Intel Advanced Menu ⟶ System Agent (SA) Configuration |
+   | ACPI S3 Support | Enabled | Intel Advanced Menu ⟶ ACPI Settings |
+   | Low Power S0 Idle Capability | Disabled | Intel Advanced Menu ⟶ ACPI Settings |
+   | Native ASPM | Auto | Intel Advanced Menu ⟶ ACPI Settings |
+   | Legacy IO Low Latency | Disabled | Intel Advanced Menu ⟶ PCH-IO Configuration |
+
+   <!--hide_directive
+   :::
+   ::::
+   hide_directive-->
 
 ## Set locale
 
-<!--hide_directive
-```{include} Ubuntu-Set-Locale.md
+Make sure you have a locale which supports `UTF-8`.
+If you are in a minimal environment (such as a Docker container), the locale may be something minimal like `POSIX`.
+We test with the following settings. However, it should be fine if you are using a different UTF-8 supported locale.
+
+```bash
+locale  # check for UTF-8
+
+sudo apt update && sudo apt install locales
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+export LANG=en_US.UTF-8
+
+locale  # verify settings
 ```
-hide_directive-->
 
 ## Set Date and Time
 
@@ -38,10 +100,35 @@ date
 sudo date -s "2025-03-30 12:00"
 ```
 
-## Setup Sources
+## Set up ECI APT Repository
 
-<!--hide_directive
-:::{include} Apt-Repositories.md
-:heading-offset: 1
-:::
-hide_directive-->
+This section explains the procedure to configure the APT package manager to use the hosted ECI APT repository.
+
+1. Open a terminal prompt which will be used to execute the remaining steps.
+
+2. Download the ECI APT key to the system keyring:
+
+   ```bash
+   sudo -E wget -O- https://eci.intel.com/repos/gpg-keys/GPG-PUB-KEY-INTEL-ECI.gpg | sudo tee /usr/share/keyrings/eci-archive-keyring.gpg > /dev/null
+   ```
+
+3. Add the signed entry to APT sources and configure the APT client to use the ECI APT repository:
+
+   ```bash
+   echo "deb [signed-by=/usr/share/keyrings/eci-archive-keyring.gpg] https://eci.intel.com/repos/$(source /etc/os-release && echo $VERSION_CODENAME) isar main" | sudo tee /etc/apt/sources.list.d/eci.list
+   echo "deb-src [signed-by=/usr/share/keyrings/eci-archive-keyring.gpg] https://eci.intel.com/repos/$(source /etc/os-release && echo $VERSION_CODENAME) isar main" | sudo tee -a /etc/apt/sources.list.d/eci.list
+   ```
+
+   **Note**: The auto upgrade feature in Canonical® Ubuntu® will change the deployment environment over time. If you do not want to auto upgrade, execute the following commands to disable the feature:
+
+   ```bash
+   sudo sed -i "s/APT::Periodic::Update-Package-Lists \"1\"/APT::Periodic::Update-Package-Lists \"0\"/g" "/etc/apt/apt.conf.d/20auto-upgrades"
+   sudo sed -i "s/APT::Periodic::Unattended-Upgrade \"1\"/APT::Unattended-Upgrade \"0\"/g" "/etc/apt/apt.conf.d/20auto-upgrades"
+   ```
+
+4. Configure the ECI APT repository to have higher priority over other repositories:
+
+   ```bash
+   sudo bash -c 'echo -e "Package: *\nPin: origin eci.intel.com\nPin-Priority: 1000" >> /etc/apt/preferences.d/isar'
+   sudo bash -c 'echo -e "Package: libze-intel-gpu1,libze1,intel-opencl-icd,libze-dev,intel-ocloc\nPin: origin repositories.intel.com/gpu/ubuntu\nPin-Priority: 1000" >> /etc/apt/preferences.d/isar'
+   ```

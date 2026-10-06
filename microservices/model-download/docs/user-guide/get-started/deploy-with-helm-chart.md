@@ -85,7 +85,8 @@ The following is a summary of key configuration options available in the `values
 | `affinity.key`                 | Provide the key for the affinity,default is kubernetes.io/hostname                                                                                                            | `kubernetes.io/hostname`     |
 | `affinity.value`               | Provide the values for the respective key                                                                                                                                     |                              |
 
-> **Note:** See the chart's `values.yaml` file for a full list of configurable parameters.
+> [!NOTE]
+> See the chart's `values.yaml` file for a full list of configurable parameters.
 
 ### Preload Models
 
@@ -125,7 +126,8 @@ full schema and behavior, see [Download Models at Startup](./startup-models.md).
 helm install model-download . -n <your-namespace>
 ```
 
-> **Note:** `model-download` creates and manages a shared PVC that can be used by dependent applications such as Chat Q&A.
+> [!NOTE]
+> `model-download` creates and manages a shared PVC that can be used by dependent applications such as Chat Q&A.
 
 ## Verify the Deployment
 
@@ -170,7 +172,7 @@ helm uninstall <name> -n <your-namespace>
   kubectl delete pvc <pvc-name> -n <namespace>
   ```
 
-> **Note:**
+> [!NOTE]
 > Delete the shared PVC only after confirming no other workload or application (for example,
 > Chat Q&A) depends on it. In such cases, uninstall the dependent application first, then clean up `model-download` resources, and finally delete the shared PVC if required.
 

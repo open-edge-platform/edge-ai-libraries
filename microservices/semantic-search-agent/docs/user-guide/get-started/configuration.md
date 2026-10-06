@@ -92,7 +92,8 @@ Pass these when running the service or building the Docker image behind a corpor
 | `HTTPS_PROXY`  | *(empty)* | HTTPS proxy URL.                                          |
 | `NO_PROXY`     | *(empty)* | Comma-separated list of hosts to bypass the proxy.        |
 
-> **Note**: The OpenVINO model server backend sets `trust_env=False` on its HTTP client to bypass proxy settings for internal OpenVINO model server communication. This is intentional because OpenVINO model server hosts are typically on the same internal network.
+> [!NOTE]
+> The OpenVINO model server backend sets `trust_env=False` on its HTTP client to bypass proxy settings for internal OpenVINO model server communication. This is intentional because OpenVINO model server hosts are typically on the same internal network.
 
 ---
 
