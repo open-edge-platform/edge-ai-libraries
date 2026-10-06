@@ -31,7 +31,7 @@ debian_50_install_ros2 () {
   else
     ensure_apt update
     ensure_apt install -y software-properties-common gnupg lsb-release ca-certificates
-    ensure_sudo add-apt-repository -y universe || true
+    ensure_apt_add_repository universe || true
 
     # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
     # which self-configures the apt source list and signing key
