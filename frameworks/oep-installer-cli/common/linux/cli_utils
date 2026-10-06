@@ -154,6 +154,13 @@ act_helper () {
       fi
     fi
 
+    # normalize proxy settings
+    local hp="${http_proxy:-$HTTP_PROXY}" sp="${https_proxy:-$HTTPS_PROXY}" np=",${no_proxy:-$NO_PROXY},"
+    np="${np//,intel.com,/,}"; np="${np//,.intel.com,/,}"; np="${np##,}"
+    [ -z "$hp" ] || export http_proxy="$hp" HTTP_PROXY="$hp"
+    [ -z "$sp" ] || export https_proxy="$sp" HTTPS_PROXY="$sp"
+    [ -z "$np" ] || export no_proxy="${np%%,}" NO_PROXY="${np%%,}"
+
     local rc=0 order=0
     local installer_state=""
     ensure_tmpdir create installer_state states /dev/shm
