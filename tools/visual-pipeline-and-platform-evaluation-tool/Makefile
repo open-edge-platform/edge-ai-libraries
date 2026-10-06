@@ -6,9 +6,10 @@ SHELL := bash -eu -o pipefail
 # default goal to show help
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
-	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
+	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator shell-dlsps stop clean clean-output-videos help \
 	build-videogenerator build-onvif-discovery docker-build env-setup build-test \
-	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental
+	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental \
+	ui-e2e-setup ui-e2e-setup-cross-browser
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -65,6 +66,14 @@ ENV_DIRS_SENTINEL := shared/.env-dirs.done
 # covered by the existing shared/* ignore patterns.
 TEST_IMAGE_SENTINEL := shared/.vippet-test-image.stamp
 
+# UI end-to-end (Playwright) setup sentinels. `ui-e2e-setup` targets are
+# developer-facing helpers that install Node deps and Playwright browser
+# binaries. Sentinels avoid re-running slow installs on every invocation.
+UI_DIR := ui
+UI_NPM_SENTINEL := shared/.ui-npm-install.stamp
+UI_PW_CHROMIUM_SENTINEL := shared/.ui-playwright-chromium.stamp
+UI_PW_CROSS_SENTINEL := shared/.ui-playwright-cross.stamp
+
 # Create the dev venv only when requirements change. A sentinel file is
 # used instead of the venv directory itself because the directory mtime
 # is unstable across pip installs, which can cause the recipe
@@ -119,10 +128,11 @@ pyright: $(VENV_SENTINEL) ## Run pyright type checker
 	# Include/exclude is configured in pyrightconfig.json. ;\
 	pyright --threads=4
 
-generate_openapi: $(VENV_SENTINEL) ## Generate OpenAPI schema file
+generate_openapi: $(VENV_SENTINEL) env-setup ## Generate OpenAPI schema file
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
+	. ./.env ;\
 	cd $(PROJECT_NAME) ;\
-	PYTHONPATH=. AUTO_VIDEO_DIR=../shared/videos/input/auto UPLOADED_VIDEO_DIR=../shared/videos/input/uploaded python ../generate_openapi.py
+	PYTHONPATH=. AUTO_VIDEO_DIR=../shared/videos/input/auto UPLOADED_VIDEO_DIR=../shared/videos/input/uploaded VIPPET_VERSION="$$DOCKER_TAG" VIPPET_REVISION="docs" python ../generate_openapi.py
 
 # Directory layout for the shared/ runtime volumes. Cheap and idempotent
 # but sentinel-gated so repeated invocations skip the chmod chatter.
@@ -228,6 +238,28 @@ test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=de
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	PERF_CONFIG=$(or $(PERF_CONFIG),default) python -m pytest --log-cli-level=INFO -m perf vippet/tests/performance/
 
+# UI end-to-end setup — Playwright installs are slow, so both recipes are
+# sentinel-gated. Re-runs are a no-op unless package-lock.json changes or
+# the sentinel is removed. sudo is required by `install-deps` (system
+# libraries and, for cross-browser, the real Chrome / Edge .deb packages).
+$(UI_NPM_SENTINEL): $(UI_DIR)/package-lock.json $(UI_DIR)/package.json
+	cd $(UI_DIR) && npm install
+	@mkdir -p $(dir $@) && touch $@
+
+$(UI_PW_CHROMIUM_SENTINEL): $(UI_NPM_SENTINEL)
+	cd $(UI_DIR) && npx playwright install --with-deps chromium
+	@touch $@
+
+$(UI_PW_CROSS_SENTINEL): $(UI_NPM_SENTINEL)
+	cd $(UI_DIR) && npx playwright install --with-deps chromium firefox webkit
+	cd $(UI_DIR) && sudo npx playwright install-deps chrome msedge
+	cd $(UI_DIR) && npx playwright install chrome msedge
+	@touch $@
+
+ui-e2e-setup: $(UI_PW_CHROMIUM_SENTINEL) ## Install UI e2e deps + bundled Chromium (regular smoke)
+
+ui-e2e-setup-cross-browser: $(UI_PW_CROSS_SENTINEL) ## Install UI e2e deps + all engines and real Chrome/Edge
+
 shell: env-setup ## Open shell in specified container (i.e. make shell SERVICE=vippet)
 	docker exec -it $(SERVICE) bash
 
@@ -243,12 +275,16 @@ shell-metrics-manager: ## Open shell in metrics-manager container
 shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
+shell-dlsps: ## Open shell in DLSPS 2.0 container (started with DLSPS2=1)
+	$(MAKE) shell SERVICE=dlstreamer-pipeline-server
+
 stop: ## Stop ViPPET core and Voice services, preserving named volumes
 	$(call standard-compose,down)
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator
-	rm -f $(ENV_DIRS_SENTINEL) $(TEST_IMAGE_SENTINEL)
+	rm -f $(ENV_DIRS_SENTINEL) $(TEST_IMAGE_SENTINEL) \
+		$(UI_NPM_SENTINEL) $(UI_PW_CHROMIUM_SENTINEL) $(UI_PW_CROSS_SENTINEL)
 
 clean-model-download: ## Clean only model-download artifacts
 	docker run --rm -v "${PWD}"/shared/model-download/:/mnt/model-download/ python:3.12-slim sh -c 'rm -rf /mnt/model-download/cache/ /mnt/model-download/venv-*/'

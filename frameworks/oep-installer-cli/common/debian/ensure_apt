@@ -2,6 +2,12 @@
 # apt with apt update executed only once
 ensure_apt () {
   local no_proxy1=$(echo ${no_proxy:-$NO_PROXY} | tr ',' '\n' | grep -v -E '^[.]?intel.com$' | tr '\n' ',')
+
+  while fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1; do
+    echo "Waiting for apt/unattended-upgrades to finish..." 1>&2
+    sleep 5
+  done
+
   case "$1" in
   update)
     # apt-get update got executed only once unless -y is specified
@@ -49,6 +55,23 @@ ensure_apt_install_package () {
   else
     ensure_apt update
     ensure_apt install --no-install-recommends -y "$@"
+  fi
+}
+
+# check downgrades
+ensure_apt_allow_downgrades () {
+  local allow_downgrades=($1); shift
+  local dg downgrades=()
+  for dg in $(apt-get install -s "$@" | awk '
+/The following packages will be DOWNGRADED:/{flag=1;next}
+/^[^ ]/{flag=0}
+flag&&$1{for(i=1;i<=NF;i++)print$i}
+'); do
+    [[ " ${allow_downgrades[*]} " = *" $dg "* ]] || downgrades+=("$dg")
+  done
+  if [ ${#downgrades[*]} -gt 0 ]; then
+    echo "Detected unexpected downgrades: ${downgrades[*]}" 1>&2
+    return 3
   fi
 }
 

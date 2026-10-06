@@ -16,7 +16,7 @@ debian_08_install_pre_system_scan () {
 
     pass=$ok
     membank_info="$(system_scan_check_membank)"
-    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Configuration}"
+    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}"
     echo -e "RAM|$membank_info|$pass"
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2
 

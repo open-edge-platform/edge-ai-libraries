@@ -8,7 +8,10 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "generate:api": "npx @rtk-query/codegen-openapi src/api/api.config.json"
+    "generate:api": "npx @rtk-query/codegen-openapi src/api/api.config.json",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:cross-browser": "playwright test tests/e2e/cross-browser"
   },
   "dependencies": {
     "@base-ui-components/react": "^1.0.0-beta.6",
