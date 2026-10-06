@@ -34,7 +34,7 @@ debian_90_install_humanoid_imitation_learning () {
   else
     # The base image bundles the OpenVINO dev stack, Intel GPU runtime, oneAPI
     # and a clone of edge-ai-suites; the sample image adds the policy packages.
-    ensure_disk_space 25000
+    ensure_disk_size 25000
     ensure_git_clone "$workspace" "$version" "$repository" samples/robotics/robotics-ai-suite-containers
 
     cd "$container_dir"
