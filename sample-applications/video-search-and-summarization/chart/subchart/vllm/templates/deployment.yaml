@@ -43,14 +43,6 @@ spec:
               value: "{{ .Values.env.hfHome }}"
             - name: VLLM_CPU_KVCACHE_SPACE
               value: "{{ .Values.env.vllmCpuKvCacheSpace }}"
-            - name: VLLM_RPC_TIMEOUT
-              value: "{{ .Values.env.vllmRpcTimeout }}"
-            - name: VLLM_ALLOW_LONG_MAX_MODEL_LEN
-              value: "{{ .Values.env.vllmAllowLongMaxModelLen }}"
-            - name: VLLM_ENGINE_ITERATION_TIMEOUT_S
-              value: "{{ .Values.env.vllmEngineIterationTimeoutS }}"
-            - name: VLLM_CPU_NUM_OF_RESERVED_CPU
-              value: "{{ .Values.env.vllmCpuNumReservedCpu }}"
             {{- if .Values.env.vllmLoggingLevel }}
             - name: VLLM_LOGGING_LEVEL
               value: "{{ .Values.env.vllmLoggingLevel }}"

@@ -278,10 +278,6 @@ vllm:
     size: 80Gi
   env:
     vllmCpuKvCacheSpace: "48"
-    vllmRpcTimeout: "100000"
-    vllmAllowLongMaxModelLen: "1"
-    vllmEngineIterationTimeoutS: "120"
-    vllmCpuNumReservedCpu: "0"
     vllmLoggingLevel: "INFO"
   model:
     dtype: bfloat16

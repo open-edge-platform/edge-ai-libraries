@@ -5,8 +5,8 @@ deployment:
   replicaCount: 1
 
 image:
-  repository: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo
-  tag: v0.17.1
+  repository: vllm/vllm-openai-cpu
+  tag: v0.30.0
   pullPolicy: IfNotPresent
 
 serviceAccountName: default
@@ -37,10 +37,6 @@ env:
   huggingfaceToken: ""
   hfHome: /cache
   vllmCpuKvCacheSpace: "48"
-  vllmRpcTimeout: "100000"
-  vllmAllowLongMaxModelLen: "1"
-  vllmEngineIterationTimeoutS: "120"
-  vllmCpuNumReservedCpu: "0"
   vllmLoggingLevel: ""
 
 model:
