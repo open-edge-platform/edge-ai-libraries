@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MediaMTXWebRTCReader } from "./MediaMTXWebRTCReader.ts";
+import { buildWhepUrl } from "./whepUrl.ts";
 
 interface WebRTCVideoPlayerProps {
   pipelineId?: string;
@@ -46,30 +47,17 @@ const WebRTCVideoPlayer = ({
       return;
     }
 
-    let whepPath: string;
-    if (streamUrl) {
-      // Convert RTSP URL to WHEP URL
-      // RTSP format: rtsp://mediamtx:8554/stream-name
-      // Extract stream name and build relative WHEP URL for proxy
-      if (streamUrl.startsWith("rtsp://")) {
-        const rtspUrl = new URL(streamUrl);
-        const streamName = rtspUrl.pathname.substring(1); // Remove leading '/'
-        // Use relative URL to leverage Vite/nginx proxy
-        whepPath = `/${streamName}/whep`;
-      } else {
-        // Assume it's already a WHEP URL
-        whepPath = streamUrl;
-      }
-    } else {
-      // Build URL from pipelineId
-      whepPath = `/stream_${pipelineId}/whep`;
+    const whepUrl = buildWhepUrl(window.location.origin, streamUrl, pipelineId);
+    if (!whepUrl) {
+      setMessage(
+        "Live preview unavailable: the pipeline reported an unusable stream address. Restart the pipeline, and check the vippet service logs if it persists.",
+      );
+      if (videoRef.current) videoRef.current.controls = false;
+      return;
     }
 
-    // Convert relative path to absolute URL
-    const absoluteUrl = new URL(whepPath, window.location.origin).toString();
-
     const reader = new MediaMTXWebRTCReader({
-      url: absoluteUrl,
+      url: whepUrl,
       onError: (err: string) => {
         setMessage(err);
         if (videoRef.current) videoRef.current.controls = false;
