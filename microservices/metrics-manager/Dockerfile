@@ -103,7 +103,9 @@ WORKDIR /telegraf
 # Cache Go module downloads across builds to avoid re-fetching on every run.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go get github.com/moby/go-archive@v0.3.0 && \
+    go get github.com/moby/go-archive@v0.3.0 \
+        github.com/rclone/rclone@v1.75.1 \
+        google.golang.org/grpc@v1.84.0-dev.0.20260825144003-d5a41119e0e3 && \
     go mod tidy
 
 RUN --mount=type=cache,target=/go/pkg/mod \
