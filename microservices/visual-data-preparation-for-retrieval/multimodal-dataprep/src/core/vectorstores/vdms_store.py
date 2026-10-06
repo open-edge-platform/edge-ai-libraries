@@ -26,6 +26,14 @@ if TYPE_CHECKING:
 _DEFAULT_DIMENSIONS = 512
 _BATCH_SIZE = 200
 
+# VDMS removes the descriptors a ``FindDescriptor`` matches when the query
+# carries the ``_deletion`` keyword. Deleting every match in one transaction
+# overflows the PMGD journal (``OutOfJournalSpace``) once a video/stream has
+# accumulated more than a few hundred descriptors, so deletes are issued in
+# bounded ``limit`` batches. 64 stays well under the journal ceiling observed
+# in practice while keeping the number of round-trips small.
+_DELETE_BATCH_SIZE = 64
+
 
 class _DummyEmbedding(Embeddings):
     """Minimal embedding shim; VDMS requires one but ``add_from`` bypasses it."""
@@ -182,71 +190,100 @@ class VDMSVectorStore(BaseVectorStore):
         except Exception as exc:
             logger.error("Error updating VDMS index: %s", exc)
 
+    def _delete_by_constraints(self, constraints: dict, what: str) -> int:
+        """Delete descriptors matching ``constraints`` in journal-sized batches.
+
+        VDMS deletes the nodes a ``FindDescriptor`` matches when the query
+        carries the ``_deletion`` keyword. ``langchain_vdms``' ``delete()``
+        issues a single such query over *every* match, which overflows the PMGD
+        transaction journal (``OutOfJournalSpace``) for anything larger than a
+        few hundred descriptors -- and it swallows that failure and reports
+        success, so vectors silently survive. This bypasses it: it issues the
+        delete directly through the raw client in bounded ``limit`` batches and
+        loops until nothing matches, returning the real number deleted.
+        """
+        self.connect()
+        del_constraints = dict(constraints)
+        del_constraints["_deletion"] = ["==", 1]
+        deleted = 0
+        while True:
+            query = [
+                {
+                    "FindDescriptor": {
+                        "set": self.collection_name,
+                        "constraints": del_constraints,
+                        "results": {"list": ["video_id"], "limit": _DELETE_BATCH_SIZE},
+                    }
+                }
+            ]
+            response, _ = self.client.query(query)
+            result = response[0] if response else {}
+            if "FailedCommand" in result:
+                raise RuntimeError(
+                    f"VDMS delete failed for {what}: "
+                    f"{result.get('info', 'unknown error')}"
+                )
+            batch = int(result.get("FindDescriptor", {}).get("returned", 0) or 0)
+            if batch <= 0:
+                break
+            deleted += batch
+        if deleted:
+            self.update_index()
+        return deleted
+
     def delete_embeddings(self, bucket_name: str, video_id: str) -> int:
         """Delete all VDMS vectors for a video via a metadata constraint.
 
-        Uses ``langchain_vdms``' constraint-based delete: descriptors whose
-        ``video_id`` and ``bucket_name`` properties match are removed. VDMS does
-        not report an exact deleted count, so this returns ``-1`` on success.
+        Descriptors whose ``video_id`` and ``bucket_name`` properties match are
+        removed in journal-sized batches (see :meth:`_delete_by_constraints`).
+        Returns the number of descriptors deleted.
         """
-        self.connect()
-        constraints = {
-            "video_id": ["==", video_id],
-            "bucket_name": ["==", bucket_name],
-        }
-        try:
-            self.video_db.delete(constraints=constraints)
-        except Exception as exc:
-            logger.error(
-                "VDMS delete failed for %s/%s: %s", bucket_name, video_id, exc
-            )
-            raise
-        logger.info(
-            "Deleted VDMS vectors for video %s in bucket %s", video_id, bucket_name
+        deleted = self._delete_by_constraints(
+            {"video_id": ["==", video_id], "bucket_name": ["==", bucket_name]},
+            what=f"{bucket_name}/{video_id}",
         )
-        return -1
+        logger.info(
+            "Deleted %d VDMS vectors for video %s in bucket %s",
+            deleted,
+            video_id,
+            bucket_name,
+        )
+        return deleted
 
     def delete_bucket_embeddings(self, bucket_name: str) -> int:
         """Delete every VDMS vector belonging to a bucket via a metadata constraint."""
-        self.connect()
-        try:
-            self.video_db.delete(constraints={"bucket_name": ["==", bucket_name]})
-        except Exception as exc:
-            logger.error("VDMS bucket delete failed for %s: %s", bucket_name, exc)
-            raise
-        logger.info("Deleted VDMS vectors for bucket %s", bucket_name)
-        return -1
+        deleted = self._delete_by_constraints(
+            {"bucket_name": ["==", bucket_name]}, what=bucket_name
+        )
+        logger.info("Deleted %d VDMS vectors for bucket %s", deleted, bucket_name)
+        return deleted
 
     def delete_embeddings_before(
         self, bucket_name: str, video_id: str, cutoff_epoch: float
     ) -> int:
         """Delete a video's VDMS vectors older than ``cutoff_epoch``.
 
-        Uses a constraint on the numeric ``ingest_epoch`` property written by the
-        live-ingestion pipeline. VDMS does not report an exact deleted count, so
-        this returns ``-1`` on success.
+        Filters on the numeric ``ingest_epoch`` property written by the
+        live-ingestion pipeline and deletes in journal-sized batches. Returns
+        the number of descriptors deleted.
         """
-        self.connect()
         cutoff = float(cutoff_epoch)
-        constraints = {
-            "video_id": ["==", video_id],
-            "bucket_name": ["==", bucket_name],
-            "ingest_epoch": ["<", cutoff],
-        }
-        try:
-            self.video_db.delete(constraints=constraints)
-        except Exception as exc:
-            logger.error(
-                "VDMS retention delete failed for %s/%s: %s", bucket_name, video_id, exc
-            )
-            raise
+        deleted = self._delete_by_constraints(
+            {
+                "video_id": ["==", video_id],
+                "bucket_name": ["==", bucket_name],
+                "ingest_epoch": ["<", cutoff],
+            },
+            what=f"{bucket_name}/{video_id}<{cutoff:.0f}",
+        )
         logger.info(
-            "Pruned VDMS vectors for %s/%s older than %.0f",
+            "Pruned %d VDMS vectors for %s/%s older than %.0f",
+            deleted,
             bucket_name,
             video_id,
             cutoff,
         )
-        return -1
+        return deleted
 
     def health(self) -> dict:
         status = {"backend": "vdms", "collection": self.collection_name}

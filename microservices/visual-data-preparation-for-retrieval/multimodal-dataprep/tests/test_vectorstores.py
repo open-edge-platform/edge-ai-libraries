@@ -267,23 +267,73 @@ def test_vdms_delete_embeddings_uses_constraints(monkeypatch):
     from src.core.vectorstores.vdms_store import VDMSVectorStore
 
     store = VDMSVectorStore(host="h", port="1", collection_name="c")
-    captured = {}
+    queries = []
 
-    class FakeVideoDB:
-        def delete(self, constraints=None, **kwargs):
-            captured["constraints"] = constraints
-            return True
+    class FakeClient:
+        def query(self, q):
+            queries.append(q)
+            # First call deletes a batch, second reports nothing left.
+            returned = 3 if len(queries) == 1 else 0
+            return [{"FindDescriptor": {"returned": returned, "status": 0}}], []
 
-    store.video_db = FakeVideoDB()
+    store.client = FakeClient()
     monkeypatch.setattr(store, "connect", lambda: None)
+    index_updates = []
+    monkeypatch.setattr(store, "update_index", lambda: index_updates.append(True))
 
     result = store.delete_embeddings("bucket-a", "video-1")
-    # VDMS cannot report an exact count -> -1 on success.
-    assert result == -1
-    assert captured["constraints"] == {
+
+    # Real deleted count is now returned (batched delete loops until empty).
+    assert result == 3
+    # The delete must carry the _deletion keyword plus the match constraints,
+    # target the collection's descriptor set, and be bounded by a limit.
+    first = queries[0][0]["FindDescriptor"]
+    assert first["set"] == "c"
+    assert first["constraints"] == {
         "video_id": ["==", "video-1"],
         "bucket_name": ["==", "bucket-a"],
+        "_deletion": ["==", 1],
     }
+    assert first["results"]["limit"] >= 1
+    # Looped until a batch returned 0.
+    assert len(queries) == 2
+    # Index persisted once after deletions.
+    assert index_updates == [True]
+
+
+def test_vdms_delete_embeddings_returns_zero_when_nothing_matches(monkeypatch):
+    from src.core.vectorstores.vdms_store import VDMSVectorStore
+
+    store = VDMSVectorStore(host="h", port="1", collection_name="c")
+
+    class FakeClient:
+        def query(self, q):
+            return [{"FindDescriptor": {"entities": [], "returned": 0, "status": 0}}], []
+
+    store.client = FakeClient()
+    monkeypatch.setattr(store, "connect", lambda: None)
+    monkeypatch.setattr(store, "update_index", lambda: None)
+
+    # No descriptors matched -> 0 deleted, no index update needed.
+    assert store.delete_embeddings("bucket-a", "missing") == 0
+
+
+def test_vdms_delete_embeddings_raises_on_backend_failure(monkeypatch):
+    """A FailedCommand (e.g. OutOfJournalSpace) must surface, not be swallowed."""
+    from src.core.vectorstores.vdms_store import VDMSVectorStore
+
+    store = VDMSVectorStore(host="h", port="1", collection_name="c")
+
+    class FakeClient:
+        def query(self, q):
+            return [{"FailedCommand": "Transaction", "info": "OutOfJournalSpace"}], []
+
+    store.client = FakeClient()
+    monkeypatch.setattr(store, "connect", lambda: None)
+    monkeypatch.setattr(store, "update_index", lambda: None)
+
+    with pytest.raises(RuntimeError, match="OutOfJournalSpace"):
+        store.delete_embeddings("bucket-a", "video-1")
 
 
 def test_milvus_delete_embeddings_builds_safe_expr(monkeypatch):
