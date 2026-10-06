@@ -2,8 +2,7 @@
 configure_nicu_warmer () {
   workspace="$(ensure_project_path)/nicu-warmer"
   version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
-  device_env="configs/res/all-$(ensure_select_device "$@").env"
+  repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git"
   models=(
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin"
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml"
@@ -17,14 +16,29 @@ configure_nicu_warmer () {
     "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.xml action-recognition-0001-decoder.xml"
     "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.bin action-recognition-0001-decoder.bin"
   )
+  used_ports=(8080)
+}
+
+configure_nicu_warmer_device () {
+  local device="$1"
+  local device_env="configs/res/all-${device}.env"
+  
+  cd "$workspace"/NICU-Warmer
+ 
+  sed -i "s|^DEVICE_ENV=.*|DEVICE_ENV=${device_env}|" .env
+  make setup DEVICE_ENV=$device_env
 }
 
 verify_nicu_warmer () {
   for model1 in "${models[@]}"; do
-    [ -e "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/${model1#* } ] || return 1
+    [ -e "$workspace"/NICU-Warmer/${model1#* } ] || {
+      echo "Missing ${model1#* }" 1>&2
+      return 1
+    }
   done
-  . "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/.env 2> /dev/null
-  docker inspect intel/hl-ai-nicu-backend:$TAG > /dev/null 2>&1
+  [ -e "$workspace"/NICU-Warmer/.env ]
+  . "$workspace"/NICU-Warmer/.env 2> /dev/null
+  docker inspect intel/hl-ai-nicu-backend:$TAG > /dev/null
 }
 
 debian_90_profile_nicu_warmer () {
@@ -35,54 +49,63 @@ debian_90_install_nicu_warmer () {
   configure_nicu_warmer $*
   if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
     echo "NICU Warmer is already installed. Skipping" 1>&2
-    return
+  else
+    ensure_ports_open "${used_ports[*]}" return 3
+
+    # clone the repository
+    ensure_disk_size 160
+    ensure_git_clone "$workspace" $version $repository NICU-Warmer
+
+    # configure and optimization
+    cd "$workspace"/NICU-Warmer
+    sed -i 's|decodebin3 ! .*|decodebin3|' configs/res/all-gpu.env
+    sed -i -e 's|- *"8080:8080"||' -e 's|- *"5001:5001"||' -e 's|- *"9100:9000"||' -e 's|- *"1883:1883"||' -e 's|3001|8080|' Makefile docker-compose.yaml
+    sed -i -z 's| *ports:\n\([ ]*[^ -]\)|\1|g' docker-compose.yaml
+    echo "TAG=$(grep -E ^TAG Makefile | cut -f2 -d= | tr -d ' ')" >> .env 
+
+    # download models
+    mkdir -p models_rppg
+    for model1 in "${models[@]}"; do
+      [ -e ${model1#* } ] || {
+        echo "Downloading ${model1%% *}..."
+        curl -sSf -L --retry 5 --retry-all-errors --retry-delay 2 "${model1%% *}" -o ${model1#* }
+      }
+    done
+
+    # build images
+    docker compose --profile dlsps build --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
+
+    verify_nicu_warmer
   fi
 
-  # clone the repository
-  ensure_disk_space 160
-  ensure_git_clone "$workspace" $version $repository health-and-life-sciences-ai-suite/NICU-Warmer
+  local device=$(ensure_select_device "$@")
+  configure_nicu_warmer_device "$device"
 
-  # configure and optimization
-  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
-  sed -i 's|decodebin3 ! .*|decodebin3|' configs/res/all-gpu.env
-  sed -i -e 's|- *"8080:8080"||' -e 's|- *"5001:5001"||' -e 's|- *"9100:9000"||' -e 's|- *"1883:1883"||' -e 's|3001|8080|' Makefile docker-compose.yaml
-  sed -i -z 's| *ports:\n\([ ]*[^ -]\)|\1|g' docker-compose.yaml
-  echo "DEVICE_ENV=$device_env" >> .env 
-  echo "TAG=$(grep -E ^TAG Makefile | cut -f2 -d= | tr -d ' ')" >> .env 
-
-  # download models
-  mkdir -p models_rppg
-  for model1 in "${models[@]}"; do
-    [ -e ${model1#* } ] || curl -sSf -L --retry 5 --retry-all-errors --retry-delay 2 "${model1%% *}" -o ${model1#* }
-  done
-
-  # setup
-  make setup DEVICE_ENV=$device_env
-
-  # prepull images
-  docker compose --profile dlsps pull --ignore-buildable
-
-  # build images
-  docker compose --profile dlsps build --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
-
-  verify_nicu_warmer
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|remove" 
 }
 
 debian_90_start_nicu_warmer () {
-  ensure_ports_open 8080 debian_90_stop_nicu_warmer
-  configure_nicu_warmer $*
-  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
-  make run DEVICE_ENV=$device_env
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip):8080"
+  configure_nicu_warmer "$@"
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_nicu_warmer
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_nicu_warmer_device "$device"
+
+  cd "$workspace"/NICU-Warmer
+  local device_env="$(grep -E ^DEVICE_ENV= .env | tail -n1 | cut -f2 -d=)"
+  make run DEVICE_ENV="$device_env"
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 debian_90_stop_nicu_warmer () {
-  configure_nicu_warmer $*
-  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
-  make down
+  configure_nicu_warmer "$@"
+  cd "$workspace"/NICU-Warmer && make down || true
 }
 
 debian_90_remove_nicu_warmer () {
-  debian_90_stop_nicu_warmer || true
+  debian_90_stop_nicu_warmer
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
