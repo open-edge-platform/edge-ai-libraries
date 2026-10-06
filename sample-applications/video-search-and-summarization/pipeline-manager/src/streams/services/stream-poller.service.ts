@@ -3,6 +3,7 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SearchEvents } from 'src/events/Pipeline.events';
 import { SocketEvent } from 'src/events/socket.events';
 import { StreamShimService } from './stream-shim.service';
 
@@ -31,6 +32,16 @@ export class StreamPollerService implements OnModuleDestroy {
   private subscribers = 0;
   private lastError: string | null = null;
   private inFlight = false;
+  /**
+   * Running total of embeddings across all live streams at the previous poll.
+   * Live ingestion is continuous and never hits dataprep's per-request
+   * EMBEDDINGS_UPDATE path, so watched ("checkmarked") queries would never
+   * refresh while a stream runs. When this total grows between polls, new live
+   * embeddings landed, so we emit EMBEDDINGS_UPDATE to re-run watched searches
+   * (parity with the single-video and batch flows). `null` means "no baseline
+   * yet" so the first poll never fires a spurious refresh.
+   */
+  private lastEmbeddingsTotal: number | null = null;
 
   constructor(
     private readonly $config: ConfigService,
@@ -112,6 +123,21 @@ export class StreamPollerService implements OnModuleDestroy {
       const { streams } = await this.$shim.list();
       this.lastError = null;
       this.$emitter.emit(SocketEvent.STREAMS_SYNC, streams ?? []);
+
+      // Trigger watched-query refresh when live ingestion produced new
+      // embeddings since the last poll. dataprep has no webhook, so this poll
+      // is the only signal that continuous live embeddings have landed.
+      const embeddingsTotal = (streams ?? []).reduce(
+        (sum, stream) => sum + (stream?.stats?.embeddings_created ?? 0),
+        0,
+      );
+      if (
+        this.lastEmbeddingsTotal !== null &&
+        embeddingsTotal > this.lastEmbeddingsTotal
+      ) {
+        this.$emitter.emit(SearchEvents.EMBEDDINGS_UPDATE);
+      }
+      this.lastEmbeddingsTotal = embeddingsTotal;
     } catch (error) {
       // A camera dropping out is routine and dataprep may restart under us;
       // log the first occurrence of each distinct failure, then stay quiet so

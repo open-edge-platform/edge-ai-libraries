@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SocketEvent } from 'src/events/socket.events';
+import { SearchEvents } from 'src/events/Pipeline.events';
 import { StreamShimService } from './stream-shim.service';
 import { StreamPollerService } from './stream-poller.service';
 
@@ -208,6 +209,48 @@ describe('StreamPollerService', () => {
 
       release({ count: 0, streams: [] });
       await flush();
+    });
+  });
+
+  describe('watched-query refresh', () => {
+    const streamWith = (embeddings: number) => ({
+      count: 1,
+      streams: [
+        {
+          stream_id: 'a',
+          state: 'running',
+          stats: { embeddings_created: embeddings },
+        },
+      ],
+    });
+
+    it('does not fire EMBEDDINGS_UPDATE on the first poll (no baseline)', async () => {
+      list.mockResolvedValue(streamWith(5));
+      service.addSubscriber();
+      await flush();
+      expect(emit).not.toHaveBeenCalledWith(SearchEvents.EMBEDDINGS_UPDATE);
+    });
+
+    it('fires EMBEDDINGS_UPDATE when the aggregate embedding count grows', async () => {
+      list.mockResolvedValueOnce(streamWith(5));
+      service.addSubscriber();
+      await flush();
+
+      list.mockResolvedValue(streamWith(9));
+      jest.advanceTimersByTime(5000);
+      await flush();
+      expect(emit).toHaveBeenCalledWith(SearchEvents.EMBEDDINGS_UPDATE);
+    });
+
+    it('does not fire EMBEDDINGS_UPDATE when the count is unchanged', async () => {
+      list.mockResolvedValue(streamWith(5));
+      service.addSubscriber();
+      await flush();
+
+      emit.mockClear();
+      jest.advanceTimersByTime(5000);
+      await flush();
+      expect(emit).not.toHaveBeenCalledWith(SearchEvents.EMBEDDINGS_UPDATE);
     });
   });
 });
