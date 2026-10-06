@@ -98,8 +98,7 @@ class LiveRetentionSweeper:
         cutoff = now - window
         streams = self.manager.list()
         for stream in streams:
-            self.manager.purge_embeddings(stream, before_epoch=cutoff)
-            self.manager.purge_media(stream, before_epoch=cutoff)
+            self._prune(stream, cutoff)
 
         # Tombstones are streams a caller deregistered without purging. Their
         # data is orphaned from the registry, so sweep it here too and drop the
@@ -110,8 +109,7 @@ class LiveRetentionSweeper:
             if now - tombstoned_ts >= window:
                 self.manager.drop_tombstone(stream)
             else:
-                self.manager.purge_embeddings(stream, before_epoch=cutoff)
-                self.manager.purge_media(stream, before_epoch=cutoff)
+                self._prune(stream, cutoff)
 
         total = len(streams) + len(tombstones)
         if total:
@@ -123,6 +121,20 @@ class LiveRetentionSweeper:
                 len(tombstones),
             )
         return total
+
+    def _prune(self, stream, cutoff: float) -> None:
+        """Purge one stream's aged data, logging (not raising) on backend failure."""
+        from src.core.live.manager import LivePurgeBackendError
+
+        try:
+            self.manager.purge_embeddings(stream, before_epoch=cutoff)
+            self.manager.purge_media(stream, before_epoch=cutoff)
+        except LivePurgeBackendError as exc:
+            logger.error(
+                "Retention could not prune live stream %s this pass: %s",
+                sanitize_for_log(stream.stream_id, max_length=64),
+                sanitize_for_log(str(exc), max_length=256),
+            )
 
 
 _sweeper: Optional[LiveRetentionSweeper] = None

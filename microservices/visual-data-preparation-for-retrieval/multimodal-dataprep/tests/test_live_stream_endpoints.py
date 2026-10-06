@@ -300,17 +300,44 @@ def test_delete_unknown_stream_returns_404(client):
 
 
 def test_delete_returns_502_and_keeps_the_stream_when_purge_fails(client, monkeypatch):
+    from src.core.live.manager import LivePurgeBackendError
+
     stream_id = _create(client).json()["stream"]["stream_id"]
 
+    def _boom(stream, before_epoch=None):
+        raise LivePurgeBackendError("vector db down")
+
     monkeypatch.setattr(
-        "src.core.live.manager.LiveStreamManager.purge_embeddings",
-        staticmethod(lambda stream, before_epoch=None: -1),
+        "src.core.live.manager.LiveStreamManager.purge_embeddings", staticmethod(_boom)
     )
 
     resp = client.delete(f"{BASE}/{stream_id}", params={"purge_embeddings": True})
     assert resp.status_code == HTTPStatus.BAD_GATEWAY
     # The stream is still registered, so the caller can retry.
     assert client.get(f"{BASE}/{stream_id}").status_code == HTTPStatus.OK
+
+
+def test_delete_with_embeddings_purge_succeeds_with_countless_vector_store(client, monkeypatch):
+    """Regression: a -1 (success, no count) from the vector store is not a 502."""
+    stream_id = _create(client).json()["stream"]["stream_id"]
+
+    class CountlessStore:
+        def delete_embeddings(self, bucket, video_id):
+            return -1
+
+    monkeypatch.setattr(
+        "src.core.vectorstores.get_vector_store", lambda: CountlessStore(), raising=False
+    )
+    monkeypatch.setattr(
+        "src.core.live.manager.LiveStreamManager.purge_media",
+        staticmethod(lambda stream, before_epoch=None: 0),
+    )
+
+    resp = client.delete(
+        f"{BASE}/{stream_id}", params={"purge_embeddings": True, "purge_media": True}
+    )
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()["embeddings_purged"] == -1
 
 
 def test_batch_delete_isolates_unknown_ids(client):

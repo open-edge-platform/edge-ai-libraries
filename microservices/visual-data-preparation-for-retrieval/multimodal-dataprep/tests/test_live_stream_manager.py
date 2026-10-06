@@ -16,6 +16,7 @@ from src.core.live.manager import (
     LiveStreamManager,
     LiveStreamNotFoundError,
     LiveStreamPurgeError,
+    LivePurgeBackendError,
     _object_is_older_than,
 )
 from src.core.live.models import LiveStream
@@ -236,7 +237,7 @@ def test_delete_can_purge_embeddings(manager, monkeypatch):
     assert calls["args"] == (settings.LIVE_STREAM_BUCKET, stream.stream_id)
 
 
-def test_purge_embeddings_reports_failure_instead_of_raising(manager, monkeypatch):
+def test_purge_embeddings_raises_backend_error_on_failure(manager, monkeypatch):
     stream = manager.create(stream_url=CREDENTIALED_URL, start=False)
 
     class ExplodingStore:
@@ -248,8 +249,25 @@ def test_purge_embeddings_reports_failure_instead_of_raising(manager, monkeypatc
         lambda: ExplodingStore(),
         raising=False,
     )
-    # A failed purge must not prevent the stream from being deregistered.
+    # A real backend failure is signalled by an exception, distinct from the
+    # -1 "success, no exact count" that VDMS/Milvus return on a clean delete.
+    with pytest.raises(LivePurgeBackendError):
+        manager.purge_embeddings(stream)
+
+
+def test_purge_embeddings_returns_minus_one_on_countless_success(manager, monkeypatch):
+    stream = manager.create(stream_url=CREDENTIALED_URL, start=False)
+
+    class CountlessStore:
+        def delete_embeddings(self, bucket, video_id):
+            return -1  # VDMS/Milvus success sentinel
+
+    monkeypatch.setattr(
+        "src.core.vectorstores.get_vector_store", lambda: CountlessStore(), raising=False
+    )
+    # -1 is a success, not a failure: it must not raise.
     assert manager.purge_embeddings(stream) == -1
+
 
 
 def test_delete_unknown_stream_raises(manager):
@@ -276,6 +294,27 @@ def test_delete_aborts_and_keeps_the_stream_when_a_purge_fails(manager, monkeypa
     assert kept is not None
     assert kept.state == LiveStreamStateEnum.error
     assert kept.last_error
+
+
+def test_delete_succeeds_when_vector_store_cannot_report_a_count(manager, monkeypatch):
+    """Regression: VDMS/Milvus return -1 on success; that is not a purge failure."""
+    stream = manager.create(stream_url=CREDENTIALED_URL)
+
+    class CountlessStore:
+        def delete_embeddings(self, bucket, video_id):
+            return -1
+
+    monkeypatch.setattr(
+        "src.core.vectorstores.get_vector_store", lambda: CountlessStore(), raising=False
+    )
+    monkeypatch.setattr(LiveStreamManager, "purge_media", lambda self, s, before_epoch=None: 0)
+
+    # Must not raise and must deregister the stream.
+    _, embeddings, media = manager.delete(
+        stream.stream_id, purge_embeddings=True, purge_media=True
+    )
+    assert embeddings == -1 and media == 0
+    assert manager.store.get(stream.stream_id) is None
 
 
 def test_delete_without_purge_tombstones_when_retention_is_on(manager, monkeypatch):

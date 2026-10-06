@@ -63,6 +63,15 @@ class LiveStreamPurgeError(RuntimeError):
         super().__init__(f"Failed to purge {' and '.join(targets)} for stream {stream_id}.")
 
 
+class LivePurgeBackendError(RuntimeError):
+    """Raised by a purge helper when the vector DB or storage backend failed.
+
+    Distinct from a successful delete that simply cannot report an exact count
+    (the vector stores return ``-1`` for that), so callers can tell a real
+    failure apart from a countless success.
+    """
+
+
 class LiveStreamManager:
     """Owns every registered live stream and its worker."""
 
@@ -322,26 +331,34 @@ class LiveStreamManager:
         if worker is not None:
             worker.stop()
 
+        # Attempt the requested purges. A purge that raises LivePurgeBackendError
+        # means the backend failed; a -1 return is a success the backend could
+        # not count. Do not deregister when a requested purge failed: keep the
+        # registration (marked error) so the caller still owns the id and can
+        # retry once the backend recovers.
         embeddings_purged: Optional[int] = None
         media_purged: Optional[int] = None
+        embeddings_failed = False
+        media_failed = False
         if purge_embeddings:
-            embeddings_purged = self.purge_embeddings(stream)
+            try:
+                embeddings_purged = self.purge_embeddings(stream)
+            except LivePurgeBackendError:
+                embeddings_failed = True
         if purge_media:
-            media_purged = self.purge_media(stream)
+            try:
+                media_purged = self.purge_media(stream)
+            except LivePurgeBackendError:
+                media_failed = True
 
-        # A purge that hit a backend error returns -1. Do not deregister when a
-        # requested purge failed: keep the registration (marked error) so the
-        # caller still owns the id and can retry once the backend recovers.
-        embeddings_failed = purge_embeddings and embeddings_purged == -1
-        media_failed = purge_media and media_purged == -1
         if embeddings_failed or media_failed:
             stream.state = LiveStreamStateEnum.error
             stream.last_error = "Delete aborted: data purge failed; retry the delete."
             self._persist(stream)
             raise LiveStreamPurgeError(
                 stream_id,
-                embeddings_failed=bool(embeddings_failed),
-                media_failed=bool(media_failed),
+                embeddings_failed=embeddings_failed,
+                media_failed=media_failed,
             )
 
         stream.state = LiveStreamStateEnum.stopped
@@ -374,23 +391,28 @@ class LiveStreamManager:
     # -- purge helpers -----------------------------------------------------
     @staticmethod
     def purge_embeddings(stream: LiveStream, before_epoch: Optional[float] = None) -> int:
-        """Delete a stream's vectors, optionally only those older than a cutoff."""
+        """Delete a stream's vectors, optionally only those older than a cutoff.
+
+        Returns the number deleted, or ``-1`` when the vector store succeeded but
+        cannot report an exact count (VDMS and Milvus never do). Raises
+        :class:`LivePurgeBackendError` when the backend itself fails, so a
+        countless success (``-1``) is never mistaken for a failure.
+        """
         from src.core.vectorstores import get_vector_store
 
         bucket = stream.bucket_name or settings.LIVE_STREAM_BUCKET
-        store = get_vector_store()
         try:
+            store = get_vector_store()
             if before_epoch is None:
                 return store.delete_embeddings(bucket, stream.stream_id)
             return store.delete_embeddings_before(bucket, stream.stream_id, before_epoch)
-        except Exception as exc:  # noqa: BLE001 - reported, not fatal
+        except Exception as exc:  # noqa: BLE001 - surfaced as a purge failure
             logger.error(
                 "Failed to purge embeddings for live stream %s: %s",
                 sanitize_for_log(stream.stream_id, max_length=64),
                 sanitize_for_log(str(exc), max_length=256),
             )
-            # -1 distinguishes "the backend failed" from "nothing to delete".
-            return -1
+            raise LivePurgeBackendError(str(exc)) from exc
 
     @staticmethod
     def purge_media(stream: LiveStream, before_epoch: Optional[float] = None) -> int:
@@ -398,7 +420,9 @@ class LiveStreamManager:
 
         Object names embed the segment's start epoch (see
         :mod:`src.core.live.segments`), so age filtering needs no object
-        metadata lookup.
+        metadata lookup. Returns the number of objects deleted; raises
+        :class:`LivePurgeBackendError` when the storage backend cannot be listed
+        or an object cannot be deleted, so partial failures abort a delete.
         """
         from src.core.storage import get_storage
 
@@ -409,15 +433,15 @@ class LiveStreamManager:
             if not storage.bucket_exists(bucket):
                 return 0
             objects = storage.list_objects_in_directory(bucket, stream.stream_id)
-        except Exception as exc:  # noqa: BLE001 - reported, not fatal
+        except Exception as exc:  # noqa: BLE001 - surfaced as a purge failure
             logger.error(
                 "Failed to list live media for stream %s: %s",
                 sanitize_for_log(stream.stream_id, max_length=64),
                 sanitize_for_log(str(exc), max_length=256),
             )
-            # -1 distinguishes "the backend failed" from "nothing to delete".
-            return -1
+            raise LivePurgeBackendError(str(exc)) from exc
 
+        failures = 0
         for obj in objects:
             name = getattr(obj, "object_name", None) or getattr(obj, "name", "")
             if before_epoch is not None and not _object_is_older_than(name, before_epoch):
@@ -426,11 +450,16 @@ class LiveStreamManager:
                 storage.delete_object(bucket, name)
                 deleted += 1
             except Exception as exc:  # noqa: BLE001 - keep purging the rest
+                failures += 1
                 logger.warning(
                     "Failed to delete live media object %s: %s",
                     sanitize_for_log(name, max_length=256),
                     sanitize_for_log(str(exc), max_length=256),
                 )
+        if failures:
+            raise LivePurgeBackendError(
+                f"{failures} media object(s) for stream {stream.stream_id} could not be deleted."
+            )
         return deleted
 
     # -- tombstones --------------------------------------------------------
@@ -446,9 +475,21 @@ class LiveStreamManager:
             return []
 
     def drop_tombstone(self, stream: LiveStream) -> None:
-        """Purge any remaining data for a tombstone and remove its record."""
-        self.purge_embeddings(stream)
-        self.purge_media(stream)
+        """Purge any remaining data for a tombstone and remove its record.
+
+        A backend purge failure is logged and swallowed: the record is kept so a
+        later sweep retries rather than orphaning data by forgetting the handle.
+        """
+        try:
+            self.purge_embeddings(stream)
+            self.purge_media(stream)
+        except LivePurgeBackendError as exc:
+            logger.error(
+                "Could not purge tombstoned live stream %s; keeping it for a later sweep: %s",
+                sanitize_for_log(stream.stream_id, max_length=64),
+                sanitize_for_log(str(exc), max_length=256),
+            )
+            return
         self.store.delete(stream.stream_id)
         logger.info(
             "Retention removed tombstoned live stream %s and its remaining data.",
