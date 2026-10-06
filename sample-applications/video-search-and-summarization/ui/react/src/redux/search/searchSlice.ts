@@ -6,6 +6,7 @@ import {
   SearchQueryDTO,
   SearchQueryStatus,
   SearchQueryUI,
+  SearchRefreshConfig,
   SearchResult,
   SearchState,
   TimeFilterSelection,
@@ -20,6 +21,7 @@ const initialState: SearchState = {
   selectedQuery: null,
   triggerLoad: true,
   suggestedTags: [],
+  refreshConfig: null,
 };
 
 const defaultTopk = 4;
@@ -57,6 +59,9 @@ export const SearchSlice = createSlice({
     updateSearchQuery: (state: SearchState, action) => {
       const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
       const currentTopK = index !== -1 ? state.searchQueries[index].topK : defaultTopk;
+      // Snapshot before the list is rebuilt below, so change detection compares
+      // against the previous results rather than the freshly written ones.
+      const previousResults = index !== -1 ? JSON.stringify(state.searchQueries[index].results ?? []) : null;
       const merged = index !== -1
         ? { ...state.searchQueries[index], ...action.payload, topK: currentTopK }
         : { ...action.payload, topK: currentTopK };
@@ -85,13 +90,20 @@ export const SearchSlice = createSlice({
         state.searchQueries.push(normalized);
       }
 
-      // Only flag as unread when the user is not already looking at it, otherwise a
-      // watched query would permanently render as unread and grow the array unbounded.
-      if (state.selectedQuery !== action.payload.queryId && !state.unreads.includes(action.payload.queryId)) {
+      // The backend only pushes an update when results actually changed, but the
+      // UI guards too: never mark the query the user is currently viewing as
+      // unread, and never steal the selection away from another query.
+      const isSelected = state.selectedQuery === action.payload.queryId;
+      const resultsChanged =
+        previousResults === null || previousResults !== JSON.stringify(normalized.results ?? []);
+
+      if (!isSelected && resultsChanged && !state.unreads.includes(action.payload.queryId)) {
         state.unreads.push(action.payload.queryId);
       }
-      // If nothing is selected, auto-select the updated query so UI can render results from sockets
-      if (!state.selectedQuery || state.selectedQuery === action.payload.queryId) {
+
+      // Only auto-select when nothing is selected yet, so a background refresh
+      // cannot pull the user away from the query they are reading.
+      if (!state.selectedQuery) {
         state.selectedQuery = action.payload.queryId;
       }
     },
@@ -149,6 +161,9 @@ export const SearchSlice = createSlice({
       })
       .addCase(LoadTags.fulfilled, (state, action) => {
         state.suggestedTags = action.payload;
+      })
+      .addCase(LoadRefreshConfig.fulfilled, (state, action) => {
+        state.refreshConfig = action.payload;
       })
       .addCase(SearchLoad.rejected, (state) => {
         state.triggerLoad = false;
@@ -211,6 +226,11 @@ export const SearchSlice = createSlice({
 
 export const LoadTags = createAsyncThunk('search/loadTags', async () => {
   const res = await axios.get<string[]>(`${APP_URL}/tags`);
+  return res.data;
+});
+
+export const LoadRefreshConfig = createAsyncThunk('search/loadRefreshConfig', async () => {
+  const res = await axios.get<SearchRefreshConfig>(`${APP_URL}/search/refresh-config`);
   return res.data;
 });
 
@@ -291,6 +311,7 @@ export const SearchSelector = createSelector([selectSearchState], (state) => {
     selectedQueryId: state.selectedQuery,
     unreads: state.unreads,
     triggerLoad: state.triggerLoad,
+    refreshConfig: state.refreshConfig,
     selectedQuery: selected,
     suggestedTags: state.suggestedTags,
     queriesInProgress: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.RUNNING),

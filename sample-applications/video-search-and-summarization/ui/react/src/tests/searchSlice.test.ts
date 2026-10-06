@@ -11,6 +11,7 @@ import {
   SearchAdd,
   SearchWatch,
   SearchRemove,
+  LoadRefreshConfig,
 } from '../redux/search/searchSlice';
 import { SearchState, SearchQueryUI, SearchQuery, SearchResult, SearchQueryStatus } from '../redux/search/search';
 
@@ -43,6 +44,7 @@ describe('SearchSlice', () => {
     selectedQuery: null,
     triggerLoad: true,
     suggestedTags: [],
+    refreshConfig: null,
   };
 
   beforeEach(() => {
@@ -200,6 +202,104 @@ describe('SearchSlice', () => {
         
         const state = store.getState().search;
         expect(state.searchQueries[0].query).toBe('original query');
+      });
+
+      it('should not mark the currently selected query as unread', () => {
+        const query1: SearchQueryUI = {
+          queryId: 'query-1',
+          query: 'original query',
+          watch: true,
+          results: [],
+          tags: [],
+          createdAt: '2023-01-01',
+          updatedAt: '2023-01-01',
+          queryStatus: SearchQueryStatus.IDLE,
+          topK: 4,
+        };
+
+        store.dispatch({ type: SearchLoad.fulfilled.type, payload: [query1] });
+        store.dispatch(SearchActions.selectQuery('query-1'));
+
+        store.dispatch(
+          SearchActions.updateSearchQuery({
+            queryId: 'query-1',
+            query: 'original query',
+            results: [{ id: 'r1', metadata: {} }],
+          }),
+        );
+
+        expect(store.getState().search.unreads).not.toContain('query-1');
+      });
+
+      it('should not mark a query unread when results did not change', () => {
+        const results = [{ id: 'r1', metadata: {} }] as any;
+        const query1: SearchQueryUI = {
+          queryId: 'query-1',
+          query: 'original query',
+          watch: true,
+          results,
+          tags: [],
+          createdAt: '2023-01-01',
+          updatedAt: '2023-01-01',
+          queryStatus: SearchQueryStatus.IDLE,
+          topK: 4,
+        };
+        const query2: SearchQueryUI = { ...query1, queryId: 'query-2', results: [] };
+
+        store.dispatch({ type: SearchLoad.fulfilled.type, payload: [query1, query2] });
+        store.dispatch(SearchActions.selectQuery('query-2'));
+
+        store.dispatch(
+          SearchActions.updateSearchQuery({ queryId: 'query-1', results }),
+        );
+
+        expect(store.getState().search.unreads).not.toContain('query-1');
+      });
+
+      it('should not steal selection from the query being viewed', () => {
+        const query1: SearchQueryUI = {
+          queryId: 'query-1',
+          query: 'query one',
+          watch: true,
+          results: [],
+          tags: [],
+          createdAt: '2023-01-01',
+          updatedAt: '2023-01-01',
+          queryStatus: SearchQueryStatus.IDLE,
+          topK: 4,
+        };
+        const query2: SearchQueryUI = { ...query1, queryId: 'query-2', query: 'query two' };
+
+        store.dispatch({ type: SearchLoad.fulfilled.type, payload: [query1, query2] });
+        store.dispatch(SearchActions.selectQuery('query-1'));
+
+        store.dispatch(
+          SearchActions.updateSearchQuery({
+            queryId: 'query-2',
+            results: [{ id: 'r1', metadata: {} }],
+          }),
+        );
+
+        const state = store.getState().search;
+        expect(state.selectedQuery).toBe('query-1');
+        expect(state.unreads).toContain('query-2');
+      });
+    });
+
+    describe('LoadRefreshConfig', () => {
+      it('should store the backend auto-refresh configuration', () => {
+        const refreshConfig = {
+          enabled: true,
+          intervalMs: 10000,
+          quietPeriodMs: 2000,
+          batchSize: 10,
+          minQueryIntervalMs: 10000,
+          maxQueriesPerTick: 50,
+        };
+
+        store.dispatch({ type: LoadRefreshConfig.fulfilled.type, payload: refreshConfig });
+
+        expect(store.getState().search.refreshConfig).toEqual(refreshConfig);
       });
     });
 

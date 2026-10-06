@@ -4,7 +4,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   SearchQuery,
   SearchQueryStatus,
+  SearchResult,
   SearchResultBody,
+  SearchResultRO,
   SearchShimQuery,
   TimeFilterSelection,
   TimeFilterUnit,
@@ -148,6 +150,7 @@ export class SearchStateService {
       timeFilterUnit,
       timeFilterStart,
       timeFilterEnd,
+      resultsFingerprint,
       ...rest
     } = entity as any;
 
@@ -398,6 +401,13 @@ export class SearchStateService {
         SearchQueryStatus.IDLE,
       );
 
+      // Keep the fingerprint in sync so a manual re-run does not make the next
+      // automatic refresh report a spurious change.
+      await this.$searchDB.markRefreshed(
+        query.queryId,
+        this.buildResultsFingerprint(results.results),
+      );
+
       const enrichedQuery = await this.enrichQueryWithVideos(query);
       console.log('=== EMITTING SOCKET UPDATE ===');
       console.log('Enriched query:', JSON.stringify(enrichedQuery, null, 2));
@@ -410,21 +420,192 @@ export class SearchStateService {
     return query;
   }
 
-  @OnEvent(SearchEvents.EMBEDDINGS_UPDATE)
-  async syncSearches() {
-    const queries = await this.$searchDB.readAll();
+  /**
+   * Stable fingerprint of a result set. Used to detect whether an auto-refresh
+   * actually produced new information, so the UI is only notified on real
+   * change instead of on every refresh cycle.
+   *
+   * The identity of a result is the *moment of a video* it points at, not the
+   * video alone. Aggregated results from the search backend carry no `id` or
+   * `interval_num` (both are undefined at runtime), so the clip is identified
+   * by its timestamp and segment bounds. Using `video_id` alone would make the
+   * fingerprint nearly static for a single continuously-ingested live stream,
+   * where every result shares one `video_id`.
+   *
+   * Floats are rounded so harmless jitter does not register as a change.
+   */
+  buildResultsFingerprint(results: SearchResult[] | null | undefined): string {
+    if (!results || results.length === 0) {
+      return 'empty';
+    }
 
-    const queriesOnWatch: SearchQuery[] = queries.filter(
-      (query) => query.watch,
-    );
+    const num = (value: unknown, digits: number): string =>
+      typeof value === 'number' && Number.isFinite(value)
+        ? value.toFixed(digits)
+        : 'na';
 
-    if (queriesOnWatch.length > 0) {
-      const reRunPromises = queriesOnWatch.map((query) =>
-        this.reRunQuery(query.queryId),
+    const parts = results.map((result) => {
+      const metadata = result.metadata ?? ({} as SearchResult['metadata']);
+      const clipTime = metadata.timestamp ?? metadata.seek_timestamp;
+
+      return [
+        metadata.video_id ?? '',
+        metadata.id ?? result.id ?? '',
+        metadata.interval_num ?? '',
+        num(clipTime, 3),
+        num(metadata.segment_start, 3),
+        num(metadata.segment_end, 3),
+        num(metadata.relevance_score, 4),
+      ].join(':');
+    });
+
+    return `${results.length}|${parts.join(',')}`;
+  }
+
+  /**
+   * Builds the time window an automatic refresh should search.
+   *
+   * Relative selections (e.g. "last 5 minutes") are stored as absolute
+   * start/end values at creation time. Reusing them for every refresh would
+   * pin a watched query to its original window forever, so relative filters
+   * are re-normalized against the current wall clock on each refresh.
+   * Absolute ranges are left untouched.
+   */
+  private buildRefreshTimeFilter(
+    entity: SearchEntity,
+  ): TimeFilterSelection | null {
+    const isRelative =
+      entity.timeFilterValue !== null &&
+      entity.timeFilterValue !== undefined &&
+      !!entity.timeFilterUnit;
+
+    if (!isRelative) {
+      return null;
+    }
+
+    const { selection } = this.normalizeTimeFilter({
+      value: entity.timeFilterValue as number,
+      unit: entity.timeFilterUnit as TimeFilterUnit,
+      source: 'relative',
+    });
+
+    return selection;
+  }
+
+  /**
+   * Refreshes a set of watched queries using a single batched call to the
+   * search service. The whole chain (search service and vector-retriever)
+   * accepts a list of queries and applies its own bounded concurrency, so
+   * batching replaces N request round-trips with one and moves concurrency
+   * control server-side.
+   *
+   * Auto-refresh is intentionally silent: it does not flip queries to RUNNING
+   * and does not emit socket updates unless the result set actually changed.
+   */
+  async refreshQueries(
+    queryIds: string[],
+  ): Promise<{ refreshed: number; changed: number }> {
+    if (!queryIds || queryIds.length === 0) {
+      return { refreshed: 0, changed: 0 };
+    }
+
+    const entities: SearchEntity[] = [];
+    const shimQueries: SearchShimQuery[] = [];
+
+    for (const queryId of queryIds) {
+      const entity = await this.$searchDB.read(queryId);
+      if (!entity) {
+        Logger.warn(`Skipping refresh for unknown query ID ${queryId}`);
+        continue;
+      }
+
+      const refreshedFilter = this.buildRefreshTimeFilter(entity);
+      if (refreshedFilter) {
+        // Persist the moving window so the UI reflects what was searched.
+        await this.$searchDB.update(queryId, { timeFilter: refreshedFilter });
+        entity.timeFilterStart = refreshedFilter.start ?? null;
+        entity.timeFilterEnd = refreshedFilter.end ?? null;
+      }
+
+      const shimQuery: SearchShimQuery = {
+        query: entity.query,
+        query_id: entity.queryId,
+        tags: entity.tags,
+      };
+
+      if (entity.timeFilterStart && entity.timeFilterEnd) {
+        shimQuery.time_filter = {
+          start: entity.timeFilterStart,
+          end: entity.timeFilterEnd,
+        };
+      }
+
+      entities.push(entity);
+      shimQueries.push(shimQuery);
+    }
+
+    if (shimQueries.length === 0) {
+      return { refreshed: 0, changed: 0 };
+    }
+
+    let response: SearchResultRO;
+    try {
+      const res = await lastValueFrom(this.$searchShim.search(shimQueries));
+      response = res.data ?? { results: [] };
+    } catch (error) {
+      // Transient search failures must not wipe the last good results of a
+      // watched query, so the batch is skipped and retried on the next tick.
+      Logger.error(
+        `Batched auto-refresh failed for ${shimQueries.length} watched queries`,
+        error as Error,
       );
+      return { refreshed: 0, changed: 0 };
+    }
 
-      await Promise.all(reRunPromises);
+    const resultsByQueryId = new Map<string, SearchResultBody>();
+    for (const block of response.results ?? []) {
+      resultsByQueryId.set(block.query_id, block);
+    }
+
+    let changed = 0;
+
+    for (const entity of entities) {
+      const block = resultsByQueryId.get(entity.queryId);
+      if (!block) {
+        Logger.warn(
+          `Search service returned no result block for query ${entity.queryId}`,
+        );
+        continue;
+      }
+
+      const fingerprint = this.buildResultsFingerprint(block.results);
+
+      if (fingerprint === entity.resultsFingerprint) {
+        // Nothing new for this query: record the refresh only.
+        await this.$searchDB.markRefreshed(entity.queryId);
+        continue;
+      }
+
+      const updated = await this.$searchDB.addResults(
+        entity.queryId,
+        block.results ?? [],
+      );
+      await this.$searchDB.markRefreshed(entity.queryId, fingerprint);
+
+      if (updated) {
+        changed += 1;
+        const enrichedQuery = await this.enrichQueryWithVideos(updated);
+        Logger.log(
+          `Auto-refresh updated ${entity.queryId} with ${block.results?.length ?? 0} results`,
+        );
+        this.$emitter.emit(SocketEvent.SEARCH_UPDATE, enrichedQuery);
+      }
+    }
+
+    if (changed > 0) {
       this.$emitter.emit(SocketEvent.SEARCH_NOTIFICATION);
     }
+
+    return { refreshed: entities.length, changed };
   }
 }

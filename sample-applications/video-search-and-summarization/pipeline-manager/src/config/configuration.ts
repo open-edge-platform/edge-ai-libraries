@@ -19,6 +19,9 @@ export default () => ({
   },
   search: {
     endpoint: process.env.SEARCH_ENDPOINT,
+    queryTimeoutMs: process.env.SEARCH_QUERY_TIMEOUT_MS
+      ? Number(process.env.SEARCH_QUERY_TIMEOUT_MS)
+      : 30000,
     dataPrep: process.env.SEARCH_DATAPREP_ENDPOINT,
     vsIndexName: process.env.VS_INDEX_NAME,
     dataPrepTimeoutMs: process.env.SEARCH_DATAPREP_TIMEOUT_MS
@@ -33,6 +36,29 @@ export default () => ({
     dataPrepPollRetryDelayMs: process.env.SEARCH_DATAPREP_POLL_RETRY_DELAY_MS
       ? Number(process.env.SEARCH_DATAPREP_POLL_RETRY_DELAY_MS)
       : 500,
+
+    // Automatic refresh of "watched" search queries. New embeddings only mark
+    // the vector index as dirty; this scheduler decides when watched queries
+    // are actually re-run, which bounds the load produced by high-frequency
+    // (e.g. continuous) ingestion.
+    watchRefresh: {
+      enabled: process.env.SEARCH_WATCH_REFRESH_ENABLED ?? 'true',
+      intervalMs: process.env.SEARCH_WATCH_REFRESH_INTERVAL_MS
+        ? Number(process.env.SEARCH_WATCH_REFRESH_INTERVAL_MS)
+        : 10000,
+      quietPeriodMs: process.env.SEARCH_WATCH_REFRESH_QUIET_PERIOD_MS
+        ? Number(process.env.SEARCH_WATCH_REFRESH_QUIET_PERIOD_MS)
+        : 2000,
+      batchSize: process.env.SEARCH_WATCH_REFRESH_BATCH_SIZE
+        ? Number(process.env.SEARCH_WATCH_REFRESH_BATCH_SIZE)
+        : 10,
+      minQueryIntervalMs: process.env.SEARCH_WATCH_REFRESH_MIN_QUERY_INTERVAL_MS
+        ? Number(process.env.SEARCH_WATCH_REFRESH_MIN_QUERY_INTERVAL_MS)
+        : 10000,
+      maxQueriesPerTick: process.env.SEARCH_WATCH_REFRESH_MAX_QUERIES_PER_TICK
+        ? Number(process.env.SEARCH_WATCH_REFRESH_MAX_QUERIES_PER_TICK)
+        : 50,
+    },
   },
   streams: {
     // Deliberately falls back to SEARCH_DATAPREP_ENDPOINT: dataprep is a
@@ -88,8 +114,7 @@ export default () => ({
   },
 
   summary: {
-    produceFinalSummary:
-      process.env.PRODUCE_FINAL_SUMMARY ?? 'true',
+    produceFinalSummary: process.env.PRODUCE_FINAL_SUMMARY ?? 'true',
   },
 
   rmq: {
@@ -122,10 +147,10 @@ export default () => ({
         seed: 42,
       },
     },
-  tick: {
-    interval: parseInt(process.env.TICK_INTERVAL_MS ?? '5000', 10),
-    fastInterval: parseInt(process.env.FAST_TICK_INTERVAL_MS ?? '2000', 10),
-  },
+    tick: {
+      interval: parseInt(process.env.TICK_INTERVAL_MS ?? '5000', 10),
+      fastInterval: parseInt(process.env.FAST_TICK_INTERVAL_MS ?? '2000', 10),
+    },
 
     vlmCaptioning: {
       apiKey: process.env.VLM_CAPTIONING_KEY ?? '',

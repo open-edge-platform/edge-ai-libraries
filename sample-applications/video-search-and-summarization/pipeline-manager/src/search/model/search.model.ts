@@ -9,13 +9,22 @@ export class TimeFilterSelection {
   @ApiPropertyOptional({ description: 'Relative time value', example: 7 })
   value?: number;
 
-  @ApiPropertyOptional({ enum: ['minutes', 'hours', 'days', 'weeks'], description: 'Time unit for relative filter' })
+  @ApiPropertyOptional({
+    enum: ['minutes', 'hours', 'days', 'weeks'],
+    description: 'Time unit for relative filter',
+  })
   unit?: TimeFilterUnit;
 
-  @ApiPropertyOptional({ description: 'Start date (ISO 8601)', example: '2025-01-01T00:00:00Z' })
+  @ApiPropertyOptional({
+    description: 'Start date (ISO 8601)',
+    example: '2025-01-01T00:00:00Z',
+  })
   start?: string;
 
-  @ApiPropertyOptional({ description: 'End date (ISO 8601)', example: '2025-12-31T23:59:59Z' })
+  @ApiPropertyOptional({
+    description: 'End date (ISO 8601)',
+    example: '2025-12-31T23:59:59Z',
+  })
   end?: string;
 
   @ApiPropertyOptional({ description: 'Filter source identifier' })
@@ -38,15 +47,25 @@ export class SearchQueryDTO {
   })
   image?: string;
 
-  @ApiPropertyOptional({ description: 'Comma-separated tags to filter by', example: 'outdoor,daytime' })
+  @ApiPropertyOptional({
+    description: 'Comma-separated tags to filter by',
+    example: 'outdoor,daytime',
+  })
   tags?: string;
 
-  @ApiPropertyOptional({ type: TimeFilterSelection, description: 'Time range filter', nullable: true })
+  @ApiPropertyOptional({
+    type: TimeFilterSelection,
+    description: 'Time range filter',
+    nullable: true,
+  })
   timeFilter?: TimeFilterSelection | null;
 }
 
 export class RefetchBodyDTO {
-  @ApiPropertyOptional({ type: TimeFilterSelection, description: 'Optional time filter override' })
+  @ApiPropertyOptional({
+    type: TimeFilterSelection,
+    description: 'Optional time filter override',
+  })
   timeFilter?: TimeFilterSelection;
 }
 
@@ -104,6 +123,12 @@ export interface SearchResult {
     video_url: string;
     year: number;
     relevance_score: number;
+    // Present on aggregated (clip-level) results returned by the search
+    // backend. These, not `id`/`interval_num`, are what actually identify
+    // which moment of a video matched.
+    seek_timestamp?: number;
+    segment_start?: number;
+    segment_end?: number;
   };
   video?: VideoEntity;
   page_content: string;
@@ -123,4 +148,6 @@ export interface SearchQuery {
   createdAt: string;
   updatedAt: string;
   errorMessage?: string;
+  lastRefreshedAt?: string | null;
+  resultsFingerprint?: string | null;
 }

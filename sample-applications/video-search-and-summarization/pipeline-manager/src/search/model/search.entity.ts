@@ -55,4 +55,10 @@ export class SearchEntity {
 
   @Column({ type: 'text', nullable: true })
   errorMessage?: string;
+
+  @Column({ type: 'text', nullable: true })
+  lastRefreshedAt?: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  resultsFingerprint?: string | null;
 }

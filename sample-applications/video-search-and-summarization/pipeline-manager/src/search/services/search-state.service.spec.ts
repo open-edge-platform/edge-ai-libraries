@@ -33,6 +33,9 @@ describe('SearchStateService', () => {
       updateQueryStatus: jest.fn(),
       updateQueryStatusWithError: jest.fn(),
       addResults: jest.fn(),
+      markRefreshed: jest.fn(),
+      readAllWatched: jest.fn(),
+      update: jest.fn(),
     };
 
     const mockVideoService = {
@@ -238,7 +241,10 @@ describe('SearchStateService', () => {
           updatedAt: expect.any(String),
         }),
       );
-      expect(eventEmitter.emit).toHaveBeenCalledWith(SearchEvents.RUN_QUERY, mockCreatedQuery.queryId);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        SearchEvents.RUN_QUERY,
+        mockCreatedQuery.queryId,
+      );
       expect(result).toEqual(expect.objectContaining(mockCreatedQuery));
     });
 
@@ -285,7 +291,9 @@ describe('SearchStateService', () => {
       const queryId = 'non-existent-id';
       searchDbService.read.mockResolvedValue(null);
 
-      await expect(service.reRunQuery(queryId)).rejects.toThrow(`Query with ID ${queryId} not found`);
+      await expect(service.reRunQuery(queryId)).rejects.toThrow(
+        `Query with ID ${queryId} not found`,
+      );
     });
 
     it('should successfully rerun query and update results', async () => {
@@ -296,7 +304,10 @@ describe('SearchStateService', () => {
         tags: ['tag1'],
       } as SearchEntity;
 
-      const mockUpdatedQuery = { ...mockQuery, queryStatus: SearchQueryStatus.RUNNING };
+      const mockUpdatedQuery = {
+        ...mockQuery,
+        queryStatus: SearchQueryStatus.RUNNING,
+      };
       const mockSearchResults = {
         results: [
           {
@@ -315,20 +326,25 @@ describe('SearchStateService', () => {
 
       searchDbService.read.mockResolvedValue(mockQuery);
       searchDbService.updateQueryStatus.mockResolvedValue(mockUpdatedQuery);
-      searchShimService.search.mockReturnValue(of({ 
-        data: mockSearchResults,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {},
-      } as any));
+      searchShimService.search.mockReturnValue(
+        of({
+          data: mockSearchResults,
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: {},
+        } as any),
+      );
       searchDbService.addResults.mockResolvedValue(mockUpdatedQuery);
       videoService.getVideos.mockResolvedValue([]);
 
       const result = await service.reRunQuery(queryId);
 
       expect(searchDbService.read).toHaveBeenCalledWith(queryId);
-      expect(searchDbService.updateQueryStatus).toHaveBeenCalledWith(queryId, SearchQueryStatus.RUNNING);
+      expect(searchDbService.updateQueryStatus).toHaveBeenCalledWith(
+        queryId,
+        SearchQueryStatus.RUNNING,
+      );
       expect(searchShimService.search).toHaveBeenCalledWith([
         {
           query: mockQuery.query,
@@ -336,7 +352,10 @@ describe('SearchStateService', () => {
           tags: mockQuery.tags,
         },
       ]);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(SocketEvent.SEARCH_UPDATE, expect.any(Object));
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        SocketEvent.SEARCH_UPDATE,
+        expect.any(Object),
+      );
       expect(result).toBeDefined();
     });
 
@@ -355,13 +374,15 @@ describe('SearchStateService', () => {
 
       searchDbService.read.mockResolvedValue(mockQuery);
       searchDbService.updateQueryStatus.mockResolvedValue(mockQuery);
-      searchShimService.search.mockReturnValue(of({ 
-        data: { results: [] },
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {},
-      } as any));
+      searchShimService.search.mockReturnValue(
+        of({
+          data: { results: [] },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: {},
+        } as any),
+      );
       videoService.getVideos.mockResolvedValue([]);
 
       const result = await service.reRunQuery(queryId);
@@ -424,13 +445,15 @@ describe('SearchStateService', () => {
 
       searchDbService.read.mockResolvedValue(mockQuery);
       searchDbService.updateQueryStatus.mockResolvedValue(mockQuery);
-      searchShimService.search.mockReturnValue(of({ 
-        data: mockSearchResults,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {},
-      } as any));
+      searchShimService.search.mockReturnValue(
+        of({
+          data: mockSearchResults,
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: {},
+        } as any),
+      );
       videoService.getVideos.mockResolvedValue([]);
 
       const result = await service.reRunQuery(queryId);
@@ -446,13 +469,15 @@ describe('SearchStateService', () => {
       const tags = ['tag1'];
       const mockResults = { results: [] };
 
-      searchShimService.search.mockReturnValue(of({ 
-        data: mockResults,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {},
-      } as any));
+      searchShimService.search.mockReturnValue(
+        of({
+          data: mockResults,
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: {},
+        } as any),
+      );
 
       const result = await service.runSearch(queryId, query, tags);
 
@@ -471,13 +496,15 @@ describe('SearchStateService', () => {
       const query = 'test query';
       const tags = ['tag1'];
 
-      searchShimService.search.mockReturnValue(of({ 
-        data: null,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {},
-      } as any));
+      searchShimService.search.mockReturnValue(
+        of({
+          data: null,
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: {},
+        } as any),
+      );
 
       const result = await service.runSearch(queryId, query, tags);
 
@@ -511,9 +538,18 @@ describe('SearchStateService', () => {
 
       const result = await service.updateResults(queryId, resultsBody);
 
-      expect(searchDbService.addResults).toHaveBeenCalledWith(queryId, resultsBody.results);
-      expect(searchDbService.updateQueryStatus).toHaveBeenCalledWith(queryId, SearchQueryStatus.IDLE);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(SocketEvent.SEARCH_UPDATE, expect.any(Object));
+      expect(searchDbService.addResults).toHaveBeenCalledWith(
+        queryId,
+        resultsBody.results,
+      );
+      expect(searchDbService.updateQueryStatus).toHaveBeenCalledWith(
+        queryId,
+        SearchQueryStatus.IDLE,
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        SocketEvent.SEARCH_UPDATE,
+        expect.any(Object),
+      );
       expect(result).toEqual(expect.objectContaining(mockUpdatedQuery));
     });
 
@@ -532,62 +568,267 @@ describe('SearchStateService', () => {
     });
   });
 
-  describe('syncSearches', () => {
-    it('should sync watched queries and emit notification', async () => {
-      const mockWatchedQueries = [
-        {
-          queryId: 'query-1',
-          query: 'test query 1',
-          watch: true,
-          tags: [],
-          queryStatus: SearchQueryStatus.IDLE,
-          results: [],
-          createdAt: '2025-01-01T00:00:00.000Z',
-          updatedAt: '2025-01-01T00:00:00.000Z',
+  describe('refreshQueries', () => {
+    const watchedEntity = (
+      overrides: Partial<SearchEntity> = {},
+    ): SearchEntity =>
+      ({
+        queryId: 'query-1',
+        query: 'test query 1',
+        watch: true,
+        tags: [],
+        queryStatus: SearchQueryStatus.IDLE,
+        results: [],
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+        ...overrides,
+      }) as SearchEntity;
+
+    const resultFor = (videoId: string, score: number) =>
+      ({
+        id: videoId,
+        page_content: 'content',
+        type: 'Document',
+        metadata: {
+          id: `${videoId}-0`,
+          video_id: videoId,
+          interval_num: 0,
+          relevance_score: score,
         },
-        {
-          queryId: 'query-2',
-          query: 'test query 2',
-          watch: true,
-          tags: [],
-          queryStatus: SearchQueryStatus.IDLE,
-          results: [],
-          createdAt: '2025-01-01T00:00:00.000Z',
-          updatedAt: '2025-01-01T00:00:00.000Z',
-        },
-      ] as SearchEntity[];
+      }) as any;
 
-      searchDbService.readAll.mockResolvedValue(mockWatchedQueries);
-      jest.spyOn(service, 'reRunQuery').mockResolvedValue({} as SearchEntity);
+    it('should batch all queries into a single search call', async () => {
+      searchDbService.read.mockImplementation(async (queryId: string) =>
+        watchedEntity({ queryId, query: `query for ${queryId}` }),
+      );
+      searchShimService.search.mockReturnValue(
+        of({
+          data: {
+            results: [
+              { query_id: 'query-1', results: [] },
+              { query_id: 'query-2', results: [] },
+            ],
+          },
+        } as any),
+      );
+      searchDbService.addResults.mockImplementation(async (queryId: string) =>
+        watchedEntity({ queryId }),
+      );
 
-      await service.syncSearches();
+      const summary = await service.refreshQueries(['query-1', 'query-2']);
 
-      expect(searchDbService.readAll).toHaveBeenCalled();
-      expect(service.reRunQuery).toHaveBeenCalledTimes(2);
-      expect(service.reRunQuery).toHaveBeenCalledWith('query-1');
-      expect(service.reRunQuery).toHaveBeenCalledWith('query-2');
-      expect(eventEmitter.emit).toHaveBeenCalledWith(SocketEvent.SEARCH_NOTIFICATION);
+      expect(searchShimService.search).toHaveBeenCalledTimes(1);
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        expect.objectContaining({ query_id: 'query-1' }),
+        expect.objectContaining({ query_id: 'query-2' }),
+      ]);
+      expect(summary.refreshed).toBe(2);
     });
 
-    it('should not emit notification when no watched queries', async () => {
-      const mockQueries = [
+    it('should skip persistence and socket emission when results are unchanged', async () => {
+      const results = [resultFor('video-1', 0.5)];
+      const fingerprint = service.buildResultsFingerprint(results);
+
+      searchDbService.read.mockResolvedValue(
+        watchedEntity({ resultsFingerprint: fingerprint }),
+      );
+      searchShimService.search.mockReturnValue(
+        of({ data: { results: [{ query_id: 'query-1', results }] } } as any),
+      );
+
+      const summary = await service.refreshQueries(['query-1']);
+
+      expect(summary).toEqual({ refreshed: 1, changed: 0 });
+      expect(searchDbService.addResults).not.toHaveBeenCalled();
+      expect(searchDbService.markRefreshed).toHaveBeenCalledWith('query-1');
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+        SocketEvent.SEARCH_UPDATE,
+        expect.anything(),
+      );
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+        SocketEvent.SEARCH_NOTIFICATION,
+      );
+    });
+
+    it('should persist and emit when results changed', async () => {
+      const results = [resultFor('video-1', 0.5)];
+
+      searchDbService.read.mockResolvedValue(
+        watchedEntity({ resultsFingerprint: 'stale-fingerprint' }),
+      );
+      searchShimService.search.mockReturnValue(
+        of({ data: { results: [{ query_id: 'query-1', results }] } } as any),
+      );
+      searchDbService.addResults.mockResolvedValue(watchedEntity({ results }));
+
+      const summary = await service.refreshQueries(['query-1']);
+
+      expect(summary).toEqual({ refreshed: 1, changed: 1 });
+      expect(searchDbService.addResults).toHaveBeenCalledWith(
+        'query-1',
+        results,
+      );
+      expect(searchDbService.markRefreshed).toHaveBeenCalledWith(
+        'query-1',
+        service.buildResultsFingerprint(results),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        SocketEvent.SEARCH_UPDATE,
+        expect.anything(),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        SocketEvent.SEARCH_NOTIFICATION,
+      );
+    });
+
+    it('should re-normalize relative time filters against the current clock', async () => {
+      searchDbService.read.mockResolvedValue(
+        watchedEntity({
+          timeFilterValue: 5,
+          timeFilterUnit: 'minutes',
+          timeFilterStart: '2020-01-01T00:00:00.000Z',
+          timeFilterEnd: '2020-01-01T00:05:00.000Z',
+        }),
+      );
+      searchShimService.search.mockReturnValue(
+        of({
+          data: { results: [{ query_id: 'query-1', results: [] }] },
+        } as any),
+      );
+      searchDbService.addResults.mockResolvedValue(watchedEntity());
+
+      await service.refreshQueries(['query-1']);
+
+      const sentQuery = searchShimService.search.mock.calls[0][0][0];
+      expect(sentQuery.time_filter).toBeDefined();
+      const end = new Date(sentQuery.time_filter!.end).getTime();
+      const start = new Date(sentQuery.time_filter!.start).getTime();
+      expect(end - start).toBe(5 * 60 * 1000);
+      expect(Date.now() - end).toBeLessThan(60 * 1000);
+      expect(searchDbService.update).toHaveBeenCalledWith(
+        'query-1',
+        expect.objectContaining({
+          timeFilter: expect.objectContaining({ source: 'relative' }),
+        }),
+      );
+    });
+
+    it('should leave absolute time filters untouched', async () => {
+      searchDbService.read.mockResolvedValue(
+        watchedEntity({
+          timeFilterStart: '2020-01-01T00:00:00.000Z',
+          timeFilterEnd: '2020-01-02T00:00:00.000Z',
+        }),
+      );
+      searchShimService.search.mockReturnValue(
+        of({
+          data: { results: [{ query_id: 'query-1', results: [] }] },
+        } as any),
+      );
+      searchDbService.addResults.mockResolvedValue(watchedEntity());
+
+      await service.refreshQueries(['query-1']);
+
+      const sentQuery = searchShimService.search.mock.calls[0][0][0];
+      expect(sentQuery.time_filter).toEqual({
+        start: '2020-01-01T00:00:00.000Z',
+        end: '2020-01-02T00:00:00.000Z',
+      });
+      expect(searchDbService.update).not.toHaveBeenCalled();
+    });
+
+    it('should not wipe existing results when the search service fails', async () => {
+      searchDbService.read.mockResolvedValue(watchedEntity());
+      searchShimService.search.mockReturnValue(
+        throwError(() => new Error('search down')),
+      );
+
+      const summary = await service.refreshQueries(['query-1']);
+
+      expect(summary).toEqual({ refreshed: 0, changed: 0 });
+      expect(searchDbService.addResults).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+        SocketEvent.SEARCH_NOTIFICATION,
+      );
+    });
+
+    it('should return early for an empty query list', async () => {
+      const summary = await service.refreshQueries([]);
+
+      expect(summary).toEqual({ refreshed: 0, changed: 0 });
+      expect(searchShimService.search).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('buildResultsFingerprint', () => {
+    it('should be stable for identical result sets and differ otherwise', () => {
+      const results = [
         {
-          queryId: 'query-1',
-          query: 'test query 1',
-          watch: false,
-          tags: [],
-          queryStatus: SearchQueryStatus.IDLE,
-          results: [],
-          createdAt: '2025-01-01T00:00:00.000Z',
-          updatedAt: '2025-01-01T00:00:00.000Z',
+          id: 'a',
+          page_content: '',
+          type: 'Document',
+          metadata: {
+            id: 'a-0',
+            video_id: 'a',
+            interval_num: 0,
+            relevance_score: 0.5,
+          },
         },
-      ] as SearchEntity[];
+      ] as any;
+      const changed = [
+        {
+          id: 'a',
+          page_content: '',
+          type: 'Document',
+          metadata: {
+            id: 'a-0',
+            video_id: 'a',
+            interval_num: 0,
+            relevance_score: 0.9,
+          },
+        },
+      ] as any;
 
-      searchDbService.readAll.mockResolvedValue(mockQueries);
+      expect(service.buildResultsFingerprint(results)).toBe(
+        service.buildResultsFingerprint([...results]),
+      );
+      expect(service.buildResultsFingerprint(results)).not.toBe(
+        service.buildResultsFingerprint(changed),
+      );
+      expect(service.buildResultsFingerprint([])).toBe('empty');
+    });
 
-      await service.syncSearches();
+    it('should distinguish clips of the same video (live-ingestion shape)', () => {
+      // Real aggregated results carry no `id`/`interval_num`; a single live
+      // stream also means every result shares one `video_id`. The clip must
+      // still be identified by its position within the video.
+      const clip = (timestamp: number, start: number, end: number) =>
+        ({
+          id: null,
+          page_content: '',
+          type: 'Document',
+          metadata: {
+            video_id: 'live-stream-1',
+            timestamp,
+            seek_timestamp: timestamp,
+            segment_start: start,
+            segment_end: end,
+            relevance_score: 1,
+          },
+        }) as any;
 
-      expect(eventEmitter.emit).not.toHaveBeenCalledWith(SocketEvent.SEARCH_NOTIFICATION);
+      const before = [clip(1.75, 0, 8), clip(9.5, 8, 16)];
+      const after = [clip(17.2, 16, 24), clip(25.1, 24, 32)];
+
+      expect(service.buildResultsFingerprint(before)).not.toBe(
+        service.buildResultsFingerprint(after),
+      );
+      expect(service.buildResultsFingerprint(before)).toBe(
+        service.buildResultsFingerprint([clip(1.75, 0, 8), clip(9.5, 8, 16)]),
+      );
+      expect(service.buildResultsFingerprint(before)).not.toBe(
+        service.buildResultsFingerprint([...before].reverse()),
+      );
     });
   });
 });
