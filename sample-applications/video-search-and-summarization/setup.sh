@@ -1301,8 +1301,12 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
 
             # Adjust concurrency and frame count for non-CPU devices
             if [[ "$VLM_TARGET_DEVICE" != "CPU" ]]; then
-                export PM_VLM_CONCURRENT=1
-                export PM_LLM_CONCURRENT=1
+                if [ "$PM_VLM_CONCURRENT_DEFAULTED" = true ]; then
+                    export PM_VLM_CONCURRENT=1
+                fi
+                if [ "$PM_LLM_CONCURRENT_DEFAULTED" = true ]; then
+                    export PM_LLM_CONCURRENT=1
+                fi
                 if [ "$PM_MULTI_FRAME_COUNT_DEFAULTED" = true ]; then
                     export PM_MULTI_FRAME_COUNT=6
                 fi
