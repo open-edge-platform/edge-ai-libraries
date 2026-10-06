@@ -50,7 +50,7 @@ debian_90_install_stationary_robot_vision () {
   if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
     echo "Stationary Robot Vision & Control is already installed. Skipping..."
   else
-    ensure_disk_space 15000
+    ensure_disk_size 15000
 
     # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
     ensure_apt install -y software-properties-common curl gnupg wget

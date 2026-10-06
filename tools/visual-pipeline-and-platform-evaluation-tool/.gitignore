@@ -15,9 +15,10 @@ shared/metadata/*
 shared/model-download/cache/*
 shared/db/*
 # Make-generated sentinels (see Makefile: ENV_DIRS_SENTINEL,
-# TEST_IMAGE_SENTINEL). Kept under shared/ so they are also out of the
-# Docker build context via the `shared` entry in .dockerignore.
+# TEST_IMAGE_SENTINEL, UI_*_SENTINEL). Kept under shared/ so they are also
+# out of the Docker build context via the `shared` entry in .dockerignore.
 shared/.env-dirs.done
 shared/.vippet-test-image.stamp
+shared/.ui-*.stamp
 /report.html
 /report.xml
