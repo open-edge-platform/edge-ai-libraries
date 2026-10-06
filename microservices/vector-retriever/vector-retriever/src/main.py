@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import ValidationError
 
 from src.common.logger import get_logger
 from src.common.middleware import request_id_middleware
@@ -13,6 +14,7 @@ from src.common.schema import (
     BatchQueryResponse,
     FilterCapabilitiesResponse,
     HealthResponse,
+    QueryError,
     QueryRequest,
 )
 from src.common.settings import settings
@@ -165,27 +167,55 @@ _422_RESPONSE = {
 )
 async def query_endpoint(
     request: Request,
-    payload: list[QueryRequest] = Body(..., openapi_examples=_QUERY_EXAMPLES),
+    payload: list[dict] = Body(..., openapi_examples=_QUERY_EXAMPLES),
 ) -> BatchQueryResponse:
-    """Execute a batch of semantic retrieval queries."""
+    """Execute a batch of semantic retrieval queries.
+
+    Each query is validated independently so that one malformed item does not
+    reject the whole batch (FastAPI's default list validation is all-or-nothing).
+    Invalid items are reported as per-query ``errors`` entries, mirroring the
+    partial-success contract already used for execution failures, while the
+    valid queries are still executed.
+    """
     if not payload:
         raise HTTPException(status_code=400, detail="Request body must contain at least one query")
 
     request_id = getattr(request.state, "request_id", str(uuid4()))
 
+    valid_queries: list[QueryRequest] = []
+    validation_errors: list[QueryError] = []
+    for raw in payload:
+        try:
+            valid_queries.append(QueryRequest.model_validate(raw))
+        except ValidationError as exc:
+            query_id = raw.get("query_id") if isinstance(raw, dict) else None
+            logger.warning(
+                "Skipping invalid query in batch request_id=%s query_id=%s: %s",
+                request_id,
+                query_id,
+                exc.errors(),
+            )
+            validation_errors.append(
+                QueryError(
+                    query_id=query_id,
+                    code="VALIDATION_ERROR",
+                    message="Query is invalid: provide exactly one of non-empty text or image.",
+                )
+            )
+
     try:
-        results, errors = await execute_batch(payload)
+        results, errors = await execute_batch(valid_queries) if valid_queries else ([], [])
         response = BatchQueryResponse(
             request_id=request_id,
             results=results,
-            errors=errors,
+            errors=validation_errors + errors,
         )
         logger.info(
             "Completed batch query request_id=%s query_count=%d result_count=%d error_count=%d",
             request_id,
             len(payload),
             len(results),
-            len(errors),
+            len(validation_errors) + len(errors),
         )
         return response
     except Exception as exc:

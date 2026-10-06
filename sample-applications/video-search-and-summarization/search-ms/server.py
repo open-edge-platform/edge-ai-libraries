@@ -7,7 +7,7 @@ import json
 import time
 from typing import Optional, List, Tuple, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.utils.common import logger, settings
@@ -18,7 +18,14 @@ from src.utils.directory_watcher import (
     get_last_updated,
     start_watcher,
 )
-from pydantic import BaseModel, Field, AliasChoices, ConfigDict, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    AliasChoices,
+    ConfigDict,
+    model_validator,
+    ValidationError,
+)
 
 app = FastAPI()
 app.add_middleware(
@@ -76,6 +83,50 @@ def _normalize_tags(tags: Optional[list[str] | str]) -> list[str]:
 
     raw_tags = tags.split(",") if isinstance(tags, str) else tags
     return [tag.strip() for tag in raw_tags if isinstance(tag, str) and tag.strip()]
+
+
+def _raw_query_id(raw: Any) -> str | None:
+    """Best-effort extraction of a query id from an unvalidated raw item."""
+    if isinstance(raw, dict):
+        value = raw.get("query_id") or raw.get("queryId")
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _validate_batch(
+    raw_requests: list[Any],
+) -> tuple[list["QueryRequest"], list[dict]]:
+    """Validate each item independently so one malformed query cannot reject the
+    whole batch.
+
+    A batch is a set of independent queries; FastAPI's default list validation
+    is all-or-nothing, so a single invalid item (e.g. an image query that
+    arrives without its image, or empty text) would 422 the entire request and
+    silently freeze every other watched query. Validating per item keeps the
+    valid queries flowing and reports each bad one as an empty result block
+    keyed by its query_id, mirroring the vector-retriever's partial-success
+    batch contract.
+    """
+    valid: list[QueryRequest] = []
+    invalid_blocks: list[dict] = []
+    for raw in raw_requests:
+        try:
+            valid.append(QueryRequest.model_validate(raw))
+        except ValidationError as exc:
+            query_id = _raw_query_id(raw)
+            logger.warning(
+                f"Skipping invalid query in batch (query_id={query_id}): {exc.errors()}"
+            )
+            invalid_blocks.append(
+                {
+                    "query_id": query_id,
+                    "results": [],
+                    "error": "Query is invalid: it must contain either non-empty "
+                    "text or an image.",
+                }
+            )
+    return valid, invalid_blocks
 
 
 def resolve_time_range(query_request: "QueryRequest") -> Optional[Tuple[str, str]]:
@@ -159,15 +210,24 @@ def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
 
 
 @app.post("/query")
-async def query_endpoint(request: list[QueryRequest]):
+async def query_endpoint(request: list[dict] = Body(...)):
     try:
         from src.vdms_retriever.retriever import aggregate_frame_results_to_videos
 
         api_start = time.perf_counter()
         logger.info(f"=== SEARCH API CALLED ===")
         logger.info(
-            f"Received request: {json.dumps([req.dict() for req in request], indent=2)}"
+            f"Received request: {json.dumps(request, indent=2, default=str)}"
         )
+
+        # Validate each query independently so a single malformed item does not
+        # 422 the whole batch and freeze every other (valid) watched query.
+        valid_requests, invalid_result_blocks = _validate_batch(request)
+        if invalid_result_blocks:
+            logger.warning(
+                f"{len(invalid_result_blocks)} of {len(request)} queries were "
+                f"invalid and skipped; {len(valid_requests)} will be processed."
+            )
 
         # All vector similarity search is delegated to the vector-retriever
         # microservice (vector-DB agnostic: VDMS, Milvus, ...). This service owns
@@ -390,7 +450,11 @@ async def query_endpoint(request: list[QueryRequest]):
                 results.extend(batch_results)
             return results
 
-        results = await process_requests(request)
+        results = await process_requests(valid_requests)
+        # Re-attach the per-query error blocks for the invalid items so the
+        # caller gets one block per submitted query and can flag each failure
+        # individually instead of losing the whole batch.
+        results.extend(invalid_result_blocks)
 
         logger.info(f"=== FINAL API RESPONSE ===")
         logger.info(f"Total result groups: {len(results)}")
