@@ -1,6 +1,15 @@
 
 debian_99_profile_metro_ai_suite () {
   # metro ai suites cannot start at the same time
-  [ "$1" = "start" ] || echo "vippet smart_intersection smart_parking loitering_detection live_video_captioning live_video_captioning_rag live_video_search live_video_alert_agent video_search_and_summarization agentic_predictive_maintenance_pipeline"
+  [ "$1" = "start" ] || {
+    local modules=(
+      vippet smart_intersection smart_parking loitering_detection
+      live_video_captioning live_video_captioning_rag live_video_search live_video_alert_agent 
+      video_search_and_summarization 
+      agentic_predictive_maintenance_pipeline
+      agentic_smart_community
+    )
+    echo "${modules[*]}"
+  }
 }
 
