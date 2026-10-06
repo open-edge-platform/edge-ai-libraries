@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[Unit]
+Description=Periodically regenerate Intel CDI device specs
+Documentation=https://github.com/cncf-tags/container-device-interface/blob/main/SPEC.md
+
+[Timer]
+# Run 30 seconds after boot (catch devices that appeared during early boot)
+OnBootSec=30s
+
+# Then every 5 minutes as a background consistency check
+OnUnitActiveSec=5min
+
+# Randomize slightly to avoid thundering herd on multi-node deployments
+RandomizedDelaySec=10s
+
+# Don't catch up on missed runs if the system was asleep
+Persistent=false
+
+Unit=intel-cdi-regenerate.service
+
+[Install]
+WantedBy=timers.target

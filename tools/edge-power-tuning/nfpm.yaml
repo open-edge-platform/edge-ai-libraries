@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+---
+name: "edge-power-tuning"
+arch: "${ARCH}"
+platform: "linux"
+version: "${VERSION}"
+section: "utils"
+priority: "optional"
+maintainer: "Intel Corporation"
+vendor: "Intel Corporation"
+homepage: "https://github.com/open-edge-platform/edge-ai-libraries"
+license: "Apache-2.0"
+description: |
+  Edge power tuning scripts for monitoring and adjusting CPU power and
+  thermal profiles on edge devices.
+
+contents:
+  - src: ./*.sh
+    dst: /opt/intel/edge/power-tuning/
+    file_info:
+      mode: 0755
+      owner: root
+      group: root

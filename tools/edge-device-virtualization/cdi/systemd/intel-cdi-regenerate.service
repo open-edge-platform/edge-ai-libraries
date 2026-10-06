@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[Unit]
+Description=Regenerate Intel CDI device specs (GPU + NPU)
+Documentation=https://github.com/cncf-tags/container-device-interface/blob/main/SPEC.md
+After=systemd-udevd.service
+
+[Service]
+Type=oneshot
+
+# Debounce: wait briefly so burst udev events (multiple VFs at once) coalesce
+ExecStartPre=/usr/bin/sleep 2
+
+# GPU: Official intel-cdi-specs-generator from gpu-v0.10.1
+ExecStart=/opt/edge/scripts/cdi/intel-cdi-specs-generator-gpu --cdi-dir /etc/cdi gpu
+# NPU: Custom generator script
+ExecStartPost=/opt/edge/scripts/cdi/intel-cdi-npu-generator.sh --cdi-dir /etc/cdi
+
+# Non-zero exit from generators is non-fatal (device may genuinely not exist)
+SuccessExitStatus=1
+
+# Security hardening
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/cdi
+ReadOnlyPaths=/sys /dev
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=intel-cdi
+
+[Install]
+WantedBy=multi-user.target

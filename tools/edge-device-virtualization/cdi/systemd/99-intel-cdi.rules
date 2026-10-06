@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Udev rules for Intel CDI auto-regeneration
+#
+# Triggers CDI spec regeneration when:
+#   - Intel GPU SR-IOV VFs are created/removed (DRM subsystem)
+#   - Intel NPU accel devices appear/disappear (accel subsystem)
+
+# Intel GPU VF — DRM render node added/removed (vendor 8086)
+SUBSYSTEM=="drm", KERNEL=="renderD*", ACTION=="add|remove", \
+  ATTRS{vendor}=="0x8086", \
+  TAG+="systemd", ENV{SYSTEMD_WANTS}="intel-cdi-regenerate.service"
+
+# Intel GPU VF — card node added/removed
+SUBSYSTEM=="drm", KERNEL=="card*", ACTION=="add|remove", \
+  ATTRS{vendor}=="0x8086", \
+  TAG+="systemd", ENV{SYSTEMD_WANTS}="intel-cdi-regenerate.service"
+
+# Intel NPU — accel device added/removed (vendor 8086)
+SUBSYSTEM=="accel", KERNEL=="accel*", ACTION=="add|remove", \
+  ATTRS{vendor}=="0x8086", \
+  TAG+="systemd", ENV{SYSTEMD_WANTS}="intel-cdi-regenerate.service"
+
+# Fallback: PCI device with SR-IOV VF added/removed
+SUBSYSTEM=="pci", ACTION=="add|remove", \
+  ATTR{vendor}=="0x8086", ATTR{class}=="0x030000", \
+  TAG+="systemd", ENV{SYSTEMD_WANTS}="intel-cdi-regenerate.service"
