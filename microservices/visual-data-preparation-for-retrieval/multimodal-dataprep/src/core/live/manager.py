@@ -453,22 +453,19 @@ class LiveStreamManager:
         if workers:
             logger.info("Stopped %d live stream worker(s).", len(workers))
 
-    def running_embeddings_total(self) -> int:
-        """Sum embeddings created across all currently-ingesting workers.
+    def running_embeddings_by_stream(self) -> Dict[str, int]:
+        """Per-stream ``embeddings_created`` for every currently-ingesting worker.
 
-        The Metrics Manager ``dataprep_embeddings_per_second`` gauge is a single
-        process-wide value, so the fleet throughput must be computed centrally:
-        if every worker published its own per-stream rate the last writer would
-        win and the panel would show one stream's rate (~5-7 eps) instead of the
-        combined total across, say, four streams (>20 eps). The process-wide
-        :class:`~src.core.live.metrics.LiveThroughputAggregator` reads this
-        rolling total each tick and publishes one combined rate. Paused, stopped
-        and errored streams are excluded so their frozen counters neither inflate
-        the rate nor produce a negative delta.
+        The throughput aggregator diffs these counts per stream so that a stream
+        (re)joining the running set -- a resumed or freshly started stream --
+        does not register its already-accumulated backlog as a single interval's
+        burst. Paused, stopped and errored streams are excluded: their frozen
+        counters would otherwise reappear in the total on resume and produce a
+        huge false spike (and, on pause, a negative delta).
         """
         with self._lock:
-            return sum(
-                worker.stream.stats.embeddings_created
+            return {
+                worker.stream_id: worker.stream.stats.embeddings_created
                 for worker in self._workers.values()
                 if worker.is_alive()
                 and worker.stream.state
@@ -477,7 +474,22 @@ class LiveStreamManager:
                     LiveStreamStateEnum.stopped,
                     LiveStreamStateEnum.error,
                 )
-            )
+            }
+
+    def running_embeddings_total(self) -> int:
+        """Sum embeddings created across all currently-ingesting workers.
+
+        The Metrics Manager ``dataprep_embeddings_per_second`` gauge is a single
+        process-wide value, so the fleet throughput must be computed centrally:
+        if every worker published its own per-stream rate the last writer would
+        win and the panel would show one stream's rate (~5-7 eps) instead of the
+        combined total across, say, four streams (>20 eps). The process-wide
+        :class:`~src.core.live.metrics.LiveThroughputAggregator` reads the
+        per-stream rolling counts each tick and publishes one combined rate.
+        Paused, stopped and errored streams are excluded so their frozen counters
+        neither inflate the rate nor produce a spurious delta.
+        """
+        return sum(self.running_embeddings_by_stream().values())
 
     def counts(self) -> Dict[str, int]:
         """Return a state histogram, used by the health endpoint."""

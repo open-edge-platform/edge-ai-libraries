@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Optional
+from typing import Dict, Optional
 
 from src.common import logger, sanitize_for_log, settings
 from src.core.live.manager import LiveStreamManager, get_live_stream_manager
@@ -43,7 +43,7 @@ class LiveThroughputAggregator:
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._last_ts = 0.0
-        self._last_total = 0
+        self._last_counts: Dict[str, int] = {}
 
     @property
     def manager(self) -> LiveStreamManager:
@@ -58,7 +58,7 @@ class LiveThroughputAggregator:
             return True
         self._stop.clear()
         self._last_ts = time.time()
-        self._last_total = self.manager.running_embeddings_total()
+        self._last_counts = self.manager.running_embeddings_by_stream()
         self._thread = threading.Thread(
             target=self._run, name="live-throughput-aggregator", daemon=True
         )
@@ -94,20 +94,32 @@ class LiveThroughputAggregator:
         Returns the published rate, or ``None`` on an idle interval (no new
         embeddings, in which case the gauge holds its previous value). The
         measurement window always advances so a later burst is measured over its
-        own interval, and a shrinking total (a stream paused or stopped) yields a
-        negative delta that is likewise held rather than published.
+        own interval.
+
+        The delta is summed **per stream**, counting only positive increments of
+        streams that were already being tracked in the previous sample. This is
+        what keeps a resumed (or freshly started) stream from spiking the gauge:
+        such a stream is absent from the previous snapshot, so its already
+        accumulated embedding backlog is baselined this tick (contributes 0)
+        instead of being divided by a single interval. A stream that leaves the
+        running set (paused/stopped/deleted) simply drops out and never yields a
+        negative delta.
         """
         now = time.time() if now is None else now
-        total = self.manager.running_embeddings_total()
+        counts = self.manager.running_embeddings_by_stream()
         elapsed = now - self._last_ts
         rate: Optional[float] = None
         if elapsed > 0:
-            delta = total - self._last_total
+            delta = 0
+            for stream_id, count in counts.items():
+                previous = self._last_counts.get(stream_id)
+                if previous is not None and count > previous:
+                    delta += count - previous
             if delta > 0:
                 rate = delta / elapsed
                 publish_embeddings_throughput(rate, now)
             self._last_ts = now
-            self._last_total = total
+            self._last_counts = counts
         return rate
 
 

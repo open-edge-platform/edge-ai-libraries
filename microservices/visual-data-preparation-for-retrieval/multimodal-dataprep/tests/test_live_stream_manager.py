@@ -563,19 +563,20 @@ def test_aggregator_publishes_combined_fleet_rate(monkeypatch):
     )
 
     class FakeManager:
-        total = 0
+        counts: dict = {}
 
-        def running_embeddings_total(self):
-            return self.total
+        def running_embeddings_by_stream(self):
+            return dict(self.counts)
 
     manager = FakeManager()
     agg = LiveThroughputAggregator(manager=manager)
-    # Prime the window at t=100 with the fleet idle.
+    # Prime the window at t=100 with four streams already tracked and idle.
     agg._last_ts = 100.0
-    agg._last_total = 0
+    manager.counts = {"s1": 0, "s2": 0, "s3": 0, "s4": 0}
+    agg._last_counts = dict(manager.counts)
 
     # Four streams each add 5 embeddings over a 1s interval -> 20 eps combined.
-    manager.total = 20
+    manager.counts = {"s1": 5, "s2": 5, "s3": 5, "s4": 5}
     rate = agg.sample(now=101.0)
 
     assert rate == 20.0
@@ -593,31 +594,32 @@ def test_aggregator_holds_last_value_on_idle_interval(monkeypatch):
     )
 
     class FakeManager:
-        total = 12
+        counts: dict = {}
 
-        def running_embeddings_total(self):
-            return self.total
+        def running_embeddings_by_stream(self):
+            return dict(self.counts)
 
     manager = FakeManager()
     agg = LiveThroughputAggregator(manager=manager)
     agg._last_ts = 100.0
-    agg._last_total = 12
+    manager.counts = {"s1": 12}
+    agg._last_counts = dict(manager.counts)
 
     # Burst lands: total climbs to 24 over 1s -> 12 eps.
-    manager.total = 24
+    manager.counts = {"s1": 24}
     assert agg.sample(now=101.0) == 12.0
     # Idle tick: no new embeddings -> no publish, window still advances.
     assert agg.sample(now=102.0) is None
     assert agg.sample(now=103.0) is None
     # Next burst measured over its OWN interval (total 24 -> 30 across 1s).
-    manager.total = 30
+    manager.counts = {"s1": 30}
     assert agg.sample(now=104.0) == 6.0
 
     assert published == [12.0, 6.0]  # no zeros between bursts
 
 
 def test_aggregator_ignores_shrinking_total(monkeypatch):
-    """A stream pausing/stopping shrinks the running total; never publish < 0."""
+    """A stream pausing/stopping leaves the set; never publish a negative rate."""
     from src.core.live.metrics import LiveThroughputAggregator
 
     published: List[float] = []
@@ -627,20 +629,64 @@ def test_aggregator_ignores_shrinking_total(monkeypatch):
     )
 
     class FakeManager:
-        total = 40
+        counts: dict = {}
 
-        def running_embeddings_total(self):
-            return self.total
+        def running_embeddings_by_stream(self):
+            return dict(self.counts)
 
     manager = FakeManager()
     agg = LiveThroughputAggregator(manager=manager)
     agg._last_ts = 100.0
-    agg._last_total = 40
+    manager.counts = {"s1": 25, "s2": 15}
+    agg._last_counts = dict(manager.counts)
 
-    # One of several streams stops -> running total falls.
-    manager.total = 25
+    # One of the streams stops -> it drops out of the running set.
+    manager.counts = {"s1": 25}
     assert agg.sample(now=101.0) is None
     assert published == []
+
+
+def test_aggregator_does_not_spike_when_paused_stream_resumes(monkeypatch):
+    """Resuming a paused stream must not dump its backlog as one interval.
+
+    Regression guard for the "~1646 eps on resume" bug: a paused stream keeps a
+    frozen ``embeddings_created`` counter and is excluded from the running set.
+    When it resumes it rejoins with its full accumulated count; a scalar total
+    would read that as a single interval's burst. Diffing per stream baselines
+    the returning stream instead, so the gauge reflects only genuine new work.
+    """
+    from src.core.live.metrics import LiveThroughputAggregator
+
+    published: List[float] = []
+    monkeypatch.setattr(
+        "src.core.live.metrics.publish_embeddings_throughput",
+        lambda value, ts: (published.append(value), True)[1],
+    )
+
+    class FakeManager:
+        counts: dict = {}
+
+        def running_embeddings_by_stream(self):
+            return dict(self.counts)
+
+    manager = FakeManager()
+    agg = LiveThroughputAggregator(manager=manager)
+    agg._last_ts = 100.0
+    # Only a steadily-running stream is tracked; the other is paused (absent).
+    manager.counts = {"running": 30}
+    agg._last_counts = dict(manager.counts)
+
+    # The paused stream (8200 embeddings accumulated before the pause) resumes
+    # and rejoins the running set, while the running stream adds 5 this interval.
+    manager.counts = {"running": 35, "resumed": 8200}
+    rate = agg.sample(now=101.0)
+
+    # Only the 5 genuinely-new embeddings count; the 8200 backlog is baselined.
+    assert rate == 5.0
+    assert published == [5.0]
+    # The resumed stream is now tracked, so its real throughput is measured next.
+    manager.counts = {"running": 35, "resumed": 8210}
+    assert agg.sample(now=102.0) == 10.0
 
 
 def test_running_embeddings_total_sums_only_running_streams():
@@ -658,7 +704,8 @@ def test_running_embeddings_total_sums_only_running_streams():
             self.stats = FakeStats(embeddings)
 
     class FakeWorker:
-        def __init__(self, state, embeddings, alive=True):
+        def __init__(self, state, embeddings, alive=True, stream_id="s"):
+            self.stream_id = stream_id
             self.stream = FakeStream(state, embeddings)
             self._alive = alive
 
@@ -668,12 +715,12 @@ def test_running_embeddings_total_sums_only_running_streams():
     manager = LiveStreamManager.__new__(LiveStreamManager)
     manager._lock = threading.RLock()
     manager._workers = {
-        "a": FakeWorker(LiveStreamStateEnum.running, 10),
-        "b": FakeWorker(LiveStreamStateEnum.running, 7),
-        "c": FakeWorker(LiveStreamStateEnum.paused, 100),
-        "d": FakeWorker(LiveStreamStateEnum.stopped, 100),
-        "e": FakeWorker(LiveStreamStateEnum.error, 100),
-        "f": FakeWorker(LiveStreamStateEnum.running, 50, alive=False),
+        "a": FakeWorker(LiveStreamStateEnum.running, 10, stream_id="a"),
+        "b": FakeWorker(LiveStreamStateEnum.running, 7, stream_id="b"),
+        "c": FakeWorker(LiveStreamStateEnum.paused, 100, stream_id="c"),
+        "d": FakeWorker(LiveStreamStateEnum.stopped, 100, stream_id="d"),
+        "e": FakeWorker(LiveStreamStateEnum.error, 100, stream_id="e"),
+        "f": FakeWorker(LiveStreamStateEnum.running, 50, alive=False, stream_id="f"),
     }
 
     assert manager.running_embeddings_total() == 17
