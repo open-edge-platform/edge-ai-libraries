@@ -1,6 +1,6 @@
 # Time Series Analytics Microservice
 
-It is a powerful, flexible solution for real-time analysis of time series data. Built on top of Kapacitor, it enables both streaming and batch processing, seamlessly integrating with InfluxDB for efficient data storage and retrieval.
+It provides a FastAPI control and ingestion API for InfluxDB 3 Core. Core stores time-series data and runs Python Processing Engine plugins for streaming and scheduled analytics.
 
 ## Supported versions
 ---

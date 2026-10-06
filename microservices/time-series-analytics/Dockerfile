@@ -4,56 +4,21 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Use Python Debian image as the base image
-ARG PYTHON_VERSION
-FROM python:${PYTHON_VERSION}-slim as builder
-
-# Install git to clone Kapacitor Python UDF agent files
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends git && \
-    rm -rf /var/lib/apt/lists/*
-
-ARG KAPACITOR_VERSION
-# Clone only the required files to reduce image size
-RUN git clone --depth 1 --filter=blob:none --sparse --branch v${KAPACITOR_VERSION} \
-    https://github.com/influxdata/kapacitor.git /tmp/kapacitor && \
-    cd /tmp/kapacitor && \
-    git sparse-checkout set udf/agent/py
-
-ARG PYTHON_VERSION
-FROM python:${PYTHON_VERSION}-slim as runtime
+ARG PYTHON_VERSION=3.14
+FROM python:${PYTHON_VERSION}-slim-bookworm
 
 
 ARG INSTALL_DRIVER_VERSION="26.27.39122"
 ENV INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
 
-# Security upgrades for known CVEs
-RUN apt-get update && \
-    apt-get upgrade -y --no-install-recommends \
-        python3.13 python3.13-minimal libpython3.13-minimal libpython3.13-stdlib \
-        libsystemd0 libudev1 libcap2 \
-        libc6 libc-bin \
-        curl libcurl4t64 \
-        libglib2.0-0t64 \
-        sed && \
-    rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
-# Install Kapacitor and other necessary packages
-ARG KAPACITOR_VERSION
 RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
     wget intel-gpu-tools libgomp1 && \
-    mkdir -p /etc/init.d && \
-    wget -O /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_VERSION}-1_amd64.deb" || exit 1 && \
-    dpkg -i /tmp/kapacitor.deb || true && apt-get install -y --no-install-recommends -f && \
     apt-get clean && \
-    rm -f /tmp/kapacitor.deb && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
-
-# Copy kapacitor Python UDF agent files from builder image
-COPY --from=builder /tmp/kapacitor/udf/agent/py /app/kapacitor_python
 
 COPY scripts/install_gpu_drivers.sh /tmp/install_gpu_drivers.sh
 RUN chmod +x /tmp/install_gpu_drivers.sh && \
@@ -73,14 +38,7 @@ COPY ./requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Set environment variables in a single ENV instruction for better layer caching
-ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
-
-# Adding classifier program
-# Copy Python source files in a single layer for better caching
-COPY ./src/classifier_startup.py ./src/opcua_alerts.py ./src/main.py /app/
-
-COPY ./config/kapacitor*.conf /app/config/
+COPY ./src/opcua_alerts.py ./src/influxdb3_backend.py ./src/main.py /app/
 
 #Copying for Core Pinning
 COPY ./docker/run.sh /app/

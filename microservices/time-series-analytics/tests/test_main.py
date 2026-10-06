@@ -3,6 +3,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
+import base64
 import sys
 import pytest
 from unittest import mock
@@ -11,8 +12,6 @@ import types
 import builtins
 import asyncio
 
-# Patch sys.modules for external dependencies
-sys.modules["classifier_startup"] = mock.Mock()
 import main
 
 client = TestClient(main.app)
@@ -31,29 +30,23 @@ def patch_config(monkeypatch):
         main.config.clear()
 
 def test_health_check_running(monkeypatch):
-    class MockResponse:
-        status_code = 200
-    monkeypatch.setattr(main.requests, "get", lambda *a, **k: MockResponse())
+    backend = mock.Mock()
+    monkeypatch.setattr(main, "get_influxdb3_backend", lambda: backend)
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json()["status"] == "Kapacitor daemon is running"
+    assert resp.json()["status"] == "InfluxDB 3 Core is running"
 
 def test_health_check_not_running(monkeypatch):
-    def raise_conn_err(*a, **k):
-        raise main.requests.exceptions.ConnectionError()
-    monkeypatch.setattr(main.requests, "get", raise_conn_err)
+    backend = mock.Mock()
+    backend.check_health.side_effect = main.InfluxDB3Error("Core unavailable")
+    monkeypatch.setattr(main, "get_influxdb3_backend", lambda: backend)
     resp = client.get("/health")
     assert resp.status_code == 503
-    assert "Kapacitor daemon is not running" in resp.json()["status"]
+    assert "InfluxDB 3 Core is not running" in resp.json()["status"]
 
 def test_receive_data_success(monkeypatch):
-    class MockHealthResp:
-        def __getitem__(self, k): return "Kapacitor daemon is running"
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
-    class MockResp:
-        status_code = 204
-        text = ""
-    monkeypatch.setattr(main.requests, "post", lambda *a, **k: MockResp())
+    backend = mock.Mock()
+    monkeypatch.setattr(main, "get_influxdb3_backend", lambda: backend)
     data = {
         "topic": "sensor_data",
         "tags": {"location": "factory1"},
@@ -63,9 +56,14 @@ def test_receive_data_success(monkeypatch):
     resp = client.post("/input", json=data)
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"
+    backend.write_line_protocol.assert_called_once_with(
+        "sensor_data,location=factory1 temperature=23.5 1718000000000000000"
+    )
 
-def test_receive_data_kapacitor_down(monkeypatch):
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "kapacitor daemon is not running"})
+def test_receive_data_core_down(monkeypatch):
+    backend = mock.Mock()
+    backend.check_health.side_effect = main.InfluxDB3Error("Core unavailable")
+    monkeypatch.setattr(main, "get_influxdb3_backend", lambda: backend)
     data = {
         "topic": "sensor_data",
         "tags": {"location": "factory1"},
@@ -74,7 +72,31 @@ def test_receive_data_kapacitor_down(monkeypatch):
     }
     resp = client.post("/input", json=data)
     assert resp.status_code == 503
-    assert "Kapacitor daemon is not running" in resp.json()["detail"]
+    assert "InfluxDB 3 Core is not running" in resp.json()["detail"]
+
+
+def test_receive_line_protocol_forwards_to_core(monkeypatch):
+    backend = mock.Mock(token="test-token")
+    monkeypatch.setattr(main, "get_influxdb3_backend", lambda: backend)
+    line = "wind-turbine-data,source=test wind_speed=8.83 1718000000000000000"
+    authorization = "Basic " + base64.b64encode(b"token:test-token").decode("ascii")
+
+    resp = client.post(
+        "/write?db=datain&precision=ns",
+        content=line,
+        headers={"Authorization": authorization},
+    )
+
+    assert resp.status_code == 204
+    backend.write_line_protocol.assert_called_once_with(
+        line, database="datain", precision="nanosecond"
+    )
+
+
+def test_receive_line_protocol_rejects_missing_auth():
+    response = client.post("/write?db=datain", content="temperature_input temperature=20.0")
+
+    assert response.status_code == 401
 
 def test_get_config(monkeypatch):
     resp = client.get("/config")
@@ -86,13 +108,14 @@ def test_get_config_with_restart(monkeypatch):
     called = {}
     def fake_restart():
         called["restart"] = True
-    monkeypatch.setattr(main, "restart_kapacitor", fake_restart)
+    monkeypatch.setattr(main, "restart_influxdb3", fake_restart)
     resp = client.get("/config?restart=true")
     assert resp.status_code == 200
     assert "udfs" in resp.json()
 
 def test_post_config(monkeypatch):
-    monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
+    monkeypatch.setattr(main, "check_udf_package", lambda *args: True)
+    monkeypatch.setattr(main, "restart_influxdb3", lambda: None)
     data = {
         "udfs": {"name": "udf_name", "model": "model_name"},
         "alerts": {}
@@ -120,6 +143,7 @@ def test_json_to_line_protocol_no_tags():
     line = main.json_to_line_protocol(dp)
     assert line == "test x=1 123"
 
+@pytest.mark.skip(reason="Kapacitor lifecycle is replaced by InfluxDB 3 Core")
 def test_start_kapacitor_service_calls_classifier_startup(monkeypatch):
     called = {}
     def fake_classifier_startup(cfg):
@@ -129,6 +153,7 @@ def test_start_kapacitor_service_calls_classifier_startup(monkeypatch):
     main.start_kapacitor_service(test_cfg)
     assert called["called"] == test_cfg
 
+@pytest.mark.skip(reason="Kapacitor lifecycle is replaced by InfluxDB 3 Core")
 def test_stop_kapacitor_service_not_running(monkeypatch, caplog):
     monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is not running"})
     logs = []
@@ -138,6 +163,7 @@ def test_stop_kapacitor_service_not_running(monkeypatch, caplog):
     main.stop_kapacitor_service()
     assert any("Kapacitor daemon is not running." in l for l in logs)
 
+@pytest.mark.skip(reason="Kapacitor lifecycle is replaced by InfluxDB 3 Core")
 def test_stop_kapacitor_service_success(monkeypatch):
     # health_check returns running
     monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
@@ -160,6 +186,7 @@ def test_stop_kapacitor_service_success(monkeypatch):
     assert (("kapacitor", "disable", "task1"), False) in calls
     assert "kapacitord" in killed
 
+@pytest.mark.skip(reason="Kapacitor lifecycle is replaced by InfluxDB 3 Core")
 def test_stop_kapacitor_service_subprocess_error(monkeypatch):
     monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
     class FakeResp:
@@ -174,6 +201,7 @@ def test_stop_kapacitor_service_subprocess_error(monkeypatch):
     main.stop_kapacitor_service()
     assert any("Error stopping Kapacitor service" in e for e in errors)
 
+@pytest.mark.skip(reason="Kapacitor lifecycle is replaced by InfluxDB 3 Core")
 def test_restart_kapacitor_calls_stop_and_start(monkeypatch):
     called = {"stop": False, "start": False}
     monkeypatch.setattr(main, "stop_kapacitor_service", lambda: called.update({"stop": True}))
@@ -184,28 +212,26 @@ def test_restart_kapacitor_calls_stop_and_start(monkeypatch):
     assert called["start"] == main.config
 
 def test_health_check_status_running_204(monkeypatch):
-    class MockResponse:
-        status_code = 204
-    monkeypatch.setattr(main.requests, "get", lambda *a, **k: MockResponse())
+    monkeypatch.setattr(main, "get_influxdb3_backend", lambda: mock.Mock())
     response = main.health_check(main.Response())
-    assert response == {"status": "Kapacitor daemon is running"}
+    assert response == {"status": "InfluxDB 3 Core is running"}
 
 def test_health_check_status_not_running(monkeypatch):
-    class MockResponse:
-        status_code = 500
-    monkeypatch.setattr(main.requests, "get", lambda *a, **k: MockResponse())
+    backend = mock.Mock()
+    backend.check_health.side_effect = main.InfluxDB3Error("Core unavailable")
+    monkeypatch.setattr(main, "get_influxdb3_backend", lambda: backend)
     resp_obj = main.Response()
     response = main.health_check(resp_obj)
-    assert response == {"status": "Kapacitor daemon is not running"}
+    assert response == {"status": "InfluxDB 3 Core is not running"}
 
 
 def test_health_check_request_exception(monkeypatch):
-    def raise_req_err(*a, **k):
-        raise main.requests.exceptions.RequestException()
-    monkeypatch.setattr(main.requests, "get", raise_req_err)
+    backend = mock.Mock()
+    backend.check_health.side_effect = main.requests.exceptions.RequestException()
+    monkeypatch.setattr(main, "get_influxdb3_backend", lambda: backend)
     resp_obj = main.Response()
     response = main.health_check(resp_obj)
-    assert response == {"status": "An error occurred while checking the service"}
+    assert response == {"status": "InfluxDB 3 Core is not running"}
     assert resp_obj.status_code == main.status.HTTP_503_SERVICE_UNAVAILABLE
 
 def test_receive_alert_success(monkeypatch):
@@ -381,6 +407,7 @@ async def test_get_config_restart_no_background_task(monkeypatch):
     result = await main.get_config(DummyRequest(), restart=True, background_tasks=None)
 
 
+@pytest.mark.skip(reason="The Core-backed service runs Uvicorn directly without a daemon thread")
 def test_main_run_server_thread(monkeypatch):
     # Patch uvicorn.run to just set a flag
     called = {}
@@ -440,6 +467,7 @@ def test_main_run_server_thread(monkeypatch):
         pass
     assert any("config.json file not found" in l for l in logs)
 
+@pytest.mark.skip(reason="Kapacitor startup/config loop is replaced by Core trigger configuration")
 def test_main_config_load_and_loop(monkeypatch):
     # Patch open to return a dummy file-like object
     class DummyFile:
@@ -494,6 +522,7 @@ def test_main_config_load_and_loop(monkeypatch):
     assert any("App configuration loaded successfully" in l for l in logs)
     assert any("kapacitor started" in l for l in logs)
 
+@pytest.mark.skip(reason="Kapacitor startup/config loop is replaced by Core trigger configuration")
 def test_main_config_load_exception(monkeypatch):
     # Patch open to raise generic Exception
     monkeypatch.setattr(builtins, "open", lambda *a, **k: (_ for _ in ()).throw(Exception("fail")))
@@ -542,7 +571,8 @@ def test_main_config_load_exception(monkeypatch):
 
 
 def test_post_config_success(monkeypatch):
-    monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
+    monkeypatch.setattr(main, "check_udf_package", lambda *args: True)
+    monkeypatch.setattr(main, "restart_influxdb3", lambda: None)
     data = {
         "udfs": {"name": "udf_name", "model": "model_name"},
         "alerts": {"opcua": {"opcua_server": "opc.tcp://localhost:4840", "node_id": "ns=2;i=2", "namespace": 2}}
@@ -554,7 +584,8 @@ def test_post_config_success(monkeypatch):
     assert "opcua" in main.config["alerts"]
 
 def test_post_config_alerts_optional(monkeypatch):
-    monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
+    monkeypatch.setattr(main, "check_udf_package", lambda *args: True)
+    monkeypatch.setattr(main, "restart_influxdb3", lambda: None)
     data = {
         "udfs": {"name": "udf_name", "model": "model_name"}
         # alerts omitted
@@ -565,7 +596,6 @@ def test_post_config_alerts_optional(monkeypatch):
     assert main.config["udfs"]["model"] == "model_name"
 
 def test_post_config_invalid_json(monkeypatch):
-    monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
     # Patch Config to raise JSONDecodeError
     class DummyConfig:
         def model_dump(self):
@@ -578,7 +608,6 @@ def test_post_config_invalid_json(monkeypatch):
     assert "Missing key 'name' in udfs" in exc.value.detail
 
 def test_post_config_missing_key(monkeypatch):
-    monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
     # Patch Config to raise KeyError
     class DummyConfig:
         def model_dump(self):
@@ -597,7 +626,8 @@ def test_post_config_triggers_background_task(monkeypatch):
     class DummyBackgroundTasks:
         def add_task(self, fn):
             fake_add_task(fn)
-    monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
+    monkeypatch.setattr(main, "check_udf_package", lambda *args: True)
+    monkeypatch.setattr(main, "restart_influxdb3", lambda: None)
     data = {
         "udfs": {"name": "udf_name", "model": "model_name"},
         "alerts": {}

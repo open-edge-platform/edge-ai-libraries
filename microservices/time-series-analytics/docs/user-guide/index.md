@@ -14,9 +14,8 @@ hide_directive-->
 The Time Series Analytics microservice provides the analytics capabilities for a time series
 use case.
 
-It is a powerful, flexible solution for real-time analysis of time series data. Built on top
-of **Kapacitor**, it enables both streaming and batch processing, seamlessly integrating with
-**InfluxDB** for efficient data storage and retrieval.
+It provides a FastAPI control and ingestion API for **InfluxDB 3 Core**. Core stores the time
+series and runs Python Processing Engine plugins through table or scheduled triggers.
 
 What sets this microservice apart is its support for advanced analytics through
 **User-Defined Functions (UDFs)** written in Python. By leveraging the Intel® Extension for
@@ -26,15 +25,14 @@ high-performance anomaly detection, predictive maintenance, and other sophistica
 The key features include:
 
 - **Bring your own Data Sets and corresponding User Defined Functions (UDFs) for custom analytics**:
-Easily implement and deploy your own Python-based analytics logic, following Kapacitor’s UDF
-standards.
+Easily implement and deploy Python Core Processing Engine plugins with optional models and dependencies.
 - **Seamless Integration**: Automatically stores processed results back into InfluxDB for
 unified data management and visualization.
 - **Versatile Use Cases**: Ideal for anomaly detection, alerting, and advanced time series
 analytics in industrial, IoT, and enterprise environments.
 
-For more information on creating custom UDFs, see the
-[Kapacitor Anomaly Detection Guide](https://docs.influxdata.com/kapacitor/v1/guides/anomaly_detection/).
+For the Wind Turbine plugin and end-to-end deployment, see the
+[Industrial Edge Insights Time Series suite](https://github.com/open-edge-platform/edge-ai-suites/tree/main/manufacturing-ai-suite/industrial-edge-insights-time-series).
 
 <!--hide_directive
 :::{toctree}

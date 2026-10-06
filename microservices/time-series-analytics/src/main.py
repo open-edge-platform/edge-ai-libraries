@@ -10,16 +10,17 @@ Time Series Analytics Microservice's main module
 This module exposes FastAPI server providing capabilities for data ingestion,
 configuration management, and OPC UA alerts.
 """
+import base64
+import binascii
+import hmac
 import io
 import os
 import logging
 import shutil
 import time
 import json
-import signal
-import subprocess
-import threading
 import tarfile
+import tempfile
 from typing import Optional
 import requests
 
@@ -27,10 +28,10 @@ from fastapi import FastAPI, File, HTTPException, Response, status, Request, Que
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
 import uvicorn
-import classifier_startup
+from influxdb3_backend import InfluxDB3Backend, InfluxDB3Error
 from opcua_alerts import OpcuaAlerts
 
-log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 logging_level = getattr(logging, log_level, logging.INFO)
 
 # Configure logging
@@ -44,14 +45,19 @@ logger = logging.getLogger()
 REST_API_ROOT_PATH = os.getenv('REST_API_ROOT_PATH', '/')
 app = FastAPI(root_path=REST_API_ROOT_PATH)
 
-KAPACITOR_URL = os.getenv('KAPACITOR_URL', 'http://localhost:9092').rstrip('/')
-CONFIG_FILE = "/app/config.json"
 MAX_SIZE = 5 * 1024  # 5 KB
 MAX_UPLOAD_SIZE = int(os.getenv('UDF_MAX_FILE_SIZE_MB', 100)) * 1024 * 1024  # 100 MB — max allowed tar upload
 
 config = {}
 OPCUA_SEND_ALERT = None
-config_updated_event = threading.Event()
+influxdb3_backend = None
+
+
+def get_influxdb3_backend():
+    global influxdb3_backend
+    if influxdb3_backend is None:
+        influxdb3_backend = InfluxDB3Backend()
+    return influxdb3_backend
 
 
 class DataPoint(BaseModel):
@@ -103,104 +109,47 @@ def json_to_line_protocol(data_point: DataPoint):
     return line_protocol
 
 
-def start_kapacitor_service(service_config):
-    """
-    Start the Kapacitor service with the given configuration.
-    
-    Args:
-        service_config: Configuration dictionary for the service
-    """
-    classifier_startup.classifier_startup(service_config)
+def check_udf_package(service_config, dir_name):
+    udf_config = service_config.get("udfs", {})
+    udf_name = udf_config.get("name")
+    if not isinstance(udf_name, str) or not udf_name:
+        return False
+    root = os.path.realpath(os.path.join(tempfile.gettempdir(), dir_name))
+    plugin_dir = os.path.realpath(os.path.join(
+        root, "udfs", os.getenv("INFLUXDB3_UDF_PLUGIN_DIR", "influx3_windturbine")
+    ))
+    if os.path.commonpath((root, plugin_dir)) != root:
+        return False
+    if not os.path.isfile(os.path.join(plugin_dir, "__init__.py")):
+        return False
+    requirements_path = os.path.join(plugin_dir, "requirements.txt")
+    if os.path.exists(requirements_path) and not os.path.isfile(requirements_path):
+        return False
+    model_name = udf_config.get("models")
+    if model_name:
+        model_path = os.path.realpath(os.path.join(root, "models", model_name))
+        if os.path.commonpath((root, model_path)) != root or not os.path.isfile(model_path):
+            return False
+    return True
 
 
-def _kill_processes_by_name(process_name: str) -> int:
-    """Kill processes by name without relying on pkill/killall binaries."""
-    killed = 0
-    my_pid = os.getpid()
-    proc_dir = "/proc"
-
-    if not os.path.isdir(proc_dir):
-        logger.warning("/proc is not available; cannot kill process '%s' by name", process_name)
-        return 0
-
-    for pid_dir in os.listdir(proc_dir):
-        if not pid_dir.isdigit():
-            continue
-
-        pid = int(pid_dir)
-        if pid == my_pid:
-            continue
-
-        comm_path = os.path.join(proc_dir, pid_dir, "comm")
-        cmdline_path = os.path.join(proc_dir, pid_dir, "cmdline")
-
-        try:
-            with open(comm_path, "r", encoding="utf-8", errors="ignore") as file:
-                comm = file.read().strip()
-
-            with open(cmdline_path, "rb") as file:
-                argv0 = file.read().split(b"\x00")[0].decode("utf-8", errors="ignore")
-            argv0_basename = os.path.basename(argv0)
-
-            if comm == process_name or argv0_basename == process_name:
-                os.kill(pid, signal.SIGKILL)
-                killed += 1
-        except FileNotFoundError:
-            continue
-        except ProcessLookupError:
-            continue
-        except PermissionError:
-            logger.warning("Permission denied while killing pid=%d for process '%s'", pid, process_name)
-        except Exception as error:
-            logger.warning("Failed to inspect/kill pid=%d for process '%s': %s", pid, process_name, error)
-
-    return killed
-
-
-def stop_kapacitor_service():
-    """Stop the Kapacitor service and all running tasks."""
-    response = Response()
-    result = health_check(response)
-    if result["status"] != "Kapacitor daemon is running":
-        logger.info("Kapacitor daemon is not running.")
-        return
+def restart_influxdb3():
     try:
-        response = requests.get(f"{KAPACITOR_URL}/kapacitor/v1/tasks", timeout=30)
-        tasks = response.json().get('tasks', [])
-        if len(tasks) > 0:
-            task_id = tasks[0].get('id')
-            print("Stopping Kapacitor tasks:", task_id)
-            logger.info("Stopping Kapacitor tasks: %s", task_id)
-            subprocess.run(["kapacitor", "disable", task_id], check=False)
-            _kill_processes_by_name("kapacitord")
-    except subprocess.CalledProcessError as error:
-        logger.error("Error stopping Kapacitor service: %s", error)
-
-
-def restart_kapacitor():
-    """Restart the Kapacitor service."""
-    stop_kapacitor_service()
-    start_kapacitor_service(config)
+        return get_influxdb3_backend().configure_udf(config, os.getenv("SAMPLE_APP"))
+    except InfluxDB3Error:
+        logger.exception("Failed to configure InfluxDB 3 processing trigger")
+        raise
 
 
 @app.get("/health")
 def health_check(response: Response):
-    """Get the health status of the Kapacitor daemon."""
-    url = f"{KAPACITOR_URL}/kapacitor/v1/ping"
+    """Get the health status of InfluxDB 3 Core."""
     try:
-        # Make an HTTP GET request to the service
-        request_response = requests.get(url, timeout=1)
-        if request_response.status_code in (200, 204):
-            return {"status": "Kapacitor daemon is running"}
-
+        get_influxdb3_backend().check_health()
+        return {"status": "InfluxDB 3 Core is running"}
+    except (InfluxDB3Error, requests.exceptions.RequestException):
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {"status": "Kapacitor daemon is not running"}
-    except requests.exceptions.ConnectionError:
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {"status": "Kapacitor daemon is not running"}
-    except requests.exceptions.RequestException:
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {"status": "An error occurred while checking the service"}
+        return {"status": "InfluxDB 3 Core is not running"}
 
 @app.post("/opcua_alerts")
 async def receive_alert(alert: OpcuaAlertsMessage):
@@ -297,7 +246,7 @@ async def receive_alert(alert: OpcuaAlertsMessage):
 async def receive_data(data_point: DataPoint):
     """
     Receives a data point in JSON format, converts it to InfluxDB line protocol, 
-    and sends it to the Kapacitor service.
+    and writes it to InfluxDB 3 Core.
 
     The input JSON must include:
         - topic (str): The topic name.
@@ -318,7 +267,7 @@ async def receive_data(data_point: DataPoint):
     Returns:
         dict: A status message indicating success or failure.
     Raises:
-        HTTPException: If the Kapacitor service returns an error or if any exception 
+        HTTPException: If InfluxDB 3 Core returns an error or if any exception
         occurs during processing.
 
     responses:
@@ -336,7 +285,7 @@ async def receive_data(data_point: DataPoint):
                     type: string
                     example: Data sent to Time series Analytics microservice
         '503':
-            description: Kapacitor daemon is not running
+            description: InfluxDB 3 Core is not running
             content:
                 application/json:
                     schema:
@@ -344,9 +293,9 @@ async def receive_data(data_point: DataPoint):
                         properties:
                             detail:
                                 type: string
-                                example: "Kapacitor daemon is not running"
+                                example: "InfluxDB 3 Core is not running"
         '4XX':
-        description: Client error (e.g., invalid input or Kapacitor error)
+        description: Client error (e.g., invalid input or InfluxDB 3 error)
         content:
             application/json:
             schema:
@@ -367,25 +316,59 @@ async def receive_data(data_point: DataPoint):
         logger.debug("Received data point: %s", line_protocol)
         response = Response()
         result = health_check(response)
-        if result["status"] != "Kapacitor daemon is running":
-            logger.warning("Kapacitor daemon is not running.")
-            raise HTTPException(status_code=503, detail="Kapacitor daemon is not running")  
-        url = f"{KAPACITOR_URL}/kapacitor/v1/write?db=datain&rp=autogen"
-        # Send data to Kapacitor
-        kapacitor_response = requests.post(url, data=line_protocol,
-                                         headers={"Content-Type": "text/plain"}, timeout=30)
-
-        if kapacitor_response.status_code == 204:
-            return {"status": "success",
-                   "message": "Data sent to Time Series Analytics microservice"}
-
-        raise HTTPException(status_code=kapacitor_response.status_code,
-                          detail=kapacitor_response.text)
+        if result["status"] != "InfluxDB 3 Core is running":
+            raise HTTPException(status_code=503, detail="InfluxDB 3 Core is not running")
+        get_influxdb3_backend().write_line_protocol(line_protocol)
+        return {"status": "success", "message": "Data sent to InfluxDB 3 Core"}
     except HTTPException:
         raise
+    except InfluxDB3Error as error:
+        logger.error("InfluxDB 3 write failed: %s", error)
+        raise HTTPException(status_code=502, detail=str(error)) from error
     except Exception as error:
         logger.error("Unexpected error in receive_data: %s", error)
         raise HTTPException(status_code=500, detail=str(error)) from error
+
+@app.post("/write")
+async def receive_line_protocol(request: Request, db: str = Query("datain"), precision: str = Query("auto")):
+    """Accept Telegraf's InfluxDB v1-compatible line protocol writes and forward them to Core."""
+    precision_map = {
+        "n": "nanosecond", "ns": "nanosecond", "u": "microsecond", "us": "microsecond",
+        "ms": "millisecond", "s": "second", "m": "auto", "h": "auto",
+    }
+    try:
+        authorization = request.headers.get("authorization", "")
+        try:
+            scheme, encoded_credentials = authorization.split(" ", 1)
+            username, password = base64.b64decode(encoded_credentials, validate=True).decode("utf-8").split(":", 1)
+        except (ValueError, UnicodeDecodeError, binascii.Error):
+            raise HTTPException(
+                status_code=401,
+                detail="Valid Basic authentication is required",
+                headers={"WWW-Authenticate": "Basic"},
+            )
+        if scheme.lower() != "basic" or username != "token" or not hmac.compare_digest(
+            password, get_influxdb3_backend().token
+        ):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid InfluxDB 3 write credentials",
+                headers={"WWW-Authenticate": "Basic"},
+            )
+        line_protocol = (await request.body()).decode("utf-8")
+        if not line_protocol:
+            raise HTTPException(status_code=400, detail="Line protocol body is empty")
+        get_influxdb3_backend().write_line_protocol(
+            line_protocol,
+            database=db,
+            precision=precision_map.get(precision, precision),
+        )
+        return Response(status_code=204)
+    except HTTPException:
+        raise
+    except InfluxDB3Error as error:
+        logger.error("InfluxDB 3 line protocol write failed: %s", error)
+        raise HTTPException(status_code=502, detail=str(error)) from error
 
 @app.get("/config")
 async def get_config(
@@ -437,7 +420,7 @@ async def get_config(
         if restart:
 
             if background_tasks is not None:
-                background_tasks.add_task(restart_kapacitor)
+                background_tasks.add_task(restart_influxdb3)
         params = dict(request.query_params)
         # Remove 'restart' from params to avoid filtering config by it
         params.pop('restart', None)
@@ -555,7 +538,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
             dir_name = os.getenv("SAMPLE_APP")
         else:
             dir_name = config_data.udfs["name"]
-        if not classifier_startup.kapacitor_classifier.check_udf_package(config_data.model_dump(), dir_name):
+        if not check_udf_package(config_data.model_dump(), dir_name):
             error_msg = (
                 f"UDF deployment package validation failed for {config_data.udfs['name']}. "
                 "Please check and upload/copy the UDF deployment package with correct structure and files."
@@ -581,7 +564,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
         raise HTTPException(status_code=422,
                   detail=f"Missing required key: {error}") from error
 
-    background_tasks.add_task(restart_kapacitor)
+    background_tasks.add_task(restart_influxdb3)
     return {"status": "success", "message": "Configuration updated successfully"}
 
 
@@ -598,7 +581,7 @@ def _scan_tar(tf: tarfile.TarFile, archive_size_bytes: int) -> None:
     _TAR_MAX_EXPANSION_RATIO   = 100
     _TAR_ENCRYPTED_EXTENSIONS  = {".enc", ".gpg", ".pgp", ".age", ".aes"}
     _TAR_ALLOWED_EXTENSIONS    = {
-        ".py", ".tick", ".txt", ".cb",
+        ".py", ".txt", ".cb",
         ".pkl", ".joblib", ".xml", ".bin", ".onnx", ".pt", ".pth", ".json",
     }
     entries = tf.getmembers()
@@ -699,18 +682,12 @@ def _scan_tar(tf: tarfile.TarFile, archive_size_bytes: int) -> None:
                     return True
         return False
 
-    # udfs/ must contain at least one .py file
-    if not _has_file_in_folder(file_names, "udfs", ".py"):
+    plugin_directory = os.getenv("INFLUXDB3_UDF_PLUGIN_DIR", "influx3_windturbine")
+    plugin_entry = f"udfs/{plugin_directory}/__init__.py"
+    if plugin_entry not in file_names:
         raise HTTPException(
             status_code=400,
-            detail="Tar archive must contain a 'udfs/' folder with at least one .py file."
-        )
-
-    # tick_scripts/ must contain at least one .tick file
-    if not _has_file_in_folder(file_names, "tick_scripts", ".tick"):
-        raise HTTPException(
-            status_code=400,
-            detail="Tar archive must contain a 'tick_scripts/' folder with at least one .tick file."
+            detail=f"Tar archive must contain the InfluxDB 3 plugin entry '{plugin_entry}'."
         )
 
     # models/ is optional — log a notice if absent
@@ -720,7 +697,7 @@ def _scan_tar(tf: tarfile.TarFile, archive_size_bytes: int) -> None:
 
 @app.post("/udfs/package", responses={
     400: {"description": "Invalid file — not a .tar, corrupt archive, failed security scan (path traversal, symlink, encrypted payload, tar-bomb expansion), or missing required folders",
-          "content": {"application/json": {"example": {"detail": "Tar archive must contain a 'udfs/' folder with at least one .py file."}}}},
+          "content": {"application/json": {"example": {"detail": "Tar archive must contain the InfluxDB 3 plugin entry 'udfs/influx3_windturbine/__init__.py'."}}}},
     413: {"description": "Uploaded file exceeds the maximum allowed size",
           "content": {"application/json": {"example": {"detail": "Uploaded file exceeds the maximum allowed size of 100 MB."}}}},
     500: {"description": "Failed to extract the UDF deployment package on the server",
@@ -737,10 +714,9 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
     .. code-block:: text
 
         udfs/
-            <udf_name>.py          (required)
-            requirements.txt       (optional)
-        tick_scripts/
-            <udf_name>.tick        (required)
+            <plugin_name>/
+                __init__.py         (required Core trigger entry point)
+                requirements.txt    (optional)
         models/                    (optional)
             <model_files>
 
@@ -749,7 +725,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
     - If `SAMPLE_APP` env var is set → `/tmp/<SAMPLE_APP>/`
     - Otherwise → `/tmp/<tar_filename_without_extension>/`
 
-    **Allowed file extensions**: `.py`, `.tick`, `.txt`, `.cb`, `.pkl`, `.json`,
+    **Allowed file extensions**: `.py`, `.txt`, `.cb`, `.pkl`, `.json`,
     `.joblib`, `.xml`, `.bin`, `.onnx`, `.pt`, `.pth`
 
     responses:
@@ -779,7 +755,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
                         properties:
                             detail:
                                 type: string
-                                example: "Tar archive must contain a 'udfs/' folder with at least one .py file."
+                                example: "Tar archive must contain the InfluxDB 3 plugin entry 'udfs/influx3_windturbine/__init__.py'."
         413:
             description: Uploaded file exceeds the maximum allowed size
             content:
@@ -834,11 +810,8 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
         _scan_tar(tf, archive_size_bytes=received)
 
         # Reserved names that must not be used as extraction directory names
-        # to avoid colliding with service-critical paths under SECURE_TEMP_DIR.
-        _RESERVED_DIR_NAMES = {
-            "tmp", "log", "kapacitor", "py_package", "udfs",
-            "tick_scripts", "models", ".", "..",
-        }
+        # to avoid colliding with service-critical paths under /tmp.
+        _RESERVED_DIR_NAMES = {"tmp", "log", "udfs", "models", ".", ".."}
 
         def _safe_dir_name(name: str) -> str:
             """Validate and return a safe directory name, or raise HTTPException."""
@@ -862,7 +835,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
                 )
             return name
 
-        base_dir = classifier_startup.SECURE_TEMP_DIR
+        base_dir = tempfile.gettempdir()
 
         tar_stem = _safe_dir_name(os.path.splitext(os.path.basename(file.filename))[0])
         sample_app = os.environ.get("SAMPLE_APP")
@@ -904,21 +877,4 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
     return {"status": "success", "message": f"UDF deployment package '{file.filename}' uploaded successfully."}
 
 if __name__ == "__main__":  # pragma: no cover
-    # Start the FastAPI server
-    def run_server():
-        """Run the FastAPI server."""
-        uvicorn.run(app, host="0.0.0.0", port=5000)
-
-    server_thread = threading.Thread(target=run_server)
-    server_thread.start()
-    try:
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as file:
-            config = json.load(file)
-        logger.info("App configuration loaded successfully from config.json file")
-        start_kapacitor_service(config)
-        while True:
-            time.sleep(1)
-    except FileNotFoundError:
-        logger.warning("config.json file not found, waiting for the configuration")
-    except Exception as error:
-        logger.error("Time Series Analytics Microservice failure - %s", error)
+    uvicorn.run(app, host="0.0.0.0", port=5000)

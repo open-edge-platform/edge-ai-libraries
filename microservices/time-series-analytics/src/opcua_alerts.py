@@ -17,7 +17,7 @@ import sys
 import json
 from asyncua import Client
 
-log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 logging_level = getattr(logging, log_level, logging.INFO)
 
 # Configure logging
@@ -123,10 +123,10 @@ class OpcuaAlerts:
                     client_key = os.getenv("OPCUA_CLIENT_KEY", "client_key.pem")
                     opcua_server_username = os.getenv("OPCUA_SERVER_USERNAME", "admin")
                     opcua_server_password = os.getenv("OPCUA_SERVER_PASSWORD", "")
-                    kapacitor_cert = ("/run/secrets/" + client_cert)
-                    kapacitor_key = ("/run/secrets/" + client_key)
+                    opcua_cert = ("/run/secrets/" + client_cert)
+                    opcua_key = ("/run/secrets/" + client_key)
                     await self.client.set_security_string(
-                        f"Basic256Sha256,SignAndEncrypt,{kapacitor_cert},{kapacitor_key}")
+                        f"Basic256Sha256,SignAndEncrypt,{opcua_cert},{opcua_key}")
                     if opcua_server_username:
                         self.client.set_user(opcua_server_username)
                         self.client.set_password(opcua_server_password)
