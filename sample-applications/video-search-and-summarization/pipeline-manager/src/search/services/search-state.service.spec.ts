@@ -460,6 +460,54 @@ describe('SearchStateService', () => {
 
       expect(result).toBeNull();
     });
+
+    it('recomputes a fresh sliding window for a relative query on re-run with stale bounds', async () => {
+      const queryId = 'test-query-id';
+      const mockQuery = {
+        queryId,
+        query: 'test query',
+        tags: [],
+        watch: false,
+        queryStatus: SearchQueryStatus.IDLE,
+        results: [],
+        timeFilterValue: 1,
+        timeFilterUnit: 'minutes',
+        timeFilterStart: '2020-01-01T00:00:00.000Z',
+        timeFilterEnd: '2020-01-01T00:01:00.000Z',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      } as SearchEntity;
+
+      searchDbService.read.mockResolvedValue(mockQuery);
+      searchDbService.updateQueryStatus.mockResolvedValue(mockQuery);
+      searchShimService.search.mockReturnValue(
+        of({
+          data: { results: [] },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: {},
+        } as any),
+      );
+      videoService.getVideos.mockResolvedValue([]);
+
+      const before = Date.now();
+      await service.reRunQuery(queryId);
+      const after = Date.now();
+
+      const payload = searchShimService.search.mock.calls[0][0][0];
+      expect(payload.time_filter).toBeDefined();
+      const timeFilter = payload.time_filter!;
+      // Stale 2020 bounds must not be reused.
+      expect(timeFilter.start).not.toBe('2020-01-01T00:00:00.000Z');
+      expect(timeFilter.end).not.toBe('2020-01-01T00:01:00.000Z');
+      // End is "now"; window spans exactly one minute.
+      const start = new Date(timeFilter.start).getTime();
+      const end = new Date(timeFilter.end).getTime();
+      expect(end).toBeGreaterThanOrEqual(before);
+      expect(end).toBeLessThanOrEqual(after);
+      expect(end - start).toBe(60 * 1000);
+    });
   });
 
   describe('runSearch', () => {

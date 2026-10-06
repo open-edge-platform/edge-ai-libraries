@@ -247,8 +247,32 @@ export class SearchStateService {
       throw new Error(`Query with ID ${queryId} not found`);
     }
 
-    if (timeFilter !== undefined) {
-      const normalized = this.normalizeTimeFilter(timeFilter);
+    // Resolve the time filter for this run. A relative selection (value+unit)
+    // must slide to a fresh now-based window on every re-run, mirroring the
+    // watched-query refresh path (buildRefreshTimeFilter); otherwise a
+    // "last N minutes" filter freezes at the bounds computed when it was first
+    // created. When the caller passes no timeFilter, rebuild from the persisted
+    // selection so an unchecked re-run still slides. Absolute ranges stay fixed.
+    const incomingFilter =
+      timeFilter !== undefined
+        ? timeFilter
+        : this.buildTimeFilterFromEntity(query);
+
+    if (timeFilter !== undefined || incomingFilter) {
+      const isRelative =
+        incomingFilter?.value !== undefined &&
+        incomingFilter?.value !== null &&
+        !!incomingFilter?.unit;
+
+      const normalized = this.normalizeTimeFilter(
+        isRelative
+          ? {
+              value: incomingFilter!.value,
+              unit: incomingFilter!.unit,
+              source: 'relative',
+            }
+          : incomingFilter,
+      );
       await this.$searchDB.update(queryId, {
         timeFilter: normalized.selection,
       });
