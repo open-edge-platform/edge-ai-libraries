@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   SearchQuery,
   SearchQueryStatus,
@@ -244,7 +244,10 @@ export class SearchStateService {
   async reRunQuery(queryId: string, timeFilter?: TimeFilterSelection | null) {
     const query = await this.$searchDB.read(queryId);
     if (!query) {
-      throw new Error(`Query with ID ${queryId} not found`);
+      // A stale query the server no longer has (e.g. a client re-running a
+      // query that only survived in its local cache). Return 404 so the client
+      // can prune it, instead of a bare throw that surfaces as a 500.
+      throw new NotFoundException(`Query with ID ${queryId} not found`);
     }
 
     // Resolve the time filter for this run. A relative selection (value+unit)

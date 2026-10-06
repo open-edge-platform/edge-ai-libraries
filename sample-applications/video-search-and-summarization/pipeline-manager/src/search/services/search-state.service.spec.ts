@@ -1,6 +1,7 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
 import { SearchStateService } from './search-state.service';
 import { SearchDbService } from './search-db.service';
 import { VideoService } from 'src/video-upload/services/video.service';
@@ -293,6 +294,9 @@ describe('SearchStateService', () => {
 
       await expect(service.reRunQuery(queryId)).rejects.toThrow(
         `Query with ID ${queryId} not found`,
+      );
+      await expect(service.reRunQuery(queryId)).rejects.toBeInstanceOf(
+        NotFoundException,
       );
     });
 

@@ -79,7 +79,7 @@ describe('Redux Store', () => {
       
       expect(result).toEqual({
         videos: { videoList: [] },
-        search: { queries: [] }
+        search: { queries: [], triggerLoad: true }
         // ui should be deleted
       });
       expect(result).not.toHaveProperty('ui');
@@ -117,7 +117,7 @@ describe('Redux Store', () => {
       
       expect(result).toEqual({
         videos: { videoList: [] },
-        search: { queries: [] }
+        search: { queries: [], triggerLoad: true }
       });
       expect(result).not.toHaveProperty('ui');
     });
@@ -224,7 +224,7 @@ describe('Redux Store', () => {
       
       const state = testStore.getState();
       expect(state.videos).toEqual({ videoList: ['test'] });
-      expect(state.search).toEqual({ queries: ['test query'] });
+      expect(state.search).toEqual({ queries: ['test query'], triggerLoad: true });
     });
   });
 

@@ -29,6 +29,17 @@ export const loadFromLocalStorage = () => {
     for (const slice of NON_PERSISTED_SLICES) {
       delete state[slice];
     }
+    // The search query list is persisted so the sidebar renders instantly, but
+    // it must be reconciled with the server on every fresh page load - otherwise
+    // a browser refresh keeps showing queries that no longer exist server-side
+    // (and re-running one 500s). `triggerLoad` is the one-shot "reload from the
+    // server" signal SearchContainer watches; it is set false after the first
+    // load, so force it back to true on rehydration to fetch exactly once per
+    // page load. Steady-state watched-query updates arrive over the socket and
+    // never go through this flag, so this does not add refresh flux.
+    if (state.search && typeof state.search === 'object') {
+      state.search.triggerLoad = true;
+    }
     return state;
   } catch (err) {
     console.warn(err);
