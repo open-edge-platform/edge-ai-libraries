@@ -63,6 +63,31 @@ _embedding_client: Optional[EmbeddingClient] = None
 
 # Global object detector instance (initialized once per worker process)
 _global_detector = None
+
+# Process-wide cap on concurrent object-detection GPU inferences across every
+# pipeline (each live stream runs its own detection workers). The shared
+# OpenVINO detector uses unsynchronized infer_new_request; with many live
+# streams the combined concurrency can wedge the GPU (an in-flight request never
+# completes, deadlocking decode -> detect -> embed -> store). This semaphore
+# bounds detection to the known-good single-stream load. Embedding inference is
+# already serialized by the shared embedding client's internal lock, so only the
+# detection side needs bounding here. Initialized lazily to honour settings.
+_detection_inference_semaphore: Optional[threading.Semaphore] = None
+_detection_inference_semaphore_lock = threading.Lock()
+
+
+def _get_detection_inference_semaphore() -> threading.Semaphore:
+    """Return the process-wide detection-inference semaphore, creating it once."""
+    global _detection_inference_semaphore
+    if _detection_inference_semaphore is None:
+        with _detection_inference_semaphore_lock:
+            if _detection_inference_semaphore is None:
+                _detection_inference_semaphore = threading.Semaphore(
+                    max(1, settings.DETECTION_INFERENCE_MAX_CONCURRENCY)
+                )
+    return _detection_inference_semaphore
+
+
 DONE = object()  # Sentinel value to signal completion
 
 
@@ -1362,7 +1387,12 @@ def _process_video_from_memory_simple_pipeline(
         result_thread = threading.Thread(
             target=process_result_worker,
             name="result_worker",
-            args=(result_queue, completion_queue, all_stream_metadata),
+            args=(
+                result_queue,
+                completion_queue,
+                all_stream_metadata,
+                is_live_source(video_source),
+            ),
         )
 
         detection_thread.start()
@@ -1717,7 +1747,8 @@ def process_frame_detection(
     base_metadata = dict(frame_metadata)  # shallow copy, no shared ref
 
     try:
-        detections = detector.detect(frame_numpy, return_metadata=True)
+        with _get_detection_inference_semaphore():
+            detections = detector.detect(frame_numpy, return_metadata=True)
     except Exception:
         logger.warning(
             "Object detection failed for frame %s",
@@ -2585,7 +2616,7 @@ def save_batch_results(completed_batches, all_stream_metadata):
     return stream_stats
 
 
-def process_result_worker(result_queue, completion_queue, all_stream_metadata):
+def process_result_worker(result_queue, completion_queue, all_stream_metadata, is_live=False):
     completed_batches = []
     while True:
         try:
@@ -2599,6 +2630,21 @@ def process_result_worker(result_queue, completion_queue, all_stream_metadata):
             break
 
         logger.info(f"[RESULT WORKER] Result: {result['stream_id']} -> {result['stored_ids']}")
+
+        # Release the decoded frames carried on the batch now that it has been
+        # stored. In heap transport each frame dict still references its full RGB
+        # ndarray (~6 MB at 1080p); retaining them pins gigabytes over a
+        # long-running stream. save_batch_results only reads per-batch
+        # stats/metrics/stored_ids, never the frames themselves.
+        result.pop("frames", None)
+
+        # Endless (live RTSP) sources never emit DONE, so accumulating one dict
+        # per batch would grow without bound. Their aggregate stats are never
+        # consumed (the pipeline call never returns) and per-batch live telemetry
+        # is reported through the progress callback instead, so drop the batch.
+        if is_live:
+            continue
+
         completed_batches.append(result)
 
     stream_stats = save_batch_results(completed_batches, all_stream_metadata)

@@ -362,6 +362,22 @@ class Settings(BaseSettings):
         ge=1,
         description="Thread count for detection worker local pool",
     )
+    DETECTION_INFERENCE_MAX_CONCURRENCY: int = Field(
+        default=2,
+        ge=1,
+        description=(
+            "Process-wide cap on concurrent object-detection GPU inferences "
+            "across all pipelines (including every live stream). Each live "
+            "stream runs its own detection workers; without this cap, N streams "
+            "issue N x DETECTION_WORKER_THREADS unsynchronized infer_new_request "
+            "calls against the single shared OpenVINO detector, which can "
+            "saturate and wedge the GPU (an in-flight request never completes, "
+            "deadlocking the whole pipeline). Embedding inference is already "
+            "serialized by the shared client's lock; this bounds the detection "
+            "side to the known-good single-stream load (default 2 = "
+            "DETECTION_WORKER_THREADS) regardless of how many streams run."
+        ),
+    )
     EMBED_WORKER_THREADS: int = Field(
         default=2,
         ge=1,
