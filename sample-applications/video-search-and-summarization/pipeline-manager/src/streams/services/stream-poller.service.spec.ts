@@ -5,6 +5,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SocketEvent } from 'src/events/socket.events';
 import { SearchEvents } from 'src/events/Pipeline.events';
+import { LiveStreamState } from '../models/stream.model';
 import { StreamShimService } from './stream-shim.service';
 import { StreamPollerService } from './stream-poller.service';
 
@@ -139,6 +140,66 @@ describe('StreamPollerService', () => {
       jest.advanceTimersByTime(60000);
       await flush();
       expect(list).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('running-stream lifecycle (no subscribers)', () => {
+    const runningStream = (embeddings = 0) => ({
+      stream_id: 's1',
+      state: LiveStreamState.RUNNING,
+      stats: { embeddings_created: embeddings },
+    });
+
+    it('keeps polling while a stream runs even with no subscribers', async () => {
+      list.mockResolvedValue({ count: 1, streams: [runningStream(10)] });
+      service.ensurePolling();
+      await flush();
+
+      expect(service.isPolling).toBe(true);
+      list.mockClear();
+      jest.advanceTimersByTime(5000);
+      await flush();
+      expect(list).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops once no stream is running and nobody is subscribed', async () => {
+      list.mockResolvedValue({ count: 1, streams: [runningStream(10)] });
+      service.ensurePolling();
+      await flush();
+      expect(service.isPolling).toBe(true);
+
+      // The stream stops: the next poll observes nothing running and no
+      // subscribers, so the loop self-terminates.
+      list.mockResolvedValue({ count: 0, streams: [] });
+      jest.advanceTimersByTime(5000);
+      await flush();
+      expect(service.isPolling).toBe(false);
+    });
+
+    it('marks the index dirty when live embeddings grow without a subscriber', async () => {
+      list.mockResolvedValue({ count: 1, streams: [runningStream(10)] });
+      service.ensurePolling();
+      await flush();
+
+      emit.mockClear();
+      list.mockResolvedValue({ count: 1, streams: [runningStream(25)] });
+      jest.advanceTimersByTime(5000);
+      await flush();
+      expect(emit).toHaveBeenCalledWith(SearchEvents.EMBEDDINGS_UPDATE);
+    });
+
+    it('resumes polling on startup when a stream is already running', async () => {
+      list.mockResolvedValue({ count: 1, streams: [runningStream(10)] });
+      service.onModuleInit();
+      await flush();
+      expect(service.isPolling).toBe(true);
+    });
+
+    it('self-terminates on startup when nothing is running', async () => {
+      list.mockResolvedValue({ count: 0, streams: [] });
+      service.onModuleInit();
+      await flush();
+      expect(service.isPolling).toBe(false);
     });
   });
 

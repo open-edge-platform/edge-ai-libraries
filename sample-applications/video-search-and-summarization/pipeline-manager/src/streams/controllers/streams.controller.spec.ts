@@ -15,6 +15,7 @@ import {
   LiveStreamListQueryDto,
   LiveStreamUpdateDto,
 } from '../models/stream.model';
+import { StreamPollerService } from '../services/stream-poller.service';
 import { StreamShimService } from '../services/stream-shim.service';
 import { StreamsController } from './streams.controller';
 
@@ -27,6 +28,7 @@ const axiosErrorWithStatus = (status: number, detail?: string): AxiosError => {
 describe('StreamsController', () => {
   let controller: StreamsController;
   let shim: jest.Mocked<Partial<StreamShimService>>;
+  let poller: jest.Mocked<Partial<StreamPollerService>>;
 
   beforeEach(async () => {
     shim = {
@@ -42,10 +44,14 @@ describe('StreamsController', () => {
       value: true,
       configurable: true,
     });
+    poller = { ensurePolling: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [StreamsController],
-      providers: [{ provide: StreamShimService, useValue: shim }],
+      providers: [
+        { provide: StreamShimService, useValue: shim },
+        { provide: StreamPollerService, useValue: poller },
+      ],
     }).compile();
 
     controller = module.get<StreamsController>(StreamsController);
@@ -60,6 +66,27 @@ describe('StreamsController', () => {
         stream: { id: 'a' },
       });
       expect(shim.create).toHaveBeenCalledWith(body);
+      expect(poller.ensurePolling).toHaveBeenCalledTimes(1);
+    });
+
+    it('starts the poller after a successful create', async () => {
+      (shim.create as jest.Mock).mockResolvedValue({ stream: { id: 'a' } });
+      await controller.create({
+        stream_url: 'rtsp://cam/1',
+      } as LiveStreamCreateDto);
+      expect(poller.ensurePolling).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not start the poller when create fails', async () => {
+      (shim.create as jest.Mock).mockRejectedValue(
+        axiosErrorWithStatus(400),
+      );
+      await expect(
+        controller.create({
+          stream_url: 'rtsp://cam/1',
+        } as LiveStreamCreateDto),
+      ).rejects.toBeDefined();
+      expect(poller.ensurePolling).not.toHaveBeenCalled();
     });
 
     it('forwards the purge flags on delete', async () => {

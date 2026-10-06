@@ -32,8 +32,10 @@ import {
   LiveStreamListRO,
   LiveStreamPurgeQueryDto,
   LiveStreamRO,
+  LiveStreamState,
   LiveStreamUpdateDto,
 } from '../models/stream.model';
+import { StreamPollerService } from '../services/stream-poller.service';
 import { StreamShimService } from '../services/stream-shim.service';
 
 /**
@@ -62,7 +64,10 @@ import { StreamShimService } from '../services/stream-shim.service';
 export class StreamsController {
   private readonly logger = new Logger(StreamsController.name);
 
-  constructor(private readonly $shim: StreamShimService) {}
+  constructor(
+    private readonly $shim: StreamShimService,
+    private readonly $poller: StreamPollerService,
+  ) {}
 
   /**
    * Translate an upstream failure into the matching Nest exception.
@@ -121,7 +126,11 @@ export class StreamsController {
   @ApiResponse({ status: 202, description: 'Stream registered.' })
   async create(@Body() body: LiveStreamCreateDto): Promise<LiveStreamRO> {
     try {
-      return await this.$shim.create(body);
+      const result = await this.$shim.create(body);
+      // Kick the poller so watched-query refresh works during live ingestion
+      // even if nobody has the Live Streams view open.
+      this.$poller.ensurePolling();
+      return result;
     } catch (error) {
       this.fail(error, 'create');
     }
@@ -134,7 +143,9 @@ export class StreamsController {
     @Body() body: LiveStreamBatchCreateDto,
   ): Promise<LiveStreamBatchRO> {
     try {
-      return await this.$shim.createBatch(body);
+      const result = await this.$shim.createBatch(body);
+      this.$poller.ensurePolling();
+      return result;
     } catch (error) {
       this.fail(error, 'batch create');
     }
@@ -171,7 +182,12 @@ export class StreamsController {
     @Body() body: LiveStreamUpdateDto,
   ): Promise<LiveStreamRO> {
     try {
-      return await this.$shim.update(streamId, body);
+      const result = await this.$shim.update(streamId, body);
+      // Resuming a paused stream must restart the poll loop if it had idled.
+      if (body.state === LiveStreamState.RUNNING) {
+        this.$poller.ensurePolling();
+      }
+      return result;
     } catch (error) {
       this.fail(error, 'update');
     }
