@@ -1,21 +1,22 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Wall-clock segment bucketing shared by the live recorder and the embedding pipeline.
+"""Wall-clock segment naming shared by the live recorder and the embedding pipeline.
 
 A live stream is recorded as a series of fixed-length video segments so that a
-retrieval hit on a live frame has something playable. The embedding pipeline and
-the recorder run independently (separate threads, separate connections), so they
-must agree on which segment a given instant belongs to *without* coordinating.
+retrieval hit on a live frame has something playable. Segments are *named* by
+wall-clock bucket: a segment starts at ``floor(now / duration) * duration``.
+Deriving the object name from a timestamp alone keeps URLs and retention stable
+and lets the retention sweeper reason about a segment's age from its name.
 
-They do that by bucketing absolute epoch time: a segment starts at
-``floor(now / duration) * duration``. Both sides derive the same identifier and
-object name from a timestamp alone, so embeddings reference the correct segment
-with no shared state.
-
-The trade-off is a possible one-segment skew for a frame embedded within a few
-milliseconds of a boundary; that is acceptable for playback and avoids
-serializing the two paths.
+The embedding and the recorded segment now ride a *single* RTSP connection: the
+decode loop tees every demuxed packet to the recorder (see
+``core.embedding.decoder`` and ``core.live.recorder``). Because both the frame
+and its segment come from one demux, the in-segment playback **seek** is a pure
+presentation-timestamp delta (``frame_media_pts - segment_first_pts``) on a
+shared clock and cannot drift. Only the segment *name* uses wall-clock bucketing;
+the seek never does. The recorder maps a frame's ``media_pts`` back to its
+covering segment via ``resolve_segment``.
 """
 
 from __future__ import annotations
@@ -25,9 +26,6 @@ from typing import Optional
 
 #: Storage prefix (under a stream's directory) holding recorded segments.
 SEGMENT_PREFIX = "segments"
-
-#: Storage prefix (under a stream's directory) holding sampled frames.
-FRAME_PREFIX = "frames"
 
 
 def segment_start(epoch_seconds: Optional[float] = None, duration_seconds: int = 10) -> float:
@@ -45,8 +43,3 @@ def segment_id(stream_id: str, start_epoch: float) -> str:
 def segment_object_name(stream_id: str, start_epoch: float) -> str:
     """Return the storage object name of a stream's segment."""
     return f"{stream_id}/{SEGMENT_PREFIX}/{int(start_epoch)}.mp4"
-
-
-def frame_object_name(stream_id: str, start_epoch: float, frame_number: int) -> str:
-    """Return the storage object name of a sampled frame."""
-    return f"{stream_id}/{FRAME_PREFIX}/{int(start_epoch)}_{int(frame_number):09d}.jpg"

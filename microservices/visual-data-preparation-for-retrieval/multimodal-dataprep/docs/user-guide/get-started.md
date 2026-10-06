@@ -43,11 +43,10 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
 | `MM_DATAPREP_LIVE_STREAM_ENABLED` | Optional | `true` | Enables the live (RTSP) stream CRUD endpoints and their background workers. |
 | `MM_DATAPREP_LIVE_STREAM_STATE_PATH` | Optional | `/tmp/dataprep/live_streams.db` | SQLite registry of live-stream registrations. Keep it on a persisted volume so streams survive a restart. |
-| `MM_DATAPREP_LIVE_STREAM_BUCKET` | Optional | `live-streams` | Bucket (or local directory) holding recorded live segments and frames. Live embeddings use this as their `bucket_name`. |
+| `MM_DATAPREP_LIVE_STREAM_BUCKET` | Optional | `live-streams` | Bucket (or local directory) holding recorded live segments. Live embeddings use this as their `bucket_name`. |
 | `MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT` | Optional | `8` | Maximum simultaneously ingesting streams. Further `POST /media/streams` calls return `503`. |
 | `MM_DATAPREP_LIVE_SEGMENT_DURATION_SECONDS` | Optional | `10` | Length of each recorded MP4 playback segment. |
 | `MM_DATAPREP_LIVE_STORE_SEGMENTS` | Optional | `true` | Record MP4 segments (remuxed, not re-encoded) for playback. |
-| `MM_DATAPREP_LIVE_STORE_FRAMES` | Optional | `true` | Store sampled JPEG frames alongside the segments. Sampling reuses `MM_DATAPREP_FRAME_INTERVAL`. |
 | `MM_DATAPREP_LIVE_BATCH_MAX_AGE_SECONDS` | Optional | `20` | Flush a partially filled frame batch from a live source once its oldest frame reaches this age. A live stream never reaches end-of-stream, so without this the pipeline waits for a full `MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE` batch before producing any embedding. `0` disables the timer. |
 | `MM_DATAPREP_LIVE_RECONNECT_INTERVAL_SECONDS` | Optional | `5` | Delay between reconnect attempts after a live source drops. |
 | `MM_DATAPREP_LIVE_RECONNECT_MAX_ATTEMPTS` | Optional | `10` | Reconnect budget before a stream is marked `error`. `0` retries forever. |

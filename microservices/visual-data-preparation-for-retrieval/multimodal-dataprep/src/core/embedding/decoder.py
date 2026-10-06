@@ -15,11 +15,11 @@ import queue
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
 from fractions import Fraction
 from multiprocessing import shared_memory
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Protocol, Tuple, Union, runtime_checkable
 
 import av
 import numpy as np
@@ -53,6 +53,7 @@ def _get_video_config():
 
         class FallbackSettings:
             VIDEO_FRAME_LOG_LEVEL = os.getenv("MM_DATAPREP_VIDEO_FRAME_LOG_LEVEL", "INFO")
+            VIDEO_FRAME_TRANSPORT = os.getenv("MM_DATAPREP_VIDEO_FRAME_TRANSPORT", "shm")
             VIDEO_FRAME_DECODER_WORKERS = int(
                 os.getenv("MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS", "6")
             )
@@ -254,9 +255,26 @@ class FrameMetadata:
     #: batched frame be mapped to the segment that actually covers it even when
     #: the batch spans several segments. ``None`` for non-live sources.
     ingest_epoch: Optional[float] = None
+    #: Presentation timestamp of this frame in seconds (``frame.pts * time_base``),
+    #: derived from the *same* demux that feeds the segment recorder. Live
+    #: playback seek is computed as ``media_pts - segment_first_pts`` so the
+    #: embedding and its recorded segment share one clock and cannot drift (the
+    #: two previously used independent RTSP connections / wall clocks). ``None``
+    #: for non-live sources and when PTS is unavailable.
+    media_pts: Optional[float] = None
+    #: Heap transport only (``VIDEO_FRAME_TRANSPORT=heap``): the decoded RGB
+    #: frame carried by reference through the in-process queues instead of a
+    #: shared-memory block. ``None`` for the shm transport, where ``shm`` names
+    #: the block instead. The consumer (`_map_shared_frame`) prefers this field
+    #: when present and pops it before the metadata is persisted.
+    array: Optional["np.ndarray"] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        # Deliberately NOT ``asdict``: asdict deep-copies every field, which for
+        # the heap transport would copy the full frame ndarray on every batch
+        # (defeating the point of heap transport). A shallow field copy keeps the
+        # array a reference, matching the zero-copy queue handoff.
+        return {f.name: getattr(self, f.name) for f in fields(self)}
 
 
 @dataclass(frozen=True)
@@ -398,12 +416,32 @@ def convert_and_store_frame(
     stream_id: int,
     frame_id: int,
     frame: tuple[int, av.video.frame.VideoFrame],
-    shm_pool: SharedMemoryPool,
+    shm_pool: Optional[SharedMemoryPool],
     capture_epoch: Optional[float] = None,
     capture_time_source: Optional[str] = None,
     ingest_epoch: Optional[float] = None,
+    media_pts: Optional[float] = None,
 ):
     rgb = frame.to_ndarray(format="rgb24")
+
+    # Heap transport: carry the decoded frame by reference through the in-process
+    # queues. No shared-memory block is acquired, so the fixed-capacity pool can
+    # never exhaust and nothing is written to /dev/shm. Valid because the whole
+    # decode -> detect -> embed path runs in one process; the embedding SDK is an
+    # in-process call, not a cross-process boundary.
+    if shm_pool is None:
+        return FrameMetadata(
+            stream_id=stream_id,
+            frame_id=frame_id,
+            shm="",
+            shape=str(rgb.shape),
+            dtype=rgb.dtype.name,
+            capture_epoch=capture_epoch,
+            capture_time_source=capture_time_source,
+            ingest_epoch=ingest_epoch,
+            media_pts=media_pts,
+            array=rgb,
+        )
 
     required_bytes = rgb.nbytes
     if required_bytes > shm_pool.block_size:
@@ -432,7 +470,25 @@ def convert_and_store_frame(
         capture_epoch=capture_epoch,
         capture_time_source=capture_time_source,
         ingest_epoch=ingest_epoch,
+        media_pts=media_pts,
     )
+
+
+@runtime_checkable
+class PacketSink(Protocol):
+    """A consumer of raw demuxed packets, teed off the live decode loop.
+
+    The live RTSP path uses a single RTSP connection for both embedding and
+    segment recording: ``decode_stream_and_batch_generator`` hands every demuxed
+    packet to a sink (the segment muxer) *after* it has decoded the packet for
+    embedding, so the sink may take ownership (muxing rebinds ``packet.stream``).
+    ``submit`` must be non-blocking so a slow storage write never stalls decode.
+    """
+
+    def submit(
+        self, packet: "av.packet.Packet", pts_seconds: "Optional[float]" = None
+    ) -> None:  # pragma: no cover - protocol
+        ...
 
 
 def decode_stream_and_batch_generator(
@@ -443,6 +499,7 @@ def decode_stream_and_batch_generator(
     batch_size: int | None = None,
     shutdown_event: threading.Event | None = None,
     tracer: Optional[Tracer] = None,
+    packet_sink: Optional["PacketSink"] = None,
 ) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
 
     if batch_size is None:
@@ -467,6 +524,7 @@ def decode_stream_and_batch_generator(
                     capture_epoch=item[2] if len(item) > 2 else None,
                     capture_time_source=item[3] if len(item) > 3 else None,
                     ingest_epoch=item[4] if len(item) > 4 else None,
+                    media_pts=item[5] if len(item) > 5 else None,
                 ),
                 batch,
             )
@@ -531,8 +589,19 @@ def decode_stream_and_batch_generator(
                 try:
                     frames = packet.decode()
                 except av.AVError:
-                    # RTSP transient decode failure — continue
-                    continue
+                    # RTSP transient decode failure — keep the packet for the
+                    # segment muxer (it remuxes without decoding) but produce no
+                    # frames to embed from it.
+                    frames = []
+
+                # Presentation time of this packet in seconds, shared with the
+                # segment muxer so playback seek never drifts (both derive from
+                # this one demux). ``None`` if the source omits PTS.
+                packet_pts = (
+                    float(packet.pts * stream.time_base)
+                    if packet.pts is not None and stream.time_base is not None
+                    else None
+                )
 
                 batch_start_time = now_us()
                 for frame in frames:
@@ -553,16 +622,28 @@ def decode_stream_and_batch_generator(
                         continue
 
                     capture_epoch, capture_source = capture_clock.capture_epoch(frame)
-                    # Host wall-clock at the instant this frame is sampled. This
-                    # is the clock the recorder buckets segments on, so it -- not
-                    # the batch-processing time -- is what maps a frame to its
-                    # covering segment. Captured per frame so a batch spanning
-                    # multiple segments is split across them correctly.
+                    # Host wall-clock at the instant this frame is sampled. Kept
+                    # for retention/age filtering and external correlation; the
+                    # segment playback seek now rides ``media_pts`` instead (see
+                    # FrameMetadata.media_pts), so it no longer depends on two
+                    # connections agreeing on a wall clock.
                     ingest_epoch = time.time()
+                    frame_pts = (
+                        float(frame.pts * stream.time_base)
+                        if frame.pts is not None and stream.time_base is not None
+                        else packet_pts
+                    )
                     if not batch:
                         batch_opened_at = time.monotonic()
                     batch.append(
-                        (global_frame_idx, frame, capture_epoch, capture_source, ingest_epoch)
+                        (
+                            global_frame_idx,
+                            frame,
+                            capture_epoch,
+                            capture_source,
+                            ingest_epoch,
+                            frame_pts,
+                        )
                     )
                     global_frame_idx += 1
 
@@ -597,6 +678,19 @@ def decode_stream_and_batch_generator(
                         batch.clear()
                         batch_opened_at = None
                         batch_id += 1
+
+                # Hand the fully-decoded packet to the segment muxer. Done after
+                # decoding so the sink may take ownership (muxing rebinds
+                # packet.stream). A sink error must never disturb embedding.
+                if packet_sink is not None:
+                    try:
+                        packet_sink.submit(packet, packet_pts)
+                    except Exception:  # noqa: BLE001 - recording must never stop embedding
+                        logger.debug(
+                            "Segment sink rejected a packet for stream %s",
+                            stream_id,
+                            exc_info=True,
+                        )
 
             # Final drain (only on shutdown or true EOS)
             if batch:
@@ -836,6 +930,7 @@ class VideoFrameExtractor:
         shm_pool: SharedMemoryPool | None = None,
         shutdown_event: threading.Event | None = None,
         tracer: Tracer | None = None,
+        packet_sink: Optional[PacketSink] = None,
     ):
         self.configs = configs
 
@@ -858,6 +953,9 @@ class VideoFrameExtractor:
 
         self.shm_pool = shm_pool
         self.tracer = tracer
+        #: Optional per-session packet sink (live RTSP only) that receives every
+        #: demuxed packet for segment recording off the single decode connection.
+        self.packet_sink = packet_sink
         # Use external shutdown_event if provided, else create internal one
         self._shutdown = shutdown_event
 
@@ -982,6 +1080,7 @@ class VideoFrameExtractor:
                     batch_size=self.configs[video_index].batch_size,
                     shutdown_event=self._shutdown,
                     tracer=self.tracer,
+                    packet_sink=self.packet_sink,
                 )
             else:
                 stream_gen = decode_and_batch_generator(

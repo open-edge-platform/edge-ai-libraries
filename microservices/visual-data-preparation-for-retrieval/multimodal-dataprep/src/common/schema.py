@@ -747,7 +747,6 @@ class LiveStreamStats(BaseModel):
     frames_processed: int = 0
     embeddings_created: int = 0
     segments_stored: int = 0
-    frames_stored: int = 0
     reconnect_count: int = 0
     last_frame_ts: Optional[float] = None
     started_ts: Optional[float] = None

@@ -60,9 +60,8 @@ POST /media/streams ──> LiveStreamManager ──> LiveStreamStore (SQLite, d
                                 │
                                 └─> LiveStreamWorker (supervisor thread)
                                       ├─> generate_rtsp_video_embedding_pipeline  (decode → detect → embed → store)
-                                      └─> LiveMediaRecorder (second RTSP connection)
-                                            ├─> N-second MP4 segments  ──> <live bucket>/<stream_id>/segments/<epoch>.mp4
-                                            └─> sampled JPEG frames    ──> <live bucket>/<stream_id>/frames/<epoch>_<n>.jpg
+                                      └─> SegmentMuxSink (fed by the same decode connection)
+                                            └─> N-second MP4 segments  ──> <live bucket>/<stream_id>/segments/<epoch>.mp4
 ```
 
 Key design points:

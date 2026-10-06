@@ -30,7 +30,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from src.common import logger, sanitize_for_log, settings
 from src.common.schema import LiveStreamStateEnum
 from src.core.live.models import LiveStream
-from src.core.live.segments import FRAME_PREFIX, SEGMENT_PREFIX
+from src.core.live.segments import SEGMENT_PREFIX
 from src.core.live.store import LiveStreamStore, get_live_stream_store
 from src.core.live.urls import redact_stream_url, validate_stream_url
 from src.core.live.worker import LiveStreamWorker
@@ -467,7 +467,7 @@ def _object_is_older_than(object_name: str, cutoff_epoch: float) -> bool:
     if not object_name:
         return False
     parts = object_name.split("/")
-    if len(parts) < 3 or parts[1] not in (SEGMENT_PREFIX, FRAME_PREFIX):
+    if len(parts) < 3 or parts[1] != SEGMENT_PREFIX:
         return False
     stem = parts[-1].split(".")[0]
     epoch_token = stem.split("_")[0]

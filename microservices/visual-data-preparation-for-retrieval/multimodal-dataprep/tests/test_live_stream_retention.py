@@ -16,7 +16,7 @@ from src.core.live.retention import (
     get_retention_sweeper,
     reset_retention_sweeper,
 )
-from src.core.live.segments import frame_object_name, segment_object_name, segment_start
+from src.core.live.segments import segment_object_name, segment_start
 from src.core.live.store import InMemoryLiveStreamStore
 from src.core.live.urls import redact_stream_url
 
@@ -142,7 +142,6 @@ def test_media_object_names_never_embed_the_url():
     start = segment_start(1_000_000.0, 10)
 
     assert PASSWORD not in segment_object_name(stream.stream_id, start)
-    assert PASSWORD not in frame_object_name(stream.stream_id, start, 1)
 
 
 def test_redaction_is_stable_under_repeated_application():

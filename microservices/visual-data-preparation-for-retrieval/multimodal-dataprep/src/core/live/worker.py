@@ -30,9 +30,10 @@ from src.common import logger, sanitize_for_log, settings
 from src.common.schema import LiveStreamStateEnum
 from src.core.live.clock_check import log_clock_skew
 from src.core.live.models import LiveStream
-from src.core.live.recorder import LiveMediaRecorder
+from src.core.live.recorder import SegmentMuxSink
 from src.core.live.segments import segment_object_name
 from src.core.live.urls import redact_stream_url
+from src.core.metrics_manager import publish_embeddings_throughput
 
 #: How often the worker refreshes recorder-derived stats while a session runs.
 _STATS_REFRESH_SECONDS = 5.0
@@ -50,12 +51,12 @@ class LiveStreamWorker:
         *,
         on_update: Callable[[LiveStream], None],
         pipeline: Optional[Callable[..., Dict[str, Any]]] = None,
-        recorder_factory: Optional[Callable[..., LiveMediaRecorder]] = None,
+        recorder_factory: Optional[Callable[..., SegmentMuxSink]] = None,
     ) -> None:
         self.stream = stream
         self._on_update = on_update
         self._pipeline = pipeline
-        self._recorder_factory = recorder_factory or LiveMediaRecorder
+        self._recorder_factory = recorder_factory or SegmentMuxSink
 
         self._thread: Optional[threading.Thread] = None
         #: Set when the worker should exit entirely.
@@ -182,12 +183,18 @@ class LiveStreamWorker:
         }
         if recorder is not None:
             # Let the pipeline map each frame to the segment that actually
-            # covers it. Segments are cut on keyframes, so a pure time-bucket
-            # guess would reference files that were never written when the GOP
-            # exceeds the segment duration.
-            resolver = getattr(recorder, "resolve_segment_start", None)
+            # covers it. The single-connection sink exposes resolve_segment,
+            # which returns (segment_wall_start, segment_first_pts) keyed by the
+            # frame's presentation time -- so the URL comes from the wall-clock
+            # bucket (stable naming) and the playback seek is an exact PTS delta.
+            resolver = getattr(recorder, "resolve_segment", None)
             if callable(resolver):
-                live["segment_start_resolver"] = resolver
+                live["segment_resolver"] = resolver
+            # Legacy wall-clock resolver kept as a fallback for recorders that do
+            # not expose the PTS-based one.
+            legacy_resolver = getattr(recorder, "resolve_segment_start", None)
+            if callable(legacy_resolver):
+                live["segment_start_resolver"] = legacy_resolver
 
         return {
             "bucket_name": bucket,
@@ -297,7 +304,6 @@ class LiveStreamWorker:
             stream_url=self.stream.stream_url,
             bucket_name=self.stream.bucket_name or settings.LIVE_STREAM_BUCKET,
             shutdown_event=self._session_shutdown,
-            frame_interval=self.stream.frame_interval,
         )
         recorder.start()
 
@@ -329,6 +335,10 @@ class LiveStreamWorker:
                         detection_confidence=self.stream.detection_confidence,
                         shutdown_event=self._session_shutdown,
                         progress_callback=_on_batch_stored,
+                        # Single RTSP connection: the decode loop tees every
+                        # packet to the recorder, so the embedding and the
+                        # recorded segment share one clock (no playback drift).
+                        packet_sink=recorder,
                     )
                     or {}
                 )
@@ -349,21 +359,43 @@ class LiveStreamWorker:
 
         # Keep recorder-derived counters fresh while the session runs, so
         # GET /media/streams/{id} reports progress instead of going silent.
+        # Live ingestion is continuous and never hits the file path's
+        # end-of-request telemetry publish, so the embeddings/second metric would
+        # stay blank for the whole stream. Publish a ROLLING rate each refresh
+        # tick (embeddings stored in the interval / wall-clock elapsed) so Metrics
+        # Manager -- and the VSS telemetry panel -- track a live stream in real
+        # time instead of only at session end.
+        last_publish_ts = session_started_ts
+        last_publish_embeddings = session_start_embeddings
         while session_thread.is_alive():
             session_thread.join(timeout=_STATS_REFRESH_SECONDS)
             self.stream.stats.segments_stored = recorder.stats.segments_stored
-            self.stream.stats.frames_stored = recorder.stats.frames_stored
-            if recorder.stats.frames_stored or recorder.stats.segments_stored:
+            # Segments only close every ~N seconds; use embedding progress as the
+            # liveness signal so GET does not look stalled between segment cuts.
+            if (
+                self.stream.stats.frames_processed > session_start_frames
+                or recorder.stats.segments_stored
+            ):
                 self.stream.stats.last_frame_ts = time.time()
             self._persist()
 
+            now_ts = time.time()
+            elapsed = now_ts - last_publish_ts
+            if elapsed > 0:
+                delta = self.stream.stats.embeddings_created - last_publish_embeddings
+                publish_embeddings_throughput(max(0.0, delta / elapsed), now_ts)
+                last_publish_ts = now_ts
+                last_publish_embeddings = self.stream.stats.embeddings_created
+
+        # Pipeline (and thus the single decode connection) has ended; flush the
+        # open segment before tearing the session down.
         self._session_shutdown.set()
+        recorder.close()
         recorder.join(timeout=_STOP_JOIN_TIMEOUT_SECONDS)
 
         # frames_processed/embeddings_created are already accumulated per batch by
         # _on_batch_stored; adding the final totals here would double-count them.
         self.stream.stats.segments_stored = recorder.stats.segments_stored
-        self.stream.stats.frames_stored = recorder.stats.frames_stored
         self._persist()
 
         self._record_telemetry(

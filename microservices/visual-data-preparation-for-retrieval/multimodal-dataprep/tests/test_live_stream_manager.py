@@ -329,9 +329,12 @@ class FakeRecorder:
 
     def __init__(self, **kwargs) -> None:
         self.kwargs = kwargs
-        self.stats = type("S", (), {"segments_stored": 2, "frames_stored": 5})()
+        self.stats = type("S", (), {"segments_stored": 2})()
 
     def start(self) -> None:
+        pass
+
+    def close(self) -> None:
         pass
 
     def join(self, timeout: Optional[float] = None) -> None:
@@ -364,19 +367,20 @@ def test_worker_metadata_gives_live_embeddings_a_real_identity():
 
 def test_worker_wires_the_recorders_segment_resolver_into_the_pipeline():
     """When a recorder is supplied, the pipeline must resolve frames against the
-    recorder's real segment boundaries, not a guessed time bucket."""
+    recorder's real segment boundaries (PTS-anchored), not a guessed time
+    bucket."""
     worker = _worker(lambda **_: {})
 
     class FakeRecorderWithResolver:
-        def resolve_segment_start(self, epoch):
-            return 42.0
+        def resolve_segment(self, media_pts):
+            return (42.0, 7.5)
 
     live = worker._metadata_dict(FakeRecorderWithResolver())["live"]
-    assert callable(live["segment_start_resolver"])
-    assert live["segment_start_resolver"](123.0) == 42.0
+    assert callable(live["segment_resolver"])
+    assert live["segment_resolver"](123.0) == (42.0, 7.5)
 
     # Without a recorder the resolver is absent and the pipeline falls back.
-    assert "segment_start_resolver" not in worker._metadata_dict()["live"]
+    assert "segment_resolver" not in worker._metadata_dict()["live"]
 
 
 def test_worker_segment_url_builder_points_at_the_recorded_segment():
@@ -418,7 +422,6 @@ def test_worker_runs_the_pipeline_and_accumulates_stats(monkeypatch):
     assert worker.stream.stats.embeddings_created == 3
     assert worker.stream.stats.frames_processed == 30
     assert worker.stream.stats.segments_stored == 2
-    assert worker.stream.stats.frames_stored == 5
     # The pipeline returning on its own means the source went away.
     assert error is not None
 

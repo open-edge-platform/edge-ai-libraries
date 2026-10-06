@@ -2727,10 +2727,6 @@ components:
           type: integer
           title: Segments Stored
           default: 0
-        frames_stored:
-          type: integer
-          title: Frames Stored
-          default: 0
         reconnect_count:
           type: integer
           title: Reconnect Count

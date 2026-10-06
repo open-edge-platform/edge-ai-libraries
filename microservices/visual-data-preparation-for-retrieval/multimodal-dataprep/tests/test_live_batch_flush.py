@@ -88,7 +88,7 @@ class TestLiveBatchFlush:
         clock = {"t": 0.0}
         monkeypatch.setattr(decoder_mod.time, "monotonic", lambda: clock["t"])
 
-        frames = [object() for _ in range(frame_count)]
+        frames = [type("F", (), {"pts": None})() for _ in range(frame_count)]
         packets = [_FakePacket([f]) for f in frames]
         container = _FakeContainer(packets, clock)
 
@@ -168,6 +168,7 @@ class _FakeShmPool:
 class _FakePacket:
     def __init__(self, frames):
         self.dts = 0
+        self.pts = None
         self._frames = frames
 
     def decode(self):
@@ -177,6 +178,7 @@ class _FakePacket:
 class _FakeStream:
     thread_type = "AUTO"
     skip_frame = None
+    time_base = None
 
 
 class _FakeContainer:

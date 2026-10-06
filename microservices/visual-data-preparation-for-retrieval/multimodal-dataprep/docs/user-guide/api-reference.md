@@ -765,8 +765,9 @@ curl -X DELETE "http://localhost:8000/v1/dataprep/media/my-bucket/video-dir-001"
 A live stream is a **long-lived resource**, not a request: registering one
 returns immediately and a background worker keeps decoding, embedding, and
 storing frames until the stream is paused or deleted. The worker reconnects on
-transport failures and records playback media (N-second MP4 segments and
-sampled JPEG frames) so a retrieval hit on a live frame is playable.
+transport failures and records playback media (N-second MP4 segments,
+remuxed off the single decode connection) so a retrieval hit on a live frame
+is playable.
 
 **Identity.** Every live embedding and media object is stored under
 `bucket_name = MM_DATAPREP_LIVE_STREAM_BUCKET` (default `live-streams`) and
@@ -823,7 +824,6 @@ Register an RTSP stream and start ingesting it.
               "frames_processed": 0,
               "embeddings_created": 0,
               "segments_stored": 0,
-              "frames_stored": 0,
               "reconnect_count": 0
           }
       }
@@ -886,7 +886,7 @@ List registered streams with their state and ingestion counters.
 ### `GET /media/streams/{stream_id}`
 
 Return one stream, including `stats` (frames processed, embeddings created,
-segments and frames stored, reconnect count, uptime, last frame time) and
+segments stored, reconnect count, uptime, last frame time) and
 `last_error`.
 
 - 200 OK / 404 Not Found.
@@ -925,7 +925,7 @@ decommissioned.
 | Parameter          | Type    | Default | Description                                        |
 | ------------------ | ------- | ------- | -------------------------------------------------- |
 | `purge_embeddings` | boolean | `false` | Also delete every vector generated from the stream. |
-| `purge_media`      | boolean | `false` | Also delete the stream's recorded segments and frames. |
+| `purge_media`      | boolean | `false` | Also delete the stream's recorded segments. |
 
 - 200 OK:
 

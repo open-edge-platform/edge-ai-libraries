@@ -9,7 +9,7 @@ import pytest
 
 from src.common.schema import LiveStreamStateEnum
 from src.core.live.models import LiveStream
-from src.core.live.segments import frame_object_name, segment_id, segment_object_name, segment_start
+from src.core.live.segments import segment_id, segment_object_name, segment_start
 from src.core.live.store import (
     InMemoryLiveStreamStore,
     SqliteLiveStreamStore,
@@ -108,14 +108,6 @@ def test_segment_object_names_are_stable_and_prefixed_by_stream():
     start = segment_start(1234.5, 10)
     assert segment_object_name("abc", start) == "abc/segments/1230.mp4"
     assert segment_id("abc", start) == "abc_1230"
-    assert frame_object_name("abc", start, 7).startswith("abc/frames/")
-    assert frame_object_name("abc", start, 7).endswith(".jpg")
-
-
-def test_frame_object_names_sort_in_capture_order():
-    start = segment_start(1234.5, 10)
-    names = [frame_object_name("abc", start, i) for i in (2, 10, 1)]
-    assert sorted(names) == [frame_object_name("abc", start, i) for i in (1, 2, 10)]
 
 
 # --------------------------------------------------------------------------

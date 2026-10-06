@@ -1201,6 +1201,7 @@ def _process_video_from_memory_simple_pipeline(
     detection_confidence: float,
     shutdown_event: Optional[threading.Event] = None,
     progress_callback: Optional[Callable[[int, int], None]] = None,
+    packet_sink: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
     Process a video source using the simple parallel pipeline approach.
@@ -1213,6 +1214,10 @@ def _process_video_from_memory_simple_pipeline(
     ``progress_callback`` is invoked as ``(frames_in_batch, embeddings_stored)``
     after each batch is persisted. Endless sources never reach the final return,
     so it is the only way a caller can observe progress on a live stream.
+
+    ``packet_sink`` (live RTSP only) receives every demuxed packet off the single
+    decode connection for segment recording; ``None`` on file/image/batch paths
+    leaves decoding untouched.
     """
     method_start_time = now_us()
 
@@ -1233,9 +1238,24 @@ def _process_video_from_memory_simple_pipeline(
         tracer.set_process_name("decode_detect_embed_store_pipeline")
 
         logger.info("Initializing shared memory pools for frames and detected crops...")
-        _shm_pool = SharedMemoryPool(
-            max_blocks=settings.VIDEO_SHM_MAX_BLOCKS,
-            block_size=settings.VIDEO_SHM_BLOCK_SIZE,
+        # Frame transport: 'shm' uses the POSIX shared-memory pool; 'heap' passes
+        # frame ndarrays by reference through the in-process queues, so no pool is
+        # allocated and /dev/shm is untouched. Crops follow the frame transport:
+        # in heap mode the crop pool is also skipped and crops ride the existing
+        # heap fallback in the detection path.
+        use_heap_transport = settings.VIDEO_FRAME_TRANSPORT == "heap"
+        if use_heap_transport:
+            logger.info(
+                "Frame transport = heap: skipping shared-memory pools "
+                "(no /dev/shm usage, pool exhaustion impossible)."
+            )
+        _shm_pool = (
+            None
+            if use_heap_transport
+            else SharedMemoryPool(
+                max_blocks=settings.VIDEO_SHM_MAX_BLOCKS,
+                block_size=settings.VIDEO_SHM_BLOCK_SIZE,
+            )
         )
         # Crops are a fraction of a full frame, so the crop pool gets half-sized
         # blocks and twice as many of them: the same memory as the frame-sized pool
@@ -1248,7 +1268,7 @@ def _process_video_from_memory_simple_pipeline(
                     settings.VIDEO_CROP_SHM_BLOCK_SIZE or max(1, _shm_pool.block_size // 2)
                 ),
             )
-            if enable_object_detection
+            if enable_object_detection and not use_heap_transport
             else None
         )
 
@@ -1273,6 +1293,7 @@ def _process_video_from_memory_simple_pipeline(
             shm_pool=_shm_pool,
             shutdown_event=shutdown_event,
             tracer=tracer,
+            packet_sink=packet_sink,
         )
         all_stream_metadata = extractor.get_metadata()
         logger.info(f"Extracted metadata for all streams: {all_stream_metadata}")
@@ -1373,6 +1394,11 @@ def _process_video_from_memory_simple_pipeline(
         )
         live_segment_url_builder = live_context.get("segment_url_builder")
         live_segment_start_resolver = live_context.get("segment_start_resolver")
+        # Preferred resolver (single-connection recorder): maps a frame's
+        # presentation time (media_pts) to ``(segment_wall_start,
+        # segment_first_pts)`` so the playback seek is a pure PTS delta on one
+        # shared clock. Falls back to the wall-clock resolver above when absent.
+        live_segment_resolver = live_context.get("segment_resolver")
 
         # Ensure created_at exists for downstream time filtering
         created_at_value = metadata_dict.get("created_at", None)
@@ -1405,7 +1431,7 @@ def _process_video_from_memory_simple_pipeline(
             for i, (batch_frame_metadata, batch_times) in enumerate(frame_generator):
 
                 logger.info(f"Processing batch {i} of frames")
-                logger.info(_shm_pool.stats())
+                logger.info(_shm_pool.stats() if _shm_pool else "Frame transport = heap (no shm pool)")
                 logger.info(_crop_pool.stats() if _crop_pool else "No crop pool configured")
                 logger.info(
                     f"Detection queue size: {detection_meta_queue.qsize()}, Embed queue size: {embed_sink_queue.qsize()}, Result queue size: {result_queue.qsize()}"
@@ -1419,36 +1445,53 @@ def _process_video_from_memory_simple_pipeline(
 
                 def extend_frame_metadata(frame_metadata):
                     stream_metadata = all_stream_metadata[frame_metadata["stream_id"]]
-                    # For a live stream, positional metadata is wall-clock based:
-                    # the frame belongs to whichever recorded segment covers the
-                    # instant it was ingested (see core.live.segments).
-                    #
-                    # Segment bucketing deliberately stays on ingest time: the
-                    # recorder buckets by its own wall clock, and the two must
-                    # agree on which segment a frame lands in. Capture time is
+                    # For a live stream, positional metadata locates the frame
+                    # within its recorded segment. The embedding and the recorded
+                    # segment ride ONE decode connection, so the in-segment seek
+                    # is a pure PTS delta on a shared clock (see the recorder's
+                    # resolve_segment) and cannot drift. The segment is still
+                    # NAMED by wall-clock bucket (stable URLs/retention); only the
+                    # seek offset uses PTS. Capture time is a separate timeline
                     # used only for correlating against externally stored media.
                     #
-                    # Use each frame's OWN host ingest epoch (captured when it was
-                    # sampled in the decoder), not time.time() here. Frames are
-                    # aggregated into batches up to LIVE_BATCH_MAX_AGE_SECONDS, so
-                    # a single batch can span several 10s segments; resolving on
-                    # batch-processing time would collapse every frame onto the
-                    # latest segment. The per-frame ingest epoch maps each frame
-                    # to the segment that actually covers it. Falls back to now
-                    # only if the decoder did not supply one (non-live paths).
+                    # frame_epoch (host wall clock when sampled) is kept for age/
+                    # retention filtering and as the wall-clock fallback resolver
+                    # key. A batch can span several 10s segments, so this is read
+                    # per frame, never from batch-processing time.
                     frame_epoch = frame_metadata.get("ingest_epoch") or time.time()
+                    # Presentation time of this frame on the *same* clock the
+                    # segment recorder muxes packets on (both ride the single
+                    # decode connection). Drives a drift-free in-segment seek.
+                    frame_media_pts = frame_metadata.get("media_pts")
                     frame_segment_start = None
+                    # In-segment playback offset (seconds from the segment start).
+                    # Preferred path: a pure PTS delta on the shared clock, which
+                    # cannot drift. Falls back to the wall-clock delta only when
+                    # PTS or the PTS resolver is unavailable.
+                    segment_seek = None
                     if live_stream_id:
-                        # Prefer the recorder's real segment boundaries: segments
-                        # are cut on keyframes, so a frame can fall inside a
-                        # segment that opened in an earlier time bucket. Fall back
-                        # to time-bucketing only before the first segment exists.
-                        if live_segment_start_resolver is not None:
-                            frame_segment_start = live_segment_start_resolver(frame_epoch)
+                        # Preferred: the single-connection recorder maps the
+                        # frame's media_pts to the covering segment and its
+                        # PTS anchor, so the seek is media_pts - segment_first_pts.
+                        if live_segment_resolver is not None and frame_media_pts is not None:
+                            resolved = live_segment_resolver(frame_media_pts)
+                            if resolved is not None:
+                                segment_wall_start, segment_first_pts = resolved
+                                frame_segment_start = segment_wall_start
+                                segment_seek = max(0.0, frame_media_pts - segment_first_pts)
+                        # Fallback: wall-clock resolver (legacy two-connection
+                        # path / before the first segment exists). Segments are
+                        # cut on keyframes, so a frame can fall inside a segment
+                        # that opened in an earlier time bucket.
                         if frame_segment_start is None:
-                            frame_segment_start = live_segment_start(
-                                frame_epoch, live_segment_seconds
-                            )
+                            if live_segment_start_resolver is not None:
+                                frame_segment_start = live_segment_start_resolver(frame_epoch)
+                            if frame_segment_start is None:
+                                frame_segment_start = live_segment_start(
+                                    frame_epoch, live_segment_seconds
+                                )
+                        if segment_seek is None and frame_segment_start is not None:
+                            segment_seek = max(0.0, frame_epoch - frame_segment_start)
                     frame_capture_epoch = frame_metadata.get("capture_epoch")
                     frame_capture_source = (
                         frame_metadata.get("capture_time_source") or "ingest_estimated"
@@ -1456,6 +1499,19 @@ def _process_video_from_memory_simple_pipeline(
                     if frame_capture_epoch is None:
                         frame_capture_epoch = frame_epoch
                         frame_capture_source = "ingest_estimated"
+                    # Live frames must carry a PER-FRAME created_at. The
+                    # session-level created_at_value is stamped once when the
+                    # stream session starts; reusing it for every frame makes a
+                    # long-running stream's frames look increasingly stale, so a
+                    # "last N minutes" time filter (which queries created_at)
+                    # silently drops them once uptime exceeds N. Derive it from
+                    # frame_epoch (host wall clock when sampled) in local tz to
+                    # match the file-ingest convention the time filter assumes.
+                    frame_created_at = (
+                        datetime.datetime.fromtimestamp(frame_epoch).astimezone().isoformat()
+                        if live_stream_id
+                        else created_at_value
+                    )
                     fm = FrameMetadata(
                         video_index=frame_metadata[
                             "stream_id"
@@ -1470,13 +1526,13 @@ def _process_video_from_memory_simple_pipeline(
                         timestamp=(
                             # Live frames play back from their ~N-second segment,
                             # not the whole stream, so the seek offset must be
-                            # relative to that segment's start (0..segment length)
-                            # -- not the running frame_id/fps counter, which grows
-                            # unboundedly and would clamp every hit to the segment
-                            # end (e.g. 0:09/0:09) and surface as a bogus
-                            # whole-stream timestamp (e.g. 02:13) in grouped views.
-                            max(0.0, frame_epoch - frame_segment_start)
-                            if live_stream_id and frame_segment_start is not None
+                            # relative to that segment's start (0..segment length).
+                            # segment_seek is a PTS delta on the shared decode
+                            # clock -- exact, never the running frame_id/fps
+                            # counter (which grows unboundedly and would clamp
+                            # every hit to the segment end).
+                            segment_seek
+                            if live_stream_id and segment_seek is not None
                             else (
                                 frame_metadata["frame_id"] / float(stream_metadata["fps"])
                                 if stream_metadata["fps"]
@@ -1502,7 +1558,7 @@ def _process_video_from_memory_simple_pipeline(
                             if stream_metadata["video_duration_seconds"]
                             else None
                         ),
-                        created_at=created_at_value,
+                        created_at=frame_created_at,
                         live_stream_id=live_stream_id,
                         live_stream_name=live_stream_name,
                         stream_url=live_stream_url,
@@ -1607,7 +1663,8 @@ def _process_video_from_memory_simple_pipeline(
 
         logger.info("Worker threads have been joined successfully")
 
-        _shm_pool.shutdown()
+        if _shm_pool:
+            _shm_pool.shutdown()
         if _crop_pool:
             _crop_pool.shutdown()
 
@@ -1781,9 +1838,14 @@ def process_frame_detection(
 
 
 def _map_shared_frame(d, to_pil=True):
-    # Crops that missed the shared-memory pool travel on the heap: there is no
-    # handle to close and no block to release, so hand back the array directly.
-    heap_arr = d.pop("array", None)
+    # Heap-transported frames/crops carry their ndarray by reference instead of a
+    # shared-memory block: there is no handle to close and no block to release,
+    # so hand back the array directly. ``.get`` (not ``.pop``) is deliberate —
+    # with object detection enabled a full frame is mapped twice (once by the
+    # detector to crop it, once by the embed worker to embed it), so the array
+    # must survive the first map. The leftover ``array`` key is non-canonical and
+    # is dropped by ``project_to_canonical`` before anything is persisted.
+    heap_arr = d.get("array", None)
     if heap_arr is not None:
         return None, (Image.fromarray(heap_arr) if to_pil else heap_arr), d
 
@@ -1859,7 +1921,7 @@ def allocate_detected_crops(
         mapped.clear()
         # Cleanup mapped shared memory handles
         logger.info(f"Closing {len(shm_handles)} shared memory handles after detection")
-        list(thread_pool.map(lambda shm: shm.close(), shm_handles))
+        list(thread_pool.map(lambda shm: shm.close(), [s for s in shm_handles if s is not None]))
         shm_handles.clear()
 
     return detected_crops_metadata
@@ -2554,6 +2616,7 @@ def generate_rtsp_video_embedding_pipeline(
     detection_confidence: float = 0.85,
     shutdown_event: Optional[threading.Event] = None,
     progress_callback: Optional[Callable[[int, int], None]] = None,
+    packet_sink: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
     Generate RTSP video embeddings with parallel processing.
@@ -2568,6 +2631,8 @@ def generate_rtsp_video_embedding_pipeline(
         progress_callback: Called as ``(frames_in_batch, embeddings_stored)`` after
             each batch is persisted. An RTSP session only returns when the source
             ends, so this is the only progress signal available while it runs.
+        packet_sink: Optional segment-recording sink fed every demuxed packet off
+            the single decode connection (live only).
 
     Returns:
         Dictionary containing processing results and timing information
@@ -2617,6 +2682,7 @@ def generate_rtsp_video_embedding_pipeline(
             detection_confidence=detection_confidence,
             shutdown_event=shutdown_event,
             progress_callback=progress_callback,
+            packet_sink=packet_sink,
         )
 
         total_time = (now_us() - total_start_time) / 1_000_000

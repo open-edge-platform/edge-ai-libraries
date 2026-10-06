@@ -198,19 +198,15 @@ class Settings(BaseSettings):
         default=True,
         description="Persist N-second video segments of live streams for playback.",
     )
-    LIVE_STORE_FRAMES: bool = Field(
-        default=True,
-        description="Persist sampled live-stream frames as JPEG images.",
-    )
-    LIVE_FRAME_UPLOAD_WORKERS: int = Field(
-        default=4,
-        ge=1,
-        le=32,
-        description="Number of worker threads used to upload sampled live-stream frame "
-        "JPEGs to storage in parallel. Object stores have no multi-object batch PUT, so "
-        "each frame is a separate request; uploading them concurrently overlaps the "
-        "per-object network latency and keeps the recorder's decode loop from blocking "
-        "on storage. In-flight uploads are bounded to this many to bound memory use.",
+    LIVE_SEGMENT_QUEUE_MAXSIZE: int = Field(
+        default=512,
+        ge=16,
+        description="Bounded hand-off queue between the single live decode loop and the "
+        "segment muxer thread. Packets are teed off the one RTSP connection that also "
+        "feeds embedding, so this must never block the decode loop: when the muxer or "
+        "storage cannot keep up, the oldest excess packets are dropped (degrading the "
+        "current segment) rather than stalling embedding. 512 comfortably covers several "
+        "seconds of packets at typical frame rates.",
     )
     LIVE_BATCH_MAX_AGE_SECONDS: float = Field(
         default=20.0,
@@ -296,6 +292,19 @@ class Settings(BaseSettings):
     )
 
     # Video pipeline settings
+    VIDEO_FRAME_TRANSPORT: str = Field(
+        default="shm",
+        pattern="^(shm|heap)$",
+        description=(
+            "How decoded frames travel from the decoder to the embed/detect "
+            "workers. 'shm' uses the POSIX shared-memory pool (cross-process "
+            "capable, fixed-capacity, can exhaust under concurrent live "
+            "streams). 'heap' passes the frame ndarray by reference through the "
+            "in-process queues (no pool, no /dev/shm usage, one fewer copy per "
+            "frame); valid because the embedding SDK runs in-process. Both "
+            "produce identical embeddings."
+        ),
+    )
     VIDEO_SHM_MAX_BLOCKS: int = Field(
         default=512,
         ge=1,
