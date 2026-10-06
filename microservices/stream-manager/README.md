@@ -3,13 +3,13 @@
 
 # Stream Manager
 
-Stream Manager is a microservice responsible for managing streaming video sources within the Edge AI platform. 
-This is a REST API based microservice that attaches  live streaming sources, keeps bounded per-stream history in memory, 
+Stream Manager is a microservice responsible for managing streaming video sources within the Edge AI platform.
+This is a REST API based microservice that attaches  live streaming sources, keeps bounded per-stream history in memory,
 saves requested intervals and returns timestamp-correlated clips and frames.
 
 # Quick Start
 
-_**[WIP]** This section will contain the easiest way (probably one-click) to launch the Stream Manager microservice._
+__**[WIP] This section will contain the details of the simplest way possible (probably one-click) to launch the Stream Manager microservice.**__
 
 ## Overview
 
@@ -34,3 +34,4 @@ See [Get Started](docs/user-guide/get-started.md) for configuration and usage.
 | API Contract | Ready |
 | Design | Ready |
 | Implementation | Work in Progress |
+| Documentation | Work in Progress |

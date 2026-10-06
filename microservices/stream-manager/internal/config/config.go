@@ -62,7 +62,7 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-// Resolve ~ in the storage path either coming from const defined above or user supplied config.
+// Resolve ~ in the any path either coming from const defined above or user supplied config.
 func expandHome(path string) (string, error) {
 	restOfThePath, ok := strings.CutPrefix(path, "~/")
 	if !ok {

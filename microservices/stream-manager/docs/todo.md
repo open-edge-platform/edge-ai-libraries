@@ -1,32 +1,39 @@
 # TODO
 
-Items are supposed to be considered in order of priority. _(But not to be strictly enforced)_
+Items are listed roughly in order of priority.
 
 ## Features
 
 ### Major
-- [ ] PUT /buffer endpoint implementation for resizing stream buffers
-- [ ] Add S3 compatible storage for videos
-- [ ] Multiple stream_ids in request bodies for start recording
+- [ ] Implement the `PUT /buffer` endpoint to resize stream buffers
+- [ ] Add S3-compatible storage for videos
+- [ ] Support multiple `stream_ids` in start-recording request bodies
 
 ### Incremental
-- [ ] Pagination for GET /streams endpoint
+- [ ] Implement support for user supplied config file (located at user home config directory). JSON or YAML preferred.
+- [ ] Add pagination to the `GET /streams` endpoint
 
 ## Optimization or Improvements
 
 ### Major
-- [ ] log/slog for logging
-- [ ] Custom error handling framework - Using Custom StreamManError
+- [ ] Use `log/slog` for logging
+- [ ] Add a custom error-handling framework using `StreamManError`
 
 ### Incremental
-- [ ] Use errors.Join() in recordingFilter validation and other similar "multiplexed validations" requirement across the endpoints
-- [ ] Check if DecodeJSON can be used as a middleware and whether this refactoring has some merits.
+- [ ] Check `cfg.RecordingStorage` quotas and enforce disk limits through host-based notifications or other mechanisms
+- [ ] Use `errors.Join()` to combine `recordingFilter` validation errors and similar errors across endpoints
+- [ ] Evaluate whether `DecodeJSON` would be useful as middleware
 
-# Deffered
+### Research/Exploration
+- [ ] Evaluate S3-compatible storage tradeoffs for video recordings, especially open recordings and real-time ingestion
+- [ ] Evaluate whether fMP4 or another format can reduce MPEG-TS storage overhead while retaining its robustness
+- [ ] Evaluate WebM instead of MP4 as the default Replay API clip format to use fully open-source codecs
 
-Some of these items may be in the pipeline for TODO consideration above.
+# Deferred
 
-- [ ] No pagination for GET /streams endpoint for now (Pagination only for /records endpoints).
-- [ ] Not implementing sidecar indexes for keyframes/decoding help.
-- [ ] Not implementing s3 based storage for now.
-- [ ] Not implementing authentication or rate limiting for now (not in scope as well).
+Some of these items might have been already reconsidered for the TODO list above.
+
+- [ ] Defer pagination for `GET /streams`; pagination is currently planned only for `/records` endpoints
+- [ ] Do not implement sidecar indexes for keyframes or decoding assistance
+- [ ] Defer S3-based storage
+- [ ] Defer authentication and rate limiting; they are out of scope for now

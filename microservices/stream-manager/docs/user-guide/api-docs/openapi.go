@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// Package apidocs embeds the published OpenAPI spec so it can be served
-// without reading from disk at runtime.
+// Package apidocs embeds the published OpenAPI spec for Stream Manager.
 package apidocs
 
 import _ "embed"

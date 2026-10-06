@@ -29,6 +29,8 @@ The repository currently includes only the scaffolding for the Stream Manager mi
 | API Contract | Ready |
 | Design | Ready |
 | Implementation | Work in Progress |
+| Documentation | Work in Progress |
+
 
 
 <!--hide_directive

@@ -1219,45 +1219,6 @@ components:
       example:
         recording_id: rec-open-1
 
-    RecordImport:
-      type: object
-      required: [file, attributes]
-      properties:
-        file:
-          type: string
-          format: binary
-          description: The video itself. Its container and codec are checked by looking inside the file. For now only a single video track is accepted.
-        attributes:
-          $ref: '#/components/schemas/RecordImportAttributes'
-
-    RecordImportAttributes:
-      type: object
-      description: application/json part of the import request.
-      required: [sensor_id, timestamp_start]
-      properties:
-        sensor_id:
-          type: string
-          description: The sensor the footage came from. It does not have to be attached or known.
-        timestamp_start:
-          type: string
-          format: date-time
-          description: The UTC time of the very first frame in the file.
-        metadata:
-          type: object
-          description: Any metadata to keep with the recording.
-          additionalProperties: true
-        expires_at:
-          type: string
-          format: date-time
-          description: When the recording should be deleted. Must be in the future and allowed by deployment policy.
-      example:
-        sensor_id: cam-archive-1
-        timestamp_start: '2026-09-16T08:00:00.000000000Z'
-        metadata:
-          incident_id: incident-17
-          label: entrance
-        expires_at: '2026-09-23T08:00:00.000000000Z'
-
     StreamPage:
       type: object
       properties:
