@@ -9,12 +9,10 @@ services:
     healthcheck:
       test: [ "CMD", "true" ]
   model-download:
-    command: tail -f /dev/null
+    image: docker.io/intel/model-download:latest
     build:
       context: ../../microservices/model-download
       dockerfile: docker/Dockerfile
-    volumes:
-      - ./model-downloader:/home/dlstreamer/model-downloader
     healthcheck:
       test: [ "CMD", "true" ]
   audio-analyzer:
