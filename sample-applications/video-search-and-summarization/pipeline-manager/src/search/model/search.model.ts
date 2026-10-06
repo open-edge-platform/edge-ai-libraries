@@ -94,6 +94,7 @@ export interface SearchResultRO {
 export interface SearchResultBody {
   query_id: string;
   results: SearchResult[];
+  error?: string;
 }
 
 export interface SearchResult {

@@ -60,6 +60,10 @@ const SidebarItemWrapper = styled.div`
     text-overflow: ellipsis;
   }
 
+  .refresh-meta.error-meta {
+    color: #da1e28;
+  }
+
   &.unread {
     border-color: #0f62fe;
     background-color: #edf5ff;
@@ -203,11 +207,20 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
         />
 
         <span className='query-body'>
-          <span className='text-container' title={displayLabel}>
+          <span
+            className='text-container'
+            title={hasError && item.errorMessage ? item.errorMessage : displayLabel}
+          >
             {displayLabel}
           </span>
 
-          {item.watch && autoRefreshEnabled && !isRunning && (
+          {hasError && item.errorMessage && (
+            <span className='refresh-meta error-meta' title={item.errorMessage}>
+              {item.errorMessage}
+            </span>
+          )}
+
+          {!hasError && item.watch && autoRefreshEnabled && !isRunning && (
             <span className='refresh-meta' title={watchHint}>
               {lastRefreshedLabel}
             </span>

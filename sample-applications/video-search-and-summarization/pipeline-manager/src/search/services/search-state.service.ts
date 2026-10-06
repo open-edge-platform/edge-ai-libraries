@@ -517,6 +517,40 @@ export class SearchStateService {
   }
 
   /**
+   * Marks a watched query as errored during auto-refresh and pushes the update
+   * to connected clients so the UI can show an error indicator. The query's
+   * existing results are preserved (only the status/message change), and the
+   * refresh timestamp is advanced so the scheduler keeps the normal cadence.
+   */
+  private async markQueryRefreshError(
+    entity: SearchEntity,
+    errorMessage: string,
+  ): Promise<void> {
+    // Avoid redundant emits if the query is already showing the same error.
+    if (
+      entity.queryStatus === SearchQueryStatus.ERROR &&
+      entity.errorMessage === errorMessage
+    ) {
+      await this.$searchDB.markRefreshed(entity.queryId);
+      return;
+    }
+
+    const updated = await this.$searchDB.updateQueryStatusWithError(
+      entity.queryId,
+      SearchQueryStatus.ERROR,
+      errorMessage,
+    );
+    await this.$searchDB.markRefreshed(entity.queryId);
+    entity.queryStatus = SearchQueryStatus.ERROR;
+    entity.errorMessage = errorMessage;
+
+    if (updated) {
+      const enrichedQuery = await this.enrichQueryWithVideos(updated);
+      this.$emitter.emit(SocketEvent.SEARCH_UPDATE, enrichedQuery);
+    }
+  }
+
+  /**
    * Refreshes a set of watched queries using a single batched call to the
    * search service. The whole chain (search service and vector-retriever)
    * accepts a list of queries and applies its own bounded concurrency, so
@@ -552,10 +586,28 @@ export class SearchStateService {
       }
 
       const shimQuery: SearchShimQuery = {
-        query: entity.query,
         query_id: entity.queryId,
         tags: entity.tags,
       };
+
+      // Image-based watched queries carry no text: send the image and take the
+      // by-vector path, exactly like the manual runSearch flow. Forwarding only
+      // the empty text would make the search service reject the entire batch
+      // (HTTP 422), freezing refresh for every other watched query too.
+      if (entity.image) {
+        shimQuery.image_base64 = entity.image;
+      } else if (entity.query) {
+        shimQuery.query = entity.query;
+      } else {
+        // Neither text nor image: nothing valid to search. Skip this query so a
+        // single malformed entry cannot poison the batch, but still record the
+        // refresh so the scheduler does not keep re-selecting it.
+        Logger.warn(
+          `Skipping auto-refresh for query ${entity.queryId}: no text or image`,
+        );
+        await this.$searchDB.markRefreshed(entity.queryId);
+        continue;
+      }
 
       if (entity.timeFilterStart && entity.timeFilterEnd) {
         shimQuery.time_filter = {
@@ -577,12 +629,20 @@ export class SearchStateService {
       const res = await lastValueFrom(this.$searchShim.search(shimQueries));
       response = res.data ?? { results: [] };
     } catch (error) {
-      // Transient search failures must not wipe the last good results of a
-      // watched query, so the batch is skipped and retried on the next tick.
+      // A whole-batch transport/search failure must not wipe the last good
+      // results of a watched query, but the user still needs to know the query
+      // stopped refreshing. Flip each affected query to ERROR (results are kept)
+      // and push the update so the UI shows the error state; a later successful
+      // tick clears it back to idle.
       Logger.error(
         `Batched auto-refresh failed for ${shimQueries.length} watched queries`,
         error as Error,
       );
+      const errorMessage =
+        'Search service is unavailable. Showing the last results; auto-refresh will retry.';
+      for (const entity of entities) {
+        await this.markQueryRefreshError(entity, errorMessage);
+      }
       return { refreshed: 0, changed: 0 };
     }
 
@@ -596,10 +656,38 @@ export class SearchStateService {
     for (const entity of entities) {
       const block = resultsByQueryId.get(entity.queryId);
       if (!block) {
+        // The search service processed the batch but returned nothing for this
+        // query: surface it as an error so the user is not left staring at
+        // stale results with no explanation.
         Logger.warn(
           `Search service returned no result block for query ${entity.queryId}`,
         );
+        await this.markQueryRefreshError(
+          entity,
+          'Search service returned no result for this query.',
+        );
         continue;
+      }
+
+      if (block.error) {
+        // The search service accepted the batch but flagged this specific query
+        // as invalid/failed (e.g. an image query that lost its image). Surface
+        // it per-query without affecting the other watched queries.
+        Logger.warn(
+          `Search service reported an error for query ${entity.queryId}: ${block.error}`,
+        );
+        await this.markQueryRefreshError(entity, block.error);
+        continue;
+      }
+
+      // A previously errored query recovered on this tick: clear the error so
+      // the UI drops the error indicator before we publish fresh results.
+      if (entity.queryStatus === SearchQueryStatus.ERROR) {
+        await this.$searchDB.updateQueryStatus(
+          entity.queryId,
+          SearchQueryStatus.IDLE,
+        );
+        entity.queryStatus = SearchQueryStatus.IDLE;
       }
 
       const fingerprint = this.buildResultsFingerprint(block.results);

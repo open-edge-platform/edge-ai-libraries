@@ -800,11 +800,129 @@ describe('SearchStateService', () => {
       );
     });
 
+    it('marks watched queries as ERROR and emits an update when the batch call fails', async () => {
+      searchDbService.read.mockResolvedValue(watchedEntity());
+      searchShimService.search.mockReturnValue(
+        throwError(() => new Error('search down')),
+      );
+      searchDbService.updateQueryStatusWithError.mockResolvedValue(
+        watchedEntity({ queryStatus: SearchQueryStatus.ERROR }),
+      );
+
+      await service.refreshQueries(['query-1']);
+
+      expect(searchDbService.updateQueryStatusWithError).toHaveBeenCalledWith(
+        'query-1',
+        SearchQueryStatus.ERROR,
+        expect.any(String),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        SocketEvent.SEARCH_UPDATE,
+        expect.anything(),
+      );
+    });
+
+    it('marks a query as ERROR when the search service flags that query', async () => {
+      searchDbService.read.mockResolvedValue(watchedEntity());
+      searchShimService.search.mockReturnValue(
+        of({
+          data: {
+            results: [
+              { query_id: 'query-1', results: [], error: 'Query is invalid' },
+            ],
+          },
+        } as any),
+      );
+      searchDbService.updateQueryStatusWithError.mockResolvedValue(
+        watchedEntity({ queryStatus: SearchQueryStatus.ERROR }),
+      );
+
+      await service.refreshQueries(['query-1']);
+
+      expect(searchDbService.updateQueryStatusWithError).toHaveBeenCalledWith(
+        'query-1',
+        SearchQueryStatus.ERROR,
+        'Query is invalid',
+      );
+      expect(searchDbService.addResults).not.toHaveBeenCalled();
+    });
+
+    it('clears a prior ERROR status back to IDLE when a query recovers', async () => {
+      searchDbService.read.mockResolvedValue(
+        watchedEntity({
+          queryStatus: SearchQueryStatus.ERROR,
+          resultsFingerprint: 'stale',
+        }),
+      );
+      searchShimService.search.mockReturnValue(
+        of({
+          data: {
+            results: [
+              { query_id: 'query-1', results: [resultFor('vid-1', 0.9)] },
+            ],
+          },
+        } as any),
+      );
+      searchDbService.addResults.mockResolvedValue(watchedEntity());
+
+      await service.refreshQueries(['query-1']);
+
+      expect(searchDbService.updateQueryStatus).toHaveBeenCalledWith(
+        'query-1',
+        SearchQueryStatus.IDLE,
+      );
+    });
+
     it('should return early for an empty query list', async () => {
       const summary = await service.refreshQueries([]);
 
       expect(summary).toEqual({ refreshed: 0, changed: 0 });
       expect(searchShimService.search).not.toHaveBeenCalled();
+    });
+
+    it('forwards image_base64 for an image-based watched query instead of empty text', async () => {
+      searchDbService.read.mockResolvedValue(
+        watchedEntity({ query: '', image: 'ZGF0YQ==' }),
+      );
+      searchShimService.search.mockReturnValue(
+        of({
+          data: { results: [{ query_id: 'query-1', results: [] }] },
+        } as any),
+      );
+      searchDbService.addResults.mockResolvedValue(watchedEntity());
+
+      const summary = await service.refreshQueries(['query-1']);
+
+      const sentQuery = searchShimService.search.mock.calls[0][0][0];
+      expect(sentQuery.image_base64).toBe('ZGF0YQ==');
+      expect(sentQuery.query).toBeUndefined();
+      expect(summary.refreshed).toBe(1);
+    });
+
+    it('skips a query with neither text nor image so one bad entry does not poison the batch', async () => {
+      searchDbService.read.mockImplementation(async (queryId: string) => {
+        if (queryId === 'bad') {
+          return watchedEntity({ queryId, query: '', image: null as any });
+        }
+        return watchedEntity({ queryId, query: `text for ${queryId}` });
+      });
+      searchShimService.search.mockReturnValue(
+        of({
+          data: { results: [{ query_id: 'good', results: [] }] },
+        } as any),
+      );
+      searchDbService.addResults.mockResolvedValue(watchedEntity());
+
+      const summary = await service.refreshQueries(['bad', 'good']);
+
+      // Only the valid query is sent to the search service.
+      expect(searchShimService.search).toHaveBeenCalledTimes(1);
+      const sent = searchShimService.search.mock.calls[0][0];
+      expect(sent).toHaveLength(1);
+      expect(sent[0].query_id).toBe('good');
+      // The malformed query is still marked refreshed so it is not reselected.
+      expect(searchDbService.markRefreshed).toHaveBeenCalledWith('bad');
+      expect(summary.refreshed).toBe(1);
     });
   });
 
