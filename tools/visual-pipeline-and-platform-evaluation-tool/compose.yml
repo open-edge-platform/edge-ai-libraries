@@ -6,7 +6,9 @@ x-vippet: &vippet
     context: .
     target: ${TARGET:-prod}
     dockerfile: vippet/Dockerfile
+    pull: true
     args:
+      DLSTREAMER_IMAGE:
       http_proxy:
       https_proxy:
       no_proxy:
@@ -62,6 +64,9 @@ x-vippet: &vippet
     LIVE_STREAM_SERVER_PORT: ${LIVE_STREAM_SERVER_PORT:-8554}
     RTSPSRC_DEFAULT_LATENCY_MS: ${RTSPSRC_DEFAULT_LATENCY_MS:-100}
     METRICS_MANAGER_URL: ${METRICS_MANAGER_URL:-http://metrics-manager:9090}
+    # Collect DLStreamer latency tracer samples for benchmark test cases.
+    # Set to "false" to run benchmark suites without the tracer.
+    BENCHMARK_ENABLE_LATENCY_METRICS: ${BENCHMARK_ENABLE_LATENCY_METRICS:-true}
     # model-download microservice integration. vippet-app proxies all
     # model-management calls to model-download; the URL is internal to
     # the compose network.
@@ -117,7 +122,8 @@ services:
       - ./shared/videos/:/videos
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
-    image: docker.io/intel/model-download:2026.3.0-20260922-weekly
+    image: docker.io/intel/model-download:latest
+    pull_policy: daily
     container_name: model-download
     ports:
       - "8000:8000"
@@ -169,7 +175,8 @@ services:
     ports:
       - "7860:7860"
   metrics-manager:
-    image: docker.io/intel/metrics-manager:2026.3.0-20260922-weekly
+    image: docker.io/intel/metrics-manager:latest
+    pull_policy: daily
     container_name: metrics-manager
     init: true
     ports:
@@ -248,7 +255,9 @@ services:
     build:
       context: video_generator
       dockerfile: Dockerfile
+      pull: true
       args:
+        DLSTREAMER_IMAGE:
         http_proxy:
         https_proxy:
         no_proxy:

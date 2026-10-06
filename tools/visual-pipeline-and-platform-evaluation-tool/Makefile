@@ -6,7 +6,7 @@ SHELL := bash -eu -o pipefail
 # default goal to show help
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
-	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
+	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator shell-dlsps stop clean clean-output-videos help \
 	build-videogenerator build-onvif-discovery docker-build env-setup build-test \
 	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental \
 	ui-e2e-setup ui-e2e-setup-cross-browser
@@ -254,6 +254,9 @@ shell-metrics-manager: ## Open shell in metrics-manager container
 
 shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
+
+shell-dlsps: ## Open shell in DLSPS 2.0 container (started with DLSPS2=1)
+	$(MAKE) shell SERVICE=dlstreamer-pipeline-server
 
 stop: ## Stop the docker compose services
 	docker compose $(if $(DLSPS2_COMPOSE),-f $(COMPOSE_FILE) $(DLSPS2_COMPOSE)) down
