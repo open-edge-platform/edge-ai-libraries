@@ -8,6 +8,7 @@ debian_99_profile_metro_ai_suite () {
       video_search_and_summarization 
       agentic_predictive_maintenance_pipeline
       agentic_smart_community
+      smart_traffic_intersection_agent
     )
     echo "${modules[*]}"
   }
