@@ -1143,8 +1143,12 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             export APP_FEATURE_MUX="ATOMIC"
             export APP_SUMMARY_FEATURE="FEATURE_OFF"
             export APP_SEARCH_FEATURE="FEATURE_ON"
-            export UI_LIVE_STREAMS_FEATURE="${UI_LIVE_STREAMS_FEATURE:-FEATURE_ON}"
-            export LIVE_STREAM_ENABLED="${LIVE_STREAM_ENABLED:-true}"
+            # Live streams are a property of the mode, set unconditionally:
+            # setup.sh is sourced, so a `:-` default would reuse a flag a prior
+            # `--summary`/`--unified` left in the same shell and silently keep
+            # live off here.
+            export UI_LIVE_STREAMS_FEATURE="FEATURE_ON"
+            export LIVE_STREAM_ENABLED="true"
             DEPLOYMENT_LABEL="Search-only UI deployment. For searching over video frame embeddings."
             UI_PROFILE="singleton_search_ui"
             APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.search.yaml"
@@ -1170,8 +1174,8 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
         --dual)
             export VS_INDEX_NAME="video_frame_embeddings"
             export NGINX_UI_CONFIG="${nginx_config_dir}/dual_ui.conf"
-            export UI_LIVE_STREAMS_FEATURE="${UI_LIVE_STREAMS_FEATURE:-FEATURE_ON}"
-            export LIVE_STREAM_ENABLED="${LIVE_STREAM_ENABLED:-true}"
+            export UI_LIVE_STREAMS_FEATURE="FEATURE_ON"
+            export LIVE_STREAM_ENABLED="true"
             DEPLOYMENT_LABEL="Dual UI (Separate Summary and Search UI) deployment. For summarizing video content and searching over video frame embeddings."
             UI_PROFILE="dual_ui"
             APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.summary.yaml -f docker/compose.search.yaml"

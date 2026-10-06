@@ -388,7 +388,7 @@ HOST=http://localhost:12345
 STREAM_ID=$(curl -s -X POST "$HOST/manager/streams" \
   -H 'Content-Type: application/json' \
   -d '{"stream_url":"rtsp://camera-host:554/stream","stream_name":"lobby-cam","tags":["lobby"]}' \
-  | jq -r .stream_id)
+  | jq -r .stream.stream_id)
 
 curl -s "$HOST/manager/streams/$STREAM_ID" | jq .
 curl -s -X PATCH "$HOST/manager/streams/$STREAM_ID" \

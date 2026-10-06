@@ -69,11 +69,15 @@ Key design points:
 - **Stable identity.** Embeddings are stored with `bucket_name` = the configured
   live bucket and `video_id` = `stream_id`, so the existing list, download, and
   delete endpoints operate on live data without special cases.
-- **Playback media.** The recorder holds its own connection and *remuxes*
-  (never re-encodes) the source into keyframe-aligned segments, so recording
-  costs almost no CPU and a recorder failure cannot stop ingestion. Segment
-  boundaries are wall-clock buckets (`floor(epoch / duration) * duration`), which
-  is how an embedding and its segment agree on a name without shared state.
+- **Playback media.** The recorder shares the worker's single decode
+  connection: demuxed packets are teed into a `SegmentMuxSink` that *remuxes*
+  (never re-encodes) them into keyframe-aligned segments, so recording costs
+  almost no CPU and a recorder failure cannot stop ingestion. The segment object
+  is named by a wall-clock bucket (`floor(epoch / duration) * duration`), which
+  keeps URLs and retention stable. A sampled frame and its segment line up
+  through shared packet timestamps, not independent wall clocks: the frame's
+  `media_pts` and the segment's first-packet PTS come from that one connection,
+  so the in-segment seek is `media_pts - first_packet_pts` and is exact.
 - **Live metadata.** Each embedding carries `live_stream_id`, `live_stream_name`,
   `stream_url` (redacted), `is_live`, `segment_id`, `segment_start_time`,
   `wall_clock_time`, and `ingest_epoch`, and its `video_url` points at the

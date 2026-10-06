@@ -210,7 +210,7 @@ def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
 
 
 @app.post("/query")
-async def query_endpoint(request: list[dict] = Body(...)):
+async def query_endpoint(request: list[Any] = Body(...)):
     try:
         from src.vdms_retriever.retriever import aggregate_frame_results_to_videos
 

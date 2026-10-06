@@ -167,7 +167,7 @@ _422_RESPONSE = {
 )
 async def query_endpoint(
     request: Request,
-    payload: list[dict] = Body(..., openapi_examples=_QUERY_EXAMPLES),
+    payload: list = Body(..., openapi_examples=_QUERY_EXAMPLES),
 ) -> BatchQueryResponse:
     """Execute a batch of semantic retrieval queries.
 

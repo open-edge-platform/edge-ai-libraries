@@ -125,11 +125,11 @@ configured - that is summary-only mode, not a fault.
 STREAM_ID=$(curl -s -X POST "$HOST/manager/streams" \
   -H 'Content-Type: application/json' \
   -d '{"stream_url":"rtsp://camera-host:554/stream","stream_name":"lobby-cam","tags":["lobby"]}' \
-  | jq -r .stream_id)
+  | jq -r .stream.stream_id)
 
 # Poll state: pending -> starting -> running. `reconnecting` is transient;
 # `error` means the reconnect budget is exhausted - read `last_error`.
-curl -s "$HOST/manager/streams/$STREAM_ID" | jq '{state, last_error, stats}'
+curl -s "$HOST/manager/streams/$STREAM_ID" | jq '.stream | {state, last_error, stats}'
 
 curl -s "$HOST/manager/streams" | jq '.streams[] | {stream_id, stream_name, state}'
 ```
