@@ -1529,7 +1529,7 @@ paths:
 
         - **media_path (str, optional) :** Relative path to a specific object inside the ``video_id``
         directory (e.g. ``segments/1790655530.mp4``). Required for live-stream media, which is stored
-        under ``<stream_id>/segments/`` and ``<stream_id>/frames/``.
+        under ``<stream_id>/segments/``.
 
 
         #### Raises:
@@ -1585,12 +1585,12 @@ paths:
           - type: string
           - type: 'null'
           description: Relative path to a specific object inside the video_id directory, e.g. 'segments/1790655530.mp4'.
-            Required for live-stream media, which is stored under <stream_id>/segments/ and <stream_id>/frames/.
-            When omitted, the single media object in the video_id directory is served.
+            Required for live-stream media, which is stored under <stream_id>/segments/. When omitted,
+            the single media object in the video_id directory is served.
           title: Media Path
         description: Relative path to a specific object inside the video_id directory, e.g. 'segments/1790655530.mp4'.
-          Required for live-stream media, which is stored under <stream_id>/segments/ and <stream_id>/frames/.
-          When omitted, the single media object in the video_id directory is served.
+          Required for live-stream media, which is stored under <stream_id>/segments/. When omitted, the
+          single media object in the video_id directory is served.
       responses:
         '200':
           description: Full media stream. The Content-Type reflects the stored media (for example video/mp4
@@ -1622,6 +1622,217 @@ paths:
                 $ref: '#/components/schemas/DataPrepResponse'
         '416':
           description: The requested byte range lies outside the stored object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '500':
+          description: An unexpected error occurred inside the DataPrep service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /media/frame:
+    get:
+      tags:
+      - Media Management APIs
+      summary: Extract one frame from stored media (full frame or detected-crop region).
+      description: "### Extract a single frame from stored media.\n\nDecodes exactly one frame on demand\
+        \ (no stored JPEGs). Typical flow for a\ndownstream agent:\n\n1. Run a search; each result carries\
+        \ ``best_frame_info`` (the peak-scoring\n   frame) with ``timestamp``, ``bucket_name``, ``is_live``/``media_path``\
+        \ and,\n   for detections, ``crop_bbox``.\n2. Call this endpoint with those values to fetch the\
+        \ exact frame.\n\n#### Query Params:\n- **video_id (str, required):** Uploaded ``video_id`` or\
+        \ live ``stream_id``.\n- **timestamp (float, required):** Seconds into the addressed media (see\
+        \ note above).\n- **bucket_name (str, optional):** Defaults to the configured bucket.\n- **media_path\
+        \ (str, optional):** Segment object for live media (required for live).\n- **variant (str, optional):**\
+        \ ``full`` (default) or ``crop``.\n- **crop_bbox (str, optional):** ``x1,y1,x2,y2`` for ``variant=crop``.\n\
+        - **format (str, optional):** ``image`` (raw JPEG, default) or ``json`` (base64 + metadata).\n\
+        - **quality (int, optional):** JPEG quality 1-100 (default 90).\n\n#### Raises:\n- **400 Bad Request:**\
+        \ Invalid params or undecodable media.\n- **404 Not Found:** Media/segment cannot be resolved.\n\
+        - **500 Internal Server Error:** On an internal error."
+      operationId: getMediaFrame
+      parameters:
+      - name: video_id
+        in: query
+        required: true
+        schema:
+          type: string
+          description: 'Media identifier: an uploaded video_id or a live stream_id.'
+          title: Video Id
+        description: 'Media identifier: an uploaded video_id or a live stream_id.'
+      - name: timestamp
+        in: query
+        required: true
+        schema:
+          type: number
+          minimum: 0
+          description: Seconds from the start of the addressed media. For an uploaded video this is the
+            position within the file; for a live stream it is the offset within the segment named by media_path.
+            Pass the search result's best_frame_info.timestamp here.
+          title: Timestamp
+        description: Seconds from the start of the addressed media. For an uploaded video this is the
+          position within the file; for a live stream it is the offset within the segment named by media_path.
+          Pass the search result's best_frame_info.timestamp here.
+      - name: bucket_name
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Bucket/top-level directory holding the media. Defaults to the configured bucket.
+          title: Bucket Name
+        description: Bucket/top-level directory holding the media. Defaults to the configured bucket.
+      - name: media_path
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Relative object path inside the video_id directory, e.g. 'segments/1790655530.mp4'.
+            Required for live-stream frames (stored under <stream_id>/segments/).
+          title: Media Path
+        description: Relative object path inside the video_id directory, e.g. 'segments/1790655530.mp4'.
+          Required for live-stream frames (stored under <stream_id>/segments/).
+      - name: variant
+        in: query
+        required: false
+        schema:
+          type: string
+          pattern: ^(full|crop)$
+          description: '''full'' returns the whole frame; ''crop'' returns the crop_bbox region.'
+          default: full
+          title: Variant
+        description: '''full'' returns the whole frame; ''crop'' returns the crop_bbox region.'
+      - name: crop_bbox
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Pixel box 'x1,y1,x2,y2' for variant=crop. Supply the detection box captured at
+            ingest (search result best_frame_info.crop_bbox). Ignored when variant=full.
+          title: Crop Bbox
+        description: Pixel box 'x1,y1,x2,y2' for variant=crop. Supply the detection box captured at ingest
+          (search result best_frame_info.crop_bbox). Ignored when variant=full.
+      - name: format
+        in: query
+        required: false
+        schema:
+          type: string
+          pattern: ^(image|json)$
+          description: '''image'' returns raw image/jpeg (default); ''json'' returns base64 + metadata.'
+          default: image
+          title: Format
+        description: '''image'' returns raw image/jpeg (default); ''json'' returns base64 + metadata.'
+      - name: quality
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Output JPEG quality (1-100).
+          default: 90
+          title: Quality
+        description: Output JPEG quality (1-100).
+      responses:
+        '200':
+          description: The decoded frame. Returns raw image/jpeg bytes by default, or a JSON object with
+            base64 image + metadata when format=json.
+          content:
+            application/json:
+              schema:
+                $defs:
+                  FrameMetadata:
+                    description: Describes the frame returned by ``GET /media/frame`` (JSON variant).
+                    properties:
+                      video_id:
+                        title: Video Id
+                        type: string
+                      bucket_name:
+                        title: Bucket Name
+                        type: string
+                      media_path:
+                        anyOf:
+                        - type: string
+                        - type: 'null'
+                        description: Segment object addressed for live media, if any.
+                        title: Media Path
+                      requested_timestamp:
+                        description: Timestamp requested, in seconds from the start of the addressed media.
+                        title: Requested Timestamp
+                        type: number
+                      actual_timestamp:
+                        anyOf:
+                        - type: number
+                        - type: 'null'
+                        description: Timestamp of the frame actually returned (nearest decodable at/after
+                          the request).
+                        title: Actual Timestamp
+                      variant:
+                        description: '''full'' for the whole frame or ''crop'' for a bounding-box region.'
+                        title: Variant
+                        type: string
+                      width:
+                        title: Width
+                        type: integer
+                      height:
+                        title: Height
+                        type: integer
+                      cropped:
+                        description: Whether a crop box was applied.
+                        title: Cropped
+                        type: boolean
+                    required:
+                    - video_id
+                    - bucket_name
+                    - requested_timestamp
+                    - variant
+                    - width
+                    - height
+                    - cropped
+                    title: FrameMetadata
+                    type: object
+                description: JSON wrapper returning the frame as base64 plus its metadata.
+                properties:
+                  mime:
+                    default: image/jpeg
+                    description: Media type of the encoded image.
+                    title: Mime
+                    type: string
+                  image_base64:
+                    description: Base64-encoded JPEG bytes (no data-URL prefix).
+                    title: Image Base64
+                    type: string
+                  frame:
+                    $ref: '#/$defs/FrameMetadata'
+                required:
+                - image_base64
+                - frame
+                title: FrameJsonResponse
+                type: object
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Required parameters are missing, malformed, or fail validation (for example an
+            unsupported media type or an out-of-range value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '404':
+          description: The requested media, bucket, or job does not exist in the configured storage backend.
           content:
             application/json:
               schema:

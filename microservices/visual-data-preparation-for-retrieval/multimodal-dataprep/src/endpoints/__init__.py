@@ -4,7 +4,7 @@
 from .document_processing import process_document_router
 from .health import check_health_router
 from .telemetry import telemetry_router
-from .video_management import delete_video_router, download_video_router, list_videos_router
+from .video_management import delete_video_router, download_video_router, get_frame_router, list_videos_router
 from .live_streams import live_streams_router
 from .video_processing import (
     batch_ingest_router,
@@ -22,6 +22,7 @@ __all__ = [
     "ingest_image_router",
     "list_videos_router",
     "download_video_router",
+    "get_frame_router",
     "delete_video_router",
     "live_streams_router",
     "telemetry_router",

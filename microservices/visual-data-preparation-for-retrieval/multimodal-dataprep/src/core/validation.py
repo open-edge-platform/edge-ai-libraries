@@ -147,10 +147,10 @@ _MAX_MEDIA_SUBPATH_DEPTH = 4
 def sanitize_media_subpath(media_path: Optional[str]) -> Optional[str]:
     """Validate a relative path addressing one object inside a media directory.
 
-    Live-stream media is stored two levels deep (``<stream_id>/segments/<ts>.mp4``
-    and ``<stream_id>/frames/<ts>_<idx>.jpg``), so a plain ``video_id`` cannot name
-    a specific segment. This validates the part *after* the ``video_id`` so callers
-    can address one object without being able to escape that prefix.
+    Live-stream media is stored one level deep (``<stream_id>/segments/<ts>.mp4``),
+    so a plain ``video_id`` cannot name a specific segment. This validates the part
+    *after* the ``video_id`` so callers can address one object without being able to
+    escape that prefix.
 
     Each component must be a plain safe name: no ``..``, no absolute paths, no
     backslashes, and no empty components (which would collapse the path).

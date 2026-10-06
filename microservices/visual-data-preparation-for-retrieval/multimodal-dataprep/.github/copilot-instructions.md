@@ -67,6 +67,7 @@ the storage backend with `MM_DATAPREP_STORAGE_BACKEND` (`minio` or `local`).
 | DELETE | `/media/streams` | Bulk stop + deregister |
 | GET | `/media` | List stored media |
 | GET | `/media/download` | Download or stream stored media |
+| GET | `/media/frame` | Extract one frame (full or detected-crop) of stored media on demand as JPEG/base64 |
 | DELETE | `/media/{bucket_name}/{video_id}` | Delete stored media |
 | GET | `/telemetry` | Recent ingestion telemetry |
 

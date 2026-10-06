@@ -70,7 +70,6 @@ from .video_utils import (
 from .metadata_utils import (
     FrameInfo,
     create_frames_manifest,
-    store_enhanced_video_metadata,
     extract_enhanced_video_metadata
 )
 
@@ -110,6 +109,5 @@ __all__ = [
     # Metadata functions and classes
     'FrameInfo',
     'create_frames_manifest',
-    'store_enhanced_video_metadata',
     'extract_enhanced_video_metadata'
 ]

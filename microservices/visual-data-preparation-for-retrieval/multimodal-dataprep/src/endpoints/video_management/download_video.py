@@ -135,7 +135,7 @@ async def download_video(
             description=(
                 "Relative path to a specific object inside the video_id directory, "
                 "e.g. 'segments/1790655530.mp4'. Required for live-stream media, which "
-                "is stored under <stream_id>/segments/ and <stream_id>/frames/. When "
+                "is stored under <stream_id>/segments/. When "
                 "omitted, the single media object in the video_id directory is served."
             )
         ),
@@ -160,7 +160,7 @@ async def download_video(
     - **video_id (str, required) :** The video ID (directory) containing the video to download.
     - **bucket_name (str, optional) :** The bucket where the video is stored. Defaults to the configured bucket.
     - **download (bool, optional) :** Set to true to force a file download (``attachment``) instead of inline streaming.
-    - **media_path (str, optional) :** Relative path to a specific object inside the ``video_id`` directory (e.g. ``segments/1790655530.mp4``). Required for live-stream media, which is stored under ``<stream_id>/segments/`` and ``<stream_id>/frames/``.
+    - **media_path (str, optional) :** Relative path to a specific object inside the ``video_id`` directory (e.g. ``segments/1790655530.mp4``). Required for live-stream media, which is stored under ``<stream_id>/segments/``.
 
     #### Raises:
     - **400 Bad Request :** If required parameters are missing or invalid.

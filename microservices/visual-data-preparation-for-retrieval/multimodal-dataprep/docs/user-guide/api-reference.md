@@ -670,6 +670,124 @@ curl -O "http://localhost:8000/v1/dataprep/media/download\
 ?bucket_name=live-streams&video_id=<stream_id>&media_path=segments/1790655530.mp4"
 ```
 
+## `GET /media/frame`
+
+Extract **one frame** from already-stored media and return it as JPEG bytes (or
+base64 inside JSON). The frame is decoded on demand and **never written back to
+storage**, so this endpoint adds no persistent footprint.
+
+The endpoint is deliberately **query-agnostic**: it addresses a frame purely by
+location + time (+ an optional crop box). The search service (`search-ms`)
+already decides *which* frame matters — e.g. the peak-scoring frame of a ranked
+segment — and emits its address under `best_frame_info`. A downstream consumer
+(a VLM re-verification agent, the UI) then fetches the pixels here.
+
+**Typical agent flow**
+
+1. Run a search. Each result segment carries `best_frame_info` (see the field
+   glossary below) identifying the peak frame.
+2. Call `GET /media/frame` with those values to fetch that exact frame.
+
+**Query Parameters:**
+
+| Parameter     | Type    | Required | Default | Description                                                                                                   |
+| ------------- | ------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `video_id`    | string  | Yes      | —       | Uploaded `video_id` or live `stream_id`.                                                                       |
+| `timestamp`   | float   | Yes      | —       | Seconds from the start of the **addressed media** (see note). Pass `best_frame_info.timestamp`.               |
+| `bucket_name` | string  | No       | config  | Bucket/top-level directory holding the media. Falls back to the configured default bucket.                    |
+| `media_path`  | string  | No       | —       | Relative object path within `video_id`, e.g. `segments/1790655530.mp4`. **Required for live-stream frames.**   |
+| `variant`     | string  | No       | `full`  | `full` returns the whole frame; `crop` returns the `crop_bbox` region (a detected object).                    |
+| `crop_bbox`   | string  | No       | —       | Pixel box `x1,y1,x2,y2` for `variant=crop`. Pass `best_frame_info.crop_bbox`. Ignored when `variant=full`.      |
+| `format`      | string  | No       | `image` | `image` returns raw `image/jpeg`; `json` returns base64 + metadata.                                           |
+| `quality`     | integer | No       | `90`    | Output JPEG quality, 1-100.                                                                                    |
+
+**`timestamp` semantics.** `timestamp` is always *seconds into the object you
+addressed*. For an uploaded video that is the position within the file. For a
+live stream it is the offset **within the segment** named by `media_path` — which
+is exactly what `best_frame_info.timestamp` carries, so no conversion is needed.
+Use `best_frame_info.timestamp` (the peak/anchor frame), **not** `seek_timestamp`
+(which search-ms rewinds a few seconds earlier only to give the UI playback
+context).
+
+The nearest decodable frame at or after `timestamp` is returned (the last frame
+if `timestamp` is past the end).
+
+**Response (`format=image`, default):** raw `image/jpeg` body with headers:
+
+| Header                        | Description                                        |
+| ----------------------------- | -------------------------------------------------- |
+| `X-Frame-Requested-Timestamp` | The `timestamp` that was requested.                |
+| `X-Frame-Actual-Timestamp`    | Timestamp of the frame actually returned.          |
+| `X-Frame-Width` / `-Height`   | Decoded frame dimensions in pixels.                |
+| `X-Frame-Variant`             | `full` or `crop`.                                  |
+| `Cache-Control`               | `no-store`.                                        |
+
+**Response (`format=json`):** `application/json`:
+
+```json
+{
+  "mime": "image/jpeg",
+  "image_base64": "<base64 JPEG, no data-URL prefix>",
+  "frame": {
+    "video_id": "cam-lobby-01",
+    "bucket_name": "live-streams",
+    "media_path": "segments/1790655530.mp4",
+    "requested_timestamp": 4.5,
+    "actual_timestamp": 4.53,
+    "variant": "crop",
+    "width": 240,
+    "height": 340,
+    "cropped": true
+  }
+}
+```
+
+`format=json` is the recommended contract for agents/VLMs: most VLM chat APIs
+accept a base64 data URL directly, so the caller builds
+`data:image/jpeg;base64,<image_base64>` with no file handling. Neither variant
+stores an object — `image` streams raw bytes, `json` returns base64 in the body.
+
+**Response codes:** `200 OK`; `400 Bad Request` (invalid params or undecodable
+media); `404 Not Found` (media/segment cannot be resolved); `500 Internal
+Server Error`.
+
+### `best_frame_info` field glossary (search-ms → `/media/frame`)
+
+`search-ms` attaches `best_frame_info` to each ranked result. These are the
+fields an agent needs to call `/media/frame`:
+
+| Field               | Maps to `/media/frame` param | Meaning                                                                 |
+| ------------------- | ---------------------------- | ----------------------------------------------------------------------- |
+| `video_id`          | `video_id`                   | Uploaded `video_id` or live `stream_id`.                                |
+| `bucket_name`       | `bucket_name`                | Bucket holding the media.                                               |
+| `timestamp`         | `timestamp`                  | Offset of the peak frame **within the addressed media** — pass as-is.   |
+| `media_path`        | `media_path`                 | Set for live hits (segment object); absent/null for uploads.            |
+| `is_live`           | —                            | `true` when the hit is a live-stream segment (then `media_path` is set). |
+| `is_detected_crop`  | `variant`                    | `true` → the peak frame was an object crop; use `variant=crop`.         |
+| `crop_bbox`         | `crop_bbox`                  | Pixel box `x1,y1,x2,y2` of that detection; pass for `variant=crop`.     |
+| `crop_index`        | —                            | Which detection on the frame (ordinal), for correlation/debugging.      |
+| `detected_label`    | —                            | Detected object class, if any.                                          |
+| `detection_confidence` | —                         | Detector confidence for the crop, if any.                              |
+| `frame_number`      | —                            | Original frame index at ingest, for correlation/debugging.             |
+
+**Examples:**
+
+```bash
+# Peak frame of an uploaded video as raw JPEG
+curl -o frame.jpg \
+  "http://localhost:8000/v1/dataprep/media/frame?video_id=video-dir-001&timestamp=12.5"
+
+# Peak detected-object crop of a live-stream hit, as base64 JSON (for a VLM)
+curl "http://localhost:8000/v1/dataprep/media/frame\
+?video_id=<stream_id>&bucket_name=live-streams\
+&media_path=segments/1790655530.mp4&timestamp=4.5\
+&variant=crop&crop_bbox=120,80,360,420&format=json"
+```
+
+In the VSS deployment this endpoint is also reachable through pipeline-manager
+at `GET /manager/frames` (same query parameters), so a browser or agent inside
+the app can fetch a frame without talking to dataprep directly.
+
 ## `DELETE /media/{bucket_name}`
 
 Clear a whole bucket: delete every stored media item **and** all of the bucket's

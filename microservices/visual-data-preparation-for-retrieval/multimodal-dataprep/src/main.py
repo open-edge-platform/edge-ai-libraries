@@ -28,6 +28,7 @@ from src.endpoints import (
     check_health_router,
     delete_video_router,
     download_video_router,
+    get_frame_router,
     ingest_image_router,
     list_videos_router,
     live_streams_router,
@@ -319,4 +320,5 @@ app.include_router(telemetry_router)
 # Video management endpoints
 app.include_router(list_videos_router)
 app.include_router(download_video_router)
+app.include_router(get_frame_router)
 app.include_router(delete_video_router)
