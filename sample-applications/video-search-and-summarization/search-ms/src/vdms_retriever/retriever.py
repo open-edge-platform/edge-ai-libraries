@@ -10,6 +10,38 @@ from src.utils.common import settings, logger
 DEBUG = False
 
 
+def _derive_media_path(video_url: Optional[str], video_id: str) -> Optional[str]:
+    """Return the object sub-path inside ``video_id`` from a media URL.
+
+    Live frames point ``video_url`` at their covering segment object, e.g.
+    ``/live-streams/<stream_id>/segments/1790655530.mp4``. The frame-fetch
+    endpoint (``GET /media/frame``) addresses that object with a ``media_path``
+    relative to ``video_id`` (here ``segments/1790655530.mp4``). Uploaded videos
+    have a single object directly under ``video_id`` and need no media_path, so
+    this returns None for them.
+
+    Args:
+        video_url: Stored media URL/path (``video_url`` or ``video_rel_url``).
+        video_id: The media identifier that prefixes the object path.
+
+    Returns:
+        The path after ``<video_id>/`` when it is nested (e.g. a live segment),
+        otherwise None.
+    """
+    if not video_url or not video_id:
+        return None
+    parts = [p for p in str(video_url).split("/") if p]
+    if video_id not in parts:
+        return None
+    tail = parts[parts.index(video_id) + 1:]
+    # A single trailing component is the video's own file (upload case); only a
+    # nested path (e.g. segments/<ts>.mp4) is a real media_path.
+    if len(tail) <= 1:
+        return None
+    return "/".join(tail)
+
+
+
 # Frame-to-Video Aggregation Configuration
 def get_aggregation_config():
     """Get aggregation configuration from settings with fallback defaults."""
@@ -719,11 +751,28 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             "relevance_score": result["final_score"],
             "score_breakdown": result["score_breakdown"],
             "best_frame_info": {
+                # The exact scored (peak/anchor) frame. Use THIS timestamp to
+                # fetch the frame from dataprep's GET /media/frame; do NOT use
+                # the segment-level seek_timestamp, which is offset earlier for
+                # playback context. Timestamp is seconds from the start of the
+                # addressed media (within-file for uploads, within-segment for
+                # live). All fields below are what /media/frame needs.
+                "video_id": result["video_id"],
+                "bucket_name": best_frame_meta.get("bucket_name", ""),
                 "timestamp": result["seek_info"]["best_frame_timestamp"],
                 "frame_number": best_frame_meta.get("frame_number", 0),
                 "frame_type": best_frame_meta.get("frame_type", "full_frame"),
                 "detection_confidence": best_frame_meta.get("detection_confidence"),
-                "detected_label": best_frame_meta.get("detected_label")
+                "detected_label": best_frame_meta.get("detected_label"),
+                # Detected-crop addressing: pass crop_bbox with variant=crop to
+                # get just the detected region; omit for the full frame.
+                "is_detected_crop": bool(best_frame_meta.get("is_detected_crop", False)),
+                "crop_index": best_frame_meta.get("crop_index"),
+                "crop_bbox": best_frame_meta.get("crop_bbox"),
+                # Live frames live in a per-stream segment object; media_path
+                # addresses it and is REQUIRED when is_live is true.
+                "is_live": bool(best_frame_meta.get("is_live", False)),
+                "media_path": _derive_media_path(video_url or video_rel_url, result["video_id"]),
             },
             "video_metadata": {
                 "duration": result["video_duration"],
