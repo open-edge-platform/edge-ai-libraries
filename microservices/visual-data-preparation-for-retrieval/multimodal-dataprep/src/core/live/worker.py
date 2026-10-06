@@ -33,7 +33,6 @@ from src.core.live.models import LiveStream
 from src.core.live.recorder import SegmentMuxSink
 from src.core.live.segments import segment_object_name
 from src.core.live.urls import redact_stream_url
-from src.core.metrics_manager import publish_embeddings_throughput
 
 #: How often the worker refreshes recorder-derived stats while a session runs.
 _STATS_REFRESH_SECONDS = 5.0
@@ -359,14 +358,11 @@ class LiveStreamWorker:
 
         # Keep recorder-derived counters fresh while the session runs, so
         # GET /media/streams/{id} reports progress instead of going silent.
-        # Live ingestion is continuous and never hits the file path's
-        # end-of-request telemetry publish, so the embeddings/second metric would
-        # stay blank for the whole stream. Publish a ROLLING rate each refresh
-        # tick (embeddings stored in the interval / wall-clock elapsed) so Metrics
-        # Manager -- and the VSS telemetry panel -- track a live stream in real
-        # time instead of only at session end.
-        last_publish_ts = session_started_ts
-        last_publish_embeddings = session_start_embeddings
+        # Throughput is NOT published here: the embeddings/second gauge is a
+        # single process-wide value, so publishing a per-stream rate from each
+        # worker would let the last writer win and show one stream's rate instead
+        # of the fleet total. The LiveThroughputAggregator reads every running
+        # stream's rolling count and publishes one combined rate.
         while session_thread.is_alive():
             session_thread.join(timeout=_STATS_REFRESH_SECONDS)
             self.stream.stats.segments_stored = recorder.stats.segments_stored
@@ -378,14 +374,6 @@ class LiveStreamWorker:
             ):
                 self.stream.stats.last_frame_ts = time.time()
             self._persist()
-
-            now_ts = time.time()
-            elapsed = now_ts - last_publish_ts
-            if elapsed > 0:
-                delta = self.stream.stats.embeddings_created - last_publish_embeddings
-                publish_embeddings_throughput(max(0.0, delta / elapsed), now_ts)
-                last_publish_ts = now_ts
-                last_publish_embeddings = self.stream.stats.embeddings_created
 
         # Pipeline (and thus the single decode connection) has ended; flush the
         # open segment before tearing the session down.

@@ -27,6 +27,11 @@ from src.core.live.manager import (
     reset_live_stream_manager,
     set_live_stream_manager,
 )
+from src.core.live.metrics import (
+    LiveThroughputAggregator,
+    get_throughput_aggregator,
+    reset_throughput_aggregator,
+)
 from src.core.live.models import LiveStream
 from src.core.live.retention import (
     LiveRetentionSweeper,
@@ -60,6 +65,9 @@ __all__ = [
     "LiveRetentionSweeper",
     "get_retention_sweeper",
     "reset_retention_sweeper",
+    "LiveThroughputAggregator",
+    "get_throughput_aggregator",
+    "reset_throughput_aggregator",
     "InvalidStreamUrlError",
     "redact_stream_url",
     "validate_stream_url",

@@ -546,6 +546,139 @@ def test_worker_telemetry_reports_this_sessions_counts(monkeypatch):
     assert captured == {"frames": 30, "embeddings": 3}
 
 
+def test_aggregator_publishes_combined_fleet_rate(monkeypatch):
+    """Throughput must be the SUM across running streams, not one stream's rate.
+
+    Regression guard for the "drops to ~7 eps with 4 streams" bug: the gauge is
+    a single process-wide value, so a per-stream publisher would show one
+    camera's rate. The aggregator sums the rolling embedding totals of every
+    running stream and publishes one combined interval rate.
+    """
+    from src.core.live.metrics import LiveThroughputAggregator
+
+    published: List[float] = []
+    monkeypatch.setattr(
+        "src.core.live.metrics.publish_embeddings_throughput",
+        lambda value, ts: (published.append(value), True)[1],
+    )
+
+    class FakeManager:
+        total = 0
+
+        def running_embeddings_total(self):
+            return self.total
+
+    manager = FakeManager()
+    agg = LiveThroughputAggregator(manager=manager)
+    # Prime the window at t=100 with the fleet idle.
+    agg._last_ts = 100.0
+    agg._last_total = 0
+
+    # Four streams each add 5 embeddings over a 1s interval -> 20 eps combined.
+    manager.total = 20
+    rate = agg.sample(now=101.0)
+
+    assert rate == 20.0
+    assert published == [20.0]
+
+
+def test_aggregator_holds_last_value_on_idle_interval(monkeypatch):
+    """An interval with no new embeddings publishes nothing (gauge holds)."""
+    from src.core.live.metrics import LiveThroughputAggregator
+
+    published: List[float] = []
+    monkeypatch.setattr(
+        "src.core.live.metrics.publish_embeddings_throughput",
+        lambda value, ts: (published.append(value), True)[1],
+    )
+
+    class FakeManager:
+        total = 12
+
+        def running_embeddings_total(self):
+            return self.total
+
+    manager = FakeManager()
+    agg = LiveThroughputAggregator(manager=manager)
+    agg._last_ts = 100.0
+    agg._last_total = 12
+
+    # Burst lands: total climbs to 24 over 1s -> 12 eps.
+    manager.total = 24
+    assert agg.sample(now=101.0) == 12.0
+    # Idle tick: no new embeddings -> no publish, window still advances.
+    assert agg.sample(now=102.0) is None
+    assert agg.sample(now=103.0) is None
+    # Next burst measured over its OWN interval (total 24 -> 30 across 1s).
+    manager.total = 30
+    assert agg.sample(now=104.0) == 6.0
+
+    assert published == [12.0, 6.0]  # no zeros between bursts
+
+
+def test_aggregator_ignores_shrinking_total(monkeypatch):
+    """A stream pausing/stopping shrinks the running total; never publish < 0."""
+    from src.core.live.metrics import LiveThroughputAggregator
+
+    published: List[float] = []
+    monkeypatch.setattr(
+        "src.core.live.metrics.publish_embeddings_throughput",
+        lambda value, ts: (published.append(value), True)[1],
+    )
+
+    class FakeManager:
+        total = 40
+
+        def running_embeddings_total(self):
+            return self.total
+
+    manager = FakeManager()
+    agg = LiveThroughputAggregator(manager=manager)
+    agg._last_ts = 100.0
+    agg._last_total = 40
+
+    # One of several streams stops -> running total falls.
+    manager.total = 25
+    assert agg.sample(now=101.0) is None
+    assert published == []
+
+
+def test_running_embeddings_total_sums_only_running_streams():
+    """Manager aggregate excludes paused/stopped/errored workers."""
+    from src.common.schema import LiveStreamStateEnum
+    from src.core.live.manager import LiveStreamManager
+
+    class FakeStats:
+        def __init__(self, embeddings):
+            self.embeddings_created = embeddings
+
+    class FakeStream:
+        def __init__(self, state, embeddings):
+            self.state = state
+            self.stats = FakeStats(embeddings)
+
+    class FakeWorker:
+        def __init__(self, state, embeddings, alive=True):
+            self.stream = FakeStream(state, embeddings)
+            self._alive = alive
+
+        def is_alive(self):
+            return self._alive
+
+    manager = LiveStreamManager.__new__(LiveStreamManager)
+    manager._lock = threading.RLock()
+    manager._workers = {
+        "a": FakeWorker(LiveStreamStateEnum.running, 10),
+        "b": FakeWorker(LiveStreamStateEnum.running, 7),
+        "c": FakeWorker(LiveStreamStateEnum.paused, 100),
+        "d": FakeWorker(LiveStreamStateEnum.stopped, 100),
+        "e": FakeWorker(LiveStreamStateEnum.error, 100),
+        "f": FakeWorker(LiveStreamStateEnum.running, 50, alive=False),
+    }
+
+    assert manager.running_embeddings_total() == 17
+
+
 def test_clock_check_never_delays_ingestion_start(monkeypatch):
     """Regression: the camera clock probe must stay off the ingestion path.
 

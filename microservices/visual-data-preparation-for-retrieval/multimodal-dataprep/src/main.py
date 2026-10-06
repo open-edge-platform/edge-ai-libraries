@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 
 from src.common import logger, settings
 from src.common.schema import DataPrepResponse, StatusEnum
-from src.core.live import get_live_stream_manager, get_retention_sweeper
+from src.core.live import get_live_stream_manager, get_retention_sweeper, get_throughput_aggregator
 from src.core.metrics_manager import start_metrics_publisher, stop_metrics_publisher
 from src.core.vectorstores import get_vector_store
 from src.endpoints import (
@@ -149,12 +149,15 @@ async def lifespan(app: FastAPI):
     # service resumed on its own.
     live_manager = None
     retention_sweeper = None
+    throughput_aggregator = None
     if settings.LIVE_STREAM_ENABLED:
         try:
             live_manager = get_live_stream_manager()
             live_manager.restore()
             retention_sweeper = get_retention_sweeper()
             retention_sweeper.start()
+            throughput_aggregator = get_throughput_aggregator()
+            throughput_aggregator.start()
         except Exception as exc:  # pragma: no cover - startup must stay resilient
             logger.error("Live-stream restore failed: %s", exc)
 
@@ -162,6 +165,12 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         await stop_metrics_publisher()
+
+        if throughput_aggregator is not None:
+            try:
+                throughput_aggregator.stop()
+            except Exception as exc:  # pragma: no cover - best effort logging
+                logger.error(f"Error stopping the live throughput aggregator: {exc}")
 
         if retention_sweeper is not None:
             try:
@@ -215,8 +224,7 @@ OPENAPI_TAGS = [
     },
     {
         "name": "Media Management APIs",
-        "description": "List, download, and delete stored media together with their "
-        "embeddings.",
+        "description": "List, download, and delete stored media together with their " "embeddings.",
     },
     {
         "name": "Live Stream APIs",
@@ -276,11 +284,11 @@ app.add_middleware(
 @app.exception_handler(HTTPException)
 async def custom_exception_handler(request, exc):
     """Custom exception handler for HTTP exceptions.
-    
+
     Args:
         request: The incoming request object
         exc: The HTTPException that was raised
-        
+
     Returns:
         JSONResponse: A standardized error response using DataPrepResponse format
     """
