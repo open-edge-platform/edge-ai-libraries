@@ -1535,10 +1535,19 @@ def _process_video_from_memory_simple_pipeline(
                     # long-running stream's frames look increasingly stale, so a
                     # "last N minutes" time filter (which queries created_at)
                     # silently drops them once uptime exceeds N. Derive it from
-                    # frame_epoch (host wall clock when sampled) in local tz to
-                    # match the file-ingest convention the time filter assumes.
+                    # frame_epoch (host wall clock when sampled) in UTC to match
+                    # the file-ingest convention (embedding_orchestrator stamps
+                    # created_at with datetime.now(timezone.utc)). created_at is
+                    # stored as a plain string and VDMS compares it
+                    # lexicographically, so the stored value and the pushed-down
+                    # time-filter bounds MUST share one timezone offset. The UI
+                    # date filter (pipeline-manager) emits UTC bounds via
+                    # toISOString(); a local-tz created_at would never fall
+                    # inside a UTC window and every live hit would be dropped.
                     frame_created_at = (
-                        datetime.datetime.fromtimestamp(frame_epoch).astimezone().isoformat()
+                        datetime.datetime.fromtimestamp(
+                            frame_epoch, datetime.timezone.utc
+                        ).isoformat()
                         if live_stream_id
                         else created_at_value
                     )
