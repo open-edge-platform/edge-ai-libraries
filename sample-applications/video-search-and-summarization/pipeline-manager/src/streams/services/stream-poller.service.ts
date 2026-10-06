@@ -37,9 +37,11 @@ export class StreamPollerService implements OnModuleDestroy {
    * Live ingestion is continuous and never hits dataprep's per-request
    * EMBEDDINGS_UPDATE path, so watched ("checkmarked") queries would never
    * refresh while a stream runs. When this total grows between polls, new live
-   * embeddings landed, so we emit EMBEDDINGS_UPDATE to re-run watched searches
-   * (parity with the single-video and batch flows). `null` means "no baseline
-   * yet" so the first poll never fires a spurious refresh.
+   * embeddings landed, so we emit EMBEDDINGS_UPDATE to mark the search index
+   * dirty; the bounded-rate watch-refresh scheduler then coalesces these into
+   * watched-query refreshes (parity with the single-video and batch flows).
+   * `null` means "no baseline yet" so the first poll never fires a spurious
+   * refresh.
    */
   private lastEmbeddingsTotal: number | null = null;
 
