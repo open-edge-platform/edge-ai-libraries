@@ -97,6 +97,49 @@ export interface SearchResultBody {
   error?: string;
 }
 
+/**
+ * Addressing + provenance for the exact peak-scoring frame of a search hit.
+ *
+ * Produced by search-ms and passed through unchanged. A downstream agent takes
+ * these fields straight to `GET /manager/frames` to fetch the actual pixels of
+ * the frame that matched (to hand to a VLM, etc.).
+ */
+export interface BestFrameInfo {
+  /** Uploaded video_id or live stream_id — the `video_id` for GET /manager/frames. */
+  video_id: string;
+  /** Bucket/top-level directory holding the media. */
+  bucket_name: string;
+  /**
+   * Seconds from the start of the addressed media to the peak frame. Pass this
+   * (NOT the segment-level `seek_timestamp`) as `timestamp` to GET /manager/frames.
+   */
+  timestamp: number;
+  /** Frame index of the peak frame within its source. */
+  frame_number: number;
+  /** 'full_frame' or 'detected_crop' — how the peak frame was embedded. */
+  frame_type: string;
+  /** Detector confidence when the peak came from a detected crop; else null. */
+  detection_confidence?: number | null;
+  /** Detected object label when the peak came from a detected crop; else null. */
+  detected_label?: string | null;
+  /** True when the peak frame is a detected-object crop rather than a full frame. */
+  is_detected_crop: boolean;
+  /** Index of the crop among a frame's detections; null for full frames. */
+  crop_index?: number | null;
+  /**
+   * Pixel box [x1, y1, x2, y2] of the detected crop. Supply to GET /manager/frames
+   * with variant='crop' to get just the region; omit for the full frame.
+   */
+  crop_bbox?: number[] | null;
+  /** True for live-stream hits, whose pixels live in a per-stream segment. */
+  is_live: boolean;
+  /**
+   * Relative object path of the segment holding a live frame, e.g.
+   * 'segments/1790655530.mp4'. REQUIRED as `media_path` for live frames.
+   */
+  media_path?: string | null;
+}
+
 export interface SearchResult {
   id: string | null;
   metadata: {
@@ -130,6 +173,9 @@ export interface SearchResult {
     seek_timestamp?: number;
     segment_start?: number;
     segment_end?: number;
+    // Addressing for the exact peak-scoring frame of this hit. Pass-through
+    // from search-ms; feed these fields to GET /manager/frames.
+    best_frame_info?: BestFrameInfo;
   };
   video?: VideoEntity;
   page_content: string;
