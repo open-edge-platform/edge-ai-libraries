@@ -3,13 +3,12 @@ configure_sensor_fusion_for_traffic_management_post_fusion () {
   workspace="$(ensure_project_path)/sensor-fusion-for-traffic-management-post-fusion"
   version=release-2026.2.0
   repository=https://github.com/open-edge-platform/metro-ai-suite.git
-  duration=1800
   inputs=2
   pipeline=kitti/2C1L/localFusionPipeline
   dataset=kitti360
   repeat=10
   media_type=multisensor
-  used_ports=(8080)
+  duration=1800
 }
 
 configure_sensor_fusion_for_traffic_management_post_fusion_device () {
@@ -35,7 +34,6 @@ debian_90_install_sensor_fusion_for_traffic_management_post_fusion () {
   if verify_sensor_fusion_for_traffic_management_post_fusion && [[ " $* " != *" --reinstall "* ]]; then
     echo "Sensor Fusion for Traffic Management - Post Fusion is installed. Skipping" 1>&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 300
     ensure_git_export "$workspace" "$version" "$repository" sensor-fusion-for-traffic-management/post-fusion
 
@@ -62,17 +60,16 @@ EOF
 
 debian_90_start_sensor_fusion_for_traffic_management_post_fusion () {
   configure_sensor_fusion_for_traffic_management_post_fusion "$@"
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_sensor_fusion_for_traffic_management_post_fusion "$@"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_sensor_fusion_for_traffic_management_post_fusion_device "$device"
 
-  cd "$workspace"/metro-ai-suite/sensor-fusion-for-traffic-management/post-fusion
+  cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion
   local image="$(< .image)"
   if docker compose -f docker/docker-compose.yml up $image -d --wait; then
     if docker compose -f docker/docker-compose.yml exec -w /home/tfcc/metro -i $image bash -c 'echo intel | sudo -S bash run_service_bare_log.sh &disown'; then
       stime=$SECONDS
-      while [ $(( SECONDS - stime )) -lt duration ]; do
+      while [ $(( SECONDS - stime )) -lt $duration ]; do
         docker compose -f docker/docker-compose.yml exec -w /home/tfcc/metro -i $image bash -xc "echo intel | sudo -S ./build/bin/testGRPCCPlusLPipeline 127.0.0.1 50052 ai_inference/test/configs/$pipeline.json $inputs $repeat ai_inference/test/demo/$dataset $media_type" && break
         sleep 5s
       done
