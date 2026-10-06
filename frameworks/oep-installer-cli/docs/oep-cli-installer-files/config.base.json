@@ -9,9 +9,9 @@
     "type": "single",
     "default": "gpu",
     "options": [
-      { "label": "CPU", "value": "CPU" },
-      { "label": "GPU", "value": "GPU" },
-      { "label": "NPU", "value": "NPU" }
+      { "label": "CPU", "value": "cpu" },
+      { "label": "GPU", "value": "gpu" },
+      { "label": "NPU", "value": "npu" }
     ]
   },
 

@@ -67,7 +67,7 @@ debian_90_install_loss_prevention () {
     echo "Loss prevention is already installed. Skipping"
   else 
     # clone the repository
-    ensure_disk_space 300
+    ensure_disk_size 300
     ensure_git_clone "$workspace" $version $repository
 
     # setup
