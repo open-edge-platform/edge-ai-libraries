@@ -71,9 +71,6 @@ type attachedStream struct {
 var _ Bufferer = (*Service)(nil)
 
 func NewService(cfg config.Config) (*Service, error) {
-	if err := validateBufferLength(cfg.BufferLength); err != nil {
-		return nil, err
-	}
 	if !filepath.IsAbs(cfg.BufferDir) || filepath.Clean(cfg.BufferDir) == "/" {
 		return nil, errors.New("SM_BUFFER_DIR must be an absolute private tmpfs directory")
 	}
@@ -120,9 +117,15 @@ func validateBufferRoot(root *os.Root) (result error) {
 	return nil
 }
 
-func (s *Service) CreateBuffer(ctx context.Context, sourceURI, sensorID string) (string, error) {
+// CreateBuffer attaches a source; a zero bufferLength uses the configured default.
+func (s *Service) CreateBuffer(ctx context.Context, sourceURI, sensorID string, bufferLength time.Duration) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
+	}
+	if bufferLength == 0 {
+		bufferLength = s.cfg.BufferLength
+	} else if bufferLength < config.MinBufferLength || bufferLength > config.MaxBufferLength {
+		return "", ErrInvalidRequest
 	}
 	// HTTP validation applies the identifier contract; this also protects callers
 	// inside the service from turning an identifier into a filesystem path.
@@ -152,7 +155,7 @@ func (s *Service) CreateBuffer(ctx context.Context, sourceURI, sensorID string) 
 	if err := s.root.Mkdir(directory, 0o700); err != nil {
 		return "", fmt.Errorf("create stream buffer: %w", err)
 	}
-	buffer, err := newRollingBuffer(filepath.Join(s.root.Name(), directory), s.cfg.BufferLength)
+	buffer, err := newRollingBuffer(filepath.Join(s.root.Name(), directory), bufferLength)
 	if err != nil {
 		return "", errors.Join(err, s.root.Remove(directory))
 	}
@@ -326,20 +329,10 @@ func (s *Service) AcquireBuffer(ctx context.Context, streamID string, start, end
 	return entry.buffer.Acquire(ctx, start, end)
 }
 
-func (s *Service) ResizeBuffer(ctx context.Context, streamID string, length int) (model.StreamBuffer, error) {
-	if err := ctx.Err(); err != nil {
-		return model.StreamBuffer{}, err
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	entry := s.streams[streamID]
-	if entry == nil {
-		return model.StreamBuffer{}, ErrStreamNotFound
-	}
-	if err := entry.buffer.Resize(length); err != nil {
-		return model.StreamBuffer{}, err
-	}
-	return entry.snapshot()
+// ResizeBuffer is not implemented yet; the length is fixed when the stream is created.
+// TODO: implement resizing for PUT /streams/{stream-id}/buffer.
+func (s *Service) ResizeBuffer(context.Context, string, int) (model.StreamBuffer, error) {
+	return model.StreamBuffer{}, ErrNotImplemented
 }
 
 func (s *Service) RemoveBuffer(ctx context.Context, streamID string) error {
@@ -387,7 +380,7 @@ func (s *Service) Close() error {
 
 // Bufferer creates, reads and removes the buffers of attached streams.
 type Bufferer interface {
-	CreateBuffer(ctx context.Context, sourceURI string, sensorID string) (string, error)
+	CreateBuffer(ctx context.Context, sourceURI string, sensorID string, bufferLength time.Duration) (string, error)
 	GetBuffer(ctx context.Context, streamID string, startTS time.Time, endTS time.Time) ([]model.BufferSlice, error)
 	AcquireBuffer(ctx context.Context, streamID string, startTS time.Time, endTS time.Time) (*BufferLease, error)
 	ResizeBuffer(ctx context.Context, streamID string, bufferLength int) (model.StreamBuffer, error)
@@ -407,4 +400,5 @@ var (
 	ErrBufferClosed       = errors.New("buffer is closed")
 	ErrLeaseClosed        = errors.New("buffer lease is closed")
 	ErrSourceFailed       = errors.New("stream ingestion failed")
+	ErrNotImplemented     = errors.New("not implemented")
 )

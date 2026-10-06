@@ -5,16 +5,22 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api/common"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/model"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/record"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/storage"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/stream"
+)
+
+const (
+	maxPreEventDuration = 300
 )
 
 // recordingResponse is the API view of a recording.
@@ -32,9 +38,10 @@ type recordingResponse struct {
 	ErrorDetail *string        `json:"error_detail"`
 }
 
+// recordStartRequest records one stream.
+// TODO: accept multiple stream_ids in one request.
 type recordStartRequest struct {
-	StreamIDs        []string       `json:"stream_ids"`
-	SensorIDs        []string       `json:"sensor_ids"`
+	StreamID         string         `json:"stream_id"`
 	StartTS          *string        `json:"start_ts"`
 	Duration         *float64       `json:"duration"`
 	PreEventDuration *float64       `json:"pre_event_duration"`
@@ -62,13 +69,13 @@ type RecordHandler struct {
 // Start handles POST /records/start.
 func (h RecordHandler) Start(c *gin.Context) {
 	var req recordStartRequest
-	if err := decodeJSON(c, &req); err != nil {
-		writeError(c, http.StatusBadRequest, "invalid_request", err.Error())
+	if err := common.DecodeJSON(c, &req); err != nil {
+		common.WriteError(c, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 	startTS, code, err := req.validate(time.Now())
 	if err != nil {
-		writeError(c, http.StatusBadRequest, code, err.Error())
+		common.WriteError(c, http.StatusBadRequest, code, err.Error())
 		return
 	}
 	preEvent, err := record.Seconds(*req.PreEventDuration)
@@ -77,8 +84,7 @@ func (h RecordHandler) Start(c *gin.Context) {
 		return
 	}
 	options := record.StartOptions{
-		StreamIDs: req.StreamIDs, SensorIDs: req.SensorIDs, StartTS: startTS,
-		PreEvent: preEvent, Metadata: req.Metadata,
+		StreamID: req.StreamID, StartTS: startTS, PreEvent: preEvent, Metadata: req.Metadata,
 	}
 	if req.Duration != nil {
 		duration, err := record.Seconds(*req.Duration)
@@ -88,27 +94,23 @@ func (h RecordHandler) Start(c *gin.Context) {
 		}
 		options.Duration = &duration
 	}
-	recs, err := h.Records.StartBatch(c.Request.Context(), options)
+	rec, err := h.Records.Start(c.Request.Context(), options)
 	if err != nil {
 		writeRecordError(c, err)
 		return
 	}
-	resp := recordStartResponse{Recordings: make([]recordingResponse, 0, len(recs))}
-	for _, rec := range recs {
-		resp.Recordings = append(resp.Recordings, toRecordingResponse(rec))
-	}
-	c.JSON(http.StatusCreated, resp)
+	c.JSON(http.StatusCreated, recordStartResponse{Recordings: []recordingResponse{toRecordingResponse(rec)}})
 }
 
 // Stop handles POST /records/stop.
 func (h RecordHandler) Stop(c *gin.Context) {
 	var req recordStopRequest
-	if err := decodeJSON(c, &req); err != nil {
-		writeError(c, http.StatusBadRequest, "invalid_request", err.Error())
+	if err := common.DecodeJSON(c, &req); err != nil {
+		common.WriteError(c, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 	if err := req.validate(); err != nil {
-		writeError(c, http.StatusBadRequest, "invalid_request", err.Error())
+		common.WriteError(c, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 	rec, accepted, err := h.Records.Stop(c.Request.Context(), req.RecordingID)
@@ -125,9 +127,9 @@ func (h RecordHandler) Stop(c *gin.Context) {
 
 // List handles GET /records.
 func (h RecordHandler) List(c *gin.Context) {
-	filter, code, err := parseRecordingFilter(c)
+	filter, code, err := common.ParseRecordingFilter(c)
 	if err != nil {
-		writeError(c, http.StatusBadRequest, code, err.Error())
+		common.WriteError(c, http.StatusBadRequest, code, err.Error())
 		return
 	}
 	recs, next, err := h.Records.List(c.Request.Context(), filter)
@@ -166,22 +168,22 @@ func (h RecordHandler) Delete(c *gin.Context) {
 func writeRecordError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, storage.ErrNotFound):
-		writeError(c, http.StatusNotFound, "record_not_found", "record not found")
+		common.WriteError(c, http.StatusNotFound, "record_not_found", "record not found")
 	case errors.Is(err, stream.ErrStreamNotFound):
-		writeError(c, http.StatusNotFound, "stream_not_found", "stream or sensor is not attached")
+		common.WriteError(c, http.StatusNotFound, "stream_not_found", "stream is not attached")
 	case errors.Is(err, stream.ErrHistoryUnavailable), errors.Is(err, stream.ErrSliceExpired):
-		writeError(c, http.StatusConflict, "history_unavailable", "requested history is not available")
+		common.WriteError(c, http.StatusConflict, "history_unavailable", "requested history is not available")
 	case errors.Is(err, record.ErrInvalidRequest), errors.Is(err, storage.ErrInvalidFilter):
-		writeError(c, http.StatusBadRequest, "invalid_request", "invalid recording request or filter")
+		common.WriteError(c, http.StatusBadRequest, "invalid_request", "invalid recording request or filter")
 	case errors.Is(err, record.ErrConflict):
-		writeError(c, http.StatusConflict, "record_not_ready", "recording cannot be changed in its current state")
+		common.WriteError(c, http.StatusConflict, "record_not_ready", "recording cannot be changed in its current state")
 	case errors.Is(err, record.ErrCapacity):
-		writeError(c, http.StatusTooManyRequests, "capacity_exhausted", "recording capacity reached")
+		common.WriteError(c, http.StatusTooManyRequests, "capacity_exhausted", "recording capacity reached")
 	case errors.Is(err, record.ErrCleanup):
-		writeError(c, http.StatusServiceUnavailable, "storage_unavailable", "recording cleanup failed; retry later")
+		common.WriteError(c, http.StatusServiceUnavailable, "storage_unavailable", "recording cleanup failed; retry later")
 	default:
 		log.Printf("recording operation failed: %v", err)
-		writeInternalError(c)
+		common.WriteInternalError(c)
 	}
 }
 
@@ -211,4 +213,36 @@ func utcPtr(t *time.Time) *time.Time {
 	}
 	u := t.UTC()
 	return &u
+}
+
+// validate checks the request and returns the parsed start_ts, or the
+// error_code and reason for rejecting it.
+func (r *recordStartRequest) validate(now time.Time) (time.Time, string, error) {
+	if err := common.CheckID("stream_id", r.StreamID); err != nil {
+		return time.Time{}, "invalid_selector", err
+	}
+	if r.StartTS == nil {
+		return time.Time{}, "invalid_request", errors.New("start_ts is required")
+	}
+	startTS, err := common.ParseTimestamp("start_ts", *r.StartTS)
+	if err != nil {
+		return time.Time{}, "invalid_timestamp", err
+	}
+	if startTS.After(now) {
+		return time.Time{}, "invalid_timestamp", errors.New("start_ts must not be in the future")
+	}
+	if r.Duration != nil && *r.Duration <= 0 {
+		return time.Time{}, "invalid_request", errors.New("duration must be greater than 0")
+	}
+	if r.PreEventDuration == nil {
+		r.PreEventDuration = new(float64)
+	}
+	if *r.PreEventDuration < 0 || *r.PreEventDuration > maxPreEventDuration {
+		return time.Time{}, "invalid_request", fmt.Errorf("pre_event_duration must be between 0 and %d", maxPreEventDuration)
+	}
+	return startTS, "", nil
+}
+
+func (r recordStopRequest) validate() error {
+	return common.CheckID("recording_id", r.RecordingID)
 }

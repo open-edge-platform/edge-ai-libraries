@@ -25,7 +25,7 @@ const (
 	readTimeout       = 30 * time.Second
 	writeTimeout      = 60 * time.Second
 	idleTimeout       = 120 * time.Second
-	shutdownGrace     = 10 * time.Second
+	shutdownGrace     = 7 * time.Second
 )
 
 func main() {
@@ -34,7 +34,7 @@ func main() {
 	}
 }
 
-func run() (result error) {
+func run() (errResult error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func run() (result error) {
 	if err != nil {
 		return err
 	}
-	defer func() { result = errors.Join(result, store.Close()) }()
+	defer func() { errResult = errors.Join(errResult, store.Close()) }()
 	if err := store.RecoverInterrupted(context.Background()); err != nil {
 		return err
 	}
@@ -51,13 +51,13 @@ func run() (result error) {
 	if err != nil {
 		return err
 	}
-	defer func() { result = errors.Join(result, buffers.Close()) }()
-	recordings, err := record.NewService(buffers, store, cfg.RecordingStorage)
+	defer func() { errResult = errors.Join(errResult, buffers.Close()) }()
+	recordings, err := record.NewService(buffers, store, cfg.ConcurrentRecorders)
 	if err != nil {
 		return err
 	}
-	defer func() { result = errors.Join(result, recordings.Close()) }()
-	srv := &http.Server{
+	defer func() { errResult = errors.Join(errResult, recordings.Close()) }()
+	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           api.NewRouter(buffers, recordings),
 		ReadHeaderTimeout: readHeaderTimeout,
@@ -70,20 +70,20 @@ func run() (result error) {
 	defer stop()
 
 	serveErr := make(chan error, 1)
-	go func() { serveErr <- srv.ListenAndServe() }()
-	log.Printf("stream manager listening on %s", cfg.HTTPAddr)
+	go func() { serveErr <- server.ListenAndServe() }()
+	log.Printf("Stream Manager listening on %s", cfg.HTTPAddr)
 
 	select {
 	case err := <-serveErr:
-		return fmt.Errorf("http server: %w", err)
+		return fmt.Errorf("http server error: %w", err)
 	case <-ctx.Done():
 	}
 
 	log.Print("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
 	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("http shutdown: %w", err)
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("http server shutdown: %w", err)
 	}
 	if err := <-serveErr; !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("http server: %w", err)
