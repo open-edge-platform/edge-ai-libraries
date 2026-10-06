@@ -62,9 +62,9 @@ inside the Ubuntu 24.04 WSL distribution.
 nodes, and finally falls back to CPU. On WSL, `/dev/dxg` selects the `igpu-wsl`
 Compose profile even when `/dev/dri/render*` also exists.
 
-The profile passes `/dev/dxg` and mounts `/usr/lib/wsl` read-only for the ViPPET backend
-and Metrics Manager. Voice services receive the same access through
-`compose.voice.igpu-wsl.yml`. The experimental build/run/stop/clean targets also load
+The profile passes `/dev/dxg` and mounts `/usr/lib/wsl` read-only for the ViPPET backend,
+Metrics Manager, and Voice services through `compose.igpu-wsl.yml`. The experimental
+build/run/stop/clean targets also load
 `compose.experimental.igpu-wsl.yml` for Time Series Analytics. Native GPU device mappings
 are replaced rather than merged, so `/dev/dri` is not required by the WSL configuration.
 Docker Compose 2.24.4 or newer is required for these `!override` declarations.

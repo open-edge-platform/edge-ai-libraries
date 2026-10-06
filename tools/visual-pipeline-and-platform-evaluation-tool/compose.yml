@@ -64,6 +64,8 @@ x-vippet: &vippet
     # model-management calls to model-download; the URL is internal to
     # the compose network.
     MODEL_DOWNLOAD_URL: ${MODEL_DOWNLOAD_URL:-http://model-download:8000}
+    AUDIO_ANALYZER_URL: http://audio-analyzer:8010
+    TEXT_TO_SPEECH_URL: http://text-to-speech:8011
     # Database configuration (SQLite)
     DATABASE_URL: "sqlite+aiosqlite:////db/app.db"
     DB_ECHO: "false"
@@ -116,9 +118,6 @@ services:
       - ./vippet/api/static:/usr/share/nginx/html/static
   model-download:
     image: ${MODEL_DOWNLOAD_IMAGE:-docker.io/intel/model-download:2026.3.0-20260922-weekly}
-    build:
-      context: ../../microservices/model-download
-      dockerfile: docker/Dockerfile
     container_name: model-download
     ports:
       - "8000:8000"
@@ -167,6 +166,77 @@ services:
       - ./shared/model-download/venv-openvino:/opt/.venv-openvino
       - ./shared/model-download/venv-geti:/opt/.venv-geti
       - ./shared/model-download/venv-hls:/opt/.venv-hls
+  audio-analyzer:
+    image: ${AUDIO_ANALYZER_IMAGE:-docker.io/intel/audio-analyzer:${AUDIO_ANALYZER_TAG:-2026.2.0}}
+    container_name: audio-analyzer
+    ports:
+      - "8010:8010"
+    user: "1000:1000"
+    init: true
+    restart: unless-stopped
+    cap_drop: [ ALL ]
+    security_opt: [ "no-new-privileges:true" ]
+    environment:
+      AUDIO_ANALYZER__MODELS__ASR__PROVIDER: openvino
+      AUDIO_ANALYZER__MODELS__ASR__NAME: whisper-base
+      AUDIO_ANALYZER__MODELS__ASR__DEVICE: ${VOICE_ASR_DEVICE:-CPU}
+      AUDIO_ANALYZER__MODELS__ASR__MODELS_BASE_PATH: /models-output/voice/audio-analyzer
+      AUDIO_ANALYZER__MODELS__ASR__DIARIZATION: "false"
+      AUDIO_ANALYZER__MODELS__ASR__HALLUCINATION_PHRASE_FILTER: "false"
+      AUDIO_ANALYZER__SENTIMENT__ENABLED: "false"
+      AUDIO_ANALYZER__AUDIO_UTIL__MAX_SIZE_MB: "10"
+      AUDIO_ANALYZER__AUDIO_UTIL__ALLOWED_EXTENSIONS: '[".wav"]'
+      AUDIO_ANALYZER__AUDIO_UTIL__CHUNK_SIZE: "1048576"
+      AUDIO_ANALYZER__APP__CLEAR_STORAGE_ON_STARTUP: "true"
+      HF_HOME: /app/audio_analyzer/.cache/huggingface
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,audio-analyzer,text-to-speech"
+    volumes:
+      - ./shared/models/output:/models-output:ro
+      - voice_asr_cache:/app/audio_analyzer/.cache
+      - voice_asr_chunks:/app/audio_analyzer/chunks
+      - voice_asr_storage:/app/audio_analyzer/storage
+    healthcheck:
+      test: [ "CMD", "python3", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8010/health', timeout=5).read()" ]
+      interval: 15s
+      timeout: 10s
+      start_period: 15m
+      retries: 5
+  text-to-speech:
+    image: ${TEXT_TO_SPEECH_IMAGE:-docker.io/intel/text-to-speech:${TEXT_TO_SPEECH_TAG:-2026.2.0}}
+    container_name: text-to-speech
+    ports:
+      - "8011:8011"
+    user: "1000:1000"
+    init: true
+    restart: unless-stopped
+    cap_drop: [ ALL ]
+    security_opt: [ "no-new-privileges:true" ]
+    environment:
+      TEXT_TO_SPEECH__MODELS__TTS__NAME: microsoft/speecht5_tts
+      TEXT_TO_SPEECH__MODELS__TTS__RUNTIME: openvino
+      TEXT_TO_SPEECH__MODELS__TTS__DEVICE: CPU
+      TEXT_TO_SPEECH__MODELS__TTS__DTYPE: int8
+      TEXT_TO_SPEECH__MODELS__TTS__MODELS_BASE_PATH: /models-output/voice/text-to-speech
+      TEXT_TO_SPEECH__MODELS__TTS__MODEL_VARIANT: default
+      TEXT_TO_SPEECH__MODELS__TTS__DEFAULT_SPEAKER: Ryan
+      TEXT_TO_SPEECH__MODELS__TTS__DEFAULT_LANGUAGE: English
+      TEXT_TO_SPEECH__PIPELINE__PERSIST_OUTPUTS: "false"
+      HF_HOME: /app/text-to-speech/.cache/huggingface
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,audio-analyzer,text-to-speech"
+    volumes:
+      - ./shared/models/output:/models-output:ro
+      - voice_tts_cache:/app/text-to-speech/.cache
+      - voice_tts_storage:/app/text-to-speech/storage
+    healthcheck:
+      test: [ "CMD", "python3", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8011/health', timeout=5).read()" ]
+      interval: 15s
+      timeout: 10s
+      start_period: 15m
+      retries: 5
   vippet:
     # Always 'vippet', hardware config from override files
     <<: *vippet
@@ -269,4 +339,9 @@ services:
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
 
-volumes: {}
+volumes:
+  voice_asr_cache:
+  voice_asr_chunks:
+  voice_asr_storage:
+  voice_tts_cache:
+  voice_tts_storage:

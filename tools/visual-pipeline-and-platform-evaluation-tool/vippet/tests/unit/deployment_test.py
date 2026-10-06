@@ -83,10 +83,6 @@ class ComposeProfileTest(unittest.TestCase):
         files = ["compose.yml", f"compose.{profile}.yml"]
         if mode == "dev":
             files.append("compose.dev.yml")
-        elif mode == "voice":
-            files.append("compose.voice.yml")
-            if profile != "cpu":
-                files.append(f"compose.voice.{profile}.yml")
         elif mode == "experimental":
             files = [
                 "compose.yml",
@@ -119,15 +115,13 @@ class ComposeProfileTest(unittest.TestCase):
 
     def test_profile_matrix(self) -> None:
         for profile, mode in itertools.product(
-            PROFILES, ("base", "dev", "voice", "experimental")
+            PROFILES, ("base", "dev", "experimental")
         ):
             with self.subTest(profile=profile, mode=mode):
                 services = self.compose_config(profile, mode)
                 self.assertEqual(services["vippet"]["profiles"], [profile])
                 if profile == "igpu-wsl":
-                    selected = ["vippet", "metrics-manager"]
-                    if mode == "voice":
-                        selected.append("audio-analyzer")
+                    selected = ["vippet", "metrics-manager", "audio-analyzer"]
                     if mode == "experimental":
                         selected.append("ia-time-series-analytics-microservice")
                         timeseries = services["ia-time-series-analytics-microservice"]
@@ -165,54 +159,58 @@ class ComposeProfileTest(unittest.TestCase):
                         ],
                         expected_devices[profile],
                     )
-                if mode == "voice":
-                    asr = services["audio-analyzer"]
-                    tts = services["text-to-speech"]
-                    self.assertNotIn("voice-model-provisioner", services)
-                    asr_device = {
-                        "cpu": "CPU",
-                        "gpu": "GPU",
-                        "npu": "NPU",
-                        "igpu-wsl": "GPU",
-                    }[profile]
-                    self.assertEqual(
-                        asr["environment"]["AUDIO_ANALYZER__MODELS__ASR__DEVICE"],
-                        asr_device,
+                asr = services["audio-analyzer"]
+                tts = services["text-to-speech"]
+                self.assertNotIn("voice-model-provisioner", services)
+                asr_device = {
+                    "cpu": "CPU",
+                    "gpu": "GPU",
+                    "npu": "NPU",
+                    "igpu-wsl": "GPU",
+                }[profile]
+                self.assertEqual(
+                    asr["environment"]["AUDIO_ANALYZER__MODELS__ASR__DEVICE"],
+                    asr_device,
+                )
+                self.assertEqual(
+                    tts["environment"]["TEXT_TO_SPEECH__MODELS__TTS__DEVICE"],
+                    "CPU" if profile in ("cpu", "igpu-wsl") else "GPU",
+                )
+                self.assertEqual(
+                    tts["environment"]["TEXT_TO_SPEECH__MODELS__TTS__DTYPE"],
+                    "int8" if profile in ("cpu", "igpu-wsl") else "fp16",
+                )
+                for service in (asr, tts):
+                    if mode == "dev":
+                        self.assertIn("build", service)
+                    else:
+                        self.assertNotIn("build", service)
+                    self.assertNotIn(
+                        "voice-model-provisioner", service.get("depends_on", {})
                     )
-                    self.assertEqual(
-                        tts["environment"]["TEXT_TO_SPEECH__MODELS__TTS__DEVICE"],
-                        "CPU" if profile in ("cpu", "igpu-wsl") else "GPU",
+                    model_mount = next(
+                        mount
+                        for mount in service["volumes"]
+                        if mount["target"] == "/models-output"
                     )
-                    self.assertEqual(
-                        tts["environment"]["TEXT_TO_SPEECH__MODELS__TTS__DTYPE"],
-                        "int8" if profile in ("cpu", "igpu-wsl") else "fp16",
-                    )
-                    for service in (asr, tts):
-                        self.assertNotIn("voice-model-provisioner", service.get("depends_on", {}))
-                    for service in (asr, tts):
-                        model_mount = next(
-                            mount
-                            for mount in service["volumes"]
-                            if mount["target"] == "/models-output"
-                        )
-                        self.assertTrue(model_mount["read_only"])
-                    self.assertEqual(
-                        asr["environment"]["AUDIO_ANALYZER__MODELS__ASR__MODELS_BASE_PATH"],
-                        "/models-output/voice/audio-analyzer",
-                    )
-                    self.assertEqual(
-                        tts["environment"]["TEXT_TO_SPEECH__MODELS__TTS__MODELS_BASE_PATH"],
-                        "/models-output/voice/text-to-speech",
-                    )
-                    for service in (asr, tts):
-                        self.assertEqual(service["user"], "1000:1000")
-                        self.assertIn("ALL", service["cap_drop"])
-                        self.assertFalse(service.get("privileged", False))
+                    self.assertTrue(model_mount["read_only"])
+                self.assertEqual(
+                    asr["environment"]["AUDIO_ANALYZER__MODELS__ASR__MODELS_BASE_PATH"],
+                    "/models-output/voice/audio-analyzer",
+                )
+                self.assertEqual(
+                    tts["environment"]["TEXT_TO_SPEECH__MODELS__TTS__MODELS_BASE_PATH"],
+                    "/models-output/voice/text-to-speech",
+                )
+                for service in (asr, tts):
+                    self.assertEqual(service["user"], "1000:1000")
+                    self.assertIn("ALL", service["cap_drop"])
+                    self.assertFalse(service.get("privileged", False))
 
 
 class MakeRoutingTest(unittest.TestCase):
     def test_hardware_overrides_for_lifecycle_targets(self) -> None:
-        voice_targets = (
+        standard_targets = (
             "run",
             "stop",
             "build",
@@ -224,7 +222,7 @@ class MakeRoutingTest(unittest.TestCase):
             "clean-experimental",
         )
         targets = (
-            *voice_targets,
+            *standard_targets,
             *experimental_targets,
             "build-dev",
             "run-dev",
@@ -269,11 +267,7 @@ class MakeRoutingTest(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     args = result.stdout.splitlines()
                     expected = ["compose.yml", f"compose.{profile}.yml"]
-                    if target in voice_targets:
-                        expected.append("compose.voice.yml")
-                        if profile != "cpu":
-                            expected.append(f"compose.voice.{profile}.yml")
-                    elif target in experimental_targets:
+                    if target in experimental_targets:
                         expected.insert(1, "compose.experimental.yml")
                         if profile == "igpu-wsl":
                             expected.append("compose.experimental.igpu-wsl.yml")
@@ -285,6 +279,54 @@ class MakeRoutingTest(unittest.TestCase):
                     self.assertEqual(
                         args,
                         [*expected_args, *commands[target]],
+                    )
+
+    def test_dlsps2_overlay_for_standard_targets(self) -> None:
+        commands = {
+            "run": ["up", "-d"],
+            "stop": ["down"],
+            "build": ["build"],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            docker = temporary / "docker"
+            docker.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
+            docker.chmod(0o700)
+            (temporary / ".env").write_text("COMPOSE_PROFILES=cpu\n")
+            for target, command in commands.items():
+                with self.subTest(target=target):
+                    result = subprocess.run(
+                        [
+                            "make",
+                            "--silent",
+                            "-f",
+                            str(ROOT / "Makefile"),
+                            "-o",
+                            "env-setup",
+                            target,
+                            "DLSPS2=1",
+                        ],
+                        cwd=temporary,
+                        env=dict(
+                            os.environ,
+                            PATH=f"{temporary}{os.pathsep}{os.environ['PATH']}",
+                        ),
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(
+                        result.stdout.splitlines(),
+                        [
+                            "compose",
+                            "-f",
+                            "compose.yml",
+                            "-f",
+                            "compose.cpu.yml",
+                            "-f",
+                            "compose.dlsps2.yml",
+                            *command,
+                        ],
                     )
 
 

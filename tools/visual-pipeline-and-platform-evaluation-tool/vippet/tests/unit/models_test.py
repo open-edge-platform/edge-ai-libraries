@@ -41,8 +41,10 @@ class TestVoiceModelCatalog(unittest.TestCase):
         speecht5 = specs["voice-speecht5"]
         self.assertEqual(speecht5["category"], "text_to_speech")
         self.assertEqual(len(speecht5["precisions"]), 2)
-        self.assertIsInstance(speecht5["download_request"], list)
-        self.assertEqual(len(speecht5["download_request"]), 2)
+        speecht5_download_request = speecht5["download_request"]
+        if not isinstance(speecht5_download_request, list):
+            self.fail("SpeechT5 download_request must be a list")
+        self.assertEqual(len(speecht5_download_request), 2)
 
 
 class TestSupportedModelPathsAndExists(unittest.TestCase):

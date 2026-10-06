@@ -398,14 +398,18 @@ def _validate_model_catalog_spec(
         else []
     )
     download_request_raw = loaded.get("download_request")
-    download_request = download_request_raw if (
-        isinstance(download_request_raw, dict)
-        or (
-            isinstance(download_request_raw, list)
-            and download_request_raw
-            and all(isinstance(request, dict) for request in download_request_raw)
+    download_request = (
+        download_request_raw
+        if (
+            isinstance(download_request_raw, dict)
+            or (
+                isinstance(download_request_raw, list)
+                and download_request_raw
+                and all(isinstance(request, dict) for request in download_request_raw)
+            )
         )
-    ) else None
+        else None
+    )
 
     return ModelCatalogSpec(
         name=name.strip(),

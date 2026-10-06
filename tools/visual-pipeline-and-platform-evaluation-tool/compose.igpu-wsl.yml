@@ -3,7 +3,7 @@
 
 services:
   vippet:
-    profiles: [igpu-wsl]
+    profiles: [ igpu-wsl ]
     devices:
       - /dev/dxg:/dev/dxg
     volumes:
@@ -14,3 +14,11 @@ services:
       - /dev/dxg:/dev/dxg
     volumes:
       - /usr/lib/wsl:/usr/lib/wsl:ro
+
+  audio-analyzer:
+    devices:
+      - /dev/dxg:/dev/dxg
+    volumes:
+      - /usr/lib/wsl:/usr/lib/wsl:ro
+    environment:
+      AUDIO_ANALYZER__MODELS__ASR__DEVICE: ${VOICE_ASR_DEVICE:-GPU}

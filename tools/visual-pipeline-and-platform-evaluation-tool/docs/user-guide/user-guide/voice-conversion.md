@@ -57,17 +57,17 @@ For direct Compose usage, select a matching hardware profile, for example CPU:
 
 ```bash
 COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml \
-  -f compose.voice.yml up -d --no-build
+  up -d --no-build
 ```
 
 To pull and start only the audio services alongside an already updated ViPPET:
 
 ```bash
-COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml -f compose.voice.yml pull \
+COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml pull \
   audio-analyzer text-to-speech
-COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml -f compose.voice.yml up -d --no-deps \
+COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml up -d --no-deps \
   --no-build audio-analyzer text-to-speech
-COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml -f compose.voice.yml ps \
+COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml ps \
   audio-analyzer text-to-speech
 ```
 
@@ -123,14 +123,14 @@ conversion fails explicitly; it does not silently fall back to CPU.
 ### GPU, NPU and WSL
 
 The configuration uses Whisper Base and SpeechT5 with OpenVINO. Make selects
-the following voice overrides for the detected ViPPET hardware profile:
+the following settings from the detected ViPPET hardware profile:
 
-| Profile    | Voice Override               | ASR | TTS       |
-| ---------- | ---------------------------- | --- | --------- |
-| `cpu`      | None                         | CPU | CPU, INT8 |
-| `gpu`      | `compose.voice.gpu.yml`      | GPU | GPU, FP16 |
-| `npu`      | `compose.voice.npu.yml`      | NPU | GPU, FP16 |
-| `igpu-wsl` | `compose.voice.igpu-wsl.yml` | GPU | CPU, INT8 |
+| Profile    | Compose Override       | ASR | TTS       |
+| ---------- | ---------------------- | --- | --------- |
+| `cpu`      | `compose.cpu.yml`      | CPU | CPU, INT8 |
+| `gpu`      | `compose.gpu.yml`      | GPU | GPU, FP16 |
+| `npu`      | `compose.npu.yml`      | NPU | GPU, FP16 |
+| `igpu-wsl` | `compose.igpu-wsl.yml` | GPU | CPU, INT8 |
 
 The GPU override gives both services `/dev/dri` and the host's numeric
 `RENDER_GROUP_ID` as a supplementary group. The NPU override gives
@@ -161,14 +161,14 @@ Direct GPU startup:
 ```bash
 export RENDER_GROUP_ID=$(getent group render | cut -d: -f3)
 COMPOSE_PROFILES=gpu docker compose -f compose.yml -f compose.gpu.yml \
-  -f compose.voice.yml -f compose.voice.gpu.yml up -d --no-build
+  up -d --no-build
 ```
 
 Direct WSL iGPU startup:
 
 ```bash
 COMPOSE_PROFILES=igpu-wsl docker compose -f compose.yml -f compose.igpu-wsl.yml \
-  -f compose.voice.yml -f compose.voice.igpu-wsl.yml up -d --no-build
+  up -d --no-build
 ```
 
 Direct NPU startup (use the NPU voice override instead of the GPU override):
@@ -176,7 +176,6 @@ Direct NPU startup (use the NPU voice override instead of the GPU override):
 ```bash
 export RENDER_GROUP_ID=$(getent group render | cut -d: -f3)
 COMPOSE_PROFILES=npu docker compose -f compose.yml -f compose.npu.yml \
-  -f compose.voice.yml -f compose.voice.npu.yml \
   up -d --no-build
 ```
 
@@ -207,7 +206,7 @@ Do not pass tokens through Docker build arguments.
 To stop only the optional services, preserving their caches:
 
 ```bash
-COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml -f compose.voice.yml stop \
+COMPOSE_PROFILES=cpu docker compose -f compose.yml -f compose.cpu.yml stop \
   audio-analyzer text-to-speech
 ```
 

@@ -18,7 +18,6 @@ PROJECT_DIR := $(shell pwd)
 COMPOSE_FILE := compose.yml
 DEV_COMPOSE_FILE := compose.dev.yml
 EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
-VOICE_COMPOSE_FILE := compose.voice.yml
 export AUDIO_ANALYZER_TAG ?= 2026.2.0
 export TEXT_TO_SPEECH_TAG ?= 2026.2.0
 
@@ -29,12 +28,8 @@ define base-compose
 	docker compose "$${compose_files[@]}" $(1)
 endef
 
-define voice-compose
-	$(call base-compose,$(1),,\
-		compose_files+=($(DLSPS2_COMPOSE) -f $(VOICE_COMPOSE_FILE)) && \
-		case "$$COMPOSE_PROFILES" in \
-			(gpu|npu|igpu-wsl) compose_files+=(-f compose.voice.$$COMPOSE_PROFILES.yml) ;; \
-		esac)
+define standard-compose
+	$(call base-compose,$(1),,$(if $(DLSPS2_COMPOSE),compose_files+=($(DLSPS2_COMPOSE))))
 endef
 
 define experimental-compose
@@ -153,10 +148,10 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build ViPPET core and Voice images; DLSPS2=1 adds DLSPS 2.0
-	$(call voice-compose,build)
+build: env-setup ## Build ViPPET core images; DLSPS2=1 adds DLSPS 2.0
+	$(call standard-compose,build)
 
-build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onvif-discovery)
+build-dev: env-setup ## Build core and Voice development images
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
 
 build-videogenerator: env-setup ## Build videogenerator image
@@ -168,7 +163,7 @@ build-onvif-discovery: env-setup ## Build onvif discovery image
 docker-build: build build-videogenerator ## Build all images
 
 run: env-setup ## Run ViPPET core and Voice services; DLSPS2=1 uses DLSPS 2.0
-	$(call voice-compose,up -d)
+	$(call standard-compose,up -d)
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
@@ -249,7 +244,7 @@ shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop ViPPET core and Voice services, preserving named volumes
-	$(call voice-compose,down)
+	$(call standard-compose,down)
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator

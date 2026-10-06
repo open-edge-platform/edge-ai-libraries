@@ -419,7 +419,7 @@ Proxy-generated failures may differ from the backend's status mapping above.
   [local chart history](../../../ui/src/hooks/useMetricHistory.ts) and
   [shared dashboard](../../../ui/src/features/metrics/MetricsDashboard.tsx).
 - [Nginx routing](../../../ui/nginx.conf),
-  [Voice Compose configuration](../../../compose.voice.yml) and
+  [Compose configuration](../../../compose.yml) and
   [system telemetry architecture](./metrics/system-performance.md).
 - [Voice user guide](../user-guide/voice-conversion.md),
   [backend regression tests](../../../vippet/tests/unit/api_tests/voice_test.py) and
