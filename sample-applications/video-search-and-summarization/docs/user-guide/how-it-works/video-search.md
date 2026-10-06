@@ -138,6 +138,96 @@ The effective values are also served by `GET /search/refresh-config` (through
 nginx: `GET /manager/search/refresh-config`), which the UI uses to describe the
 behavior accurately.
 
+## Live Stream Storage and Retention Sizing
+
+A registered RTSP camera ingests continuously, so — unlike a one-off upload — its
+storage footprint grows for as long as the stream runs. Use the ballpark figures
+below to plan disk capacity and to choose a retention window. If you remember one
+thing: **the recorded video segments dominate; embeddings are a rounding error.**
+
+### What a live stream stores
+
+For each running camera, two things are persisted:
+
+1. **Playback video segments** (MinIO/local storage) — short MP4 clips
+   (`MM_DATAPREP_LIVE_SEGMENT_DURATION_SECONDS`, default `10`s) so a search hit on
+   live footage can be played back. These are **remuxed, not re-encoded**: the
+   camera's already-compressed H.264/H.265 bitstream is copied into MP4 as-is. So
+   the stored size is essentially **whatever bitrate the camera transmits** — it
+   does *not* depend on the embedding/extraction rate.
+2. **Embeddings + metadata** (vector DB: VDMS or Milvus) — one vector per *sampled*
+   frame. With `MM_DATAPREP_FRAME_INTERVAL` (default `15`) only every 15th frame is
+   embedded.
+
+> Live mode does **not** store individual JPEG frames. The retained media is the
+> video segments; frames exist only transiently in memory while they are embedded.
+
+### Worked example
+
+Assume a camera matching the question's setup:
+
+- Input: **1920×1080 @ 25 fps**, H.264
+- Extraction: **every 15th frame** → `25 / 15 ≈ 1.67` embedded frames/second
+- Embedding model: **`CLIP/clip-vit-b-32`** → 512-dimensional `float32` vectors
+
+**Embeddings (small, fixed by sampling rate):**
+
+- `1.67 frames/s × 3600 s ≈ 6,000` embeddings per hour.
+- Each vector: `512 × 4 bytes = 2 KB`, plus ~0.5–1 KB of metadata (ids, timestamps,
+  redacted stream URL, segment reference, tags) → **~3 KB per embedding**.
+- `6,000 × 3 KB ≈ 18 MB per hour`. Call it **~15–20 MB/hour per camera**.
+
+**Video segments (large, fixed by camera bitrate — the real cost):**
+
+Because segments are a remuxed copy of the camera stream, size/hour is driven by
+the encoder bitrate, not by resolution or our sampling:
+
+`segment GB per hour ≈ bitrate_Mbps × 3600 / 8 / 1000`
+
+| Camera bitrate (1080p25) | Video stored per hour |
+| --- | --- |
+| 2 Mbps (efficient H.265) | ~0.9 GB |
+| 4 Mbps (typical H.264) | ~1.8 GB |
+| 8 Mbps (high quality) | ~3.6 GB |
+
+A typical 1080p25 H.264 camera runs **~4–8 Mbps**, so budget **~2–4 GB per
+camera-hour**. (For reference, *uncompressed* 1080p25 would be ~150 MB **per
+second** — remuxing the camera's compressed stream is what keeps this manageable.)
+
+**Total per camera-hour ≈ video segments + embeddings ≈ 2–4 GB**, of which the
+embeddings are well under 1%.
+
+### From per-hour to a retention budget
+
+Steady-state disk ≈ `per-hour footprint × MM_DATAPREP_LIVE_RETENTION_HOURS ×
+number of cameras`. At ~2.5 GB/camera-hour:
+
+| Retention window | Per camera | 4 cameras | 8 cameras (`MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT` default) |
+| --- | --- | --- | --- |
+| 1 hour | ~2.5 GB | ~10 GB | ~20 GB |
+| 24 hours (VSS demo default) | ~60 GB | ~240 GB | ~480 GB |
+| 7 days | ~420 GB | ~1.7 TB | ~3.4 TB |
+| `0` = keep forever (service default) | unbounded | unbounded | unbounded |
+
+> **Unbounded by default at the service level.** `multimodal-dataprep` ships with
+> `MM_DATAPREP_LIVE_RETENTION_HOURS=0` (retain forever). The VSS demo compose
+> overrides this to **24h** precisely so continuous cameras do not fill the disk.
+> If you raise or remove it, size the volume for the table above.
+
+### Controlling the footprint
+
+| Knob | Effect |
+| --- | --- |
+| `MM_DATAPREP_LIVE_RETENTION_HOURS` | Primary lever. A sweeper (`MM_DATAPREP_LIVE_RETENTION_SWEEP_MINUTES`, default 15) deletes embeddings **and** segments older than this window. `0` keeps everything. |
+| `MM_DATAPREP_LIVE_STORE_SEGMENTS=false` | Stop recording playback video entirely. Removes ~99% of the cost (leaving only ~20 MB/hour of embeddings), **but search hits on live footage then have no clip to play back**. |
+| Camera bitrate / codec / resolution | The most effective way to shrink the dominant cost. Lower bitrate, H.265 over H.264, or a smaller resolution directly reduces segment size. |
+| `MM_DATAPREP_FRAME_INTERVAL` | Higher = fewer embeddings. Reduces only the small embedding cost (and recall granularity); **does not change video segment size.** |
+| `MM_DATAPREP_LIVE_SEGMENT_DURATION_SECONDS` | Changes the number/size of individual MP4 objects, not the total bytes stored. |
+
+**Rule of thumb:** for a 1080p25 H.264 camera, plan for roughly **2–4 GB per
+camera per hour of retention**, almost all of it video. Multiply by your retention
+window and camera count; add a negligible ~20 MB/hour per camera for embeddings.
+
 ## Detailed Architecture
 <!--
 **User Stories Addressed**:
