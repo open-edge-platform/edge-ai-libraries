@@ -32,6 +32,7 @@ const SAMPLE_TEXTS = [
   "Your audio is ready for playback.",
   "Hello, how can I assist you today?",
 ];
+const MAX_SPEECH_TEXT_LENGTH = 200;
 
 const SPEECH_VOICES = [
   "Ryan",
@@ -275,7 +276,7 @@ export function VoiceConversion() {
           <TabsContent value="stt" className="space-y-6">
             <div className="space-y-4 bg-background p-4 sm:p-5">
               <h2 className="text-base font-semibold">
-                Automatic Speech Recognition Workload Configuration
+                Speech Recognition Workload Configuration
               </h2>
               <section className="min-w-0 space-y-4">
                 <h3 className="text-sm font-medium">Select source</h3>
@@ -485,7 +486,7 @@ export function VoiceConversion() {
                 </Label>
                 <Textarea
                   id="voice-text"
-                  maxLength={5000}
+                  maxLength={MAX_SPEECH_TEXT_LENGTH}
                   value={text}
                   disabled={busy}
                   onChange={(event) => updateText(event.target.value)}
@@ -514,7 +515,7 @@ export function VoiceConversion() {
                     </select>
                   </div>
                   <p className="text-muted-foreground text-right text-xs">
-                    {text.length} / 5000
+                    {text.length} / {MAX_SPEECH_TEXT_LENGTH}
                   </p>
                 </div>
                 <div className="flex justify-end">

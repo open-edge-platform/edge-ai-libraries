@@ -43,7 +43,7 @@ InferenceDevice = Literal["CPU", "GPU", "NPU"]
 class SpeechRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
-    input: str = Field(min_length=1, max_length=5000)
+    input: str = Field(min_length=1, max_length=200)
     voice: SpeechVoice
     device: InferenceDevice | None = None
 

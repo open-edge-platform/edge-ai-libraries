@@ -134,6 +134,12 @@ for (const viewport of [
         exact: true,
       }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        name: "Speech Recognition Workload Configuration",
+        exact: true,
+      }),
+    ).toBeVisible();
     await page.route("**/voice/transcriptions", async (route) => {
       expect(route.request().headers()["content-type"]).toContain(
         "multipart/form-data",
@@ -210,7 +216,10 @@ for (const viewport of [
     ).toBeDisabled();
     await expect(page.getByLabel("Voice")).toHaveValue("Ryan");
     await page.getByLabel("Voice").selectOption("Angus");
-    await page.getByLabel("Text input (English)").fill("Hello world");
+    const textInput = page.getByLabel("Text input (English)");
+    await expect(textInput).toHaveAttribute("maxlength", "200");
+    await textInput.fill("Hello world");
+    await expect(page.getByText("11 / 200", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Generate speech" }).click();
     await expect(page.getByLabel("Generated speech")).toHaveJSProperty(
       "readyState",
