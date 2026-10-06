@@ -281,10 +281,12 @@ def extract_enhanced_video_metadata(
     processing_metrics: Dict[str, float] = {}
     logger.info("Extracting enhanced video metadata with frame-based processing...")
 
-    # Generate clean timestamp once 
-    date_time = datetime.datetime.now()
+    # Generate clean timestamp once. Use a timezone-aware local "now" directly:
+    # the previous code relabelled a naive local time as UTC before converting,
+    # which double-applied the UTC offset and stored created_at hours in the
+    # future, silently breaking "last N minutes" time filters on uploads.
     local_timezone = get_localzone()
-    current_time_local = date_time.replace(tzinfo=datetime.timezone.utc).astimezone(local_timezone)
+    current_time_local = datetime.datetime.now(local_timezone)
     iso_date_time = current_time_local.isoformat()
 
     # Construct the path to the video in Minio
