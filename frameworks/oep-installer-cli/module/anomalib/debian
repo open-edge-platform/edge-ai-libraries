@@ -20,7 +20,7 @@ debian_80_install_anomalib () {
   if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
     echo "Anomalib already installed. Skipping"
   else
-    ensure_disk_space 6000
+    ensure_disk_size 6000
     mkdir -p "$workspace"
     cd "$workspace"
     python3 -m venv .venv

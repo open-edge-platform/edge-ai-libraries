@@ -3,6 +3,7 @@ configure_uav_mission_compute_sdk () {
   workspace="$(ensure_project_path)/uav-mission-compute-sdk"
   version="release-2026.2.0"
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  used_ports=(8086 3000 9090 9273)
 }
 
 verify_uav_mission_compute_sdk () {
@@ -18,6 +19,7 @@ debian_85_install_uav_mission_compute_sdk () {
   if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
     echo "UAV mission compute sdk is already installed. Skipping..." 1>&2
   else
+    ensure_ports_open "${used_ports[*]}" return 3
     ensure_git_export "$workspace" "$version" "$repository" federal-and-aerospace-ai-suite/uav-mission-compute-sdk
     cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
     make init
@@ -39,7 +41,7 @@ debian_85_install_uav_mission_compute_sdk () {
 }
 
 debian_85_start_uav_mission_compute_sdk () {
-  ensure_ports_open "8086 3000 9090 9273" debian_85_stop_uav_mission_compute_sdk "$@"
+  ensure_ports_open "${used_ports[*]}" debian_85_stop_uav_mission_compute_sdk "$@"
   configure_uav_mission_compute_sdk
   cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
   . .env

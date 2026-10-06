@@ -1753,12 +1753,12 @@ for r in rows:
 
 
 # check disk space
-ensure_disk_space () {
-  local disk_size=$1            # in MB
+ensure_disk_size () {
+  local disk_size=$1            # in MB (1000000 bytes)
   local disk_path="${2:-$HOME}" # optional disk path
-  local disk_avail=$(df -h --output=avail "$disk_path" | awk '/[0-9]T/{a=$1*1000000}/[0-9]G/{a=$1*1000}/[0-9]M/{a=$1*1}/[0-9]K/{a=$1/1000}END{print int(a)}')
+  local disk_avail=$(df -B1 --output=avail "$disk_path" | awk 'NR==2{print int($1/1000000)}')
   if [ "$disk_size" -gt "$disk_avail" ]; then
-    echo "Not enough disk space: required ${disk_size}MiB and available ${disk_avail}MiB"
+    echo "Not enough disk space: required ${disk_size} MB and available ${disk_avail} MB" 1>&2
     return 3
   fi
 }
@@ -1964,9 +1964,18 @@ ensure_project_path () {
 # check ram size
 ensure_ram_size () {
   local ram_size=$1            # in KiB
-  local ram_avail=$(awk '/^MemTotal:/{if(/kB/)r=$2;if(/mB/)r=$2*1000;if(/gB/)r=$2*1000000}END{print int(r)}' /proc/meminfo)
-  if [ "$ram_size" -gt "$ram_avail" ]; then
-    echo "Not enough RAM: required ${ram_size}KiB and available ${disk_avail}KiB"
+  local mem_total=$(awk '/^MemTotal:/{print$2}' /proc/meminfo)
+  if [ "$ram_size" -gt "$mem_total" ]; then
+    echo "Not enough RAM: required ${ram_size} KiB and available ${mem_total} KiB" 1>&2
+    return 3
+  fi
+
+  local swap_size=${2:-0}      # in KiB
+  local swap_total=$(awk '/^SwapTotal:/{print$2}' /proc/meminfo)
+  if [ "$(( ram_size + swap_size ))" -gt "$(( mem_total + swap_total ))" ]; then
+    echo "Not enough RAM or swap space:" 1>&2
+    echo " required swap ${swap_size} KiB and available ${swap_total} KiB" 1>&2
+    echo " required mem+swap $(( ram_size + swap_size )) KiB and available $(( mem_total + swap_total )) KiB" 1>&2
     return 3
   fi
 }
@@ -2242,7 +2251,8 @@ debian_90_install_agentic_predictive_maintenance_pipeline () {
   if verify_agentic_predictive_maintenance_pipeline && [[ " $* " != *" --reinstall "* ]]; then
     echo "Agentic Predictive Maintenance Pipeline already installed. Skipping" 1>&2
   else
-    ensure_disk_space 60
+    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 60
     ensure_git_export "$workspace" "$version" "$repository" agentic-predictive-maintenance-pipeline
 
     cd "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection
@@ -2294,6 +2304,80 @@ debian_90_remove_agentic_predictive_maintenance_pipeline () {
 }
 
 
+configure_agentic_smart_community () {
+  workspace="$(ensure_project_path)/agentic-smart-community"
+  version="release-2026.2.0"
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(3100 3101 41091 8192 8999)
+
+  mlvu_workspace="$workspace/agentic-smart-community/.external/edge-ai-libraries"
+  mlvu_version="release-2026.2.0"
+  mlvu_repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
+  mlvu_subpath="microservices/multilevel-video-understanding"
+
+  export HF_HOME="$workspace/models/huggingface"
+  export VIDEO_SUMMARY_CACHE_HOST="$workspace/.cache/.multilevel-video-understanding"
+  export SMART_COMMUNITY_DATA_DIR="$workspace/.mcp-smart-community"
+  export MODEL_DIR="$workspace/models"
+  export PREFILTER_MODEL="$workspace/models/openvino/yolo11s/FP16/yolo11s.xml"
+  export MCP_BIND_HOST="0.0.0.0"
+}
+
+verify_agentic_smart_community () {
+  [ -e "$workspace"/agentic-smart-community/config.yaml.example ]
+  [ -d "$mlvu_workspace"/$mlvu_subpath ]
+}
+
+debian_90_profile_agentic_smart_community () {
+  echo "curl wget git jq python3_venv ffmpeg nodejs docker edge_base mediamtx"
+}
+
+debian_90_install_agentic_smart_community () {
+  configure_agentic_smart_community
+  if verify_agentic_smart_community && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Agentic Smart Community already installed. Skipping" 1>&2
+  else
+    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 128000
+    ensure_ram_size 65011712 33554432 # 62 GiB and 32 GiB
+
+    ensure_git_export "$workspace" "$version" "$repository" agentic-smart-community
+    mkdir -p "${mlvu_workspace%/*}"
+    ensure_git_clone "$mlvu_workspace" "${mlvu_version}" "$mlvu_repository" "$mlvu_subpath"
+
+    verify_agentic_smart_community
+  fi
+
+  echo "@@HIGHLIGHT worksapce: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|stop|remove"
+}
+
+debian_90_start_agentic_smart_community () {
+  configure_agentic_smart_community
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_agentic_smart_community "$@"
+
+  cd "$workspace"/agentic-smart-community
+  bash setup_docker.sh
+
+  echo "@@HIGHLIGHT UI: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  # check health
+  curl -fsS -X POST http://localhost:${used_ports[0]}/mcp -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"startup-check","version":"1.0"}}}'
+  curl -fsS http://localhost:${used_ports[1]}/health
+}
+
+debian_90_stop_agentic_smart_community () {
+  configure_agentic_smart_community
+  cd "$workspace"/agentic-smart-community && bash setup_docker.sh --down || true
+}
+
+debian_90_remove_agentic_smart_community () {
+  debian_90_stop_agentic_smart_community "$@"
+  ensure_sudo rm -rf "$workspace"
+}
+
+
 configure_anomalib () {
   workspace="$(ensure_project_path)/anomalib"
   version=2.6.2
@@ -2315,7 +2399,7 @@ debian_80_install_anomalib () {
   if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
     echo "Anomalib already installed. Skipping"
   else
-    ensure_disk_space 6000
+    ensure_disk_size 6000
     mkdir -p "$workspace"
     cd "$workspace"
     python3 -m venv .venv
@@ -2475,7 +2559,7 @@ debian_90_install_autonomous_mobile_robot () {
   if verify_autonomous_mobile_robot && [[ " $* " != *" --reinstall "* ]]; then
     echo "Autonomous Mobile Robot is already installed. Skipping..."
   else
-    ensure_disk_space $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
+    ensure_disk_size $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
 
     # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
     ensure_apt install -y software-properties-common curl gnupg wget
@@ -2885,7 +2969,19 @@ EOF
 }
 
 debian_99_profile_edge_base () {
-  [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu_accel npu_accel core_types pre_system_scan"
+  case "$1" in
+  bootstrap) # all components
+    echo "core_types pre_system_scan edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
+    ;;
+  *)
+    echo "core_types pre_system_scan"
+    if [[ " $* " = *" --edgepack "* ]]; then
+      echo "edge_pack_base_standard edge_pack_npu"
+    else
+      echo "gpu_accel npu_accel"
+    fi
+    ;;
+  esac
 }
 
 
@@ -3377,8 +3473,9 @@ debian_90_install_geti () {
   if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
     echo "Geti already installed. Skipping."
   else
-    ensure_disk_space 40000
-    ensure_ram_size 16000000
+    ensure_ports_open "$port" return 3
+    ensure_disk_size 40000
+    ensure_ram_size 16777216 # 16 GiB
     docker pull $image_name
   fi
 }
@@ -3536,7 +3633,7 @@ debian_90_install_handheld_multi_modal () {
   if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
     echo "handheld_multi_modal already installed. Skipping"
   else
-    ensure_disk_space 300
+    ensure_disk_size 300
 
     ensure_git_clone "$workspace" $version $repository federal-and-aerospace-ai-suite/handheld-multi-modal
     cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
@@ -3604,7 +3701,7 @@ debian_90_install_humanoid_imitation_learning () {
   else
     # The base image bundles the OpenVINO dev stack, Intel GPU runtime, oneAPI
     # and a clone of edge-ai-suites; the sample image adds the policy packages.
-    ensure_disk_space 25000
+    ensure_disk_size 25000
     ensure_git_clone "$workspace" "$version" "$repository" samples/robotics/robotics-ai-suite-containers
 
     cd "$container_dir"
@@ -3791,8 +3888,10 @@ debian_90_install_live_video_alert_agent () {
   if verify_live_video_alert_agent && [[ " $* " != *" --reinstall "* ]]; then
     echo "Live Video Alert Agent is already installed. Skipping"
   else
+    ensure_ports_open "${used_ports[*]}" return 3
+
     # clone the repository
-    ensure_disk_space 64000
+    ensure_disk_size 64000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-alert-agent
     verify_live_video_alert_agent
   fi
@@ -3866,8 +3965,10 @@ debian_90_install_live_video_captioning () {
   if verify_live_video_captioning && [[ " $* " != *" --reinstall "* ]]; then
     echo "Live Video Captioning is already installed. Skipping"
   else
+    ensure_ports_open "${used_ports[*]}" return 3
+
     # clone the repository
-    ensure_disk_space 64000
+    ensure_disk_size 64000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning
     export -n socks_server ftp_proxy
 
@@ -3949,8 +4050,10 @@ debian_90_install_live_video_captioning_rag () {
   if verify_live_video_captioning_rag && [[ " $* " != *" --reinstall "* ]]; then
     echo "Live Video Captioning RAG is already installed. Skipping"
   else
+    ensure_ports_open "${used_ports[*]}" return 3
+
     # clone the repository
-    ensure_disk_space 64000
+    ensure_disk_size 64000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning live-video-analysis/live-video-captioning-rag
     export -n socks_server ftp_proxy
 
@@ -4038,8 +4141,10 @@ debian_90_install_live_video_search () {
   if verify_live_video_search && [[ " $* " != *" --reinstall "* ]]; then
     echo "Live Video Search is already installed. Skipping"
   else
+    ensure_ports_open "${used_ports[*]}" return 3
+
     # clone the repository
-    ensure_disk_space 64000
+    ensure_disk_size 64000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-search
     verify_live_video_search
   fi
@@ -4113,7 +4218,7 @@ debian_90_install_loitering_detection () {
     echo "Loitering detection is already installed. Skipping"
   else
     # clone the repository
-    ensure_disk_space 280
+    ensure_disk_size 280
     ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
     # setup
@@ -4140,12 +4245,13 @@ debian_90_start_loitering_detection () {
 
   cd "$workspace"/metro-vision-ai-app-recipe
   docker compose -f compose-without-scenescape.yml up -d --wait
-  ./sample_start.sh
 
   echo "@@HIGHLIGHT UI: http://$(ensure_ip)"
   echo "@@HIGHLIGHT Grafana AUTH: admin/admin"
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  ./sample_start.sh && ./sample_status.sh
 }
 
 debian_90_stop_loitering_detection () {
@@ -4228,7 +4334,7 @@ debian_90_install_loss_prevention () {
     echo "Loss prevention is already installed. Skipping"
   else 
     # clone the repository
-    ensure_disk_space 300
+    ensure_disk_size 300
     ensure_git_clone "$workspace" $version $repository
 
     # setup
@@ -4320,6 +4426,31 @@ $(ensure_sbom_format pkg-list make)
 EOF
 }
 
+configure_mediamtx () {
+  version=1.12.2
+  repository="https://github.com/bluenviron/mediamtx/releases/download/v${version}/mediamtx_v${version}_linux_amd64.tar.gz"
+  bin_path="/usr/local/bin"
+}
+
+debian_70_profile_mediamtx () {
+  echo "curl"
+}
+
+debian_70_install_mediamtx () {
+  configure_mediamtx
+  if [ -x "$bin_path/mediamtx" ] && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Mediamtx already installed. Skipping" 1>&2
+  else
+    curl -fsSL --retry 3 "$repository" | ensure_sudo tar xz -C "$bin_path" mediamtx
+    [ -x "$bin_path/mediamtx" ]
+  fi
+}
+
+debian_70_remove_mediamtx () {
+  ensure_sudo rm -f "$bin_path/mediamtx"
+}
+
+
 debian_30_install_msr_tools () {
   ensure_apt_install_package msr-tools
 }
@@ -4381,9 +4512,8 @@ debian_90_install_multimodal_weld_defect_detection () {
   if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Multimodal weld defect detection is already installed. Skipping"
   else
-    local device="$(ensure_select_device "$@")"
-
-    ensure_disk_space 64000
+    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 64000
     ensure_ram_size 16777216 # 16 GiB
     ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal
 
@@ -4501,8 +4631,7 @@ debian_90_remove_multimodal_weld_defect_detection () {
 configure_nicu_warmer () {
   workspace="$(ensure_project_path)/nicu-warmer"
   version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
-  device_env="configs/res/all-$(ensure_select_device "$@").env"
+  repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git"
   models=(
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin"
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml"
@@ -4516,14 +4645,29 @@ configure_nicu_warmer () {
     "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.xml action-recognition-0001-decoder.xml"
     "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.bin action-recognition-0001-decoder.bin"
   )
+  used_ports=(8080)
+}
+
+configure_nicu_warmer_device () {
+  local device="$1"
+  local device_env="configs/res/all-${device}.env"
+  
+  cd "$workspace"/NICU-Warmer
+ 
+  sed -i "s|^DEVICE_ENV=.*|DEVICE_ENV=${device_env}|" .env
+  make setup DEVICE_ENV=$device_env
 }
 
 verify_nicu_warmer () {
   for model1 in "${models[@]}"; do
-    [ -e "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/${model1#* } ] || return 1
+    [ -e "$workspace"/NICU-Warmer/${model1#* } ] || {
+      echo "Missing ${model1#* }" 1>&2
+      return 1
+    }
   done
-  . "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer/.env 2> /dev/null
-  docker inspect intel/hl-ai-nicu-backend:$TAG > /dev/null 2>&1
+  [ -e "$workspace"/NICU-Warmer/.env ]
+  . "$workspace"/NICU-Warmer/.env 2> /dev/null
+  docker inspect intel/hl-ai-nicu-backend:$TAG > /dev/null
 }
 
 debian_90_profile_nicu_warmer () {
@@ -4534,56 +4678,75 @@ debian_90_install_nicu_warmer () {
   configure_nicu_warmer $*
   if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
     echo "NICU Warmer is already installed. Skipping" 1>&2
-    return
+  else
+    ensure_ports_open "${used_ports[*]}" return 3
+
+    # clone the repository
+    ensure_disk_size 160
+    ensure_git_clone "$workspace" $version $repository NICU-Warmer
+
+    # configure and optimization
+    cd "$workspace"/NICU-Warmer
+    sed -i 's|decodebin3 ! .*|decodebin3|' configs/res/all-gpu.env
+    sed -i -e 's|- *"8080:8080"||' -e 's|- *"5001:5001"||' -e 's|- *"9100:9000"||' -e 's|- *"1883:1883"||' -e 's|3001|8080|' Makefile docker-compose.yaml
+    sed -i -z 's| *ports:\n\([ ]*[^ -]\)|\1|g' docker-compose.yaml
+    echo "TAG=$(grep -E ^TAG Makefile | cut -f2 -d= | tr -d ' ')" >> .env 
+
+    # download models
+    mkdir -p models_rppg
+    for model1 in "${models[@]}"; do
+      [ -e ${model1#* } ] || {
+        echo "Downloading ${model1%% *}..."
+        curl -sSf -L --retry 5 --retry-all-errors --retry-delay 2 "${model1%% *}" -o ${model1#* }
+      }
+    done
+
+    # build images
+    docker compose --profile dlsps build --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
+
+    verify_nicu_warmer
   fi
 
-  # clone the repository
-  ensure_disk_space 160
-  ensure_git_clone "$workspace" $version $repository health-and-life-sciences-ai-suite/NICU-Warmer
+  local device=$(ensure_select_device "$@")
+  configure_nicu_warmer_device "$device"
 
-  # configure and optimization
-  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
-  sed -i 's|decodebin3 ! .*|decodebin3|' configs/res/all-gpu.env
-  sed -i -e 's|- *"8080:8080"||' -e 's|- *"5001:5001"||' -e 's|- *"9100:9000"||' -e 's|- *"1883:1883"||' -e 's|3001|8080|' Makefile docker-compose.yaml
-  sed -i -z 's| *ports:\n\([ ]*[^ -]\)|\1|g' docker-compose.yaml
-  echo "DEVICE_ENV=$device_env" >> .env 
-  echo "TAG=$(grep -E ^TAG Makefile | cut -f2 -d= | tr -d ' ')" >> .env 
-
-  # download models
-  mkdir -p models_rppg
-  for model1 in "${models[@]}"; do
-    [ -e ${model1#* } ] || curl -sSf -L --retry 5 --retry-all-errors --retry-delay 2 "${model1%% *}" -o ${model1#* }
-  done
-
-  # setup
-  make setup DEVICE_ENV=$device_env
-
-  # prepull images
-  docker compose --profile dlsps pull --ignore-buildable
-
-  # build images
-  docker compose --profile dlsps build --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
-
-  verify_nicu_warmer
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|remove" 
 }
 
 debian_90_start_nicu_warmer () {
-  ensure_ports_open 8080 debian_90_stop_nicu_warmer
-  configure_nicu_warmer $*
-  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
-  make run DEVICE_ENV=$device_env
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip):8080"
+  configure_nicu_warmer "$@"
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_nicu_warmer
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_nicu_warmer_device "$device"
+
+  cd "$workspace"/NICU-Warmer
+  local device_env="$(grep -E ^DEVICE_ENV= .env | tail -n1 | cut -f2 -d=)"
+  make run DEVICE_ENV="$device_env"
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 debian_90_stop_nicu_warmer () {
-  configure_nicu_warmer $*
-  cd "$workspace"/health-and-life-sciences-ai-suite/NICU-Warmer
-  make down
+  configure_nicu_warmer "$@"
+  cd "$workspace"/NICU-Warmer && make down || true
 }
 
 debian_90_remove_nicu_warmer () {
-  debian_90_stop_nicu_warmer || true
+  debian_90_stop_nicu_warmer
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+debian_70_install_nodejs () {
+  ensure_apt_install_package nodejs
+}
+
+debian_70_sbom_nodejs () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list nodejs)
+EOF
 }
 
 configure_npu_accel () {
@@ -4783,8 +4946,9 @@ debian_90_install_order_accuracy_dine_in () {
   if verify_order_accuracy_dine_in && [[ " $* " != *" --reinstall "* ]]; then
     echo "Order accuracy is already installed. Skipping"
   else 
+    ensure_ports_open "${ports[*]}" return 3
     # clone the repository
-    ensure_disk_space 10000
+    ensure_disk_size 10000
     ensure_git_clone "$workspace" $version $repository
 
     # initialize .env
@@ -4865,8 +5029,9 @@ debian_90_install_order_accuracy_take_away () {
   if verify_order_accuracy_take_away && [[ " $* " != *" --reinstall "* ]]; then
     echo "Order accuracy is already installed. Skipping"
   else 
+    ensure_ports_open "${ports[*]}" return 3
     # clone the repository
-    ensure_disk_space 10000
+    ensure_disk_size 10000
     ensure_git_clone "$workspace" $version $repository
 
     # initialize .env
@@ -4918,6 +5083,7 @@ configure_pallet_defect_detection () {
   workspace="$(ensure_project_path)/pallet-defect-detection"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
+  used_ports=(80 443)
 }
 
 configure_pallet_defect_detection_device () {
@@ -4926,8 +5092,14 @@ configure_pallet_defect_detection_device () {
 }
 
 verify_pallet_defect_detection () {
-  [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/videos/warehouse.avi ]
-  [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/deployment/Detection/model/model.bin ]
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/videos/warehouse.avi ] || {
+    echo "warehouse.avi missing" 1>&2
+    return 1
+  }
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pallet-defect-detection/models/pallet-defect-detection/deployment/Detection/model/model.bin ] || {
+    echo "model.bin missing" 1>&2
+    return 1
+  }
 }
 
 debian_90_profile_pallet_defect_detection () {
@@ -4939,8 +5111,9 @@ debian_90_install_pallet_defect_detection () {
   if verify_pallet_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Pallet defect detection is already installed. Skipping"
   else
+    ensure_ports_open "${used_ports[*]}" return 3
     # clone the repository
-    ensure_disk_space 50
+    ensure_disk_size 50
     ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision
 
     # setup
@@ -4953,7 +5126,10 @@ MINIO_ACCESS_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | 
 MINIO_SECRET_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+S3_STORAGE_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+S3_STORAGE_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 EOF
+    sed -i 's|curl |curl -f |' apps/pallet-defect-detection/setup.sh
     ./setup.sh
     verify_pallet_defect_detection
   fi
@@ -4969,7 +5145,7 @@ EOF
 
 debian_90_start_pallet_defect_detection () {
   configure_pallet_defect_detection
-  ensure_ports_open "80 443" debian_90_stop_pallet_defect_detection
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_pallet_defect_detection
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_pallet_defect_detection_device "_$device"
@@ -4977,21 +5153,23 @@ debian_90_start_pallet_defect_detection () {
   cd "$workspace"/industrial-edge-insights-vision
   docker compose up -d --wait
 
-  ./sample_start.sh
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"
+
+  ./sample_start.sh && ./sample_status.sh
 }
 
 debian_90_stop_pallet_defect_detection () {
   configure_pallet_defect_detection
-  cd "$workspace"/industrial-edge-insights-vision
-  ./sample_stop.sh || true
-  docker compose down -v
+  cd "$workspace"/industrial-edge-insights-vision && {
+    ./sample_stop.sh || true
+    docker compose down -v
+  } || true
 }
 
 debian_90_remove_pallet_defect_detection () {
-  debian_90_stop_pallet_defect_detection || true
+  debian_90_stop_pallet_defect_detection
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
@@ -4999,6 +5177,7 @@ configure_pcb_anomaly_detection () {
   workspace="$(ensure_project_path)/pcb-anomaly-detection"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
+  used_ports=(80 443)
 }
 
 configure_pcb_anomaly_detection_device () {
@@ -5007,8 +5186,14 @@ configure_pcb_anomaly_detection_device () {
 }
 
 verify_pcb_anomaly_detection () {
-  [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
-  [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin ]
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ] || {
+    echo "anomalib_pcb_test.avi missing" 1>&2
+    return 1
+  }
+  [ -e "$workspace/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin" ] || {
+    echo "model.bin missing" 1>&2
+    return 1
+  }
 }
 
 debian_90_profile_pcb_anomaly_detection () {
@@ -5020,8 +5205,9 @@ debian_90_install_pcb_anomaly_detection () {
   if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "PCB anomaly detection is already installed. Skipping"
   else
+    ensure_ports_open "${used_ports[*]}" return 3
     # clone the repository
-    ensure_disk_space 60
+    ensure_disk_size 60
     ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision
 
     # setup
@@ -5034,7 +5220,10 @@ MINIO_ACCESS_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | 
 MINIO_SECRET_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+S3_STORAGE_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+S3_STORAGE_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 EOF
+    sed -i 's|curl |curl -f |' apps/pcb-anomaly-detection/setup.sh
     ./setup.sh
     verify_pcb_anomaly_detection
   fi
@@ -5050,7 +5239,7 @@ EOF
 
 debian_90_start_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  ensure_ports_open "80 443" debian_90_stop_pcb_anomaly_detection
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_pcb_anomaly_detection
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_pcb_anomaly_detection_device "_$device"
@@ -5058,21 +5247,23 @@ debian_90_start_pcb_anomaly_detection () {
   cd "$workspace"/industrial-edge-insights-vision
   docker compose up -d --wait
 
-  ./sample_start.sh
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]"
   echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  ./sample_start.sh && ./sample_status.sh
 }
 
 debian_90_stop_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  cd "$workspace"/industrial-edge-insights-vision
-  ./sample_stop.sh || true
-  docker compose down -v --remove-orphans
+  cd "$workspace"/industrial-edge-insights-vision && {
+    ./sample_stop.sh || true
+    docker compose down -v --remove-orphans
+  } || true
 }
 
 debian_90_remove_pcb_anomaly_detection () {
-  debian_90_stop_pcb_anomaly_detection || true
+  debian_90_stop_pcb_anomaly_detection
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
@@ -5167,7 +5358,7 @@ debian_91_install_physical_ai_framework () {
   if verify_physical_ai_framework "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Framework is already installed. Skipping..."
   else
-    ensure_disk_space 15000
+    ensure_disk_size 15000
 
     mkdir -p "$workspace"
     uv venv --python 3.12 "$paif_venv" || {
@@ -5240,7 +5431,7 @@ debian_92_install_physical_ai_studio () {
   if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Studio is already installed. Skipping..."
   else
-    ensure_disk_space 20000
+    ensure_disk_size 20000
     echo "Installing ${pais_pkg}[${pais_extra}] (PyTorch ${pais_extra} build; this may take a while)..."
     uv tool install --python 3.12 \
       --index "$pais_index" --index-strategy unsafe-best-match \
@@ -5808,10 +5999,77 @@ EOF
 }
 
 
+debian_30_install_rsync () {
+  ensure_apt_install_package rsync
+}
+
+debian_30_sbom_rsync () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list rsync)
+EOF
+}
+
+configure_scenescape () {
+  workspace="$(ensure_project_path)/scenescape"
+  version=release-2026.2.0
+  repository=https://github.com/open-edge-platform/scenescape.git
+  used_ports=(443)
+}
+
+verify_scenescape () {
+  [ -d "$workspace" ]
+}
+
+debian_90_profile_scenescape () {
+  echo "docker curl git make unzip rsync python3_venv edge_base"
+}
+
+debian_90_install_scenescape () {
+  configure_scenescape
+  if verify_scenescape && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Scenescape already installed. Skipping" 1>&2
+  else
+    ensure_disk_size 300
+    ensure_git_export "$workspace" "$version" "$repository"
+    verify_scenescape
+  fi
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_scenescape () {
+  configure_scenescape
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_scenescape "$@"
+
+  cd "$workspace"
+  export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5)
+  make init-secrets
+  make demo-all DEMO_REBUILD_IMAGES=false
+
+  echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT SUPASS: $SUPASS"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_scenescape () {
+  configure_scenescape
+  cd "$workspace" && make demo-close || true
+}
+
+debian_90_remove_scenescape () {
+  debian_90_stop_scenescape "$@"
+  cd "$workspace" && make clean-all || true
+  ensure_sudo rm -rf "$workspace"
+}
+
+
 configure_smart_intersection () {
   workspace="$(ensure_project_path)/smart-intersection"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(443)
 }
 
 configure_smart_intersection_device () {
@@ -5852,8 +6110,8 @@ debian_90_install_smart_intersection () {
   if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Smart intersection is already installed. Skipping"
   else
-    # clone the repository
-    ensure_disk_space 1500
+    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 1500
     ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
     # setup
@@ -5874,7 +6132,7 @@ debian_90_install_smart_intersection () {
 
 debian_90_start_smart_intersection () {
   configure_smart_intersection
-  ensure_ports_open 443 debian_90_stop_smart_intersection
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_intersection
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_smart_intersection_device "$device"
@@ -5883,7 +6141,7 @@ debian_90_start_smart_intersection () {
   export SUPASS=$(cat smart-intersection/src/secrets/supass)
   docker compose up -d 
 
-  echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT username/password: admin/$SUPASS"
   echo "@@HIGHLIGHT $install_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $install_name stop|remove"
@@ -5891,19 +6149,78 @@ debian_90_start_smart_intersection () {
 
 debian_90_stop_smart_intersection () {
   configure_smart_intersection
-  cd "$workspace"/metro-vision-ai-app-recipe
-  docker compose -f compose-scenescape.yml down -v --remove-orphans
+  cd "$workspace"/metro-vision-ai-app-recipe && docker compose -f compose-scenescape.yml down -v --remove-orphans || true
 }
 
 debian_90_remove_smart_intersection () {
-  debian_90_stop_smart_intersection || true
+  debian_90_stop_smart_intersection
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
+
+configure_smart_nvr () {
+  workspace="$(ensure_project_path)/smart-nvr"
+  version="release-2026.2.0"
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(7860 8000 5000 6379 1884 443 1880 3000 1883 8086 8554)
+
+  export REGISTRY_URL="intel"
+  export TAG="latest"
+  export VSS_IP=$(ensure_ip)
+  export VSS_PORT=12345
+  export NVR_SCENESCAPE=true
+}
+
+verify_smart_nvr () {
+  [ -d "$workspace"/smart-nvr ]
+  [ -d "$workspace"/metro-vision-ai-app-recipe ]
+}
+
+debian_90_profile_smart_nvr () {
+  echo "video_search_and_summarization"
+}
+
+debian_90_install_smart_nvr () {
+  configure_smart_nvr "$@"
+  if verify_smart_nvr && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Smart NVR is already installed. Skipping" 1>&2
+  else
+    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 3000
+    ensure_git_export "$workspace" "$version" "$repository" smart-nvr metro-vision-ai-app-recipe
+  fi
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|remove"
+}
+
+debian_90_start_smart_nvr () {
+  configure_smart_nvr "$@"
+
+  cd "$workspace"/smart-nvr
+  . setup.sh start
+
+  echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_smart_nvr () {
+  configure_smart_nvr "$@"
+  cd "$workspace"/smart-nvr && {
+    . ./setup.sh stop
+  } || true
+}
+
+debian_90_remove_smart_nvr () {
+  debian_90_stop_smart_nvr "$@"
+  ensure_sudo rm -rf "$workspace"
+}
+
 
 configure_smart_parking () {
   workspace="$(ensure_project_path)/smart-parking"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(80 443)
 }
 
 configure_smart_parking_device () {
@@ -5932,7 +6249,7 @@ debian_90_install_smart_parking () {
     echo "Smart parking is already installed. Skipping..."
   else
     # clone the repository
-    ensure_disk_space 300
+    ensure_disk_size 300
     ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
     # setup
@@ -5952,7 +6269,7 @@ debian_90_install_smart_parking () {
 }
 
 debian_90_start_smart_parking () {
-  ensure_ports_open "80 443" debian_90_stop_smart_parking
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_parking
   configure_smart_parking
 
   local device=$(ensure_select_device "$@")
@@ -5960,12 +6277,13 @@ debian_90_start_smart_parking () {
 
   cd "$workspace"/metro-vision-ai-app-recipe
   docker compose up -d --wait
-  ./sample_start.sh
 
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT Grafana AUTH: admin/admin"
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]" 
   echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  ./sample_start.sh && ./sample_status.sh
 }
 
 debian_90_stop_smart_parking () {
@@ -6032,7 +6350,7 @@ debian_90_install_stationary_robot_vision () {
   if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
     echo "Stationary Robot Vision & Control is already installed. Skipping..."
   else
-    ensure_disk_space 15000
+    ensure_disk_size 15000
 
     # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
     ensure_apt install -y software-properties-common curl gnupg wget
@@ -6157,6 +6475,7 @@ configure_uav_mission_compute_sdk () {
   workspace="$(ensure_project_path)/uav-mission-compute-sdk"
   version="release-2026.2.0"
   repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  used_ports=(8086 3000 9090 9273)
 }
 
 verify_uav_mission_compute_sdk () {
@@ -6172,6 +6491,7 @@ debian_85_install_uav_mission_compute_sdk () {
   if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
     echo "UAV mission compute sdk is already installed. Skipping..." 1>&2
   else
+    ensure_ports_open "${used_ports[*]}" return 3
     ensure_git_export "$workspace" "$version" "$repository" federal-and-aerospace-ai-suite/uav-mission-compute-sdk
     cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
     make init
@@ -6193,7 +6513,7 @@ debian_85_install_uav_mission_compute_sdk () {
 }
 
 debian_85_start_uav_mission_compute_sdk () {
-  ensure_ports_open "8086 3000 9090 9273" debian_85_stop_uav_mission_compute_sdk "$@"
+  ensure_ports_open "${used_ports[*]}" debian_85_stop_uav_mission_compute_sdk "$@"
   configure_uav_mission_compute_sdk
   cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
   . .env
@@ -6252,12 +6572,16 @@ EOF
 
 
 configure_video_search_and_summarization () {
-  workspace="$(ensure_project_path)/video_search_and_summarization"
+  workspace="$(ensure_project_path)/video-search-and-summarization"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
-  used_ports="${APP_HOST_PORT:-12345} 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640"
 
+  export APP_HOST_PORT=${APP_HOST_PORT:-12345}
+  used_ports=($APP_HOST_PORT 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640)
+
+  [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$workspace"/.device_from_install)"
   local device=$(ensure_select_device "$@")
+
   export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
   export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en
   export OD_MODEL_NAME=yolov8l-worldv2
@@ -6285,7 +6609,7 @@ configure_video_search_and_summarization () {
   export VLM_TARGET_DEVICE=${device^^}
   export HUGGINGFACE_TOKEN=$HF_TOKEN
   export HF_TOKEN=$HF_TOKEN
-  export HF_HUB_CACHE=\"$workspace/sample-applications/video-search-and-summarization/.cache\"
+  export HF_HUB_CACHE="$workspace"/sample-applications/video-search-and-summarization/.cache
   export GATED_MODEL=$([ -n "$HF_TOKEN" ] && echo true || echo false)
   export LLM_TARGET_DEVICE=${device^^}
   export PM_MULTI_FRAME_COUNT=34
@@ -6321,13 +6645,13 @@ debian_85_profile_video_search_and_summarization () {
 }
 
 debian_85_install_video_search_and_summarization () {
-  configure_video_search_and_summarization $*
+  configure_video_search_and_summarization "$@"
   if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
-    echo "video_search_and_summarization is already installed. Skipping..."
+    echo "Video Search and Summarization is already installed. Skipping..."
   else
     # clone the repository
-    ensure_disk_space 8000
-    ensure_ports_open "$used_ports" return 3
+    ensure_disk_size 8000
+    ensure_ports_open "${used_ports[*]}" return 3
     ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization
 
     # setup
@@ -6341,29 +6665,37 @@ debian_85_install_video_search_and_summarization () {
 
     verify_video_search_and_summarization
   fi
+
+  local device=$(ensure_select_device "$@")
+  echo "$device" > "$workspace"/.device_from_install
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT start|stop|remove"
 }
 
 debian_85_start_video_search_and_summarization () {
-  configure_video_search_and_summarization $*
-  ensure_ports_open "$used_ports" debian_85_stop_video_search_and_summarization $*
+  configure_video_search_and_summarization "$@"
+  ensure_ports_open "${used_ports[*]}" debian_85_stop_video_search_and_summarization $*
 
   cd "$workspace"/sample-applications/video-search-and-summarization
   export FINAL_ARG=
   . ./setup.sh --search-and-summary
 
   echo "@@HIGHLIGHT URL: http://$(ensure_ip):${APP_HOST_PORT}"
+  echo "@@HIGHLIGHT stop|remove"
 }
 
 debian_85_stop_video_search_and_summarization () {
-  configure_video_search_and_summarization $*
+  configure_video_search_and_summarization "$@"
 
-  cd "$workspace"/sample-applications/video-search-and-summarization
+  cd "$workspace"/sample-applications/video-search-and-summarization && {
   . ./setup.sh --stop || true
-  . ./setup.sh --clean-data || true
+  . ./setup.sh --clean-data
+  } || true
 }
 
 debian_85_remove_video_search_and_summarization () {
-  debian_85_stop_video_search_and_summarization $* || true
+  debian_85_stop_video_search_and_summarization "$@"
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
@@ -6412,11 +6744,102 @@ debian_90_remove_vippet () {
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
+configure_visual_search_question_and_answering () {
+  workspace="$(ensure_project_path)/visual-search-question-and-answering"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(17580 19530 9764 9990 6008 9777)
+
+  export EMBEDDING_MODEL_NAME=CLIP/clip-vit-h-14
+  export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
+  export DOCKER_VOLUME_DIRECTORY="$workspace"
+  export HOST_DATA_PATH="$workspace"/data
+  export REGISTRY=intel/
+  export TAG=latest
+
+  [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$worksapce"/.device_from_install)"
+  local device=$(ensure_select_device "$@")
+  export VLM_DEVICE=${device^^}
+  export EMBEDDING_DEVICE=${device^^}
+  #export DEVICE=${device^^}
+}
+
+verify_visual_search_question_and_answering () {
+  [ -r "$workspace" ]
+}
+
+debian_90_profile_visual_search_question_and_answering () {
+  echo "git curl gawk python3_venv edge_base docker"
+}
+
+debian_90_install_visual_search_question_and_answering () {
+  configure_visual_search_question_and_answering "$@"
+  if verify_visual_search_question_and_answering && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Visual search question and answering is already installed. Skipping..."
+  else
+    # clone the repository
+    ensure_disk_size 8000
+    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_git_export "$workspace" $version $repository visual-search-question-and-answering
+
+    # setup
+    cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose
+    sed -i -e "s|^host_ip=.*|host_ip=$(ensure_ip)|" -e "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" env.sh
+    sed -i "s|^export HOST_DATA_PATH=.*|export HOST_DATA_PATH=\"$HOST_DATA_PATH\"|" env.sh
+
+    # create data path
+    mkdir -p "$HOST_DATA_PATH"
+
+    verify_visual_search_question_and_answering
+  fi
+
+  local device=$(ensure_select_device "$@")
+  echo "$device" > "$workspace"/.device_from_input
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|remove"
+}
+
+debian_90_start_visual_search_question_and_answering () {
+  configure_visual_search_question_and_answering "$@"
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_visual_search_question_and_answering "$@"
+
+  cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose
+  . ./env.sh
+  docker compose -f compose_milvus.yaml up -d 
+  
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  if [ ! -e "$HOST_DATA_PATH"/DAVIS/subset ]; then
+    echo "Fetching demo dataset"
+    local cids=($(docker ps -a --filter "status=running" -q | xargs -r docker inspect --format '{{.Config.Image}} {{.Id}}' | grep "dataprep-visualdata-milvus" | awk '{print $2}'))
+    [ "${#cids[*]}" -gt 0 ] || {
+      echo "No milvus containers found" 1>&2
+      return 1
+    }
+    docker exec ${cids[0]} python example/example_utils.py -d DAVIS
+    [ -d "$HOST_DATA_PATH"/DAVIS/subset ]
+  fi
+
+  echo "@@HIGHLIGHT dataset: $HOST_DATA_PATH/DAVIS/subset"
+}
+
+debian_90_stop_visual_search_question_and_answering () {
+  configure_visual_search_question_and_answering "$@"
+  cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && . ./env.sh && docker compose -f compose_milvus.yaml down -v --remove-orphans || true
+}
+
+debian_90_remove_visual_search_question_and_answering () {
+  debian_90_stop_visual_search_question_and_answering $* || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
 configure_wind_turbine_anomaly_detection () {
   workspace="$(ensure_project_path)/wind-turbine-anomaly-detection"
   version="release-2026.2.0"
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
-  nstreams=40
+  nstreams=20
   npoints=500
   duration=7200
   database="datain"
@@ -6444,8 +6867,9 @@ debian_90_install_wind_turbine_anomaly_detection () {
   if verify_wind_turbine_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Wind turbine anomaly detection already installed. Skipping..." 1>&2
   else
-    ensure_disk_space 64000
+    ensure_disk_size 64000
     ensure_ram_size 16777216 # 16 GiB
+    ensure_ports_open "${used_ports[*]}" return 3
     ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series
     cd "$workspace"/industrial-edge-insights-time-series
 
@@ -6596,7 +7020,16 @@ debian_99_profile_manufacturing_ai_suite () {
 
 debian_99_profile_metro_ai_suite () {
   # metro ai suites cannot start at the same time
-  [ "$1" = "start" ] || echo "vippet smart_intersection smart_parking loitering_detection live_video_captioning live_video_captioning_rag live_video_search live_video_alert_agent video_search_and_summarization agentic_predictive_maintenance_pipeline"
+  [ "$1" = "start" ] || {
+    local modules=(
+      vippet smart_intersection smart_parking loitering_detection
+      live_video_captioning live_video_captioning_rag live_video_search live_video_alert_agent 
+      video_search_and_summarization 
+      agentic_predictive_maintenance_pipeline
+      agentic_smart_community
+    )
+    echo "${modules[*]}"
+  }
 }
 
 

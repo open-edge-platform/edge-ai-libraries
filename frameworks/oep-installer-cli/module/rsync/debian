@@ -1,0 +1,10 @@
+
+debian_30_install_rsync () {
+  ensure_apt_install_package rsync
+}
+
+debian_30_sbom_rsync () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list rsync)
+EOF
+}

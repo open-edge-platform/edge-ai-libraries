@@ -1,0 +1,25 @@
+
+configure_mediamtx () {
+  version=1.12.2
+  repository="https://github.com/bluenviron/mediamtx/releases/download/v${version}/mediamtx_v${version}_linux_amd64.tar.gz"
+  bin_path="/usr/local/bin"
+}
+
+debian_70_profile_mediamtx () {
+  echo "curl"
+}
+
+debian_70_install_mediamtx () {
+  configure_mediamtx
+  if [ -x "$bin_path/mediamtx" ] && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Mediamtx already installed. Skipping" 1>&2
+  else
+    curl -fsSL --retry 3 "$repository" | ensure_sudo tar xz -C "$bin_path" mediamtx
+    [ -x "$bin_path/mediamtx" ]
+  fi
+}
+
+debian_70_remove_mediamtx () {
+  ensure_sudo rm -f "$bin_path/mediamtx"
+}
+
