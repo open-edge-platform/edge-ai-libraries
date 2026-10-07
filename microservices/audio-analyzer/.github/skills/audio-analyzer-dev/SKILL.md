@@ -7,13 +7,16 @@ description: >
   provider and device (openai/openvino/whispercpp on CPU/GPU/NPU); enable
   speaker diarization or voice sentiment; wire Docker volumes, device
   passthrough (`/dev/dri`, `ACCEL_MOUNT_PATH`); tune `config.yaml` and
-  `AUDIO_ANALYZER__...` overrides; or debug a startup, permission,
-  GPU/NPU-visibility, or stuck-model failure. Trigger on phrases like
-  "deploy audio analyzer", "run audio-analyzer in docker", "build
-  audio-analyzer image", "enable NPU", "enable diarization", "configure
-  whisper model", "GPU not detected", "permission denied storage", "audio
-  analyzer won't start", "whisper-large NPU error", or "run audio-analyzer
-  tests".
+  `AUDIO_ANALYZER__...` overrides; run the root-level or tiered test suites;
+  validate a Dockerfile/Compose change with the Tier-3 build test suite;
+  inspect the active model/device or last-call latency via `/v1/model-info`
+  and `/v1/performance`; or debug a startup, permission, GPU/NPU-visibility,
+  or stuck-model failure. Trigger on phrases like "deploy audio analyzer",
+  "run audio-analyzer in docker", "build audio-analyzer image", "enable
+  NPU", "enable diarization", "configure whisper model", "GPU not
+  detected", "permission denied storage", "audio analyzer won't start",
+  "whisper-large NPU error", "run audio-analyzer tests", "which model is
+  active", "check ASR latency", or "validate the docker build".
 argument-hint: >
   Describe what you want to deploy or debug (e.g. "deploy audio-analyzer with
   GPU acceleration" or "enable speaker diarization with my HF token")
@@ -36,7 +39,11 @@ Audio Analyzer microservice.
 - Wiring GPU (`/dev/dri`) or NPU (`ACCEL_MOUNT_PATH`) device passthrough
 - Debugging a service that will not start, fails health checks, reports the
   wrong devices, or raises permission errors on mounted volumes
-- Running the project's pytest tiers (`tier1`/`tier2`/`tier3`)
+- Running the root-level lightweight tests or the tiered functional suite
+  (`tier1`/`tier2`/`tier3`), including the Tier-3 Docker build verification
+  tests
+- Inspecting a running deployment's active model/device or last-call
+  latency via the undocumented debug endpoints
 
 ## Quick Facts
 
@@ -49,6 +56,8 @@ Audio Analyzer microservice.
 | Named volumes | `audio_analyzer_models`, `audio_analyzer_chunks`, `audio_analyzer_storage`, `audio_analyzer_cache` |
 | ASR provider/device matrix | `openai`: CPU only · `whispercpp`: CPU only · `openvino`: CPU \| GPU \| NPU |
 | Health check | `GET /health` → `{"status": "ok"}` |
+| Debug endpoints | `GET /v1/model-info` (active model/provider/device), `GET /v1/performance` (last ASR call latency) — not in the published API reference |
+| Test suites | Root-level `tests/*.py` (unmarked, no model weights/GPU needed) **and** tiered `tests/functional/` (`tier1`/`tier2`/`tier3`) — different invocations, see below |
 
 ## Reference Lookup
 
@@ -57,6 +66,7 @@ Audio Analyzer microservice.
 | [deployment-architecture.md](./references/deployment-architecture.md) | Compose service topology, volumes, device passthrough, config load order, image build vs. pull |
 | [model-and-device-config.md](./references/model-and-device-config.md) | ASR provider/device matrix, precision/weight_format, diarization and sentiment setup, per-request device override |
 | [troubleshooting-deployment.md](./references/troubleshooting-deployment.md) | Permission errors, GPU/NPU visibility, whisper-large NPU limitation, slow first startup |
+| [testing-and-debugging.md](./references/testing-and-debugging.md) | Both test suites' correct invocations, the Tier-3 Docker build suite, debug endpoints, startup failure diagnosis |
 
 ## Example Prompts
 
@@ -65,6 +75,7 @@ Audio Analyzer microservice.
 | [examples-prompts/docker-compose-deploy.md](./examples-prompts/docker-compose-deploy.md) | Standing up the service with Docker Compose and verifying health |
 | [examples-prompts/enable-gpu-npu-acceleration.md](./examples-prompts/enable-gpu-npu-acceleration.md) | Configuring OpenVINO GPU/NPU device passthrough end-to-end |
 | [examples-prompts/enable-diarization-and-sentiment.md](./examples-prompts/enable-diarization-and-sentiment.md) | Turning on speaker diarization and voice sentiment analysis |
+| [examples-prompts/run-tests-and-debug.md](./examples-prompts/run-tests-and-debug.md) | Running the correct test suite and diagnosing a failing deployment |
 
 ---
 
@@ -85,12 +96,19 @@ audio-analyzer/
 ├── utils/
 │   ├── config_loader.py        ← config.yaml + AUDIO_ANALYZER__ env merge
 │   ├── openvino_runtime_validation.py ← provider/device validation, NPU checks
+│   ├── latency_store.py        ← thread-safe last-call latency, backs /v1/performance
 │   ├── ensure_model.py / preload_models.py
 │   └── session_manager.py / storage_manager.py / session_state_manager.py
 ├── config.yaml                 ← single source of truth for runtime behavior
 ├── docker-compose.yml          ← service, volumes, device mounts, healthcheck
 ├── docker/Dockerfile
-└── tests/                      ← pytest, markers: tier1 / tier2 / tier3
+└── tests/
+    ├── *.py                    ← Suite A: unmarked unittest tests, no model weights/GPU
+    └── functional/
+        ├── conftest.py          ← stubs heavy ML libs for tier1 imports
+        ├── *.py                 ← Suite B: tier1/tier2/tier3 pytest-marked tests
+        └── build/
+            └── test_build.py    ← tier3 — real `docker compose build` validation
 ```
 
 ---
@@ -159,12 +177,51 @@ falling back.
    create a venv, `pip install -r requirements.txt`, then `python main.py`
    (default bind `127.0.0.1:8010`; override with `AUDIO_ANALYZER_SERVER_HOST`
    / `AUDIO_ANALYZER_SERVER_PORT`).
-3. Run the test suite:
-   ```bash
-   pytest tests/ -v -m tier1    # CI-safe, no model weights/Docker/GPU
-   pytest tests/ -v -m tier2    # needs HF_TOKEN
-   pytest tests/ -v -m tier3    # needs Docker daemon / full ML stack / live server
-   ```
+
+---
+
+## Procedure: Running Tests and Debugging the Codebase
+
+Read [testing-and-debugging.md](./references/testing-and-debugging.md) first
+— this codebase has **two independently organized test suites**, and using
+the wrong invocation silently runs zero tests.
+
+```bash
+# Suite A — root-level, unmarked, no model weights/GPU needed
+pip install pytest httpx
+pytest tests/test_streaming_endpoints.py tests/test_vss_endpoints.py -v
+
+# Suite B — tiered functional tests (explicit path required; testpaths
+# in pytest.ini only auto-discovers tests/functional/build on its own)
+pytest tests/functional -v -m tier1    # CI-safe, no model weights/Docker/GPU
+pytest tests/functional -v -m tier2    # needs HF_TOKEN
+pytest tests/functional -v -m tier3    # needs Docker daemon / full ML stack / live server
+
+# Tier-3 Docker build verification — validates Dockerfile/Compose changes
+# against a live Docker daemon without deploying the service
+pytest tests/functional/build/test_build.py -m tier3 -v -s
+```
+
+> [!IMPORTANT]
+> Suite A's tests have no `tier1`/`tier2`/`tier3` markers at all — never add
+> a `-m` filter when running them, or every test is excluded. Suite B's
+> `conftest.py` stubs heavy ML libraries (`torch`, `openvino`, `pyannote`,
+> `whisper`, etc.) into `sys.modules` so `tier1` tests can import app code
+> without the full ML stack installed; an already-installed real package
+> always takes precedence.
+
+For a running deployment, check the active model/device and last-call
+latency without digging through logs:
+
+```bash
+curl --noproxy '*' http://127.0.0.1:8010/v1/model-info
+curl --noproxy '*' http://127.0.0.1:8010/v1/performance
+```
+
+If a container exits immediately after startup, grep logs for the exact
+phrase `"ASR model is unavailable"` first — it distinguishes a model
+acquisition failure (`ensure_model`) from a model loading failure
+(`preload_models`) before you investigate further.
 
 ---
 

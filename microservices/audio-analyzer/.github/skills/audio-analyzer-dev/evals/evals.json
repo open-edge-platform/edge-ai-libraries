@@ -69,14 +69,53 @@
     {
       "id": 6,
       "prompt": "I need to run the audio-analyzer test suite in CI without any GPU, Docker daemon, or downloaded model weights available. Which tests should I run and how do I invoke just those?",
-      "expected_output": "A CI-safe test invocation that correctly uses the project's pytest tier markers.",
+      "expected_output": "A CI-safe test invocation that correctly distinguishes this project's two test suites and uses the right marker/path for each.",
       "files": [],
       "expectations": [
-        "References the tier1/tier2/tier3 pytest markers defined for this project.",
+        "Identifies that this codebase has two test suites: the unmarked root-level tests/*.py and the tier-marked tests/functional/ suite.",
         "States tier1 is CI-safe: no model weights, no Docker, no GPU required.",
-        "Shows a command like pytest tests/ -v -m tier1.",
+        "Shows a command that targets tests/functional with -m tier1 (e.g. pytest tests/functional -v -m tier1), not a bare pytest with no path.",
         "Explains that tier2 needs HF_TOKEN and tier3 needs a Docker daemon or live server, and why those are unsuitable for the stated CI constraint.",
-        "Does not recommend running the full suite unfiltered as the answer to a constrained-CI question."
+        "Does not recommend running the full suite unfiltered, and does not claim a bare `pytest -m tier1` with no path argument would find the functional tests."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I want to run the streaming and VSS endpoint tests for audio-analyzer, but when I add -m tier1 to the pytest command nothing gets collected. What am I doing wrong?",
+      "expected_output": "A correct explanation that these particular tests belong to the unmarked root-level suite and must be run without any -m filter.",
+      "files": [],
+      "expectations": [
+        "Identifies tests/test_streaming_endpoints.py and tests/test_vss_endpoints.py as part of the root-level suite that has no tier1/tier2/tier3 markers at all.",
+        "Explains that adding -m tier1 excludes every test in this suite because none of them carry that marker.",
+        "Gives the correct invocation without a -m filter, e.g. pytest tests/test_streaming_endpoints.py tests/test_vss_endpoints.py -v.",
+        "States these tests require no model weights or GPU.",
+        "Distinguishes this suite from the separate tier-marked tests/functional/ suite."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Before deploying a Dockerfile change for audio-analyzer, I want to verify the image actually builds and that the NPU device mapping in docker-compose.yml still resolves correctly, without standing up the full service. What's the right test to run?",
+      "expected_output": "A correct pointer to the Tier-3 Docker build verification suite and an accurate description of what it checks.",
+      "files": [],
+      "expectations": [
+        "Points to tests/functional/build/test_build.py and the command pytest tests/functional/build/test_build.py -m tier3 -v -s.",
+        "States this suite runs real docker compose build --no-cache against a live Docker daemon, not mocked.",
+        "Mentions it verifies the built image appears in the local Docker image store using the image name read from docker-compose.yml.",
+        "Mentions it verifies the ACCEL_MOUNT_PATH to /dev/accel/accel0 device mapping resolves correctly, including the /dev/null fallback when unset.",
+        "Notes that tests in this file skip (not fail) when no Docker daemon is reachable."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "A teammate says transcription on our audio-analyzer deployment feels slower than before, but we aren't sure if that's real or just their network. Is there a way to check the actual last-call latency and confirm which model/device is active without digging through container logs?",
+      "expected_output": "A correct pointer to the service's undocumented debug endpoints for model introspection and latency.",
+      "files": [],
+      "expectations": [
+        "References GET /v1/model-info to confirm the active model, provider, device, and weight_format.",
+        "References GET /v1/performance to retrieve the last ASR call's latency in milliseconds.",
+        "Notes that /v1/performance reports only the most recent call's latency, not a rolling history or average.",
+        "Notes these endpoints are not part of the published OpenAI-compatible API reference but exist in api/custom_endpoints.py.",
+        "Uses port 8010 in any example given."
       ]
     }
   ]
