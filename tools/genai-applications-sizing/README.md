@@ -41,7 +41,7 @@ Before running the sizing tool, ensure the target application is deployed and ac
 - [Sample Application README](../../sample-applications/chat-question-and-answer-core/README.md)
 
 **Live Video Captioning:**
-- [Sample Application README](https://github.com/open-edge-platform/edge-ai-suites/blob/main/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
+- [Sample Application README](https://github.com/open-edge-platform/metro-ai-suite/blob/main/live-video-analysis/live-video-captioning/README.md)
 
 ## Installation
 
@@ -358,7 +358,7 @@ Before running a full profiling session:
 - **Chat Question and Answer Core**
   - [Sample Application](../../sample-applications/chat-question-and-answer-core/README.md)
 - **Live Video Captioning**
-  - [Sample Application](https://github.com/open-edge-platform/edge-ai-suites/blob/main/metro-ai-suite/live-video-analysis/live-video-captioning/README.md)
-- [Metrics Manager Microservice Documentation](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/metrics-manager)
+  - [Sample Application](https://github.com/open-edge-platform/metro-ai-suite/blob/main/live-video-analysis/live-video-captioning/README.md)
+- **Metrics Manager** [Microservice](../../microservices/metrics-manager/README.md)
 - Customize input profiles in `profiles/profiles.yaml` for your use case
 - Enable resource metrics collection for detailed hardware analysis
