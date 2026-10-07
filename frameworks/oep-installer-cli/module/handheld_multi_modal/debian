@@ -18,7 +18,7 @@ debian_90_install_handheld_multi_modal () {
   if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
     echo "handheld_multi_modal already installed. Skipping"
   else
-    ensure_disk_space 300
+    ensure_disk_size 300
 
     ensure_git_clone "$workspace" $version $repository federal-and-aerospace-ai-suite/handheld-multi-modal
     cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal

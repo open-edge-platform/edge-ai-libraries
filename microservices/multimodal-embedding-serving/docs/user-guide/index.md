@@ -59,6 +59,7 @@ The same container image supports both CPU and GPU deployments through runtime c
 - [System Requirements](./get-started/system-requirements.md) - Hardware and software prerequisites
 - [SDK Usage Guide](./sdk-usage.md) - Python SDK integration examples
 - [Supported Models](./supported-models.md) - Complete model list and specifications
+- [QwenText Models on NPU](./qwentext-on-npu.md) - Static shapes and long-text handling for QwenText on Intel NPU
 - [API Reference](./api-reference.md) - Complete REST API documentation
 
 <!--hide_directive
@@ -69,6 +70,7 @@ The same container image supports both CPU and GPU deployments through runtime c
 ./sdk-usage.md
 ./wheel-installation.md
 ./supported-models.md
+./qwentext-on-npu.md
 ./api-reference.md
 Release Notes <./release-notes.md>
 

@@ -1,6 +1,12 @@
 
 configure_libze1 () {
-  libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb"
+  if [[ " $* " = *" edge_pack_npu "* ]]; then
+    version=1.28.2
+    libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb"
+  else
+    version=1.32.0; 
+    libze1_deb="https://github.com/oneapi-src/level-zero/releases/download/v$version/libze1_$version+u${VERSION_ID}_amd64.deb"
+  fi
 }
 
 debian_15_profile_libze1 () {
@@ -8,21 +14,23 @@ debian_15_profile_libze1 () {
 }
 
 debian_15_install_libze1 () {
-  configure_libze1 
+  configure_libze1 "$@"
 
-  if ensure_apt_is_installed libze1; then
+  if ensure_apt_is_installed libze1=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "libze1 is already installed. Skipping..."
   else
-    curl -fsSL "$libze1_deb" -o /tmp/libze1.deb && {
-      ensure_apt install -y /tmp/libze1.deb || {
-        ensure_apt purge -y level-zero level-zero-devel && ensure_apt install -y /tmp/libze1.deb
+    local deb="/tmp/$(basename "$libze1_deb")"
+    curl -fsSL "$libze1_deb" -o "$deb" && {
+      ensure_apt install -y "$deb" || {
+        ensure_apt purge -y level-zero level-zero-devel libze1 && ensure_apt install -y --no-install-recommends "$deb"
       }
+      rm -f "$deb"
     }
   fi
 }
 
 debian_15_sbom_libze1 () {
-  configure_libze1
+  configure_libze1 "$@"
   cat <<EOF
 $(ensure_sbom_format pkg-list "$libze1_deb")
 EOF
