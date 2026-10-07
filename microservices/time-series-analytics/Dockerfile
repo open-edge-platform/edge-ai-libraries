@@ -20,6 +20,15 @@ RUN git clone --depth 1 --filter=blob:none --sparse --branch v${KAPACITOR_VERSIO
     cd /tmp/kapacitor && \
     git sparse-checkout set udf/agent/py
 
+FROM quay.io/influxdb/cross-builder:go1.26.5-latest AS kapacitor-build
+
+ARG KAPACITOR_VERSION
+RUN git clone --depth 1 --branch v${KAPACITOR_VERSION} \
+    https://github.com/influxdata/kapacitor.git /tmp/kapacitor && \
+    cd /tmp/kapacitor && \
+    python3 build.py --no-get --platform linux --arch amd64 \
+        --version "${KAPACITOR_VERSION}" --outdir /tmp/kapacitor-bin
+
 ARG PYTHON_VERSION
 FROM python:${PYTHON_VERSION}-slim as runtime
 
@@ -40,17 +49,15 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Install Kapacitor and other necessary packages
-ARG KAPACITOR_VERSION
+# Install necessary runtime packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    wget intel-gpu-tools libgomp1 && \
-    mkdir -p /etc/init.d && \
-    wget -O /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_VERSION}-1_amd64.deb" || exit 1 && \
-    dpkg -i /tmp/kapacitor.deb || true && apt-get install -y --no-install-recommends -f && \
+    intel-gpu-tools libgomp1 && \
     apt-get clean && \
-    rm -f /tmp/kapacitor.deb && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
+
+# Install the Kapacitor daemon and CLI without the Debian package
+COPY --from=kapacitor-build /tmp/kapacitor-bin/kapacitord /tmp/kapacitor-bin/kapacitor /usr/bin/
 
 # Copy kapacitor Python UDF agent files from builder image
 COPY --from=builder /tmp/kapacitor/udf/agent/py /app/kapacitor_python
