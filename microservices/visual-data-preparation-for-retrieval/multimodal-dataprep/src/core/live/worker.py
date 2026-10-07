@@ -383,8 +383,14 @@ class LiveStreamWorker:
                 # First real data for this session: the source connected and is
                 # delivering the stream, so it is genuinely "running" now. Until
                 # this point the state stays "starting"/"reconnecting", which is
-                # what an unreachable source correctly keeps reporting.
-                if self.stream.state is not LiveStreamStateEnum.running:
+                # what an unreachable source correctly keeps reporting. Skip the
+                # promotion while a pause/stop is draining the session, otherwise
+                # the still-alive pipeline would flip a just-set "paused"/"stopped"
+                # state back to "running".
+                if (
+                    not self._session_shutdown_requested()
+                    and self.stream.state is not LiveStreamStateEnum.running
+                ):
                     self._set_state(LiveStreamStateEnum.running)
             self._persist()
 

@@ -269,7 +269,6 @@ def test_purge_embeddings_returns_minus_one_on_countless_success(manager, monkey
     assert manager.purge_embeddings(stream) == -1
 
 
-
 def test_delete_unknown_stream_raises(manager):
     with pytest.raises(LiveStreamNotFoundError):
         manager.delete("nope")
@@ -310,9 +309,7 @@ def test_delete_succeeds_when_vector_store_cannot_report_a_count(manager, monkey
     monkeypatch.setattr(LiveStreamManager, "purge_media", lambda self, s, before_epoch=None: 0)
 
     # Must not raise and must deregister the stream.
-    _, embeddings, media = manager.delete(
-        stream.stream_id, purge_embeddings=True, purge_media=True
-    )
+    _, embeddings, media = manager.delete(stream.stream_id, purge_embeddings=True, purge_media=True)
     assert embeddings == -1 and media == 0
     assert manager.store.get(stream.stream_id) is None
 
@@ -643,14 +640,52 @@ def test_worker_enters_running_only_once_frames_start_flowing(monkeypatch):
     try:
         assert reported.wait(timeout=5)
         deadline = time.time() + 5
-        while (
-            worker.stream.state != LiveStreamStateEnum.running
-            and time.time() < deadline
-        ):
+        while worker.stream.state != LiveStreamStateEnum.running and time.time() < deadline:
             time.sleep(0.02)
         assert worker.stream.state == LiveStreamStateEnum.running
     finally:
         release.set()
+        worker.stop(timeout=5)
+
+
+def test_worker_pause_is_not_reverted_to_running_while_the_session_drains(monkeypatch):
+    """Pausing must stick even though the pipeline keeps draining in-flight work.
+
+    Regression: the session monitor loop promotes a stream to ``running`` once
+    data flows. If it keeps doing so while a pause drains the still-alive
+    pipeline, it flips a just-set ``paused`` back to ``running`` and the UI
+    bounces back. The promotion must yield to a pending pause/stop.
+    """
+    monkeypatch.setattr("src.core.live.worker._STATS_REFRESH_SECONDS", 0.05)
+    monkeypatch.setattr(settings, "LIVE_RECONNECT_MAX_ATTEMPTS", 0)
+    reported = threading.Event()
+
+    def pipeline(shutdown_event=None, progress_callback=None, **kwargs):
+        progress_callback(5, 1)  # Frames flowed: the session is genuinely live.
+        reported.set()
+        shutdown_event.wait(timeout=5)  # Blocks until pause/stop is requested.
+        time.sleep(0.3)  # Simulate in-flight batches draining after pause.
+        return {"stored_ids": ["a"], "total_frames_processed": 5}
+
+    worker = _worker(pipeline)  # FakeRecorder keeps segments_stored truthy.
+    monkeypatch.setattr(worker, "_record_telemetry", lambda *a, **k: None)
+    worker.start()
+    try:
+        assert reported.wait(timeout=5)
+        deadline = time.time() + 5
+        while worker.stream.state != LiveStreamStateEnum.running and time.time() < deadline:
+            time.sleep(0.02)
+        assert worker.stream.state == LiveStreamStateEnum.running
+
+        worker.pause()
+        assert worker.stream.state == LiveStreamStateEnum.paused
+
+        # Throughout the drain window the state must never bounce to running.
+        deadline = time.time() + 0.6
+        while time.time() < deadline:
+            assert worker.stream.state == LiveStreamStateEnum.paused
+            time.sleep(0.02)
+    finally:
         worker.stop(timeout=5)
 
 
