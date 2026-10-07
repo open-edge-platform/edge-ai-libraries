@@ -139,6 +139,14 @@ services:
             MM_DATAPREP_LIVE_STREAM_ENABLED: ${LIVE_STREAM_ENABLED:-true}
             MM_DATAPREP_LIVE_RETENTION_HOURS: ${LIVE_RETENTION_HOURS:-24}
 
+            # Live-stream registry persistence (reuses the shared PostgreSQL
+            # instance; the registry is a separate `live_streams` table).
+            MM_DATAPREP_LIVE_STREAM_DB_HOST: ${POSTGRES_HOST:-postgres-service}
+            MM_DATAPREP_LIVE_STREAM_DB_PORT: ${POSTGRES_HOST_PORT:-5432}
+            MM_DATAPREP_LIVE_STREAM_DB_NAME: ${POSTGRES_DB:-video_summary_db}
+            MM_DATAPREP_LIVE_STREAM_DB_USER: ${POSTGRES_USER}
+            MM_DATAPREP_LIVE_STREAM_DB_PASSWORD: ${POSTGRES_PASSWORD}
+
             # YOLOX model volume configuration for object detection
             MM_DATAPREP_DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
             MM_DATAPREP_DETECTION_DEVICE: ${DATAPREP_DETECTION_DEVICE:-CPU}
@@ -171,6 +179,8 @@ services:
             - '${MM_DATAPREP_HOST_PORT:-6016}:8000'
         depends_on:
             minio-service:
+                condition: service_healthy
+            postgres-service:
                 condition: service_healthy
         healthcheck:
             test:

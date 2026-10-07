@@ -12,7 +12,7 @@ from src.core.live.models import LiveStream
 from src.core.live.segments import segment_id, segment_object_name, segment_start
 from src.core.live.store import (
     InMemoryLiveStreamStore,
-    SqliteLiveStreamStore,
+    PostgresLiveStreamStore,
     get_live_stream_store,
     reset_live_stream_store,
     set_live_stream_store,
@@ -144,12 +144,27 @@ def test_row_round_trip_preserves_every_field():
 # --------------------------------------------------------------------------
 # Stores
 # --------------------------------------------------------------------------
-@pytest.fixture(params=["memory", "sqlite"])
-def store(request, tmp_path):
+@pytest.fixture(params=["memory", "postgres"])
+def store(request):
     if request.param == "memory":
         yield InMemoryLiveStreamStore()
     else:
-        yield SqliteLiveStreamStore(tmp_path / "live.db")
+        store = _postgres_store_or_skip()
+        store.clear()
+        try:
+            yield store
+        finally:
+            store.clear()
+
+
+def _postgres_store_or_skip() -> PostgresLiveStreamStore:
+    """Return a Postgres-backed store, skipping the test if no DB is reachable."""
+    store = PostgresLiveStreamStore()
+    try:
+        store.clear()  # Forces a connection + schema creation.
+    except Exception as exc:  # noqa: BLE001 - any connection failure skips.
+        pytest.skip(f"PostgreSQL is not available for live-stream store tests: {exc}")
+    return store
 
 
 def test_store_upsert_get_and_delete(store):
@@ -191,23 +206,18 @@ def test_store_get_unknown_id_returns_none(store):
     assert store.get("does-not-exist") is None
 
 
-def test_sqlite_store_survives_a_restart(tmp_path):
-    path = tmp_path / "live.db"
+def test_postgres_store_survives_a_restart():
+    store = _postgres_store_or_skip()
+    store.clear()
     stream = _make_stream()
-    SqliteLiveStreamStore(path).upsert(stream)
+    store.upsert(stream)
 
     # A brand-new store object stands in for a service restart.
-    restored = SqliteLiveStreamStore(path).get(stream.stream_id)
+    restored = PostgresLiveStreamStore().get(stream.stream_id)
     assert restored is not None
     assert restored.stream_name == stream.stream_name
     assert restored.stream_url == CREDENTIALED_URL
-
-
-def test_sqlite_store_file_is_not_world_readable(tmp_path):
-    path = tmp_path / "live.db"
-    SqliteLiveStreamStore(path).upsert(_make_stream())
-    assert path.exists()
-    assert path.stat().st_mode & 0o077 == 0
+    store.clear()
 
 
 def test_store_factory_is_overridable_and_resettable():

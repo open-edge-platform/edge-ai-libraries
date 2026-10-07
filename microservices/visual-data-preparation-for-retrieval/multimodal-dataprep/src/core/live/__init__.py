@@ -42,7 +42,7 @@ from src.core.live.retention import (
 from src.core.live.store import (
     InMemoryLiveStreamStore,
     LiveStreamStore,
-    SqliteLiveStreamStore,
+    PostgresLiveStreamStore,
     get_live_stream_store,
     reset_live_stream_store,
     set_live_stream_store,
@@ -60,7 +60,7 @@ __all__ = [
     "reset_live_stream_manager",
     "LiveStreamStore",
     "InMemoryLiveStreamStore",
-    "SqliteLiveStreamStore",
+    "PostgresLiveStreamStore",
     "get_live_stream_store",
     "set_live_stream_store",
     "reset_live_stream_store",

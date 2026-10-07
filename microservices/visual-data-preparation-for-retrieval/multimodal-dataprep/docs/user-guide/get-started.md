@@ -42,7 +42,11 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS` | Optional | `true` | When `false`, an upload whose byte content is identical to an already-ingested video is rejected with `409 Conflict`. Detection is content-based (SHA-256) and applies to `/media/upload`, `/media/upload/batch`, `/media/ingest-dir`, `/media/process`, and `/media/process/batch` (per item, reported in the job status). |
 | `MM_DATAPREP_FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
 | `MM_DATAPREP_LIVE_STREAM_ENABLED` | Optional | `true` | Enables the live (RTSP) stream CRUD endpoints and their background workers. |
-| `MM_DATAPREP_LIVE_STREAM_STATE_PATH` | Optional | `/tmp/dataprep/live_streams.db` | SQLite registry of live-stream registrations. Keep it on a persisted volume so streams survive a restart. |
+| `MM_DATAPREP_LIVE_STREAM_DB_HOST` | Optional | `localhost` | PostgreSQL host for the live-stream registry. Registrations survive a restart. |
+| `MM_DATAPREP_LIVE_STREAM_DB_PORT` | Optional | `5432` | PostgreSQL port for the live-stream registry. |
+| `MM_DATAPREP_LIVE_STREAM_DB_NAME` | Optional | `dataprep` | PostgreSQL database holding the `live_streams` registry table. |
+| `MM_DATAPREP_LIVE_STREAM_DB_USER` | Optional | `postgres` | PostgreSQL user for the live-stream registry. |
+| `MM_DATAPREP_LIVE_STREAM_DB_PASSWORD` | Optional | `postgres` | PostgreSQL password for the live-stream registry. |
 | `MM_DATAPREP_LIVE_STREAM_BUCKET` | Optional | `live-streams` | Bucket (or local directory) holding recorded live segments. Live embeddings use this as their `bucket_name`. |
 | `MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT` | Optional | `8` | Maximum simultaneously ingesting streams. Further `POST /media/streams` calls return `503`. |
 | `MM_DATAPREP_LIVE_SEGMENT_DURATION_SECONDS` | Optional | `10` | Length of each recorded MP4 playback segment. |

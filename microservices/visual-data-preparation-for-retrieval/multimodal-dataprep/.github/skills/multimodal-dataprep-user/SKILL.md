@@ -252,4 +252,4 @@ the direct source for detailed per-ingestion stage timings.
 | Local directory ingest is rejected | Keep `dir_path` beneath `MM_DATAPREP_INGEST_DATA_ROOT`; traversal outside that root is intentionally blocked |
 | Live stream registration returns 503 | The concurrency limit is reached (`MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT`) or live ingestion is disabled |
 | Live stream sits in `reconnecting` or `error` | Read `last_error` from `GET /media/streams/{stream_id}`; check camera reachability from inside the container and the reconnect budget |
-| Live streams vanish after a restart | Persist the `data-prep` volume that holds `MM_DATAPREP_LIVE_STREAM_STATE_PATH` |
+| Live streams vanish after a restart | Ensure the PostgreSQL registry (`MM_DATAPREP_LIVE_STREAM_DB_*`) is reachable and its data volume is persisted |

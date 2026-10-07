@@ -10,10 +10,10 @@ detail.
 
 Two implementations ship here:
 
-* :class:`SqliteLiveStreamStore` — the default. Writes a single SQLite file on
-  the existing dataprep volume (no new volume is introduced). SQLite is
-  transactional, needs no extra dependency, and gives atomic read-modify-write,
-  which an object store cannot.
+* :class:`PostgresLiveStreamStore` — the default. Persists every stream as a
+  single ``JSONB`` row in a PostgreSQL table. The VSS stack already runs a
+  PostgreSQL instance, so the live registry reuses it instead of maintaining a
+  separate on-disk store.
 * :class:`InMemoryLiveStreamStore` — used by tests and by deployments that
   explicitly opt out of persistence.
 
@@ -23,33 +23,30 @@ the service talks to the storage layer directly.
 
 .. note::
    The credentialed source URL is persisted here because reconnecting after a
-   restart requires it. The database file is created with ``0600`` permissions
-   and every other boundary (API, vector metadata, logs) sees only the redacted
-   URL. See :mod:`src.core.live.urls`.
+   restart requires it. Every other boundary (API, vector metadata, logs) sees
+   only the redacted URL. See :mod:`src.core.live.urls`.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import sqlite3
 import threading
 from abc import ABC, abstractmethod
-from pathlib import Path
 from typing import Callable, Dict, List, Optional, Type
 
 from src.common import logger, sanitize_for_log, settings
 from src.core.live.models import LiveStream
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS live_streams (
-    stream_id   TEXT PRIMARY KEY,
-    payload     TEXT NOT NULL,
-    created_ts  REAL NOT NULL,
-    updated_ts  REAL NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_live_streams_created ON live_streams (created_ts);
-"""
+_CREATE_TABLE = (
+    "CREATE TABLE IF NOT EXISTS live_streams ("
+    "stream_id  TEXT PRIMARY KEY, "
+    "payload    JSONB NOT NULL, "
+    "created_ts DOUBLE PRECISION NOT NULL, "
+    "updated_ts DOUBLE PRECISION NOT NULL)"
+)
+_CREATE_INDEX = (
+    "CREATE INDEX IF NOT EXISTS idx_live_streams_created " "ON live_streams (created_ts)"
+)
 
 
 class LiveStreamStore(ABC):
@@ -119,61 +116,60 @@ class InMemoryLiveStreamStore(LiveStreamStore):
             self._rows.clear()
 
 
-class SqliteLiveStreamStore(LiveStreamStore):
-    """SQLite-backed registry stored on the existing dataprep volume."""
+def _build_dsn() -> str:
+    """Assemble a libpq connection string from the configured DB settings."""
+    return (
+        f"host={settings.LIVE_STREAM_DB_HOST} "
+        f"port={settings.LIVE_STREAM_DB_PORT} "
+        f"dbname={settings.LIVE_STREAM_DB_NAME} "
+        f"user={settings.LIVE_STREAM_DB_USER} "
+        f"password={settings.LIVE_STREAM_DB_PASSWORD}"
+    )
 
-    def __init__(self, db_path: Optional[str] = None) -> None:
-        self._db_path = Path(db_path or settings.LIVE_STREAM_STATE_PATH)
+
+class PostgresLiveStreamStore(LiveStreamStore):
+    """PostgreSQL-backed registry storing each stream as a single JSONB row."""
+
+    def __init__(self, dsn: Optional[str] = None) -> None:
+        self._dsn = dsn or _build_dsn()
         self._lock = threading.Lock()
         self._initialized = False
 
-    @property
-    def db_path(self) -> Path:
-        """Filesystem location of the SQLite database."""
-        return self._db_path
+    def _connect(self):
+        """Open a short-lived connection (psycopg commits on context exit)."""
+        import psycopg  # Lazy import so the package loads without the driver.
 
-    def _connect(self) -> sqlite3.Connection:
-        """Open a short-lived connection with sane durability settings."""
-        conn = sqlite3.connect(str(self._db_path), timeout=10.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        return conn
+        return psycopg.connect(self._dsn)
 
     def initialize(self) -> None:
-        """Create the parent directory, the schema, and restrict file perms."""
+        """Create the table and index if they do not yet exist."""
         with self._lock:
             if self._initialized:
                 return
-            self._db_path.parent.mkdir(parents=True, exist_ok=True)
             with self._connect() as conn:
-                conn.executescript(_SCHEMA)
-            # The credentialed stream URLs live in this file; keep it owner-only.
-            try:
-                os.chmod(self._db_path, 0o600)
-            except OSError as exc:
-                logger.warning(
-                    "Could not restrict permissions on the live-stream registry file: %s",
-                    sanitize_for_log(str(exc), max_length=256),
-                )
+                conn.execute(_CREATE_TABLE)
+                conn.execute(_CREATE_INDEX)
             self._initialized = True
-            logger.info("Live-stream registry ready at %s", self._db_path)
+            logger.info(
+                "Live-stream registry ready on PostgreSQL at %s:%s/%s",
+                settings.LIVE_STREAM_DB_HOST,
+                settings.LIVE_STREAM_DB_PORT,
+                settings.LIVE_STREAM_DB_NAME,
+            )
 
     def upsert(self, stream: LiveStream) -> None:
         """Insert or replace ``stream`` atomically."""
+        from psycopg.types.json import Jsonb  # Lazy import, see :meth:`_connect`.
+
         self.initialize()
         row = stream.to_row()
         with self._lock, self._connect() as conn:
             conn.execute(
                 "INSERT INTO live_streams (stream_id, payload, created_ts, updated_ts) "
-                "VALUES (?, ?, ?, ?) "
-                "ON CONFLICT(stream_id) DO UPDATE SET "
-                "payload=excluded.payload, updated_ts=excluded.updated_ts",
-                (
-                    stream.stream_id,
-                    json.dumps(row),
-                    stream.created_ts,
-                    stream.updated_ts,
-                ),
+                "VALUES (%s, %s, %s, %s) "
+                "ON CONFLICT (stream_id) DO UPDATE SET "
+                "payload = EXCLUDED.payload, updated_ts = EXCLUDED.updated_ts",
+                (stream.stream_id, Jsonb(row), stream.created_ts, stream.updated_ts),
             )
 
     def get(self, stream_id: str) -> Optional[LiveStream]:
@@ -181,7 +177,7 @@ class SqliteLiveStreamStore(LiveStreamStore):
         self.initialize()
         with self._lock, self._connect() as conn:
             cursor = conn.execute(
-                "SELECT payload FROM live_streams WHERE stream_id = ?", (stream_id,)
+                "SELECT payload FROM live_streams WHERE stream_id = %s", (stream_id,)
             )
             row = cursor.fetchone()
         if not row:
@@ -207,7 +203,7 @@ class SqliteLiveStreamStore(LiveStreamStore):
         """Remove ``stream_id`` if present."""
         self.initialize()
         with self._lock, self._connect() as conn:
-            cursor = conn.execute("DELETE FROM live_streams WHERE stream_id = ?", (stream_id,))
+            cursor = conn.execute("DELETE FROM live_streams WHERE stream_id = %s", (stream_id,))
             return cursor.rowcount > 0
 
     def clear(self) -> None:
@@ -217,10 +213,12 @@ class SqliteLiveStreamStore(LiveStreamStore):
             conn.execute("DELETE FROM live_streams")
 
     @staticmethod
-    def _decode(payload: str, stream_id: str) -> Optional[LiveStream]:
+    def _decode(payload, stream_id: str) -> Optional[LiveStream]:
         """Decode a persisted payload, skipping (and logging) corrupt rows."""
         try:
-            return LiveStream.from_row(json.loads(payload))
+            if isinstance(payload, (str, bytes)):
+                payload = json.loads(payload)
+            return LiveStream.from_row(payload)
         except Exception as exc:  # noqa: BLE001 - one bad row must not break listing
             logger.error(
                 "Skipping unreadable live-stream record %s: %s",
@@ -231,7 +229,7 @@ class SqliteLiveStreamStore(LiveStreamStore):
 
 
 _BACKENDS: Dict[str, Callable[[], LiveStreamStore]] = {
-    "sqlite": SqliteLiveStreamStore,
+    "postgres": PostgresLiveStreamStore,
     "memory": InMemoryLiveStreamStore,
 }
 
@@ -251,7 +249,7 @@ def get_live_stream_store() -> LiveStreamStore:
         return _store
     with _store_lock:
         if _store is None:
-            store = SqliteLiveStreamStore()
+            store = PostgresLiveStreamStore()
             store.initialize()
             _store = store
     return _store
@@ -274,7 +272,7 @@ def reset_live_stream_store() -> None:
 __all__ = [
     "LiveStreamStore",
     "InMemoryLiveStreamStore",
-    "SqliteLiveStreamStore",
+    "PostgresLiveStreamStore",
     "get_live_stream_store",
     "set_live_stream_store",
     "reset_live_stream_store",

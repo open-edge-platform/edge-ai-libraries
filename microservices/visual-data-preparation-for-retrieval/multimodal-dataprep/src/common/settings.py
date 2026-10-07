@@ -172,10 +172,25 @@ class Settings(BaseSettings):
         default=True,
         description="Enable the live-stream ingestion subsystem and its CRUD endpoints.",
     )
-    LIVE_STREAM_STATE_PATH: str = Field(
-        default="/tmp/dataprep/live_streams.db",
-        description="SQLite file backing the live-stream registry. Lives on the "
-        "existing dataprep volume so registrations survive a restart.",
+    LIVE_STREAM_DB_HOST: str = Field(
+        default="localhost",
+        description="PostgreSQL host backing the live-stream registry.",
+    )
+    LIVE_STREAM_DB_PORT: int = Field(
+        default=5432,
+        description="PostgreSQL port backing the live-stream registry.",
+    )
+    LIVE_STREAM_DB_NAME: str = Field(
+        default="dataprep",
+        description="PostgreSQL database name for the live-stream registry.",
+    )
+    LIVE_STREAM_DB_USER: str = Field(
+        default="postgres",
+        description="PostgreSQL user for the live-stream registry.",
+    )
+    LIVE_STREAM_DB_PASSWORD: str = Field(
+        default="postgres",
+        description="PostgreSQL password for the live-stream registry.",
     )
     LIVE_STREAM_BUCKET: str = Field(
         default="live-streams",

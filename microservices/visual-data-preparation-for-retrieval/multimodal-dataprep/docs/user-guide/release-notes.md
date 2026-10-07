@@ -34,9 +34,9 @@
   rather than holding the request open for the life of the stream, and
   `DELETE /media/streams/{stream_id}` replaces client-disconnect as the stop
   signal.
-- Live-stream registrations are stored in a SQLite file on the existing
-  `data-prep` volume (`MM_DATAPREP_LIVE_STREAM_STATE_PATH`). Deployments that do
-  not persist that volume will lose registrations across restarts.
+- Live-stream registrations are stored in a PostgreSQL `live_streams` table
+  (`MM_DATAPREP_LIVE_STREAM_DB_*`). The standalone compose bundles a `postgres`
+  service; in the VSS stack the registry reuses the shared PostgreSQL instance.
 - Live ingestion grows the vector index indefinitely unless
   `MM_DATAPREP_LIVE_RETENTION_HOURS` is set.
 

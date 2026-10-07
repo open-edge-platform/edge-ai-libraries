@@ -56,7 +56,7 @@ request. `POST /media/streams` persists a registration and starts a supervisor
 thread; `GET`, `PATCH`, and `DELETE` on `/media/streams` manage it thereafter.
 
 ```text
-POST /media/streams ──> LiveStreamManager ──> LiveStreamStore (SQLite, data-prep volume)
+POST /media/streams ──> LiveStreamManager ──> LiveStreamStore (PostgreSQL, live_streams table)
                                 │
                                 └─> LiveStreamWorker (supervisor thread)
                                       ├─> generate_rtsp_video_embedding_pipeline  (decode → detect → embed → store)
@@ -93,9 +93,9 @@ Key design points:
 - **Retention.** `MM_DATAPREP_LIVE_RETENTION_HOURS` (default `0` = keep forever)
   drives a sweeper thread that deletes embeddings with an older `ingest_epoch`
   and the media objects covering the same window.
-- **Credential safety.** The credentialed URL exists only in the local SQLite
-  registry (created `0600`); the redacted form is what reaches the vector
-  database, API responses, and logs.
+- **Credential safety.** The credentialed URL is persisted only in the
+  PostgreSQL `live_streams` registry; the redacted form is what reaches the
+  vector database, API responses, and logs.
 
 ## Supporting Resources
 
