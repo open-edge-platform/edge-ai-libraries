@@ -7,7 +7,7 @@ SHELL := bash -eu -o pipefail
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator shell-dlsps stop clean clean-output-videos help \
-	build-videogenerator build-onvif-discovery docker-build env-setup build-test \
+	build-videogenerator build-sensor-manager build-onvif-discovery docker-build env-setup build-test \
 	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental \
 	ui-e2e-setup ui-e2e-setup-cross-browser
 
@@ -138,17 +138,19 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery); DLSPS2=1 adds DLSPS 2.0
+build: env-setup ## Build core images (vippet-app, vippet-ui, sensor-manager); DLSPS2=1 adds DLSPS 2.0
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) build
 
-build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onvif-discovery)
+build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, sensor-manager)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
 
 build-videogenerator: env-setup ## Build videogenerator image
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build videogenerator
 
-build-onvif-discovery: env-setup ## Build onvif discovery image
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build onvif-discovery
+build-sensor-manager: env-setup ## Build sensor-manager image (from microservices/sensor-manager)
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build sensor-manager
+
+build-onvif-discovery: build-sensor-manager ## Deprecated alias of build-sensor-manager
 
 docker-build: build build-videogenerator ## Build all images
 
@@ -262,7 +264,7 @@ stop: ## Stop the docker compose services
 	docker compose $(if $(DLSPS2_COMPOSE),-f $(COMPOSE_FILE) $(DLSPS2_COMPOSE)) down
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
-	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator
+	rm -rf shared/videos/input shared/videos/video-generator
 	rm -f $(ENV_DIRS_SENTINEL) $(TEST_IMAGE_SENTINEL) \
 		$(UI_NPM_SENTINEL) $(UI_PW_CHROMIUM_SENTINEL) $(UI_PW_CROSS_SENTINEL)
 

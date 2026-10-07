@@ -27,7 +27,6 @@ debian_90_profile_order_accuracy_dine_in () {
 
 debian_90_install_order_accuracy_dine_in () {
   configure_order_accuracy_dine_in
-  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
 
   if verify_order_accuracy_dine_in && [[ " $* " != *" --reinstall "* ]]; then
     echo "Order accuracy is already installed. Skipping"
@@ -61,7 +60,6 @@ debian_90_install_order_accuracy_dine_in () {
 
 debian_90_start_order_accuracy_dine_in () {
   configure_order_accuracy_dine_in "$@"
-  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
 
   ensure_ports_open "${ports[*]}" debian_90_stop_order_accuracy_dine_in "$@"
   cd "$workspace"/dine-in
