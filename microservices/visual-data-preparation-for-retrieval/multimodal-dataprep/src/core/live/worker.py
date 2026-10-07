@@ -249,7 +249,14 @@ class LiveStreamWorker:
             self._session_shutdown = threading.Event()
             session_started = time.time()
             self.stream.stats.started_ts = session_started
-            self._set_state(LiveStreamStateEnum.running)
+            # Do not claim "running" yet. Opening an unreachable RTSP URL can
+            # block for the full connect timeout, so reporting "running" before a
+            # single frame arrives is misleading. Stay in "starting" on the first
+            # attempt; on retries the state is already "reconnecting" (set with
+            # the error before the backoff), so leave it as-is to keep the error
+            # visible. The session promotes to "running" once data starts to flow.
+            if attempts == 0:
+                self._set_state(LiveStreamStateEnum.starting)
 
             error = self._run_session()
 
@@ -373,6 +380,12 @@ class LiveStreamWorker:
                 or recorder.stats.segments_stored
             ):
                 self.stream.stats.last_frame_ts = time.time()
+                # First real data for this session: the source connected and is
+                # delivering the stream, so it is genuinely "running" now. Until
+                # this point the state stays "starting"/"reconnecting", which is
+                # what an unreachable source correctly keeps reporting.
+                if self.stream.state is not LiveStreamStateEnum.running:
+                    self._set_state(LiveStreamStateEnum.running)
             self._persist()
 
         # Pipeline (and thus the single decode connection) has ended; flush the

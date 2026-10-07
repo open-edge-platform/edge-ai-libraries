@@ -573,6 +573,87 @@ def test_worker_marks_a_stream_in_error_after_exhausting_reconnects(monkeypatch)
     assert worker.stream.stats.reconnect_count >= 1
 
 
+def test_worker_stays_starting_until_the_source_delivers_data(monkeypatch):
+    """A source that is still connecting (or unreachable) must not report
+    ``running``. Regression: the state was set to ``running`` optimistically at
+    the top of each session, so a dead stream looked healthy on the UI until a
+    brief reconnect blip."""
+    monkeypatch.setattr(settings, "LIVE_RECONNECT_INTERVAL_SECONDS", 0.01)
+    monkeypatch.setattr(settings, "LIVE_RECONNECT_WINDOW_SECONDS", 3600)
+    connecting = threading.Event()
+    release = threading.Event()
+
+    def pipeline(shutdown_event=None, **kwargs):
+        # Simulate a connect attempt in progress that delivers no data.
+        connecting.set()
+        release.wait(timeout=5)
+        raise RuntimeError("Connection timed out")
+
+    class SilentRecorder(FakeRecorder):
+        """A recorder that never records a segment (source never connected)."""
+
+        def __init__(self, **kwargs) -> None:
+            super().__init__(**kwargs)
+            self.stats = type("S", (), {"segments_stored": 0})()
+
+    worker = LiveStreamWorker(
+        LiveStream.new(stream_url=CREDENTIALED_URL),
+        on_update=lambda _s: None,
+        pipeline=pipeline,
+        recorder_factory=lambda **kwargs: SilentRecorder(**kwargs),
+    )
+    monkeypatch.setattr(worker, "_record_telemetry", lambda *a, **k: None)
+    worker.start()
+    try:
+        assert connecting.wait(timeout=5)
+        # No frames and no segments yet, so the stream is not running.
+        assert worker.stream.state == LiveStreamStateEnum.starting
+    finally:
+        release.set()
+        worker.stop(timeout=5)
+
+
+def test_worker_enters_running_only_once_frames_start_flowing(monkeypatch):
+    """The stream flips to ``running`` the moment the source delivers data."""
+    monkeypatch.setattr("src.core.live.worker._STATS_REFRESH_SECONDS", 0.05)
+    monkeypatch.setattr(settings, "LIVE_RECONNECT_MAX_ATTEMPTS", 0)
+    reported = threading.Event()
+    release = threading.Event()
+
+    def pipeline(shutdown_event=None, progress_callback=None, **kwargs):
+        # First real frames for this session: now it is genuinely live.
+        progress_callback(5, 1)
+        reported.set()
+        release.wait(timeout=5)
+        return {"stored_ids": ["a"], "total_frames_processed": 5}
+
+    class SilentRecorder(FakeRecorder):
+        def __init__(self, **kwargs) -> None:
+            super().__init__(**kwargs)
+            self.stats = type("S", (), {"segments_stored": 0})()
+
+    worker = LiveStreamWorker(
+        LiveStream.new(stream_url=CREDENTIALED_URL),
+        on_update=lambda _s: None,
+        pipeline=pipeline,
+        recorder_factory=lambda **kwargs: SilentRecorder(**kwargs),
+    )
+    monkeypatch.setattr(worker, "_record_telemetry", lambda *a, **k: None)
+    worker.start()
+    try:
+        assert reported.wait(timeout=5)
+        deadline = time.time() + 5
+        while (
+            worker.stream.state != LiveStreamStateEnum.running
+            and time.time() < deadline
+        ):
+            time.sleep(0.02)
+        assert worker.stream.state == LiveStreamStateEnum.running
+    finally:
+        release.set()
+        worker.stop(timeout=5)
+
+
 def test_worker_pause_and_stop_are_not_treated_as_failures(monkeypatch):
     monkeypatch.setattr(settings, "LIVE_RECONNECT_INTERVAL_SECONDS", 0.01)
     running = threading.Event()
