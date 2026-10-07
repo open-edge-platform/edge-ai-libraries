@@ -4,21 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Use Python Debian image as the base image
 ARG PYTHON_VERSION
-FROM python:${PYTHON_VERSION}-slim as builder
-
-# Install git to clone Kapacitor Python UDF agent files
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends git && \
-    rm -rf /var/lib/apt/lists/*
-
-ARG KAPACITOR_VERSION
-# Clone only the required files to reduce image size
-RUN git clone --depth 1 --filter=blob:none --sparse --branch v${KAPACITOR_VERSION} \
-    https://github.com/influxdata/kapacitor.git /tmp/kapacitor && \
-    cd /tmp/kapacitor && \
-    git sparse-checkout set udf/agent/py
 
 FROM golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36 AS go-toolchain
 
@@ -32,10 +18,12 @@ ARG KAPACITOR_VERSION
 RUN git clone --depth 1 --branch v${KAPACITOR_VERSION} \
     https://github.com/influxdata/kapacitor.git /tmp/kapacitor && \
     cd /tmp/kapacitor && \
+    go get github.com/prometheus/client_golang@v1.11.1 && \
+    go mod edit -replace=github.com/prometheus/common@v0.26.0=github.com/prometheus/common@v0.20.0 && \
+    go mod tidy && \
     python3 build.py --no-get --platform linux --arch amd64 \
         --version "${KAPACITOR_VERSION}" --outdir /tmp/kapacitor-bin
 
-ARG PYTHON_VERSION
 FROM python:${PYTHON_VERSION}-slim as runtime
 
 
@@ -65,8 +53,8 @@ RUN apt-get update && \
 # Install the Kapacitor daemon and CLI without the Debian package
 COPY --from=kapacitor-build /tmp/kapacitor-bin/kapacitord /tmp/kapacitor-bin/kapacitor /usr/bin/
 
-# Copy kapacitor Python UDF agent files from builder image
-COPY --from=builder /tmp/kapacitor/udf/agent/py /app/kapacitor_python
+# Copy the Python UDF agent from the Kapacitor source used for the binaries
+COPY --from=kapacitor-build /tmp/kapacitor/udf/agent/py /app/kapacitor_python
 
 COPY scripts/install_gpu_drivers.sh /tmp/install_gpu_drivers.sh
 RUN chmod +x /tmp/install_gpu_drivers.sh && \
