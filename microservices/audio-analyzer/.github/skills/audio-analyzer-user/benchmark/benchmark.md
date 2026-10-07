@@ -8,7 +8,7 @@ SPDX-License-Identifier: Apache-2.0
 **Agents**: GitHub Copilot (Claude Sonnet 5) — single-model self-evaluation
 **Grader**: GitHub Copilot (Claude Sonnet 5) — same session, self-graded
 **Date**: 2026-10-07
-**Evals**: 1–8 (1 reasoned pass per configuration)
+**Evals**: 1–7 (1 reasoned pass per configuration)
 
 ## Methodology Note (Read Before Trusting These Numbers)
 
@@ -40,17 +40,17 @@ expected format) to produce an independently measured, reproducible score.
 
 | Configuration | Evals passed |
 |---|---|
-| w/o skill | 1 / 8 |
-| w/ skill | 8 / 8 |
-| **Lift** | **+7 ↑** |
+| w/o skill | 1 / 7 |
+| w/ skill | 7 / 7 |
+| **Lift** | **+6 ↑** |
 
 ### Pass rate (avg ± σ across evals, by expectations met per eval)
 
 | Configuration | Pass rate |
 |---|---|
-| w/o skill | 45% ±24% |
+| w/o skill | 49% ±24% |
 | w/ skill | 100% ±0% |
-| **Lift** | **+55pp ↑** |
+| **Lift** | **+51pp ↑** |
 
 ## Per-Eval Detail
 
@@ -64,21 +64,19 @@ expected format) to produce an independently measured, reproducible score.
 | 4 | Build live mic transcription over the WebSocket; assumes the service captures the mic. | PASS (5/5) | FAIL (2/5) |
 | 5 | input_audio_buffer.speech_started never fires for a quiet mic recording. | PASS (5/5) | FAIL (2/5) |
 | 6 | Get a per-chunk/session sentiment label alongside the transcript. | PASS (5/5) | FAIL (1/5) |
-| 7 | POST /transcriptions response doesn't look like the OpenAI Whisper shape. | PASS (5/5) | FAIL (1/5) |
-| 8 | device=GPU form field ignored on the NDJSON streaming endpoint. | PASS (5/5) | FAIL (2/5) |
-| | **Mean ±σ** | **100% ±0%** | **45% ±24%** |
+| 7 | device=GPU form field ignored on the NDJSON streaming endpoint. | PASS (5/5) | FAIL (2/5) |
+| | **Mean ±σ** | **100% ±0%** | **49% ±24%** |
 
-## Why the Lift Is Concentrated in Evals 2–8
+## Why the Lift Is Concentrated in Evals 2–7
 
 Eval 1 is answerable from the service's top-level README/get-started guide
 alone, so a baseline agent that skims repository docs performs just as well
-with or without the skill. Evals 2–8 each hinge on a specific, easy-to-miss
+with or without the skill. Evals 2–7 each hinge on a specific, easy-to-miss
 contract detail that is not obvious from a surface read of the docs (the
 `stream`/`response_format` restriction, the realtime socket not capturing a
 microphone itself, VAD threshold semantics, sentiment being deployment-time
-only, the VSS-compatible route having a different response shape, and the
-per-endpoint scope of the `device` override) — exactly the kind of
-misconception-correcting detail this skill's
+only, and the per-endpoint scope of the `device` override) — exactly the
+kind of misconception-correcting detail this skill's
 [integration-troubleshooting.md](../references/integration-troubleshooting.md)
 and [endpoint-reference.md](../references/endpoint-reference.md) references
 are designed to surface before the agent guesses.

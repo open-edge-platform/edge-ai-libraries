@@ -60,8 +60,8 @@ endpoint has no visible effect, or the client assumes it was honored.
 
 **Cause:** The per-request `device` override only exists on
 `POST /v1/audio/transcriptions` (single-response and `stream=true` forms).
-The NDJSON endpoint, the realtime WebSocket, and the VSS-compatible routes
-always use the service-configured device.
+The NDJSON endpoint and the realtime WebSocket always use the
+service-configured device.
 
 **Fix:** If per-request device selection is a hard requirement, use
 `POST /v1/audio/transcriptions` (optionally with `stream=true`) instead of
@@ -84,21 +84,6 @@ override and rely on the service default.
 
 ---
 
-## Port Confusion (8010 vs. 8000)
-
-**Symptom:** A client built against VSS's own Compose assumes port `8000`,
-but a direct/local deployment of Audio Analyzer is unreachable there.
-
-**Cause:** The standalone and direct-Docker-Compose default is port `8010`.
-VSS's own Compose remaps this service to container port `8000` using
-`AUDIO_ANALYZER_SERVER_PORT` — that remap is specific to the VSS stack, not
-a general default.
-
-**Fix:** Use `8010` unless the target deployment is explicitly known to be
-the VSS-bundled Compose stack.
-
----
-
 ## Sentiment Fields Missing From the Response
 
 **Symptom:** `sentiment_summary` never appears in `transcript.text.done`,
@@ -111,18 +96,3 @@ request-side configuration will produce it.
 
 **Fix:** Confirm with the deployment owner whether sentiment is enabled; if
 not, this is expected behavior, not a bug.
-
----
-
-## Treating `/transcriptions` as OpenAI-Compatible
-
-**Symptom:** A client built for the OpenAI SDK contract is pointed at
-`POST /transcriptions` (no `/v1` prefix) and the response shape does not
-match what the SDK expects.
-
-**Cause:** `/transcriptions` (and its `/api/v1/transcriptions` twin) is the
-VSS-compatible contract — it returns a job-status object
-(`status`/`job_id`/`transcript_path`), not an OpenAI-shaped transcript.
-
-**Fix:** Use `POST /v1/audio/transcriptions` for OpenAI-SDK-compatible
-integrations.

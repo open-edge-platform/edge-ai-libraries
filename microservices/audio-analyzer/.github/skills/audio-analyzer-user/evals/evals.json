@@ -81,25 +81,13 @@
     },
     {
       "id": 7,
-      "prompt": "I'm hitting POST /transcriptions (no /v1) on this service because that's what I found in some docs, and I'm trying to parse the response the same way I parse OpenAI's Whisper API response. It doesn't look like JSON text output. What's going on?",
-      "expected_output": "A correct explanation that /transcriptions is the VSS-compatible contract, not OpenAI-compatible, with the right endpoint for OpenAI-shaped output.",
-      "files": [],
-      "expectations": [
-        "States that /transcriptions (and /api/v1/transcriptions) is the VSS-compatible contract, not OpenAI-compatible.",
-        "Describes the VSS response shape as a job-status object (status/job_id/transcript_path), not an OpenAI transcript body.",
-        "Recommends POST /v1/audio/transcriptions for OpenAI-SDK-compatible output.",
-        "Does not suggest the service is broken."
-      ]
-    },
-    {
-      "id": 8,
       "prompt": "I set device=GPU as a form field when calling the NDJSON streaming endpoint /v1/audio/transcriptions/stream, but it doesn't seem to change anything. Is this field supported there?",
       "expected_output": "A correct explanation of which endpoints support the per-request device override.",
       "files": [],
       "expectations": [
         "States that the per-request device override only applies to POST /v1/audio/transcriptions (single-response and stream=true forms).",
         "States that /v1/audio/transcriptions/stream always uses the service-configured device and ignores a per-request device field.",
-        "Mentions the realtime WebSocket and VSS-compatible routes also always use the service-configured device.",
+        "Mentions the realtime WebSocket also always uses the service-configured device.",
         "Suggests switching to POST /v1/audio/transcriptions if per-request device selection is required.",
         "Does not claim this is a bug in the NDJSON endpoint."
       ]

@@ -7,9 +7,8 @@ description: >
   OpenAI-compatible Server-Sent Events (`stream=true`) with the official
   OpenAI SDK; consume the NDJSON streaming endpoint; build a live voice
   application over the `/v1/realtime` WebSocket with voice activity detection
-  (VAD); continue a multi-upload conversation with `session_id`; read a
-  session-level voice sentiment summary; or integrate with the
-  VSS-compatible `/api/v1/...` routes. Trigger on phrases like "transcribe
+  (VAD); continue a multi-upload conversation with `session_id`; or read a
+  session-level voice sentiment summary. Trigger on phrases like "transcribe
   audio", "speech to text API", "stream transcription", "realtime voice app",
   "websocket audio streaming", "build an ASR app", "OpenAI whisper-1
   compatible endpoint", "voice sentiment", "continue a transcription
@@ -44,7 +43,6 @@ mode for their use case.
 - User wants a session-level voice sentiment summary alongside a transcript
 - User is integrating with an OpenAI SDK client against a self-hosted
   endpoint
-- User is building against the VSS-compatible `/api/v1/...` contract
 
 ## Endpoint Quick-Reference
 
@@ -54,11 +52,8 @@ mode for their use case.
 | Incremental, OpenAI SDK-compatible | `POST /v1/audio/transcriptions` with `stream=true` | SSE: `transcript.text.delta` → `transcript.text.done` → `[DONE]` |
 | Incremental, custom client | `POST /v1/audio/transcriptions/stream` | NDJSON: `transcription.chunk` → `transcription.completed` |
 | Live, open-ended audio feed | `WS /v1/realtime?intent=transcription` | Bidirectional PCM16 JSON events, server-side VAD |
-| VSS pipeline-manager compatibility | `GET/POST /api/v1/models`, `/api/v1/transcriptions` | VSS-specific contract, not OpenAI-compatible |
 
 Default base URL: `http://127.0.0.1:8010` (container/standalone default).
-VSS's own Compose expects this service on container port `8000` instead —
-override with `AUDIO_ANALYZER_SERVER_PORT`, do not edit the image.
 
 ## Common Mistakes to Avoid
 
@@ -68,8 +63,6 @@ override with `AUDIO_ANALYZER_SERVER_PORT`, do not edit the image.
 | Ignoring the `X-Session-ID` response header | Capture it and pass it back as `session_id` to continue the same conversation across uploads |
 | Sending raw file bytes or arbitrary PCM to `/v1/realtime` | Only base64-encoded **PCM16, mono** frames via `input_audio_buffer.append`; the service does not resample |
 | Expecting `/v1/audio/transcriptions/stream` to accept a `device` override | Only `POST /v1/audio/transcriptions` (single-response and `stream=true`) accepts the per-request `device` field |
-| Hardcoding port 8000 for local/direct use | Local/direct default is **`8010`**; `8000` only applies to VSS's own Compose mapping |
-| Treating `/transcriptions` (no `/v1`) as OpenAI-compatible | That is the VSS-compatible route; it returns a VSS-shaped job response, not OpenAI's shape |
 | Assuming the realtime socket captures the microphone itself | The service never captures audio locally — the client owns capture and streams PCM16 frames to the service |
 
 ---
@@ -80,7 +73,7 @@ Read a reference file only when you need the detail it contains:
 
 | Reference | When to read |
 |-----------|-------------|
-| [endpoint-reference.md](./references/endpoint-reference.md) | Full request/response fields for all four ingestion modes plus VSS-compatible routes |
+| [endpoint-reference.md](./references/endpoint-reference.md) | Full request/response fields for all four ingestion modes |
 | [realtime-streaming-guide.md](./references/realtime-streaming-guide.md) | WebSocket event protocol, VAD/turn-detection tuning, client code pattern |
 | [integration-troubleshooting.md](./references/integration-troubleshooting.md) | Client-side mistakes: format/stream conflicts, session handling, device rejection |
 
@@ -146,8 +139,6 @@ exact field list once the endpoint is chosen.
 - Live/open-ended feed (microphone, telephony bridge, etc.) →
   `WS /v1/realtime?intent=transcription` — read
   [realtime-streaming-guide.md](./references/realtime-streaming-guide.md)
-- Building against an existing VSS `pipeline-manager` integration →
-  `/api/v1/models` and `/api/v1/transcriptions`
 
 ### Step 2 — Compose the Request
 

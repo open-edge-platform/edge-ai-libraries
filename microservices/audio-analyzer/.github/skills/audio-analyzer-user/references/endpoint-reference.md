@@ -16,7 +16,6 @@ Full request/response fields for every ingestion mode. Base URL:
 - [POST /v1/audio/transcriptions/stream](#post-v1audiotranscriptionsstream)
 - [WS /v1/realtime](#ws-v1realtime)
 - [Sessions](#sessions)
-- [VSS-Compatible Routes](#vss-compatible-routes)
 
 ---
 
@@ -140,52 +139,3 @@ A session is identified by `session_id` and corresponds to
 uploads (or across the lifetime of one realtime socket) appends transcript
 state and, when sentiment is enabled, updates the session-level sentiment
 summary.
-
----
-
-## VSS-Compatible Routes
-
-Match the contract used by VSS's `pipeline-manager` and are **not**
-OpenAI-compatible. Served both unprefixed (`/models`, `/transcriptions`,
-`/health`) and under `/api/v1` (identical; use `/api/v1` for VSS).
-
-### `GET /models` / `GET /api/v1/models`
-
-```json
-{
-  "models": [{"model_id": "whisper-base", "display_name": "whisper-base", "description": "openai provider on CPU"}],
-  "default_model": "whisper-base"
-}
-```
-
-Always exactly one entry — this service transcribes with a single
-configured model (`models.asr.name`).
-
-### `POST /transcriptions` / `POST /api/v1/transcriptions`
-
-Accepts a direct file upload.
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `file` | Yes | Video/audio upload |
-| `device` | No | Accepted for request-shape parity; informational only |
-| `model_name` | No | Accepted for request-shape parity; informational only |
-| `include_timestamps` | No | `true` (VSS default) → uploads transcript as SRT; `false` → plain text |
-| `language` | No, query param | Language hint |
-
-The service transcribes the upload and returns the transcript inline in the
-response.
-
-```json
-{
-  "status": "completed",
-  "message": "Transcription completed successfully",
-  "job_id": "20260720-123456-ab12",
-  "transcript_path": "clip.srt",
-  "video_name": "clip.mp4",
-  "video_duration": 45.2
-}
-```
-
-Do not reuse this endpoint's response shape for OpenAI-SDK-style clients —
-use `POST /v1/audio/transcriptions` for that instead.
