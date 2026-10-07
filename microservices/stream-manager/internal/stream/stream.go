@@ -48,7 +48,7 @@ type Service struct {
 	closed    bool
 	closeOnce sync.Once
 	closeErr  error
-	ingest    func(context.Context, string, string, *RollingBuffer, func(bool), func(), time.Duration) error
+	ingest    func(context.Context, string, string, *RollingBuffer, func(bool), func(bool), bool, time.Duration) error
 }
 
 type attachedStream struct {
@@ -59,6 +59,7 @@ type attachedStream struct {
 	created     time.Time
 	state       string
 	synced      bool
+	bestEffort  bool
 	arrivals    []time.Time
 	dropped     int64
 	buffer      *RollingBuffer
@@ -71,6 +72,9 @@ type attachedStream struct {
 var _ Bufferer = (*Service)(nil)
 
 func NewService(cfg config.Config) (*Service, error) {
+	if err := validateBufferLength(int(cfg.BufferLength / time.Second)); err != nil {
+		return nil, err
+	}
 	if !filepath.IsAbs(cfg.BufferDir) || filepath.Clean(cfg.BufferDir) == "/" {
 		return nil, errors.New("SM_BUFFER_DIR must be an absolute private tmpfs directory")
 	}
@@ -117,15 +121,9 @@ func validateBufferRoot(root *os.Root) (result error) {
 	return nil
 }
 
-// CreateBuffer attaches a source; a zero bufferLength uses the configured default.
-func (s *Service) CreateBuffer(ctx context.Context, sourceURI, sensorID string, bufferLength time.Duration) (string, error) {
+func (s *Service) CreateBuffer(ctx context.Context, sourceURI, sensorID string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
-	}
-	if bufferLength == 0 {
-		bufferLength = s.cfg.BufferLength
-	} else if bufferLength < config.MinBufferLength || bufferLength > config.MaxBufferLength {
-		return "", ErrInvalidRequest
 	}
 	// HTTP validation applies the identifier contract; this also protects callers
 	// inside the service from turning an identifier into a filesystem path.
@@ -155,7 +153,7 @@ func (s *Service) CreateBuffer(ctx context.Context, sourceURI, sensorID string, 
 	if err := s.root.Mkdir(directory, 0o700); err != nil {
 		return "", fmt.Errorf("create stream buffer: %w", err)
 	}
-	buffer, err := newRollingBuffer(filepath.Join(s.root.Name(), directory), bufferLength)
+	buffer, err := newRollingBuffer(filepath.Join(s.root.Name(), directory), int(s.cfg.BufferLength/time.Second))
 	if err != nil {
 		return "", errors.Join(err, s.root.Remove(directory))
 	}
@@ -176,13 +174,13 @@ func (s *Service) run(ctx context.Context, entry *attachedStream, source string)
 	defer stopIngest()
 	finished := make(chan error, 1)
 	go func() {
-		finished <- s.ingest(ingestCtx, s.ffmpeg, source, entry.buffer, entry.frame, func() {
+		finished <- s.ingest(ingestCtx, s.ffmpeg, source, entry.buffer, entry.frame, func(bestEffort bool) {
 			entry.mu.Lock()
 			if entry.state != "failed" {
-				entry.state, entry.synced = "buffering", true
+				entry.state, entry.synced, entry.bestEffort = "buffering", true, entry.bestEffort || bestEffort
 			}
 			entry.mu.Unlock()
-		}, ingestTimeout)
+		}, s.cfg.AllowBestEffortTimestamps, ingestTimeout)
 	}()
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
@@ -269,6 +267,9 @@ func (e *attachedStream) snapshot() (model.StreamBuffer, error) {
 	result.State, result.SyncConfidence = e.state, model.SyncUnverified
 	if e.synced {
 		result.SyncConfidence = model.SyncNTPSynced
+		if e.bestEffort {
+			result.SyncConfidence = model.SyncBestEffort
+		}
 	}
 	result.FrameStat.Framerate = float64(len(e.arrivals))
 	result.FrameStat.DroppedFrames = e.dropped
@@ -329,10 +330,20 @@ func (s *Service) AcquireBuffer(ctx context.Context, streamID string, start, end
 	return entry.buffer.Acquire(ctx, start, end)
 }
 
-// ResizeBuffer is not implemented yet; the length is fixed when the stream is created.
-// TODO: implement resizing for PUT /streams/{stream-id}/buffer.
-func (s *Service) ResizeBuffer(context.Context, string, int) (model.StreamBuffer, error) {
-	return model.StreamBuffer{}, ErrNotImplemented
+func (s *Service) ResizeBuffer(ctx context.Context, streamID string, length int) (model.StreamBuffer, error) {
+	if err := ctx.Err(); err != nil {
+		return model.StreamBuffer{}, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	entry := s.streams[streamID]
+	if entry == nil {
+		return model.StreamBuffer{}, ErrStreamNotFound
+	}
+	if err := entry.buffer.Resize(length); err != nil {
+		return model.StreamBuffer{}, err
+	}
+	return entry.snapshot()
 }
 
 func (s *Service) RemoveBuffer(ctx context.Context, streamID string) error {
@@ -380,7 +391,7 @@ func (s *Service) Close() error {
 
 // Bufferer creates, reads and removes the buffers of attached streams.
 type Bufferer interface {
-	CreateBuffer(ctx context.Context, sourceURI string, sensorID string, bufferLength time.Duration) (string, error)
+	CreateBuffer(ctx context.Context, sourceURI string, sensorID string) (string, error)
 	GetBuffer(ctx context.Context, streamID string, startTS time.Time, endTS time.Time) ([]model.BufferSlice, error)
 	AcquireBuffer(ctx context.Context, streamID string, startTS time.Time, endTS time.Time) (*BufferLease, error)
 	ResizeBuffer(ctx context.Context, streamID string, bufferLength int) (model.StreamBuffer, error)
@@ -400,5 +411,4 @@ var (
 	ErrBufferClosed       = errors.New("buffer is closed")
 	ErrLeaseClosed        = errors.New("buffer lease is closed")
 	ErrSourceFailed       = errors.New("stream ingestion failed")
-	ErrNotImplemented     = errors.New("not implemented")
 )

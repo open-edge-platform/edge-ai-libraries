@@ -46,13 +46,13 @@ func ffmpegArgs(source string) []string {
 }
 
 func runIngest(ctx context.Context, executable, source string, buffer *RollingBuffer,
-	onFrame func(bool), onSlice func(), timeout time.Duration,
+	onFrame func(bool), onSlice func(bool), allowBestEffort bool, timeout time.Duration,
 ) (result error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	startup := time.AfterFunc(timeout, cancel)
 	defer startup.Stop()
-	input, err := openRTSP(ctx, source, onFrame)
+	input, err := openRTSP(ctx, source, onFrame, allowBestEffort)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func runIngest(ctx context.Context, executable, source string, buffer *RollingBu
 	var parseErr error
 	go func() {
 		parseErr = readSegments(ctx, reader, input.keyframes, buffer, func() {
-			onSlice()
+			onSlice(input.bestEffort.Load())
 			select {
 			case progress <- struct{}{}:
 			default:

@@ -31,6 +31,26 @@ const (
 	sourceClockJump     = time.Second
 )
 
+type bestEffortClock struct {
+	anchored   bool
+	originPTS  int64
+	lastPTS    int64
+	wrapOffset int64
+	originTS   time.Time
+}
+
+func (c *bestEffortClock) captureTS(pts int64, anchor time.Time) time.Time {
+	if !c.anchored {
+		c.anchored, c.originPTS, c.lastPTS, c.originTS = true, pts, pts, anchor.UTC()
+		return c.originTS
+	}
+	if pts < c.lastPTS && c.lastPTS-pts > 1<<32 {
+		c.wrapOffset += 1 << 33
+	}
+	c.lastPTS = pts
+	return c.originTS.Add(ticksDuration(pts + c.wrapOffset - c.originPTS))
+}
+
 type keyframeTime struct {
 	pts        int64
 	ntp        time.Time
@@ -153,6 +173,7 @@ type rtspInput struct {
 	failures    chan error
 	failureOnce sync.Once
 	failed      atomic.Bool
+	bestEffort  atomic.Bool
 	stopContext func() bool
 	clientDone  chan struct{}
 	ready       chan struct{}
@@ -165,7 +186,7 @@ func (s *rtspInput) fail(reason string) {
 	})
 }
 
-func openRTSP(ctx context.Context, sourceURI string, onFrame func(bool)) (_ *rtspInput, result error) {
+func openRTSP(ctx context.Context, sourceURI string, onFrame func(bool), allowBestEffort bool) (_ *rtspInput, result error) {
 	u, err := base.ParseURL(sourceURI)
 	if err != nil || (u.Scheme != "rtsp" && u.Scheme != "rtsps") || u.User != nil || u.Host == "" {
 		return nil, ErrUnsupportedSource
@@ -222,6 +243,8 @@ func openRTSP(ctx context.Context, sourceURI string, onFrame func(bool)) (_ *rts
 	var originPTS int64
 	var previousKey keyframeTime
 	var ready bool
+	var fallbackMode bool
+	var fallbackClock bestEffortClock
 	s.client.OnPacketsLost = func(_ uint64) {
 		onFrame(true)
 		s.fail("RTP packets were lost")
@@ -259,6 +282,14 @@ func openRTSP(ctx context.Context, sourceURI string, onFrame func(bool)) (_ *rts
 		}
 		ntp, ntpOK := s.client.PacketNTP(media, packet)
 		ntpOK = ntpOK && ntp.After(time.Unix(0, 0)) && time.Unix(0, ntp.UnixNano()).Equal(ntp)
+		if !ntpOK && !fallbackMode && allowBestEffort && ptsOK {
+			fallbackMode = true
+			s.bestEffort.Store(true)
+		}
+		if fallbackMode && ptsOK {
+			ntp = fallbackClock.captureTS(pts, time.Now())
+			ntpOK = true
+		}
 		onFrame(!ptsOK || !ntpOK)
 		if !ptsOK || !ntpOK {
 			if started {
@@ -374,6 +405,7 @@ func newVideoRelay(codec format.Format, onClosed func()) (*videoRelay, error) {
 	}
 	r.server = &gortsplib.Server{
 		RTSPAddress: "127.0.0.1:0", Handler: r, DisableRTCPSenderReports: true,
+		WriteQueueSize: 8192,
 	}
 	if err := r.server.Start(); err != nil {
 		return nil, fmt.Errorf("start local RTSP relay: %w", err)

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/config"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/model"
 )
 
@@ -67,17 +68,28 @@ type SliceReader struct {
 	err   error
 }
 
-func newRollingBuffer(directory string, length time.Duration) (*RollingBuffer, error) {
+func newRollingBuffer(directory string, length int) (*RollingBuffer, error) {
+	if err := validateBufferLength(length); err != nil {
+		return nil, err
+	}
 	root, err := os.OpenRoot(directory)
 	if err != nil {
 		return nil, fmt.Errorf("open buffer directory: %w", err)
 	}
 	return &RollingBuffer{
 		root:     root,
-		capacity: length,
+		capacity: time.Duration(length) * time.Second,
 		leases:   make(map[*BufferLease]struct{}),
 		changed:  make(chan struct{}),
 	}, nil
+}
+
+func validateBufferLength(length int) error {
+	if time.Duration(length)*time.Second < config.MinBufferLength || time.Duration(length)*time.Second > config.MaxBufferLength {
+		return fmt.Errorf("%w: buffer length must be between %d and %d seconds",
+			ErrInvalidRequest, int(config.MinBufferLength/time.Second), int(config.MaxBufferLength/time.Second))
+	}
+	return nil
 }
 
 func sliceName(seq int) string {
@@ -459,6 +471,27 @@ func (b *RollingBuffer) expireLocked(now time.Time) error {
 	b.slices = kept
 	b.signalLocked()
 	return result
+}
+
+func (b *RollingBuffer) Resize(length int) error {
+	if err := validateBufferLength(length); err != nil {
+		return err
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return ErrBufferClosed
+	}
+	if time.Duration(length)*time.Second < b.capacity {
+		cutoff := time.Now().Add(-time.Duration(length) * time.Second)
+		for _, entry := range b.slices {
+			if len(entry.leases) != 0 && !entry.closedAt.After(cutoff) {
+				return ErrActiveReaders
+			}
+		}
+	}
+	b.capacity = time.Duration(length) * time.Second
+	return b.expireLocked(time.Now())
 }
 
 func (b *RollingBuffer) fail(err error) {
