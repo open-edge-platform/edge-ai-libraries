@@ -113,7 +113,7 @@ class _AsyncDBTestCase(unittest.IsolatedAsyncioTestCase):
         unsupported_devices: str | None = None,
         is_custom: bool = False,
         install_status: str = "not_installed",
-        download_request: dict[str, Any] | None = None,
+        download_request: dict[str, Any] | list[dict[str, Any]] | None = None,
         variants: list[dict[str, Any]] | None = None,
     ) -> int:
         """Insert a ``Model`` + its ``ModelVariant`` rows, return the model id."""
@@ -390,6 +390,42 @@ class TestListModels(_AsyncDBTestCase):
         self.assertEqual(len(models), 1)
         self.assertEqual([p.precision for p in models[0].precisions], ["FP16", "INT8"])
 
+    async def test_list_models_groups_speecht5_variants(self) -> None:
+        requests = [
+            {"name": "microsoft/speecht5_tts", "config": {"precision": "int8"}},
+            {"name": "microsoft/speecht5_tts", "config": {"precision": "fp16"}},
+        ]
+        await self._add_model(
+            name="voice-speecht5",
+            display_name="SpeechT5",
+            category="text_to_speech",
+            source="huggingface",
+            hub="huggingface",
+            download_request=requests,
+            variants=[
+                {
+                    "precision": "INT8",
+                    "model_path": "voice/speecht5-int8/model.xml",
+                    "display_name": "SpeechT5 (INT8)",
+                },
+                {
+                    "precision": "FP16",
+                    "model_path": "voice/speecht5-fp16/model.xml",
+                    "display_name": "SpeechT5 (FP16)",
+                },
+            ],
+        )
+
+        models = await self.mgr.list_models()
+
+        self.assertEqual(len(models), 1)
+        self.assertEqual(models[0].category, InternalModelCategory.TEXT_TO_SPEECH)
+        self.assertEqual(models[0].download_request, requests)
+        self.assertEqual(
+            {precision.precision for precision in models[0].precisions},
+            {"INT8", "FP16"},
+        )
+
     async def test_list_models_includes_custom_models(self) -> None:
         """Custom uploaded models (is_custom=True) are listed just like catalog ones."""
         await self._add_model(
@@ -483,6 +519,30 @@ class TestStartDownload(_AsyncDBTestCase):
         self.assertIsNone(job_id)
         self.assertEqual(status, 409)
         self.assertIn("already installed", msg)
+
+    @patch("managers.model_manager.threading.Thread")
+    async def test_partial_multi_request_install_can_be_retried(
+        self, mock_thread_cls
+    ) -> None:
+        await self._add_model(
+            name="voice-speecht5",
+            category="text_to_speech",
+            hub="huggingface",
+            download_request=[
+                {"name": "microsoft/speecht5_tts", "config": {"precision": "int8"}},
+                {"name": "microsoft/speecht5_tts", "config": {"precision": "fp16"}},
+            ],
+            variants=[
+                {"precision": "INT8", "model_path": "int8.xml"},
+                {"precision": "FP16", "model_path": "fp16.xml"},
+            ],
+            install_status="not_installed",
+        )
+
+        _job_id, status, _message = await self.mgr.start_download("voice-speecht5")
+
+        self.assertEqual(status, 202)
+        mock_thread_cls.return_value.start.assert_called_once()
 
     async def test_returns_409_when_a_job_is_already_running(self) -> None:
         await self._add_model(name="yolo11n", download_request={"model_id": "yolo11n"})
@@ -653,6 +713,44 @@ class TestExecuteRemoteDownload(unittest.TestCase):
                 "job-1", "yolo11n", {"model_id": "yolo11n"}
             )
         fin.assert_called_once_with("job-1", "yolo11n")
+
+    def test_submits_multiple_requests_and_waits_for_every_job(self) -> None:
+        self._seed_job()
+        requests = [
+            {
+                "name": "microsoft/speecht5_tts",
+                "target": "text-to-speech",
+                "config": {"precision": "int8"},
+            },
+            {
+                "name": "microsoft/speecht5_tts",
+                "target": "text-to-speech",
+                "config": {"precision": "fp16"},
+            },
+        ]
+        client = _FakeHttpxClient(
+            post_response=_FakeResponse(json_body={"job_ids": ["ext-1", "ext-2"]}),
+            get_responses=[
+                _FakeResponse(json_body={"status": "completed"}),
+                _FakeResponse(json_body={"status": "completed"}),
+            ],
+        )
+        with (
+            patch("managers.model_manager.httpx.Client", return_value=client),
+            patch.object(self.mgr, "_finalize_success") as fin,
+        ):
+            self.mgr._execute_remote_download("job-1", "voice-speecht5", requests)
+
+        self.assertEqual(client.posts[0][1]["json"], {"models": requests})
+        self.assertEqual(client.posts[0][1]["params"], {"download_path": "voice"})
+        self.assertEqual(
+            client.gets,
+            [
+                f"{mm_module.MODEL_DOWNLOAD_URL}/api/v1/jobs/ext-1",
+                f"{mm_module.MODEL_DOWNLOAD_URL}/api/v1/jobs/ext-2",
+            ],
+        )
+        fin.assert_called_once_with("job-1", "voice-speecht5")
 
     def test_fails_when_post_returns_no_job_ids(self) -> None:
         self._seed_job()
@@ -1040,12 +1138,48 @@ class TestJobLifecycle(unittest.TestCase):
 
         self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
 
+    def test_finalize_multi_request_requires_every_precision(self) -> None:
+        self._add_model(
+            name="voice-speecht5",
+            display_name="SpeechT5",
+            category="text_to_speech",
+            hub="huggingface",
+            source="huggingface",
+            download_request=[
+                {"config": {"precision": "int8"}},
+                {"config": {"precision": "fp16"}},
+            ],
+            variants=[
+                {
+                    "precision": "INT8",
+                    "model_path": "voice/speecht5-int8/model.xml",
+                    "display_name": "SpeechT5 (INT8)",
+                },
+                {
+                    "precision": "FP16",
+                    "model_path": "voice/speecht5-fp16/model.xml",
+                    "display_name": "SpeechT5 (FP16)",
+                },
+            ],
+        )
+        int8_path = os.path.join(
+            self._models_path, "voice", "speecht5-int8", "model.xml"
+        )
+        os.makedirs(os.path.dirname(int8_path), exist_ok=True)
+        open(int8_path, "w").close()
+        job = _make_running_job(job_id="job-voice", model_name="voice-speecht5")
+        self.mgr._jobs["job-voice"] = job
+
+        self.mgr._finalize_success("job-voice", "voice-speecht5")
+
+        self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
+
         from sqlalchemy import select
 
         async def _check() -> str:
             async with database.async_session_maker() as session:
                 db_model = await session.scalar(
-                    select(Model).where(Model.name == "gemma3")
+                    select(Model).where(Model.name == "voice-speecht5")
                 )
                 assert db_model is not None
                 return db_model.install_status

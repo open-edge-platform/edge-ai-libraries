@@ -19,6 +19,26 @@ PROJECT_DIR := $(shell pwd)
 COMPOSE_FILE := compose.yml
 DEV_COMPOSE_FILE := compose.dev.yml
 EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
+export AUDIO_ANALYZER_TAG ?= 2026.2.0
+export TEXT_TO_SPEECH_TAG ?= 2026.2.0
+
+define base-compose
+	. .env && \
+	compose_files=(-f $(COMPOSE_FILE) $(2) -f compose.$$COMPOSE_PROFILES.yml) && \
+	$(if $(strip $(3)),$(3) &&) \
+	docker compose "$${compose_files[@]}" $(1)
+endef
+
+define standard-compose
+	$(call base-compose,$(1),,$(if $(DLSPS2_COMPOSE),compose_files+=($(DLSPS2_COMPOSE))))
+endef
+
+define experimental-compose
+	$(call base-compose,$(1),-f $(EXPERIMENTAL_COMPOSE_FILE),\
+		case "$$COMPOSE_PROFILES" in \
+			(igpu-wsl) compose_files+=(-f compose.experimental.$$COMPOSE_PROFILES.yml) ;; \
+		esac)
+endef
 
 # Set DLSPS2=1 to run pipelines on a DLSPS 2.0 container (see compose.dlsps2.yml).
 DLSPS2 ?= 0
@@ -138,10 +158,10 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery); DLSPS2=1 adds DLSPS 2.0
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) build
+build: env-setup ## Build ViPPET core images; DLSPS2=1 adds DLSPS 2.0
+	$(call standard-compose,build)
 
-build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onvif-discovery)
+build-dev: env-setup ## Build core and Voice development images
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
 
 build-videogenerator: env-setup ## Build videogenerator image
@@ -152,8 +172,8 @@ build-onvif-discovery: env-setup ## Build onvif discovery image
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) up -d
+run: env-setup ## Run ViPPET core and Voice services; DLSPS2=1 uses DLSPS 2.0
+	$(call standard-compose,up -d)
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
@@ -162,16 +182,16 @@ run-dev: env-setup ## Run the docker compose services for development
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
 
 build-experimental: env-setup ## Build core images for experimental timeseries setup
-	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
+	$(call experimental-compose,build)
 
 run-experimental: env-setup ## Run the docker compose services with experimental timeseries features
-	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d --remove-orphans
+	$(call experimental-compose,up -d --remove-orphans)
 
 stop-experimental: ## Stop experimental docker compose services
-	docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) down
+	$(call experimental-compose,down)
 
 clean-experimental: ## Clean experimental setup artifacts
-	docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) down -v
+	$(call experimental-compose,down -v)
 
 # Build the test image only when its inputs change. Source files are
 # bind-mounted at run-time (see `test` target), so changing application
@@ -258,8 +278,8 @@ shell-videogenerator: ## Open shell in videogenerator container
 shell-dlsps: ## Open shell in DLSPS 2.0 container (started with DLSPS2=1)
 	$(MAKE) shell SERVICE=dlstreamer-pipeline-server
 
-stop: ## Stop the docker compose services
-	docker compose $(if $(DLSPS2_COMPOSE),-f $(COMPOSE_FILE) $(DLSPS2_COMPOSE)) down
+stop: ## Stop ViPPET core and Voice services, preserving named volumes
+	$(call standard-compose,down)
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator
@@ -271,6 +291,7 @@ clean-model-download: ## Clean only model-download artifacts
 
 clean-models: ## Clean only models
 	docker run --rm -v "${PWD}"/shared/models/:/mnt/models/ python:3.12-slim sh -c 'rm -rf /mnt/models/output/'
+	rm -f $(ENV_DIRS_SENTINEL)
 
 clean-output-videos: ## Clean only output videos
 	rm -rf shared/videos/output/*

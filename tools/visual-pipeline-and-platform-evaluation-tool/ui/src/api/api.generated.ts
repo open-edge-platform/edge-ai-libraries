@@ -13,6 +13,7 @@ export const addTagTypes = [
   "videos",
   "images",
   "cameras",
+  "voice",
 ] as const;
 const injectedRtkApi = api
   .enhanceEndpoints({
@@ -592,6 +593,28 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["cameras"],
       }),
+      transcribeVoice: build.mutation<
+        TranscribeVoiceApiResponse,
+        TranscribeVoiceApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/transcriptions`,
+          method: "POST",
+          body: queryArg.bodyTranscribeVoice,
+        }),
+        invalidatesTags: ["voice"],
+      }),
+      synthesizeVoice: build.mutation<
+        SynthesizeVoiceApiResponse,
+        SynthesizeVoiceApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/speech`,
+          method: "POST",
+          body: queryArg.speechRequest,
+        }),
+        invalidatesTags: ["voice"],
+      }),
     }),
     overrideExisting: false,
   });
@@ -766,16 +789,17 @@ export type GetModelDownloadJobStatusApiArg = {
 export type GetModelsApiResponse =
   /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
-export type UploadModelApiResponse =
-  | /** status 200 Successful Response */ any
+export type UploadModelApiResponse = /** status 200 Successful Response */
+  | any
   | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
-  | /** status 200 Successful Response */ any
-  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+  /** status 200 Successful Response */
+    | any
+    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };
@@ -927,6 +951,16 @@ export type LoadCameraProfilesApiArg = {
   cameraId: string;
   cameraProfilesRequest: CameraProfilesRequest;
 };
+export type TranscribeVoiceApiResponse =
+  /** status 200 Successful Response */ TranscriptionResponse;
+export type TranscribeVoiceApiArg = {
+  bodyTranscribeVoice: BodyTranscribeVoice;
+};
+export type SynthesizeVoiceApiResponse =
+  /** status 200 Successful Response */ Blob;
+export type SynthesizeVoiceApiArg = {
+  speechRequest: SpeechRequest;
+};
 export type HealthResponse = {
   healthy: boolean;
 };
@@ -963,7 +997,12 @@ export type MessageResponse = {
   message: string;
 };
 export type BenchmarkTestCaseRunStatus =
-  "created" | "running" | "completed" | "failed" | "cancelled" | "skipped";
+  | "created"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "skipped";
 export type BenchmarkSuiteRun = {
   id: number;
   suite_id: number;
@@ -1274,7 +1313,11 @@ export type ValidationJobSummary = {
   request: PipelineValidation;
 };
 export type ModelSource =
-  "huggingface" | "ultralytics" | "pipeline-zoo-models" | "omz" | "custom";
+  | "huggingface"
+  | "ultralytics"
+  | "pipeline-zoo-models"
+  | "omz"
+  | "custom";
 export type ModelDownloadJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type ModelDownloadJobStatus = {
   id: string;
@@ -1302,7 +1345,10 @@ export type ModelCategory =
   | "automatic_speech_recognition"
   | "text_to_speech";
 export type ModelInstallStatus =
-  "installed" | "not_installed" | "installing" | "failed";
+  | "installed"
+  | "not_installed"
+  | "installing"
+  | "failed";
 export type ModelVariant = {
   /** Stable variant identifier. */
   name: string;
@@ -1686,6 +1732,20 @@ export type CameraProfilesRequest = {
   username: string;
   password: string;
 };
+export type TranscriptionResponse = {
+  text: string;
+};
+export type BodyTranscribeVoice = {
+  /** Audio file */
+  file: string;
+  language?: string;
+  device?: ("CPU" | "GPU" | "NPU") | null;
+};
+export type SpeechRequest = {
+  input: string;
+  voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
+  device?: ("CPU" | "GPU" | "NPU") | null;
+};
 export const {
   useGetHealthQuery,
   useLazyGetHealthQuery,
@@ -1799,4 +1859,6 @@ export const {
   useGetCameraQuery,
   useLazyGetCameraQuery,
   useLoadCameraProfilesMutation,
+  useTranscribeVoiceMutation,
+  useSynthesizeVoiceMutation,
 } = injectedRtkApi;

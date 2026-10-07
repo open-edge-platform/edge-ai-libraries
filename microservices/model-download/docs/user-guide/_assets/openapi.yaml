@@ -65,6 +65,17 @@ components:
         - ai-ecg
       description: The type of model (determines conversion behavior)
 
+    ModelTarget:
+      type: string
+      enum:
+        - audio-analyzer
+        - text-to-speech
+      description: >-
+        Optional runtime artifact layout. Voice targets support only
+        openai/whisper-base for audio-analyzer and microsoft/speecht5_tts for
+        text-to-speech, and require config.device to be CPU. Use is_ovms for
+        the OVMS repository layout.
+
     ModelPrecision:
       type: string
       enum:
@@ -124,6 +135,8 @@ components:
           $ref: "#/components/schemas/ModelHub"
         type:
           $ref: "#/components/schemas/ModelType"
+        target:
+          $ref: "#/components/schemas/ModelTarget"
         is_ovms:
           type: boolean
           default: false
@@ -651,7 +664,15 @@ paths:
         **Conversion Behavior:**
         Models will be converted to OpenVINO format if:
         1. `is_ovms` is set to `true` in the request
-        2. `type` can be set to 'llm,embeddings,reranker, vlm or vision' in the request
+        2. `target` is set to `audio-analyzer` or `text-to-speech`
+
+        Voice targets publish only the files required by their runtime. The
+        supported combinations are `openai/whisper-base` with
+        `speech2text`/`audio-analyzer`, and `microsoft/speecht5_tts` with
+        `text2speech`/`text-to-speech`. Both require the `openvino` hub. Whisper
+        supports INT8; SpeechT5 supports INT8 and FP16. Precision defaults to
+        INT8 when omitted. Voice export requests require `config.device` to be
+        `CPU`; runtime device selection remains a Voice service setting.
 
         **Authentication:**
         - HUGGINGFACEHUB_API_TOKEN is optional for public HuggingFace models
@@ -713,6 +734,24 @@ paths:
                         precision: int8
                         device: CPU
                         cache_size: 10
+              voice_runtime_models:
+                summary: Export Voice runtime artifacts
+                value:
+                  models:
+                    - name: openai/whisper-base
+                      hub: openvino
+                      type: speech2text
+                      target: audio-analyzer
+                      config:
+                        precision: int8
+                        device: CPU
+                    - name: microsoft/speecht5_tts
+                      hub: openvino
+                      type: text2speech
+                      target: text-to-speech
+                      config:
+                        precision: int8
+                        device: CPU
               ollama_download:
                 summary: Download Ollama model
                 value:

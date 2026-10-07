@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import database
+from db_seed import _load_model_catalog_specs
 import models as models_module
 from models import GENAI_SENTINEL_FILE, SupportedModel, SupportedModelsManager
 from orm_models import Model, ModelVariant
@@ -27,6 +28,23 @@ from orm_models import Model, ModelVariant
 
 def _reset_supported_models_manager() -> None:
     SupportedModelsManager._instance = None
+
+
+class TestVoiceModelCatalog(unittest.TestCase):
+    def test_voice_models_use_db_catalog_categories_and_requests(self) -> None:
+        specs = {spec["name"]: spec for spec in _load_model_catalog_specs()}
+
+        whisper = specs["voice-whisper-base"]
+        self.assertEqual(whisper["category"], "automatic_speech_recognition")
+        self.assertIsInstance(whisper["download_request"], dict)
+
+        speecht5 = specs["voice-speecht5"]
+        self.assertEqual(speecht5["category"], "text_to_speech")
+        self.assertEqual(len(speecht5["precisions"]), 2)
+        speecht5_download_request = speecht5["download_request"]
+        if not isinstance(speecht5_download_request, list):
+            self.fail("SpeechT5 download_request must be a list")
+        self.assertEqual(len(speecht5_download_request), 2)
 
 
 class TestSupportedModelPathsAndExists(unittest.TestCase):
