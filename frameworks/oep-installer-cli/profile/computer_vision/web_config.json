@@ -7,7 +7,7 @@
     { "label": "Anomalib", "value": "anomalib" }
   ],
   "install": {
-    "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision"
+    "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision"
   },
   "getStarted": {
     "text": "Get Started",
