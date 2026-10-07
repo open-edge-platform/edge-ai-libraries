@@ -21,6 +21,12 @@ models:
     # INSTALL_CJK=true). model_hub selects the download source for funasr models.
     model_hub: modelscope  # modelscope | huggingface — used only by the funasr provider
 
+    # FunASR companion models for VAD (voice activity detection) and punctuation
+    # restoration, shared across Paraformer variants. Defaults are the canonical
+    # iic/ models; override to pin a different model. Used only by the funasr provider.
+    vad_model: iic/speech_fsmn_vad_zh-cn-16k-common-pytorch
+    punc_model: iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch
+
     # Hallucination filtering — openai provider uses native no_speech_prob/avg_logprob.
     # whispercpp derives the same values from per-token plog and ptsum.
     # openvino genai pipelines do not expose these fields; filtering is skipped.

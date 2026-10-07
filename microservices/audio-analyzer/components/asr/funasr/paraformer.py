@@ -34,8 +34,12 @@ _MODEL_LANGUAGE = {
 }
 
 # Shared VAD + punctuation restoration models (used across Paraformer variants).
-VAD_MODEL = "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
-PUNC_MODEL = "iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch"
+# Overridable via models.asr.vad_model / models.asr.punc_model; the defaults are
+# the canonical FunASR companion models.
+VAD_MODEL = str(getattr(config.models.asr, "vad_model", None)
+                or "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch")
+PUNC_MODEL = str(getattr(config.models.asr, "punc_model", None)
+                 or "iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch")
 
 _DEFAULT_REVISION = "v2.0.4"
 
