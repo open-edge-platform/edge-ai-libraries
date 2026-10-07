@@ -5,6 +5,8 @@
 
 import unittest
 
+from _pytest.mark.structures import ParameterSet
+
 from helpers.pipeline_case_helpers import PipelineCase, wrap_cases_for_pytest
 
 
@@ -25,9 +27,12 @@ class TestWrapCasesForPytest(unittest.TestCase):
         )
 
         self.assertEqual(ids, ["sample_cpu"])
-        self.assertEqual(params[0].values, (self.case,))
-        self.assertTrue(any(mark.name == "skip" for mark in params[0].marks))
-        self.assertIn("Missing Model", str(params[0].marks[0].kwargs["reason"]))
+        param = params[0]
+        assert isinstance(param, ParameterSet)
+        self.assertEqual(param.values, (self.case,))
+        skip_marks = [mark for mark in param.marks if mark.name == "skip"]
+        self.assertEqual(len(skip_marks), 1)
+        self.assertIn("Missing Model", str(skip_marks[0].kwargs["reason"]))
 
     def test_not_skipping_missing_models_schedules_case(self) -> None:
         params, ids = wrap_cases_for_pytest(
