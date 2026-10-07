@@ -163,7 +163,7 @@ export function VoiceConversion() {
     );
     const timer = window.setTimeout(
       () => controller.abort(new Error("Conversion timed out.")),
-      130_000,
+      1_210_000,
     );
     try {
       if (kind === "record") {
@@ -321,18 +321,21 @@ export function VoiceConversion() {
                       htmlFor="voice-file"
                       className="text-xs font-normal text-muted-foreground"
                     >
-                      WAV file
+                      Audio file
                     </Label>
                     <Button
                       variant="outline"
                       disabled={busy}
                       onClick={() => fileInput.current?.click()}
-                      className="h-24 w-full flex-col gap-2 whitespace-normal border-border bg-background"
+                      className="h-28 w-full flex-col gap-2 whitespace-normal border-border bg-background"
                     >
                       <Upload className="size-6 text-brand-accent" />
-                      <span>Upload WAV</span>
-                      <span className="text-xs font-normal text-muted-foreground">
-                        Mono PCM 16-bit / 10 MiB maximum
+                      <span>Upload audio</span>
+                      <span className="text-xs leading-4 font-normal text-muted-foreground">
+                        <span className="block">Maximum size: 200 MiB</span>
+                        <span className="block">
+                          Formats: WAV, MP3, M4A, MP4, MKV, MOV, AVI
+                        </span>
                       </span>
                     </Button>
                     <Input
@@ -341,7 +344,6 @@ export function VoiceConversion() {
                       type="file"
                       className="sr-only"
                       tabIndex={-1}
-                      accept=".wav,audio/wav"
                       disabled={busy}
                       onChange={(event) => {
                         const selected = event.target.files?.[0];
@@ -350,15 +352,6 @@ export function VoiceConversion() {
                         setSttMetrics(null);
                         setFile(null);
                         if (!selected) return;
-                        if (
-                          !selected.name.toLowerCase().endsWith(".wav") ||
-                          selected.size > 10 * 1024 * 1024 ||
-                          selected.size === 0
-                        ) {
-                          setError("Select a non-empty WAV file up to 10 MiB.");
-                          event.target.value = "";
-                          return;
-                        }
                         setFile(selected);
                       }}
                     />

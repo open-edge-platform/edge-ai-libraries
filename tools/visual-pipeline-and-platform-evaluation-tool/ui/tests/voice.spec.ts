@@ -97,7 +97,7 @@ test("forwards independent STT and TTS devices", async ({ page }) => {
     "NPU",
   ]);
   await sttDevice.selectOption("GPU");
-  await page.getByLabel("WAV file").setInputFiles({
+  await page.getByLabel("Audio file").setInputFiles({
     name: "sentence.wav",
     mimeType: "audio/wav",
     buffer: wav(),
@@ -117,6 +117,50 @@ test("forwards independent STT and TTS devices", async ({ page }) => {
   );
   await page.getByRole("tab", { name: "Speech to text" }).click();
   await expect(page.getByLabel("Speech to text device")).toHaveValue("GPU");
+});
+
+test("submits audio formats for service-side validation", async ({ page }) => {
+  await page.route("**/voice/transcriptions", async (route) => {
+    const body = route.request().postData() ?? "";
+    expect(body).toContain('filename="sample.mp3"');
+    expect(body).toContain("Content-Type: audio/mpeg");
+    await route.fulfill({ json: { text: "Service accepted audio" } });
+  });
+
+  await expect(page.getByText("Maximum size: 200 MiB")).toBeVisible();
+  await expect(
+    page.getByText("Formats: WAV, MP3, M4A, MP4, MKV, MOV, AVI"),
+  ).toBeVisible();
+  await page.getByLabel("Audio file").setInputFiles({
+    name: "sample.mp3",
+    mimeType: "audio/mpeg",
+    buffer: wav(),
+  });
+  await expect(
+    page.getByRole("button", { name: "Transcribe", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Transcribe", exact: true }).click();
+  await expect(page.getByLabel("Transcription")).toHaveValue(
+    "Service accepted audio",
+  );
+});
+
+test("shows Audio Analyzer file validation errors", async ({ page }) => {
+  await page.route("**/voice/transcriptions", (route) =>
+    route.fulfill({
+      status: 400,
+      json: { detail: "File too large" },
+    }),
+  );
+
+  await page.getByLabel("Audio file").setInputFiles({
+    name: "large.wav",
+    mimeType: "audio/wav",
+    buffer: wav(),
+  });
+  await page.getByRole("button", { name: "Transcribe", exact: true }).click();
+
+  await expect(page.getByRole("alert")).toHaveText("File too large");
 });
 
 for (const viewport of [
@@ -164,7 +208,7 @@ for (const viewport of [
     await expect(
       page.getByRole("button", { name: "Transcribe", exact: true }),
     ).toBeDisabled();
-    await page.getByLabel("WAV file").setInputFiles({
+    await page.getByLabel("Audio file").setInputFiles({
       name: "sentence.wav",
       mimeType: "audio/wav",
       buffer: wav(),
@@ -311,7 +355,7 @@ for (const viewport of [
     await expect(sttMetrics).toHaveCount(0);
     await page.getByRole("button", { name: "Transcribe", exact: true }).click();
     await expect(sttMetrics).toContainText("250.00ms");
-    await page.getByLabel("WAV file").setInputFiles({
+    await page.getByLabel("Audio file").setInputFiles({
       name: "another.wav",
       mimeType: "audio/wav",
       buffer: wav(),

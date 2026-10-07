@@ -83,9 +83,13 @@ flowchart TB
   classDef external fill:#666,color:#fff,stroke:#444
 ```
 
-Nginx enforces an 11 MiB Voice request-body limit and disables response caching.
-The backend imposes its own input, response-size and deadline limits. It does not
-forward upstream error bodies or environment HTTP proxy settings to these calls.
+Nginx streams Voice request bodies without imposing a separate upload-size
+limit and disables response caching. The backend preserves upload metadata and
+streams the spooled file to Audio Analyzer, which owns input validation. The
+backend retains response-size and deadline limits. It forwards only known
+file-validation messages from bounded Audio Analyzer error responses; all other
+upstream details remain hidden. Environment HTTP proxy settings are not used for
+these calls.
 
 ### Deployment and Storage Boundaries
 
@@ -189,11 +193,11 @@ flowchart TB
 ```
 
 The Voice endpoints and upstream adapter currently reside in the same router
-module. The adapter is `call_service` with `create_client`; WAV input validation
-is `validate_audio`. The routes publish `X-Voice-Service-Duration-Ms` only after
-successful payload validation. There is no shared mutable timing value between
-requests. Model routes and `ModelManager` are separate from the Voice router but
-run in the same backend container.
+module. The adapter is `call_service` with `create_client`; uploaded audio is
+streamed to Audio Analyzer for validation. The routes publish
+`X-Voice-Service-Duration-Ms` only after successful payload validation. There is
+no shared mutable timing value between requests. Model routes and `ModelManager`
+are separate from the Voice router but run in the same backend container.
 
 ## Flow: Install Voice Models
 
@@ -257,16 +261,16 @@ sequenceDiagram
         Capture->>Capture: Release microphone, decode and encode mono PCM16 / 16 kHz
         Capture-->>UI: recording.wav
     else File source
-        Operator->>UI: Select WAV (non-empty, up to 10 MiB)
+      Operator->>UI: Select audio file
     end
     Operator->>UI: Transcribe
     UI->>UI: Clear STT result/timings, start performance.now()
     UI->>Web: POST /api/v1/voice/transcriptions (file, language, optional device)
-    Web->>API: Forward multipart request (11 MiB envelope limit)
-    API->>API: Validate size, language and mono PCM16 WAV / 8-48 kHz / up to 60 s
+    Web->>API: Stream multipart request without a separate size limit
+    API->>API: Validate language and retain original file metadata
     API->>API: Start perf_counter(), enter upstream timeout
     API->>ASR: POST /v1/audio/transcriptions (file, language, JSON format, optional device)
-    ASR->>ASR: Validate device and compile or reuse its cached model
+    ASR->>ASR: Validate file and device, compile or reuse its cached model
     ASR-->>API: Transcription JSON body
     API->>API: Receive full body (up to 128 KiB), calculate service duration
     API->>API: Close upstream resources, validate transcript

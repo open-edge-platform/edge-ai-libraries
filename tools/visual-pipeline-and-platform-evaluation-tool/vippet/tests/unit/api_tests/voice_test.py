@@ -55,7 +55,11 @@ class VoiceTests(unittest.TestCase):
         )
 
     def transcribe(
-        self, content: bytes | None = None, device: str | None = None
+        self,
+        content: bytes | None = None,
+        device: str | None = None,
+        filename: str = "sentence.wav",
+        content_type: str = "audio/wav",
     ) -> httpx.Response:
         data = {"device": device} if device else None
         return self.client.post(
@@ -63,9 +67,9 @@ class VoiceTests(unittest.TestCase):
             data=data,
             files={
                 "file": (
-                    "sentence.wav",
+                    filename,
                     wav_bytes() if content is None else content,
-                    "audio/wav",
+                    content_type,
                 )
             },
         )
@@ -103,6 +107,46 @@ class VoiceTests(unittest.TestCase):
             },
         )
 
+    def test_preserves_uploaded_audio_metadata(self) -> None:
+        content = b"ID3\x04\x00\x00audio payload"
+
+        response = self.transcribe(
+            content,
+            filename="sample.mp3",
+            content_type="audio/mpeg",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.requests), 1)
+        self.assertIn(b'filename="sample.mp3"', self.requests[0].content)
+        self.assertIn(b"Content-Type: audio/mpeg", self.requests[0].content)
+        self.assertIn(content, self.requests[0].content)
+
+    def test_normalizes_unsafe_uploaded_audio_metadata(self) -> None:
+        response = self.transcribe(
+            b"audio payload",
+            filename="../folder\\sample.mp3",
+            content_type="audio/mpeg\r\nX-Injected: true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.requests), 1)
+        self.assertIn(b'filename="sample.mp3"', self.requests[0].content)
+        self.assertEqual(
+            voice.normalize_media_type("audio/mpeg\r\nX-Injected: true"),
+            "application/octet-stream",
+        )
+        self.assertNotIn(b"X-Injected", self.requests[0].content)
+
+    def test_forwards_upload_larger_than_legacy_limit(self) -> None:
+        content = b"x" * (10 * 1024 * 1024 + 1)
+
+        response = self.transcribe(content, filename="large.mp3")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.requests), 1)
+        self.assertIn(content, self.requests[0].content)
+
     def test_rejects_unknown_devices(self) -> None:
         self.assertEqual(self.transcribe(device="AUTO").status_code, 422)
         self.assertEqual(
@@ -112,23 +156,6 @@ class VoiceTests(unittest.TestCase):
             ).status_code,
             422,
         )
-        self.assertEqual(self.requests, [])
-
-    def test_rejects_invalid_audio(self) -> None:
-        for content in [
-            b"",
-            b"not audio",
-            wav_bytes(61),
-            wav_bytes(channels=2),
-            wav_bytes()[:-50],
-        ]:
-            with self.subTest(size=len(content)):
-                self.assertEqual(self.transcribe(content).status_code, 400)
-        self.assertEqual(self.requests, [])
-
-    def test_rejects_oversized_upload(self) -> None:
-        with patch.object(voice, "MAX_UPLOAD_BYTES", 128):
-            self.assertEqual(self.transcribe().status_code, 413)
         self.assertEqual(self.requests, [])
 
     def test_speech_returns_wav(self) -> None:
@@ -196,6 +223,66 @@ class VoiceTests(unittest.TestCase):
         response = self.transcribe()
         self.assertEqual(response.status_code, 502)
         self.assertNotIn("x-voice-service-duration-ms", response.headers)
+
+    def test_forwards_safe_audio_validation_errors(self) -> None:
+        for detail in [
+            "No filename provided",
+            "Invalid file type",
+            "File too large",
+            "Uploaded file is empty",
+            "Uploaded file is not a valid audio file",
+        ]:
+            with self.subTest(detail=detail):
+                self.upstream = httpx.Response(
+                    400,
+                    json={
+                        "error": {
+                            "message": detail,
+                            "type": "invalid_request_error",
+                            "param": None,
+                            "code": "invalid_request",
+                        }
+                    },
+                )
+
+                response = self.transcribe()
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json(), {"detail": detail})
+
+    def test_sanitizes_unknown_audio_validation_errors(self) -> None:
+        self.upstream = httpx.Response(
+            400,
+            json={
+                "error": {
+                    "message": "Audio file not found: /private/storage/session.wav",
+                    "type": "invalid_request_error",
+                    "param": None,
+                    "code": "invalid_request",
+                }
+            },
+        )
+
+        response = self.transcribe()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(), {"detail": "The speech service rejected the input."}
+        )
+        self.assertNotIn("private", response.text)
+
+    def test_bounds_audio_validation_error_responses(self) -> None:
+        self.upstream = httpx.Response(
+            400,
+            content=b"x" * (voice.MAX_ERROR_RESPONSE_BYTES + 1),
+        )
+
+        response = self.transcribe()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(), {"detail": "The speech service rejected the input."}
+        )
 
     def test_rejects_invalid_text(self) -> None:
         for text in ["", "   ", "a" * 5001]:

@@ -2,12 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
-import io
 import logging
 import os
-import wave
+import re
 from time import perf_counter
-from typing import Annotated, Literal
+from typing import Annotated, BinaryIO, Literal
 
 import httpx
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -17,13 +16,24 @@ from pydantic import BaseModel, ConfigDict, Field
 router = APIRouter()
 logger = logging.getLogger("api.routes.voice")
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-MAX_AUDIO_SECONDS = 60
 MAX_RESPONSE_BYTES = 64 * 1024 * 1024
-TIMEOUT_SECONDS = 120
+MAX_ERROR_RESPONSE_BYTES = 8 * 1024
+TIMEOUT_SECONDS = 20 * 60
 AUDIO_ANALYZER_URL = os.getenv("AUDIO_ANALYZER_URL", "http://audio-analyzer:8010")
 TEXT_TO_SPEECH_URL = os.getenv("TEXT_TO_SPEECH_URL", "http://text-to-speech:8011")
 SERVICE_DURATION_HEADER = "X-Voice-Service-Duration-Ms"
+MEDIA_TYPE_PATTERN = re.compile(
+    r"[A-Za-z0-9!#$%&'*+.^_`|~-]+/[A-Za-z0-9!#$%&'*+.^_`|~-]+"
+)
+SAFE_AUDIO_VALIDATION_DETAILS = frozenset(
+    {
+        "No filename provided",
+        "Invalid file type",
+        "File too large",
+        "Uploaded file is empty",
+        "Uploaded file is not a valid audio file",
+    }
+)
 METRICS_HEADERS = {
     SERVICE_DURATION_HEADER: {
         "description": (
@@ -52,6 +62,45 @@ class TranscriptionResponse(BaseModel):
     text: str = Field(max_length=16000)
 
 
+def normalize_upload_filename(filename: str | None) -> str:
+    basename = (filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+    printable_basename = "".join(
+        character for character in basename if character.isprintable()
+    )
+    return printable_basename[-255:] or "audio"
+
+
+def normalize_media_type(content_type: str | None) -> str:
+    if (
+        content_type
+        and len(content_type) <= 127
+        and MEDIA_TYPE_PATTERN.fullmatch(content_type)
+    ):
+        return content_type
+    return "application/octet-stream"
+
+
+async def read_safe_error_detail(
+    response: httpx.Response, allowed_details: frozenset[str]
+) -> str | None:
+    content = bytearray()
+    async for chunk in response.aiter_bytes():
+        if len(content) + len(chunk) > MAX_ERROR_RESPONSE_BYTES:
+            return None
+        content.extend(chunk)
+    try:
+        payload = httpx.Response(response.status_code, content=bytes(content)).json()
+    except ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    error = payload.get("error")
+    if not isinstance(error, dict):
+        return None
+    detail = error.get("message")
+    return detail if isinstance(detail, str) and detail in allowed_details else None
+
+
 def create_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=httpx.Timeout(TIMEOUT_SECONDS, connect=5.0),
@@ -63,11 +112,12 @@ def create_client() -> httpx.AsyncClient:
 async def call_service(
     url: str,
     *,
-    files: dict[str, tuple[str, bytes, str]] | None = None,
+    files: dict[str, tuple[str, BinaryIO, str]] | None = None,
     data: dict[str, str] | None = None,
     json: dict[str, str] | None = None,
     max_bytes: int = MAX_RESPONSE_BYTES,
     rejected_detail: str = "The speech service rejected the input.",
+    safe_rejected_details: frozenset[str] = frozenset(),
 ) -> httpx.Response:
     started_at = perf_counter()
     try:
@@ -77,7 +127,12 @@ async def call_service(
             client.stream("POST", url, files=files, data=data, json=json) as upstream,
         ):
             if upstream.status_code in {400, 413, 422}:
-                raise HTTPException(400, rejected_detail)
+                safe_detail = (
+                    await read_safe_error_detail(upstream, safe_rejected_details)
+                    if safe_rejected_details
+                    else None
+                )
+                raise HTTPException(400, safe_detail or rejected_detail)
             if upstream.status_code == 429:
                 raise HTTPException(503, "The speech service is busy. Try again later.")
             if upstream.status_code != 200:
@@ -108,26 +163,6 @@ async def call_service(
         raise HTTPException(503, "The speech service is unavailable.") from exc
 
 
-def validate_audio(content: bytes) -> None:
-    try:
-        with wave.open(io.BytesIO(content), "rb") as audio:
-            frames = audio.getnframes()
-            rate = audio.getframerate()
-            if (
-                audio.getnchannels() != 1
-                or audio.getsampwidth() != 2
-                or not 8000 <= rate <= 48000
-                or frames == 0
-                or frames > MAX_AUDIO_SECONDS * rate
-                or len(audio.readframes(frames)) != frames * 2
-            ):
-                raise ValueError("Unsupported WAV parameters")
-    except (wave.Error, EOFError, ValueError) as exc:
-        raise HTTPException(
-            400, "Use a valid mono PCM 16-bit WAV, 8-48 kHz, up to 60 seconds."
-        ) from exc
-
-
 @router.post(
     "/transcriptions",
     operation_id="transcribe_voice",
@@ -136,20 +171,11 @@ def validate_audio(content: bytes) -> None:
 )
 async def transcribe_voice(
     response: Response,
-    file: Annotated[
-        UploadFile, File(description="Mono PCM 16-bit WAV, up to 60 seconds and 10 MiB")
-    ],
+    file: Annotated[UploadFile, File(description="Audio file")],
     language: Annotated[str, Form(pattern=r"^[a-z]{2}$")] = "en",
     device: Annotated[InferenceDevice | None, Form()] = None,
 ) -> TranscriptionResponse:
     """Transcribe one independent recording. Previous recordings are never used as context."""
-    try:
-        content = await file.read(MAX_UPLOAD_BYTES + 1)
-    finally:
-        await file.close()
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "Audio exceeds the 10 MiB upload limit.")
-    validate_audio(content)
     request_data = {
         "language": language,
         "response_format": "json",
@@ -157,17 +183,27 @@ async def transcribe_voice(
     }
     if device is not None:
         request_data["device"] = device
-    upstream = await call_service(
-        f"{AUDIO_ANALYZER_URL.rstrip('/')}/v1/audio/transcriptions",
-        files={"file": ("recording.wav", content, "audio/wav")},
-        data=request_data,
-        max_bytes=128 * 1024,
-        rejected_detail=(
-            "The selected speech-to-text device is unavailable."
-            if device is not None
-            else "The speech service rejected the input."
-        ),
-    )
+    try:
+        upstream = await call_service(
+            f"{AUDIO_ANALYZER_URL.rstrip('/')}/v1/audio/transcriptions",
+            files={
+                "file": (
+                    normalize_upload_filename(file.filename),
+                    file.file,
+                    normalize_media_type(file.content_type),
+                )
+            },
+            data=request_data,
+            max_bytes=128 * 1024,
+            rejected_detail=(
+                "The selected speech-to-text device is unavailable."
+                if device is not None
+                else "The speech service rejected the input."
+            ),
+            safe_rejected_details=SAFE_AUDIO_VALIDATION_DETAILS,
+        )
+    finally:
+        await file.close()
     try:
         result = TranscriptionResponse.model_validate(upstream.json())
         response.headers["Cache-Control"] = "no-store"

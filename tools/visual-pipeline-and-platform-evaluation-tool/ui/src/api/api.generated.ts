@@ -1736,7 +1736,7 @@ export type TranscriptionResponse = {
   text: string;
 };
 export type BodyTranscribeVoice = {
-  /** Mono PCM 16-bit WAV, up to 60 seconds and 10 MiB */
+  /** Audio file */
   file: string;
   language?: string;
   device?: ("CPU" | "GPU" | "NPU") | null;

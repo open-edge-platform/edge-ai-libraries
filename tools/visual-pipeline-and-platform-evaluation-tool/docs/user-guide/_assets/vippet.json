@@ -5163,7 +5163,7 @@
             "type": "string",
             "contentMediaType": "application/octet-stream",
             "title": "File",
-            "description": "Mono PCM 16-bit WAV, up to 60 seconds and 10 MiB"
+            "description": "Audio file"
           },
           "language": {
             "type": "string",
@@ -7478,7 +7478,7 @@
         "properties": {
           "input": {
             "type": "string",
-            "maxLength": 5000,
+            "maxLength": 200,
             "minLength": 1,
             "title": "Input"
           },

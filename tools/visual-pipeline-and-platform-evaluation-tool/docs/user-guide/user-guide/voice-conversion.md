@@ -217,8 +217,8 @@ For GPU/NPU/WSL, use the same profile and override files as at startup.
 - Microphone capture requires HTTPS or `localhost`, permission to use the
   microphone, and browser support for MediaRecorder and Web Audio.
 - Recording stops automatically after 60 seconds and is converted in the
-  browser to mono PCM 16-bit WAV at 16 kHz. Uploaded WAV must be mono PCM
-  16-bit, 8-48 kHz, at most 60 seconds and 10 MiB.
+  browser to mono PCM 16-bit WAV at 16 kHz. Audio Analyzer validates uploaded
+  files according to its runtime format and size configuration.
 - Select a recognition language for STT. Default: English.
 - TTS input must contain 1-5000 characters after trimming whitespace.
 - Playback is explicit using the audio controls. Generated WAV can be downloaded.
@@ -240,9 +240,9 @@ For GPU/NPU/WSL, use the same profile and override files as at startup.
   If visualization fails, playback and WAV download remain available.
 - Voice uses the existing semantic color tokens, typography, shadcn controls
   and metrics components in both light and dark themes. Global navigation is
-  unchanged. No model, device, or synthesis-rate selectors are added; those
-  settings remain service configuration. MP3 and bundled sample recordings are
-  not supported by this UI.
+  unchanged. No model or synthesis-rate selectors are added; those settings
+  remain service configuration. Upload format support follows the Audio
+  Analyzer configuration; bundled sample recordings are not included.
 - Cancel aborts the browser request or recording; it does not guarantee that
   already-started inference in the upstream service stops immediately.
 
@@ -268,10 +268,12 @@ user-provided targets. Internal service calls bypass environment HTTP proxies.
 
 The adapter uses a 5-second connection timeout and a 120-second total upstream
 deadline. Responses are limited to 128 KiB for STT and 64 MiB for TTS.
-Invalid input returns 400/422; oversized audio returns 413; invalid upstream
-responses return 502; unavailable/busy services return 503; timeouts return 504.
-Upstream error bodies are not forwarded. Nginx limits voice request bodies to
-11 MiB, including multipart overhead, and disables response caching.
+Input rejected by a speech service returns 400; invalid request fields return
+422; invalid upstream responses return 502; unavailable/busy services return
+503; timeouts return 504. ViPPET forwards known Audio Analyzer file-validation
+messages, such as `File too large` and `Invalid file type`, but sanitizes all
+other upstream error bodies. Nginx streams voice request bodies without a
+separate size limit and disables response caching.
 
 ## Metrics
 
