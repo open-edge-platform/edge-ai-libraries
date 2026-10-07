@@ -893,6 +893,13 @@ is playable.
 for a specific segment or frame), and
 `DELETE /media/{bucket_name}/{video_id}` therefore work on live data unchanged.
 
+**Codecs.** Use **H.264 (AVC)** RTSP sources. Playback segments are *remuxed*,
+not re-encoded, so the stream codec must be MP4-compatible: H.264 is recommended
+and validated, HEVC/H.265 muxes but browser playback varies. A codec that cannot
+be remuxed into MP4 (e.g. MJPEG) disables segment recording for that stream with
+a warning — embedding generation still continues, but retrieval hits are not
+playable.
+
 **Credentials.** RTSP URLs may embed `user:pass@`. Credentials are used to
 connect and are stored only in the service's local registry; they are **never**
 returned by these endpoints, written to the vector database, or logged. Every
