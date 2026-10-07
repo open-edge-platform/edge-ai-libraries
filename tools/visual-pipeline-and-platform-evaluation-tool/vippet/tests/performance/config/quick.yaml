@@ -28,7 +28,7 @@ benchmark:
   filters:
     skip_pipelines: []
     skip_variants: []
-    require_models: false
+    skip_missing_models: true
     on_unknown_id: "fail"
 
 results:

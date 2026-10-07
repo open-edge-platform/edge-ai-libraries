@@ -59,8 +59,8 @@ benchmark:
     # Skip these variants
     skip_variants: []
 
-    # false skips cases with missing models; true schedules them to expose runtime failures
-    require_models: false
+    # Skip pipelines with missing models; set false to expose runtime failures.
+    skip_missing_models: true
 
     # How to react when pipelines/skip_pipelines/skip_variants/variants above
     # reference an id that doesn't exist (e.g. a typo):

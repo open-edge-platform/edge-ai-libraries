@@ -33,11 +33,11 @@ python -m pytest -m perf --junitxml=results/perf.xml vippet/tests/performance/
 
 Test parameters are controlled via YAML config files in `config/` and environment variables:
 
-Set `benchmark.filters.require_models` in the selected YAML file to control
-cases whose required models are not installed. Set it to `true` to schedule those
-cases and expose runtime failures, for example when validating behavior on a host
-without the models. Set it to `false` for normal benchmarks so affected cases are
-reported as skipped with the missing model names.
+Set `benchmark.filters.skip_missing_models` in the selected YAML file to control
+cases whose required models are not installed. It defaults to `true`, so affected
+cases are reported as skipped with the missing model names. Set it to `false` to
+schedule those cases and expose runtime failures, for example when validating
+behavior on a host without the models.
 
 | Env var                 | Default                           | Description                                |
 |-------------------------|-----------------------------------|--------------------------------------------|

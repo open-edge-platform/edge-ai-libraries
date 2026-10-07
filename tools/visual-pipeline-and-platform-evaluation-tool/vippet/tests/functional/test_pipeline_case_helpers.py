@@ -19,20 +19,20 @@ class TestWrapCasesForPytest(unittest.TestCase):
         )
         self.missing_models = {"pipeline-1": {"Missing Model"}}
 
-    def test_require_models_schedules_case(self) -> None:
+    def test_skip_missing_models_skips_case_with_reason(self) -> None:
         params, ids = wrap_cases_for_pytest(
-            [self.case], self.missing_models, require_models=True
-        )
-
-        self.assertEqual(ids, ["sample_cpu"])
-        self.assertIs(params[0], self.case)
-
-    def test_not_requiring_models_skips_case_with_reason(self) -> None:
-        params, ids = wrap_cases_for_pytest(
-            [self.case], self.missing_models, require_models=False
+            [self.case], self.missing_models, skip_missing_models=True
         )
 
         self.assertEqual(ids, ["sample_cpu"])
         self.assertEqual(params[0].values, (self.case,))
         self.assertTrue(any(mark.name == "skip" for mark in params[0].marks))
         self.assertIn("Missing Model", str(params[0].marks[0].kwargs["reason"]))
+
+    def test_not_skipping_missing_models_schedules_case(self) -> None:
+        params, ids = wrap_cases_for_pytest(
+            [self.case], self.missing_models, skip_missing_models=False
+        )
+
+        self.assertEqual(ids, ["sample_cpu"])
+        self.assertIs(params[0], self.case)
