@@ -1,0 +1,177 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "[ViPPET] UI PR workflow"
+run-name: "[ViPPET] UI PR workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+
+on:
+  pull_request:
+    branches:
+      - main
+      - release-*
+    paths:
+      - 'tools/visual-pipeline-and-platform-evaluation-tool/ui/**'
+      - '.github/workflows/vippet-ui-pr-workflow.yaml'
+  workflow_dispatch:
+    inputs:
+      cross_browser:
+        description: 'Also run the cross-browser suite on Firefox and WebKit'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  UI_DIR: tools/visual-pipeline-and-platform-evaluation-tool/ui
+  NODE_VERSION: '22'
+
+jobs:
+  lint:
+    name: Lint and type-check UI
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.UI_DIR }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.UI_DIR }}
+        run: npm ci
+
+      - name: Run ESLint (includes Prettier formatting)
+        working-directory: ${{ env.UI_DIR }}
+        run: npm run lint
+
+      # Only the Playwright project is type-checked here; the app sources are
+      # covered by the production build in the e2e job.
+      - name: Type-check end-to-end suite
+        working-directory: ${{ env.UI_DIR }}
+        run: npm run typecheck:e2e
+
+  e2e:
+    name: Playwright e2e (${{ matrix.project }})
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ github.event.inputs.cross_browser == 'true' && fromJSON('["chromium","firefox","webkit"]') || fromJSON('["chromium"]') }}
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.UI_DIR }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.UI_DIR }}
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: ${{ env.UI_DIR }}
+        env:
+          PROJECT: ${{ matrix.project }}
+        run: npx playwright install --with-deps "$PROJECT"
+
+      # Playwright serves this bundle itself (PLAYWRIGHT_WEB_SERVER=1), so the
+      # suite runs against the production build with no backend attached.
+      - name: Build UI
+        working-directory: ${{ env.UI_DIR }}
+        run: npm run build
+
+      - name: Run Playwright tests
+        working-directory: ${{ env.UI_DIR }}
+        env:
+          PLAYWRIGHT_WEB_SERVER: '1'
+          PROJECT: ${{ matrix.project }}
+        run: npx playwright test --project="$PROJECT"
+
+      - name: Write test report summary
+        if: ${{ !cancelled() }}
+        working-directory: ${{ env.UI_DIR }}
+        env:
+          PROJECT: ${{ matrix.project }}
+        run: |
+          REPORT=test-results/report.json
+          if [ ! -f "$REPORT" ]; then
+            echo "### ViPPET UI e2e — $PROJECT" >> "$GITHUB_STEP_SUMMARY"
+            echo "No Playwright JSON report was produced; the run failed before tests started." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "### ViPPET UI e2e — $PROJECT"
+            echo ""
+            echo "| Passed | Failed | Flaky | Skipped | Duration |"
+            echo "| ------ | ------ | ----- | ------- | -------- |"
+            jq -r '.stats | "| \(.expected) | \(.unexpected) | \(.flaky) | \(.skipped) | \((.duration / 1000 * 10 | round) / 10)s |"' "$REPORT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          FAILED=$(jq -r '[.. | objects | select(has("ok") and has("title") and .ok == false) | .title] | unique | .[]' "$REPORT")
+          if [ -n "$FAILED" ]; then
+            {
+              echo ""
+              echo "<details><summary>Failed tests</summary>"
+              echo ""
+              echo "$FAILED" | sed 's/^/- /'
+              echo ""
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Contains the HTML report plus traces, screenshots and videos for failures.
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: vippet-ui-playwright-report-${{ matrix.project }}
+          path: |
+            ${{ env.UI_DIR }}/playwright-report/
+            ${{ env.UI_DIR }}/test-results/
+          retention-days: 14
+          if-no-files-found: warn
+
+  final-check:
+    name: Final status check
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs: [lint, e2e]
+    steps:
+      - name: Final Status Check
+        env:
+          lint_result: ${{ needs.lint.result }}
+          e2e_result: ${{ needs.e2e.result }}
+        run: |
+          echo "Lint result: $lint_result"
+          echo "E2E result: $e2e_result"
+
+          for result in "$lint_result" "$e2e_result"; do
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              echo "ViPPET UI checks failed. PR can't be merged."
+              exit 1
+            fi
+          done
+          echo "ViPPET UI checks passed successfully."
