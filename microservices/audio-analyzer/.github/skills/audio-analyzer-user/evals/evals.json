@@ -1,0 +1,109 @@
+{
+  "skill_name": "audio-analyzer-user",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a recorded customer call saved as call_042.wav and I just want the full transcript as plain text, no streaming. Show me exactly how to call this service's API and what the response looks like.",
+      "expected_output": "A correct batch transcription walkthrough using the right endpoint, port, and multipart field.",
+      "files": [],
+      "expectations": [
+        "Uses POST /v1/audio/transcriptions with file as the multipart field.",
+        "Uses port 8010 (not 8000 or 8080).",
+        "Does not set stream=true since the user wants a single response.",
+        "Mentions the X-Session-ID response header.",
+        "Shows a curl or client example with file=@call_042.wav."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I already use the official OpenAI Python SDK in my app for Whisper streaming transcription. I want to point it at this self-hosted service instead and keep getting incremental text as it transcribes. What exactly do I change?",
+      "expected_output": "A correct OpenAI-SDK-compatible streaming integration using stream=true against this service's base_url.",
+      "files": [],
+      "expectations": [
+        "Sets base_url to http://127.0.0.1:8010/v1 (or equivalent host) with a placeholder api_key.",
+        "Uses model=\"whisper-1\" and stream=True in the SDK call.",
+        "Specifies response_format as json or verbose_json, not srt/vtt/text.",
+        "Describes handling transcript.text.delta and transcript.text.done events.",
+        "Mentions the [DONE] sentinel as the stream terminator."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "My client uploads a subtitle file request with response_format=srt and stream=true and gets an HTTP 400. Why, and what should I change if I still want incremental output?",
+      "expected_output": "A correct explanation of the stream/response_format constraint and a working alternative.",
+      "files": [],
+      "expectations": [
+        "States that stream=true requires response_format to be json or verbose_json.",
+        "States that srt, vtt, and text return HTTP 400 when combined with stream=true.",
+        "Offers switching response_format to json/verbose_json as the fix if streaming is required.",
+        "Alternatively offers dropping stream=true if srt output is required.",
+        "Does not suggest this is a bug to work around with retries."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I want to build a live microphone transcription feature in my desktop app using this service. I was assuming I just open a WebSocket and the service listens to my machine's mic directly similar to some other services. Is that right, and how do I actually stream audio to it?",
+      "expected_output": "A correct explanation that the client owns audio capture, plus the right WebSocket integration shape.",
+      "files": [],
+      "expectations": [
+        "Corrects the assumption: the service does not capture the microphone itself; the client must capture and stream audio.",
+        "Specifies connecting to WS /v1/realtime with intent=transcription.",
+        "States the audio must be base64-encoded PCM16, mono.",
+        "Describes sending input_audio_buffer.append messages with the audio payload.",
+        "Mentions reacting to input_audio_buffer.speech_started/speech_stopped and the transcription delta/completed events."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I'm streaming audio to /v1/realtime from a quiet lapel mic recording and input_audio_buffer.speech_started never fires, so I never get a transcript. What should I check first?",
+      "expected_output": "A client-side diagnosis focused on VAD threshold and audio encoding correctness.",
+      "files": [],
+      "expectations": [
+        "Suggests lowering the VAD threshold via a session.update message for quiet audio.",
+        "States the default threshold is normalized RMS (around 0.02), not a neural VAD probability.",
+        "Checks that audio is actually PCM16 mono and matches the declared sample rate.",
+        "Notes the service does not resample or transcode in the socket layer.",
+        "Mentions input_audio_buffer.commit as a way to force a transcript if VAD is the blocker, or disabling VAD entirely with turn_detection: null."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "I want every uploaded chunk of a long file to produce a sentiment label so I can see mood shift over the call, alongside the transcript. How do I get that from this service?",
+      "expected_output": "An accurate answer about where sentiment appears in responses and that it is a deployment-level setting.",
+      "files": [],
+      "expectations": [
+        "States that sentiment_summary appears in the transcript.text.done / .completed events or final JSON body only when the deployed service has sentiment enabled.",
+        "Clarifies that enabling sentiment is a deployment-time config setting (sentiment.enabled), not a per-request flag the client can set.",
+        "Does not claim a request-level parameter can turn sentiment on if it is disabled server-side.",
+        "Recommends checking with the deployment owner if sentiment fields are missing.",
+        "Avoids conflating sentiment with the (unrelated) diarization feature."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I'm hitting POST /transcriptions (no /v1) on this service because that's what I found in some docs, and I'm trying to parse the response the same way I parse OpenAI's Whisper API response. It doesn't look like JSON text output. What's going on?",
+      "expected_output": "A correct explanation that /transcriptions is the VSS-compatible contract, not OpenAI-compatible, with the right endpoint for OpenAI-shaped output.",
+      "files": [],
+      "expectations": [
+        "States that /transcriptions (and /api/v1/transcriptions) is the VSS-compatible contract, not OpenAI-compatible.",
+        "Describes the VSS response shape as a job-status object (status/job_id/transcript_path), not an OpenAI transcript body.",
+        "Recommends POST /v1/audio/transcriptions for OpenAI-SDK-compatible output.",
+        "Mentions that /transcriptions can also accept a MinIO source instead of a direct file.",
+        "Does not suggest the service is broken."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "I set device=GPU as a form field when calling the NDJSON streaming endpoint /v1/audio/transcriptions/stream, but it doesn't seem to change anything. Is this field supported there?",
+      "expected_output": "A correct explanation of which endpoints support the per-request device override.",
+      "files": [],
+      "expectations": [
+        "States that the per-request device override only applies to POST /v1/audio/transcriptions (single-response and stream=true forms).",
+        "States that /v1/audio/transcriptions/stream always uses the service-configured device and ignores a per-request device field.",
+        "Mentions the realtime WebSocket and VSS-compatible routes also always use the service-configured device.",
+        "Suggests switching to POST /v1/audio/transcriptions if per-request device selection is required.",
+        "Does not claim this is a bug in the NDJSON endpoint."
+      ]
+    }
+  ]
+}

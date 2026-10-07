@@ -1,0 +1,83 @@
+{
+  "skill_name": "text-to-speech-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to deploy the text-to-speech microservice on a machine, pulling the published image rather than building from source. Walk me through the exact steps, the env vars I need, and how to confirm it's healthy afterward.",
+      "expected_output": "A Docker Compose deployment walkthrough grounded in this service's actual compose file, env vars, and port.",
+      "files": [],
+      "expectations": [
+        "Uses docker compose pull followed by docker compose up -d rather than build.",
+        "Mentions REGISTRY and RELEASE_TAG in .env.",
+        "Uses port 8011 and curl http://127.0.0.1:8011/health to verify health.",
+        "Mentions config.yaml is bind-mounted and edits apply on docker compose restart.",
+        "Does not claim an NPU device option exists for this service."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "docker compose up fails with 'Conflict. The container name \"/text-to-speech\" is already in use'. What's going on and how do I fix it?",
+      "expected_output": "A correct, specific explanation of the named-container conflict and its fix.",
+      "files": [],
+      "expectations": [
+        "Explains that docker-compose.yml sets an explicit container_name: text-to-speech, which is why Compose does not auto-resolve the conflict.",
+        "Recommends docker rm -f text-to-speech before docker compose up -d.",
+        "Does not recommend renaming the service or editing container_name as the primary fix.",
+        "Does not suggest this indicates data corruption.",
+        "Keeps the fix scoped to removing the stale container rather than resetting volumes."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I configured models.tts.device: GPU for Qwen3-TTS and the container keeps restarting with '[GPU] Context was not initialized for 0 device'. Give me a focused, service-specific debug sequence.",
+      "expected_output": "A GPU-specific debug checklist grounded in this service's Compose device mapping and render-group requirements.",
+      "files": [],
+      "expectations": [
+        "Checks that /dev/dri is exposed to the container and that the host has GPU device nodes (ls -l /dev/dri).",
+        "Explains RENDER_GID must match the host's actual render group GID, found via stat -c '%g' /dev/dri/render*, not assumed as a fixed default.",
+        "Recommends isolating with device: CPU first, then a simpler GPU path (SpeechT5) before Qwen GPU.",
+        "States that a working SpeechT5 GPU path does not guarantee Qwen GPU will also succeed.",
+        "Does not suggest switching to int4 precision as a fix for this error."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "For best GPU performance and smallest memory footprint I'm thinking of setting dtype: int4 for SpeechT5 on my integrated GPU deployment. Any concerns with that?",
+      "expected_output": "An accurate warning about the known int4 GPU quality issue with a better-grounded alternative recommendation.",
+      "files": [],
+      "expectations": [
+        "States that dtype: int4 on integrated GPU is a known issue that produces audible noise in the output.",
+        "Recommends fp16 (or int8) instead for a GPU deployment.",
+        "Notes fp16 on GPU is the validated, good-quality precision after warmup.",
+        "Does not claim int4 is unsupported outright — distinguishes 'works but low quality' from 'rejected'.",
+        "Does not apply this same warning incorrectly to CPU deployments."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "After some host cleanup my container now fails with PermissionError: [Errno 13] Permission denied on /app/text-to-speech/storage/... What's going on and how do I fix it without just chmod -R 777'ing things?",
+      "expected_output": "A grounded explanation of the UID/GID 1000:1000 ownership model and the correct volume-reset remedy.",
+      "files": [],
+      "expectations": [
+        "Explains the container always runs as UID/GID 1000:1000, baked into the image.",
+        "Explains named volumes are initialized with that ownership on a fresh run, and the error usually means a volume was created by an earlier root-only run.",
+        "Recommends docker compose down followed by removing the specific named volumes (text_to_speech_models/storage/cache) and docker compose up -d again.",
+        "Warns that removing the volumes deletes cached models and session data, and to confirm before doing it.",
+        "Does not recommend chmod 777 or changing the user: directive in docker-compose.yml as the fix."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "What TTS model is actually active on a freshly cloned deployment if nobody has touched config.yaml yet, and how would I confirm it without reading the source code?",
+      "expected_output": "An answer that correctly identifies the shipped default and the way to confirm it via the running service.",
+      "files": [],
+      "expectations": [
+        "States the shipped default model is kokoro, not SpeechT5 (even though SpeechT5/Qwen are the most-documented worked examples).",
+        "Notes Kokoro always runs on onnxruntime/CPU regardless of the runtime/device config values.",
+        "Recommends GET /v1/audio/voices (or checking models.tts.name in config.yaml) to confirm the active model on a running deployment.",
+        "Does not assume SpeechT5 is active just because it's the most common doc example.",
+        "Uses port 8011 if a curl example is given."
+      ]
+    }
+  ]
+}
