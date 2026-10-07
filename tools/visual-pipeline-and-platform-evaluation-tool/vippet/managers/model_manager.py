@@ -35,12 +35,13 @@ import asyncio
 import contextlib
 import logging
 import os
+import re
 import shutil
 import tempfile
 import threading
 import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, BinaryIO
@@ -90,6 +91,141 @@ HTTP_REQUEST_TIMEOUT_S: float = float(
 
 # Upload streaming chunk size.
 UPLOAD_CHUNK_SIZE: int = 8 * 1024 * 1024  # 8 MiB
+
+# Ultralytics hub installs: model-download writes artefacts to
+# ``<MODELS_PATH>/ultralytics/public/<name>/<PRECISION>/<name>.xml``.
+ULTRALYTICS_SOURCE_DIR: str = "public"
+_PRECISION_DIR_RE = re.compile(r"^(FP|INT)\d+$")
+_ULTRALYTICS_CATEGORY_SUFFIXES: dict[str, InternalModelCategory] = {
+    "-seg": InternalModelCategory.IMAGE_SEGMENTATION,
+    "-cls": InternalModelCategory.IMAGE_CLASSIFICATION,
+    "-pose": InternalModelCategory.POSE_ESTIMATION,
+    "-obb": InternalModelCategory.OBJECT_DETECTION,
+}
+
+
+def ultralytics_category(name: str) -> InternalModelCategory:
+    """Derive the model category from an Ultralytics model name suffix."""
+    for suffix, category in _ULTRALYTICS_CATEGORY_SUFFIXES.items():
+        if name.endswith(suffix):
+            return category
+    return InternalModelCategory.OBJECT_DETECTION
+
+
+def scan_ultralytics_variants(name: str) -> list[tuple[str, str]]:
+    """Find installed precisions of an Ultralytics model on disk.
+
+    Args:
+        name: Ultralytics model name (directory name under ``public/``).
+
+    Returns:
+        list[tuple[str, str]]: ``(precision, model_path)`` pairs sorted by
+        precision, where ``model_path`` is relative to ``MODELS_PATH``.
+    """
+    rel_root = os.path.join("ultralytics", ULTRALYTICS_SOURCE_DIR, name)
+    abs_root = os.path.join(MODELS_PATH, rel_root)
+    if not os.path.isdir(abs_root):
+        return []
+
+    variants: list[tuple[str, str]] = []
+    for precision in sorted(os.listdir(abs_root)):
+        prec_dir = os.path.join(abs_root, precision)
+        if not _PRECISION_DIR_RE.match(precision) or not os.path.isdir(prec_dir):
+            continue
+        xml_files = sorted(f for f in os.listdir(prec_dir) if f.endswith(".xml"))
+        if not xml_files:
+            continue
+        xml_file = f"{name}.xml" if f"{name}.xml" in xml_files else xml_files[0]
+        variants.append((precision, os.path.join(rel_root, precision, xml_file)))
+    return variants
+
+
+# HuggingFace hub installs: model-download writes a full repo snapshot to
+# ``<MODELS_PATH>/huggingface/<name with "/" -> "_">/`` (no precision
+# subfolders, unlike Ultralytics); only a single variant is derived.
+_HF_PRECISION_RE = re.compile(r"(?i)(int4|int8|fp16|fp32)")
+_GENAI_STYLE_CATEGORIES = {
+    InternalModelCategory.VISION_LANGUAGE_MODELS,
+    InternalModelCategory.LARGE_LANGUAGE_MODELS,
+    InternalModelCategory.AUTOMATIC_SPEECH_RECOGNITION,
+    InternalModelCategory.TEXT_TO_SPEECH,
+}
+
+
+def _guess_precision_from_name(name: str) -> str:
+    """Best-effort precision guess from naming conventions like `-int8-ov`."""
+    match = _HF_PRECISION_RE.search(name)
+    return match.group(1).upper() if match else ""
+
+
+def _strip_org_prefix(name: str) -> str:
+    """Drop a hub repo id's ``owner/`` prefix (e.g. ``OpenVINO/gemma-4`` -> ``gemma-4``)."""
+    return name.rsplit("/", 1)[-1]
+
+
+def _find_genai_model_dir(abs_root: str) -> str | None:
+    """Find the directory containing the GenAI sentinel file under *abs_root*.
+
+    HuggingFace snapshots sometimes nest the model under a subdirectory,
+    so both *abs_root* itself and its immediate children are checked.
+    """
+    if os.path.isfile(os.path.join(abs_root, GENAI_SENTINEL_FILE)):
+        return abs_root
+    if not os.path.isdir(abs_root):
+        return None
+    for entry in sorted(os.listdir(abs_root)):
+        candidate = os.path.join(abs_root, entry)
+        if os.path.isdir(candidate) and os.path.isfile(
+            os.path.join(candidate, GENAI_SENTINEL_FILE)
+        ):
+            return candidate
+    return None
+
+
+def _find_first_xml(abs_root: str) -> str | None:
+    """Recursively find the first non-tokenizer ``.xml`` file under *abs_root*."""
+    for dirpath, _dirnames, filenames in os.walk(abs_root):
+        for filename in sorted(filenames):
+            if filename.endswith(".xml") and "tokenizer" not in filename.lower():
+                return os.path.join(dirpath, filename)
+    return None
+
+
+def scan_huggingface_variant(
+    name: str, category: InternalModelCategory
+) -> tuple[str, str] | None:
+    """Find the installed artefact of a HuggingFace hub model on disk.
+
+    Returns a single ``(precision, model_path)`` pair (HuggingFace hub
+    downloads are not split into precision subfolders like Ultralytics),
+    where ``model_path`` is relative to ``MODELS_PATH``, or ``None`` when
+    nothing usable was found.
+    """
+    rel_root = os.path.join("huggingface", name.replace("/", "_"))
+    abs_root = os.path.join(MODELS_PATH, rel_root)
+    if not os.path.isdir(abs_root):
+        return None
+
+    precision = _guess_precision_from_name(name)
+
+    if category in _GENAI_STYLE_CATEGORIES:
+        if category == InternalModelCategory.VISION_LANGUAGE_MODELS:
+            genai_dir = _find_genai_model_dir(abs_root)
+            return (
+                None
+                if genai_dir is None
+                else (precision, os.path.relpath(genai_dir, MODELS_PATH))
+            )
+        # LLM/ASR/TTS have no established sentinel-file convention yet;
+        # accept any non-empty download as a pragmatic fallback.
+        return (precision, rel_root) if any(os.scandir(abs_root)) else None
+
+    xml_path = _find_first_xml(abs_root)
+    return (
+        None
+        if xml_path is None
+        else (precision, os.path.relpath(xml_path, MODELS_PATH))
+    )
 
 
 def _precision_is_complete(category: str | None, model_path: str) -> bool:
@@ -170,6 +306,14 @@ class ModelManager:
     # ------------------------------------------------------------------
     # Public: model listing
     # ------------------------------------------------------------------
+
+    async def list_hub_models(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Proxy a model-catalog listing request to model-download."""
+        url = f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/models/list"
+        async with httpx.AsyncClient(timeout=HTTP_REQUEST_TIMEOUT_S) as client:
+            response = await client.post(url, json=request)
+            response.raise_for_status()
+            return response.json()
 
     async def list_models(self) -> list[InternalSupportedModel]:
         """Return every model known to vippet-app as internal records.
@@ -355,8 +499,19 @@ class ModelManager:
     # Public: download
     # ------------------------------------------------------------------
 
-    async def start_download(self, model_name: str) -> tuple[str | None, int, str]:
+    async def start_download(
+        self,
+        model_name: str,
+        hub: str | None = None,
+        category: InternalModelCategory | None = None,
+    ) -> tuple[str | None, int, str]:
         """Start a download job for the given supported model.
+
+        When ``hub`` is given and ``model_name`` is not in the catalog, the
+        model is downloaded from that hub and registered on success.
+        ``category`` is required for hubs that have no naming convention to
+        derive it from (currently: ``huggingface``); it is ignored for
+        ``ultralytics`` (derived from the name suffix instead).
 
         Returns a tuple ``(job_id, http_status, message)`` where
         ``job_id`` is ``None`` for error responses. ``http_status`` is
@@ -375,6 +530,8 @@ class ModelManager:
                 select(Model).where(Model.name == model_name)
             )
         if db_model is None:
+            if hub is not None:
+                return self._start_hub_download(hub, model_name, category)
             return None, 404, f"Model '{model_name}' is not supported"
 
         source = self._to_internal_source(db_model.hub)
@@ -437,6 +594,234 @@ class ModelManager:
 
         return job_id, 202, f"Download started (job {job_id})"
 
+    def _start_hub_download(
+        self,
+        hub: str,
+        name: str,
+        category: InternalModelCategory | None,
+    ) -> tuple[str | None, int, str]:
+        """Start a download of a non-catalog model picked from a hub listing.
+
+        On success the model and its installed precisions are registered
+        in the DB.
+
+        Args:
+            hub: Upstream hub name (``ultralytics`` or ``huggingface``).
+            name: Model name as returned by the hub listing.
+            category: Required for ``huggingface`` (no naming convention to
+                derive it from); ignored for ``ultralytics``.
+
+        Returns:
+            tuple[str | None, int, str]: ``(job_id, http_status, message)``.
+        """
+        if hub == InternalModelSource.ULTRALYTICS.value:
+            resolved_category = ultralytics_category(name)
+            source = InternalModelSource.ULTRALYTICS
+            finalize = self._finalize_ultralytics_install
+        elif hub == InternalModelSource.HUGGINGFACE.value:
+            if category is None:
+                return (
+                    None,
+                    400,
+                    "A 'category' is required to install a model from hub 'huggingface'",
+                )
+            resolved_category = category
+            source = InternalModelSource.HUGGINGFACE
+            finalize = self._finalize_huggingface_install
+        else:
+            return None, 400, f"Installing models from hub '{hub}' is not supported"
+
+        with self._jobs_lock:
+            running = next(
+                (
+                    j
+                    for j in self._jobs.values()
+                    if j.model_name == name
+                    and j.state == InternalModelDownloadJobState.RUNNING
+                ),
+                None,
+            )
+        if running is not None:
+            return (
+                None,
+                409,
+                f"Download for model '{name}' is already running (job {running.id})",
+            )
+
+        download_request: dict[str, Any] = {"hub": hub, "name": name}
+
+        job_id = uuid.uuid1().hex
+        job = InternalModelDownloadJobStatus(
+            id=job_id,
+            model_name=name,
+            source=source,
+            state=InternalModelDownloadJobState.RUNNING,
+            start_time=int(time.time() * 1000),
+            details=[f"Starting download of '{name}'"],
+        )
+        with self._jobs_lock:
+            self._jobs[job_id] = job
+
+        def on_success(job_id: str, model_name: str) -> None:
+            finalize(job_id, model_name, resolved_category, download_request)
+
+        threading.Thread(
+            target=self._execute_remote_download,
+            args=(job_id, name, download_request, on_success),
+            name=f"model-download-{job_id}",
+            daemon=True,
+        ).start()
+
+        return job_id, 202, f"Download started (job {job_id})"
+
+    def _finalize_ultralytics_install(
+        self,
+        job_id: str,
+        model_name: str,
+        category: InternalModelCategory,
+        download_request: dict[str, Any],
+    ) -> None:
+        """Register a freshly downloaded Ultralytics model in the DB."""
+        variants = scan_ultralytics_variants(model_name)
+        if not variants:
+            self._fail_job(
+                job_id,
+                f"No installed precisions found for '{model_name}' after download",
+            )
+            return
+
+        self._persist_and_complete_hub_job(
+            job_id,
+            model_name,
+            category,
+            download_request,
+            variants,
+            InternalModelSource.ULTRALYTICS,
+            ULTRALYTICS_SOURCE_DIR,
+        )
+
+    def _finalize_huggingface_install(
+        self,
+        job_id: str,
+        model_name: str,
+        category: InternalModelCategory,
+        download_request: dict[str, Any],
+    ) -> None:
+        """Register a freshly downloaded HuggingFace hub model in the DB."""
+        variant = scan_huggingface_variant(model_name, category)
+        if variant is None:
+            self._fail_job(
+                job_id,
+                f"No installed artefacts found for '{model_name}' after download",
+            )
+            return
+
+        self._persist_and_complete_hub_job(
+            job_id,
+            model_name,
+            category,
+            download_request,
+            [variant],
+            InternalModelSource.HUGGINGFACE,
+            "huggingface",
+        )
+
+    def _persist_and_complete_hub_job(
+        self,
+        job_id: str,
+        model_name: str,
+        category: InternalModelCategory,
+        download_request: dict[str, Any],
+        variants: list[tuple[str, str]],
+        hub: InternalModelSource,
+        source: str,
+    ) -> None:
+        """Persist a hub-installed model's variants and complete its job."""
+        try:
+            asyncio.run(
+                self._persist_hub_model(
+                    model_name, category, download_request, variants, hub, source
+                )
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to register model %s in job %s",
+                model_name,
+                job_id,
+                exc_info=True,
+            )
+            self._fail_job(job_id, f"Failed to register model: {exc}")
+            return
+
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return
+            job.state = InternalModelDownloadJobState.COMPLETED
+            job.end_time = int(time.time() * 1000)
+            job.details = [
+                f"Model '{model_name}' installed successfully "
+                f"({', '.join(p for p, _ in variants if p)})"
+            ]
+            job.model_path = os.path.join(MODELS_PATH, variants[0][1])
+
+        logger.info("Model hub install job %s completed", job_id)
+
+    @staticmethod
+    async def _persist_hub_model(
+        model_name: str,
+        category: InternalModelCategory,
+        download_request: dict[str, Any],
+        variants: list[tuple[str, str]],
+        hub: InternalModelSource,
+        source: str,
+    ) -> None:
+        """Insert a hub-installed model and its precisions into the DB."""
+        from database import async_session_maker
+        from orm_models import Model, ModelVariant
+
+        if async_session_maker is None:
+            raise RuntimeError("Database not initialized yet")
+
+        now = datetime.now(timezone.utc)
+        display_base = _strip_org_prefix(model_name)
+        async with async_session_maker() as session:
+            db_model = Model(
+                name=model_name,
+                display_name=display_base,
+                description=None,
+                category=category.value,
+                source=source,
+                hub=hub.value,
+                unsupported_devices=None,
+                is_custom=False,
+                install_status=InternalModelInstallStatus.INSTALLED.value,
+                installed_at=now,
+                download_request=download_request,
+                created_at=now,
+            )
+            session.add(db_model)
+            await session.flush()
+            for precision, model_path in variants:
+                display_name = (
+                    f"{display_base} ({precision})" if precision else display_base
+                )
+                session.add(
+                    ModelVariant(
+                        model_id=db_model.id,
+                        name=model_name,
+                        display_name=display_name,
+                        precision=precision,
+                        model_path=model_path,
+                        model_proc="",
+                        installed=True,
+                        installed_at=now,
+                    )
+                )
+            await session.commit()
+
+        await SupportedModelsManager().reload_async()
+
     # ------------------------------------------------------------------
     # Worker: remote download (model-download microservice)
     # ------------------------------------------------------------------
@@ -446,8 +831,12 @@ class ModelManager:
         job_id: str,
         model_name: str,
         download_request: dict[str, Any],
+        on_success: Callable[[str, str], None] | None = None,
     ) -> None:
-        """Run a download via the model-download microservice."""
+        """Run a download via the model-download microservice.
+
+        ``on_success`` replaces :meth:`_finalize_success` when given.
+        """
         try:
             download_path = self._resolve_download_path()
             url = f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/models/download"
@@ -505,7 +894,7 @@ class ModelManager:
 
                     if all(s in ("completed", "failed") for s, _ in statuses):
                         if all(s == "completed" for s, _ in statuses):
-                            self._finalize_success(job_id, model_name)
+                            (on_success or self._finalize_success)(job_id, model_name)
                             return
                         # At least one failed and none is still processing —
                         # aggregate every failure reason into a single message

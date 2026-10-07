@@ -1402,6 +1402,10 @@ export type ModelDownloadJobResponse = {
 export type ModelDownloadRequest = {
   /** List of supported-model names to install. Must be non-empty and unique. */
   names: string[];
+  /** Upstream hub used for names not found in the model catalog. */
+  hub?: ModelSource | null;
+  /** Model category, required when `hub` is `huggingface` (ignored for other hubs). */
+  category?: ModelCategory | null;
 };
 export type ModelStatusItem = {
   /** Internal model identifier. */

@@ -19,16 +19,35 @@ import {
   PaginationEllipsis,
 } from "@/components/ui/pagination";
 import {
+  api,
+  useGetModelDownloadJobStatusQuery,
   useListHubModelsMutation,
+  useStartModelDownloadMutation,
+  type ModelDownloadJobResponse,
   type ModelHubListResponse,
 } from "@/api/api.generated";
 import { Loader2, AlertCircle } from "lucide-react";
-import { useAppSelector } from "@/store/hooks";
+import { toast } from "sonner";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
+import { useAsyncJob } from "@/hooks/useAsyncJob";
+import { formatElapsedTimeMillis } from "@/lib/timeUtils";
+import {
+  handleApiError,
+  handleAsyncJobError,
+  isAsyncJobError,
+} from "@/lib/apiUtils.ts";
 
 const ITEMS_PER_PAGE = 10;
 
-export const UltralyticsBrowser = () => {
+type UltralyticsBrowserProps = {
+  onInstalled?: () => void;
+};
+
+export const UltralyticsBrowser = ({
+  onInstalled,
+}: UltralyticsBrowserProps) => {
+  const dispatch = useAppDispatch();
   const installedModels = useAppSelector(selectModels);
   const installedNames = useMemo(
     () =>
@@ -46,6 +65,40 @@ export const UltralyticsBrowser = () => {
   const [totalItems, setTotalItems] = useState(0);
 
   const [listHubModels, { isLoading, error }] = useListHubModelsMutation();
+
+  const [installingName, setInstallingName] = useState<string | null>(null);
+  const { execute: runInstall, jobStatus } = useAsyncJob({
+    asyncJobHook: useStartModelDownloadMutation,
+    statusCheckHook: useGetModelDownloadJobStatusQuery,
+    pollingInterval: 2000,
+    extractJobId: (response: ModelDownloadJobResponse) =>
+      Object.values(response.jobs)[0]?.job_id,
+  });
+
+  const handleInstall = async (name: string) => {
+    setInstallingName(name);
+    try {
+      await runInstall({
+        modelDownloadRequest: { names: [name], hub: "ultralytics" },
+      });
+      dispatch(api.util.invalidateTags(["models"]));
+      toast.success(`Model "${name}" installed successfully.`);
+      onInstalled?.();
+    } catch (err) {
+      const rejection = (err as { data?: ModelDownloadJobResponse } | null)
+        ?.data?.jobs?.[name]?.message;
+      if (isAsyncJobError(err)) {
+        handleAsyncJobError(err, "Model installation");
+      } else if (rejection) {
+        toast.error("Failed to install model", { description: rejection });
+      } else {
+        handleApiError(err, "Failed to install model");
+      }
+      console.error("Failed to install model:", err);
+    } finally {
+      setInstallingName(null);
+    }
+  };
 
   // Debounce search term (300ms)
   useEffect(() => {
@@ -177,7 +230,7 @@ export const UltralyticsBrowser = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead className="w-28 text-right">Actions</TableHead>
+              <TableHead className="w-56 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -187,13 +240,27 @@ export const UltralyticsBrowser = () => {
                   {typeof model.name === "string" ? model.name : "—"}
                 </TableCell>
                 <TableCell className="text-right">
-                  {typeof model.name === "string" &&
-                  installedNames.has(model.name) ? (
+                  {typeof model.name !== "string" ? null : installedNames.has(
+                      model.name,
+                    ) ? (
                     <span className="text-sm text-muted-foreground">
                       Installed
                     </span>
+                  ) : installingName === model.name ? (
+                    <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {jobStatus?.progress_message || "Installing"}
+                      {jobStatus
+                        ? ` (${formatElapsedTimeMillis(jobStatus.elapsed_time)})`
+                        : ""}
+                    </span>
                   ) : (
-                    <Button size="sm" variant="outline" disabled>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={installingName !== null}
+                      onClick={() => handleInstall(model.name as string)}
+                    >
                       Install
                     </Button>
                   )}
@@ -257,10 +324,6 @@ export const UltralyticsBrowser = () => {
           </Pagination>
         </div>
       )}
-
-      <p className="text-xs text-muted-foreground">
-        Model installation is not available yet.
-      </p>
     </div>
   );
 };

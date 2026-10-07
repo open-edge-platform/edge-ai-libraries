@@ -2066,7 +2066,7 @@
           "models"
         ],
         "summary": "Start one or more model download jobs",
-        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
+        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n- **`category`** *(optional)* - Required when `hub` is `huggingface`.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
         "operationId": "start_model_download",
         "requestBody": {
           "content": {
@@ -6132,6 +6132,31 @@
                 "yolov8n"
               ]
             ]
+          },
+          "hub": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelSource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Upstream hub used for names not found in the model catalog.",
+            "examples": [
+              "ultralytics"
+            ]
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelCategory"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Model category, required when `hub` is `huggingface` (ignored for other hubs)."
           }
         },
         "type": "object",
@@ -6139,7 +6164,7 @@
           "names"
         ],
         "title": "ModelDownloadRequest",
-        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`). Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\nWhen `hub` is set, names not found in the catalog are downloaded from\nthat hub (names as returned by `POST /models/list`) and registered in\nthe catalog together with every installed precision. Supported hubs:\n`ultralytics` (category derived from the name suffix) and\n`huggingface` (category must be provided via `category`, since\nHuggingFace repo ids have no fixed naming convention to derive it\nfrom).\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n- `hub` - Optional upstream hub for names not in the catalog.\n- `category` - Required when `hub` is `huggingface`; ignored otherwise.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
       },
       "ModelHubListRequest": {
         "properties": {

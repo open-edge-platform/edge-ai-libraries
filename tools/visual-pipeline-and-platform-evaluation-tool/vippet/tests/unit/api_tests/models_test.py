@@ -1,3 +1,4 @@
+import asyncio
 import io
 import unittest
 from fastapi import FastAPI
@@ -14,6 +15,7 @@ from internal_types import (
     InternalModelVariant,
     InternalSupportedModel,
 )
+from managers.model_manager import ModelManager as ConcreteModelManager
 
 
 class TestModelsAPI(unittest.TestCase):
@@ -232,6 +234,72 @@ class TestModelsAPI(unittest.TestCase):
 
             self.assertEqual(response.status_code, 500)
             self.assertIn("Unexpected error", response.json()["message"])
+
+
+class TestModelHubListAPI(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        app = FastAPI()
+        app.include_router(models_router, prefix="/models")
+        cls.client = TestClient(app)
+
+    def test_list_hub_models_forwards_filters_and_returns_catalog(self):
+        request_body = {
+            "hub": "huggingface",
+            "filters": {"author": "microsoft", "search": "phi"},
+            "limit": 10,
+            "offset": 0,
+        }
+        catalog = {
+            "hub": "huggingface",
+            "items": [{"name": "microsoft/Phi-3.5-mini-instruct"}],
+            "total": 1,
+            "limit": 10,
+            "offset": 0,
+        }
+        with patch("api.routes.models.ModelManager") as manager_cls:
+            manager = MagicMock()
+            manager.list_hub_models = AsyncMock(return_value=catalog)
+            manager_cls.return_value = manager
+
+            response = self.client.post("/models/list", json=request_body)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), catalog)
+        manager.list_hub_models.assert_awaited_once_with(request_body)
+
+    def test_model_manager_posts_catalog_query_to_model_download(self):
+        request_body = {
+            "hub": "huggingface",
+            "filters": {"author": "microsoft", "search": "phi"},
+            "limit": 10,
+            "offset": 0,
+        }
+        catalog = {
+            "hub": "huggingface",
+            "items": [],
+            "total": 0,
+            "limit": 10,
+            "offset": 0,
+        }
+        upstream_response = MagicMock()
+        upstream_response.json.return_value = catalog
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=upstream_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "managers.model_manager.httpx.AsyncClient", return_value=mock_client
+        ):
+            result = asyncio.run(
+                ConcreteModelManager.list_hub_models(None, request_body)
+            )
+
+        self.assertEqual(result, catalog)
+        mock_client.post.assert_awaited_once_with(
+            "http://model-download:8000/api/v1/models/list", json=request_body
+        )
 
 
 class TestModelsUploadAPI(unittest.TestCase):
@@ -462,7 +530,7 @@ class TestModelsDownloadAPI(unittest.TestCase):
     def test_download_mixed_results_returns_207(self):
         """Some accepted + some rejected -> 207 Multi-Status."""
 
-        def fake_start(name: str):
+        def fake_start(name: str, hub: str | None = None, category=None):
             if name == "yolo11n":
                 return ("job-1", 202, "Download started")
             return (None, 409, f"Model '{name}' is already installed")
@@ -503,7 +571,7 @@ class TestModelsDownloadAPI(unittest.TestCase):
     def test_download_all_rejected_mixed_codes_picks_400(self):
         """Mixed rejected codes: precedence is 400 > 404 > 409."""
 
-        def fake_start(name: str):
+        def fake_start(name: str, hub: str | None = None, category=None):
             return {
                 "a": (None, 409, "x"),
                 "b": (None, 404, "y"),
@@ -543,6 +611,98 @@ class TestModelsDownloadAPI(unittest.TestCase):
     def test_download_duplicate_names_rejected_by_validator(self):
         """Duplicate names are rejected (the per-name response map must be unambiguous)."""
         response = self.client.post("/models/download", json={"names": ["a", "a"]})
+        self.assertEqual(response.status_code, 422)
+
+
+class TestModelsDownloadFromHubAPI(unittest.TestCase):
+    """Tests for POST /models/download with the optional ``hub`` field."""
+
+    @classmethod
+    def setUpClass(cls):
+        app = FastAPI()
+        app.include_router(models_router, prefix="/models")
+        cls.client = TestClient(app)
+
+    def test_hub_is_forwarded_to_manager(self):
+        with patch("api.routes.models.ModelManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
+            mock_manager_instance.start_download = AsyncMock(
+                return_value=("job-1", 202, "Download started (job job-1)")
+            )
+            mock_manager_cls.return_value = mock_manager_instance
+
+            response = self.client.post(
+                "/models/download",
+                json={"names": ["yolo11n-seg"], "hub": "ultralytics"},
+            )
+
+            self.assertEqual(response.status_code, 202)
+            self.assertEqual(response.json()["jobs"]["yolo11n-seg"]["job_id"], "job-1")
+            mock_manager_instance.start_download.assert_awaited_once_with(
+                "yolo11n-seg", "ultralytics", None
+            )
+
+    def test_hub_forwards_category_for_huggingface(self):
+        with patch("api.routes.models.ModelManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
+            mock_manager_instance.start_download = AsyncMock(
+                return_value=("job-1", 202, "Download started (job job-1)")
+            )
+            mock_manager_cls.return_value = mock_manager_instance
+
+            response = self.client.post(
+                "/models/download",
+                json={
+                    "names": ["OpenVINO/gemma-4-E4B-it-int8-ov"],
+                    "hub": "huggingface",
+                    "category": "vision_language_models",
+                },
+            )
+
+            self.assertEqual(response.status_code, 202)
+            mock_manager_instance.start_download.assert_awaited_once_with(
+                "OpenVINO/gemma-4-E4B-it-int8-ov",
+                "huggingface",
+                InternalModelCategory.VISION_LANGUAGE_MODELS,
+            )
+
+    def test_hub_rejects_path_traversal_name(self):
+        response = self.client.post(
+            "/models/download", json={"names": ["../etc"], "hub": "ultralytics"}
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_hub_accepts_owner_slash_name(self):
+        with patch("api.routes.models.ModelManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
+            mock_manager_instance.start_download = AsyncMock(
+                return_value=("job-1", 202, "Download started (job job-1)")
+            )
+            mock_manager_cls.return_value = mock_manager_instance
+
+            response = self.client.post(
+                "/models/download",
+                json={
+                    "names": ["OpenVINO/gemma-4-E4B-it-int8-ov"],
+                    "hub": "huggingface",
+                    "category": "vision_language_models",
+                },
+            )
+
+            self.assertEqual(response.status_code, 202)
+
+    def test_hub_rejects_name_with_too_many_segments(self):
+        response = self.client.post(
+            "/models/download",
+            json={"names": ["a/b/c"], "hub": "huggingface"},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_hub_rejects_dot_segment(self):
+        response = self.client.post(
+            "/models/download",
+            json={"names": ["owner/.."], "hub": "huggingface"},
+        )
         self.assertEqual(response.status_code, 422)
 
 

@@ -9,6 +9,7 @@ between API schemas and internal types.
 import logging
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
@@ -96,6 +97,48 @@ async def get_models():
             content=schemas.MessageResponse(
                 message="Unexpected error while listing models"
             ).model_dump(),
+            status_code=500,
+        )
+
+
+# ----------------------------------------------------------------------
+# POST /models/list
+# ----------------------------------------------------------------------
+
+
+@router.post(
+    "/list",
+    operation_id="list_hub_models",
+    summary="Search models in an upstream hub",
+    response_model=schemas.ModelHubListResponse,
+    responses={
+        400: {"description": "Invalid request or unsupported hub"},
+        401: {"description": "Hub authentication failed"},
+        422: {"description": "Hub listing request validation failed"},
+        501: {"description": "Hub does not support model listing"},
+        502: {"description": "Upstream hub request failed"},
+    },
+)
+async def list_hub_models(body: schemas.ModelHubListRequest):
+    """Search a model hub using its supported filters and pagination."""
+    try:
+        return await ModelManager().list_hub_models(body.model_dump(exclude_none=True))
+    except httpx.HTTPStatusError as exc:
+        try:
+            content = exc.response.json()
+        except ValueError:
+            content = {"detail": exc.response.text}
+        return JSONResponse(content=content, status_code=exc.response.status_code)
+    except (httpx.RequestError, ValueError):
+        logger.error("Upstream model catalog request failed", exc_info=True)
+        return JSONResponse(
+            content={"detail": "Upstream model catalog request failed"},
+            status_code=502,
+        )
+    except Exception:
+        logger.error("Unexpected error while listing hub models", exc_info=True)
+        return JSONResponse(
+            content={"detail": "Unexpected error while listing hub models"},
             status_code=500,
         )
 
@@ -276,6 +319,17 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
 
     - **`names`** *(required)* - Non-empty list of unique supported-model
       names to install.
+    - **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`)
+      for names not in the catalog, as returned by `POST /models/list`.
+      - `ultralytics`: when the download completes,
+        `ultralytics/public/<name>/` is scanned for installed precisions
+        (`FP*`, `INT*`); category is derived from the name suffix: `-seg`
+        → `image_segmentation`, `-cls` → `image_classification`, `-pose`
+        → `pose_estimation`, `-obb` or no suffix → `object_detection`.
+      - `huggingface`: `category` is required (no naming convention to
+        derive it from); `huggingface/<name>/` is scanned for the
+        downloaded artefact.
+    - **`category`** *(optional)* - Required when `hub` is `huggingface`.
 
     ## Response Body
 
@@ -302,10 +356,12 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
     regardless of the envelope status.
     """
     manager = ModelManager()
+    hub = body.hub.value if body.hub else None
+    category = InternalModelCategory(body.category.value) if body.category else None
     try:
         items: dict[str, schemas.ModelDownloadJobItem] = {}
         for name in body.names:
-            job_id, status, message = await manager.start_download(name)
+            job_id, status, message = await manager.start_download(name, hub, category)
             items[name] = schemas.ModelDownloadJobItem(
                 name=name,
                 job_id=job_id,
