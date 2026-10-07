@@ -1,39 +1,47 @@
 // SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// Package model defines the domain types shared across the service.
 package model
 
-import (
-	"context"
-	"fmt"
-	"reflect"
-	"time"
+import "time"
 
-	"gorm.io/gorm/schema"
+// Recording states. Retrieval only serves media for RecordingStateReady.
+const (
+	RecordingStateRecording  = "recording"
+	RecordingStateFinalizing = "finalizing"
+	RecordingStateReady      = "ready"
+	RecordingStateFailed     = "failed"
 )
 
-// Recording is one row of the records table.
+// Recording origins.
+const (
+	RecordingOriginLive   = "live"
+	RecordingOriginImport = "import"
+)
+
+// Recording is the canonical metadata for a recording. Wall-clock instants
+// are carried as time.Time throughout the domain and API; the Unix-nanosecond
+// representation exists only inside the persistence layer.
 type Recording struct {
-	RecordingID   string         `gorm:"column:recording_id;type:text;primaryKey"`
-	SensorID      string         `gorm:"column:sensor_id;type:text;not null;index:idx_records_sensor_stream,priority:1"`
-	StreamID      *string        `gorm:"column:stream_id;type:text;index:idx_records_sensor_stream,priority:2"`
-	StartTS       time.Time      `gorm:"column:start_ts;type:integer;not null;serializer:unixnano"`
-	EndTS         *time.Time     `gorm:"column:end_ts;type:integer;serializer:unixnano;check:end_ts IS NULL OR end_ts > start_ts"`
-	RecordingPath string         `gorm:"column:recording_path;type:text;not null"`
-	Codec         *string        `gorm:"column:codec;type:text"`
-	State         string         `gorm:"column:state;type:text;not null;check:state IN ('recording','finalizing','ready','failed')"`
-	SizeBytes     *int64         `gorm:"column:size_bytes;type:integer;check:size_bytes IS NULL OR size_bytes >= 0"`
-	Metadata      map[string]any `gorm:"column:metadata;type:text;not null;default:'{}';serializer:json"`
-	CreationTS    time.Time      `gorm:"column:creation_ts;type:integer;not null;serializer:unixnano"`
-	ExpiryTS      *time.Time     `gorm:"column:expiry_ts;type:integer;serializer:unixnano"`
-	ErrorDetail   *string        `gorm:"column:error_detail;type:text"`
+	RecordingID   string         `json:"recording_id"`
+	SensorID      string         `json:"sensor_id"`
+	StreamID      string         `json:"stream_id,omitempty"`
+	Origin        string         `json:"origin"`
+	State         string         `json:"state"`
+	StartTS       time.Time      `json:"start_ts"`
+	EndTS         *time.Time     `json:"end_ts,omitempty"`
+	RecordingPath string         `json:"recording_path"`
+	Codec         string         `json:"codec,omitempty"`
+	Container     string         `json:"container,omitempty"`
+	SizeBytes     int64          `json:"size_bytes,omitempty"`
+	Metadata      map[string]any `json:"metadata"`
+	CreationTS    time.Time      `json:"creation_ts"`
+	ExpiryTS      *time.Time     `json:"expiry_ts,omitempty"`
+	ErrorDetails  string         `json:"error_details,omitempty"`
 }
 
-// TableName keeps GORM from pluralising the table to "recordings".
-func (Recording) TableName() string { return "records" }
-
-// RecordingFilter selects recordings; zero-valued fields are not applied.
+// RecordingFilter selects recording rows for the records API. Zero-valued
+// fields are not applied; Cursor is an opaque pagination token.
 type RecordingFilter struct {
 	SensorID string
 	StreamID string
@@ -46,46 +54,76 @@ type RecordingFilter struct {
 	Limit    int
 }
 
-func init() {
-	schema.RegisterSerializer("unixnano", unixNanoSerializer{})
+// IsReady reports whether the recording is in a state retrieval can serve.
+func (r Recording) IsReady() bool {
+	return r.State == RecordingStateReady
 }
 
-// Bounds of int64 nanoseconds since 1970.
-var (
-	minUnixNano = time.Unix(0, -1<<63)
-	maxUnixNano = time.Unix(0, 1<<63-1)
-)
+// IsLive reports whether the recording is actively being written. There is
+// no dedicated "live" column: a recording is live precisely when it is still
+// in state "recording" and has not yet been assigned an end_ts.
+func (r Recording) IsLive() bool {
+	return r.State == RecordingStateRecording && r.EndTS == nil
+}
 
-// unixNanoSerializer stores time.Time and *time.Time as INTEGER nanoseconds
-// since 1970 in UTC; a nil *time.Time is stored as NULL.
-type unixNanoSerializer struct{}
-
-func (unixNanoSerializer) Scan(ctx context.Context, field *schema.Field, dst reflect.Value, dbValue any) error {
-	switch v := dbValue.(type) {
-	case nil:
-		return field.Set(ctx, dst, nil)
-	case int64:
-		return field.Set(ctx, dst, time.Unix(0, v).UTC())
+// IsServable reports whether retrieval can resolve and extract media for
+// this recording, covering both a finalized recording and one still being
+// written. It rejects the states that indicate an in-progress producer
+// operation (finalizing) or a permanently unusable one (failed), and it
+// rejects any state/end_ts combination that the producer contract forbids
+// (a finalized recording with no end_ts, or a live recording that already
+// has one).
+func (r Recording) IsServable() bool {
+	switch r.State {
+	case RecordingStateReady:
+		return r.EndTS != nil
+	case RecordingStateRecording:
+		return r.EndTS == nil
 	default:
-		return fmt.Errorf("unixnano: cannot scan %T into %s", dbValue, field.Name)
+		return false
 	}
 }
 
-func (unixNanoSerializer) Value(_ context.Context, field *schema.Field, _ reflect.Value, fieldValue any) (any, error) {
-	var t time.Time
-	switch v := fieldValue.(type) {
-	case time.Time:
-		t = v
-	case *time.Time:
-		if v == nil {
-			return nil, nil
-		}
-		t = *v
-	default:
-		return nil, fmt.Errorf("unixnano: unsupported type %T for %s", fieldValue, field.Name)
-	}
-	if t.Before(minUnixNano) || t.After(maxUnixNano) {
-		return nil, fmt.Errorf("unixnano: %s out of range for %s", t.Format(time.RFC3339Nano), field.Name)
-	}
-	return t.UnixNano(), nil
+// FrameRequest describes a single-frame retrieval request. Fields are
+// populated by hand from the request context rather than via framework
+// struct-tag binding, so no form:/uri:/binding: tags are used here.
+type FrameRequest struct {
+	RecordingID string
+	StartTS     time.Time
+	Format      string
+	Match       string
+}
+
+// ClipRequest describes a clip retrieval request. Exactly one of EndTS or
+// ClipDuration is supplied by the caller; the handler rejects the request
+// before it reaches the retrieval service otherwise.
+type ClipRequest struct {
+	RecordingID  string
+	StartTS      time.Time
+	EndTS        *time.Time
+	ClipDuration *float64
+	Format       string
+}
+
+// MediaResult is returned for both frame and clip retrieval.
+type MediaResult struct {
+	RecordingID      string     `json:"recording_id"`
+	SensorID         string     `json:"sensor_id"`
+	MediaType        string     `json:"media_type"`
+	ContentType      string     `json:"content_type"`
+	RequestedStartTS time.Time  `json:"requested_start_ts"`
+	RequestedEndTS   *time.Time `json:"requested_end_ts,omitempty"`
+	StartTS          time.Time  `json:"start_ts"`
+	EndTS            *time.Time `json:"end_ts,omitempty"`
+	ExactMatch       bool       `json:"exact_match"`
+	URL              string     `json:"url"`
+	ExpiryTS         time.Time  `json:"expiry_ts"`
+	DerivedKey       string     `json:"-"`
+}
+
+// ErrorResponse is returned on validation and retrieval errors.
+type ErrorResponse struct {
+	Status       int    `json:"status"`
+	ErrorCode    string `json:"error_code"`
+	ErrorDetails string `json:"error_details"`
 }
