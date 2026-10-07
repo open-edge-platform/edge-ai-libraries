@@ -226,15 +226,21 @@ class GstWorker:
         _FPS_POLL_INTERVAL_SECONDS); ``avg_fps`` covers the pipeline's whole
         lifetime so far. Returns GLib.SOURCE_CONTINUE to keep firing every
         _FPS_POLL_INTERVAL_SECONDS until the pipeline's main loop exits.
+
+        Also called one last time from ``_teardown`` (on a different thread)
+        to flush a final fps event for pipelines stopped/aborted before this
+        timer ever got to fire on its own; ``start_time``/``last_poll_time``
+        are therefore read and updated under ``frame_count_lock`` too, not
+        just ``frame_count``/``total_frame_count``.
         """
         now = time.monotonic()
         with inst.frame_count_lock:
             window_count = inst.frame_count
             inst.frame_count = 0
             total_count = inst.total_frame_count
-        window_elapsed = now - inst.last_poll_time
-        inst.last_poll_time = now
-        total_elapsed = now - inst.start_time
+            window_elapsed = now - inst.last_poll_time
+            inst.last_poll_time = now
+            total_elapsed = now - inst.start_time
         if window_elapsed > 0 and total_elapsed > 0:
             _emit({
                 "instance_id": inst.instance_id,
@@ -353,6 +359,12 @@ class GstWorker:
 
         if inst.fps_source is not None:
             inst.fps_source.destroy()
+        # Flush a final fps event now, covering whatever frames/time the
+        # periodic timer above hasn't reported yet. Without this, a pipeline
+        # stopped/aborted within the first _FPS_POLL_INTERVAL_SECONDS of
+        # running never gets a single "fps" event and reports 0 fps even
+        # though it was processing frames.
+        self._poll_fps(inst)
         if inst.bus is not None:
             try:
                 inst.bus.disconnect(inst.bus_handler_id)
