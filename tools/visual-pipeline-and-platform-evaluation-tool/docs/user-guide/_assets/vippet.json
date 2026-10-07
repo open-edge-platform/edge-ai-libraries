@@ -1913,6 +1913,53 @@
         }
       }
     },
+    "/models/list": {
+      "post": {
+        "tags": [
+          "models"
+        ],
+        "summary": "Search models in an upstream hub",
+        "description": "Search a model hub using its supported filters and pagination.",
+        "operationId": "list_hub_models",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelHubListRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelHubListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or unsupported hub"
+          },
+          "401": {
+            "description": "Hub authentication failed"
+          },
+          "422": {
+            "description": "Hub listing request validation failed"
+          },
+          "501": {
+            "description": "Hub does not support model listing"
+          },
+          "502": {
+            "description": "Upstream hub request failed"
+          }
+        }
+      }
+    },
     "/models/upload": {
       "post": {
         "tags": [
@@ -6237,6 +6284,99 @@
         ],
         "title": "ModelDownloadRequest",
         "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`). Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+      },
+      "ModelHubListRequest": {
+        "properties": {
+          "hub": {
+            "type": "string",
+            "title": "Hub",
+            "description": "Model hub to search, such as huggingface."
+          },
+          "filters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Filters",
+            "description": "Hub-specific listing filters, such as author, search, or tags."
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 50
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Offset",
+            "default": 0
+          },
+          "override_credentials": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Credentials",
+            "description": "Optional Base64-encoded connection overrides for this request."
+          }
+        },
+        "type": "object",
+        "required": [
+          "hub"
+        ],
+        "title": "ModelHubListRequest",
+        "description": "Request body for searching models in an upstream model hub."
+      },
+      "ModelHubListResponse": {
+        "properties": {
+          "hub": {
+            "type": "string",
+            "title": "Hub"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hub",
+          "items",
+          "limit",
+          "offset"
+        ],
+        "title": "ModelHubListResponse",
+        "description": "Paginated results returned by an upstream model hub."
       },
       "ModelInstallStatus": {
         "type": "string",
