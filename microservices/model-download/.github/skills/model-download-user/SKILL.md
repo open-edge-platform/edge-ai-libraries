@@ -57,7 +57,12 @@ raw `curl` requests.
   Copilot with the `model-download` MCP server connected, etc.), prefer
   calling the matching MCP tool directly** instead of constructing a `curl`
   command — the tool signatures accept the same fields (`name`, `hub`,
-  `type`, `is_ovms`, `config`, `revision`, `download_path`).
+  `type`, `is_ovms`, `config`, `revision`, `download_path`), and `download_model`
+  additionally accepts top-level `override_credentials` (a dict such as
+  `{"HF_TOKEN": "<base64-encoded-token>"}`) and `validate_credentials`
+  (bool) — the same per-request, base64-encoded auth override available
+  on the REST endpoint. `list_hub_models` also accepts `override_credentials`
+  for listing models on a gated/private hub.
 - Full client setup (Claude Desktop / Copilot config, HTTP client example,
   verification steps) lives in
   `docs/user-guide/get-started/using-mcp-server.md` — read it when the user
@@ -79,6 +84,8 @@ raw `curl` requests.
 | Geti | `geti` | Downloads trained models from Intel Geti platform | `GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID` |
 | Pipeline Zoo | `pipeline-zoo-models` | Downloads DL Streamer pipeline-zoo models | — |
 | HLS | `hls` | Downloads healthcare AI models (3d-pose, rppg, ai-ecg) | — |
+| Open Model Zoo | `omz` | Downloads + converts OMZ models via `omz_downloader`/`omz_converter` | — |
+| Remote URL | `remote-url` | Downloads a tarball archive from a `config.url`, checked against an allowlist | — |
 
 ## Gated HuggingFace Models — Token Handling
 
@@ -196,7 +203,7 @@ Extract the following from the user's prompt. If anything is missing, ask before
 | Required | What to look for | Default if absent |
 |----------|-----------------|-------------------|
 | **Model name** | Exact model identifier (e.g. `meta-llama/Llama-3.2-1B`) | Must ask |
-| **Hub** | One of: `huggingface`, `openvino`, `ollama`, `ultralytics`, `geti`, `pipeline-zoo-models`, `hls` | Must ask |
+| **Hub** | One of: `huggingface`, `openvino`, `ollama`, `ultralytics`, `geti`, `pipeline-zoo-models`, `hls`, `omz`, `remote-url` | Must ask |
 | **Conversion needed?** | User says "OVMS", "OpenVINO format", "convert", "is_ovms" | `false` |
 | **Device** | CPU / GPU / NPU / `HETERO:<dev>[,<dev>...]` (e.g. `HETERO:GPU,CPU`) | `CPU` |
 | **Precision** | int4 / int8 / fp16 / fp32 | `int8` for LLMs; `fp16` for others |
@@ -265,17 +272,22 @@ The general request shape for `POST /api/v1/models/download?download_path=<subdi
       "hub": "<hub-value>",
       "type": "<model-type-or-omit>",
       "is_ovms": false,
-      "config": {}
+      "config": {},
+      "override_credentials": {},
+      "validate_credentials": false
     }
-  ]
+  ],
+  "parallel_downloads": false
 }
 ```
 
 Key rules:
 - `is_ovms: true` triggers OpenVINO conversion
 - Use `hub: "openvino"` with `is_ovms: true` and a `type` field for conversion
-- `config` holds precision, device, cache_size, and plugin-specific params
-- `download_path` query param sets the subdirectory under the model store
+- `config` holds precision, device, cache_size, `post_processing` (OMZ), and other plugin-specific params
+- `override_credentials` (base64-encoded) and `validate_credentials` are top-level fields on each model entry — see "Gated HuggingFace Models" above
+- `parallel_downloads` (top-level, sibling of `models`) opts multiple entries in one request into concurrent downloads; omit/`false` processes them sequentially (Ollama always serializes regardless)
+- `download_path` query param sets the subdirectory under the model store — the final output path is `<model-path>/<download_path>/<hub-specific-subpath>`
 
 ---
 
@@ -289,7 +301,7 @@ JOB_RESPONSE=$(curl -s -X POST \
   -d '<your-request-body>')
 
 echo "$JOB_RESPONSE"
-# Response: {"job_ids": ["<uuid>"]}
+# Response: {"message": "Started processing 1 model(s)", "job_ids": ["<uuid>"], "status": "processing"}
 
 # 2. Extract job ID
 JOB_ID=$(echo "$JOB_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_ids'][0])")

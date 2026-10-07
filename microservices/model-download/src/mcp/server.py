@@ -182,6 +182,8 @@ async def download_model(
     is_ovms: bool = False,
     config: Optional[Dict[str, Any]] = None,
     revision: Optional[str] = None,
+    override_credentials: Optional[Dict[str, str]] = None,
+    validate_credentials: bool = False,
 ) -> dict:
     """Submit a model download (and optional OpenVINO conversion) job.
 
@@ -196,6 +198,16 @@ async def download_model(
         config: Optional conversion/optimisation config dict
                 (precision, device, cache_size, etc.).
         revision: Optional model revision / tag / branch.
+        override_credentials: Optional per-request credential overrides for
+            the target plugin's connection keys (e.g. HF_TOKEN, or
+            GETI_HOST/GETI_TOKEN/GETI_WORKSPACE_ID). Each value must be
+            Base64-encoded (e.g. echo -n 'token' | base64) — they are decoded
+            server-side and take precedence over the service's environment
+            variables for this request only. Never stored or logged.
+        validate_credentials: When True, performs a lightweight credential
+            pre-check against the target hub before starting the operation.
+            Most useful for is_ovms conversion flows where a bad token would
+            otherwise surface only after minutes of work.
 
     Returns:
         A dict with job_ids and processing status.
@@ -204,6 +216,7 @@ async def download_model(
         "name": name,
         "hub": hub,
         "is_ovms": is_ovms,
+        "validate_credentials": validate_credentials,
     }
     if type is not None:
         model_kwargs["type"] = type
@@ -211,13 +224,14 @@ async def download_model(
         model_kwargs["revision"] = revision
     if config is not None:
         model_kwargs["config"] = config
-
-    model_request = ModelRequest(**model_kwargs)
-    request = ModelDownloadRequest(models=[model_request])
+    if override_credentials is not None:
+        model_kwargs["override_credentials"] = override_credentials
 
     resolved_path = download_path or models_dir
 
     try:
+        model_request = ModelRequest(**model_kwargs)
+        request = ModelDownloadRequest(models=[model_request])
         job_ids = await submit_models(
             request,
             resolved_path,
@@ -342,6 +356,7 @@ async def list_hub_models(
     limit: int = 50,
     offset: int = 0,
     filters: Optional[Dict[str, Any]] = None,
+    override_credentials: Optional[Dict[str, str]] = None,
 ) -> dict:
     """Browse or search models available on a hub.
 
@@ -352,6 +367,11 @@ async def list_hub_models(
         offset: Number of models to skip for pagination.
         filters: Hub-specific filters (e.g. {"author": "meta-llama",
                  "search": "llama"} for HuggingFace).
+        override_credentials: Optional per-request credential overrides for
+            the hub's connection keys. Each value must be Base64-encoded
+            (e.g. echo -n 'token' | base64) — decoded server-side and takes
+            precedence over the service's environment variables for this
+            request only. Never stored or logged.
 
     Returns:
         A paginated list of models with metadata.
@@ -379,13 +399,20 @@ async def list_hub_models(
         return {"error": reason}
 
     try:
+        decoded_credentials = ModelListRequest(
+            hub=hub_name, override_credentials=override_credentials
+        ).override_credentials
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+    try:
         result = await asyncio.to_thread(
             plugin.list_models,
             filters=filters or {},
             limit=limit,
             offset=offset,
             hub=hub_name,
-            resolved_config=plugin.resolve_config({}, hub=hub_name),
+            resolved_config=plugin.resolve_config(decoded_credentials or {}, hub=hub_name),
         )
     except ListingNotSupportedError:
         return {"error": f"Hub '{hub}' does not support listing models"}

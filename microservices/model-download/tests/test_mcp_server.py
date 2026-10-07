@@ -184,6 +184,41 @@ class TestDownloadModel:
             assert result["status"] == "failed"
             assert "boom" in result["error"]
 
+    @pytest.mark.asyncio
+    async def test_override_credentials_and_validate_credentials(self, mocks):
+        import base64
+
+        from src.mcp.server import download_model
+
+        encoded_token = base64.b64encode(b"hf_xxx").decode()
+        with patch("src.mcp.server.submit_models", new_callable=AsyncMock) as mock_submit:
+            mock_submit.return_value = ["job-1"]
+            result = await download_model(
+                name="meta-llama/Llama-3.2-1B",
+                hub="openvino",
+                is_ovms=True,
+                type="llm",
+                override_credentials={"HF_TOKEN": encoded_token},
+                validate_credentials=True,
+            )
+            assert result["status"] == "processing"
+            submitted_request = mock_submit.call_args.args[0]
+            model_request = submitted_request.models[0]
+            assert model_request.override_credentials == {"HF_TOKEN": "hf_xxx"}
+            assert model_request.validate_credentials is True
+
+    @pytest.mark.asyncio
+    async def test_invalid_override_credentials_returns_error(self, mocks):
+        from src.mcp.server import download_model
+
+        result = await download_model(
+            name="meta-llama/Llama-3.2-1B",
+            hub="huggingface",
+            override_credentials={"HF_TOKEN": "not-valid-base64!!"},
+        )
+        assert result["status"] == "failed"
+        assert "error" in result
+
 
 class TestListHubModels:
     @pytest.mark.asyncio
@@ -200,6 +235,43 @@ class TestListHubModels:
         mocks["registry"].get_plugin.return_value = None
         mocks["registry"].find_plugin_for_model.return_value = None
         result = await list_hub_models(hub="unknown")
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_override_credentials_passed_to_resolve_config(self, mocks):
+        import base64
+
+        from src.mcp.server import list_hub_models
+
+        encoded_token = base64.b64encode(b"hf_xxx").decode()
+        mock_plugin = MagicMock()
+        mock_plugin.supports_listing = True
+        mock_plugin.resolve_config.return_value = {"HF_TOKEN": "hf_xxx"}
+        mock_plugin.list_models.return_value = {"items": [], "total": 0}
+        mocks["registry"].get_plugin.return_value = mock_plugin
+
+        result = await list_hub_models(
+            hub="huggingface",
+            override_credentials={"HF_TOKEN": encoded_token},
+        )
+
+        assert "error" not in result
+        mock_plugin.resolve_config.assert_called_once_with(
+            {"HF_TOKEN": "hf_xxx"}, hub="huggingface"
+        )
+
+    @pytest.mark.asyncio
+    async def test_invalid_override_credentials_returns_error(self, mocks):
+        from src.mcp.server import list_hub_models
+
+        mock_plugin = MagicMock()
+        mock_plugin.supports_listing = True
+        mocks["registry"].get_plugin.return_value = mock_plugin
+
+        result = await list_hub_models(
+            hub="huggingface",
+            override_credentials={"HF_TOKEN": "not-valid-base64!!"},
+        )
         assert "error" in result
 
 

@@ -18,7 +18,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     rm -rf /var/lib/apt/lists/*
 
 # Install uv
-RUN pip install uv==0.9.10
+RUN pip install uv==0.12.5
 
 # Copy project files
 COPY pyproject.toml uv.lock /opt/

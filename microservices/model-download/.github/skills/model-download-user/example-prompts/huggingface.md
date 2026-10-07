@@ -9,6 +9,10 @@ Download a Hugging Face model through the Model Download REST API:
   restarting the service with a plain-text `HUGGINGFACEHUB_API_TOKEN`/`HF_TOKEN`
   env var, versus a per-request top-level `override_credentials.HF_TOKEN`
   (sibling of `name`/`hub`/`config`) that must be base64-encoded
+- For the per-request path, prompt the user (via `ask_user`) for their
+  already-base64-encoded `HF_TOKEN` before submitting the job — do not ask for
+  the raw token and encode it yourself. Pass the value the user supplies
+  as-is into `override_credentials.HF_TOKEN` in the request body
 - Show how to pin a model revision for reproducible downloads
 - Submit the job and poll it until completion
 

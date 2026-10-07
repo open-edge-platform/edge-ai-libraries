@@ -7,38 +7,46 @@ Every Model Download deployment exposes an **MCP (Model Context Protocol) server
 
 ## Quick Start
 
-### Local (without Docker)
+### Recommended: Container MCP Endpoint
 
-#### Install dependencies
+Deploy the Model Download service first, then configure MCP clients to connect
+to the HTTP MCP endpoint exposed by that deployment. This is required for
+OpenVINO/OVMS conversions because the container entrypoint:
 
-```bash
-uv sync
-```
+- downloads the OVMS `export_model.py` script;
+- creates the dedicated OpenVINO plugin virtual environment;
+- installs the matching conversion dependencies; and
+- records the plugin environment in `/opt/plugin_venvs.env`.
 
-#### Run only the MCP server
-
-```bash
-# stdio transport (default — for Claude Desktop, Copilot CLI, local agents)
-uv run python -m src.mcp
-
-# HTTP transport (for remote MCP clients)
-uv run python -m src.mcp --transport http --port 8080
-
-# FastMCP CLI
-uv run fastmcp run src/mcp/server.py:mcp --transport http --port 8080
-```
-
-#### Using run_service.sh
+Start the service with the plugins required for Hugging Face downloads and
+OpenVINO conversion:
 
 ```bash
-# REST API and MCP server
-source scripts/run_service.sh --plugins huggingface,openvino
+cd edge-ai-libraries/microservices/model-download
+
+# Required only for gated/private Hugging Face models. The environment-variable
+# path expects the plain-text token, not a base64-encoded value.
+export HUGGINGFACEHUB_API_TOKEN='hf_xxx'
+
+source scripts/run_service.sh up \
+  --plugins huggingface,openvino \
+  --model-path "$PWD/models"
 ```
-Connect remote MCP clients to `http://localhost:8200/mcp`.
 
-### Container Deployment
+Verify the service before configuring the MCP client:
 
-The default container serves both interfaces on the same port:
+```bash
+curl http://localhost:8200/api/v1/health
+# Expected: {"status":"ok"}
+```
+
+Connect MCP clients to:
+
+```text
+http://localhost:8200/mcp
+```
+
+The deployment serves both interfaces on port `8200`:
 
 | Interface | Default URL |
 |---|---|
@@ -70,56 +78,28 @@ The default container serves both interfaces on the same port:
 
 ## Client Configuration Examples
 
-### Claude Desktop
-
-Add to `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "model-download": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "/absolute/path/to/model-download",
-        "python",
-        "-m",
-        "src.mcp"
-      ]
-    }
-  }
-}
-```
-
 ### GitHub Copilot
 
-Add to `~/.copilot/mcp-config.json`:
+First deploy the service as described in
+[Recommended: Container MCP Endpoint](#recommended-container-mcp-endpoint).
+Then remove any existing local/stdio configuration and connect Copilot directly
+to the same HTTP MCP endpoint used by the REST service and MCP Inspector:
 
-```json
-{
-  "mcpServers": {
-    "model-download": {
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "/absolute/path/to/model-download",
-        "python",
-        "-m",
-        "src.mcp"
-      ],
-      "tools": ["*"]
-    }
-  }
-}
+```bash
+
+copilot mcp add \
+  --transport http \
+  --tools '*' \
+  oep-model-download \
+  http://localhost:8200/mcp
 ```
 
-***Use an absolute project path. MCP clients execute `command` directly, so shell
-operators such as `cd` and `|` must not be included in `args`. The standalone
-server writes application logs to stderr to keep stdout reserved for stdio
-JSON-RPC messages.***
+If the MCP endpoint is on another host, replace `localhost` with the hostname
+used by MCP Inspector. After adding or changing the server, restart Copilot CLI
+or reload the server through `/mcp`.
+
+This configuration ensures REST, MCP Inspector, and Copilot share the same
+container-initialized plugin environment, model store, and job manager.
 
 ## Verify the MCP Connection
 
@@ -176,10 +156,28 @@ downloads a small test model into `MODELS_DIR`:
   success, call `get_model_results` and verify that the model path exists
   under `MODELS_DIR/mcp-smoke-test`.
 
-If the server does not connect, run the configured `uv run --directory ...`
-command in a terminal to expose startup errors. If health succeeds but a model
-operation fails, use `list_plugins` to check plugin activation and availability,
-then inspect the error returned by `get_job_status`.
+For an HTTP configuration, verify the container endpoint and the Copilot
+configuration:
+
+```bash
+curl http://localhost:8200/api/v1/health
+copilot mcp get oep-model-download
+```
+
+For a standalone stdio configuration, run the configured
+`uv run --directory ...` command in a terminal to expose startup errors. If
+health succeeds but a model operation fails, use `list_plugins` to check plugin
+activation and availability, then inspect the error returned by
+`get_job_status`.
+
+For OpenVINO conversion failures that occur only in Copilot CLI:
+
+1. Check whether `copilot mcp get oep-model-download` reports `Type: local`.
+2. If it does, the CLI is launching a separate standalone stdio server rather
+   than using the container runtime.
+3. Replace that configuration with the HTTP configuration shown in
+   [GitHub Copilot](#github-copilot).
+4. Do not start an additional `uv run python -m src.mcp` process.
 
 ### Remote HTTP Client (Python)
 
@@ -214,7 +212,7 @@ The MCP server uses the same environment variables as the REST API:
 | Variable | Description | Default |
 |---|---|---|
 | `MODELS_DIR` | Base directory for downloaded models | `./models` locally; `/opt/models` in the container |
-| `HF_TOKEN` | HuggingFace API token (for gated models) | — |
+| `HUGGINGFACEHUB_API_TOKEN` / `HF_TOKEN` | Plain-text Hugging Face API token for gated/private models | — |
 | `ENABLED_PLUGINS` | Comma-separated list of plugins to activate | `all` |
 
 ## REST API vs MCP Server
@@ -223,7 +221,8 @@ Both modes share the same core logic (`ModelManager`, `PluginRegistry`). Choose 
 
 | | Default deployment | Standalone MCP |
 |---|---|---|
-| **Use when** | Applications need REST and MCP | An MCP client needs only MCP |
+| **Use when** | Applications need REST/MCP, or any OpenVINO/OVMS conversion | Download-only local development |
 | **Transport** | REST and Streamable HTTP | stdio or Streamable HTTP |
 | **Client** | HTTP and MCP clients | MCP-compatible clients |
 | **Run command** | `uvicorn src.api.main:app` | `uv run python -m src.mcp` |
+| **OpenVINO bootstrap** | Performed by the container entrypoint | Not performed automatically |
