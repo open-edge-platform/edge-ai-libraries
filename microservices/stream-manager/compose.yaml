@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  stream-manager:
+    build: .
+    image: stream-manager:local
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${STREAM_MANAGER_HOST_PORT:-18080}:18080"
+    environment:
+      STREAM_MANAGER_PORT: "18080"
+      STREAM_MANAGER_STORAGE_BACKEND: filesystem
+      STREAM_MANAGER_FS_ROOT: /var/lib/stream-manager/media
+      STREAM_MANAGER_SQLITE_PATH: /var/lib/stream-manager/stream-manager.db
+      STREAM_MANAGER_PUBLIC_BASE_URL: ${STREAM_MANAGER_PUBLIC_BASE_URL:-http://localhost:${STREAM_MANAGER_HOST_PORT:-18080}}
+      # Development-only default. Set a unique secret for any shared deployment.
+      STREAM_MANAGER_MEDIA_TOKEN_SECRET: ${STREAM_MANAGER_MEDIA_TOKEN_SECRET:-local-development-only-change-me}
+      STREAM_MANAGER_BUFFER_DIR: /dev/shm/stream-manager
+      STREAM_MANAGER_DEV_BEST_EFFORT_TIMESTAMPS: ${STREAM_MANAGER_DEV_BEST_EFFORT_TIMESTAMPS:-false}
+    volumes:
+      - stream-manager-data:/var/lib/stream-manager
+    tmpfs:
+      - /dev/shm/stream-manager:rw,noexec,nosuid,size=${STREAM_MANAGER_BUFFER_TMPFS_SIZE:-256m},mode=0700,uid=10001,gid=10001
+
+volumes:
+  stream-manager-data:

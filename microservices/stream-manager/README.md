@@ -1,37 +1,56 @@
-<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
-<!-- SPDX-License-Identifier: Apache-2.0 -->
-
 # Stream Manager
 
-Stream Manager is a microservice responsible for managing streaming video sources within the Edge AI platform.
-This is a REST API based microservice that attaches  live streaming sources, keeps bounded per-stream history in memory,
-saves requested intervals and returns timestamp-correlated clips and frames.
+Stream Manager attaches to RTSP video sources, keeps a rolling buffer, records selected intervals,
+and serves frames and clips by timestamp.
 
-# Quick Start
+Live stream and recording operations use the filesystem backend. Recording metadata is stored in
+SQLite. S3-compatible storage supports retrieval of archived recordings that an external producer
+has published. FFmpeg handles recording and frame/clip extraction.
 
-__**[WIP] This section will contain the details of the simplest way possible (probably one-click) to launch the Stream Manager microservice.**__
+For filesystem deployments, configure absolute paths on persistent storage. The recommended layout
+uses `/var/lib/stream-manager/media` for recordings and derived clips/frames, and
+`/var/lib/stream-manager/stream-manager.db` for SQLite. The rolling buffer belongs on private tmpfs,
+not on persistent storage. See [Get Started](docs/user-guide/get-started.md) for directory setup.
 
-## Overview
+## Implemented features
 
-### Stream APIs
-The stream APIs attach RTSP/RTSPS video, manage rolling buffers, report
-their status, and detach them. Buffer resizing is not implemented yet.
+- Attach one H.264 or H.265 RTSP video track over TCP and inspect its buffer and timestamp confidence.
+- Record a fixed interval or start and stop a recording manually.
+- Retrieve a JPEG/PNG frame or an MP4 clip, as media bytes or a JSON response with a media URL.
+- Store live media as MPEG-TS with a JSONL timestamp index.
 
-### Recording APIs
-Recording endpoints persist metadata in SQLite and save fixed or open recordings
-under UUID-named directories on the local filesystem. Overlapping recordings share
-buffered footage through bounded reader leases.
+## Run with an RTSP source
 
-### Replay APIs
-Replay APIs allow clients to request and retrieve previously recorded video clips or frames based on timestamps, leveraging the buffered footage and stored recordings.
+See [Get Started](docs/user-guide/get-started.md) for prerequisites and a complete recording and
+replay example. See the [API reference](docs/user-guide/api-reference.md) for routes, request fields,
+responses, and errors.
 
-See [Get Started](docs/user-guide/get-started.md) for configuration and usage.
+## Build and test
 
-## Project Status
+```bash
+go mod download
+CGO_ENABLED=0 go build ./...
+go test ./...
+```
 
-| Area | Status |
-| --- | --- |
-| API Contract | Ready |
-| Design | Ready |
-| Implementation | Work in Progress |
-| Documentation | Work in Progress |
+The SQLite driver is pure Go. FFmpeg and FFprobe must be available on `PATH` to run live recording
+and media extraction. SeaweedFS is optional and is used for S3 development and integration tests.
+
+## Run in Docker
+
+Docker Compose builds the API image and starts the filesystem-backed service:
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+curl -fsS http://localhost:18080/v1/health
+docker compose down
+```
+
+The named volume keeps the database and media between runs. The rolling buffer uses container
+tmpfs and is cleared when the container stops. The example media-token secret is for local
+development only; replace it with a unique secret before starting a shared deployment. Edit
+`.env` to change the host port or other Compose overrides. If you change the host port, update
+`STREAM_MANAGER_PUBLIC_BASE_URL` to use the same port.
+The existing `compose.dev.yaml` provides SeaweedFS for S3 development and integration tests; it
+does not start the API service.
