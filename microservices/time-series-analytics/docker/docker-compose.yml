@@ -59,6 +59,8 @@ services:
     - "110"
     # render group ID for ubuntu 24.04 host OS
     - "992"
+    # group ID used for the read-only Core admin-token file
+    - "1500"
 
 networks:
   timeseries_network:
