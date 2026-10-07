@@ -8,7 +8,7 @@ SPDX-License-Identifier: Apache-2.0
 **Agents**: GitHub Copilot (Claude Sonnet 5) — single-model self-evaluation
 **Grader**: GitHub Copilot (Claude Sonnet 5) — same session, self-graded
 **Date**: 2026-10-07
-**Evals**: 1–8 (1 reasoned pass per configuration)
+**Evals**: 1–10 (1 reasoned pass per configuration)
 
 ## Methodology Note (Read Before Trusting These Numbers)
 
@@ -41,17 +41,17 @@ score.
 
 | Configuration | Evals passed |
 |---|---|
-| w/o skill | 1 / 8 |
-| w/ skill | 8 / 8 |
-| **Lift** | **+7 ↑** |
+| w/o skill | 1 / 10 |
+| w/ skill | 10 / 10 |
+| **Lift** | **+9 ↑** |
 
 ### Pass rate (avg ± σ across evals, by expectations met per eval)
 
 | Configuration | Pass rate |
 |---|---|
-| w/o skill | 38% ±25% |
+| w/o skill | 34% ±24% |
 | w/ skill | 100% ±0% |
-| **Lift** | **+62pp ↑** |
+| **Lift** | **+66pp ↑** |
 
 ## Per-Eval Detail
 
@@ -62,25 +62,29 @@ score.
 | 1 | Generate a WAV greeting from text and save it to a file. | PASS (5/5) | PASS (5/5) |
 | 2 | Migrate an OpenAI-mp3 client to this service with minimal changes. | PASS (5/5) | FAIL (2/5) |
 | 3 | `model` field doesn't change which model actually runs — is this a bug? | PASS (5/5) | FAIL (1/5) |
-| 4 | Qwen `voice_design` request with `voice` set returns HTTP 400 — fix it. | PASS (5/5) | FAIL (1/5) |
+| 4 | Qwen3-TTS/voice_design deployment never responds to /health at all — client bug or deployment issue? | PASS (5/5) | FAIL (1/5) |
 | 5 | Stream longer narration; only one SSE event comes back — is that wrong? | PASS (5/5) | FAIL (2/5) |
 | 6 | Punctuation-only input closes the stream with an error event immediately. | PASS (5/5) | FAIL (1/5) |
 | 7 | Don't know if SpeechT5 or Qwen is deployed; want to use `instructions`. | PASS (5/5) | FAIL (1/5) |
 | 8 | Unknown `voice` name returns 400 instead of falling back to default. | PASS (5/5) | FAIL (2/5) |
-| | **Mean ±σ** | **100% ±0%** | **38% ±25%** |
+| 9 | `device: NPU` rejected instead of gracefully degrading to CPU. | PASS (5/5) | FAIL (1/5) |
+| 10 | `GET /v1/audio/voices` field names don't match expected `speakers`/`languages`. | PASS (5/5) | FAIL (1/5) |
+| | **Mean ±σ** | **100% ±0%** | **34% ±24%** |
 
-## Why the Lift Is Concentrated in Evals 2–8
+## Why the Lift Is Concentrated in Evals 2–10
 
 Eval 1 is answerable from the service's top-level README/get-started guide
 alone, so a baseline agent that skims repository docs performs just as well
-with or without the skill. Evals 2–8 each hinge on a specific,
+with or without the skill. Evals 2–10 each hinge on a specific,
 model-dependent validation rule or response-shape detail that is easy to
 get wrong without the skill's grounded references — the `response_format`
 being limited to `wav`/`json`, the `model` field being accepted but inert,
-the sharply different `voice`/`instructions` contracts between SpeechT5,
-Qwen `custom_voice`, and Qwen `voice_design`, the single-event streaming
-case being expected rather than broken, and unknown voice names failing
-closed instead of silently defaulting — exactly the kind of
+Qwen3-TTS currently failing at **service startup** rather than per-request
+(a recent documentation correction this skill was updated to reflect), the
+single-event streaming case being expected rather than broken, unknown
+voice names failing closed instead of silently defaulting, the per-request
+`device` override being rejected rather than gracefully downgraded, and the
+current `GET /v1/audio/voices` response field names — exactly the kind of
 misconception-correcting detail
 [model-and-voice-guide.md](../references/model-and-voice-guide.md) and
 [integration-troubleshooting.md](../references/integration-troubleshooting.md)

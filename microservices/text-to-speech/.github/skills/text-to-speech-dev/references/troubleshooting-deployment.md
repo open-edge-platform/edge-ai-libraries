@@ -44,6 +44,25 @@ Expected. On first run the service may download model artifacts, export
 models to OpenVINO IR under `models/`, and populate the Hugging Face cache
 under `.cache/huggingface/`. Later starts reuse those cached files.
 
+## Model Download Times Out Behind A Proxy
+
+If model downloads succeed on the host but time out inside the container,
+the proxy environment variables were not forwarded. Export them before
+starting Compose — it passes both uppercase and lowercase variants through
+to the service:
+
+```bash
+export HTTP_PROXY="http://proxy.example.com:8080"
+export HTTPS_PROXY="$HTTP_PROXY"
+export NO_PROXY="localhost,127.0.0.1"
+docker compose up -d --force-recreate
+docker compose logs -f text-to-speech
+```
+
+Never commit proxy URLs containing credentials — set authenticated proxy
+values in the shell or another approved secret-management mechanism, not in
+a tracked `.env` file.
+
 ## `health` Endpoint Fails
 
 ```bash
@@ -93,10 +112,47 @@ Check in this order — do not change model code before exhausting these:
 5. If GPU still fails, isolate whether the problem is Docker permissions or
    the model/runtime path:
    - Try the same deployment with `device: CPU` first.
-   - Try a simpler GPU path (SpeechT5 on GPU) before Qwen on GPU.
-   - A working SpeechT5 GPU path does **not** guarantee Qwen GPU
-     initialization will also succeed — treat them as independent
-     validations.
+   - If the configured model is **SpeechT5**, this isolation is meaningful —
+     SpeechT5 GPU is a genuinely separate validation from SpeechT5 CPU.
+   - If the configured model is **Qwen3-TTS**, device isolation will not
+     help — Qwen3-TTS currently fails at startup with a dependency error
+     regardless of `device` (see
+     [model-and-device-config.md](./model-and-device-config.md#known-limitations-models-that-cannot-currently-run)).
+     A "GPU context" error cannot actually originate from a Qwen3-TTS
+     deployment, because startup fails on the `qwen-tts` import before any
+     GPU/OpenVINO code runs — if you see a genuine GPU context error on a
+     Qwen3-TTS config, re-check `models.tts.name`; something else is
+     configured than what was reported.
+
+## NPU Does Not Behave As Expected
+
+No TTS model in this service can currently complete a request on NPU, even
+though `NPU` is an accepted `device` value. See
+[model-and-device-config.md](./model-and-device-config.md#npu-accepted-but-universally-non-functional)
+for the full per-model failure matrix (`utils/device_validation.py::resolve_tts_device`,
+Kokoro/pytorch-runtime/SpeechT5/Qwen3-TTS each fail differently). Key point
+for diagnosis: `preload_models()` does not run this validation at startup,
+so an invalid `models.tts.device: NPU` can still let the service **start**
+(the mismatch only logs as a warmup warning) — only a **per-request** `NPU`
+selection is rejected immediately, before that request's model loads.
+
+## Qwen3-TTS / Parler-TTS Fail At Startup (Dependency Conflict, Not a Bug)
+
+If `models.tts.name` is set to a Qwen3-TTS or Parler-TTS value and the
+container fails to start (or `main.py`'s startup event raises), check logs
+for one of these two distinct causes before assuming a deployment mistake:
+
+- `"qwen-tts is not installed. Install dependencies from requirements.txt
+  before starting the service."` — Qwen3-TTS requires `qwen-tts`, which
+  pins `transformers==4.57.3`; this service requires `transformers>=5.3.0`
+  for security fixes, so the two cannot coexist and `qwen-tts` is
+  deliberately not installed. This is not fixable by changing config — do
+  not deploy Qwen3-TTS until this upstream conflict is resolved.
+- `"parler-tts is not installed..."` — a separate, unrelated gap: the
+  `parler-tts` package is simply not listed in `requirements.txt`.
+
+Full detail:
+[model-and-device-config.md](./model-and-device-config.md#known-limitations-models-that-cannot-currently-run).
 
 ## Permission Errors On Mounted Volumes
 

@@ -7,13 +7,15 @@ description: >
   stream phrase-level audio over Server-Sent Events
   (`POST /v1/audio/speech/stream`) for lower time-to-first-audio; discover
   available voices/models (`GET /v1/audio/voices`, `GET /v1/model-info`);
-  select a voice or describe a custom voice via `instructions` for
-  Qwen3-TTS `voice_design`; persist synthesized audio for later retrieval
-  via `session_id`; or integrate an OpenAI-SDK-style client against a
-  self-hosted speech endpoint. Trigger on phrases like "text to speech API",
-  "synthesize speech", "generate audio from text", "stream TTS audio",
-  "OpenAI speech endpoint", "voice design", "list available voices", "build
-  a TTS app", or "call the text-to-speech API".
+  select a voice, a per-request `device` (`CPU`/`GPU`/`NPU`), or describe a
+  custom voice via `instructions` for Qwen3-TTS `voice_design` (currently
+  non-functional — see the skill for the deployable alternatives); persist
+  synthesized audio for later retrieval via `session_id`; or integrate an
+  OpenAI-SDK-style client against a self-hosted speech endpoint. Trigger on
+  phrases like "text to speech API", "synthesize speech", "generate audio
+  from text", "stream TTS audio", "OpenAI speech endpoint", "voice design",
+  "list available voices", "build a TTS app", or "call the text-to-speech
+  API".
 metadata:
   argument-hint: >
     Describe the TTS capability you want to build (e.g. "generate a WAV
@@ -41,7 +43,8 @@ deployed model.
 - User wants lower time-to-first-audio via phrase-level SSE streaming
 - User wants to discover available voices/models before picking a `voice`
 - User wants a custom-described voice (Qwen3-TTS `voice_design`) instead of
-  a named speaker
+  a named speaker — note this model currently cannot be deployed at all;
+  see [Common Mistakes to Avoid](#common-mistakes-to-avoid)
 - User wants to persist and later retrieve synthesized audio via
   `session_id`
 - User is integrating an OpenAI-SDK-style client against this self-hosted
@@ -71,6 +74,8 @@ Default base URL: `http://127.0.0.1:8011`.
 | Passing any `language` other than `English` | The service is English-only; any other value returns HTTP 400 |
 | Assuming an unknown `voice` name silently falls back to default | Unknown voice names return HTTP 400, they do not silently substitute the default speaker |
 | Hardcoding port 8000/8080 | Default port is **`8011`** |
+| Setting `device: GPU`/`NPU` and expecting a silent fallback to CPU if unsupported | The service **rejects** unsupported/unavailable device selections outright; it never downgrades silently |
+| Assuming a deployment "using Qwen3-TTS" is reachable | Qwen3-TTS currently fails at **service startup** on every device due to a `qwen-tts`/`transformers` conflict — if the service won't even answer `GET /health`, this is almost certainly why, not a client bug |
 
 ---
 
@@ -131,6 +136,7 @@ Step 5 (verify + next steps)
 | **Voice** | A named speaker, or a described voice style | Ask which model/variant is deployed if unclear |
 | **Output shape** | Raw WAV file vs. JSON with base64 audio + metadata | `wav` |
 | **Session reuse** | Whether the client needs to retrieve this audio again later | Only relevant if the deployment has `pipeline.persist_outputs: true` |
+| **Device** | Per-request `CPU`/`GPU`/`NPU` override | Service default — most clients should omit this |
 
 If the user explicitly names an endpoint or model behavior, go straight to
 Step 1. Otherwise ask — especially which model/variant is deployed, since
@@ -150,6 +156,12 @@ curl --noproxy '*' http://127.0.0.1:8011/v1/audio/voices
 
 This returns the active model, runtime, available speakers, and supported
 languages.
+
+If the service does not respond at all (not even `GET /health`), and you
+were told the deployment uses Qwen3-TTS, stop and read
+[integration-troubleshooting.md](./references/integration-troubleshooting.md#the-deployment-is-unreachable-because-its-configured-for-qwen3-tts)
+before debugging further — this is a known, currently unresolved
+deployment-side limitation, not a client issue.
 
 ### Step 2 — Pick the Endpoint
 
@@ -171,7 +183,8 @@ All endpoints take the same JSON body shape:
   "voice": "Ryan",
   "language": "English",
   "instructions": null,
-  "response_format": "wav"
+  "response_format": "wav",
+  "device": null
 }
 ```
 
@@ -182,8 +195,13 @@ full matrix):
   `GET /v1/audio/voices` first. Omit it to use the deployment's configured
   default.
 - `instructions`: rejected for SpeechT5; optional for Qwen `custom_voice`;
-  **required** (and `voice` must be omitted) for Qwen `voice_design`.
+  **required** (and `voice` must be omitted) for Qwen `voice_design` — but
+  see the Qwen3-TTS caveat above before relying on either Qwen variant.
 - `language`: omit it, or set it to exactly `"English"`.
+- `device`: omit it unless the caller has a specific reason to override
+  the deployment default; an unsupported or unavailable value is rejected,
+  not silently downgraded to CPU. Both `POST /v1/audio/speech` and
+  `POST /v1/audio/speech/stream` honor this field.
 
 ### Step 4 — Handle the Response Shape
 

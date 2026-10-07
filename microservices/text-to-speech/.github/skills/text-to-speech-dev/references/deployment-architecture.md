@@ -82,7 +82,7 @@ Three named volumes, nothing written into the source tree:
 
 | Volume | Container path | Contents |
 |--------|-----------------|----------|
-| `text_to_speech_models` | `/app/text-to-speech/models` | Downloaded/exported model assets (ONNX for Kokoro, OpenVINO IR or PyTorch weights for SpeechT5/Qwen) |
+| `text_to_speech_models` | `/app/text-to-speech/models` | Downloaded/exported model assets (ONNX for Kokoro, OpenVINO IR for SpeechT5/Qwen) |
 | `text_to_speech_storage` | `/app/text-to-speech/storage` | Per-session directories (only populated when `pipeline.persist_outputs: true`): `storage/<session_id>/` with the synthesized WAV and metadata |
 | `text_to_speech_cache` | `/app/text-to-speech/.cache` | Hugging Face cache (`HF_HOME`) |
 
@@ -101,8 +101,11 @@ session folders under `storage/` every time the process starts — set this to
 
 `/dev/dri` is passed through unconditionally in `docker-compose.yml` — no
 conditional mapping like the NPU pattern used by other services in this
-repository. This service has **no NPU support**; only `CPU` and `GPU` are
-valid `models.tts.device` values.
+repository. `models.tts.device` accepts `CPU`, `GPU`, or `NPU`, but `NPU`
+is not currently functional for any model — see
+[model-and-device-config.md](./model-and-device-config.md#npu-accepted-but-universally-non-functional)
+for the exact per-model failure behavior before telling a developer this
+service simply "has no NPU support."
 
 Requirements for the GPU path to actually work:
 - Host has a working Intel iGPU/dGPU with the Intel/OpenVINO host GPU

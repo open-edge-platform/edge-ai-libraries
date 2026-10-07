@@ -36,6 +36,20 @@ deployed — request validation differs by model (see
 curl --noproxy '*' http://127.0.0.1:8011/v1/audio/voices
 ```
 
+```json
+{
+  "model": "kokoro",
+  "runtime": "pytorch",
+  "default_speaker": "af_heart",
+  "supported_speakers": ["af_heart", "am_michael", "bf_emma"],
+  "default_language": "English"
+}
+```
+
+Field names are `default_speaker`, `supported_speakers` (a list), and
+`default_language` (singular — not a list) — do not assume the older
+`speakers`/`languages` field names some OpenAI-adjacent services use.
+
 ## `GET /v1/model-info`
 
 Returns the same model metadata payload as `/v1/audio/voices` (both are
@@ -66,6 +80,7 @@ payload or a JSON envelope.
 | `language` | No | Only the literal value `English` is accepted; anything else returns HTTP 400 |
 | `instructions` | No | Speaking-style guidance — rejected by SpeechT5, optional for Qwen `custom_voice`, required for Qwen `voice_design` |
 | `response_format` | No | `wav` (default, raw `audio/wav`) or `json` (metadata + base64 WAV) |
+| `device` | No | `CPU`, `GPU`, or `NPU` — overrides `models.tts.device` for this request only. Validated against the configured runtime/model and the devices actually visible inside the container; unsupported or unavailable selections are **rejected**, never silently downgraded to CPU. The first request for a given device compiles/loads a separate cached model; later requests reuse it, and cached models stay resident until the process exits. |
 
 ### `response_format=wav` (default)
 
@@ -88,15 +103,20 @@ curl --noproxy '*' -sS \
 ```json
 {
   "session_id": "20260909-101500-ab12",
-  "model": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
-  "variant": "custom_voice",
+  "model": "microsoft/speecht5_tts",
+  "variant": "default",
   "voice": "Ryan",
   "language": "English",
   "duration": 2.41,
-  "sampling_rate": 24000,
+  "sampling_rate": 16000,
   "audio_base64": "UklGRi..."
 }
 ```
+
+> This example uses SpeechT5, a currently deployable model. Qwen3-TTS
+> cannot currently run on any device — see
+> [model-and-voice-guide.md](./model-and-voice-guide.md#qwen3-tts-currently-non-functional)
+> before telling a user to expect a response shaped like a Qwen deployment.
 
 Decode `audio_base64` (standard base64) to get the raw WAV bytes.
 
@@ -119,9 +139,12 @@ Validation and runtime failures use an OpenAI-compatible error envelope:
 ## `POST /v1/audio/speech/stream`
 
 Phrase-level streaming variant, returns `text/event-stream`. Same request
-body fields as `POST /v1/audio/speech` (validated the same way before
-streaming begins — a 400 for an invalid request is returned as a normal
-JSON error response, not as an SSE event).
+body fields as `POST /v1/audio/speech`, **including the per-request
+`device` override** — unlike some sibling speech services in this
+repository, this streaming endpoint does honor `device` (validated the same
+way before streaming begins — a 400 for an invalid request or an
+unsupported/unavailable `device` is returned as a normal JSON error
+response, not as an SSE event).
 
 Each event is one JSON object per synthesized phrase:
 

@@ -4,15 +4,16 @@ description: >
   Build, configure, deploy, and operate the Text To Speech microservice.
   Use this skill when a developer or operator wants to: run the service with
   Docker Compose or on the host; build the image from source; select a TTS
-  model (Kokoro, SpeechT5, Qwen3-TTS) and runtime/device/precision; wire
-  Docker volumes and `/dev/dri` GPU passthrough; tune `config.yaml` and
+  model (Kokoro, SpeechT5 — Qwen3-TTS currently cannot run on any device due
+  to a dependency conflict) and its runtime/device/precision; wire Docker
+  volumes and `/dev/dri` GPU passthrough; tune `config.yaml` and
   `TEXT_TO_SPEECH__...` overrides; or debug a startup, permission,
-  GPU-visibility, or stuck-container failure. Trigger on phrases like
-  "deploy text-to-speech", "run text-to-speech in docker", "build
-  text-to-speech image", "switch TTS model", "enable GPU for TTS",
-  "configure Qwen voice design", "GPU context not initialized",
-  "permission denied storage", "text-to-speech won't start", or "container
-  name already in use".
+  GPU-visibility, proxy/model-download, or stuck-container failure. Trigger
+  on phrases like "deploy text-to-speech", "run text-to-speech in docker",
+  "build text-to-speech image", "switch TTS model", "enable GPU for TTS",
+  "configure Qwen voice design", "Qwen3-TTS not installed", "GPU context not
+  initialized", "permission denied storage", "text-to-speech won't start",
+  "model download times out", or "container name already in use".
 argument-hint: >
   Describe what you want to deploy or debug (e.g. "deploy text-to-speech with
   Qwen3-TTS on GPU" or "switch the default model to SpeechT5")
@@ -46,7 +47,8 @@ Text To Speech microservice.
 | Container user | UID/GID `1000:1000` (baked into the image — do not change) |
 | Named volumes | `text_to_speech_models`, `text_to_speech_storage`, `text_to_speech_cache` |
 | Shipped default model | `kokoro` (ONNX runtime, CPU-only, `runtime`/`device` config ignored) — the docs' worked examples center on SpeechT5/Qwen, so confirm `models.tts.name` before assuming which model is active |
-| Device support | `CPU` and `GPU` only — **no NPU path** for this service |
+| Device support | `CPU`/`GPU` work for Kokoro and SpeechT5; `NPU` is **accepted** as a config/request value but **non-functional for every model** — see `model-and-device-config.md` for the per-model failure behavior |
+| Known-broken models | **Qwen3-TTS** cannot run on any device (CPU/GPU/NPU) — fails at service startup due to a `qwen-tts`/`transformers` version conflict. **SpeechT5** has no working PyTorch runtime (`openvino` only). Do not recommend deploying either gap as if it works. |
 | Health check | `GET /health` → `{"status": "ok"}` |
 
 ## Reference Lookup
@@ -62,8 +64,9 @@ Text To Speech microservice.
 | File | Covers |
 |------|--------|
 | [examples-prompts/docker-compose-deploy.md](./examples-prompts/docker-compose-deploy.md) | Standing up the service with Docker Compose and verifying health |
-| [examples-prompts/switch-tts-model.md](./examples-prompts/switch-tts-model.md) | Switching between Kokoro, SpeechT5, and Qwen3-TTS |
+| [examples-prompts/switch-tts-model.md](./examples-prompts/switch-tts-model.md) | Switching between Kokoro and SpeechT5 (and why Qwen3-TTS can't be switched to yet) |
 | [examples-prompts/enable-gpu-acceleration.md](./examples-prompts/enable-gpu-acceleration.md) | Configuring OpenVINO GPU device passthrough end-to-end |
+| [examples-prompts/diagnose-qwen-dependency-failure.md](./examples-prompts/diagnose-qwen-dependency-failure.md) | Recognizing the Qwen3-TTS/Parler-TTS startup dependency failures as known limitations |
 
 ---
 
@@ -80,8 +83,8 @@ text-to-speech/
 │   ├── tts/
 │   │   ├── base.py / factory.py       ← backend selection
 │   │   ├── kokoro/                     ← onnxruntime-based Kokoro backend
-│   │   ├── openvino/                   ← OpenVINO SpeechT5/Qwen backends
-│   │   ├── pytorch/                    ← PyTorch SpeechT5/Qwen backends
+│   │   ├── openvino/                   ← OpenVINO SpeechT5/Qwen backends (Qwen currently non-functional)
+│   │   ├── pytorch/                    ← PyTorch Qwen/Parler backend (no working PyTorch SpeechT5 path; Qwen/Parler non-functional)
 │   │   └── speecht5_voices.py          ← bundled SpeechT5 voice table
 │   └── tts_component.py
 ├── utils/
@@ -129,8 +132,8 @@ Read [model-and-device-config.md](./references/model-and-device-config.md) first
 | Model | `name` value | Runtime | Device | Notes |
 |-------|--------------|---------|--------|-------|
 | Kokoro | `kokoro` | always onnxruntime — `runtime`/`device` config ignored | CPU only | Shipped default; lightest-weight |
-| SpeechT5 | `microsoft/speecht5_tts` | `openvino` or `pytorch` | `CPU` or `GPU` | English only, 7 bundled voices, rejects `instructions` |
-| Qwen3-TTS | `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` | `openvino` or `pytorch` | `CPU` or `GPU` | `custom_voice` or `voice_design` variant, supports `instructions` |
+| SpeechT5 | `microsoft/speecht5_tts` | `openvino` **only** (no working PyTorch implementation) | `CPU` or `GPU` | English only, 7 bundled voices, rejects `instructions` |
+| Qwen3-TTS | `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` | n/a | n/a | ⚠️ **Cannot currently run on any device** — fails at startup with a `qwen-tts`/`transformers` dependency conflict. Do not deploy this until resolved; see [model-and-device-config.md](./references/model-and-device-config.md#known-limitations-models-that-cannot-currently-run). |
 
 > [!IMPORTANT]
 > `dtype: int4` on integrated GPU is known to produce audible noise in the
@@ -185,6 +188,11 @@ Common root causes, roughly in likelihood order:
   host-specific and must never be hardcoded to a prior machine's value.
 - Named volumes initialized by an earlier root-only run — permission denied
   under `/app/text-to-speech/storage/...`.
-- GPU failure isolated to a specific model — a working SpeechT5 GPU path
-  does not guarantee Qwen GPU initialization also succeeds; test with
-  `device: CPU` first, then SpeechT5 GPU, then Qwen GPU.
+- GPU failure reported for **SpeechT5** — test with `device: CPU` first,
+  then `device: GPU`; these are genuinely independent validations.
+- GPU/NPU failure reported for **Qwen3-TTS** — device isolation will not
+  help. Qwen3-TTS currently fails at startup with a dependency error
+  (`qwen-tts`/`transformers` conflict) regardless of device; see
+  [model-and-device-config.md](./references/model-and-device-config.md#known-limitations-models-that-cannot-currently-run).
+- Proxy not forwarded into the container — model downloads time out even
+  though they work from the host.

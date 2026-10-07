@@ -42,15 +42,15 @@
     },
     {
       "id": 4,
-      "prompt": "I'm building against a Qwen3-TTS voice_design deployment. I sent {\"input\": \"Hello there\", \"voice\": \"Ryan\"} and got an HTTP 400. What's wrong and what should my request look like instead?",
-      "expected_output": "A correct explanation of the voice_design request contract and a corrected example request.",
+      "prompt": "My team told me our text-to-speech deployment uses Qwen3-TTS with voice_design, but I can't get a response from GET /health at all — not even an error, just nothing. Is my client code wrong, or is this a deployment issue?",
+      "expected_output": "A correct diagnosis that this is a known Qwen3-TTS startup dependency failure, not a client-side problem.",
       "files": [],
       "expectations": [
-        "Explains that voice_design rejects the voice field entirely.",
-        "Explains that instructions is required for voice_design and must describe the desired voice.",
-        "Provides a corrected example request that omits voice and includes a descriptive instructions string.",
-        "Contrasts this with Qwen custom_voice, where voice is the correct way to select a speaker.",
-        "Does not suggest the fix is to pick a different named voice value for voice_design."
+        "States that Qwen3-TTS currently cannot start on any device (CPU, GPU, or NPU) due to a qwen-tts/transformers version conflict.",
+        "Explains this is a service-startup failure, not a per-request error, so no client-side request change will fix it.",
+        "Recommends checking the deployment's container logs for a qwen-tts not installed error to confirm.",
+        "Recommends SpeechT5 or Kokoro as the currently deployable alternatives to raise with the deployment owner.",
+        "Does not suggest the issue is a malformed request body or missing voice/instructions field."
       ]
     },
     {
@@ -103,6 +103,32 @@
         "Mentions the CMU Arctic id aliases (e.g. bdl, jmk) are also accepted for SpeechT5.",
         "Recommends omitting voice entirely if the default speaker is acceptable.",
         "Does not claim this fallback behavior is a bug to be fixed client-side with retries."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "I set \"device\": \"NPU\" in my request to POST /v1/audio/speech, expecting it to just fall back to CPU if NPU isn't available, but I got an error instead. Shouldn't it gracefully degrade?",
+      "expected_output": "A correct explanation that unsupported/unavailable device selections are rejected outright by design, not silently downgraded.",
+      "files": [],
+      "expectations": [
+        "States the service validates the requested device against the configured runtime/model and the devices visible inside the container, and rejects unsupported or unavailable selections.",
+        "States this is deliberate — it never silently falls back to CPU.",
+        "Notes NPU specifically is accepted as a value but is not currently functional for any model in this service.",
+        "Recommends omitting the device field to use the deployment's configured default instead.",
+        "Does not claim this is a bug to report."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "I called GET /v1/audio/voices expecting fields named speakers and languages like some other services in this family use, but the response has different field names. What should I actually look for?",
+      "expected_output": "A correct description of this service's actual GET /v1/audio/voices response field names.",
+      "files": [],
+      "expectations": [
+        "States the response includes default_speaker, supported_speakers, and default_language fields.",
+        "Notes default_language is a single string, not a list.",
+        "Notes supported_speakers is a list.",
+        "Does not claim the response uses speakers or languages as field names.",
+        "Uses port 8011 in any example given."
       ]
     }
   ]

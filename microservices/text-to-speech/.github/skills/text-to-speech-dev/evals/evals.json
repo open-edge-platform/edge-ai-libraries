@@ -11,7 +11,7 @@
         "Mentions REGISTRY and RELEASE_TAG in .env.",
         "Uses port 8011 and curl http://127.0.0.1:8011/health to verify health.",
         "Mentions config.yaml is bind-mounted and edits apply on docker compose restart.",
-        "Does not claim an NPU device option exists for this service."
+        "Does not claim NPU is a viable deployment target for this service (NPU is accepted as a value but is non-functional for every model)."
       ]
     },
     {
@@ -29,15 +29,15 @@
     },
     {
       "id": 3,
-      "prompt": "I configured models.tts.device: GPU for Qwen3-TTS and the container keeps restarting with '[GPU] Context was not initialized for 0 device'. Give me a focused, service-specific debug sequence.",
+      "prompt": "I configured models.tts.device: GPU for SpeechT5 and the container keeps restarting with '[GPU] Context was not initialized for 0 device'. Give me a focused, service-specific debug sequence.",
       "expected_output": "A GPU-specific debug checklist grounded in this service's Compose device mapping and render-group requirements.",
       "files": [],
       "expectations": [
         "Checks that /dev/dri is exposed to the container and that the host has GPU device nodes (ls -l /dev/dri).",
         "Explains RENDER_GID must match the host's actual render group GID, found via stat -c '%g' /dev/dri/render*, not assumed as a fixed default.",
-        "Recommends isolating with device: CPU first, then a simpler GPU path (SpeechT5) before Qwen GPU.",
-        "States that a working SpeechT5 GPU path does not guarantee Qwen GPU will also succeed.",
-        "Does not suggest switching to int4 precision as a fix for this error."
+        "Recommends isolating with device: CPU first before retrying GPU.",
+        "Does not suggest switching to int4 precision as a fix for this error.",
+        "Does not claim this is a Qwen3-TTS-specific issue or recommend testing Qwen as part of the isolation sequence."
       ]
     },
     {
@@ -77,6 +77,45 @@
         "Recommends GET /v1/audio/voices (or checking models.tts.name in config.yaml) to confirm the active model on a running deployment.",
         "Does not assume SpeechT5 is active just because it's the most common doc example.",
         "Uses port 8011 if a curl example is given."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I set models.tts.name to Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice, restarted the container, and now docker compose logs shows 'RuntimeError: qwen-tts is not installed. Install dependencies from requirements.txt before starting the service.' and the container keeps exiting. Do I just need to add qwen-tts to requirements.txt and rebuild?",
+      "expected_output": "A correct explanation that this is a known, currently unresolvable dependency conflict rather than a missing-install step a developer can fix themselves.",
+      "files": [],
+      "expectations": [
+        "Explains that qwen-tts requires an exact transformers==4.57.3 pin, while this service requires transformers>=5.3.0 for security fixes.",
+        "States these two requirements cannot be satisfied simultaneously, so qwen-tts is deliberately not installed.",
+        "States this failure happens at service startup regardless of device (CPU, GPU, or NPU).",
+        "Recommends SpeechT5 (openvino, CPU or GPU) or Kokoro (CPU) as currently deployable alternatives instead of Qwen3-TTS.",
+        "Does not suggest simply pip installing qwen-tts and downgrading transformers as a safe fix, given the known security implications."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Someone told me text-to-speech has no NPU support at all, but I see NPU listed as an accepted value for models.tts.device. Which is correct, and what actually happens if I configure it?",
+      "expected_output": "An accurate reconciliation of 'accepted value' vs 'functional' for NPU across the different models/runtimes.",
+      "files": [],
+      "expectations": [
+        "States that NPU is accepted as a config and per-request device value, but is not functional for any model currently in the service.",
+        "Explains the behavior differs by model: Kokoro rejects NPU per-request but still starts on CPU if configured in models.tts.device (device ignored, only a warmup warning logged); pytorch-runtime models reject NPU with a specific message; SpeechT5+openvino either gets rejected for no visible NPU or fails at compile time with a Reshape/dynamic-dimension error if NPU is visible.",
+        "States that preload_models() does not run device validation at startup, so an invalid models.tts.device can still let the service start, unlike a per-request device value which is rejected immediately.",
+        "References utils/device_validation.py::resolve_tts_device as the relevant validation code.",
+        "Does not claim Qwen3-TTS would work on NPU if only the device were configured correctly."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Model downloads work fine when I test from the host directly, but inside the text-to-speech container they just hang and eventually time out. We're behind a corporate proxy. What's the fix?",
+      "expected_output": "A correct proxy-forwarding fix grounded in this service's Compose environment handling.",
+      "files": [],
+      "expectations": [
+        "Recommends exporting HTTP_PROXY, HTTPS_PROXY, and NO_PROXY in the shell before running Compose.",
+        "States that Compose passes both uppercase and lowercase proxy variants through to the service.",
+        "Shows restarting with docker compose up -d --force-recreate after setting the proxy variables.",
+        "Warns against committing proxy URLs containing credentials to a tracked file such as .env.",
+        "Does not suggest this is a model registry or network outage issue instead of a proxy configuration gap."
       ]
     }
   ]

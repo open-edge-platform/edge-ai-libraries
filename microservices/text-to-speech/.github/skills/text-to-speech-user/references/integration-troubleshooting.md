@@ -36,17 +36,22 @@ per-model voice tables.
 **Cause:** `instructions` was supplied while the deployed model is
 SpeechT5. SpeechT5 has no speaking-style control at all.
 
-**Fix:** Drop `instructions` entirely for a SpeechT5 deployment. If
-instruction-driven voice control is a hard requirement, that needs a
-different deployed model (Qwen3-TTS), which is a deployment-time decision,
-not something a client request can override.
+**Fix:** Drop `instructions` entirely for a SpeechT5 deployment. Qwen3-TTS
+is the model with `instructions` support, but it cannot currently be
+deployed at all — see
+[Qwen3-TTS: Currently Non-Functional](./model-and-voice-guide.md#qwen3-tts-currently-non-functional)
+before assuming it's a reachable alternative.
 
 ---
 
 ## HTTP 400: "Qwen voice_design does not accept the voice field"
 
 **Cause:** The deployed model is Qwen3-TTS with `model_variant:
-voice_design`, and the request included a `voice` field.
+voice_design`, and the request included a `voice` field. In today's
+service, reaching this specific 400 would mean Qwen3-TTS is somehow
+running — if you instead can't reach the service at all, see
+[The Deployment Is Unreachable Because It's Configured for Qwen3-TTS](#the-deployment-is-unreachable-because-its-configured-for-qwen3-tts)
+instead.
 
 **Fix:** Remove `voice` from the request entirely and describe the desired
 voice in `instructions` instead.
@@ -61,6 +66,46 @@ empty.
 **Fix:** Supply a non-empty `instructions` string describing the voice
 (e.g. tone, pitch, accent, pacing). This field is mandatory for
 `voice_design` — there is no default voice to fall back to.
+
+---
+
+## The Deployment Is Unreachable Because It's Configured for Qwen3-TTS
+
+**Symptom:** `GET /health` (or any request) times out or refuses the
+connection entirely against a deployment you were told uses Qwen3-TTS —
+not an HTTP error, no response at all.
+
+**Cause:** Qwen3-TTS currently cannot start on any device (`CPU`, `GPU`, or
+`NPU`) due to a `qwen-tts`/`transformers` dependency conflict. A
+Qwen3-TTS-configured service fails at startup, so it is never actually
+listening — this is not a client-side problem, and no change to your
+request will help.
+
+**Fix:** This is a deployment-side limitation, not something fixable from
+the client. Ask the deployment owner to switch `models.tts.name` to
+SpeechT5 or Kokoro until the upstream conflict is resolved (see the
+`text-to-speech-dev` skill), or confirm with them whether the service is
+expected to be up at all right now.
+
+---
+
+## Per-Request `device` Rejected Instead of Falling Back to CPU
+
+**Symptom:** Setting `"device": "GPU"` or `"device": "NPU"` in the request
+body returns an error instead of transparently running on CPU.
+
+**Cause:** This is deliberate — the service validates the requested
+`device` against the configured runtime/model and the devices actually
+visible inside the container, and **rejects** unsupported or unavailable
+selections rather than silently downgrading to CPU. `NPU` in particular is
+accepted as a value but is not currently functional for any model in this
+service (Kokoro and the PyTorch runtime reject it outright; SpeechT5 either
+rejects it or fails at model-compile time if an NPU happens to be visible).
+
+**Fix:** This is a deployment/hardware question, not a client bug. Omit
+`device` to use the deployment's configured default, or confirm with the
+operator which devices are actually supported for the active model (see
+the `text-to-speech-dev` skill's NPU behavior matrix).
 
 ---
 
