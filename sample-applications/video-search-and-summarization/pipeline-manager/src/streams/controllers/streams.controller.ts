@@ -20,8 +20,10 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { isAxiosError } from 'axios';
+import { SearchEvents } from 'src/events/Pipeline.events';
 import {
   LiveStreamBatchCreateDto,
   LiveStreamBatchDeleteDto,
@@ -67,7 +69,23 @@ export class StreamsController {
   constructor(
     private readonly $shim: StreamShimService,
     private readonly $poller: StreamPollerService,
+    private readonly $emitter: EventEmitter2,
   ) {}
+
+  /**
+   * Mark the search index dirty after a delete that purged live embeddings.
+   *
+   * The poll loop only emits EMBEDDINGS_UPDATE when the aggregate embedding
+   * count *grows*, so a purge (which shrinks it, or removes the stream from the
+   * list entirely) would never trigger a watched-query refresh. Without this,
+   * "checkmarked" queries keep showing results that point at segments whose
+   * embeddings and media have just been deleted. Emitting here re-uses the same
+   * bounded-rate refresh scheduler as ingestion, so the watched queries re-run
+   * and drop the now-dangling references.
+   */
+  private notifyEmbeddingsPurged(): void {
+    this.$emitter.emit(SearchEvents.EMBEDDINGS_UPDATE);
+  }
 
   /**
    * Translate an upstream failure into the matching Nest exception.
@@ -204,7 +222,13 @@ export class StreamsController {
     @Query() purge: LiveStreamPurgeQueryDto,
   ): Promise<LiveStreamDeleteRO> {
     try {
-      return await this.$shim.remove(streamId, purge);
+      const result = await this.$shim.remove(streamId, purge);
+      // A purge removes vectors behind existing search hits; re-run watched
+      // queries so they stop referencing the deleted segments.
+      if ((result.embeddings_purged ?? 0) > 0) {
+        this.notifyEmbeddingsPurged();
+      }
+      return result;
     } catch (error) {
       this.fail(error, 'delete');
     }
@@ -217,7 +241,14 @@ export class StreamsController {
     @Query() purge: LiveStreamPurgeQueryDto,
   ): Promise<LiveStreamBatchRO> {
     try {
-      return await this.$shim.removeBatch(body, purge);
+      const result = await this.$shim.removeBatch(body, purge);
+      // The batch response carries no purge counts, so fall back to intent: if
+      // embeddings were requested to be purged and at least one stream was
+      // deleted, some vectors are gone and watched queries must be re-run.
+      if (purge.purge_embeddings && result.accepted > 0) {
+        this.notifyEmbeddingsPurged();
+      }
+      return result;
     } catch (error) {
       this.fail(error, 'batch delete');
     }

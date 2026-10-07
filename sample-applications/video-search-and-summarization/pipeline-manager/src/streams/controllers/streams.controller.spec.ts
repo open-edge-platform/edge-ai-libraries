@@ -9,7 +9,9 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AxiosError, AxiosResponse } from 'axios';
+import { SearchEvents } from 'src/events/Pipeline.events';
 import {
   LiveStreamCreateDto,
   LiveStreamListQueryDto,
@@ -29,6 +31,7 @@ describe('StreamsController', () => {
   let controller: StreamsController;
   let shim: jest.Mocked<Partial<StreamShimService>>;
   let poller: jest.Mocked<Partial<StreamPollerService>>;
+  let emit: jest.Mock;
 
   beforeEach(async () => {
     shim = {
@@ -45,12 +48,14 @@ describe('StreamsController', () => {
       configurable: true,
     });
     poller = { ensurePolling: jest.fn() };
+    emit = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [StreamsController],
       providers: [
         { provide: StreamShimService, useValue: shim },
         { provide: StreamPollerService, useValue: poller },
+        { provide: EventEmitter2, useValue: { emit } },
       ],
     }).compile();
 
@@ -93,6 +98,47 @@ describe('StreamsController', () => {
       (shim.remove as jest.Mock).mockResolvedValue({ stream_id: 'a' });
       await controller.remove('a', { purge_embeddings: true });
       expect(shim.remove).toHaveBeenCalledWith('a', { purge_embeddings: true });
+    });
+
+    it('re-runs watched queries when a delete purged embeddings', async () => {
+      (shim.remove as jest.Mock).mockResolvedValue({
+        stream_id: 'a',
+        embeddings_purged: 12,
+      });
+      await controller.remove('a', { purge_embeddings: true });
+      expect(emit).toHaveBeenCalledWith(SearchEvents.EMBEDDINGS_UPDATE);
+    });
+
+    it('does not re-run watched queries when a delete purged nothing', async () => {
+      (shim.remove as jest.Mock).mockResolvedValue({
+        stream_id: 'a',
+        embeddings_purged: 0,
+      });
+      await controller.remove('a', {});
+      expect(emit).not.toHaveBeenCalled();
+    });
+
+    it('re-runs watched queries when a batch delete purges embeddings', async () => {
+      (shim.removeBatch as jest.Mock).mockResolvedValue({
+        accepted: 2,
+        rejected: 0,
+        items: [],
+      });
+      await controller.removeBatch(
+        { stream_ids: ['a', 'b'] } as never,
+        { purge_embeddings: true },
+      );
+      expect(emit).toHaveBeenCalledWith(SearchEvents.EMBEDDINGS_UPDATE);
+    });
+
+    it('does not re-run watched queries when a batch delete keeps embeddings', async () => {
+      (shim.removeBatch as jest.Mock).mockResolvedValue({
+        accepted: 2,
+        rejected: 0,
+        items: [],
+      });
+      await controller.removeBatch({ stream_ids: ['a', 'b'] } as never, {});
+      expect(emit).not.toHaveBeenCalled();
     });
 
     it('forwards list filters', async () => {
