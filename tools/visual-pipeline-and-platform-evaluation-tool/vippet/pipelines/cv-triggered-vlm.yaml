@@ -7,12 +7,12 @@ definition: >
 tags:
   - GenAi
   - Safety and Security
-thumbnail: images/cv-triggered-vlm.png
+thumbnail: images/cv-triggered-vlm-pipeline.png
 type: vision
 variants:
   - name: CPU
     pipeline_description: >-
-      filesrc location=/videos/input/auto/people.mp4 !
+      filesrc location=/videos/input/auto/cross_walk.mp4 !
       decodebin3 !
       videoconvert !
       gvadetect model=/models/output/ultralytics/public/yolo11s/INT8/yolo11s.xml device=CPU !
@@ -34,16 +34,16 @@ variants:
       filesink location=/videos/output/cv_triggered_vlm.mp4
       t. !
       queue leaky=downstream max-size-buffers=1 flush-on-eos=true !
-      gvaproximitytrigger_py class-a=person class-b=bicycle distance=150 frames=10 !
+      gvaproximitytrigger_py class-a=car class-b=person distance=150 frames=10 !
       videoconvertscale !
       video/x-raw,width=796,height=448 !
-      gvagenai model-path=/models/output/openvino_models/cpu/int4/OpenGVLab/InternVL2-2B device=CPU prompt="Are people riding on bicycles? Answer yes or no." generation-config="max_new_tokens=10" chunk-size=1 metrics=true !
+      gvagenai model-path=/models/output/openvino_models/cpu/int4/OpenGVLab/InternVL2-2B device=CPU prompt="Does the car hit a person?" generation-config="max_new_tokens=10" chunk-size=1 metrics=true !
       gvametapublish file-format=json-lines file-path=/metadata/cv_triggered_vlm.jsonl !
       jpegenc !
       multifilesink location=/images/output/vlm_frame_%05d.jpeg async=false
   - name: GPU
     pipeline_description: >-
-      filesrc location=/videos/input/auto/people.mp4 !
+      filesrc location=/videos/input/auto/cross_walk.mp4 !
       decodebin3 !
       gvadetect model=/models/output/ultralytics/public/yolo11s/INT8/yolo11s.xml device=GPU !
       queue !
@@ -63,10 +63,10 @@ variants:
       filesink location=/videos/output/cv_triggered_vlm.mp4
       t. !
       queue leaky=downstream max-size-buffers=1 flush-on-eos=true !
-      gvaproximitytrigger_py class-a=person class-b=bicycle distance=150 frames=10 !
+      gvaproximitytrigger_py class-a=car class-b=person distance=150 frames=10 !
       vapostproc !
       video/x-raw,width=796,height=448 !
-      gvagenai model-path=/models/output/openvino_models/gpu/int4/OpenGVLab/InternVL2-2B device=GPU prompt="Are people riding on bicycles? Answer yes or no." generation-config="max_new_tokens=10" chunk-size=1 metrics=true !
+      gvagenai model-path=/models/output/openvino_models/gpu/int4/OpenGVLab/InternVL2-2B device=GPU prompt="Does the car hit a person?" generation-config="max_new_tokens=10" chunk-size=1 metrics=true !
       gvametapublish file-format=json-lines file-path=/metadata/cv_triggered_vlm.jsonl !
       jpegenc !
       multifilesink location=/images/output/vlm_frame_%05d.jpeg async=false

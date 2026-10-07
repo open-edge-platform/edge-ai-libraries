@@ -151,13 +151,33 @@ const NodeDataPanel = ({
   );
 
   const videoOptions = useMemo<SelectOption[]>(
-    () =>
-      filterOutTransportStreams(videos).map((video) => ({
-        label: video.filename,
+    () => {
+      const isCvTriggeredVlm =
+        (pipelineId ?? "").trim().toLowerCase() === "cv-triggered-vlm";
+
+      const options = filterOutTransportStreams(videos).map((video) => ({
+        label:
+          isCvTriggeredVlm && video.filename === "cross"
+            ? "cross_walk.mp4"
+            : video.filename,
         value: video.filename,
         id: video.filename,
-      })),
-    [videos],
+      }));
+
+      if (
+        isCvTriggeredVlm &&
+        !options.some((option) => option.value === "cross_walk.mp4")
+      ) {
+        options.unshift({
+          label: "cross_walk.mp4",
+          value: "cross_walk.mp4",
+          id: "cross_walk.mp4",
+        });
+      }
+
+      return options;
+    },
+    [pipelineId, videos],
   );
 
   const imageSetOptions = useMemo<SelectOption[]>(
@@ -201,6 +221,25 @@ const NodeDataPanel = ({
         nextData.source = currentSource;
         shouldSyncNodeData = true;
       }
+
+      if (normalizedKind === "video") {
+        const isCvTriggeredVlm =
+          (pipelineId ?? "").trim().toLowerCase() === "cv-triggered-vlm";
+        const preferredSource = isCvTriggeredVlm
+          ? videoOptions.find((option) =>
+              ["cross_walk.mp4", "cross"].includes(option.value),
+            )
+          : undefined;
+        const defaultSource =
+          preferredSource?.value ??
+          (!currentSource ? getDefaultSourceValue(videoOptions) : "");
+
+        if (defaultSource && defaultSource !== currentSource) {
+          nextData.source = defaultSource;
+          nextData.location = defaultSource;
+          shouldSyncNodeData = true;
+        }
+      }
     }
 
     if (selectedNode.type === "gvatrack") {
@@ -223,7 +262,7 @@ const NodeDataPanel = ({
     if (shouldSyncNodeData) {
       onNodeDataUpdate(selectedNode.id, nextData);
     }
-  }, [onNodeDataUpdate, selectedNode, trackingOptions]);
+  }, [onNodeDataUpdate, pipelineId, selectedNode, trackingOptions, videoOptions]);
 
   const getDefaultSourceValue = (options: SelectOption[]): string => {
     const firstAvailableOption = options.find(
