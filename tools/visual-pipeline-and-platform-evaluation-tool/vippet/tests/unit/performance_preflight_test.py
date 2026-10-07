@@ -160,7 +160,9 @@ class TestPerformancePreflight(unittest.TestCase):
     def test_fatal_preflight_uses_dedicated_exit_code(
         self, _mock_wait: Mock, mock_exit: Mock
     ) -> None:
-        preflight.run_preflight_or_exit("http://localhost/api/v1", 60, 2, 10)
+        preflight.run_preflight_or_exit(
+            "http://localhost/api/v1", 60, 2, 10, client=Mock(spec=httpx.Client)
+        )
 
         mock_exit.assert_called_once_with(
             "service unavailable", returncode=preflight.FATAL_PREFLIGHT_EXIT_CODE
@@ -238,27 +240,8 @@ class TestFetchDiscoveredDevices(unittest.TestCase):
         self.assertEqual(result, [])
         self.assertIn("/devices: FAILED", reports[-1])
 
-    def test_closes_owned_client_when_none_provided(self) -> None:
-        devices = [{"device_name": "CPU", "full_device_name": "Some CPU"}]
-        created_clients: list[httpx.Client] = []
-        real_client_cls = httpx.Client
-
-        def handler(_request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json=devices)
-
-        def fake_client_ctor(**_kwargs: object) -> httpx.Client:
-            created = real_client_cls(transport=httpx.MockTransport(handler))
-            created_clients.append(created)
-            return created
-
-        with patch.object(preflight.httpx, "Client", side_effect=fake_client_ctor):
-            result = preflight.fetch_discovered_devices("http://localhost/api/v1", 10)
-
-        self.assertEqual(result, devices)
-        self.assertEqual(len(created_clients), 1)
-        self.assertTrue(created_clients[0].is_closed)
-
-    def test_does_not_close_externally_provided_client(self) -> None:
+    def test_does_not_close_caller_owned_client(self) -> None:
+        """The fetcher must never close a client it did not open."""
         devices = [{"device_name": "CPU", "full_device_name": "Some CPU"}]
 
         def handler(_request: httpx.Request) -> httpx.Response:
@@ -270,6 +253,119 @@ class TestFetchDiscoveredDevices(unittest.TestCase):
             )
             self.assertEqual(result, devices)
             self.assertFalse(client.is_closed)
+
+
+class TestFetchCapabilities(unittest.TestCase):
+    """Unit tests for the /api/v1/capabilities snapshot captured at pre-flight time."""
+
+    def test_returns_payload_on_success(self) -> None:
+        payload = {"platform": {"os": "Linux", "kernel": "6.6.0"}}
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=payload)
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_capabilities(
+                "http://localhost:9090/api/v1/capabilities",
+                10,
+                client=client,
+                report=reports.append,
+            )
+
+        self.assertEqual(result, payload)
+        self.assertIn(": OK", reports[0])
+
+    def test_returns_empty_dict_on_unreachable_endpoint(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("connection refused", request=request)
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_capabilities(
+                "http://localhost:9090/api/v1/capabilities",
+                10,
+                client=client,
+                report=reports.append,
+            )
+
+        self.assertEqual(result, {})
+        self.assertIn(": FAILED", reports[-1])
+        self.assertIn("ConnectError", reports[-1])
+
+    def test_returns_empty_dict_on_non_object_payload(self) -> None:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=["not", "an", "object"])
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_capabilities(
+                "http://localhost:9090/api/v1/capabilities",
+                10,
+                client=client,
+                report=reports.append,
+            )
+
+        self.assertEqual(result, {})
+        self.assertIn("expected an object, got list", reports[-1])
+
+    def test_returns_empty_dict_on_http_error_status(self) -> None:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(500, json={"message": "boom"})
+
+        with _client(handler) as client:
+            result = preflight.fetch_capabilities(
+                "http://localhost:9090/api/v1/capabilities", 10, client=client
+            )
+
+        self.assertEqual(result, {})
+
+
+class TestFetchVippetVersion(unittest.TestCase):
+    """Unit tests for the ViPPET version captured from GET /status at pre-flight time."""
+
+    def test_returns_version_on_success(self) -> None:
+        requested_paths: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requested_paths.append(request.url.path)
+            return httpx.Response(200, json={"version": "2026.2.0-rc2"})
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_vippet_version(
+                "http://localhost/api/v1", 10, client=client, report=reports.append
+            )
+
+        self.assertEqual(requested_paths, ["/api/v1/status"])
+        self.assertEqual(result, "2026.2.0-rc2")
+        self.assertIn(": OK", reports[0])
+
+    def test_returns_unknown_on_unreachable_endpoint(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("connection refused", request=request)
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_vippet_version(
+                "http://localhost/api/v1", 10, client=client, report=reports.append
+            )
+
+        self.assertEqual(result, "Unknown")
+        self.assertIn(": FAILED", reports[-1])
+
+    def test_returns_unknown_when_version_field_missing(self) -> None:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"status": "ready"})
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_vippet_version(
+                "http://localhost/api/v1", 10, client=client, report=reports.append
+            )
+
+        self.assertEqual(result, "Unknown")
+        self.assertIn("missing 'version' field", reports[-1])
 
 
 if __name__ == "__main__":

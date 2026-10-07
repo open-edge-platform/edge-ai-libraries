@@ -50,6 +50,10 @@ METRICS_SAMPLE_INTERVAL: float = float(
     )
 )
 
+CAPABILITIES_URL: str = os.environ.get("VIPPET_CAPABILITIES_URL") or str(
+    _METRICS_CFG.get("capabilities_url", "http://localhost:9090/api/v1/capabilities")
+)
+
 # --- benchmark section ---
 _BENCHMARK_CFG: dict[str, Any] = _PERF_YAML.get("benchmark", {})
 _EXECUTION_CFG: dict[str, Any] = _BENCHMARK_CFG.get("execution", {})

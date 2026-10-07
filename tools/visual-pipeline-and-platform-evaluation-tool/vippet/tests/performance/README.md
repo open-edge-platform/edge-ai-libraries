@@ -33,14 +33,15 @@ python -m pytest -m perf --junitxml=results/perf.xml vippet/tests/performance/
 
 Test parameters are controlled via YAML config files in `config/` and environment variables:
 
-| Env var                 | Default                           | Description                                |
-|-------------------------|-----------------------------------|--------------------------------------------|
-| `VIPPET_BASE_URL`       | `http://localhost/api/v1`         | VIPPET API endpoint                        |
-| `VIPPET_METRICS_URL`    | `http://localhost/metrics/stream` | Metrics endpoint (via nginx proxy)         |
-| `PERF_CONFIG`           | `default`                         | Config preset (`default`, `quick`, `full`) |
-| `PERF_RESULTS_DIR`      | `./results`                       | Output directory for reports               |
-| `PERF_METRICS_INTERVAL` | `2.0`                             | HW sampling interval (seconds)             |
-| `PERF_ON_UNKNOWN_ID`    | `fail`                            | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning |
+| Env var                   | Default                                     | Description                                                                                                                    |
+|---------------------------|---------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `VIPPET_BASE_URL`         | `http://localhost/api/v1`                   | VIPPET API endpoint                                                                                                            |
+| `VIPPET_METRICS_URL`      | `http://localhost/metrics/stream`           | Metrics endpoint (via nginx proxy)                                                                                             |
+| `VIPPET_CAPABILITIES_URL` | `http://localhost:9090/api/v1/capabilities` | metrics-manager capabilities endpoint (direct, not nginx-proxied)                                                              |
+| `PERF_CONFIG`             | `default`                                   | Config preset (`default`, `quick`, `full`)                                                                                     |
+| `PERF_RESULTS_DIR`        | `./results`                                 | Output directory for reports                                                                                                   |
+| `PERF_METRICS_INTERVAL`   | `2.0`                                       | HW sampling interval (seconds)                                                                                                 |
+| `PERF_ON_UNKNOWN_ID`      | `fail`                                      | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning |
 
 ## Layout
 
@@ -50,6 +51,8 @@ pytest.ini                  # markers and pythonpath
 test_pipeline_performance.py  # test module
 perf_helpers/
 ├── config.py               # env-var-driven constants
+├── preflight.py            # readiness checks + /devices, /capabilities, /status snapshots
+├── system_info.py          # builds the report's System info block
 ├── hw_monitor.py           # background HW metric sampler
 └── reporters.py            # JSON/CSV export + HTML report generation
 config/

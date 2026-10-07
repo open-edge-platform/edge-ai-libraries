@@ -76,6 +76,9 @@ metrics:
   # Sampling interval in seconds while a job runs
   sample_interval_seconds: 2.0
 
+  # metrics-manager capabilities endpoint, override with VIPPET_CAPABILITIES_URL env var
+  capabilities_url: "http://localhost:9090/api/v1/capabilities"
+
 # Results configuration
 results:
   # Output directory for benchmark results
