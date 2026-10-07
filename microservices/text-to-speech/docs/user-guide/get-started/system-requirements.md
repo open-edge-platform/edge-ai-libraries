@@ -2,7 +2,7 @@
 
 ## Hardware Requirements
 
-- **CPU**: x86_64. Intel Core Ultra (Meteor Lake) or newer is recommended.
+- **CPU**: x86_64. A recent Intel Core Ultra processor is recommended.
   Older Intel Core / Xeon processors will run the service but may be slower
   on OpenVINO inference paths.
 - **Memory**: 16 GB RAM minimum. 32 GB recommended when using larger TTS
@@ -11,16 +11,18 @@
 - **Disk**: 20 GB free SSD space recommended for model assets, the Hugging
   Face cache, and per-session storage. NVMe is preferred for faster
   first-run model download and conversion.
-- **GPU (optional)**: Intel integrated GPU (Meteor Lake or newer iGPU) or
-  a supported discrete GPU exposed via `/dev/dri` for the OpenVINO `GPU`
-  device path.
+- **GPU (optional)**: Intel integrated GPU or a supported discrete GPU
+  exposed via `/dev/dri` for the OpenVINO `GPU` device path.
+- **NPU**: not currently supported by any TTS model in this service. See
+  [Configuration > NPU](./configuration.md#npu) for details.
 
 | Device                | Minimum              | Recommended                                                                                         |
 | --------------------- | -------------------- | --------------------------------------------------------------------------------------------------- |
-| CPU                   | x86_64               | Intel Core Ultra (Meteor Lake) or newer                                                             |
+| CPU                   | x86_64               | Recent Intel Core Ultra processor                                                                   |
 | Memory                | 16 GB RAM            | 32 GB RAM                                                                                           |
 | Disk                  | 20 GB free SSD space | NVMe storage                                                                                        |
-| GPU (optional)        | Not applicable       | Intel integrated GPU (Meteor Lake or newer iGPU) or a supported discrete GPU exposed via `/dev/dri` |
+| GPU (optional)        | Not applicable       | Intel integrated GPU or a supported discrete GPU exposed via `/dev/dri`                              |
+| NPU                   | Not supported        | Not supported (see [Configuration > NPU](./configuration.md#npu))                                    |
 
 ## Software Requirements
 

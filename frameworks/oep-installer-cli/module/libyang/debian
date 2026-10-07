@@ -6,7 +6,7 @@ configure_libyang () {
 }
   
 debian_40_profile_libyang () {
-  echo "cmake make"
+  echo "cmake make git"
 }
 
 verify_libyang () {

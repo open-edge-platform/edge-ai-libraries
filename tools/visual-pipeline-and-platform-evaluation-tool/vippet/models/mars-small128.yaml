@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+name: mars-small128
+display_name: Mars Small128 Re-ID
+description: "Person re-identification feature extractor (Mars/DeepSORT) that generates a 128-dimensional appearance embedding used to match and track the same person across frames and cameras."
+source: public
+hub: ultralytics
+type: image_classification
+precisions:
+  - precision: FP32
+    model_path: ultralytics/public/mars-small128/mars_small128_fp32.xml
+    model_proc: ""
+  - precision: INT8
+    model_path: ultralytics/public/mars-small128/mars_small128_int8.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: mars-small128

@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+name: ch_PP-OCRv4_rec_infer
+display_name: PaddleOCR
+description: "PaddleOCR v4 text-recognition model that reads and transcribes character sequences from cropped text regions, supporting Chinese and English optical character recognition."
+source: public
+hub: ultralytics
+type: image_classification
+precisions:
+  - precision: FP32
+    model_path: ultralytics/public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: ch_PP-OCRv4_rec_infer
