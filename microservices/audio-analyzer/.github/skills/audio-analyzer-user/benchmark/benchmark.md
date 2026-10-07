@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Skill Benchmark: audio-analyzer-user
 
-**Agent**: GitHub Copilot (Claude Sonnet 5) — single-model self-evaluation
+**Agents**: GitHub Copilot (Claude Sonnet 5) — single-model self-evaluation
 **Grader**: GitHub Copilot (Claude Sonnet 5) — same session, self-graded
 **Date**: 2026-10-07
 **Evals**: 1–8 (1 reasoned pass per configuration)

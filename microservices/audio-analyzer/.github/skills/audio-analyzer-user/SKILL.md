@@ -96,6 +96,28 @@ Read a reference file only when you need the detail it contains:
 
 ## Procedure
 
+### Execution Overview
+
+Steps run in sequence — each step's output narrows the choices in the next one.
+
+```
+Step 0 (gather requirements — interactive)
+  │
+  ▼
+Step 1 (pick the endpoint)
+  │
+  ▼
+Step 2 (compose the request)
+  │
+  ▼
+Step 3 (handle the response shape)
+  │
+  ▼
+Step 4 (verify + next steps)
+```
+
+---
+
 ### Step 0 — Gather Requirements
 
 | Required | What to look for | Default if absent |

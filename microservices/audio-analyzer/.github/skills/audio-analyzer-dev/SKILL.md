@@ -19,11 +19,6 @@ argument-hint: >
   GPU acceleration" or "enable speaker diarization with my HF token")
 ---
 
-<!--
-SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-SPDX-License-Identifier: Apache-2.0
--->
-
 # Audio Analyzer Developer Skill
 
 Help developers and operators build, configure, deploy, and troubleshoot the

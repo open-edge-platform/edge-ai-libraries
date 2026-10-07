@@ -96,6 +96,32 @@ Read a reference file only when you need the detail it contains:
 
 ## Procedure
 
+### Execution Overview
+
+Steps run in sequence — confirming the deployed model in Step 1 determines which
+request fields are valid when composing the request in Step 3.
+
+```
+Step 0 (gather requirements — interactive)
+  │
+  ▼
+Step 1 (confirm deployed model)
+  │
+  ▼
+Step 2 (pick the endpoint)
+  │
+  ▼
+Step 3 (compose the request)
+  │
+  ▼
+Step 4 (handle the response shape)
+  │
+  ▼
+Step 5 (verify + next steps)
+```
+
+---
+
 ### Step 0 — Gather Requirements
 
 | Required | What to look for | Default if absent |

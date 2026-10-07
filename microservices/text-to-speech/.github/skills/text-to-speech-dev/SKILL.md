@@ -18,11 +18,6 @@ argument-hint: >
   Qwen3-TTS on GPU" or "switch the default model to SpeechT5")
 ---
 
-<!--
-SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-SPDX-License-Identifier: Apache-2.0
--->
-
 # Text To Speech Developer Skill
 
 Help developers and operators build, configure, deploy, and troubleshoot the
