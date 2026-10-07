@@ -84,20 +84,6 @@ override and rely on the service default.
 
 ---
 
-## VSS-Compatible `POST /transcriptions` Returns 503
-
-**Symptom:** A MinIO-source request (`minio_bucket`/`video_id`/`video_name`)
-to `/transcriptions` or `/api/v1/transcriptions` returns 503.
-
-**Cause:** `minio.endpoint` is empty in the deployed service's
-configuration — MinIO support is disabled by design until configured.
-
-**Fix:** This requires the deployment operator to configure
-`minio.endpoint`/`access_key`/`secret_key`. A direct file upload to the same
-endpoint works regardless of MinIO configuration.
-
----
-
 ## Port Confusion (8010 vs. 8000)
 
 **Symptom:** A client built against VSS's own Compose assumes port `8000`,

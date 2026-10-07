@@ -163,30 +163,25 @@ configured model (`models.asr.name`).
 
 ### `POST /transcriptions` / `POST /api/v1/transcriptions`
 
-Accepts either a direct file upload **or** a MinIO source, not both.
+Accepts a direct file upload.
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `file` | If not using MinIO source | Video/audio upload |
-| `minio_bucket` | If not uploading a file | MinIO bucket with the source video |
-| `video_id` | If not uploading a file | Prefix/ID of the object within the bucket |
-| `video_name` | If not uploading a file | Name of the object within the bucket |
+| `file` | Yes | Video/audio upload |
 | `device` | No | Accepted for request-shape parity; informational only |
 | `model_name` | No | Accepted for request-shape parity; informational only |
 | `include_timestamps` | No | `true` (VSS default) → uploads transcript as SRT; `false` → plain text |
 | `language` | No, query param | Language hint |
 
-With a MinIO source, the service downloads the object, transcribes it, and
-uploads the transcript back into the **same bucket** at
-`{video_id}/{video_name-stem}.{srt|txt}`. If `minio.endpoint` is empty on the
-server, a MinIO-source request returns `503`.
+The service transcribes the upload and returns the transcript inline in the
+response.
 
 ```json
 {
   "status": "completed",
   "message": "Transcription completed successfully",
   "job_id": "20260720-123456-ab12",
-  "transcript_path": "minio://my-bucket/video-1/clip.srt",
+  "transcript_path": "clip.srt",
   "video_name": "clip.mp4",
   "video_duration": 45.2
 }

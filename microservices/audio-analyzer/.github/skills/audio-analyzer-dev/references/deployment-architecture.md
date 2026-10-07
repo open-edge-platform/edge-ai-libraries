@@ -15,7 +15,6 @@ passthrough for the Audio Analyzer microservice.
 3. [Volumes and Storage Layout](#volumes-and-storage-layout)
 4. [Device Passthrough (GPU/NPU)](#device-passthrough-gpunpu)
 5. [Image Build vs. Pull](#image-build-vs-pull)
-6. [MinIO as an External Dependency](#minio-as-an-external-dependency)
 
 ---
 
@@ -75,8 +74,7 @@ Key points:
 - `healthcheck.start_period` is intentionally long (240s) because warming up
   a Whisper model on GPU can take up to ~120s; a tighter window would flap
   the container to `unhealthy` during normal boot.
-- No `depends_on` — this is a single-service deployment. MinIO, if used, is
-  external (see below).
+- No `depends_on` — this is a single-service deployment.
 
 ---
 
@@ -146,28 +144,3 @@ service:
 `.env` controls `REGISTRY` (default `intel`) and `RELEASE_TAG` (pinned to the
 current release, e.g. `2026.2.0`). Never leave an image reference on
 `:latest` in a committed Compose override meant for production use.
-
----
-
-## MinIO as an External Dependency
-
-MinIO is **not** a service in `docker-compose.yml` and is never started,
-bundled, or managed by Audio Analyzer. It only matters for the
-VSS-compatibility endpoint `POST /transcriptions` when the caller supplies a
-`minio_bucket`/`video_id`/`video_name` source instead of a direct file
-upload.
-
-To wire it up for a deployment:
-1. Run MinIO as its own container or use an existing deployment, reachable
-   from the Audio Analyzer container's network.
-2. Supply `minio.endpoint` / `minio.access_key` / `minio.secret_key` /
-   `minio.secure` either by editing the bind-mounted `config.yaml` directly,
-   or by adding `AUDIO_ANALYZER__MINIO__*` variables under
-   `services.audio-analyzer.environment` in `docker-compose.yml` — values
-   placed only in `.env` are **not** auto-forwarded into the container unless
-   referenced there explicitly.
-3. If `minio.endpoint` is left empty, a MinIO-source request to
-   `POST /transcriptions` returns `503`.
-
-See [model-and-device-config.md](./model-and-device-config.md) for the full
-config key reference.

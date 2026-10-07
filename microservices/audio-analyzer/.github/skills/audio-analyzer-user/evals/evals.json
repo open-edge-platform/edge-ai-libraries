@@ -88,7 +88,6 @@
         "States that /transcriptions (and /api/v1/transcriptions) is the VSS-compatible contract, not OpenAI-compatible.",
         "Describes the VSS response shape as a job-status object (status/job_id/transcript_path), not an OpenAI transcript body.",
         "Recommends POST /v1/audio/transcriptions for OpenAI-SDK-compatible output.",
-        "Mentions that /transcriptions can also accept a MinIO source instead of a direct file.",
         "Does not suggest the service is broken."
       ]
     },

@@ -69,7 +69,7 @@ override with `AUDIO_ANALYZER_SERVER_PORT`, do not edit the image.
 | Sending raw file bytes or arbitrary PCM to `/v1/realtime` | Only base64-encoded **PCM16, mono** frames via `input_audio_buffer.append`; the service does not resample |
 | Expecting `/v1/audio/transcriptions/stream` to accept a `device` override | Only `POST /v1/audio/transcriptions` (single-response and `stream=true`) accepts the per-request `device` field |
 | Hardcoding port 8000 for local/direct use | Local/direct default is **`8010`**; `8000` only applies to VSS's own Compose mapping |
-| Treating `/transcriptions` (no `/v1`) as OpenAI-compatible | That is the VSS-compatible route; it accepts MinIO sources and returns a VSS-shaped job response, not OpenAI's shape |
+| Treating `/transcriptions` (no `/v1`) as OpenAI-compatible | That is the VSS-compatible route; it returns a VSS-shaped job response, not OpenAI's shape |
 | Assuming the realtime socket captures the microphone itself | The service never captures audio locally — the client owns capture and streams PCM16 frames to the service |
 
 ---
@@ -82,7 +82,7 @@ Read a reference file only when you need the detail it contains:
 |-----------|-------------|
 | [endpoint-reference.md](./references/endpoint-reference.md) | Full request/response fields for all four ingestion modes plus VSS-compatible routes |
 | [realtime-streaming-guide.md](./references/realtime-streaming-guide.md) | WebSocket event protocol, VAD/turn-detection tuning, client code pattern |
-| [integration-troubleshooting.md](./references/integration-troubleshooting.md) | Client-side mistakes: format/stream conflicts, session handling, device rejection, MinIO 503 |
+| [integration-troubleshooting.md](./references/integration-troubleshooting.md) | Client-side mistakes: format/stream conflicts, session handling, device rejection |
 
 ## Example Prompts
 
@@ -205,4 +205,4 @@ If the request fails, read
 [integration-troubleshooting.md](./references/integration-troubleshooting.md)
 before guessing — most client-side failures map to a small, specific set of
 known causes (format/stream conflict, wrong audio encoding on the WebSocket,
-missing MinIO config, unsupported device override).
+unsupported device override).

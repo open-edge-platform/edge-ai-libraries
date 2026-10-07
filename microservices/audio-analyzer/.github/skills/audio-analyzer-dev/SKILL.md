@@ -6,14 +6,14 @@ description: >
   Docker Compose or on the host; build the image from source; select an ASR
   provider and device (openai/openvino/whispercpp on CPU/GPU/NPU); enable
   speaker diarization or voice sentiment; wire Docker volumes, device
-  passthrough (`/dev/dri`, `ACCEL_MOUNT_PATH`), or the external MinIO
-  dependency; tune `config.yaml` and `AUDIO_ANALYZER__...` overrides; or
-  debug a startup, permission, GPU/NPU-visibility, or stuck-model failure.
-  Trigger on phrases like "deploy audio analyzer", "run audio-analyzer in
-  docker", "build audio-analyzer image", "enable NPU", "enable diarization",
-  "configure whisper model", "GPU not detected", "permission denied storage",
-  "audio analyzer won't start", "whisper-large NPU error", "set up MinIO for
-  transcripts", or "run audio-analyzer tests".
+  passthrough (`/dev/dri`, `ACCEL_MOUNT_PATH`); tune `config.yaml` and
+  `AUDIO_ANALYZER__...` overrides; or debug a startup, permission,
+  GPU/NPU-visibility, or stuck-model failure. Trigger on phrases like
+  "deploy audio analyzer", "run audio-analyzer in docker", "build
+  audio-analyzer image", "enable NPU", "enable diarization", "configure
+  whisper model", "GPU not detected", "permission denied storage", "audio
+  analyzer won't start", "whisper-large NPU error", or "run audio-analyzer
+  tests".
 argument-hint: >
   Describe what you want to deploy or debug (e.g. "deploy audio-analyzer with
   GPU acceleration" or "enable speaker diarization with my HF token")
@@ -34,7 +34,6 @@ Audio Analyzer microservice.
 - Enabling speaker diarization (Hugging Face gated model + token) or voice
   sentiment analysis
 - Wiring GPU (`/dev/dri`) or NPU (`ACCEL_MOUNT_PATH`) device passthrough
-- Configuring the external MinIO dependency for the VSS-compatible endpoint
 - Debugging a service that will not start, fails health checks, reports the
   wrong devices, or raises permission errors on mounted volumes
 - Running the project's pytest tiers (`tier1`/`tier2`/`tier3`)
@@ -57,7 +56,7 @@ Audio Analyzer microservice.
 |-----------|-------------|
 | [deployment-architecture.md](./references/deployment-architecture.md) | Compose service topology, volumes, device passthrough, config load order, image build vs. pull |
 | [model-and-device-config.md](./references/model-and-device-config.md) | ASR provider/device matrix, precision/weight_format, diarization and sentiment setup, per-request device override |
-| [troubleshooting-deployment.md](./references/troubleshooting-deployment.md) | Permission errors, GPU/NPU visibility, whisper-large NPU limitation, MinIO connectivity, slow first startup |
+| [troubleshooting-deployment.md](./references/troubleshooting-deployment.md) | Permission errors, GPU/NPU visibility, whisper-large NPU limitation, slow first startup |
 
 ## Example Prompts
 

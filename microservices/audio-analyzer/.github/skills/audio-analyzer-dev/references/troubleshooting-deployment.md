@@ -134,24 +134,6 @@ soft-fail behavior. Causes: `HF_TOKEN` not set, or the Pyannote model
 license not accepted on Hugging Face (one-time gate acceptance per
 account). The rest of the service keeps running normally.
 
-## MinIO Source Returns 503 or Cannot Connect
-
-- `503` means `minio.endpoint` is empty in the resolved config — MinIO
-  support is disabled by design until it is configured.
-- If configured but unreachable, check whether `.env`-only values were
-  actually forwarded: `docker-compose.yml` only passes environment variables
-  it explicitly lists under `services.audio-analyzer.environment`. Either
-  edit the bind-mounted `config.yaml` directly, or add
-  `AUDIO_ANALYZER__MINIO__*` entries explicitly to that `environment:` block.
-- Verify from inside the container:
-  ```bash
-  docker compose exec audio-analyzer python3 -c \
-    "import urllib.request; urllib.request.urlopen('http://minio-server:9000/minio/health/live', timeout=5).read()"
-  ```
-  If this fails but MinIO is otherwise reachable, check `http_proxy`/
-  `https_proxy`/`no_proxy` in the container environment — a proxy can block
-  container-to-container traffic even when the network path is fine.
-
 ## Microphone / `GET /devices` Returns Empty
 
 - Confirm ALSA capture devices exist on the host: `arecord -l`.
