@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "recording_id": "rec-001",
+  "media_path": "recordings/rec-001/media.mp4",
+  "timescale": 1000,
+  "samples": [
+    { "ordinal": 0, "capture_ts": "2026-09-21T00:00:00.000Z", "pts": 0, "dts": 0, "duration": 500, "offset": 0, "length": 0, "keyframe": true },
+    { "ordinal": 1, "capture_ts": "2026-09-21T00:00:00.500Z", "pts": 500, "dts": 500, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 2, "capture_ts": "2026-09-21T00:00:01.000Z", "pts": 1000, "dts": 1000, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 3, "capture_ts": "2026-09-21T00:00:01.500Z", "pts": 1500, "dts": 1500, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 4, "capture_ts": "2026-09-21T00:00:02.000Z", "pts": 2000, "dts": 2000, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 5, "capture_ts": "2026-09-21T00:00:02.500Z", "pts": 2500, "dts": 2500, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 6, "capture_ts": "2026-09-21T00:00:03.000Z", "pts": 3000, "dts": 3000, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 7, "capture_ts": "2026-09-21T00:00:03.500Z", "pts": 3500, "dts": 3500, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 8, "capture_ts": "2026-09-21T00:00:04.000Z", "pts": 4000, "dts": 4000, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 9, "capture_ts": "2026-09-21T00:00:04.500Z", "pts": 4500, "dts": 4500, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 10, "capture_ts": "2026-09-21T00:00:05.000Z", "pts": 5000, "dts": 5000, "duration": 500, "offset": 0, "length": 0, "keyframe": true },
+    { "ordinal": 11, "capture_ts": "2026-09-21T00:00:05.500Z", "pts": 5500, "dts": 5500, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 12, "capture_ts": "2026-09-21T00:00:06.000Z", "pts": 6000, "dts": 6000, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 13, "capture_ts": "2026-09-21T00:00:06.500Z", "pts": 6500, "dts": 6500, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 14, "capture_ts": "2026-09-21T00:00:07.000Z", "pts": 7000, "dts": 7000, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 15, "capture_ts": "2026-09-21T00:00:07.500Z", "pts": 7500, "dts": 7500, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 16, "capture_ts": "2026-09-21T00:00:08.000Z", "pts": 8000, "dts": 8000, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 17, "capture_ts": "2026-09-21T00:00:08.500Z", "pts": 8500, "dts": 8500, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 18, "capture_ts": "2026-09-21T00:00:09.000Z", "pts": 9000, "dts": 9000, "duration": 500, "offset": 0, "length": 0, "keyframe": false },
+    { "ordinal": 19, "capture_ts": "2026-09-21T00:00:09.500Z", "pts": 9500, "dts": 9500, "duration": 500, "offset": 0, "length": 0, "keyframe": false }
+  ]
+}

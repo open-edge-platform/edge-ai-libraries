@@ -4,42 +4,60 @@
 package api
 
 import (
+	"log/slog"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 
-	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api/common"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api/handler"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/logging"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/mediaaccess"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/record"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/replay"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/storage"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/stream"
 )
 
-// NewRouter builds the HTTP engine with the API mounted under /v1.
-func NewRouter(buffers stream.Bufferer, recordings *record.Service) *gin.Engine {
+// NewRouter creates the HTTP router used by the Stream Manager service,
+// built on Gin. It returns http.Handler (gin.Engine satisfies it) so
+// callers (production bootstrap and tests) don't need to depend on Gin
+// directly. version is reported by GET /v1/version; logger receives one
+// access-log line per request. mediaSigner may be nil, in which case
+// GET /v1/media/{token} rejects every request; it is non-nil whenever
+// STREAM_MANAGER_MEDIA_TOKEN_SECRET is configured, which is required for
+// the filesystem storage backend and optional for S3.
+func NewRouter(service *replay.RetrievalService, media storage.MediaStore, version string, logger *slog.Logger, mediaSigner *mediaaccess.Signer, buffers stream.Bufferer, recordings *record.Service) http.Handler {
+	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-	// adding global middlewares
-	router.Use(gin.Logger(), common.Recovery(), common.BodyLimit())
-	v1 := router.Group("/v1")
+	router.Use(logging.Middleware(logger), logging.Recovery(), handler.BodyLimit())
+
+	retrievalHandler := handler.NewRetrievalHandler(service, media)
+	mediaHandler := handler.NewMediaHandler(media, mediaSigner)
+
+	router.GET("/v1/health", handler.Health)
+	router.GET("/v1/version", handler.Version(version))
+	router.GET("/v1/replays/:recording_id/frame", retrievalHandler.GetFrame)
+	router.GET("/v1/replays/:recording_id/frame/url", retrievalHandler.GetFrameURL)
+	router.GET("/v1/replays/:recording_id/clip", retrievalHandler.GetClip)
+	router.GET("/v1/replays/:recording_id/clip/url", retrievalHandler.GetClipURL)
+	router.GET("/v1/media/:token", mediaHandler.GetMedia)
 
 	streams := handler.StreamHandler{Buffers: buffers}
-	streamRoutesWithID := v1.Group("/streams/:stream-id", common.RequireID("stream-id", "stream_not_found", "stream not found"))
-
-	v1.POST("/streams", streams.Create)
-	v1.GET("/streams", streams.List)
-	streamRoutesWithID.GET("", streams.Get)
-	streamRoutesWithID.DELETE("", streams.Delete)
-
-	// TODO: implement buffer resizing; PUT /streams/{stream-id}/buffer returns 501 until then.
-	streamRoutesWithID.PUT("/buffer", streams.UpdateBuffer)
+	router.POST("/v1/streams", streams.Create)
+	router.GET("/v1/streams", streams.List)
+	streamRoutes := router.Group("/v1/streams/:stream-id", handler.RequireID("stream-id", "stream_not_found", "stream not found"))
+	streamRoutes.GET("", streams.Get)
+	streamRoutes.DELETE("", streams.Delete)
+	streamRoutes.PUT("/buffer", streams.UpdateBuffer)
 
 	records := handler.RecordHandler{Records: recordings}
-	recordRoutesWithID := v1.Group("/records/:recording-id", common.RequireID("recording-id", "record_not_found", "record not found"))
+	router.POST("/v1/records/start", records.Start)
+	router.POST("/v1/records/stop", records.Stop)
+	router.GET("/v1/records", records.List)
+	recordRoutes := router.Group("/v1/records/:recording-id", handler.RequireID("recording-id", "record_not_found", "record not found"))
+	recordRoutes.GET("", records.Get)
+	recordRoutes.DELETE("", records.Delete)
 
-	v1.POST("/records/start", records.Start)
-	v1.POST("/records/stop", records.Stop)
-	v1.GET("/records", records.List)
-	recordRoutesWithID.GET("", records.Get)
-	recordRoutesWithID.DELETE("", records.Delete)
-
-	// Serving Swagger UI
 	router.GET("/docs/v1/*any", handler.ServeSwaggerUI)
 
 	return router
