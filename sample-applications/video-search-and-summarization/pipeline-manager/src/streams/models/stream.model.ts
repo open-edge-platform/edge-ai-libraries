@@ -105,9 +105,10 @@ export class LiveStreamCreateDto {
   sensor_id?: string;
 
   @ApiPropertyOptional({
-    description: 'Sample every Nth frame.',
+    description: 'Sample every Nth frame. Lower = denser capture, more load.',
     minimum: 1,
     maximum: 60,
+    example: 15,
   })
   @IsOptional()
   @Type(() => Number)
@@ -118,12 +119,18 @@ export class LiveStreamCreateDto {
 
   @ApiPropertyOptional({
     description: 'Enable object detection and crop extraction.',
+    example: true,
   })
   @IsOptional()
   @IsBoolean()
   enable_object_detection?: boolean;
 
-  @ApiPropertyOptional({ minimum: 0.1, maximum: 1.0 })
+  @ApiPropertyOptional({
+    description: 'Minimum detection score to keep a crop (0.1-1.0).',
+    minimum: 0.1,
+    maximum: 1.0,
+    example: 0.85,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -182,7 +189,12 @@ export class LiveStreamUpdateDto {
   @MaxLength(1024)
   description?: string;
 
-  @ApiPropertyOptional({ minimum: 1, maximum: 60 })
+  @ApiPropertyOptional({
+    description: 'Sample every Nth frame. Lower = denser capture, more load.',
+    minimum: 1,
+    maximum: 60,
+    example: 15,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -190,12 +202,20 @@ export class LiveStreamUpdateDto {
   @Max(60)
   frame_interval?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Enable object detection and crop extraction.',
+    example: true,
+  })
   @IsOptional()
   @IsBoolean()
   enable_object_detection?: boolean;
 
-  @ApiPropertyOptional({ minimum: 0.1, maximum: 1.0 })
+  @ApiPropertyOptional({
+    description: 'Minimum detection score to keep a crop (0.1-1.0).',
+    minimum: 0.1,
+    maximum: 1.0,
+    example: 0.85,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -216,7 +236,13 @@ export class LiveStreamUpdateDto {
 
   @ApiPropertyOptional({
     enum: CALLER_SETTABLE_STATES,
-    description: 'Only running (resume) and paused (pause) are accepted.',
+    example: LiveStreamState.PAUSED,
+    description:
+      'Change the ingestion state. Only two transitions are allowed here: ' +
+      '`running` resumes a paused stream, and `paused` pauses ingestion ' +
+      'without deregistering it. The other lifecycle states a stream reports ' +
+      'via GET - `pending`, `starting`, `reconnecting`, `error`, `stopped` - ' +
+      'are managed by the service and cannot be set through this API.',
   })
   @IsOptional()
   @IsIn(CALLER_SETTABLE_STATES as readonly string[])

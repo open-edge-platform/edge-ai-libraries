@@ -141,7 +141,25 @@ export class StreamsController {
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Register and start one RTSP stream.' })
-  @ApiResponse({ status: 202, description: 'Stream registered.' })
+  @ApiResponse({ status: 202, description: 'Stream registered and starting.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request (bad RTSP URL, parameters, or body).',
+  })
+  @ApiResponse({
+    status: 408,
+    description: 'The live stream service did not respond in time.',
+  })
+  @ApiResponse({
+    status: 502,
+    description: 'The live stream service returned an unexpected error.',
+  })
+  @ApiResponse({
+    status: 503,
+    description:
+      'Live stream ingestion is unavailable: no dataprep endpoint is ' +
+      'configured, or the maximum number of concurrent streams is running.',
+  })
   async create(@Body() body: LiveStreamCreateDto): Promise<LiveStreamRO> {
     try {
       const result = await this.$shim.create(body);
@@ -157,6 +175,28 @@ export class StreamsController {
   @Post('batch')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Register several RTSP streams in one call.' })
+  @ApiResponse({
+    status: 202,
+    description: 'Batch accepted; see each item for its per-stream result.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request body.',
+  })
+  @ApiResponse({
+    status: 408,
+    description: 'The live stream service did not respond in time.',
+  })
+  @ApiResponse({
+    status: 502,
+    description: 'The live stream service returned an unexpected error.',
+  })
+  @ApiResponse({
+    status: 503,
+    description:
+      'Live stream ingestion is unavailable: no dataprep endpoint is ' +
+      'configured, or the maximum number of concurrent streams is running.',
+  })
   async createBatch(
     @Body() body: LiveStreamBatchCreateDto,
   ): Promise<LiveStreamBatchRO> {
@@ -171,6 +211,19 @@ export class StreamsController {
 
   @Get()
   @ApiOperation({ summary: 'List registered live streams.' })
+  @ApiResponse({ status: 200, description: 'The list of live streams.' })
+  @ApiResponse({
+    status: 408,
+    description: 'The live stream service did not respond in time.',
+  })
+  @ApiResponse({
+    status: 502,
+    description: 'The live stream service returned an unexpected error.',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Live stream ingestion is unavailable: no dataprep endpoint is configured.',
+  })
   async list(
     @Query() query: LiveStreamListQueryDto,
   ): Promise<LiveStreamListRO> {
@@ -183,6 +236,20 @@ export class StreamsController {
 
   @Get(':streamId')
   @ApiOperation({ summary: 'Get one live stream.' })
+  @ApiResponse({ status: 200, description: 'The live stream record.' })
+  @ApiResponse({ status: 404, description: 'No live stream matches the given ID.' })
+  @ApiResponse({
+    status: 408,
+    description: 'The live stream service did not respond in time.',
+  })
+  @ApiResponse({
+    status: 502,
+    description: 'The live stream service returned an unexpected error.',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Live stream ingestion is unavailable: no dataprep endpoint is configured.',
+  })
   async get(@Param('streamId') streamId: string): Promise<LiveStreamRO> {
     try {
       return await this.$shim.get(streamId);
@@ -194,6 +261,24 @@ export class StreamsController {
   @Patch(':streamId')
   @ApiOperation({
     summary: 'Update a live stream, or pause/resume it via `state`.',
+  })
+  @ApiResponse({ status: 200, description: 'The updated live stream record.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid update (e.g. a non-settable field or state).',
+  })
+  @ApiResponse({ status: 404, description: 'No live stream matches the given ID.' })
+  @ApiResponse({
+    status: 408,
+    description: 'The live stream service did not respond in time.',
+  })
+  @ApiResponse({
+    status: 502,
+    description: 'The live stream service returned an unexpected error.',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Live stream ingestion is unavailable: no dataprep endpoint is configured.',
   })
   async update(
     @Param('streamId') streamId: string,
@@ -217,6 +302,21 @@ export class StreamsController {
       'Stop and deregister a live stream. Captured footage is retained ' +
       'unless the purge flags are set.',
   })
+  @ApiResponse({ status: 200, description: 'The stream was stopped and deregistered.' })
+  @ApiResponse({ status: 404, description: 'No live stream matches the given ID.' })
+  @ApiResponse({
+    status: 408,
+    description: 'The live stream service did not respond in time.',
+  })
+  @ApiResponse({
+    status: 502,
+    description:
+      'The live stream service returned an unexpected error, or a purge failed.',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Live stream ingestion is unavailable: no dataprep endpoint is configured.',
+  })
   async remove(
     @Param('streamId') streamId: string,
     @Query() purge: LiveStreamPurgeQueryDto,
@@ -236,6 +336,24 @@ export class StreamsController {
 
   @Delete()
   @ApiOperation({ summary: 'Stop and deregister several live streams.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Batch processed; see each item for its per-stream result.',
+  })
+  @ApiResponse({ status: 400, description: 'Invalid request body.' })
+  @ApiResponse({
+    status: 408,
+    description: 'The live stream service did not respond in time.',
+  })
+  @ApiResponse({
+    status: 502,
+    description:
+      'The live stream service returned an unexpected error, or a purge failed.',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Live stream ingestion is unavailable: no dataprep endpoint is configured.',
+  })
   async removeBatch(
     @Body() body: LiveStreamBatchDeleteDto,
     @Query() purge: LiveStreamPurgeQueryDto,
