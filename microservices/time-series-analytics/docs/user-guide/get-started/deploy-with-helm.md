@@ -10,7 +10,7 @@
   online tutorials to set up Kubernetes cluster on the web with host OS as Ubuntu 24.04.
 - For Helm installation, refer to [Helm website](https://helm.sh/docs/intro/install/)
 
-> **Note**
+> [!NOTE]
 > If Ubuntu Desktop is not installed on the target system, follow the instructions from Ubuntu to [install Ubuntu desktop](https://ubuntu.com/tutorials/install-ubuntu-desktop).
 
 ## Access to the helm charts - use one of the below options
@@ -19,24 +19,24 @@
 
 - Using pre-built helm charts:
 
-  Follow this procedure on the target system to install the package.
-  1. Download the Helm chart with the following command
+    Follow this procedure on the target system to install the package.
 
-     Replace `<date>` with the actual patch version date (e.g., `20260120` for January 20th, 2026).
+    1. Download the Helm chart with the following command
 
-     `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.2.0-<date>-weekly-helm`
+       Replace `<date>` with the actual patch version date (e.g., `20260120` for January 20th, 2026).
 
-  2. Extract the package using the following command
+        `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.3.0-<date>-weekly-helm`
 
-     `tar -xvzf ia-time-series-analytics-microservice-2026.2.0-<date>-weekly-helm.tgz`
-  - Get into the Helm directory
+    2. Extract the package using the following command
 
-    `cd ia-time-series-analytics-microservice`
+        `tar -xvzf ia-time-series-analytics-microservice-2026.3.0-<date>-weekly-helm.tgz`
 
-## Install Helm Charts
+    3. Get into the Helm directory
 
-> **Note:**
->
+        `cd ia-time-series-analytics-microservice`
+
+> [!NOTE]
+> 
 > - Uninstall the Helm charts if already installed.
 > - If the worker nodes are running behind proxy server, additionally
 >   set `env.HTTP_PROXY` and `env.HTTPS_PROXY` env the same way `env.TELEGRAF_INPUT_PLUGIN`

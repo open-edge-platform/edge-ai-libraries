@@ -16,7 +16,7 @@ Use the Video Search and Summarization (VSS) sample application to search throug
 This foundational sample application provides three modes:
 
 | Mode | Use To | Capability |
-|---|---|---|
+| --- | --- | --- |
 | Video Search ([overview](./how-it-works.md#video-search) and [how it works](./how-it-works/video-search.md)) | Find specific content within large video datasets through natural language. | Extract and index visual, audio, and textual features from video frames using the LangChain framework, multimodal embedding models, and agentic reasoning. Query using natural language or multi-modal models. |
 | Video Summarization ([overview](./how-it-works.md#video-summarization) and [how it works](./how-it-works/video-summarization.md)) | Create concise summaries of long-form videos or live streams, automatically. | Improve searchability. Combine insights from different data types using Generative AI Vision Language Models (VLMs), computer vision, and audio analysis. |
 | Combined Video Search and Summarization ([overview](./how-it-works.md#video-search-and-summarization) and [how it works](./how-it-works/video-search-and-summarization.md)) | Find specific content and create concise summaries of videos - ideal for a comprehensive video analysis. | Search quickly and directly over generated video summaries. Using the summary as a knowledge base makes the search results more relevant and accurate. |

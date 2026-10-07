@@ -29,12 +29,12 @@ verify_humanoid_imitation_learning () {
 debian_90_install_humanoid_imitation_learning () {
   configure_humanoid_imitation_learning "$@"
 
-  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reset-humanoid_imitation_learning "* ]]; then
+  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Humanoid - Imitation Learning is already installed. Skipping..."
   else
     # The base image bundles the OpenVINO dev stack, Intel GPU runtime, oneAPI
     # and a clone of edge-ai-suites; the sample image adds the policy packages.
-    ensure_disk_space 25000
+    ensure_disk_size 25000
     ensure_git_clone "$workspace" "$version" "$repository" samples/robotics/robotics-ai-suite-containers
 
     cd "$container_dir"

@@ -44,6 +44,7 @@ Build From Source <build-from-source.md>
 How to Integrate <agent-service-integration-guide.md>
 api-reference
 troubleshooting
-release-notes
+Release Notes <./release-notes.md>
+
 :::
 hide_directive-->

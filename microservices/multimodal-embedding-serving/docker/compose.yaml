@@ -44,6 +44,11 @@ services:
       - ${VIDEO_GROUP_ID:-44}
       - ${RENDER_GROUP_ID:-1002}
     restart: unless-stopped
+    # Headroom above the 1024 default for pooled shared-memory segments.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)"]
       interval: 10s

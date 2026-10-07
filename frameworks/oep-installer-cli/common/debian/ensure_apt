@@ -1,0 +1,84 @@
+
+# apt with apt update executed only once
+ensure_apt () {
+  while fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1; do
+    echo "Waiting for apt/unattended-upgrades to finish..." 1>&2
+    sleep 5
+  done
+
+  case "$1" in
+  update)
+    # apt-get update got executed only once unless -y is specified
+    [[ -e "${installer_state:?}"/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get "$@"
+    touch "$installer_state"/apt_update
+    ;;
+  autoremove|remove|purge)
+    # make sure the package list exists
+    local package_list=()
+    local options=()
+    for v in ${*:2}; do
+      if [[ "$v" = -* ]]; then
+        options+=($v)
+      else
+        package_list+=($v)
+      fi
+    done
+    if [ ${#package_list[*]} -gt 0 ]; then
+      local valid_packages=($(dpkg-query -W -f='${db:Status-Status} ${Package}\n' "${package_list[@]}" 2>/dev/null | awk '$1!="not-installed"{print $2}'))
+      if [ ${#valid_packages[*]} -gt 0 ]; then
+        ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get $1 -y ${options[*]} ${valid_packages[*]}
+      fi
+    fi
+    ;;
+  *)
+    # apt-get update runs at least once on the system before apt-get install
+    [ "$1" != "install" ] || [ -e "${installer_state:?}"/apt_update ] || ensure_apt update -y
+    ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get -y "$@"
+    ;;
+  esac
+}
+
+# check pacakge installation. add =<version> to check version.
+ensure_apt_is_installed () {
+  for pkg in $*; do
+    [ "$(dpkg-query -W -f='${db:Status-Status}' ${pkg%%=*} 2>/dev/null)" = "installed" ] || return 1
+    [[ "$pkg" != *=* ]] || [[ "$(dpkg-query -W -f='${Version}' ${pkg%%=*} 2>/dev/null)" = "${pkg#*=}"* ]] || return 1
+  done
+}
+
+# install simple package
+ensure_apt_install_package () {
+  if ensure_apt_is_installed "${@%%"*"}"; then
+    echo "${*%%=*} is/are already installed. Skipping..."
+  else
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y "$@"
+  fi
+}
+
+# check downgrades
+ensure_apt_allow_downgrades () {
+  local allow_downgrades=($1); shift
+  local dg downgrades=()
+  for dg in $(apt-get install -s "$@" | awk '
+/The following packages will be DOWNGRADED:/{flag=1;next}
+/^[^ ]/{flag=0}
+flag&&$1{for(i=1;i<=NF;i++)print$i}
+'); do
+    [[ " ${allow_downgrades[*]} " = *" $dg "* ]] || downgrades+=("$dg")
+  done
+  if [ ${#downgrades[*]} -gt 0 ]; then
+    echo "Detected unexpected downgrades: ${downgrades[*]}" 1>&2
+    return 3
+  fi
+}
+
+# add repositories
+ensure_apt_add_repository () {
+  local r
+  for r in "$@"; do
+    ensure_sudo add-apt-repository -y -n "$r"
+  done
+  ensure_apt update -y
+}
+
