@@ -141,7 +141,7 @@ agent_registry:
     depends_on: []
     prompt_section: POLICY
   - name: sensor_correlation
-    module: src.agents.sensor_correlation_agent
+    module: src.agents.generic_prompt_agent
     depends_on: [policy]
     prompt_section: SENSOR_CORRELATION
   - name: analysis
@@ -159,9 +159,16 @@ agent_registry:
 ```
 
 AQH validates that registry, builds the execution graph from it, and enforces
-dependency-safe ordering automatically. Your custom module only needs to
-export `run(context) -> dict`; no changes to AQH orchestration code are
-required.
+dependency-safe ordering automatically. `module` must still resolve to an
+importable Python module exposing `run(context) -> dict`; no changes to AQH
+orchestration code are required, but a new agent is not entirely code-free
+unless it reuses the built-in `src.agents.generic_prompt_agent` module shown
+above. That module is a generic, prompt-driven specialist: it reads its
+`[<prompt_section>]` block from the use-case prompt file (or a configured
+`instructions` fallback), threads in `depends_on` outputs and the detection
+summary, and asks the LLM one question — covering most custom-specialist
+use cases without writing new Python. Only agents needing logic beyond
+"ask the LLM with some JSON context" require a bespoke module.
 
 Custom-agent outputs surface additively:
 

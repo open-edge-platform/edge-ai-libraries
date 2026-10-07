@@ -201,7 +201,7 @@ services:
       start_period: 30s
 
   model-download:
-    image: intel/model-download:latest
+    image: intel/model-download:mcp-rc
     command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,openvino}
     container_name: aqh-model-download
     hostname: model-download

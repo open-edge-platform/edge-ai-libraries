@@ -124,6 +124,8 @@ def _make_agent_tool(
                 min_id=min_id,
                 max_id=max_id,
                 upstream_results=upstream_results,
+                agent_name=spec.name,
+                prompt_section=spec.prompt_section,
             )
             result = resolve_run_callable(spec)(context)
             return json.dumps(result, default=str)

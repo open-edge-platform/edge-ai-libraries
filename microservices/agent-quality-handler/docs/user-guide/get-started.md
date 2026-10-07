@@ -68,7 +68,7 @@ The `llm` profile additionally starts `aqh-ovms` and `model-download`. Starting 
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `LLM_MODEL_NAME` | Model name passed to the model-download service | `Qwen2.5-3B-Instruct` |
+| `LLM_MODEL_NAME` | Model name passed to the model-download service | `Qwen/Qwen2.5-3B-Instruct` |
 | `LLM_DEVICE` | Target inference device (`GPU`, `CPU`) | `GPU` |
 | `LLM_PRECISION` | Model quantization precision (`int8`, `int4`, `fp16`, …) | `int8` |
 | `USE_CASE_MODELS_DIR` | Optional host directory shared by model-download and OVMS | `aqh_model_cache` volume |

@@ -421,3 +421,45 @@ def test_invalid_registry_fails_fast_in_pipeline_and_startup(monkeypatch, tmp_pa
         meta_agent.run_pipeline(config_path=bad_module_path)
     with pytest.raises(AgentRegistryError, match="unimportable module"):
         main._build_output_store(bad_module_path)
+
+
+def test_generic_prompt_agent_registers_custom_specialist_with_zero_new_python(
+    monkeypatch, tmp_path
+):
+    """Prove a new agent can be added purely via config: ``module`` points at
+    the shared ``src.agents.generic_prompt_agent`` instead of a bespoke
+    hand-written module, and no new Python file is created for this test."""
+    config_path = _write_config(
+        tmp_path, _registry("src.agents.generic_prompt_agent")
+    )
+
+    monkeypatch.setenv("AGENT_MODE", "sequential")
+    monkeypatch.setenv("LLM_MODE", "fallback")
+    calls: list[str] = []
+    _install_builtin_success_agents(monkeypatch, calls)
+    monkeypatch.setattr(
+        "src.agents.generic_prompt_agent.storage_client.get_summary",
+        lambda **_kwargs: {"by_class": [{"label": "VibrationSpike"}]},
+    )
+
+    result = meta_agent.run_pipeline(config_path=config_path)
+
+    assert calls == ["policy", "analysis", "evidence", "ticketing"]
+    assert result["extra_agents"] == {
+        "sensor_correlation": {
+            "agent": "sensor_correlation",
+            "mode": "fallback",
+            "summary": {"by_class": [{"label": "VibrationSpike"}]},
+            "upstream_used": ["policy"],
+            "note": (
+                "No LLM configured (LLM_MODE=fallback); generic_prompt_agent cannot "
+                "evaluate custom instructions without a model, so this is a "
+                "deterministic echo of the inputs it would have sent."
+            ),
+        }
+    }
+    # Built-in agents are completely unaffected by the config-only addition.
+    assert result["policy"] == {"policy": "allow"}
+    assert result["analysis"] == {"analysis": "triaged"}
+    assert result["evidence"] == {"evidence": ["frame-7"]}
+    assert result["ticket"] == {"ticket": "INC-42"}

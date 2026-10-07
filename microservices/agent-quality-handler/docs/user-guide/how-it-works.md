@@ -185,7 +185,8 @@ registry entry is named `ticketing`, but its persisted output/API key remains
 ### Worked example: fused vision + sensor correlation
 
 The following registry matches the integration-tested example used for fused
-vision + sensor/timeseries defect reasoning:
+vision + sensor/timeseries defect reasoning. It uses the generic agent for
+`sensor_correlation`, so this is a copy/paste-ready, zero-new-Python example:
 
 ```yaml
 agent_registry:
@@ -194,7 +195,7 @@ agent_registry:
     depends_on: []
     prompt_section: POLICY
   - name: sensor_correlation
-    module: src.agents.sensor_correlation_agent
+    module: src.agents.generic_prompt_agent
     depends_on: [policy]
     prompt_section: SENSOR_CORRELATION
   - name: analysis

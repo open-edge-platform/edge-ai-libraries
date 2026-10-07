@@ -113,7 +113,11 @@ def _failed_dependencies(state: AgentState, spec: AgentSpec) -> AgentState | Non
     return {**state, "errors": [*state["errors"], detail]}
 
 
-def _context(state: AgentState, upstream_results: dict[str, dict] | None = None) -> AgentContext:
+def _context(
+    state: AgentState,
+    spec: AgentSpec,
+    upstream_results: dict[str, dict] | None = None,
+) -> AgentContext:
     return AgentContext(
         use_case_id=state["use_case_id"],
         config=state["config"],
@@ -121,6 +125,8 @@ def _context(state: AgentState, upstream_results: dict[str, dict] | None = None)
         min_id=state.get("min_id"),
         max_id=state.get("max_id"),
         upstream_results=upstream_results or {},
+        agent_name=spec.name,
+        prompt_section=spec.prompt_section,
     )
 
 
@@ -162,7 +168,7 @@ def _make_agent_node(spec: AgentSpec) -> Callable[[AgentState], AgentState]:
             for dependency in spec.depends_on
         }
         try:
-            result = run_agent(_context(state, upstream_results))
+            result = run_agent(_context(state, spec, upstream_results))
             return _store_agent_result(
                 state,
                 spec.name,

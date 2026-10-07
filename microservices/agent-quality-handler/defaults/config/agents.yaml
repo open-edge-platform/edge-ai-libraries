@@ -28,17 +28,16 @@ ticketing:
     low: [Obstacle]
 
 # Optional: config-driven agent registry
-#
 # If this key is omitted (or left empty), AQH uses the built-in registry:
 # policy, analysis, evidence, ticketing.
 # If you provide this key, declare the full registry for the use case.
-agent_registry:
+# agent_registry:
 #   - name: policy
 #     module: src.agents.policy_agent
 #     depends_on: []
 #     prompt_section: POLICY
 #   - name: sensor_correlation
-#     module: src.agents.sensor_correlation_agent
+#     module: src.agents.generic_prompt_agent
 #     depends_on: [policy]
 #     prompt_section: SENSOR_CORRELATION
 #   - name: analysis
@@ -54,3 +53,14 @@ agent_registry:
 #     depends_on: [policy, analysis]
 #     prompt_section: TICKETING
 # `prompt_section` defaults to the uppercased agent name when omitted.
+
+# Optional: per-agent config block for a generic_prompt_agent-backed entry.
+# Key must match the agent's `name` in agent_registry. `instructions` is
+# used only as a fallback when prompt_section isn't found in the use-case
+# prompt file; `max_tokens` bounds the LLM response (default 512).
+# sensor_correlation:
+#   max_tokens: 512
+#   instructions: >
+#     Correlate vibration/temperature sensor anomalies with the vision
+#     detections in context. Flag cases where both modalities agree.
+
