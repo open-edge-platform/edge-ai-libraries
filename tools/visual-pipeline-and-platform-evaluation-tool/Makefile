@@ -6,9 +6,10 @@ SHELL := bash -eu -o pipefail
 # default goal to show help
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
-	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
+	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator shell-dlsps stop clean clean-output-videos help \
 	build-videogenerator build-onvif-discovery docker-build env-setup build-test \
-	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental 
+	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental \
+	ui-e2e-setup ui-e2e-setup-cross-browser
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -18,6 +19,10 @@ PROJECT_DIR := $(shell pwd)
 COMPOSE_FILE := compose.yml
 DEV_COMPOSE_FILE := compose.dev.yml
 EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
+
+# Set DLSPS2=1 to run pipelines on a DLSPS 2.0 container (see compose.dlsps2.yml).
+DLSPS2 ?= 0
+DLSPS2_COMPOSE := $(if $(filter 1,$(DLSPS2)),-f compose.dlsps2.yml)
 
 # Speed up `docker compose build` by skipping provenance/SBOM attestations
 # (saves ~hundreds of ms per build on warm cache, more on cold).
@@ -40,6 +45,14 @@ ENV_DIRS_SENTINEL := shared/.env-dirs.done
 # under shared/ so it sits next to other generated artifacts and is
 # covered by the existing shared/* ignore patterns.
 TEST_IMAGE_SENTINEL := shared/.vippet-test-image.stamp
+
+# UI end-to-end (Playwright) setup sentinels. `ui-e2e-setup` targets are
+# developer-facing helpers that install Node deps and Playwright browser
+# binaries. Sentinels avoid re-running slow installs on every invocation.
+UI_DIR := ui
+UI_NPM_SENTINEL := shared/.ui-npm-install.stamp
+UI_PW_CHROMIUM_SENTINEL := shared/.ui-playwright-chromium.stamp
+UI_PW_CROSS_SENTINEL := shared/.ui-playwright-cross.stamp
 
 # Create the dev venv only when requirements change. A sentinel file is
 # used instead of the venv directory itself because the directory mtime
@@ -95,10 +108,11 @@ pyright: $(VENV_SENTINEL) ## Run pyright type checker
 	# Include/exclude is configured in pyrightconfig.json. ;\
 	pyright --threads=4
 
-generate_openapi: $(VENV_SENTINEL) ## Generate OpenAPI schema file
+generate_openapi: $(VENV_SENTINEL) env-setup ## Generate OpenAPI schema file
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
+	. ./.env ;\
 	cd $(PROJECT_NAME) ;\
-	PYTHONPATH=. SUPPORTED_MODELS_FILE=../shared/models/supported_models.yaml AUTO_VIDEO_DIR=../shared/videos/input/auto UPLOADED_VIDEO_DIR=../shared/videos/input/uploaded python ../generate_openapi.py
+	PYTHONPATH=. AUTO_VIDEO_DIR=../shared/videos/input/auto UPLOADED_VIDEO_DIR=../shared/videos/input/uploaded VIPPET_VERSION="$$DOCKER_TAG" VIPPET_REVISION="docs" python ../generate_openapi.py
 
 # Directory layout for the shared/ runtime volumes. Cheap and idempotent
 # but sentinel-gated so repeated invocations skip the chmod chatter.
@@ -107,7 +121,7 @@ $(ENV_DIRS_SENTINEL): Makefile
 	mkdir -p shared/db && chmod o+w shared/db
 	mkdir -p shared/models/output && chmod o+w shared/models/output
 	mkdir -p shared/model-download/cache && chmod o+w shared/model-download/cache
-	for v in base huggingface ultralytics pipeline-zoo-models openvino geti hls; do \
+	for v in base huggingface ultralytics pipeline-zoo-models omz openvino geti hls; do \
 		mkdir -p shared/model-download/venv-$$v && chmod o+w shared/model-download/venv-$$v ; \
 	done
 	mkdir -p shared/images/input && chmod o+w shared/images/input
@@ -124,8 +138,8 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery)
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
+build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery); DLSPS2=1 adds DLSPS 2.0
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) build
 
 build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onvif-discovery)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
@@ -138,8 +152,8 @@ build-onvif-discovery: env-setup ## Build onvif discovery image
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run the docker compose services
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d
+run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) up -d
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
@@ -169,7 +183,6 @@ clean-experimental: ## Clean experimental setup artifacts
 $(TEST_IMAGE_SENTINEL): $(PROJECT_NAME)/Dockerfile \
 		$(PROJECT_NAME)/requirements.txt \
 		$(PROJECT_NAME)/requirements-dev.txt \
-		$(PROJECT_NAME)/requirements-omz.txt \
 		.dockerignore \
 		| env-setup
 	. .env && TARGET=test DOCKER_TAG="test" docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build vippet
@@ -195,15 +208,37 @@ test: build-test ## Run unit tests and generate coverage report
 
 test-smoke: $(VENV_SENTINEL) ## Run smoke functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
-	python -m pytest --log-cli-level=INFO -m smoke vippet/tests/functional/
+	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO -m smoke vippet/tests/functional/
 
 test-full: $(VENV_SENTINEL) ## Run full functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
-	python -m pytest --log-cli-level=INFO vippet/tests/functional/
+	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO vippet/tests/functional/
 
 test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full)
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	PERF_CONFIG=$(or $(PERF_CONFIG),default) python -m pytest --log-cli-level=INFO -m perf vippet/tests/performance/
+
+# UI end-to-end setup — Playwright installs are slow, so both recipes are
+# sentinel-gated. Re-runs are a no-op unless package-lock.json changes or
+# the sentinel is removed. sudo is required by `install-deps` (system
+# libraries and, for cross-browser, the real Chrome / Edge .deb packages).
+$(UI_NPM_SENTINEL): $(UI_DIR)/package-lock.json $(UI_DIR)/package.json
+	cd $(UI_DIR) && npm install
+	@mkdir -p $(dir $@) && touch $@
+
+$(UI_PW_CHROMIUM_SENTINEL): $(UI_NPM_SENTINEL)
+	cd $(UI_DIR) && npx playwright install --with-deps chromium
+	@touch $@
+
+$(UI_PW_CROSS_SENTINEL): $(UI_NPM_SENTINEL)
+	cd $(UI_DIR) && npx playwright install --with-deps chromium firefox webkit
+	cd $(UI_DIR) && sudo npx playwright install-deps chrome msedge
+	cd $(UI_DIR) && npx playwright install chrome msedge
+	@touch $@
+
+ui-e2e-setup: $(UI_PW_CHROMIUM_SENTINEL) ## Install UI e2e deps + bundled Chromium (regular smoke)
+
+ui-e2e-setup-cross-browser: $(UI_PW_CROSS_SENTINEL) ## Install UI e2e deps + all engines and real Chrome/Edge
 
 shell: env-setup ## Open shell in specified container (i.e. make shell SERVICE=vippet)
 	docker exec -it $(SERVICE) bash
@@ -220,12 +255,16 @@ shell-metrics-manager: ## Open shell in metrics-manager container
 shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
+shell-dlsps: ## Open shell in DLSPS 2.0 container (started with DLSPS2=1)
+	$(MAKE) shell SERVICE=dlstreamer-pipeline-server
+
 stop: ## Stop the docker compose services
-	docker compose down
+	docker compose $(if $(DLSPS2_COMPOSE),-f $(COMPOSE_FILE) $(DLSPS2_COMPOSE)) down
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
 	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator
-	rm -f $(ENV_DIRS_SENTINEL) $(TEST_IMAGE_SENTINEL)
+	rm -f $(ENV_DIRS_SENTINEL) $(TEST_IMAGE_SENTINEL) \
+		$(UI_NPM_SENTINEL) $(UI_PW_CHROMIUM_SENTINEL) $(UI_PW_CROSS_SENTINEL)
 
 clean-model-download: ## Clean only model-download artifacts
 	docker run --rm -v "${PWD}"/shared/model-download/:/mnt/model-download/ python:3.12-slim sh -c 'rm -rf /mnt/model-download/cache/ /mnt/model-download/venv-*/'

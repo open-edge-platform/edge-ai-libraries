@@ -4,33 +4,39 @@ app:
 models:
   tts:
     # Model id. Permitted values:
+    #   Kokoro:   kokoro
     #   SpeechT5: microsoft/speecht5_tts
     #   Qwen:     Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice
-    name: microsoft/speecht5_tts
+    name: kokoro
     # Inference runtime backend. Permitted values: openvino | pytorch
-    runtime: openvino
+    #   Kokoro always runs on onnxruntime (CPU); this value is ignored for it.
+    runtime: pytorch
     # Inference device. Permitted values: CPU | GPU
+    #   Kokoro:   CPU
     #   SpeechT5: CPU or GPU
     #   Qwen:     CPU or GPU
     device: CPU
     # Model precision. Permitted values: int8 | int4 | fp16 | fp32
+    #   Kokoro:   ignored (the released ONNX weights are used as-is)
     #   SpeechT5: int8, int4, fp16, or fp32
     #   Qwen:     int8, int4, fp16, or fp32
     # NOTE: int4 on iGPU produces noise; GPU fp16 works great post-warmup (17s, high quality)
-    dtype: int8
+    dtype: fp32
     # Model variant. Permitted values:
+    #   Kokoro:   default
     #   SpeechT5: default
     #   Qwen:     custom_voice | voice_design
-    model_variant: custom_voice
+    model_variant: default
     # Default speaker/voice. Permitted values:
+    #   Kokoro:   af_heart (and any voice id from kokoro-onnx, e.g. am_michael, bf_emma)
     #   SpeechT5: Ryan | Miles | Aaron | Nora | Elena | Kabir | Angus
     #             (CMU Arctic ids bdl/jmk/rms/clb/slt/ksp/awb are accepted as aliases)
     #   Qwen custom_voice example: Ryan
     #   Qwen voice_design: speaker can be omitted
-    default_speaker: Ryan
+    default_speaker: af_heart
     # Default language. Permitted values: English (the service currently supports English only)
     default_language: English
-    # Shared cache/output settings used by both models
+    # Shared cache/output settings used by all models
     models_base_path: models           # directory for downloaded/exported model assets
     use_local_cache: true              # true | false — reuse locally cached/exported models
 audio:

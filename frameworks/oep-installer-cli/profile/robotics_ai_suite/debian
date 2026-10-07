@@ -1,0 +1,5 @@
+
+debian_99_profile_robotics_ai_suite () {
+  # native ROS 2 / APT components; grouped for install and removal
+  [ "$1" = "start" ] || echo "autonomous_mobile_robot stationary_robot_vision humanoid_imitation_learning physical_ai_framework physical_ai_studio"
+}

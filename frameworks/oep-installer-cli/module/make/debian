@@ -1,0 +1,10 @@
+
+debian_30_install_make () {
+  ensure_apt_install_package make
+}
+
+debian_30_sbom_make () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list make)
+EOF
+}

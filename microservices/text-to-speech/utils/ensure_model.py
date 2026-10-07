@@ -64,6 +64,9 @@ def _is_model(name: str, *patterns: str) -> bool:
 
 def _openvino_model_exists(output_dir: str) -> bool:
     name = _model_name()
+    if _is_model(name, "kokoro"):
+        from utils.ensure_kokoro import model_exists
+        return model_exists(output_dir)
     if _is_model(name, "qwen3-tts"):
         from utils.ensure_qwen import model_exists
         return model_exists(output_dir)
@@ -92,6 +95,13 @@ def _convert_openvino_model(output_dir: str) -> None:
 
 
 def ensure_model() -> None:
+    # Kokoro runs on onnxruntime and manages its own assets, independent of the
+    # OpenVINO/PyTorch runtimes.
+    if _is_model(_model_name(), "kokoro"):
+        from utils.ensure_kokoro import ensure_kokoro
+        ensure_kokoro()
+        return
+
     runtime = _runtime()
 
     if runtime == "openvino":
@@ -118,6 +128,9 @@ def ensure_model() -> None:
 
 
 def get_tts_model_path() -> str:
+    if _is_model(_model_name(), "kokoro"):
+        from utils.ensure_kokoro import model_dir
+        return model_dir()
     runtime = _runtime()
     safe_name = _model_name().replace("/", "_")
     if runtime == "openvino":
@@ -126,6 +139,10 @@ def get_tts_model_path() -> str:
 
 
 def resolve_tts_model_source() -> str:
+    if _is_model(_model_name(), "kokoro"):
+        from utils.ensure_kokoro import model_dir, model_exists
+        directory = model_dir()
+        return directory if model_exists(directory) else _model_name()
     output_dir = get_tts_model_path()
     runtime = _runtime()
     if runtime == "openvino" and _openvino_model_exists(output_dir):

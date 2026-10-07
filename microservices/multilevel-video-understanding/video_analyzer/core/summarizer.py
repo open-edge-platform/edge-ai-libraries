@@ -100,7 +100,8 @@ class VideoSummarizer:
                                 f"should match with total levels: {self.total_levels}"
                     ).model_dump()
                 )
-        
+        logger.info(f"Multi-level config: levels={self.total_levels}, level_sizes={self.level_sizes}")
+
         # Parse processor_kwargs from user's request
         self.chunking_method = chunking_method
         self.process_fps = process_fps

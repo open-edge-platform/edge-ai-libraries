@@ -766,17 +766,16 @@ export type GetModelDownloadJobStatusApiArg = {
 export type GetModelsApiResponse =
   /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
-export type UploadModelApiResponse = /** status 200 Successful Response */
-  | any
+export type UploadModelApiResponse =
+  | /** status 200 Successful Response */ any
   | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
-  /** status 200 Successful Response */
-    | any
-    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+  | /** status 200 Successful Response */ any
+  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };
@@ -936,6 +935,8 @@ export type StatusResponse = {
   status: AppStatus;
   message: string | null;
   ready: boolean;
+  version: string;
+  revision: string;
 };
 export type BenchmarkTestCase = {
   id: number;
@@ -962,12 +963,7 @@ export type MessageResponse = {
   message: string;
 };
 export type BenchmarkTestCaseRunStatus =
-  | "created"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "skipped";
+  "created" | "running" | "completed" | "failed" | "cancelled" | "skipped";
 export type BenchmarkSuiteRun = {
   id: number;
   suite_id: number;
@@ -1014,6 +1010,12 @@ export type BenchmarkTestCaseRun = {
   media_usage: number | null;
   memory_usage: number | null;
   power_usage: number | null;
+  latency_avg_ms: number | null;
+  latency_avg_stddev_ms: number | null;
+  latency_max_ms: number | null;
+  latency_max_stddev_ms: number | null;
+  latency_min_ms: number | null;
+  latency_min_stddev_ms: number | null;
   score_total: number | null;
   score_performance: number | null;
   score_efficiency: number | null;
@@ -1077,6 +1079,12 @@ export type BenchmarkTestCaseRunDetails = {
   media_usage: number | null;
   memory_usage: number | null;
   power_usage: number | null;
+  latency_avg_ms: number | null;
+  latency_avg_stddev_ms: number | null;
+  latency_max_ms: number | null;
+  latency_max_stddev_ms: number | null;
+  latency_min_ms: number | null;
+  latency_min_stddev_ms: number | null;
   score_total: number | null;
   score_performance: number | null;
   score_efficiency: number | null;
@@ -1266,11 +1274,7 @@ export type ValidationJobSummary = {
   request: PipelineValidation;
 };
 export type ModelSource =
-  | "huggingface"
-  | "ultralytics"
-  | "pipeline-zoo-models"
-  | "omz"
-  | "custom";
+  "huggingface" | "ultralytics" | "pipeline-zoo-models" | "omz" | "custom";
 export type ModelDownloadJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type ModelDownloadJobStatus = {
   id: string;
@@ -1288,12 +1292,17 @@ export type ModelDownloadJobSummary = {
   model_name: string;
   source: ModelSource;
 };
-export type ModelCategory = "classification" | "detection" | "genai";
+export type ModelCategory =
+  | "image_classification"
+  | "object_detection"
+  | "image_segmentation"
+  | "pose_estimation"
+  | "vision_language_models"
+  | "large_language_models"
+  | "automatic_speech_recognition"
+  | "text_to_speech";
 export type ModelInstallStatus =
-  | "installed"
-  | "not_installed"
-  | "installing"
-  | "failed";
+  "installed" | "not_installed" | "installing" | "failed";
 export type ModelVariant = {
   /** Stable variant identifier. */
   name: string;
@@ -1309,6 +1318,8 @@ export type Model = {
   name: string;
   /** Human-readable model name. */
   display_name: string;
+  /** Human-readable explanation of what the model detects or classifies, or null when not provided. */
+  description?: string | null;
   /** Logical model category, or null when unknown. */
   category?: ModelCategory | null;
   /** Upstream hub the model is downloaded from. */
@@ -1319,7 +1330,7 @@ export type Model = {
   variants?: ModelVariant[];
   /** List of predefined-pipeline ids that reference this model. Non-empty means the model is recommended. */
   used_by_pipelines?: string[];
-  /** Whether the model is marked as a default install candidate in supported_models.yaml. The Models page uses this flag to pre-select recommended models in the bulk-install UI. */
+  /** Whether at least one predefined pipeline references this model. The Models page uses this flag to pre-select recommended models in the bulk-install UI. */
   default?: boolean;
   /** Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist. */
   unsupported_devices?: string | null;
@@ -1332,6 +1343,7 @@ export type BodyUploadModel = {
   model_name: string;
   category: ModelCategory;
   file: string;
+  description?: string | null;
 };
 export type ModelDownloadJobItem = {
   /** Model name. */

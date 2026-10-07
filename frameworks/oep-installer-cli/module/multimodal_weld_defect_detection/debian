@@ -1,0 +1,166 @@
+
+configure_multimodal_weld_defect_detection () {
+  workspace="$(ensure_project_path)/multimodal-weld-defect-detection"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
+  tsam_config="configs/time-series-analytics-microservice/config.json"
+  pipeline_config="configs/dlstreamer-pipeline-server/config.json"
+  pipeline_request="configs/dlstreamer-pipeline-server/pipeline-request-cpu.json"
+  used_ports=(3000 3478 8010 8200)
+  database=datain
+  table=weld-sensor-anomaly-data
+  duration=1800
+  nstreams=1
+  npoints=500
+}
+
+configure_multimodal_weld_defect_detection_device () {
+  local device="$1"
+  local tsam_device="${device^^}"
+  local pipeline_device="${device^^}"
+  [ "$device" != "npu" ] || tsam_device=CPU
+
+  cd "$workspace"/industrial-edge-insights-multimodal
+  for file in "$tsam_config" "$pipeline_config" "$pipeline_request"; do
+    [ -e "$file.orig" ] || cp -f "$file" "$file.orig"
+  done
+
+  cp -f "$tsam_config.orig" "$tsam_config"
+  cp -f "$pipeline_config.orig" "$pipeline_config"
+  cp -f "$pipeline_request.orig" "$pipeline_request"
+
+  sed -i "s|\"device\": \"[A-Z]*\"|\"device\": \"$tsam_device\"|" "$tsam_config"
+  sed -i "s|\"device\": \"[A-Z]*\"|\"device\": \"$pipeline_device\"|" "$pipeline_config" "$pipeline_request"
+}
+
+verify_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+
+  [ -e "$workspace"/industrial-edge-insights-multimodal/weld-data-simulator/simulation-data/good_weld_02-16-23-0081-00.csv ]
+  [ -n "$(grep -E ^VISUALIZER_GRAFANA_PASSWORD= "$workspace"/industrial-edge-insights-multimodal/.env 2> /dev/null | tail -n1 | cut -f2 -d=)" ]
+}
+
+debian_90_profile_multimodal_weld_defect_detection () {
+  echo "git gawk curl make docker edge_base"
+}
+
+debian_90_install_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+  if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Multimodal weld defect detection is already installed. Skipping"
+  else
+    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 64000
+    ensure_ram_size 16777216 # 16 GiB
+    ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal
+
+    cd "$workspace"/industrial-edge-insights-multimodal
+    cat >> .env <<EOF
+INFLUXDB_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
+INFLUXDB_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
+VISUALIZER_GRAFANA_USER=$(cat /dev/urandom | tr -dc a-z | head -c 10)
+VISUALIZER_GRAFANA_PASSWORD=$(cat /dev/urandom | tr -dc a-z | head -c 5)$(cat /dev/urandom | tr -dc 0-9 | head -c 5)
+HOST_IP=$(ensure_ip)
+EOF
+
+    verify_multimodal_weld_defect_detection
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_multimodal_weld_defect_detection_device "$device"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove" 
+}
+
+debian_90_start_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_multimodal_weld_defect_detection "$@"
+
+  local device="$(ensure_select_device "$@")"
+  [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device
+
+  cd "$workspace"/industrial-edge-insights-multimodal
+  export TELEGRAF_INPUT_PLUGIN=mqtt_consumer
+  make -o check_env_variables up
+
+  echo "@@HIGHLIGHT Grafana URL: https://$(ensure_ip):${used_ports[0]}"
+  local gf_user="$(grep -E ^VISUALIZER_GRAFANA_USER= .env | tail -n1 | cut -f2 -d=)"
+  local gf_pwd="$(grep -E ^VISUALIZER_GRAFANA_PASSWORD= .env | tail -n1 | cut -f2 -d=)"
+  echo "@@HIGHLIGHT Grafana AUTH: $gf_user/$gf_pwd"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  local ifx_user="$(grep -E ^INFLUXDB_USERNAME= .env | tail -n1 | cut -f2 -d=)"
+  local ifx_pwd="$(grep -E ^INFLUXDB_PASSWORD= .env | tail -n1 | cut -f2 -d=)"
+  local total_points=$(( npoints * nstreams )) start_time=$SECONDS nsamples
+  while [ $(( SECONDS - start_time )) -lt $duration ]; do
+    docker compose exec ia-influxdb influx -username "$ifx_user" -password "$ifx_pwd" -database "$database" -execute "select * from \"$table\"" > sample-data
+    nsamples=$(cat sample-data | wc -l || echo 0)
+    echo "$nsamples processed...elapsed $(( SECONDS - start_time )) seconds"
+    [ "$nsamples" -lt $total_points ] || break
+    sleep 5s
+  done
+
+  gawk '
+/^[0-9][0-9]*/ && /ia[-]telegraf/ && /weld-data/ {
+  s=1 #gensub(/weld-data/,"",1,$NF)
+  if ($(NF-1)*1>0) {
+    throughput[s][++throughput_ct[s]]=$(NF-1)
+    latency[s][throughput_ct[s]]=$(NF-1)/1000.0
+    end2end[s][throughput_ct[s]]=$12/1000.0
+    ingest_time[s][throughput_ct[s]] = $1/1000.0
+    if (throughput_ct[s]>1) {
+      ingest_delta[s][throughput_ct[s]-1] = ingest_time[s][throughput_ct[s]] - ingest_time[s][throughput_ct[s]-1]
+      if (throughput_ct[s]==2)
+        ingest_delta[s][1] = ingest_delta[s][2]
+    }
+  }
+}
+function calc_avg(values, i,m) {
+  m=0
+  for (i in values)
+    m+=values[i]
+  return length(values)>0?m/length(values):0
+}
+END {
+  n=length(throughput)
+  if (n>0) {
+    m_acc=0
+    m_acc_latency=0
+    m_acc_end2end=0
+    m_acc_ingest=0
+    for (i=1;i<=n;i++) {
+      m=1000000000/calc_avg(throughput[i])
+      m_acc_latency+=calc_avg(latency[i])
+      m_acc_end2end+=calc_avg(end2end[i])
+      m_acc_ingest+=calc_avg(ingest_delta[i])
+      m_acc+=m
+    }
+    print primary"throughput average: "(n>0?int(m_acc/n*100)/100:0)
+    print "throughput cumulative: "int(m_acc*100)/100
+    print "latency average (us): "(n>0?int(m_acc_latency/n*100)/100:0)
+    print "end2end average (us): "(n>0?int(m_acc_end2end/n*100)/100:0)
+    print "ingest average (us): "(n>0?int(m_acc_ingest/n*100)/100:0)
+    for (i=1;i<=n;i++) {
+      m=1000000000/calc_avg(throughput[i])
+      print "throughput #"i": "m
+      print "latency #"i" (us): "calc_avg(latency[i])
+      print "end2end #"i" (us): "calc_avg(end2end[i])
+      print "ingest #"i" (us): "calc_avg(ingest_delta[i])
+    }
+  }
+}
+' sample-data
+}
+
+debian_90_stop_multimodal_weld_defect_detection () {
+  configure_multimodal_weld_defect_detection
+  cd "$workspace"/industrial-edge-insights-multimodal && make down || true
+}
+
+debian_90_remove_multimodal_weld_defect_detection () {
+  debian_90_stop_multimodal_weld_defect_detection "$@"
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}

@@ -22,3 +22,6 @@ optimum-intel[openvino]==2.1.0
 transformers==5.3.0
 torch==2.11.0+cpu
 torchaudio==2.11.0+cpu
+
+# Kokoro-82M TTS (onnxruntime CPU). Pulls espeakng-loader, phonemizer, onnxruntime.
+kokoro-onnx==0.6.1

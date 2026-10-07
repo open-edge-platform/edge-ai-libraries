@@ -40,13 +40,27 @@ class TestGStreamerRtspFactory:
         assert selected_caps == expected_caps
 
     @pytest.mark.parametrize(
+        "overlay, overlay_properties, expected",
+        [
+            (False, {}, ""),
+            (True, None, " ! gvawatermark"),
+            (True, {}, " ! gvawatermark"),
+            (True, ["not", "a", "dict"], " ! gvawatermark"),
+            (True, {"enabled": True, "x": 10, "mode": "center", "ignored": None}, " ! gvawatermark displ-cfg=enabled=true,x=10,mode=center"),
+        ],
+    )
+    def test_build_gvawatermark_stage(self, gstreamer_rtsp_factory, overlay, overlay_properties, expected):
+        result = gstreamer_rtsp_factory._build_gvawatermark_stage(overlay, overlay_properties)
+        assert result == expected
+
+    @pytest.mark.parametrize(
     "to_string, is_audio, expected_launch_string,overlay,caps,launch_string",
     [
-        ("Video Pipeline", False, " ! videoconvert          ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0",True,["video/x-raw","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="video/x-raw,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"'),
+        ("Video Pipeline", False, " ! videoconvert  ! gvawatermark         ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0",True,["video/x-raw","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="video/x-raw,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"'),
         ("audio Pipeline", True, " ! queue ! decodebin ! audioresample ! audioconvert  ! avenc_aac ! queue ! mpegtsmux ! rtpmp2tpay  name=pay0 pt=96",True,["video/x-raw","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="video/x-raw,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"'),
         ("Video Pipeline", False, " ! videoconvert          ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0",False,["video/x-raw","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="video/x-raw,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"'),
         ("Video Pipeline", False, " ! rtpjpegpay name=pay0",False,["image/jpeg","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="image/jpeg,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"'),
-        ("Video Pipeline", False, " ! jpegdec ! videoconvert          ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0",True,["image/jpeg","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="image/jpeg,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"')
+        ("Video Pipeline", False, " ! jpegdec ! videoconvert  ! gvawatermark         ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0",True,["image/jpeg","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="image/jpeg,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"')
     ])
     def test_do_create_element_audio_and_video(self, gstreamer_rtsp_factory, mock_rtsp_server,mocker,mock_gst,to_string, is_audio, expected_launch_string,overlay,caps,launch_string):
         mock_url = MagicMock()

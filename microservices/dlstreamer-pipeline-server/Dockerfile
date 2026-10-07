@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=intel/dlstreamer:2026.1.0-ubuntu24
+ARG BASE_IMAGE=intel/dlstreamer:2026.2.0-ubuntu24
 FROM ${BASE_IMAGE} AS gstudfloader-builder
 
 USER root
@@ -153,7 +153,7 @@ RUN . /etc/os-release && \
         libopencv-core4.5d \
         libopencv-imgcodecs4.5d \
         libcjson1 \
-        libssl3=3.0.2-0ubuntu1.26 \
+        libssl3=3.0.2-0ubuntu1.29 \
         libxtst6 && \
         ln -sf /usr/lib/x86_64-linux-gnu/libpython3.10.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.10.so; \
     fi && \

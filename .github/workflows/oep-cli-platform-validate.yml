@@ -1,0 +1,50 @@
+name: "[OEP CLI] Platform Validation"
+
+# SECURITY: PR code must never be executed before a maintainer has reviewed
+# it. Applying VALIDATE-PLATFORM approves the current PR head commit. This
+# workflow does not check out or run any PR code: it only marks that commit
+# as queued (commit status platform-validation).
+# An external validation service polls this repo, validates exactly the queued
+# commit and reports back with the commit status and a PR comment.
+# Pushing new commits removes the label, so they need a new review.
+
+on:
+  # zizmor: ignore[dangerous-triggers]
+  # Safe: nothing from the PR is checked out or executed; pull_request_target is
+  # only used to get a token that can set statuses and labels on fork PRs.
+  pull_request_target:
+    types: [labeled, synchronize]
+    paths: ['frameworks/oep-installer-cli/**']
+
+permissions: {}
+
+jobs:
+  request:
+    name: Request platform validation
+    if: >-
+      (github.event.action == 'labeled' && github.event.label.name == 'VALIDATE-PLATFORM') ||
+      (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'VALIDATE-PLATFORM'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      statuses: write
+      issues: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      # the validation poller only accepts this exact status created by github-actions[bot]
+      - name: Queue the approved commit
+        if: github.event.action == 'labeled'
+        run: |
+          gh api "repos/$REPO/statuses/$SHA" -f state=pending -f context=platform-validation \
+            -f description="Queued for platform validation"
+
+      - name: Revoke approval after new commits
+        if: github.event.action == 'synchronize'
+        run: |
+          gh api -X DELETE "repos/$REPO/issues/$PR/labels/VALIDATE-PLATFORM" > /dev/null
+          gh api "repos/$REPO/issues/$PR/comments" -f body="New commits were pushed, so \`VALIDATE-PLATFORM\` was removed. Re-apply it after reviewing \`$SHA\` to validate it."
