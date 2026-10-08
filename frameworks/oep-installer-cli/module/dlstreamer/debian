@@ -59,17 +59,15 @@ debian_75_install_dlstreamer () {
     if [[ " $* " = *" --validate "* ]]; then
       ( 
         mkdir -p models/${od_model%/*}
-        set -x
-        curl -sSfL $model_repo/storage/$od_model.bin -o models/$od_model.bin
-        curl -sSfL $model_repo/storage/$od_model.xml -o models/$od_model.xml
-        curl -sSfL $model_repo/storage/${od_model_proc}.json -o models/$od_model.json
+        ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin
+        ensure_fetch $model_repo/storage/$od_model.xml models/$od_model.xml
+        ensure_fetch $model_repo/storage/${od_model_proc}.json models/$od_model.json
       )
 
       (
         mkdir -p models/${oc_model%/*}
-        set -x
-        curl -sSfL $model_repo/storage/$oc_model.bin -o models/$oc_model.bin
-        curl -sSfL $model_repo/storage/$oc_model.xml -o models/$oc_model.xml
+        ensure_fetch $model_repo/storage/$oc_model.bin models/$oc_model.bin
+        ensure_fetch $model_repo/storage/$oc_model.xml models/$oc_model.xml
       )
 
       set -o pipefail

@@ -1,0 +1,10 @@
+
+debian_10_install_gnupg () {
+  ensure_apt_install_package gnupg
+}
+
+debian_10_sbom_gnupg () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list gnupg)
+EOF
+}

@@ -14,7 +14,7 @@ debian_70_install_mediamtx () {
   if [ -x "$bin_path/mediamtx" ] && [[ " $* " != *" --reinstall "* ]]; then
     echo "Mediamtx already installed. Skipping" 1>&2
   else
-    curl -fsSL --retry 3 "$repository" | ensure_sudo tar xz -C "$bin_path" mediamtx
+    ensure_fetch "$repository" - | ensure_sudo tar xz -C "$bin_path" mediamtx
     [ -x "$bin_path/mediamtx" ]
   fi
 }

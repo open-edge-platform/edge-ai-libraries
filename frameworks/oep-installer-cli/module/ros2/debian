@@ -16,7 +16,7 @@ configure_ros2 () {
 }
 
 debian_50_profile_ros2 () {
-  echo "curl gpg git edge_base"
+  echo "curl gnupg git edge_base"
 }
 
 verify_ros2 () {
@@ -37,7 +37,7 @@ debian_50_install_ros2 () {
     # which self-configures the apt source list and signing key
     local tmpdir
     ensure_tmpdir create tmpdir ros2
-    curl -fsSL -o "$tmpdir/ros2-apt-source.deb" "$ros_deb_src"
+    ensure_fetch "$ros_deb_src" "$tmpdir/ros2-apt-source.deb"
     ensure_apt install -y "$tmpdir/ros2-apt-source.deb"
     ensure_tmpdir destroy $tmpdir
 

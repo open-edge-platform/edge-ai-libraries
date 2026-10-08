@@ -11,7 +11,7 @@ configure_openvino () {
 }
 
 debian_70_profile_openvino () {
-  echo "curl gpg python3_venv edge_base"
+  echo "curl gnupg python3_venv edge_base"
 }
 
 verify_openvino () {
@@ -51,7 +51,7 @@ debian_70_install_openvino () {
     echo "openvino-${version} installed successfully."
 
     if [[ " $* " = *" --validate "* ]]; then
-      [ -e "$workspace"/${model##*/} ] || curl -sSfL "$model" -o "$workspace"/${model##*/}
+      [ -e "$workspace"/${model##*/} ] || ensure_fetch "$model" "$workspace"/${model##*/}
       for device in CPU GPU NPU; do
         echo "Validating ${model##*/} inferencing on $device..."
         benchmark_app -t 5 -m "$workspace"/${model##*/} -d $device
