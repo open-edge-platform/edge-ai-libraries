@@ -155,8 +155,6 @@ services:
       # Persist the exported/downloaded whisper model so it survives container recreation (no re-download).
       - audio_analyzer_models:/app/audio_analyzer/models
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
-      # Mounted config.yaml sets the ASR model (asr.name) and overrides the image's baked config.
-      - ../config/audio-analyzer/config.yaml:/app/audio_analyzer/config.yaml:ro
     environment:
       # AUDIO_CONTAINER_PORT is the single port knob; the 2026.x image reads AUDIO_ANALYZER_SERVER_PORT to pick its bind port.
       - AUDIO_ANALYZER_SERVER_PORT=${AUDIO_CONTAINER_PORT:-8010}
@@ -166,7 +164,15 @@ services:
       - DEBUG=false
       - MAX_FILE_SIZE=314572800 # 300MB
       - USE_FP16=${USE_FP16:-true} # Use FP16 on GPUs
-      # 2026.x image maps AUDIO_ANALYZER__<SECTION>__<KEY> onto config.yaml; these override the minio: block so /transcriptions can fetch videos.
+      # Common ASR knobs, VSS-style (export then `source setup.sh`). The 2026.x image maps
+      # AUDIO_ANALYZER__<SECTION>__<KEY> onto its baked config.yaml; these env vars take top priority.
+      - AUDIO_ANALYZER__MODELS__ASR__NAME=${ASR_MODEL:-whisper-base}
+      - AUDIO_ANALYZER__MODELS__ASR__DEVICE=${ASR_DEVICE:-CPU}
+      - AUDIO_ANALYZER__MODELS__ASR__WEIGHT_FORMAT=${ASR_WEIGHT_FORMAT:-null}
+      - AUDIO_ANALYZER__MODELS__ASR__DIARIZATION=${ASR_DIARIZATION:-false}
+      - AUDIO_ANALYZER__SENTIMENT__ENABLED=${AUDIO_SENTIMENT_ENABLED:-false}
+      - HF_TOKEN=${HF_TOKEN:-}  # required only when ASR_DIARIZATION=true
+      # These override the minio: block so /transcriptions can fetch videos.
       - AUDIO_ANALYZER__MINIO__ENDPOINT=${MINIO_HOST:-minio-service}:${MINIO_PORT:-80}
       - AUDIO_ANALYZER__MINIO__ACCESS_KEY=${MINIO_ROOT_USER}
       - AUDIO_ANALYZER__MINIO__SECRET_KEY=${MINIO_ROOT_PASSWORD}

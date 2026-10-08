@@ -51,14 +51,27 @@ spec:
               value: {{ .Values.audioanalyzer.env.DEFAULT_DEVICE | quote }}
             - name: MAX_FILE_SIZE
               value: {{ .Values.audioanalyzer.env.MAX_FILE_SIZE | quote }}
-            - name: MINIO_ENDPOINT
+            - name: AUDIO_ANALYZER__MINIO__ENDPOINT
               value: "{{ .Values.minioServer.name }}:{{ .Values.minioServer.service.port }}"
-            - name: MINIO_HOST
-              value: "{{ .Values.minioServer.name }}"
-            - name: MINIO_ACCESS_KEY
+            - name: AUDIO_ANALYZER__MINIO__ACCESS_KEY
               value: {{ .Values.global.env.MINIO_ROOT_USER | quote }}
-            - name: MINIO_SECRET_KEY
+            - name: AUDIO_ANALYZER__MINIO__SECRET_KEY
               value: {{ .Values.global.env.MINIO_ROOT_PASSWORD | quote }}
+            - name: AUDIO_ANALYZER__MINIO__SECURE
+              value: "false"
+            # Common ASR knobs — env vars take top priority over the image's baked config.yaml.
+            - name: AUDIO_ANALYZER__MODELS__ASR__NAME
+              value: {{ .Values.audioanalyzer.env.ASR_MODEL | quote }}
+            - name: AUDIO_ANALYZER__MODELS__ASR__DEVICE
+              value: {{ .Values.audioanalyzer.env.ASR_DEVICE | quote }}
+            - name: AUDIO_ANALYZER__MODELS__ASR__WEIGHT_FORMAT
+              value: {{ .Values.audioanalyzer.env.ASR_WEIGHT_FORMAT | quote }}
+            - name: AUDIO_ANALYZER__MODELS__ASR__DIARIZATION
+              value: {{ .Values.audioanalyzer.env.ASR_DIARIZATION | quote }}
+            - name: AUDIO_ANALYZER__SENTIMENT__ENABLED
+              value: {{ .Values.audioanalyzer.env.SENTIMENT_ENABLED | quote }}
+            - name: HF_TOKEN
+              value: {{ .Values.audioanalyzer.env.ASR_HF_TOKEN | default "" | quote }}
             - name: STORAGE_BACKEND
               value: {{ .Values.audioanalyzer.env.STORAGE_BACKEND | quote }}
             - name: USE_FP16

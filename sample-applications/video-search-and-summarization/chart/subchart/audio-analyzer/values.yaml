@@ -35,6 +35,13 @@ audioanalyzer:
     MAX_FILE_SIZE: "314572800"
     STORAGE_BACKEND: minio
     USE_FP16: "true"
+    # Common ASR knobs — mapped to AUDIO_ANALYZER__* overrides (top priority over the image's baked config.yaml).
+    ASR_MODEL: "whisper-base"      # whisper-{tiny,base,small,medium,large}
+    ASR_DEVICE: "CPU"              # CPU | GPU | NPU
+    ASR_WEIGHT_FORMAT: "null"      # openvino: int8 | fp16 | null
+    ASR_DIARIZATION: "false"       # true enables speaker diarization (also set ASR_HF_TOKEN)
+    SENTIMENT_ENABLED: "false"     # true enables parallel voice sentiment analysis
+    ASR_HF_TOKEN: ""               # HuggingFace token, required only when ASR_DIARIZATION=true
 
   containerPort: 8010  # Port on which container application listens internally
   containerPortName: audio-port # Optional name to refer containerPort

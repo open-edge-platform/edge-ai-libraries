@@ -287,6 +287,14 @@ export RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD} # Set this in your shell before ru
 export POSTGRES_USER=${POSTGRES_USER}  # Set this in your shell before running the script
 export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}  # Set this in your shell before running the script
 
+# env for audio-analyzer
+# Common ASR knobs mapped onto the image's baked config.yaml (AUDIO_ANALYZER__* overrides take top priority).
+export ASR_MODEL=${ASR_MODEL:-whisper-base}
+export ASR_DEVICE=${ASR_DEVICE:-CPU}
+export ASR_WEIGHT_FORMAT=${ASR_WEIGHT_FORMAT:-null}
+export ASR_DIARIZATION=${ASR_DIARIZATION:-false}
+export AUDIO_SENTIMENT_ENABLED=${AUDIO_SENTIMENT_ENABLED:-false}
+
 # env for minio-service
 export MINIO_ROOT_USER=${MINIO_ROOT_USER} # Set this in your shell before running the script
 export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} # Set this in your shell before running the script
