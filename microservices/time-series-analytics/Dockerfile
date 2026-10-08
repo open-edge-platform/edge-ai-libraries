@@ -6,13 +6,7 @@
 
 ARG PYTHON_VERSION
 
-FROM golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36 AS go-toolchain
-
-FROM quay.io/influxdb/cross-builder:go1.26.5-latest AS kapacitor-build
-
-COPY --from=go-toolchain /usr/local/go /usr/local/go
-ENV GOROOT=/usr/local/go
-ENV PATH="/usr/local/go/bin:${PATH}"
+FROM quay.io/influxdb/cross-builder:go1.27.1-latest AS kapacitor-build
 
 ARG KAPACITOR_VERSION
 RUN git clone --depth 1 --branch v${KAPACITOR_VERSION} \
