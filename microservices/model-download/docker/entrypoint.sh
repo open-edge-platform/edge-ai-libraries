@@ -279,7 +279,6 @@ run_plugins_parallel() {
 PLUGINS=""
 START_SERVICE=true
 EPHEMERAL_MODE=false
-MCP_MODE=false
 EPHEMERAL_ARGS=()
 EXTRA_ARGS=()
 
@@ -301,10 +300,6 @@ while [[ $# -gt 0 ]]; do
             # Collect all remaining args for the ephemeral script
             EPHEMERAL_ARGS=("$@")
             break
-            ;;
-        --mcp)
-            MCP_MODE=true
-            shift
             ;;
         *)
             shift
@@ -380,17 +375,6 @@ if ! uv sync --no-dev; then
     exit 1
 fi
 print_success "Base dependencies synced successfully"
-
-# Install MCP dependencies if MCP mode is enabled
-if [ "$MCP_MODE" = true ]; then
-    print_info "MCP mode enabled — installing fastmcp..."
-    if uv sync --extra mcp --no-dev; then
-        print_success "MCP dependencies installed"
-    else
-        print_error "Failed to install MCP dependencies"
-        exit 1
-    fi
-fi
 
 # Create a dedicated venv for each activated plugin
 print_header "Creating per-plugin virtual environments"
@@ -471,26 +455,13 @@ if [ "$EPHEMERAL_MODE" = true ]; then
     print_info "Executing one-shot download/conversion..."
     exec /opt/scripts/get_model.sh --internal "${EPHEMERAL_ARGS[@]}"
 elif [ "$START_SERVICE" = true ]; then
-    if [ "$MCP_MODE" = true ]; then
-        MCP_TRANSPORT="${MCP_TRANSPORT:-http}"
-        MCP_HOST="${MCP_HOST:-0.0.0.0}"
-        MCP_PORT="${MCP_PORT:-8000}"
-        print_header "Starting Model Download MCP Server"
-        cd /opt
-        print_info "Launching MCP server (${MCP_TRANSPORT}) at ${MCP_HOST}:${MCP_PORT}"
-        echo -e "${GREEN}===============================================${NC}"
-        echo -e "${GREEN}  Model Download MCP Server is now starting    ${NC}"
-        echo -e "${GREEN}===============================================${NC}"
-        exec python -m src.mcp --transport "${MCP_TRANSPORT}" --host "${MCP_HOST}" --port "${MCP_PORT}"
-    else
-        print_header "Starting Model Download Service"
-        cd /opt
-        print_info "Launching service at http://0.0.0.0:8000"
-        echo -e "${GREEN}===============================================${NC}"
-        echo -e "${GREEN}  Model Download Service is now starting up    ${NC}"
-        echo -e "${GREEN}===============================================${NC}"
-        exec uvicorn src.api.main:app --host 0.0.0.0 --port 8000
-    fi
+    print_header "Starting Model Download Service"
+    cd /opt
+    print_info "Launching service at http://0.0.0.0:8000"
+    echo -e "${GREEN}===============================================${NC}"
+    echo -e "${GREEN}  Model Download Service is now starting up    ${NC}"
+    echo -e "${GREEN}===============================================${NC}"
+    exec uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 else
     print_warning "Service start skipped due to --no-start flag"
     exec "$@"
