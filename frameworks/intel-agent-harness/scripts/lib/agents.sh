@@ -6,9 +6,10 @@
 #
 # Verified real, public, MIT-licensed packages:
 #   openclaw        -> npm package "openclaw" (github.com/openclaw/openclaw)
-#   deepagents-code -> npm package "deepagents" (github.com/langchain-ai/deepagentsjs),
-#                      a LangGraph library with no CLI bin — this installer
-#                      scaffolds a thin runner around it.
+#   deepagents-code -> LangChain's official "Deep Agents Code" CLI (dcode),
+#                      installed via its own official installer
+#                      (github.com/langchain-ai/deepagents) -- not a runner
+#                      this installer scaffolds itself.
 #   hermes          -> Nous Research's Hermes Agent, installed via its own
 #                      official shell installer (not npm) from
 #                      hermes-agent.nousresearch.com/install.sh.
@@ -25,7 +26,7 @@ canonical_agent_name() {
 agent_display_name() {
   case "$1" in
     openclaw) printf 'OpenClaw' ;;
-    deepagents-code) printf 'LangGraph Deep Agents' ;;
+    deepagents-code) printf 'Deep Agents Code' ;;
     hermes) printf 'Hermes' ;;
     *) printf '%s' "$1" ;;
   esac
@@ -34,7 +35,7 @@ agent_display_name() {
 agent_cli_bin() {
   case "$1" in
     openclaw) printf 'openclaw' ;;
-    deepagents-code) printf 'deepagents-runner' ;;
+    deepagents-code) printf 'dcode' ;;
     hermes) printf 'hermes' ;;
   esac
 }
@@ -98,86 +99,80 @@ install_openclaw() {
   spin "npm install -g openclaw" npm install "${npm_args[@]}"
 }
 
-# Reads the version already resolved into a project's node_modules, empty if
-# not installed — used to avoid downgrading a newer install to the pin.
-installed_project_dep_version() {
-  local dir="$1" pkg="$2"
-  [[ -f "${dir}/node_modules/${pkg}/package.json" ]] || return 1
-  node -e '
-    try {
-      const data = require(process.argv[1]);
-      if (data.version) process.stdout.write(data.version);
-    } catch {}
-  ' "${dir}/node_modules/${pkg}/package.json" 2>/dev/null
-}
-
-# deepagents is a library, not a CLI. Scaffold a minimal runner project that
-# depends on it + langgraph, configured against HARNESS_LLM_ENDPOINT (the
-# OpenVINO Model Server's OpenAI-compatible endpoint).
-install_deepagents_runner() {
-  local runner_dir="${HOME}/.local/share/deepagents-runner"
-  local version="${DEEPAGENTS_VERSION:-1.14.0}" installed
-  # Same set -e footgun as install_openclaw above: guard against the normal
-  # not-installed-yet case (exit 1) killing the whole script silently.
-  installed="$(installed_project_dep_version "$runner_dir" deepagents || true)"
-  if [[ -n "$installed" ]] && version_gte "$installed" "$version"; then
-    info "deepagents-runner already has deepagents@${installed} — not downgrading to ${version}."
-    return 0
+# dcode ("Deep Agents Code") is LangChain's own official terminal coding
+# agent CLI (github.com/langchain-ai/deepagents) -- installed via its
+# official installer rather than this installer scaffolding a runner around
+# the bare deepagents library itself. Supports pointing at an arbitrary
+# OpenAI-compatible endpoint out of the box (see configure_dcode_provider),
+# so no Intel-specific code is needed beyond that wiring.
+install_dcode() {
+  local installer_url="https://langch.in/dcode"
+  local installer_tmp
+  installer_tmp="$(mktemp)"
+  info "Installing Deep Agents Code (dcode) from ${installer_url}…"
+  # LangChain does not publish a static checksum for this installer either.
+  # Same fail-closed-by-default stance as Hermes/Docker: set
+  # DCODE_INSTALL_SHA256 once you've reviewed a known-good copy, or
+  # HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1 to accept the risk.
+  if [[ -z "${DCODE_INSTALL_SHA256:-}" && "${HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL:-}" != "1" ]]; then
+    error "DCODE_INSTALL_SHA256 is not set, so refusing to run dcode's installer
+unverified. Download and review ${installer_url} yourself, then set
+DCODE_INSTALL_SHA256=<sha256> to pin it (or HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1
+to accept the risk and proceed without pinning)."
   fi
-  mkdir -p "$runner_dir"
-  cat >"${runner_dir}/package.json" <<EOF
-{
-  "name": "deepagents-runner",
-  "private": true,
-  "type": "module",
-  "bin": { "deepagents-runner": "./index.mjs" },
-  "dependencies": {
-    "deepagents": "${version}",
-    "@langchain/langgraph": "^1.4.18",
-    "@langchain/openai": "^1.6.0"
-  }
+  fetch_and_verify "$installer_url" "$installer_tmp" "dcode installer" "${DCODE_INSTALL_SHA256:-}"
+  assert_shell_script "$installer_tmp" "dcode installer"
+  spin "Installing dcode" bash "$installer_tmp"
+  rm -f "$installer_tmp"
+  export PATH="$HOME/.local/bin:$PATH"
 }
+
+# Writes dcode's [models.providers.openai] section (its "Compatible APIs"
+# mechanism) to point at this installer's OpenAI-compatible endpoint, inside
+# BEGIN/END markers so a re-run replaces only this block and leaves any
+# other provider config/preferences the operator has in config.toml alone.
+# api_key_env names a harness-owned var (not OPENAI_API_KEY) so this never
+# reads/collides with a real OpenAI key the operator may have set for
+# something else -- OVMS itself doesn't check it, it just needs *a* value.
+configure_dcode_provider() {
+  local endpoint="$1" model_name="$2" config_dir config_file tmp
+  local endpoint_esc model_name_esc
+  # Escape backslashes/quotes before interpolating into a TOML basic string
+  # ("...") -- an unescaped quote in $endpoint/$model_name (e.g. a stray
+  # character in a misconfigured HARNESS_LLM_ROUTER_ENDPOINT) would otherwise
+  # break out of the string literal and corrupt the rest of config.toml.
+  endpoint_esc="$(printf '%s' "$endpoint" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  model_name_esc="$(printf '%s' "$model_name" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  config_dir="${DEEPAGENTS_HOME:-$HOME/.deepagents}"
+  config_file="${config_dir}/config.toml"
+  mkdir -p "$config_dir"
+  tmp="$(mktemp)"
+  if [[ -f "$config_file" ]]; then
+    awk '
+      /# BEGIN intel-agent-harness managed provider/ { skip=1 }
+      /# END intel-agent-harness managed provider/ { skip=0; next }
+      !skip
+    ' "$config_file" >"$tmp"
+  fi
+  {
+    cat "$tmp"
+    cat <<EOF
+# BEGIN intel-agent-harness managed provider -- do not edit between markers
+[models]
+default = "openai:${model_name_esc}"
+
+[models.providers.openai]
+base_url = "${endpoint_esc}"
+api_key_env = "HARNESS_DCODE_API_KEY"
+models = ["${model_name_esc}"]
+
+[models.providers.openai.params]
+use_responses_api = false
+# END intel-agent-harness managed provider
 EOF
-  cat >"${runner_dir}/index.mjs" <<'EOF'
-#!/usr/bin/env node
-// Minimal LangGraph Deep Agents runner wired to an OpenAI-compatible endpoint
-// (e.g. OpenVINO Model Server on Intel GPU) via HARNESS_LLM_ENDPOINT.
-import { createDeepAgent } from "deepagents";
-import { ChatOpenAI } from "@langchain/openai";
-
-// Handled before touching the model/endpoint: the installer's verify step
-// calls --version/--help and must not depend on a live inference call.
-const args = process.argv.slice(2);
-if (args.includes("--version") || args.includes("-v")) {
-  console.log("deepagents-runner v1.0.0");
-  process.exit(0);
-}
-if (args.includes("--help") || args.includes("-h")) {
-  console.log("Usage: deepagents-runner [prompt...]");
-  console.log("Runs a LangGraph Deep Agents prompt against HARNESS_LLM_ENDPOINT.");
-  process.exit(0);
-}
-
-const endpoint = process.env.HARNESS_LLM_ENDPOINT || "http://127.0.0.1:8000/v3";
-const model = new ChatOpenAI({
-  model: process.env.HARNESS_LLM_MODEL || "default",
-  configuration: { baseURL: endpoint },
-  apiKey: process.env.HARNESS_LLM_API_KEY || "unused",
-});
-
-const agent = createDeepAgent({ model });
-const prompt = args.join(" ") || "Say hello and describe your tools.";
-try {
-  const result = await agent.invoke({ messages: [{ role: "user", content: prompt }] });
-  console.log(JSON.stringify(result, null, 2));
-} catch (err) {
-  console.error(`deepagents-runner: request to ${endpoint} failed: ${err.message || err}`);
-  process.exit(1);
-}
-EOF
-  chmod +x "${runner_dir}/index.mjs"
-  spin "Installing deepagents-runner dependencies" bash -c "cd \"$runner_dir\" && npm install"
-  spin "Linking deepagents-runner CLI" bash -c "cd \"$runner_dir\" && npm link"
+  } >"${tmp}.new"
+  mv -f "${tmp}.new" "$config_file"
+  rm -f "$tmp"
 }
 
 install_hermes() {
@@ -209,7 +204,7 @@ install_selected_agent() {
   export HARNESS_AGENT="$agent"
   case "$agent" in
     openclaw) install_openclaw ;;
-    deepagents-code) install_deepagents_runner ;;
+    deepagents-code) install_dcode ;;
     hermes) install_hermes ;;
     *) error "Unknown HARNESS_AGENT: $agent (expected openclaw, deepagents-code, or hermes)" ;;
   esac
@@ -229,7 +224,7 @@ remove_agent_package() {
   agent="$(canonical_agent_name "$1")"
   case "$agent" in
     openclaw) remove_openclaw_package ;;
-    deepagents-code) remove_deepagents_runner_package ;;
+    deepagents-code) remove_dcode_package ;;
     hermes) remove_hermes_package ;;
     *) warn "No package-removal step known for agent '${agent}'; only its CLI shim (if any) was removed." ;;
   esac
@@ -246,15 +241,25 @@ remove_openclaw_package() {
   fi
 }
 
-remove_deepagents_runner_package() {
-  local runner_dir="${HOME}/.local/share/deepagents-runner"
-  if command_exists npm; then
-    npm rm -g deepagents-runner >/dev/null 2>&1 || true
+remove_dcode_package() {
+  if command_exists uv; then
+    if uv tool uninstall deepagents-code >/dev/null 2>&1; then
+      ok "dcode removed"
+    else
+      warn "Could not uv-uninstall deepagents-code; remove it manually if needed."
+    fi
+  else
+    warn "uv not found on PATH; could not uninstall dcode automatically."
   fi
-  if [[ -d "$runner_dir" && ! -L "$runner_dir" ]]; then
-    info "Removing deepagents-runner scaffold (${runner_dir})…"
-    rm -rf -- "$runner_dir"
-    ok "deepagents-runner scaffold removed"
+  if [[ -n "${KEEP_AGENT_DATA:-}" ]]; then
+    info "Keeping dcode data directory (KEEP_AGENT_DATA=1)."
+    return 0
+  fi
+  local dcode_home="${DEEPAGENTS_HOME:-$HOME/.deepagents}"
+  if [[ -d "$dcode_home" && ! -L "$dcode_home" ]]; then
+    info "Removing dcode data directory (${dcode_home})…"
+    rm -rf -- "$dcode_home"
+    ok "Removed dcode data directory (${dcode_home})"
   fi
 }
 
@@ -343,7 +348,6 @@ hermes_skill_remove() {
 # are intentionally not fabricated here — its exact CLI/config surface isn't
 # something this installer has verified beyond its published package.json.
 run_agent_onboard() {
-  require_third_party_notice_acceptance
   local agent endpoint cli_bin
   agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
   endpoint="${HARNESS_LLM_ENDPOINT:-$(harness_llm_endpoint)}"
@@ -358,13 +362,16 @@ pointed at ${endpoint} — see github.com/openclaw/openclaw for its exact
 provider-setup steps; this installer does not assume flags it hasn't verified."
       ;;
     deepagents-code)
-      command_exists "$cli_bin" || error "deepagents-runner not found after install."
-      local model_hint=""
+      command_exists "$cli_bin" || error "dcode not found after install."
+      local model_hint="default"
       [[ -n "${HARNESS_HF_MODEL:-}" ]] && model_hint="${HARNESS_HF_MODEL##*/}"
-      info "Smoke-testing deepagents-runner against ${endpoint}…"
-      HARNESS_LLM_ENDPOINT="$endpoint" HARNESS_LLM_MODEL="${HARNESS_LLM_MODEL:-$model_hint}" "$cli_bin" "Say hello." \
+      model_hint="${HARNESS_LLM_MODEL:-$model_hint}"
+      configure_dcode_provider "$endpoint" "$model_hint"
+      info "Smoke-testing dcode against ${endpoint} (model: ${model_hint})…"
+      HARNESS_DCODE_API_KEY="${HARNESS_DCODE_API_KEY:-not-needed}" DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 \
+        "$cli_bin" -n "Say hello." --model "openai:${model_hint}" \
         || warn "Smoke test failed — check that the model server at ${endpoint} is reachable and that
-HARNESS_LLM_MODEL matches a model name registered with it."
+'${model_hint}' matches a model name registered with it."
       ;;
     hermes)
       command_exists "$cli_bin" || warn "'${cli_bin}' was not found on PATH after install."

@@ -11,14 +11,13 @@ set -euo pipefail
 
 # Repo root is one level up from this payload script.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
-for lib in colors verify state sudo shim gpu-intel docker-setup nodejs notice gateway sandbox express openvino agents harness-mcp; do
+for lib in colors verify state sudo shim gpu-intel docker-setup nodejs gateway sandbox express openvino agents harness-mcp; do
   # shellcheck disable=SC1090
   . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
 done
 
 TOTAL_STEPS=4
 NON_INTERACTIVE="${NON_INTERACTIVE:-}"
-ACCEPT_THIRD_PARTY_SOFTWARE="${ACCEPT_THIRD_PARTY_SOFTWARE:-}"
 SKIP_GPU_CHECK="${SKIP_GPU_CHECK:-}"
 
 usage() {
@@ -42,7 +41,6 @@ usage() {
 
   Options:
     --non-interactive                Skip prompts (uses env vars / defaults)
-    --yes-i-accept-third-party-software  Accept the third-party notice without prompting
     --skip-gpu-check                  Skip Intel GPU detection/driver checks
     --agent <openclaw|deepagents-code|hermes>  Real agent to install (sets HARNESS_AGENT)
     --hf-model <hf-model-id>          Hugging Face model to export to OpenVINO IR
@@ -53,6 +51,10 @@ usage() {
     HERMES_INSTALL_URL            Hermes's official installer URL (default: hermes-agent.nousresearch.com)
     HERMES_INSTALL_SHA256         Pin the Hermes installer's expected SHA-256 (required unless HERMES_ALLOW_UNVERIFIED_INSTALL=1)
     HERMES_ALLOW_UNVERIFIED_INSTALL  Run the Hermes installer without a pinned checksum (not recommended)
+    DCODE_INSTALL_SHA256          Pin dcode's (langch.in/dcode) installer SHA-256 (required unless HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1)
+    HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL  Run dcode's installer without a pinned checksum (not recommended)
+    DEEPAGENTS_CODE_VERSION       Pin an exact dcode version (passed through to its own installer)
+    DEEPAGENTS_HOME               Path to dcode's profile dir (default: ~/.deepagents)
     DOCKER_INSTALL_SHA256         Pin get.docker.com's expected SHA-256 (non-apt hosts only; required unless DOCKER_ALLOW_UNVERIFIED_INSTALL=1)
     DOCKER_ALLOW_UNVERIFIED_INSTALL  Run the Docker convenience script without a pinned checksum (not recommended)
     HARNESS_LLM_ENDPOINT         OpenAI-compatible endpoint (default: local OpenVINO Model Server)
@@ -65,6 +67,9 @@ usage() {
     HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser hermes3)
     HARNESS_OVMS_EXPORT_MODEL_PY_SHA256, HARNESS_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256  Pin export_model.py/requirements.txt when overriding HARNESS_OVMS_EXPORT_MODEL_REF
     HARNESS_ALLOW_UNVERIFIED_OVMS_EXPORTER  Skip pinning for a custom HARNESS_OVMS_EXPORT_MODEL_REF (not recommended)
+    HARNESS_OVMS_EXPORTER         export-model-py (default) | model-download (see Known limitations)
+    HARNESS_MODEL_DOWNLOAD_SCRIPT_REF, HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256, HARNESS_MODEL_DOWNLOAD_IMAGE_TAG
+    HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT  Skip pinning get_model.sh's checksum (not recommended)
     HARNESS_GATEWAY_ENABLED       Route sandbox traffic through a shared gateway instead of publishing ports (default: off)
     HARNESS_GATEWAY_NETWORK, HARNESS_GATEWAY_CONTAINER, HARNESS_GATEWAY_PORT
     HERMES_CONFIG                  Path to Hermes's config.yaml (default: ~/.hermes/config.yaml)
@@ -72,7 +77,7 @@ usage() {
     HARNESS_ADVERTISED_HOST       Host/IP printed in endpoint URLs (default: 127.0.0.1)
     HARNESS_BIND_HOST             Address Docker binds published ports to (default: same as HARNESS_ADVERTISED_HOST)
     HTTP_PROXY, HTTPS_PROXY, ALL_PROXY, NO_PROXY  Forwarded into OVMS/sandbox/gateway containers
-    NON_INTERACTIVE=1, ACCEPT_THIRD_PARTY_SOFTWARE=1, SKIP_GPU_CHECK=1
+    NON_INTERACTIVE=1, SKIP_GPU_CHECK=1
 
 EOF
 }
@@ -276,7 +281,6 @@ main() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --non-interactive) NON_INTERACTIVE=1 ;;
-      --yes-i-accept-third-party-software) ACCEPT_THIRD_PARTY_SOFTWARE=1 ;;
       --skip-gpu-check) SKIP_GPU_CHECK=1 ;;
       --agent) HARNESS_AGENT="$2"; shift ;;
       --hf-model) HARNESS_HF_MODEL="$2"; shift ;;
@@ -286,36 +290,30 @@ main() {
     esac
     shift
   done
-  export NON_INTERACTIVE ACCEPT_THIRD_PARTY_SOFTWARE
+  export NON_INTERACTIVE
   export HARNESS_AGENT HARNESS_HF_MODEL
 
   if [[ "${positional[0]:-}" == "sandbox" ]]; then
-    require_third_party_notice_acceptance
     run_sandbox_command "${positional[@]:1}"
     exit 0
   fi
   if [[ "${positional[0]:-}" == "models" ]]; then
-    require_third_party_notice_acceptance
     run_models_command "${positional[@]:1}"
     exit 0
   fi
   if [[ "${positional[0]:-}" == "mcp" ]]; then
-    require_third_party_notice_acceptance
     run_mcp_command "${positional[@]:1}"
     exit 0
   fi
   if [[ "${positional[0]:-}" == "skill" ]]; then
-    require_third_party_notice_acceptance
     run_skill_command "${positional[@]:1}"
     exit 0
   fi
   if [[ "${positional[0]:-}" == "connect" ]]; then
-    require_third_party_notice_acceptance
     connect_sandbox "${positional[1]:-}"
     exit 0
   fi
   if [[ "${positional[0]:-}" == "status" ]]; then
-    require_third_party_notice_acceptance
     print_status
     exit 0
   fi
@@ -330,7 +328,6 @@ main() {
 
   printf "\n${C_GREEN}${C_BOLD}Intel Agent Harness${C_RESET}\n\n"
 
-  require_third_party_notice_acceptance
   prepare_installer_host
 
   step 1 "$TOTAL_STEPS" "Node.js"

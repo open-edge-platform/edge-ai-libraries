@@ -12,8 +12,10 @@ set -euo pipefail
 # Only trust BASH_SOURCE when it points at a real file on disk — piped
 # execution (curl | bash) has no backing file, so falling back to $0 would
 # silently resolve to the caller's cwd instead of signaling standalone mode.
+# readlink -f resolves a symlinked invocation (e.g. a PATH shim) back to the
+# real checkout directory, not the symlink's own directory.
 if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 else
   SCRIPT_DIR=""
 fi
@@ -25,20 +27,18 @@ is_source_checkout() {
   [[ -n "$SCRIPT_DIR" && -f "${SCRIPT_DIR}/scripts/install.sh" && -d "${SCRIPT_DIR}/scripts/lib" ]]
 }
 
-# Version resolution order: explicit env var, then a repo-local .version
-# file. Standalone fetches (curl | bash) have no local .version to read, so
-# they must set HARNESS_INSTALL_REF explicitly -- silently defaulting to a
-# mutable ref like "main" would make the ref pinning below pointless (the
-# fetched branch runs immediately, and could differ from what was reviewed).
+# Version resolution: HARNESS_INSTALL_REF must be set explicitly (a tag or
+# commit from HARNESS_INSTALL_REPO). Standalone fetches (curl | bash) have no
+# local checkout to read a ref from, and silently defaulting to a mutable ref
+# like "main" would make the ref pinning below pointless (the fetched branch
+# runs immediately, and could differ from what was reviewed).
 resolve_install_ref() {
   if [[ -n "$HARNESS_INSTALL_REF" ]]; then
     printf '%s' "$HARNESS_INSTALL_REF"
-  elif [[ -n "$SCRIPT_DIR" && -f "${SCRIPT_DIR}/.version" ]]; then
-    tr -d '[:space:]' <"${SCRIPT_DIR}/.version"
   else
-    echo "This script was fetched standalone, so there is no local .version file to" >&2
-    echo "pin a ref from. Set HARNESS_INSTALL_REF=<tag-or-commit> explicitly --" >&2
-    echo "this installer refuses to silently install from a mutable 'main'." >&2
+    echo "HARNESS_INSTALL_REF is required when fetched standalone -- set it to a" >&2
+    echo "tag or commit of HARNESS_INSTALL_REPO. This installer refuses to" >&2
+    echo "silently install from a mutable ref like 'main'." >&2
     return 1
   fi
 }
@@ -69,6 +69,13 @@ clone_installer_ref() {
 resolve_payload_dir() {
   local clone_dir="$1" candidate
   if [[ -n "$HARNESS_INSTALL_SUBDIR" ]]; then
+    case "$HARNESS_INSTALL_SUBDIR" in
+      /* | *..*)
+        echo "HARNESS_INSTALL_SUBDIR must be a relative path inside the cloned repo," >&2
+        echo "with no '..' components: $HARNESS_INSTALL_SUBDIR" >&2
+        return 1
+        ;;
+    esac
     candidate="${clone_dir}/${HARNESS_INSTALL_SUBDIR}"
   elif [[ -f "${clone_dir}/scripts/install.sh" ]]; then
     candidate="$clone_dir"

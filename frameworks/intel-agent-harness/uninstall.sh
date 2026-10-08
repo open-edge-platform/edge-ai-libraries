@@ -29,14 +29,15 @@ usage() {
   installed agent (its package, e.g. "npm uninstall -g", and its CLI shim),
   and this installer's state directory (~/.intel-agent). For Hermes, this
   also deletes its data directory (~/.hermes — config, sessions, memories,
-  skills) unless --keep-agent-data is passed. Docker, Node.js/nvm, and the
-  Intel compute runtime are left installed — remove those yourself if you no
+  skills); for deepagents-code (dcode), ~/.deepagents (config, sessions) —
+  unless --keep-agent-data is passed. Docker, Node.js/nvm, and the Intel
+  compute runtime are left installed — remove those yourself if you no
   longer need them.
 
   Options:
     --yes               Skip the confirmation prompt
     --delete-models     Also delete exported OpenVINO models (HARNESS_MODELS_DIR)
-    --keep-agent-data   Keep Hermes's ~/.hermes data directory (sets KEEP_AGENT_DATA=1)
+    --keep-agent-data   Keep Hermes's ~/.hermes or dcode's ~/.deepagents data directory (sets KEEP_AGENT_DATA=1)
     --agent <name>       Agent to remove (default: HARNESS_AGENT or openclaw)
     --help, -h           Show this help message and exit
 
@@ -100,8 +101,11 @@ main() {
 
   local agent_desc
   agent_desc="the installed agent ('$(canonical_agent_name "$agent")')"
-  if [[ "$(canonical_agent_name "$agent")" == "hermes" && -z "$KEEP_AGENT_DATA" ]]; then
-    agent_desc="${agent_desc}, including its ~/.hermes data (sessions/memories/skills)"
+  if [[ -z "$KEEP_AGENT_DATA" ]]; then
+    case "$(canonical_agent_name "$agent")" in
+      hermes) agent_desc="${agent_desc}, including its ~/.hermes data (sessions/memories/skills)" ;;
+      deepagents-code) agent_desc="${agent_desc}, including its ~/.deepagents data (sessions/config)" ;;
+    esac
   fi
 
   printf "\n${C_YELLOW}${C_BOLD}Intel Agent Harness — Uninstall${C_RESET}\n\n"

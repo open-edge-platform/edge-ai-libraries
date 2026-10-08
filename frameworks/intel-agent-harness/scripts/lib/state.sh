@@ -104,37 +104,6 @@ atomic_write_file() {
   assert_owned_by_current_user "$path"
 }
 
-# Reads a top-level string field from a small JSON file (falls back to sed
-# when Node isn't installed yet, e.g. before the Node.js bootstrap step).
-# Applies the strict state-path checks only to files actually under the
-# state root; other callers (e.g. the repo-local notice.json) just get a
-# symlink refusal, since they aren't part of the trusted state tree.
-read_json_field() {
-  local file="$1" field="$2" root
-  [[ -f "$file" ]] || return 1
-  root="$(harness_state_root)"
-  case "$file" in
-    "$root" | "$root"/*)
-      assert_state_path_safe "$file"
-      assert_owned_by_current_user "$file"
-      ;;
-    *)
-      [[ ! -L "$file" ]] || error "Refusing to read symlinked file: ${file}"
-      ;;
-  esac
-  if command_exists node; then
-    node -e '
-      try {
-        const data = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
-        const v = data[process.argv[2]];
-        if (v !== undefined) process.stdout.write(String(v));
-      } catch {}
-    ' "$file" "$field"
-  else
-    sed -nE "s/^[[:space:]]*\"${field}\"[[:space:]]*:[[:space:]]*\"?([^\",}]*)\"?,?[[:space:]]*\$/\1/p" "$file" | head -1
-  fi
-}
-
 harness_advertised_host_file() {
   printf '%s/advertised-host' "$(ensure_state_dir)"
 }

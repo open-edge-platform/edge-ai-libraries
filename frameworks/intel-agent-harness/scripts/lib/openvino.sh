@@ -20,6 +20,13 @@ HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
 HARNESS_LLM_PROVIDER="${HARNESS_LLM_PROVIDER:-ovms}"
 HARNESS_LLM_ROUTER_ENDPOINT="${HARNESS_LLM_ROUTER_ENDPOINT:-}"
 
+# Which tool performs --hf-model export: OVMS's own export_model.py (default),
+# or the edge-ai-libraries "Model Download" microservice's ephemeral
+# container (model-download — see export_model_via_model_download below).
+# Both are wired into config.json the same way; the latter is newer and less
+# battle-tested than the long-standing default.
+HARNESS_OVMS_EXPORTER="${HARNESS_OVMS_EXPORTER:-export-model-py}"
+
 # export_model.py is OVMS's own model-export tool — unlike plain
 # `optimum-cli export openvino`, it also writes the graph.pbtxt MediaPipe
 # servable definition OVMS's /v3/chat/completions endpoint requires for LLMs.
@@ -147,6 +154,114 @@ inside the venv to check its exact current flags if this keeps failing."
   ok "Exported ${hf_model_id} -> ${out_dir}"
 }
 
+# export_model_via_model_download hf_model_id [model_name] — alternate
+# exporter (HARNESS_OVMS_EXPORTER=model-download): downloads and runs
+# edge-ai-libraries' "Model Download" microservice as a one-shot ephemeral
+# container (get_model.sh) instead of OVMS's own export_model.py, then
+# registers the resulting graph.pbtxt with OVMS the same way
+# export_model_to_openvino's output is registered (a model_config_list entry
+# -- confirmed by inspecting a real export_model.py run side by side with
+# this exporter; OVMS itself auto-detects the graph.pbtxt within base_path,
+# no separate mediapipe_config_list entry is involved). Still newer/less
+# battle-tested than the default export-model-py path.
+HARNESS_MODEL_DOWNLOAD_SCRIPT_REF="${HARNESS_MODEL_DOWNLOAD_SCRIPT_REF:-main}"
+HARNESS_MODEL_DOWNLOAD_IMAGE_TAG="${HARNESS_MODEL_DOWNLOAD_IMAGE_TAG:-}"
+export_model_via_model_download() {
+  local hf_model_id="$1" model_name="${2:-${1##*/}}" script_url script out result_line
+  command_exists docker || error "Docker is required by the Model Download microservice's ephemeral container."
+  command_exists python3 || error "python3 is required by get_model.sh (builds/parses its request payloads)."
+  assert_proxy_scheme_supported
+  mkdir -p "$HARNESS_MODELS_DIR"
+  script="$(harness_state_root)/model-download/get_model.sh"
+  mkdir -p "$(dirname "$script")"
+  script_url="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/${HARNESS_MODEL_DOWNLOAD_SCRIPT_REF}/microservices/model-download/scripts/get_model.sh"
+  # This integration is newly explored, unlike the Hermes/Docker installers
+  # there is no independently-reviewed hash hardcoded here yet -- same
+  # fail-closed-by-default stance until one is pinned.
+  if [[ -z "${HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256:-}" && "${HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT:-}" != "1" ]]; then
+    error "HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256 is not set, so refusing to run
+get_model.sh unverified. Download and review ${script_url} yourself, then set
+HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256=<sha256> to pin it (or
+HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT=1 to accept the risk)."
+  fi
+  info "Fetching the Model Download microservice's get_model.sh (ref: ${HARNESS_MODEL_DOWNLOAD_SCRIPT_REF})…"
+  fetch_and_verify "$script_url" "$script" "get_model.sh" "${HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256:-}"
+  assert_shell_script "$script" "get_model.sh"
+  chmod +x "$script"
+
+  local -a image_tag_args=()
+  if [[ -n "$HARNESS_MODEL_DOWNLOAD_IMAGE_TAG" ]]; then
+    image_tag_args=(--image-tag "$HARNESS_MODEL_DOWNLOAD_IMAGE_TAG")
+  else
+    warn "HARNESS_MODEL_DOWNLOAD_IMAGE_TAG is unset -- get_model.sh defaults to the
+floating 'latest' tag for intel/model-download. Set it once you've picked a
+known-good version for reproducible exports."
+  fi
+
+  out="$(mktemp)"
+  info "Downloading+converting ${hf_model_id} via the Model Download microservice (ephemeral, experimental)…"
+  # PIPESTATUS, not `if ! ... | tee`, because the pipeline's own exit status
+  # is tee's (always 0) unless the caller's shell happens to have pipefail
+  # set -- true for scripts/install.sh, but not guaranteed for anyone
+  # sourcing this function directly, so don't rely on an external shell
+  # option for correctness here.
+  bash "$script" --model-name "$hf_model_id" --hub openvino --type llm \
+      --is-ovms --precision int8 --device CPU \
+      --model-path "$HARNESS_MODELS_DIR" --download-path "$model_name" \
+      --plugins huggingface,openvino "${image_tag_args[@]}" 2>&1 | tee "$out"
+  if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
+    rm -f "$out"
+    error "get_model.sh failed to download/convert ${hf_model_id}. See its output above."
+  fi
+  result_line="$(grep -o 'output: .*' "$out" | tail -1)"
+  rm -f "$out"
+  ok "Downloaded/converted ${hf_model_id} via the Model Download microservice${result_line:+ (${result_line})}."
+
+  # get_model.sh reports the *container's* view of the output dir (it bind-
+  # mounts $HARNESS_MODELS_DIR at /opt/models); translate back to the host
+  # path, then locate the graph.pbtxt OVMS needs -- confirmed (by running
+  # both exporters side by side) to sit directly under <output_dir>/<hf_model_id>/,
+  # the same "base_path containing graph.pbtxt" shape export_model_to_openvino
+  # produces, registered the same way: a model_config_list entry, not
+  # mediapipe_config_list (OVMS auto-detects the graph file within base_path).
+  local container_output_dir host_output_dir graph_dir relative_base_path
+  container_output_dir="${result_line#output: }"
+  host_output_dir="${HARNESS_MODELS_DIR}${container_output_dir#/opt/models}"
+  graph_dir="${host_output_dir}/${hf_model_id}"
+  if [[ -f "${graph_dir}/graph.pbtxt" ]]; then
+    relative_base_path="${graph_dir#"${HARNESS_MODELS_DIR}"/}"
+    if with_state_lock ovms-config _add_model_config_entry_locked \
+        "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$relative_base_path"; then
+      ok "Registered '${model_name}' with OVMS (base_path: ${relative_base_path})."
+    else
+      warn "Converted ${hf_model_id} but could not update OVMS's config.json --
+add a model_config_list entry for base_path '${relative_base_path}' manually."
+    fi
+  else
+    warn "No graph.pbtxt found at ${graph_dir} -- OVMS will not serve chat
+completions for '${model_name}' until this is resolved (check the Model
+Download microservice's logs above)."
+  fi
+}
+
+# Lock-protected append/replace of a model_config_list entry -- mirrors
+# _remove_model_from_ovms_config_locked's locked read-modify-write pattern.
+_add_model_config_entry_locked() {
+  local config_file="$1" name="$2" base_path="$3" tmp
+  tmp="$(mktemp)"
+  node -e '
+      const fs = require("node:fs");
+      const [configFile, name, basePath] = process.argv.slice(1);
+      let data = {};
+      try { data = JSON.parse(fs.readFileSync(configFile, "utf8")); } catch {}
+      data.model_config_list = Array.isArray(data.model_config_list) ? data.model_config_list : [];
+      data.model_config_list = data.model_config_list.filter((e) => e?.config?.name !== name);
+      data.model_config_list.push({ config: { name, base_path: basePath } });
+      data.mediapipe_config_list = Array.isArray(data.mediapipe_config_list) ? data.mediapipe_config_list : [];
+      process.stdout.write(JSON.stringify(data, null, 2));
+    ' "$config_file" "$name" "$base_path" >"$tmp" && mv -f "$tmp" "$config_file" || { rm -f "$tmp"; return 1; }
+}
+
 ensure_openvino_model_server() {
   local gpu_args
   local -a proxy_args=()
@@ -213,7 +328,12 @@ no local model export happens; the external endpoint owns model selection."
     ovms)
       ensure_openvino_model_server
       if [[ -n "${HARNESS_HF_MODEL:-}" ]]; then
-        export_model_to_openvino "$HARNESS_HF_MODEL"
+        case "$HARNESS_OVMS_EXPORTER" in
+          export-model-py) export_model_to_openvino "$HARNESS_HF_MODEL" ;;
+          model-download) export_model_via_model_download "$HARNESS_HF_MODEL" ;;
+          *) error "Unknown HARNESS_OVMS_EXPORTER: ${HARNESS_OVMS_EXPORTER} (expected
+export-model-py or model-download)." ;;
+        esac
         ensure_openvino_model_server
         wait_for_ovms_model_ready "${HARNESS_HF_MODEL##*/}"
       elif ! ovms_has_exported_models; then
@@ -233,14 +353,20 @@ OpenAI-compatible endpoint without this installer managing a backend."
 
 # ovms_has_exported_models — true if config.json already lists at least one
 # exported servable, so a fresh install without --hf-model can tell "nothing
-# to serve yet" apart from "already has models from a prior export".
+# to serve yet" apart from "already has models from a prior export". Checks
+# model_config_list -- confirmed (by inspecting a real export) to be what
+# export_model.py actually populates; OVMS serves chat completions via the
+# graph.pbtxt it finds in that entry's base_path, not a separate
+# mediapipe_config_list registration. Checked too, in case that ever changes.
 ovms_has_exported_models() {
   local config_file="${HARNESS_MODELS_DIR}/config.json"
   [[ -f "$config_file" ]] || return 1
   node -e '
     try {
       const d = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
-      process.exit(Array.isArray(d.mediapipe_config_list) && d.mediapipe_config_list.length > 0 ? 0 : 1);
+      const hasModels = Array.isArray(d.model_config_list) && d.model_config_list.length > 0;
+      const hasGraphs = Array.isArray(d.mediapipe_config_list) && d.mediapipe_config_list.length > 0;
+      process.exit(hasModels || hasGraphs ? 0 : 1);
     } catch { process.exit(1); }
   ' "$config_file"
 }
