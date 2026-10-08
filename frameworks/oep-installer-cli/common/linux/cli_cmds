@@ -41,6 +41,14 @@ subcommand_install () {
 }
 
 subcommand_remove () {
+  if [[ " $* " = *" --help "* ]]; then
+    echo "remove options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
+    echo "  --remove-all    remove all previously installed components"
+    echo
+    return 0
+  fi
   act_helper "remove,Removal,Removing,Removed" "-r" "$@"
 }
 
@@ -50,7 +58,7 @@ subcommand_start () {
 
 subcommand_stop () {
   [[ " $* " != *" --help "* ]] || return
-  act_helper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
+  act_helper "stop,Stop,Stopping,Stopped" "-r" "$@" --continue
 }
 
 subcommand_list () {

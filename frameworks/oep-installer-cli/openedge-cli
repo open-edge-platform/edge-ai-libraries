@@ -66,7 +66,7 @@ main () {
 	  # pass module names forward within this command line so groups are checked against actual use
           _m="$(act_extract_modules ${_cmds[$_j]} ${_args[$_j]})"
           [ -n "${_m// }" ] && _carry="$_m"
-          if [ -z "${_m// }" ] && [ -n "$_carry" ] && [ "${_cmds[$_j]}" != "stop" ]; then
+          if [ -z "${_m// }" ] && [ -n "$_carry" ] && [ "${_cmds[$_j]}" != "stop" ] && ! [[ "${_cmds[$_j]}" = "remove" && " ${_args[$_j]} " = *" --remove-all "* ]]; then
             _resolved=(${_globals[*]} $_carry ${_args[$_j]})
           else
             _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
