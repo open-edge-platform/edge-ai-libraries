@@ -33,8 +33,6 @@ debian_90_install_video_processing_for_nvr () {
     ffmpeg -i car.mp4 -c:v copy -bsf:v hevc_mp4toannexb -an -f hevc car_1080p.h265
     rm -f car.mp4
 
-    return 0
-
     mkdir -p "$workspace"/models
     cd "$workspace"/models
     python3 -m venv .venv
