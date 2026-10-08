@@ -155,7 +155,7 @@ Notes:
   family it uses is allowed: `GPU_NPU` needs both `gpu` and `npu`. So listing
   `gpu_npu` is redundant once `gpu` and `npu` are listed (as in `full.yaml`).
 - `--no-require-models` is accepted, but it does not change behaviour yet. Pipelines
-  with missing models are always skipped, with the reason shown.
+  with missing models are always skipped, with the reason shown.  #TODO upd to `skip_missing_models`!!!
 - The CLI always passes `vippet/tests/performance` to pytest, so arguments after
   `--` can't move collection elsewhere. Paths or node ids after `--` don't narrow
   the run; use `--pipelines`, `--variants`, `--streams` or `-k` instead.

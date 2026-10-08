@@ -35,7 +35,7 @@ OUTPUT_MODE: str = SETTINGS["benchmark.execution.output_mode"]
 MAX_RUNTIME: float = SETTINGS["benchmark.execution.max_runtime"]
 SKIP_PIPELINES: list[str] = SETTINGS["benchmark.filters.skip_pipelines"]
 SKIP_VARIANTS: list[str] = SETTINGS["benchmark.filters.skip_variants"]
-REQUIRE_MODELS: bool = SETTINGS["benchmark.filters.require_models"]
+SKIP_MISSING_MODELS: bool = SETTINGS["benchmark.filters.skip_missing_models"]
 ON_UNKNOWN_FILTER_ID: str = SETTINGS["benchmark.filters.on_unknown_id"]
 
 # --- results section ---

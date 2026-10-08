@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from helpers.api_helpers import fetch_devices
 from helpers.pipeline_case_helpers import SUPPORTED_DEVICE_FAMILIES, PipelineCase
 from perf_helpers.hw_monitor import HardwareMonitor
-from perf_helpers.preflight import run_preflight_or_exit
+from perf_helpers.preflight import fetch_discovered_devices, run_preflight_or_exit
 from perf_helpers.reporters import ResultExporter, generate_html_report
 from perf_helpers.settings import SettingsError
 
@@ -37,6 +37,7 @@ try:
         READINESS_TIMEOUT_SECONDS,
         REQUEST_TIMEOUT,
         RESULT_FORMATS,
+        SKIP_MISSING_MODELS,
         SKIP_PIPELINES,
         SKIP_VARIANTS,
         SETTINGS,
@@ -74,21 +75,23 @@ _NO_CASES_REASON = (
     "Ensure API reachability and at least one supported device (CPU/GPU/NPU)."
 )
 
+# Snapshot of GET /devices captured once at pre-flight time (see
+# pytest_sessionstart below). Populated independent of any test outcome so a
+# fully failed/skipped run still has the discovered hardware available for
+# the report.
+_DISCOVERED_DEVICES: list[dict[str, Any]] = []
 
-def _collect_system_info(session: httpx.Client | None = None) -> dict[str, Any]:
-    """Collect system details from VIPPET APIs for the benchmark report."""
+
+
+def _collect_system_info(devices: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build system details for the benchmark report from a devices snapshot."""
 
     devices_info: dict[str, str] = {}
-    if session is not None:
-        try:
-            devices = fetch_devices(session)  # type: ignore[arg-type]
-            for device in devices:
-                family = device.get("device_family", "").upper()
-                full_name = device.get("full_device_name", "")
-                if family and full_name:
-                    devices_info[family] = full_name
-        except Exception:
-            logger.debug("Failed to fetch device info from VIPPET /devices API")
+    for device in devices:
+        family = str(device.get("device_family", "")).upper()
+        full_name = device.get("full_device_name", "")
+        if family and full_name:
+            devices_info[family] = full_name
 
     system: dict[str, str] = {}
     if devices_info.get("CPU"):
@@ -211,13 +214,15 @@ def _validate_filter_ids(
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_sessionstart() -> None:
-    """Verify ViPPET readiness once before performance test collection."""
+    """Verify ViPPET readiness and capture its hardware snapshot once."""
     run_preflight_or_exit(
         BASE_URL,
         READINESS_TIMEOUT_SECONDS,
         POLL_INTERVAL,
         REQUEST_TIMEOUT,
     )
+    global _DISCOVERED_DEVICES
+    _DISCOVERED_DEVICES = fetch_discovered_devices(BASE_URL, REQUEST_TIMEOUT)
 
 
 def _discover_case_params() -> _DiscoveredCases:
@@ -274,7 +279,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         return
 
     if _DISCOVERED_CASES is None:
-        _DISCOVERED_CASES = _discover_case_params()
+        _DISCOVERED_CASES = _discover_case_params()  #TODO handle SKIP_MISSING_MODELS
 
     for invalid_param in _validate_filter_ids(_DISCOVERED_CASES.known_pipeline_ids):
         invalid_case, _, _ = _unwrap_case(invalid_param)
@@ -333,7 +338,12 @@ def hw_monitor() -> HardwareMonitor:
 def results_collector(
     request: pytest.FixtureRequest, http_client: httpx.Client
 ) -> list[dict[str, Any]]:
-    """Session-scoped accumulator that exports results on teardown."""
+    """Session-scoped accumulator that exports results on teardown.
+
+    Depends on ``http_client`` only to order teardown: this fixture's
+    finalizer must run while the client is still open, in case future
+    report steps need live API access.
+    """
     results: list[dict[str, Any]] = []
     start_time = time.time()
 
@@ -345,19 +355,20 @@ def results_collector(
         output_dir = Path(PERF_RESULTS_DIR) / benchmark_id
         exporter = ResultExporter(output_dir, formats=RESULT_FORMATS)
 
-        system_info = _collect_system_info(http_client)
+        system_info = _collect_system_info(_DISCOVERED_DEVICES)
 
+        # Built from the /devices snapshot captured at pre-flight, independent
+        # of per-test outcomes, so a fully failed/skipped run still records
+        # the discovered hardware. Per-row variant association (variant_name,
+        # hw_metrics) in `results` is untouched.
         hw_families: dict[str, list[str]] = {}
-        for r in results:
-            family = r.get("variant_name", "").upper()
-            for part in family.split("_"):
-                if part in {"CPU", "GPU", "NPU"}:
-                    hw_families.setdefault(part, [])
-                    device_name = system_info.get("system", {}).get(
-                        part if part != "CPU" else "Processor", ""
-                    )
-                    if device_name and device_name not in hw_families[part]:
-                        hw_families[part].append(device_name)
+        for device in _DISCOVERED_DEVICES:
+            family = str(device.get("device_family", "")).upper()
+            if family not in {"CPU", "GPU", "NPU"}:
+                continue
+            full_name = device.get("full_device_name", "")
+            if full_name and full_name not in hw_families.setdefault(family, []):
+                hw_families[family].append(full_name)
 
         n_skipped = sum(1 for r in results if r["status"] == "skipped")
         result_dict: dict[str, Any] = {

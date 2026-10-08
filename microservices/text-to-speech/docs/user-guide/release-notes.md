@@ -3,6 +3,15 @@
 This page tracks releases of the Text To Speech microservice. The most
 recent release is listed first; older entries are preserved for history.
 
+## Unreleased
+
+**Documentation:**
+
+- Corrected the documented default model to Kokoro and clarified current
+  model/runtime device support, NPU limitations, and the Qwen3-TTS
+  dependency conflict. No runtime behavior changed. See
+  [Configuration > NPU](./get-started/configuration.md#npu).
+
 ## Version 2026.2.0
 
 **Release Date:** September 9, 2026
@@ -30,6 +39,9 @@ recent release is listed first; older entries are preserved for history.
 - The `model` request parameter is accepted for API compatibility but the
   configured service model is always used.
 - Unknown voice names return HTTP `400`.
+- `models.tts.device: NPU` is not supported by any model. See
+  [Configuration > NPU](./get-started/configuration.md#npu) for the
+  exact behavior per model/runtime.
 
 ## v1.0.0
 

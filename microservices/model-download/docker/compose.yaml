@@ -45,3 +45,44 @@ services:
           create_host_path: false
     group_add:
       - ${USER_GROUP_ID:-1001}
+      
+  # Start with: docker compose -f docker/compose.yaml --profile mcp up -d
+  model_download_mcp:
+    image: ${REGISTRY}model-download:${TAG}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: model-download-mcp
+    command: --plugins ${ENABLED_PLUGINS:-all} --mcp
+    profiles:
+      - mcp
+    environment:
+      - no_proxy=${no_proxy:-}
+      - HF_HUB_ENABLE_HF_TRANSFER=1
+      - HF_TOKEN=${HUGGINGFACEHUB_API_TOKEN:-}
+      - ENABLED_PLUGINS=${ENABLED_PLUGINS}
+      - MODEL_PATH=${MODEL_PATH}
+      - OVMS_RELEASE_TAG=${OVMS_RELEASE_TAG:-v2025.4.1}
+      - MCP_TRANSPORT=${MCP_TRANSPORT:-http}
+      - MCP_PORT=${MCP_PORT:-8000}
+      - GETI_HOST=${GETI_HOST}
+      - GETI_TOKEN=${GETI_TOKEN}
+      - GETI_WORKSPACE_ID=${GETI_WORKSPACE_ID}
+      - GETI_SERVER_API_VERSION=${GETI_SERVER_API_VERSION:-v1}
+      - GETI_SERVER_SSL_VERIFY=${GETI_SERVER_SSL_VERIFY:-False}
+      - HLS_3D_POSE_CHECKPOINT_URL=${HLS_3D_POSE_CHECKPOINT_URL}
+      - HLS_ECG_BASE_URL=${HLS_ECG_BASE_URL}
+      - HLS_RPPG_MODEL_URL=${HLS_RPPG_MODEL_URL}
+      - STARTUP_MODELS_CONFIG=${STARTUP_MODELS_CONFIG_HOST_PATH:-}
+    ports:
+      - "8200:8000"
+    volumes:
+      - ${MODEL_PATH:-~/models}:/opt/models
+      - type: bind
+        source: ${STARTUP_MODELS_CONFIG_HOST_PATH:-/dev/null}
+        target: ${STARTUP_MODELS_CONFIG_HOST_PATH:-/dev/null}
+        read_only: true
+        bind:
+          create_host_path: false
+    group_add:
+      - ${USER_GROUP_ID:-1001}
