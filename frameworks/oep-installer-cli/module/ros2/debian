@@ -16,7 +16,7 @@ configure_ros2 () {
 }
 
 debian_50_profile_ros2 () {
-  echo "curl gnupg git edge_base"
+  echo "curl gnupg git software_properties_common lsb_release edge_base"
 }
 
 verify_ros2 () {
@@ -29,8 +29,6 @@ debian_50_install_ros2 () {
   if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 $ros_distro is already installed. Skipping..."
   else
-    ensure_apt update
-    ensure_apt install -y software-properties-common gnupg lsb-release ca-certificates
     ensure_apt_add_repository universe || true
 
     # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
@@ -67,8 +65,6 @@ debian_50_remove_ros2 () {
 debian_50_sbom_ros2 () {
   configure_ros2 "$@"
   cat <<EOF
-$(ensure_sbom_format pkg-list software-properties-common gnupg lsb-release ca-certificates")
----
 $(ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools)
 $(ensure_sbom_format apt-repository universe)
 EOF
