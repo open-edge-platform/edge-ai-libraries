@@ -36,12 +36,12 @@ debian_40_install_npu_accel () {
   if verify_npu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Npu drivers are already installed. Skipping..."
   else
-    # remove legacies
-    ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+    # declare ownership
+    ensure_prop set installed/npu_accel/owned true
 
-    # create the render group
-    ensure_group_add $(debian_40_group_npu_accel)
-  
+    # remove legacies
+    debian_40_remove_npu_accel "$@"
+
     mkdir -p "$workspace"
     cd "$workspace"
 
@@ -58,9 +58,14 @@ debian_40_install_npu_accel () {
     ensure_sudo rm -rf "$workspace"
     verify_npu_accel_packages
   fi
+
+  # create the render group
+  ensure_group_add $(debian_40_group_npu_accel)
 }
 
 debian_40_remove_npu_accel () {
+  [ "$(ensure_prop get installed/npu_accel/owned)" = "true" ] || return 0
+
   ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }

@@ -11,8 +11,6 @@ configure_gpu_accel () {
 
 verify_gpu_accel () {
   [ -c /dev/dri/renderD128 ] &&
-  getent group render >/dev/null 2>&1 &&
-  id -nG | grep -qw render &&
   verify_gpu_accel_packages
 }
 
@@ -36,11 +34,11 @@ debian_40_install_gpu_accel () {
   if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Gpu drivers are already installed. Skipping..."
   else
+    # declare stack ownership
+    ensure_prop set installed/gpu_accel/owned true
+
     # remove legacies
     debian_40_remove_gpu_accel || true
-
-    # create the render group
-    ensure_group_add $(debian_40_group_gpu_accel)
 
     # product key & list 
     ensure_apt_key $key_file $key_url --dearmor
@@ -54,9 +52,15 @@ debian_40_install_gpu_accel () {
     ensure_apt install --no-install-recommends --allow-downgrades -y "${pkg_list[@]}"
     verify_gpu_accel_packages
   fi
+
+  # create the render group
+  ensure_group_add $(debian_40_group_gpu_accel)
 }
 
 debian_40_remove_gpu_accel () {
+  # Leave untouched if not installed by gpu_accel
+  [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return
+
   configure_gpu_accel "$@"
   ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
