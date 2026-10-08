@@ -22,7 +22,7 @@ export const CATEGORY_INFO: Record<
   image_classification: {
     label: "Image Classification",
     description:
-      "Pose estimation locates keypoints (joints) on individual subjects to capture their skeletal structure and posture.",
+      "Image classification assigns an image to one or more categories based on its visual content, without locating specific objects.",
   },
   vision_language_models: {
     label: "Vision Language Models (VLMs)",

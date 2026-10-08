@@ -50,7 +50,7 @@ export const AddModelDialog = ({
       </DialogTrigger>
       <DialogContent
         ref={dialogContentRef}
-        className="h-[85vh] max-h-[85vh] w-[60vw] max-w-[60vw] items-start content-start overflow-y-auto sm:max-w-[60vw]"
+        className="h-[64rem] max-h-[64rem] w-[60vw] max-w-[60vw] items-start content-start overflow-y-auto sm:max-w-[60vw]"
         onInteractOutside={(event) => {
           if (
             (event.target as HTMLElement).closest(

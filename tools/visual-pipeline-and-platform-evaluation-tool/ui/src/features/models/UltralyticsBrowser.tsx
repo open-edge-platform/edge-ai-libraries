@@ -26,19 +26,27 @@ import {
   type ModelDownloadJobResponse,
   type ModelHubListResponse,
 } from "@/api/api.generated";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Download, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { formatElapsedTimeMillis } from "@/lib/timeUtils";
+import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
 import {
   handleApiError,
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils.ts";
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 13;
+
+const getModelDocsUrl = (name: string): string | null => {
+  const match = name.match(/^(yolov\d+|yolo\d+)/i);
+  return match
+    ? `https://docs.ultralytics.com/models/${match[1].toLowerCase()}`
+    : null;
+};
 
 type UltralyticsBrowserProps = {
   onInstalled?: () => void;
@@ -230,43 +238,61 @@ export const UltralyticsBrowser = ({
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Model Page</TableHead>
               <TableHead className="w-56 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {models.map((model, idx) => (
-              <TableRow key={idx} className="odd:bg-muted/30">
-                <TableCell className="whitespace-normal break-words font-medium">
-                  {typeof model.name === "string" ? model.name : "—"}
-                </TableCell>
-                <TableCell className="text-right">
-                  {typeof model.name !== "string" ? null : installedNames.has(
-                      model.name,
-                    ) ? (
-                    <span className="text-sm text-muted-foreground">
-                      Installed
-                    </span>
-                  ) : installingName === model.name ? (
-                    <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {jobStatus?.progress_message || "Installing"}
-                      {jobStatus
-                        ? ` (${formatElapsedTimeMillis(jobStatus.elapsed_time)})`
-                        : ""}
-                    </span>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={installingName !== null}
-                      onClick={() => handleInstall(model.name as string)}
-                    >
-                      Install
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+            {models.map((model, idx) => {
+              const name = typeof model.name === "string" ? model.name : null;
+              const docsUrl = name ? getModelDocsUrl(name) : null;
+              return (
+                <TableRow key={idx} className="odd:bg-muted/30">
+                  <TableCell className="whitespace-normal break-words font-medium">
+                    {name ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    {docsUrl && name ? (
+                      <a
+                        href={docsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open documentation for ${name}`}
+                        className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {!name ? null : installedNames.has(name) ? (
+                      <ModelInstallStatusIndicator status="installed" />
+                    ) : installingName === name ? (
+                      <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {jobStatus?.progress_message || "Installing"}
+                        {jobStatus
+                          ? ` (${formatElapsedTimeMillis(jobStatus.elapsed_time)})`
+                          : ""}
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={installingName !== null}
+                        onClick={() => handleInstall(name)}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Install
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
@@ -274,7 +300,7 @@ export const UltralyticsBrowser = ({
       {/* Pagination */}
       {!isLoading && totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
+          <p className="whitespace-nowrap text-xs text-muted-foreground">
             Showing{" "}
             {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, totalItems)}-
             {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} of {totalItems}

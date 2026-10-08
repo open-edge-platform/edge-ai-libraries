@@ -265,8 +265,38 @@ class TestModelHubListAPI(unittest.TestCase):
             response = self.client.post("/models/list", json=request_body)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), catalog)
+        self.assertEqual(
+            response.json(),
+            {**catalog, "count": None, "has_more": None, "next_offset": None},
+        )
         manager.list_hub_models.assert_awaited_once_with(request_body)
+
+    def test_list_hub_models_passes_through_has_more_and_next_offset(self):
+        request_body = {
+            "hub": "huggingface",
+            "filters": {"author": "OpenVINO"},
+            "limit": 10,
+            "offset": 10,
+        }
+        catalog = {
+            "hub": "huggingface",
+            "items": [{"name": "OpenVINO/model"}],
+            "count": 1,
+            "total": None,
+            "limit": 10,
+            "offset": 10,
+            "has_more": True,
+            "next_offset": 20,
+        }
+        with patch("api.routes.models.ModelManager") as manager_cls:
+            manager = MagicMock()
+            manager.list_hub_models = AsyncMock(return_value=catalog)
+            manager_cls.return_value = manager
+
+            response = self.client.post("/models/list", json=request_body)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), catalog)
 
     def test_model_manager_posts_catalog_query_to_model_download(self):
         request_body = {

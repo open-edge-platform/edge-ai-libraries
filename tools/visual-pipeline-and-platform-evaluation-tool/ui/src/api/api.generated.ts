@@ -1355,9 +1355,16 @@ export type ModelHubListResponse = {
   items: {
     [key: string]: any;
   }[];
+  /** Number of items returned in this response. */
+  count?: number | null;
+  /** Total number of items available, when the hub reports it. */
   total?: number | null;
   limit: number;
   offset: number;
+  /** Whether another page is available. */
+  has_more?: boolean | null;
+  /** Offset to request the next page, when available. */
+  next_offset?: number | null;
 };
 export type ModelHubListRequest = {
   /** Model hub to search, such as huggingface. */

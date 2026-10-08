@@ -2478,13 +2478,30 @@ class ModelHubListRequest(BaseModel):
 
 
 class ModelHubListResponse(BaseModel):
-    """Paginated results returned by an upstream model hub."""
+    """Paginated results returned by an upstream model hub.
+
+    Some hubs (for example HuggingFace) cannot report a `total` count
+    cheaply; callers must then paginate using `has_more`/`next_offset`
+    instead of computing a page count from `total`.
+    """
 
     hub: str
     items: list[dict[str, Any]]
-    total: int | None = None
+    count: int | None = Field(
+        default=None, description="Number of items returned in this response."
+    )
+    total: int | None = Field(
+        default=None,
+        description="Total number of items available, when the hub reports it.",
+    )
     limit: int
     offset: int
+    has_more: bool | None = Field(
+        default=None, description="Whether another page is available."
+    )
+    next_offset: int | None = Field(
+        default=None, description="Offset to request the next page, when available."
+    )
 
 
 class ModelDownloadJobItem(BaseModel):

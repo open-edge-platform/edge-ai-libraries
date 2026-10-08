@@ -25,19 +25,20 @@ import {
   type ModelDownloadJobResponse,
   type ModelHubListResponse,
 } from "@/api/api.generated";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Download, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { formatElapsedTimeMillis } from "@/lib/timeUtils";
+import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
 import {
   handleApiError,
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils.ts";
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 13;
 
 const HUB_AUTHOR = "OpenVINO";
 
@@ -87,7 +88,11 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
 
   const [inputSearch, setInputSearch] = useState("");
   const [search, setSearch] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  // Stack of offsets visited so far; the last entry is the current page's
+  // offset. HuggingFace does not report a total count, so "Previous"/"Next"
+  // is the only navigation we can support (no jump-to-page).
+  const [offsetStack, setOffsetStack] = useState<number[]>([0]);
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [models, setModels] = useState<ModelHubListResponse["items"]>([]);
   const [hasNextPage, setHasNextPage] = useState(false);
 
@@ -141,11 +146,13 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearch(inputSearch);
-      setCurrentPage(1);
+      setOffsetStack([0]);
     }, 300);
 
     return () => clearTimeout(timer);
   }, [inputSearch]);
+
+  const offset = offsetStack[offsetStack.length - 1];
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -159,23 +166,28 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
               ...(searchTerm ? { search: searchTerm } : {}),
             },
             limit: ITEMS_PER_PAGE,
-            offset: (currentPage - 1) * ITEMS_PER_PAGE,
+            offset,
           },
         }).unwrap();
 
-        // HuggingFace returns no total; one extra item signals a next page.
-        const items = response.items || [];
-        setModels(items.slice(0, ITEMS_PER_PAGE));
-        setHasNextPage(items.length > ITEMS_PER_PAGE);
+        setModels(response.items || []);
+        // HuggingFace reports no total; rely on has_more/next_offset to know
+        // whether another page exists, falling back to a full-page heuristic
+        // for hubs that don't report them.
+        setHasNextPage(
+          response.has_more ?? (response.items?.length ?? 0) >= ITEMS_PER_PAGE,
+        );
+        setNextOffset(response.next_offset ?? offset + ITEMS_PER_PAGE);
       } catch (err) {
         console.error("Failed to fetch models:", err);
         setModels([]);
         setHasNextPage(false);
+        setNextOffset(null);
       }
     };
 
     fetchModels();
-  }, [search, currentPage, listHubModels]);
+  }, [search, offset, listHubModels]);
 
   const hasSearch = Boolean(search.trim());
 
@@ -184,7 +196,7 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
       {/* Search Inputs */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Author</label>
+          <label className="text-sm font-medium">Organization</label>
           <Input type="text" value={HUB_AUTHOR} disabled />
         </div>
         <div className="space-y-2">
@@ -235,6 +247,7 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Model Page</TableHead>
               <TableHead>Task</TableHead>
               <TableHead>License</TableHead>
               <TableHead>Gated</TableHead>
@@ -252,6 +265,22 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
                   <TableCell className="whitespace-normal break-words font-medium">
                     {name ?? "—"}
                   </TableCell>
+                  <TableCell>
+                    {name ? (
+                      <a
+                        href={`https://huggingface.co/${name}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open ${name} on Hugging Face`}
+                        className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
                   <TableCell>{task ?? "—"}</TableCell>
                   <TableCell>{asString(model.license) ?? "—"}</TableCell>
                   <TableCell>
@@ -266,9 +295,7 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
                   </TableCell>
                   <TableCell className="text-right">
                     {!name ? null : installedNames.has(name) ? (
-                      <span className="text-sm text-muted-foreground">
-                        Installed
-                      </span>
+                      <ModelInstallStatusIndicator status="installed" />
                     ) : installingName === name ? (
                       <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -284,6 +311,7 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
                         disabled={installingName !== null}
                         onClick={() => handleInstall(name, task)}
                       >
+                        <Download className="mr-2 h-4 w-4" />
                         Install
                       </Button>
                     )}
@@ -296,24 +324,37 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
       )}
 
       {/* Pagination */}
-      {!isLoading && (currentPage > 1 || hasNextPage) && (
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Page {currentPage}</p>
+      {!isLoading && (offsetStack.length > 1 || hasNextPage) && (
+        <div className="flex items-center justify-center">
           <Pagination>
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  onClick={() =>
+                    setOffsetStack((stack) =>
+                      stack.length > 1 ? stack.slice(0, -1) : stack,
+                    )
+                  }
                   className={
-                    currentPage === 1
+                    offsetStack.length === 1
                       ? "pointer-events-none opacity-50"
                       : "cursor-pointer"
                   }
                 />
               </PaginationItem>
               <PaginationItem>
+                <span className="px-2 text-xs text-muted-foreground">
+                  Page {offsetStack.length}
+                </span>
+              </PaginationItem>
+              <PaginationItem>
                 <PaginationNext
-                  onClick={() => setCurrentPage(currentPage + 1)}
+                  onClick={() =>
+                    setOffsetStack((stack) => [
+                      ...stack,
+                      nextOffset ?? offset + ITEMS_PER_PAGE,
+                    ])
+                  }
                   className={
                     hasNextPage
                       ? "cursor-pointer"

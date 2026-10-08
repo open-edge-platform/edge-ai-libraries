@@ -6229,6 +6229,18 @@
             "type": "array",
             "title": "Items"
           },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count",
+            "description": "Number of items returned in this response."
+          },
           "total": {
             "anyOf": [
               {
@@ -6238,7 +6250,8 @@
                 "type": "null"
               }
             ],
-            "title": "Total"
+            "title": "Total",
+            "description": "Total number of items available, when the hub reports it."
           },
           "limit": {
             "type": "integer",
@@ -6247,6 +6260,30 @@
           "offset": {
             "type": "integer",
             "title": "Offset"
+          },
+          "has_more": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has More",
+            "description": "Whether another page is available."
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset",
+            "description": "Offset to request the next page, when available."
           }
         },
         "type": "object",
@@ -6257,7 +6294,7 @@
           "offset"
         ],
         "title": "ModelHubListResponse",
-        "description": "Paginated results returned by an upstream model hub."
+        "description": "Paginated results returned by an upstream model hub.\n\nSome hubs (for example HuggingFace) cannot report a `total` count\ncheaply; callers must then paginate using `has_more`/`next_offset`\ninstead of computing a page count from `total`."
       },
       "ModelInstallStatus": {
         "type": "string",
