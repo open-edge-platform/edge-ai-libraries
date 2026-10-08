@@ -164,12 +164,6 @@ curl http://localhost:8200/api/v1/health
 copilot mcp get oep-model-download
 ```
 
-For a standalone stdio configuration, run the configured
-`uv run --directory ...` command in a terminal to expose startup errors. If
-health succeeds but a model operation fails, use `list_plugins` to check plugin
-activation and availability, then inspect the error returned by
-`get_job_status`.
-
 For OpenVINO conversion failures that occur only in Copilot CLI:
 
 1. Check whether `copilot mcp get oep-model-download` reports `Type: local`.
@@ -177,7 +171,6 @@ For OpenVINO conversion failures that occur only in Copilot CLI:
    than using the container runtime.
 3. Replace that configuration with the HTTP configuration shown in
    [GitHub Copilot](#github-copilot).
-4. Do not start an additional `uv run python -m src.mcp` process.
 
 ### Remote HTTP Client (Python)
 
@@ -224,5 +217,4 @@ Both modes share the same core logic (`ModelManager`, `PluginRegistry`). Choose 
 | **Use when** | Applications need REST/MCP, or any OpenVINO/OVMS conversion | Download-only local development |
 | **Transport** | REST and Streamable HTTP | stdio or Streamable HTTP |
 | **Client** | HTTP and MCP clients | MCP-compatible clients |
-| **Run command** | `uvicorn src.api.main:app` | `uv run python -m src.mcp` |
 | **OpenVINO bootstrap** | Performed by the container entrypoint | Not performed automatically |
