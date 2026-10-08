@@ -81,6 +81,27 @@ class TestBuildMatrix(unittest.TestCase):
         self.assertEqual(reasons[("lpr", ALL_VARIANTS)], R.PIPELINE_FILTER)
         self.assertEqual(reasons[("smart-parking", ALL_VARIANTS)], R.SKIP_PIPELINES)
 
+    def test_known_pipeline_ids_unaffected_by_filters(self) -> None:
+        """A pipeline removed via pipelines/skip_pipelines must still be
+        reported as "known", so callers validating user-supplied filter
+        ids (e.g. conftest._validate_filter_ids) don't mistake a
+        deliberate skip for an unknown id."""
+        filters = MatrixFilters(
+            pipelines=["object-detection", "smart-parking"],
+            skip_pipelines=["smart-parking"],
+        )
+        matrix = build_matrix(PIPELINES, DEVICES, {}, filters)
+        self.assertEqual(
+            matrix.known_pipeline_ids, ["object-detection", "smart-parking", "lpr"]
+        )
+        # Both are fully filtered out of included/excluded-as-runnable...
+        self.assertEqual({c.pipeline_id for c in matrix.included}, {"object-detection"})
+        # ...yet both remain valid, discoverable ids.
+        self.assertIn("smart-parking", matrix.known_pipeline_ids)
+        self.assertIn("lpr", matrix.known_pipeline_ids)
+        # The malformed entry (empty id) must never be considered known.
+        self.assertNotIn("", matrix.known_pipeline_ids)
+
     def test_skip_variants_and_variant_filter(self) -> None:
         devices = DEVICES + [{"device_family": "NPU"}]
         filters = MatrixFilters(variants=["cpu", "npu"], skip_variants=["npu"])

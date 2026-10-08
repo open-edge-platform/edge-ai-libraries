@@ -84,6 +84,7 @@ class Matrix:
     """``{pipeline_id: [model display names]}`` for *included* pipelines only."""
     stream_counts: list[int] = field(default_factory=list)
     available_families: list[str] = field(default_factory=list)
+    known_pipeline_ids: list[str] = field(default_factory=list)
 
     def rows(self) -> list[tuple[MatrixCase, int]]:
         """Return the full (case, stream_count) cross-product."""
@@ -140,6 +141,10 @@ def build_matrix(
                 )
             )
             continue
+
+        # Record every well-formed pipeline id before applying the
+        # pipelines/skip_pipelines filters below
+        matrix.known_pipeline_ids.append(pipeline_id)
 
         if allowed_pipelines is not None and pipeline_id not in allowed_pipelines:
             matrix.excluded.append(

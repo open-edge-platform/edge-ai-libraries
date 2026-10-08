@@ -5,26 +5,23 @@
 
 import dataclasses
 import logging
+import httpx
 import os
 import sys
 import time
+import pytest
 from collections.abc import Generator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import pytest
-import httpx
-from perf_helpers.settings import SettingsError
+from dataclasses import dataclass
 from helpers.api_helpers import fetch_devices
-from helpers.pipeline_case_helpers import (
-    SUPPORTED_DEVICE_FAMILIES,
-    PipelineCase,
-)
-
+from helpers.pipeline_case_helpers import SUPPORTED_DEVICE_FAMILIES, PipelineCase
 from perf_helpers.hw_monitor import HardwareMonitor
 from perf_helpers.preflight import run_preflight_or_exit
 from perf_helpers.reporters import ResultExporter, generate_html_report
+from perf_helpers.settings import SettingsError
 
 try:
     from perf_helpers.config import (
@@ -107,8 +104,25 @@ def _collect_system_info(session: httpx.Client | None = None) -> dict[str, Any]:
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
 _QUICK_VARIANTS: set[str] = {"CPU", "GPU"}
 
-_PIPELINE_CASES: list[PipelineCase | object] | None = None
-_CASE_IDS: list[str] | None = None
+
+@dataclass
+class _DiscoveredCases:
+    """Cached, one-time result of :func:`_discover_case_params`.
+
+    * ``params``/``case_ids`` - the actual pytest parameter values (and
+      their matching string ids) for the ``pipeline_case`` fixture,
+      *after* all config/host filtering. This is what actually runs.
+    * ``known_pipeline_ids`` - every pipeline id the API reports to
+      exist, *before* any ``pipelines``/``skip_pipelines`` filtering.
+      Used to validate user-supplied filter ids.
+    """
+
+    params: list[PipelineCase | object]
+    case_ids: list[str]
+    known_pipeline_ids: list[str]
+
+
+_DISCOVERED_CASES: _DiscoveredCases | None = None
 
 
 def _unwrap_case(
@@ -126,7 +140,7 @@ def _unwrap_case(
 
 
 def _validate_filter_ids(
-    cases: list[PipelineCase | object],
+    known_pipeline_ids: list[str],
 ) -> list[PipelineCase | object]:
     """Diff configured filter ids against discovered ids.
 
@@ -135,9 +149,7 @@ def _validate_filter_ids(
     ``pytest.exit`` when it is ``"fail"`` (the default), naming every
     bad id and its valid alternatives.
     """
-    valid_pipeline_ids = sorted(
-        {c.pipeline_id for cp in cases for c, _, _ in [_unwrap_case(cp)] if c}
-    )
+    valid_pipeline_ids = sorted(set(known_pipeline_ids))
     valid_pipeline_ids_lower = {p.lower() for p in valid_pipeline_ids}
 
     issues: list[tuple[str, str, list[str]]] = []
@@ -208,7 +220,7 @@ def pytest_sessionstart() -> None:
     )
 
 
-def _discover_case_params() -> tuple[list[PipelineCase | object], list[str]]:
+def _discover_case_params() -> _DiscoveredCases:
     """Build the filtered matrix and wrap it for ``pytest.mark.parametrize``.
 
     Filtering (pipelines / variants / skip lists / host families) is done by
@@ -220,7 +232,7 @@ def _discover_case_params() -> tuple[list[PipelineCase | object], list[str]]:
     except Exception:
         logger.exception("Failed to collect pipeline cases from VIPPET API")
         skip = pytest.mark.skip(reason=_NO_CASES_REASON)
-        return [pytest.param(None, marks=skip)], ["no-cases"]
+        return _DiscoveredCases([pytest.param(None, marks=skip)], ["no-cases"], [])
 
     logger.info("Available device families: %s", matrix.available_families)
     for excl in matrix.excluded:
@@ -241,16 +253,19 @@ def _discover_case_params() -> tuple[list[PipelineCase | object], list[str]]:
             else _NO_CASES_REASON
         )
         skip = pytest.mark.skip(reason=reason)
-        return [pytest.param(None, marks=skip)], ["no-cases"]
+        return _DiscoveredCases(
+            [pytest.param(None, marks=skip)], ["no-cases"], matrix.known_pipeline_ids
+        )
 
     cases = [PipelineCase(**dataclasses.asdict(case)) for case in matrix.included]
     missing = {pid: set(models) for pid, models in matrix.missing_models.items()}
-    return wrap_cases_for_pytest(cases, missing)
+    params, ids = wrap_cases_for_pytest(cases, missing)
+    return _DiscoveredCases(params, ids, matrix.known_pipeline_ids)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Generate the cross-product parametrization: pipeline_case x stream_count."""
-    global _PIPELINE_CASES, _CASE_IDS
+    global _DISCOVERED_CASES
 
     if (
         "pipeline_case" not in metafunc.fixturenames
@@ -258,20 +273,22 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     ):
         return
 
-    if _PIPELINE_CASES is None or _CASE_IDS is None:
-        _PIPELINE_CASES, _CASE_IDS = _discover_case_params()
+    if _DISCOVERED_CASES is None:
+        _DISCOVERED_CASES = _discover_case_params()
 
-    for invalid_param in _validate_filter_ids(_PIPELINE_CASES):
+    for invalid_param in _validate_filter_ids(_DISCOVERED_CASES.known_pipeline_ids):
         invalid_case, _, _ = _unwrap_case(invalid_param)
         if invalid_case is None:
             continue
-        _PIPELINE_CASES.append(invalid_param)
-        _CASE_IDS.append(invalid_case.case_id)
+        _DISCOVERED_CASES.params.append(invalid_param)
+        _DISCOVERED_CASES.case_ids.append(invalid_case.case_id)
 
     params = []
     ids = []
 
-    for case_param, case_id in zip(_PIPELINE_CASES, _CASE_IDS):
+    for case_param, case_id in zip(
+        _DISCOVERED_CASES.params, _DISCOVERED_CASES.case_ids
+    ):
         actual_case, skip_marks, is_skipped = _unwrap_case(case_param)
 
         for streams in STREAM_COUNTS:
