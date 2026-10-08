@@ -23,7 +23,7 @@ verify_gpu_accel_packages () {
 }
 
 debian_40_profile_gpu_accel () {
-  echo "curl gpg libze1"
+  echo "curl gnupg libze1"
 }
 
 debian_40_group_gpu_accel () {

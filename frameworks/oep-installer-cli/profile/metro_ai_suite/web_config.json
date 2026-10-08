@@ -10,7 +10,9 @@
     { "label": "Loitering Detection", "value": "loitering_detection", "startStop": true, "device": true },
     { "label": "Smart Intersection", "value": "smart_intersection", "startStop": true, "device": true },
     { "label": "Smart Parking", "value": "smart_parking", "startStop": true, "device": true },
+    { "label": "Smart Traffic Intersection Agent", "value": "smart_traffic_intersection_agent", "startStop": true, "device": true },
     { "label": "Video Search and Summarization", "value": "video_search_and_summarization", "startStop": true, "device": true },
+    { "label": "Video Processing for NVR", "value": "video_processing_for_nvr", "startStop": true, "device": true },
     { "label": "Visual Pipeline and Platform Evaluation Tool (ViPPET)", "value": "vippet", "startStop": true, "device": false }
   ],
   "getStarted": {
@@ -27,7 +29,9 @@
     { "text": "Loitering Detection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/loitering-detection/index.html" },
     { "text": "Smart Intersection", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-intersection/index.html" },
     { "text": "Smart Parking", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html" },
+    { "text": "Smart Traffic Intersection Agent", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/smart-traffic-intersection-agent/index.html" },
     { "text": "Video Search and Summarization", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html" },
+    { "text": "Video Processing for NVR", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/video-processing-for-nvr/index.html" },
     { "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html" }
   ]
 }

@@ -29,9 +29,10 @@ services:
     build:
       context: ../../microservices/dlstreamer-pipeline-server/dlsps2
       dockerfile: docker/Dockerfile
+      pull: true
       args:
         # Keep in sync with vippet/Dockerfile so both backends run the same DLStreamer.
-        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-intel/dlstreamer:2026.2.0-ubuntu24-rc3}
+        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-${DLSTREAMER_IMAGE:-intel/dlstreamer:latest}}
         UID: ${DLSPS2_UID:-1000}
         USER: ${DLSPS2_USER:-pipeline-server}
         http_proxy:
