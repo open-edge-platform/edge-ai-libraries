@@ -195,7 +195,7 @@ act_helper () {
           ( set -e; $handler $invoke_args) &
           wait $! || rc1=$?
           [[ " stop remove " = *" $act_name "* ]] && rm -rf "$started_path"
-          [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && rm -rf "$installed_path"
+          [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && rm -rf "$installed_path" 2> /dev/null
 
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
