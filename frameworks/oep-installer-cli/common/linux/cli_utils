@@ -189,13 +189,13 @@ act_helper () {
           local started_path="$(ensure_project_path)/$installer_name/started/$name1"
           local installed_path="$(ensure_project_path)/$installer_name/installed/$name1"
           [ "$act_name" = "start" ] && mkdir -p "$started_path"
+          [ "$act_name" = "install" ] && mkdir -p "$installed_path"
           echo "@@COMP $name1"
           local rc1=0
           ( set -e; $handler $invoke_args) &
           wait $! || rc1=$?
           [[ " stop remove " = *" $act_name "* ]] && rm -rf "$started_path"
           [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && rm -rf "$installed_path"
-          [ "$act_name" = "install" ] && mkdir -p "$installed_path"
 
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
