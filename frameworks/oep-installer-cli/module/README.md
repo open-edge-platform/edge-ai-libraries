@@ -39,7 +39,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
   - The `install` function should cover the following conditions: (1) The component is not yet installed. (2) The component is previously installed but misconfigured. (3) The component of an older version is installed. After installation, it is assumed that the component is fully configured and ready to be launched (`start`).
   - If the component (of the same version) is already installed, the `install` function should skip the installation unless the `--reinstall` option is specified, in which case, the `install` function should reinstall the component cleanly.    
   - For components that support multiple device accelerations, the `install` function must use the [`ensure_select_device`](../common/linux/ensure_select_device) function to take user input and configure the component accordingly. 
-  - For components that require certain memory size or disk space, use the [`ensure_disk_space`](../common/linux/ensure_disk_space) and [`ensure_ram_size`](../common/linux/ensure_ram_size) functions to enforce the requirements and exit early.
+  - For components that require certain memory size or disk space, use the [`ensure_disk_size`](../common/linux/ensure_disk_size) and [`ensure_ram_size`](../common/linux/ensure_ram_size) functions to enforce the requirements and exit early.
   - For components that need to download AI models from huggingface, use the [`ensure_hf_token`](../common/linux/ensure_hf_token) function to set `HF_TOKEN`. The `ensure_hf_token` function can be used to check model access permissions for gated models.   
   - For components that download any dataset, video files, AI models, implement a check that the download files actually exist, to ensure there is no silent failure during installation/setup. The check can be part of the `verify_<component>` helper, which checks if a previous installation/setup is complete.   
   - For libraries, SDKs, applications or tools, after installation, the `install` function should highlight what is next to the users. For example, for SDKs, show the workspace location and instructions of how to configure and play with samples included in the SDKs. See the [`@@HIGHLIGH`](#highlight-protocol) section for more details.
@@ -65,7 +65,7 @@ debian_45_license_my_name () {
 EOF
 }
 ```
-where `<license-id>` must be a unique identifier to the license. Multiple licenses with the same license-id's can be accepted at once by the users. Use the [`ensure_license_fetch`](../license/linux/ensure_license_fetch) function if the license text must be fetched from the Internet. The `ensure_license_fetch` function does not use any unresolved dependencies at the time of a license clickthrough.  
+where `<license-id>` must be a unique identifier to the license. Multiple licenses with the same license-id's can be accepted at once by the users. Use the [`ensure_fetch`](../common/linux/ensure_fetch) function if the license text must be fetched from the Internet. The `ensure_fetch` function does not use any unresolved dependencies at the time of a license clickthrough.  
    
 - `sbom`: The optional `sbom` function declares any `apt` packages to be installed by the component. Do not define a `sbom` function if there is no system-wide installation. See [`openvino`](openvino/debian) for an example. For uniformity, specify the SBOM with the [`ensure_sbom_format`](../common/linux/ensure_sbom#ensure_sbom_format) function and the following keys:
   - `name`: The name of an external repository that hosts the package(s).  
@@ -148,7 +148,7 @@ debian_85_install_my_component () {
 #debian_85_license_my_component () {
 #  echo "@@LICENSE-ID my_component_license_id"
 #  echo "@@LICENSE-TITLE my_component_license_title"
-#  echo "..." # LICENSE-TEXT or $(ensure_license_fetch <URL>) to fetch license text
+#  echo "..." # LICENSE-TEXT or $(ensure_fetch <URL> -) to fetch license text
 #}
 ```
 

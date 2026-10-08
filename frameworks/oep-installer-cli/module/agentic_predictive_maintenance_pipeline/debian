@@ -30,7 +30,8 @@ debian_90_install_agentic_predictive_maintenance_pipeline () {
   if verify_agentic_predictive_maintenance_pipeline && [[ " $* " != *" --reinstall "* ]]; then
     echo "Agentic Predictive Maintenance Pipeline already installed. Skipping" 1>&2
   else
-    ensure_disk_space 60
+    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 60
     ensure_git_export "$workspace" "$version" "$repository" agentic-predictive-maintenance-pipeline
 
     cd "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection
@@ -40,7 +41,7 @@ debian_90_install_agentic_predictive_maintenance_pipeline () {
     echo "HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN" >> .env_pipeline-defect-detection
 
     # download video
-    curl -fsSL https://github.com/open-edge-platform/edge-ai-resources/raw/c13b8dbf23d514c2667d39b66615bd1400cb889d/videos/anomalib_pcb_test.avi -o resources/videos/datastream.mp4
+    ensure_fetch https://github.com/open-edge-platform/edge-ai-resources/raw/c13b8dbf23d514c2667d39b66615bd1400cb889d/videos/anomalib_pcb_test.avi resources/videos/datastream.mp4
 
     verify_agentic_predictive_maintenance_pipeline
   fi

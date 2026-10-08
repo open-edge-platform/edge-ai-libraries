@@ -61,13 +61,12 @@ debian_90_profile_loss_prevention () {
 
 debian_90_install_loss_prevention () {
   configure_loss_prevention
-  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
 
   if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loss prevention is already installed. Skipping"
   else 
     # clone the repository
-    ensure_disk_space 300
+    ensure_disk_size 300
     ensure_git_clone "$workspace" $version $repository
 
     # setup
@@ -123,7 +122,6 @@ EOF
 
 debian_90_start_loss_prevention () {
   configure_loss_prevention
-  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
 
   cd "$workspace"
   local device1=$(ensure_select_device "$@")

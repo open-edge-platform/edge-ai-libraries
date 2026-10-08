@@ -15,7 +15,7 @@ configure_realsense () {
 }
 
 debian_55_profile_realsense () {
-  echo "curl gpg"
+  echo "curl gnupg"
 }
 
 verify_realsense () {

@@ -132,8 +132,8 @@
           }
         },
         {
-          "label": "Smart Intersection",
-          "value": "smart_intersection",
+          "label": "Agentic Predictive Maintenance Pipeline",
+          "value": "agentic_predictive_maintenance_pipeline",
           "supports": {
             "PROFILE": [
               "metro_ai_suite"
@@ -143,26 +143,14 @@
           "device": true
         },
         {
-          "label": "Smart Parking",
-          "value": "smart_parking",
+          "label": "Agentic Smart Community",
+          "value": "agentic_smart_community",
           "supports": {
             "PROFILE": [
               "metro_ai_suite"
             ]
           },
-          "startStop": true,
-          "device": true
-        },
-        {
-          "label": "Loitering Detection",
-          "value": "loitering_detection",
-          "supports": {
-            "PROFILE": [
-              "metro_ai_suite"
-            ]
-          },
-          "startStop": true,
-          "device": true
+          "startStop": true
         },
         {
           "label": "Live Video Captioning",
@@ -209,8 +197,8 @@
           "device": true
         },
         {
-          "label": "Video Search and Summarization",
-          "value": "video_search_and_summarization",
+          "label": "Loitering Detection",
+          "value": "loitering_detection",
           "supports": {
             "PROFILE": [
               "metro_ai_suite"
@@ -220,8 +208,30 @@
           "device": true
         },
         {
-          "label": "Agentic Predictive Maintenance Pipeline",
-          "value": "agentic_predictive_maintenance_pipeline",
+          "label": "Smart Intersection",
+          "value": "smart_intersection",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "device": true
+        },
+        {
+          "label": "Smart Parking",
+          "value": "smart_parking",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "device": true
+        },
+        {
+          "label": "Video Search and Summarization",
+          "value": "video_search_and_summarization",
           "supports": {
             "PROFILE": [
               "metro_ai_suite"
@@ -547,16 +557,12 @@
           },
           "links": [
             {
-              "text": "Smart Intersection",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-intersection/index.html"
+              "text": "Agentic Predictive Maintenance Pipeline",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-predictive-maintenance-pipeline/index.html"
             },
             {
-              "text": "Smart Parking",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html"
-            },
-            {
-              "text": "Loitering Detection",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/loitering-detection/index.html"
+              "text": "Agentic Smart Community",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-smart-community/index.html"
             },
             {
               "text": "Live Video Captioning",
@@ -575,12 +581,20 @@
               "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-alert-agent/index.html"
             },
             {
-              "text": "Video Search and Summarization",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html"
+              "text": "Loitering Detection",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/loitering-detection/index.html"
             },
             {
-              "text": "Agentic Predictive Maintenance Pipeline",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-predictive-maintenance-pipeline/index.html"
+              "text": "Smart Intersection",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-intersection/index.html"
+            },
+            {
+              "text": "Smart Parking",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html"
+            },
+            {
+              "text": "Video Search and Summarization",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html"
             },
             {
               "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)",

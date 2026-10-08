@@ -52,7 +52,7 @@ debian_91_install_physical_ai_framework () {
   if verify_physical_ai_framework "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Framework is already installed. Skipping..."
   else
-    ensure_disk_space 15000
+    ensure_disk_size 15000
 
     rm -rf "$paif_venv" "$paif_device_file"
     mkdir -p "$workspace"

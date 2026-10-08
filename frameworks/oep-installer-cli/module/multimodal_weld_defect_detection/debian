@@ -49,9 +49,8 @@ debian_90_install_multimodal_weld_defect_detection () {
   if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Multimodal weld defect detection is already installed. Skipping"
   else
-    local device="$(ensure_select_device "$@")"
-
-    ensure_disk_space 64000
+    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 64000
     ensure_ram_size 16777216 # 16 GiB
     ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal
 
@@ -110,7 +109,7 @@ debian_90_start_multimodal_weld_defect_detection () {
   if ($(NF-1)*1>0) {
     throughput[s][++throughput_ct[s]]=$(NF-1)
     latency[s][throughput_ct[s]]=$(NF-1)/1000.0
-    end2end[s][throughput_ct[s]]=$12/1000.0
+    end2end[s][throughput_ct[s]]=$13/1000.0
     ingest_time[s][throughput_ct[s]] = $1/1000.0
     if (throughput_ct[s]>1) {
       ingest_delta[s][throughput_ct[s]-1] = ingest_time[s][throughput_ct[s]] - ingest_time[s][throughput_ct[s]-1]
@@ -128,29 +127,22 @@ function calc_avg(values, i,m) {
 END {
   n=length(throughput)
   if (n>0) {
-    m_acc=0
-    m_acc_latency=0
-    m_acc_end2end=0
-    m_acc_ingest=0
     for (i=1;i<=n;i++) {
-      m=1000000000/calc_avg(throughput[i])
-      m_acc_latency+=calc_avg(latency[i])
-      m_acc_end2end+=calc_avg(end2end[i])
-      m_acc_ingest+=calc_avg(ingest_delta[i])
-      m_acc+=m
+      tm=calc_avg(throughput[i])
+      throughput_m[i]=(tm>0?1000000000/tm:0)
+      print "throughput #"i": "throughput_m[i]
+      latency_m[i]=calc_avg(latency[i])
+      print "latency #"i" (us): "latency_m[i]
+      end2end_m[i]=calc_avg(end2end[i])
+      print "end2end #"i" (us): "end2end_m[i]
+      ingest_m[i]=calc_avg(ingest_delta[i])
+      print "ingest #"i" (us): "ingest_m[i]
     }
-    print primary"throughput average: "(n>0?int(m_acc/n*100)/100:0)
-    print "throughput cumulative: "int(m_acc*100)/100
-    print "latency average (us): "(n>0?int(m_acc_latency/n*100)/100:0)
-    print "end2end average (us): "(n>0?int(m_acc_end2end/n*100)/100:0)
-    print "ingest average (us): "(n>0?int(m_acc_ingest/n*100)/100:0)
-    for (i=1;i<=n;i++) {
-      m=1000000000/calc_avg(throughput[i])
-      print "throughput #"i": "m
-      print "latency #"i" (us): "calc_avg(latency[i])
-      print "end2end #"i" (us): "calc_avg(end2end[i])
-      print "ingest #"i" (us): "calc_avg(ingest_delta[i])
-    }
+    print "throughput average: "calc_avg(throughput_m)
+    print "throughput cumulative: "calc_avg(throughput_m)*n
+    print "latency average (us): "calc_avg(latency_m)
+    print "end2end average (us): "calc_avg(end2end_m)
+    print "ingest average (us): "calc_avg(ingest_m)
   }
 }
 ' sample-data

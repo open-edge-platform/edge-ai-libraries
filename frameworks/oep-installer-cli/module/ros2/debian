@@ -11,7 +11,7 @@ configure_ros2 () {
   esac
 
   local codename="${UBUNTU_CODENAME:-$VERSION_CODENAME}"
-  ros_apt_ver="$(no_proxy= NO_PROXY= curl -fsSL https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F '"tag_name"' | awk -F'"' '{print $4}')"
+  ros_apt_ver="$(curl -fsSL https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F '"tag_name"' | awk -F'"' '{print $4}')"
   ros_deb_src="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
 }
 
@@ -52,7 +52,7 @@ EOF
 }
 
 debian_50_profile_ros2 () {
-  echo "curl gpg git"
+  echo "curl gnupg git software_properties_common lsb_release"
   # --realtime (set by edge_base_robotics) supplies GPU/NPU prep via
   # edge_pack_base_realtime instead; skip edge_base to avoid installing both
   # the standard and real-time edge-pack base bundles together.
@@ -69,15 +69,13 @@ debian_50_install_ros2 () {
   if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 $ros_distro is already installed. Skipping..."
   else
-    ensure_apt update
-    ensure_apt install -y software-properties-common gnupg lsb-release ca-certificates
-    ensure_sudo add-apt-repository -y universe || true
+    ensure_apt_add_repository universe || true
 
     # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
     # which self-configures the apt source list and signing key
     local tmpdir
     ensure_tmpdir create tmpdir ros2
-    no_proxy= NO_PROXY= curl -fsSL -o "$tmpdir/ros2-apt-source.deb" "$ros_deb_src"
+    ensure_fetch "$ros_deb_src" "$tmpdir/ros2-apt-source.deb"
     ensure_apt install -y "$tmpdir/ros2-apt-source.deb"
     ensure_tmpdir destroy $tmpdir
 

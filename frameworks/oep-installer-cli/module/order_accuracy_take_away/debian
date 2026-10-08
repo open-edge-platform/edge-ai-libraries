@@ -27,13 +27,13 @@ debian_90_profile_order_accuracy_take_away () {
 
 debian_90_install_order_accuracy_take_away () {
   configure_order_accuracy_take_away
-  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
 
   if verify_order_accuracy_take_away && [[ " $* " != *" --reinstall "* ]]; then
     echo "Order accuracy is already installed. Skipping"
   else 
+    ensure_ports_open "${ports[*]}" return 3
     # clone the repository
-    ensure_disk_space 10000
+    ensure_disk_size 10000
     ensure_git_clone "$workspace" $version $repository
 
     # initialize .env
@@ -60,7 +60,6 @@ debian_90_install_order_accuracy_take_away () {
 
 debian_90_start_order_accuracy_take_away () {
   configure_order_accuracy_take_away "$@"
-  export HTTP_PROXY=${HTTP_PROXY:-$http_proxy} HTTPS_PROXY=${HTTPS_PROXY:-$https_proxy} NO_PROXY=${NO_PROXY:-$no_proxy}
 
   ensure_ports_open "${ports[*]}" debian_90_stop_order_accuracy_take_away "$@"
   cd "$workspace"/take-away

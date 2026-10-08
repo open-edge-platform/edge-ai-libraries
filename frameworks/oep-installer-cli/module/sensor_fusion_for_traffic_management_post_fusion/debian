@@ -1,0 +1,96 @@
+
+configure_sensor_fusion_for_traffic_management_post_fusion () {
+  workspace="$(ensure_project_path)/sensor-fusion-for-traffic-management-post-fusion"
+  version=release-2026.2.0
+  repository=https://github.com/open-edge-platform/metro-ai-suite.git
+  inputs=2
+  pipeline=kitti/2C1L/localFusionPipeline
+  dataset=kitti360
+  repeat=10
+  media_type=multisensor
+  duration=1800
+}
+
+configure_sensor_fusion_for_traffic_management_post_fusion_device () {
+  local device="$1" image=tfcc-npu
+  [ "$device" = "npu" ] || image=tfcc
+
+  cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion
+  echo "$image" > .image
+
+  docker compose -f docker/docker-compose.yml build $image --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
+}
+
+verify_sensor_fusion_for_traffic_management_post_fusion () {
+  [ -d "$workspace" ]
+}
+
+debian_90_profile_sensor_fusion_for_traffic_management_post_fusion () {
+  echo "edge_base docker"
+}
+
+debian_90_install_sensor_fusion_for_traffic_management_post_fusion () {
+  configure_sensor_fusion_for_traffic_management_post_fusion "$@"
+  if verify_sensor_fusion_for_traffic_management_post_fusion && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Sensor Fusion for Traffic Management - Post Fusion is installed. Skipping" 1>&2
+  else
+    ensure_disk_size 300
+    ensure_git_export "$workspace" "$version" "$repository" sensor-fusion-for-traffic-management/post-fusion
+
+    cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion
+    sed -i -e "s|^numOfProcess=.*|numOfProcess=$inputs|" -e "s|^maxConcurrentWorkload=.*|maxConcurrentWorklod=$inputs|" ai_inference/source/low_latency_server/AiInference.config
+
+    cat > docker/.env <<EOF
+VIDEO_GROUP_ID=$(getent group video | cut -f3 -d: || echo 44)
+RENDER_GROUP_ID=$(getent group render | cut -f3 -d: || echo 992)
+BASE_VERSION=$VERSION_ID
+BASE=$ID
+EOF
+
+    verify_sensor_fusion_for_traffic_management_post_fusion
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_sensor_fusion_for_traffic_management_post_fusion_device "$device"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install|start [--gpu/npu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_sensor_fusion_for_traffic_management_post_fusion () {
+  configure_sensor_fusion_for_traffic_management_post_fusion "$@"
+  debian_90_stop_sensor_fusion_for_traffic_management_post_fusion "$@"
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_sensor_fusion_for_traffic_management_post_fusion_device "$device"
+
+  cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion
+  local image="$(< .image)"
+  if docker compose -f docker/docker-compose.yml up $image -d --wait; then
+    if docker compose -f docker/docker-compose.yml exec -w /home/tfcc/metro -i $image bash -c 'echo intel | sudo -S bash run_service_bare_log.sh &disown'; then
+      stime=$SECONDS
+      while [ $(( SECONDS - stime )) -lt $duration ]; do
+        docker compose -f docker/docker-compose.yml exec -w /home/tfcc/metro -i $image bash -xc "echo intel | sudo -S ./build/bin/testGRPCCPlusLPipeline 127.0.0.1 50052 ai_inference/test/configs/$pipeline.json $inputs $repeat ai_inference/test/demo/$dataset $media_type" && break
+        sleep 5s
+      done
+    fi
+  fi
+  docker compose -f docker/docker-compose.yml logs
+  docker compose -f docker/docker-compose.yml down -v --remove-orphans
+
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_sensor_fusion_for_traffic_management_post_fusion () {
+  configure_sensor_fusion_for_traffic_management_post_fusion "$@"                              
+  cd "$workspace"/metro-ai-suite/sensor-fusion-for-traffic-management/post-fusion && \
+    docker compose -f docker/docker-compose.yml down -v --remove-orphans || true
+}
+
+debian_90_remove_sensor_fusion_for_traffic_management_post_fusion () {
+  debian_90_stop_sensor_fusion_for_traffic_management_post_fusion "$@"
+  rm -rf "$workspace" || ensure_sudo rm -rf "$workspace"
+}
+

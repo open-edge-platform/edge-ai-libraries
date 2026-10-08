@@ -61,7 +61,7 @@ debian_92_install_physical_ai_studio () {
   if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Studio is already installed. Skipping..."
   else
-    ensure_disk_space 20000
+    ensure_disk_size 20000
     debian_92_stop_physical_ai_studio "$@" || true
     rm -f "$pais_device_file"
     echo "Installing ${pais_pkg}[${pais_extra}]==${pais_version} (PyTorch ${pais_extra} build; this may take a while)..."

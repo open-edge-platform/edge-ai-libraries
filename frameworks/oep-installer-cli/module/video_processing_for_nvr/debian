@@ -1,0 +1,111 @@
+
+configure_video_processing_for_nvr () {
+  workspace="$(ensure_project_path)/video-processing-for-nvr"
+  version="release-2026.2.0"
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  duration=45
+
+  export MODEL_DIR="$workspace"/models/modified_yolov8n
+  export MODEL_FILE=yolov8n.xml
+}
+
+verify_video_processing_for_nvr () {
+  [ -d "$workspace"/video-processing-for-nvr ]
+  [ -d "$workspace"/videos/car_1080p.h265 ]
+  [ -r "$MODEL_DIR/$MODEL_FILE" ]
+}
+
+debian_90_profile_video_processing_for_nvr () {
+  echo "docker edgebase curl git python3_venv ffmpeg edge_base"
+}
+
+debian_90_install_video_processing_for_nvr () {
+  configure_video_processing_for_nvr "$@"
+  if verify_video_processing_for_nvr && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Video Processing for NVR is already installed." 1>&2
+  else
+    ensure_disk_size 300
+    ensure_git_export "$workspace" "$version" "$repository" video-processing-for-nvr
+
+    mkdir -p "$workspace"/videos
+    cd "$workspace"/videos
+    ensure_fetch "https://github.com/open-edge-platform/edge-ai-resources/raw/main/videos/car_1080p30_10s_h265.mp4" car.mp4
+    ffmpeg -i car.mp4 -c:v copy -bsf:v hevc_mp4toannexb -an -f hevc car_1080p.h265
+    rm -f car.mp4
+
+    mkdir -p "$workspace"/models
+    cd "$workspace"/models
+    python3 -m venv .venv
+    . .venv/bin/activate
+    pip3 install openvino ultralytics
+    yolo export model=yolov8n.pt format=openvino
+    python3 -c '
+import openvino as ov
+from openvino.preprocess import PrePostProcessor, ColorFormat
+core = ov.Core()
+model = core.read_model("yolov8n_openvino_model/yolov8n.xml")
+ppp = PrePostProcessor(model)
+ppp.input().tensor() \
+    .set_element_type(ov.Type.u8) \
+    .set_layout(ov.Layout("NHWC")) \
+    .set_color_format(ColorFormat.BGR)
+ppp.input().preprocess() \
+    .convert_element_type(ov.Type.f32) \
+    .convert_color(ColorFormat.RGB) \
+    .scale(255.0)
+ppp.input().model().set_layout(ov.Layout("NCHW"))
+ov.save_model(ppp.build(), "modified_yolov8n/yolov8n.xml")
+'
+
+    cd "$workspace"/video-processing-for-nvr/docker
+    docker build --network=host --build-arg http_proxy --build-arg https_proxy -t vppsample -f Dockerfile.sample ..
+    sed -i 's|^\( *\)\(volumes:\)|\1\2\n\1  - "${WORKSPACE}/videos:/opt/video:ro"|' docker-compose.yml
+
+    verify_video_processing_for_nvr
+  fi
+
+  local device=$(ensure_select_device "$@")
+  echo "$device" > "$workspace"/.device
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install|start [--gpu|npu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_video_processing_for_nvr () {
+  configure_video_processing_for_nvr "$@"
+  debian_90_stop_video_processing_for_nvr "$@"
+
+  [ ! -r "$workspace"/.device ] || set -- "$@" --"$(< "$workspace"/.device)"
+  local device=$(ensure_select_device "$@")
+
+  echo "@@HIGHLIGHT $installer_name start [--gpu|--npu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  cd "$workspace"/video-processing-for-nvr/docker
+  local rc=0
+  if [ "$device" = "npu" ]; then
+    timeout "$duration" docker run --rm --device /dev/accel \
+      --name vpp_npu --group-add $(stat -c "%g" /dev/accel/accel* | sort -u | head -n 1) \
+      -e ZE_ENABLE_ALT_DRIVERS=libze_intel_vpu.so vppsample || rc=$?
+  else
+    export WORKSPACE="$workspace"
+    timeout "$duration" docker compose up || rc=$?
+  fi
+  [ $rc -ne 124 ] || rc=0
+  return $rc
+}
+
+debian_90_stop_video_processing_for_nvr () {
+  configure_video_processing_for_nvr "$@"
+  cd "$workspace"/video-processing-for-nvr/docker && {
+    docker compose down -v --remove-orphans || true
+    docker rm -f vpp-npu
+  } || true
+}
+
+debian_90_remove_video_processing_for_nvr () {
+  debian_90_stop_video_processing_for_nvr "$@"
+  rm -rf "$workspace" || ensure_sudo rm -rf "$workspace"
+}
+
