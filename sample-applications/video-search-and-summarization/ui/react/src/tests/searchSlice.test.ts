@@ -388,7 +388,9 @@ describe('SearchSlice', () => {
 
         const state = store.getState().search;
         // Note: SearchLoad.pending may not clear queries in current implementation
-        expect(state.searchQueries).toEqual([{ queryId: 'existing', topK: 4 }]);
+        expect(state.searchQueries).toEqual([
+          { queryId: 'existing', topK: 4, showVideoGroups: false, timeFilter: { unit: 'minutes', value: 0 } },
+        ]);
       });
     });
 

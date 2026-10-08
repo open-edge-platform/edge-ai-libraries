@@ -110,6 +110,12 @@ export interface SearchQuery {
 
 export interface SearchQueryUI extends SearchQuery {
   topK: number;
+  /**
+   * Per-query "group results by tag" view toggle. Must not leak across queries.
+   * Optional on construction; the slice defaults it to `false` in every
+   * query-creation path, and all reads coerce with `Boolean(...)`.
+   */
+  showVideoGroups?: boolean;
 }
 
 /**

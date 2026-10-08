@@ -59,12 +59,13 @@ export const SearchSlice = createSlice({
     updateSearchQuery: (state: SearchState, action) => {
       const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
       const currentTopK = index !== -1 ? state.searchQueries[index].topK : defaultTopk;
+      const currentShowVideoGroups = index !== -1 ? state.searchQueries[index].showVideoGroups : false;
       // Snapshot before the list is rebuilt below, so change detection compares
       // against the previous results rather than the freshly written ones.
       const previousResults = index !== -1 ? JSON.stringify(state.searchQueries[index].results ?? []) : null;
       const merged = index !== -1
-        ? { ...state.searchQueries[index], ...action.payload, topK: currentTopK }
-        : { ...action.payload, topK: currentTopK };
+        ? { ...state.searchQueries[index], ...action.payload, topK: currentTopK, showVideoGroups: currentShowVideoGroups }
+        : { ...action.payload, topK: currentTopK, showVideoGroups: currentShowVideoGroups };
 
       // Normalize per-query time filter to avoid leaking values across queries.
       merged.timeFilter = normalizeTimeFilter(merged.timeFilter);
@@ -122,6 +123,12 @@ export const SearchSlice = createSlice({
       state.searchQueries[state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId)].topK =
         action.payload.topK;
     },
+    toggleGroupByTag: (state: SearchState, action: PayloadAction<{ queryId: string }>) => {
+      const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
+      if (index !== -1) {
+        state.searchQueries[index].showVideoGroups = !state.searchQueries[index].showVideoGroups;
+      }
+    },
     updateTimeFilter: (
       state: SearchState,
       action: PayloadAction<{ queryId: string; timeFilter: TimeFilterSelection | null }>,
@@ -143,6 +150,7 @@ export const SearchSlice = createSlice({
           state.searchQueries = action.payload.map((query) => ({
             ...query,
             topK: defaultTopk,
+            showVideoGroups: false,
             timeFilter: normalizeTimeFilter(query.timeFilter),
           }));
         }
@@ -196,11 +204,14 @@ export const SearchSlice = createSlice({
       .addCase(SearchAdd.fulfilled, (state, action) => {
         const existingIndex = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
         const existingTopK = existingIndex !== -1 ? state.searchQueries[existingIndex].topK : defaultTopk;
+        const existingShowVideoGroups =
+          existingIndex !== -1 ? state.searchQueries[existingIndex].showVideoGroups : false;
 
         const merged = {
           ...(existingIndex !== -1 ? state.searchQueries[existingIndex] : {}),
           ...action.payload,
           topK: existingTopK,
+          showVideoGroups: existingShowVideoGroups,
           timeFilter: normalizeTimeFilter(action.payload.timeFilter),
         };
 
