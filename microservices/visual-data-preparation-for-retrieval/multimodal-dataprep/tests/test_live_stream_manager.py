@@ -751,12 +751,12 @@ def test_worker_telemetry_reports_this_sessions_counts(monkeypatch):
 
 
 def test_aggregator_publishes_combined_fleet_rate(monkeypatch):
-    """Throughput must be the SUM across running streams, not one stream's rate.
+    """Rate is summed new embeddings over summed new active compute seconds.
 
-    Regression guard for the "drops to ~7 eps with 4 streams" bug: the gauge is
-    a single process-wide value, so a per-stream publisher would show one
-    camera's rate. The aggregator sums the rolling embedding totals of every
-    running stream and publishes one combined interval rate.
+    The gauge reports the device's ingestion rate while processing, not the
+    camera's real-time delivery cadence, so the denominator is active
+    detect+embed+store time -- not wall-clock. Because embedding is serialized,
+    summing active seconds across streams yields the true fleet ingestion rate.
     """
     from src.core.live.metrics import LiveThroughputAggregator
 
@@ -767,24 +767,30 @@ def test_aggregator_publishes_combined_fleet_rate(monkeypatch):
     )
 
     class FakeManager:
-        counts: dict = {}
+        samples: dict = {}
 
-        def running_embeddings_by_stream(self):
-            return dict(self.counts)
+        def running_throughput_by_stream(self):
+            return dict(self.samples)
 
     manager = FakeManager()
     agg = LiveThroughputAggregator(manager=manager)
-    # Prime the window at t=100 with four streams already tracked and idle.
+    # Prime the window with four streams already tracked and idle.
     agg._last_ts = 100.0
-    manager.counts = {"s1": 0, "s2": 0, "s3": 0, "s4": 0}
-    agg._last_counts = dict(manager.counts)
+    agg._last_counts = {"s1": 0, "s2": 0, "s3": 0, "s4": 0}
+    agg._last_active = {"s1": 0.0, "s2": 0.0, "s3": 0.0, "s4": 0.0}
 
-    # Four streams each add 5 embeddings over a 1s interval -> 20 eps combined.
-    manager.counts = {"s1": 5, "s2": 5, "s3": 5, "s4": 5}
+    # Four streams each add 5 embeddings using 0.01s of active compute each:
+    # 20 embeddings / 0.04s active -> 500 eps combined.
+    manager.samples = {
+        "s1": (5, 0.01),
+        "s2": (5, 0.01),
+        "s3": (5, 0.01),
+        "s4": (5, 0.01),
+    }
     rate = agg.sample(now=101.0)
 
-    assert rate == 20.0
-    assert published == [20.0]
+    assert rate == 500.0
+    assert published == [500.0]
 
 
 def test_aggregator_holds_last_value_on_idle_interval(monkeypatch):
@@ -798,28 +804,28 @@ def test_aggregator_holds_last_value_on_idle_interval(monkeypatch):
     )
 
     class FakeManager:
-        counts: dict = {}
+        samples: dict = {}
 
-        def running_embeddings_by_stream(self):
-            return dict(self.counts)
+        def running_throughput_by_stream(self):
+            return dict(self.samples)
 
     manager = FakeManager()
     agg = LiveThroughputAggregator(manager=manager)
     agg._last_ts = 100.0
-    manager.counts = {"s1": 12}
-    agg._last_counts = dict(manager.counts)
+    agg._last_counts = {"s1": 12}
+    agg._last_active = {"s1": 0.0}
 
-    # Burst lands: total climbs to 24 over 1s -> 12 eps.
-    manager.counts = {"s1": 24}
-    assert agg.sample(now=101.0) == 12.0
-    # Idle tick: no new embeddings -> no publish, window still advances.
+    # Burst lands: +12 embeddings using 0.02s active -> 600 eps.
+    manager.samples = {"s1": (24, 0.02)}
+    assert agg.sample(now=101.0) == 600.0
+    # Idle ticks: no new embeddings -> no publish, baseline still advances.
     assert agg.sample(now=102.0) is None
     assert agg.sample(now=103.0) is None
-    # Next burst measured over its OWN interval (total 24 -> 30 across 1s).
-    manager.counts = {"s1": 30}
-    assert agg.sample(now=104.0) == 6.0
+    # Next burst measured over its OWN work: +6 embeddings using 0.02s -> 300.
+    manager.samples = {"s1": (30, 0.04)}
+    assert agg.sample(now=104.0) == 300.0
 
-    assert published == [12.0, 6.0]  # no zeros between bursts
+    assert published == [600.0, 300.0]  # no zeros between bursts
 
 
 def test_aggregator_ignores_shrinking_total(monkeypatch):
@@ -833,19 +839,19 @@ def test_aggregator_ignores_shrinking_total(monkeypatch):
     )
 
     class FakeManager:
-        counts: dict = {}
+        samples: dict = {}
 
-        def running_embeddings_by_stream(self):
-            return dict(self.counts)
+        def running_throughput_by_stream(self):
+            return dict(self.samples)
 
     manager = FakeManager()
     agg = LiveThroughputAggregator(manager=manager)
     agg._last_ts = 100.0
-    manager.counts = {"s1": 25, "s2": 15}
-    agg._last_counts = dict(manager.counts)
+    agg._last_counts = {"s1": 25, "s2": 15}
+    agg._last_active = {"s1": 1.0, "s2": 0.5}
 
-    # One of the streams stops -> it drops out of the running set.
-    manager.counts = {"s1": 25}
+    # One stream stops -> it drops out; the other produced nothing new.
+    manager.samples = {"s1": (25, 1.0)}
     assert agg.sample(now=101.0) is None
     assert published == []
 
@@ -854,10 +860,10 @@ def test_aggregator_does_not_spike_when_paused_stream_resumes(monkeypatch):
     """Resuming a paused stream must not dump its backlog as one interval.
 
     Regression guard for the "~1646 eps on resume" bug: a paused stream keeps a
-    frozen ``embeddings_created`` counter and is excluded from the running set.
-    When it resumes it rejoins with its full accumulated count; a scalar total
-    would read that as a single interval's burst. Diffing per stream baselines
-    the returning stream instead, so the gauge reflects only genuine new work.
+    frozen counter and is excluded from the running set. When it resumes it
+    rejoins with its full accumulated count; diffing per stream baselines the
+    returning stream (absent from the previous snapshot), so the gauge reflects
+    only genuine new work divided by genuine new active compute time.
     """
     from src.core.live.metrics import LiveThroughputAggregator
 
@@ -868,29 +874,31 @@ def test_aggregator_does_not_spike_when_paused_stream_resumes(monkeypatch):
     )
 
     class FakeManager:
-        counts: dict = {}
+        samples: dict = {}
 
-        def running_embeddings_by_stream(self):
-            return dict(self.counts)
+        def running_throughput_by_stream(self):
+            return dict(self.samples)
 
     manager = FakeManager()
     agg = LiveThroughputAggregator(manager=manager)
     agg._last_ts = 100.0
     # Only a steadily-running stream is tracked; the other is paused (absent).
-    manager.counts = {"running": 30}
-    agg._last_counts = dict(manager.counts)
+    agg._last_counts = {"running": 30}
+    agg._last_active = {"running": 0.06}
 
-    # The paused stream (8200 embeddings accumulated before the pause) resumes
-    # and rejoins the running set, while the running stream adds 5 this interval.
-    manager.counts = {"running": 35, "resumed": 8200}
+    # The paused stream (8200 embeddings / 20s active accumulated before the
+    # pause) resumes and rejoins, while the running stream adds 5 using 0.01s.
+    manager.samples = {"running": (35, 0.07), "resumed": (8200, 20.0)}
     rate = agg.sample(now=101.0)
 
-    # Only the 5 genuinely-new embeddings count; the 8200 backlog is baselined.
-    assert rate == 5.0
-    assert published == [5.0]
-    # The resumed stream is now tracked, so its real throughput is measured next.
-    manager.counts = {"running": 35, "resumed": 8210}
-    assert agg.sample(now=102.0) == 10.0
+    # Only the running stream's genuine new work counts: 5 / 0.01s = 500 eps.
+    # The resumed stream's backlog is baselined (contributes nothing this tick).
+    assert rate == pytest.approx(500.0)
+    assert published == [pytest.approx(500.0)]
+    # The resumed stream is now tracked, so its real rate is measured next:
+    # +10 embeddings using 0.02s -> 500 eps.
+    manager.samples = {"running": (35, 0.07), "resumed": (8210, 20.02)}
+    assert agg.sample(now=102.0) == pytest.approx(500.0)
 
 
 def test_running_embeddings_total_sums_only_running_streams():

@@ -1225,7 +1225,7 @@ def _process_video_from_memory_simple_pipeline(
     enable_object_detection: bool,
     detection_confidence: float,
     shutdown_event: Optional[threading.Event] = None,
-    progress_callback: Optional[Callable[[int, int], None]] = None,
+    progress_callback: Optional[Callable[[int, int, float], None]] = None,
     packet_sink: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
@@ -1236,9 +1236,11 @@ def _process_video_from_memory_simple_pipeline(
     a file path, an RTSP URL, or a list of any of these; ``VideoFrameExtractor``
     auto-detects the source type for each input.
 
-    ``progress_callback`` is invoked as ``(frames_in_batch, embeddings_stored)``
-    after each batch is persisted. Endless sources never reach the final return,
-    so it is the only way a caller can observe progress on a live stream.
+    ``progress_callback`` is invoked as
+    ``(frames_in_batch, embeddings_stored, active_seconds)`` after each batch is
+    persisted, where ``active_seconds`` is the detect+embed+store compute time
+    for that batch (decode excluded). Endless sources never reach the final
+    return, so it is the only way a caller can observe progress on a live stream.
 
     ``packet_sink`` (live RTSP only) receives every demuxed packet off the single
     decode connection for segment recording; ``None`` on file/image/batch paths
@@ -2246,7 +2248,7 @@ def store_worker(
     result_queue: queue.Queue,
     shutdown_event: threading.Event,
     tracer: Tracer,
-    progress_callback: Optional[Callable[[int, int], None]] = None,
+    progress_callback: Optional[Callable[[int, int, float], None]] = None,
 ):
     _embedding_client = get_embedding_client()
 
@@ -2339,8 +2341,23 @@ def store_worker(
             if progress_callback is not None:
                 # Endless sources never return a final result, so progress has to be
                 # reported per batch or the caller's counters stay at zero forever.
+                # Report the active compute time for this batch alongside the
+                # counts so the live throughput gauge can measure the device's
+                # real ingestion rate. "Active" is detect + embed + store:
+                #   * decode is excluded -- for a live source its wall time is the
+                #     real-time wait for the next packet, not device work, and
+                #     including it would collapse the rate back to the delivered
+                #     (camera-cadence) rate;
+                #   * detection is included because it is genuine pipeline work;
+                #     when object detection is disabled the detect stage is
+                #     skipped so stats["detect"] is ~0 and does not inflate time.
+                active_seconds = (
+                    stats.get("detect", (0, 0, 0.0))[2]
+                    + stats.get("embed", (0, 0, 0.0))[2]
+                    + stats.get("store", (0, 0, 0.0))[2]
+                )
                 try:
-                    progress_callback(batch_size, len(saved_ids))
+                    progress_callback(batch_size, len(saved_ids), active_seconds)
                 except Exception:  # noqa: BLE001 - reporting must never kill ingestion
                     logger.warning("Live progress callback failed", exc_info=True)
 
@@ -2670,7 +2687,7 @@ def generate_rtsp_video_embedding_pipeline(
     enable_object_detection: bool = True,
     detection_confidence: float = 0.85,
     shutdown_event: Optional[threading.Event] = None,
-    progress_callback: Optional[Callable[[int, int], None]] = None,
+    progress_callback: Optional[Callable[[int, int, float], None]] = None,
     packet_sink: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
@@ -2683,7 +2700,8 @@ def generate_rtsp_video_embedding_pipeline(
         enable_object_detection: Whether to enable object detection (currently not implemented)
         detection_confidence: Confidence threshold (currently not used)
         shutdown_event: Optional threading.Event to signal graceful shutdown
-        progress_callback: Called as ``(frames_in_batch, embeddings_stored)`` after
+        progress_callback: Called as
+            ``(frames_in_batch, embeddings_stored, active_seconds)`` after
             each batch is persisted. An RTSP session only returns when the source
             ends, so this is the only progress signal available while it runs.
         packet_sink: Optional segment-recording sink fed every demuxed packet off

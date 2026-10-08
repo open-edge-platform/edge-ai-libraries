@@ -595,6 +595,36 @@ class LiveStreamManager:
                 )
             }
 
+    def running_throughput_by_stream(self) -> Dict[str, Tuple[int, float]]:
+        """Per-stream ``(embeddings_created, active_seconds)`` for running workers.
+
+        ``active_seconds`` is the cumulative detect+embed+store compute time the
+        worker has spent producing its embeddings (decode excluded -- for a live
+        source that stage's wall time is the real-time wait for frames). The
+        throughput aggregator diffs *both* values per stream over an interval and
+        divides summed new embeddings by summed new active seconds, so the gauge
+        reports the rate at which the device actually ingests while processing
+        rather than the delivered rate diluted by the camera's real-time cadence.
+        The same running-only filter as :meth:`running_embeddings_by_stream`
+        applies, so paused/stopped/errored streams neither inflate the rate nor
+        produce a spurious delta on resume.
+        """
+        with self._lock:
+            return {
+                worker.stream_id: (
+                    worker.stream.stats.embeddings_created,
+                    worker.stream.stats.active_seconds,
+                )
+                for worker in self._workers.values()
+                if worker.is_alive()
+                and worker.stream.state
+                not in (
+                    LiveStreamStateEnum.paused,
+                    LiveStreamStateEnum.stopped,
+                    LiveStreamStateEnum.error,
+                )
+            }
+
     def running_embeddings_total(self) -> int:
         """Sum embeddings created across all currently-ingesting workers.
 

@@ -38,6 +38,13 @@ class LiveStreamStatsRecord:
 
     frames_processed: int = 0
     embeddings_created: int = 0
+    # Cumulative detect+embed+store compute time (seconds) spent producing the
+    # embeddings above. Decode is excluded: for a live source the decode stage
+    # blocks on real-time packet arrival, so its wall time is the inter-frame
+    # wait, not device work. Dividing embeddings_created by this yields the rate
+    # at which the device actually ingests while processing, instead of the
+    # delivered rate diluted by the camera's real-time cadence.
+    active_seconds: float = 0.0
     segments_stored: int = 0
     reconnect_count: int = 0
     last_frame_ts: Optional[float] = None

@@ -323,10 +323,15 @@ class LiveStreamWorker:
         session_start_frames = self.stream.stats.frames_processed
         session_start_embeddings = self.stream.stats.embeddings_created
 
-        def _on_batch_stored(frames_in_batch: int, embeddings_stored: int) -> None:
+        def _on_batch_stored(
+            frames_in_batch: int,
+            embeddings_stored: int,
+            active_seconds: float = 0.0,
+        ) -> None:
             with progress_lock:
                 self.stream.stats.frames_processed += int(frames_in_batch or 0)
                 self.stream.stats.embeddings_created += int(embeddings_stored or 0)
+                self.stream.stats.active_seconds += max(float(active_seconds or 0.0), 0.0)
 
         def _invoke() -> None:
             """Run the blocking pipeline and capture its outcome."""
