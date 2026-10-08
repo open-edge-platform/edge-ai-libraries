@@ -22,6 +22,14 @@ services:
       EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
       EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
 
+      # QwenText static-shape compilation (NPU). Passed through empty when
+      # unset so the handler applies its own defaults; see
+      # docs/user-guide/qwentext-on-npu.md.
+      EMBEDDING_STATIC_SEQ_LEN: ${EMBEDDING_STATIC_SEQ_LEN:-}
+
+      # QwenText long-text chunking (NPU only)
+      EMBEDDING_CHUNK_LONG_TEXT: ${EMBEDDING_CHUNK_LONG_TEXT:-}
+
       # Video processing configuration
       DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC}
       DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION}
@@ -44,6 +52,11 @@ services:
       - ${VIDEO_GROUP_ID:-44}
       - ${RENDER_GROUP_ID:-1002}
     restart: unless-stopped
+    # Headroom above the 1024 default for pooled shared-memory segments.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)"]
       interval: 10s

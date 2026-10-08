@@ -12,9 +12,6 @@ Both kinds converge on the **same** embedding model, the **same** shared vector 
 ## High-Level Architecture
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 graph TB
     subgraph "Entry Points"
         A1[POST /media/upload<br/>Direct File Upload]
@@ -53,9 +50,6 @@ graph TB
 ### Stage 1: Video Upload & Initial Processing
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START([Video Upload Request]) --> ENTRY{Entry Point?}
 
@@ -89,9 +83,6 @@ flowchart TD
 ### Stage 2: Frame Extraction & Metadata Creation
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START[Frame Extraction Stage] --> VIDEO_INFO[Read Video Information<br/>Using Decord VideoReader]
 
@@ -134,9 +125,6 @@ flowchart TD
 ### Stage 3: Object Detection (Optional)
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START[Object Detection Stage] --> CHECK{Object Detection<br/>Enabled?}
 
@@ -220,9 +208,6 @@ flowchart TD
 ### Stage 4: Batch Creation for Parallel Processing
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START[Batch Creation Stage] --> INPUT[Input: List of Images + Metadata<br/><br/>After Detection:<br/>• Full frames: 60<br/>• Detected crops: 180<br/>• Total items: 240]
 
@@ -290,9 +275,6 @@ batch_size = 32  # Fixed optimal size
 ### Stage 5: Parallel Batch Processing Pipeline
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START[Parallel Processing Stage] --> POOL[Thread Pool Executor<br/>max_workers = pipeline_count<br/><br/>Example: 4 workers<br/>Processing 8 batches]
 
@@ -394,9 +376,6 @@ flowchart TD
 ### Stage 6: Results Aggregation & Performance Metrics
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TD
     START[Results Aggregation] --> COLLECT[Collect All Batch Results<br/>From ThreadPoolExecutor.as_completed]
 
@@ -535,9 +514,6 @@ capped before any processing.
 ### Stage flow
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 graph TB
     subgraph "Entry"
         U1[POST /media/upload<br/>multipart bytes]
@@ -600,9 +576,6 @@ search, enabling cross-modal retrieval.
 ## Complete End-to-End Flow Visualization
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 graph TB
     subgraph "Stage 1: Video Upload"
         A[Video Upload<br/>POST /media/upload or /media/process] --> C[Memory Processing]
@@ -709,9 +682,6 @@ graph TB
 ### Component Interaction
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 graph LR
     subgraph "Multimodal DataPrep Microservice"
         A[FastAPI Endpoints] --> B[Video Processing]

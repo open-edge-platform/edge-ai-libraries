@@ -54,8 +54,8 @@ Frames must be readable by the service under:
 {SEAWEEDFS_BUCKET}/{entity_id}/{region_id}/{entry_timestamp}/frames/{timestamp}.jpg
 ```
 
-> **Note:**
->
+> [!NOTE]
+> 
 > - Bucket name is configurable via `SEAWEEDFS_BUCKET`.
 > - Filenames should preserve timestamp ordering because the service sorts by timestamp name.
 

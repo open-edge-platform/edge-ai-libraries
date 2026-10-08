@@ -126,11 +126,10 @@ and takes longer to execute than the `GET /health` endpoint.
       }
   }
   ```
-  
-  The keys in the providers map are the provider names configured in your setup. 
+
+  The keys in the providers map are the provider names configured in your setup.
   The value structure for each key depends on the specific provider’s
   health check structure.
-
 
 ## List Models
 

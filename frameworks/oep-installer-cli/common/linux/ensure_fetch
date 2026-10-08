@@ -1,0 +1,54 @@
+
+# robust fetch: ensure_fetch URL <DEST|-> [--html]
+ensure_fetch() {
+  local url="$1" dest="${2:-?}" html="$3"
+  local rc=1 first tmp_dir i
+
+  ensure_tmpdir create tmp_dir fetch || return 1
+  local tmp_file="$tmp_dir/download"
+
+  for i in {1..5}; do
+    [ $i -eq 1 ] || sleep 5
+
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL --retry 3 --retry-delay 5 -o "$tmp_file" "$url" && rc=0 || rc=$?
+    elif command -v wget >/dev/null 2>&1; then
+      wget -q -t 3 -w 5 -O "$tmp_file" "$url" && rc=0 || rc=$?
+    elif command -v python3 >/dev/null 2>&1; then
+      python3 - "$url" > "$tmp_file" <<'PY' && rc=0 || rc=$?
+import sys, shutil, urllib.request
+with urllib.request.urlopen(sys.argv[1], timeout=60) as r:
+  shutil.copyfileobj(r, sys.stdout.buffer)
+PY
+    else
+      echo "ensure_fetch: no curl, wget, or python3 available" >&2
+      rc=127
+      break
+    fi
+
+    if [ "$rc" -eq 0 ] && [ -s "$tmp_file" ]; then
+      [ "$html" != "--html" ] || break
+      first=$(head -c 512 "$tmp_file" 2> /dev/null | tr -d '\0') || true
+      case "${first,,}" in
+      *"<!doctype html"*|*"<html"*) ;;
+      *) break;;
+      esac
+    fi
+    rc=1
+    rm -f "$tmp_file"
+  done
+
+  if [ "$rc" -eq 0 ]; then
+    if [ "$dest" = "-" ]; then
+      cat "$tmp_file" && rc=0 || rc=$?
+    else
+      { cp -f "$tmp_file" "$dest" 2>/dev/null || ensure_sudo cp -f "$tmp_file" "$dest"; } && rc=0 || rc=$?
+    fi
+  else
+    echo "ensure_fetch: giving up on $url" >&2
+  fi
+
+  ensure_tmpdir destroy "$tmp_dir" || true
+  return "$rc"
+}
+

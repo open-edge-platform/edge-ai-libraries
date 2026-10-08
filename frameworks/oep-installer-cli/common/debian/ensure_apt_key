@@ -1,0 +1,12 @@
+
+ensure_apt_key () {
+  local key_file="$1" key_url="$2"
+
+  ensure_sudo mkdir -p "$(dirname "$key_file")"
+  if [[ "$*" = *"--dearmor"* ]]; then
+    curl -fsSL "$key_url" | gpg --dearmor | ensure_sudo tee "$key_file" > /dev/null
+  else
+    curl -fsSL "$key_url" | ensure_sudo tee "$key_file" > /dev/null
+  fi
+}
+

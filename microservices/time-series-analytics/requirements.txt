@@ -1,11 +1,12 @@
 scikit-learn-intelex==2026.1.0
-scikit-learn==1.9.0
+scikit-learn-intelex-gpu==2026.1.0
+scikit-learn==1.9.1
 asyncua==2.0.1
-fastapi==0.141.1
-uvicorn==0.52.4
+fastapi==0.142.2
+uvicorn==0.54.0
 influxdb==5.3.2
 tomlkit==0.15.1
-protobuf==7.36.1
+protobuf==7.36.2
 dpctl==0.22.1
 python-multipart==0.0.32
 setuptools==84.0.0

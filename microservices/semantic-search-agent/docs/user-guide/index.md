@@ -13,8 +13,6 @@ hide_directive-->
 
 Semantic Search Agent is a lightweight, production-ready microservice for AI-powered item matching and validation. Built with FastAPI and asyncio frameworks, it accepts item comparison requests via REST, runs them through a configurable multi-strategy matching pipeline using exact string matching, semantic Vision-Language Model (VLM)-based matching, or hybrid matching, and returns structured match results with confidence scores. The microservice consolidates semantic matching logic from multiple edge-AI applications into a single extensible service.
 
-
-
 ## Use Cases
 
 - **Order Validation at the Edge** — Compare a list of expected grocery or retail items against detected items from a vision pipeline and identify missing, extra, or quantity-mismatched products.

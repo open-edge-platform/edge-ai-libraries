@@ -1,3 +1,4 @@
+
 <!--
 SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 SPDX-License-Identifier: Apache-2.0
@@ -35,7 +36,7 @@ and documentation improvements.
 
 **Release Date:** September 9, 2026
 
-**New**
+**New**:
 
 - Standalone Agent Quality Handler with Policy, Analysis, Evidence, and Ticketing graph stages.
 - Direct REST API metrics on port `5002`.

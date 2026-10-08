@@ -668,16 +668,23 @@ export const CreatePipelineDialog = ({
                             </SelectTrigger>
                             <SelectContent>
                               {models
-                                ?.filter(
-                                  (model) => model.category === "detection",
+                                ?.filter((model) =>
+                                  [
+                                    "object_detection",
+                                    "image_segmentation",
+                                    "pose_estimation",
+                                  ].includes(model.category ?? ""),
                                 )
                                 .flatMap((model) =>
                                   (model.variants ?? [])
                                     .filter((variant) => variant.installed)
                                     .map((variant) => (
                                       <SelectItem
-                                        key={variant.display_name}
+                                        key={`${model.name}:${variant.name}`}
                                         value={variant.display_name}
+                                        description={
+                                          model.description ?? undefined
+                                        }
                                       >
                                         {variant.display_name}
                                       </SelectItem>
@@ -715,15 +722,19 @@ export const CreatePipelineDialog = ({
                                   {models
                                     ?.filter(
                                       (model) =>
-                                        model.category === "classification",
+                                        model.category ===
+                                        "image_classification",
                                     )
                                     .flatMap((model) =>
                                       (model.variants ?? [])
                                         .filter((variant) => variant.installed)
                                         .map((variant) => (
                                           <SelectItem
-                                            key={variant.display_name}
+                                            key={`${model.name}:${variant.name}`}
                                             value={variant.display_name}
+                                            description={
+                                              model.description ?? undefined
+                                            }
                                           >
                                             {variant.display_name}
                                           </SelectItem>
