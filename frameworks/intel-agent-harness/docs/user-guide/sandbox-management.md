@@ -35,6 +35,10 @@ header is never forwarded. This is intentionally a single lightweight proxy
 container, not a systemd-managed daemon or a full-featured gateway product —
 just enough to avoid publishing sandbox ports directly.
 
+Note: this is unrelated to an LLM/MCP routing gateway (e.g. LiteLLM-style
+inference gateways) — it only reverse-proxies sandbox container traffic, not
+model/agent requests.
+
 ## Status
 
 ```bash
