@@ -19,6 +19,7 @@ from src.common import Strings, logger, settings
 from src.core.vectorstores.base import BaseVectorStore
 from src.core.vectorstores.factory import register_backend
 from src.core.vectorstores.metadata import flatten_to_scalars, project_to_canonical
+from src.core.vectorstores.vdms_concurrency import serialize_vdms_calls
 
 if TYPE_CHECKING:
     from langchain_vdms.vectorstores import VDMS, VDMS_Client
@@ -67,6 +68,7 @@ class VDMSVectorStore(BaseVectorStore):
         self.client: Optional[VDMS_Client] = None
         self.video_db: Optional[VDMS] = None
 
+    @serialize_vdms_calls
     def connect(self) -> None:
         if self.video_db is not None:
             return
@@ -97,6 +99,7 @@ class VDMSVectorStore(BaseVectorStore):
         """Project onto the canonical contract, then flatten to VDMS scalars."""
         return flatten_to_scalars(project_to_canonical(metadata))
 
+    @serialize_vdms_calls
     def add_embeddings(
         self,
         texts: List[str],
@@ -167,6 +170,7 @@ class VDMSVectorStore(BaseVectorStore):
                 batch_size=_BATCH_SIZE,
             )
 
+    @serialize_vdms_calls
     def update_index(self) -> None:
         """Persist the VDMS descriptor-set index (previously in app lifespan)."""
         if self.client is None:
@@ -190,6 +194,7 @@ class VDMSVectorStore(BaseVectorStore):
         except Exception as exc:
             logger.error("Error updating VDMS index: %s", exc)
 
+    @serialize_vdms_calls
     def _delete_by_constraints(self, constraints: dict, what: str) -> int:
         """Delete descriptors matching ``constraints`` in journal-sized batches.
 
@@ -285,6 +290,7 @@ class VDMSVectorStore(BaseVectorStore):
         )
         return deleted
 
+    @serialize_vdms_calls
     def health(self) -> dict:
         status = {"backend": "vdms", "collection": self.collection_name}
         try:

@@ -393,3 +393,107 @@ def test_milvus_delete_embeddings_rejects_unsafe_identifiers(monkeypatch, bucket
 
     with pytest.raises(ValueError):
         store.delete_embeddings(bucket, vid)
+
+
+# --------------------------- VDMS connection serialization -----------------
+def test_vdms_lock_is_reentrant():
+    """Nested serialized calls on one thread must not self-deadlock.
+
+    Mirrors the real nesting (``add_embeddings`` -> ``connect`` and
+    ``_delete_by_constraints`` -> ``update_index``), which relies on the lock
+    being an ``RLock``.
+    """
+    from src.core.vectorstores.vdms_concurrency import serialize_vdms_calls
+
+    @serialize_vdms_calls
+    def inner():
+        return "ok"
+
+    @serialize_vdms_calls
+    def outer():
+        return inner()
+
+    assert outer() == "ok"
+
+
+def test_vdms_concurrent_insert_and_delete_are_serialized(monkeypatch):
+    """A concurrent insert and delete must never interleave on the shared socket.
+
+    Without serialization, ``add_from`` and ``FindDescriptor`` queries overlap on
+    the single non-thread-safe ``VDMS_Client`` connection and desync its framing,
+    which deadlocked the live-ingestion pipeline in production.
+    """
+    import threading
+    import time
+
+    from src.core.vectorstores.vdms_store import VDMSVectorStore
+
+    store = VDMSVectorStore(host="h", port="1", collection_name="c")
+    monkeypatch.setattr(store, "connect", lambda: None)
+    monkeypatch.setattr(store, "update_index", lambda: None)
+
+    active = 0
+    max_active = 0
+    meter = threading.Lock()
+
+    def enter():
+        nonlocal active, max_active
+        with meter:
+            active += 1
+            max_active = max(max_active, active)
+
+    def leave():
+        nonlocal active
+        with meter:
+            active -= 1
+
+    class FakeVideoDB:
+        def add_from(self, texts, embeddings, metadatas, ids, batch_size):
+            enter()
+            time.sleep(0.02)
+            leave()
+            return ids
+
+        def check_and_update_properties(self):
+            pass
+
+    class FakeClient:
+        def query(self, q):
+            enter()
+            time.sleep(0.02)
+            leave()
+            # Report nothing left so the delete loop exits after one pass.
+            return [{"FindDescriptor": {"returned": 0, "status": 0}}], []
+
+    store.video_db = FakeVideoDB()
+    store.client = FakeClient()
+
+    errors: list = []
+
+    def do_inserts():
+        try:
+            for _ in range(5):
+                store.add_embeddings(
+                    texts=["t"], embeddings=[[0.1, 0.2]], metadatas=[{"video_id": "v"}]
+                )
+        except Exception as exc:  # pragma: no cover - surfaces thread failure
+            errors.append(exc)
+
+    def do_deletes():
+        try:
+            for _ in range(5):
+                store.delete_embeddings("bucket", "v")
+        except Exception as exc:  # pragma: no cover - surfaces thread failure
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=do_inserts),
+        threading.Thread(target=do_deletes),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, f"worker threads raised: {errors}"
+    assert max_active == 1, f"VDMS calls overlapped (max concurrency {max_active})"
