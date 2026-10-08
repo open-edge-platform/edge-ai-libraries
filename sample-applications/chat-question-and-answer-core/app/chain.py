@@ -16,6 +16,8 @@ import threading
 import pandas as pd
 
 vectorstore = None
+# Set from init_models() below; stays None when RUN_TEST bypasses model loading.
+llm = None
 
 # One OpenVINO infer request serves the LLM: generations must not overlap.
 _generation_lock = threading.Lock()
@@ -269,6 +271,35 @@ def sse_data(chunk: str) -> str:
     return "".join(f"data: {line}\n" for line in chunk.split("\n")) + "\n"
 
 
+def _is_genai() -> bool:
+    # GenAILLM (LLM on NPU) streams through a callback instead of an HF pipeline.
+    return hasattr(llm, "stream_text")
+
+
+def _render_prompt(docs, query: str) -> str:
+    # Same text as `prompt | llm` sends (ChatPromptValue.to_string()).
+    return prompt.invoke({"context": format_labelled_context(docs), "question": query}).to_string()
+
+
+def fit_documents(docs, query: str):
+    """
+    Drops the lowest-ranked context documents until the rendered prompt fits the LLM
+    prompt limit (`max_prompt_tokens`, set for the LLM on NPU). Without a limit the
+    documents are returned unchanged.
+    """
+
+    limit = getattr(llm, "max_prompt_tokens", None)
+    if not isinstance(limit, int) or limit <= 0:
+        return docs
+
+    docs = list(docs)
+    while docs and llm.count_tokens(_render_prompt(docs, query)) > limit:
+        logger.warning(f"Prompt exceeds {limit} tokens; dropping context chunk {len(docs)}.")
+        docs.pop()
+
+    return docs
+
+
 def retrieval_query(query: str) -> str:
     """
     Returns the text used for retrieval. With RETRIEVAL_TRANSLATE_PROMPT set (a template
@@ -277,17 +308,21 @@ def retrieval_query(query: str) -> str:
     """
 
     template = config.RETRIEVAL_TRANSLATE_PROMPT
-    if not template or not hasattr(llm, "pipeline"):
+    if not template or not (hasattr(llm, "pipeline") or _is_genai()):
         return query
 
     with _generation_lock:
-        out = llm.pipeline(
-            template.replace("{question}", query),
-            max_new_tokens=64,
-            do_sample=False,
-            return_full_text=False,
-        )
-    lines = [line.strip() for line in str(out[0]["generated_text"]).splitlines() if line.strip()]
+        if _is_genai():
+            generated = llm.generate_text(template.replace("{question}", query), max_new_tokens=64)
+        else:
+            out = llm.pipeline(
+                template.replace("{question}", query),
+                max_new_tokens=64,
+                do_sample=False,
+                return_full_text=False,
+            )
+            generated = out[0]["generated_text"]
+    lines = [line.strip() for line in str(generated).splitlines() if line.strip()]
 
     return lines[0] if lines else query
 
@@ -303,7 +338,7 @@ def answer_with_sources(query: str):
         tuple[str, list[dict]]: The answer text and the sources.
     """
 
-    docs = retrieve_documents(retrieval_query(query))
+    docs = fit_documents(retrieve_documents(retrieval_query(query)), query)
     with _generation_lock:
         answer = build_answer_chain().invoke(
             {"context": format_labelled_context(docs), "question": query}
@@ -321,7 +356,13 @@ def _generate(prompt_text: str, streamer, cancel: threading.Event, errors: list)
 
     try:
         with _generation_lock:
-            if not cancel.is_set():
+            if cancel.is_set():
+                pass
+            elif _is_genai():
+                llm.stream_text(
+                    prompt_text, on_text=streamer.put, cancel=cancel, max_new_tokens=config.MAX_TOKENS
+                )
+            else:
                 llm.pipeline(
                     prompt_text,
                     streamer=streamer,
@@ -343,11 +384,16 @@ async def stream_answer(prompt_text: str):
     infer request busy.
     """
 
-    from transformers import TextIteratorStreamer
+    if _is_genai():
+        from .openvino_xpu import TextQueue
 
-    streamer = TextIteratorStreamer(
-        llm.pipeline.tokenizer, timeout=None, skip_prompt=True, skip_special_tokens=True
-    )
+        streamer = TextQueue()
+    else:
+        from transformers import TextIteratorStreamer
+
+        streamer = TextIteratorStreamer(
+            llm.pipeline.tokenizer, timeout=None, skip_prompt=True, skip_special_tokens=True
+        )
     cancel = threading.Event()
     errors: list = []
     threading.Thread(
@@ -376,10 +422,11 @@ async def process_query_with_sources(query: str = ""):
     """
 
     docs = await run_in_threadpool(retrieve_documents, await run_in_threadpool(retrieval_query, query))
+    docs = await run_in_threadpool(fit_documents, docs, query)
     yield f"event: sources\ndata: {json.dumps({'sources': build_sources(docs)})}\n\n"
 
     inputs = {"context": format_labelled_context(docs), "question": query}
-    if hasattr(llm, "pipeline"):
+    if hasattr(llm, "pipeline") or _is_genai():
         # Same text as `prompt | llm` sends (ChatPromptValue.to_string()).
         chunks = stream_answer(prompt.invoke(inputs).to_string())
     else:
