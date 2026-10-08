@@ -1857,6 +1857,27 @@ class LatencyMetrics(BaseModel):
     )
 
 
+class PipelineEvent(BaseModel):
+    """
+    **Live event observed while a performance test pipeline is running.**
+
+    ## Attributes
+    - `timestamp_ms` - Wall-clock time the event was observed, in ms since epoch
+    - `source` - Event origin, e.g. `proximity-trigger` or `vlm`
+    - `text` - Human-readable description of the event (or the VLM answer). Truncated to 4096 characters, with `... [truncated]` appended when the original was longer
+    - `element` - Name of the emitting GStreamer element, when known
+    - `pts_seconds` - Stream position the event refers to, in seconds, when known
+    - `prompt` - Prompt that produced a VLM answer (`source` = `vlm`), when known. Truncated to 1024 characters, with `... [truncated]` appended when the original was longer
+    """
+
+    timestamp_ms: int
+    source: str
+    text: str
+    element: Optional[str] = None
+    pts_seconds: Optional[float] = None
+    prompt: Optional[str] = None
+
+
 class TestsJobStatus(BaseModel):
     """
     **Base status fields shared by performance and density jobs.**
@@ -1906,16 +1927,25 @@ class PerformanceJobStatus(TestsJobStatus):
     **Status of a performance test job.**
 
     Inherits all fields from TestsJobStatus and adds live_stream_urls and
-    metadata_stream_urls for live-streaming output mode support.
+    metadata_stream_urls for live-streaming output mode support, plus events
+    carrying recent live pipeline events.
 
     ## Attributes
     - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     - `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)
     - `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)
+    - `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer
     """
 
     live_stream_urls: Optional[Dict[str, str]]
     metadata_stream_urls: Optional[Dict[str, list[str]]]
+    events: list[PipelineEvent] = Field(
+        default_factory=list,
+        description=(
+            "Most recent live pipeline events (oldest first, bounded), e.g. "
+            "a `gvaproximitytrigger_py` trigger firing or a `gvagenai` answer."
+        ),
+    )
 
 
 class DensityJobStatus(TestsJobStatus):

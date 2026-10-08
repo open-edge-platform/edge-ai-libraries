@@ -79,6 +79,7 @@ COPY --chown=dlstreamer:dlstreamer vippet/benchmarks/ /home/dlstreamer/vippet/be
 COPY --chown=dlstreamer:dlstreamer vippet/models/ /home/dlstreamer/vippet/models
 COPY --chown=dlstreamer:dlstreamer vippet/api/ /home/dlstreamer/vippet/api
 COPY --chown=dlstreamer:dlstreamer vippet/managers/ /home/dlstreamer/vippet/managers
+COPY --chown=dlstreamer:dlstreamer vippet/gst_plugins/ /home/dlstreamer/vippet/gst_plugins
 
 # Build-time release identifiers. Injected via --build-arg (see compose.yml,
 # which sources VIPPET_VERSION from DOCKER_TAG and VIPPET_REVISION from the
