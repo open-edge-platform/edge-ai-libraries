@@ -9,25 +9,35 @@
 # https://github.com/open-edge-platform/physical-ai-studio
 configure_physical_ai_studio () {
   pais_pkg="physicalai-studio"
+  pais_version=0.2.0
   pais_bin="$HOME/.local/bin/physicalai-studio"
   # runtime state for the long-running `serve` process (native, non-docker)
   pais_run_dir="$(ensure_project_path)/physical-ai-studio"
   pais_pid_file="$pais_run_dir/physicalai-studio.pid"
   pais_log_file="$pais_run_dir/physicalai-studio.logs"
-  # the port the app binds to by default (used only for the guard / URL, the
-  # server is launched with its own built-in default and never overridden)
+  pais_device_file="$pais_run_dir/.device"
+  # the app binds to 127.0.0.1 by default
   pais_port=7860
-  # pick the PyTorch wheel index and package extra for the detected device
-  if command -v nvidia-smi > /dev/null 2>&1; then
+}
+
+# select the PyTorch build (pais_extra) and wheel index (pais_index):
+#   --gpu -> Intel XPU   --cpu -> CPU   --npu -> XPU if a GPU is present, else CPU
+# NVIDIA CUDA is used when nvidia-smi is present and no device option is given.
+# Without a device option, a previously installed build is kept.
+configure_physical_ai_studio_device () {
+  local args_uc=" ${*^^} "
+  if [[ "$args_uc" != *" --GPU "* && "$args_uc" != *" --CPU "* && "$args_uc" != *" --NPU "* ]] && [ -r "$pais_device_file" ]; then
+    pais_extra="$(cat "$pais_device_file")"
+  elif [[ "$args_uc" != *" --GPU "* && "$args_uc" != *" --CPU "* ]] && command -v nvidia-smi > /dev/null 2>&1; then
     pais_extra=cuda
-    pais_index="https://download.pytorch.org/whl/cu128"
-  elif [ -e /dev/dri/renderD128 ]; then
-    pais_extra=xpu
-    pais_index="https://download.pytorch.org/whl/xpu"
   else
     pais_extra=cpu
-    pais_index="https://download.pytorch.org/whl/cpu"
+    [ "$(ensure_select_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || pais_extra=xpu
   fi
+  case "$pais_extra" in
+  cuda) pais_index="https://download.pytorch.org/whl/cu128" ;;
+  *)    pais_index="https://download.pytorch.org/whl/$pais_extra" ;;
+  esac
 }
 
 debian_92_profile_physical_ai_studio () {
@@ -35,54 +45,75 @@ debian_92_profile_physical_ai_studio () {
 }
 
 verify_physical_ai_studio () {
-  configure_physical_ai_studio "$@"
-  [ -x "$pais_bin" ]
+  configure_physical_ai_studio
+  configure_physical_ai_studio_device "$@"
+  configure_uv
+  [ -x "$pais_bin" ] && \
+  [ "$(cat "$pais_device_file" 2> /dev/null)" = "$pais_extra" ] && \
+  uv tool list 2> /dev/null | grep -q -E "^$pais_pkg v${pais_version//./\\.}( |$)"
 }
 
 debian_92_install_physical_ai_studio () {
-  configure_physical_ai_studio "$@"
+  configure_physical_ai_studio
+  configure_physical_ai_studio_device "$@"
   configure_uv
 
   if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Studio is already installed. Skipping..."
   else
     ensure_disk_space 20000
-    echo "Installing ${pais_pkg}[${pais_extra}] (PyTorch ${pais_extra} build; this may take a while)..."
-    uv tool install --python 3.12 \
+    debian_92_stop_physical_ai_studio "$@" || true
+    rm -f "$pais_device_file"
+    echo "Installing ${pais_pkg}[${pais_extra}]==${pais_version} (PyTorch ${pais_extra} build; this may take a while)..."
+    uv tool install --reinstall --python 3.12 \
       --index "$pais_index" --index-strategy unsafe-best-match \
-      "${pais_pkg}[${pais_extra}]" || {
+      "${pais_pkg}[${pais_extra}]==${pais_version}" || {
       echo "Could not install $pais_pkg." 1>&2
       return 3
     }
+    mkdir -p "$pais_run_dir"
+    echo "$pais_extra" > "$pais_device_file"
+
+    verify_physical_ai_studio "$@"
   fi
 
-  echo "@@HIGHLIGHT Physical AI Studio installed ($pais_bin)"
-  echo "@@HIGHLIGHT run @physicalai-studio serve   # then open http://localhost:7860"
+  echo "@@HIGHLIGHT Physical AI Studio ($pais_extra) installed ($pais_bin)"
   echo "@@HIGHLIGHT docs @https://github.com/open-edge-platform/physical-ai-studio"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_92_start_physical_ai_studio () {
-  configure_physical_ai_studio "$@"
+  configure_physical_ai_studio
   # stop any instance already holding the port before starting a new one
-  ensure_ports_open "$pais_port" debian_92_stop_physical_ai_studio
+  ensure_ports_open "$pais_port" debian_92_stop_physical_ai_studio "$@"
 
-  if ! verify_physical_ai_studio "$@"; then
+  if [ ! -x "$pais_bin" ]; then
     echo "Physical AI Studio is not installed. Run 'install physical_ai_studio' first." 1>&2
     return 3
   fi
 
   mkdir -p "$pais_run_dir"
-  # launch the FastAPI backend + UI detached; let the app choose its own port
-  setsid nohup "$pais_bin" serve > "$pais_log_file" 2>&1 < /dev/null &
+  # launch the FastAPI backend + UI detached
+  setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null &
   echo $! > "$pais_pid_file"
 
+  sleep 3
+  if ! kill -0 "$(cat "$pais_pid_file")" > /dev/null 2>&1; then
+    echo "Physical AI Studio exited during startup. See $pais_log_file" 1>&2
+    rm -f "$pais_pid_file"
+    return 3
+  fi
+
   echo "@@HIGHLIGHT Physical AI Studio started (PID $(cat "$pais_pid_file"))"
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip):$pais_port"
+  echo "@@HIGHLIGHT URL: http://localhost:$pais_port"
   echo "@@HIGHLIGHT logs @$pais_log_file"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 debian_92_stop_physical_ai_studio () {
-  configure_physical_ai_studio "$@"
+  configure_physical_ai_studio
   [ -f "$pais_pid_file" ] || return 0
 
   local pid
@@ -100,7 +131,7 @@ debian_92_stop_physical_ai_studio () {
 }
 
 debian_92_remove_physical_ai_studio () {
-  configure_physical_ai_studio "$@"
+  configure_physical_ai_studio
   configure_uv
   debian_92_stop_physical_ai_studio "$@" || true
   uv tool uninstall "$pais_pkg" > /dev/null 2>&1 || true

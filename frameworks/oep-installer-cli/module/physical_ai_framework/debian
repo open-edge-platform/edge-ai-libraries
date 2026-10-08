@@ -11,17 +11,25 @@ configure_physical_ai_framework () {
   workspace="$(ensure_project_path)/physical-ai-framework"
   paif_venv="$workspace/.venv"
   paif_pkg="physicalai-train"
-  # pick the PyTorch wheel index and package extra for the detected device
-  if command -v nvidia-smi > /dev/null 2>&1; then
+  paif_version=0.2.0
+  paif_device_file="$workspace/.device"
+}
+
+# select the PyTorch build (paif_extra) and wheel index (paif_index):
+#   --gpu -> Intel XPU   --cpu -> CPU   --npu -> XPU if a GPU is present, else CPU
+# NVIDIA CUDA is used when nvidia-smi is present and no device option is given.
+# Without a device option, a previously installed build is kept.
+configure_physical_ai_framework_device () {
+  local args_uc=" ${*^^} "
+  if [[ "$args_uc" != *" --GPU "* && "$args_uc" != *" --CPU "* && "$args_uc" != *" --NPU "* ]] && [ -r "$paif_device_file" ]; then
+    paif_extra="$(cat "$paif_device_file")"
+  elif [[ "$args_uc" != *" --GPU "* && "$args_uc" != *" --CPU "* ]] && command -v nvidia-smi > /dev/null 2>&1; then
     paif_extra=cu128
-    paif_index="https://download.pytorch.org/whl/cu128"
-  elif [ -e /dev/dri/renderD128 ]; then
-    paif_extra=xpu
-    paif_index="https://download.pytorch.org/whl/xpu"
   else
     paif_extra=cpu
-    paif_index="https://download.pytorch.org/whl/cpu"
+    [ "$(ensure_select_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || paif_extra=xpu
   fi
+  paif_index="https://download.pytorch.org/whl/$paif_extra"
 }
 
 debian_91_profile_physical_ai_framework () {
@@ -29,12 +37,16 @@ debian_91_profile_physical_ai_framework () {
 }
 
 verify_physical_ai_framework () {
-  configure_physical_ai_framework "$@"
-  [ -x "$paif_venv/bin/physicalai" ]
+  configure_physical_ai_framework
+  configure_physical_ai_framework_device "$@"
+  [ -x "$paif_venv/bin/physicalai" ] && \
+  [ "$(cat "$paif_device_file" 2> /dev/null)" = "$paif_extra" ] && \
+  [ "$("$paif_venv/bin/python" -c "import importlib.metadata as m; print(m.version('$paif_pkg'))" 2> /dev/null)" = "$paif_version" ]
 }
 
 debian_91_install_physical_ai_framework () {
-  configure_physical_ai_framework "$@"
+  configure_physical_ai_framework
+  configure_physical_ai_framework_device "$@"
   configure_uv
 
   if verify_physical_ai_framework "$@" && [[ " $* " != *" --reinstall "* ]]; then
@@ -42,26 +54,46 @@ debian_91_install_physical_ai_framework () {
   else
     ensure_disk_space 15000
 
+    rm -rf "$paif_venv" "$paif_device_file"
     mkdir -p "$workspace"
     uv venv --python 3.12 "$paif_venv" || {
       echo "Could not create the Physical AI Framework virtual environment." 1>&2
       return 3
     }
-    echo "Installing ${paif_pkg}[${paif_extra}] (PyTorch ${paif_extra} build; this may take a while)..."
+    echo "Installing ${paif_pkg}[${paif_extra}]==${paif_version} (PyTorch ${paif_extra} build; this may take a while)..."
     uv pip install --python "$paif_venv/bin/python" \
       --index "$paif_index" --index-strategy unsafe-best-match \
-      "${paif_pkg}[${paif_extra}]" || {
+      "${paif_pkg}[${paif_extra}]==${paif_version}" || {
       echo "Could not install $paif_pkg." 1>&2
       return 3
     }
+    echo "$paif_extra" > "$paif_device_file"
+
+    if [[ " $* " = *" --validate "* ]]; then
+      "$paif_venv/bin/physicalai" --help > /dev/null
+      "$paif_venv/bin/python" - "$paif_extra" <<'EOF'
+import sys
+import torch
+
+build = sys.argv[1]
+available = {"cpu": True, "xpu": torch.xpu.is_available(), "cu128": torch.cuda.is_available()}[build]
+print(f"torch {torch.__version__} ({build}): {'available' if available else 'device not available'}")
+sys.exit(0 if available else 1)
+EOF
+      echo "Physical AI Framework validation passed."
+    fi
+
+    verify_physical_ai_framework "$@"
   fi
 
-  echo "@@HIGHLIGHT Physical AI Framework installed in $paif_venv"
+  echo "@@HIGHLIGHT Physical AI Framework ($paif_extra) installed in $paif_venv"
   echo "@@HIGHLIGHT run @source $paif_venv/bin/activate && physicalai --help"
   echo "@@HIGHLIGHT docs @https://github.com/open-edge-platform/physical-ai-studio/tree/main/library"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_91_remove_physical_ai_framework () {
-  configure_physical_ai_framework "$@"
+  configure_physical_ai_framework
   ensure_sudo rm -rf "$workspace"
 }

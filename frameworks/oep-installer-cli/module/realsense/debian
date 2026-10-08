@@ -49,7 +49,7 @@ debian_55_remove_realsense () {
   fi
 }
 
-debian_05_sbom_realsense () {
+debian_55_sbom_realsense () {
   configure_realsense "$@"
   cat <<EOF
 $(ensure_sbom_format name "$rs_repo_name")

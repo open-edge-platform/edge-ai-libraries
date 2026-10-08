@@ -9,27 +9,34 @@ configure_autonomous_mobile_robot () {
   *)     ros_distro=jazzy ;;
   esac
   # standard SDK by default; pass --complete for the full (~20GB) SDK
+  # (an installed complete SDK also satisfies a standard SDK request)
   amr_sdk_pkg=ros-$ros_distro-robotics-sdk
+  if [[ " $* " = *" --complete "* ]] || ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete; then
+    amr_sdk_pkg=ros-$ros_distro-robotics-sdk-complete
+  fi
+  # Collaborative SLAM acceleration variants:
+  #   lze  -> Intel GPU (Level-Zero)   avx2 -> Intel Core CPU   sse -> Atom/default
+  amr_slam_pkgs=(ros-$ros_distro-collab-slam-lze ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-sse)
+}
 
-  # Intel oneAPI Base Toolkit repo + version pins - the robotics SDK links the
-  # oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
-  oneapi_repo_name="apt.repos.intel.com"
-  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
-  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
-  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
-  oneapi_pref=(
-    "Package: intel-oneapi-runtime-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-    "Package: intel-oneapi-compiler-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-    "Package: intel-oneapi-mkl-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-  )
-  oneapi_pref_file=/etc/apt/preferences.d/oneapi
-  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
+# select the Collaborative SLAM variant for the device (GPU, CPU or NPU)
+configure_autonomous_mobile_robot_slam () {
+  local device="$1"
+  amr_slam_pkg=ros-$ros_distro-collab-slam-sse
+  if [ "$device" = GPU ]; then
+    amr_slam_pkg=ros-$ros_distro-collab-slam-lze
+  elif grep -q -w avx2 /proc/cpuinfo; then
+    amr_slam_pkg=ros-$ros_distro-collab-slam-avx2
+  fi
+}
+
+configure_autonomous_mobile_robot_device () {
+  configure_autonomous_mobile_robot_slam "$1"
+  ensure_apt_is_installed "$amr_slam_pkg" && return 0
+
+  ensure_apt remove -y $(printf '%s\n' "${amr_slam_pkgs[@]}" | grep -v -x -F "$amr_slam_pkg")
+  ensure_apt install -y "$amr_slam_pkg"
+  ensure_apt_is_installed "$amr_slam_pkg"
 }
 
 debian_90_profile_autonomous_mobile_robot () {
@@ -37,47 +44,21 @@ debian_90_profile_autonomous_mobile_robot () {
 }
 
 verify_autonomous_mobile_robot () {
-  configure_autonomous_mobile_robot
-  ensure_apt_is_installed ros-$ros_distro-robotics-sdk || \
-  ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete
-}
-
-# add the OSRF Gazebo apt repository (needed for the robotics-sdk dependencies)
-configure_osrf_gazebo () {
-  osrf_name=packages.osrfoundation.org
-  osrf_key_url="https://$osrf_name/gazebo.gpg"
-  osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
-  osrf_entry="deb [signed-by=$osrf_key] https://$osrf_name/gazebo/$ID-stable $VERSION_CODENAME main"
-  osrf_list=/etc/apt/sources.list.d/gazebo-stable.list
-}
-
-amr_setup_osrf_gazebo () {
-  configure_osrf_gazebo
-  ensure_apt install -y curl lsb-release gnupg
-  ensure_apt_key "$osrf_key" "$osrf_key_url"
-  ensure_apt_source "$osrf_list" "$osrf_entry"
-  ensure_apt update -y
-  [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
+  configure_autonomous_mobile_robot "$@"
+  ensure_apt_is_installed $amr_sdk_pkg
 }
 
 debian_90_install_autonomous_mobile_robot () {
-  configure_autonomous_mobile_robot
-  [[ " $* " != *" --complete "* ]] || amr_sdk_pkg=ros-$ros_distro-robotics-sdk-complete
+  configure_autonomous_mobile_robot "$@"
 
-  if verify_autonomous_mobile_robot && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_autonomous_mobile_robot "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Autonomous Mobile Robot is already installed. Skipping..."
   else
     ensure_disk_space $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
 
-    # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
-    ensure_apt install -y software-properties-common curl gnupg wget
-    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
-    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
-    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
-
+    ensure_oneapi_ros_openvino
     ensure_apt update -y
-
-    amr_setup_gazebo
+    ensure_osrf_gazebo_ros2
 
     # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
     if [ "$ros_distro" = humble ]; then
@@ -88,45 +69,38 @@ debian_90_install_autonomous_mobile_robot () {
     # the Autonomous Mobile Robot SDK meta-package
     ensure_apt install -y "$amr_sdk_pkg"
 
-    # Collaborative SLAM acceleration variant, selected by hardware capability:
-    #   lze  -> Intel GPU (Level-Zero)   avx2 -> Intel Core CPU   sse -> Atom/default
-    local slam_pkg=ros-$ros_distro-collab-slam-sse
-    grep -q -w avx2 /proc/cpuinfo && slam_pkg=ros-$ros_distro-collab-slam-avx2
-    [ -e /dev/dri/renderD128 ] && slam_pkg=ros-$ros_distro-collab-slam-lze
-    ensure_apt install -y "$slam_pkg"
+    verify_autonomous_mobile_robot "$@"
   fi
 
-  echo "@@HIGHLIGHT Autonomous Mobile Robot ($amr_sdk_pkg) installed for ROS 2 $ros_distro"
+  # Collaborative SLAM variant (default: GPU if available)
+  local device=$(ensure_select_device "$@")
+  configure_autonomous_mobile_robot_device "${device^^}"
+
+  echo "@@HIGHLIGHT Autonomous Mobile Robot ($amr_sdk_pkg, $amr_slam_pkg) installed for ROS 2 $ros_distro"
   echo "@@HIGHLIGHT shell env @source /opt/ros/$ros_distro/setup.bash"
   echo "@@HIGHLIGHT tutorials @https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/index_tutorials.html"
+  echo "@@HIGHLIGHT $installer_name install [--complete] [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_remove_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot
-  if verify_autonomous_mobile_robot; then
+  if ensure_apt_is_installed ros-$ros_distro-robotics-sdk || ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete; then
     ensure_apt autoremove -m -y \
-      ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete \
-      ros-$ros_distro-collab-slam-sse ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-lze || true
-    configure_osrf_gazebo
-    ensure_sudo rm -f $osrf_list $osrf_key
-    ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
+      ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete "${amr_slam_pkgs[@]}" || true
+    verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2
+    remove_oneapi_ros_openvino
   else
     echo "Autonomous Mobile Robot already removed. Skipping"
   fi
 }
 
 debian_90_sbom_autonomous_mobile_robot () {
-  configure_autonomous_mobile_robot
-  cat <<EOF
-$(ensure_sbom_format name "$oneapi_repo_name")
-$(ensure_sbom_format gpg-key "$oneapi_key_url")
-$(ensure_sbom_format key-file "$oneapi_key_file")
-$(ensure_sbom_format apt-source "$oneapi_deb_entry")
-$(ensure_sbom_format apt-list-file "$oneapi_list")
-$(ensure_sbom_format apt-pref "${oneapi_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$oneapi_pref_file")
-$(ensure_sbom_format pkg-list "intel-oneapi-runtime-*" "intel-oneapi-compiler-*" "intel-oneapi-mkl-*")
-EOF
+  configure_autonomous_mobile_robot "$@"
+  local device=$(ensure_select_device "$@")
+  configure_autonomous_mobile_robot_slam "${device^^}"
+
+  sbom_oneapi_ros_openvino
   echo "---"
 
   # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
@@ -137,23 +111,10 @@ $(ensure_sbom_format pkg-list gcc-12 g++-12)
 EOF
   fi
 
-  cat <<EOF
-$(ensure_sbom_format pkg-list software-properties-common curl gnupg wget lsb-release)
-EOF
-
-  if [ "$ros_distro" = jazzy ]; then
-    configure_osrf_gazebo
-    cat <<EOF
-$(ensure_sbom_format name $osrf_name)
-$(ensure_sbom_format apt-source "$osrf_entry")
-$(ensure_sbom_format apt-list-file "$osrf_list")
-$(ensure_sbom_format pkg-list gz-harmonic)
----
-EOF
-  fi
+  sbom_osrf_gazebo_ros2
+  echo "---"
 
   cat <<EOF
-$(ensure_sbom_format pkg-list $amr_sdk_pkg "ros-$ros_distro-collab-slam-sse")
+$(ensure_sbom_format pkg-list $amr_sdk_pkg $amr_slam_pkg)
 EOF
 }
-

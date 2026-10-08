@@ -47,6 +47,70 @@ configure_ros_openvino () {
   amr_deb_src_entry="$(printf 'deb-src [signed-by=%s] https://%s/repos/%s amr main\n' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
 }
 
+# Intel oneAPI Base Toolkit repo + version pins, shared by the Robotics AI Suite
+# components (autonomous_mobile_robot, stationary_robot_vision) whose robotics
+# stack links the oneAPI runtime/compiler/MKL packages.
+configure_oneapi_ros_openvino () {
+  oneapi_repo_name="apt.repos.intel.com"
+  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
+  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  oneapi_pref=(
+    "Package: intel-oneapi-runtime-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-compiler-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-mkl-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+  )
+  oneapi_pref_file=/etc/apt/preferences.d/oneapi
+  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
+}
+
+ensure_oneapi_ros_openvino () {
+  configure_oneapi_ros_openvino
+  ensure_apt install -y software-properties-common curl gnupg wget
+  ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
+  ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
+  ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
+}
+
+# succeeds if any Robotics AI Suite apt component is still installed. Expects $ros_distro.
+verify_robotics_in_use_ros_openvino () {
+  local pkg
+  for pkg in ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete \
+             ros-$ros_distro-rvc ros-$ros_distro-rvc-simulation; do
+    ! ensure_apt_is_installed $pkg || return 0
+  done
+  return 1
+}
+
+# remove the shared oneAPI repo only when no robotics component still needs it
+remove_oneapi_ros_openvino () {
+  configure_oneapi_ros_openvino
+  ! verify_robotics_in_use_ros_openvino || return 0
+  ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
+}
+
+sbom_oneapi_ros_openvino () {
+  configure_oneapi_ros_openvino
+  cat <<EOF
+$(ensure_sbom_format name "$oneapi_repo_name")
+$(ensure_sbom_format gpg-key "$oneapi_key_url")
+$(ensure_sbom_format key-file "$oneapi_key_file")
+$(ensure_sbom_format apt-source "$oneapi_deb_entry")
+$(ensure_sbom_format apt-list-file "$oneapi_list")
+$(ensure_sbom_format apt-pref "${oneapi_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$oneapi_pref_file")
+$(ensure_sbom_format pkg-list "intel-oneapi-runtime-*" "intel-oneapi-compiler-*" "intel-oneapi-mkl-*")
+---
+$(ensure_sbom_format pkg-list software-properties-common curl gnupg wget)
+EOF
+}
+
 debian_55_profile_ros_openvino () {
   echo "curl gpg ros2 edge_base libze1 debconf_utils"
 }
