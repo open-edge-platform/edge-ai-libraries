@@ -26,19 +26,69 @@ curl -s http://localhost:8200/api/v1/plugins | jq .
 
 ## HuggingFace Authentication Errors
 
+**Applies to both `hub: "huggingface"` and `hub: "openvino"`** — the OpenVINO
+converter downloads from HuggingFace before converting, so gated/private
+models need the same auth for conversion requests.
+
 **Symptom:** Job fails with `401 Unauthorized` or `403 Forbidden` or:
 > `Repository ... is gated`
 
-**Fix:**
+**Fix (service/compose startup or CLI):**
 1. Create a HuggingFace token at https://huggingface.co/settings/tokens (read access is enough)
 2. Accept the model's license agreement on the HF model page
 3. Set the token before starting the service:
    ```bash
    export HUGGINGFACEHUB_API_TOKEN=hf_...
-   source scripts/run_service.sh up --plugins huggingface --model-path $PWD/models
+   source scripts/run_service.sh up --plugins huggingface,openvino --model-path $PWD/models
    ```
 
 The token is picked up from the `HF_TOKEN` or `HUGGINGFACEHUB_API_TOKEN` environment variable.
+
+**Fix (per-request override via REST/MCP):** Pass the token in a top-level
+`override_credentials.HF_TOKEN` field on the model entry — a sibling of
+`name`/`hub`/`config`, **not** nested inside `config` — and **base64-encode**
+it:
+```bash
+echo -n 'hf_xxx' | base64
+```
+then put the encoded string (not the raw token) in `override_credentials` — see
+[plugins-guide.md § Gated Models](./plugins-guide.md#gated-models-per-request-token-override)
+(HuggingFace) and
+[plugins-guide.md § Gated Models — Conversion](./plugins-guide.md#gated-models-conversion-requires-the-same-token-rules-as-huggingface)
+(OpenVINO conversion). For `is_ovms` conversion requests, also set
+`validate_credentials: true` to catch a bad token before the conversion runs.
+
+**Common mistake — wrong encoding for the wrong path:** the env-var path
+(`HUGGINGFACEHUB_API_TOKEN`/`HF_TOKEN` for `run_service.sh` or `get_model.sh`)
+wants the **raw** token, while `override_credentials.HF_TOKEN` in a REST/MCP
+request wants the **base64-encoded** token. Putting a base64 string in the
+env var, or a raw token in `override_credentials`, both fail authentication
+even though "a token is set."
+
+### CLI Failure Scenario (`get_model.sh`)
+
+**Symptom:** Running the ephemeral CLI helper against a gated model — with
+either `--hub huggingface` or `--hub openvino` — still fails with
+`401 Unauthorized` / `Repository ... is gated`, even after exporting a token:
+```bash
+export HUGGINGFACEHUB_API_TOKEN=$(echo -n 'hf_xxx' | base64)   # wrong
+source ./get_model.sh --model-name meta-llama/Llama-3.2-1B --hub huggingface
+```
+
+**Cause:** `get_model.sh` forwards `HUGGINGFACEHUB_API_TOKEN`/`HF_TOKEN`
+straight into the container as `-e HF_TOKEN=<value>` with no decoding step. If
+the exported value is base64-encoded, the container receives the encoded
+string as the literal token and HuggingFace rejects it. The same applies when
+invoking `get_model.sh --hub openvino --is-ovms` for a gated conversion.
+
+**Fix:** Export the raw token (no base64) before invoking `get_model.sh`:
+```bash
+export HUGGINGFACEHUB_API_TOKEN=hf_xxx
+source ./get_model.sh --model-name meta-llama/Llama-3.2-1B --hub huggingface
+```
+Check `.model_download_logs/model_download_<timestamp>.log` (printed by the
+script on failure) for the container/service log tail confirming the auth
+error.
 
 ---
 
