@@ -111,6 +111,14 @@ act_helper () {
   # fill in the saved module list if none is named; remember explicit ones
   local mods_file="$(ensure_project_path)/$installer_name/modules"
   local explicit_mods="$(act_extract_modules $act_name "$@")"
+  local remove_all=0
+  if [[ "$act_name" = "remove" && " $* " = *" --remove-all "* ]]; then
+    if [ -z "${explicit_mods// }" ]; then
+      remove_all=1
+    else
+      echo -e "${yellow}--remove-all ignored: components specified ($explicit_mods)${reset}" 1>&2
+    fi
+  fi
   set -- $(act_resolve_args $act_name "$@")
 
   # scan for dependencies
@@ -167,7 +175,7 @@ act_helper () {
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
         local name1=${handler#*_*_*_}
-        if [ "$act_name" = "remove" ]; then
+        if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ]; then
           local order1=${handler#*_};order1=${order1%%_*}
           [ "$order" -gt 0 ] || order=$order1
           [ "$order1" -ge "$order" ] || break
@@ -178,13 +186,17 @@ act_helper () {
           echo "Invoke $handler with $invoke_args" 
           echo "@@OK $name1"
         else
-          local state_path="$(ensure_project_path)/$installer_name/states/$name1"
-          [ "$act_name" = "start" ] && mkdir -p "$state_path"
+          local started_path="$(ensure_project_path)/$installer_name/started/$name1"
+          local installed_path="$(ensure_project_path)/$installer_name/installed/$name1"
+          [ "$act_name" = "start" ] && mkdir -p "$started_path"
+          [ "$act_name" = "install" ] && mkdir -p "$installed_path"
           echo "@@COMP $name1"
           local rc1=0
           ( set -e; $handler $invoke_args) &
           wait $! || rc1=$?
-          [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
+          [[ " stop remove " = *" $act_name "* ]] && rm -rf "$started_path"
+          [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && rm -rf "$installed_path" 2> /dev/null
+
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
           else
@@ -216,6 +228,8 @@ act_helper () {
       mkdir -p "${mods_file%/*}"
       echo "$explicit_mods" > "$mods_file"
     fi
+    # everything is gone; drop the saved default
+    [[ $remove_all -eq 1 && $rc -eq 0 && " $* " != *" --dry-run "* ]] && rm -f "$mods_file"
 
     return $rc
   else
@@ -230,8 +244,12 @@ act_resolve_args () {
   local act_name=$1; shift
   local args=("$@") margs=(${*##-*})
   if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
-    local state_path="$(ensure_project_path)/$installer_name/states"
-    [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
+    local started_path="$(ensure_project_path)/$installer_name/started"
+    [ -d "$started_path" ] && args+=($(cd "$started_path"; ls -1))
+  elif [ "$act_name" = "remove" ] && [[ " $* " = *" --remove-all "* ]] \
+       && [ -z "$(act_extract_modules $act_name "$@")" ]; then
+    local installed_path="$(ensure_project_path)/$installer_name/installed"
+    [ -d "$installed_path" ] && args+=($(cd "$installed_path"; ls -1))
   elif [ "$act_name" != "stop" ] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
     local mods_file="$(ensure_project_path)/$installer_name/modules"
     [ ! -r "$mods_file" ] || args=($(< "$mods_file") "${args[@]}")

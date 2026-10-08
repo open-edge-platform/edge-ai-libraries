@@ -11,7 +11,7 @@ ensure_fetch() {
     [ $i -eq 1 ] || sleep 5
 
     if command -v curl >/dev/null 2>&1; then
-      curl -fsSL --retry 3 --retry-delay 5 -o "$tmp_file" "$url" && rc=0 || rc=$?
+      curl -fsSL --retry 3 --retry-delay 5 -A Mozilla/5.0 -o "$tmp_file" "$url" && rc=0 || rc=$?
     elif command -v wget >/dev/null 2>&1; then
       wget -q -t 3 -w 5 -O "$tmp_file" "$url" && rc=0 || rc=$?
     elif command -v python3 >/dev/null 2>&1; then

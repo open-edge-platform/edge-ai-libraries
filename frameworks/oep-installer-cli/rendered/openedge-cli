@@ -10,15 +10,19 @@ main () {
   for v in "$@"; do
     case $v in
     --help)
-      _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
-      echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
-      echo "common options:"
-      echo "  --help          this help message." 
-      echo
-      local cmd
-      for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
-        $cmd --help
-      done
+      if [ $cur -ge 0 ]; then
+        subcommand_${_cmds[$cur]} --help
+      else
+        _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+        echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
+        echo "common options:"
+        echo "  --help          this help message." 
+        echo
+        local cmd
+        for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
+          $cmd --help
+        done
+      fi
       return 0
       ;;
     --dry-run|--continue)
@@ -66,7 +70,7 @@ main () {
 	  # pass module names forward within this command line so groups are checked against actual use
           _m="$(act_extract_modules ${_cmds[$_j]} ${_args[$_j]})"
           [ -n "${_m// }" ] && _carry="$_m"
-          if [ -z "${_m// }" ] && [ -n "$_carry" ] && [ "${_cmds[$_j]}" != "stop" ]; then
+          if [ -z "${_m// }" ] && [ -n "$_carry" ] && [ "${_cmds[$_j]}" != "stop" ] && ! [[ "${_cmds[$_j]}" = "remove" && " ${_args[$_j]} " = *" --remove-all "* ]]; then
             _resolved=(${_globals[*]} $_carry ${_args[$_j]})
           else
             _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
@@ -180,6 +184,14 @@ subcommand_install () {
 }
 
 subcommand_remove () {
+  if [[ " $* " = *" --help "* ]]; then
+    echo "remove options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
+    echo "  --remove-all    remove all previously installed components"
+    echo
+    return 0
+  fi
   act_helper "remove,Removal,Removing,Removed" "-r" "$@"
 }
 
@@ -188,8 +200,7 @@ subcommand_start () {
 }
 
 subcommand_stop () {
-  [[ " $* " != *" --help "* ]] || return
-  act_helper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
+  act_helper "stop,Stop,Stopping,Stopped" "-r" "$@" --continue
 }
 
 subcommand_list () {
@@ -1616,6 +1627,14 @@ act_helper () {
   # fill in the saved module list if none is named; remember explicit ones
   local mods_file="$(ensure_project_path)/$installer_name/modules"
   local explicit_mods="$(act_extract_modules $act_name "$@")"
+  local remove_all=0
+  if [[ "$act_name" = "remove" && " $* " = *" --remove-all "* ]]; then
+    if [ -z "${explicit_mods// }" ]; then
+      remove_all=1
+    else
+      echo -e "${yellow}--remove-all ignored: components specified ($explicit_mods)${reset}" 1>&2
+    fi
+  fi
   set -- $(act_resolve_args $act_name "$@")
 
   # scan for dependencies
@@ -1672,7 +1691,7 @@ act_helper () {
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
         local name1=${handler#*_*_*_}
-        if [ "$act_name" = "remove" ]; then
+        if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ]; then
           local order1=${handler#*_};order1=${order1%%_*}
           [ "$order" -gt 0 ] || order=$order1
           [ "$order1" -ge "$order" ] || break
@@ -1683,13 +1702,17 @@ act_helper () {
           echo "Invoke $handler with $invoke_args" 
           echo "@@OK $name1"
         else
-          local state_path="$(ensure_project_path)/$installer_name/states/$name1"
-          [ "$act_name" = "start" ] && mkdir -p "$state_path"
+          local started_path="$(ensure_project_path)/$installer_name/started/$name1"
+          local installed_path="$(ensure_project_path)/$installer_name/installed/$name1"
+          [ "$act_name" = "start" ] && mkdir -p "$started_path"
+          [ "$act_name" = "install" ] && mkdir -p "$installed_path"
           echo "@@COMP $name1"
           local rc1=0
           ( set -e; $handler $invoke_args) &
           wait $! || rc1=$?
-          [[ " stop remove " = *" $act_name "* ]] && rm -rf "$state_path"
+          [[ " stop remove " = *" $act_name "* ]] && rm -rf "$started_path"
+          [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && rm -rf "$installed_path" 2> /dev/null
+
           if [ $rc1 -eq 0 ]; then
             echo "@@OK $name1"
           else
@@ -1721,6 +1744,8 @@ act_helper () {
       mkdir -p "${mods_file%/*}"
       echo "$explicit_mods" > "$mods_file"
     fi
+    # everything is gone; drop the saved default
+    [[ $remove_all -eq 1 && $rc -eq 0 && " $* " != *" --dry-run "* ]] && rm -f "$mods_file"
 
     return $rc
   else
@@ -1735,8 +1760,12 @@ act_resolve_args () {
   local act_name=$1; shift
   local args=("$@") margs=(${*##-*})
   if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
-    local state_path="$(ensure_project_path)/$installer_name/states"
-    [ -d "$state_path" ] && args+=($(cd "$state_path"; ls -1))
+    local started_path="$(ensure_project_path)/$installer_name/started"
+    [ -d "$started_path" ] && args+=($(cd "$started_path"; ls -1))
+  elif [ "$act_name" = "remove" ] && [[ " $* " = *" --remove-all "* ]] \
+       && [ -z "$(act_extract_modules $act_name "$@")" ]; then
+    local installed_path="$(ensure_project_path)/$installer_name/installed"
+    [ -d "$installed_path" ] && args+=($(cd "$installed_path"; ls -1))
   elif [ "$act_name" != "stop" ] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
     local mods_file="$(ensure_project_path)/$installer_name/modules"
     [ ! -r "$mods_file" ] || args=($(< "$mods_file") "${args[@]}")
@@ -1783,7 +1812,7 @@ ensure_fetch() {
     [ $i -eq 1 ] || sleep 5
 
     if command -v curl >/dev/null 2>&1; then
-      curl -fsSL --retry 3 --retry-delay 5 -o "$tmp_file" "$url" && rc=0 || rc=$?
+      curl -fsSL --retry 3 --retry-delay 5 -A Mozilla/5.0 -o "$tmp_file" "$url" && rc=0 || rc=$?
     elif command -v wget >/dev/null 2>&1; then
       wget -q -t 3 -w 5 -O "$tmp_file" "$url" && rc=0 || rc=$?
     elif command -v python3 >/dev/null 2>&1; then
@@ -2019,6 +2048,17 @@ ensure_ports_open () {
 # return the installation path
 ensure_project_path () {
   echo "$HOME/.local/open-edge-platform"
+}
+
+
+# set/get properties
+ensure_prop () {
+  local op=$1 key_path=$2 value=$3
+  local f="$(ensure_project_path)/${installer_name:?}/${key_path:?}"
+  case "$op" in
+  set) printf '%s' "$value" > "$f" ;;
+  get) [ -r "$f" ] && cat "$f" || printf '%s' "$value" ;;
+  esac
 }
 
 
@@ -3052,15 +3092,17 @@ debian_20_install_edge_pack_base_realtime () {
   if ensure_apt_is_installed intel-edge-base-realtime=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-base-realtime already installed. Skipping" 1>&2
   else
+    ensure_prop set installed/edge_pack_base_realtime/owned true
     ensure_apt autoremove -y intel-edge-base-realtime || true
-    ensure_group_add $(debian_20_group_edge_pack_base_realtime)
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
   fi
   [ -c /dev/dri/renderD128 ]
+  ensure_group_add $(debian_20_group_edge_pack_base_realtime)
 }
 
 debian_20_remove_edge_pack_base_realtime () {
+  [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0
   ensure_apt autoremove -y intel-edge-base-realtime || true
   debian_15_remove_edge_pack "$@" || true
 }
@@ -3098,15 +3140,17 @@ debian_20_install_edge_pack_base_standard () {
   if ensure_apt_is_installed intel-edge-base-standard=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-base-standard already installed. Skipping" 1>&2
   else
+    ensure_prop set installed/edge_pack_base_standard/owned true
     ensure_apt autoremove -y intel-edge-base-standard || true
-    ensure_group_add $(debian_20_group_edge_pack_base_standard)
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*"
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*"
   fi
   [ -c /dev/dri/renderD128 ]
+  ensure_group_add $(debian_20_group_edge_pack_base_standard)
 }
 
 debian_20_remove_edge_pack_base_standard () {
+  [ "$(ensure_prop get installed/edge_pack_base_standard/owned)" = "true" ] || return 0
   ensure_apt autoremove -y intel-edge-base-standard || true
   debian_15_remove_edge_pack "$@" || true
 }
@@ -3195,15 +3239,17 @@ debian_20_install_edge_pack_graphics_core () {
   if ensure_apt_is_installed intel-edge-graphics-core=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-graphics-core already installed. Skipping" 1>&2
   else
+    ensure_prop set installed/edge_pack_graphics_core/owned true
     debian_20_remove_edge_pack_graphics_core
-    ensure_group_add $(debian_20_group_edge_pack_graphics_core)
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
   fi
   [ -c /dev/dri/renderD128 ]
+  ensure_group_add $(debian_20_group_edge_pack_graphics_core)
 }
 
 debian_20_remove_edge_pack_graphics_core () {
+  [ "$(ensure_prop get installed/edge_pack_graphics_core/owned)" = "true" ] || return 0
   ensure_apt autoremove -y intel-edge-graphics-core || true
   debian_15_remove_edge_pack "$@" || true
 }
@@ -3241,15 +3287,17 @@ debian_20_install_edge_pack_graphics_display () {
   if ensure_apt_is_installed intel-edge-graphics-display=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-graphics-display already installed. Skipping" 1>&2
   else
+    ensure_prop set installed/edge_pack_graphics_display/owned true
     debian_20_remove_edge_pack_graphics_display
-    ensure_group_add $(debian_20_group_edge_pack_graphics_display)
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*"
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*"
   fi
   [ -c /dev/dri/renderD128 ]
+  ensure_group_add $(debian_20_group_edge_pack_graphics_display)
 }
 
 debian_20_remove_edge_pack_graphics_display () {
+  [ "$(ensure_prop get installed/edge_pack_graphics_display/owned)" = "true" ] || return 0
   ensure_apt autoremove -y intel-edge-graphics-display || true
   debian_15_remove_edge_pack "$@" || true
 }
@@ -3283,12 +3331,14 @@ debian_20_install_edge_pack_media_core () {
   if ensure_apt_is_installed intel-edge-media-core=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-media-core already installed. Skipping" 1>&2
   else
+    ensure_prop set installed/edge_pack_media_core/owned true
     ensure_apt autoremove -y intel-edge-media-core || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*"
   fi
 }
 
 debian_20_remove_edge_pack_media_core () {
+  [ "$(ensure_prop get installed/edge_pack_media_core/owned)" = "true" ] || return 0
   ensure_apt autoremove -y intel-edge-media-core || true
   debian_15_remove_edge_pack "$@" || true
 }
@@ -3322,12 +3372,14 @@ debian_70_install_edge_pack_media_ffmpeg () {
   if ensure_apt_is_installed intel-edge-media-ffmpeg=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-media-ffmpeg already installed. Skipping" 1>&2
   else
+    ensure_prop set installed/edge_pack_media_ffmpeg/owned true
     ensure_apt autoremove -y intel-edge-media-ffmpeg || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*"
   fi
 }
 
 debian_70_remove_edge_pack_media_ffmpeg () {
+  [ "$(ensure_prop get installed/edge_pack_media_ffmpeg/owned)" = "true" ] || return 0
   ensure_apt autoremove -y intel-edge-media-ffmpeg || true
   debian_15_remove_edge_pack "$@" || true
 }
@@ -3361,12 +3413,14 @@ debian_70_install_edge_pack_media_gst () {
   if ensure_apt_is_installed intel-edge-media-gst=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-media-gst already installed. Skipping" 1>&2
   else
+    ensure_prop set installed/edge_pack_media_gst/owned true
     ensure_apt autoremove -y intel-edge-media-gst || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*"
   fi
 }
 
 debian_70_remove_edge_pack_media_gst () {
+  [ "$(ensure_prop get installed/edge_pack_media_gst/owned)" = "true" ] || return 0
   ensure_apt autoremove -y intel-edge-media-gst || true
   debian_15_remove_edge_pack "$@" || true
 }
@@ -3404,15 +3458,17 @@ debian_20_install_edge_pack_npu () {
   if ensure_apt_is_installed intel-edge-npu=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-npu already installed. Skipping" 1>&2
   else
+    ensure_prop set installed/edge_pack_npu/owned true
     ensure_apt autoremove -y intel-edge-npu || true
-    ensure_group_add $(debian_20_group_edge_pack_npu)
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-npu=$version*"
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*"
   fi
   [ -c /dev/accel/accel0 ]
+  ensure_group_add $(debian_20_group_edge_pack_npu)
 }
 
 debian_20_remove_edge_pack_npu () {
+  [ "$(ensure_prop get installed/edge_pack_npu/owned)" = "true" ] || return 0
   ensure_apt autoremove -y intel-edge-npu || true
   debian_15_remove_edge_pack "$@" || true
 }
@@ -3591,8 +3647,6 @@ configure_gpu_accel () {
 
 verify_gpu_accel () {
   [ -c /dev/dri/renderD128 ] &&
-  getent group render >/dev/null 2>&1 &&
-  id -nG | grep -qw render &&
   verify_gpu_accel_packages
 }
 
@@ -3616,11 +3670,11 @@ debian_40_install_gpu_accel () {
   if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Gpu drivers are already installed. Skipping..."
   else
+    # declare stack ownership
+    ensure_prop set installed/gpu_accel/owned true
+
     # remove legacies
     debian_40_remove_gpu_accel || true
-
-    # create the render group
-    ensure_group_add $(debian_40_group_gpu_accel)
 
     # product key & list 
     ensure_apt_key $key_file $key_url --dearmor
@@ -3634,9 +3688,15 @@ debian_40_install_gpu_accel () {
     ensure_apt install --no-install-recommends --allow-downgrades -y "${pkg_list[@]}"
     verify_gpu_accel_packages
   fi
+
+  # create the render group
+  ensure_group_add $(debian_40_group_gpu_accel)
 }
 
 debian_40_remove_gpu_accel () {
+  # Leave untouched if not installed by gpu_accel
+  [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0
+
   configure_gpu_accel "$@"
   ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
@@ -4862,12 +4922,12 @@ debian_40_install_npu_accel () {
   if verify_npu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Npu drivers are already installed. Skipping..."
   else
-    # remove legacies
-    ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+    # declare ownership
+    ensure_prop set installed/npu_accel/owned true
 
-    # create the render group
-    ensure_group_add $(debian_40_group_npu_accel)
-  
+    # remove legacies
+    debian_40_remove_npu_accel "$@"
+
     mkdir -p "$workspace"
     cd "$workspace"
 
@@ -4884,9 +4944,15 @@ debian_40_install_npu_accel () {
     ensure_sudo rm -rf "$workspace"
     verify_npu_accel_packages
   fi
+
+  # create the render group
+  ensure_group_add $(debian_40_group_npu_accel)
 }
 
 debian_40_remove_npu_accel () {
+  # leave untouched if not installed by npu_accel
+  [ "$(ensure_prop get installed/npu_accel/owned)" = "true" ] || return 0
+
   ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
