@@ -57,7 +57,6 @@ subcommand_start () {
 }
 
 subcommand_stop () {
-  [[ " $* " != *" --help "* ]] || return
   act_helper "stop,Stop,Stopping,Stopped" "-r" "$@" --continue
 }
 

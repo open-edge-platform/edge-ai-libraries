@@ -10,15 +10,19 @@ main () {
   for v in "$@"; do
     case $v in
     --help)
-      _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
-      echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
-      echo "common options:"
-      echo "  --help          this help message." 
-      echo
-      local cmd
-      for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
-        $cmd --help
-      done
+      if [ $cur -ge 0 ]; then
+        subcommand_${_cmds[$cur]} --help
+      else
+        _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+        echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
+        echo "common options:"
+        echo "  --help          this help message." 
+        echo
+        local cmd
+        for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
+          $cmd --help
+        done
+      fi
       return 0
       ;;
     --dry-run|--continue)
