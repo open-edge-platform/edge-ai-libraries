@@ -1771,6 +1771,60 @@ ensure_disk_size () {
 }
 
 
+# robust fetch: ensure_fetch URL <DEST|-> [--html]
+ensure_fetch() {
+  local url="$1" dest="${2:-?}" html="$3"
+  local rc=1 first tmp_dir i
+
+  ensure_tmpdir create tmp_dir fetch || return 1
+  local tmp_file="$tmp_dir/download"
+
+  for i in {1..5}; do
+    [ $i -eq 1 ] || sleep 5
+
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL --retry 3 --retry-delay 5 -o "$tmp_file" "$url" && rc=0 || rc=$?
+    elif command -v wget >/dev/null 2>&1; then
+      wget -q -t 3 -w 5 -O "$tmp_file" "$url" && rc=0 || rc=$?
+    elif command -v python3 >/dev/null 2>&1; then
+      python3 - "$url" > "$tmp_file" <<'PY' && rc=0 || rc=$?
+import sys, shutil, urllib.request
+with urllib.request.urlopen(sys.argv[1], timeout=60) as r:
+  shutil.copyfileobj(r, sys.stdout.buffer)
+PY
+    else
+      echo "ensure_fetch: no curl, wget, or python3 available" >&2
+      rc=127
+      break
+    fi
+
+    if [ "$rc" -eq 0 ] && [ -s "$tmp_file" ]; then
+      [ "$html" != "--html" ] || break
+      first=$(head -c 512 "$tmp_file" 2> /dev/null | tr -d '\0') || true
+      case "${first,,}" in
+      *"<!doctype html"*|*"<html"*) ;;
+      *) break;;
+      esac
+    fi
+    rc=1
+    rm -f "$tmp_file"
+  done
+
+  if [ "$rc" -eq 0 ]; then
+    if [ "$dest" = "-" ]; then
+      cat "$tmp_file" && rc=0 || rc=$?
+    else
+      { cp -f "$tmp_file" "$dest" 2>/dev/null || ensure_sudo cp -f "$tmp_file" "$dest"; } && rc=0 || rc=$?
+    fi
+  else
+    echo "ensure_fetch: giving up on $url" >&2
+  fi
+
+  ensure_tmpdir destroy "$tmp_dir" || true
+  return "$rc"
+}
+
+
 # sparse or full git clone
 # full clone: <workspace> <version> <repository>
 # sparse clone: <workspace> <version> <repository> <dirs> [<dirs>...]
@@ -2275,7 +2329,7 @@ debian_90_install_agentic_predictive_maintenance_pipeline () {
     echo "HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN" >> .env_pipeline-defect-detection
 
     # download video
-    curl -fsSL https://github.com/open-edge-platform/edge-ai-resources/raw/c13b8dbf23d514c2667d39b66615bd1400cb889d/videos/anomalib_pcb_test.avi -o resources/videos/datastream.mp4
+    ensure_fetch https://github.com/open-edge-platform/edge-ai-resources/raw/c13b8dbf23d514c2667d39b66615bd1400cb889d/videos/anomalib_pcb_test.avi resources/videos/datastream.mp4
 
     verify_agentic_predictive_maintenance_pipeline
   fi
@@ -2538,7 +2592,7 @@ configure_autonomous_mobile_robot () {
 }
 
 debian_90_profile_autonomous_mobile_robot () {
-  echo "git curl edge_base ros2 ros_openvino realsense"
+  echo "git curl wget edge_base ros2 ros_openvino realsense software_properties_common lsb_release"
 }
 
 verify_autonomous_mobile_robot () {
@@ -2558,7 +2612,6 @@ configure_osrf_gazebo () {
 
 amr_setup_osrf_gazebo () {
   configure_osrf_gazebo
-  ensure_apt install -y curl lsb-release gnupg
   ensure_apt_key "$osrf_key" "$osrf_key_url"
   ensure_apt_source "$osrf_list" "$osrf_entry"
   ensure_apt update -y
@@ -2575,7 +2628,6 @@ debian_90_install_autonomous_mobile_robot () {
     ensure_disk_size $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
 
     # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
-    ensure_apt install -y software-properties-common curl gnupg wget
     ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
     ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
     ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
@@ -2641,10 +2693,6 @@ $(ensure_sbom_format pkg-list gcc-12 g++-12)
 ---
 EOF
   fi
-
-  cat <<EOF
-$(ensure_sbom_format pkg-list software-properties-common curl gnupg wget lsb-release)
-EOF
 
   if [ "$ros_distro" = jazzy ]; then
     configure_osrf_gazebo
@@ -2746,6 +2794,7 @@ configure_dlstreamer () {
   od_model_proc=yolov5m-640_INT8/yolo-v5
   oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
   model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
+  allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium)
 }
 
 debian_75_profile_dlstreamer () {
@@ -2753,8 +2802,8 @@ debian_75_profile_dlstreamer () {
 }
 
 verify_dlstreamer () {
-  ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
-  [ -r "$workspace/.venv/bin/activate" ] || return 1
+  ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1
+  [ -r "$workspace/.venv/bin/activate" ]
   cd "$workspace"
   . .venv/bin/activate
   pip show ultralytics nncf
@@ -2767,7 +2816,7 @@ debian_75_install_dlstreamer () {
     echo "dlstreamer-${version} already installed. Skipping"
   else
     # remove old versions
-    ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
+    debian_75_remove_dlstreamer "$@"
 
     # product key & list file
     ensure_apt_key $key_file $key_url --dearmor
@@ -2777,7 +2826,8 @@ debian_75_install_dlstreamer () {
     ensure_apt update -y
 
     # install dlstreamer
-    ensure_apt install --no-install-recommends -y intel-dlstreamer=$version
+    ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends -y intel-dlstreamer=$version
+    ensure_apt install --allow-downgrades --no-install-recommends -y intel-dlstreamer=$version
 
     # clone the dlstreamer repostiory
     ensure_git_clone "$workspace" v$version $repository
@@ -2793,17 +2843,15 @@ debian_75_install_dlstreamer () {
     if [[ " $* " = *" --validate "* ]]; then
       ( 
         mkdir -p models/${od_model%/*}
-        set -x
-        curl -sSfL $model_repo/storage/$od_model.bin -o models/$od_model.bin
-        curl -sSfL $model_repo/storage/$od_model.xml -o models/$od_model.xml
-        curl -sSfL $model_repo/storage/${od_model_proc}.json -o models/$od_model.json
+        ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin
+        ensure_fetch $model_repo/storage/$od_model.xml models/$od_model.xml
+        ensure_fetch $model_repo/storage/${od_model_proc}.json models/$od_model.json
       )
 
       (
         mkdir -p models/${oc_model%/*}
-        set -x
-        curl -sSfL $model_repo/storage/$oc_model.bin -o models/$oc_model.bin
-        curl -sSfL $model_repo/storage/$oc_model.xml -o models/$oc_model.xml
+        ensure_fetch $model_repo/storage/$oc_model.bin models/$oc_model.bin
+        ensure_fetch $model_repo/storage/$oc_model.xml models/$oc_model.xml
       )
 
       set -o pipefail
@@ -2844,15 +2892,7 @@ debian_75_install_dlstreamer () {
 }
 
 debian_75_remove_dlstreamer () {
-  configure_dlstreamer
-
-  if verify_dlstreamer; then
-    ensure_apt autoremove -m -y intel-dlstreamer
-    ensure_sudo rm -f $list_file $key_file
-    ensure_sudo -rf "$workspace" 2> /dev/null || true
-  else
-    echo "dlstreamer already removed. Skipping"
-  fi
+  ensure_apt autoremove -m -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true
 }
 
 debian_75_sbom_dlstreamer () {
@@ -3015,7 +3055,7 @@ configure_edge_pack () {
 }
 
 debian_15_profile_edge_pack () {
-  echo "curl gpg"
+  echo "curl gnupg"
 }
 
 debian_15_install_edge_pack () {
@@ -3533,13 +3573,13 @@ $(ensure_sbom_format pkg-list git ca-certificates)
 EOF
 }
 
-debian_10_install_gpg () {
-  ensure_apt_install_package gpgv1
+debian_10_install_gnupg () {
+  ensure_apt_install_package gnupg
 }
 
-debian_10_sbom_gpg () {
+debian_10_sbom_gnupg () {
   cat <<EOF
-$(ensure_sbom_format pkg-list gpgv1)
+$(ensure_sbom_format pkg-list gnupg)
 EOF
 }
 
@@ -3567,7 +3607,7 @@ verify_gpu_accel_packages () {
 }
 
 debian_40_profile_gpu_accel () {
-  echo "curl gpg libze1"
+  echo "curl gnupg libze1"
 }
 
 debian_40_group_gpu_accel () {
@@ -4427,6 +4467,17 @@ debian_90_remove_loss_prevention () {
 }
 
 
+debian_40_install_lsb_release () {
+  ensure_apt_install_package lsb-release
+}
+
+debian_10_sbom_lsb_release () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list lsb-release)
+EOF
+}
+
+
 debian_30_install_make () {
   ensure_apt_install_package make
 }
@@ -4452,7 +4503,7 @@ debian_70_install_mediamtx () {
   if [ -x "$bin_path/mediamtx" ] && [[ " $* " != *" --reinstall "* ]]; then
     echo "Mediamtx already installed. Skipping" 1>&2
   else
-    curl -fsSL --retry 3 "$repository" | ensure_sudo tar xz -C "$bin_path" mediamtx
+    ensure_fetch "$repository" - | ensure_sudo tar xz -C "$bin_path" mediamtx
     [ -x "$bin_path/mediamtx" ]
   fi
 }
@@ -4583,7 +4634,7 @@ debian_90_start_multimodal_weld_defect_detection () {
   if ($(NF-1)*1>0) {
     throughput[s][++throughput_ct[s]]=$(NF-1)
     latency[s][throughput_ct[s]]=$(NF-1)/1000.0
-    end2end[s][throughput_ct[s]]=$12/1000.0
+    end2end[s][throughput_ct[s]]=$13/1000.0
     ingest_time[s][throughput_ct[s]] = $1/1000.0
     if (throughput_ct[s]>1) {
       ingest_delta[s][throughput_ct[s]-1] = ingest_time[s][throughput_ct[s]] - ingest_time[s][throughput_ct[s]-1]
@@ -4601,29 +4652,22 @@ function calc_avg(values, i,m) {
 END {
   n=length(throughput)
   if (n>0) {
-    m_acc=0
-    m_acc_latency=0
-    m_acc_end2end=0
-    m_acc_ingest=0
     for (i=1;i<=n;i++) {
-      m=1000000000/calc_avg(throughput[i])
-      m_acc_latency+=calc_avg(latency[i])
-      m_acc_end2end+=calc_avg(end2end[i])
-      m_acc_ingest+=calc_avg(ingest_delta[i])
-      m_acc+=m
+      tm=calc_avg(throughput[i])
+      throughput_m[i]=(tm>0?1000000000/tm:0)
+      print "throughput #"i": "throughput_m[i]
+      latency_m[i]=calc_avg(latency[i])
+      print "latency #"i" (us): "latency_m[i]
+      end2end_m[i]=calc_avg(end2end[i])
+      print "end2end #"i" (us): "end2end_m[i]
+      ingest_m[i]=calc_avg(ingest_delta[i])
+      print "ingest #"i" (us): "ingest_m[i]
     }
-    print primary"throughput average: "(n>0?int(m_acc/n*100)/100:0)
-    print "throughput cumulative: "int(m_acc*100)/100
-    print "latency average (us): "(n>0?int(m_acc_latency/n*100)/100:0)
-    print "end2end average (us): "(n>0?int(m_acc_end2end/n*100)/100:0)
-    print "ingest average (us): "(n>0?int(m_acc_ingest/n*100)/100:0)
-    for (i=1;i<=n;i++) {
-      m=1000000000/calc_avg(throughput[i])
-      print "throughput #"i": "m
-      print "latency #"i" (us): "calc_avg(latency[i])
-      print "end2end #"i" (us): "calc_avg(end2end[i])
-      print "ingest #"i" (us): "calc_avg(ingest_delta[i])
-    }
+    print "throughput average: "calc_avg(throughput_m)
+    print "throughput cumulative: "calc_avg(throughput_m)*n
+    print "latency average (us): "calc_avg(latency_m)
+    print "end2end average (us): "calc_avg(end2end_m)
+    print "ingest average (us): "calc_avg(ingest_m)
   }
 }
 ' sample-data
@@ -4708,7 +4752,7 @@ debian_90_install_nicu_warmer () {
     for model1 in "${models[@]}"; do
       [ -e ${model1#* } ] || {
         echo "Downloading ${model1%% *}..."
-        curl -sSf -L --retry 5 --retry-all-errors --retry-delay 2 "${model1%% *}" -o ${model1#* }
+        ensure_fetch "${model1%% *}" "${model1#* }"
       }
     done
 
@@ -4811,7 +4855,7 @@ debian_40_install_npu_accel () {
     [ ${#packages[*]} -gt 0 ] || return 3
 
     for p in ${packages[*]}; do
-      curl -fsSL -A Mozilla/5.0 "$p" | tar xfz -
+      ensure_fetch "$p" - | tar xfz -
     done 
 
     # install the debs
@@ -4848,14 +4892,14 @@ configure_openvino () {
 }
 
 debian_70_profile_openvino () {
-  echo "curl gpg python3_venv edge_base"
+  echo "curl gnupg python3_venv edge_base"
 }
 
 verify_openvino () {
-  ensure_apt_is_installed openvino-${version} || return 1
-  [ -r "$workspace"/.venv/bin/activate ] || return 1
+  ensure_apt_is_installed openvino-${version}
+  [ -r "$workspace"/.venv/bin/activate ]
   . "$workspace"/.venv/bin/activate
-  pip show openvino-genai 2> /dev/null | grep -q -F ${version} || return 1
+  pip show openvino-genai 2> /dev/null | grep -q -F ${version}
 }
 
 debian_70_install_openvino () {
@@ -4865,7 +4909,7 @@ debian_70_install_openvino () {
     echo "openvino-${version} already installed. Skipping"
   else
     # remove old versions
-    ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
+    debian_70_remove_openvino "$@"
 
     # product key
     ensure_apt_key $key_file $key_url --dearmor
@@ -4888,7 +4932,7 @@ debian_70_install_openvino () {
     echo "openvino-${version} installed successfully."
 
     if [[ " $* " = *" --validate "* ]]; then
-      [ -e "$workspace"/${model##*/} ] || curl -sSfL "$model" -o "$workspace"/${model##*/}
+      [ -e "$workspace"/${model##*/} ] || ensure_fetch "$model" "$workspace"/${model##*/}
       for device in CPU GPU NPU; do
         echo "Validating ${model##*/} inferencing on $device..."
         benchmark_app -t 5 -m "$workspace"/${model##*/} -d $device
@@ -4902,14 +4946,7 @@ debian_70_install_openvino () {
 }
 
 debian_70_remove_openvino () {
-  configure_openvino $*
-
-  if verify_openvino; then
-    ensure_apt autoremove -m -y openvino-${version} openvino || true
-    ensure_sudo rm -rf "$workspace" $apt_file $key_file
-  else
-    echo "openvino-${version} already removed. Skipping"
-  fi
+  ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
 }
 
 debian_70_sbom_openvino () {
@@ -5733,7 +5770,7 @@ configure_realsense () {
 }
 
 debian_55_profile_realsense () {
-  echo "curl gpg"
+  echo "curl gnupg"
 }
 
 verify_realsense () {
@@ -5810,7 +5847,7 @@ configure_ros2 () {
 }
 
 debian_50_profile_ros2 () {
-  echo "curl gpg git edge_base"
+  echo "curl gnupg git software_properties_common lsb_release edge_base"
 }
 
 verify_ros2 () {
@@ -5823,15 +5860,13 @@ debian_50_install_ros2 () {
   if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 $ros_distro is already installed. Skipping..."
   else
-    ensure_apt update
-    ensure_apt install -y software-properties-common gnupg lsb-release ca-certificates
     ensure_apt_add_repository universe || true
 
     # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
     # which self-configures the apt source list and signing key
     local tmpdir
     ensure_tmpdir create tmpdir ros2
-    curl -fsSL -o "$tmpdir/ros2-apt-source.deb" "$ros_deb_src"
+    ensure_fetch "$ros_deb_src" "$tmpdir/ros2-apt-source.deb"
     ensure_apt install -y "$tmpdir/ros2-apt-source.deb"
     ensure_tmpdir destroy $tmpdir
 
@@ -5861,8 +5896,6 @@ debian_50_remove_ros2 () {
 debian_50_sbom_ros2 () {
   configure_ros2 "$@"
   cat <<EOF
-$(ensure_sbom_format pkg-list software-properties-common gnupg lsb-release ca-certificates")
----
 $(ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools)
 $(ensure_sbom_format apt-repository universe)
 EOF
@@ -5917,7 +5950,7 @@ configure_ros_openvino () {
 }
 
 debian_55_profile_ros_openvino () {
-  echo "curl gpg ros2 edge_base libze1 debconf_utils"
+  echo "curl gnupg ros2 edge_base libze1 debconf_utils"
 }
 
 verify_ros_openvino () {
@@ -6479,6 +6512,17 @@ debian_90_remove_smart_traffic_intersection_agent () {
 }
  
 
+debian_40_install_software_properties_common () {
+  ensure_apt_install_package software-properties-common
+}
+
+debian_40_sbom_software_properties_common () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list software-properties-common)
+EOF
+}
+
+
 # Stationary Robot Vision & Control (RVC) - vision-guided pick-and-place
 # reference application (UR5e + MoveIt) from the Robotics AI Suite.
 # https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html
@@ -6779,7 +6823,7 @@ debian_90_install_video_processing_for_nvr () {
 
     mkdir -p "$workspace"/videos
     cd "$workspace"/videos
-    curl -sSfL -o car.mp4 https://github.com/open-edge-platform/edge-ai-resources/raw/main/videos/car_1080p30_10s_h265.mp4
+    ensure_fetch "https://github.com/open-edge-platform/edge-ai-resources/raw/main/videos/car_1080p30_10s_h265.mp4" car.mp4
     ffmpeg -i car.mp4 -c:v copy -bsf:v hevc_mp4toannexb -an -f hevc car_1080p.h265
     rm -f car.mp4
 
@@ -7122,6 +7166,16 @@ debian_90_remove_visual_search_question_and_answering () {
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }
 
+debian_10_install_wget () {
+  ensure_apt_install_package wget ca-certificates
+}
+
+debian_10_sbom_wget () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list wget ca-certificates)
+EOF
+}
+
 configure_wind_turbine_anomaly_detection () {
   workspace="$(ensure_project_path)/wind-turbine-anomaly-detection"
   version="release-2026.2.0"
@@ -7137,7 +7191,7 @@ configure_wind_turbine_anomaly_detection () {
 configure_wind_turbine_anomaly_detection_device () {
   local device="$1"
   cd "$workspace"/industrial-edge-insights-time-series
-  sed -i "s|\"device\":.*$|\"device\": \"$device\"|" apps/wind-turbine-anomaly-detection/time-series-analytics-config/config.json apps/wind-turbine-anomaly-detection/time-series-analytics-config/config-batch.json
+  sed -i "s|\"device\":.*$|\"device\": \"$device\"|" apps/wind-turbine-anomaly-detection/time-series-analytics-config/config.json apps/wind-turbine-anomaly-detection/time-series-analytics-config/config.json
 }
 
 verify_wind_turbine_anomaly_detection () {
@@ -7187,7 +7241,7 @@ debian_90_start_wind_turbine_anomaly_detection () {
   [[ " ${*,,} " != *" --${device} "* ]] || configure_wind_turbine_anomaly_detection_device "$device"
 
   cd "$workspace"/industrial-edge-insights-time-series
-  make -o check_env_variables up_mqtt_ingestion app=wind-turbine-anomaly-detection num_of_streams=$nstreams num_of_data_points_per_stream=$npoints batch
+  make -o check_env_variables up_mqtt_ingestion app=wind-turbine-anomaly-detection num_of_streams=$nstreams num_of_data_points_per_stream=$npoints
 
   echo "@@HIGHLIGHT Grafana URL: https://$(ensure_ip):${used_ports[0]}"
   local gf_user="$(grep -E ^VISUALIZER_GRAFANA_USER= .env | tail -n1 | cut -f2 -d=)"
@@ -7232,29 +7286,22 @@ function calc_avg(values, i,m) {
 END {
   n=length(throughput)
   if (n>0) {
-    m_acc=0
-    m_acc_latency=0
-    m_acc_end2end=0
-    m_acc_ingest=0
     for (i=1;i<=n;i++) {
-      m=1000000000/calc_avg(throughput[i])
-      m_acc_latency+=calc_avg(latency[i])
-      m_acc_end2end+=calc_avg(end2end[i])
-      m_acc_ingest+=calc_avg(ingest_delta[i])
-      m_acc+=m
+      tm=calc_avg(throughput[i])
+      throughput_m[i]=(tm>0?1000000000/tm:0)
+      print "throughput #"i": "throughput_m[i]
+      latency_m[i]=calc_avg(latency[i])
+      print "latency #"i" (us): "latency_m[i]
+      end2end_m[i]=calc_avg(end2end[i])
+      print "end2end #"i" (us): "end2end_m[i]
+      ingest_m[i]=calc_avg(ingest_delta[i])
+      print "ingest #"i" (us): "ingest_m[i]
     }
-    print primary"throughput average: "(n>0?int(m_acc/n*100)/100:0)
-    print "throughput cumulative: "int(m_acc*100)/100
-    print "latency average (us): "(n>0?int(m_acc_latency/n*100)/100:0)
-    print "end2end average (us): "(n>0?int(m_acc_end2end/n*100)/100:0)
-    print "ingest average (us): "(n>0?int(m_acc_ingest/n*100)/100:0)
-    for (i=1;i<=n;i++) {
-      m=1000000000/calc_avg(throughput[i])
-      print "throughput #"i": "m
-      print "latency #"i" (us): "calc_avg(latency[i])
-      print "end2end #"i" (us): "calc_avg(end2end[i])
-      print "ingest #"i" (us): "calc_avg(ingest_delta[i])
-    }
+    print "throughput average: "calc_avg(throughput_m)
+    print "throughput cumulative: "calc_avg(throughput_m)*n
+    print "latency average (us): "calc_avg(latency_m)
+    print "end2end average (us): "calc_avg(end2end_m)
+    print "ingest average (us): "calc_avg(ingest_m)
   }
 }
 ' sample-data
