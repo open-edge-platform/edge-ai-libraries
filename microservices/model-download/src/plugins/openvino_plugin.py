@@ -798,13 +798,8 @@ class OpenVINOConverter(ModelDownloadPlugin):
             )
 
         export_type = export_type_map[model_type]
-
-        # Provide the HuggingFace token to the export subprocess via its own
-        # environment only — never through `hf login` (which writes the token to
-        # disk globally) or the command line (which exposes it on the process
-        # list). This keeps a per-request token scoped to this single conversion:
-        # it is not persisted and cannot leak into other requests or users.
         export_env = get_plugin_venv_env("openvino")
+        export_env["PYTHONUNBUFFERED"] = "1"
         if huggingface_token:
             export_env["HF_TOKEN"] = huggingface_token
             export_env["HUGGINGFACEHUB_API_TOKEN"] = huggingface_token
@@ -846,7 +841,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             result = subprocess.Popen(
                 build_venv_command("openvino", command),
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 universal_newlines=True,
                 text=True,
                 env=export_env,
@@ -887,7 +882,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
                     result = subprocess.Popen(
                         build_venv_command("openvino", command),
                         stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
                         universal_newlines=True,
                         text=True,
                         env=export_env,

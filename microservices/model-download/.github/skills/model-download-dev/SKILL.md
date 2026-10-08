@@ -12,7 +12,8 @@ description: >
   "add plugin", "write test", "stuck job", "extend microservice",
   "plugin not working", "how does model_manager work", "mock subprocess",
   "register new hub", "integrate model-download", "call the model-download API",
-  "poll model job", or "mount downloaded models".
+  "poll model job", "mount downloaded models", or "MCP tool
+  for model-download".
 argument-hint: >
   Describe what you want to build or debug (e.g. "add a new downloader plugin
   for an internal model hub" or "wire model-download into our compose stack")
@@ -35,6 +36,7 @@ Help developers extend, test, debug, and integrate the Model Download microservi
 - Integrating model-download into a backend, gateway, Compose stack, Helm deployment, or CI/CD path
 - Designing app-side download/conversion workflows around `/models/download` and `/jobs/{job_id}`
 - Wiring model storage, health checks, plugin activation, and failure handling into a wider system
+- Adding or modifying MCP tools/resources/prompts in `src/mcp/`
 
 ## Reference Lookup
 
@@ -43,6 +45,7 @@ Help developers extend, test, debug, and integrate the Model Download microservi
 | [plugin-architecture.md](./references/plugin-architecture.md) | Plugin interface contract, PluginRegistry, ModelManager, PluginVenv |
 | [testing-patterns.md](./references/testing-patterns.md) | Subprocess mocking, async fixtures, conftest patterns, parametrize |
 | [integration-patterns.md](./references/integration-patterns.md) | App-side architecture, request flow, polling, error handling, storage wiring |
+| [../../../docs/user-guide/get-started/using-mcp-server.md](../../../docs/user-guide/get-started/using-mcp-server.md) | MCP transports, client config (Claude Desktop, Copilot), tool/resource list |
 
 ## Example Prompts
 
@@ -66,6 +69,14 @@ src/
 │   ├── model_manager.py ← Job lifecycle, ThreadPoolExecutor, status tracking
 │   ├── plugin_registry.py ← Auto-discovery, activation check, find_plugin_for_model
 │   └── plugin_venv.py   ← Per-plugin venv management
+├── mcp/
+│   ├── server.py        ← FastMCP app: tools (health_check, download_model, ...),
+│   │                      resources (models://jobs, ...); reuses the same
+│   │                      PluginRegistry/ModelManager as the REST API
+│   ├── __main__.py      ← `python -m src.mcp` entrypoint (stdio/http transports)
+│   └── prompts.py       ← Registers MCP prompts by reading the
+│                           model-download-user skill's SKILL.md hub table and
+│                           example-prompts/*.md at runtime
 └── plugins/
     ├── __init__.py      ← PLUGINS tuple mapping — register module path + class name here
     ├── huggingface_plugin.py
@@ -157,6 +168,41 @@ Ground recommendations in the current API, deployment scripts, and plugin activa
 
 ---
 
+## Procedure: Working with the MCP Server
+
+`src/mcp/server.py` is a FastMCP app mounted at `/mcp` in `src/api/main.py`
+(`mcp.http_app(path="/mcp", ...)` mounted onto the FastAPI app). It shares the
+same module-level `PluginRegistry` and `ModelManager` as the REST API — there
+is no separate job store or plugin state to keep in sync.
+
+Key points when changing MCP behavior:
+
+- **Adding/changing a tool**: add a `@mcp.tool` function in `server.py`. Mirror
+  the equivalent REST endpoint's behavior (reuse `submit_models`,
+  `model_manager`, `plugin_registry` — don't duplicate business logic).
+- **Adding/changing a resource**: add a `@mcp.resource("models://...")`
+  function; return JSON strings (`json.dumps(..., default=str)`).
+- **Prompts are dynamic, not hard-coded**: `src/mcp/prompts.py` reads
+  `.github/skills/model-download-user/example-prompts/*.md` and the
+  `## Supported Hubs at a Glance` section of that skill's `SKILL.md` at
+  server startup to register MCP prompts. If you rename that heading, rename
+  or remove an example-prompt file, or move the skill directory, prompt
+  registration breaks or silently drops prompts — check
+  `register_skill_prompts()` after touching those files.
+- **Standalone vs mounted runtime**: `python -m src.mcp` builds its own
+  `PluginRegistry`/`ModelManager` at import time (module-level globals in
+  `server.py`). When mounted inside the FastAPI app, `main.py` calls
+  `configure_runtime(...)` to swap in the app's shared instances instead —
+  keep any new global runtime state wired through `configure_runtime` so both
+  modes stay consistent.
+- **Testing**: `tests/test_mcp_server.py` patches `src.mcp.server.plugin_registry`
+  and `src.mcp.server.model_manager` with `MagicMock`s via an autouse fixture,
+  then imports and calls the tool functions directly (not through an MCP
+  client). Follow that pattern for new tools. See
+  [testing-patterns.md](./references/testing-patterns.md) for the full example.
+
+---
+
 ## Procedure: Debugging a Stuck Job
 
 Read [plugin-architecture.md](./references/plugin-architecture.md) → "Job Lifecycle" section.
@@ -172,6 +218,7 @@ curl -s http://localhost:8200/api/v1/jobs/<job-id>
 
 # 3. Verify the plugin was activated and discovered
 curl -s http://localhost:8200/api/v1/plugins
+# Or via MCP: call the `list_plugins` tool / read the `models://plugins` resource
 
 # 4. Test the plugin in isolation
 python3 -c "
@@ -188,3 +235,4 @@ Common causes of stuck jobs:
 - Plugin is blocking the event loop (use `asyncio.to_thread` for sync I/O)
 - Lock held by a crashed previous job (Ollama `_ollama_download_lock`) — restart container
 - Plugin was implemented but not activated — verify `docker/entrypoint.sh`, `ENABLED_PLUGINS`, and `ACTIVATED_PLUGINS`
+- Job submitted via MCP behaves like REST (same `ModelManager`) — if only the MCP path is stuck, check that `main.py` called `configure_runtime(...)` so `src/mcp/server.py` isn't using its own separate module-level instances
