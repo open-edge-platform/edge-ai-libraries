@@ -13,6 +13,7 @@ shared/videos/video-generator/*
 shared/metadata/*
 shared/model-download/cache/*
 shared/db/*
+shared/onvif/*
 # Make-generated sentinels (see Makefile: ENV_DIRS_SENTINEL,
 # TEST_IMAGE_SENTINEL, UI_*_SENTINEL). Kept under shared/ so they are also
 # out of the Docker build context via the `shared` entry in .dockerignore.
