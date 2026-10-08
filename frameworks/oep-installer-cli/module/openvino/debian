@@ -15,10 +15,10 @@ debian_70_profile_openvino () {
 }
 
 verify_openvino () {
-  ensure_apt_is_installed openvino-${version} || return 1
-  [ -r "$workspace"/.venv/bin/activate ] || return 1
+  ensure_apt_is_installed openvino-${version}
+  [ -r "$workspace"/.venv/bin/activate ]
   . "$workspace"/.venv/bin/activate
-  pip show openvino-genai 2> /dev/null | grep -q -F ${version} || return 1
+  pip show openvino-genai 2> /dev/null | grep -q -F ${version}
 }
 
 debian_70_install_openvino () {
@@ -28,7 +28,7 @@ debian_70_install_openvino () {
     echo "openvino-${version} already installed. Skipping"
   else
     # remove old versions
-    ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
+    debian_70_remove_openvino "$@"
 
     # product key
     ensure_apt_key $key_file $key_url --dearmor
@@ -65,14 +65,7 @@ debian_70_install_openvino () {
 }
 
 debian_70_remove_openvino () {
-  configure_openvino $*
-
-  if verify_openvino; then
-    ensure_apt autoremove -m -y openvino-${version} openvino || true
-    ensure_sudo rm -rf "$workspace" $apt_file $key_file
-  else
-    echo "openvino-${version} already removed. Skipping"
-  fi
+  ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
 }
 
 debian_70_sbom_openvino () {
