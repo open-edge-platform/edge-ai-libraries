@@ -36,7 +36,7 @@ verify_nicu_warmer () {
       return 1
     }
   done
-  [ -e "$workspace"/NICU-Warmer/.env ]
+  [ -e "$workspace"/NICU-Warmer/.env ] || return 1
   . "$workspace"/NICU-Warmer/.env 2> /dev/null
   docker inspect intel/hl-ai-nicu-backend:$TAG > /dev/null
 }

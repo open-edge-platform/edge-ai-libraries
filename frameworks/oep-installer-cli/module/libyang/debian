@@ -10,7 +10,7 @@ debian_40_profile_libyang () {
 }
 
 verify_libyang () {
-  command yanglint > /dev/null 2>&1
+  command -v yanglint > /dev/null 2>&1
 }
 
 debian_40_install_libyang () {
