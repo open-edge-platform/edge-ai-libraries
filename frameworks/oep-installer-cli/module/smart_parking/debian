@@ -14,12 +14,21 @@ configure_smart_parking_device () {
 verify_smart_parking () {
   local i p
   for i in 1 2 3 4; do
-    [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_$i.mp4 ]
+    [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_$i.mp4 ] || {
+      echo "Missing new_video_$1.mp4" >&2
+      return 1
+    }
   done
   for p in FP16 FP32 INT8; do
-    [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/public/yolo11s/$p/yolo11s.bin ]
+    [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/public/yolo11s/$p/yolo11s.bin ] || {
+      echo "Missing $p/yolo11s.bin" >&2
+      return 1
+    }
   done
-  [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/colorcls2/colorcls2.bin ]
+  [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/colorcls2/colorcls2.bin ] || {
+    echo "Missing colorcls2" >&2
+    return 1
+  }
 }
 
 debian_90_profile_smart_parking () {

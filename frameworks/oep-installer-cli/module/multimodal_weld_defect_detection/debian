@@ -36,7 +36,10 @@ configure_multimodal_weld_defect_detection_device () {
 verify_multimodal_weld_defect_detection () {
   configure_multimodal_weld_defect_detection
 
-  [ -e "$workspace"/industrial-edge-insights-multimodal/weld-data-simulator/simulation-data/good_weld_02-16-23-0081-00.csv ]
+  [ -e "$workspace"/industrial-edge-insights-multimodal/weld-data-simulator/simulation-data/good_weld_02-16-23-0081-00.csv ] || {
+    echo "Missing good_weld_02-16-23-0081-00.csv" >&2
+    return 1
+  }
   [ -n "$(grep -E ^VISUALIZER_GRAFANA_PASSWORD= "$workspace"/industrial-edge-insights-multimodal/.env 2> /dev/null | tail -n1 | cut -f2 -d=)" ]
 }
 
