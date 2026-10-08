@@ -294,6 +294,26 @@ Related settings (same `model_settings` section or environment variables):
 | `RERANK_TOP_N` | `2` | Chunks kept after reranking. |
 | `RETRIEVAL_TRANSLATE_PROMPT` | empty | Optional prompt with a `{question}` placeholder. When set, the LLM (OpenVINO runtime) rewrites the question before retrieval, for example into English for an English-only embedding model. The answer still uses the original question. |
 
+#### Devices (OpenVINO runtime)
+
+`EMBEDDING_DEVICE`, `RERANKER_DEVICE` and `LLM_DEVICE` (`device_settings`) accept `CPU`, `GPU`
+or `NPU`, independently per model.
+
+- On `NPU`, the LLM runs through OpenVINO GenAI from an int4 channel-wise export in
+  `LLM_NPU_MODEL_DIR` (created at startup when missing; the image needs the NPU user-space driver).
+  The embedding model and reranker are compiled with static shapes.
+- NPU jobs (encoder batches and LLM generations) run one at a time with a short gap between
+  them, because concurrent or back-to-back jobs of different models fault the NPU. With the LLM
+  on NPU, retrieval for another request waits until the current answer ends.
+
+| Setting | Default | Description |
+|---|---|---|
+| `LLM_NPU_MODEL_DIR` | `<model cache>/<LLM_MODEL_ID>/npu` | OpenVINO GenAI model directory for the LLM on NPU. |
+| `NPU_MAX_PROMPT_LEN` | `4096` | Prompt token limit of the LLM on NPU. Lowest-ranked chunks are dropped to fit; a longer question is rejected. |
+| `NPU_EMBEDDING_BATCH` | `4` | Static batch size of the embedding model on NPU. |
+| `NPU_RERANKER_BATCH` | `2` | Static batch size of the reranker on NPU. |
+| `NPU_ENCODER_SEQ_LEN` | `512` | Static sequence length of the embedding model and reranker on NPU. |
+
 ### `GET /ollama-models` (Ollama runtime)
 
 Returns the list of currently loaded Ollama models.
