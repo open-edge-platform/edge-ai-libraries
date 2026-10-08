@@ -123,7 +123,9 @@ EOF
 action="${1:-start}"
 case "${action}" in
     start)
-        shift
+        if (($# > 0)); then
+            shift
+        fi
         compose up -d "$@"
         ;;
     down)
