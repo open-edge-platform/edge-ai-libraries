@@ -7,8 +7,7 @@
 # https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html
 configure_humanoid_imitation_learning () {
   workspace="$(ensure_project_path)/humanoid-imitation-learning"
-  # no release tag contains the humanoid container recipes yet; pin a main commit
-  version=8971e61309ad5b22367260d7de2a04e4641c2356
+  version=main
   repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts.git"
   container_dir="$workspace/samples/robotics/robotics-ai-suite-containers"
   # sample: act-sample (default) or pi05-rtc-ov, selectable via a module arg
