@@ -30,6 +30,9 @@ debian_90_install_stationary_robot_vision () {
   if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
     echo "Stationary Robot Vision & Control is already installed. Skipping..."
   else
+    # declare ownership
+    ensure_prop set installed/stationary_robot_vision/owned true
+
     ensure_disk_size 15000
 
     ensure_oneapi_ros_openvino
@@ -51,6 +54,9 @@ debian_90_install_stationary_robot_vision () {
 }
 
 debian_90_remove_stationary_robot_vision () {
+  # leave untouched if not installed by stationary_robot_vision
+  [ "$(ensure_prop get installed/stationary_robot_vision/owned)" = "true" ] || return 0
+
   configure_stationary_robot_vision
   if ensure_apt_is_installed ros-$ros_distro-rvc-simulation || ensure_apt_is_installed ros-$ros_distro-rvc; then
     ensure_apt autoremove -m -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc \

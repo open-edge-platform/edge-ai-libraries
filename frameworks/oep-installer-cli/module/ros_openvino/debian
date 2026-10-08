@@ -131,6 +131,9 @@ debian_55_install_ros_openvino () {
   if verify_ros_openvino && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
   else
+    # declare ownership
+    ensure_prop set installed/ros_openvino/owned true
+
     ensure_apt install -y curl gnupg
 
     # AMR apt feed (signing key + source + pin) providing the ROS OpenVINO node
@@ -166,6 +169,9 @@ debian_55_install_ros_openvino () {
 }
 
 debian_55_remove_ros_openvino () {
+  # leave untouched if not installed by ros_openvino
+  [ "$(ensure_prop get installed/ros_openvino/owned)" = "true" ] || return 0
+
   configure_ros_openvino
   if verify_ros_openvino; then
     ensure_apt autoremove -m -y ros-$ros_distro-openvino-node openvino || true

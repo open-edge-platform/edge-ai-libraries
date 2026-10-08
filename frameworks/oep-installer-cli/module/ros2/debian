@@ -69,6 +69,9 @@ debian_50_install_ros2 () {
   if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 $ros_distro is already installed. Skipping..."
   else
+    # declare ownership
+    ensure_prop set installed/ros2/owned true
+
     ensure_apt_add_repository universe || true
 
     # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
@@ -94,6 +97,9 @@ debian_50_install_ros2 () {
 }
 
 debian_50_remove_ros2 () {
+  # leave untouched if not installed by ros2
+  [ "$(ensure_prop get installed/ros2/owned)" = "true" ] || return 0
+
   configure_ros2
   if verify_ros2; then
     ensure_apt autoremove -m -y ros-$ros_distro-desktop || true
