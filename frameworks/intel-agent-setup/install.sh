@@ -127,7 +127,7 @@ main() {
   ref="$(resolve_install_ref)" || exit 1
   clone_dir="$(mktemp -d)"
   trap 'rm -rf "$clone_dir"' EXIT
-  echo "Fetching Intel Agent Harness @ ${ref}…" >&2
+  echo "Fetching Intel Agent Setup @ ${ref}…" >&2
   clone_installer_ref "$ref" "$clone_dir"
   payload_dir="$(resolve_payload_dir "$clone_dir")" || exit 1
   "${payload_dir}/scripts/install.sh" "$@"

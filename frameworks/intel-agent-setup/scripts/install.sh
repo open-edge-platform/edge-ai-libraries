@@ -23,7 +23,7 @@ SKIP_GPU_CHECK="${SKIP_GPU_CHECK:-}"
 usage() {
   cat <<EOF
 
-  ${C_BOLD}Intel Agent Harness${C_RESET}
+  ${C_BOLD}Intel Agent Setup${C_RESET}
 
   Usage:
     ./install.sh [options]                      Run the full install + onboarding
@@ -32,7 +32,7 @@ usage() {
     ./install.sh mcp register <name> <url> [agent]  Register an arbitrary MCP endpoint URL
     ./install.sh skill <install|list|remove> [path|name]  Manage Hermes skills
     ./install.sh connect <name>                  Open a shell inside a running sandbox
-    ./install.sh status                          Show Harness/OVMS/sandbox health
+    ./install.sh status                          Show Agent Setup/OVMS/sandbox health
     ./install.sh onboard                         Re-run onboarding only
 
   Sandbox verbs: list, create <name> <image> [env-pairs], start <name>, stop <name>,
@@ -159,7 +159,7 @@ print_done() {
     printf "  ${C_DIM}Intel GPU render nodes are passed to sandboxes automatically.${C_RESET}\n"
   fi
   if sandbox_gateway_enabled; then
-    printf "  ${C_DIM}Sandboxes are routed through the harness gateway on port $(resolve_gateway_port_for_display).${C_RESET}\n"
+    printf "  ${C_DIM}Sandboxes are routed through the shared gateway on port $(resolve_gateway_port_for_display).${C_RESET}\n"
   fi
   printf "  ${C_BOLD}Sandboxes:${C_RESET}\n"
   list_sandboxes
@@ -198,7 +198,7 @@ print_status() {
     info "Not installed"
   fi
 
-  printf "\n${C_BOLD}Harness agent${C_RESET}\n"
+  printf "\n${C_BOLD}Agent${C_RESET}\n"
   local display
   agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
   cli_bin="$(agent_cli_bin "$agent")"
@@ -326,7 +326,7 @@ main() {
     error "Unknown command: ${positional[0]}"
   fi
 
-  printf "\n${C_GREEN}${C_BOLD}Intel Agent Harness${C_RESET}\n\n"
+  printf "\n${C_GREEN}${C_BOLD}Intel Agent Setup${C_RESET}\n\n"
 
   prepare_installer_host
 

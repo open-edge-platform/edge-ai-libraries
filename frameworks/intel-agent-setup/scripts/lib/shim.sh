@@ -23,7 +23,7 @@ ensure_local_bin_in_profile() {
   local profile shell_name path_line
   profile="$(detect_shell_profile)"
   [[ -n "$profile" ]] || return 0
-  if [[ -f "$profile" ]] && grep -qF '# Intel Agent Harness PATH setup' "$profile" 2>/dev/null; then
+  if [[ -f "$profile" ]] && grep -qF '# Intel Agent Setup PATH setup' "$profile" 2>/dev/null; then
     return 0
   fi
   shell_name="$(basename "${SHELL:-bash}")"
@@ -34,9 +34,9 @@ ensure_local_bin_in_profile() {
   esac
   mkdir -p "$(dirname "$profile")"
   {
-    printf '\n# Intel Agent Harness PATH setup\n'
+    printf '\n# Intel Agent Setup PATH setup\n'
     printf '%s\n' "$path_line"
-    printf '# end Intel Agent Harness PATH setup\n'
+    printf '# end Intel Agent Setup PATH setup\n'
   } >>"$profile"
 }
 

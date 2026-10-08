@@ -9,10 +9,10 @@ HARNESS_OVMS_REST_PORT="${HARNESS_OVMS_REST_PORT:-8000}"
 HARNESS_MODELS_DIR="${HARNESS_MODELS_DIR:-$HOME/.intel-agent/models}"
 HARNESS_OVMS_CONTAINER="${HARNESS_OVMS_CONTAINER:-intel-agent-ovms}"
 # Extra OVMS server flags, e.g. "--tool_parser hermes3 --task text_generation"
-# for Harness agents that need OpenAI-style tool calls.
+# for agents that need OpenAI-style tool calls.
 HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
 
-# Set HARNESS_LLM_ROUTER_ENDPOINT to route the Harness agent at an existing
+# Set HARNESS_LLM_ROUTER_ENDPOINT to route the agent at an existing
 # OpenAI-compatible router/gateway instead of this installer's own OVMS
 # container — e.g. an internal LiteLLM instance, a corporate API gateway, or
 # a cloud endpoint. When set, this installer never starts, stops, or

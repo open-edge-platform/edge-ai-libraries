@@ -233,7 +233,7 @@ choose another name."
   gpu_args="$(intel_gpu_docker_device_args)"
   if [[ "$use_gateway" == "1" ]]; then
     ensure_gateway_running
-    info "Creating sandbox '${name}' from ${image} behind the harness gateway…"
+    info "Creating sandbox '${name}' from ${image} behind the shared gateway…"
     # shellcheck disable=SC2086
     docker run -d --name "$container" --restart unless-stopped \
       --network "$HARNESS_GATEWAY_NETWORK" "${env_args[@]}" $gpu_args "$image" \

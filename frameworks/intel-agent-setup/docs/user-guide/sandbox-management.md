@@ -42,4 +42,4 @@ just enough to avoid publishing sandbox ports directly.
 ```
 
 Read-only combined health view: Docker/GPU, the OpenVINO Model Server, the
-installed Harness agent, and every registered sandbox in one place.
+installed agent, and every registered sandbox in one place.

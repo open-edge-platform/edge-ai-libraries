@@ -115,7 +115,7 @@ const server = http.createServer((req, res) => {
   req.pipe(proxyReq);
 });
 
-server.listen(PORT, () => console.log(`Harness gateway listening on :${PORT}`));
+server.listen(PORT, () => console.log(`Agent Setup gateway listening on :${PORT}`));
 NODE
   chmod 600 "$script_path"
 }
@@ -145,7 +145,7 @@ ensure_gateway_running() {
   fi
   atomic_write_file "$(gateway_port_file)" "$HARNESS_GATEWAY_PORT"
   docker_proxy_env_args_into proxy_args
-  info "Starting harness gateway on port ${HARNESS_GATEWAY_PORT}…"
+  info "Starting shared gateway on port ${HARNESS_GATEWAY_PORT}…"
   docker run -d --name "$HARNESS_GATEWAY_CONTAINER" --restart unless-stopped \
     --network "$HARNESS_GATEWAY_NETWORK" \
     -p "$(resolve_bind_host):${HARNESS_GATEWAY_PORT}:${HARNESS_GATEWAY_PORT}" \
@@ -153,8 +153,8 @@ ensure_gateway_running() {
     -e "GATEWAY_PORT=${HARNESS_GATEWAY_PORT}" -e "GATEWAY_ROUTES_FILE=/gateway/routes.json" \
     "${proxy_args[@]}" \
     "$HARNESS_GATEWAY_IMAGE" node /gateway/proxy.mjs \
-    || error "Could not start the harness gateway."
-  ok "Harness gateway is running on port ${HARNESS_GATEWAY_PORT}"
+    || error "Could not start the shared gateway."
+  ok "Shared gateway is running on port ${HARNESS_GATEWAY_PORT}"
 }
 
 # gateway_set_route name target [auth_header] — registers/updates a route.

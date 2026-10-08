@@ -18,10 +18,10 @@
    container instead (see [Known limitations](known-limitations.md)). Set
    `HARNESS_LLM_ROUTER_ENDPOINT` instead to route the agent at an existing
    external OpenAI-compatible router/gateway and skip OVMS entirely.
-5. **Harness install** — installs the selected agent via its own official
+5. **Agent install** — installs the selected agent via its own official
    installer/package (`openclaw`, `dcode`, or Hermes's installer), wired to
    the OVMS endpoint.
-6. **Onboarding** — verifies the installed Harness agent and prints the
+6. **Onboarding** — verifies the installed agent and prints the
    endpoint to configure (OpenClaw's own provider-setup UX isn't fabricated
    here — see its repo for exact steps).
 

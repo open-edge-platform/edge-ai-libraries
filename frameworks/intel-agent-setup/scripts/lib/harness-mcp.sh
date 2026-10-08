@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
-# Registers an arbitrary MCP endpoint URL with the installed Harness agent.
+# Registers an arbitrary MCP endpoint URL with the installed agent.
 # Hermes's real, documented config.yaml shape is built in; any other agent
 # can be wired up via HARNESS_MCP_REGISTER_CMD (bring your own registration
 # script) instead of this installer guessing its config format, same stance

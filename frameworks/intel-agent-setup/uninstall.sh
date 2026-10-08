@@ -20,7 +20,7 @@ KEEP_AGENT_DATA="${KEEP_AGENT_DATA:-}"
 usage() {
   cat <<EOF
 
-  ${C_BOLD}Intel Agent Harness — Uninstall${C_RESET}
+  ${C_BOLD}Intel Agent Setup — Uninstall${C_RESET}
 
   Usage:
     ./uninstall.sh [--yes] [--delete-models] [--keep-agent-data] [--agent <name>]
@@ -108,16 +108,16 @@ main() {
     esac
   fi
 
-  printf "\n${C_YELLOW}${C_BOLD}Intel Agent Harness — Uninstall${C_RESET}\n\n"
+  printf "\n${C_YELLOW}${C_BOLD}Intel Agent Setup — Uninstall${C_RESET}\n\n"
   confirm_uninstall "$agent_desc"
 
   info "Removing sandboxes…"
   destroy_all_sandboxes || true
   ok "Sandboxes removed"
 
-  info "Removing harness gateway (if used)…"
+  info "Removing shared gateway (if used)…"
   remove_gateway
-  ok "Harness gateway removed"
+  ok "Shared gateway removed"
 
   if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
     info "Skipping OpenVINO Model Server removal (routed externally to
