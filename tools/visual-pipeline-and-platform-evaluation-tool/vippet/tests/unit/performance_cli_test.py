@@ -72,7 +72,7 @@ class TestParser(unittest.TestCase):
             "1,5",
             "--pipelines",
             "a,b",
-            "--no-require-models",
+            "--no-skip-missing-models",
         )
         self.assertEqual(
             cli.cli_overrides(ns),
@@ -80,7 +80,7 @@ class TestParser(unittest.TestCase):
                 "vippet.base_url": "http://h:1/api/v1",
                 "benchmark.stream_counts": [1, 5],
                 "benchmark.pipelines": ["a", "b"],
-                "benchmark.filters.require_models": False,
+                "benchmark.filters.skip_missing_models": False,
             },
         )
 

@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any
 
 from dataclasses import dataclass
-from helpers.api_helpers import fetch_devices
 from helpers.pipeline_case_helpers import SUPPORTED_DEVICE_FAMILIES, PipelineCase
 from perf_helpers.hw_monitor import HardwareMonitor
 from perf_helpers.preflight import fetch_discovered_devices, run_preflight_or_exit
@@ -80,7 +79,6 @@ _NO_CASES_REASON = (
 # fully failed/skipped run still has the discovered hardware available for
 # the report.
 _DISCOVERED_DEVICES: list[dict[str, Any]] = []
-
 
 
 def _collect_system_info(devices: list[dict[str, Any]]) -> dict[str, Any]:
@@ -264,7 +262,9 @@ def _discover_case_params() -> _DiscoveredCases:
 
     cases = [PipelineCase(**dataclasses.asdict(case)) for case in matrix.included]
     missing = {pid: set(models) for pid, models in matrix.missing_models.items()}
-    params, ids = wrap_cases_for_pytest(cases, missing)
+    params, ids = wrap_cases_for_pytest(
+        cases, missing, skip_missing_models=SKIP_MISSING_MODELS
+    )
     return _DiscoveredCases(params, ids, matrix.known_pipeline_ids)
 
 
@@ -279,7 +279,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         return
 
     if _DISCOVERED_CASES is None:
-        _DISCOVERED_CASES = _discover_case_params()  #TODO handle SKIP_MISSING_MODELS
+        _DISCOVERED_CASES = _discover_case_params()
 
     for invalid_param in _validate_filter_ids(_DISCOVERED_CASES.known_pipeline_ids):
         invalid_case, _, _ = _unwrap_case(invalid_param)

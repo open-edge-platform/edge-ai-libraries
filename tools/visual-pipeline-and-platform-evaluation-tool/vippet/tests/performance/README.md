@@ -123,29 +123,29 @@ error. Older versions silently fell back to `default.yaml` instead.
 
 Every YAML key has a CLI flag:
 
-| Flag                    | YAML key                                  | Env var                           |
-|-------------------------|-------------------------------------------|-----------------------------------|
-| `--config`              | (selects the YAML file)                   | `PERF_CONFIG_FILE`, `PERF_CONFIG` |
-| `--base-url`            | `vippet.base_url`                         | `VIPPET_BASE_URL`                 |
-| `--timeout`             | `vippet.timeout`                          |                                   |
-| `--readiness-timeout`   | `vippet.readiness_timeout_seconds`        |                                   |
-| `--poll-interval`       | `vippet.poll_interval`                    | `VIPPET_JOB_POLL_INTERVAL`        |
-| `--max-job-duration`    | `vippet.max_job_duration`                 | `VIPPET_JOB_TIMEOUT_SECONDS`      |
-| `--pipelines`           | `benchmark.pipelines`                     |                                   |
-| `--variants`            | `benchmark.variants`                      |                                   |
-| `--streams`             | `benchmark.stream_counts`                 |                                   |
-| `--max-retries`         | `benchmark.execution.max_retries`         |                                   |
-| `--retry-delay`         | `benchmark.execution.retry_delay_seconds` |                                   |
-| `--output-mode`         | `benchmark.execution.output_mode`         |                                   |
-| `--max-runtime`         | `benchmark.execution.max_runtime`         |                                   |
-| `--skip-pipelines`      | `benchmark.filters.skip_pipelines`        |                                   |
-| `--skip-variants`       | `benchmark.filters.skip_variants`         |                                   |
-| `--[no-]require-models` | `benchmark.filters.require_models`        |                                   |
-| `--metrics-url`         | `metrics.metrics_url`                     | `VIPPET_METRICS_URL`              |
-| `--metrics-interval`    | `metrics.sample_interval_seconds`         | `PERF_METRICS_INTERVAL`           |
-| `--results-dir`         | `results.output_dir`                      | `PERF_RESULTS_DIR`                |
-| `--formats`             | `results.formats`                         |                                   |
-| `--[no-]latest-link`    | `results.create_latest_link`              |                                   |
+| Flag                         | YAML key                                  | Env var                           |
+|------------------------------|-------------------------------------------|-----------------------------------|
+| `--config`                   | (selects the YAML file)                   | `PERF_CONFIG_FILE`, `PERF_CONFIG` |
+| `--base-url`                 | `vippet.base_url`                         | `VIPPET_BASE_URL`                 |
+| `--timeout`                  | `vippet.timeout`                          |                                   |
+| `--readiness-timeout`        | `vippet.readiness_timeout_seconds`        |                                   |
+| `--poll-interval`            | `vippet.poll_interval`                    | `VIPPET_JOB_POLL_INTERVAL`        |
+| `--max-job-duration`         | `vippet.max_job_duration`                 | `VIPPET_JOB_TIMEOUT_SECONDS`      |
+| `--pipelines`                | `benchmark.pipelines`                     |                                   |
+| `--variants`                 | `benchmark.variants`                      |                                   |
+| `--streams`                  | `benchmark.stream_counts`                 |                                   |
+| `--max-retries`              | `benchmark.execution.max_retries`         |                                   |
+| `--retry-delay`              | `benchmark.execution.retry_delay_seconds` |                                   |
+| `--output-mode`              | `benchmark.execution.output_mode`         |                                   |
+| `--max-runtime`              | `benchmark.execution.max_runtime`         |                                   |
+| `--skip-pipelines`           | `benchmark.filters.skip_pipelines`        |                                   |
+| `--skip-variants`            | `benchmark.filters.skip_variants`         |                                   |
+| `--[no-]skip-missing-models` | `benchmark.filters.skip_missing_models`   |                                   |
+| `--metrics-url`              | `metrics.metrics_url`                     | `VIPPET_METRICS_URL`              |
+| `--metrics-interval`         | `metrics.sample_interval_seconds`         | `PERF_METRICS_INTERVAL`           |
+| `--results-dir`              | `results.output_dir`                      | `PERF_RESULTS_DIR`                |
+| `--formats`                  | `results.formats`                         |                                   |
+| `--[no-]latest-link`         | `results.create_latest_link`              |                                   |
 
 Notes:
 
@@ -154,8 +154,9 @@ Notes:
 - `--variants` lists the allowed device **families**. A variant runs only if every
   family it uses is allowed: `GPU_NPU` needs both `gpu` and `npu`. So listing
   `gpu_npu` is redundant once `gpu` and `npu` are listed (as in `full.yaml`).
-- `--no-require-models` is accepted, but it does not change behaviour yet. Pipelines
-  with missing models are always skipped, with the reason shown.  #TODO upd to `skip_missing_models`!!!
+- `--no-skip-missing-models` lets pipelines with missing models run anyway
+  (and fail at runtime) instead of being skipped with the missing-model
+  reason shown.
 - The CLI always passes `vippet/tests/performance` to pytest, so arguments after
   `--` can't move collection elsewhere. Paths or node ids after `--` don't narrow
   the run; use `--pipelines`, `--variants`, `--streams` or `-k` instead.
