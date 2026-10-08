@@ -21,7 +21,7 @@ PROJECT_NAME="$(basename -- "${PROJECT_DIR}")"
 
 : "${LLM_MODE:=llm}"
 : "${LLM_BASE_URL:=http://aqh-ovms:8010/v3}"
-: "${LLM_MODEL_NAME:=Phi-4-mini-instruct}"
+: "${LLM_MODEL_NAME:=Qwen/Qwen2.5-3B-Instruct}"
 : "${LLM_DEVICE:=CPU}"
 : "${LLM_PRECISION:=int8}"
 : "${LLM_API_KEY:=UNUSED}"

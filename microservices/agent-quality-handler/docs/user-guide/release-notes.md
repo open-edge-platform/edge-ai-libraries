@@ -1,4 +1,35 @@
-# Release Notes
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Release Notes: Agent Quality Handler
+
+## Version 2026.3.0
+
+**TBD**
+
+This release introduces **dynamic agent routing**, a **configuration-driven
+agent registry**, and **custom-agent output persistence**, along with deployment
+and documentation improvements.
+
+**New**
+
+- **Dynamic Agent Orchestration**: added severity-based routing and Deep Agents planning with dependency-safe execution ordering.
+- **Configurable Agent Registry**: added support for registering custom agents, declaring dependencies, and creating prompt-driven specialists without custom orchestration code.
+- **Custom-Agent Results**: added audit details, persisted output history, and additive `extra_agents` API results for registered custom agents.
+- **Deployment Lifecycle Script**: added a centralized script for configuring, building, starting, stopping, and cleaning standard and development deployments.
+
+**Improved**
+
+- **Reliability and Compatibility**: preserved built-in result contracts while improving partial-failure handling, route normalization, and dependency-aware agent execution.
+- **Dependencies and Documentation**: updated the LangGraph and supporting AI stack, expanded automated test coverage, and documented routing, registry integration, APIs, and deployment workflows.
+
+**Fixed**
+
+- **Deployment Cleanup**: corrected Compose path handling and ensured teardown includes profile-specific services such as mock storage.
+
+---
 
 ## Version 2026.2.0
 
