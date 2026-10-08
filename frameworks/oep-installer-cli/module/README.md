@@ -65,7 +65,7 @@ debian_45_license_my_name () {
 EOF
 }
 ```
-where `<license-id>` must be a unique identifier to the license. Multiple licenses with the same license-id's can be accepted at once by the users. Use the [`ensure_license_fetch`](../license/linux/ensure_license_fetch) function if the license text must be fetched from the Internet. The `ensure_license_fetch` function does not use any unresolved dependencies at the time of a license clickthrough.  
+where `<license-id>` must be a unique identifier to the license. Multiple licenses with the same license-id's can be accepted at once by the users. Use the [`ensure_fetch`](../common/linux/ensure_fetch) function if the license text must be fetched from the Internet. The `ensure_fetch` function does not use any unresolved dependencies at the time of a license clickthrough.  
    
 - `sbom`: The optional `sbom` function declares any `apt` packages to be installed by the component. Do not define a `sbom` function if there is no system-wide installation. See [`openvino`](openvino/debian) for an example. For uniformity, specify the SBOM with the [`ensure_sbom_format`](../common/linux/ensure_sbom#ensure_sbom_format) function and the following keys:
   - `name`: The name of an external repository that hosts the package(s).  
@@ -148,7 +148,7 @@ debian_85_install_my_component () {
 #debian_85_license_my_component () {
 #  echo "@@LICENSE-ID my_component_license_id"
 #  echo "@@LICENSE-TITLE my_component_license_title"
-#  echo "..." # LICENSE-TEXT or $(ensure_license_fetch <URL>) to fetch license text
+#  echo "..." # LICENSE-TEXT or $(ensure_fetch <URL> -) to fetch license text
 #}
 ```
 

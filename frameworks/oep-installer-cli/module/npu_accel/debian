@@ -50,7 +50,7 @@ debian_40_install_npu_accel () {
     [ ${#packages[*]} -gt 0 ] || return 3
 
     for p in ${packages[*]}; do
-      curl -fsSL -A Mozilla/5.0 "$p" | tar xfz -
+      ensure_fetch "$p" - | tar xfz -
     done 
 
     # install the debs
