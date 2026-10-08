@@ -11,7 +11,7 @@ verify_pcm () {
 }
 
 debian_40_profile_pcm () {
-  echo "cmake make"
+  echo "cmake make git"
 }
 
 debian_40_install_pcm () {

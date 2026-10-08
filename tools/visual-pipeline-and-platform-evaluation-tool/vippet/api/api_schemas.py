@@ -380,13 +380,17 @@ class StatusResponse(BaseModel):
     - `status` - Current application status (STARTING, INITIALIZING, READY, or SHUTDOWN)
     - `message` - Optional message describing current activity or initialization progress
     - `ready` - True if application is ready to serve API requests
+    - `version` - Build version (image tag / release string) of the running application
+    - `revision` - Git commit hash of the source tree the running image was built from, suffixed with "-dirty" if the working tree had uncommitted changes at build time (e.g. "a1b2c3d" or "a1b2c3d-dirty"); "unknown" if unavailable
 
     ### Example
     ```json
     {
       "status": "ready",
       "message": null,
-      "ready": true
+      "ready": true,
+      "version": "2026.2.0-rc2",
+      "revision": "a1b2c3d"
     }
     ```
     """
@@ -394,6 +398,8 @@ class StatusResponse(BaseModel):
     status: AppStatus
     message: Optional[str]
     ready: bool
+    version: str
+    revision: str
 
 
 class Node(BaseModel):
@@ -1712,6 +1718,12 @@ class BenchmarkTestCaseRun(BaseModel):
     media_usage: float | None
     memory_usage: float | None
     power_usage: float | None
+    latency_avg_ms: float | None
+    latency_avg_stddev_ms: float | None
+    latency_max_ms: float | None
+    latency_max_stddev_ms: float | None
+    latency_min_ms: float | None
+    latency_min_stddev_ms: float | None
     score_total: float | None
     score_performance: float | None
     score_efficiency: float | None

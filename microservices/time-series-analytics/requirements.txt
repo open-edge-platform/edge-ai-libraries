@@ -6,7 +6,7 @@ fastapi==0.141.1
 uvicorn==0.53.0
 influxdb==5.3.2
 tomlkit==0.15.1
-protobuf==7.36.1
+protobuf==7.36.2
 dpctl==0.22.1
 python-multipart==0.0.32
 setuptools==84.0.0

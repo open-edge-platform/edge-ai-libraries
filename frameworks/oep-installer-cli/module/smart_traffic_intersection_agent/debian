@@ -1,0 +1,80 @@
+
+configure_smart_traffic_intersection_agent () {
+  workspace="$(ensure_project_path)/smart-traffic-intersection-agent"
+  version="release-2026.2.0"
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(32776 32770 32771 32772 32773 32774 32775)
+
+  export VLM_MODEL_NAME=OpenVINO/Phi-3.5-vision-instruct-int8-ov
+  export REGISTRY=intel/
+}
+
+verify_smart_traffic_intersection_agent () {
+  [ -d "$workspace"/smart-traffic-intersection-agent/deps/metro-vision ]
+}
+
+debian_90_profile_smart_traffic_intersection_agent () {
+  echo "docker git edge_base curl"
+}
+
+debian_90_install_smart_traffic_intersection_agent () {
+  configure_smart_traffic_intersection_agent "$@"
+
+  if verify_smart_traffic_intersection_agent && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Smart Traffic Intersection Agent is already installed. Skipping" 1>&2
+  else
+    ensure_disk_size 16000
+    ensure_ram_size 52428800 # 50GiB
+    ensure_ports_open "${used_ports[*]}" return 3
+
+    ensure_git_export "$workspace" "$version" "$repository" smart-traffic-intersection-agent
+    
+    cd "$workspace"/smart-traffic-intersection-agent
+    . ./setup.sh --setenv
+
+    touch docker/ri-compose.yaml
+    check_and_setup_dependencies
+
+    verify_smart_traffic_intersection_agent
+  fi
+
+  local device=$(ensure_select_device "$@")
+  echo "$device" > "$workspace"/.device
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install/start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_smart_traffic_intersection_agent () {
+  configure_smart_traffic_intersection_agent "$@"
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_traffic_intersection_agent "$@"
+
+  [ ! -r "$workspace"/.device ] || set -- "$@" "$(< "$workspace"/.device)"
+  local device=$(ensure_select_device "$@")
+  export VLM_TARGET_DEVICE=${device^^}
+  
+  ensure_hf_token "$VLM_MODEL_NAME" 
+  export HUGGINGFACE_TOKEN="$HF_TOKEN"
+  
+  cd "$workspace"/smart-traffic-intersection-agent
+  . ./setup.sh --run
+
+  echo "@@HIGHLIGHT start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_stop_smart_traffic_intersection_agent () {
+  configure_smart_traffic_intersection_agent "$@"
+  cd "$workspace"/smart-traffic-intersection-agent && {
+    . ./setup.sh --stop || true
+    . ./setup.sh --clean --keep-models
+  } || true
+}
+
+debian_90_remove_smart_traffic_intersection_agent () {
+  debian_90_stop_smart_traffic_intersection_agent "$@"
+  . ./setup.sh --clean --all
+  ensure_sudo rm -rf "$workspace" 
+}
+ 

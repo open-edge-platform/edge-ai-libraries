@@ -1,6 +1,6 @@
 
 debian_99_profile_retail_ai_suite () {
   # metro ai suites cannot start at the same time
-  [ "$1" = "start" ] || echo "loss_prevention order_accuracy"
+  [ "$1" = "start" ] || echo "loss_prevention order_accuracy_dine_in order_accuracy_take_away"
 }
 

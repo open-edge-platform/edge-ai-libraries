@@ -390,9 +390,9 @@ async def receive_data(data_point: DataPoint):
 @app.get("/config")
 async def get_config(
     request: Request,
-    restart: Optional[bool] = Query(False,
-                                   description="Restart the Time Series Analytics "
-                                             "Microservice UDF deployment if true"),
+    restart: bool = Query(False,
+                          description="Restart the Time Series Analytics "
+                                      "Microservice UDF deployment if true"),
     background_tasks: BackgroundTasks = None):
     """
     Endpoint to retrieve the current configuration of the input service.

@@ -1,0 +1,59 @@
+
+configure_smart_nvr () {
+  workspace="$(ensure_project_path)/smart-nvr"
+  version="release-2026.2.0"
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(7860 8000 5000 6379 1884 443 1880 3000 1883 8086 8554)
+
+  export REGISTRY_URL="intel"
+  export TAG="latest"
+  export VSS_IP=$(ensure_ip)
+  export VSS_PORT=12345
+  export NVR_SCENESCAPE=true
+}
+
+verify_smart_nvr () {
+  [ -d "$workspace"/smart-nvr ]
+  [ -d "$workspace"/metro-vision-ai-app-recipe ]
+}
+
+debian_90_profile_smart_nvr () {
+  echo "video_search_and_summarization"
+}
+
+debian_90_install_smart_nvr () {
+  configure_smart_nvr "$@"
+  if verify_smart_nvr && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Smart NVR is already installed. Skipping" 1>&2
+  else
+    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 3000
+    ensure_git_export "$workspace" "$version" "$repository" smart-nvr metro-vision-ai-app-recipe
+  fi
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|remove"
+}
+
+debian_90_start_smart_nvr () {
+  configure_smart_nvr "$@"
+
+  cd "$workspace"/smart-nvr
+  . setup.sh start
+
+  echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_smart_nvr () {
+  configure_smart_nvr "$@"
+  cd "$workspace"/smart-nvr && {
+    . ./setup.sh stop
+  } || true
+}
+
+debian_90_remove_smart_nvr () {
+  debian_90_stop_smart_nvr "$@"
+  ensure_sudo rm -rf "$workspace"
+}
+

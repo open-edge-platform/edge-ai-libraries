@@ -15,7 +15,28 @@ ensure_hf_token () {
     fi
   fi
 
-  local model f gated=()
+  if ! ensure_hf_token_check_models "$@"; then
+    [ -z "$HF_TOKEN" ] || { echo "Invalid or unauthroized HF_TOKEN" 1>&2; return 3; }
+
+    # write an askpass helper
+    local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}"
+    mkdir -p "$rundir" 2>/dev/null || return 1
+    {
+      flock -w 300 -e 9 || { echo "ensure_hf_token: timed out waiting for another installer" >&2; return 1; }
+      local askpass_helper="$rundir"/askpass-hftoken
+      act_panelled_logs_askpass "$askpass_helper" HF_TOKEN || { echo "ensure_hf_token: failed to create askpass helper" >&2; return 1; }
+      export HF_TOKEN="$("$askpass_helper" 'HF_TOKEN:' | tr -d '\n')"
+    } 9< "$rundir"
+
+    ensure_hf_token_check_models "$@"
+  fi
+}
+
+# Verify if model permissions are granted on the token
+ensure_hf_token_check_models () {
+  local models=("$@")
+  local model f
   for model in ${models[*]}; do
     local probes=()
     for f in $(curl -s -L "https://huggingface.co/api/models/${model}?full=tree" | tr ',' '\n' | grep -F '"rfilename":' | cut -f4 -d'"'); do
@@ -37,8 +58,8 @@ ensure_hf_token () {
         continue
         ;;
       401|403|404) 
-        gated+=($model)
-        break
+        echo "gated model: $model" 1>&2
+        return 1
         ;;
       *)
         echo "Unknown probe code $code" 1>&2
@@ -47,10 +68,6 @@ ensure_hf_token () {
       esac
     done
   done
-
-  if [ ${#gated[*]} -gt 0 ]; then
-    echo "Gated model(s): ${gated[*]}" 1>&2
-    return 3
-  fi
+  return 0
 }
 

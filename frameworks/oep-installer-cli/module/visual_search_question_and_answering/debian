@@ -1,0 +1,91 @@
+
+configure_visual_search_question_and_answering () {
+  workspace="$(ensure_project_path)/visual-search-question-and-answering"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(17580 19530 9764 9990 6008 9777)
+
+  export EMBEDDING_MODEL_NAME=CLIP/clip-vit-h-14
+  export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
+  export DOCKER_VOLUME_DIRECTORY="$workspace"
+  export HOST_DATA_PATH="$workspace"/data
+  export REGISTRY=intel/
+  export TAG=latest
+
+  [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$worksapce"/.device_from_install)"
+  local device=$(ensure_select_device "$@")
+  export VLM_DEVICE=${device^^}
+  export EMBEDDING_DEVICE=${device^^}
+  #export DEVICE=${device^^}
+}
+
+verify_visual_search_question_and_answering () {
+  [ -r "$workspace" ]
+}
+
+debian_90_profile_visual_search_question_and_answering () {
+  echo "git curl gawk python3_venv edge_base docker"
+}
+
+debian_90_install_visual_search_question_and_answering () {
+  configure_visual_search_question_and_answering "$@"
+  if verify_visual_search_question_and_answering && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Visual search question and answering is already installed. Skipping..."
+  else
+    # clone the repository
+    ensure_disk_size 8000
+    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_git_export "$workspace" $version $repository visual-search-question-and-answering
+
+    # setup
+    cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose
+    sed -i -e "s|^host_ip=.*|host_ip=$(ensure_ip)|" -e "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" env.sh
+    sed -i "s|^export HOST_DATA_PATH=.*|export HOST_DATA_PATH=\"$HOST_DATA_PATH\"|" env.sh
+
+    # create data path
+    mkdir -p "$HOST_DATA_PATH"
+
+    verify_visual_search_question_and_answering
+  fi
+
+  local device=$(ensure_select_device "$@")
+  echo "$device" > "$workspace"/.device_from_input
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|remove"
+}
+
+debian_90_start_visual_search_question_and_answering () {
+  configure_visual_search_question_and_answering "$@"
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_visual_search_question_and_answering "$@"
+
+  cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose
+  . ./env.sh
+  docker compose -f compose_milvus.yaml up -d 
+  
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  if [ ! -e "$HOST_DATA_PATH"/DAVIS/subset ]; then
+    echo "Fetching demo dataset"
+    local cids=($(docker ps -a --filter "status=running" -q | xargs -r docker inspect --format '{{.Config.Image}} {{.Id}}' | grep "dataprep-visualdata-milvus" | awk '{print $2}'))
+    [ "${#cids[*]}" -gt 0 ] || {
+      echo "No milvus containers found" 1>&2
+      return 1
+    }
+    docker exec ${cids[0]} python example/example_utils.py -d DAVIS
+    [ -d "$HOST_DATA_PATH"/DAVIS/subset ]
+  fi
+
+  echo "@@HIGHLIGHT dataset: $HOST_DATA_PATH/DAVIS/subset"
+}
+
+debian_90_stop_visual_search_question_and_answering () {
+  configure_visual_search_question_and_answering "$@"
+  cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && . ./env.sh && docker compose -f compose_milvus.yaml down -v --remove-orphans || true
+}
+
+debian_90_remove_visual_search_question_and_answering () {
+  debian_90_stop_visual_search_question_and_answering $* || true
+  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}

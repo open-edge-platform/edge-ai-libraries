@@ -289,12 +289,6 @@ function ActHelper {
         }
     }
 
-    foreach ($alwaysIncluded in @('pre_system_scan', 'core_types')) {
-        if ($Context.Functions.ContainsKey($actName + '_' + $alwaysIncluded) -and (-not $requestedNames.Contains($alwaysIncluded))) {
-            [void]$requestedNames.Add($alwaysIncluded)
-        }
-    }
-
     $handles = @(ActFindDeps -Context $Context -ActName $actName -Names @($requestedNames) -Arguments $Arguments)
     if ($handles.Count -eq 0) {
         [Console]::Error.WriteLine('Component not found')
@@ -340,7 +334,7 @@ function ActHelper {
             $previousErrorActionPreference = $ErrorActionPreference
             try {
                 $ErrorActionPreference = 'Stop'
-                foreach ($line in @(& $handler @invokeArgs)) {
+                foreach ($line in @(& $handler -Arguments @invokeArgs)) {
                     if ($null -ne $line) {
                         Write-Output ([string]$line)
                     }
@@ -365,11 +359,6 @@ function ActHelper {
             finally {
                 $ErrorActionPreference = $previousErrorActionPreference
             }
-        }
-
-        if ((-not $dryRun) -and ($result -eq 0)) {
-            Write-Output '@@REPORT SYSTEM SUMMARY'
-            Write-Output ('Completed {0} sequence.' -f $actName)
         }
     } | ActSequentialLogs -ProjectPath $projectPath -CommandLine $commandLine
 

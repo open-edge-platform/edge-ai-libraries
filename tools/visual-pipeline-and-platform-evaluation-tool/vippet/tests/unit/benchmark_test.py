@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -14,6 +15,7 @@ from internal_types import (
     InternalPipelineDensitySpec,
     InternalPipelineStreamSpec,
 )
+from managers import benchmark_metrics as metrics
 from managers.pipeline_manager import PipelineCommand
 from pipeline_runner import LatencyTracerSample, PipelineResult
 
@@ -515,6 +517,83 @@ class TestBenchmark(unittest.TestCase):
             self.assertTrue(result.streams_per_pipeline[0].id.startswith("/pipelines/"))
             # Second should be inline graph format
             self.assertTrue(result.streams_per_pipeline[1].id.startswith("__graph-"))
+
+
+class TestBenchmarkMetrics(unittest.TestCase):
+    """Tests for benchmark metric extraction from collected metrics payloads."""
+
+    @staticmethod
+    def _metric(
+        name: str,
+        value: float,
+        labels: dict[str, str] | None = None,
+    ) -> dict:
+        metric: dict = {"name": name, "fields": {"value": value}}
+        if labels is not None:
+            metric["labels"] = labels
+        return metric
+
+    def test_extracts_usage_metrics_including_latency_average(self):
+        parsed_metrics = metrics.parse_metrics_text(
+            json.dumps(
+                [
+                    {
+                        "metrics": [
+                            self._metric("cpu_usage_user", 20.0),
+                            self._metric("mem_used_percent", 50.0),
+                            self._metric("npu_utilization", 60.0),
+                            self._metric(
+                                "gpu_engine_usage_usage",
+                                70.0,
+                                {"engine": "compute"},
+                            ),
+                            self._metric(
+                                "gpu_engine_usage_usage",
+                                30.0,
+                                {"engine": "video"},
+                            ),
+                            self._metric(
+                                "gpu_power",
+                                10.0,
+                                {"type": "pkg_cur_power"},
+                            ),
+                            self._metric("pipeline_latency_avg_ms", 14.5),
+                        ]
+                    },
+                    {
+                        "metrics": [
+                            self._metric("cpu_usage_user", 22.0),
+                            self._metric("mem_used_percent", 52.0),
+                            self._metric("npu_utilization", 62.0),
+                            self._metric(
+                                "gpu_engine_usage_usage",
+                                80.0,
+                                {"engine": "compute"},
+                            ),
+                            self._metric(
+                                "gpu_engine_usage_usage",
+                                40.0,
+                                {"engine": "video"},
+                            ),
+                            self._metric(
+                                "gpu_power",
+                                12.0,
+                                {"type": "pkg_cur_power"},
+                            ),
+                            self._metric("pipeline_latency_avg_ms", 15.5),
+                        ]
+                    },
+                ]
+            )
+        )
+
+        self.assertEqual(metrics.cpu_usage(parsed_metrics), 21.0)
+        self.assertEqual(metrics.memory_usage(parsed_metrics), 51.0)
+        self.assertEqual(metrics.npu_usage(parsed_metrics), 61.0)
+        self.assertEqual(metrics.gpu_usage(parsed_metrics), 75.0)
+        self.assertEqual(metrics.media_usage(parsed_metrics), 35.0)
+        self.assertEqual(metrics.power_usage(parsed_metrics), 11.0)
+        self.assertEqual(metrics.latency_avg_ms(parsed_metrics), 15.0)
 
 
 class TestBenchmarkLatencyTracerMetrics(unittest.TestCase):

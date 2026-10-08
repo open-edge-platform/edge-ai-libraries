@@ -2,12 +2,24 @@
 configure_pcb_anomaly_detection () {
   workspace="$(ensure_project_path)/pcb-anomaly-detection"
   version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
+  used_ports=(80 443)
+}
+
+configure_pcb_anomaly_detection_device () {
+  local device="$1"
+  sed -i "s|^PIPELINE=.*$|PIPELINE=pcb_anomaly_detection${device//_cpu/}|" "$workspace"/industrial-edge-insights-vision/sample_start.sh
 }
 
 verify_pcb_anomaly_detection () {
-  [ -e "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ]
-  [ -e "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin" ]
+  [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ] || {
+    echo "anomalib_pcb_test.avi missing" 1>&2
+    return 1
+  }
+  [ -e "$workspace/industrial-edge-insights-vision/resources/pcb-anomaly-detection/models/pcb-anomaly-detection/deployment/Anomaly classification/model/model.bin" ] || {
+    echo "model.bin missing" 1>&2
+    return 1
+  }
 }
 
 debian_90_profile_pcb_anomaly_detection () {
@@ -19,12 +31,13 @@ debian_90_install_pcb_anomaly_detection () {
   if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "PCB anomaly detection is already installed. Skipping"
   else
+    ensure_ports_open "${used_ports[*]}" return 3
     # clone the repository
-    ensure_disk_space 60
-    ensure_git_export "$workspace" $version $repository manufacturing-ai-suite/industrial-edge-insights-vision
+    ensure_disk_size 60
+    ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision
 
     # setup
-    cd "$workspace/manufacturing-ai-suite/industrial-edge-insights-vision"
+    cd "$workspace/industrial-edge-insights-vision"
     cat > .env <<EOF
 $(cat .env_pcb-anomaly-detection)
 HOST_IP=$(ensure_ip)
@@ -33,34 +46,49 @@ MINIO_ACCESS_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | 
 MINIO_SECRET_KEY=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+S3_STORAGE_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+S3_STORAGE_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
 EOF
+    sed -i 's|curl |curl -f |' apps/pcb-anomaly-detection/setup.sh
     ./setup.sh
     verify_pcb_anomaly_detection
   fi
 
-  local device="_$(ensure_select_device "$@")"
-  sed -i "s|^PIPELINE=.*$|PIPELINE=pcb_anomaly_detection${device//_cpu/}|" "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision/sample_start.sh
+  local device=$(ensure_select_device "$@")
+  configure_pcb_anomaly_detection_device "_$device"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|--npu|--cpu]"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_start_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  ensure_ports_open "80 443" debian_90_stop_pcb_anomaly_detection
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_pcb_anomaly_detection
 
-  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_pcb_anomaly_detection_device "_$device"
+  
+  cd "$workspace"/industrial-edge-insights-vision
   docker compose up -d --wait
 
-  ./sample_start.sh
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  ./sample_start.sh && ./sample_status.sh
 }
 
 debian_90_stop_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  cd "$workspace"/manufacturing-ai-suite/industrial-edge-insights-vision
-  ./sample_stop.sh || true
-  docker compose down -v --remove-orphans
+  cd "$workspace"/industrial-edge-insights-vision && {
+    ./sample_stop.sh || true
+    docker compose down -v --remove-orphans
+  } || true
 }
 
 debian_90_remove_pcb_anomaly_detection () {
-  debian_90_stop_pcb_anomaly_detection || true
+  debian_90_stop_pcb_anomaly_detection
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }

@@ -9,8 +9,12 @@
       "value": "loss_prevention"
     },
     {
-      "label": "Order Accuracy",
-      "value": "order_accuracy"
+      "label": "Order Accuracy - DineIn",
+      "value": "order_accuracy_dine_in"
+    },
+    {
+      "label": "Order Accuracy - Takeaway",
+      "value": "order_accuracy_take_away"
     }
   ],
   "getStarted": {

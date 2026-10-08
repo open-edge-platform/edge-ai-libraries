@@ -1,7 +1,10 @@
 """Shared API helper functions for VIPPET functional tests.
 
 These helpers centralise common HTTP interactions so that individual test
-modules do not duplicate fetch / polling logic.
+modules do not duplicate fetch / polling logic. The performance benchmark
+suite (``tests/performance``) also imports these helpers directly via its
+``pythonpath = ../functional`` setting (see ``tests/performance/pytest.ini``),
+so changes here must preserve default behaviour for the functional suite.
 """
 
 import logging
@@ -350,6 +353,7 @@ def wait_for_job_completion(
     status_url: str,
     *,
     assert_initial_running: bool = True,
+    fail_on_timeout: bool = True,
 ) -> JsonDict:
     """Poll *status_url* until the job leaves ``RUNNING`` state.
 
@@ -364,18 +368,29 @@ def wait_for_job_completion(
         When ``True`` (default) the very first poll must return state
         ``RUNNING``; this matches the contract expected by density and
         performance job tests.
+    fail_on_timeout:
+        When ``True`` (default) a job still ``RUNNING`` after
+        ``POLL_TIMEOUT_SECONDS`` raises via ``pytest.fail`` – this is the
+        contract relied upon by the functional suite. When ``False`` the
+        timeout is instead reported by returning the last polled status
+        merged with a synthetic ``state="TIMEOUT"`` and an explicit
+        ``error_message``, so callers (e.g. performance benchmarks) can
+        treat it like any other non-``COMPLETED`` terminal state and retry
+        or record it without an unhandled exception.
 
     Returns
     -------
     JsonDict
-        The final status payload once ``state != "RUNNING"``.  The caller
-        is responsible for checking the ``state`` field (e.g. via
-        :func:`run_job_with_retry`).
+        The final status payload once ``state != "RUNNING"``, or – when
+        ``fail_on_timeout=False`` – the synthetic ``TIMEOUT`` status
+        described above. The caller is responsible for checking the
+        ``state`` field (e.g. via :func:`run_job_with_retry`).
 
     Raises
     ------
     pytest.fail
-        If the job is still ``RUNNING`` after ``POLL_TIMEOUT_SECONDS``.
+        If the job is still ``RUNNING`` after ``POLL_TIMEOUT_SECONDS`` and
+        ``fail_on_timeout`` is ``True``.
     """
     deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
 
@@ -411,9 +426,15 @@ def wait_for_job_completion(
             last_status.get("error_message"),
         )
 
-    pytest.fail(
-        f"Job at {status_url} did not reach COMPLETED within {POLL_TIMEOUT_SECONDS} seconds"
+    timeout_message = (
+        f"Job at {status_url} did not reach COMPLETED within "
+        f"{POLL_TIMEOUT_SECONDS} seconds"
     )
+    if not fail_on_timeout:
+        logger.error(timeout_message)
+        return {**last_status, "state": "TIMEOUT", "error_message": timeout_message}
+
+    pytest.fail(timeout_message)
 
 
 def drain_job(session: requests.Session, status_url: str) -> None:

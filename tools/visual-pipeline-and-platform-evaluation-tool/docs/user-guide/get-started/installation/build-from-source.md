@@ -100,6 +100,10 @@ same repository, gives it the same devices as `vippet`, and sets
   `vippet`.
 - A pipeline that finishes in less than about one second reports 0 FPS.
 
+The server is not part of `compose.yml`, so `docker compose logs` does not show it. Use
+`docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to
+open a shell in it.
+
 ## Stop the application
 
 Stop and remove all running containers:

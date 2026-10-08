@@ -7,7 +7,7 @@ This class provides the application-specific functionality like video processing
 URL handling, etc., built on top of the core text/image encoding capabilities.
 """
 
-from typing import List, Union, Dict, Any
+from typing import List, Union, Dict, Any, Optional
 import time
 import torch
 from PIL import Image
@@ -578,3 +578,14 @@ class EmbeddingModel:
 
     def supports_video(self) -> bool:
         return self.handler.supports_video()
+
+    def get_max_text_tokens(self) -> Optional[int]:
+        """
+        Return the effective text token limit, or None if the model has none.
+
+        Use this to split long documents before calling ``embed_documents``;
+        text beyond the limit is truncated and does not influence the vector.
+        """
+        getter = getattr(self.handler, "get_max_text_tokens", None)
+        return getter() if callable(getter) else None
+
