@@ -59,7 +59,7 @@ debian_40_install_gpu_accel () {
 
 debian_40_remove_gpu_accel () {
   # Leave untouched if not installed by gpu_accel
-  [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return
+  [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0
 
   configure_gpu_accel "$@"
   ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true

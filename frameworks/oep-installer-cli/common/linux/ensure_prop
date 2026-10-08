@@ -2,9 +2,9 @@
 # set/get properties
 ensure_prop () {
   local op=$1 key_path=$2 value=$3
-  local f="$(ensure_project_path)/${installer_name:?}/$key_path"
+  local f="$(ensure_project_path)/${installer_name:?}/${key_path:?}"
   case "$op" in
-  set) mkdir -p "${f%/*}" && printf '%s' "$value" > "$f" ;;
+  set) printf '%s' "$value" > "$f" ;;
   get) [ -r "$f" ] && cat "$f" || printf '%s' "$value" ;;
   esac
 }
