@@ -6,7 +6,7 @@
   (the OVMS endpoint) rather than fabricating flags. OpenClaw is installed
   via `npm install -g openclaw` rather than its own `curl | bash` installer
   intentionally — that installer exists for people who don't want to manage
-  Node.js themselves, but Agent Setup deliberately manages Node.js (via
+  Node.js themselves, but Agentic Harness deliberately manages Node.js (via
   nvm) itself, consistently across all three agents; using OpenClaw's own
   installer too would mean two separate, possibly-conflicting Node.js
   runtimes. `npm install -g` is OpenClaw's own documented path for

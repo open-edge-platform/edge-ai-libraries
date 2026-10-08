@@ -23,7 +23,7 @@ SKIP_GPU_CHECK="${SKIP_GPU_CHECK:-}"
 usage() {
   cat <<EOF
 
-  ${C_BOLD}Intel Agent Setup${C_RESET}
+  ${C_BOLD}Intel Agentic Harness${C_RESET}
 
   Usage:
     ./install.sh [options]                      Run the full install + onboarding
@@ -32,7 +32,7 @@ usage() {
     ./install.sh mcp register <name> <url> [agent]  Register an arbitrary MCP endpoint URL
     ./install.sh skill <install|list|remove> [path|name]  Manage Hermes skills
     ./install.sh connect <name>                  Open a shell inside a running sandbox
-    ./install.sh status                          Show Agent Setup/OVMS/sandbox health
+    ./install.sh status                          Show Agentic Harness/OVMS/sandbox health
     ./install.sh onboard                         Re-run onboarding only
 
   Sandbox verbs: list, create <name> <image> [env-pairs], start <name>, stop <name>,
@@ -326,7 +326,7 @@ main() {
     error "Unknown command: ${positional[0]}"
   fi
 
-  printf "\n${C_GREEN}${C_BOLD}Intel Agent Setup${C_RESET}\n\n"
+  printf "\n${C_GREEN}${C_BOLD}Intel Agentic Harness${C_RESET}\n\n"
 
   prepare_installer_host
 

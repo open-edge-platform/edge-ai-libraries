@@ -22,9 +22,9 @@ For this repo specifically (a monorepo, so `HARNESS_INSTALL_SUBDIR` is set),
 with no local clone:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/frameworks/intel-agent-setup/install.sh \
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/frameworks/intel-agent-harness/install.sh \
   | HARNESS_INSTALL_REPO=https://github.com/open-edge-platform/edge-ai-libraries.git \
-    HARNESS_INSTALL_SUBDIR=frameworks/intel-agent-setup \
+    HARNESS_INSTALL_SUBDIR=frameworks/intel-agent-harness \
     HARNESS_INSTALL_REF=v1.0.0 bash
 ```
 
@@ -32,9 +32,9 @@ Installer flags/env after the piped script need `-s --` first, since stdin is
 already consumed by the pipe:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/frameworks/intel-agent-setup/install.sh \
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/frameworks/intel-agent-harness/install.sh \
   | HARNESS_INSTALL_REPO=https://github.com/open-edge-platform/edge-ai-libraries.git \
-    HARNESS_INSTALL_SUBDIR=frameworks/intel-agent-setup \
+    HARNESS_INSTALL_SUBDIR=frameworks/intel-agent-harness \
     HARNESS_INSTALL_REF=v1.0.0 \
     bash -s -- --agent openclaw --non-interactive
 ```

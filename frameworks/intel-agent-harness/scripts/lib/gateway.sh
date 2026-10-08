@@ -115,7 +115,7 @@ const server = http.createServer((req, res) => {
   req.pipe(proxyReq);
 });
 
-server.listen(PORT, () => console.log(`Agent Setup gateway listening on :${PORT}`));
+server.listen(PORT, () => console.log(`Agentic Harness gateway listening on :${PORT}`));
 NODE
   chmod 600 "$script_path"
 }

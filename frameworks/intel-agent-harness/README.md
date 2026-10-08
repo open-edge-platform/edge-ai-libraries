@@ -1,23 +1,23 @@
-# Intel Agent Setup
+# Intel Agentic Harness
 
 A generic setup script for deploying your own Node.js-based CLI/agent
 project onto Intel hardware (tested against Intel Core Ultra iGPU and Arc
 (CRI) GPUs; degrades gracefully to CPU-only when no Intel GPU is present).
 
-# Intel Agent Setup
+# Intel Agentic Harness
 
 A generic setup script for deploying your own Node.js-based CLI/agent
 project onto Intel hardware (tested against Intel Core Ultra iGPU and Arc
 (CRI) GPUs; degrades gracefully to CPU-only when no Intel GPU is present).
 
-## Vision: Agent Setup
+## Vision: Agentic Harness
 
 The standalone agent-plus-inference stack this repo installs (OpenClaw /
 LangChain's Deep Agents Code / Hermes, wired to a local OpenVINO Model
 Server). In the code/CLI this is still called the "agent" install step
-(`HARNESS_AGENT`, `scripts/lib/agents.sh`) — "Agent Setup" is the product name
-for that same stack (the `HARNESS_` env var prefix predates this name and is
-kept as-is for compatibility).
+(`HARNESS_AGENT`, `scripts/lib/agents.sh`) — "Agentic Harness" is the product
+name for that same stack, per the OEP Agentic Blueprint's terminology (the
+`HARNESS_` env var prefix predates this and is kept as-is for compatibility).
 
 Uses a staged install flow (spinner/logging helpers, Node.js-via-nvm
 bootstrap, Docker setup, CLI verification, express install) with a
@@ -66,7 +66,7 @@ scripts/lib/gpu-intel.sh      Intel GPU detection + compute-runtime install
 scripts/lib/docker-setup.sh   Docker install/group setup + GPU device args
 scripts/lib/nodejs.sh         Node.js-via-nvm bootstrap
 scripts/lib/openvino.sh       OpenVINO Model Server (OpenAI-compatible inference)
-scripts/lib/agents.sh         Agent Setup's agent catalog: openclaw / deepagents-code (dcode) / hermes
+scripts/lib/agents.sh         Agentic Harness's agent catalog: openclaw / deepagents-code (dcode) / hermes
 scripts/lib/gateway.sh        optional shared reverse-proxy for sandbox traffic
 scripts/lib/sandbox.sh        Docker-based sandbox/gateway manager
 scripts/lib/harness-mcp.sh    registers an arbitrary MCP endpoint URL with an agent (Hermes only)
