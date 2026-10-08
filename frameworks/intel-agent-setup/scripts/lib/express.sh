@@ -3,20 +3,15 @@
 # shellcheck shell=bash
 # Intel hardware "express install" profiles — classifies the host by PCI
 # device family, since there is no fixed appliance SKU to detect against
-# in the Intel discrete-accelerator lineup.
+# in the Intel discrete-accelerator lineup. Scoped to a single Core Ultra
+# node with an optional discrete GPU per the OEP Agentic Blueprint (data
+# center-class accelerators like Xeon/Gaudi/Data Center GPU Max are out of
+# scope — those target the separate, Xeon-only Enterprise Agent Toolkit).
 #
 # Known Intel discrete GPU PCI device-ID prefixes (subset; extend as needed):
 #   0x56xx = Arc (Alchemist/Battlemage, consumer & workstation)
-#   0x0Bxx = Data Center GPU Max (Ponte Vecchio)
-# Habana Gaudi accelerators are a different PCI vendor (0x1da3, Habana Labs,
-# an Intel subsidiary) and are detected separately via /dev/accel + hl-smi.
 detect_intel_harness_profile() {
   local dev vendor device root="/sys/bus/pci/devices"
-
-  if command_exists hl-smi || { [[ -d /dev/accel ]] && compgen -G "/dev/accel/*" >/dev/null 2>&1; }; then
-    printf 'gaudi'
-    return
-  fi
 
   if [[ -d "$root" ]]; then
     for dev in "$root"/*; do
@@ -27,7 +22,6 @@ detect_intel_harness_profile() {
       device="${device#0x}"
       [[ "$vendor" == "8086" ]] || continue
       case "$device" in
-        0b* | 0B*) printf 'datacenter-gpu-max'; return ;;
         56*) printf 'arc'; return ;;
       esac
     done
@@ -42,8 +36,6 @@ detect_intel_harness_profile() {
 
 describe_harness_profile() {
   case "$1" in
-    gaudi) printf 'Intel Gaudi accelerator (Habana SynapseAI)' ;;
-    datacenter-gpu-max) printf 'Intel Data Center GPU Max (Ponte Vecchio)' ;;
     arc) printf 'Intel Arc GPU' ;;
     intel-gpu-other) printf 'Other Intel GPU' ;;
     cpu-only) printf 'CPU-only (no Intel GPU detected)' ;;
