@@ -3,7 +3,7 @@
 
 # Voice Architecture: STT, TTS and Metrics
 
-These diagrams describe the implemented Voice integration as of 2026-09-24.
+These diagrams describe the implemented Voice integration as of 2026-10-08.
 They follow the [C4 model](https://c4model.com/diagrams) at System Context,
 Container and Component levels only. Flow diagrams describe runtime behavior;
 there is no Code-level diagram.
@@ -37,12 +37,12 @@ flowchart TB
   asr["Audio Analyzer<br/>[External software system]<br/>Transcribes recordings"]:::external
   tts["Text to Speech<br/>[External software system]<br/>Synthesizes speech"]:::external
   models["Model Download<br/>[External software system]<br/>Downloads and exports Voice models"]:::external
-  telemetry["Metrics Manager<br/>[External software system]<br/>Collects host-wide telemetry"]:::external
+  telemetry["Metrics Manager<br/>[External software system]<br/>Collects platform telemetry and Voice timings"]:::external
   operator -->|Uses web UI| vippet
   vippet -->|Recording to transcript| asr
   vippet -->|Text to audio| tts
   vippet -->|Requests Voice model installation| models
-  vippet -->|Subscribes to platform metrics| telemetry
+  vippet -->|Publishes Voice timings and subscribes to platform metrics| telemetry
   classDef person fill:#08427b,color:#fff,stroke:#052e56
   classDef internal fill:#1168bd,color:#fff,stroke:#0b4884
   classDef external fill:#666,color:#fff,stroke:#444
@@ -68,7 +68,7 @@ flowchart TB
   tts["Text to Speech<br/>[External software system]<br/>SpeechT5 / OpenVINO"]:::external
   downloader["Model Download<br/>[External software system :8000]<br/>OpenVINO download and export jobs"]:::external
   modelstore[("Shared Voice model storage<br/>[External data store]<br/>shared/models/output/voice")]:::external
-  telemetry["Metrics Manager<br/>[External software system]<br/>FastAPI, Telegraf and hardware collectors"]:::external
+  telemetry["Metrics Manager<br/>[External software system]<br/>Custom metrics API, SSE, Telegraf and hardware collectors"]:::external
   operator -->|Browser interaction| spa
   api -->|"POST /v1/audio/transcriptions<br/>HTTP multipart :8010; JSON response"| asr
   api -->|"POST /v1/audio/speech<br/>HTTP JSON :8011; WAV response"| tts
@@ -77,6 +77,7 @@ flowchart TB
   downloader -->|"Writes exported OpenVINO artifacts"| modelstore
   asr -->|"Loads Whisper artifacts read-only"| modelstore
   tts -->|"Loads SpeechT5 artifacts read-only"| modelstore
+  api -->|"POST /api/v1/metrics<br/>Voice service round-trip timings :9090"| telemetry
   web -->|"GET /metrics/stream<br/>HTTP / SSE :9090"| telemetry
   classDef person fill:#08427b,color:#fff,stroke:#052e56
   classDef internal fill:#1168bd,color:#fff,stroke:#0b4884
@@ -141,7 +142,6 @@ flowchart TB
     device -->|Reads available device families| store
     voice -->|Blob URL props| audio
     voice -->|Timing props| timings
-    timings -->|Duration props| cards
     voice -->|Always mounts below VoiceMetrics in right rail; no video metrics| dashboard
     stream -->|Dispatches Redux actions| store
     dashboard -->|Reads Redux selectors| store
@@ -171,15 +171,19 @@ flowchart TB
     stt["Transcription endpoint<br/>[Component: FastAPI / Pydantic / wave]<br/>Upload, language, WAV and transcript validation"]:::internal
     speech["Speech endpoint<br/>[Component: FastAPI / Pydantic]<br/>Text validation and WAV signature checks"]:::internal
     adapter["Upstream service adapter<br/>[Component: httpx / asyncio / perf_counter]<br/>Bounded reads, errors, timeout, cleanup and timing"]:::internal
+    publisher["Voice metrics publisher<br/>[Component: asyncio / httpx]<br/>Best-effort service round-trip publication"]:::internal
     modelapi["Model routes / ModelManager<br/>[Component: FastAPI / Python]<br/>Catalog, background jobs and installed state"]:::internal
     catalog["Voice model catalog<br/>[Component: DB-backed models / model_variants]<br/>Seeded from vippet/models/*.yaml; requests, variants and install state"]:::internal
     stt -->|Async call, response cap 128 KiB| adapter
     speech -->|Async call, response cap 64 MiB| adapter
+    stt -->|Schedules validated ASR timing| publisher
+    speech -->|Schedules validated TTS timing| publisher
     modelapi -->|Reads download requests and required variants| catalog
     modelapi -->|Persists variant and aggregate install state| catalog
   end
   asr["Audio Analyzer<br/>[External software system]<br/>Transcription service :8010"]:::external
   tts["Text to Speech<br/>[External software system]<br/>Synthesis service :8011"]:::external
+  telemetry["Metrics Manager<br/>[External software system]<br/>Custom metrics API :9090"]:::external
   downloader["Model Download<br/>[External software system]<br/>OpenVINO plugin :8000"]:::external
   modelstore[("Shared Voice model storage<br/>[External data store]<br/>OpenVINO artifacts")]:::external
   web -->|"POST /api/v1/voice/transcriptions<br/>HTTP multipart"| stt
@@ -187,6 +191,7 @@ flowchart TB
   web -->|"Model list, install and job status<br/>HTTP JSON"| modelapi
   adapter -->|"POST /v1/audio/transcriptions<br/>HTTP multipart; JSON response"| asr
   adapter -->|"POST /v1/audio/speech<br/>HTTP JSON; WAV response"| tts
+  publisher -->|"POST /api/v1/metrics<br/>HTTP JSON; 2-second timeout"| telemetry
   modelapi -->|"POST downloads; poll jobs"| downloader
   modelapi -->|"Checks required artifacts"| modelstore
   downloader -->|"Exports into voice target path"| modelstore
@@ -196,12 +201,14 @@ flowchart TB
   classDef external fill:#666,color:#fff,stroke:#444
 ```
 
-The Voice endpoints and upstream adapter currently reside in the same router
-module. The adapter is `call_service` with `create_client`; uploaded audio is
-streamed to Audio Analyzer for validation. The routes publish
-`X-Voice-Service-Duration-Ms` only after successful payload validation. There is
-no shared mutable timing value between requests. Model routes and `ModelManager`
-are separate from the Voice router but run in the same backend container.
+The Voice endpoints, upstream adapter and metrics publisher currently reside in
+the same router module. The adapter is `call_service` with `create_client`;
+uploaded audio is streamed to Audio Analyzer for validation. After successful
+payload validation, each route returns `X-Voice-Service-Duration-Ms` and
+schedules a best-effort publish to Metrics Manager. Publication failures do not
+fail the conversion response. There is no shared mutable timing value between
+requests. Model routes and `ModelManager` are separate from the Voice router but
+run in the same backend container.
 
 ## Flow: Install Voice Models
 

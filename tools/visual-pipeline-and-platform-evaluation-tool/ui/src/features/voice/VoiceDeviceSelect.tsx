@@ -2,6 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAppSelector } from "@/store/hooks";
 import { selectDevices } from "@/store/reducers/devices";
 
@@ -16,6 +23,7 @@ interface VoiceDeviceSelectProps {
 }
 
 const DEVICE_FAMILIES: VoiceInferenceDevice[] = ["CPU", "GPU", "NPU"];
+const SERVICE_DEFAULT_VALUE = "service-default";
 
 export function VoiceDeviceSelect({
   id,
@@ -32,22 +40,29 @@ export function VoiceDeviceSelect({
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
-      <select
-        id={id}
-        value={value}
+      <Select
+        value={value || SERVICE_DEFAULT_VALUE}
         disabled={disabled}
-        onChange={(event) =>
-          onChange(event.target.value as VoiceInferenceDevice | "")
+        onValueChange={(nextValue) =>
+          onChange(
+            nextValue === SERVICE_DEFAULT_VALUE
+              ? ""
+              : (nextValue as VoiceInferenceDevice),
+          )
         }
-        className="border-input h-10 w-full rounded-md border bg-background px-3 text-sm"
       >
-        <option value="">Service default</option>
-        {availableFamilies.map((family) => (
-          <option key={family} value={family}>
-            {family}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger id={id} className="h-10 w-full bg-background">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={SERVICE_DEFAULT_VALUE}>Service default</SelectItem>
+          {availableFamilies.map((family) => (
+            <SelectItem key={family} value={family}>
+              {family}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

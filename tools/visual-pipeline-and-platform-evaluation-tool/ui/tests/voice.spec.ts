@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { Buffer } from "node:buffer";
 import process from "node:process";
 
@@ -27,6 +27,11 @@ function wav(volume = 1): Buffer {
     );
   }
   return content;
+}
+
+async function chooseOption(page: Page, label: string, option: string) {
+  await page.getByRole("combobox", { name: label }).click();
+  await page.getByRole("option", { name: option, exact: true }).click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -90,13 +95,14 @@ test("forwards independent STT and TTS devices", async ({ page }) => {
   });
 
   const sttDevice = page.getByLabel("Speech to text device");
-  await expect(sttDevice.locator("option")).toHaveText([
+  await sttDevice.click();
+  await expect(page.getByRole("option")).toHaveText([
     "Service default",
     "CPU",
     "GPU",
     "NPU",
   ]);
-  await sttDevice.selectOption("GPU");
+  await page.getByRole("option", { name: "GPU", exact: true }).click();
   await page.getByLabel("Audio file").setInputFiles({
     name: "sentence.wav",
     mimeType: "audio/wav",
@@ -107,8 +113,8 @@ test("forwards independent STT and TTS devices", async ({ page }) => {
 
   await page.getByRole("tab", { name: "Text to speech" }).click();
   const ttsDevice = page.getByLabel("Text to speech device");
-  await expect(ttsDevice).toHaveValue("");
-  await ttsDevice.selectOption("NPU");
+  await expect(ttsDevice).toHaveText("Service default");
+  await chooseOption(page, "Text to speech device", "NPU");
   await page.getByLabel("Text input (English)").fill("Hello world");
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(page.getByLabel("Generated speech")).toHaveJSProperty(
@@ -116,7 +122,7 @@ test("forwards independent STT and TTS devices", async ({ page }) => {
     4,
   );
   await page.getByRole("tab", { name: "Speech to text" }).click();
-  await expect(page.getByLabel("Speech to text device")).toHaveValue("GPU");
+  await expect(page.getByLabel("Speech to text device")).toHaveText("GPU");
 });
 
 test("submits audio formats for service-side validation", async ({ page }) => {
@@ -299,8 +305,8 @@ for (const viewport of [
     await expect(
       page.getByRole("button", { name: "Generate speech" }),
     ).toBeDisabled();
-    await expect(page.getByLabel("Voice")).toHaveValue("Ryan");
-    await page.getByLabel("Voice").selectOption("Angus");
+    await expect(page.getByLabel("Voice")).toHaveText("Ryan");
+    await chooseOption(page, "Voice", "Angus");
     const textInput = page.getByLabel("Text input (English)");
     await expect(textInput).toHaveAttribute("maxlength", "200");
     await textInput.fill("Hello world");
@@ -377,7 +383,7 @@ for (const viewport of [
       path: `/tmp/voice-tts-${viewport.width}.png`,
       fullPage: true,
     });
-    await page.getByLabel("Voice").selectOption("Miles");
+    await chooseOption(page, "Voice", "Miles");
     await expect(page.getByLabel("Text input (English)")).toHaveValue(
       "Hello world",
     );
@@ -385,9 +391,11 @@ for (const viewport of [
     await expect(
       page.getByRole("region", { name: "Text to speech metrics" }),
     ).toContainText("Awaiting conversion");
-    await page
-      .getByLabel("Sample text")
-      .selectOption("Welcome to Intel Performance Studio.");
+    await chooseOption(
+      page,
+      "Sample text",
+      "Welcome to Intel Performance Studio.",
+    );
     await expect(page.getByLabel("Text input (English)")).toHaveValue(
       "Welcome to Intel Performance Studio.",
     );
@@ -397,7 +405,7 @@ for (const viewport of [
     ).toContainText("Awaiting conversion");
     await page.getByRole("tab", { name: "Speech to text" }).click();
     await expect(sttMetrics).toContainText("250.00ms");
-    await page.getByLabel("Recognition language").selectOption("pl");
+    await chooseOption(page, "Recognition language", "Polish");
     await expect(sttMetrics).toContainText("Awaiting conversion");
     await page.getByRole("button", { name: "Transcribe", exact: true }).click();
     await expect(sttMetrics).toContainText("250.00ms");
@@ -645,9 +653,7 @@ test("waveform failure preserves audio playback and conversion metrics", async (
   });
   await page.reload();
   await page.getByRole("tab", { name: "Text to speech" }).click();
-  await page
-    .getByLabel("Sample text")
-    .selectOption("Your audio is ready for playback.");
+  await chooseOption(page, "Sample text", "Your audio is ready for playback.");
   await page.route("**/voice/speech", (route) =>
     route.fulfill({
       contentType: "audio/wav",

@@ -16,6 +16,13 @@ import { API_BASE_URL } from "@/api/apiSlice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard";
@@ -36,6 +43,7 @@ const SAMPLE_TEXTS = [
   "Your audio is ready for playback.",
   "Hello, how can I assist you today?",
 ];
+const CUSTOM_SAMPLE_VALUE = "custom";
 const MAX_SPEECH_TEXT_LENGTH = 200;
 
 const SPEECH_VOICES = [
@@ -376,23 +384,29 @@ export function VoiceConversion() {
                       <Label htmlFor="voice-language">
                         Recognition language
                       </Label>
-                      <select
-                        id="voice-language"
+                      <Select
                         value={language}
                         disabled={busy}
-                        onChange={(event) => {
-                          setLanguage(event.target.value);
+                        onValueChange={(value) => {
+                          setLanguage(value);
                           setTranscription(null);
                           setSttMetrics(null);
                         }}
-                        className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
                       >
-                        <option value="en">English</option>
-                        <option value="pl">Polish</option>
-                        <option value="de">German</option>
-                        <option value="fr">French</option>
-                        <option value="es">Spanish</option>
-                      </select>
+                        <SelectTrigger
+                          id="voice-language"
+                          className="h-10 w-full bg-background"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="en">English</SelectItem>
+                          <SelectItem value="pl">Polish</SelectItem>
+                          <SelectItem value="de">German</SelectItem>
+                          <SelectItem value="fr">French</SelectItem>
+                          <SelectItem value="es">Spanish</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="bg-muted p-3">
                       <VoiceDeviceSelect
@@ -438,7 +452,7 @@ export function VoiceConversion() {
                       aria-label="Transcription"
                       readOnly
                       value={transcription ?? ""}
-                      className="min-h-24 resize-y bg-background text-foreground dark:bg-background"
+                      className="min-h-24 resize-y bg-background text-foreground"
                     />
                   </div>
                   {transcription !== null && (
@@ -477,21 +491,27 @@ export function VoiceConversion() {
                   <div className="grid max-w-4xl gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="speech-voice">Voice</Label>
-                      <select
-                        id="speech-voice"
+                      <Select
                         value={voice}
                         disabled={busy}
-                        onChange={(event) =>
-                          updateVoice(event.target.value as SpeechVoice)
+                        onValueChange={(value) =>
+                          updateVoice(value as SpeechVoice)
                         }
-                        className="border-input h-10 w-full rounded-md border bg-background px-3 text-sm"
                       >
-                        {SPEECH_VOICES.map((voiceName) => (
-                          <option key={voiceName} value={voiceName}>
-                            {voiceName}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger
+                          id="speech-voice"
+                          className="h-10 w-full bg-background"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SPEECH_VOICES.map((voiceName) => (
+                            <SelectItem key={voiceName} value={voiceName}>
+                              {voiceName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <VoiceDeviceSelect
                       id="tts-device"
@@ -515,29 +535,39 @@ export function VoiceConversion() {
                     value={text}
                     disabled={busy}
                     onChange={(event) => updateText(event.target.value)}
-                    className="min-h-32 resize-y bg-background text-foreground dark:bg-background"
+                    className="min-h-32 resize-y bg-background text-foreground"
                   />
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <Label htmlFor="voice-sample" className="text-xs">
                         Sample text
                       </Label>
-                      <select
-                        id="voice-sample"
+                      <Select
                         disabled={busy}
-                        value={SAMPLE_TEXTS.includes(text) ? text : ""}
-                        onChange={(event) => updateText(event.target.value)}
-                        className="h-9 w-full max-w-80 min-w-0 rounded-sm border border-border bg-background px-2 text-xs sm:w-80"
+                        value={
+                          SAMPLE_TEXTS.includes(text)
+                            ? text
+                            : CUSTOM_SAMPLE_VALUE
+                        }
+                        onValueChange={updateText}
                       >
-                        <option value="" disabled>
-                          Select a sample
-                        </option>
-                        {SAMPLE_TEXTS.map((sample) => (
-                          <option key={sample} value={sample}>
-                            {sample}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger
+                          id="voice-sample"
+                          className="h-9 w-full max-w-80 min-w-0 bg-background text-xs sm:w-80"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={CUSTOM_SAMPLE_VALUE} disabled>
+                            Select a sample
+                          </SelectItem>
+                          {SAMPLE_TEXTS.map((sample) => (
+                            <SelectItem key={sample} value={sample}>
+                              {sample}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <p className="text-muted-foreground text-right text-xs">
                       {text.length} / {MAX_SPEECH_TEXT_LENGTH}
