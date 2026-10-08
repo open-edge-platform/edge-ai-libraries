@@ -5,6 +5,23 @@
 #
 version: '3.6'
 services:
+  ia-influxdb3-data-init:
+    image: ${DOCKER_REGISTRY}${TIME_SERIES_ANALYTICS_IMAGE}:${IMAGE_SUFFIX:-latest}${WEEKLY_BUILD_DATE:+-${WEEKLY_BUILD_DATE}}${WEEKLY_BUILD_DATE:+-weekly}
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        if [ ! -s /run/secrets/admin-token ]; then
+          influxdb3 create token --admin --offline --output-file /run/secrets/admin-token
+        fi
+        chown -R ${TIMESERIES_UID}:${TIMESERIES_UID} /var/lib/influxdb3/data
+        chown 0:1500 /run/secrets/admin-token
+        chmod 440 /run/secrets/admin-token
+    restart: "no"
+    volumes:
+      - vol_influxdb3_data:/var/lib/influxdb3/data
+      - vol_influxdb3_secrets:/run/secrets
+
   ia-time-series-analytics-microservice:
     build:
       context: $PWD/../
@@ -12,13 +29,13 @@ services:
       args:
         TIMESERIES_UID: ${TIMESERIES_UID}
         TIMESERIES_USER_NAME: ${TIMESERIES_USER_NAME}
-        PYTHON_VERSION: "3.14"
-        no_proxy: ${timeseries_no_proxy}
-        INSTALL_SOURCES: "no"
     container_name: ia-time-series-analytics-microservice
     hostname: ia-time-series-analytics-microservice
     image: ${DOCKER_REGISTRY}${TIME_SERIES_ANALYTICS_IMAGE}:${IMAGE_SUFFIX:-latest}${WEEKLY_BUILD_DATE:+-${WEEKLY_BUILD_DATE}}${WEEKLY_BUILD_DATE:+-weekly}
     restart: unless-stopped
+    depends_on:
+      ia-influxdb3-data-init:
+        condition: service_completed_successfully
     security_opt:
     - no-new-privileges
     read_only: true
@@ -28,12 +45,11 @@ services:
       timeout: 5s
       retries: 20
     environment:
-      no_proxy: "ia-time-series-analytics-microservice,ia-influxdb3-core,ia-mqtt-broker,ia-opcua-server,localhost"
-      NO_PROXY: "ia-time-series-analytics-microservice,ia-influxdb3-core,ia-mqtt-broker,ia-opcua-server,localhost"
+      no_proxy: "ia-time-series-analytics-microservice,localhost,127.0.0.1"
+      NO_PROXY: "ia-time-series-analytics-microservice,localhost,127.0.0.1"
       PROFILING_MODE: "false"
-      INFLUXDB3_URL: ${INFLUXDB3_URL:-http://ia-influxdb3-core:8181}
+      INFLUXDB3_URL: http://localhost:8181
       INFLUXDB3_ADMIN_TOKEN_FILE: /run/secrets/admin-token
-      INFLUXDB3_UDF_PLUGIN_DIR: influx3_windturbine
       LOG_LEVEL: ${LOG_LEVEL}
       INFLUXDB_DBNAME: datain
       PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
@@ -43,9 +59,11 @@ services:
     - timeseries_network
     ports:
     - 5000:5000
+    - "127.0.0.1:8181:8181"
     volumes:
     - "vol_temp_time_series_analytics_microservice:/tmp/"
-    - ${INFLUXDB3_ADMIN_TOKEN_FILE:-./.secrets/admin-token.json}:/run/secrets/admin-token:ro
+    - vol_influxdb3_data:/var/lib/influxdb3/data
+    - vol_influxdb3_secrets:/run/secrets:ro
     - /dev/dri:/dev/dri:ro
     - "/run/udev:/run/udev:ro"
     devices:
@@ -67,6 +85,12 @@ networks:
     driver: bridge
 
 volumes:
+  vol_influxdb3_data:
+    name: tsam_standalone_influxdb3_data
+    driver: local
+  vol_influxdb3_secrets:
+    name: tsam_standalone_influxdb3_secrets
+    driver: local
   vol_temp_time_series_analytics_microservice:
     driver: local
     driver_opts:

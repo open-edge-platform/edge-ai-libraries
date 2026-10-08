@@ -4,7 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 import base64
+import gzip
+import io
 import sys
+import tarfile
 import pytest
 from unittest import mock
 from fastapi.testclient import TestClient
@@ -43,6 +46,37 @@ def test_health_check_not_running(monkeypatch):
     resp = client.get("/health")
     assert resp.status_code == 503
     assert "InfluxDB 3 Core is not running" in resp.json()["status"]
+
+def test_check_udf_package_defaults_plugin_to_udf_name(monkeypatch, tmp_path):
+    plugin_dir = tmp_path / "temperature_classifier" / "udfs" / "temperature_classifier"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "__init__.py").touch()
+    monkeypatch.setattr(main.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.delenv("INFLUXDB3_UDF_PLUGIN_DIR", raising=False)
+
+    assert main.check_udf_package(
+        {"udfs": {"name": "temperature_classifier"}},
+        "temperature_classifier",
+    )
+
+def test_upload_udf_package_accepts_temperature_plugin_without_override(monkeypatch, tmp_path):
+    plugin_content = b"def process_writes(influxdb3_local, table_batches, args=None): pass\n"
+    archive_buffer = io.BytesIO()
+    with tarfile.open(fileobj=archive_buffer, mode="w") as archive:
+        plugin_info = tarfile.TarInfo("udfs/temperature_classifier/__init__.py")
+        plugin_info.size = len(plugin_content)
+        archive.addfile(plugin_info, io.BytesIO(plugin_content))
+
+    monkeypatch.setattr(main.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setenv("SAMPLE_APP", "temperature_classifier")
+    monkeypatch.delenv("INFLUXDB3_UDF_PLUGIN_DIR", raising=False)
+    response = client.post(
+        "/udfs/package",
+        files={"file": ("temperature_classifier.tar", archive_buffer.getvalue(), "application/x-tar")},
+    )
+
+    assert response.status_code == 200
+    assert (tmp_path / "temperature_classifier" / "udfs" / "temperature_classifier" / "__init__.py").is_file()
 
 def test_receive_data_success(monkeypatch):
     backend = mock.Mock()
@@ -85,6 +119,23 @@ def test_receive_line_protocol_forwards_to_core(monkeypatch):
         "/write?db=datain&precision=ns",
         content=line,
         headers={"Authorization": authorization},
+    )
+
+    assert resp.status_code == 204
+    backend.write_line_protocol.assert_called_once_with(
+        line, database="datain", precision="nanosecond"
+    )
+
+def test_receive_gzip_line_protocol_forwards_to_core(monkeypatch):
+    backend = mock.Mock(token="test-token")
+    monkeypatch.setattr(main, "get_influxdb3_backend", lambda: backend)
+    line = "wind-turbine-data,source=test wind_speed=8.83 1718000000000000000"
+    authorization = "Basic " + base64.b64encode(b"token:test-token").decode("ascii")
+
+    resp = client.post(
+        "/write?db=datain&precision=ns",
+        content=gzip.compress(line.encode("utf-8")),
+        headers={"Authorization": authorization, "Content-Encoding": "gzip"},
     )
 
     assert resp.status_code == 204

@@ -39,6 +39,50 @@ lp-cores|lpe-cores)
     ;;
 esac
 echo "Using core pinning: ${taskset_cmds[*]}"
-exec "${taskset_cmds[@]}" python3 main.py
+
+core_pid=
+api_pid=
+cleanup() {
+    trap - EXIT INT TERM
+    [[ -n "$api_pid" ]] && kill -TERM "$api_pid" 2>/dev/null || true
+    [[ -n "$core_pid" ]] && kill -TERM "$core_pid" 2>/dev/null || true
+    [[ -n "$api_pid" ]] && wait "$api_pid" 2>/dev/null || true
+    [[ -n "$core_pid" ]] && wait "$core_pid" 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+/usr/bin/entrypoint.sh serve \
+    --node-id=windturbine \
+    --object-store=file \
+    --data-dir=/var/lib/influxdb3/data \
+    --plugin-dir=/tmp \
+    --admin-token-file="${INFLUXDB3_ADMIN_TOKEN_FILE:-/run/secrets/admin-token}" &
+core_pid=$!
+
+core_ready=false
+for attempt in $(seq 1 60); do
+    if ! kill -0 "$core_pid" 2>/dev/null; then
+        echo "InfluxDB 3 Core exited before becoming ready."
+        exit 1
+    fi
+    status=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8181/health || true)
+    if [[ "$status" == "200" || "$status" == "401" ]]; then
+        core_ready=true
+        break
+    fi
+    sleep 1
+done
+
+if [[ "$core_ready" != "true" ]]; then
+    echo "Timed out waiting for InfluxDB 3 Core to become ready."
+    exit 1
+fi
+
+"${taskset_cmds[@]}" python3 /app/main.py &
+api_pid=$!
+wait -n "$core_pid" "$api_pid"
+exit $?
 
 

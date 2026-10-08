@@ -4,9 +4,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-ARG PYTHON_VERSION=3.14
-FROM python:${PYTHON_VERSION}-slim-bookworm
+FROM influxdb:3.12.0-core
 
+USER root
+
+ARG TIMESERIES_UID=2999
+ARG TIMESERIES_USER_NAME=timeseries_user
+
+RUN groupadd --gid "${TIMESERIES_UID}" "${TIMESERIES_USER_NAME}" && \
+    useradd --no-log-init --system --uid "${TIMESERIES_UID}" \
+        --gid "${TIMESERIES_UID}" --create-home "${TIMESERIES_USER_NAME}"
 
 ARG INSTALL_DRIVER_VERSION="26.27.39122"
 ENV INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
@@ -16,7 +23,7 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
-    wget intel-gpu-tools libgomp1 && \
+    python3 python3-venv python3-pip wget intel-gpu-tools libgomp1 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
 
@@ -25,18 +32,12 @@ RUN chmod +x /tmp/install_gpu_drivers.sh && \
     /tmp/install_gpu_drivers.sh && \
     apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
 
-ARG TIMESERIES_UID
-ARG TIMESERIES_USER_NAME
-
-# Create non-root user and group in a single layer for smaller image and better caching
-RUN groupadd --gid $TIMESERIES_UID $TIMESERIES_USER_NAME && \
-    useradd --no-log-init --system --uid $TIMESERIES_UID --gid $TIMESERIES_UID --create-home $TIMESERIES_USER_NAME
-
 COPY ./requirements.txt .
 
-# Install Python dependencies efficiently and clean up cache to reduce image size
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN python3 -m venv /opt/tsam-venv && \
+    /opt/tsam-venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /opt/tsam-venv/bin/pip install --no-cache-dir -r requirements.txt
+ENV PATH="/opt/tsam-venv/bin:${PATH}"
 
 COPY ./src/opcua_alerts.py ./src/influxdb3_backend.py ./src/main.py /app/
 
@@ -82,16 +83,10 @@ WORKDIR /app
 # Remove git and clean up to reduce image size
 # Clean up without breaking Intel GPU packages
 RUN rm -rf /var/lib/apt/lists/* \
-           /tmp/* \
-           /var/tmp/* \
-           /root/.cache/pip \
-           /timeseries_user/.cache/pip || true
+           /root/.cache/pip
 
-
-RUN chown -R $TIMESERIES_USER_NAME:$TIMESERIES_USER_NAME /app
-
-# Switch to non-root user for security
-USER $TIMESERIES_USER_NAME
+RUN chown -R "${TIMESERIES_USER_NAME}:${TIMESERIES_USER_NAME}" /app
+USER ${TIMESERIES_USER_NAME}
 
 
 
@@ -108,3 +103,4 @@ HEALTHCHECK --interval=5m CMD exit 0
 # The run.sh script uses detect-cores.sh together with CORE_PINNING (if set)
 # to determine and apply the appropriate core affinity at container startup.
 ENTRYPOINT ["./run.sh"]
+CMD []

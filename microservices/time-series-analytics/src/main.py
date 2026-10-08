@@ -12,6 +12,7 @@ configuration management, and OPC UA alerts.
 """
 import base64
 import binascii
+import gzip
 import hmac
 import io
 import os
@@ -22,13 +23,14 @@ import json
 import tarfile
 import tempfile
 from typing import Optional
+import zlib
 import requests
 
 from fastapi import FastAPI, File, HTTPException, Response, status, Request, Query, BackgroundTasks, UploadFile
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
 import uvicorn
-from influxdb3_backend import InfluxDB3Backend, InfluxDB3Error
+from influxdb3_backend import InfluxDB3Backend, InfluxDB3Error, udf_plugin_directory
 from opcua_alerts import OpcuaAlerts
 
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -116,7 +118,7 @@ def check_udf_package(service_config, dir_name):
         return False
     root = os.path.realpath(os.path.join(tempfile.gettempdir(), dir_name))
     plugin_dir = os.path.realpath(os.path.join(
-        root, "udfs", os.getenv("INFLUXDB3_UDF_PLUGIN_DIR", "influx3_windturbine")
+        root, "udfs", udf_plugin_directory(udf_name)
     ))
     if os.path.commonpath((root, plugin_dir)) != root:
         return False
@@ -355,7 +357,19 @@ async def receive_line_protocol(request: Request, db: str = Query("datain"), pre
                 detail="Invalid InfluxDB 3 write credentials",
                 headers={"WWW-Authenticate": "Basic"},
             )
-        line_protocol = (await request.body()).decode("utf-8")
+        body = await request.body()
+        content_encoding = request.headers.get("content-encoding", "identity").lower()
+        if content_encoding == "gzip":
+            try:
+                body = gzip.decompress(body)
+            except (OSError, EOFError, zlib.error) as error:
+                raise HTTPException(status_code=400, detail="Request body is not valid gzip data") from error
+        elif content_encoding not in ("", "identity"):
+            raise HTTPException(status_code=415, detail=f"Unsupported Content-Encoding: {content_encoding}")
+        try:
+            line_protocol = body.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise HTTPException(status_code=400, detail="Line protocol body must be UTF-8") from error
         if not line_protocol:
             raise HTTPException(status_code=400, detail="Line protocol body is empty")
         get_influxdb3_backend().write_line_protocol(
@@ -682,13 +696,31 @@ def _scan_tar(tf: tarfile.TarFile, archive_size_bytes: int) -> None:
                     return True
         return False
 
-    plugin_directory = os.getenv("INFLUXDB3_UDF_PLUGIN_DIR", "influx3_windturbine")
-    plugin_entry = f"udfs/{plugin_directory}/__init__.py"
-    if plugin_entry not in file_names:
+    configured_plugin_directory = os.getenv("INFLUXDB3_UDF_PLUGIN_DIR")
+    plugin_entries = [
+        name for name in file_names
+        if len(name.split("/")) == 3
+        and name.split("/")[0] == "udfs"
+        and name.split("/")[2] == "__init__.py"
+    ]
+    if configured_plugin_directory:
+        plugin_entry = f"udfs/{configured_plugin_directory}/__init__.py"
+        if plugin_entry not in file_names:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tar archive must contain the InfluxDB 3 plugin entry '{plugin_entry}'."
+            )
+    elif len(plugin_entries) != 1:
         raise HTTPException(
             status_code=400,
-            detail=f"Tar archive must contain the InfluxDB 3 plugin entry '{plugin_entry}'."
+            detail="Tar archive must contain exactly one InfluxDB 3 plugin entry under 'udfs/<plugin>/__init__.py'."
         )
+    else:
+        import re
+
+        plugin_directory = plugin_entries[0].split("/")[1]
+        if plugin_directory in {".", ".."} or not re.fullmatch(r"[A-Za-z0-9._-]+", plugin_directory):
+            raise HTTPException(status_code=400, detail="Invalid InfluxDB 3 plugin directory in tar archive.")
 
     # models/ is optional — log a notice if absent
     if not _has_file_in_folder(file_names, "models"):

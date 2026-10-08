@@ -12,6 +12,10 @@ class InfluxDB3Error(RuntimeError):
     pass
 
 
+def udf_plugin_directory(udf_name):
+    return os.getenv("INFLUXDB3_UDF_PLUGIN_DIR") or udf_name.removesuffix("_batch")
+
+
 class InfluxDB3Backend:
     def __init__(self, base_url=None, token=None, database=None):
         self.base_url = (base_url or os.getenv("INFLUXDB3_URL", "http://localhost:8181")).rstrip("/")
@@ -99,10 +103,10 @@ class InfluxDB3Backend:
         trigger_name = udf_name
         alternate_name = base_name if is_batch else f"{base_name}_batch"
         trigger_specification = "every:20m" if is_batch else os.getenv(
-            "INFLUXDB3_TRIGGER_SPEC", "table:wind-turbine-data"
-        )
+            "INFLUXDB3_TRIGGER_SPEC"
+        ) or "table:point_data"
         sample_app = sample_app or os.getenv("SAMPLE_APP", udf_name)
-        plugin_directory = os.getenv("INFLUXDB3_UDF_PLUGIN_DIR", "influx3_windturbine")
+        plugin_directory = udf_plugin_directory(udf_name)
         plugin_filename = f"{sample_app}/udfs/{plugin_directory}"
 
         self.ensure_database()
