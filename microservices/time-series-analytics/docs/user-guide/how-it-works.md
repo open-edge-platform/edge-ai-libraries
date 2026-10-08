@@ -7,17 +7,19 @@ The input data that this microservice takes can be broadly divided into two:
 - **Input payload and configuration management via REST APIs**
   a. REST clients sending the data in JSON format
   b. Telegraf services sending the data in line protocol format
-- **UDF deployment package** (comprises a Core plugin, optional requirements, and models)
+- **UDF deployment package** (comprises the UDF, TICKScripts, models)
   a. Through Volume mounts OR docker cp OR kubectl cp command
 
 ![Time Series Analytics Microservice High Level Architecture](./_assets/Time-Series-Analytics-Microservice-Architecture.png)
 
-The Wind Turbine sample sends OPC-UA or MQTT measurements through Telegraf into InfluxDB 3
-Core. Core triggers the configured Python plugin, stores processed output in Core, and can
-publish MQTT alerts or forward OPC-UA alerts through the Time Series Analytics API.
+As a default flow, we have a sample temperature simulator to ingest data in JSON format and
+have pre-packaged simple process based User Defined Function (UDF) in `Time Series Analytics`
+microservice to flag the temperature points if they do not fall under a range as anomalies.
+The output is seen in the logs of the microservice now.
 
-For the complete data flow, UDF package, and alert configuration, refer to the Wind Turbine
-sample documentation:
+For understanding the other ways of ingesting data, UDF deployment package configuration,
+publishing alerts and writing data back to InfluxDB via TICKScripts, refer to the
+following documentation for Time Series sample apps:
 
 - [Overview](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/index.html)
 - [Get Started](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/get-started.html)

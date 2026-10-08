@@ -19,27 +19,26 @@ The response displays the current configuration of the Time Series Analytics Mic
 1. Open the Swagger UI in your browser.
 2. Find the `POST /config` endpoint.
 3. Expand the endpoint, enter the new configuration in the request body, and click **Execute**.
-This enables dynamic configuration at runtime. The service registers or replaces the corresponding Processing Engine trigger in Core.
+This enables dynamic configuration at runtime. The service will apply the updated configuration and start with the new configuration.
 
 > [!NOTE]
-> The suite posts its app configuration after uploading the UDF package; this configuration is held by the service and applied to Core.
+> If you restart the Time Series Analytics Microservice, it will start with the default configuration present in the `config.json` file.
 
 ### Send input data to the Time Series Analytics Microservice
 
 1. Open the Swagger UI in your browser.
 2. Find the `POST /input` endpoint.
 3. The input data consists of keys `topic`, `tags`(optional), `fields` and `timestamp`(optional).
-    Below is an example Wind Turbine input point:
+   Below is an example configuration for `temperature_classifier` UDF input:
 
     ```json
     {
-    "topic": "wind-turbine-data",
+    "topic": "point_data",
     "tags": {
         "additionalProp1": {}
     },
     "fields": {
-        "wind_speed": 8.83,
-        "grid_active_power": 734.0
+        "temperature": 20
     },
     "timestamp": 0
     }
@@ -71,4 +70,4 @@ The service will use the input for processing data.
 1. Open the Swagger UI in your browser.
 2. Locate the `GET /health` endpoint.
 3. Expand the endpoint and click **Execute**.
-The response displays whether InfluxDB 3 Core is available to the Time Series Analytics Microservice.
+The response displays the current status of Kapacitor daemon of the Time Series Analytics Microservice.
