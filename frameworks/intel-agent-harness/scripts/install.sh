@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Intel-platform installer payload — the actual install flow, invoked by the
 # thin bootstrap at the repo root (../install.sh). Staged install flow:
-# third-party notice, express install, host prep (GPU + Docker), Node.js,
-# CLI install, onboarding — with a Docker-based sandbox manager for running
+# express install, host prep (GPU + Docker), Node.js, inference routing,
+# agent install, onboarding — with a Docker-based sandbox manager for running
 # containerized workloads (no CDI needed; Intel render nodes pass through
 # via --device).
 set -euo pipefail
