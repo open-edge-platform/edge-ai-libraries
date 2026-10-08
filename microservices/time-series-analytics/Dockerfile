@@ -44,9 +44,9 @@ WORKDIR /app
 ARG KAPACITOR_VERSION
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    wget intel-gpu-tools libgomp1 && \
+    curl libgomp1 && \
     mkdir -p /etc/init.d && \
-    wget -O /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_VERSION}-1_amd64.deb" || exit 1 && \
+    curl --fail --location --output /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_VERSION}-1_amd64.deb" || exit 1 && \
     dpkg -i /tmp/kapacitor.deb || true && apt-get install -y --no-install-recommends -f && \
     apt-get clean && \
     rm -f /tmp/kapacitor.deb && \
@@ -68,10 +68,19 @@ RUN groupadd --gid $TIMESERIES_UID $TIMESERIES_USER_NAME && \
     useradd --no-log-init --system --uid $TIMESERIES_UID --gid $TIMESERIES_UID --create-home $TIMESERIES_USER_NAME
 
 COPY ./requirements.txt .
+COPY ./scripts/deduplicate_native_libraries.sh /app/
+COPY ./scripts/strip_wheel_libraries.sh /app/
 
-# Install Python dependencies efficiently and clean up cache to reduce image size
+# Strip non-runtime symbols only from pip-installed libraries in this layer;
+# keep binutils out of the runtime image and preserve system GPU driver files.
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends binutils && \
+    sh /app/strip_wheel_libraries.sh && \
+    sh /app/deduplicate_native_libraries.sh && \
+    apt-get purge -y --auto-remove binutils && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
