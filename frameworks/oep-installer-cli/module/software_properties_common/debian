@@ -1,0 +1,11 @@
+
+debian_40_install_software_properties_common () {
+  ensure_apt_install_package software-properties-common
+}
+
+debian_40_sbom_software_properties_common () {
+  cat <<EOF
+$(ensure_sbom_format pkg-list software-properties-common)
+EOF
+}
+

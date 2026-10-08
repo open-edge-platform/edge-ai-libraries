@@ -68,7 +68,7 @@ debian_90_install_nicu_warmer () {
     for model1 in "${models[@]}"; do
       [ -e ${model1#* } ] || {
         echo "Downloading ${model1%% *}..."
-        curl -sSf -L --retry 5 --retry-all-errors --retry-delay 2 "${model1%% *}" -o ${model1#* }
+        ensure_fetch "${model1%% *}" "${model1#* }"
       }
     done
 

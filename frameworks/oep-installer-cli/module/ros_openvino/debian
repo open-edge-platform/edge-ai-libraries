@@ -48,7 +48,7 @@ configure_ros_openvino () {
 }
 
 debian_55_profile_ros_openvino () {
-  echo "curl gpg ros2 edge_base libze1 debconf_utils"
+  echo "curl gnupg ros2 edge_base libze1 debconf_utils"
 }
 
 verify_ros_openvino () {
