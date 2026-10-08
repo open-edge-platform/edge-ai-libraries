@@ -9,10 +9,17 @@ import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 
-from src.api.main import _submit_startup_models, app
+from src.api.main import (
+    _submit_startup_models,
+    app,
+    mcp_http_app,
+    model_manager,
+    plugin_registry,
+)
 from src.api.models import ModelHub, ModelType, ModelPrecision, DeviceType
 from src.core.model_submission import ModelSubmissionError
 from src.core.startup_config import StartupModelsConfig
+from src.mcp import server as mcp_server
 
 
 class TestAPIMain:
@@ -63,6 +70,12 @@ class TestAPIMain:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
+
+    def test_mcp_uses_api_runtime(self):
+        """The embedded MCP server shares REST job and plugin state."""
+        assert mcp_server.model_manager is model_manager
+        assert mcp_server.plugin_registry is plugin_registry
+        assert any(route.path == "/mcp" for route in mcp_http_app.routes)
 
     @patch("src.api.main.submit_models", new_callable=AsyncMock)
     async def test_startup_models_use_overrides_and_isolate_failures(self, mock_submit):
