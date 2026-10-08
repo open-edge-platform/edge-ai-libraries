@@ -184,6 +184,39 @@ for (const viewport of [
         exact: true,
       }),
     ).toBeVisible();
+    const sttMetrics = page.getByRole("region", {
+      name: "Speech to text metrics",
+    });
+    const metricsRail = page.getByRole("complementary", {
+      name: "Performance and platform metrics",
+    });
+    await expect(sttMetrics).toContainText("Awaiting conversion");
+    await expect(
+      sttMetrics.getByRole("heading", { name: "Recent service round trips" }),
+    ).toHaveCount(0);
+    await expect(
+      sttMetrics.getByText("Requested device", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      sttMetrics.getByText("Input audio", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      metricsRail.getByRole("heading", { name: "CPU Usage", exact: true }),
+    ).toBeVisible();
+    const workflowBox = await page
+      .getByRole("heading", {
+        name: "Speech Recognition Workload Configuration",
+        exact: true,
+      })
+      .boundingBox();
+    const metricsBox = await metricsRail.boundingBox();
+    expect(workflowBox).not.toBeNull();
+    expect(metricsBox).not.toBeNull();
+    if (viewport.width >= 1280) {
+      expect(metricsBox!.x).toBeGreaterThan(workflowBox!.x);
+    } else {
+      expect(metricsBox!.y).toBeGreaterThan(workflowBox!.y);
+    }
     await page.route("**/voice/transcriptions", async (route) => {
       expect(route.request().headers()["content-type"]).toContain(
         "multipart/form-data",
@@ -234,14 +267,10 @@ for (const viewport of [
       path: `/tmp/voice-redesign-stt-${viewport.width}.png`,
       fullPage: true,
     });
-    const sttMetrics = page.getByRole("region", {
-      name: "Speech to text metrics",
-    });
     await expect(sttMetrics).toContainText("250.00ms");
     const requestDuration = sttMetrics
       .getByRole("heading", { name: "Request duration" })
-      .locator("..")
-      .locator("p");
+      .locator("xpath=../../p");
     await expect(requestDuration).toHaveText(/^\d+\.\d{2}ms$/);
     expect(
       Number.parseFloat((await requestDuration.textContent())!),
@@ -254,6 +283,18 @@ for (const viewport of [
     await page.getByRole("tab", { name: "Text to speech" }).click();
     await expect(
       page.getByRole("region", { name: "Text to speech metrics" }),
+    ).toContainText("Awaiting conversion");
+    const ttsMetricsPanel = page.getByRole("region", {
+      name: "Text to speech metrics",
+    });
+    await expect(
+      ttsMetricsPanel.getByText("Requested device", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      ttsMetricsPanel.getByText("Characters", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      ttsMetricsPanel.getByText("Output audio", { exact: true }),
     ).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Generate speech" }),
@@ -263,7 +304,12 @@ for (const viewport of [
     const textInput = page.getByLabel("Text input (English)");
     await expect(textInput).toHaveAttribute("maxlength", "200");
     await textInput.fill("Hello world");
-    await expect(page.getByText("11 / 200", { exact: true })).toBeVisible();
+    await expect(
+      page
+        .getByRole("tabpanel", { name: "Text to speech" })
+        .getByText("11 / 200", { exact: true })
+        .first(),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Generate speech" }).click();
     await expect(page.getByLabel("Generated speech")).toHaveJSProperty(
       "readyState",
@@ -338,7 +384,7 @@ for (const viewport of [
     await expect(page.getByLabel("Generated speech")).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "Text to speech metrics" }),
-    ).toHaveCount(0);
+    ).toContainText("Awaiting conversion");
     await page
       .getByLabel("Sample text")
       .selectOption("Welcome to Intel Performance Studio.");
@@ -348,11 +394,11 @@ for (const viewport of [
     await expect(page.getByLabel("Generated speech")).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "Text to speech metrics" }),
-    ).toHaveCount(0);
+    ).toContainText("Awaiting conversion");
     await page.getByRole("tab", { name: "Speech to text" }).click();
     await expect(sttMetrics).toContainText("250.00ms");
     await page.getByLabel("Recognition language").selectOption("pl");
-    await expect(sttMetrics).toHaveCount(0);
+    await expect(sttMetrics).toContainText("Awaiting conversion");
     await page.getByRole("button", { name: "Transcribe", exact: true }).click();
     await expect(sttMetrics).toContainText("250.00ms");
     await page.getByLabel("Audio file").setInputFiles({
@@ -360,16 +406,20 @@ for (const viewport of [
       mimeType: "audio/wav",
       buffer: wav(),
     });
-    await expect(sttMetrics).toHaveCount(0);
-    await page
-      .getByText("Platform metrics (system-wide)", { exact: true })
-      .click();
+    await expect(sttMetrics).toContainText("Awaiting conversion");
     await expect(
-      page.getByRole("heading", { name: "CPU Usage", exact: true }),
+      metricsRail.getByRole("heading", { name: "CPU Usage", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: /Frame Rate|Latency/ }),
+      metricsRail.getByRole("heading", { name: /Frame Rate|Latency/ }),
     ).toHaveCount(0);
+    const voiceMetricsBox = await sttMetrics.boundingBox();
+    const platformMetricsBox = await metricsRail
+      .getByRole("heading", { name: "CPU Usage", exact: true })
+      .boundingBox();
+    expect(voiceMetricsBox).not.toBeNull();
+    expect(platformMetricsBox).not.toBeNull();
+    expect(platformMetricsBox!.y).toBeGreaterThan(voiceMetricsBox!.y);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -454,7 +504,7 @@ test("service failure and cancellation", async ({ page }) => {
   await expect(page.getByRole("alert")).toHaveText(
     "The speech service is unavailable.",
   );
-  await expect(metrics).toHaveCount(0);
+  await expect(metrics).toContainText("Conversion failed");
   let release: (() => void) | undefined;
   const pending = new Promise<void>((resolve) => {
     release = resolve;
@@ -478,7 +528,7 @@ test("service failure and cancellation", async ({ page }) => {
     page.getByRole("button", { name: "Generate speech" }),
   ).toBeEnabled();
   await expect(page.getByLabel("Generated speech")).toHaveCount(0);
-  await expect(metrics).toHaveCount(0);
+  await expect(metrics).toContainText("Awaiting conversion");
   await page.route("**/voice/speech", (route) =>
     route.fulfill({
       contentType: "audio/wav",
@@ -528,19 +578,14 @@ test("missing or invalid service timing does not break conversion", async ({
     ).toBeVisible();
     if (value === "0") {
       await expect(metrics).toContainText("0.00ms");
-      await expect(
-        metrics.getByText("Service round trip unavailable"),
-      ).toHaveCount(0);
     } else {
-      await expect(
-        metrics.getByText("Service round trip unavailable"),
-      ).toBeVisible();
-      await expect(
-        metrics.getByRole("heading", {
+      const serviceDuration = metrics
+        .getByRole("heading", {
           name: "Service round trip",
           exact: true,
-        }),
-      ).toHaveCount(0);
+        })
+        .locator("xpath=../../p");
+      await expect(serviceDuration).toHaveText("--");
     }
   }
 });

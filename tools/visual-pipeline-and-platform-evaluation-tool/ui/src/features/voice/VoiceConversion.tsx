@@ -20,7 +20,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard";
 import { captureWav } from "./recording";
-import { VoiceMetrics, type ConversionMetrics } from "./VoiceMetrics";
+import {
+  VoiceMetrics,
+  type ConversionMetrics,
+  type VoiceMetricsState,
+} from "./VoiceMetrics";
 import { VoiceAudio } from "./VoiceAudio";
 import {
   VoiceDeviceSelect,
@@ -90,6 +94,16 @@ function useAudioUrl(file: Blob | null): string | undefined {
   return url;
 }
 
+function getMetricsState(
+  metrics: ConversionMetrics | null,
+  running: boolean,
+  failed: boolean,
+): VoiceMetricsState {
+  if (running) return "running";
+  if (failed) return "error";
+  return metrics ? "success" : "idle";
+}
+
 export function VoiceConversion() {
   const [activeTab, setActiveTab] = useState("stt");
   const [file, setFile] = useState<File | null>(null);
@@ -102,7 +116,6 @@ export function VoiceConversion() {
   const [speech, setSpeech] = useState<Blob | null>(null);
   const [sttMetrics, setSttMetrics] = useState<ConversionMetrics | null>(null);
   const [ttsMetrics, setTtsMetrics] = useState<ConversionMetrics | null>(null);
-  const [showPlatformMetrics, setShowPlatformMetrics] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<
     | "idle"
@@ -273,280 +286,314 @@ export function VoiceConversion() {
               Text to speech
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="stt" className="space-y-6">
-            <div className="space-y-4 bg-background p-4 sm:p-5">
-              <h2 className="text-base font-semibold">
-                Speech Recognition Workload Configuration
-              </h2>
-              <section className="min-w-0 space-y-4">
-                <h3 className="text-sm font-medium">Select source</h3>
-                <div className="grid gap-4 md:max-w-4xl md:grid-cols-2">
-                  <div className="space-y-3 rounded-sm bg-muted p-3">
-                    <h4 className="text-xs text-muted-foreground">
-                      Record audio
-                    </h4>
-                    <Button
-                      variant="outline"
-                      className="h-24 w-full flex-col gap-2 whitespace-normal border-border bg-background"
-                      disabled={busy && status !== "recording"}
-                      onClick={() => {
-                        if (status === "recording") {
-                          stopRecording.current?.();
-                          setStatus("encoding");
-                        } else {
-                          void run("record");
+          <TabsContent value="stt">
+            <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(32rem,40rem)] xl:items-start">
+              <div className="min-w-0 space-y-4 bg-background p-4 sm:p-5">
+                <h2 className="text-base font-semibold">
+                  Speech Recognition Workload Configuration
+                </h2>
+                <section className="min-w-0 space-y-4">
+                  <h3 className="text-sm font-medium">Select source</h3>
+                  <div className="grid gap-4 md:max-w-4xl md:grid-cols-2">
+                    <div className="space-y-3 rounded-sm bg-muted p-3">
+                      <h4 className="text-xs text-muted-foreground">
+                        Record audio
+                      </h4>
+                      <Button
+                        variant="outline"
+                        className="h-24 w-full flex-col gap-2 whitespace-normal border-border bg-background"
+                        disabled={busy && status !== "recording"}
+                        onClick={() => {
+                          if (status === "recording") {
+                            stopRecording.current?.();
+                            setStatus("encoding");
+                          } else {
+                            void run("record");
+                          }
+                        }}
+                        aria-label={
+                          status === "recording" ? "Stop recording" : "Record"
                         }
-                      }}
-                      aria-label={
-                        status === "recording" ? "Stop recording" : "Record"
-                      }
+                      >
+                        {status === "recording" ? (
+                          <Square className="size-6 text-destructive" />
+                        ) : (
+                          <Mic className="size-6 text-brand-accent" />
+                        )}
+                        <span>
+                          {status === "recording"
+                            ? "Stop recording"
+                            : "Record from microphone"}
+                        </span>
+                        <span className="text-xs font-normal text-muted-foreground">
+                          Up to 60 seconds
+                        </span>
+                      </Button>
+                    </div>
+                    <div className="space-y-3 rounded-sm bg-muted p-3">
+                      <Label
+                        htmlFor="voice-file"
+                        className="text-xs font-normal text-muted-foreground"
+                      >
+                        Audio file
+                      </Label>
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => fileInput.current?.click()}
+                        className="h-28 w-full flex-col gap-2 whitespace-normal border-border bg-background"
+                      >
+                        <Upload className="size-6 text-brand-accent" />
+                        <span>Upload audio</span>
+                        <span className="text-xs leading-4 font-normal text-muted-foreground">
+                          <span className="block">Maximum size: 200 MiB</span>
+                          <span className="block">
+                            Formats: WAV, MP3, M4A, MP4, MKV, MOV, AVI
+                          </span>
+                        </span>
+                      </Button>
+                      <Input
+                        ref={fileInput}
+                        id="voice-file"
+                        type="file"
+                        className="sr-only"
+                        tabIndex={-1}
+                        disabled={busy}
+                        onChange={(event) => {
+                          const selected = event.target.files?.[0];
+                          setError(null);
+                          setTranscription(null);
+                          setSttMetrics(null);
+                          setFile(null);
+                          if (!selected) return;
+                          setFile(selected);
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid max-w-4xl gap-4 md:grid-cols-2">
+                    <div className="space-y-2 bg-muted p-3">
+                      <Label htmlFor="voice-language">
+                        Recognition language
+                      </Label>
+                      <select
+                        id="voice-language"
+                        value={language}
+                        disabled={busy}
+                        onChange={(event) => {
+                          setLanguage(event.target.value);
+                          setTranscription(null);
+                          setSttMetrics(null);
+                        }}
+                        className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
+                      >
+                        <option value="en">English</option>
+                        <option value="pl">Polish</option>
+                        <option value="de">German</option>
+                        <option value="fr">French</option>
+                        <option value="es">Spanish</option>
+                      </select>
+                    </div>
+                    <div className="bg-muted p-3">
+                      <VoiceDeviceSelect
+                        id="stt-device"
+                        label="Speech to text device"
+                        value={sttDevice}
+                        disabled={busy}
+                        onChange={(value) => {
+                          setSttDevice(value);
+                          setTranscription(null);
+                          setSttMetrics(null);
+                          setError(null);
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {file && (
+                    <p className="text-muted-foreground break-all text-sm">
+                      Selected file: {file.name}
+                    </p>
+                  )}
+                  {inputUrl && (
+                    <VoiceAudio
+                      src={inputUrl}
+                      label="Input recording"
+                      title="Selected audio"
+                    />
+                  )}
+                  <div className="flex justify-end">
+                    <Button
+                      disabled={!file || busy}
+                      onClick={() => void run("stt")}
                     >
-                      {status === "recording" ? (
-                        <Square className="size-6 text-destructive" />
-                      ) : (
-                        <Mic className="size-6 text-brand-accent" />
-                      )}
-                      <span>
-                        {status === "recording"
-                          ? "Stop recording"
-                          : "Record from microphone"}
-                      </span>
-                      <span className="text-xs font-normal text-muted-foreground">
-                        Up to 60 seconds
-                      </span>
+                      <FileAudio />
+                      Transcribe
                     </Button>
                   </div>
-                  <div className="space-y-3 rounded-sm bg-muted p-3">
-                    <Label
-                      htmlFor="voice-file"
-                      className="text-xs font-normal text-muted-foreground"
-                    >
-                      Audio file
-                    </Label>
-                    <Button
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => fileInput.current?.click()}
-                      className="h-28 w-full flex-col gap-2 whitespace-normal border-border bg-background"
-                    >
-                      <Upload className="size-6 text-brand-accent" />
-                      <span>Upload audio</span>
-                      <span className="text-xs leading-4 font-normal text-muted-foreground">
-                        <span className="block">Maximum size: 200 MiB</span>
-                        <span className="block">
-                          Formats: WAV, MP3, M4A, MP4, MKV, MOV, AVI
-                        </span>
-                      </span>
-                    </Button>
-                    <Input
-                      ref={fileInput}
-                      id="voice-file"
-                      type="file"
-                      className="sr-only"
-                      tabIndex={-1}
-                      disabled={busy}
-                      onChange={(event) => {
-                        const selected = event.target.files?.[0];
-                        setError(null);
-                        setTranscription(null);
-                        setSttMetrics(null);
-                        setFile(null);
-                        if (!selected) return;
-                        setFile(selected);
-                      }}
+                </section>
+                <section className="min-w-0 space-y-4">
+                  <h2 className="text-lg font-semibold">Transcription</h2>
+                  <div className="bg-muted p-3">
+                    <Textarea
+                      aria-label="Transcription"
+                      readOnly
+                      value={transcription ?? ""}
+                      className="min-h-24 resize-y bg-background text-foreground dark:bg-background"
                     />
                   </div>
-                </div>
-                <div className="grid max-w-4xl gap-4 md:grid-cols-2">
-                  <div className="space-y-2 bg-muted p-3">
-                    <Label htmlFor="voice-language">Recognition language</Label>
-                    <select
-                      id="voice-language"
-                      value={language}
-                      disabled={busy}
-                      onChange={(event) => {
-                        setLanguage(event.target.value);
-                        setTranscription(null);
-                        setSttMetrics(null);
-                      }}
-                      className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
-                    >
-                      <option value="en">English</option>
-                      <option value="pl">Polish</option>
-                      <option value="de">German</option>
-                      <option value="fr">French</option>
-                      <option value="es">Spanish</option>
-                    </select>
-                  </div>
-                  <div className="bg-muted p-3">
+                  {transcription !== null && (
+                    <p role="status" className="text-muted-foreground text-sm">
+                      {transcription
+                        ? "Transcription complete"
+                        : "No speech detected"}
+                    </p>
+                  )}
+                </section>
+              </div>
+              <aside
+                aria-label="Performance and platform metrics"
+                className="min-w-0 space-y-4"
+              >
+                <VoiceMetrics
+                  label="Speech to text metrics"
+                  metrics={sttMetrics}
+                  state={getMetricsState(
+                    sttMetrics,
+                    activeTab === "stt" && busy,
+                    activeTab === "stt" && error !== null,
+                  )}
+                />
+                <MetricsDashboard showVideoMetrics={false} />
+              </aside>
+            </div>
+          </TabsContent>
+          <TabsContent value="tts">
+            <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(32rem,40rem)] xl:items-start">
+              <div className="min-w-0 space-y-4 bg-background p-4 sm:p-5">
+                <h2 className="text-base font-semibold">
+                  Text to Speech Workload Configuration
+                </h2>
+                <section className="min-w-0 space-y-4 rounded-sm bg-muted p-3 sm:p-4">
+                  <div className="grid max-w-4xl gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="speech-voice">Voice</Label>
+                      <select
+                        id="speech-voice"
+                        value={voice}
+                        disabled={busy}
+                        onChange={(event) =>
+                          updateVoice(event.target.value as SpeechVoice)
+                        }
+                        className="border-input h-10 w-full rounded-md border bg-background px-3 text-sm"
+                      >
+                        {SPEECH_VOICES.map((voiceName) => (
+                          <option key={voiceName} value={voiceName}>
+                            {voiceName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <VoiceDeviceSelect
-                      id="stt-device"
-                      label="Speech to text device"
-                      value={sttDevice}
+                      id="tts-device"
+                      label="Text to speech device"
+                      value={ttsDevice}
                       disabled={busy}
                       onChange={(value) => {
-                        setSttDevice(value);
-                        setTranscription(null);
-                        setSttMetrics(null);
+                        setTtsDevice(value);
+                        setSpeech(null);
+                        setTtsMetrics(null);
                         setError(null);
                       }}
                     />
                   </div>
-                </div>
-                {file && (
-                  <p className="text-muted-foreground break-all text-sm">
-                    Selected file: {file.name}
-                  </p>
-                )}
-                {inputUrl && (
-                  <VoiceAudio
-                    src={inputUrl}
-                    label="Input recording"
-                    title="Selected audio"
-                  />
-                )}
-                <div className="flex justify-end">
-                  <Button
-                    disabled={!file || busy}
-                    onClick={() => void run("stt")}
-                  >
-                    <FileAudio />
-                    Transcribe
-                  </Button>
-                </div>
-              </section>
-              <section className="min-w-0 space-y-4">
-                <h2 className="text-lg font-semibold">Transcription</h2>
-                <div className="bg-muted p-3">
+                  <Label htmlFor="voice-text" className="text-sm font-semibold">
+                    Text input (English)
+                  </Label>
                   <Textarea
-                    aria-label="Transcription"
-                    readOnly
-                    value={transcription ?? ""}
-                    className="min-h-24 resize-y bg-background text-foreground dark:bg-background"
-                  />
-                </div>
-                {transcription !== null && (
-                  <p role="status" className="text-muted-foreground text-sm">
-                    {transcription
-                      ? "Transcription complete"
-                      : "No speech detected"}
-                  </p>
-                )}
-              </section>
-            </div>
-            <VoiceMetrics label="Speech to text metrics" metrics={sttMetrics} />
-          </TabsContent>
-          <TabsContent value="tts" className="space-y-6">
-            <div className="space-y-4 bg-background p-4 sm:p-5">
-              <h2 className="text-base font-semibold">
-                Text to Speech Workload Configuration
-              </h2>
-              <section className="min-w-0 space-y-4 rounded-sm bg-muted p-3 sm:p-4">
-                <div className="grid max-w-4xl gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="speech-voice">Voice</Label>
-                    <select
-                      id="speech-voice"
-                      value={voice}
-                      disabled={busy}
-                      onChange={(event) =>
-                        updateVoice(event.target.value as SpeechVoice)
-                      }
-                      className="border-input h-10 w-full rounded-md border bg-background px-3 text-sm"
-                    >
-                      {SPEECH_VOICES.map((voiceName) => (
-                        <option key={voiceName} value={voiceName}>
-                          {voiceName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <VoiceDeviceSelect
-                    id="tts-device"
-                    label="Text to speech device"
-                    value={ttsDevice}
+                    id="voice-text"
+                    maxLength={MAX_SPEECH_TEXT_LENGTH}
+                    value={text}
                     disabled={busy}
-                    onChange={(value) => {
-                      setTtsDevice(value);
-                      setSpeech(null);
-                      setTtsMetrics(null);
-                      setError(null);
-                    }}
+                    onChange={(event) => updateText(event.target.value)}
+                    className="min-h-32 resize-y bg-background text-foreground dark:bg-background"
                   />
-                </div>
-                <Label htmlFor="voice-text" className="text-sm font-semibold">
-                  Text input (English)
-                </Label>
-                <Textarea
-                  id="voice-text"
-                  maxLength={MAX_SPEECH_TEXT_LENGTH}
-                  value={text}
-                  disabled={busy}
-                  onChange={(event) => updateText(event.target.value)}
-                  className="min-h-32 resize-y bg-background text-foreground dark:bg-background"
-                />
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <Label htmlFor="voice-sample" className="text-xs">
-                      Sample text
-                    </Label>
-                    <select
-                      id="voice-sample"
-                      disabled={busy}
-                      value={SAMPLE_TEXTS.includes(text) ? text : ""}
-                      onChange={(event) => updateText(event.target.value)}
-                      className="h-9 w-full max-w-80 min-w-0 rounded-sm border border-border bg-background px-2 text-xs sm:w-80"
-                    >
-                      <option value="" disabled>
-                        Select a sample
-                      </option>
-                      {SAMPLE_TEXTS.map((sample) => (
-                        <option key={sample} value={sample}>
-                          {sample}
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <Label htmlFor="voice-sample" className="text-xs">
+                        Sample text
+                      </Label>
+                      <select
+                        id="voice-sample"
+                        disabled={busy}
+                        value={SAMPLE_TEXTS.includes(text) ? text : ""}
+                        onChange={(event) => updateText(event.target.value)}
+                        className="h-9 w-full max-w-80 min-w-0 rounded-sm border border-border bg-background px-2 text-xs sm:w-80"
+                      >
+                        <option value="" disabled>
+                          Select a sample
                         </option>
-                      ))}
-                    </select>
+                        {SAMPLE_TEXTS.map((sample) => (
+                          <option key={sample} value={sample}>
+                            {sample}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="text-muted-foreground text-right text-xs">
+                      {text.length} / {MAX_SPEECH_TEXT_LENGTH}
+                    </p>
                   </div>
-                  <p className="text-muted-foreground text-right text-xs">
-                    {text.length} / {MAX_SPEECH_TEXT_LENGTH}
-                  </p>
-                </div>
-                <div className="flex justify-end">
-                  <Button
-                    disabled={!text.trim() || busy}
-                    onClick={() => void run("tts")}
-                  >
-                    <Volume2 />
-                    Generate speech
-                  </Button>
-                </div>
-              </section>
-              <section className="min-w-0 space-y-4">
-                <h2 className="text-lg font-semibold">Generated audio</h2>
-                {speechUrl ? (
-                  <>
-                    <VoiceAudio
-                      src={speechUrl}
-                      label="Generated speech"
-                      title="Synthesized audio"
-                    />
-                    <a
-                      href={speechUrl}
-                      download="speech.wav"
-                      className="text-primary inline-flex items-center gap-2 text-sm underline underline-offset-4"
+                  <div className="flex justify-end">
+                    <Button
+                      disabled={!text.trim() || busy}
+                      onClick={() => void run("tts")}
                     >
-                      <Download className="size-4" />
-                      Download WAV
-                    </a>
-                  </>
-                ) : (
-                  <p className="text-muted-foreground text-sm">
-                    No audio generated
-                  </p>
-                )}
-              </section>
+                      <Volume2 />
+                      Generate speech
+                    </Button>
+                  </div>
+                </section>
+                <section className="min-w-0 space-y-4">
+                  <h2 className="text-lg font-semibold">Generated audio</h2>
+                  {speechUrl ? (
+                    <>
+                      <VoiceAudio
+                        src={speechUrl}
+                        label="Generated speech"
+                        title="Synthesized audio"
+                      />
+                      <a
+                        href={speechUrl}
+                        download="speech.wav"
+                        className="text-primary inline-flex items-center gap-2 text-sm underline underline-offset-4"
+                      >
+                        <Download className="size-4" />
+                        Download WAV
+                      </a>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">
+                      No audio generated
+                    </p>
+                  )}
+                </section>
+              </div>
+              <aside
+                aria-label="Performance and platform metrics"
+                className="min-w-0 space-y-4"
+              >
+                <VoiceMetrics
+                  label="Text to speech metrics"
+                  metrics={ttsMetrics}
+                  state={getMetricsState(
+                    ttsMetrics,
+                    activeTab === "tts" && busy,
+                    activeTab === "tts" && error !== null,
+                  )}
+                />
+                <MetricsDashboard showVideoMetrics={false} />
+              </aside>
             </div>
-            <VoiceMetrics label="Text to speech metrics" metrics={ttsMetrics} />
           </TabsContent>
           {busy && (
             <div
@@ -578,17 +625,6 @@ export function VoiceConversion() {
             </p>
           )}
         </Tabs>
-        <details
-          className="mt-8 border-t pt-6"
-          onToggle={(event) => setShowPlatformMetrics(event.currentTarget.open)}
-        >
-          <summary className="cursor-pointer text-lg font-semibold">
-            Platform metrics (system-wide)
-          </summary>
-          {showPlatformMetrics && (
-            <MetricsDashboard className="mt-4" showVideoMetrics={false} />
-          )}
-        </details>
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import io
 import json
 import unittest
 import wave
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import httpx
 from fastapi import FastAPI
@@ -41,6 +41,9 @@ class VoiceTests(unittest.TestCase):
         )
         client_patch.start()
         self.addCleanup(client_patch.stop)
+        metrics_patch = patch.object(voice, "schedule_voice_metric")
+        self.schedule_metric = metrics_patch.start()
+        self.addCleanup(metrics_patch.stop)
 
     def respond(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -218,11 +221,38 @@ class VoiceTests(unittest.TestCase):
         self.assertEqual(speech.content, wav_bytes())
         self.assertEqual(len(self.requests), 2)
 
+    def test_publishes_successful_conversion_metrics(self) -> None:
+        with patch.object(voice, "perf_counter", side_effect=[10, 10.25, 20, 20.75]):
+            transcription = self.transcribe(device="GPU")
+            speech = self.client.post(
+                "/voice/speech",
+                json={"input": "Hello", "voice": "Angus", "device": "NPU"},
+            )
+
+        self.assertEqual(transcription.status_code, 200)
+        self.assertEqual(speech.status_code, 200)
+        self.assertEqual(
+            self.schedule_metric.call_args_list,
+            [
+                call(
+                    "voice_asr",
+                    250.0,
+                    {"device": "GPU", "language": "en"},
+                ),
+                call(
+                    "voice_tts",
+                    750.0,
+                    {"device": "NPU", "voice": "Angus"},
+                ),
+            ],
+        )
+
     def test_failed_conversion_has_no_success_timing(self) -> None:
         self.upstream = httpx.Response(500, text="private service detail")
         response = self.transcribe()
         self.assertEqual(response.status_code, 502)
         self.assertNotIn("x-voice-service-duration-ms", response.headers)
+        self.schedule_metric.assert_not_called()
 
     def test_forwards_safe_audio_validation_errors(self) -> None:
         for detail in [
@@ -407,3 +437,54 @@ class ConcurrentVoiceTests(unittest.IsolatedAsyncioTestCase):
             transcription.headers["x-voice-service-duration-ms"], "11000.000"
         )
         self.assertEqual(transcription.json(), {"text": "Hello world"})
+
+
+class VoiceMetricPublisherTests(unittest.IsolatedAsyncioTestCase):
+    async def test_publishes_batch_payload(self) -> None:
+        requests: list[httpx.Request] = []
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(202, json={"accepted": 1})
+
+        client_type = httpx.AsyncClient
+        with patch.object(
+            voice.httpx,
+            "AsyncClient",
+            lambda **_kwargs: client_type(transport=httpx.MockTransport(respond)),
+        ):
+            await voice.publish_voice_metric(
+                "voice_asr",
+                250.0,
+                {"device": "GPU", "language": "en"},
+            )
+
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(
+            json.loads(requests[0].content),
+            {
+                "metrics": [
+                    {
+                        "name": "voice_asr",
+                        "fields": {"service_round_trip_ms": 250.0},
+                        "tags": {"device": "GPU", "language": "en"},
+                    }
+                ]
+            },
+        )
+
+    async def test_metrics_manager_failure_is_non_fatal(self) -> None:
+        def fail(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("unavailable", request=request)
+
+        client_type = httpx.AsyncClient
+        with patch.object(
+            voice.httpx,
+            "AsyncClient",
+            lambda **_kwargs: client_type(transport=httpx.MockTransport(fail)),
+        ):
+            await voice.publish_voice_metric(
+                "voice_tts",
+                750.0,
+                {"device": "service-default", "voice": "Ryan"},
+            )

@@ -110,9 +110,11 @@ these calls.
   in its storage volume; clear-on-startup is enabled, not a per-request retention
   guarantee. TTS keeps runtime cache and storage in `voice_tts_cache` and
   `voice_tts_storage`, but `PERSIST_OUTPUTS=false` disables output persistence.
-- ViPPET does not persist Voice content or request timings. Completed results
-  and timings live in React state; each tab retains its latest result until
-  replacement, input changes or unmount. Blob URLs are revoked during cleanup.
+- ViPPET does not persist Voice content. Completed results and per-conversion
+  timings live in React state; each tab retains its latest result until
+  replacement, input changes or unmount. The backend service round trip is also
+  published to Metrics Manager's runtime store, not to a durable request log.
+  Blob URLs are revoked during cleanup.
 - Hardware overrides determine the default service devices and which device
   nodes are mounted. Per-request Voice overrides select among compatible,
   visible devices. Telemetry reflects the whole host and can include unrelated
@@ -129,7 +131,7 @@ flowchart TB
     device["VoiceDeviceSelect<br/>[Component: React]<br/>Available CPU/GPU/NPU families and service default"]:::internal
     recorder["Recording adapter<br/>[Component: Web Audio]<br/>captureWav prepares local PCM WAV"]:::internal
     audio["VoiceAudio<br/>[Component: Web Audio / Recharts]<br/>Waveform and native audio playback"]:::internal
-    timings["VoiceMetrics<br/>[Component: React]<br/>Successful request/service timings"]:::internal
+    timings["VoiceMetrics<br/>[Component: React]<br/>Request and service round-trip timings"]:::internal
     stream["MetricsProvider / useMetricsStream<br/>[Component: EventSource]<br/>Shared SSE subscription and reconnect"]:::internal
     store["Metrics state<br/>[Component: Redux Toolkit]<br/>Current samples and connection state"]:::internal
     dashboard["MetricsDashboard<br/>[Component: React / Recharts]<br/>useMetrics and useMetricHistory"]:::internal
@@ -140,7 +142,7 @@ flowchart TB
     voice -->|Blob URL props| audio
     voice -->|Timing props| timings
     timings -->|Duration props| cards
-    voice -->|Mounts on expand, no video metrics| dashboard
+    voice -->|Always mounts below VoiceMetrics in right rail; no video metrics| dashboard
     stream -->|Dispatches Redux actions| store
     dashboard -->|Reads Redux selectors| store
     dashboard -->|Renders platform values| cards
@@ -151,11 +153,13 @@ flowchart TB
   classDef external fill:#666,color:#fff,stroke:#444
 ```
 
-`VoiceMetrics` does not read global service `/v1/performance` values and does not
-send timings to Metrics Manager. `MetricsProvider` is mounted at application
-level, so expanding the Voice dashboard does not create another SSE subscription.
-The dashboard's local history is created on mount and discarded on unmount; its
-hook keeps a 60-second window with updates no more often than once per second.
+`VoiceMetrics` does not read global service `/v1/performance` values. On desktop,
+it and the always-visible platform `MetricsDashboard` share the right-hand rail;
+on smaller viewports, that rail stacks below the active Voice workflow.
+`MetricsProvider` is mounted at application level, so the dashboard does not
+create another SSE subscription. The dashboard's local history is created on
+mount and discarded on unmount; its hook keeps a 60-second window with updates
+no more often than once per second.
 
 ## C4 Level 3: Backend Components
 
@@ -253,6 +257,7 @@ sequenceDiagram
     participant Web as Nginx
     participant API as ViPPET Voice API
     participant ASR as Audio Analyzer
+    participant Metrics as Metrics Manager
     alt Microphone source
         Operator->>UI: Record and grant permission
         UI->>Capture: captureWav(signal)
@@ -274,6 +279,7 @@ sequenceDiagram
     ASR-->>API: Transcription JSON body
     API->>API: Receive full body (up to 128 KiB), calculate service duration
     API->>API: Close upstream resources, validate transcript
+    API-->>Metrics: Best-effort voice_asr service round trip with requested device and language
     API-->>Web: JSON text + timing header + Cache-Control no-store
     Web-->>UI: Same body and timing header
     UI->>UI: Parse JSON, check abort/current request, calculate request duration
@@ -294,6 +300,7 @@ sequenceDiagram
     participant Web as Nginx
     participant API as ViPPET Voice API
     participant TTS as Text to Speech
+    participant Metrics as Metrics Manager
     participant Audio as VoiceAudio / browser
     Operator->>UI: Enter text or select sample, Generate speech
     UI->>UI: Clear TTS result/timings, start performance.now()
@@ -307,6 +314,7 @@ sequenceDiagram
     TTS-->>API: WAV body
     API->>API: Receive full body (up to 64 MiB), calculate service duration
     API->>API: Close upstream resources, check MIME type and RIFF/WAVE signature
+    API-->>Metrics: Best-effort voice_tts service round trip with requested device and voice
     API-->>Web: audio/wav + timing header + Cache-Control no-store
     Web-->>UI: WAV body and timing header
     UI->>UI: Read Blob, check abort/current request, calculate request duration
@@ -324,7 +332,7 @@ bytes or volume. A visualization failure does not disable playback or download.
 The proxy buffers the entire upstream body; this is not streaming playback or a
 time-to-first-byte measurement.
 
-## Flow: Two Independent Metrics Paths
+## Flow: Conversion Timings and Telemetry
 
 ```mermaid
 flowchart TB
@@ -336,41 +344,59 @@ flowchart TB
         ServiceBody --> ServiceMs[Calculate elapsed milliseconds]
         ServiceMs --> Valid{Successful payload validation?}
         Valid -->|Yes| Header[X-Voice-Service-Duration-Ms on same response]
-        Valid -->|No| NoMetric[HTTP error; no successful result or timing cards]
+        Valid -->|Yes| Publish[Schedule non-blocking metric publish]
+        Valid -->|No| NoMetric[HTTP error; persistent panel enters failed state]
         Header --> Parsed[Browser reads full JSON or Blob and checks current request]
         Parsed --> RequestMs[Browser elapsed milliseconds]
-        RequestMs --> Cards[VoiceMetrics reuses MetricCard]
+        RequestMs --> Panel[Persistent Voice performance panel]
         Header --> HeaderCheck{Finite non-negative decimal header?}
-        HeaderCheck -->|Yes| Cards
-        HeaderCheck -->|Missing or invalid| Unavailable[Service round trip unavailable; keep request duration]
-        Unavailable --> Cards
+        HeaderCheck -->|Yes| Panel
+        HeaderCheck -->|Missing or invalid| Unavailable[Show -- for service round trip]
+        Unavailable --> Panel
+    end
+    subgraph telemetry[Shared telemetry path]
+      direction TB
+        Publish --> Manager[Metrics Manager POST /api/v1/metrics]
+        Manager --> Prometheus[Prometheus field-expanded metrics for external consumers]
+        Manager --> Proxy[Nginx proxies SSE /metrics/stream]
+        Proxy --> Stream[MetricsProvider / useMetricsStream EventSource]
+        Stream --> Redux[Redux latest metric samples]
     end
     subgraph platform[Continuous host-wide telemetry]
       direction TB
         Host[CPU, memory, GPU and NPU] --> Collectors[Telegraf and hardware collectors inside Metrics Manager]
-        Collectors --> Manager[Metrics Manager normalizes telemetry]
-        Manager --> Proxy[Nginx proxies SSE /metrics/stream]
-        Proxy --> Stream[MetricsProvider / useMetricsStream EventSource]
-        Stream --> Redux[Redux metrics samples and connection state]
+        Collectors --> Manager
         Redux --> Dashboard[MetricsDashboard with useMetrics and local useMetricHistory]
         Dashboard --> Charts[Platform metrics section; no video FPS or pipeline latency]
     end
 ```
 
-No arrow connects Voice timing cards to the telemetry ingestion path: this
-integration does not persist or publish request timings to Metrics Manager.
-The services' global `last_ms` and `/v1/model-info` are not queried by Voice.
+After a successful response is validated, the backend schedules a best-effort
+publish to Metrics Manager. Publishing has a separate 2-second timeout and does
+not delay or fail the conversion response. ASR produces
+`voice_asr_service_round_trip_ms` tagged with requested `device` and `language`;
+TTS produces `voice_tts_service_round_trip_ms` tagged with requested `device`
+and `voice`. A missing device is tagged `service-default` and must not be read as
+confirmation of the device the service actually used.
 
 - **Request duration:** browser fetch start through complete response consumption
   and success checks, including upload, proxy handling, service work and download.
+  It remains browser-local and is not published to Metrics Manager.
 - **Service round trip:** backend adapter start through complete upstream body
   reception and local response construction; excludes browser transfer and
   subsequent route payload validation/context cleanup. Includes transport,
-  queueing and service processing, not only model inference.
+  queueing and service processing, not only model inference. This is the only
+  Voice duration published to Metrics Manager.
 - The intervals use independent monotonic clocks. No cross-machine timestamp
   subtraction or global last-request variable is needed.
+- Published Voice metrics remain available through Metrics Manager's Prometheus
+  and SSE interfaces, but the Voice performance panel shows only the current
+  request-scoped timings returned with the conversion response.
 - Platform charts are live system-wide telemetry, not a frozen snapshot of a
   conversion and not resource attribution to a particular STT/TTS request.
+- Voice does not query the services' global `last_ms` or `/v1/model-info` and does
+  not report model inference time, chunk or segment counts, effective device,
+  end-to-end conversational latency or time to first audio.
 
 ## Flow: Errors and Cancellation
 
@@ -410,7 +436,7 @@ Proxy-generated failures may differ from the backend's status mapping above.
 - [Voice workflow](../../../ui/src/features/voice/VoiceConversion.tsx),
   [recording adapter](../../../ui/src/features/voice/recording.ts),
   [audio preview](../../../ui/src/features/voice/VoiceAudio.tsx) and
-  [request timing cards](../../../ui/src/features/voice/VoiceMetrics.tsx).
+  [performance panel](../../../ui/src/features/voice/VoiceMetrics.tsx).
 - [Voice API and upstream adapter](../../../vippet/api/routes/voice.py).
 - [Models page](../../../ui/src/pages/Models.tsx),
   [model installation hook](../../../ui/src/features/models/useModelInstall.ts),

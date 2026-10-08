@@ -21,7 +21,11 @@ MAX_ERROR_RESPONSE_BYTES = 8 * 1024
 TIMEOUT_SECONDS = 20 * 60
 AUDIO_ANALYZER_URL = os.getenv("AUDIO_ANALYZER_URL", "http://audio-analyzer:8010")
 TEXT_TO_SPEECH_URL = os.getenv("TEXT_TO_SPEECH_URL", "http://text-to-speech:8011")
+METRICS_MANAGER_URL = os.getenv("METRICS_MANAGER_URL", "http://metrics-manager:9090")
 SERVICE_DURATION_HEADER = "X-Voice-Service-Duration-Ms"
+VOICE_METRICS_URL = f"{METRICS_MANAGER_URL.rstrip('/')}/api/v1/metrics"
+VOICE_METRICS_TIMEOUT_SECONDS = 2.0
+_metrics_tasks: set[asyncio.Task[None]] = set()
 MEDIA_TYPE_PATTERN = re.compile(
     r"[A-Za-z0-9!#$%&'*+.^_`|~-]+/[A-Za-z0-9!#$%&'*+.^_`|~-]+"
 )
@@ -107,6 +111,42 @@ def create_client() -> httpx.AsyncClient:
         trust_env=False,
         follow_redirects=False,
     )
+
+
+async def publish_voice_metric(
+    name: Literal["voice_asr", "voice_tts"],
+    service_round_trip_ms: float,
+    tags: dict[str, str],
+) -> None:
+    payload = {
+        "metrics": [
+            {
+                "name": name,
+                "fields": {"service_round_trip_ms": service_round_trip_ms},
+                "tags": tags,
+            }
+        ]
+    }
+    try:
+        async with httpx.AsyncClient(
+            timeout=VOICE_METRICS_TIMEOUT_SECONDS,
+            trust_env=False,
+            follow_redirects=False,
+        ) as client:
+            response = await client.post(VOICE_METRICS_URL, json=payload)
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        logger.warning("Unable to publish %s metrics: %s", name, type(exc).__name__)
+
+
+def schedule_voice_metric(
+    name: Literal["voice_asr", "voice_tts"],
+    service_round_trip_ms: float,
+    tags: dict[str, str],
+) -> None:
+    task = asyncio.create_task(publish_voice_metric(name, service_round_trip_ms, tags))
+    _metrics_tasks.add(task)
+    task.add_done_callback(_metrics_tasks.discard)
 
 
 async def call_service(
@@ -206,6 +246,15 @@ async def transcribe_voice(
         await file.close()
     try:
         result = TranscriptionResponse.model_validate(upstream.json())
+        service_round_trip_ms = float(upstream.headers[SERVICE_DURATION_HEADER])
+        schedule_voice_metric(
+            "voice_asr",
+            service_round_trip_ms,
+            {
+                "device": device or "service-default",
+                "language": language,
+            },
+        )
         response.headers["Cache-Control"] = "no-store"
         response.headers[SERVICE_DURATION_HEADER] = upstream.headers[
             SERVICE_DURATION_HEADER
@@ -256,6 +305,15 @@ async def synthesize_voice(request: SpeechRequest) -> Response:
         or content[8:12] != b"WAVE"
     ):
         raise HTTPException(502, "The speech service returned invalid audio.")
+    service_round_trip_ms = float(upstream.headers[SERVICE_DURATION_HEADER])
+    schedule_voice_metric(
+        "voice_tts",
+        service_round_trip_ms,
+        {
+            "device": request.device or "service-default",
+            "voice": request.voice,
+        },
+    )
     return Response(
         content=content,
         media_type="audio/wav",

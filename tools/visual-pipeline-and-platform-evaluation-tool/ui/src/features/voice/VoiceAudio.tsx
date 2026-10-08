@@ -21,10 +21,12 @@ export function VoiceAudio({
     src,
     label,
     title,
+    onDurationChange,
 }: {
     src: string;
     label: string;
     title: string;
+    onDurationChange?: (duration: number) => void;
 }) {
     const [preview, setPreview] = useState<AudioPreview | null>(null);
     const [failedSrc, setFailedSrc] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export function VoiceAudio({
                 const context = new OfflineAudioContext(1, 1, 16000);
                 const audio = await context.decodeAudioData(content);
                 controller.signal.throwIfAborted();
+                onDurationChange?.(audio.duration);
                 const samples = audio.getChannelData(0);
                 const binSize = Math.max(1, Math.ceil(samples.length / 160));
                 const peaks: AudioPreview["peaks"] = [];
@@ -66,7 +69,7 @@ export function VoiceAudio({
         }
         void decode();
         return () => controller.abort();
-    }, [src]);
+    }, [onDurationChange, src]);
 
     return (
         <div className="min-w-0 space-y-3 rounded-sm border border-border p-3 sm:p-4">
