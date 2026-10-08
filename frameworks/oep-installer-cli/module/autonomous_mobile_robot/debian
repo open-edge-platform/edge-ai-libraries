@@ -33,7 +33,7 @@ configure_autonomous_mobile_robot () {
 }
 
 debian_90_profile_autonomous_mobile_robot () {
-  echo "git curl edge_base ros2 ros_openvino realsense"
+  echo "git curl wget edge_base ros2 ros_openvino realsense software_properties_common lsb_release"
 }
 
 verify_autonomous_mobile_robot () {
@@ -53,7 +53,6 @@ configure_osrf_gazebo () {
 
 amr_setup_osrf_gazebo () {
   configure_osrf_gazebo
-  ensure_apt install -y curl lsb-release gnupg
   ensure_apt_key "$osrf_key" "$osrf_key_url"
   ensure_apt_source "$osrf_list" "$osrf_entry"
   ensure_apt update -y
@@ -67,10 +66,9 @@ debian_90_install_autonomous_mobile_robot () {
   if verify_autonomous_mobile_robot && [[ " $* " != *" --reinstall "* ]]; then
     echo "Autonomous Mobile Robot is already installed. Skipping..."
   else
-    ensure_disk_space $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
+    ensure_disk_size $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
 
     # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
-    ensure_apt install -y software-properties-common curl gnupg wget
     ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
     ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
     ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
@@ -136,10 +134,6 @@ $(ensure_sbom_format pkg-list gcc-12 g++-12)
 ---
 EOF
   fi
-
-  cat <<EOF
-$(ensure_sbom_format pkg-list software-properties-common curl gnupg wget lsb-release)
-EOF
 
   if [ "$ros_distro" = jazzy ]; then
     configure_osrf_gazebo

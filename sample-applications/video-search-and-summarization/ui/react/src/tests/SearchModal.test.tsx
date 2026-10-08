@@ -278,19 +278,19 @@ describe('SearchModal Component test suite', () => {
     expect(screen.getByText('Cancel')).toBeInTheDocument();
   });
 
-  it('should handle textarea ref correctly', () => {
+  it('should keep the text area available after submitting', () => {
     renderComponent();
-    
+
     const textArea = screen.getByRole('textbox');
     expect(textArea).toBeInTheDocument();
-    
-    // Type in the textarea and then simulate search to trigger reset
+
+    // Type in the (controlled) text area and submit to trigger a reset.
     fireEvent.change(textArea, { target: { value: 'test' } });
-    
+
     const searchButton = screen.getByText('Search');
     fireEvent.click(searchButton);
-    
-    // The ref-based reset should work
-    expect(textArea).toBeInTheDocument();
+
+    // The text area remains mounted (no image), ready for the next query.
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
   });
 });

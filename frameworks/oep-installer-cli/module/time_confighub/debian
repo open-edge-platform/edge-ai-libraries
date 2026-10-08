@@ -12,7 +12,7 @@ verify_time_confighub () {
 }
 
 debian_70_profile_time_confighub () {
-  echo "cmake make libyang"
+  echo "cmake make libyang git"
 }
 
 debian_70_install_time_confighub () {

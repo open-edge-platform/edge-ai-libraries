@@ -97,11 +97,21 @@ case "$EMBEDDING_MODEL_NAME" in
     "SigLIP/siglip2-vit-b-16"|"SigLIP/siglip2-vit-l-16"|"SigLIP/siglip2-so400m-patch16-384")
         echo "Using SigLIP model: $EMBEDDING_MODEL_NAME"
         ;;
+    "MarketaJu/siglip2-person-description-reid"|"SigLIP/siglip2-person-description-reid")
+        echo "Using Hugging Face SigLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
     "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b"|"MobileCLIP/mobileclip_blt")
         echo "Using MobileCLIP model: $EMBEDDING_MODEL_NAME"
         ;;
     "Blip2/blip2")
         echo "Using BLIP2 model: $EMBEDDING_MODEL_NAME"
+        ;;
+    "QwenText/qwen3-embedding-0.6b"|"QwenText/qwen3-embedding-4b"|"QwenText/qwen3-embedding-8b")
+        echo "Using Qwen text embedding model: $EMBEDDING_MODEL_NAME (text-only)"
+        if [ "$EMBEDDING_DEVICE" = "NPU" ]; then
+            echo "NPU: this model is compiled with static shapes; the first startup for a given"
+            echo "     shape takes longer. See docs/user-guide/qwentext-on-npu.md for tuning."
+        fi
         ;;
     *)
         echo -e "WARNING: Model '$EMBEDDING_MODEL_NAME' may not be supported."

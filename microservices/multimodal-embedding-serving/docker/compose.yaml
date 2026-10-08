@@ -22,6 +22,14 @@ services:
       EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
       EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
 
+      # QwenText static-shape compilation (NPU). Passed through empty when
+      # unset so the handler applies its own defaults; see
+      # docs/user-guide/qwentext-on-npu.md.
+      EMBEDDING_STATIC_SEQ_LEN: ${EMBEDDING_STATIC_SEQ_LEN:-}
+
+      # QwenText long-text chunking (NPU only)
+      EMBEDDING_CHUNK_LONG_TEXT: ${EMBEDDING_CHUNK_LONG_TEXT:-}
+
       # Video processing configuration
       DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC}
       DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION}

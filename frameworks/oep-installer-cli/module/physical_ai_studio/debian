@@ -46,7 +46,7 @@ debian_92_install_physical_ai_studio () {
   if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Studio is already installed. Skipping..."
   else
-    ensure_disk_space 20000
+    ensure_disk_size 20000
     echo "Installing ${pais_pkg}[${pais_extra}] (PyTorch ${pais_extra} build; this may take a while)..."
     uv tool install --python 3.12 \
       --index "$pais_index" --index-strategy unsafe-best-match \
