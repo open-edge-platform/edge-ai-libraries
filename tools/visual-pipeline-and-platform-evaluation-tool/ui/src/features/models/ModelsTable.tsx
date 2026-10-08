@@ -20,7 +20,6 @@ import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatu
 import type { ModelCategory } from "@/api/api.generated.ts";
 
 type ModelsTableProps = {
-  /** Only models whose `category` matches this value are shown (`null` = uncategorized). */
   category: ModelCategory | null;
   pendingDownloads: ReadonlySet<string>;
   onInstallOne: (modelName: string) => void;

@@ -9,15 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-  PaginationEllipsis,
-} from "@/components/ui/pagination";
+import { NumberedPagination } from "@/components/shared/NumberedPagination";
 import {
   api,
   useGetModelDownloadJobStatusQuery,
@@ -33,6 +25,7 @@ import { selectModels } from "@/store/reducers/models";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { formatElapsedTimeMillis } from "@/lib/timeUtils";
 import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
+import { asString } from "@/lib/utils";
 import {
   handleApiError,
   handleAsyncJobError,
@@ -108,7 +101,6 @@ export const UltralyticsBrowser = ({
     }
   };
 
-  // Debounce search term (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearchTerm(inputValue);
@@ -118,7 +110,6 @@ export const UltralyticsBrowser = ({
     return () => clearTimeout(timer);
   }, [inputValue]);
 
-  // Fetch models when search term or page changes
   useEffect(() => {
     const fetchModels = async () => {
       try {
@@ -144,53 +135,14 @@ export const UltralyticsBrowser = ({
     fetchModels();
   }, [searchTerm, currentPage, listHubModels]);
 
-  // Handle input change immediately (without debounce for UI responsiveness)
   const handleSearchChange = useCallback((value: string) => {
     setInputValue(value);
   }, []);
 
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
-  // Generate pagination items
-  const getPaginationItems = () => {
-    const items = [];
-    const maxPagesToShow = 5;
-
-    if (totalPages <= maxPagesToShow) {
-      for (let i = 1; i <= totalPages; i++) {
-        items.push(i);
-      }
-    } else {
-      items.push(1);
-
-      if (currentPage > 3) {
-        items.push("...");
-      }
-
-      const start = Math.max(2, currentPage - 1);
-      const end = Math.min(totalPages - 1, currentPage + 1);
-
-      for (let i = start; i <= end; i++) {
-        if (!items.includes(i)) {
-          items.push(i);
-        }
-      }
-
-      if (currentPage < totalPages - 2) {
-        items.push("...");
-      }
-
-      if (!items.includes(totalPages)) {
-        items.push(totalPages);
-      }
-    }
-
-    return items;
-  };
-
   return (
     <div className="space-y-4">
-      {/* Search Input */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Search Models</label>
         <Input
@@ -201,7 +153,6 @@ export const UltralyticsBrowser = ({
         />
       </div>
 
-      {/* Error State */}
       {error && (
         <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
           <AlertCircle className="h-4 w-4" />
@@ -209,14 +160,12 @@ export const UltralyticsBrowser = ({
         </div>
       )}
 
-      {/* Loading State */}
       {isLoading && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       )}
 
-      {/* Empty State */}
       {!isLoading && models.length === 0 && !error && (
         <div className="flex items-center justify-center py-8 text-center">
           <div>
@@ -232,7 +181,6 @@ export const UltralyticsBrowser = ({
         </div>
       )}
 
-      {/* Models Table */}
       {!isLoading && models.length > 0 && (
         <Table>
           <TableHeader>
@@ -244,7 +192,7 @@ export const UltralyticsBrowser = ({
           </TableHeader>
           <TableBody>
             {models.map((model, idx) => {
-              const name = typeof model.name === "string" ? model.name : null;
+              const name = asString(model.name);
               const docsUrl = name ? getModelDocsUrl(name) : null;
               return (
                 <TableRow key={idx} className="odd:bg-muted/30">
@@ -297,7 +245,6 @@ export const UltralyticsBrowser = ({
         </Table>
       )}
 
-      {/* Pagination */}
       {!isLoading && totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="whitespace-nowrap text-xs text-muted-foreground">
@@ -305,49 +252,11 @@ export const UltralyticsBrowser = ({
             {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, totalItems)}-
             {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} of {totalItems}
           </p>
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  className={
-                    currentPage === 1
-                      ? "pointer-events-none opacity-50"
-                      : "cursor-pointer"
-                  }
-                />
-              </PaginationItem>
-
-              {getPaginationItems().map((item, idx) => (
-                <PaginationItem key={idx}>
-                  {item === "..." ? (
-                    <PaginationEllipsis />
-                  ) : (
-                    <PaginationLink
-                      isActive={item === currentPage}
-                      onClick={() => setCurrentPage(item as number)}
-                      className="cursor-pointer"
-                    >
-                      {item}
-                    </PaginationLink>
-                  )}
-                </PaginationItem>
-              ))}
-
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() =>
-                    setCurrentPage(Math.min(totalPages, currentPage + 1))
-                  }
-                  className={
-                    currentPage === totalPages
-                      ? "pointer-events-none opacity-50"
-                      : "cursor-pointer"
-                  }
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+          <NumberedPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
         </div>
       )}
     </div>

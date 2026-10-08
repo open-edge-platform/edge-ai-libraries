@@ -13,6 +13,7 @@ import {
   Pagination,
   PaginationContent,
   PaginationItem,
+  PaginationLink,
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
@@ -32,6 +33,7 @@ import { selectModels } from "@/store/reducers/models";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { formatElapsedTimeMillis } from "@/lib/timeUtils";
 import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
+import { asString } from "@/lib/utils";
 import {
   handleApiError,
   handleAsyncJobError,
@@ -42,7 +44,6 @@ const ITEMS_PER_PAGE = 13;
 
 const HUB_AUTHOR = "OpenVINO";
 
-// Maps HuggingFace `pipeline_tag` values to our model categories.
 const TASK_TO_CATEGORY: Record<string, ModelCategory> = {
   "object-detection": "object_detection",
   "image-segmentation": "image_segmentation",
@@ -63,9 +64,6 @@ const matchCategory = (task: string | null): ModelCategory | null =>
 type HGFBrowserProps = {
   onInstalled?: () => void;
 };
-
-const asString = (value: unknown): string | null =>
-  typeof value === "string" && value !== "" ? value : null;
 
 const getDownloads = (metadata: unknown): number | null => {
   if (typeof metadata !== "object" || metadata === null) return null;
@@ -88,9 +86,6 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
 
   const [inputSearch, setInputSearch] = useState("");
   const [search, setSearch] = useState("");
-  // Stack of offsets visited so far; the last entry is the current page's
-  // offset. HuggingFace does not report a total count, so "Previous"/"Next"
-  // is the only navigation we can support (no jump-to-page).
   const [offsetStack, setOffsetStack] = useState<number[]>([0]);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [models, setModels] = useState<ModelHubListResponse["items"]>([]);
@@ -142,7 +137,6 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
     }
   };
 
-  // Debounce filters (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearch(inputSearch);
@@ -171,9 +165,6 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
         }).unwrap();
 
         setModels(response.items || []);
-        // HuggingFace reports no total; rely on has_more/next_offset to know
-        // whether another page exists, falling back to a full-page heuristic
-        // for hubs that don't report them.
         setHasNextPage(
           response.has_more ?? (response.items?.length ?? 0) >= ITEMS_PER_PAGE,
         );
@@ -193,7 +184,6 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
 
   return (
     <div className="space-y-4">
-      {/* Search Inputs */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">Organization</label>
@@ -210,7 +200,6 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
         </div>
       </div>
 
-      {/* Error State */}
       {error && (
         <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
           <AlertCircle className="h-4 w-4" />
@@ -218,14 +207,12 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
         </div>
       )}
 
-      {/* Loading State */}
       {isLoading && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       )}
 
-      {/* Empty State */}
       {!isLoading && models.length === 0 && !error && (
         <div className="flex items-center justify-center py-8 text-center">
           <div>
@@ -241,18 +228,17 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
         </div>
       )}
 
-      {/* Models Table */}
       {!isLoading && models.length > 0 && (
-        <Table>
+        <Table className="table-fixed min-w-[60.5rem]">
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Model Page</TableHead>
-              <TableHead>Task</TableHead>
-              <TableHead>License</TableHead>
-              <TableHead>Gated</TableHead>
-              <TableHead className="text-right">Downloads</TableHead>
-              <TableHead className="w-56 text-right">Actions</TableHead>
+              <TableHead className="w-80">Name</TableHead>
+              <TableHead className="w-24">Model Page</TableHead>
+              <TableHead className="w-48">Task</TableHead>
+              <TableHead className="w-24">License</TableHead>
+              <TableHead className="w-14">Gated</TableHead>
+              <TableHead className="w-24 text-right">Downloads</TableHead>
+              <TableHead className="w-28 text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -281,8 +267,10 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
                       "—"
                     )}
                   </TableCell>
-                  <TableCell>{task ?? "—"}</TableCell>
-                  <TableCell>{asString(model.license) ?? "—"}</TableCell>
+                  <TableCell className="break-words">{task ?? "—"}</TableCell>
+                  <TableCell className="break-words">
+                    {asString(model.license) ?? "—"}
+                  </TableCell>
                   <TableCell>
                     {typeof model.gated === "boolean"
                       ? model.gated
@@ -323,7 +311,6 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
         </Table>
       )}
 
-      {/* Pagination */}
       {!isLoading && (offsetStack.length > 1 || hasNextPage) && (
         <div className="flex items-center justify-center">
           <Pagination>
@@ -343,9 +330,7 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
                 />
               </PaginationItem>
               <PaginationItem>
-                <span className="px-2 text-xs text-muted-foreground">
-                  Page {offsetStack.length}
-                </span>
+                <PaginationLink isActive>{offsetStack.length}</PaginationLink>
               </PaginationItem>
               <PaginationItem>
                 <PaginationNext
