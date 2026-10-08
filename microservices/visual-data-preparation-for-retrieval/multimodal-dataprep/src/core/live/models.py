@@ -21,6 +21,16 @@ from src.common import settings
 from src.common.schema import LiveStreamInfo, LiveStreamStateEnum, LiveStreamStats
 from src.core.live.urls import default_stream_name, redact_stream_url
 
+# States in which a worker is actively (or attempting to) ingest, so uptime
+# should track wall-clock. Any other state freezes the reported uptime.
+_ACTIVE_STATES = frozenset(
+    {
+        LiveStreamStateEnum.starting,
+        LiveStreamStateEnum.running,
+        LiveStreamStateEnum.reconnecting,
+    }
+)
+
 
 @dataclass
 class LiveStreamStatsRecord:
@@ -151,10 +161,19 @@ class LiveStream:
         return self.sensor_id or self.stream_id
 
     def uptime_seconds(self) -> Optional[float]:
-        """Seconds since the worker last started, or ``None`` when not running."""
+        """Seconds the current session has been up, frozen while not ingesting.
+
+        While the stream is actively ingesting the value tracks wall-clock. In
+        any non-active state (notably ``paused``, but also ``stopped``/``error``)
+        it is frozen at the last processed frame so a paused stream's uptime does
+        not keep climbing.
+        """
         if not self.stats.started_ts:
             return None
-        return max(0.0, time.time() - self.stats.started_ts)
+        if self.state in _ACTIVE_STATES:
+            return max(0.0, time.time() - self.stats.started_ts)
+        ceiling = self.stats.last_frame_ts or self.stats.started_ts
+        return max(0.0, ceiling - self.stats.started_ts)
 
     def to_info(self) -> LiveStreamInfo:
         """Project to the API-facing model, redacting the source URL."""

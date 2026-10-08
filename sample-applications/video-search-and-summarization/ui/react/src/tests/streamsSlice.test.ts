@@ -122,6 +122,21 @@ describe('streamsSlice reducers', () => {
     });
   });
 
+  it('keeps the active state filter when a sync arrives', () => {
+    const store = makeStore();
+    store.dispatch(StreamsActions.setFilters({ state: LiveStreamState.PAUSED }));
+    store.dispatch(
+      StreamsActions.streamsSync([
+        makeStream({ stream_id: 'paused-1', state: LiveStreamState.PAUSED }),
+        makeStream({ stream_id: 'running-1', state: LiveStreamState.RUNNING }),
+      ]),
+    );
+
+    const { streams } = store.getState().streams;
+    expect(streams).toHaveLength(1);
+    expect(streams[0].stream_id).toBe('paused-1');
+  });
+
   it('clears the error on clearError', () => {
     const store = makeStore();
     store.dispatch(streamsLoad.rejected(null, '', undefined, 'bad'));

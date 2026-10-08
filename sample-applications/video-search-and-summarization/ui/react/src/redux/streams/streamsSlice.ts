@@ -80,9 +80,18 @@ export const StreamsSlice = createSlice({
   name: 'streams',
   initialState,
   reducers: {
-    /** Applied from the `streams:sync` socket event. */
+    /**
+     * Applied from the `streams:sync` socket event.
+     *
+     * The broadcast always carries the *full* registry, so honour the active
+     * server-side state filter here. Without this, a sync tick would clobber a
+     * filtered view (e.g. "paused") with every stream, re-showing running ones.
+     */
     streamsSync: (state, action: PayloadAction<LiveStream[]>) => {
-      state.streams = action.payload;
+      const stateFilter = state.filters.state;
+      state.streams = stateFilter
+        ? action.payload.filter((stream) => stream.state === stateFilter)
+        : action.payload;
       state.status = StateActionStatus.READY;
       state.error = null;
     },

@@ -141,6 +141,37 @@ def test_row_round_trip_preserves_every_field():
     assert restored.stats.embeddings_created == 7
 
 
+def test_uptime_tracks_wallclock_while_running():
+    stream = _make_stream()
+    stream.state = LiveStreamStateEnum.running
+    stream.stats.started_ts = time.time() - 30.0
+
+    uptime = stream.uptime_seconds()
+    assert uptime is not None and uptime >= 30.0
+
+
+def test_uptime_is_frozen_while_paused():
+    stream = _make_stream()
+    stream.state = LiveStreamStateEnum.paused
+    stream.stats.started_ts = time.time() - 300.0
+    # Last frame landed ~45s into the session, before the pause.
+    stream.stats.last_frame_ts = stream.stats.started_ts + 45.0
+
+    first = stream.uptime_seconds()
+    time.sleep(0.05)
+    second = stream.uptime_seconds()
+
+    # Frozen at the last processed frame, not climbing with wall-clock.
+    assert first == pytest.approx(45.0, abs=0.01)
+    assert second == first
+
+
+def test_uptime_none_before_first_session():
+    stream = _make_stream()
+    stream.stats.started_ts = None
+    assert stream.uptime_seconds() is None
+
+
 # --------------------------------------------------------------------------
 # Stores
 # --------------------------------------------------------------------------
