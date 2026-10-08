@@ -7,6 +7,9 @@ vippet:
   # Connection timeout in seconds
   timeout: 600
 
+  # Maximum time to wait for ViPPET to become ready before discovery
+  readiness_timeout_seconds: 60
+
   # Job status polling interval in seconds
   poll_interval: 2
 
@@ -56,8 +59,14 @@ benchmark:
     # Skip these variants
     skip_variants: []
 
-    # Only test pipelines with all required models installed
-    require_models: true
+    # Skip pipelines with missing models; set false to expose runtime failures.
+    skip_missing_models: true
+
+    # How to react when pipelines/skip_pipelines/skip_variants/variants above
+    # reference an id that doesn't exist (e.g. a typo):
+    # "fail" (default) aborts the run naming the bad id and valid ids.
+    # "warn" logs a warning and reports each bad id as an explicit skipped case.
+    on_unknown_id: "fail"
 
 # Hardware metrics collection
 metrics:

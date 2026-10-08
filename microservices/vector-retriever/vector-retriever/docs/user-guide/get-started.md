@@ -142,7 +142,8 @@ export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
 ::::
 hide_directive-->
 
-> **Note:** For valid `EMBEDDING_MODEL_NAME` values, see the Multi Modal Embedding (MME) supported models list: [Supported Models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html).
+> [!NOTE]
+> For valid `EMBEDDING_MODEL_NAME` values, see the Multi Modal Embedding (MME) supported models list: [Supported Models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html).
 
 `RETRIEVER_BACKEND` supports the following values: `vdms`, `milvus`, `pgvector`, and `faiss`.
 `setup.sh` defaults `EMBEDDINGS_ENDPOINT` to the local MME overlay unless you override it.
@@ -498,7 +499,8 @@ curl --location 'http://localhost:6008/query' \
 ]'
 ```
 
-> **Note:** `query` and `image` are mutually exclusive. Providing both returns `422`.
+> [!NOTE]
+> `query` and `image` are mutually exclusive. Providing both returns `422`.
 
 ### Query with Time Filter
 
@@ -651,7 +653,8 @@ RUN_FUNCTIONAL_BACKEND_TESTS=1 PYTHONPATH=. poetry run pytest -q tests/functiona
 ::::
 hide_directive-->
 
-> **Note:** Functional tests are intentionally heavier than unit tests and require Docker.
+> [!NOTE]
+> Functional tests are intentionally heavier than unit tests and require Docker.
 
 ## Troubleshooting
 

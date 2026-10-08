@@ -14,9 +14,6 @@ The retriever service translates user queries into vector similarity searches an
 - Backend filter translation (`src/retriever/backends/<name>/filters.py`): translates query filters into backend-native syntax
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 flowchart TB
     Client(["Client"])
 
@@ -65,9 +62,6 @@ flowchart TB
 9. Results are sorted and returned as `BatchQueryResponse` with partial errors when needed.
 
 ```mermaid
----
-config: {"theme": "dark"}
----
 sequenceDiagram
     autonumber
     participant Client

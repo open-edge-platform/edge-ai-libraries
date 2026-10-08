@@ -1,4 +1,4 @@
-## Task: implement `module/{{NAME}}/debian`
+## Task: implement `frameworks/oep-installer-cli/module/{{NAME}}/debian`
 
 A new spec file `{{SPEC_FILE}}` was pushed to `main`. Implement the
 corresponding installer component following the rules below, then open a
@@ -44,11 +44,13 @@ pull request adding `module/{{NAME}}/debian`.
    The six interface functions **must** follow the exact pattern:
    ```
    debian_<NN>_profile_{{NAME}}
+   debian_<NN>_group_{{NAME}}
    debian_<NN>_install_{{NAME}}
    debian_<NN>_remove_{{NAME}}
    debian_<NN>_start_{{NAME}}
    debian_<NN>_stop_{{NAME}}
    debian_<NN>_license_{{NAME}}   # only if the spec requires a click-through license
+   debian_<NN>_sbom_{{NAME}}   # only if the component installs system-wide packages
    ```
    `configure_{{NAME}}` and `verify_{{NAME}}` are **conventions, not
    requirements** — they are not enforced by the naming check.  Additional
@@ -63,8 +65,9 @@ pull request adding `module/{{NAME}}/debian`.
    - Always implement `install`, `remove`, `start`, and `stop`. Follow `profile/README.md` and `module/README.md` for implementation requirements. 
    - Omit `start`/`stop` **only** when the spec describes a stateless system package with no runtime service, for example, a library or SDK that has no explicit start/stop operation.   
    - Omit `remove` **only** for trivial system packages where removal could cause unintended side-effects (cite `module/curl/debian`).
-   - Add `debian_<NN>_license_{{NAME}}` if the spec requires a click-through license; the function must print `@@LICENSE-ID`, `@@LICENSE-TITLE`, and the full license text (use `ensure_license_fetch` if fetching from a URL).
+   - Add `debian_<NN>_license_{{NAME}}` if the spec requires a click-through license; the function must print `@@LICENSE-ID`, `@@LICENSE-TITLE`, and the full license text (use `ensure_fetch` if fetching from a URL).
    - Reuse common functions actually defined under common/ or license/. Do not invent new helpers. Available helpers: {{HELPERS_LIST}}
+   - Must implement `sbom` if the component installs system-wide packages.  
 
 - **Profile membership**: the spec states whether this component should be added to one or more profiles.
    - If the spec names one or more profiles, **update those `profile/*/debian`
@@ -129,7 +132,8 @@ corporate lab, which runs the following lifecycle on real hardware:
 |------|---------------|
 | install | `openedge-cli install {{NAME}}` must exit 0 |
 | install (again) | Idempotency — must exit 0, must not re-run expensive steps |
-| install --reset-{{NAME}} | Forced reinstall must exit 0 |
+| install --reinstall | Forced reinstall must exit 0 |
+| install --validate | Install + feature validation must exit 0 |
 | start + port probe | `openedge-cli start {{NAME}}` must exit 0; declared ports must be reachable |
 | stop + port probe | `openedge-cli stop {{NAME}}` must exit 0; ports must be released |
 | remove + verify | `openedge-cli remove {{NAME}}` must exit 0; `verify_{{NAME}}` must then fail |
@@ -137,7 +141,8 @@ corporate lab, which runs the following lifecycle on real hardware:
 **Your component must therefore:**
 - Be fully **idempotent**: the second install must detect the existing state
   via `verify_{{NAME}}` and skip gracefully.
-- Support `--reset-{{NAME}}` for forced reinstallation.
+- Support `--reinstall` for forced reinstallation.
+- Optionally support `--validate` for sanity feature validation.
 - Have a `stop` that fully releases any bound ports.
 - Have a `remove` that leaves `verify_{{NAME}}` returning non-zero and
   cleans up the workspace.
@@ -148,4 +153,5 @@ and push to this branch — the workflow will re-run automatically.
 
 ---
 
-> **Note**: generated PRs must be reviewed by a human before merging.
+> [!NOTE]
+> generated PRs must be reviewed by a human before merging.

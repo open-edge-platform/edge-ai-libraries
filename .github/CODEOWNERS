@@ -75,6 +75,10 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 # /microservices/scene-understanding-service/          owners needed
 # /microservices/semantic-search-agent/                owners needed
 
+/microservices/sensor-manager/                         @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya
+/microservices/sensor-manager/docs/                    @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya @open-edge-platform/open-edge-platform-docs-write
+/microservices/sensor-manager/README.md                @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya @open-edge-platform/open-edge-platform-docs-write
+
 /microservices/text-to-speech/                         @avinash-palleti @sachinkaushik @unarayan
 /microservices/text-to-speech/docs/                    @avinash-palleti @sachinkaushik @unarayan  @open-edge-platform/open-edge-platform-docs-write
 /microservices/text-to-speech/README.md                @avinash-palleti @sachinkaushik @unarayan  @open-edge-platform/open-edge-platform-docs-write
@@ -93,6 +97,10 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /microservices/visual-data-preparation-for-retrieval/           @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/visual-data-preparation-for-retrieval/docs/      @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
 /microservices/visual-data-preparation-for-retrieval/README.md  @bhardwaj-nakul @krish918 @llin60 @zhangcong2019  @open-edge-platform/open-edge-platform-docs-write
+
+/microservices/stream-manager/                  @bharagha @rrajore @14pankaj @sa10-int @krish918
+/microservices/stream-manager/docs/             @bharagha @rrajore @14pankaj @sa10-int @krish918  @open-edge-platform/open-edge-platform-docs-write
+/microservices/stream-manager/README.md         @bharagha @rrajore @14pankaj @sa10-int @krish918  @open-edge-platform/open-edge-platform-docs-write
 
 
 # ============================================================================
@@ -127,9 +135,9 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 # the main folder lacks codeowners, needs resolution
 # /tools/npu-monitor-tool/
 
-/tools/visual-pipeline-and-platform-evaluation-tool/           @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka
-/tools/visual-pipeline-and-platform-evaluation-tool/docs/      @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @open-edge-platform/open-edge-platform-docs-write
-/tools/visual-pipeline-and-platform-evaluation-tool/README.md  @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/           @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya
+/tools/visual-pipeline-and-platform-evaluation-tool/docs/      @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/README.md  @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya @open-edge-platform/open-edge-platform-docs-write
 
 /tools/genai-applications-sizing/                              @bharagha @rudra-intel @madhuri-rai07 @hteeyeoh
 

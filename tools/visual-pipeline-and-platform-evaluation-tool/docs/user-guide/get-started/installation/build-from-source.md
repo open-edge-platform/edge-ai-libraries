@@ -22,7 +22,8 @@ Before starting, ensure the following:
   [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/), then complete the
   [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run Docker as a non-root user.
 
-  > **Note:** Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU device on Linux (yet).
+  > [!NOTE]
+  > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU device on Linux (yet).
 
 - **Dependencies installed**:
   - **Git**: [Install Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
@@ -32,7 +33,8 @@ For GPU and/or NPU usage, appropriate drivers must be installed. The recommended
 script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
 [Install Guide Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
 
-> **Note:** The same steps apply to Ubuntu 24.04 running under WSL 2 on Windows - run all commands
+> [!NOTE]
+> The same steps apply to Ubuntu 24.04 running under WSL 2 on Windows - run all commands
 > inside the WSL distribution. On WSL, only the CPU and GPU (WSL) variants are supported. See
 > [System Requirements](./system-requirements.md#windows-subsystem-for-linux-wsl).
 
@@ -77,6 +79,30 @@ Hugging Face Hub.
 
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.
+
+## Optional: run pipelines on DL Streamer Pipeline Server 2.0 (experimental)
+
+By default, pipelines run inside the `vippet` container. To run them on a separate
+[DL Streamer Pipeline Server 2.0](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/dlsps2/README.md)
+container instead, add `DLSPS2=1`:
+
+```bash
+make build run DLSPS2=1
+make stop DLSPS2=1
+```
+
+This builds the server image from `microservices/dlstreamer-pipeline-server/dlsps2` in the
+same repository, gives it the same devices as `vippet`, and sets
+`VIPPET_EXECUTION_BACKEND=dlsps2`. Current limitations:
+
+- Only pipeline validation and single-stream performance tests run on the server. Density
+  tests, multi-stream performance tests and tests with latency metrics still run inside
+  `vippet`.
+- A pipeline that finishes in less than about one second reports 0 FPS.
+
+The server is not part of `compose.yml`, so `docker compose logs` does not show it. Use
+`docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to
+open a shell in it.
 
 ## Stop the application
 

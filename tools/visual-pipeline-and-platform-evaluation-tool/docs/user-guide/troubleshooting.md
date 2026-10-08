@@ -122,23 +122,34 @@ Even if some elements are not shown as expected in the UI, the underlying **pipe
 
 ## 9. Supported models list is limited and extending it is not guaranteed to work
 
-ViPPET currently supports only models defined in:
+ViPPET currently supports only models defined under:
 
-- [supported_models.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml)
+- [`vippet/models/`](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool/vippet/models)
+  — one YAML file per model. This catalog is synced into the application
+  database at startup (insert-only: existing rows are never updated or
+  removed when a file changes).
 
-A user can try to extend this file with new models, but there is **no guarantee** that
-such models will work out of the box. New entries must point to a `source` that the
-`model-download` microservice knows how to handle (for example `huggingface`,
-`ultralytics`, `openvino`, `pipeline-zoo-models`, `geti`, `hls`).
+A user can try to add a new model by creating a new YAML file in
+`vippet/models/` (following the shape of an existing entry), but there is
+**no guarantee** that such models will work out of the box. New entries
+must point to a `source`/`hub` that the `model-download` microservice
+knows how to handle (for example `huggingface`, `ultralytics`, `openvino`,
+`pipeline-zoo-models`, `geti`, `hls`).
 
-After adding new models to `supported_models.yaml`, restart the stack so the backend
-picks up the updated model set, then install the new models from the **Models** page
-in the UI (or via the `/api/v1/models` API):
+`vippet/models/` is copied into the image at build time, not mounted as a
+runtime volume, so after adding or editing a model file you need to
+**rebuild the image**, not just restart the stack:
 
 ```bash
-make stop
-make run
+make build run
 ```
+
+(If you are running with the dev override, `make run-dev`, the whole
+`vippet/` source tree is bind-mounted, so a restart — `make stop`
+then `make run-dev` — is enough, no rebuild required.)
+
+After the stack comes back up, install the new models from the **Models**
+page in the UI (or via the `/api/v1/models` API).
 
 ---
 
@@ -203,12 +214,15 @@ port, e.g., `http://localhost:8081`:
 
 ## 13. Network Camera Discovery does not find cameras
 
-If the ONVIF Discovery service does not find any cameras on the network, check the following:
+If the Sensor Manager service does not find any cameras on the network, check the following:
 
 - Ensure that the cameras are ONVIF‑compliant and support discovery.
 - Verify that the cameras have ONVIF services enabled.
 - Confirm that the cameras are on the same network segment as the ViPPET application.
-- Check for any firewall rules or network configurations that may block discovery traffic.
+- Check for any firewall rules or network configurations that may block discovery traffic
+  (UDP multicast `239.255.255.250:3702`).
+- Check that the `sensor-manager` container is running and reachable from the `vippet` container
+  (`docker logs sensor-manager`, `curl http://localhost:8090/api/v1/sensors` on the host).
 
 ---
 

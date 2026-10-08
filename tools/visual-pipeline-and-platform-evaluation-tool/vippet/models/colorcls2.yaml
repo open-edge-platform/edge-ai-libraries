@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+name: colorcls2
+display_name: Color Classification
+description: "Classifies the dominant color of a detected object (such as a vehicle), returning a single color label for the cropped region."
+source: public
+hub: ultralytics
+type: image_classification
+precisions:
+  - precision: FP32
+    model_path: ultralytics/public/colorcls2/FP32/colorcls2.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: colorcls2

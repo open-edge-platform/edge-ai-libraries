@@ -14,14 +14,16 @@ Follow the below steps to publish tensor vector data along with other metadata v
 
 2. Update pipeline present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json` with the pipeline below (edit the path to model XML and proc JSON to your needs):
 
-   > **Note:** The model used in the below pipeline is from the list of [supported models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
+   > [!NOTE]
+   > The model used in the below pipeline is from the list of [supported models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/supported_models.html).
    > Refer to the DL Streamer [model preparation](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/dev_guide/model_preparation.html) documentation on how to download it for your usage.
 
    ```sh
    "pipeline": "{auto_source} ! decodebin ! gvadetect model=/home/pipeline-server/omz/intel/person-vehicle-bike-detection-2004/FP32/person-vehicle-bike-detection-2004.xml model-proc=/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/person-vehicle-bike-detection-2004.json ! queue ! gvainference model=/home/pipeline-server/resources/models/classification/resnet50/FP16/resnet-50-pytorch.xml inference-region=1 ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvametapublish ! appsink name=destination ",
    ```
 
-   > **Note:** The property `add-tensor-data` for the DL Streamer element `gvametaconvert` is set to `true`.
+   > [!NOTE]
+   > The property `add-tensor-data` for the DL Streamer element `gvametaconvert` is set to `true`.
 
 3. Configure MQTT `host` and `port` present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`:
 
@@ -30,7 +32,8 @@ Follow the below steps to publish tensor vector data along with other metadata v
    MQTT_PORT=1883
    ```
 
-   > **Note:** By default, DL Streamer Pipeline Server provides a MQTT broker as part of the
+   > [!NOTE]
+   > By default, DL Streamer Pipeline Server provides a MQTT broker as part of the
    > Docker Compose file. In case you want to use a different broker, update the above variables accordingly.
 
 4. Start DL Streamer Pipeline Server:

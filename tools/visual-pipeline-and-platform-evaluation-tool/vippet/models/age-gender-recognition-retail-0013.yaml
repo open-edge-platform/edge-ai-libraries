@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+name: age-gender-recognition-retail-0013
+display_name: Age Gender Recognition Retail 0013
+description: "Estimates a person's approximate age and predicts gender from an already-detected face crop; intended for retail and audience-analytics scenarios."
+source: omz
+hub: omz
+type: image_classification
+precisions:
+  - precision: INT8
+    model_path: omz/age-gender-recognition-retail-0013/FP16-INT8/age-gender-recognition-retail-0013.xml
+    model_proc: omz/age-gender-recognition-retail-0013/age-gender-recognition-retail-0013.json
+  - precision: FP16
+    model_path: omz/age-gender-recognition-retail-0013/FP16/age-gender-recognition-retail-0013.xml
+    model_proc: omz/age-gender-recognition-retail-0013/age-gender-recognition-retail-0013.json
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: omz
+  name: age-gender-recognition-retail-0013
