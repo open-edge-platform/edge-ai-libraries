@@ -16,7 +16,7 @@ configure_stationary_robot_vision () {
 }
 
 debian_90_profile_stationary_robot_vision () {
-  echo "git curl edge_base ros2 ros_openvino realsense"
+  echo "git curl edge_base_robotics"
 }
 
 verify_stationary_robot_vision () {

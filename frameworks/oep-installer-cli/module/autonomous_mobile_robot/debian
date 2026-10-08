@@ -40,7 +40,7 @@ configure_autonomous_mobile_robot_device () {
 }
 
 debian_90_profile_autonomous_mobile_robot () {
-  echo "git curl edge_base ros2 ros_openvino realsense"
+  echo "git curl edge_base_robotics"
 }
 
 verify_autonomous_mobile_robot () {

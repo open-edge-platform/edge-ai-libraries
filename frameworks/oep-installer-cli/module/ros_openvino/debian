@@ -112,7 +112,11 @@ EOF
 }
 
 debian_55_profile_ros_openvino () {
-  echo "curl gpg ros2 edge_base libze1 debconf_utils"
+  echo "curl gpg ros2 libze1 debconf_utils"
+  # --realtime (set by edge_base_robotics) supplies GPU/NPU prep via
+  # edge_pack_base_realtime instead; skip edge_base to avoid installing both
+  # the standard and real-time edge-pack base bundles together.
+  [[ " $* " = *" --realtime "* ]] || echo "edge_base"
 }
 
 verify_ros_openvino () {
