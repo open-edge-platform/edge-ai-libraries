@@ -281,7 +281,7 @@ subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
 
   # reconstruct installer
-  local installer_misc_functions=(amr_setup_osrf_gazebo system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary)
+  local installer_misc_functions=(remove_oneapi_ros_openvino remove_osrf_gazebo_ros2 sbom_oneapi_ros_openvino sbom_osrf_gazebo_ros2 system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary)
   mkdir -p "$(dirname "$installer_bin")"
   cat > "$installer_bin" <<EOF
 #!/bin/bash
@@ -2652,73 +2652,60 @@ configure_autonomous_mobile_robot () {
   *)     ros_distro=jazzy ;;
   esac
   # standard SDK by default; pass --complete for the full (~20GB) SDK
+  # (an installed complete SDK also satisfies a standard SDK request)
   amr_sdk_pkg=ros-$ros_distro-robotics-sdk
+  if [[ " $* " = *" --complete "* ]] || ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete; then
+    amr_sdk_pkg=ros-$ros_distro-robotics-sdk-complete
+  fi
+  # Collaborative SLAM acceleration variants:
+  #   lze  -> Intel GPU (Level-Zero)   avx2 -> Intel Core CPU   sse -> Atom/default
+  amr_slam_pkgs=(ros-$ros_distro-collab-slam-lze ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-sse)
+}
 
-  # Intel oneAPI Base Toolkit repo + version pins - the robotics SDK links the
-  # oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
-  oneapi_repo_name="apt.repos.intel.com"
-  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
-  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
-  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
-  oneapi_pref=(
-    "Package: intel-oneapi-runtime-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-    "Package: intel-oneapi-compiler-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-    "Package: intel-oneapi-mkl-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-  )
-  oneapi_pref_file=/etc/apt/preferences.d/oneapi
-  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
+# select the Collaborative SLAM variant for the device (GPU, CPU or NPU)
+configure_autonomous_mobile_robot_slam () {
+  local device="$1"
+  amr_slam_pkg=ros-$ros_distro-collab-slam-sse
+  if [ "$device" = GPU ]; then
+    amr_slam_pkg=ros-$ros_distro-collab-slam-lze
+  elif grep -q -w avx2 /proc/cpuinfo; then
+    amr_slam_pkg=ros-$ros_distro-collab-slam-avx2
+  fi
+}
+
+configure_autonomous_mobile_robot_device () {
+  configure_autonomous_mobile_robot_slam "$1"
+  ensure_apt_is_installed "$amr_slam_pkg" && return 0
+
+  ensure_apt remove -y $(printf '%s\n' "${amr_slam_pkgs[@]}" | grep -v -x -F "$amr_slam_pkg")
+  ensure_apt install -y "$amr_slam_pkg"
+  ensure_apt_is_installed "$amr_slam_pkg"
 }
 
 debian_90_profile_autonomous_mobile_robot () {
-  echo "git curl wget edge_base ros2 ros_openvino realsense software_properties_common lsb_release"
+  echo "git curl edge_base_robotics"
 }
 
 verify_autonomous_mobile_robot () {
-  configure_autonomous_mobile_robot
-  ensure_apt_is_installed ros-$ros_distro-robotics-sdk || \
-  ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete
-}
-
-# add the OSRF Gazebo apt repository (needed for the robotics-sdk dependencies)
-configure_osrf_gazebo () {
-  osrf_name=packages.osrfoundation.org
-  osrf_key_url="https://$osrf_name/gazebo.gpg"
-  osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
-  osrf_entry="deb [signed-by=$osrf_key] https://$osrf_name/gazebo/$ID-stable $VERSION_CODENAME main"
-  osrf_list=/etc/apt/sources.list.d/gazebo-stable.list
-}
-
-amr_setup_osrf_gazebo () {
-  configure_osrf_gazebo
-  ensure_apt_key "$osrf_key" "$osrf_key_url"
-  ensure_apt_source "$osrf_list" "$osrf_entry"
-  ensure_apt update -y
-  [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
+  configure_autonomous_mobile_robot "$@"
+  ensure_apt_is_installed $amr_sdk_pkg
 }
 
 debian_90_install_autonomous_mobile_robot () {
-  configure_autonomous_mobile_robot
-  [[ " $* " != *" --complete "* ]] || amr_sdk_pkg=ros-$ros_distro-robotics-sdk-complete
+  configure_autonomous_mobile_robot "$@"
 
-  if verify_autonomous_mobile_robot && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_autonomous_mobile_robot "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Autonomous Mobile Robot is already installed. Skipping..."
   else
+    # declare ownership
+    ensure_prop set installed/autonomous_mobile_robot/owned true
+
     ensure_disk_size $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
 
-    # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
-    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
-    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
-    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
+    ensure_oneapi_ros_openvino
 
     ensure_apt update -y
-
-    amr_setup_gazebo
+    ensure_osrf_gazebo_ros2
 
     # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
     if [ "$ros_distro" = humble ]; then
@@ -2729,45 +2716,41 @@ debian_90_install_autonomous_mobile_robot () {
     # the Autonomous Mobile Robot SDK meta-package
     ensure_apt install -y "$amr_sdk_pkg"
 
-    # Collaborative SLAM acceleration variant, selected by hardware capability:
-    #   lze  -> Intel GPU (Level-Zero)   avx2 -> Intel Core CPU   sse -> Atom/default
-    local slam_pkg=ros-$ros_distro-collab-slam-sse
-    grep -q -w avx2 /proc/cpuinfo && slam_pkg=ros-$ros_distro-collab-slam-avx2
-    [ -e /dev/dri/renderD128 ] && slam_pkg=ros-$ros_distro-collab-slam-lze
-    ensure_apt install -y "$slam_pkg"
+    verify_autonomous_mobile_robot "$@"
   fi
 
-  echo "@@HIGHLIGHT Autonomous Mobile Robot ($amr_sdk_pkg) installed for ROS 2 $ros_distro"
+  # Collaborative SLAM variant (default: GPU if available)
+  local device=$(ensure_select_device "$@")
+  configure_autonomous_mobile_robot_device "${device^^}"
+
+  echo "@@HIGHLIGHT Autonomous Mobile Robot ($amr_sdk_pkg, $amr_slam_pkg) installed for ROS 2 $ros_distro"
   echo "@@HIGHLIGHT shell env @source /opt/ros/$ros_distro/setup.bash"
   echo "@@HIGHLIGHT tutorials @https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/dev_guide/index_tutorials.html"
+  echo "@@HIGHLIGHT $installer_name install [--complete] [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_remove_autonomous_mobile_robot () {
+  # leave untouched if not installed by autonomous_mobile_robot
+  [ "$(ensure_prop get installed/autonomous_mobile_robot/owned)" = "true" ] || return 0
+
   configure_autonomous_mobile_robot
-  if verify_autonomous_mobile_robot; then
+  if ensure_apt_is_installed ros-$ros_distro-robotics-sdk || ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete; then
     ensure_apt autoremove -m -y \
-      ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete \
-      ros-$ros_distro-collab-slam-sse ros-$ros_distro-collab-slam-avx2 ros-$ros_distro-collab-slam-lze || true
-    configure_osrf_gazebo
-    ensure_sudo rm -f $osrf_list $osrf_key
-    ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
+      ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete "${amr_slam_pkgs[@]}" || true
+    verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2
+    remove_oneapi_ros_openvino
   else
     echo "Autonomous Mobile Robot already removed. Skipping"
   fi
 }
 
 debian_90_sbom_autonomous_mobile_robot () {
-  configure_autonomous_mobile_robot
-  cat <<EOF
-$(ensure_sbom_format name "$oneapi_repo_name")
-$(ensure_sbom_format gpg-key "$oneapi_key_url")
-$(ensure_sbom_format key-file "$oneapi_key_file")
-$(ensure_sbom_format apt-source "$oneapi_deb_entry")
-$(ensure_sbom_format apt-list-file "$oneapi_list")
-$(ensure_sbom_format apt-pref "${oneapi_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$oneapi_pref_file")
-$(ensure_sbom_format pkg-list "intel-oneapi-runtime-*" "intel-oneapi-compiler-*" "intel-oneapi-mkl-*")
-EOF
+  configure_autonomous_mobile_robot "$@"
+  local device=$(ensure_select_device "$@")
+  configure_autonomous_mobile_robot_slam "${device^^}"
+
+  sbom_oneapi_ros_openvino
   echo "---"
 
   # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
@@ -2778,22 +2761,13 @@ $(ensure_sbom_format pkg-list gcc-12 g++-12)
 EOF
   fi
 
-  if [ "$ros_distro" = jazzy ]; then
-    configure_osrf_gazebo
-    cat <<EOF
-$(ensure_sbom_format name $osrf_name)
-$(ensure_sbom_format apt-source "$osrf_entry")
-$(ensure_sbom_format apt-list-file "$osrf_list")
-$(ensure_sbom_format pkg-list gz-harmonic)
----
-EOF
-  fi
+  sbom_osrf_gazebo_ros2
+  echo "---"
 
   cat <<EOF
-$(ensure_sbom_format pkg-list $amr_sdk_pkg "ros-$ros_distro-collab-slam-sse")
+$(ensure_sbom_format pkg-list $amr_sdk_pkg $amr_slam_pkg)
 EOF
 }
-
 
 debian_30_install_chrony () {
   ensure_apt_install_package chrony
@@ -3211,6 +3185,34 @@ debian_99_profile_edge_base () {
   esac
 }
 
+
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Edge Base Robotics - virtual package bundling the common Robotics AI Suite
+# prerequisites: GPU/NPU acceleration prep (via edge_base, or the
+# edge_pack_base_realtime bundle for low-latency/real-time control loops),
+# ROS 2, the ROS 2 OpenVINO toolkit, and the Intel RealSense SDK.
+# --realtime selects the edge-pack real-time base bundle instead of the
+# standard one; it implies the edge-pack route since no direct-driver
+# real-time equivalent exists. NOTE: intel-edge-base-realtime is not yet
+# published on the Intel edge-pack apt feed as of this writing - --realtime
+# will fail to install until Intel publishes it.
+debian_90_profile_edge_base_robotics () {
+  case "$1" in
+  bootstrap) # all components
+    echo "core_types pre_system_scan edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel ros2 ros_openvino realsense"
+    ;;
+  *)
+    echo "ros2 ros_openvino realsense"
+    if [[ " $* " = *" --realtime "* ]]; then
+      echo "core_types pre_system_scan edge_pack_base_realtime edge_pack_npu"
+    else
+      echo "edge_base"
+    fi
+    ;;
+  esac
+}
 
 configure_edge_pack () {
   edge_pack_repo="apt.repos.intel.com"
@@ -3925,6 +3927,7 @@ configure_humanoid_imitation_learning () {
   repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts.git"
   container_dir="$workspace/samples/robotics/robotics-ai-suite-containers"
   # sample: act-sample (default) or pi05-rtc-ov, selectable via a module arg
+  humanoid_samples=(act-sample pi05-rtc-ov)
   humanoid_sample=act-sample
   [[ " $* " != *" pi05-rtc-ov "* && " $* " != *" --pi05-rtc-ov "* ]] || humanoid_sample=pi05-rtc-ov
   humanoid_base_image=robotics-ai-suite:humanoid-imitation-learning-base
@@ -3935,8 +3938,16 @@ debian_90_profile_humanoid_imitation_learning () {
   echo "git curl edge_base docker"
 }
 
+# the container recipes are checked out at the pinned version
+verify_humanoid_imitation_learning_workspace () {
+  [ "$(git -C "$workspace" rev-parse HEAD 2> /dev/null)" = "$version" ] && \
+  [ -r "$container_dir/dockerfiles/humanoid-imitation-learning/base.dockerfile" ]
+}
+
 verify_humanoid_imitation_learning () {
   configure_humanoid_imitation_learning "$@"
+  verify_humanoid_imitation_learning_workspace && \
+  docker image inspect "$humanoid_base_image" > /dev/null 2>&1 && \
   docker image inspect "$humanoid_sample_image" > /dev/null 2>&1
 }
 
@@ -3949,29 +3960,44 @@ debian_90_install_humanoid_imitation_learning () {
     # The base image bundles the OpenVINO dev stack, Intel GPU runtime, oneAPI
     # and a clone of edge-ai-suites; the sample image adds the policy packages.
     ensure_disk_size 25000
-    ensure_git_clone "$workspace" "$version" "$repository" samples/robotics/robotics-ai-suite-containers
+    if ! verify_humanoid_imitation_learning_workspace || [[ " $* " = *" --reinstall "* ]]; then
+      ensure_git_clone "$workspace" "$version" "$repository" samples/robotics/robotics-ai-suite-containers
+      # new recipes: the base image must be rebuilt
+      docker image rm -f "$humanoid_base_image" > /dev/null 2>&1 || true
+    fi
 
-    cd "$container_dir"
-    echo "Building $humanoid_base_image (this downloads the OpenVINO dev image and may take a while)..."
-    docker build -t "$humanoid_base_image" -f dockerfiles/humanoid-imitation-learning/base.dockerfile . || {
-      echo "Could not build the Humanoid - Imitation Learning base image." 1>&2
-      return 3
-    }
+    pushd "$container_dir" > /dev/null
+    if ! docker image inspect "$humanoid_base_image" > /dev/null 2>&1; then
+      echo "Building $humanoid_base_image (this downloads the OpenVINO dev image and may take a while)..."
+      docker build -t "$humanoid_base_image" -f dockerfiles/humanoid-imitation-learning/base.dockerfile . || {
+        echo "Could not build the Humanoid - Imitation Learning base image." 1>&2
+        return 3
+      }
+    fi
     echo "Building $humanoid_sample_image ($humanoid_sample)..."
     docker build -t "$humanoid_sample_image" -f "dockerfiles/humanoid-imitation-learning/$humanoid_sample.dockerfile" . || {
       echo "Could not build the Humanoid - Imitation Learning $humanoid_sample image." 1>&2
       return 3
     }
+    popd > /dev/null
+
+    verify_humanoid_imitation_learning "$@"
   fi
 
   echo "@@HIGHLIGHT Humanoid - Imitation Learning image built: $humanoid_sample_image"
   echo "@@HIGHLIGHT run @cd $container_dir && ./run.sh   # select humanoid-imitation-learning / $humanoid_sample"
   echo "@@HIGHLIGHT docs @https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
+  echo "@@HIGHLIGHT $installer_name install [--pi05-rtc-ov]"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_remove_humanoid_imitation_learning () {
   configure_humanoid_imitation_learning "$@"
-  docker image rm -f "$humanoid_sample_image" "$humanoid_base_image" > /dev/null 2>&1 || true
+  local sample images=("$humanoid_base_image")
+  for sample in "${humanoid_samples[@]}"; do
+    images+=("robotics-ai-suite:humanoid-imitation-learning-$sample")
+  done
+  docker image rm -f "${images[@]}" > /dev/null 2>&1 || true
   ensure_sudo rm -rf "$workspace"
 }
 
@@ -5411,17 +5437,25 @@ configure_physical_ai_framework () {
   workspace="$(ensure_project_path)/physical-ai-framework"
   paif_venv="$workspace/.venv"
   paif_pkg="physicalai-train"
-  # pick the PyTorch wheel index and package extra for the detected device
-  if command -v nvidia-smi > /dev/null 2>&1; then
+  paif_version=0.2.0
+  paif_device_file="$workspace/.device"
+}
+
+# select the PyTorch build (paif_extra) and wheel index (paif_index):
+#   --gpu -> Intel XPU   --cpu -> CPU   --npu -> XPU if a GPU is present, else CPU
+# NVIDIA CUDA is used when nvidia-smi is present and no device option is given.
+# Without a device option, a previously installed build is kept.
+configure_physical_ai_framework_device () {
+  local args_uc=" ${*^^} "
+  if [[ "$args_uc" != *" --GPU "* && "$args_uc" != *" --CPU "* && "$args_uc" != *" --NPU "* ]] && [ -r "$paif_device_file" ]; then
+    paif_extra="$(cat "$paif_device_file")"
+  elif [[ "$args_uc" != *" --GPU "* && "$args_uc" != *" --CPU "* ]] && command -v nvidia-smi > /dev/null 2>&1; then
     paif_extra=cu128
-    paif_index="https://download.pytorch.org/whl/cu128"
-  elif [ -e /dev/dri/renderD128 ]; then
-    paif_extra=xpu
-    paif_index="https://download.pytorch.org/whl/xpu"
   else
     paif_extra=cpu
-    paif_index="https://download.pytorch.org/whl/cpu"
+    [ "$(ensure_select_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || paif_extra=xpu
   fi
+  paif_index="https://download.pytorch.org/whl/$paif_extra"
 }
 
 debian_91_profile_physical_ai_framework () {
@@ -5429,12 +5463,16 @@ debian_91_profile_physical_ai_framework () {
 }
 
 verify_physical_ai_framework () {
-  configure_physical_ai_framework "$@"
-  [ -x "$paif_venv/bin/physicalai" ]
+  configure_physical_ai_framework
+  configure_physical_ai_framework_device "$@"
+  [ -x "$paif_venv/bin/physicalai" ] && \
+  [ "$(cat "$paif_device_file" 2> /dev/null)" = "$paif_extra" ] && \
+  [ "$("$paif_venv/bin/python" -c "import importlib.metadata as m; print(m.version('$paif_pkg'))" 2> /dev/null)" = "$paif_version" ]
 }
 
 debian_91_install_physical_ai_framework () {
-  configure_physical_ai_framework "$@"
+  configure_physical_ai_framework
+  configure_physical_ai_framework_device "$@"
   configure_uv
 
   if verify_physical_ai_framework "$@" && [[ " $* " != *" --reinstall "* ]]; then
@@ -5442,27 +5480,47 @@ debian_91_install_physical_ai_framework () {
   else
     ensure_disk_size 15000
 
+    rm -rf "$paif_venv" "$paif_device_file"
     mkdir -p "$workspace"
     uv venv --python 3.12 "$paif_venv" || {
       echo "Could not create the Physical AI Framework virtual environment." 1>&2
       return 3
     }
-    echo "Installing ${paif_pkg}[${paif_extra}] (PyTorch ${paif_extra} build; this may take a while)..."
+    echo "Installing ${paif_pkg}[${paif_extra}]==${paif_version} (PyTorch ${paif_extra} build; this may take a while)..."
     uv pip install --python "$paif_venv/bin/python" \
       --index "$paif_index" --index-strategy unsafe-best-match \
-      "${paif_pkg}[${paif_extra}]" || {
+      "${paif_pkg}[${paif_extra}]==${paif_version}" || {
       echo "Could not install $paif_pkg." 1>&2
       return 3
     }
+    echo "$paif_extra" > "$paif_device_file"
+
+    if [[ " $* " = *" --validate "* ]]; then
+      "$paif_venv/bin/physicalai" --help > /dev/null
+      "$paif_venv/bin/python" - "$paif_extra" <<'EOF'
+import sys
+import torch
+
+build = sys.argv[1]
+available = {"cpu": True, "xpu": torch.xpu.is_available(), "cu128": torch.cuda.is_available()}[build]
+print(f"torch {torch.__version__} ({build}): {'available' if available else 'device not available'}")
+sys.exit(0 if available else 1)
+EOF
+      echo "Physical AI Framework validation passed."
+    fi
+
+    verify_physical_ai_framework "$@"
   fi
 
-  echo "@@HIGHLIGHT Physical AI Framework installed in $paif_venv"
+  echo "@@HIGHLIGHT Physical AI Framework ($paif_extra) installed in $paif_venv"
   echo "@@HIGHLIGHT run @source $paif_venv/bin/activate && physicalai --help"
   echo "@@HIGHLIGHT docs @https://github.com/open-edge-platform/physical-ai-studio/tree/main/library"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_91_remove_physical_ai_framework () {
-  configure_physical_ai_framework "$@"
+  configure_physical_ai_framework
   ensure_sudo rm -rf "$workspace"
 }
 
@@ -5476,25 +5534,35 @@ debian_91_remove_physical_ai_framework () {
 # https://github.com/open-edge-platform/physical-ai-studio
 configure_physical_ai_studio () {
   pais_pkg="physicalai-studio"
+  pais_version=0.2.0
   pais_bin="$HOME/.local/bin/physicalai-studio"
   # runtime state for the long-running `serve` process (native, non-docker)
   pais_run_dir="$(ensure_project_path)/physical-ai-studio"
   pais_pid_file="$pais_run_dir/physicalai-studio.pid"
   pais_log_file="$pais_run_dir/physicalai-studio.logs"
-  # the port the app binds to by default (used only for the guard / URL, the
-  # server is launched with its own built-in default and never overridden)
+  pais_device_file="$pais_run_dir/.device"
+  # the app binds to 127.0.0.1 by default
   pais_port=7860
-  # pick the PyTorch wheel index and package extra for the detected device
-  if command -v nvidia-smi > /dev/null 2>&1; then
+}
+
+# select the PyTorch build (pais_extra) and wheel index (pais_index):
+#   --gpu -> Intel XPU   --cpu -> CPU   --npu -> XPU if a GPU is present, else CPU
+# NVIDIA CUDA is used when nvidia-smi is present and no device option is given.
+# Without a device option, a previously installed build is kept.
+configure_physical_ai_studio_device () {
+  local args_uc=" ${*^^} "
+  if [[ "$args_uc" != *" --GPU "* && "$args_uc" != *" --CPU "* && "$args_uc" != *" --NPU "* ]] && [ -r "$pais_device_file" ]; then
+    pais_extra="$(cat "$pais_device_file")"
+  elif [[ "$args_uc" != *" --GPU "* && "$args_uc" != *" --CPU "* ]] && command -v nvidia-smi > /dev/null 2>&1; then
     pais_extra=cuda
-    pais_index="https://download.pytorch.org/whl/cu128"
-  elif [ -e /dev/dri/renderD128 ]; then
-    pais_extra=xpu
-    pais_index="https://download.pytorch.org/whl/xpu"
   else
     pais_extra=cpu
-    pais_index="https://download.pytorch.org/whl/cpu"
+    [ "$(ensure_select_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || pais_extra=xpu
   fi
+  case "$pais_extra" in
+  cuda) pais_index="https://download.pytorch.org/whl/cu128" ;;
+  *)    pais_index="https://download.pytorch.org/whl/$pais_extra" ;;
+  esac
 }
 
 debian_92_profile_physical_ai_studio () {
@@ -5502,54 +5570,75 @@ debian_92_profile_physical_ai_studio () {
 }
 
 verify_physical_ai_studio () {
-  configure_physical_ai_studio "$@"
-  [ -x "$pais_bin" ]
+  configure_physical_ai_studio
+  configure_physical_ai_studio_device "$@"
+  configure_uv
+  [ -x "$pais_bin" ] && \
+  [ "$(cat "$pais_device_file" 2> /dev/null)" = "$pais_extra" ] && \
+  uv tool list 2> /dev/null | grep -q -E "^$pais_pkg v${pais_version//./\\.}( |$)"
 }
 
 debian_92_install_physical_ai_studio () {
-  configure_physical_ai_studio "$@"
+  configure_physical_ai_studio
+  configure_physical_ai_studio_device "$@"
   configure_uv
 
   if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
     echo "Physical AI Studio is already installed. Skipping..."
   else
     ensure_disk_size 20000
-    echo "Installing ${pais_pkg}[${pais_extra}] (PyTorch ${pais_extra} build; this may take a while)..."
-    uv tool install --python 3.12 \
+    debian_92_stop_physical_ai_studio "$@" || true
+    rm -f "$pais_device_file"
+    echo "Installing ${pais_pkg}[${pais_extra}]==${pais_version} (PyTorch ${pais_extra} build; this may take a while)..."
+    uv tool install --reinstall --python 3.12 \
       --index "$pais_index" --index-strategy unsafe-best-match \
-      "${pais_pkg}[${pais_extra}]" || {
+      "${pais_pkg}[${pais_extra}]==${pais_version}" || {
       echo "Could not install $pais_pkg." 1>&2
       return 3
     }
+    mkdir -p "$pais_run_dir"
+    echo "$pais_extra" > "$pais_device_file"
+
+    verify_physical_ai_studio "$@"
   fi
 
-  echo "@@HIGHLIGHT Physical AI Studio installed ($pais_bin)"
-  echo "@@HIGHLIGHT run @physicalai-studio serve   # then open http://localhost:7860"
+  echo "@@HIGHLIGHT Physical AI Studio ($pais_extra) installed ($pais_bin)"
   echo "@@HIGHLIGHT docs @https://github.com/open-edge-platform/physical-ai-studio"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_92_start_physical_ai_studio () {
-  configure_physical_ai_studio "$@"
+  configure_physical_ai_studio
   # stop any instance already holding the port before starting a new one
-  ensure_ports_open "$pais_port" debian_92_stop_physical_ai_studio
+  ensure_ports_open "$pais_port" debian_92_stop_physical_ai_studio "$@"
 
-  if ! verify_physical_ai_studio "$@"; then
+  if [ ! -x "$pais_bin" ]; then
     echo "Physical AI Studio is not installed. Run 'install physical_ai_studio' first." 1>&2
     return 3
   fi
 
   mkdir -p "$pais_run_dir"
-  # launch the FastAPI backend + UI detached; let the app choose its own port
-  setsid nohup "$pais_bin" serve > "$pais_log_file" 2>&1 < /dev/null &
+  # launch the FastAPI backend + UI detached
+  setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null &
   echo $! > "$pais_pid_file"
 
+  sleep 3
+  if ! kill -0 "$(cat "$pais_pid_file")" > /dev/null 2>&1; then
+    echo "Physical AI Studio exited during startup. See $pais_log_file" 1>&2
+    rm -f "$pais_pid_file"
+    return 3
+  fi
+
   echo "@@HIGHLIGHT Physical AI Studio started (PID $(cat "$pais_pid_file"))"
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip):$pais_port"
+  echo "@@HIGHLIGHT URL: http://localhost:$pais_port"
   echo "@@HIGHLIGHT logs @$pais_log_file"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 debian_92_stop_physical_ai_studio () {
-  configure_physical_ai_studio "$@"
+  configure_physical_ai_studio
   [ -f "$pais_pid_file" ] || return 0
 
   local pid
@@ -5567,7 +5656,7 @@ debian_92_stop_physical_ai_studio () {
 }
 
 debian_92_remove_physical_ai_studio () {
-  configure_physical_ai_studio "$@"
+  configure_physical_ai_studio
   configure_uv
   debian_92_stop_physical_ai_studio "$@" || true
   uv tool uninstall "$pais_pkg" > /dev/null 2>&1 || true
@@ -5822,6 +5911,9 @@ debian_55_install_realsense () {
   if verify_realsense && [[ " $* " != *" --reinstall "* ]]; then
     echo "RealSense SDK is already installed. Skipping..."
   else
+    # declare ownership
+    ensure_prop set installed/realsense/owned true
+
     ensure_sudo mkdir -p /etc/apt/keyrings
     ensure_apt_key $rs_key_file $rs_key_url --dearmor
     ensure_apt_source $rs_list "$rs_deb_entry"
@@ -5833,6 +5925,9 @@ debian_55_install_realsense () {
 }
 
 debian_55_remove_realsense () {
+  # leave untouched if not installed by realsense
+  [ "$(ensure_prop get installed/realsense/owned)" = "true" ] || return 0
+
   configure_realsense
   if verify_realsense; then
     ensure_apt autoremove -m -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true
@@ -5842,7 +5937,7 @@ debian_55_remove_realsense () {
   fi
 }
 
-debian_05_sbom_realsense () {
+debian_55_sbom_realsense () {
   configure_realsense "$@"
   cat <<EOF
 $(ensure_sbom_format name "$rs_repo_name")
@@ -5884,8 +5979,47 @@ configure_ros2 () {
   ros_deb_src="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
 }
 
+# OSRF Gazebo apt repository, shared by the Robotics AI Suite ROS 2 components
+# (autonomous_mobile_robot, stationary_robot_vision). Expects $ros_distro.
+configure_osrf_gazebo_ros2 () {
+  osrf_name=packages.osrfoundation.org
+  osrf_key_url="https://$osrf_name/gazebo.gpg"
+  osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+  osrf_entry="deb [signed-by=$osrf_key] https://$osrf_name/gazebo/$ID-stable $VERSION_CODENAME main"
+  osrf_list=/etc/apt/sources.list.d/gazebo-stable.list
+}
+
+ensure_osrf_gazebo_ros2 () {
+  configure_osrf_gazebo_ros2
+  ensure_apt_key "$osrf_key" "$osrf_key_url"
+  ensure_apt_source "$osrf_list" "$osrf_entry"
+  ensure_apt update -y
+  [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
+}
+
+remove_osrf_gazebo_ros2 () {
+  configure_osrf_gazebo_ros2
+  ensure_sudo rm -f "$osrf_list" "$osrf_key"
+}
+
+sbom_osrf_gazebo_ros2 () {
+  configure_osrf_gazebo_ros2
+  cat <<EOF
+$(ensure_sbom_format name $osrf_name)
+$(ensure_sbom_format gpg-key "$osrf_key_url")
+$(ensure_sbom_format key-file "$osrf_key")
+$(ensure_sbom_format apt-source "$osrf_entry")
+$(ensure_sbom_format apt-list-file "$osrf_list")
+$(ensure_sbom_format pkg-list curl lsb-release gnupg $([ "$ros_distro" != jazzy ] || echo gz-harmonic))
+EOF
+}
+
 debian_50_profile_ros2 () {
-  echo "curl gnupg git software_properties_common lsb_release edge_base"
+  echo "curl gnupg git software_properties_common lsb_release"
+  # --realtime (set by edge_base_robotics) supplies GPU/NPU prep via
+  # edge_pack_base_realtime instead; skip edge_base to avoid installing both
+  # the standard and real-time edge-pack base bundles together.
+  [[ " $* " = *" --realtime "* ]] || echo "edge_base"
 }
 
 verify_ros2 () {
@@ -5898,6 +6032,9 @@ debian_50_install_ros2 () {
   if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 $ros_distro is already installed. Skipping..."
   else
+    # declare ownership
+    ensure_prop set installed/ros2/owned true
+
     ensure_apt_add_repository universe || true
 
     # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
@@ -5923,6 +6060,9 @@ debian_50_install_ros2 () {
 }
 
 debian_50_remove_ros2 () {
+  # leave untouched if not installed by ros2
+  [ "$(ensure_prop get installed/ros2/owned)" = "true" ] || return 0
+
   configure_ros2
   if verify_ros2; then
     ensure_apt autoremove -m -y ros-$ros_distro-desktop || true
@@ -5987,8 +6127,76 @@ configure_ros_openvino () {
   amr_deb_src_entry="$(printf 'deb-src [signed-by=%s] https://%s/repos/%s amr main\n' "$amr_key_file" "$amr_repo_name" "$VERSION_CODENAME")"
 }
 
+# Intel oneAPI Base Toolkit repo + version pins, shared by the Robotics AI Suite
+# components (autonomous_mobile_robot, stationary_robot_vision) whose robotics
+# stack links the oneAPI runtime/compiler/MKL packages.
+configure_oneapi_ros_openvino () {
+  oneapi_repo_name="apt.repos.intel.com"
+  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
+  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  oneapi_pref=(
+    "Package: intel-oneapi-runtime-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-compiler-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+    "Package: intel-oneapi-mkl-*"
+    "Pin: version 2025.3.*"
+    "Pin-Priority: 1001"
+  )
+  oneapi_pref_file=/etc/apt/preferences.d/oneapi
+  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
+}
+
+ensure_oneapi_ros_openvino () {
+  configure_oneapi_ros_openvino
+  ensure_apt install -y wget
+  ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
+  ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
+  ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
+}
+
+# succeeds if any Robotics AI Suite apt component is still installed. Expects $ros_distro.
+verify_robotics_in_use_ros_openvino () {
+  local pkg
+  for pkg in ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete \
+             ros-$ros_distro-rvc ros-$ros_distro-rvc-simulation; do
+    ! ensure_apt_is_installed $pkg || return 0
+  done
+  return 1
+}
+
+# remove the shared oneAPI repo only when no robotics component still needs it
+remove_oneapi_ros_openvino () {
+  configure_oneapi_ros_openvino
+  ! verify_robotics_in_use_ros_openvino || return 0
+  ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
+}
+
+sbom_oneapi_ros_openvino () {
+  configure_oneapi_ros_openvino
+  cat <<EOF
+$(ensure_sbom_format name "$oneapi_repo_name")
+$(ensure_sbom_format gpg-key "$oneapi_key_url")
+$(ensure_sbom_format key-file "$oneapi_key_file")
+$(ensure_sbom_format apt-source "$oneapi_deb_entry")
+$(ensure_sbom_format apt-list-file "$oneapi_list")
+$(ensure_sbom_format apt-pref "${oneapi_pref[@]}")
+$(ensure_sbom_format apt-pref-file "$oneapi_pref_file")
+$(ensure_sbom_format pkg-list "intel-oneapi-runtime-*" "intel-oneapi-compiler-*" "intel-oneapi-mkl-*")
+---
+$(ensure_sbom_format pkg-list wget)
+EOF
+}
+
 debian_55_profile_ros_openvino () {
-  echo "curl gnupg ros2 edge_base libze1 debconf_utils"
+  echo "curl gnupg ros2 libze1 debconf_utils"
+  # --realtime (set by edge_base_robotics) supplies GPU/NPU prep via
+  # edge_pack_base_realtime instead; skip edge_base to avoid installing both
+  # the standard and real-time edge-pack base bundles together.
+  [[ " $* " = *" --realtime "* ]] || echo "edge_base"
 }
 
 verify_ros_openvino () {
@@ -6003,7 +6211,8 @@ debian_55_install_ros_openvino () {
   if verify_ros_openvino && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
   else
-    ensure_apt install -y curl gnupg
+    # declare ownership
+    ensure_prop set installed/ros_openvino/owned true
 
     # AMR apt feed (signing key + source + pin) providing the ROS OpenVINO node
     ensure_sudo mkdir -p "$(dirname "$amr_key_file")"
@@ -6038,6 +6247,9 @@ debian_55_install_ros_openvino () {
 }
 
 debian_55_remove_ros_openvino () {
+  # leave untouched if not installed by ros_openvino
+  [ "$(ensure_prop get installed/ros_openvino/owned)" = "true" ] || return 0
+
   configure_ros_openvino
   if verify_ros_openvino; then
     ensure_apt autoremove -m -y ros-$ros_distro-openvino-node openvino || true
@@ -6072,7 +6284,6 @@ $(ensure_sbom_format apt-pref "${ov_deb_pref[@]}")
 $(ensure_sbom_format pkg-list curl gnupg)
 EOF
 }
-
 
 debian_30_install_rsync () {
   ensure_apt_install_package rsync
@@ -6711,35 +6922,15 @@ configure_stationary_robot_vision () {
   *)     ros_distro=jazzy ;;
   esac
   rvc_pkgs=("ros-$ros_distro-rvc-simulation")
-
-  # Intel oneAPI Base Toolkit repo + version pins - the RVC robotics stack links
-  # the oneAPI runtime/compiler/MKL packages. Previously provided by amr_apt_repo.
-  oneapi_repo_name="apt.repos.intel.com"
-  oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
-  oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
-  oneapi_list=/etc/apt/sources.list.d/oneAPI.list
-  oneapi_pref=(
-    "Package: intel-oneapi-runtime-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-    "Package: intel-oneapi-compiler-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-    "Package: intel-oneapi-mkl-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
-  )
-  oneapi_pref_file=/etc/apt/preferences.d/oneapi
-  oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
 }
 
 debian_90_profile_stationary_robot_vision () {
-  echo "git curl edge_base ros2 ros_openvino realsense"
+  echo "git curl edge_base_robotics"
 }
 
 verify_stationary_robot_vision () {
   configure_stationary_robot_vision
-  ensure_apt_is_installed ros-$ros_distro-rvc
+  ensure_apt_is_installed "${rvc_pkgs[@]}"
 }
 
 debian_90_install_stationary_robot_vision () {
@@ -6748,35 +6939,39 @@ debian_90_install_stationary_robot_vision () {
   if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
     echo "Stationary Robot Vision & Control is already installed. Skipping..."
   else
+    # declare ownership
+    ensure_prop set installed/stationary_robot_vision/owned true
+
     ensure_disk_size 15000
 
-    # Intel oneAPI Base Toolkit apt repo (signing key + source + version pins)
-    ensure_apt install -y software-properties-common curl gnupg wget
-    ensure_apt_key "$oneapi_key_file" "$oneapi_key_url" --dearmor
-    ensure_apt_source "$oneapi_list" "$oneapi_deb_entry"
-    ensure_apt_preference "$oneapi_pref_file" "${oneapi_pref[@]}"
-
+    ensure_oneapi_ros_openvino
     ensure_apt update -y
-    # RVC depends on Gazebo Harmonic (gz-harmonic); make sure the OSRF Gazebo
-    # apt repository is configured (shared with the AMR SDK component).
-    ! declare -F amr_setup_osrf_gazebo > /dev/null 2>&1 || amr_setup_osrf_gazebo
+    # RVC depends on Gazebo Harmonic (gz-harmonic) from the OSRF Gazebo apt repository
+    ensure_osrf_gazebo_ros2
     ensure_apt install -y "${rvc_pkgs[@]}" || {
       echo "Could not install RVC packages (${rvc_pkgs[*]})." 1>&2
       echo "Confirm the exact package names at https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html" 1>&2
       return 3
     }
+
+    verify_stationary_robot_vision
   fi
 
   echo "@@HIGHLIGHT Stationary Robot Vision & Control installed for ROS 2 $ros_distro"
+  echo "@@HIGHLIGHT shell env @source /opt/ros/$ros_distro/setup.bash"
   echo "@@HIGHLIGHT docs @https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html"
 }
 
 debian_90_remove_stationary_robot_vision () {
+  # leave untouched if not installed by stationary_robot_vision
+  [ "$(ensure_prop get installed/stationary_robot_vision/owned)" = "true" ] || return 0
+
   configure_stationary_robot_vision
-  if verify_stationary_robot_vision; then
+  if ensure_apt_is_installed ros-$ros_distro-rvc-simulation || ensure_apt_is_installed ros-$ros_distro-rvc; then
     ensure_apt autoremove -m -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc \
       ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true
-    ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
+    verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2
+    remove_oneapi_ros_openvino
   else
     echo "Stationary Robot Vision & Control already removed. Skipping"
   fi
@@ -6784,32 +6979,14 @@ debian_90_remove_stationary_robot_vision () {
 
 debian_90_sbom_stationary_robot_vision () {
   configure_stationary_robot_vision
-  cat <<EOF
-$(ensure_sbom_format name "$oneapi_repo_name")
-$(ensure_sbom_format gpg-key "$oneapi_key_url")
-$(ensure_sbom_format key-file "$oneapi_key_file")
-$(ensure_sbom_format apt-source "$oneapi_deb_entry")
-$(ensure_sbom_format apt-list-file "$oneapi_list")
-$(ensure_sbom_format apt-pref "${oneapi_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$oneapi_pref_file")
-$(ensure_sbom_format pkg-list "intel-oneapi-runtime-*" "intel-oneapi-compiler-*" "intel-oneapi-mkl-*")
-EOF
+  sbom_oneapi_ros_openvino
+  echo "---"
+  sbom_osrf_gazebo_ros2
   echo "---"
   cat <<EOF
-$(ensure_sbom_format pkg-list "software-properties-common" "curl" "gnupg" "wget")
-EOF
-  echo "---"
-  configure_osrf_gazebo
-  cat <<EOF
-$(ensure_sbom_format name "packages.ros.org")
-$(ensure_sbom_format gpg-key "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key")
-$(ensure_sbom_format key-file "/usr/share/keyrings/ros-archive-keyring.gpg")
-$(ensure_sbom_format apt-source "deb http://packages.ros.org/ros2/$ID $VERSION_CODENAME main")
-$(ensure_sbom_format apt-list-file "/etc/apt/sources.list.d/ros2-latest.list")
 $(ensure_sbom_format pkg-list "${rvc_pkgs[@]}")
 EOF
 }
-
 
 debian_30_install_stress_ng () {
   ensure_apt_install_package stress-ng
