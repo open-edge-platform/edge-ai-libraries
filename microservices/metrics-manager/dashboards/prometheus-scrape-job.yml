@@ -1,0 +1,40 @@
+# Copyright (C) 2025-2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Prometheus scrape job for the Metrics Manager microservice.
+#
+# The Metrics Manager exposes all collected telemetry in Prometheus text format
+# on TCP :9273 (Telegraf's prometheus_client output). Append this block under
+# `scrape_configs:` in your prometheus.yml, then hot-reload Prometheus:
+#
+#     curl -s -X POST http://<prometheus>:9090/-/reload   # needs --web.enable-lifecycle
+#
+# or restart the Prometheus container. Verify the target is UP at
+# <prometheus>/targets — the job should turn green within one scrape_interval.
+#
+# Reachability: Metrics Manager runs on the host network namespace
+# (network_mode: host) so its :9273 endpoint is published directly on the host.
+# When Prometheus runs in Docker, address MM via `host.docker.internal`. That
+# name resolves only if the Prometheus service has:
+#     extra_hosts:
+#       - "host.docker.internal:host-gateway"
+# in its compose file. If Prometheus also runs with host networking, use
+# `localhost:9273`.
+
+- job_name: metrics-manager
+  # MM's :9273 endpoint already serves /metrics in Prometheus format.
+  metrics_path: /metrics
+  # Keep this <= the Metrics Manager's Telegraf [agent] interval (1s by
+  # default). Telegraf's prometheus_client output serves only the LAST
+  # collected value, so a slower scrape silently discards every sample in
+  # between -- at 2s against a 1s emit cadence, exactly half are lost and
+  # sub-2s transients never reach Grafana. Over-scraping is safe: repeats are
+  # rejected as duplicate timestamps, not stored as fabricated points.
+  scrape_interval: 1s
+  static_configs:
+    - targets:
+        - host.docker.internal:9273
+      labels:
+        # Distinguishes MM-sourced series from any legacy exporter during the
+        # TCMI -> Metrics Manager migration.
+        source: metrics-manager

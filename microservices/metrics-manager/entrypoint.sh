@@ -26,6 +26,71 @@ else
     echo "[INFO] Using default Telegraf config"
 fi
 
+# -----------------------------------------------------------------------------
+# TCMI collector gating
+# -----------------------------------------------------------------------------
+# We gate each hardware-telemetry drop-in on an ENABLE_* env var. Rather than
+# mutate the shipped drop-in directory (which is bind-mounted READ-ONLY from the
+# host via the compose TELEGRAF_CONFIG_DIR mount), we assemble the *active* set
+# into a separate writable directory and launch telegraf against that:
+#   source (read-only) : /etc/telegraf/telegraf.d       <name>.conf[.example]
+#   active (writable)  : /etc/telegraf/active.d          only the enabled <name>.conf
+# "enabled" == copy the source drop-in into the active dir; "disabled" == don't.
+# This lets one image serve AMR / Industrial-Arm / headless profiles with no
+# rebuild — flip the env var and restart — without ever writing to the read-only
+# mount (a `cp`/`mv` there would crash the container). Every collector also
+# idles gracefully on hardware that lacks its source, so a wrong toggle degrades
+# to "no data", never a crash.
+# IMPORTANT: toggling any ENABLE_* variable requires a container restart to
+# take effect. The active.d directory is rebuilt from scratch on every start;
+# there is NO hot-reload — changing an env var without restarting the container
+# has no effect. Use `docker compose up -d` to recreate the container.
+TELEGRAF_D_SRC=/etc/telegraf/telegraf.d
+TELEGRAF_D=/etc/telegraf/active.d
+
+# Rebuild the active dir from scratch on every start so it always reflects the
+# current env, regardless of any state left by a previous run.
+rm -rf "$TELEGRAF_D"
+mkdir -p "$TELEGRAF_D"
+
+# is_enabled VALUE — treat true/1/yes/on/auto as enabled (case-insensitive).
+# `auto` counts as enabled: the reader itself probes the hardware and idles if
+# absent, so "auto" == "load it and let it self-detect".
+is_enabled() {
+    case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+        true|1|yes|on|auto) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# enable_conf ENV_VALUE BASENAME — copy a shipped <BASENAME>.conf into the active
+# dir when enabled.
+enable_conf() {
+    local value="$1" base="$2"
+    if is_enabled "$value"; then
+        if [ -f "$TELEGRAF_D_SRC/$base.conf" ]; then
+            cp "$TELEGRAF_D_SRC/$base.conf" "$TELEGRAF_D/$base.conf"
+            echo "[INFO]   $base: ENABLED"
+        else
+            echo "[WARN]  $base: enabled but $base.conf not found — skipping"
+        fi
+    else
+        echo "[INFO]   $base: disabled"
+    fi
+}
+
+echo "[INFO] Configuring hardware-telemetry collectors:"
+enable_conf    "${ENABLE_RAPL_POWER:-false}"  "10-power"
+enable_conf    "${ENABLE_DRAM_BW:-auto}"      "20-dram-bw"
+enable_conf    "${ENABLE_DISK_IO:-true}"      "30-disk"
+enable_conf    "${ENABLE_NET_IO:-true}"       "40-net"
+enable_conf    "${ENABLE_INTERRUPTS:-false}"  "50-interrupts"
+enable_conf    "${ENABLE_TEMP_STATS:-false}"  "70-temp-stats"
+enable_conf    "${ENABLE_PSYS_POWER:-false}"    "90-tcmi-execd"
+enable_conf    "${ENABLE_GPU_THROTTLE:-false}"  "91-gpu-throttle"
+# Opt-in engineering diagnostics (ship disabled; default off).
+enable_conf    "${ENABLE_TURBOSTAT:-false}"   "60-turbostat"
+
 echo "[INFO] Initialization complete"
 echo "       - Metrics API port: ${METRICS_PORT:-9090}"
 echo "       - Telegraf Prometheus port: ${TELEGRAF_PORT:-9273}"

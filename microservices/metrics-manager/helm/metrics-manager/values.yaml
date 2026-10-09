@@ -44,12 +44,17 @@ pod:
   # Required for the bundled npu_reader to read /proc/<pid>/... and the
   # Telegraf [[inputs.system]] / [[inputs.processes]] plugins to see all
   # processes on the host. Equivalent to `pid: host` in compose.yaml.
+  # Forced on when hardware.telemetry.enabled=true.
   hostPID: false
   fsGroup: 10001
   supplementalGroups: []
-  # CPU/RAM/temperature/GPU/NPU readers all read sysfs from the host.
-  # The pod itself does not need hostNetwork, but exposing the API on the
-  # host's network namespace can simplify scraping by node-local agents.
+  # CPU/RAM/temperature/GPU/NPU readers all read sysfs from the host. The
+  # net/ethtool collectors also need the host network namespace to read the
+  # host's physical NICs rather than the pod's virtual interface — the same
+  # reason compose.yaml uses network_mode: host. Because of that this is forced
+  # on when hardware.telemetry.enabled=true (like hostPID); this flag only
+  # applies when telemetry is disabled. It also exposes the API on the node's
+  # network namespace, simplifying scraping by node-local agents.
   hostNetwork: false
   # Leave dnsPolicy empty to let the chart pick a sensible default:
   #   * ClusterFirstWithHostNet when hostNetwork=true (required by the
@@ -148,6 +153,23 @@ config:
   # Optional: stable host label for Telegraf, qmassa_reader and npu_reader.
   # Empty -> kernel hostname (default Telegraf behaviour).
   hostnameOverride: ""
+
+  # Hardware-telemetry collector toggles (gate telegraf.d/*.conf drop-ins).
+  # A restart is required for any change to take effect (no hot-reload).
+  # ENABLE_DISK_IO and ENABLE_NET_IO are cheap and universally useful; the rest
+  # default off because they add privileged access, high cardinality, or
+  # platform-specific dependencies.
+  enableRaplPower: "false"
+  enableDramBw: "auto"
+  enableDiskIo: "true"
+  enableNetIo: "true"
+  enableInterrupts: "false"
+  enableTempStats: "false"
+  enablePsysPower: "false"
+  enableGpuThrottle: "false"
+  enableTurbostat: "false"
+  turbostatInterval: "5"
+
   # Free-form extra environment variables. Use this for any setting not
   # surfaced as a typed value above (e.g. RATE_LIMIT_*, TRUST_FORWARDED_*).
   # Each item must be a {name, value} pair.
