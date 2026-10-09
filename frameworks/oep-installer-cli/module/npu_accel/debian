@@ -8,18 +8,13 @@ configure_npu_accel () {
 
 verify_npu_accel () {
   [ -c /dev/accel/accel0 ] &&
-  getent group render >/dev/null 2>&1 &&
-  id -nG | grep -qw render &&
   verify_npu_accel_packages
 }
 
 # checks the driver packages only, independent of NPU hardware being present.
 # used to confirm a fresh install succeeded even on systems without an NPU device.
 verify_npu_accel_packages () {
-  (
-    set -o pipefail
-    ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
-  )
+  ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
 }
 
 debian_40_profile_npu_accel () {
@@ -36,12 +31,12 @@ debian_40_install_npu_accel () {
   if verify_npu_accel && [[ " $* " != *" --reinstall "* ]]; then
     echo "Npu drivers are already installed. Skipping..."
   else
-    # remove legacies
-    ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+    # declare ownership
+    ensure_prop set installed/npu_accel/owned true
 
-    # create the render group
-    ensure_group_add $(debian_40_group_npu_accel)
-  
+    # remove legacies
+    debian_40_remove_npu_accel "$@"
+
     mkdir -p "$workspace"
     cd "$workspace"
 
@@ -50,7 +45,7 @@ debian_40_install_npu_accel () {
     [ ${#packages[*]} -gt 0 ] || return 3
 
     for p in ${packages[*]}; do
-      curl -fsSL -A Mozilla/5.0 "$p" | tar xfz -
+      ensure_fetch "$p" - | tar xfz -
     done 
 
     # install the debs
@@ -58,9 +53,15 @@ debian_40_install_npu_accel () {
     ensure_sudo rm -rf "$workspace"
     verify_npu_accel_packages
   fi
+
+  # create the render group
+  ensure_group_add $(debian_40_group_npu_accel)
 }
 
 debian_40_remove_npu_accel () {
+  # leave untouched if not installed by npu_accel
+  [ "$(ensure_prop get installed/npu_accel/owned)" = "true" ] || return 0
+
   ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
   ensure_sudo rm -rf "$workspace" 2> /dev/null || true
 }

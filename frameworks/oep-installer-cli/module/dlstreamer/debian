@@ -12,6 +12,7 @@ configure_dlstreamer () {
   od_model_proc=yolov5m-640_INT8/yolo-v5
   oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
   model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
+  allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium)
 }
 
 debian_75_profile_dlstreamer () {
@@ -33,7 +34,7 @@ debian_75_install_dlstreamer () {
     echo "dlstreamer-${version} already installed. Skipping"
   else
     # remove old versions
-    ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
+    debian_75_remove_dlstreamer "$@"
 
     # product key & list file
     ensure_apt_key $key_file $key_url --dearmor
@@ -43,7 +44,8 @@ debian_75_install_dlstreamer () {
     ensure_apt update -y
 
     # install dlstreamer
-    ensure_apt install --no-install-recommends -y intel-dlstreamer=$version
+    ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends -y intel-dlstreamer=$version
+    ensure_apt install --allow-downgrades --no-install-recommends -y intel-dlstreamer=$version
 
     # clone the dlstreamer repostiory
     ensure_git_clone "$workspace" v$version $repository
@@ -59,17 +61,15 @@ debian_75_install_dlstreamer () {
     if [[ " $* " = *" --validate "* ]]; then
       ( 
         mkdir -p models/${od_model%/*}
-        set -x
-        curl -sSfL $model_repo/storage/$od_model.bin -o models/$od_model.bin
-        curl -sSfL $model_repo/storage/$od_model.xml -o models/$od_model.xml
-        curl -sSfL $model_repo/storage/${od_model_proc}.json -o models/$od_model.json
+        ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin
+        ensure_fetch $model_repo/storage/$od_model.xml models/$od_model.xml
+        ensure_fetch $model_repo/storage/${od_model_proc}.json models/$od_model.json
       )
 
       (
         mkdir -p models/${oc_model%/*}
-        set -x
-        curl -sSfL $model_repo/storage/$oc_model.bin -o models/$oc_model.bin
-        curl -sSfL $model_repo/storage/$oc_model.xml -o models/$oc_model.xml
+        ensure_fetch $model_repo/storage/$oc_model.bin models/$oc_model.bin
+        ensure_fetch $model_repo/storage/$oc_model.xml models/$oc_model.xml
       )
 
       set -o pipefail
@@ -110,15 +110,7 @@ debian_75_install_dlstreamer () {
 }
 
 debian_75_remove_dlstreamer () {
-  configure_dlstreamer
-
-  if verify_dlstreamer; then
-    ensure_apt autoremove -m -y intel-dlstreamer
-    ensure_sudo rm -f $list_file $key_file
-    ensure_sudo -rf "$workspace" 2> /dev/null || true
-  else
-    echo "dlstreamer already removed. Skipping"
-  fi
+  ensure_apt autoremove -m -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true
 }
 
 debian_75_sbom_dlstreamer () {

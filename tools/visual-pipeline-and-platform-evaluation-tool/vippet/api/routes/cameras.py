@@ -11,7 +11,7 @@ from internal_types import (
     InternalNetworkCameraDetails,
     InternalUSBCameraDetails,
 )
-from managers.camera_manager import CameraManager
+from managers.camera_manager import CameraManager, CameraServiceError
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.cameras")
@@ -308,30 +308,18 @@ def load_camera_profiles(camera_id: str, request: schemas.CameraProfilesRequest)
             camera=_internal_camera_to_api(internal_camera)
         )
 
-    except ValueError as e:
-        logger.warning(f"Invalid camera_id: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except ConnectionError as e:
-        logger.warning(f"Failed to connect to camera: {e}")
-        raise HTTPException(status_code=404, detail=f"Camera not reachable: {str(e)}")
+    except CameraServiceError as e:
+        status_code = e.status_code if e.status_code in (400, 401, 404) else 500
+        logger.warning(
+            f"Failed to load profiles for camera {camera_id}: "
+            f"HTTP {e.status_code} {e.detail}"
+        )
+        raise HTTPException(status_code=status_code, detail=e.detail)
     except Exception as e:
-        error_msg = str(e).lower()
-        # Check if it's an authentication error
-        if (
-            "unauthorized" in error_msg
-            or "authentication" in error_msg
-            or "credentials" in error_msg
-        ):
-            logger.warning(
-                f"Failed to load profiles for camera {camera_id} - invalid credentials"
-            )
-            raise HTTPException(
-                status_code=401,
-                detail="Failed to load profiles - invalid credentials",
-            )
-
         logger.error(f"Failed to load camera profiles: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="Unexpected error when loading camera profiles"
+        )
 
 
 # ------------------------------------------------------------------

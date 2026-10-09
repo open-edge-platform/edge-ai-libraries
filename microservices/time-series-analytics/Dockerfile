@@ -4,23 +4,20 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Use Python Debian image as the base image
 ARG PYTHON_VERSION
-FROM python:${PYTHON_VERSION}-slim as builder
 
-# Install git to clone Kapacitor Python UDF agent files
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends git && \
-    rm -rf /var/lib/apt/lists/*
+FROM quay.io/influxdb/cross-builder:go1.27.1-latest AS kapacitor-build
 
 ARG KAPACITOR_VERSION
-# Clone only the required files to reduce image size
-RUN git clone --depth 1 --filter=blob:none --sparse --branch v${KAPACITOR_VERSION} \
+RUN git clone --depth 1 --branch v${KAPACITOR_VERSION} \
     https://github.com/influxdata/kapacitor.git /tmp/kapacitor && \
     cd /tmp/kapacitor && \
-    git sparse-checkout set udf/agent/py
+    go get github.com/prometheus/client_golang@v1.11.1 && \
+    go mod edit -replace=github.com/prometheus/common@v0.26.0=github.com/prometheus/common@v0.20.0 && \
+    go mod tidy && \
+    python3 build.py --no-get --platform linux --arch amd64 \
+        --version "${KAPACITOR_VERSION}" --outdir /tmp/kapacitor-bin
 
-ARG PYTHON_VERSION
 FROM python:${PYTHON_VERSION}-slim as runtime
 
 
@@ -40,20 +37,18 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Install Kapacitor and other necessary packages
-ARG KAPACITOR_VERSION
+# Install necessary runtime packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    wget intel-gpu-tools libgomp1 && \
-    mkdir -p /etc/init.d && \
-    wget -O /tmp/kapacitor.deb "https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_VERSION}-1_amd64.deb" || exit 1 && \
-    dpkg -i /tmp/kapacitor.deb || true && apt-get install -y --no-install-recommends -f && \
+    intel-gpu-tools libgomp1 && \
     apt-get clean && \
-    rm -f /tmp/kapacitor.deb && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
 
-# Copy kapacitor Python UDF agent files from builder image
-COPY --from=builder /tmp/kapacitor/udf/agent/py /app/kapacitor_python
+# Install the Kapacitor daemon and CLI without the Debian package
+COPY --from=kapacitor-build /tmp/kapacitor-bin/kapacitord /tmp/kapacitor-bin/kapacitor /usr/bin/
+
+# Copy the Python UDF agent from the Kapacitor source used for the binaries
+COPY --from=kapacitor-build /tmp/kapacitor/udf/agent/py /app/kapacitor_python
 
 COPY scripts/install_gpu_drivers.sh /tmp/install_gpu_drivers.sh
 RUN chmod +x /tmp/install_gpu_drivers.sh && \

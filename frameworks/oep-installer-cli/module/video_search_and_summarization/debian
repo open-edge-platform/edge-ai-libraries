@@ -64,7 +64,10 @@ verify_video_search_and_summarization () {
     ov_models/ovms/config.json
   )
   for f in "${files_to_check[@]}"; do
-    [ -e "$workspace"/sample-applications/video-search-and-summarization/$f ] || return 1
+    [ -e "$workspace"/sample-applications/video-search-and-summarization/$f ] || {
+      echo "Missing $f" >&2
+      return 1
+    }
   done
 }
 
@@ -84,8 +87,6 @@ debian_85_install_video_search_and_summarization () {
 
     # setup
     cd "$workspace"/sample-applications/video-search-and-summarization
-    ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME                   
-
     sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh
     sed -i 's|FINAL_ARG=.*|FINAL_ARG="${FINAL_ARG:-up -d}"|' setup.sh
     export FINAL_ARG=pull

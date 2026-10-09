@@ -17,15 +17,17 @@ debian_20_install_edge_pack_graphics_core () {
   if ensure_apt_is_installed intel-edge-graphics-core=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-graphics-core already installed. Skipping" 1>&2
   else
+    ensure_prop set installed/edge_pack_graphics_core/owned true
     debian_20_remove_edge_pack_graphics_core
-    ensure_group_add $(debian_20_group_edge_pack_graphics_core)
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
   fi
   [ -c /dev/dri/renderD128 ]
+  ensure_group_add $(debian_20_group_edge_pack_graphics_core)
 }
 
 debian_20_remove_edge_pack_graphics_core () {
+  [ "$(ensure_prop get installed/edge_pack_graphics_core/owned)" = "true" ] || return 0
   ensure_apt autoremove -y intel-edge-graphics-core || true
   debian_15_remove_edge_pack "$@" || true
 }

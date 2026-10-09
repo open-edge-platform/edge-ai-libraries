@@ -60,7 +60,7 @@ EOF
 
 debian_90_start_sensor_fusion_for_traffic_management_post_fusion () {
   configure_sensor_fusion_for_traffic_management_post_fusion "$@"
-  [ $(docker ps -f docker-tfcc- | wc -l) -le 1 ] || debian_90_stop_sensor_fusion_for_traffic_management_post_fusion "$@"
+  debian_90_stop_sensor_fusion_for_traffic_management_post_fusion "$@"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_sensor_fusion_for_traffic_management_post_fusion_device "$device"
