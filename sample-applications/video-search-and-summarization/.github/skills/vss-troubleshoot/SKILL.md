@@ -89,7 +89,7 @@ Why: Compose `depends_on` gates many services on health. For example, summary mo
 
 Actions:
 - Read the first failing dependency's logs from `triage.sh`; later services often fail only because they waited for it.
-- Verify required environment variables from `setup.sh`: MinIO, Postgres, RabbitMQ credentials; `VLM_MODEL_NAME`, `ENABLED_WHISPER_MODELS`, `OD_MODEL_NAME` for summary; `MULTIMODAL_EMBEDDING_MODEL` for search; `TEXT_EMBEDDING_MODEL` for unified mode.
+- Verify required environment variables from `setup.sh`: MinIO, Postgres, RabbitMQ credentials; `VLM_MODEL_NAME`, `OD_MODEL_NAME` for summary; `MULTIMODAL_EMBEDDING_MODEL` for search; `TEXT_EMBEDDING_MODEL` for unified mode.
 - If containers start but app state is corrupt, only then consider `source setup.sh --clean-data` (this deletes Docker volumes listed by setup, including MinIO/Postgres/VDMS/data-prep data).
 
 ### 2. Port conflict or UI unreachable

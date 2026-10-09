@@ -15,11 +15,25 @@ Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs
 | `RABBITMQ_USER` | all deployment modes | RabbitMQ user for `rabbitmq-service`, `pipeline-manager`, `video-ingestion`. |
 | `RABBITMQ_PASSWORD` | all deployment modes | RabbitMQ password. |
 | `VLM_MODEL_NAME` | Summary, Dual UI, Unified UI | VLM model source for captioning/summarization. In vLLM mode it is also the final-summary model. |
-| `ENABLED_WHISPER_MODELS` | Summary, Dual UI, Unified UI | Comma-separated Whisper models for `audio-analyzer` via `ENABLED_WHISPER_MODELS`. |
 | `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | Generic YOLO id accepted by the model-download Ultralytics plugin. Setup stores it under `ov_models/object-detection/ultralytics/public/<model>/FP32`. YOLO-World names fall back to `yolov8l`. |
 | `MULTIMODAL_EMBEDDING_MODEL` | Search, Dual UI | Model for video frame embeddings; assigned to `EMBEDDING_MODEL_NAME`. |
 | `TEXT_EMBEDDING_MODEL` | Unified UI | Text embedding model for summary-text search; assigned to `EMBEDDING_MODEL_NAME`. |
 | `OVMS_LLM_MODEL_NAME` | optional for modes with summary | Dedicated OVMS final-summary LLM model. Split mode is selected when the effective LLM model, target device, or compression differs from the VLM; otherwise OVMS reuses the VLM. |
+
+## Audio Analyzer (ASR) knobs
+
+Optional. The `audio-analyzer` 2026.x image ships a baked `config.yaml`; these
+variables override individual ASR settings on top of it (mapped to
+`AUDIO_ANALYZER__<SECTION>__<KEY>`). All have defaults, so none are required.
+
+| Variable | Default | Maps to | What it controls |
+|---|---|---|---|
+| `ASR_MODEL` | `whisper-base` | `AUDIO_ANALYZER__MODELS__ASR__NAME` | Whisper model: `whisper-{tiny,base,small,medium,large}`. Single model per instance. |
+| `ASR_DEVICE` | `CPU` | `AUDIO_ANALYZER__MODELS__ASR__DEVICE` | ASR device: `CPU` \| `GPU` \| `NPU`. |
+| `ASR_WEIGHT_FORMAT` | `null` | `AUDIO_ANALYZER__MODELS__ASR__WEIGHT_FORMAT` | OpenVINO export precision: `int8` \| `fp16` \| `null`. |
+| `ASR_DIARIZATION` | `false` | `AUDIO_ANALYZER__MODELS__ASR__DIARIZATION` | Enable speaker diarization (also export `HF_TOKEN`). |
+| `AUDIO_SENTIMENT_ENABLED` | `false` | `AUDIO_ANALYZER__SENTIMENT__ENABLED` | Enable parallel voice sentiment analysis. |
+| `HF_TOKEN` | unset | `HF_TOKEN` | HuggingFace token; required only when `ASR_DIARIZATION=true` (gated pyannote models). |
 
 ## Proxy and image registry
 
