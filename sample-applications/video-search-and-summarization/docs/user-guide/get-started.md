@@ -320,7 +320,7 @@ Before running the application, you need to set several environment variables:
 
     > **Device note:** `DATAPREP_EMBEDDING_DEVICE` controls in-process embedding execution in `multimodal-dataprep`. `DATAPREP_DETECTION_DEVICE` controls YOLOX object detection in `multimodal-dataprep`. `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving`, which `vector-retriever` uses to embed queries at search time. `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
 
-14. **🧪 EXPERIMENTAL: Configure vLLM Intel Arc Pro B-series GPU/XPU Backend**:
+14. ** EXPERIMENTAL: Configure vLLM Intel Arc Pro B-series GPU/XPU Backend**:
 
     > **⚠️ Experimental Feature:** Intel Arc Pro B-series GPU (XPU) support with vLLM is in early development stages and may have stability issues. Not recommended for production use.
 
@@ -353,7 +353,7 @@ Before running the application, you need to set several environment variables:
     - Intel Arc Pro B-series GPU (e.g., Intel Arc Pro B60, B65, B70)
     - Intel GPU drivers installed on host
     - User in `video` and `render` groups
-    - Minimum 16GB GPU memory for the default `bfloat16` configuration. `Qwen/Qwen3-VL-4B-Instruct` needs about 8.6 GB for weights alone, plus vision-encoder activations and KV cache.
+    - Minimum 16GB GPU memory for the default `bfloat16` configuration. 
 
     > [!TIP]
     > **GPUs with less than 16 GB (for example Intel Arc B580, 12 GB):** the default `bfloat16` configuration will fail to start with `No available memory for the cache blocks`. Use the FP8 checkpoint, which halves the weight footprint, and cap the image size:
@@ -365,7 +365,7 @@ Before running the application, you need to set several environment variables:
     > export VLLM_MAX_MODEL_LEN=24000
     > ```
     >
-    > All four are needed together; omitting any one still fails to start on a 12 GB card at these settings. The FP8 checkpoint cuts the weights from 8.6 GB to 5.9 GB, `VLLM_GPU_MEM` raises the share of the card vLLM may reserve, `VLLM_MM_MAX_PIXELS` shrinks the vision encoder, and `VLLM_MAX_MODEL_LEN` lowers the KV cache needed per request. `VLLM_MM_MAX_PIXELS` caps the resolution of each frame, not how many frames you send: at `401408` a 1920x1080 frame is downscaled to 832x448, and the default `PM_MULTI_FRAME_COUNT=12` still works unchanged. See [Troubleshooting](./troubleshooting.md#vllm-xpu-fails-to-start-with-no-available-memory-for-the-cache-blocks) for the sizing formula and how to derive these values for other cards.
+    > All four are needed together; omitting any one still fails to start on a 12 GB card at these settings. The FP8 checkpoint cuts the weights, `VLLM_GPU_MEM` raises the share of the card vLLM may reserve, `VLLM_MM_MAX_PIXELS` shrinks the vision encoder, and `VLLM_MAX_MODEL_LEN` lowers the KV cache needed per request. `VLLM_MM_MAX_PIXELS` caps the resolution of each frame, not how many frames you send: at `401408` a 1920x1080 frame is downscaled to 832x448, and the default `PM_MULTI_FRAME_COUNT=12` still works unchanged. See [Troubleshooting](./troubleshooting.md#vllm-xpu-fails-to-start-with-no-available-memory-for-the-cache-blocks) for the sizing formula and how to derive these values for other cards.
 
     **Behavior when enabled:**
     - Automatically sets `VLLM_HOST=vllm-xpu-service`
@@ -439,7 +439,7 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 > 5) **NPU Support:** Not all models support NPU execution. Verify model compatibility at the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
 > 6) OVMS mode selection is based on effective VLM/LLM settings: if model source, target device, and compression format are all identical, setup uses shared mode; otherwise it uses split mode.
 > 7) For same-source split examples (same model name on different devices/formats), prefer non-`OpenVINO/` source models (for example, `Qwen/Qwen3-VL-4B-Instruct`). `OpenVINO/` namespace models are pre-converted and use model-intrinsic/fixed weight formats.
-> 8) **🧪 EXPERIMENTAL - Intel Arc Pro B-series GPU Support:** vLLM on Intel Arc Pro B-series GPUs/XPUs (`ENABLE_VLLM_GPU=true`) is **experimental** and in early development stages. This feature provides GPU-accelerated inference for both VLM captioning and LLM summarization but may have stability issues and requires specific Intel Arc Pro B-series GPU hardware (e.g., B60, B65, B70). When enabled, it automatically disables OVMS and uses vLLM exclusively. Not recommended for production use.
+> 8) ** EXPERIMENTAL - Intel Arc Pro B-series GPU Support:** vLLM on Intel Arc Pro B-series GPUs/XPUs (`ENABLE_VLLM_GPU=true`) is **experimental** and in early development stages. This feature provides GPU-accelerated inference for both VLM captioning and LLM summarization but may have stability issues and requires specific Intel Arc Pro B-series GPU hardware (e.g., B60, B65, B70). When enabled, it automatically disables OVMS and uses vLLM exclusively. Not recommended for production use.
 
 ### Deployment Options for Video Search
 
@@ -629,7 +629,7 @@ Follow these steps to run the application:
     > - The vLLM configuration has been tested on Intel® Xeon® 6 processors.
     > - Review [docker/compose.vllm.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
 
-   - **🧪 EXPERIMENTAL: Use vLLM with Intel Arc Pro B-series GPU/XPU acceleration:**
+   - ** EXPERIMENTAL: Use vLLM with Intel Arc Pro B-series GPU/XPU acceleration:**
 
       > **⚠️ Experimental Feature - Intel Arc Pro B-series GPU Support:**
       > Intel Arc Pro B-series GPU/XPU support with vLLM is currently **experimental** and in early stages. This implementation provides foundational infrastructure for Intel Arc Pro B-series enablement and may require further tuning and optimization. Performance characteristics on Intel Arc Pro B-series hardware are still being evaluated.
@@ -639,7 +639,7 @@ Follow these steps to run the application:
       - Intel GPU drivers properly installed on the host system
       - User must be a member of the `video` and `render` groups
       - Access to `/dev/dri` devices
-      - Minimum 8GB GPU memory recommended
+      - Minimum 16GB GPU memory for the default `bfloat16` configuration. See [Configure vLLM Intel Arc Pro B-series GPU/XPU Backend](#set-required-environment-variables) for the settings to use on cards with less memory.
 
       **Verify GPU access before enabling:**
 
