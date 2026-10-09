@@ -12,6 +12,7 @@ from pipeline import Pipeline
 from utils.config_loader import config
 from utils.openvino_runtime_validation import resolve_asr_device
 from utils.audio_util import save_audio_file
+from utils.config_loader import config
 from utils.session_manager import resolve_requested_session_id
 from utils.subtitle_format import format_srt as _format_srt, format_vtt as _format_vtt
 
@@ -62,6 +63,7 @@ def transcribe_audio(
     response_format: str = Form("json"),
     temperature: float = Form(0.0),
     stream: bool = Form(False),
+    diarization: bool | None = Form(None),
     device: str | None = Form(None),
 ):
     language, _ = validate_transcription_options(
@@ -100,8 +102,18 @@ def transcribe_audio(
         temperature=temperature,
         append_to_session=continue_session,
         speaker_scope_id=speaker_scope_id,
+        diarization=diarization,
         device=resolved_device,
     )
+    if not continue_session and getattr(config.models.asr, "preview", None) is not None:
+        # The FIRST call for a brand-new session (continue_session=False)
+        # lands on the preview pool (see pipeline.py's per-pool model
+        # selection / config.models.asr.preview), which may be a different,
+        # English-only model than the main/final config. That model raises
+        # for ANY language token, so this scratch call must not forward the
+        # caller's language hint -- only calls that continue an existing
+        # session (append_to_session=True, final pool) keep it.
+        language = None
 
     if stream:
         # OpenAI only defines streaming for the JSON response formats.

@@ -105,7 +105,20 @@ def _is_diarization_auth_error(exc: Exception) -> bool:
 
 class ASRComponent(PipelineComponent):
 
-    _models = {}
+    # Two independent model-instance pools, not one shared singleton.
+    #
+    # kiosk-voice-lab keeps a dedicated preview ASR (rolling preview ticks,
+    # called every ~0.4s with a GROWING buffer) and a separate final ASR
+    # (called once, at end of turn). Some OpenVINO GenAI WhisperPipeline
+    # backends (confirmed with distil-whisper/distil-small.en on NPU) corrupt
+    # internal generation state when ONE shared instance processes calls of
+    # very different audio lengths back-to-back. Splitting the pool by call
+    # kind -- "preview" (append_to_session=False) vs "final"
+    # (append_to_session=True, including the file-based endpoint) reproduces
+    # that isolation without reloading a model per call. The lock keeps the
+    # lazy per-pool init thread-safe (merged from upstream).
+    _models: dict[str, object] = {"preview": None, "final": None}
+    _model_configs: dict[str, tuple] = {"preview": None, "final": None}
     _models_lock = threading.Lock()
     # Shared across all ASRComponent instances/sessions — keyed by session_id
     # internally — so primary-speaker identity persists across chunk calls
@@ -143,9 +156,14 @@ class ASRComponent(PipelineComponent):
 
         raise ValueError(f"Unsupported ASR provider/model: {normalized_provider}/{normalized_model_name}")
 
-    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0, speaker_scope_id=None):
+    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0, speaker_scope_id=None, diarization: bool | None = None, append_to_session: bool = True):
 
         self.session_id = session_id
+        # Selects which of the two model-instance pools (see class docstring
+        # above _models) this component's calls use. Non-destructive preview
+        # calls (append_to_session=False) and persisted commits
+        # (append_to_session=True) never share a pipeline instance.
+        self.pool_key = "final" if append_to_session else "preview"
         # Scope key for speaker enrollment. Stays stable for a whole
         # conversation, whereas session_id is regenerated for every utterance —
         # enrolling per utterance would re-derive the reference voice from the
@@ -154,7 +172,14 @@ class ASRComponent(PipelineComponent):
         self.temperature = temperature
         self.provider = provider
         self.model_name = model_name
-        self.enable_diarization = ENABLE_DIARIZATION
+        # Per-request override, narrowing only: a caller may switch diarization
+        # OFF for a chunk it does not need speaker labels for (e.g. kiosk-core's
+        # intermediate "preview" chunks, where only the final chunk is
+        # diarized), but may not switch it ON when the service is not
+        # configured for it — the models would not be loaded.
+        self.enable_diarization = (
+            ENABLE_DIARIZATION if diarization is None else (ENABLE_DIARIZATION and bool(diarization))
+        )
         self.all_segments = []
 
         # Backend-agnostic hallucination-phrase filter. Runs on the final text
@@ -176,12 +201,14 @@ class ASRComponent(PipelineComponent):
         backend_cls, model_config_key, resolved_device = self._resolve_backend(provider, model_name, device)
 
         with ASRComponent._models_lock:
-            if model_config_key not in ASRComponent._models:
-                ASRComponent._models[model_config_key] = backend_cls(
-                    model_name.lower(), resolved_device, None
-                )
+            if (
+                ASRComponent._models[self.pool_key] is None
+                or ASRComponent._model_configs[self.pool_key] != model_config_key
+            ):
+                ASRComponent._models[self.pool_key] = backend_cls(model_name.lower(), resolved_device, None)
+                ASRComponent._model_configs[self.pool_key] = model_config_key
 
-        self.asr = ASRComponent._models[model_config_key]
+        self.asr = ASRComponent._models[self.pool_key]
 
         self.pyannote_diarizer = None
         if self.enable_diarization:

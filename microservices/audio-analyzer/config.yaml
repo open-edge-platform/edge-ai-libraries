@@ -6,52 +6,65 @@ app:
 
 models:
   asr:
-    provider: openvino  # openai | openvino | whispercpp
-    name: whisper-base  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
-    device: CPU # CPU | GPU | NPU for openvino; CPU only for openai/whispercpp
-    weight_format: null # OpenVINO: int8 | fp16 | null. whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
+    provider: openvino # openai | openvino | whispercpp
+    name: whisper-small  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
+                        # whisper-small OpenVINO IR (INT8) converted to models/openvino/whisper-small-int8/
+                        # Use whisper-base on CPU/NPU; whisper-small on GPU for better accuracy.
+                        # OpenVINO GPU target: <300ms for typical 1-2s kiosk commands.
+    device: CPU # openai: CPU only; openvino: CPU | GPU | NPU; whispercpp: CPU only
+                # Change to GPU or NPU for hardware-accelerated inference.
+    weight_format: int8 # OpenVINO: int8 | fp16 | null; int8 for whisper-small-int8 OV model
     temperature: 0.0
-    diarization: False  # True or False, applicable for provider: openvino
-    hf_token: None  # needed only if diarization=true
+    diarization: True        # set True to enable pyannote speaker diarization
+                              # REQUIRES: accept ALL THREE gated model licences
+                              # at HF before enabling:
+                              #   https://huggingface.co/pyannote/speaker-diarization-community-1
+                              #   https://huggingface.co/pyannote/speaker-diarization-3.1
+                              #   https://huggingface.co/pyannote/segmentation-3.0
+                              # (403/401 on file download = terms not yet accepted)
+    hf_token: null                # Set HF_TOKEN in .env — passed via docker-compose environment.
+                              # The audio-analyzer service reads HF_TOKEN env var automatically
+                              # when hf_token is null. See docker-compose.yml audio-analyzer.environment.
     models_base_path: "models"
+
+    # Preview pool override (see ASRComponent's "two independent model-instance
+    # pools" docstring in components/asr_component.py): non-destructive
+    # `input_audio_buffer.preview` calls in the realtime WS endpoint (used for
+    # continuous-streaming ASR / the endpoint-completeness shortcut) are on the
+    # customer-facing latency critical path, unlike the persisted final
+    # commit. Route them to GPU -- this config's own note above already
+    # targets "<300ms for typical 1-2s kiosk commands" on GPU, vs CPU (the
+    # `device:` setting above) which was measured taking 700ms+ decoding a
+    # multi-second growing buffer. Falls back to the main asr config above
+    # when omitted, so existing single-device deployments are unaffected.
+    preview:
+      device: GPU
 
     # Hallucination filtering — openai provider uses native no_speech_prob/avg_logprob.
     # whispercpp derives the same values from per-token plog and ptsum.
     # openvino genai pipelines do not expose these fields; filtering is skipped.
     #
-    # Values below are tuned for live microphone input (noisy environment).
+    # Values below were re-tuned alongside audio_preprocessing.denoise being
+    # enabled. With denoising active, background noise is far less likely to be
+    # mistaken for speech, so these thresholds were relaxed from the previous
+    # "live noisy microphone" preset toward openai-whisper's own defaults
+    # (no_speech_threshold=0.6, logprob_threshold=-1.0) — but not all the way,
+    # since some live-mic margin is still warranted at a kiosk. This reduces
+    # false-positive drops of short/quiet real speech; the stricter values
+    # were discarding legitimate short utterances ("yes", "two") as silence.
     # Lower no_speech_threshold → stricter: flags more segments as potential noise.
     # Higher logprob_threshold  → stricter: drops low-confidence transcriptions.
     # Higher min_duration_sec / min_words → harder for noise bursts to earn the
     #   "definitely speech, keep" safety net in _is_silent_segment().
-    no_speech_threshold: 0.3
-    logprob_threshold: -0.3
-    min_duration_sec: 0.5
-    min_words: 2
+    no_speech_threshold: 0.5
+    logprob_threshold: -0.6
+    min_duration_sec: 0.3
+    min_words: 1
 
     # openai-whisper transcribe() native param: skip generation over silent
     # regions longer than this many seconds.  Directly targets the
     # noise-transcribed-as-text problem.  null = disabled.
     hallucination_silence_threshold: 1.0
-
-    # Backend-agnostic hallucination filter. Whisper (including the OpenVINO
-    # GenAI backend) hallucinates common subtitle phrases such as "Thank you"
-    # on silence / non-speech audio — usually the trailing silence captured
-    # after the speaker stops talking. Any transcript segment whose entire text
-    # matches one of these phrases (case- and punctuation-insensitive) is
-    # dropped. Unlike no_speech_threshold/logprob_threshold above, this also
-    # covers OpenVINO GenAI, which exposes no per-segment confidence signals.
-    # Set hallucination_phrase_filter: false to disable.
-    hallucination_phrase_filter: true
-    hallucination_phrases:
-      - "thank you"
-      - "thank you very much"
-      - "thanks for watching"
-      - "thank you for watching"
-      - "please subscribe"
-      - "subscribe"
-      - "you"
-      - "bye"
 
     # Post-processing repetition filter (all providers).
     # 1.0 = disabled. Any value > 1.0 enables consecutive repeated-phrase
@@ -61,38 +74,190 @@ models:
     repetition_penalty: 1.8
 
     # Decoder controls — beam_size/best_of apply to openai and whispercpp.
-    # word_timestamps and threads are whisper.cpp specific.
-    beam_size: 1
+    # threads is whisper.cpp specific.
+    # beam_size=3 enables real beam search (1 = greedy, i.e. a no-op), trading
+    # a little latency for better decoding on ambiguous audio.
+    beam_size: 3
     best_of: 1
-    word_timestamps: false
+    # Word-level timings. Required by diarization: when Whisper merges two
+    # speakers into one segment, per-word times are the only way to split that
+    # segment at the acoustic speaker-change boundary without guessing.
+    # Supported by the openai and whispercpp providers.
+    word_timestamps: true
     threads: 0
+
+    # openai-whisper's own robustness mechanism: retry decoding at increasing
+    # temperature when the compression_ratio/logprob checks judge the previous
+    # attempt low-confidence, instead of committing to a single greedy decode.
+    # See components/asr/openai/whisper.py in edge-ai-libraries.
+    temperature_fallback: true
+    # Caps the retry ladder above (default openai-whisper ladder is 6 steps:
+    # 0.0, 0.2, 0.4, 0.6, 0.8, 1.0). Observed on real kiosk audio: a genuinely
+    # short/choppy utterance ran the full ladder and cost ~17.5s for a single
+    # turn (vs ~2.5s steady-state) while still producing a wrong transcript —
+    # the later, higher-temperature attempts sample more randomly and are not
+    # more likely to recover the right words on audio that's short/ambiguous
+    # by nature, they just cost more time. 2 = one retry beyond the first
+    # greedy attempt, bounding the worst case to roughly 2x normal latency.
+    # Raise back toward 6 only if you have evidence later retries actually
+    # fix transcripts for this kiosk's audio, not just cost more time.
+    temperature_fallback_max_retries: 2
 
   diarization: # Only applicable when models.asr.diarization is set to True
     provider: "huggingface"
-    name: "pyannote/speaker-diarization-community-1"
-    device: CPU  # CPU | GPU | NPU
+    name: "pyannote/speaker-diarization-3.1"
+    # CPU only in the currently deployed Kiosk image. This PyTorch/SpeechBrain
+    # component is loaded via torch.device(<value>); PyTorch has no "gpu"
+    # device string (Intel GPU needs "xpu", which this component does not
+    # use) and no "npu" string at all, so GPU/NPU fail at load time and
+    # diarization is disabled for the session (ASR keeps working). See
+    # docs/user-guide/get-started/configuration.md#audio-analyzer-diarization-device-configyaml.
+    device: CPU
     models_base_path: "models"
-    min_speakers: 1   # kiosk scenario: at most 1 customer + 1 staff member per chunk
-    max_speakers: 2
 
-    # Cross-chunk primary-speaker identity resolution. Reuses the speaker
-    # embeddings already computed by the diarization pipeline during
-    # clustering (pyannote DiarizeOutput.speaker_embeddings) — no extra
-    # model is loaded. See components/asr/diarization/speaker_identity.py
-    identity:
-      enabled: true
-      similarity_threshold: 0.75   # cosine similarity to match stored primary
-      lock_min_duration_sec: 0.75  # min turn duration before it can be locked as primary
-      session_ttl_seconds: 1800    # evict idle session identity state after 30 min
+    # ── Clustering aggressiveness (single-mic kiosk tuning) ────────────────
+    # Force the pipeline to always split into at least 2 speaker clusters so
+    # a secondary voice on the same mic gets a distinct label (SPEAKER_01)
+    # even when its embedding is close to the primary speaker's. Combined
+    # with a lower clustering threshold this reliably surfaces the second
+    # speaker whom kiosk-core then hard-drops via first-speaker lock-on.
+    min_speakers: 1                # allow single-speaker chunks; split only when evidence supports it
+    max_speakers: 4                # cap runaway clustering (customer + up to 3 bystanders)
+    clustering_threshold: 0.5      # default 0.7154; lower → more speakers detected
+    segmentation_threshold: 0.4    # default 0.4442; lower → more speech turns split
+
+    # ── Voice enrollment fallback (Option 3) ──────────────────────────────
+    # When pyannote's clustering fails to separate two co-located voices we
+    # fall back to per-session voice enrollment: the first sufficiently-long
+    # speech turn is treated as the "primary" speaker, and every subsequent
+    # turn is relabelled by cosine similarity to that reference embedding.
+    voice_enrollment_enabled: true
+    # Measured same-speaker cosine spread with a 1.5s reference was 0.21-0.68
+    # (median ~0.46) — i.e. the old 0.5 threshold rejected more than half of the
+    # customer's own speech. Widening the enrollment/comparison windows below
+    # tightens that spread; keep this slightly under the old value while the
+    # longer windows bed in. Re-measure from the [DIARIZATION][MATCH] log lines
+    # before tightening it again.
+    voice_match_threshold: 0.45    # cosine sim ≥ this → SPEAKER_00 (primary)
+    min_enrollment_duration: 2.0   # seconds; ignore very short turns for enrollment
+    # Enrollment is keyed on the conversation id sent by kiosk-core
+    # (speaker_scope_id), so it survives across utterances. Evict idle
+    # conversations so the cache cannot grow without bound.
+    enrollment_ttl_seconds: 1800
+    # Minimum audio span used to classify a speaker. Embeddings computed on
+    # much less than this are unstable, so words are grouped into windows of
+    # at least this length before being compared to the enrolled voice.
+    # At 0.8s the per-window scores for a single speaker swung by ±0.2 cosine,
+    # which is wider than the gap between the customer and a bystander.
+    min_window_seconds: 1.5
+    # Minimum total segment span before a below-threshold similarity may label
+    # a segment as a secondary speaker. Below this the diarizer abstains and
+    # keeps the segment as SPEAKER_00.
+    #
+    # This is the same evidence bar min_window_seconds already applies to
+    # comparison windows, enforced on the segment as a whole. The measured
+    # same-speaker cosine spread noted above (0.21-0.68 at 1.5s) is precisely
+    # why: on a sub-1.5s fragment the score carries more phonetic content than
+    # voice identity, so a low value is noise rather than proof of a second
+    # speaker. _extract_embedding only declines below 250ms, which left the
+    # 0.25-1.5s band being judged at full confidence.
+    #
+    # Symptom this fixes: when an utterance spilled past kiosk-core's chunk
+    # boundary, the severed tail (~0.5-1.5s) scored low, was relabelled
+    # SPEAKER_01 and hard-dropped by kiosk-core's first-speaker lock — so
+    # "suggest something to drink" reached the agent as "suggest some".
+    #
+    # Bystander protection is unaffected: any real interjection runs longer
+    # than this and is still scored normally, and intra-segment speaker
+    # splitting inside longer segments is untouched. 0 disables the guard.
+    voice_verify_min_duration: 1.5
+    # Seconds of enrolled speech required before the reference is trusted
+    # enough to label anyone SPEAKER_01. Below this the reference is
+    # PROVISIONAL: everything is kept as primary and the reference is upgraded
+    # in place as longer speech arrives.
+    #
+    # enrollment_window_seconds above is only an upper bound — enrollment gets
+    # whatever the first qualifying chunk holds. Measured live: a real
+    # conversation enrolled from just 2.00s because the opening chunk is
+    # flushed at the speaker's first pause, whereas a 4.00s enrollment
+    # classified the same voices correctly. That weak 2s reference then
+    # rejected the customer's own speech for the rest of the session
+    # ("I would like to" kept, "have two cheeseburgers and" + "and one french
+    # fries" both dropped as SPEAKER_01).
+    #
+    # Trade-off: during the provisional window a bystander would be accepted.
+    # That is the correct bias — the reference genuinely cannot discriminate
+    # yet, and losing the customer's order is far worse than briefly admitting
+    # a stray voice. 0 restores the previous trust-immediately behaviour.
+    enrollment_trust_duration: 4.0
+    # Span taken from the start of the first qualifying segment when enrolling
+    # the primary voice. This span always belongs to the customer (it is the
+    # opening of the first utterance), so a longer window buys a much more
+    # stable reference embedding without any real contamination risk.
+    enrollment_window_seconds: 4.0
+    # ── Self-healing enrollment ─────────────────────────────────────────────
+    # The reference is cached for the whole conversation, so a weak enrollment
+    # (e.g. taken from a short opening utterance that fell well below
+    # enrollment_window_seconds) would otherwise reject the customer's own
+    # speech for the full TTL — every turn dropped, agent stuck on its generic
+    # greeting. After this many consecutive fully-rejected chunks the reference
+    # is judged unreliable, discarded, and re-derived from current audio.
+    # Raised from 2→4: with browser echo-cancellation off, TTS playback echo
+    # or a bystander "Thank you" can trigger re-enrollment on just 2 chunks,
+    # poisoning the enrolled voice and silencing the customer for the rest of
+    # the conversation. 4 chunks requires sustained evidence of a bad reference
+    # before trusting a re-enrollment. 0 disables recovery.
+    max_consecutive_rejections: 4
+    # Exponential-moving-average weight folded into the reference on a
+    # confident match, so a reference enrolled from a couple of seconds tracks
+    # the speaker's drifting level/distance instead of staying frozen.
+    # 0 disables adaptation.
+    enrollment_adapt_rate: 0.15
+    # Required margin above voice_match_threshold before an observation is
+    # trusted for adaptation, so a borderline impostor cannot drag the
+    # reference away from the enrolled customer.
+    enrollment_adapt_margin: 0.10
 
 audio_preprocessing:
   chunk_duration_sec: 15
   silence_threshold: -35  # in dB
   silence_duration: 0.3   # minimum silence length in seconds
-  search_window_sec: 1    # how far to look for silence if no silence exactly at chunk boundary
+  # How far to look for a real silence gap when none falls exactly at the ideal
+  # chunk boundary. Widened 1s -> 2s so a hard cut (which can land mid-word,
+  # costing the ASR that word) is less likely when speech runs continuously
+  # through the 15s mark.
+  search_window_sec: 2
   chunk_output_path: chunks/
-  denoise: false          # set true for noisy mic/field audio (applies ffmpeg arnndn RNNoise filter)
-  denoise_model: ""       # path to .rnnn model file; leave empty to use ffmpeg built-in arnndn
+  denoise: true           # ffmpeg denoise applied before chunking/ASR. Reduces
+                          # room/background noise, which both improves ASR
+                          # accuracy directly and makes the silencedetect-based
+                          # chunk boundary above more reliable, because the
+                          # noise floor no longer masks real pauses.
+  # path to a .rnnn RNNoise model for the arnndn filter. ffmpeg's arnndn has
+  # NO built-in default model and fails to initialise without one, and no
+  # .rnnn model ships with the image — so when this is empty the denoise
+  # stage falls back to `afftdn` (ffmpeg's model-free FFT denoiser).
+  #
+  # Set to a real .rnnn file to opt into RNNoise, which is generally better
+  # than afftdn on speech because it was trained specifically to separate
+  # voice from noise rather than just flattening the spectrum.
+  #
+  # Using "leavened-quisling" from https://github.com/GregorR/rnnoise-models
+  # (public domain / no-copyright tools+models repo, MIT-licensed rnnoise-nu
+  # project) — trained for "voice in a noisy recording environment", which
+  # matches a kiosk mic picking up ambient demo-floor/crowd noise better than
+  # the other models in that repo tuned for quieter room tone (fans/AC).
+  # Mounted at models/rnnoise/leavened-quisling.rnnn in the models volume.
+  denoise_model: ""  # cleared: arnndn model incompatible with this FFmpeg build; using afftdn fallback
+
+  # Per-chunk loudness normalization, applied after denoise and before ASR.
+  # dynaudnorm (not loudnorm/EBU R128) because each 15s chunk is processed
+  # independently with no shared analysis pass: dynaudnorm is single-pass and
+  # frame-local, designed for exactly this streaming case, whereas loudnorm's
+  # accurate mode needs a two-pass measurement over the whole file and would
+  # cause loudness jumps between independently-normalized chunks.
+  normalize: true
+  normalize_filter: dynaudnorm
 
 audio_util:
   max_size_mb: 200
@@ -100,22 +265,7 @@ audio_util:
     - .wav
     - .mp3
     - .m4a
-    - .mp4    # video containers accepted for VSS transcription requests;
-    - .mkv    # ffmpeg-based chunking extracts the audio track automatically,
-    - .mov    # no separate audio-extraction step is required.
-    - .avi
   chunk_size: 52428800   # 1024 * 1024 * 50 = 50MB
-
-# MinIO object storage — used only by the VSS-compatibility endpoint
-# (POST /transcriptions) to retrieve source videos and store transcripts
-# back into the same bucket the caller (VSS pipeline-manager) reads from.
-# Not used by any other endpoint. All values overridable via
-# AUDIO_ANALYZER__MINIO__<KEY> env vars.
-minio:
-  endpoint: ""       # e.g. "minio-server:9000"; empty disables MinIO support
-  access_key: ""
-  secret_key: ""
-  secure: false
 
 pipeline:
   delete_chunks_after_use: true
