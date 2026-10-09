@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Intel GPU detection and compute-runtime readiness checks.
-# Covers discrete Arc / Data Center GPU Max (Ponte Vecchio) cards, which
-# expose themselves as PCI display/3D controllers under vendor 0x8086 and
-# are accessed through the i915 or xe kernel driver + Level-Zero/OpenCL.
+# Covers Core Ultra iGPU and Arc (CRI) cards, which expose themselves as PCI
+# display/3D controllers under vendor 0x8086 and are accessed through the
+# i915 or xe kernel driver + Level-Zero/OpenCL.
 
 INTEL_PCI_VENDOR_ID="8086"
 
@@ -61,23 +61,6 @@ intel_compute_runtime_installed() {
     found=0
   fi
   return "$found"
-}
-
-# Installs the Intel Compute Runtime + Level-Zero packages on Debian/Ubuntu.
-# See: https://github.com/intel/compute-runtime
-install_intel_compute_runtime_apt() {
-  command_exists apt-get || error "Automatic Intel compute-runtime install only
-supports apt-get (Debian/Ubuntu). Install intel-opencl-icd and
-libze-intel-gpu1 manually, then re-run."
-  info "Installing Intel GPU compute runtime (Level Zero + OpenCL) via apt…"
-  sudo apt-get update -qq
-  sudo apt-get install -y -qq \
-    intel-opencl-icd \
-    libze-intel-gpu1 \
-    libze1 \
-    clinfo \
-    intel-gsc || error "Failed to install Intel compute-runtime packages."
-  ok "Intel compute runtime installed"
 }
 
 # Ensures the current user can access /dev/dri render nodes (the 'render'

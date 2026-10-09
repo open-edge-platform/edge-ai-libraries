@@ -20,12 +20,18 @@ HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
 HARNESS_LLM_PROVIDER="${HARNESS_LLM_PROVIDER:-ovms}"
 HARNESS_LLM_ROUTER_ENDPOINT="${HARNESS_LLM_ROUTER_ENDPOINT:-}"
 
-# Which tool performs --hf-model export: OVMS's own export_model.py (default),
-# or the edge-ai-libraries "Model Download" microservice's ephemeral
-# container (model-download — see export_model_via_model_download below).
-# Both are wired into config.json the same way; the latter is newer and less
-# battle-tested than the long-standing default.
-HARNESS_OVMS_EXPORTER="${HARNESS_OVMS_EXPORTER:-export-model-py}"
+# Which tool performs --hf-model export: docker-pull (default) runs OVMS's
+# own "-py" Docker image in --pull mode to download/convert/quantize a HF
+# model entirely via Docker -- no host Python venv or separate script fetch
+# needed, since it reuses the same trusted, version-pinned image this
+# installer already runs OVMS itself from. export-model-py (legacy) runs
+# OVMS's export_model.py in a host-side venv, fetched/pinned from GitHub
+# raw content -- kept for hosts that can't/won't run the conversion inside
+# Docker. model-download is a third, newer/less battle-tested alternative
+# (edge-ai-libraries' Model Download microservice -- see
+# export_model_via_model_download below). All three register the resulting
+# model into config.json the same way (a model_config_list entry).
+HARNESS_OVMS_EXPORTER="${HARNESS_OVMS_EXPORTER:-docker-pull}"
 
 # export_model.py is OVMS's own model-export tool — unlike plain
 # `optimum-cli export openvino`, it also writes the graph.pbtxt MediaPipe
@@ -77,10 +83,68 @@ export step's HTTP client may not support (only http/https/socks5/socks5h are)."
   done
 }
 
-# export_model_to_openvino hf_model_id [model_name] — converts a Hugging Face
-# model to OpenVINO IR *and* generates the graph.pbtxt MediaPipe servable
-# OVMS's /v3/chat/completions endpoint needs, via OVMS's own export_model.py
-# (plain optimum-cli only produces IR weights, not a servable LLM graph).
+# export_model_via_docker_pull hf_model_id [model_name] -- default exporter
+# (HARNESS_OVMS_EXPORTER=docker-pull): runs OVMS's own "-py" image (bundles
+# optimum-cli) in --pull mode, which downloads, converts, and quantizes the
+# HF model and writes the graph.pbtxt MediaPipe servable OVMS needs, all
+# inside the container -- confirmed against openvinotoolkit/model_server's
+# own "Pull mode with optimum cli" docs. No host Python venv, no separate
+# GitHub-raw script fetch/pinning: supply-chain trust rides on the same
+# versioned, officially-published OVMS image this installer already runs
+# the server itself from (HARNESS_OVMS_IMAGE).
+export_model_via_docker_pull() {
+  local hf_model_id="$1" model_name="${2:-${1##*/}}" out_dir pull_image target_device
+  out_dir="${HARNESS_MODELS_DIR}/${model_name}"
+  if [[ -d "$out_dir" ]]; then
+    info "Model '${model_name}' is already exported."
+    return 0
+  fi
+  command_exists docker || error "Docker is required to pull/convert models via the OVMS -py image."
+  ensure_ovms_config
+  # The "-py" variant bundles optimum-cli for on-the-fly conversion -- the
+  # regular serving image (HARNESS_OVMS_IMAGE) doesn't carry it at runtime.
+  case "$HARNESS_OVMS_IMAGE" in
+    *-gpu) pull_image="${HARNESS_OVMS_IMAGE%-gpu}-py" ;;
+    *) pull_image="${HARNESS_OVMS_IMAGE}-py" ;;
+  esac
+  target_device="CPU"
+  [[ -n "$(intel_gpu_docker_device_args)" ]] && target_device="GPU"
+  local -a proxy_args=()
+  docker_proxy_env_args_into proxy_args
+  if ! spin "Pulling+converting ${hf_model_id} via ${pull_image} (--pull, target: ${target_device})" \
+    docker run --rm -u "$(id -u):$(id -g)" \
+      -v "${HARNESS_MODELS_DIR}:/models:rw" \
+      "${proxy_args[@]}" \
+      "$pull_image" --pull \
+      --source_model "$hf_model_id" --model_name "$model_name" \
+      --model_repository_path /models --task text_generation \
+      --weight-format int8 --target_device "$target_device"; then
+    rm -rf -- "$out_dir"
+    error "Pulling/converting ${hf_model_id} via ${pull_image} failed. Check network
+access to huggingface.co, and that '${pull_image}' is a published tag
+(the -py variant may lag behind HARNESS_OVMS_IMAGE's own release) -- or try
+HARNESS_OVMS_EXPORTER=export-model-py as a fallback."
+  fi
+  if [[ ! -f "${out_dir}/graph.pbtxt" ]]; then
+    error "No graph.pbtxt found at ${out_dir} after pull -- OVMS will not serve chat
+completions for '${model_name}'."
+  fi
+  if with_state_lock ovms-config _add_model_config_entry_locked \
+      "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$model_name"; then
+    ok "Exported ${hf_model_id} -> ${out_dir} (registered with OVMS)"
+  else
+    error "Converted ${hf_model_id} but could not update OVMS's config.json --
+add a model_config_list entry for base_path '${model_name}' manually."
+  fi
+}
+
+# export_model_to_openvino hf_model_id [model_name] -- legacy exporter
+# (HARNESS_OVMS_EXPORTER=export-model-py): converts a Hugging Face model to
+# OpenVINO IR *and* generates the graph.pbtxt MediaPipe servable OVMS's
+# /v3/chat/completions endpoint needs, via OVMS's own export_model.py run in
+# a host-side venv (plain optimum-cli only produces IR weights, not a
+# servable LLM graph). Superseded by export_model_via_docker_pull above for
+# hosts that already have Docker; kept for hosts that don't.
 export_model_to_openvino() {
   local hf_model_id="$1" model_name="${2:-${1##*/}}" out_dir venv exporter requirements_file
   out_dir="${HARNESS_MODELS_DIR}/${model_name}"
@@ -157,13 +221,12 @@ inside the venv to check its exact current flags if this keeps failing."
 # export_model_via_model_download hf_model_id [model_name] — alternate
 # exporter (HARNESS_OVMS_EXPORTER=model-download): downloads and runs
 # edge-ai-libraries' "Model Download" microservice as a one-shot ephemeral
-# container (get_model.sh) instead of OVMS's own export_model.py, then
-# registers the resulting graph.pbtxt with OVMS the same way
-# export_model_to_openvino's output is registered (a model_config_list entry
-# -- confirmed by inspecting a real export_model.py run side by side with
-# this exporter; OVMS itself auto-detects the graph.pbtxt within base_path,
-# no separate mediapipe_config_list entry is involved). Still newer/less
-# battle-tested than the default export-model-py path.
+# container (get_model.sh) instead of the default docker-pull exporter, then
+# registers the resulting graph.pbtxt with OVMS the same way (a
+# model_config_list entry -- confirmed by inspecting a real export run side
+# by side with this exporter; OVMS itself auto-detects the graph.pbtxt
+# within base_path, no separate mediapipe_config_list entry is involved).
+# Newer/less battle-tested than docker-pull or export-model-py.
 HARNESS_MODEL_DOWNLOAD_SCRIPT_REF="${HARNESS_MODEL_DOWNLOAD_SCRIPT_REF:-main}"
 HARNESS_MODEL_DOWNLOAD_IMAGE_TAG="${HARNESS_MODEL_DOWNLOAD_IMAGE_TAG:-}"
 export_model_via_model_download() {
@@ -329,10 +392,11 @@ no local model export happens; the external endpoint owns model selection."
       ensure_openvino_model_server
       if [[ -n "${HARNESS_HF_MODEL:-}" ]]; then
         case "$HARNESS_OVMS_EXPORTER" in
+          docker-pull) export_model_via_docker_pull "$HARNESS_HF_MODEL" ;;
           export-model-py) export_model_to_openvino "$HARNESS_HF_MODEL" ;;
           model-download) export_model_via_model_download "$HARNESS_HF_MODEL" ;;
           *) error "Unknown HARNESS_OVMS_EXPORTER: ${HARNESS_OVMS_EXPORTER} (expected
-export-model-py or model-download)." ;;
+docker-pull, export-model-py, or model-download)." ;;
         esac
         ensure_openvino_model_server
         wait_for_ovms_model_ready "${HARNESS_HF_MODEL##*/}"

@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 # Registers an arbitrary MCP endpoint URL with the installed agent.
-# Hermes's real, documented config.yaml shape is built in; any other agent
-# can be wired up via HARNESS_MCP_REGISTER_CMD (bring your own registration
-# script) instead of this installer guessing its config format, same stance
-# this installer already takes with the Hermes install itself before it was
-# verified.
+# Hermes's real, documented config.yaml shape and OpenClaw's own `mcp set`
+# command are built in; any other agent can be wired up via
+# HARNESS_MCP_REGISTER_CMD (bring your own registration script) instead of
+# this installer guessing its config format, same stance this installer
+# already takes with the Hermes install itself before it was verified.
 
 hermes_config_path() {
   printf '%s' "${HERMES_CONFIG:-$HOME/.hermes/config.yaml}"
@@ -65,6 +65,19 @@ PY
   ok "Registered '${name}' with Hermes (${config})"
 }
 
+# OpenClaw's own CLI has a real, documented MCP registration command
+# (`openclaw mcp set <name> '<json>'`), including remote HTTP/SSE servers via
+# a bare `url` field -- no config-file format guessing needed here.
+openclaw_register_mcp_endpoint() {
+  local name="$1" url="$2" url_esc json
+  command_exists openclaw || error "openclaw CLI not found on PATH -- install it first."
+  # Escape backslashes/quotes before embedding in the JSON string literal.
+  url_esc="$(printf '%s' "$url" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  json="{\"url\": \"${url_esc}\"}"
+  openclaw mcp set "$name" "$json" || error "'openclaw mcp set ${name}' failed."
+  ok "Registered '${name}' with OpenClaw (openclaw mcp set)"
+}
+
 harness_register_mcp_endpoint() {
   local agent name url
   agent="$(canonical_agent_name "$1")" name="$2" url="$3"
@@ -83,6 +96,7 @@ service name and an endpoint URL."
 
   case "$agent" in
     hermes) hermes_register_mcp_endpoint "$name" "$url" ;;
+    openclaw) openclaw_register_mcp_endpoint "$name" "$url" ;;
     *) warn "MCP registration for '${agent}' isn't implemented here — this installer
 hasn't verified its config format. Set HARNESS_MCP_REGISTER_CMD=<script> to plug
 in your agent's real registration logic, or point it at ${url} manually." ;;

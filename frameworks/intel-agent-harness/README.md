@@ -62,7 +62,7 @@ scripts/lib/colors.sh         logging/spinner helpers
 scripts/lib/state.sh          state dir, symlink-safe path assertions, atomic writes
 scripts/lib/sudo.sh           non-interactive-safe sudo authorization
 scripts/lib/shim.sh           CLI shim + PATH profile management
-scripts/lib/gpu-intel.sh      Intel GPU detection + compute-runtime install
+scripts/lib/gpu-intel.sh      Intel GPU + compute-runtime readiness detection (no install)
 scripts/lib/docker-setup.sh   Docker install/group setup + GPU device args
 scripts/lib/nodejs.sh         Node.js-via-nvm bootstrap
 scripts/lib/openvino.sh       OpenVINO Model Server (OpenAI-compatible inference)
@@ -91,8 +91,9 @@ Uninstall is a plain bash script.
 
 ## Extending
 
-- `scripts/lib/gpu-intel.sh` currently supports apt-based distros for the
-  compute-runtime install; add a branch there for other package managers.
+- `scripts/lib/gpu-intel.sh` only detects GPU/compute-runtime readiness; it
+  assumes drivers are already provisioned (e.g. via Edge Pack:
+  github.com/open-edge-platform/edge-pack) rather than installing them.
 - `scripts/lib/express.sh`'s PCI device-ID prefixes are a starting subset;
   extend the `case` statement as you validate more hardware.
 

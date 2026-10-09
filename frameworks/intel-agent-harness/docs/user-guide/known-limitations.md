@@ -36,17 +36,28 @@
   there's no dual-node pairing/reboot-resume receipt handling.
 - Model export (`optimum-cli export openvino`) is CPU/host-bound and can be
   slow for large models.
-- `mcp register` has Hermes's config shape built in; other agents need
-  `HARNESS_MCP_REGISTER_CMD` set to a real registration script.
-- `HARNESS_OVMS_EXPORTER=model-download` (an alternative to the default
-  `export-model-py`) runs edge-ai-libraries' Model Download microservice as
-  a one-shot ephemeral container (`get_model.sh`) instead, then registers the
-  resulting graph the same way `export_model.py`'s output is registered (a
-  `model_config_list` entry — confirmed by comparing both exporters' output
-  side by side; OVMS itself auto-detects the `graph.pbtxt` sitting in
-  `base_path`). Newer and less battle-tested than the default path. Its
-  Docker image also defaults to the floating `latest` tag unless
-  `HARNESS_MODEL_DOWNLOAD_IMAGE_TAG` is pinned, and like Hermes/Docker, its
-  `get_model.sh` download requires `HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256`
-  (or `HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT=1`) since no
-  independently-reviewed checksum is pinned yet.
+- `mcp register` has Hermes's config shape and OpenClaw's `mcp set` command
+  built in; other agents need `HARNESS_MCP_REGISTER_CMD` set to a real
+  registration script.
+- `HARNESS_OVMS_EXPORTER` defaults to `docker-pull`, which runs OVMS's own
+  "-py" Docker image (bundles `optimum-cli`) in `--pull` mode to download,
+  convert, and quantize a `--hf-model` entirely via Docker — no host Python
+  venv, no separate GitHub-fetched script. Two alternatives remain for hosts
+  that need them:
+  - `export-model-py` — the original host-venv-based exporter: fetches and
+    pins OVMS's `export_model.py`/`requirements.txt` from GitHub, runs them
+    in a Python venv. Kept for hosts that can't/won't run the conversion
+    step inside Docker.
+  - `model-download` — runs edge-ai-libraries' Model Download microservice
+    as a one-shot ephemeral container (`get_model.sh`) instead. Newer and
+    less battle-tested than the other two. Its Docker image also defaults
+    to the floating `latest` tag unless `HARNESS_MODEL_DOWNLOAD_IMAGE_TAG`
+    is pinned, and like Hermes/Docker, its `get_model.sh` download requires
+    `HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256` (or
+    `HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT=1`) since no
+    independently-reviewed checksum is pinned yet.
+
+  All three register the resulting model into `config.json` the same way (a
+  `model_config_list` entry — confirmed by comparing exporters' output side
+  by side; OVMS itself auto-detects the `graph.pbtxt` sitting in
+  `base_path`).

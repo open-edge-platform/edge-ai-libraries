@@ -65,9 +65,9 @@ usage() {
     HARNESS_SANDBOX_NAME, HARNESS_SANDBOX_IMAGE, HARNESS_SANDBOX_PORT
     HARNESS_GPU_PROFILE, MIN_NODE_VERSION
     HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser hermes3)
-    HARNESS_OVMS_EXPORT_MODEL_PY_SHA256, HARNESS_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256  Pin export_model.py/requirements.txt when overriding HARNESS_OVMS_EXPORT_MODEL_REF
-    HARNESS_ALLOW_UNVERIFIED_OVMS_EXPORTER  Skip pinning for a custom HARNESS_OVMS_EXPORT_MODEL_REF (not recommended)
-    HARNESS_OVMS_EXPORTER         export-model-py (default) | model-download (see Known limitations)
+    HARNESS_OVMS_EXPORTER         docker-pull (default) | export-model-py | model-download (see Known limitations)
+    HARNESS_OVMS_EXPORT_MODEL_PY_SHA256, HARNESS_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256  Pin export_model.py/requirements.txt (export-model-py exporter only)
+    HARNESS_ALLOW_UNVERIFIED_OVMS_EXPORTER  Skip pinning for a custom HARNESS_OVMS_EXPORT_MODEL_REF (export-model-py exporter only, not recommended)
     HARNESS_MODEL_DOWNLOAD_SCRIPT_REF, HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256, HARNESS_MODEL_DOWNLOAD_IMAGE_TAG
     HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT  Skip pinning get_model.sh's checksum (not recommended)
     HARNESS_GATEWAY_ENABLED       Route sandbox traffic through a shared gateway instead of publishing ports (default: off)
@@ -133,16 +133,12 @@ loaded. GPU acceleration may be unavailable."
 will not get GPU passthrough."
     if intel_compute_runtime_installed; then
       ok "Intel compute runtime already installed"
-    elif [[ "$NON_INTERACTIVE" == "1" ]]; then
-      install_intel_compute_runtime_apt
     else
-      printf "  Install the Intel compute runtime (Level Zero + OpenCL) now? [Y/n]: "
-      local reply=""
-      IFS= read -r reply || true
-      case "$(printf '%s' "$reply" | tr '[:upper:]' '[:lower:]')" in
-        "" | y | yes) install_intel_compute_runtime_apt ;;
-        *) warn "Skipping compute runtime install; GPU acceleration may not work." ;;
-      esac
+      warn "Intel compute runtime (Level Zero + OpenCL) not detected. This installer
+assumes GPU drivers/compute-runtime are already provisioned on the host (e.g.
+via Edge Pack: github.com/open-edge-platform/edge-pack) rather than
+installing them itself -- GPU acceleration may be unavailable until that's
+done."
     fi
     ensure_intel_gpu_group_access || true
   fi

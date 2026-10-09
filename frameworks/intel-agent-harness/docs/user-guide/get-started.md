@@ -5,17 +5,18 @@
 1. **Express install** — detects Core Ultra iGPU / Arc (CRI) and offers to
    proceed non-interactively with profile defaults.
 2. **Host prep** — Intel GPU check (PCI vendor `8086`, `i915`/`xe` driver,
-   `/dev/dri` render nodes, Level-Zero/OpenCL compute runtime via apt) and
-   Docker install/group setup.
+   `/dev/dri` render nodes, Level-Zero/OpenCL compute runtime readiness --
+   assumed already provisioned, e.g. via Edge Pack, not installed by this
+   step) and Docker install/group setup.
 3. **Node.js** — installs Node.js via `nvm` if the local version is below
    the configured minimum.
 4. **Inference backend** — starts OpenVINO Model Server (Docker, GPU
    passthrough); optionally exports a Hugging Face model to OpenVINO IR via
-   OVMS's own `export_model.py` first (`--hf-model <id>`) — unlike plain
-   `optimum-cli`, it also generates the MediaPipe graph OVMS's
-   `/v3/chat/completions` endpoint needs. Set `HARNESS_OVMS_EXPORTER=model-download`
-   to use edge-ai-libraries' Model Download microservice's ephemeral
-   container instead (see [Known limitations](known-limitations.md)). Set
+   OVMS's own "-py" Docker image in `--pull` mode (`--hf-model <id>`) —
+   unlike plain `optimum-cli`, it also generates the MediaPipe graph OVMS's
+   `/v3/chat/completions` endpoint needs. Set `HARNESS_OVMS_EXPORTER=export-model-py`
+   or `=model-download` for alternate exporters (see
+   [Known limitations](known-limitations.md)). Set
    `HARNESS_LLM_ROUTER_ENDPOINT` instead to route the agent at an existing
    external OpenAI-compatible router/gateway and skip OVMS entirely.
 5. **Agent install** — installs the selected agent via its own official
