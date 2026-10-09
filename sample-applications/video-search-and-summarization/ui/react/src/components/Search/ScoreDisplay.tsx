@@ -131,7 +131,7 @@ const PopoverNote = styled.p`
 `;
 
 const format = (value: number | null | undefined, digits = 4): string =>
-  typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '—';
+  typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '-';
 
 export interface ScoreDisplayProps {
   relevanceScore?: number | null;

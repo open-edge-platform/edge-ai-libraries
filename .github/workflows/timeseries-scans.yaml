@@ -20,6 +20,7 @@ on:
         - dbs-scan
         - trivy-fs-image-scan
         - trivy-dockerfile-scan
+        - shellcheck-scan
   workflow_call: 
     inputs:
       target:
@@ -496,3 +497,34 @@ jobs:
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: trivy-dockerfile.json
       name: Time Series Dockerfile
+
+  shellcheck-scan:
+    name: ShellCheck Scan
+    if: ${{ (inputs.target == 'shellcheck-scan') || (inputs.target == 'all-scans') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck lint
+        run: |
+          mkdir -p security-results
+          shellcheck --format=json $(find microservices/time-series-analytics -name "*.sh") \
+            > security-results/shellcheck-report-time-series-analytics.json || true
+
+      - name: Upload ShellCheck results
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: always()
+        with:
+          name: time-series-analytics-shellcheck-results
+          path: security-results/shellcheck-report-time-series-analytics.json
+          retention-days: 30

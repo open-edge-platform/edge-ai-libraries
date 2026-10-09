@@ -291,6 +291,25 @@ class ASRBackendSelectionTests(unittest.TestCase):
         ov_genai_cls.assert_called_once_with("whisper-small", "CPU", None)
         ov_cls.assert_not_called()
 
+    def test_openvino_backend_is_cached_per_device(self):
+        with patch("components.asr_component.OV_Whisper") as ov_cls, patch(
+            "components.asr_component.config.app.use_ov_genai", False
+        ):
+            ov_cls.side_effect = [object(), object()]
+            cpu_first = ASRComponent(
+                session_id="cpu-1", provider="openvino", model_name="whisper-small", device="CPU"
+            )
+            gpu = ASRComponent(
+                session_id="gpu", provider="openvino", model_name="whisper-small", device="GPU"
+            )
+            cpu_second = ASRComponent(
+                session_id="cpu-2", provider="openvino", model_name="whisper-small", device="CPU"
+            )
+
+        self.assertEqual(ov_cls.call_count, 2)
+        self.assertIs(cpu_first.asr, cpu_second.asr)
+        self.assertIsNot(cpu_first.asr, gpu.asr)
+
 
 class WhisperCppTests(unittest.TestCase):
     def _install_fake_pywhispercpp(self, model_factory):

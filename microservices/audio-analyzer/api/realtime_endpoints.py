@@ -83,6 +83,17 @@ MIN_PREVIEW_SECONDS = 0.20                  # same floor for non-destructive pre
 PREVIEW_MAX_WINDOW_SECONDS = 2.0
 SUPPORTED_AUDIO_FORMAT = "pcm16"
 
+# Standard Whisper/distil-whisper naming convention: a ".en" suffix marks an
+# English-only checkpoint (e.g. "distil-whisper/distil-small.en") that has no
+# language token at all. openvino_genai.WhisperPipeline raises
+# "Cannot specify 'language' for not multilingual model." if ANY language
+# hint is forwarded to one of these -- not just a non-English one. Multi-
+# lingual checkpoints (e.g. "whisper-small") have no such suffix and require
+# (or at least accept) an explicit language hint. This must be checked
+# against whichever model config.models.asr.name actually resolves to,
+# because that is deployment-configurable (see config.yaml).
+FINAL_MODEL_IS_ENGLISH_ONLY = str(getattr(config.models.asr, "name", "")).endswith(".en")
+
 
 class RealtimeSession:
     """Per-connection state for a realtime transcription socket."""
@@ -268,7 +279,13 @@ async def _commit_utterance(ws: WebSocket, session: RealtimeSession, reason: str
                 session.session_id,
                 pcm,
                 session.sample_rate,
-                session.language,
+                # See FINAL_MODEL_IS_ENGLISH_ONLY above: forwarding
+                # session.language to an English-only final-pool checkpoint
+                # (e.g. distil-small.en) crashes openvino_genai outright, so
+                # this must be forced to None in that configuration -- the
+                # persisted transcript is unaffected since the model has no
+                # language ambiguity to resolve.
+                None if FINAL_MODEL_IS_ENGLISH_ONLY else session.language,
                 f"{session.utterance_index:05d}",
                 session.speaker_scope_id,
                 session.diarization,

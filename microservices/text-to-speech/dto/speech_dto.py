@@ -18,6 +18,7 @@ class SpeechRequest(BaseModel):
     language: str | None = Field(default=None)
     instructions: str | None = Field(default=None)
     response_format: Literal["wav", "json"] = Field(default="wav")
+    device: Literal["CPU", "GPU", "NPU"] | None = Field(default=None)
 
     @field_validator("model", "input", mode="before")
     @classmethod

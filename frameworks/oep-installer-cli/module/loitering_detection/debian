@@ -2,11 +2,23 @@
 configure_loitering_detection () {
   workspace="$(ensure_project_path)/loitering-detection"
   version=release-2026.2.0
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+}
+
+configure_loitering_detection_device () {
+  local device="$1"
+  sed -i "/No device selected/,/fi/{s|defaulting to ...|defaulting to ${device^^}|;s|forced.*=.*$|forced${device^^}=true|}" "$workspace"/metro-vision-ai-app-recipe/loitering-detection/sample_start.sh
 }
 
 verify_loitering_detection () {
-  [ -e "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/VIRAT_S_000101.mp4 ]
+  local v
+  for v in VIRAT_S_000101 VIRAT_S_000102 VIRAT_S_000103 VIRAT_S_000104; do
+    [ -e "$workspace"/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/videos/$v.mp4 ] || { echo "Missing $v.mp4" >&2; return 1; }
+  done
+  [ -e "$workspace"/metro-vision-ai-app-recipe/loitering-detection/src/dlstreamer-pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/FP16/pedestrian-and-vehicle-detector-adas-0001.bin ] || {
+    echo "Missing pedestrian-and-vehicle-detector-adas-0001" >&2
+    return 1
+  }
 }
 
 debian_90_profile_loitering_detection () {
@@ -15,35 +27,49 @@ debian_90_profile_loitering_detection () {
 
 debian_90_install_loitering_detection () {
   configure_loitering_detection
-  if verify_loitering_detection && [[ " $* " != *" --reset-loitering_detection "* ]]; then
+  if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loitering detection is already installed. Skipping"
-    return
+  else
+    # clone the repository
+    ensure_disk_size 280
+    ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
+
+    # setup
+    cd "$workspace/metro-vision-ai-app-recipe"
+    sed -i 's|curl |curl -f |' loitering-detection/install.sh
+    ./install.sh loitering-detection $(ensure_ip)
+    verify_loitering_detection
   fi
 
-  # clone the repository
-  ensure_disk_space 280
-  ensure_git_clone "$workspace" $version $repository metro-ai-suite/metro-vision-ai-app-recipe
+  local device=$(ensure_select_device "$@")
+  configure_loitering_detection_device "$device"
 
-  # setup
-  cd "$workspace/metro-ai-suite/metro-vision-ai-app-recipe"
-  sed -i 's|curl |curl -f |' loitering-detection/install.sh
-  ./install.sh loitering-detection $(ensure_ip)
-  verify_loitering_detection
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_start_loitering_detection () {
   ensure_ports_open "80 443" debian_90_stop_loitering_detection
   configure_loitering_detection
-  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
-  docker compose -f compose-without-scenescape.yml up -d
-  ./sample_start.sh $(ensure_select_device $*)
-  echo "@@HIGHLIGHT UI entrypoint: http://$(ensure_ip)"
-  echo "@@HIGHLIGHT Grafana username/password: admin"
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_loitering_detection_device "$device"
+
+  cd "$workspace"/metro-vision-ai-app-recipe
+  docker compose -f compose-without-scenescape.yml up -d --wait
+
+  echo "@@HIGHLIGHT UI: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT Grafana AUTH: admin/admin"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  ./sample_start.sh && ./sample_status.sh
 }
 
 debian_90_stop_loitering_detection () {
   configure_loitering_detection
-  cd "$workspace"/metro-ai-suite/metro-vision-ai-app-recipe
+  cd "$workspace"/metro-vision-ai-app-recipe
   ./sample_stop.sh || true
   docker compose -f compose-without-scenescape.yml down -v --remove-orphans
 }

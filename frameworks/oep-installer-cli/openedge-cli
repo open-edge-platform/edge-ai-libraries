@@ -10,15 +10,19 @@ main () {
   for v in "$@"; do
     case $v in
     --help)
-      _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
-      echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
-      echo "common options:"
-      echo "  --help          this help message." 
-      echo
-      local cmd
-      for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
-        $cmd --help
-      done
+      if [ $cur -ge 0 ]; then
+        subcommand_${_cmds[$cur]} --help
+      else
+        _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+        echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
+        echo "common options:"
+        echo "  --help          this help message." 
+        echo
+        local cmd
+        for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
+          $cmd --help
+        done
+      fi
       return 0
       ;;
     --dry-run|--continue)
@@ -60,13 +64,24 @@ main () {
       else
         # critical group permissions
         local -A _groups=()
-        local _j _dep _rest_args=() _restart=0
+	local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0 _m _carry=""
         for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
           _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
-          for _dep in $(act_find_deps install install $(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]})); do
-            { [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] || [[ "$_dep" = ${ID_LIKE}_*_install_npu ]]; } && _groups["render:992"]=1
-            [[ "$_dep" = ${ID_LIKE}_*_install_gpu ]] && _groups["video:"]=1
-            [[ "$_dep" = ${ID_LIKE}_*_install_docker ]] && _groups["docker:"]=1
+	  # pass module names forward within this command line so groups are checked against actual use
+          _m="$(act_extract_modules ${_cmds[$_j]} ${_args[$_j]})"
+          [ -n "${_m// }" ] && _carry="$_m"
+          if [ -z "${_m// }" ] && [ -n "$_carry" ] && [ "${_cmds[$_j]}" != "stop" ] && ! [[ "${_cmds[$_j]}" = "remove" && " ${_args[$_j]} " = *" --remove-all "* ]]; then
+            _resolved=(${_globals[*]} $_carry ${_args[$_j]})
+          else
+            _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
+          fi
+	  _deps=($(act_find_deps install ${_resolved[*]}))
+          for _dep in ${_deps[*]}; do
+            _gf=${_dep/_install_/_group_}
+            declare -F $_gf > /dev/null 2>&1 || continue
+            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${ID_LIKE}_*_install_}" ${_resolved[*]})); do
+              _groups["$_g"]=1
+            done
           done
         done
 
@@ -231,8 +246,8 @@ subcommand_bootstrap () {
       cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
     fi
     [ $license_common -eq 0 ] || {
-      cat "$mydir"/license/linux/license_* >> "$rendered" 2> /dev/null || true
-      cat "$mydir"/license/${ID_LIKE}/license_* >> "$rendered" 2> /dev/null || true
+      cat "$mydir"/license/linux/ensure_license_* >> "$rendered" 2> /dev/null || true
+      cat "$mydir"/license/${ID_LIKE}/ensure_license_* >> "$rendered" 2> /dev/null || true
     }
   fi
 

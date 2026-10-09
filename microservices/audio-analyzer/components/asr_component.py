@@ -12,6 +12,7 @@ from components.asr.openvino.whisper import Whisper as OV_Whisper
 from components.asr.openvino_genai.whisper import Whisper as OVGenAIWhisper
 from components.asr.whispercpp.whisper import WhisperCpp
 import logging
+import threading
 logger = logging.getLogger(__name__)
 
 ENABLE_DIARIZATION = config.models.asr.diarization
@@ -106,25 +107,19 @@ class ASRComponent(PipelineComponent):
 
     # Two independent model-instance pools, not one shared singleton.
     #
-    # kiosk-voice-lab (pipeline/orchestrator.py) keeps a dedicated `self.asr`
-    # (rolling preview ticks, called every ~0.4s with a monotonically GROWING
-    # buffer) and a separate `self.asr_final` (called once, at end of turn) —
-    # the two ASR objects never see each other's call history. On this
-    # hardware, some OpenVINO GenAI WhisperPipeline backends (confirmed with
-    # distil-whisper/distil-small.en on NPU) corrupt internal generation state
-    # when ONE shared pipeline instance processes calls of very different
-    # audio lengths back-to-back (e.g. a short non-destructive preview
-    # immediately followed by a longer persisted commit) -- symptoms are
-    # garbled/repeated tokens or empty transcripts that don't recover until
-    # the process restarts. Splitting the pool by call kind -- "preview"
-    # (append_to_session=False, non-destructive scratch calls) vs "final"
-    # (append_to_session=True, persisted commits, including the file-based
-    # /v1/audio/transcriptions endpoint) reproduces the lab's isolation
-    # without the cost of reloading a model per call (~0.2-0.3s to
-    # reconstruct a WhisperPipeline on this NPU, which the driver's compiled-
-    # blob cache makes cheap, but still too slow to pay on every request).
+    # kiosk-voice-lab keeps a dedicated preview ASR (rolling preview ticks,
+    # called every ~0.4s with a GROWING buffer) and a separate final ASR
+    # (called once, at end of turn). Some OpenVINO GenAI WhisperPipeline
+    # backends (confirmed with distil-whisper/distil-small.en on NPU) corrupt
+    # internal generation state when ONE shared instance processes calls of
+    # very different audio lengths back-to-back. Splitting the pool by call
+    # kind -- "preview" (append_to_session=False) vs "final"
+    # (append_to_session=True, including the file-based endpoint) reproduces
+    # that isolation without reloading a model per call. The lock keeps the
+    # lazy per-pool init thread-safe (merged from upstream).
     _models: dict[str, object] = {"preview": None, "final": None}
     _model_configs: dict[str, tuple] = {"preview": None, "final": None}
+    _models_lock = threading.Lock()
     # Shared across all ASRComponent instances/sessions — keyed by session_id
     # internally — so primary-speaker identity persists across chunk calls
     # for the same session regardless of which ASRComponent instance handles
@@ -205,12 +200,13 @@ class ASRComponent(PipelineComponent):
 
         backend_cls, model_config_key, resolved_device = self._resolve_backend(provider, model_name, device)
 
-        if (
-            ASRComponent._models[self.pool_key] is None
-            or ASRComponent._model_configs[self.pool_key] != model_config_key
-        ):
-            ASRComponent._models[self.pool_key] = backend_cls(model_name.lower(), resolved_device, None)
-            ASRComponent._model_configs[self.pool_key] = model_config_key
+        with ASRComponent._models_lock:
+            if (
+                ASRComponent._models[self.pool_key] is None
+                or ASRComponent._model_configs[self.pool_key] != model_config_key
+            ):
+                ASRComponent._models[self.pool_key] = backend_cls(model_name.lower(), resolved_device, None)
+                ASRComponent._model_configs[self.pool_key] = model_config_key
 
         self.asr = ASRComponent._models[self.pool_key]
 

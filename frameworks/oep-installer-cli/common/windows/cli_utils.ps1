@@ -267,7 +267,8 @@ function ActHelper {
         if ($actName -eq 'install') {
             $handlers = @(ActGet -Operation 'prefix' -Prefix ($actName + '_') -Context $Context)
             if ($handlers.Count -gt 0) {
-                Write-Output '  --reset-<name>  force reinstallation of the component if present.'
+                Write-Output '  --reinstall  force reinstallation of the component if present.'
+                Write-Output '  --validate   validate component features if present.'
             }
         }
         Write-Output ''
@@ -285,12 +286,6 @@ function ActHelper {
     foreach ($argument in @(ActExtractModules -Context $Context -ActName $actName -Arguments $Arguments)) {
         if (-not $requestedNames.Contains($argument)) {
             [void]$requestedNames.Add($argument)
-        }
-    }
-
-    foreach ($alwaysIncluded in @('pre_system_scan', 'core_types')) {
-        if ($Context.Functions.ContainsKey($actName + '_' + $alwaysIncluded) -and (-not $requestedNames.Contains($alwaysIncluded))) {
-            [void]$requestedNames.Add($alwaysIncluded)
         }
     }
 
@@ -339,7 +334,7 @@ function ActHelper {
             $previousErrorActionPreference = $ErrorActionPreference
             try {
                 $ErrorActionPreference = 'Stop'
-                foreach ($line in @(& $handler @invokeArgs)) {
+                foreach ($line in @(& $handler -Arguments @invokeArgs)) {
                     if ($null -ne $line) {
                         Write-Output ([string]$line)
                     }
@@ -364,11 +359,6 @@ function ActHelper {
             finally {
                 $ErrorActionPreference = $previousErrorActionPreference
             }
-        }
-
-        if ((-not $dryRun) -and ($result -eq 0)) {
-            Write-Output '@@REPORT SYSTEM SUMMARY'
-            Write-Output ('Completed {0} sequence.' -f $actName)
         }
     } | ActSequentialLogs -ProjectPath $projectPath -CommandLine $commandLine
 
