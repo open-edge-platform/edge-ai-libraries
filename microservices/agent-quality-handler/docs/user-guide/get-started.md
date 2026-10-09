@@ -1,6 +1,11 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Get Started
 
-The Agent Quality Handler is a standalone, configuration-driven agent service. It reads detections from an external storage API and runs the Policy, Analysis, Evidence, and Ticketing agents.
+The Agent Quality Handler is a standalone, configuration-driven agent service. It reads detections from an external storage API and runs the built-in Policy, Analysis, Evidence, and Ticketing specialists by default. That default set is now configurable and extensible through `agent_registry` in `agents.yaml`.
 
 ## Prerequisites
 
@@ -18,52 +23,36 @@ git sparse-checkout set microservices/agent-quality-handler/
 cd microservices/agent-quality-handler/
 ```
 
-### 2. Configure the environment variables
+### 2. Configure the deployment
 
-```bash
-export REGISTRY="intel/"
-export TAG=latest  
-export STORAGE_SERVICE_URL=<storage-wrapper-service-url>    #Check mock service url below for validation
-```
-
-## Start in Fallback Mode
-
-```bash
-docker compose -f docker/compose.yaml up -d
-```
-
-Fallback mode is the default. It starts:
-
-| Service | Purpose | Host exposure |
-|---|---|---|
-| `aqh-agent` | Agent REST API | Port `5002` |
-| `mqtt-broker` | Batch-complete event transport | Private Compose network only |
-
-The storage service is not bundled. `STORAGE_SERVICE_URL` defaults to `http://host.docker.internal:5001` and must point to the required external API.
-
-Verify startup:
-
-```bash
-curl http://localhost:5002/health
-docker compose -f docker/compose.yaml ps
-```
+The [`start.sh`](../../start.sh) script is the deployment configuration and
+startup entry point. Update the defaults in its **Deployment configuration**
+section, particularly `STORAGE_SERVICE_URL`, before starting the application.
 
 ## Start in LLM Mode
 
-LLM mode must set both the environment mode and the Compose profile:
+Set `LLM_MODE=llm` in `start.sh`, then start the application:
 
 ```bash
-export LLM_MODE=llm
-docker compose -f docker/compose.yaml --profile llm up -d
+./start.sh
 ```
 
-The `llm` profile additionally starts `aqh-ovms` and `model-download`. Starting the profile without `LLM_MODE=llm` leaves the agent in fallback mode; setting `LLM_MODE=llm` without the profile does not start the bundled OVMS dependency.
+Environment values can override the script defaults without editing the file.
+For example, credentials should be supplied only for the command that needs
+them:
+
+```bash
+MQTT_USERNAME="$AQH_MQTT_USERNAME" \
+MQTT_PASSWORD="$AQH_MQTT_PASSWORD" \
+HUGGINGFACEHUB_API_TOKEN="$AQH_HUGGINGFACE_TOKEN" \
+./start.sh
+```
 
 ### LLM Model Settings
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `LLM_MODEL_NAME` | Model name passed to the model-download service | `Phi-4-mini-instruct` |
+| `LLM_MODEL_NAME` | Model name passed to the model-download service | `Qwen/Qwen2.5-3B-Instruct` |
 | `LLM_DEVICE` | Target inference device (`GPU`, `CPU`) | `GPU` |
 | `LLM_PRECISION` | Model quantization precision (`int8`, `int4`, `fp16`, …) | `int8` |
 | `USE_CASE_MODELS_DIR` | Optional host directory shared by model-download and OVMS | `aqh_model_cache` volume |
@@ -88,11 +77,12 @@ recorded without running agents.
 
 ## Configure Agent Assets
 
-Agent assets are supplied by the downstream application. Set the downstream asset directory paths before startup:
+Agent assets are supplied by the downstream application. Set these values in
+the deployment configuration section of `start.sh`:
 
 ```bash
-export USE_CASE_CONFIGS_DIR=/absolute/path/to/config
-export USE_CASE_PROMPTS_DIR=/absolute/path/to/prompts
+USE_CASE_CONFIGS_DIR=/absolute/path/to/config
+USE_CASE_PROMPTS_DIR=/absolute/path/to/prompts
 ```
 
 The config directory must contain `agents.yaml` and `policy_fallback.json`. In LLM mode, the prompts directory must contain `<use_case_id>.txt`, where `use_case_id` comes from `agents.yaml`. Invalid URLs, modes, ports, credentials, certificates, or required assets cause startup to fail rather than running with a partial configuration.
@@ -121,8 +111,9 @@ The `dev` Compose profile starts a mock storage service with canned detection
 data, removing the need for a real storage backend.
 
 ```bash
-export STORAGE_SERVICE_URL=http://mock-storage:5001
-docker compose -f docker/compose.yaml --profile dev up --build -d
+COMPOSE_PROFILES=dev \
+STORAGE_SERVICE_URL=http://mock-storage:5001 \
+./start.sh --build
 ```
 
 Verify all services are healthy:
@@ -150,8 +141,17 @@ docker compose -f docker/compose.yaml --profile dev down
 ## Stop
 
 ```bash
-docker compose -f docker/compose.yaml down
+./start.sh down
 ```
+
+To also remove named volumes, including retained agent outputs and the named
+model cache, run:
+
+```bash
+./start.sh clean
+```
+
+The clean action preserves downloaded images.
 
 <!--hide_directive
 :::{toctree}

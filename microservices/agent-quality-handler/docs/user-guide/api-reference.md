@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # API Reference
 
 The Agent Quality Handler API is exposed directly on
@@ -47,7 +52,7 @@ agent outputs and structured errors.
 ## Persisted per-agent outputs
 
 Terminal runs are written to the named Docker volume mounted at `/app/output`.
-The service maintains four files:
+The service always maintains the four built-in files:
 
 ```text
 /app/output/policy.json
@@ -55,6 +60,10 @@ The service maintains four files:
 /app/output/evidence.json
 /app/output/ticket.json
 ```
+
+When the configured `agent_registry` declares additional agents, the service
+also creates one extra JSON history file per registered agent (for example
+`/app/output/sensor_correlation.json`).
 
 Each file is one JSON document with multiple records keyed by `run_id`:
 
@@ -87,11 +96,75 @@ applications:
 ```bash
 curl http://localhost:5002/agents/outputs/analysis
 curl http://localhost:5002/agents/outputs/analysis/inspection-42
+curl http://localhost:5002/agents/outputs/sensor_correlation
 ```
 
-Valid agent names are `policy`, `analysis`, `evidence`, and `ticket`. Unknown
-agents or run IDs return HTTP `404`; an unavailable or corrupt output store
-returns HTTP `503`.
+The built-in agent names `policy`, `analysis`, `evidence`, and `ticket` are
+always valid. If the configured `agent_registry` adds more agents, any
+registered agent name is also valid for
+`GET /agents/outputs/{agent}` and `GET /agents/outputs/{agent}/{run_id}`.
+Unknown agents or run IDs return HTTP `404`; an unavailable or corrupt output
+store returns HTTP `503`. Note that the built-in registry name `ticketing`
+keeps the legacy storage/API key `ticket`, while custom agents use their
+registry name directly.
+
+## Terminal result shape
+
+`GET /agents/results/{run_id}` always returns the built-in top-level result
+keys:
+
+- `policy`
+- `analysis`
+- `evidence`
+- `ticket`
+
+When no extra agents are registered, the terminal response shape remains:
+
+```json
+{
+  "use_case_id": "case",
+  "routing": {},
+  "policy": {},
+  "analysis": {},
+  "evidence": {},
+  "ticket": {},
+  "errors": [],
+  "error": null,
+  "run_id": "inspection-42",
+  "status": "completed",
+  "source": "mqtt"
+}
+```
+
+When the configured registry includes agents beyond the built-in four, their
+outputs are surfaced additively under `extra_agents` without changing the
+existing top-level keys:
+
+```json
+{
+  "use_case_id": "case",
+  "routing": {},
+  "policy": {},
+  "analysis": {},
+  "evidence": {},
+  "ticket": {},
+  "extra_agents": {
+    "sensor_correlation": {
+      "score": 0.91,
+      "summary": "vision and sensor anomalies correlated"
+    }
+  },
+  "errors": [],
+  "error": null,
+  "run_id": "inspection-42",
+  "status": "completed",
+  "source": "mqtt"
+}
+```
+
+`extra_agents` keys match the registry `name` values exactly. This lets
+downstream clients read built-in outputs from the long-standing top-level
+fields while discovering custom specialists from a single additive map.
 
 Persisted records use the same `RUN_RETENTION_SECONDS` and
 `MAX_RETAINED_RUNS` limits as the in-process run registry. Retention is applied

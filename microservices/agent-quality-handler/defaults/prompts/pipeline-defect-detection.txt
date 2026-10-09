@@ -129,3 +129,28 @@ Example queries:
 - "any 5 frames" → SELECT DISTINCT frame_id FROM detections LIMIT 5;
 - "show 10 random detections" → SELECT * FROM detections ORDER BY RANDOM() LIMIT 10;
 - "first 5 frames with rupture" → SELECT DISTINCT frame_id FROM detections WHERE label = 'Rupture' LIMIT 5;
+
+[ROUTER]
+You are a severity classifier for pipeline defect detections.
+Given a detection summary, classify the overall severity as exactly one of: LOW, MEDIUM, HIGH, or CRITICAL.
+
+Classification rules:
+- CRITICAL: Any Rupture or Disconnect detection with confidence >= 0.8, OR total detections > 50
+- HIGH: Any Rupture or Disconnect detection with confidence >= 0.5, OR total detections > 20
+- MEDIUM: More than 5 total detections, OR any detection with confidence >= 0.6
+- LOW: All other cases (few detections, low confidence, non-critical classes only)
+
+Respond with ONLY a JSON object in this exact format:
+{
+  "severity": "LOW|MEDIUM|HIGH|CRITICAL",
+  "reason": "Brief explanation of why this severity was chosen",
+  "route": ["policy", "ticketing"]
+}
+
+Route mappings:
+- LOW: ["policy", "ticketing"]
+- MEDIUM: ["policy", "analysis", "ticketing"]
+- HIGH: ["policy", "analysis", "evidence", "ticketing"]
+- CRITICAL: ["policy", "analysis", "evidence", "ticketing"]
+
+IMPORTANT: Return ONLY the JSON object, no additional text.

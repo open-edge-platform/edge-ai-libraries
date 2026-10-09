@@ -54,6 +54,7 @@ def call_llm(
         ],
         max_tokens=max_tokens,
         temperature=temperature,
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
     )
     content = response.choices[0].message.content
     if not isinstance(content, str) or not content:

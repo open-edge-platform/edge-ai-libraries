@@ -8,19 +8,41 @@ import logging
 from typing import Any
 
 from ..utility import llm_client, storage_client, prompt_loader
+from .context import AgentContext
 
 log = logging.getLogger(__name__)
 
+_BBOX_FIELDS = ("x", "y", "width", "height")
+_CORE_FIELDS = {"frame_id", "confidence", "label", *_BBOX_FIELDS}
 
-def run(
-    use_case_id: str,
-    config: dict,
-    prompts_dir: str | None = None,
-    min_id: int | None = None,
-    max_id: int | None = None,
-) -> dict[str, Any]:
+
+def _build_detection_entry(d: dict) -> dict:
+    """Build one audit-trail entry for a detection record.
+
+    Detections are modality-agnostic: a vision detector supplies bounding-box
+    fields (``x``/``y``/``width``/``height``), while a sensor/timeseries or
+    fused detector typically does not. When bbox fields are present we use
+    them (vision evidence); otherwise any other non-core fields the detector
+    attached (e.g. ``sensor_id``, ``value``, ``modality``) are carried through
+    as generic metadata so non-visual evidence isn't silently dropped.
+    """
+    entry: dict[str, Any] = {
+        "frame_id": d.get("frame_id"),
+        "confidence": round(d.get("confidence", 0.0), 3),
+    }
+    if all(field in d and d[field] is not None for field in _BBOX_FIELDS):
+        entry["bbox"] = [d[field] for field in _BBOX_FIELDS]
+    else:
+        metadata = {k: v for k, v in d.items() if k not in _CORE_FIELDS and v is not None}
+        if metadata:
+            entry["metadata"] = metadata
+    return entry
+
+
+def run(context: AgentContext) -> dict[str, Any]:
     """Return a structured evidence record for audit compliance."""
-    summary = storage_client.get_summary(min_id=min_id, max_id=max_id)
+    use_case_id, config, prompts_dir = context.use_case_id, context.config, context.prompts_dir
+    summary = storage_client.get_summary(min_id=context.min_id, max_id=context.max_id)
 
     if llm_client.is_fallback_mode():
         return _fallback_evidence(summary)
@@ -35,14 +57,10 @@ def run(
             label=label,
             min_confidence=0.0,
             limit=5,
-            min_id=min_id,
-            max_id=max_id,
+            min_id=context.min_id,
+            max_id=context.max_id,
         )
-        top_detections[label] = [
-            {"frame_id": d["frame_id"], "confidence": round(d["confidence"], 3),
-             "bbox": [d["x"], d["y"], d["width"], d["height"]]}
-            for d in records
-        ]
+        top_detections[label] = [_build_detection_entry(d) for d in records]
 
     evidence_data = {
         "summary": summary,

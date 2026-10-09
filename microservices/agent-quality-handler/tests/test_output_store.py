@@ -5,10 +5,13 @@ import json
 
 import pytest
 
+from src.routing.agent_registry import AgentSpec, DEFAULT_REGISTRY
 from src.utility.output_store import (
     AGENT_RESULT_KEYS,
     AgentOutputStore,
     OutputStoreError,
+    _agent_keys,
+    agent_result_keys,
 )
 
 
@@ -133,3 +136,59 @@ def test_unknown_agent_is_rejected_without_path_access(tmp_path):
 
     with pytest.raises(ValueError, match="Unknown agent"):
         store.get_agent("../secret")
+
+
+def test_agent_result_keys_preserve_builtin_legacy_names():
+    assert agent_result_keys() == AGENT_RESULT_KEYS
+    assert _agent_keys() == ("policy", "analysis", "evidence", "ticket")
+    assert agent_result_keys(list(DEFAULT_REGISTRY))["ticket"] == ("ticket", "ticketing")
+
+
+def test_custom_registry_adds_output_file_for_extra_agent(tmp_path):
+    specs = [
+        *DEFAULT_REGISTRY,
+        AgentSpec(
+            name="correlation",
+            module="src.agents.evidence_agent",
+            depends_on=("analysis",),
+            prompt_section="CORRELATION",
+        ),
+    ]
+    store = AgentOutputStore(tmp_path, specs=specs)
+
+    result = _result("with-extra")
+    result["extra_agents"] = {"correlation": {"score": 0.91, "summary": "linked"}}
+    result["errors"] = [
+        {"agent": "correlation", "status": "failed", "message": "partial"}
+    ]
+
+    store.record_run(
+        "run-extra",
+        status="error",
+        result=result,
+        source="http",
+        min_id=10,
+        max_id=11,
+        metadata={"device": "camera-north"},
+        completed_at=300,
+    )
+
+    derived = agent_result_keys(specs)
+    assert derived["correlation"] == ("correlation", "correlation")
+    assert _agent_keys(specs) == (
+        "policy",
+        "analysis",
+        "evidence",
+        "ticket",
+        "correlation",
+    )
+
+    document = json.loads((tmp_path / "correlation.json").read_text())
+    assert document["agent"] == "correlation"
+    assert document["runs"]["run-extra"]["output"] == {
+        "score": 0.91,
+        "summary": "linked",
+    }
+    assert document["runs"]["run-extra"]["errors"] == [
+        {"agent": "correlation", "status": "failed", "message": "partial"}
+    ]

@@ -20,7 +20,7 @@ services:
       STORAGE_RETRY_BACKOFF_SECONDS: ${STORAGE_RETRY_BACKOFF_SECONDS:-0.25}
       LLM_MODE: ${LLM_MODE:-llm}
       LLM_BASE_URL: ${LLM_BASE_URL:-http://aqh-ovms:8010/v3}
-      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-Phi-4-mini-instruct}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
       LLM_API_KEY: ${LLM_API_KEY:-UNUSED}
       MQTT_DISABLED: ${MQTT_DISABLED:-false}
       MQTT_HOST: ${MQTT_HOST:-mqtt-broker}
@@ -47,6 +47,8 @@ services:
       - "${AGENT_PORT:-5002}:5002"
     depends_on:
       mqtt-broker:
+        condition: service_healthy
+      aqh-ovms:
         condition: service_healthy
     networks:
       - aqh_network
@@ -118,7 +120,8 @@ services:
                   \"config\": {
                     \"precision\": \"$${precision}\",
                     \"device\": \"$${request_device}\",
-                    \"cache_size\": 10
+                    \"cache_size\": 10,
+                    \"tool_parser\":\"hermes3\"
                   }
                 }
               ]
@@ -169,7 +172,7 @@ services:
       HUGGINGFACE_TOKEN: ${HUGGINGFACEHUB_API_TOKEN:-}
       LLM_DEVICE: ${LLM_DEVICE:-GPU}
       LLM_PRECISION: ${LLM_PRECISION:-int8}
-      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-Phi-4-mini-instruct}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
       MODEL_DOWNLOAD_URL: ${MODEL_DOWNLOAD_URL:-http://model-download:8000}
       MODEL_DOWNLOAD_TIMEOUT_SECONDS: ${MODEL_DOWNLOAD_TIMEOUT_SECONDS:-3600}
     restart: unless-stopped
@@ -198,7 +201,7 @@ services:
       start_period: 30s
 
   model-download:
-    image: intel/model-download:latest
+    image: intel/model-download:mcp-rc
     command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,openvino}
     container_name: aqh-model-download
     hostname: model-download
@@ -224,6 +227,7 @@ services:
       https_proxy: ${https_proxy:-}
       no_proxy: ${no_proxy:-}
       HF_TOKEN: ${HUGGINGFACEHUB_API_TOKEN:-}
+      OVMS_RELEASE_TAG: ${OVMS_RELEASE_TAG:-v2026.2.1}
       HF_HUB_ENABLE_HF_TRANSFER: 1
       HOME: /home/appuser
       MODEL_PATH: /opt/models

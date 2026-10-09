@@ -10,8 +10,9 @@ from src import meta_agent
 
 @pytest.fixture(autouse=True)
 def reset_graph(monkeypatch):
-    monkeypatch.setattr(meta_agent, "_graph", None)
+    monkeypatch.setattr(meta_agent, "_graphs", {})
     monkeypatch.setattr(meta_agent, "load_config", lambda _path: {"use_case_id": "case"})
+    monkeypatch.setenv("AGENT_MODE", "sequential")
 
 
 def _install_successful_agents(monkeypatch):
@@ -28,6 +29,7 @@ def test_successful_graph_returns_consistent_results(monkeypatch):
 
     assert result == {
         "use_case_id": "case",
+        "routing": {},
         "policy": {"policy": True},
         "analysis": {"analysis": True},
         "evidence": {"evidence": True},
@@ -42,19 +44,19 @@ def test_bounds_are_passed_to_all_reading_agents(monkeypatch):
     monkeypatch.setattr(
         meta_agent.policy_agent,
         "run",
-        lambda *args: calls.append(("policy", args[-2:])) or {},
+        lambda context: calls.append(("policy", (context.min_id, context.max_id))) or {},
     )
     monkeypatch.setattr(
         meta_agent.analysis_agent,
         "run",
-        lambda *args: calls.append(("analysis", args[-2:])) or {},
+        lambda context: calls.append(("analysis", (context.min_id, context.max_id))) or {},
     )
     monkeypatch.setattr(
         meta_agent.evidence_agent,
         "run",
-        lambda *args: calls.append(("evidence", args[-2:])) or {},
+        lambda context: calls.append(("evidence", (context.min_id, context.max_id))) or {},
     )
-    monkeypatch.setattr(meta_agent.ticketing_agent, "run", lambda *args: {})
+    monkeypatch.setattr(meta_agent.ticketing_agent, "run", lambda context: {})
 
     meta_agent.run_pipeline(min_id=10, max_id=20)
 
