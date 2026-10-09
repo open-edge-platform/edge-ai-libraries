@@ -82,6 +82,11 @@ def test_get_config(monkeypatch):
     assert "udfs" in resp.json()
     assert "alerts" in resp.json()
 
+def test_swagger_ui_hides_empty_select_option():
+    resp = client.get("/docs")
+    assert resp.status_code == 200
+    assert ".swagger-ui select option[value=''] { display: none; }" in resp.text
+
 def test_get_config_with_restart(monkeypatch):
     called = {}
     def fake_restart():
