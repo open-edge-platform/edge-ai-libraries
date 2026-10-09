@@ -192,6 +192,17 @@ def fetch_capabilities(
         return {}
 
 
+def _has_known_revision(value: Any) -> bool:
+    """Return True unless *revision* is empty/missing or the literal "unknown".
+
+    ``GET /status`` reports ``revision`` as the literal string ``"unknown"``
+    (not ``null``) when ``VIPPET_REVISION`` wasn't set at build time (see
+    ``app_version.py``), so a plain truthiness check isn't enough to detect
+    an unknown revision.
+    """
+    return bool(value) and str(value).strip().lower() != "unknown"
+
+
 def fetch_vippet_version(
     base_url: str,
     request_timeout: float,
@@ -199,7 +210,7 @@ def fetch_vippet_version(
     client: httpx.Client,
     report: Callable[[str], None] = print,
 ) -> str:
-    """Fetch the ViPPET release/build version from ``GET /status``.
+    """Fetch the ViPPET release/build version (and revision) from ``GET /status``.
 
     Best-effort: any failure is logged via *report* and degrades to
     ``"Unknown"`` rather than raising.
@@ -210,8 +221,15 @@ def fetch_vippet_version(
         version = payload.get("version")
         if not version:
             raise ValueError("missing 'version' field")
-        report(f"[pre-flight] GET {status_url}: OK (version={version!r})")
-        return str(version)
+        revision = payload.get("revision")
+        display = (
+            f"{version} ({revision})" if _has_known_revision(revision) else str(version)
+        )
+        report(
+            f"[pre-flight] GET {status_url}: OK "
+            f"(version={version!r}, revision={revision!r})"
+        )
+        return display
     except (httpx.HTTPError, ValueError) as exc:
         report(f"[pre-flight] GET {status_url}: FAILED ({type(exc).__name__}: {exc})")
         return "Unknown"

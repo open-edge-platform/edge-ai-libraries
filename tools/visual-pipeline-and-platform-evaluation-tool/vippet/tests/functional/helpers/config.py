@@ -3,7 +3,11 @@
 import os
 from pathlib import Path
 
-BASE_URL: str = os.environ.get("VIPPET_BASE_URL", "http://localhost/api/v1")
+# Host/IP for the VIPPET API; shared with the performance suite's
+# TARGET_HOST so both point at the same device by default.
+TARGET_HOST: str = os.environ.get("TARGET_HOST", "localhost")
+
+BASE_URL: str = os.environ.get("VIPPET_BASE_URL") or f"http://{TARGET_HOST}/api/v1"
 POLL_TIMEOUT_SECONDS: int = int(os.environ.get("VIPPET_JOB_TIMEOUT_SECONDS", "600"))
 POLL_INTERVAL_SECONDS: float = float(os.environ.get("VIPPET_JOB_POLL_INTERVAL", "2.0"))
 

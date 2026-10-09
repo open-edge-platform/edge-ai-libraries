@@ -341,6 +341,71 @@ class TestFetchVippetVersion(unittest.TestCase):
         self.assertEqual(result, "2026.2.0-rc2")
         self.assertIn(": OK", reports[0])
 
+    def test_appends_revision_when_present(self) -> None:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200, json={"version": "2026.3.0-dev", "revision": "e47cc195-dirty"}
+            )
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_vippet_version(
+                "http://localhost/api/v1", 10, client=client, report=reports.append
+            )
+
+        # Revision is shown as-is, with no trimming of the "-dirty" suffix.
+        self.assertEqual(result, "2026.3.0-dev (e47cc195-dirty)")
+        self.assertIn(": OK", reports[0])
+
+    def test_omits_revision_when_absent(self) -> None:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200, json={"version": "2026.3.0-dev", "revision": None}
+            )
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_vippet_version(
+                "http://localhost/api/v1", 10, client=client, report=reports.append
+            )
+
+        self.assertEqual(result, "2026.3.0-dev")
+
+    def test_omits_revision_when_literal_unknown(self) -> None:
+        """GET /status reports "unknown" (not null) when VIPPET_REVISION is unset."""
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200, json={"version": "2026.3.0-dev", "revision": "unknown"}
+            )
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_vippet_version(
+                "http://localhost/api/v1", 10, client=client, report=reports.append
+            )
+
+        self.assertEqual(result, "2026.3.0-dev")
+
+    def test_returns_bare_version_when_version_is_literal_unknown(self) -> None:
+        """GET /status reports "unknown" (not null/missing) when VIPPET_VERSION is
+        unset -- unlike revision, an unknown version is still shown as-is, not
+        collapsed to the generic pre-flight-failure "Unknown"."""
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200, json={"version": "unknown", "revision": "unknown"}
+            )
+
+        reports: list[str] = []
+        with _client(handler) as client:
+            result = preflight.fetch_vippet_version(
+                "http://localhost/api/v1", 10, client=client, report=reports.append
+            )
+
+        self.assertEqual(result, "unknown")
+        self.assertIn(": OK", reports[0])
+
     def test_returns_unknown_on_unreachable_endpoint(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             raise httpx.ConnectError("connection refused", request=request)

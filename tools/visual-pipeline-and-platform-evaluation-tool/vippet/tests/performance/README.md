@@ -41,6 +41,7 @@ behavior on a host without the models.
 
 | Env var                   | Default                                     | Description                                                                                                                    |
 |---------------------------|---------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `TARGET_HOST`             | `localhost`                                 | Host/IP shared by `VIPPET_BASE_URL`, `VIPPET_METRICS_URL`, and `VIPPET_CAPABILITIES_URL` defaults; set to target a remote device |
 | `VIPPET_BASE_URL`         | `http://localhost/api/v1`                   | VIPPET API endpoint                                                                                                            |
 | `VIPPET_METRICS_URL`      | `http://localhost/metrics/stream`           | Metrics endpoint (via nginx proxy)                                                                                             |
 | `VIPPET_CAPABILITIES_URL` | `http://localhost:9090/api/v1/capabilities` | metrics-manager capabilities endpoint (direct, not nginx-proxied)                                                              |
