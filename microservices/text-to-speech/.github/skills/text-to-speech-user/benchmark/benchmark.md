@@ -7,8 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 
 **Agents**: GitHub Copilot (Claude Sonnet 5) — single-model self-evaluation
 **Grader**: GitHub Copilot (Claude Sonnet 5) — same session, self-graded
-**Date**: 2026-10-07
-**Evals**: 1–10 (1 reasoned pass per configuration)
+**Date**: 2026-10-09
+**Evals**: 1–13 (1 reasoned pass per configuration)
 
 ## Methodology Note (Read Before Trusting These Numbers)
 
@@ -41,17 +41,17 @@ score.
 
 | Configuration | Evals passed |
 |---|---|
-| w/o skill | 1 / 10 |
-| w/ skill | 10 / 10 |
-| **Lift** | **+9 ↑** |
+| w/o skill | 1 / 13 |
+| w/ skill | 13 / 13 |
+| **Lift** | **+12 ↑** |
 
 ### Pass rate (avg ± σ across evals, by expectations met per eval)
 
 | Configuration | Pass rate |
 |---|---|
-| w/o skill | 34% ±24% |
+| w/o skill | 31% ±22% |
 | w/ skill | 100% ±0% |
-| **Lift** | **+66pp ↑** |
+| **Lift** | **+69pp ↑** |
 
 ## Per-Eval Detail
 
@@ -69,23 +69,31 @@ score.
 | 8 | Unknown `voice` name returns 400 instead of falling back to default. | PASS (5/5) | FAIL (2/5) |
 | 9 | `device: NPU` rejected instead of gracefully degrading to CPU. | PASS (5/5) | FAIL (1/5) |
 | 10 | `GET /v1/audio/voices` field names don't match expected `speakers`/`languages`. | PASS (5/5) | FAIL (1/5) |
-| | **Mean ±σ** | **100% ±0%** | **34% ±24%** |
+| 11 | Kokoro returns audio in a substitute voice instead of the expected 400 for an unsupported name. | PASS (5/5) | FAIL (1/5) |
+| 12 | 6000-char input returns 422, not the documented 400 — client bug or doc error? | PASS (5/5) | FAIL (1/5) |
+| 13 | persist_outputs=true but storage/<session_id>/ stays empty for streaming requests. | PASS (5/5) | FAIL (1/5) |
+| | **Mean ±σ** | **100% ±0%** | **31% ±22%** |
 
-## Why the Lift Is Concentrated in Evals 2–10
+## Why the Lift Is Concentrated in Evals 2–13
 
 Eval 1 is answerable from the service's top-level README/get-started guide
 alone, so a baseline agent that skims repository docs performs just as well
-with or without the skill. Evals 2–10 each hinge on a specific,
+with or without the skill. Evals 2–13 each hinge on a specific,
 model-dependent validation rule or response-shape detail that is easy to
 get wrong without the skill's grounded references — the `response_format`
 being limited to `wav`/`json`, the `model` field being accepted but inert,
 Qwen3-TTS currently failing at **service startup** rather than per-request
 (a recent documentation correction this skill was updated to reflect), the
-single-event streaming case being expected rather than broken, unknown
-voice names failing closed instead of silently defaulting, the per-request
-`device` override being rejected rather than gracefully downgraded, and the
-current `GET /v1/audio/voices` response field names — exactly the kind of
-misconception-correcting detail
+single-event streaming case being expected rather than broken, an unknown
+`voice` name's **model-dependent** outcome (SpeechT5 fails closed with HTTP
+400, Kokoro silently falls back to its default voice instead — a second
+recent correction), the per-request `device` override being rejected
+rather than gracefully downgraded, the current `GET /v1/audio/voices`
+response field names, the **422 vs. 400** split between Pydantic schema
+validation and service-level validation (a third recent correction), and
+`pipeline.persist_outputs` applying only to the non-streaming endpoint (a
+fourth recent correction — `Pipeline.synthesize_stream()` never writes to
+storage) — exactly the kind of misconception-correcting detail
 [model-and-voice-guide.md](../references/model-and-voice-guide.md) and
 [integration-troubleshooting.md](../references/integration-troubleshooting.md)
 are designed to surface before the agent guesses.

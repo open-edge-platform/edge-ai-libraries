@@ -72,7 +72,7 @@ Default base URL: `http://127.0.0.1:8011`.
 | Sending `voice` to a Qwen3-TTS `voice_design` deployment | `voice_design` **rejects** the `voice` field and **requires** `instructions` describing the voice instead |
 | Omitting `instructions` on a Qwen3-TTS `voice_design` deployment | `instructions` is mandatory for `voice_design`; the request fails validation without it |
 | Passing any `language` other than `English` | The service is English-only; any other value returns HTTP 400 |
-| Assuming an unknown `voice` name silently falls back to default | Unknown voice names return HTTP 400, they do not silently substitute the default speaker |
+| Assuming an unknown `voice` name silently falls back to default | **Model-dependent:** SpeechT5 returns HTTP 400 for an unknown voice; Kokoro silently substitutes the configured/default voice instead |
 | Hardcoding port 8000/8080 | Default port is **`8011`** |
 | Setting `device: GPU`/`NPU` and expecting a silent fallback to CPU if unsupported | The service **rejects** unsupported/unavailable device selections outright; it never downgrades silently |
 | Assuming a deployment "using Qwen3-TTS" is reachable | Qwen3-TTS currently fails at **service startup** on every device due to a `qwen-tts`/`transformers` conflict — if the service won't even answer `GET /health`, this is almost certainly why, not a client bug |
@@ -191,9 +191,14 @@ All endpoints take the same JSON body shape:
 Field rules that depend on the deployed model (see
 [model-and-voice-guide.md](./references/model-and-voice-guide.md) for the
 full matrix):
+- `model`: optional — defaults to the configured service model if omitted.
+  Shown above only for OpenAI API-shape parity; it never selects which
+  model actually runs.
 - `voice`: must be a name the deployed model actually supports — check
   `GET /v1/audio/voices` first. Omit it to use the deployment's configured
-  default.
+  default. An unsupported name is rejected with HTTP 400 on SpeechT5, but
+  silently falls back to the default Kokoro voice (logged as a warning)
+  rather than erroring.
 - `instructions`: rejected for SpeechT5; optional for Qwen `custom_voice`;
   **required** (and `voice` must be omitted) for Qwen `voice_design` — but
   see the Qwen3-TTS caveat above before relying on either Qwen variant.
@@ -227,15 +232,19 @@ curl --noproxy '*' http://127.0.0.1:8011/health
 
 After a successful call, tell the user:
 - Whether the returned audio was saved to `storage/<session_id>/` on the
-  server (only if `pipeline.persist_outputs: true` on that deployment — this
-  is a deployment-time setting, not a per-request flag)
+  server — only applies to `POST /v1/audio/speech` (non-streaming) when
+  `pipeline.persist_outputs: true` is set on that deployment; a deployment-
+  time setting, not a per-request flag. `POST /v1/audio/speech/stream`
+  never persists chunks to storage, regardless of this setting.
 - That the `model` field in the request does not actually select a model —
   it exists for OpenAI API-shape compatibility only
 - That `response_format` is limited to `wav`/`json` — not the full OpenAI
   format list
 
-If a request is rejected with HTTP 400, read
+If a request is rejected with HTTP 400 or 422, read
 [integration-troubleshooting.md](./references/integration-troubleshooting.md)
-before guessing — most client-side 400s map to a specific, known validation
-rule (wrong `language`, unsupported `voice`, misused `instructions`, or
+before guessing — 422 means Pydantic schema validation failed before the
+endpoint ran (e.g. `input` missing or over 5000 characters); 400 means a
+service-level check failed after parsing succeeded (wrong `language`,
+unsupported `voice`, misused `instructions`, or
 missing `instructions` for `voice_design`).

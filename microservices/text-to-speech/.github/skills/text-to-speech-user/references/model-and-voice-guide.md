@@ -26,6 +26,11 @@ can be valid for one deployed model and rejected for another.
 - `name`: `kokoro` (the repository's shipped default).
 - Voices: `af_heart` (default) and any voice id supported by `kokoro-onnx`,
   e.g. `am_michael`, `bf_emma`.
+- An unsupported/unknown `voice` is **not** rejected — the backend logs a
+  warning and silently falls back to `models.tts.default_speaker` (or
+  `af_heart` if that is also unrecognized, or the first available voice as
+  a last resort). This differs from SpeechT5, which returns HTTP 400 for an
+  unknown voice.
 - Always runs on onnxruntime/CPU regardless of `runtime`/`device` config.
 - English-only.
 
@@ -112,7 +117,7 @@ Practical implications for building a client:
 
 | Field | Kokoro | SpeechT5 | Qwen `custom_voice` | Qwen `voice_design` |
 |-------|--------|----------|----------------------|------------------------|
-| `voice` | optional (voice id) | optional (named voice) | optional (named voice) | **must be omitted** |
+| `voice` | optional, **falls back silently** if unsupported | optional, **HTTP 400** if unsupported | optional (named voice) | **must be omitted** |
 | `instructions` | n/a (not validated) | **rejected if present** | optional | **required** |
 | `language` | English only | English only | English only | English only |
 | `device` | `CPU` only (GPU/NPU rejected) | `CPU`/`GPU` (NPU rejected or fails at compile time) | n/a — model cannot currently load | n/a — model cannot currently load |

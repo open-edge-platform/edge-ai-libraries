@@ -98,13 +98,34 @@ reference).
 session folders under `storage/` every time the process starts — set this to
 `false` if you need session persistence across restarts.
 
+> [!IMPORTANT]
+> `utils/app_paths.py::get_session_dir()` does a raw `os.path.join(STORAGE_ROOT,
+> session_id)` with no sanitization of its own — `os.path.join` also silently
+> discards `STORAGE_ROOT` if `session_id` happens to be an absolute path.
+> Every surface that accepts a client-supplied `session_id` (HTTP form/query
+> fields and the `/v1/realtime` WebSocket query parameter) **must** validate
+> it through `utils/session_manager.py::resolve_requested_session_id()`
+> (letters, digits, `-`, `_` only, max 128 chars) before it is ever passed to
+> `get_session_dir()`/`get_session_chunks_dir()`. A fix was required in
+> `api/realtime_endpoints.py` precisely because the WebSocket handler used
+> the raw query value directly — treat this as the required pattern for any
+> new endpoint, not an optional nicety.
+
 ---
 
 ## Device Passthrough (GPU/NPU)
 
-**GPU (`/dev/dri`)** — passed through unconditionally in `docker-compose.yml`.
-No extra host setup beyond having the Intel iGPU/dGPU and its kernel driver
-present; the `openvino` provider can then target `device: GPU`.
+**GPU (`/dev/dri`)** — the device node is passed through unconditionally in
+`docker-compose.yml`, but that alone is not sufficient. The container runs
+as non-root UID/GID `1000:1000`, and `/dev/dri/renderD*` is typically owned
+by the host's `render` group, not `video` — so the container also needs
+`RENDER_GID` set in `.env` (or exported) to the host's actual `render` GID
+before `docker compose up`, matching the `group_add: ["video", "${RENDER_GID:-992}"]`
+entry in Compose. The `992` fallback is **not** reliable across machines;
+determine the real value with `stat -c '%g' /dev/dri/renderD128` (or the
+first matching `/dev/dri/render*` node) rather than assuming the default is
+correct. Without the right `RENDER_GID`, the `openvino` provider fails to
+initialize the GPU context even though `/dev/dri` is visible.
 
 **NPU (`ACCEL_MOUNT_PATH` → `/dev/accel/accel0`)** — conditional mapping:
 
@@ -120,8 +141,9 @@ devices:
   `/dev/accel/accel0` so CPU/GPU-only workflows are unaffected.
 - `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so` must remain set in the container
   environment (already default in Compose) for NPU enumeration.
-- `RENDER_GID` must match the host's `render` group GID so the non-root app
-  user can access the device node; default fallback is `992`.
+- `RENDER_GID` (see the GPU bullet above) is the same `group_add` entry used
+  for NPU access on systems where the accelerator node is also gated by a
+  supplemental group — set it regardless of whether GPU or NPU is targeted.
 
 Verify the resolved mapping before starting: `docker compose config` and
 check `services.audio-analyzer.devices`.

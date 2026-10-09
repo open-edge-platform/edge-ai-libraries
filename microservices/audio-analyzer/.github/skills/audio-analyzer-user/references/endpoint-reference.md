@@ -124,6 +124,10 @@ See [realtime-streaming-guide.md](./realtime-streaming-guide.md) for the
 full protocol, VAD tuning, and a runnable client. Summary:
 
 - Connect: `ws://<host>:8010/v1/realtime?intent=transcription[&session_id=...&language=...]`
+- `session_id` is validated the same way as the HTTP endpoints — letters,
+  digits, `-`, and `_` only, max 128 characters. An invalid value (e.g.
+  containing `/` or `..`) is rejected with an `error` event and the socket
+  is closed (code `1008`) rather than being used to build a storage path.
 - Audio must be **PCM16** (signed 16-bit little-endian), mono, base64-encoded,
   pushed via `input_audio_buffer.append`. Default sample rate 16000 Hz,
   changeable via `session.update`. No server-side resampling.
@@ -135,7 +139,10 @@ full protocol, VAD tuning, and a runnable client. Summary:
 ## Sessions
 
 A session is identified by `session_id` and corresponds to
-`storage/<session_id>/` on the service. Reusing the same id across multiple
-uploads (or across the lifetime of one realtime socket) appends transcript
-state and, when sentiment is enabled, updates the session-level sentiment
-summary.
+`storage/<session_id>/` on the service. The same validation (letters,
+digits, `-`, `_` only; max 128 characters) applies everywhere a client can
+supply `session_id` — HTTP form/query fields and the realtime WebSocket
+query parameter alike — so a client-supplied value can never resolve
+outside `storage/`. Reusing the same id across multiple uploads (or across
+the lifetime of one realtime socket) appends transcript state and, when
+sentiment is enabled, updates the session-level sentiment summary.

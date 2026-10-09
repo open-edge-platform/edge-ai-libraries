@@ -29,7 +29,7 @@ ws://<host>:8010/v1/realtime?intent=transcription[&session_id=<id>][&language=<h
 | Query param | Required | Description |
 |-------------|----------|-------------|
 | `intent` | No | Must be `transcription` (default) |
-| `session_id` | No | Reuse to continue an existing session |
+| `session_id` | No | Reuse to continue an existing session. Validated server-side — letters, digits, `-`, and `_` only, max 128 characters. An invalid value (e.g. containing `/`, `..`, or other path-unsafe characters) is rejected with an `error` event and the socket is closed (code `1008`); the service never joins an unvalidated value into its storage path. |
 | `language` | No | Language hint passed to the ASR backend |
 
 On connect, the server sends `transcription_session.created` describing the
@@ -160,7 +160,9 @@ Because all committed utterances on one socket share a single session, the
 session-level transcript accumulates across the entire connection the same
 way it would across multiple HTTP uploads with the same `session_id`. Pass
 `session_id` as a query param on reconnect to continue the same session
-after a dropped connection.
+after a dropped connection — reuse the exact value the server assigned
+(returned in `transcription_session.created`), since a hand-crafted id must
+still pass the letters/digits/`-`/`_`, max-128-character validation.
 
 Transcription is serialized per socket (results stay in order) and runs in a
 thread pool so the event loop stays responsive to new `append` messages

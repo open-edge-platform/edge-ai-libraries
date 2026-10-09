@@ -74,9 +74,9 @@ payload or a JSON envelope.
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `model` | Yes (by schema) | Accepted for OpenAI API-shape compatibility; the configured service model is always used regardless of this value |
+| `model` | No | Accepted for OpenAI API-shape compatibility; defaults to the configured service model (`models.tts.name`) if omitted, and the configured model is always used regardless of what value is sent |
 | `input` | Yes | Text to synthesize, maximum 5000 characters |
-| `voice` | No | Speaker name; defaults to `models.tts.default_speaker`. Must be one the deployed model actually supports |
+| `voice` | No | Speaker name; defaults to `models.tts.default_speaker`. Behavior for an unsupported name is **model-dependent**: SpeechT5 rejects it with HTTP 400; Kokoro logs a warning and silently falls back to the configured/default Kokoro voice instead of erroring. See [model-and-voice-guide.md](./model-and-voice-guide.md) for the per-model matrix. |
 | `language` | No | Only the literal value `English` is accepted; anything else returns HTTP 400 |
 | `instructions` | No | Speaking-style guidance — rejected by SpeechT5, optional for Qwen `custom_voice`, required for Qwen `voice_design` |
 | `response_format` | No | `wav` (default, raw `audio/wav`) or `json` (metadata + base64 WAV) |
@@ -130,9 +130,14 @@ Validation and runtime failures use an OpenAI-compatible error envelope:
 
 | HTTP status | Meaning |
 |-------------|---------|
-| `400` | Request-shape validation failure (bad `language`, unsupported `voice`, misused `instructions`, empty `input`, text over 5000 chars) |
+| `422` | **Schema validation** — caught by Pydantic before the endpoint body runs, surfaced via the service's registered `RequestValidationError` handler. Covers missing/empty `input`, `input` over 5000 characters, `response_format` not `wav`/`json`, and `device` not one of `CPU`/`GPU`/`NPU`. |
+| `400` | **Service-level validation** — raised as a `ValueError` inside the endpoint after the request already parsed successfully, from `request.validate_for_service()` or device resolution. Covers `language` not `English`, an unsupported `voice` (model-dependent — see [model-and-voice-guide.md](./model-and-voice-guide.md)), misused `instructions`, and a `device` value that is syntactically valid but unsupported/unavailable for the configured runtime/model. |
 | `503` | Synthesis temporarily unavailable (runtime failure) |
 | `500` | Unexpected internal failure |
+
+Both `422` and `400` use the identical envelope shown above — the status
+code, not the body shape, is what tells you which validation layer
+rejected the request.
 
 ---
 
@@ -200,11 +205,17 @@ incrementally).
 
 ## Sessions
 
-When the deployment has `pipeline.persist_outputs: true`, every synthesis
-call is associated with a `session_id` (returned via `X-Session-ID` on WAV
-responses, or the `session_id` field on JSON/streaming responses). The
-corresponding WAV and metadata are written server-side under
-`storage/<session_id>/`. This is a server-side persistence mechanism, not a
+Every synthesis call is associated with a `session_id` (returned via
+`X-Session-ID` on WAV responses, or the `session_id` field on JSON/streaming
+responses), but **only `POST /v1/audio/speech` (non-streaming) actually
+writes anything to disk**. When that deployment has
+`pipeline.persist_outputs: true`, the WAV and a `generation.json` metadata
+file are written server-side under `storage/<session_id>/`.
+`POST /v1/audio/speech/stream` never persists its chunks to storage
+— `Pipeline.synthesize_stream()` only yields audio chunks and is
+documented as not writing to storage, regardless of `persist_outputs`; the
+`session_id` it returns is for correlation/latency tracking only, not a
+pointer to a saved file. This is a server-side persistence mechanism, not a
 conversation-continuation mechanism — unlike some sibling speech services,
 there is no concept of resuming or appending to a prior TTS session via a
 client-supplied `session_id`.

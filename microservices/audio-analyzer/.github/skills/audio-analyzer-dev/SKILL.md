@@ -121,7 +121,7 @@ Read [deployment-architecture.md](./references/deployment-architecture.md) first
    `models.asr`, `sentiment`, and `audio_preprocessing` sections as needed —
    this file is bind-mounted, so edits apply on `docker compose restart`.
 2. Copy `.env.example` to `.env` and set `REGISTRY`, `RELEASE_TAG`, and (for
-   NPU) `ACCEL_MOUNT_PATH`.
+   GPU) `RENDER_GID` and (for NPU) `ACCEL_MOUNT_PATH`.
 3. Start the service:
    ```bash
    docker compose pull   # or: docker compose build

@@ -91,6 +91,19 @@
         "Suggests switching to POST /v1/audio/transcriptions if per-request device selection is required.",
         "Does not claim this is a bug in the NDJSON endpoint."
       ]
+    },
+    {
+      "id": 8,
+      "prompt": "My reconnect logic opens WS /v1/realtime?intent=transcription&session_id=../../etc/passwd to resume a prior session, but the server immediately sends an error event and closes the connection. Why would a session_id be rejected like that?",
+      "expected_output": "A correct explanation that session_id is validated server-side to prevent path traversal, with the right fix for the client.",
+      "files": [],
+      "expectations": [
+        "States that session_id is validated to letters, digits, '-', and '_' only, with a maximum length (128 characters).",
+        "Explains this validation exists specifically to prevent a client-supplied session_id from escaping the service's storage directory (path traversal / absolute-path injection).",
+        "States the connection is closed with code 1008 after an error event for an invalid session_id.",
+        "Recommends only reusing the exact session_id the server previously returned, or generating a new id that matches the allowed character set.",
+        "Does not suggest URL-encoding the path traversal sequence as a workaround."
+      ]
     }
   ]
 }

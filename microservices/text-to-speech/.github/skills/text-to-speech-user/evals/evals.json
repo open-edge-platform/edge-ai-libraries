@@ -9,7 +9,7 @@
       "expectations": [
         "Uses POST /v1/audio/speech with a JSON body containing input.",
         "Uses port 8011 (not 8010 or 8000).",
-        "Includes model in the body (even as a placeholder) since the schema requires it, while noting it does not select the model.",
+        "Does not claim model is required — it defaults from config.models.tts.name and may be omitted; if included, notes it does not select the model.",
         "Shows saving raw audio/wav bytes to a .wav file (response_format=wav, the default).",
         "Mentions the X-Session-ID response header."
       ]
@@ -129,6 +129,45 @@
         "Notes supported_speakers is a list.",
         "Does not claim the response uses speakers or languages as field names.",
         "Uses port 8011 in any example given."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "I requested voice: 'Morgan' against the default Kokoro deployment, expected an HTTP 400 like I'd seen documented, but instead got back a successful WAV response in a different voice than I asked for. Is the validation broken?",
+      "expected_output": "A correct explanation that Kokoro's unsupported-voice behavior is a silent fallback by design, unlike SpeechT5's HTTP 400.",
+      "files": [],
+      "expectations": [
+        "States that Kokoro does not reject an unsupported voice name the way SpeechT5 does.",
+        "Explains Kokoro logs a warning server-side and silently substitutes the configured/default Kokoro voice (or af_heart, or the first available voice) instead of returning an error.",
+        "States this is model-dependent behavior, not a validation bug: SpeechT5 returns HTTP 400 for the same situation.",
+        "Recommends GET /v1/audio/voices to confirm the active model and its supported_speakers before assuming a shared validation contract across models.",
+        "Does not claim this is unintended or something to report as broken."
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "My client sends a 6000-character input string to POST /v1/audio/speech expecting the documented 'HTTP 400 for over 5000 characters' behavior, but I'm actually getting a 422. Is my client handling the wrong status code, or is the documentation wrong?",
+      "expected_output": "A correct explanation that the length limit is enforced by Pydantic schema validation and returns 422, distinct from the service-level 400s.",
+      "files": [],
+      "expectations": [
+        "States that input over 5000 characters is a schema validation failure caught by Pydantic before the endpoint body runs, returning HTTP 422, not 400.",
+        "Explains 400 is reserved for service-level checks (language, voice, instructions, device) raised as a ValueError inside the endpoint after the request already parsed successfully.",
+        "States both 422 and 400 use the same OpenAI-compatible error envelope shape, so the status code is the distinguishing signal, not the body.",
+        "Recommends the client check for 422 (not 400) when handling the length-limit case.",
+        "Does not claim this is a server bug or inconsistency to report upstream."
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "The deployment has pipeline.persist_outputs set to true. I'm using POST /v1/audio/speech/stream for a long narration and expected each phrase (or at least the final combined audio) to show up under storage/<session_id>/ afterward, but the directory is empty. Is persistence broken for streaming?",
+      "expected_output": "A correct explanation that streaming never persists to storage regardless of persist_outputs, unlike the non-streaming endpoint.",
+      "files": [],
+      "expectations": [
+        "States that POST /v1/audio/speech/stream never writes audio or metadata to storage, regardless of pipeline.persist_outputs.",
+        "States that only POST /v1/audio/speech (non-streaming) honors pipeline.persist_outputs and writes a WAV plus generation.json under storage/<session_id>/.",
+        "Clarifies that the session_id returned by the streaming endpoint is for correlation/latency tracking only, not a pointer to a saved file.",
+        "Does not claim this is a bug or missing feature to report.",
+        "Recommends switching to POST /v1/audio/speech if server-side persistence of the full audio is required."
       ]
     }
   ]

@@ -28,7 +28,30 @@ continuing the first.
 
 **Fix:** Read the `X-Session-ID` response header from the first call and
 pass it back as the `session_id` form field on subsequent uploads (or as the
-`session_id` query param when opening a new realtime WebSocket connection).
+`session_id` query param when opening a new realtime WebSocket connection —
+see [Realtime WebSocket Closes Immediately With an `error` Event](#realtime-websocket-closes-immediately-with-an-error-event)
+for the validation rule the server enforces on that value).
+
+---
+
+## Realtime WebSocket Closes Immediately With an `error` Event
+
+**Symptom:** `WS /v1/realtime` sends a single `error` event and closes
+(code `1008`) right after connecting, before `transcription_session.created`
+would normally appear — or appears but the connection drops shortly after.
+
+**Cause:** The `session_id` query parameter failed server-side validation.
+Every endpoint that accepts a client-supplied `session_id` (HTTP and the
+realtime WebSocket alike) requires letters, digits, `-`, and `_` only, up to
+128 characters — this exists specifically to prevent the value from being
+used to escape the service's storage directory. Reconnect logic that
+forwards a raw, unsanitized identifier (e.g. copied from an unrelated
+system, or containing `/` or `..`) will be rejected.
+
+**Fix:** Only reuse the exact `session_id` the server previously returned
+(from `transcription_session.created` or `X-Session-ID`), or generate a new
+client-side id that matches the allowed character set. Do not attempt to
+pass a path, URL, or other delimiter-containing value as `session_id`.
 
 ---
 

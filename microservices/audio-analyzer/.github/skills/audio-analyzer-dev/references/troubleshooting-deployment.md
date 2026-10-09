@@ -30,6 +30,13 @@ hit them.
   the host — a separate prerequisite from the Python `openvino` package.
 - For containers, `/dev/dri` must be exposed (default in
   `docker-compose.yml`).
+- `RENDER_GID` must be set in `.env` (or exported) to the host's actual
+  `render` group GID — `/dev/dri/renderD*` is typically owned by `render`,
+  not `video`, and the container's non-root UID/GID `1000:1000` user needs
+  that supplemental group to open the node. Find it with
+  `stat -c '%g' /dev/dri/renderD128`; the Compose fallback (`992`) is not
+  reliable across machines. A missing/wrong `RENDER_GID` is a common cause
+  of GPU context initialization failures even when `/dev/dri` is visible.
 - **Docker vs. host `.venv`:** Docker Compose is the verified configuration
   for GPU/NPU acceleration. A host `.venv` without the full Intel GPU/NPU
   runtime stack typically reports only `CPU` in

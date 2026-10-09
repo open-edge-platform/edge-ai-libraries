@@ -9,7 +9,7 @@
       "expectations": [
         "Uses docker compose pull followed by docker compose up -d rather than build.",
         "Mentions REGISTRY and RELEASE_TAG in .env.",
-        "States that /dev/dri is passed through by default for GPU and no extra ACCEL_MOUNT_PATH is needed for GPU-only.",
+        "States that /dev/dri is passed through by default, but RENDER_GID must also be set in .env to the host's actual render group GID (found via stat -c '%g' /dev/dri/renderD128) \u2014 does not claim GPU works with zero extra env vars beyond REGISTRY/RELEASE_TAG.",
         "Shows checking ov.Core().available_devices inside the container to confirm GPU visibility.",
         "Uses port 8010 and curl http://127.0.0.1:8010/health to verify health."
       ]
@@ -116,6 +116,19 @@
         "Notes that /v1/performance reports only the most recent call's latency, not a rolling history or average.",
         "Notes these endpoints are not part of the published OpenAI-compatible API reference but exist in api/custom_endpoints.py.",
         "Uses port 8010 in any example given."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "I'm adding a new endpoint that accepts a client-supplied session_id to resume a prior session before building a storage path from it. What do I need to do before using it, and why?",
+      "expected_output": "A correct explanation of the required validation pattern, grounded in the actual fix applied to this codebase.",
+      "files": [],
+      "expectations": [
+        "States that the session_id must be passed through utils/session_manager.py's resolve_requested_session_id() (or normalize_session_id()) before being used to build any path.",
+        "Explains that utils/app_paths.py::get_session_dir() does a raw os.path.join(STORAGE_ROOT, session_id) with no sanitization of its own, and os.path.join silently discards STORAGE_ROOT if session_id is an absolute path.",
+        "States the allowed character set is letters, digits, '-', and '_' only, with a 128-character maximum.",
+        "References that the /v1/realtime WebSocket endpoint previously skipped this validation and required a fix for exactly this reason.",
+        "Recommends rejecting invalid input (HTTP 400, or a WebSocket error event plus close) rather than silently sanitizing or truncating it."
       ]
     }
   ]

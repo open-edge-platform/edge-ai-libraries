@@ -20,9 +20,13 @@ not support multilingual synthesis in the current release.
 
 ## HTTP 400: "Unsupported voice '...'"
 
-**Cause:** The requested `voice` is not in the deployed model's supported
-speaker list. Unknown voice names are rejected outright — they do **not**
-silently fall back to the configured default speaker.
+**Cause:** The requested `voice` is not in **SpeechT5's** supported speaker
+list. SpeechT5 rejects an unknown voice outright — it does **not** silently
+fall back to the configured default speaker. (Kokoro behaves differently:
+an unrecognized voice there is logged as a warning and silently
+substituted with the configured/default Kokoro voice instead of erroring
+— if you expected a 400 and got audio instead, confirm which model is
+actually deployed.)
 
 **Fix:** Call `GET /v1/audio/voices` to get the exact list of supported
 speakers for the active model/variant before composing the request. See
@@ -172,9 +176,13 @@ parameter.
 
 ## Input Text Rejected for Length
 
-**Symptom:** HTTP 400 with a message about input length.
+**Symptom:** HTTP 422 with a message about input length (not 400).
 
-**Cause:** `input` has a hard limit of 5000 characters.
+**Cause:** `input` has a hard limit of 5000 characters, enforced directly
+by the Pydantic schema (`Field(max_length=5000)`). This is a **schema**
+validation failure caught before the endpoint body runs, so it returns 422
+via the service's registered `RequestValidationError` handler — not the
+400 used for service-level checks like `language`/`voice`/`instructions`.
 
 **Fix:** Split longer text into multiple requests (e.g. per paragraph or
 sentence group) and concatenate the resulting audio client-side, or use the
