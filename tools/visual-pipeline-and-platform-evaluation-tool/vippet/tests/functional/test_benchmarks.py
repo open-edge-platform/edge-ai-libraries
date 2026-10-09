@@ -1,12 +1,14 @@
 """Functional tests for the /benchmarks endpoints."""
 
 import logging
+import shutil
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import pytest
 import requests
-
 from helpers.api_helpers import start_benchmark_suite_run, wait_for_job_completion
 from helpers.config import BASE_URL, BENCHMARK_SUITE_POLL_TIMEOUT_SECONDS, PROJECT_ROOT
 
@@ -18,19 +20,24 @@ type JsonDict = dict[str, Any]
 # `./shared/db:/db` mount). Used only to trim test-case counts for full
 # suite runs below; the shared YAML catalog is never touched.
 _BENCHMARK_DB_PATH = PROJECT_ROOT / "shared" / "db" / "app.db"
+# Whole-file backup taken before shrinking, so restoring never depends on
+# replaying individual row deletes (which a mid-test crash could skip).
+_BENCHMARK_DB_BACKUP_PATH = PROJECT_ROOT / "shared" / "db" / "app_test.db"
 _FULL_RUN_STREAM_COUNTS = (1, 4)
 
 
+@contextmanager
 def _shrink_suite_to_streams(
     suite_slug: str, streams: tuple[int, ...] = _FULL_RUN_STREAM_COUNTS
-) -> None:
-    """Delete benchmark_test_cases rows outside *streams* for *suite_slug*.
+) -> Iterator[None]:
+    """Temporarily delete benchmark_test_cases rows outside *streams* for *suite_slug*.
 
     Keeps full-suite-run tests fast by trimming the seeded test-case matrix
-    down to a couple of stream counts. Mutates the local sqlite file
-    directly rather than the YAML catalog, so this only affects the
-    already-seeded rows for this test run and never the committed suite
-    definition served to real users.
+    down to a couple of stream counts. The backend reads this same sqlite
+    file, so the delete must be committed for it to take effect, but the
+    whole file is copied to ``_BENCHMARK_DB_BACKUP_PATH`` first and copied
+    back on exit - success or failure - so restoring never depends on
+    replaying individual rows.
     """
     if not _BENCHMARK_DB_PATH.is_file():
         logger.warning(
@@ -39,26 +46,46 @@ def _shrink_suite_to_streams(
             _BENCHMARK_DB_PATH,
             suite_slug,
         )
+        yield
         return
 
-    placeholders = ",".join("?" for _ in streams)
-    with sqlite3.connect(_BENCHMARK_DB_PATH) as conn:
-        conn.execute(
-            f"""
-            DELETE FROM benchmark_test_cases
-            WHERE streams NOT IN ({placeholders})
-              AND workload_id IN (
-                  SELECT bw.id FROM benchmark_workloads bw
-                  JOIN benchmark_suites bs ON bs.id = bw.suite_id
-                  WHERE bs.slug = ?
-              )
-            """,
-            (*streams, suite_slug),
+    if _BENCHMARK_DB_BACKUP_PATH.exists():
+        pytest.skip(
+            f"Found leftover benchmark DB backup at {_BENCHMARK_DB_BACKUP_PATH}; "
+            "a previous test run likely crashed before restoring it. Restore "
+            f"{_BENCHMARK_DB_PATH} from that backup manually, then remove the "
+            "backup file before re-running."
         )
-        conn.commit()
-    logger.info(
-        "Shrunk suite %s benchmark test cases to streams=%s", suite_slug, streams
-    )
+
+    shutil.copy2(_BENCHMARK_DB_PATH, _BENCHMARK_DB_BACKUP_PATH)
+    try:
+        placeholders = ",".join("?" for _ in streams)
+        with sqlite3.connect(_BENCHMARK_DB_PATH) as conn:
+            conn.execute(
+                f"""
+                DELETE FROM benchmark_test_cases
+                WHERE streams NOT IN ({placeholders})
+                  AND workload_id IN (
+                      SELECT bw.id FROM benchmark_workloads bw
+                      JOIN benchmark_suites bs ON bs.id = bw.suite_id
+                      WHERE bs.slug = ?
+                  )
+                """,
+                (*streams, suite_slug),
+            )
+            conn.commit()
+        logger.info(
+            "Shrunk suite %s benchmark test cases to streams=%s (backed up to %s)",
+            suite_slug,
+            streams,
+            _BENCHMARK_DB_BACKUP_PATH,
+        )
+
+        yield
+    finally:
+        shutil.copy2(_BENCHMARK_DB_BACKUP_PATH, _BENCHMARK_DB_PATH)
+        _BENCHMARK_DB_BACKUP_PATH.unlink()
+        logger.info("Restored benchmark DB for suite %s from backup", suite_slug)
 
 
 def _fetch_benchmark_suites(session: requests.Session) -> list[JsonDict]:
@@ -228,16 +255,17 @@ def test_get_benchmark_suite_runs_returns_populated_list_after_run(
     """After running a suite, GET /benchmarks/{suite_slug}/runs returns a populated list."""
     suite = _find_any_benchmark_suite(http_client)
     suite_slug = suite["slug"]
-    _shrink_suite_to_streams(suite_slug)
 
-    job_id = start_benchmark_suite_run(http_client, suite_slug)
-    status_url = f"{BASE_URL}/jobs/tests/benchmark/{job_id}/status"
-    final_status = wait_for_job_completion(
-        http_client,
-        status_url,
-        assert_initial_running=False,
-        timeout_seconds=BENCHMARK_SUITE_POLL_TIMEOUT_SECONDS,
-    )
+    with _shrink_suite_to_streams(suite_slug):
+        job_id = start_benchmark_suite_run(http_client, suite_slug)
+        status_url = f"{BASE_URL}/jobs/tests/benchmark/{job_id}/status"
+        final_status = wait_for_job_completion(
+            http_client,
+            status_url,
+            assert_initial_running=False,
+            timeout_seconds=BENCHMARK_SUITE_POLL_TIMEOUT_SECONDS,
+        )
+
     assert final_status.get("state") == "COMPLETED", (
         f"Benchmark job {job_id} finished in unexpected state "
         f"{final_status.get('state')}: {final_status.get('error_message')}"
@@ -273,16 +301,17 @@ def test_get_all_benchmark_runs_returns_populated_list_after_run(
     """After running a suite, GET /benchmarks/runs includes the new run."""
     suite = _find_any_benchmark_suite(http_client)
     suite_slug = suite["slug"]
-    _shrink_suite_to_streams(suite_slug)
 
-    job_id = start_benchmark_suite_run(http_client, suite_slug)
-    status_url = f"{BASE_URL}/jobs/tests/benchmark/{job_id}/status"
-    final_status = wait_for_job_completion(
-        http_client,
-        status_url,
-        assert_initial_running=False,
-        timeout_seconds=BENCHMARK_SUITE_POLL_TIMEOUT_SECONDS,
-    )
+    with _shrink_suite_to_streams(suite_slug):
+        job_id = start_benchmark_suite_run(http_client, suite_slug)
+        status_url = f"{BASE_URL}/jobs/tests/benchmark/{job_id}/status"
+        final_status = wait_for_job_completion(
+            http_client,
+            status_url,
+            assert_initial_running=False,
+            timeout_seconds=BENCHMARK_SUITE_POLL_TIMEOUT_SECONDS,
+        )
+
     assert final_status.get("state") == "COMPLETED", (
         f"Benchmark job {job_id} finished in unexpected state "
         f"{final_status.get('state')}: {final_status.get('error_message')}"

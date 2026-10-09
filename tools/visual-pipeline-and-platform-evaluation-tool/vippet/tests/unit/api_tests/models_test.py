@@ -575,7 +575,7 @@ class TestModelsCheckStatusAPI(unittest.TestCase):
         ]
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.list_models.return_value = mock_models
+            mock_manager_instance.list_models = AsyncMock(return_value=mock_models)
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.post(
@@ -625,7 +625,9 @@ class TestModelsCheckStatusAPI(unittest.TestCase):
         """An unexpected error inside ``list_models`` maps to 500."""
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.list_models.side_effect = RuntimeError("boom")
+            mock_manager_instance.list_models = AsyncMock(
+                side_effect=RuntimeError("boom")
+            )
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.post(
