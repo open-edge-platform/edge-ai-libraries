@@ -4,7 +4,5 @@ debian_15_install_yq () {
 }
 
 debian_15_sbom_yq () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list yq)
-EOF
+  ensure_sbom_format pkg-list yq
 }

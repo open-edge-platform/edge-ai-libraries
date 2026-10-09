@@ -40,14 +40,12 @@ remove_osrf_gazebo_ros2 () {
 
 sbom_osrf_gazebo_ros2 () {
   configure_osrf_gazebo_ros2
-  cat <<EOF
-$(ensure_sbom_format name $osrf_name)
-$(ensure_sbom_format gpg-key "$osrf_key_url")
-$(ensure_sbom_format key-file "$osrf_key")
-$(ensure_sbom_format apt-source "$osrf_entry")
-$(ensure_sbom_format apt-list-file "$osrf_list")
-$(ensure_sbom_format pkg-list curl lsb-release gnupg $([ "$ros_distro" != jazzy ] || echo gz-harmonic))
-EOF
+  ensure_sbom_format name $osrf_name
+  ensure_sbom_format gpg-key "$osrf_key_url"
+  ensure_sbom_format key-file "$osrf_key"
+  ensure_sbom_format apt-source "$osrf_entry"
+  ensure_sbom_format apt-list-file "$osrf_list"
+  ensure_sbom_format pkg-list curl lsb-release gnupg $([ "$ros_distro" != jazzy ] || echo gz-harmonic)
 }
 
 debian_50_profile_ros2 () {
@@ -109,8 +107,6 @@ debian_50_remove_ros2 () {
 
 debian_50_sbom_ros2 () {
   configure_ros2 "$@"
-  cat <<EOF
-$(ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools)
-$(ensure_sbom_format apt-repository universe)
-EOF
+  ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools
+  ensure_sbom_format apt-repository universe
 }

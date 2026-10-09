@@ -4,7 +4,5 @@ debian_70_install_nodejs () {
 }
 
 debian_70_sbom_nodejs () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list nodejs)
-EOF
+  ensure_sbom_format pkg-list nodejs
 }

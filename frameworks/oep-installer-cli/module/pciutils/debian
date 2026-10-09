@@ -4,7 +4,5 @@ debian_05_install_pciutils () {
 }
 
 debian_05_sbom_pciutils () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list pciutils)
-EOF
+  ensure_sbom_format pkg-list pciutils
 }

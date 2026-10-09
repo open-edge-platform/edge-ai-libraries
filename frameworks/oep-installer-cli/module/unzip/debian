@@ -4,7 +4,5 @@ debian_15_install_unzip () {
 }
 
 debian_15_sbom_unzip () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list unzip)
-EOF
+  ensure_sbom_format pkg-list unzip
 }

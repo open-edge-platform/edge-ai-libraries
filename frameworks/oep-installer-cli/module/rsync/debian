@@ -4,7 +4,5 @@ debian_30_install_rsync () {
 }
 
 debian_30_sbom_rsync () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list rsync)
-EOF
+  ensure_sbom_format pkg-list rsync
 }

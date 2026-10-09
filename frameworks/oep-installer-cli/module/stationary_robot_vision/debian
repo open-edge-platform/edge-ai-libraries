@@ -74,7 +74,5 @@ debian_90_sbom_stationary_robot_vision () {
   echo "---"
   sbom_osrf_gazebo_ros2
   echo "---"
-  cat <<EOF
-$(ensure_sbom_format pkg-list "${rvc_pkgs[@]}")
-EOF
+  ensure_sbom_format pkg-list "${rvc_pkgs[@]}"
 }

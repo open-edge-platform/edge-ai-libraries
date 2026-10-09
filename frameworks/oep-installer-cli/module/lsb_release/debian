@@ -4,8 +4,6 @@ debian_40_install_lsb_release () {
 }
 
 debian_10_sbom_lsb_release () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list lsb-release)
-EOF
+  ensure_sbom_format pkg-list lsb-release
 }
 

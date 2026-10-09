@@ -4,7 +4,5 @@ debian_30_install_git () {
 }
 
 debian_30_sbom_git () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list git ca-certificates)
-EOF
+  ensure_sbom_format pkg-list git ca-certificates
 }

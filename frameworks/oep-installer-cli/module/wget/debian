@@ -4,7 +4,5 @@ debian_10_install_wget () {
 }
 
 debian_10_sbom_wget () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list wget ca-certificates)
-EOF
+  ensure_sbom_format pkg-list wget ca-certificates
 }

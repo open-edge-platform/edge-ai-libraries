@@ -57,13 +57,11 @@ debian_55_remove_realsense () {
 
 debian_55_sbom_realsense () {
   configure_realsense "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$rs_repo_name")
-$(ensure_sbom_format gpg-key "$rs_key_url")
-$(ensure_sbom_format key-file "$rs_key_file")
-$(ensure_sbom_format apt-source "$rs_deb_entry")
-$(ensure_sbom_format apt-list-file "$rs_list")
-$(ensure_sbom_format pkg-list ros-$ros_distro-librealsense2 librealsense2-dkms librealsense2)
-EOF
+  ensure_sbom_format name "$rs_repo_name"
+  ensure_sbom_format gpg-key "$rs_key_url"
+  ensure_sbom_format key-file "$rs_key_file"
+  ensure_sbom_format apt-source "$rs_deb_entry"
+  ensure_sbom_format apt-list-file "$rs_list"
+  ensure_sbom_format pkg-list ros-$ros_distro-librealsense2 librealsense2-dkms librealsense2
 }
 
