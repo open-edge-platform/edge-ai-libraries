@@ -4,8 +4,6 @@ debian_15_install_gawk () {
 }
 
 debian_15_sbom_gawk () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list gawk)
-EOF
+  ensure_sbom_format pkg-list gawk
 }
 

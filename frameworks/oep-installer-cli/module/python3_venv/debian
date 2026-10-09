@@ -4,8 +4,6 @@ debian_30_install_python3_venv () {
 }
 
 debian_30_sbom_python3_venv () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list python3-venv)
-EOF
+  ensure_sbom_format pkg-list python3-venv
 }
 

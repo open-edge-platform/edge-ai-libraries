@@ -20,19 +20,18 @@ debian_15_install_libze1 () {
     echo "libze1 is already installed. Skipping..."
   else
     local deb="/tmp/$(basename "$libze1_deb")"
-    curl -fsSL "$libze1_deb" -o "$deb" && {
+    ensure_fetch "$libze1_deb" "$deb" && {
       ensure_apt install -y "$deb" || {
-        ensure_apt purge -y level-zero level-zero-devel libze1 && ensure_apt install -y --no-install-recommends "$deb"
+        ensure_apt purge -y level-zero level-zero-devel libze1
+        ensure_apt install -y --no-install-recommends "$deb"
       }
-      rm -f "$deb"
     }
+    rm -f "$deb"
   fi
 }
 
 debian_15_sbom_libze1 () {
   configure_libze1 "$@"
-  cat <<EOF
-$(ensure_sbom_format pkg-list "$libze1_deb")
-EOF
+  ensure_sbom_format pkg-list "$libze1_deb"
 }
 

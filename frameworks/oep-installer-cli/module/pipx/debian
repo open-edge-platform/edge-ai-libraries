@@ -4,7 +4,5 @@ debian_15_install_pipx () {
 }
 
 debian_15_sbom_pipx () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list pipx)
-EOF
+  ensure_sbom_format pkg-list pipx
 }

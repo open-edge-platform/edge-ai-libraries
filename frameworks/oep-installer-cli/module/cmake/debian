@@ -4,7 +4,5 @@ debian_30_install_cmake () {
 }
 
 debian_30_sbom_cmake () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list cmake)
-EOF
+  ensure_sbom_format pkg-list cmake
 }
