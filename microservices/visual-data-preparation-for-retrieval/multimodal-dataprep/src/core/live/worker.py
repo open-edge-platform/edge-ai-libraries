@@ -32,7 +32,7 @@ from src.core.live.clock_check import log_clock_skew
 from src.core.live.models import LiveStream
 from src.core.live.recorder import SegmentMuxSink
 from src.core.live.segments import segment_object_name
-from src.core.live.urls import redact_stream_url
+from src.core.live.urls import redact_stream_url, clean_connection_error
 
 #: How often the worker refreshes recorder-derived stats while a session runs.
 _STATS_REFRESH_SECONDS = 5.0
@@ -354,7 +354,9 @@ class LiveStreamWorker:
                     or {}
                 )
             except Exception as exc:  # noqa: BLE001 - surfaced as stream state
-                error = sanitize_for_log(str(exc), max_length=512)
+                error = sanitize_for_log(
+                    clean_connection_error(exc, self.stream.stream_url), max_length=512
+                )
                 logger.error(
                     "Live ingestion session failed for stream %s: %s",
                     sanitize_for_log(self.stream_id, max_length=64),

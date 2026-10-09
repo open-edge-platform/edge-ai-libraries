@@ -19,6 +19,7 @@ from src.core.live.store import (
 )
 from src.core.live.urls import (
     InvalidStreamUrlError,
+    clean_connection_error,
     default_stream_name,
     redact_stream_url,
     validate_stream_url,
@@ -71,6 +72,28 @@ def test_redact_stream_url_handles_unparseable_input():
 )
 def test_validate_stream_url_accepts_rtsp_schemes(url):
     assert validate_stream_url(url)
+
+
+def test_clean_connection_error_strips_errno_prefix():
+    assert clean_connection_error("[Errno 111] Connection refused") == "Connection refused"
+
+
+def test_clean_connection_error_redacts_credentialed_url():
+    raw = f"[Errno 111] Connection refused: '{CREDENTIALED_URL}'"
+    cleaned = clean_connection_error(raw, CREDENTIALED_URL)
+    assert not cleaned.startswith("[Errno")
+    assert "s3cr3t" not in cleaned
+    assert "admin" not in cleaned
+    assert "rtsp://***@camera-1.local:554/stream1" in cleaned
+
+
+def test_clean_connection_error_accepts_exception_objects():
+    # str(OSError(111, "...")) renders as "[Errno 111] Connection refused".
+    assert clean_connection_error(OSError(111, "Connection refused")) == "Connection refused"
+
+
+def test_clean_connection_error_handles_empty_input():
+    assert clean_connection_error(None) == ""
 
 
 @pytest.mark.parametrize(

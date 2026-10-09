@@ -15,8 +15,14 @@ every boundary (vector metadata, API responses, logs, telemetry).
 
 from __future__ import annotations
 
-from typing import Final
+import re
+from typing import Final, Optional
 from urllib.parse import urlsplit, urlunsplit
+
+#: Matches the ``[Errno 111] `` prefix that OSError/PyAV prepend to low-level
+#: connection failures. Stripped from user-facing messages, which only need the
+#: human-readable reason, not the numeric code.
+_ERRNO_PREFIX: Final = re.compile(r"^\[Errno -?\d+\]\s*")
 
 #: Schemes accepted for a live stream source.
 ALLOWED_SCHEMES: Final[frozenset] = frozenset({"rtsp", "rtsps"})
@@ -103,3 +109,26 @@ def default_stream_name(url) -> str:
     """Derive a friendly default name from a stream URL (credentials removed)."""
     redacted = redact_stream_url(url)
     return redacted or "live-stream"
+
+
+def clean_connection_error(message, stream_url: Optional[str] = None) -> str:
+    """Tidy a low-level connection error for display to an operator.
+
+    PyAV/OSError render connection failures as ``[Errno 111] Connection
+    refused: 'rtsp://...'``. Two things make that unfit for ``last_error`` and
+    API responses:
+
+    * the ``[Errno NNN] `` prefix is noise — the reason text is what an operator
+      needs; and
+    * the embedded URL carries the source credentials verbatim.
+
+    This strips the errno prefix and replaces any occurrence of the credentialed
+    ``stream_url`` with its redacted form, so a password never reaches
+    ``last_error``, the API, logs, or telemetry.
+    """
+    text = str(message or "").strip()
+    if stream_url:
+        full = str(stream_url).strip()
+        if full:
+            text = text.replace(full, redact_stream_url(full))
+    return _ERRNO_PREFIX.sub("", text)
