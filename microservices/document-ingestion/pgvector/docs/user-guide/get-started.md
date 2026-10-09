@@ -214,7 +214,8 @@ source ./run.sh --clean dataprep
 source ./run.sh --purge
 ```
 
-> **Note**: The cleanup commands use Docker labels to identify and remove images, ensuring that
+> [!NOTE]
+> The cleanup commands use Docker labels to identify and remove images, ensuring that
 > custom-tagged images built with `--build` are properly cleaned up regardless of their tag names.
 
 <!--
@@ -277,7 +278,8 @@ commands from the same shell as where the environment variables are set.
 Try uploading web page URLs and verify that the embeddings are created and stored. Run the
 commands from the same shell as where the environment variables are set.
 
-> **Note**: This URL ingestion microservice works best with pages that are not heavily reliant
+> [!NOTE]
+> This URL ingestion microservice works best with pages that are not heavily reliant
 > on JavaScript such as Wikipedia, which serve as ideal URL input sources. For JavaScript-intensive
 > pages (social media feeds, Single Page Applications), the API may indicate a successful request
 > but the actual content might not be captured. Such pages should be avoided or handled separately.

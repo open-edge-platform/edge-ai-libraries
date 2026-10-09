@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse, Response
 from api.error_responses import openai_error_response
 from dto.speech_dto import SpeechRequest
 from pipeline import Pipeline
+from utils.config_loader import config
+from utils.device_validation import resolve_tts_device
 from utils.session_manager import generate_session_id
 
 
@@ -23,7 +25,12 @@ def generate_speech(request: SpeechRequest):
 
     try:
         request.validate_for_service()
-        pipeline = Pipeline(session_id=generate_session_id())
+        device = resolve_tts_device(
+            config.models.tts.runtime,
+            config.models.tts.name,
+            request.device or config.models.tts.device,
+        )
+        pipeline = Pipeline(session_id=generate_session_id(), device=device)
         result = pipeline.synthesize(
             text=request.input,
             language=request.language,

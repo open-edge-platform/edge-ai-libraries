@@ -41,9 +41,9 @@ container.
 
 | Variable | Default | What it controls |
 |---|---|---|
-| `MODEL_DOWNLOAD_IMAGE` | `intel/model-download:${MODEL_DOWNLOAD_TAG:-latest}` | Full image reference for the transient model-download service. |
-| `MODEL_DOWNLOAD_TAG` | `latest` | Fallback tag when `MODEL_DOWNLOAD_IMAGE` is unset. |
-| `MODEL_DOWNLOAD_OVMS_TAG` | `v2026.1` | OVMS release used by the OpenVINO export plugin. |
+| `MODEL_DOWNLOAD_IMAGE` | `intel/model-download:${MODEL_DOWNLOAD_TAG:-mcp-rc}` | Full image reference for the transient model-download service. |
+| `MODEL_DOWNLOAD_TAG` | `mcp-rc` | Fallback tag when `MODEL_DOWNLOAD_IMAGE` is unset. |
+| `MODEL_DOWNLOAD_OVMS_TAG` | `v2026.2.1` | OVMS release used by the OpenVINO export plugin. |
 | `MODEL_DOWNLOAD_HOST_PORT` | `8640` | Loopback-only REST port while setup downloads models. |
 | `MODEL_DOWNLOAD_JOB_TIMEOUT` | `5400` | Per-job timeout in seconds; `0` disables the wall-clock limit. |
 | `OVMS_MS_DOWNLOAD_PATH` | `ovms` | Subdirectory under `ov_models/` containing `config.json` and `openvino_models/`. |

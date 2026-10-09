@@ -84,8 +84,11 @@ source scripts/run_service.sh up --plugins all --model-path $PWD/models
 | `geti` | Download from Intel Geti platform |
 | `pipeline-zoo-models` | Download DL Streamer pipeline-zoo models |
 | `hls` | Download healthcare AI models |
+| `omz` | Download + convert Open Model Zoo models |
+| `remote-url` | Download a tarball archive from an allowlisted URL |
 
-> **Note:** Enabling a plugin activates its virtual environment and dependencies
+> [!NOTE]
+> Enabling a plugin activates its virtual environment and dependencies
 > inside the container. Unused plugins add startup time — only enable what you need.
 
 ---

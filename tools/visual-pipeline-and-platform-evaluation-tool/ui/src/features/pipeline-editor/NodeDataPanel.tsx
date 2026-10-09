@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 import { gvaMetaConvertConfig } from "./nodes/GVAMetaConvertNode.config.ts";
 import {
+  DEEP_SORT_TRACKING_TYPE,
   GVA_TRACKING_TYPES,
   gvaTrackConfig,
 } from "@/features/pipeline-editor/nodes/GVATrackNode.config.ts";
+import GVATrackNodeDeepSortParams from "@/features/pipeline-editor/nodes/GVATrackNodeDeepSortParams.tsx";
 import { gvaClassifyConfig } from "@/features/pipeline-editor/nodes/GVAClassifyNode.config.ts";
 import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.config.ts";
 import { gvaInferenceConfig } from "@/features/pipeline-editor/nodes/GVAInferenceNode.config.ts";
@@ -72,8 +74,6 @@ type NodeDataPanelProps = {
     updatedData: Record<string, unknown>,
   ) => void;
 };
-
-const DEEP_SORT_TRACKING_TYPE = "deep-sort";
 
 const NodeDataPanel = ({
   selectedNode,
@@ -288,6 +288,14 @@ const NodeDataPanel = ({
     onNodeDataUpdate(selectedNode.id, updatedData);
   };
 
+  const applyDataUpdate = (updated: Record<string, unknown>) => {
+    if (!selectedNode) {
+      return;
+    }
+    setEditableData(updated);
+    onNodeDataUpdate(selectedNode.id, updated);
+  };
+
   if (!selectedNode) {
     return (
       <div className="w-full h-full bg-background border-l border-border p-4">
@@ -413,7 +421,9 @@ const NodeDataPanel = ({
                         .filter(
                           (model) =>
                             !propConfig?.params?.filter ||
-                            model.category === propConfig.params.filter,
+                            propConfig.params.filter
+                              .split(",")
+                              .includes(model.category ?? ""),
                         )
                         .flatMap((model) =>
                           (model.variants ?? [])
@@ -592,6 +602,14 @@ const NodeDataPanel = ({
         <div className="text-center py-4">
           <p className="text-xs text-muted-foreground">Nothing to display</p>
         </div>
+      )}
+
+      {selectedNode.type === "gvatrack" && (
+        <GVATrackNodeDeepSortParams
+          nodeId={selectedNode.id}
+          data={editableData}
+          onDataChange={applyDataUpdate}
+        />
       )}
     </div>
   );

@@ -144,11 +144,10 @@ try {
                     Push-Location -LiteralPath $requestWorkingDirectory
                 }
                 try {
-                    $commandOutput = @(& $targetFilePath @argumentList 2>&1)
-                    $commandSucceeded = $?
-                    foreach ($outputLine in $commandOutput) {
-                        $relayWriter.WriteLine([string]$outputLine)
+                    & $targetFilePath @argumentList 2>&1 | ForEach-Object {
+                        $relayWriter.WriteLine([string]$_)
                     }
+                    $commandSucceeded = $?
                 }
                 finally {
                     if (-not [string]::IsNullOrEmpty($requestWorkingDirectory)) {
@@ -268,8 +267,8 @@ function EnsureSudoTestPathWithinDirectory {
         return $false
     }
 
-    $resolvedBasePath = [System.IO.Path]::GetFullPath($BasePath)
-    $resolvedCandidatePath = [System.IO.Path]::GetFullPath($CandidatePath)
+    $resolvedBasePath = [System.IO.Path]::GetFullPath($BasePath).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    $resolvedCandidatePath = [System.IO.Path]::GetFullPath($CandidatePath).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
     if ($resolvedCandidatePath -eq $resolvedBasePath) {
         return $true
     }

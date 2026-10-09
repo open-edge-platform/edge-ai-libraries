@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from types import SimpleNamespace
 
@@ -8,6 +9,8 @@ from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from dto.audiosource import AudioSource
 from dto.transcription_dto import validate_transcription_options
 from pipeline import Pipeline
+from utils.config_loader import config
+from utils.openvino_runtime_validation import resolve_asr_device
 from utils.audio_util import save_audio_file
 from utils.config_loader import config
 from utils.session_manager import resolve_requested_session_id
@@ -15,6 +18,7 @@ from utils.subtitle_format import format_srt as _format_srt, format_vtt as _form
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _sse_transcription_events(pipeline: Pipeline, filepath: str, language: str | None):
@@ -60,6 +64,7 @@ def transcribe_audio(
     temperature: float = Form(0.0),
     stream: bool = Form(False),
     diarization: bool | None = Form(None),
+    device: str | None = Form(None),
 ):
     language, _ = validate_transcription_options(
         temperature=temperature,
@@ -73,6 +78,21 @@ def transcribe_audio(
         session_id, continue_session = resolve_requested_session_id(session_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    requested_device = device or config.models.asr.device
+    try:
+        resolved_device = resolve_asr_device(
+            config.models.asr.provider,
+            config.models.asr.name,
+            requested_device,
+        )
+    except RuntimeError as exc:
+        logger.warning("Rejected ASR device %s: %s", requested_device, exc)
+        raise HTTPException(
+            status_code=400,
+            detail="Requested ASR device is unavailable or unsupported.",
+        ) from exc
+
     _, filepath = save_audio_file(file, session_id=session_id)
     if not os.path.isfile(filepath):
         raise HTTPException(status_code=400, detail=f"Audio file not found: {filepath}")
@@ -83,6 +103,7 @@ def transcribe_audio(
         append_to_session=continue_session,
         speaker_scope_id=speaker_scope_id,
         diarization=diarization,
+        device=resolved_device,
     )
     if not continue_session and getattr(config.models.asr, "preview", None) is not None:
         # The FIRST call for a brand-new session (continue_session=False)

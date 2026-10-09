@@ -33,6 +33,12 @@ python -m pytest -m perf --junitxml=results/perf.xml vippet/tests/performance/
 
 Test parameters are controlled via YAML config files in `config/` and environment variables:
 
+Set `benchmark.filters.skip_missing_models` in the selected YAML file to control
+cases whose required models are not installed. It defaults to `true`, so affected
+cases are reported as skipped with the missing model names. Set it to `false` to
+schedule those cases and expose runtime failures, for example when validating
+behavior on a host without the models.
+
 | Env var                 | Default                           | Description                                |
 |-------------------------|-----------------------------------|--------------------------------------------|
 | `VIPPET_BASE_URL`       | `http://localhost/api/v1`         | VIPPET API endpoint                        |
@@ -40,6 +46,7 @@ Test parameters are controlled via YAML config files in `config/` and environmen
 | `PERF_CONFIG`           | `default`                         | Config preset (`default`, `quick`, `full`) |
 | `PERF_RESULTS_DIR`      | `./results`                       | Output directory for reports               |
 | `PERF_METRICS_INTERVAL` | `2.0`                             | HW sampling interval (seconds)             |
+| `PERF_ON_UNKNOWN_ID`    | `fail`                            | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning |
 
 ## Layout
 

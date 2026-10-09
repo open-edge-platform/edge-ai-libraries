@@ -1,16 +1,11 @@
 
-debian_05_install_python3_venv () {
-  if ensure_apt_is_installed python3-venv; then
-    echo "Python3-venv is already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y python3-venv
-  fi
+debian_30_install_python3_venv () {
+  ensure_apt_install_package python3-venv
 }
 
-debian_05_sbom_python3_venv () {
+debian_30_sbom_python3_venv () {
   cat <<EOF
-"pkg-list": ["python3-venv"]
+$(ensure_sbom_format pkg-list python3-venv)
 EOF
 }
 

@@ -45,11 +45,12 @@ List all available models and their configurations.
           "MobileCLIP": ["mobileclip_s0", "mobileclip_s1", "mobileclip_s2", "mobileclip_b", "mobileclip_blt"],
           "CLIP": ["clip-vit-b-32", "clip-vit-b-16", "clip-vit-l-14", "clip-vit-h-14"],
           "CN-CLIP": ["cn-clip-vit-b-16", "cn-clip-vit-l-14", "cn-clip-vit-h-14"],
+          "MarketaJu": ["siglip2-person-description-reid"],
           "SigLIP": ["siglip2-vit-b-16", "siglip2-vit-l-16", "siglip2-so400m-patch16-384"],
           "Blip2": ["blip2_transformers"],
           "QwenText": ["qwen3-embedding-0.6b", "qwen3-embedding-4b", "qwen3-embedding-8b"]
       },
-      "total_models": 19
+      "total_models": 20
   }
   ```
 

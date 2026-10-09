@@ -7,6 +7,7 @@ from typing import Iterator
 from components.asr_component import ASRComponent
 from components.ffmpeg.audio_preprocessing import chunk_by_silence
 from utils.config_loader import config
+from utils.openvino_runtime_validation import resolve_asr_device
 from utils.app_paths import get_session_dir
 from utils.storage_manager import StorageManager
 from utils.session_manager import generate_session_id
@@ -19,7 +20,7 @@ SESSION_STATE_FILENAME = "session_state.json"
 
 class Pipeline:
     def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None,
-                 diarization: bool | None = None):
+                 diarization: bool | None = None, device: str | None = None):
         logger.info("pipeline initialized")
         self.session_id = session_id or generate_session_id()
         self.append_to_session = append_to_session
@@ -28,11 +29,10 @@ class Pipeline:
         # may use a DIFFERENT model/device than the final pool -- see
         # config.models.asr.preview. Falls back to the main asr config when no
         # override is configured, so existing single-model deployments are
-        # unaffected. Rationale: preview calls happen on the ASR-latency
-        # critical path that gates the endpoint completeness shortcut (see
-        # docs/performance-improvements-2026-09.md), while the final,
-        # persisted commit is not as latency-sensitive and should stay on the
-        # proven-stable model/device.
+        # unaffected. The per-request `device` override (upstream) applies only
+        # to the final/persisted pool; the preview pool keeps its configured
+        # device since it is an internal latency optimisation, not a
+        # caller-selectable path.
         _preview_cfg = getattr(config.models.asr, "preview", None)
         if not append_to_session and _preview_cfg is not None:
             asr_provider = getattr(_preview_cfg, "provider", None) or config.models.asr.provider
@@ -41,7 +41,11 @@ class Pipeline:
         else:
             asr_provider = config.models.asr.provider
             asr_model_name = config.models.asr.name
-            asr_device = config.models.asr.device
+            asr_device = resolve_asr_device(
+                config.models.asr.provider,
+                config.models.asr.name,
+                device or config.models.asr.device,
+            )
         self.asr_component = ASRComponent(
             self.session_id,
             provider=asr_provider,

@@ -32,6 +32,9 @@ BASE_URL: str = os.environ.get("VIPPET_BASE_URL") or str(
     _VIPPET_CFG.get("base_url", "http://localhost/api/v1")
 )
 REQUEST_TIMEOUT: float = float(_VIPPET_CFG.get("timeout", 600))
+READINESS_TIMEOUT_SECONDS: float = float(
+    _VIPPET_CFG.get("readiness_timeout_seconds", 60)
+)
 POLL_INTERVAL: float = float(_VIPPET_CFG.get("poll_interval", 2))
 POLL_TIMEOUT: float = float(_VIPPET_CFG.get("max_job_duration", 600))
 
@@ -63,7 +66,16 @@ MAX_RUNTIME: float = float(_EXECUTION_CFG.get("max_runtime", 0))
 
 SKIP_PIPELINES: list[str] = _FILTERS_CFG.get("skip_pipelines", [])
 SKIP_VARIANTS: list[str] = _FILTERS_CFG.get("skip_variants", [])
-REQUIRE_MODELS: bool = _FILTERS_CFG.get("require_models", True)
+SKIP_MISSING_MODELS: bool = _FILTERS_CFG.get("skip_missing_models", True)
+
+ON_UNKNOWN_FILTER_ID: str = str(
+    os.environ.get("PERF_ON_UNKNOWN_ID", _FILTERS_CFG.get("on_unknown_id", "fail"))
+)
+if ON_UNKNOWN_FILTER_ID not in {"fail", "warn"}:
+    raise ValueError(
+        "benchmark.filters.on_unknown_id must be 'fail' or 'warn', got "
+        f"{ON_UNKNOWN_FILTER_ID!r}"
+    )
 
 # --- results section ---
 _RESULTS_CFG: dict[str, Any] = _PERF_YAML.get("results", {})

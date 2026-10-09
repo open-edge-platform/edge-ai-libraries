@@ -1,18 +1,40 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { FC } from 'react';
+import { FC, useState } from 'react';
 import styled from 'styled-components';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { useTranslation } from 'react-i18next';
-import { Slider, Tag, Tooltip, Button, Accordion, AccordionItem } from '@carbon/react';
+import {
+  Slider,
+  Tag,
+  Tooltip,
+  Button,
+  Accordion,
+  AccordionItem,
+  Modal,
+  ModalBody,
+  InlineLoading,
+  SkeletonPlaceholder,
+  SkeletonText,
+} from '@carbon/react';
 import { RerunSearch, SearchActions, SearchSelector } from '../../redux/search/searchSlice';
-import { TimeFilterSelection } from '../../redux/search/search';
+import { SearchResult, TimeFilterSelection } from '../../redux/search/search';
 import TimeFilterControl from './TimeFilterControl';
 import { StateActionStatus } from '../../redux/summary/summary';
 import { VideoTile } from '../../redux/search/VideoTile';
 import { UIActions, uiSelector } from '../../redux/ui/ui.slice';
 import VideoGroupsView from '../VideoGroups/VideoGroupsView';
 import TelemetryAccordion from './TelemetryAccordion';
+import { imageSearchEnabled } from '../../utils/featureFlags';
+
+// Keying by clip identity rather than array position keeps unchanged tiles mounted when a
+// watched query refreshes, so their <video> elements are not torn down and reloaded.
+const searchResultKey = (result: SearchResult, index: number): string => {
+  const videoId = result?.metadata?.video_id;
+  const timestamp = result?.metadata?.timestamp;
+  if (videoId === undefined || timestamp === undefined) return `result-${index}`;
+  return `${videoId}-${timestamp}`;
+};
 
 const QueryContentWrapper = styled.div`
   display: flex;
@@ -273,18 +295,57 @@ export const QuerySettings: FC = () => {
 };
 
 export const QueryInfo: FC = () => {
-  const { selectedQuery } = useAppSelector(SearchSelector);
+  const { selectedQuery, isSelectedRefreshing } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
+  const [showImageModal, setShowImageModal] = useState(false);
 
   if (!selectedQuery) return null;
 
   return (
     <QueryBar>
       <span className='query-label'>{t('userQueryLabel', 'User Query:')}</span>
-      <Tooltip align='bottom' label={selectedQuery.query}>
-        <strong className='query-text'>{selectedQuery.query}</strong>
-      </Tooltip>
+      {selectedQuery.image ? (
+        <>
+          <img
+            src={selectedQuery.image}
+            alt={t('searchByImage', 'Uploaded image')}
+            onClick={() => setShowImageModal(true)}
+            style={{
+              maxWidth: '48px',
+              maxHeight: '48px',
+              borderRadius: '4px',
+              objectFit: 'cover',
+              cursor: 'pointer',
+            }}
+          />
+          <strong className='query-text'>{t('searchByImage', 'Uploaded image')}</strong>
+          <Modal
+            open={showImageModal}
+            onRequestClose={() => setShowImageModal(false)}
+            modalHeading={t('searchByImage', 'Uploaded image')}
+            passiveModal
+          >
+            <ModalBody>
+              <img
+                src={selectedQuery.image}
+                alt={t('searchByImage', 'Uploaded image')}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '70vh',
+                  objectFit: 'contain',
+                  display: 'block',
+                  margin: '0 auto',
+                }}
+              />
+            </ModalBody>
+          </Modal>
+        </>
+      ) : (
+        <Tooltip align='bottom' label={selectedQuery.query}>
+          <strong className='query-text'>{selectedQuery.query}</strong>
+        </Tooltip>
+      )}
       {selectedQuery.tags.length > 0 && (
         <TagsContainer>
           {selectedQuery.tags.map((tag, index) => (
@@ -295,6 +356,11 @@ export const QueryInfo: FC = () => {
         </TagsContainer>
       )}
       <span style={{ flex: 1 }}></span>
+      {isSelectedRefreshing && (
+        <span data-testid='search-refreshing-indicator' style={{ marginRight: '0.5rem' }}>
+          <InlineLoading status='active' description={t('searchUpdating')} />
+        </span>
+      )}
       <Button
         kind='ghost'
         size='sm'
@@ -334,27 +400,69 @@ export const IntervalDisplay: FC = () => {
 
 const NoQuerySelected: FC = () => <NothingSelectedWrapper></NothingSelectedWrapper>;
 
+// Sized through CSS rather than an inline `style` prop, since older @carbon/react
+// typings do not declare `style` on SkeletonPlaceholder.
+const SkeletonTile = styled.div`
+  width: 100%;
+
+  .cds--skeleton__placeholder {
+    width: 100%;
+    height: 10rem;
+  }
+`;
+
+const SearchResultsSkeleton: FC<{ count?: number }> = ({ count = 4 }) => (
+  <div className='videos-container' data-testid='search-results-skeleton'>
+    {Array.from({ length: count }, (_, index) => (
+      <div className='video-tile' key={`skeleton-${index}`}>
+        <SkeletonTile>
+          <SkeletonPlaceholder />
+        </SkeletonTile>
+        <div className='relevance'>
+          <SkeletonText width='60%' />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 const VideosContainer: FC = () => {
-  const { selectedQuery, selectedResults, isSelectedInProgress, isSelectedHasError } = useAppSelector(SearchSelector);
+  const { selectedQuery, selectedResults, isSelectedInitialLoading, isSelectedHasError } =
+    useAppSelector(SearchSelector);
   const { t } = useTranslation();
 
   if (!selectedQuery) return null;
 
-  if (selectedResults.length === 0 && !isSelectedInProgress && !isSelectedHasError) {
+  if (isSelectedHasError) return null;
+
+  // First run has nothing worth preserving, so show placeholders instead of a blank pane.
+  // A refresh of a query that already has results deliberately falls through and keeps
+  // the existing tiles mounted - see the QueryInfo "updating" chip.
+  if (isSelectedInitialLoading) return <SearchResultsSkeleton />;
+
+  if (selectedResults.length === 0) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: '#525252', fontStyle: 'italic' }}>
-        <p>{t('noSearchResults', 'No videos found matching your search query.')}</p>
-        <p>{t('tryDifferentSearch', 'Try using different keywords or check if videos have been uploaded.')}</p>
+        <p>{t('noSearchResults', 'No videos found matching your search.')}</p>
+        <p>
+          {imageSearchEnabled
+            ? t(
+                'tryDifferentSearch',
+                'Try a different keyword or image, or check if videos have been uploaded.',
+              )
+            : t(
+                'tryDifferentSearchTextOnly',
+                'Try using different keywords or check if videos have been uploaded.',
+              )}
+        </p>
       </div>
     );
   }
 
-  if (isSelectedHasError) return null;
-
   return (
     <div className='videos-container'>
-      {selectedResults.map((_, index) => (
-        <VideoTile key={`result-${index}`} resultIndex={index} />
+      {selectedResults.map((result, index) => (
+        <VideoTile key={searchResultKey(result, index)} resultIndex={index} />
       ))}
     </div>
   );

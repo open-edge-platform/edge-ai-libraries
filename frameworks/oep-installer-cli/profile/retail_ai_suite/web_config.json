@@ -1,0 +1,50 @@
+{
+  "profile": {
+    "label": "Retail AI Suite",
+    "value": "retail_ai_suite"
+  },
+  "modules": [
+    {
+      "label": "Loss Prevention",
+      "value": "loss_prevention"
+      "startStop": true, 
+      "device": true
+    },
+    {
+      "label": "Order Accuracy - DineIn",
+      "value": "order_accuracy_dine_in"
+      "startStop": true, 
+      "device": true
+    },
+    {
+      "label": "Order Accuracy - Takeaway",
+      "value": "order_accuracy_take_away"
+      "startStop": true, 
+      "device": true
+    },
+    {
+      "label": "Voice Enabled Interactions - Smart Kiosk Assistant",
+      "value": "smart_kiosk_assistant",
+      "startStop": true, 
+      "device": true
+    }
+  ],
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-retail.html"
+  },
+  "resources": [
+    {
+      "text": "Loss Prevention",
+      "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/loss-prevention/index.html"
+    },
+    {
+      "text": "Order Accuracy",
+      "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/order-accuracy/index.html"
+    },
+    {
+      "text": "Voice Enabled Interactions",
+      "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/voice-enabled-interactions/index.html"
+    }
+  ]
+}

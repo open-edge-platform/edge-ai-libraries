@@ -78,7 +78,8 @@ machine.
    python -m pip install wheel
    ```
 
-   > **NOTE**: On Linux and macOS, you may need to type `python3` instead of `python`.
+   > [!NOTE]
+   > On Linux and macOS, you may need to type `python3` instead of `python`.
 
 3. In your terminal, navigate to the `example_code` directory in the code deployment 
    package.
@@ -154,7 +155,8 @@ Inside JuypterLab:
 6. Execute the notebook cell by cell to view the inference results. 
 
 
-> **NOTE** The `demo_notebook.ipynb` is a great way to explore the `AnnotationScene` 
+> [!NOTE]
+> The `demo_notebook.ipynb` is a great way to explore the `AnnotationScene`
 > object that is returned by the inference. The demo code only has very basic 
 > visualization functionality, which may not be sufficient for all use case. For 
 > example if your project contains many labels, it may not be able to visualize the 

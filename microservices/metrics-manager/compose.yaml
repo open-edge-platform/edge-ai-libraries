@@ -25,13 +25,13 @@ services:
   # Metrics Manager - Main service container
   # ---------------------------------------------------------------------------
   metrics-manager:
-    image: ${REGISTRY:-}metrics-manager:${TAG:-2026.1.0}
+    image: ${REGISTRY:-}metrics-manager:${TAG:-2026.2.0}
     build:
       context: .
       dockerfile: Dockerfile
       args:
         # Image version label (matches the tag, sourced from ./VERSION)
-        VERSION: ${TAG:-2026.1.0}
+        VERSION: ${TAG:-2026.2.0}
         # Pass proxy settings to Docker build
         http_proxy: ${http_proxy:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
@@ -128,13 +128,13 @@ services:
   # Metrics Manager Tests - runs pytest and exits
   # ---------------------------------------------------------------------------
   metrics-manager-test:
-    image: ${REGISTRY:-}metrics-manager-test:${TAG:-2026.1.0}
+    image: ${REGISTRY:-}metrics-manager-test:${TAG:-2026.2.0}
     build:
       context: .
       dockerfile: Dockerfile
       target: test
       args:
-        VERSION: ${TAG:-2026.1.0}
+        VERSION: ${TAG:-2026.2.0}
         http_proxy: ${http_proxy:-}
         HTTP_PROXY: ${HTTP_PROXY:-}
         https_proxy: ${https_proxy:-}
