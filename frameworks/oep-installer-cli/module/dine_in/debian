@@ -1,0 +1,90 @@
+
+configure_dine_in () {
+  workspace="$(ensure_project_path)/dine-in"
+  version=65d1959a5b3ac268370220e972f5c97efee21d48
+  repository="https://github.com/intel-retail/order-accuracy.git"
+  ports=(7861 8083 8002 8011 9000 8081 9091)
+}
+
+configure_dine_in_device () {
+  local device="$1"
+
+  cd "$workspace"/ovms-service
+  sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=${device}|" ../dine-in/.env
+  ./setup_models.sh --app dine-in
+
+  . ../dine-in/.env
+  [ -e models/${OVMS_MODEL_NAME}/openvino_language_model.bin ] || {
+    echo "Missing ${OVMS_MODEL_NAME}" >&2
+    return 1
+  }
+}
+
+verify_dine_in () {
+  [ -e "$workspace"/dine-in/.env ]
+}
+
+debian_90_profile_dine_in () {
+  echo "git curl gawk make python3_venv docker edge_base"
+}
+
+debian_90_install_dine_in () {
+  configure_dine_in
+
+  if verify_dine_in && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Order accuracy is already installed. Skipping"
+  else 
+    ensure_ports_open "${ports[*]}" return 3
+    # clone the repository
+    ensure_disk_size 10000
+    ensure_git_clone "$workspace" $version $repository
+
+    # initialize .env
+    cd "$workspace"/dine-in
+    make init-env
+
+    # setup
+    . .env
+    ensure_hf_token "${OVMS_MODEL_NAME/MiniCPM-V-4_5-int4/MiniCPM-V-4_5}"
+    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
+
+    # build
+    make build
+
+    verify_dine_in
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_dine_in_device "${device^^}"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_dine_in () {
+  configure_dine_in "$@"
+  ensure_ports_open "${ports[*]}" debian_90_stop_dine_in "$@"
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_dine_in_device "${device^^}"
+
+  cd "$workspace"/dine-in
+  make up
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${ports[0]}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|npu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_dine_in () {
+  configure_dine_in "$@"
+  cd "$workspace"/dine-in && make down || true
+}
+
+debian_90_remove_dine_in () {
+  debian_90_stop_dine_in "$@"
+  rm -rf "$workspace" 2> /dev/null || ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+

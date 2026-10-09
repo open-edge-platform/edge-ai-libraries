@@ -1,0 +1,101 @@
+
+configure_take_away () {
+  workspace="$(ensure_project_path)/take-away"
+  version=65d1959a5b3ac268370220e972f5c97efee21d48
+  repository="https://github.com/intel-retail/order-accuracy.git"
+  used_ports=(7860 8000 8080 8001 9000 9001 8010)
+}
+
+configure_take_away_device () {
+  local device="$1"
+
+  cd "$workspace"/ovms-service
+  sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=${device}|" ../take-away/.env
+  ./setup_models.sh --app take-away
+
+  . ../take-away/.env
+  [ -e models/$OVMS_MODEL_NAME/openvino_language_model.bin ] || {
+    echo "Missing $OVMS_MODEL_NAME" >&2
+    return 1
+  }
+}
+
+verify_take_away () {
+  [ -e "$workspace"/take-away/.env ] || return 1
+  cd "$workspace"/take-away
+  . .env
+  local video="${SAMPLE_VIDEO_DEST:-storage/videos/test.mp4}"
+  [ -e "$video" ] || {
+    echo "Missing $video" >&2
+    return 1
+  }
+}
+
+debian_90_profile_take_away () {
+  echo "git curl gawk make python3_venv docker edge_base"
+}
+
+debian_90_install_take_away () {
+  configure_take_away
+
+  if verify_take_away && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Order accuracy Take Away is already installed. Skipping"
+  else 
+    ensure_ports_open "${used_ports[*]}" return 3
+    # clone the repository
+    ensure_disk_size 10000
+    ensure_git_clone "$workspace" $version $repository
+
+    # initialize .env
+    cd "$workspace"/take-away
+    sed -i 's|^\(# *SAMPLE_VIDEO_DEST=.*\)$|\1|' .env.example
+    make init-env
+
+    # setup
+    . .env
+    ensure_hf_token "${OVMS_MODEL_NAME/MiniCPM-V-4_5-int4/MiniCPM-V-4_5}"
+    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
+
+    # download video
+    make download-sample-video
+
+    # build image
+    make build
+
+    verify_take_away
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_take_away_device "${device^^}"
+
+  echo "@@HIGHLIGHT workspace $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_take_away () {
+  configure_take_away "$@"
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_take_away "$@"
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_take_away_device "${device^^}"
+
+  cd "$workspace"/take-away
+  make up
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_take_away () {
+  configure_take_away "$@"
+  cd "$workspace"/take-away && make down || true
+}
+
+debian_90_remove_take_away () {
+  debian_90_stop_take_away "$@"
+  rm -rf "$workspace" 2> /dev/null || ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
