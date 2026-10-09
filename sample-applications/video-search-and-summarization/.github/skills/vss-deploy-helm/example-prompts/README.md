@@ -16,3 +16,4 @@ Each file is a ready-to-use prompt that can be passed via `@file`.
 | [05-storage-troubleshoot-pvc.md](05-storage-troubleshoot-pvc.md) | Summary Storage Troubleshooting |
 | [06-bootstrap-fresh-machine.md](06-bootstrap-fresh-machine.md) | Bootstrap Fresh Machine |
 | [07-search-storage-troubleshoot-pvc.md](07-search-storage-troubleshoot-pvc.md) | Search Storage Troubleshooting |
+| [08-vllm-arc-gpu-install.md](08-vllm-arc-gpu-install.md) | vLLM On Intel Arc GPU |

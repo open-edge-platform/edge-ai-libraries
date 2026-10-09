@@ -49,7 +49,7 @@ A comprehensive reference of all VSS skills and their use cases:
 | [`vss-build`](./vss-build/SKILL.md) | Ops | Build or push the VSS Docker images from source; manage registry/tag and proxy controls. |
 | [`vss-troubleshoot`](./vss-troubleshoot/SKILL.md) | Ops | Check health and which mode is live, then diagnose a broken deployment - containers, OVMS/vLLM load, DLStreamer, RabbitMQ/MinIO/Postgres/VDMS, "no summary", "search returns nothing". Probes Pipeline Manager health/feature endpoints; ships `scripts/triage.sh`. |
 | [`vss-model-onboarding`](./vss-model-onboarding/SKILL.md) | Ops | Bring a new VLM/embedding model into OVMS (OpenVINO IR conversion + model-dir layout). Ships `scripts/prepare_ovms_model.py`. |
-| [`vss-deploy-helm`](./vss-deploy-helm/SKILL.md) | Ops | Deploy VSS to Kubernetes via the Helm chart; map Compose/modes to `values.yaml`. |
+| [`vss-deploy-helm`](./vss-deploy-helm/SKILL.md) | Ops | Deploy VSS to Kubernetes via the Helm chart; map Compose/modes to `values.yaml`; choose OVMS vs vLLM and CPU vs Intel Arc GPU (XPU). |
 | [`vss-summarize-video`](./vss-summarize-video/SKILL.md) | Integrator | Summarize a video through the Pipeline Manager; run/inspect the summary pipeline. Start, poll, and retrieve results. |
 | [`vss-search-index`](./vss-search-index/SKILL.md) | Integrator | Upload, index, and natural-language search videos; generate embeddings and run queries with optional filtering. |
 | [`vss-api-client`](./vss-api-client/SKILL.md) | Integrator | Call the REST/WebSocket APIs correctly (upload → process → progress → summary, and search queries). Ships `scripts/api_smoke.py`. |

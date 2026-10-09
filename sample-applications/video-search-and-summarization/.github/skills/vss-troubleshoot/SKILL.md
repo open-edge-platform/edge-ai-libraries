@@ -152,8 +152,11 @@ Why: In vLLM mode OVMS is not the active inference backend. Debugging OVMS logs 
 Actions: check the active vLLM service's `/health` endpoint and logs for model
 download/context/cache problems. Verify `VLM_MODEL_NAME`,
 `HUGGINGFACE_TOKEN`, and `VLLM_MAX_MODEL_LEN`; for CPU also inspect
-`VLLM_CPU_KVCACHE_SPACE`, and for XPU inspect device visibility and
-`VLLM_GPU_MEM`.
+`VLLM_CPU_KVCACHE_SPACE`, and for XPU inspect device visibility,
+`VLLM_GPU_MEM`, and `VLLM_MM_MAX_PIXELS`. On XPU, `No available memory for the
+cache blocks` means weights plus the vision encoder left no room for the KV
+cache; see `docs/user-guide/troubleshooting.md` for the sizing formula and
+working configurations.
 
 ### 6. DLStreamer/EVAM pipeline errors or ingestion stalls
 
