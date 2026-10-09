@@ -56,7 +56,9 @@ def _shrink_suite_to_streams(
             (*streams, suite_slug),
         )
         conn.commit()
-    logger.info("Shrunk suite %s benchmark test cases to streams=%s", suite_slug, streams)
+    logger.info(
+        "Shrunk suite %s benchmark test cases to streams=%s", suite_slug, streams
+    )
 
 
 def _fetch_benchmark_suites(session: requests.Session) -> list[JsonDict]:
