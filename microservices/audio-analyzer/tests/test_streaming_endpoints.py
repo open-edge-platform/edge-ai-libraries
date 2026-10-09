@@ -133,6 +133,38 @@ class RealtimeWebSocketTests(unittest.TestCase):
 
         self.assertEqual(message["type"], "error")
 
+    def test_rejects_path_traversal_session_id(self):
+        """A crafted session_id must never reach get_session_dir()/STORAGE_ROOT unsanitized."""
+        with patch("main.ensure_model"), patch("main.preload_models"):
+            with TestClient(main.app) as client:
+                with client.websocket_connect(
+                    "/v1/realtime?intent=transcription&session_id=../../etc/passwd"
+                ) as ws:
+                    message = ws.receive_json()
+
+        self.assertEqual(message["type"], "error")
+
+    def test_rejects_absolute_path_session_id(self):
+        with patch("main.ensure_model"), patch("main.preload_models"):
+            with TestClient(main.app) as client:
+                with client.websocket_connect(
+                    "/v1/realtime?intent=transcription&session_id=/etc/passwd"
+                ) as ws:
+                    message = ws.receive_json()
+
+        self.assertEqual(message["type"], "error")
+
+    def test_accepts_valid_custom_session_id(self):
+        with patch("main.ensure_model"), patch("main.preload_models"):
+            with TestClient(main.app) as client:
+                with client.websocket_connect(
+                    "/v1/realtime?intent=transcription&session_id=my-session_123"
+                ) as ws:
+                    created = ws.receive_json()
+
+        self.assertEqual(created["type"], "transcription_session.created")
+        self.assertEqual(created["session"]["id"], "my-session_123")
+
     def test_session_update_changes_language_and_vad(self):
         with patch("main.ensure_model"), patch("main.preload_models"):
             with TestClient(main.app) as client:

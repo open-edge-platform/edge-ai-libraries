@@ -52,7 +52,7 @@ from utils.pcm_audio import (
     pcm_duration_sec,
     write_wav,
 )
-from utils.session_manager import generate_session_id
+from utils.session_manager import resolve_requested_session_id
 
 logger = logging.getLogger(__name__)
 
@@ -296,8 +296,17 @@ async def realtime_transcription(
         await websocket.close(code=1008)
         return
 
+    try:
+        # Mirrors the HTTP endpoints' validation so a client-supplied session_id
+        # can never be joined into STORAGE_ROOT unsanitized (path traversal / absolute-path guard).
+        resolved_session_id, _ = resolve_requested_session_id(session_id)
+    except ValueError as exc:
+        await _send_error(websocket, str(exc), "invalid_request_error")
+        await websocket.close(code=1008)
+        return
+
     session = RealtimeSession(
-        session_id=session_id or generate_session_id(),
+        session_id=resolved_session_id,
         language=language,
     )
 
