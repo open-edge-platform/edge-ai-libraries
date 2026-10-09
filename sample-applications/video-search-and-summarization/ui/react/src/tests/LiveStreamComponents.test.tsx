@@ -217,18 +217,49 @@ describe('StreamFormModal', () => {
   it('refuses to submit a non-rtsp url', async () => {
     wrap(<StreamFormModal open onClose={vi.fn()} />);
 
-    fireEvent.change(screen.getByTestId('stream-url-input'), {
-      target: { value: 'http://cam-9/live' },
-    });
+    const urlInput = screen.getByTestId('stream-url-input');
+    fireEvent.change(urlInput, { target: { value: 'http://cam-9/live' } });
     fireEvent.change(screen.getByTestId('stream-name-input'), {
       target: { value: 'garage' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'addStream' }));
+    // Leaving the field surfaces the validation message.
+    fireEvent.blur(urlInput);
 
     await waitFor(() =>
       expect(screen.getByText('streamUrlInvalid')).toBeTruthy(),
     );
+    // The submit button stays disabled for malformed input, so the stream can
+    // never be created from an invalid URL.
+    expect(
+      (screen.getByRole('button', { name: 'addStream' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
     expect(mockCreateStream).not.toHaveBeenCalled();
+  });
+
+  it('clears the url error once the field is emptied', async () => {
+    wrap(<StreamFormModal open onClose={vi.fn()} />);
+
+    const urlInput = screen.getByTestId('stream-url-input');
+    fireEvent.change(urlInput, { target: { value: 'http://cam-9/live' } });
+    fireEvent.blur(urlInput);
+
+    await waitFor(() =>
+      expect(screen.getByText('streamUrlInvalid')).toBeTruthy(),
+    );
+
+    // Clearing the input is "incomplete", not "invalid": the error must go away
+    // instead of sticking until a valid URL is pasted.
+    fireEvent.change(urlInput, { target: { value: '' } });
+
+    await waitFor(() =>
+      expect(screen.queryByText('streamUrlInvalid')).toBeNull(),
+    );
+    // Still not submittable while empty.
+    expect(
+      (screen.getByRole('button', { name: 'addStream' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
   });
 
   // The URL is the only field the ingestion API requires: the name falls back

@@ -178,8 +178,11 @@ const StreamFormModal: FC<StreamFormModalProps> = ({ open, onClose, stream = nul
     </LabelRow>
   );
 
+  // Only flag the field when it holds non-empty, malformed input. An empty
+  // field is "incomplete", not "invalid", so clearing the input clears the
+  // error instead of leaving it stuck until a valid URL is pasted.
   const urlInvalid = useMemo(
-    () => !isEdit && touched && !RTSP_URL.test(form.streamUrl.trim()),
+    () => !isEdit && touched && form.streamUrl.trim() !== '' && !RTSP_URL.test(form.streamUrl.trim()),
     [form.streamUrl, isEdit, touched],
   );
   // `stream_url` is the only field the ingestion API requires; everything else
@@ -242,7 +245,7 @@ const StreamFormModal: FC<StreamFormModalProps> = ({ open, onClose, stream = nul
       modalHeading={isEdit ? t('editStream') : t('addStream')}
       primaryButtonText={isEdit ? t('editStream') : t('addStream')}
       secondaryButtonText={t('cancel')}
-      primaryButtonDisabled={submitting}
+      primaryButtonDisabled={submitting || !canSubmit}
       onRequestClose={onClose}
       onRequestSubmit={() => void handleSubmit()}
       onSecondarySubmit={onClose}
