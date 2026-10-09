@@ -15,8 +15,47 @@ configure_ros2 () {
   ros_deb_src="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
 }
 
+# OSRF Gazebo apt repository, shared by the Robotics AI Suite ROS 2 components
+# (autonomous_mobile_robot, stationary_robot_vision). Expects $ros_distro.
+configure_osrf_gazebo_ros2 () {
+  osrf_name=packages.osrfoundation.org
+  osrf_key_url="https://$osrf_name/gazebo.gpg"
+  osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+  osrf_entry="deb [signed-by=$osrf_key] https://$osrf_name/gazebo/$ID-stable $VERSION_CODENAME main"
+  osrf_list=/etc/apt/sources.list.d/gazebo-stable.list
+}
+
+ensure_osrf_gazebo_ros2 () {
+  configure_osrf_gazebo_ros2
+  ensure_apt_key "$osrf_key" "$osrf_key_url"
+  ensure_apt_source "$osrf_list" "$osrf_entry"
+  ensure_apt update -y
+  [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
+}
+
+remove_osrf_gazebo_ros2 () {
+  configure_osrf_gazebo_ros2
+  ensure_sudo rm -f "$osrf_list" "$osrf_key"
+}
+
+sbom_osrf_gazebo_ros2 () {
+  configure_osrf_gazebo_ros2
+  cat <<EOF
+$(ensure_sbom_format name $osrf_name)
+$(ensure_sbom_format gpg-key "$osrf_key_url")
+$(ensure_sbom_format key-file "$osrf_key")
+$(ensure_sbom_format apt-source "$osrf_entry")
+$(ensure_sbom_format apt-list-file "$osrf_list")
+$(ensure_sbom_format pkg-list curl lsb-release gnupg $([ "$ros_distro" != jazzy ] || echo gz-harmonic))
+EOF
+}
+
 debian_50_profile_ros2 () {
-  echo "curl gnupg git software_properties_common lsb_release edge_base"
+  echo "curl gnupg git software_properties_common lsb_release"
+  # --realtime (set by edge_base_robotics) supplies GPU/NPU prep via
+  # edge_pack_base_realtime instead; skip edge_base to avoid installing both
+  # the standard and real-time edge-pack base bundles together.
+  [[ " $* " = *" --realtime "* ]] || echo "edge_base"
 }
 
 verify_ros2 () {
@@ -29,6 +68,9 @@ debian_50_install_ros2 () {
   if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
     echo "ROS 2 $ros_distro is already installed. Skipping..."
   else
+    # declare ownership
+    ensure_prop set installed/ros2/owned true
+
     ensure_apt_add_repository universe || true
 
     # bootstrap the ROS 2 apt repository via the ros2-apt-source package,
@@ -54,6 +96,9 @@ debian_50_install_ros2 () {
 }
 
 debian_50_remove_ros2 () {
+  # leave untouched if not installed by ros2
+  [ "$(ensure_prop get installed/ros2/owned)" = "true" ] || return 0
+
   configure_ros2
   if verify_ros2; then
     ensure_apt autoremove -m -y ros-$ros_distro-desktop || true

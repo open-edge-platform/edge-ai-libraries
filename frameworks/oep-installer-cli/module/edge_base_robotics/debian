@@ -1,0 +1,28 @@
+
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Edge Base Robotics - virtual package bundling the common Robotics AI Suite
+# prerequisites: GPU/NPU acceleration prep (via edge_base, or the
+# edge_pack_base_realtime bundle for low-latency/real-time control loops),
+# ROS 2, the ROS 2 OpenVINO toolkit, and the Intel RealSense SDK.
+# --realtime selects the edge-pack real-time base bundle instead of the
+# standard one; it implies the edge-pack route since no direct-driver
+# real-time equivalent exists. NOTE: intel-edge-base-realtime is not yet
+# published on the Intel edge-pack apt feed as of this writing - --realtime
+# will fail to install until Intel publishes it.
+debian_90_profile_edge_base_robotics () {
+  case "$1" in
+  bootstrap) # all components
+    echo "core_types pre_system_scan edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel ros2 ros_openvino realsense"
+    ;;
+  *)
+    echo "ros2 ros_openvino realsense"
+    if [[ " $* " = *" --realtime "* ]]; then
+      echo "core_types pre_system_scan edge_pack_base_realtime edge_pack_npu"
+    else
+      echo "edge_base"
+    fi
+    ;;
+  esac
+}
