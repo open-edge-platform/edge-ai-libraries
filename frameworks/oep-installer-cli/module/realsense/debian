@@ -29,6 +29,9 @@ debian_55_install_realsense () {
   if verify_realsense && [[ " $* " != *" --reinstall "* ]]; then
     echo "RealSense SDK is already installed. Skipping..."
   else
+    # declare ownership
+    ensure_prop set installed/realsense/owned true
+
     ensure_sudo mkdir -p /etc/apt/keyrings
     ensure_apt_key $rs_key_file $rs_key_url --dearmor
     ensure_apt_source $rs_list "$rs_deb_entry"
@@ -40,6 +43,9 @@ debian_55_install_realsense () {
 }
 
 debian_55_remove_realsense () {
+  # leave untouched if not installed by realsense
+  [ "$(ensure_prop get installed/realsense/owned)" = "true" ] || return 0
+
   configure_realsense
   if verify_realsense; then
     ensure_apt autoremove -m -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true
@@ -49,7 +55,7 @@ debian_55_remove_realsense () {
   fi
 }
 
-debian_05_sbom_realsense () {
+debian_55_sbom_realsense () {
   configure_realsense "$@"
   cat <<EOF
 $(ensure_sbom_format name "$rs_repo_name")
