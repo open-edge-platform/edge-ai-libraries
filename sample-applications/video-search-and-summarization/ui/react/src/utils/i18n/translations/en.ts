@@ -308,12 +308,14 @@ export const enTranslations = {
     'An identifier you already use for this physical camera in another system. Providing it lets search results be matched back to recordings stored outside this application. Leave blank unless you need that link.',
   frameInterval: 'Frame interval',
   frameIntervalHelp: 'Embed every Nth frame. Higher values use fewer resources.',
+  frameIntervalInvalid: 'Enter an integer between 1 and 60.',
   frameIntervalInfo:
     'How often a frame is captured and indexed - one frame out of every N. A lower value indexes more moments, so brief events are less likely to be missed, but it uses more CPU and storage. A higher value is cheaper but can skip short events.',
   enableDetection: 'Enable object detection',
   enableDetectionInfo:
     'Finds objects such as people and vehicles in each frame and indexes them separately. This makes searches for a specific object more accurate, especially when it is small or in a busy scene. It costs extra processing, so turn it off for high camera counts.',
   detectionConfidence: 'Detection confidence',
+  detectionConfidenceInvalid: 'Enter a value between 0.1 and 1.0.',
   detectionConfidenceInfo:
     'How certain the detector must be before an object is indexed. Lower values catch more objects but add false matches to your search results; higher values index only confident detections and may miss some.',
   startImmediately: 'Start ingesting immediately',

@@ -87,9 +87,9 @@ interface FormState {
   description: string;
   tags: string;
   sensorId: string;
-  frameInterval: number;
+  frameInterval: number | '';
   enableDetection: boolean;
-  detectionConfidence: number;
+  detectionConfidence: number | '';
   startImmediately: boolean;
 }
 
@@ -185,9 +185,25 @@ const StreamFormModal: FC<StreamFormModalProps> = ({ open, onClose, stream = nul
     () => !isEdit && touched && form.streamUrl.trim() !== '' && !RTSP_URL.test(form.streamUrl.trim()),
     [form.streamUrl, isEdit, touched],
   );
+  // Numeric fields may be left blank while editing (e.g. clearing to retype),
+  // so an out-of-range or empty value is flagged rather than silently snapped
+  // back to a default. The field's red invalid state carries the message and
+  // the submit button is gated on these, so a bad value can never be sent.
+  const frameIntervalInvalid =
+    form.frameInterval === '' || form.frameInterval < 1 || form.frameInterval > 60;
+  const detectionConfidenceInvalid =
+    form.enableDetection &&
+    (form.detectionConfidence === '' ||
+      form.detectionConfidence < 0.1 ||
+      form.detectionConfidence > 1);
+
   // `stream_url` is the only field the ingestion API requires; everything else
-  // has a server-side default (the name falls back to the redacted URL).
-  const canSubmit = isEdit || RTSP_URL.test(form.streamUrl.trim());
+  // has a server-side default (the name falls back to the redacted URL). The
+  // numeric fields must still be in range before the form can be submitted.
+  const canSubmit =
+    (isEdit || RTSP_URL.test(form.streamUrl.trim())) &&
+    !frameIntervalInvalid &&
+    !detectionConfidenceInvalid;
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((previous) => ({ ...previous, [key]: value }));
@@ -203,9 +219,9 @@ const StreamFormModal: FC<StreamFormModalProps> = ({ open, onClose, stream = nul
           stream_name: form.streamName.trim() || undefined,
           description: form.description.trim(),
           tags: parseTags(form.tags),
-          frame_interval: form.frameInterval,
+          frame_interval: Number(form.frameInterval),
           enable_object_detection: form.enableDetection,
-          detection_confidence: form.detectionConfidence,
+          detection_confidence: Number(form.detectionConfidence),
         };
         await dispatch(streamUpdate({ streamId: stream.stream_id, payload })).unwrap();
         notify(t('streamUpdateSuccess'), NotificationSeverity.SUCCESS);
@@ -213,9 +229,9 @@ const StreamFormModal: FC<StreamFormModalProps> = ({ open, onClose, stream = nul
         const payload: LiveStreamCreatePayload = {
           stream_url: form.streamUrl.trim(),
           start: form.startImmediately,
-          frame_interval: form.frameInterval,
+          frame_interval: Number(form.frameInterval),
           enable_object_detection: form.enableDetection,
-          detection_confidence: form.detectionConfidence,
+          detection_confidence: Number(form.detectionConfidence),
           tags: parseTags(form.tags),
         };
         if (form.streamName.trim()) payload.stream_name = form.streamName.trim();
@@ -324,8 +340,13 @@ const StreamFormModal: FC<StreamFormModalProps> = ({ open, onClose, stream = nul
           min={1}
           max={60}
           step={1}
+          allowEmpty
+          invalid={frameIntervalInvalid}
+          invalidText={t('frameIntervalInvalid')}
           value={form.frameInterval}
-          onChange={(_event, { value }) => update('frameInterval', Number(value) || DEFAULT_FRAME_INTERVAL)}
+          onChange={(_event, { value }) =>
+            update('frameInterval', value === '' ? '' : Number(value))
+          }
         />
       </Field>
 
@@ -346,9 +367,12 @@ const StreamFormModal: FC<StreamFormModalProps> = ({ open, onClose, stream = nul
             min={0.1}
             max={1}
             step={0.05}
+            allowEmpty
+            invalid={detectionConfidenceInvalid}
+            invalidText={t('detectionConfidenceInvalid')}
             value={form.detectionConfidence}
             onChange={(_event, { value }) =>
-              update('detectionConfidence', Number(value) || DEFAULT_DETECTION_CONFIDENCE)
+              update('detectionConfidence', value === '' ? '' : Number(value))
             }
           />
         </Field>

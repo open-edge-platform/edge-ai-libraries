@@ -299,6 +299,46 @@ describe('StreamFormModal', () => {
     expect(payload.detection_confidence).toBe(0.85);
   });
 
+  it('keeps the frame interval field blank when cleared instead of snapping to a default', () => {
+    const { container } = wrap(<StreamFormModal open onClose={vi.fn()} />);
+
+    const frameInput = container.querySelector<HTMLInputElement>(
+      '#stream-frame-interval',
+    );
+    expect(frameInput).toBeTruthy();
+
+    fireEvent.change(frameInput!, { target: { value: '' } });
+
+    // The field holds the empty string rather than resetting to 15, so the
+    // user can clear it and retype a new value.
+    expect(frameInput!.value).toBe('');
+  });
+
+  it('disables submit and shows a message when the frame interval is out of range', async () => {
+    const { container } = wrap(<StreamFormModal open onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByTestId('stream-url-input'), {
+      target: { value: 'rtsp://cam-9:554/live' },
+    });
+
+    const frameInput = container.querySelector<HTMLInputElement>(
+      '#stream-frame-interval',
+    );
+    fireEvent.change(frameInput!, { target: { value: '99' } });
+
+    // The invalid state surfaces the message next to the field (not only as a
+    // toast after an attempted submit)...
+    await waitFor(() =>
+      expect(screen.getByText('frameIntervalInvalid')).toBeTruthy(),
+    );
+    // ...and the Add stream button is greyed out while the value is invalid.
+    expect(
+      (screen.getByRole('button', { name: 'addStream' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(mockCreateStream).not.toHaveBeenCalled();
+  });
+
   it('enables object detection by default on a new stream', async () => {
     mockCreateStream.mockResolvedValue(makeStream());
 
@@ -317,7 +357,6 @@ describe('StreamFormModal', () => {
     await waitFor(() => expect(mockCreateStream).toHaveBeenCalled());
     expect(mockCreateStream.mock.calls[0][0].enable_object_detection).toBe(true);
   });
-
   it('sends an update payload with no stream_url when editing', async () => {
     mockUpdateStream.mockResolvedValue(makeStream({ stream_name: 'renamed' }));
     const s = store();
