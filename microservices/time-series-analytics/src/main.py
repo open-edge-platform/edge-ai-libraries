@@ -21,6 +21,7 @@ import subprocess
 import threading
 import tarfile
 from typing import Optional
+from urllib.parse import quote
 import requests
 
 from fastapi import FastAPI, File, HTTPException, Response, status, Request, Query, BackgroundTasks, UploadFile
@@ -181,6 +182,32 @@ def restart_kapacitor():
     """Restart the Kapacitor service."""
     stop_kapacitor_service()
     start_kapacitor_service(config)
+
+
+@app.post("/stop_pipeline")
+def stop_pipeline(expected_task_id: Optional[str] = None):
+    """Disable the configured UDF task without stopping the Kapacitor daemon."""
+    task_id = config.get("udfs", {}).get("name")
+    if not isinstance(task_id, str) or not task_id:
+        raise HTTPException(status_code=409, detail="No UDF task is configured")
+    if expected_task_id is not None and expected_task_id != task_id:
+        raise HTTPException(status_code=409, detail="Configured UDF task does not match the requested task")
+
+    try:
+        response = requests.patch(
+            f"{KAPACITOR_URL}/kapacitor/v1/tasks/{quote(task_id, safe='')}",
+            json={"status": "disabled"}, timeout=30,
+        )
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as error:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Kapacitor failed to disable the task: HTTP {error.response.status_code}",
+        ) from error
+    except requests.exceptions.RequestException as error:
+        raise HTTPException(status_code=503, detail="Kapacitor is unavailable") from error
+
+    return {"status": "success", "task_id": task_id}
 
 
 @app.get("/health")
