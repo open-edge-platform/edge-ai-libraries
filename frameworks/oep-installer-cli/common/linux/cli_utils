@@ -124,6 +124,28 @@ act_helper () {
   # scan for dependencies
   local handles=($(act_find_deps $act_name "$@"))
 
+  # refuse to remove modules that other installed modules still depend on
+  if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ] && [ ${#handles[@]} -gt 0 ]; then
+    local _targets=() _top=0 _h _o _pair
+    for _h in $(printf '%s\n' "${handles[@]}" | sort $sort_options); do
+      _o=${_h#*_}; _o=${_o%%_*}
+      [ "$_top" -gt 0 ] || _top=$_o
+      [ "$_o" -ge "$_top" ] || break          # same order limit as the removal loop
+      _targets+=(${_h#*_*_*_})
+    done
+    local -A _needed=()
+    for _pair in $(act_find_parents "${_targets[*]}" "$@"); do
+      _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}"
+    done
+    if [ ${#_needed[@]} -gt 0 ]; then
+      for _h in ${!_needed[*]}; do
+        echo -e "${red}Cannot remove $_h: required by ${_needed[$_h]}${reset}" 1>&2
+      done
+      echo "Remove the dependent components in the same command, or use --remove-all." 1>&2
+      return 3
+    fi
+  fi
+
   # act in sequence
   if [ ${#handles[@]} -gt 0 ]; then
     if [ "$act_name" = "install" ]; then
@@ -206,6 +228,7 @@ act_helper () {
           fi
         fi
       done
+
       # final summary: rerun pre_system_scan only if it is part of the dependency chain
       local scan_handler="${_act_cache_functions[${act_name}_pre_system_scan]:-}"
       if [[ " $* " != *" --dry-run "* && $rc -eq 0 && -n "$scan_handler" && " ${handles[*]} " = *" $scan_handler "* ]]; then
@@ -255,4 +278,19 @@ act_resolve_args () {
     [ ! -r "$mods_file" ] || args=($(< "$mods_file") "${args[@]}")
   fi
   echo "${args[*]}"
+}
+
+# find parent of the target module
+act_find_parents () {
+  local targets=" $1 "; shift
+  local installed="$(ensure_project_path)/$installer_name/installed"
+  [ -d "$installed" ] || return 0
+  local p d
+  for p in $(cd "$installed"; ls -1); do
+    [[ "$targets" != *" $p "* ]] || continue
+    for d in $(act_expand_modules install $p "$@"); do
+      [ "$d" != "$p" ] || continue
+      [[ "$targets" != *" $d "* ]] || echo "$p:$d"
+    done
+  done
 }

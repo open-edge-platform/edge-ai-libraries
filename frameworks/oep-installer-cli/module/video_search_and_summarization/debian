@@ -64,7 +64,10 @@ verify_video_search_and_summarization () {
     ov_models/ovms/config.json
   )
   for f in "${files_to_check[@]}"; do
-    [ -e "$workspace"/sample-applications/video-search-and-summarization/$f ] || return 1
+    [ -e "$workspace"/sample-applications/video-search-and-summarization/$f ] || {
+      echo "Missing $f" >&2
+      return 1
+    }
   done
 }
 
