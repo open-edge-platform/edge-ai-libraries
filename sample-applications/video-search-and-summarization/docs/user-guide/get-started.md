@@ -331,14 +331,14 @@ Before running the application, you need to set several environment variables:
     export ENABLE_VLLM_GPU=true
 
     # Set the VLM model for vLLM GPU inference
-    export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"
+    export VLM_MODEL_NAME="Qwen/Qwen3-VL-4B-Instruct"
     ```
 
     **Additional vLLM GPU/XPU configuration options:**
 
     | Variable | Description | Default |
     | -------- | ----------- | ------- |
-    | `VLLM_XPU_IMAGE` | Docker image for vLLM XPU service | `intel/vllm:0.14.1-xpu` |
+    | `VLLM_XPU_IMAGE` | Docker image for vLLM XPU service | `vllm/vllm-openai-xpu:v0.31.0` |
     | `VLLM_DTYPE` | Model precision | `bfloat16` |
     | `VLLM_GPU_MEM` | GPU memory utilization (0-1) | `0.8` |
     | `VLLM_MAX_MODEL_LEN` | Maximum sequence length | `32000` |
@@ -346,13 +346,26 @@ Before running the application, you need to set several environment variables:
     | `VLLM_BLOCK_SIZE` | KV cache block size | `128` |
     | `VLLM_MAX_NUM_BATCHED_TOKENS` | Maximum batched tokens | `2048` |
     | `VLLM_TENSOR_PARALLEL_SIZE` | Tensor parallel size | `1` |
+    | `VLLM_MM_MAX_PIXELS` | Maximum pixels per frame (caps resolution, not frame count) | `16777216` |
     | `VLLM_HOST_PORT` | Host port for vLLM service | `8200` |
 
     **System Requirements:**
     - Intel Arc Pro B-series GPU (e.g., Intel Arc Pro B60, B65, B70)
     - Intel GPU drivers installed on host
     - User in `video` and `render` groups
-    - Minimum 8GB GPU memory
+    - Minimum 16GB GPU memory for the default `bfloat16` configuration. `Qwen/Qwen3-VL-4B-Instruct` needs about 8.6 GB for weights alone, plus vision-encoder activations and KV cache.
+
+    > [!TIP]
+    > **GPUs with less than 16 GB (for example Intel Arc B580, 12 GB):** the default `bfloat16` configuration will fail to start with `No available memory for the cache blocks`. Use the FP8 checkpoint, which halves the weight footprint, and cap the image size:
+    >
+    > ```bash
+    > export VLM_MODEL_NAME="Qwen/Qwen3-VL-4B-Instruct-FP8"
+    > export VLLM_GPU_MEM=0.95
+    > export VLLM_MM_MAX_PIXELS=401408
+    > export VLLM_MAX_MODEL_LEN=24000
+    > ```
+    >
+    > All four are needed together; omitting any one still fails to start on a 12 GB card at these settings. The FP8 checkpoint cuts the weights from 8.6 GB to 5.9 GB, `VLLM_GPU_MEM` raises the share of the card vLLM may reserve, `VLLM_MM_MAX_PIXELS` shrinks the vision encoder, and `VLLM_MAX_MODEL_LEN` lowers the KV cache needed per request. `VLLM_MM_MAX_PIXELS` caps the resolution of each frame, not how many frames you send: at `401408` a 1920x1080 frame is downscaled to 832x448, and the default `PM_MULTI_FRAME_COUNT=12` still works unchanged. See [Troubleshooting](./troubleshooting.md#vllm-xpu-fails-to-start-with-no-available-memory-for-the-cache-blocks) for the sizing formula and how to derive these values for other cards.
 
     **Behavior when enabled:**
     - Automatically sets `VLLM_HOST=vllm-xpu-service`
@@ -414,8 +427,8 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 | OVMS split-model GPU/CPU | OVMS-hosted VLM on GPU | OVMS-hosted LLM on CPU | `VLM_MODEL_NAME=Qwen/Qwen3-VL-4B-Instruct` + `VLM_TARGET_DEVICE=GPU` + `LLM_TARGET_DEVICE=CPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `Qwen/Qwen3-VL-4B-Instruct` (or dedicated `OVMS_LLM_MODEL_NAME`) | Use GPU for captioning while keeping final summary on CPU; also supports same-source split by device/weight. |
 | OVMS split-model CPU/GPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on GPU | `VLM_MODEL_NAME=Qwen/Qwen3-VL-4B-Instruct` + `LLM_TARGET_DEVICE=GPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `Qwen/Qwen3-VL-4B-Instruct` (or dedicated `OVMS_LLM_MODEL_NAME`) | Use GPU for final summary while keeping captioning on CPU; also supports same-source split by device/weight. |
 | OVMS split-model CPU/NPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on NPU | `LLM_TARGET_DEVICE=NPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>` for a dedicated LLM) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `OpenVINO/Qwen3-8B-int4-cw-ov` | Use NPU for the final-summary LLM while keeping captioning on CPU. |
-| vLLM-only CPU | vLLM-hosted VLM on CPU | Same vLLM-hosted VLM on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | All-vLLM mode for CPU-only deployments. |
-| 🧪 vLLM-only GPU/XPU (**EXPERIMENTAL**) | vLLM-hosted VLM on Intel Arc Pro B-series GPU | Same vLLM-hosted VLM on Intel Arc Pro B-series GPU | `ENABLE_VLLM_GPU=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | **EXPERIMENTAL**: All-vLLM mode with Intel Arc Pro B-series GPU/XPU acceleration. Early-stage feature. |
+| vLLM-only CPU | vLLM-hosted VLM on CPU | Same vLLM-hosted VLM on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen3-VL-4B-Instruct` | All-vLLM mode for CPU-only deployments. |
+| vLLM-only GPU/XPU (**EXPERIMENTAL**) | vLLM-hosted VLM on Intel Arc Pro B-series GPU | Same vLLM-hosted VLM on Intel Arc Pro B-series GPU | `ENABLE_VLLM_GPU=true` | VLM: `Qwen/Qwen3-VL-4B-Instruct` | **EXPERIMENTAL**: All-vLLM mode with Intel Arc Pro B-series GPU/XPU acceleration. Early-stage feature. |
 
 > [!NOTE]
 > 

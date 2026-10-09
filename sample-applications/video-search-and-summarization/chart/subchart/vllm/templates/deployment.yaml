@@ -1,4 +1,13 @@
 {{- $global := default (dict) .Values.global -}}
+{{- /* Backend selection. XPU runs the Intel GPU image and needs a device plugin
+       resource key, the /dev/dri host device, and XPU-only engine flags. */ -}}
+{{- $isXpu := eq (upper (default "CPU" .Values.device)) "XPU" -}}
+{{- $gpuKey := .Values.gpu.key -}}
+{{- if and $isXpu (not $gpuKey) -}}
+{{- fail "vllm.gpu.key is required when vllm.device is XPU (e.g. gpu.intel.com/i915)" -}}
+{{- end -}}
+{{- $imageRepo := ternary .Values.image.xpu.repository .Values.image.repository $isXpu -}}
+{{- $imageTag := ternary .Values.image.xpu.tag .Values.image.tag $isXpu -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,9 +29,16 @@ spec:
       serviceAccountName: {{ .Values.serviceAccountName }}
       securityContext:
         fsGroup: {{ .Values.podSecurityContext.fsGroup }}
+        {{- if and $isXpu $global.accelGroupIds }}
+        # Host gids owning /dev/dri, so the container user can open the device.
+        supplementalGroups:
+          {{- range $global.accelGroupIds }}
+          - {{ . }}
+          {{- end }}
+        {{- end }}
       containers:
         - name: vllm
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ $imageRepo }}:{{ $imageTag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.containerPort }}
@@ -41,8 +57,10 @@ spec:
             {{- end }}
             - name: HF_HOME
               value: "{{ .Values.env.hfHome }}"
+            {{- if not $isXpu }}
             - name: VLLM_CPU_KVCACHE_SPACE
               value: "{{ .Values.env.vllmCpuKvCacheSpace }}"
+            {{- end }}
             {{- if .Values.env.vllmLoggingLevel }}
             - name: VLLM_LOGGING_LEVEL
               value: "{{ .Values.env.vllmLoggingLevel }}"
@@ -66,6 +84,9 @@ spec:
             {{- if .Values.model.enableChunkedPrefill }}
             - "--enable-chunked-prefill"
             {{- end }}
+            {{- if and $isXpu .Values.model.enforceEager }}
+            - "--enforce-eager"
+            {{- end }}
             - "--max-num-batched-tokens"
             - "{{ .Values.model.maxNumBatchedTokens }}"
             - "--max-num-seqs"
@@ -79,8 +100,29 @@ spec:
             - "{{ default .Values.model.name $global.vlmName }}"
             - "--tensor-parallel-size"
             - "{{ .Values.model.tensorParallelSize }}"
+            {{- if $isXpu }}
+            - "--gpu-memory-utilization"
+            - "{{ .Values.model.gpuMemoryUtilization }}"
+            - "--mm-processor-kwargs"
+            - {{ printf "{\"max_pixels\": %d}" (int64 .Values.model.mmMaxPixels) | quote }}
+            {{- end }}
+          {{- if $isXpu }}
+          # Intel GPU device plugin resource key; also gates scheduling onto a GPU node.
+          resources:
+            requests:
+              {{ $gpuKey }}: 1
+              {{- with .Values.resources.requests }}
+              {{- toYaml . | nindent 14 }}
+              {{- end }}
+            limits:
+              {{ $gpuKey }}: 1
+              {{- with .Values.resources.limits }}
+              {{- toYaml . | nindent 14 }}
+              {{- end }}
+          {{- else }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- end }}
           startupProbe:
             httpGet:
               path: {{ .Values.probes.startup.path }}
@@ -110,6 +152,10 @@ spec:
               mountPath: /dev/shm
             - name: cache
               mountPath: {{ .Values.volumes.cache.mountPath }}
+            {{- if $isXpu }}
+            - name: dri-device
+              mountPath: {{ .Values.gpu.devicePath }}
+            {{- end }}
       volumes:
         - name: shm
           emptyDir:
@@ -118,3 +164,9 @@ spec:
         - name: cache
           persistentVolumeClaim:
             claimName: {{ .Values.pvc.name }}
+        {{- if $isXpu }}
+        - name: dri-device
+          hostPath:
+            path: {{ .Values.gpu.devicePath }}
+            type: Directory
+        {{- end }}

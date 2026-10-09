@@ -6,7 +6,7 @@ services:
   vllm-cpu-service:
     profiles:
       - vllm
-    image: ${VLLM_IMAGE:-vllm/vllm-openai-cpu:v0.30.0}
+    image: ${VLLM_IMAGE:-vllm/vllm-openai-cpu:v0.31.0}
     hostname: vllm-cpu-service
     ports:
       - "${VLLM_HOST_PORT:-8200}:8000"

@@ -102,7 +102,7 @@ written to `ov_models/model-download-*.log`.
 
 | Variable | Default | What it controls |
 |---|---|---|
-| `VLLM_IMAGE` | `vllm/vllm-openai-cpu:v0.30.0` | vLLM CPU image. |
+| `VLLM_IMAGE` | `vllm/vllm-openai-cpu:v0.31.0` | vLLM CPU image. |
 | `VLLM_CPU_KVCACHE_SPACE` | `48` | CPU KV cache space. |
 | `VLLM_LOGGING_LEVEL` | `INFO` | vLLM logging level. |
 | `VLLM_DTYPE` | `bfloat16` | `--dtype`. |

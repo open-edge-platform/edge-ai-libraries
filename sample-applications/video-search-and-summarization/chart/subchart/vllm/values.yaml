@@ -4,9 +4,26 @@ fullnameOverride: ""
 deployment:
   replicaCount: 1
 
+# Backend the vLLM server runs on.
+#   CPU - vllm-openai-cpu image, no accelerator required.
+#   XPU - vllm-openai-xpu image on an Intel GPU (Arc / Arc Pro). Requires
+#         gpu.key below and the Intel GPU device plugin on the node.
+device: CPU
+
+gpu:
+  # K8s device plugin resource key requested when device is XPU,
+  # e.g. "gpu.intel.com/i915" or "gpu.intel.com/xe". Rendering fails without it.
+  key: ""
+  # Host path to the render device nodes, mounted when device is XPU.
+  devicePath: /dev/dri
+
 image:
   repository: vllm/vllm-openai-cpu
-  tag: v0.30.0
+  tag: v0.31.0
+  # Used instead of repository/tag when device is XPU.
+  xpu:
+    repository: vllm/vllm-openai-xpu
+    tag: v0.31.0
   pullPolicy: IfNotPresent
 
 serviceAccountName: default
@@ -36,6 +53,7 @@ resources: {}
 env:
   huggingfaceToken: ""
   hfHome: /cache
+  # CPU backend only; ignored when device is XPU.
   vllmCpuKvCacheSpace: "48"
   vllmLoggingLevel: ""
 
@@ -51,6 +69,17 @@ model:
   maxModelLen: 32000
   enableLogRequests: true
   tensorParallelSize: 1
+
+  # --- XPU only (ignored when device is CPU) ---
+  # Skip CUDA/XPU graph capture. Required on the XPU backend.
+  enforceEager: true
+  # Fraction of total GPU memory vLLM may reserve for weights, activations and
+  # KV cache. Raise towards 0.95 on cards with less than 16 GB.
+  gpuMemoryUtilization: "0.8"
+  # Maximum pixels per frame, passed as --mm-processor-kwargs max_pixels.
+  # Caps the resolution of each frame, not how many frames are sent. Lower it
+  # (e.g. 401408) to cut vision-encoder memory on cards with less than 16 GB.
+  mmMaxPixels: 16777216
 
 probes:
   startup:

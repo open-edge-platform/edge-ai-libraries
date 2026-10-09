@@ -320,7 +320,7 @@ ovms:
 > [!NOTE]
 > Models from the `OpenVINO/` namespace (e.g., `OpenVINO/Phi-3.5-vision-instruct-int8-ov`) are pre-converted and do not undergo weight format conversion. The weight format in the model name indicates its native format.
 > 
-> **Storage Model Names:** Converted models are stored with device and weight format in the path (e.g., `Qwen_Qwen2.5-VL-3B-Instruct_GPU_int4`). Changing the device or weight format creates a new conversion, preserving existing models.
+> **Storage Model Names:** Converted models are stored with device and weight format in the path (e.g., `Qwen_Qwen3-VL-4B-Instruct_GPU_int4`). Changing the device or weight format creates a new conversion, preserving existing models.
 
 #### **Use Case 2: Video Summarization with vLLM (CPU-based)**
 
@@ -344,9 +344,35 @@ helm install vss . -f summary_override.yaml -f xeon_vllm_values.yaml -f user_val
 - The vLLM container requires at least 128Gi of memory for typical LLM models
 - Cache storage must be configured (default 80Gi PVC for model cache)
 
-> **Model Selection:** vLLM uses the model specified in `global.vlmName`. Set `global.vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"` for vLLM. Ensure the model is compatible with vLLM and available on Hugging Face. Update `global.huggingfaceToken` if using private models.
+> **Model Selection:** vLLM uses the model specified in `global.vlmName`. Set `global.vlmName: "Qwen/Qwen3-VL-4B-Instruct"`. Ensure the model is compatible with vLLM and available on Hugging Face. Update `global.huggingfaceToken` if using private models.
 >
 > **Performance Tip:** vLLM's performance scales with available CPU cores. If you have nodes with different CPU counts, consider using node affinity to deploy vLLM on high-CPU nodes.
+
+#### **Use Case 2a: vLLM with Intel Arc GPU Acceleration (XPU)**
+
+To run vLLM on an Intel Arc or Arc Pro GPU instead of the CPU, substitute `arc_vllm_values.yaml` for `xeon_vllm_values.yaml`. This is the Kubernetes equivalent of the `docker/compose.vllm.xpu.yaml` Compose overlay.
+
+```bash
+helm install vss . -f summary_override.yaml -f arc_vllm_values.yaml -f user_values_override.yaml -n $my_namespace
+```
+
+**Prerequisites:**
+
+- The [Intel GPU device plugin](https://github.com/intel/intel-device-plugins-for-kubernetes) must be installed on the cluster so the GPU is advertised as a schedulable resource. Confirm the resource key your nodes expose with `kubectl get nodes -o jsonpath='{.items[*].status.allocatable}'` — it is `gpu.intel.com/i915` on i915 kernels and `gpu.intel.com/xe` on newer Xe kernels.
+- `/dev/dri` must exist on the GPU node.
+- `global.accelGroupIds` must list the host group IDs that own `/dev/dri` (check with `ls -ln /dev/dri`). These are added to the pod's `supplementalGroups` so the container user can open the device, mirroring `group_add` in Compose. The chart default is `992`.
+
+**XPU-specific values:**
+
+| Key | Description | Default |
+| --- | --- | --- |
+| `vllm.device` | Selects the vLLM backend. `XPU` switches to the Intel GPU image and arguments. | `CPU` |
+| `vllm.gpu.key` | Device plugin resource key. **Required** when `device` is `XPU`; the chart fails rendering if it is empty. | `gpu.intel.com/i915` |
+| `vllm.model.gpuMemoryUtilization` | Fraction of GPU memory vLLM may reserve for weights, activations, and KV cache. | `0.8` |
+| `vllm.model.mmMaxPixels` | Maximum pixels per frame. Caps frame resolution, not frame count. | `16777216` |
+
+> [!IMPORTANT]
+> **GPUs with less than 16 GB (for example Intel Arc B580, 12 GB):** the defaults above fail to start with `No available memory for the cache blocks`. Use the FP8 checkpoint together with the reduced settings commented at the bottom of `arc_vllm_values.yaml`; all of them are required together. See [Troubleshooting](./troubleshooting.md#vllm-xpu-fails-to-start-with-no-available-memory-for-the-cache-blocks) for the sizing formula and how to derive values for other cards.
 
 #### **Use Case 3: Video Search Only**
 

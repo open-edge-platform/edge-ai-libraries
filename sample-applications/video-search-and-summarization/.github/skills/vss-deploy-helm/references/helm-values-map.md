@@ -81,7 +81,7 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `multimodaldataprep.modelPvc.size` | chart value | DataPrep model-cache PVC size when enabled. |
 | `multimodalembeddingms.modelPvc.size` | chart value | Multimodal embedding model-cache PVC size when enabled. |
 | `vllm.enabled` | `false` | vLLM backend gate. |
-| `vllm.image.repository/tag` | `vllm/vllm-openai-cpu` / `v0.30.0` | vLLM CPU image. |
+| `vllm.image.repository/tag` | `vllm/vllm-openai-cpu` / `v0.31.0` | vLLM CPU image. |
 | `vllm.service.name/port/targetPort` | `cpu-vllm-service` / `80` / `8000` | Pipeline-manager calls `http://cpu-vllm-service:80/v1`. |
 | `vllm.pvc.size` | `80Gi` | vLLM model cache size. |
 | `vllm.env.vllmCpuKvCacheSpace` | `48` | vLLM CPU KV cache space. |
