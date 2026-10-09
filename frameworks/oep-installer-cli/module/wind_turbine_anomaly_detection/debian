@@ -18,7 +18,7 @@ configure_wind_turbine_anomaly_detection_device () {
 }
 
 verify_wind_turbine_anomaly_detection () {
-  [ -d "$workspace"/industrial-edge-insights-time-series ]
+  [ -d "$workspace"/industrial-edge-insights-time-series ] &&
   [ -n "$(grep -E ^INFLUXDB_PASSWORD= "$workspace"/industrial-edge-insights-time-series/.env 2> /dev/null | tail -n1 | cut -f2 -d=)" ]
 }
 
