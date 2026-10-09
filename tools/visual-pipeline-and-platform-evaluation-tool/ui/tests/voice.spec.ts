@@ -193,10 +193,28 @@ for (const viewport of [
     const sttMetrics = page.getByRole("region", {
       name: "Speech to text metrics",
     });
+    const requestDurationCard = sttMetrics.getByRole("group", {
+      name: "Request duration",
+    });
+    const serviceRoundTripCard = sttMetrics.getByRole("group", {
+      name: "Service round trip",
+    });
     const metricsRail = page.getByRole("complementary", {
       name: "Performance and platform metrics",
     });
     await expect(sttMetrics).toContainText("Awaiting conversion");
+    await expect(requestDurationCard).toBeVisible();
+    await expect(serviceRoundTripCard).toBeVisible();
+    const requestCardBox = await requestDurationCard.boundingBox();
+    const serviceCardBox = await serviceRoundTripCard.boundingBox();
+    expect(requestCardBox).not.toBeNull();
+    expect(serviceCardBox).not.toBeNull();
+    if (viewport.width >= 1280) {
+      expect(Math.abs(serviceCardBox!.y - requestCardBox!.y)).toBeLessThan(2);
+      expect(serviceCardBox!.x).toBeGreaterThan(requestCardBox!.x);
+    } else {
+      expect(serviceCardBox!.y).toBeGreaterThan(requestCardBox!.y);
+    }
     await expect(
       sttMetrics.getByRole("heading", { name: "Recent service round trips" }),
     ).toHaveCount(0);
@@ -274,9 +292,7 @@ for (const viewport of [
       fullPage: true,
     });
     await expect(sttMetrics).toContainText("250.00ms");
-    const requestDuration = sttMetrics
-      .getByRole("heading", { name: "Request duration" })
-      .locator("xpath=../../p");
+    const requestDuration = requestDurationCard.locator("p");
     await expect(requestDuration).toHaveText(/^\d+\.\d{2}ms$/);
     expect(
       Number.parseFloat((await requestDuration.textContent())!),
@@ -588,11 +604,10 @@ test("missing or invalid service timing does not break conversion", async ({
       await expect(metrics).toContainText("0.00ms");
     } else {
       const serviceDuration = metrics
-        .getByRole("heading", {
+        .getByRole("group", {
           name: "Service round trip",
-          exact: true,
         })
-        .locator("xpath=../../p");
+        .locator("p");
       await expect(serviceDuration).toHaveText("--");
     }
   }
