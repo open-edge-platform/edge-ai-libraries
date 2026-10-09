@@ -27,7 +27,6 @@ configure_osrf_gazebo_ros2 () {
 
 ensure_osrf_gazebo_ros2 () {
   configure_osrf_gazebo_ros2
-  ensure_apt install -y curl lsb-release gnupg
   ensure_apt_key "$osrf_key" "$osrf_key_url"
   ensure_apt_source "$osrf_list" "$osrf_entry"
   ensure_apt update -y
@@ -111,8 +110,6 @@ debian_50_remove_ros2 () {
 debian_50_sbom_ros2 () {
   configure_ros2 "$@"
   cat <<EOF
-$(ensure_sbom_format pkg-list software-properties-common gnupg lsb-release ca-certificates)
----
 $(ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools)
 $(ensure_sbom_format apt-repository universe)
 EOF
