@@ -2755,18 +2755,14 @@ debian_90_sbom_autonomous_mobile_robot () {
 
   # Intel oneAPI requires GCC >= 12 on Ubuntu 22.04 / Humble
   if [ "$ros_distro" = humble ]; then
-    cat <<EOF
-$(ensure_sbom_format pkg-list gcc-12 g++-12)
----
-EOF
+    ensure_sbom_format pkg-list gcc-12 g++-12
+    echo "---"
   fi
 
   sbom_osrf_gazebo_ros2
   echo "---"
 
-  cat <<EOF
-$(ensure_sbom_format pkg-list $amr_sdk_pkg $amr_slam_pkg)
-EOF
+  ensure_sbom_format pkg-list $amr_sdk_pkg $amr_slam_pkg
 }
 
 debian_30_install_chrony () {
@@ -2774,9 +2770,7 @@ debian_30_install_chrony () {
 }
 
 debian_30_sbom_chrony () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list chrony)
-EOF
+  ensure_sbom_format pkg-list chrony
 }
 
 
@@ -2785,9 +2779,7 @@ debian_30_install_cmake () {
 }
 
 debian_30_sbom_cmake () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list cmake)
-EOF
+  ensure_sbom_format pkg-list cmake
 }
 
 debian_20_profile_core_types () {
@@ -2814,9 +2806,7 @@ debian_15_install_cpuid () {
 }
 
 debian_15_sbom_cpuid () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list cpuid)
-EOF
+  ensure_sbom_format pkg-list cpuid
 }
 
 debian_05_install_curl () {
@@ -2824,9 +2814,7 @@ debian_05_install_curl () {
 }
 
 debian_05_sbom_curl () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list curl ca-certificates)
-EOF
+  ensure_sbom_format pkg-list curl ca-certificates
 }
 
 debian_15_install_debconf_utils () {
@@ -2834,9 +2822,7 @@ debian_15_install_debconf_utils () {
 }
 
 debian_15_sbom_debconf_utils () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list debconf-utils)
-EOF
+  ensure_sbom_format pkg-list debconf-utils
 }
 
 configure_dine_in () {
@@ -3045,14 +3031,12 @@ debian_75_remove_dlstreamer () {
 
 debian_75_sbom_dlstreamer () {
   configure_dlstreamer
-  cat <<EOF
-$(ensure_sbom_format name "$repo_name")
-$(ensure_sbom_format apt-source "$deb_entry")
-$(ensure_sbom_format apt-list-file "$list_file")
-$(ensure_sbom_format gpg-key "$key_url")
-$(ensure_sbom_format key-file "$key_file")
-$(ensure_sbom_format pkg-list "intel-dlstreamer=$version*")
-EOF
+  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format apt-source "$deb_entry"
+  ensure_sbom_format apt-list-file "$list_file"
+  ensure_sbom_format gpg-key "$key_url"
+  ensure_sbom_format key-file "$key_file"
+  ensure_sbom_format pkg-list "intel-dlstreamer=$version*"
 }
 
 
@@ -3061,9 +3045,7 @@ debian_05_install_dmidecode () {
 }
 
 debian_05_sbom_dmidecode () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list dmidecode)
-EOF
+  ensure_sbom_format pkg-list dmidecode
 }
 
 
@@ -3164,9 +3146,7 @@ EOF
 }
 
 debian_30_sbom_docker () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list docker.io docker-buildx docker-compose-v2)
-EOF
+  ensure_sbom_format pkg-list docker.io docker-buildx docker-compose-v2
 }
 
 debian_99_profile_edge_base () {
@@ -3300,16 +3280,14 @@ debian_20_remove_edge_pack_base_realtime () {
 
 debian_20_sbom_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$edge_pack_repo")
-$(ensure_sbom_format gpg-key "$edge_pack_key_url")
-$(ensure_sbom_format key-file "$edge_pack_key_file")
-$(ensure_sbom_format apt-source "$edge_pack_source")
-$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
-$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
-$(ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*")
-EOF
+  ensure_sbom_format name "$edge_pack_repo"
+  ensure_sbom_format gpg-key "$edge_pack_key_url"
+  ensure_sbom_format key-file "$edge_pack_key_file"
+  ensure_sbom_format apt-source "$edge_pack_source"
+  ensure_sbom_format apt-list-file "$edge_pack_list_file"
+  ensure_sbom_format apt-pref "${edge_pack_pref[@]}"
+  ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
+  ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*"
 }
 
 
@@ -3348,16 +3326,14 @@ debian_20_remove_edge_pack_base_standard () {
 
 debian_20_sbom_edge_pack_base_standard () {
   configure_edge_pack_base_standard "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$edge_pack_repo")
-$(ensure_sbom_format gpg-key "$edge_pack_key_url")
-$(ensure_sbom_format key-file "$edge_pack_key_file")
-$(ensure_sbom_format apt-source "$edge_pack_source")
-$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
-$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
-$(ensure_sbom_format pkg-list "intel-edge-base-standard=$version*")
-EOF
+  ensure_sbom_format name "$edge_pack_repo"
+  ensure_sbom_format gpg-key "$edge_pack_key_url"
+  ensure_sbom_format key-file "$edge_pack_key_file"
+  ensure_sbom_format apt-source "$edge_pack_source"
+  ensure_sbom_format apt-list-file "$edge_pack_list_file"
+  ensure_sbom_format apt-pref "${edge_pack_pref[@]}"
+  ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
+  ensure_sbom_format pkg-list "intel-edge-base-standard=$version*"
 }
 
 
@@ -3396,16 +3372,14 @@ debian_20_remove_edge_pack_graphics_core () {
 
 debian_20_sbom_edge_pack_graphics_core () {
   configure_edge_pack_graphics_core "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$edge_pack_repo")
-$(ensure_sbom_format gpg-key "$edge_pack_key_url")
-$(ensure_sbom_format key-file "$edge_pack_key_file")
-$(ensure_sbom_format apt-source "$edge_pack_source")
-$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
-$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
-$(ensure_sbom_format pkg-list "intel-edge-graphics-core=$version*")
-EOF
+  ensure_sbom_format name "$edge_pack_repo"
+  ensure_sbom_format gpg-key "$edge_pack_key_url"
+  ensure_sbom_format key-file "$edge_pack_key_file"
+  ensure_sbom_format apt-source "$edge_pack_source"
+  ensure_sbom_format apt-list-file "$edge_pack_list_file"
+  ensure_sbom_format apt-pref "${edge_pack_pref[@]}"
+  ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
+  ensure_sbom_format pkg-list "intel-edge-graphics-core=$version*"
 }
 
 
@@ -3444,16 +3418,14 @@ debian_20_remove_edge_pack_graphics_display () {
 
 debian_20_sbom_edge_pack_graphics_display () {
   configure_edge_pack_graphics_display "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$edge_pack_repo")
-$(ensure_sbom_format gpg-key "$edge_pack_key_url")
-$(ensure_sbom_format key-file "$edge_pack_key_file")
-$(ensure_sbom_format apt-source "$edge_pack_source")
-$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
-$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
-$(ensure_sbom_format pkg-list "intel-edge-graphics-display=$version*")
-EOF
+  ensure_sbom_format name "$edge_pack_repo"
+  ensure_sbom_format gpg-key "$edge_pack_key_url"
+  ensure_sbom_format key-file "$edge_pack_key_file"
+  ensure_sbom_format apt-source "$edge_pack_source"
+  ensure_sbom_format apt-list-file "$edge_pack_list_file"
+  ensure_sbom_format apt-pref "${edge_pack_pref[@]}"
+  ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
+  ensure_sbom_format pkg-list "intel-edge-graphics-display=$version*"
 }
 
 
@@ -3485,16 +3457,14 @@ debian_20_remove_edge_pack_media_core () {
 
 debian_20_sbom_edge_pack_media_core () {
   configure_edge_pack_media_core "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$edge_pack_repo")
-$(ensure_sbom_format gpg-key "$edge_pack_key_url")
-$(ensure_sbom_format key-file "$edge_pack_key_file")
-$(ensure_sbom_format apt-source "$edge_pack_source")
-$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
-$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
-$(ensure_sbom_format pkg-list "intel-edge-media-core=$version*")
-EOF
+  ensure_sbom_format name "$edge_pack_repo"
+  ensure_sbom_format gpg-key "$edge_pack_key_url"
+  ensure_sbom_format key-file "$edge_pack_key_file"
+  ensure_sbom_format apt-source "$edge_pack_source"
+  ensure_sbom_format apt-list-file "$edge_pack_list_file"
+  ensure_sbom_format apt-pref "${edge_pack_pref[@]}"
+  ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
+  ensure_sbom_format pkg-list "intel-edge-media-core=$version*"
 }
 
 
@@ -3526,16 +3496,14 @@ debian_70_remove_edge_pack_media_ffmpeg () {
 
 debian_70_sbom_edge_pack_media_ffmpeg () {
   configure_edge_pack_media_ffmpeg "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$edge_pack_repo")
-$(ensure_sbom_format gpg-key "$edge_pack_key_url")
-$(ensure_sbom_format key-file "$edge_pack_key_file")
-$(ensure_sbom_format apt-source "$edge_pack_source")
-$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
-$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
-$(ensure_sbom_format pkg-list "intel-edge-media-ffmpeg=$version*")
-EOF
+  ensure_sbom_format name "$edge_pack_repo"
+  ensure_sbom_format gpg-key "$edge_pack_key_url"
+  ensure_sbom_format key-file "$edge_pack_key_file"
+  ensure_sbom_format apt-source "$edge_pack_source"
+  ensure_sbom_format apt-list-file "$edge_pack_list_file"
+  ensure_sbom_format apt-pref "${edge_pack_pref[@]}"
+  ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
+  ensure_sbom_format pkg-list "intel-edge-media-ffmpeg=$version*"
 }
 
 
@@ -3567,16 +3535,14 @@ debian_70_remove_edge_pack_media_gst () {
 
 debian_70_sbom_edge_pack_media_gst () {
   configure_edge_pack_media_gst "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$edge_pack_repo")
-$(ensure_sbom_format gpg-key "$edge_pack_key_url")
-$(ensure_sbom_format key-file "$edge_pack_key_file")
-$(ensure_sbom_format apt-source "$edge_pack_source")
-$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
-$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
-$(ensure_sbom_format pkg-list "intel-edge-media-gst=$version*")
-EOF
+  ensure_sbom_format name "$edge_pack_repo"
+  ensure_sbom_format gpg-key "$edge_pack_key_url"
+  ensure_sbom_format key-file "$edge_pack_key_file"
+  ensure_sbom_format apt-source "$edge_pack_source"
+  ensure_sbom_format apt-list-file "$edge_pack_list_file"
+  ensure_sbom_format apt-pref "${edge_pack_pref[@]}"
+  ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
+  ensure_sbom_format pkg-list "intel-edge-media-gst=$version*"
 }
 
 
@@ -3615,16 +3581,14 @@ debian_20_remove_edge_pack_npu () {
 
 debian_20_sbom_edge_pack_npu () {
   configure_edge_pack_npu "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$edge_pack_repo")
-$(ensure_sbom_format gpg-key "$edge_pack_key_url")
-$(ensure_sbom_format key-file "$edge_pack_key_file")
-$(ensure_sbom_format apt-source "$edge_pack_source")
-$(ensure_sbom_format apt-list-file "$edge_pack_list_file")
-$(ensure_sbom_format apt-pref "${edge_pack_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$edge_pack_pref_file")
-$(ensure_sbom_format pkg-list "intel-edge-npu=$version*")
-EOF
+  ensure_sbom_format name "$edge_pack_repo"
+  ensure_sbom_format gpg-key "$edge_pack_key_url"
+  ensure_sbom_format key-file "$edge_pack_key_file"
+  ensure_sbom_format apt-source "$edge_pack_source"
+  ensure_sbom_format apt-list-file "$edge_pack_list_file"
+  ensure_sbom_format apt-pref "${edge_pack_pref[@]}"
+  ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
+  ensure_sbom_format pkg-list "intel-edge-npu=$version*"
 }
 
 
@@ -3682,9 +3646,7 @@ debian_70_install_ffmpeg () {
 }
 
 debian_70_sbom_ffmpeg () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list ffmpeg)
-EOF
+  ensure_sbom_format pkg-list ffmpeg
 }
 
 debian_15_install_gawk () {
@@ -3692,9 +3654,7 @@ debian_15_install_gawk () {
 }
 
 debian_15_sbom_gawk () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list gawk)
-EOF
+  ensure_sbom_format pkg-list gawk
 }
 
 
@@ -3760,9 +3720,7 @@ debian_30_install_git () {
 }
 
 debian_30_sbom_git () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list git ca-certificates)
-EOF
+  ensure_sbom_format pkg-list git ca-certificates
 }
 
 debian_10_install_gnupg () {
@@ -3770,9 +3728,7 @@ debian_10_install_gnupg () {
 }
 
 debian_10_sbom_gnupg () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list gnupg)
-EOF
+  ensure_sbom_format pkg-list gnupg
 }
 
 configure_gpu_accel () {
@@ -3852,14 +3808,12 @@ debian_40_remove_gpu_accel () {
 
 debian_40_sbom_gpu_accel () {
   configure_gpu_accel "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$repo_name")
-$(ensure_sbom_format apt-source "$apt_entry")
-$(ensure_sbom_format apt-list-file "$apt_file")
-$(ensure_sbom_format gpg-key "$key_url")
-$(ensure_sbom_format key-file "$key_file")
-$(ensure_sbom_format pkg-list "${pkg_list[@]}")
-EOF
+  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format apt-source "$apt_entry"
+  ensure_sbom_format apt-list-file "$apt_file"
+  ensure_sbom_format gpg-key "$key_url"
+  ensure_sbom_format key-file "$key_file"
+  ensure_sbom_format pkg-list "${pkg_list[@]}"
 }
 
 
@@ -4006,9 +3960,7 @@ debian_30_install_intel_lpmd () {
 }
 
 debian_30_sbom_intel_lpmd () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list intel-lpmd)
-EOF
+  ensure_sbom_format pkg-list intel-lpmd
 }
 
 
@@ -4017,9 +3969,7 @@ debian_15_install_jq () {
 }
 
 debian_15_sbom_jq () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list jq)
-EOF
+  ensure_sbom_format pkg-list jq
 }
 
 debian_15_install_libgl1 () {
@@ -4027,9 +3977,7 @@ debian_15_install_libgl1 () {
 }
 
 debian_15_sbom_libgl1 () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list libgl1)
-EOF
+  ensure_sbom_format pkg-list libgl1
 }
 
 
@@ -4038,9 +3986,7 @@ debian_15_install_libtbb12 () {
 }
 
 debian_15_sbom_libtbb12 () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list libtbb12)
-EOF
+  ensure_sbom_format pkg-list libtbb12
 }
 
 configure_libyang () {
@@ -4101,20 +4047,19 @@ debian_15_install_libze1 () {
     echo "libze1 is already installed. Skipping..."
   else
     local deb="/tmp/$(basename "$libze1_deb")"
-    curl -fsSL "$libze1_deb" -o "$deb" && {
+    ensure_fetch "$libze1_deb" "$deb" && {
       ensure_apt install -y "$deb" || {
-        ensure_apt purge -y level-zero level-zero-devel libze1 && ensure_apt install -y --no-install-recommends "$deb"
+        ensure_apt purge -y level-zero level-zero-devel libze1
+        ensure_apt install -y --no-install-recommends "$deb"
       }
-      rm -f "$deb"
     }
+    rm -f "$deb"
   fi
 }
 
 debian_15_sbom_libze1 () {
   configure_libze1 "$@"
-  cat <<EOF
-$(ensure_sbom_format pkg-list "$libze1_deb")
-EOF
+  ensure_sbom_format pkg-list "$libze1_deb"
 }
 
 
@@ -4694,9 +4639,7 @@ debian_40_install_lsb_release () {
 }
 
 debian_10_sbom_lsb_release () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list lsb-release)
-EOF
+  ensure_sbom_format pkg-list lsb-release
 }
 
 
@@ -4705,9 +4648,7 @@ debian_30_install_make () {
 }
 
 debian_30_sbom_make () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list make)
-EOF
+  ensure_sbom_format pkg-list make
 }
 
 configure_mediamtx () {
@@ -4740,9 +4681,7 @@ debian_30_install_msr_tools () {
 }
 
 debian_30_sbom_msr_tools () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list msr-tools)
-EOF
+  ensure_sbom_format pkg-list msr-tools
 }
 
 
@@ -5024,9 +4963,7 @@ debian_70_install_nodejs () {
 }
 
 debian_70_sbom_nodejs () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list nodejs)
-EOF
+  ensure_sbom_format pkg-list nodejs
 }
 
 configure_npu_accel () {
@@ -5099,10 +5036,11 @@ debian_40_remove_npu_accel () {
 debian_40_sbom_npu_accel () {
   configure_npu_accel "$@"
   local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
-  [ ${#packages[*]} -gt 0 ] || return 3
-  cat <<EOF
-$(ensure_sbom_format pkg-list "${packages[@]}")
-EOF
+  [ ${#packages[*]} -gt 0 ] || {
+    echo "Failed to fetch npu_accel latest package" >&2
+    return 3
+  }
+  ensure_sbom_format pkg-list "${packages[@]}"
 }
 
 
@@ -5177,14 +5115,12 @@ debian_70_remove_openvino () {
 
 debian_70_sbom_openvino () {
   configure_openvino "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$repo_name")
-$(ensure_sbom_format gpg-key "$key_url")
-$(ensure_sbom_format key-file "$key_file")
-$(ensrue_sbom_format apt-source "$apt_entry")
-$(ensure_sbom_format apt-list-file "$apt_file")
-$(ensure_sbom_format pkg-list "openvino-$version")
-EOF
+  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format gpg-key "$key_url"
+  ensure_sbom_format key-file "$key_file"
+  ensure_sbom_format apt-source "$apt_entry"
+  ensure_sbom_format apt-list-file "$apt_file"
+  ensure_sbom_format pkg-list "openvino-$version"
 }
 
 configure_pallet_defect_detection () {
@@ -5380,9 +5316,7 @@ debian_05_install_pciutils () {
 }
 
 debian_05_sbom_pciutils () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list pciutils)
-EOF
+  ensure_sbom_format pkg-list pciutils
 }
 
 configure_pcm () {
@@ -5668,9 +5602,7 @@ debian_15_install_pipx () {
 }
 
 debian_15_sbom_pipx () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list pipx)
-EOF
+  ensure_sbom_format pkg-list pipx
 }
 
 debian_08_profile_pre_system_scan () {
@@ -5875,9 +5807,7 @@ debian_30_install_python3_venv () {
 }
 
 debian_30_sbom_python3_venv () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list python3-venv)
-EOF
+  ensure_sbom_format pkg-list python3-venv
 }
 
 
@@ -5939,14 +5869,12 @@ debian_55_remove_realsense () {
 
 debian_55_sbom_realsense () {
   configure_realsense "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$rs_repo_name")
-$(ensure_sbom_format gpg-key "$rs_key_url")
-$(ensure_sbom_format key-file "$rs_key_file")
-$(ensure_sbom_format apt-source "$rs_deb_entry")
-$(ensure_sbom_format apt-list-file "$rs_list")
-$(ensure_sbom_format pkg-list ros-$ros_distro-librealsense2 librealsense2-dkms librealsense2)
-EOF
+  ensure_sbom_format name "$rs_repo_name"
+  ensure_sbom_format gpg-key "$rs_key_url"
+  ensure_sbom_format key-file "$rs_key_file"
+  ensure_sbom_format apt-source "$rs_deb_entry"
+  ensure_sbom_format apt-list-file "$rs_list"
+  ensure_sbom_format pkg-list ros-$ros_distro-librealsense2 librealsense2-dkms librealsense2
 }
 
 
@@ -6004,14 +5932,12 @@ remove_osrf_gazebo_ros2 () {
 
 sbom_osrf_gazebo_ros2 () {
   configure_osrf_gazebo_ros2
-  cat <<EOF
-$(ensure_sbom_format name $osrf_name)
-$(ensure_sbom_format gpg-key "$osrf_key_url")
-$(ensure_sbom_format key-file "$osrf_key")
-$(ensure_sbom_format apt-source "$osrf_entry")
-$(ensure_sbom_format apt-list-file "$osrf_list")
-$(ensure_sbom_format pkg-list curl lsb-release gnupg $([ "$ros_distro" != jazzy ] || echo gz-harmonic))
-EOF
+  ensure_sbom_format name $osrf_name
+  ensure_sbom_format gpg-key "$osrf_key_url"
+  ensure_sbom_format key-file "$osrf_key"
+  ensure_sbom_format apt-source "$osrf_entry"
+  ensure_sbom_format apt-list-file "$osrf_list"
+  ensure_sbom_format pkg-list curl lsb-release gnupg $([ "$ros_distro" != jazzy ] || echo gz-harmonic)
 }
 
 debian_50_profile_ros2 () {
@@ -6073,10 +5999,8 @@ debian_50_remove_ros2 () {
 
 debian_50_sbom_ros2 () {
   configure_ros2 "$@"
-  cat <<EOF
-$(ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools)
-$(ensure_sbom_format apt-repository universe)
-EOF
+  ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools
+  ensure_sbom_format apt-repository universe
 }
 
 # OpenVINO(TM) Runtime (pinned to 2025.3.0) and the ROS 2 OpenVINO Toolkit
@@ -6177,18 +6101,16 @@ remove_oneapi_ros_openvino () {
 
 sbom_oneapi_ros_openvino () {
   configure_oneapi_ros_openvino
-  cat <<EOF
-$(ensure_sbom_format name "$oneapi_repo_name")
-$(ensure_sbom_format gpg-key "$oneapi_key_url")
-$(ensure_sbom_format key-file "$oneapi_key_file")
-$(ensure_sbom_format apt-source "$oneapi_deb_entry")
-$(ensure_sbom_format apt-list-file "$oneapi_list")
-$(ensure_sbom_format apt-pref "${oneapi_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$oneapi_pref_file")
-$(ensure_sbom_format pkg-list "intel-oneapi-runtime-*" "intel-oneapi-compiler-*" "intel-oneapi-mkl-*")
----
-$(ensure_sbom_format pkg-list wget)
-EOF
+  ensure_sbom_format name "$oneapi_repo_name"
+  ensure_sbom_format gpg-key "$oneapi_key_url"
+  ensure_sbom_format key-file "$oneapi_key_file"
+  ensure_sbom_format apt-source "$oneapi_deb_entry"
+  ensure_sbom_format apt-list-file "$oneapi_list"
+  ensure_sbom_format apt-pref "${oneapi_pref[@]}"
+  ensure_sbom_format apt-pref-file "$oneapi_pref_file"
+  ensure_sbom_format pkg-list "intel-oneapi-runtime-*" "intel-oneapi-compiler-*" "intel-oneapi-mkl-*"
+  echo "---"
+  ensure_sbom_format pkg-list wget
 }
 
 debian_55_profile_ros_openvino () {
@@ -6262,27 +6184,25 @@ debian_55_remove_ros_openvino () {
 
 debian_55_sbom_ros_openvino () {
   configure_ros_openvino
-  cat <<EOF
-$(ensure_sbom_format name "$amr_repo_name")
-$(ensure_sbom_format gpg-key "$amr_key_url")
-$(ensure_sbom_format key-file "$amr_key_file")
-$(ensure_sbom_format apt-source "$amr_deb_entry")
-$(ensure_sbom_format apt-src-source "$amr_deb_src_entry")
-$(ensure_sbom_format apt-list-file "$amr_list")
-$(ensure_sbom_format apt-pref "${amr_pref[@]}")
-$(ensure_sbom_format apt-pref-file "$amr_pref_file")
----
-$(ensure_sbom_format name "$ov_repo_name")
-$(ensure_sbom_format gpg-key "$ov_key_url")
-$(ensure_sbom_format key-file "$ov_key_file")
-$(ensure_sbom_format apt-source "$ov_deb_entry")
-$(ensure_sbom_format apt-list-file "$ov_list")
-$(ensure_sbom_format pkg-list "openvino" "ros-$ros_distro-openvino-node")
-$(ensure_sbom_format apt-pref-file "$ov_pref")
-$(ensure_sbom_format apt-pref "${ov_deb_pref[@]}")
----
-$(ensure_sbom_format pkg-list curl gnupg)
-EOF
+  ensure_sbom_format name "$amr_repo_name"
+  ensure_sbom_format gpg-key "$amr_key_url"
+  ensure_sbom_format key-file "$amr_key_file"
+  ensure_sbom_format apt-source "$amr_deb_entry"
+  ensure_sbom_format apt-src-source "$amr_deb_src_entry"
+  ensure_sbom_format apt-list-file "$amr_list"
+  ensure_sbom_format apt-pref "${amr_pref[@]}"
+  ensure_sbom_format apt-pref-file "$amr_pref_file"
+  echo "---"
+  ensure_sbom_format name "$ov_repo_name"
+  ensure_sbom_format gpg-key "$ov_key_url"
+  ensure_sbom_format key-file "$ov_key_file"
+  ensure_sbom_format apt-source "$ov_deb_entry"
+  ensure_sbom_format apt-list-file "$ov_list"
+  ensure_sbom_format pkg-list "openvino" "ros-$ros_distro-openvino-node"
+  ensure_sbom_format apt-pref-file "$ov_pref"
+  ensure_sbom_format apt-pref "${ov_deb_pref[@]}"
+  echo "---"
+  ensure_sbom_format pkg-list curl gnupg
 }
 
 debian_30_install_rsync () {
@@ -6290,9 +6210,7 @@ debian_30_install_rsync () {
 }
 
 debian_30_sbom_rsync () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list rsync)
-EOF
+  ensure_sbom_format pkg-list rsync
 }
 
 configure_scenescape () {
@@ -6902,9 +6820,7 @@ debian_40_install_software_properties_common () {
 }
 
 debian_40_sbom_software_properties_common () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list software-properties-common)
-EOF
+  ensure_sbom_format pkg-list software-properties-common
 }
 
 
@@ -6983,9 +6899,7 @@ debian_90_sbom_stationary_robot_vision () {
   echo "---"
   sbom_osrf_gazebo_ros2
   echo "---"
-  cat <<EOF
-$(ensure_sbom_format pkg-list "${rvc_pkgs[@]}")
-EOF
+  ensure_sbom_format pkg-list "${rvc_pkgs[@]}"
 }
 
 debian_30_install_stress_ng () {
@@ -6993,9 +6907,7 @@ debian_30_install_stress_ng () {
 }
 
 debian_30_sbom_stress_ng () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list stress-ng)
-EOF
+  ensure_sbom_format pkg-list stress-ng
 }
 
 
@@ -7004,9 +6916,7 @@ debian_30_install_sysbench () {
 }
 
 debian_30_sbom_sysbench () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list sysbench)
-EOF
+  ensure_sbom_format pkg-list sysbench
 }
 
 
@@ -7211,9 +7121,7 @@ debian_15_install_unzip () {
 }
 
 debian_15_sbom_unzip () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list unzip)
-EOF
+  ensure_sbom_format pkg-list unzip
 }
 
 configure_uv () {
@@ -7239,9 +7147,7 @@ debian_30_install_v4l_utils () {
 }
 
 debian_30_sbom_v4l_utils () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list v4l-utils)
-EOF
+  ensure_sbom_format pkg-list v4l-utils
 }
 
 
@@ -7632,9 +7538,7 @@ debian_10_install_wget () {
 }
 
 debian_10_sbom_wget () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list wget ca-certificates)
-EOF
+  ensure_sbom_format pkg-list wget ca-certificates
 }
 
 configure_wind_turbine_anomaly_detection () {
@@ -7784,9 +7688,7 @@ debian_15_install_yq () {
 }
 
 debian_15_sbom_yq () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list yq)
-EOF
+  ensure_sbom_format pkg-list yq
 }
 
 debian_99_profile_computer_vision () {
