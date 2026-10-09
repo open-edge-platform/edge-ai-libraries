@@ -13,6 +13,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AxiosError, AxiosResponse } from 'axios';
 import { SearchEvents } from 'src/events/Pipeline.events';
 import {
+  LiveStreamBatchCreateDto,
+  LiveStreamBatchDeleteDto,
   LiveStreamCreateDto,
   LiveStreamListQueryDto,
   LiveStreamUpdateDto,
@@ -152,6 +154,7 @@ describe('StreamsController', () => {
   describe('error mapping', () => {
     const cases: [number, unknown][] = [
       [400, BadRequestException],
+      [422, BadRequestException],
       [404, NotFoundException],
       [503, ServiceUnavailableException],
       [500, BadGatewayException],
@@ -304,6 +307,49 @@ describe('Live stream DTO validation', () => {
           { stream_url: 'rtsp://cam/s', evil: 'payload' },
           LiveStreamCreateDto,
         ),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('batch create', () => {
+    it('accepts a batch with at least one item', async () => {
+      await expect(
+        validate(
+          { items: [{ stream_url: 'rtsp://cam:554/s' }] },
+          LiveStreamBatchCreateDto,
+        ),
+      ).resolves.toMatchObject({ items: [{ stream_url: 'rtsp://cam:554/s' }] });
+    });
+
+    it('rejects an empty items array', async () => {
+      // An empty batch is a client error (400), not a bad-gateway (502): the
+      // DTO must reject it before it reaches the ingestion service.
+      await expect(
+        validate({ items: [] }, LiveStreamBatchCreateDto),
+      ).rejects.toThrow();
+    });
+
+    it('rejects a batch item with a malformed url', async () => {
+      await expect(
+        validate(
+          { items: [{ stream_url: 'http://cam/s' }] },
+          LiveStreamBatchCreateDto,
+        ),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('batch delete', () => {
+    it('accepts a delete batch with at least one id', async () => {
+      await expect(
+        validate({ stream_ids: ['a'] }, LiveStreamBatchDeleteDto),
+      ).resolves.toMatchObject({ stream_ids: ['a'] });
+    });
+
+    it('rejects an empty stream_ids array', async () => {
+      // Same contract as batch create: an empty id list is a 400, not a 502.
+      await expect(
+        validate({ stream_ids: [] }, LiveStreamBatchDeleteDto),
       ).rejects.toThrow();
     });
   });

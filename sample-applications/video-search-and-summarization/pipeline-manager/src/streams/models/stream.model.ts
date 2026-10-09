@@ -4,6 +4,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayNotEmpty,
   IsArray,
   IsBoolean,
   IsIn,
@@ -162,6 +163,7 @@ export class LiveStreamCreateDto {
 export class LiveStreamBatchCreateDto {
   @ApiProperty({ type: [LiveStreamCreateDto] })
   @IsArray()
+  @ArrayNotEmpty()
   @ArrayMaxSize(64)
   @ValidateNested({ each: true })
   @Type(() => LiveStreamCreateDto)
@@ -293,6 +295,7 @@ export class LiveStreamPurgeQueryDto {
 export class LiveStreamBatchDeleteDto {
   @ApiProperty({ type: [String] })
   @IsArray()
+  @ArrayNotEmpty()
   @ArrayMaxSize(64)
   @IsString({ each: true })
   @MaxLength(256, { each: true })

@@ -115,6 +115,15 @@ export class StreamsController {
       switch (status) {
         case HttpStatus.BAD_REQUEST:
           throw new BadRequestException(detail ?? 'Invalid live stream request.');
+        case HttpStatus.UNPROCESSABLE_ENTITY:
+          // FastAPI returns 422 for request-body validation (an empty batch,
+          // a malformed RTSP URL, out-of-range parameters). That is a client
+          // error, so surface it as 400 instead of a misleading 502. The 422
+          // detail is a validation-error array rather than a string, so fall
+          // back to a generic message unless the upstream gave plain text.
+          throw new BadRequestException(
+            typeof detail === 'string' ? detail : 'Invalid live stream request.',
+          );
         case HttpStatus.NOT_FOUND:
           throw new NotFoundException(detail ?? 'Live stream not found.');
         case HttpStatus.SERVICE_UNAVAILABLE:
