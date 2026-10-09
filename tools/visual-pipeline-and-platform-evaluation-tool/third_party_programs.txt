@@ -70,7 +70,7 @@ distributes; contact the ViPPET maintainers through the repository issue tracker
 intel/vippet-app            built FROM intel/dlstreamer (Ubuntu 24.04 based)
 intel/vippet-videogenerator built FROM intel/dlstreamer (Ubuntu 24.04 based)
 intel/vippet-onvif-discovery built FROM python:3.14-slim (Debian based)
-intel/vippet-ui             built FROM node:22 (build stage only) and nginx:alpine (runtime)
+intel/vippet-ui             built FROM node:24 (build stage only) and nginx:alpine (runtime)
 
   intel/dlstreamer  - Intel Deep Learning Streamer, Apache-2.0. Its own third-party notices
                       ship inside the image and in the dlstreamer repository as
@@ -79,7 +79,7 @@ intel/vippet-ui             built FROM node:22 (build stage only) and nginx:alpi
                       inside the image.
   Alpine Linux      - individual package licenses are recorded in the apk database inside the
                       image; nginx itself is BSD-2-Clause.
-  node:22           - used only as a build stage; its contents are not part of any distributed
+  node:24           - used only as a build stage; its contents are not part of any distributed
                       ViPPET image.
 
 ====================================================================================================
@@ -1456,7 +1456,7 @@ THE PACKAGE IS PROVIDED BY THE COPYRIGHT HOLDER AND CONTRIBUTORS "AS IS" AND WIT
 BSD-2-Clause
 ----------------------------------------------------------------------------------------------------
 
-Copyright (c) <year> <owner> 
+Copyright (c) <year> <owner>
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
@@ -1471,7 +1471,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 BSD-3-Clause
 ----------------------------------------------------------------------------------------------------
 
-Copyright (c) <year> <owner>. 
+Copyright (c) <year> <owner>.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
@@ -2886,7 +2886,7 @@ Mozilla Public License Version 2.0
     means any form of the work other than Source Code Form.
 
 1.7. "Larger Work"
-    means a work that combines Covered Software with other material, in 
+    means a work that combines Covered Software with other material, in
     a separate file or files, that is not Covered Software.
 
 1.8. "License"
