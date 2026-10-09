@@ -21,6 +21,7 @@ from helpers.pipeline_case_helpers import (
 )
 from perf_helpers.config import (
     BASE_URL,
+    CAPABILITIES_URL,
     CREATE_LATEST_LINK,
     METRICS_SAMPLE_INTERVAL,
     METRICS_URL,
@@ -39,8 +40,14 @@ from perf_helpers.config import (
     VARIANT_FILTER,
 )
 from perf_helpers.hw_monitor import HardwareMonitor
-from perf_helpers.preflight import fetch_discovered_devices, run_preflight_or_exit
+from perf_helpers.preflight import (
+    fetch_capabilities,
+    fetch_discovered_devices,
+    fetch_vippet_version,
+    run_preflight_or_exit,
+)
 from perf_helpers.reporters import ResultExporter, generate_html_report
+from perf_helpers.system_info import collect_system_info
 
 logger = logging.getLogger(__name__)
 
@@ -50,33 +57,13 @@ os.environ.setdefault("VIPPET_BASE_URL", BASE_URL)
 os.environ.setdefault("VIPPET_JOB_TIMEOUT_SECONDS", str(int(POLL_TIMEOUT)))
 os.environ.setdefault("VIPPET_JOB_POLL_INTERVAL", str(POLL_INTERVAL))
 
-# Snapshot of GET /devices captured once at pre-flight time (see
-# pytest_sessionstart below). Populated independent of any test outcome so a
-# fully failed/skipped run still has the discovered hardware available for
-# the report.
+# Snapshot of GET /devices, GET /api/v1/capabilities and GET /status captured
+# once at pre-flight time (see pytest_sessionstart below). Populated
+# independent of any test outcome so a fully failed/skipped run still has
+# the discovered hardware/platform info available for the report.
 _DISCOVERED_DEVICES: list[dict[str, Any]] = []
-
-
-def _collect_system_info(devices: list[dict[str, Any]]) -> dict[str, Any]:
-    """Build system details for the benchmark report from a devices snapshot."""
-
-    devices_info: dict[str, str] = {}
-    for device in devices:
-        family = str(device.get("device_family", "")).upper()
-        full_name = device.get("full_device_name", "")
-        if family and full_name:
-            devices_info[family] = full_name
-
-    system: dict[str, str] = {}
-    if devices_info.get("CPU"):
-        system["Processor"] = devices_info["CPU"]
-    if devices_info.get("GPU"):
-        system["GPU"] = devices_info["GPU"]
-    if devices_info.get("NPU"):
-        system["NPU"] = devices_info["NPU"]
-
-    return {"system": system}
-
+_CAPABILITIES: dict[str, Any] = {}
+_VIPPET_VERSION: str = "Unknown"
 
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
 _QUICK_VARIANTS: set[str] = {"CPU", "GPU"}
@@ -173,15 +160,27 @@ def _validate_filter_ids(
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_sessionstart() -> None:
-    """Verify ViPPET readiness and capture its hardware snapshot once."""
-    run_preflight_or_exit(
-        BASE_URL,
-        READINESS_TIMEOUT_SECONDS,
-        POLL_INTERVAL,
-        REQUEST_TIMEOUT,
-    )
-    global _DISCOVERED_DEVICES
-    _DISCOVERED_DEVICES = fetch_discovered_devices(BASE_URL, REQUEST_TIMEOUT)
+    """Verify ViPPET readiness and capture its hardware/platform snapshot once.
+
+    Fixtures (e.g. ``http_client``) aren't available yet at this point in the
+    pytest lifecycle, so the pre-flight phase opens and owns its own client.
+    """
+    global _DISCOVERED_DEVICES, _CAPABILITIES, _VIPPET_VERSION
+    with httpx.Client(headers={"Accept": "application/json"}) as client:
+        run_preflight_or_exit(
+            BASE_URL,
+            READINESS_TIMEOUT_SECONDS,
+            POLL_INTERVAL,
+            REQUEST_TIMEOUT,
+            client=client,
+        )
+        _DISCOVERED_DEVICES = fetch_discovered_devices(
+            BASE_URL, REQUEST_TIMEOUT, client=client
+        )
+        _CAPABILITIES = fetch_capabilities(
+            CAPABILITIES_URL, REQUEST_TIMEOUT, client=client
+        )
+        _VIPPET_VERSION = fetch_vippet_version(BASE_URL, REQUEST_TIMEOUT, client=client)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
@@ -300,7 +299,9 @@ def results_collector(
         output_dir = Path(PERF_RESULTS_DIR) / benchmark_id
         exporter = ResultExporter(output_dir, formats=RESULT_FORMATS)
 
-        system_info = _collect_system_info(_DISCOVERED_DEVICES)
+        system_info = collect_system_info(
+            _DISCOVERED_DEVICES, _CAPABILITIES, _VIPPET_VERSION
+        )
 
         # Built from the /devices snapshot captured at pre-flight, independent
         # of per-test outcomes, so a fully failed/skipped run still records

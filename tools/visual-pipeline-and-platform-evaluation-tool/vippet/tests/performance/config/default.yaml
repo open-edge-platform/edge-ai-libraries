@@ -1,8 +1,12 @@
 # VIPPET Benchmark Suite - Default Configuration
 
 vippet:
+  # Host/IP shared by base_url, metrics_url and capabilities_url below.
+  # Override with the TARGET_HOST env var to target a remote device.
+  target_host: "localhost"
+
   # VIPPET API base URL (via nginx reverse proxy; override with VIPPET_BASE_URL env var)
-  base_url: "http://localhost/api/v1"
+  base_url: "http://{target_host}/api/v1"
 
   # Connection timeout in seconds
   timeout: 600
@@ -71,10 +75,13 @@ benchmark:
 # Hardware metrics collection
 metrics:
   # Metrics endpoint via nginx proxy (override with VIPPET_METRICS_URL env var)
-  metrics_url: "http://localhost/metrics/stream"
+  metrics_url: "http://{target_host}/metrics/stream"
 
   # Sampling interval in seconds while a job runs
   sample_interval_seconds: 2.0
+
+  # metrics-manager capabilities endpoint, override with VIPPET_CAPABILITIES_URL env var
+  capabilities_url: "http://{target_host}:9090/api/v1/capabilities"
 
 # Results configuration
 results:

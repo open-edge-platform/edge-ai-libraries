@@ -53,69 +53,65 @@ def wait_for_vippet_ready(
     poll_interval: float,
     request_timeout: float,
     *,
-    client: httpx.Client | None = None,
+    client: httpx.Client,
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
     report: Callable[[str], None] = print,
 ) -> None:
-    """Check ViPPET health and wait for its status endpoint to report ready."""
+    """Check ViPPET health and wait for its status endpoint to report ready.
+
+    *client* is owned by the caller (opened and closed there); this function
+    never closes it.
+    """
     health_url = f"{base_url.rstrip('/')}/health"
     status_url = f"{base_url.rstrip('/')}/status"
     deadline = monotonic() + readiness_timeout_seconds
     remedy = "Start ViPPET and wait for its initialization."
-    owned_client = client is None
-    active_client = client or httpx.Client(headers={"Accept": "application/json"})
 
     try:
+        timeout = _remaining_timeout(deadline, request_timeout, monotonic)
+        response, health_payload = _get_json_object(client, health_url, timeout)
+        report(
+            f"[pre-flight] GET {health_url}: OK "
+            f"(HTTP {response.status_code}, healthy={health_payload.get('healthy')!r})"
+        )
+    except (httpx.HTTPError, ValueError, PreflightError) as exc:
+        observed = f"{type(exc).__name__}: {exc}"
+        report(f"[pre-flight] GET {health_url}: FAILED ({observed})")
+        raise PreflightError(
+            f"ViPPET pre-flight failed for {health_url}; observed {observed}. "
+            f"Remedy: {remedy}"
+        ) from exc
+
+    last_observed = "no status response received"
+    while monotonic() < deadline:
         try:
             timeout = _remaining_timeout(deadline, request_timeout, monotonic)
-            response, health_payload = _get_json_object(
-                active_client, health_url, timeout
-            )
-            report(
-                f"[pre-flight] GET {health_url}: OK "
-                f"(HTTP {response.status_code}, healthy={health_payload.get('healthy')!r})"
-            )
-        except (httpx.HTTPError, ValueError, PreflightError) as exc:
-            observed = f"{type(exc).__name__}: {exc}"
-            report(f"[pre-flight] GET {health_url}: FAILED ({observed})")
-            raise PreflightError(
-                f"ViPPET pre-flight failed for {health_url}; observed {observed}. "
-                f"Remedy: {remedy}"
-            ) from exc
-
-        last_observed = "no status response received"
-        while monotonic() < deadline:
-            try:
-                timeout = _remaining_timeout(deadline, request_timeout, monotonic)
-                response, payload = _get_json_object(active_client, status_url, timeout)
-                last_observed = _state_description(payload)
-                if payload.get("ready") is True:
-                    report(
-                        f"[pre-flight] GET {status_url}: READY "
-                        f"(HTTP {response.status_code}, {last_observed})"
-                    )
-                    return
+            response, payload = _get_json_object(client, status_url, timeout)
+            last_observed = _state_description(payload)
+            if payload.get("ready") is True:
                 report(
-                    f"[pre-flight] GET {status_url}: WAITING "
+                    f"[pre-flight] GET {status_url}: READY "
                     f"(HTTP {response.status_code}, {last_observed})"
                 )
-            except (httpx.HTTPError, ValueError, PreflightError) as exc:
-                last_observed = f"{type(exc).__name__}: {exc}"
-                report(f"[pre-flight] GET {status_url}: WAITING ({last_observed})")
+                return
+            report(
+                f"[pre-flight] GET {status_url}: WAITING "
+                f"(HTTP {response.status_code}, {last_observed})"
+            )
+        except (httpx.HTTPError, ValueError, PreflightError) as exc:
+            last_observed = f"{type(exc).__name__}: {exc}"
+            report(f"[pre-flight] GET {status_url}: WAITING ({last_observed})")
 
-            remaining = deadline - monotonic()
-            if remaining > 0:
-                sleep(min(poll_interval, remaining))
+        remaining = deadline - monotonic()
+        if remaining > 0:
+            sleep(min(poll_interval, remaining))
 
-        raise PreflightError(
-            f"ViPPET pre-flight timed out after {readiness_timeout_seconds:g}s "
-            f"waiting for {status_url}; last observed {last_observed}. "
-            f"Remedy: {remedy}"
-        )
-    finally:
-        if owned_client:
-            active_client.close()
+    raise PreflightError(
+        f"ViPPET pre-flight timed out after {readiness_timeout_seconds:g}s "
+        f"waiting for {status_url}; last observed {last_observed}. "
+        f"Remedy: {remedy}"
+    )
 
 
 def run_preflight_or_exit(
@@ -123,6 +119,8 @@ def run_preflight_or_exit(
     readiness_timeout_seconds: float,
     poll_interval: float,
     request_timeout: float,
+    *,
+    client: httpx.Client,
 ) -> None:
     """Run pre-flight and terminate pytest distinctly on infrastructure failure."""
     try:
@@ -131,6 +129,7 @@ def run_preflight_or_exit(
             readiness_timeout_seconds,
             poll_interval,
             request_timeout,
+            client=client,
         )
     except PreflightError as exc:
         pytest.exit(str(exc), returncode=FATAL_PREFLIGHT_EXIT_CODE)
@@ -140,7 +139,7 @@ def fetch_discovered_devices(
     base_url: str,
     request_timeout: float,
     *,
-    client: httpx.Client | None = None,
+    client: httpx.Client,
     report: Callable[[str], None] = print,
 ) -> list[dict[str, Any]]:
     """Fetch the ``/devices`` discovery payload for later hardware reporting.
@@ -150,16 +149,13 @@ def fetch_discovered_devices(
     outcome -- a run where every case fails or is skipped still has this
     snapshot available for the report.
 
-    Best-effort: any failure is logged via *report* and results in an empty
-    list being returned rather than raised, so a transient discovery error
-    does not abort the performance run; the eventual report simply omits the
-    hardware block.
+    Best-effort: any failure is logged via *report* and degrades to an empty
+    list rather than raising, so a transient discovery error does not abort
+    the performance run; the eventual report simply omits the hardware block.
     """
     devices_url = f"{base_url.rstrip('/')}/devices"
-    owned_client = client is None
-    active_client = client or httpx.Client(headers={"Accept": "application/json"})
     try:
-        response = active_client.get(devices_url, timeout=request_timeout)
+        response = client.get(devices_url, timeout=request_timeout)
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, list):
@@ -169,6 +165,71 @@ def fetch_discovered_devices(
     except (httpx.HTTPError, ValueError) as exc:
         report(f"[pre-flight] GET {devices_url}: FAILED ({type(exc).__name__}: {exc})")
         return []
-    finally:
-        if owned_client:
-            active_client.close()
+
+
+def fetch_capabilities(
+    capabilities_url: str,
+    request_timeout: float,
+    *,
+    client: httpx.Client,
+    report: Callable[[str], None] = print,
+) -> dict[str, Any]:
+    """Fetch the metrics-manager ``/api/v1/capabilities`` snapshot.
+
+    Best-effort, like ``fetch_discovered_devices``: any failure is logged via
+    *report* and degrades to an empty dict, so a missing/unreachable
+    metrics-manager does not abort the performance run; the report simply
+    shows "Unknown" for the fields it would have supplied.
+    """
+    try:
+        _, payload = _get_json_object(client, capabilities_url, request_timeout)
+        report(f"[pre-flight] GET {capabilities_url}: OK")
+        return payload
+    except (httpx.HTTPError, ValueError) as exc:
+        report(
+            f"[pre-flight] GET {capabilities_url}: FAILED ({type(exc).__name__}: {exc})"
+        )
+        return {}
+
+
+def _has_known_revision(value: Any) -> bool:
+    """Return True unless *revision* is empty/missing or the literal "unknown".
+
+    ``GET /status`` reports ``revision`` as the literal string ``"unknown"``
+    (not ``null``) when ``VIPPET_REVISION`` wasn't set at build time (see
+    ``app_version.py``), so a plain truthiness check isn't enough to detect
+    an unknown revision.
+    """
+    return bool(value) and str(value).strip().lower() != "unknown"
+
+
+def fetch_vippet_version(
+    base_url: str,
+    request_timeout: float,
+    *,
+    client: httpx.Client,
+    report: Callable[[str], None] = print,
+) -> str:
+    """Fetch the ViPPET release/build version (and revision) from ``GET /status``.
+
+    Best-effort: any failure is logged via *report* and degrades to
+    ``"Unknown"`` rather than raising.
+    """
+    status_url = f"{base_url.rstrip('/')}/status"
+    try:
+        _, payload = _get_json_object(client, status_url, request_timeout)
+        version = payload.get("version")
+        if not version:
+            raise ValueError("missing 'version' field")
+        revision = payload.get("revision")
+        display = (
+            f"{version} ({revision})" if _has_known_revision(revision) else str(version)
+        )
+        report(
+            f"[pre-flight] GET {status_url}: OK "
+            f"(version={version!r}, revision={revision!r})"
+        )
+        return display
+    except (httpx.HTTPError, ValueError) as exc:
+        report(f"[pre-flight] GET {status_url}: FAILED ({type(exc).__name__}: {exc})")
+        return "Unknown"
