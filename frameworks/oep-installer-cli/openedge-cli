@@ -10,15 +10,19 @@ main () {
   for v in "$@"; do
     case $v in
     --help)
-      _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
-      echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
-      echo "common options:"
-      echo "  --help          this help message." 
-      echo
-      local cmd
-      for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
-        $cmd --help
-      done
+      if [ $cur -ge 0 ]; then
+        subcommand_${_cmds[$cur]} --help
+      else
+        _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+        echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
+        echo "common options:"
+        echo "  --help          this help message." 
+        echo
+        local cmd
+        for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
+          $cmd --help
+        done
+      fi
       return 0
       ;;
     --dry-run|--continue)
@@ -66,7 +70,7 @@ main () {
 	  # pass module names forward within this command line so groups are checked against actual use
           _m="$(act_extract_modules ${_cmds[$_j]} ${_args[$_j]})"
           [ -n "${_m// }" ] && _carry="$_m"
-          if [ -z "${_m// }" ] && [ -n "$_carry" ] && [ "${_cmds[$_j]}" != "stop" ]; then
+          if [ -z "${_m// }" ] && [ -n "$_carry" ] && [ "${_cmds[$_j]}" != "stop" ] && ! [[ "${_cmds[$_j]}" = "remove" && " ${_args[$_j]} " = *" --remove-all "* ]]; then
             _resolved=(${_globals[*]} $_carry ${_args[$_j]})
           else
             _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))

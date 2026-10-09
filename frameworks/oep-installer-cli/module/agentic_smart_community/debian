@@ -19,7 +19,7 @@ configure_agentic_smart_community () {
 }
 
 verify_agentic_smart_community () {
-  [ -e "$workspace"/agentic-smart-community/config.yaml.example ]
+  [ -e "$workspace"/agentic-smart-community/config.yaml.example ] &&
   [ -d "$mlvu_workspace"/$mlvu_subpath ]
 }
 

@@ -18,6 +18,9 @@ ensure_hf_token () {
   if ! ensure_hf_token_check_models "$@"; then
     [ -z "$HF_TOKEN" ] || { echo "Invalid or unauthroized HF_TOKEN" 1>&2; return 3; }
 
+    echo -e "${red}HF_TOKEN requried for downloading the following models:{reset}" 1>&2
+    echo "$*" 1>&2
+
     # write an askpass helper
     local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
     [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}"

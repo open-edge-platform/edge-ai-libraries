@@ -10,9 +10,15 @@ configure_video_processing_for_nvr () {
 }
 
 verify_video_processing_for_nvr () {
-  [ -d "$workspace"/video-processing-for-nvr ]
-  [ -d "$workspace"/videos/car_1080p.h265 ]
-  [ -r "$MODEL_DIR/$MODEL_FILE" ]
+  [ -d "$workspace"/video-processing-for-nvr ] || return 1
+  [ -e "$workspace"/videos/car_1080p.h265 ] || {
+    echo "Missing car_1080p.h265" >&2
+    return 1
+  }
+  [ -r "$MODEL_DIR/$MODEL_FILE" ] || {
+    echo "Missing $MODEL_FILE" >&2
+    return 1
+  }
 }
 
 debian_90_profile_video_processing_for_nvr () {
@@ -29,7 +35,7 @@ debian_90_install_video_processing_for_nvr () {
 
     mkdir -p "$workspace"/videos
     cd "$workspace"/videos
-    curl -sSfL -o car.mp4 https://github.com/open-edge-platform/edge-ai-resources/raw/main/videos/car_1080p30_10s_h265.mp4
+    ensure_fetch "https://github.com/open-edge-platform/edge-ai-resources/raw/main/videos/car_1080p30_10s_h265.mp4" car.mp4
     ffmpeg -i car.mp4 -c:v copy -bsf:v hevc_mp4toannexb -an -f hevc car_1080p.h265
     rm -f car.mp4
 
