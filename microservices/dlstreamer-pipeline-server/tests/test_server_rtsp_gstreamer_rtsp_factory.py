@@ -93,3 +93,79 @@ class TestGStreamerRtspFactory:
         pipeline = gstreamer_rtsp_factory.do_create_element(url)
         assert pipeline is None
         gstreamer_rtsp_factory._logger.error.assert_called_once_with("GStreamerRtspFactory: Missing source for RTSP pipeline path /test")
+
+    @pytest.mark.parametrize(
+        "encoding, caps_list, buffer_type, expect_h264, expect_va",
+        [
+            # raw video + h264 requested -> openh264enc software path
+            ("h264", ["video/x-raw", "width=1920", "height=1080"], "System", True, False),
+            # raw video + h264 requested + VAMemory buffer -> vah264enc swap
+            ("h264", ["video/x-raw", "width=1920", "height=1080"], "VAMemory", True, True),
+            # mjpeg (default) stays on the jpeg path even with raw video input
+            ("mjpeg", ["video/x-raw", "width=1920", "height=1080"], "System", False, False),
+            # h264 requested but input caps are already JPEG -> falls back to MJPEG passthrough
+            ("h264", ["image/jpeg", "width=1920", "height=1080"], "System", False, False),
+        ],
+    )
+    def test_do_create_element_encoding_selection(self, gstreamer_rtsp_factory, mock_rtsp_server, mocker, mock_gst,
+                                                   encoding, caps_list, buffer_type, expect_h264, expect_va):
+        mock_url = MagicMock()
+        mock_stream = MagicMock()
+        mock_stream.overlay = False
+        mock_stream.encoding = encoding
+        mock_stream.caps = MagicMock()
+        mock_stream.caps.to_string.return_value = "Video Pipeline"
+        mock_pipeline = MagicMock()
+        mock_appsrc = MagicMock()
+        mock_pipeline.get_by_name.return_value = mock_appsrc
+        mocker.patch.object(mock_gst, 'parse_launch', return_value=mock_pipeline)
+        mocker.patch.object(mock_rtsp_server, 'get_source', return_value=mock_stream)
+        mocker.patch.object(gstreamer_rtsp_factory, '_select_caps', return_value=caps_list)
+        mocker.patch.object(gstreamer_rtsp_factory, '_is_gpu_buffer',
+                             return_value=(buffer_type != "System", buffer_type))
+
+        gstreamer_rtsp_factory.do_create_element(mock_url)
+
+        launch_string = gstreamer_rtsp_factory._logger.info.call_args[0][0]
+        if expect_h264:
+            assert "openh264enc" in launch_string or "vah264enc" in launch_string
+            assert "rtph264pay" in launch_string
+            assert "jpegenc" not in launch_string
+        else:
+            assert "jpegenc" in launch_string or "rtpjpegpay" in launch_string
+            assert "openh264enc" not in launch_string
+            assert "vah264enc" not in launch_string
+        if expect_va:
+            assert "vah264enc" in launch_string
+            assert "openh264enc" not in launch_string
+        elif expect_h264:
+            assert "openh264enc" in launch_string
+
+    def test_do_create_element_defaults_to_mjpeg_when_encoding_absent(self, gstreamer_rtsp_factory, mock_rtsp_server,
+                                                                       mocker, mock_gst):
+        """A stream object with no 'encoding' attribute (e.g. legacy callers/tests)
+        must keep producing the existing MJPEG pipeline, confirming the new
+        getattr(stream, 'encoding', 'mjpeg') fallback preserves old behavior."""
+        mock_url = MagicMock()
+
+        class LegacyStream:
+            overlay = False
+            overlay_properties = None
+            caps = MagicMock()
+            source = MagicMock()
+        mock_stream = LegacyStream()
+        mock_stream.caps.to_string.return_value = "Video Pipeline"
+        mock_pipeline = MagicMock()
+        mock_appsrc = MagicMock()
+        mock_pipeline.get_by_name.return_value = mock_appsrc
+        mocker.patch.object(mock_gst, 'parse_launch', return_value=mock_pipeline)
+        mocker.patch.object(mock_rtsp_server, 'get_source', return_value=mock_stream)
+        mocker.patch.object(gstreamer_rtsp_factory, '_select_caps',
+                             return_value=["video/x-raw", "width=1920", "height=1080"])
+        mocker.patch.object(gstreamer_rtsp_factory, '_is_gpu_buffer', return_value=(False, "System"))
+
+        gstreamer_rtsp_factory.do_create_element(mock_url)
+
+        launch_string = gstreamer_rtsp_factory._logger.info.call_args[0][0]
+        assert "jpegenc" in launch_string
+        assert "openh264enc" not in launch_string

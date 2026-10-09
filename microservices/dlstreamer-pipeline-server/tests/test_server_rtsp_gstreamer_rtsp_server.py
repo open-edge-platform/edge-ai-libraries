@@ -41,9 +41,17 @@ class TestGStreamerRtspServer:
         gstreamer_rtsp_server._mount_points = mock_mount_points
         gstreamer_rtsp_server.add_stream('test_id', '/test', 'caps', 'source',True)
         assert '/test' in gstreamer_rtsp_server._streams
-        mock_stream.assert_called_once_with('source', 'caps',True, None)
+        mock_stream.assert_called_once_with('source', 'caps',True, None, 'mjpeg')
         gstreamer_rtsp_server._mount_points.add_factory.assert_called_once_with('/test',gstreamer_rtsp_server._factory)
         mock_logging.get_logger.return_value.info.assert_called_once_with("Created RTSP Stream for instance test_id at rtsp:://<host ip>:8888/test")
+
+    def test_add_stream_h264_encoding(self, gstreamer_rtsp_server, mocker, mock_logging):
+        mock_stream = mocker.patch('src.server.rtsp.gstreamer_rtsp_server.Stream', return_value=MagicMock())
+        mock_mount_points = MagicMock()
+        gstreamer_rtsp_server._mount_points = mock_mount_points
+        gstreamer_rtsp_server.add_stream('test_id', '/test', 'caps', 'source', True, encoding='h264')
+        assert '/test' in gstreamer_rtsp_server._streams
+        mock_stream.assert_called_once_with('source', 'caps', True, None, 'h264')
 
     def test_remove_stream(self, gstreamer_rtsp_server):
         gstreamer_rtsp_server._streams = {'/test': MagicMock()}
