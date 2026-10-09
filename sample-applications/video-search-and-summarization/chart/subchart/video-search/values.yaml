@@ -20,7 +20,7 @@ videosearch:
     BATCH_JOB_POLL_INTERVAL_SECONDS: "0.5"
     BATCH_JOB_TIMEOUT_SECONDS: "3600"
     AGGREGATION_ENABLED: "true"
-    AGGREGATION_SEGMENT_DURATION: "8"
+    AGGREGATION_SEGMENT_DURATION: "10"
     AGGREGATION_MIN_GAP: "0"
     AGGREGATION_MAX_RESULTS: "20"
     AGGREGATION_INITIAL_K: "1000"
@@ -35,6 +35,16 @@ videosearch:
     AGGREGATION_CONTEXT_SIGMA_SECONDS: "40.0"
     AGGREGATION_CONTEXT_BOOST_STRENGTH: "0.5"
     SEARCH_DATAPREP_TIMEOUT_MS: "600000"
+    # Per-query timeout for a single search request.
+    SEARCH_QUERY_TIMEOUT_MS: "30000"
+    # Background re-run of "watch" queries so live-stream results refresh without
+    # the client polling. Tune the cadence/batching to bound DB load.
+    SEARCH_WATCH_REFRESH_ENABLED: "true"
+    SEARCH_WATCH_REFRESH_INTERVAL_MS: "10000"
+    SEARCH_WATCH_REFRESH_QUIET_PERIOD_MS: "2000"
+    SEARCH_WATCH_REFRESH_BATCH_SIZE: "10"
+    SEARCH_WATCH_REFRESH_MIN_QUERY_INTERVAL_MS: "10000"
+    SEARCH_WATCH_REFRESH_MAX_QUERIES_PER_TICK: "50"
   
   containerPort: 8000  # Port on which container application listens internally
   containerPortName: vs-port  # Optional name to refer containerPort

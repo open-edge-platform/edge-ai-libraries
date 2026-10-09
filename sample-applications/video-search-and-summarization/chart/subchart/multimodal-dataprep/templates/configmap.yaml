@@ -74,6 +74,18 @@ data:
   MM_DATAPREP_ENABLE_TRACING: {{ .Values.sdkPipeline.enableTracing | default .Values.global.env.SDK_ENABLE_TRACING | default false | quote }}
   MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS: {{ .Values.sdkPipeline.videoFrameDecoderWorkers | default .Values.global.env.VIDEO_FRAME_DECODER_WORKERS | default 2 | quote }}
   MM_DATAPREP_VIDEO_FRAME_LOG_LEVEL: {{ .Values.sdkPipeline.videoFrameLogLevel | default .Values.global.env.VIDEO_FRAME_LOG_LEVEL | default "INFO" | quote }}
+  MM_DATAPREP_VIDEO_FRAME_TRANSPORT: {{ .Values.sdkPipeline.videoFrameTransport | default .Values.global.env.VIDEO_FRAME_TRANSPORT | default "heap" | quote }}
+  # Live (RTSP) stream ingestion. The registry is persisted in the shared
+  # PostgreSQL instance (separate live_streams table). Retention defaults to 24h
+  # because a live stream writes continuously; set retentionHours to 0 to keep
+  # everything.
+  MM_DATAPREP_LIVE_STREAM_ENABLED: {{ printf "%v" .Values.liveStream.enabled | quote }}
+  MM_DATAPREP_LIVE_RETENTION_HOURS: {{ .Values.liveStream.retentionHours | toString | default "24" | quote }}
+  MM_DATAPREP_LIVE_STREAM_DB_HOST: {{ .Values.postgresql.name | quote }}
+  MM_DATAPREP_LIVE_STREAM_DB_PORT: {{ .Values.postgresql.service.port | quote }}
+  MM_DATAPREP_LIVE_STREAM_DB_NAME: {{ .Values.global.env.POSTGRES_DB | default "video_summary_db" | quote }}
+  MM_DATAPREP_LIVE_STREAM_DB_USER: {{ .Values.global.env.POSTGRES_USER | quote }}
+  MM_DATAPREP_LIVE_STREAM_DB_PASSWORD: {{ .Values.global.env.POSTGRES_PASSWORD | quote }}
   HF_HOME: "/home/appuser/.cache/huggingface"
   TRANSFORMERS_CACHE: "/home/appuser/.cache/huggingface"
   HUGGINGFACE_HUB_CACHE: "/home/appuser/.cache/huggingface"
