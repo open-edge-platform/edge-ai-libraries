@@ -18,7 +18,10 @@ configure_agentic_predictive_maintenance_pipeline_device () {
 }
 
 verify_agentic_predictive_maintenance_pipeline () {
-  [ -f "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection/resources/videos/datastream.mp4 ]
+  [ -f "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection/resources/videos/datastream.mp4 ] || {
+    echo "Missing datastream.mp4" >&2
+    return 1
+  }
 }
 
 debian_90_profile_agentic_predictive_maintenance_pipeline () {

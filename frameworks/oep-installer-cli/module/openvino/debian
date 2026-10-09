@@ -15,8 +15,8 @@ debian_70_profile_openvino () {
 }
 
 verify_openvino () {
-  ensure_apt_is_installed openvino-${version}
-  [ -r "$workspace"/.venv/bin/activate ]
+  ensure_apt_is_installed openvino-${version} || return 1
+  [ -r "$workspace"/.venv/bin/activate ] || return 1
   . "$workspace"/.venv/bin/activate
   pip show openvino-genai 2> /dev/null | grep -q -F ${version}
 }

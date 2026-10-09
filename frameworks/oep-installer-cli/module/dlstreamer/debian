@@ -20,8 +20,8 @@ debian_75_profile_dlstreamer () {
 }
 
 verify_dlstreamer () {
-  ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1
-  [ -r "$workspace/.venv/bin/activate" ]
+  ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
+  [ -r "$workspace/.venv/bin/activate" ] || return 1
   cd "$workspace"
   . .venv/bin/activate
   pip show ultralytics nncf
