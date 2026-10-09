@@ -2865,6 +2865,96 @@ $(ensure_sbom_format pkg-list debconf-utils)
 EOF
 }
 
+configure_dine_in () {
+  workspace="$(ensure_project_path)/dine-in"
+  version=65d1959a5b3ac268370220e972f5c97efee21d48
+  repository="https://github.com/intel-retail/order-accuracy.git"
+  ports=(7861 8083 8002 8011 9000 8081 9091)
+}
+
+configure_dine_in_device () {
+  local device="$1"
+
+  cd "$workspace"/ovms-service
+  sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=${device}|" ../dine-in/.env
+  ./setup_models.sh --app dine-in
+
+  . ../dine-in/.env
+  [ -e models/${OVMS_MODEL_NAME}/openvino_language_model.bin ] || {
+    echo "Missing ${OVMS_MODEL_NAME}" >&2
+    return 1
+  }
+}
+
+verify_dine_in () {
+  [ -e "$workspace"/dine-in/.env ]
+}
+
+debian_90_profile_dine_in () {
+  echo "git curl gawk make python3_venv docker edge_base"
+}
+
+debian_90_install_dine_in () {
+  configure_dine_in
+
+  if verify_dine_in && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Order accuracy is already installed. Skipping"
+  else 
+    ensure_ports_open "${ports[*]}" return 3
+    # clone the repository
+    ensure_disk_size 10000
+    ensure_git_clone "$workspace" $version $repository
+
+    # initialize .env
+    cd "$workspace"/dine-in
+    make init-env
+
+    # setup
+    . .env
+    ensure_hf_token "${OVMS_MODEL_NAME/MiniCPM-V-4_5-int4/MiniCPM-V-4_5}"
+    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
+
+    # build
+    make build
+
+    verify_dine_in
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_dine_in_device "${device^^}"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_dine_in () {
+  configure_dine_in "$@"
+  ensure_ports_open "${ports[*]}" debian_90_stop_dine_in "$@"
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_dine_in_device "${device^^}"
+
+  cd "$workspace"/dine-in
+  make up
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${ports[0]}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|npu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_dine_in () {
+  configure_dine_in "$@"
+  cd "$workspace"/dine-in && make down || true
+}
+
+debian_90_remove_dine_in () {
+  debian_90_stop_dine_in "$@"
+  rm -rf "$workspace" 2> /dev/null || ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+
 configure_dlstreamer () {
   repo_name="apt.repos.intel.com"
   key_url="https://$repo_name/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg"
@@ -5071,168 +5161,6 @@ $(ensure_sbom_format pkg-list "openvino-$version")
 EOF
 }
 
-configure_order_accuracy_dine_in () {
-  workspace="$(ensure_project_path)/order-accuracy-dine-in"
-  version=v2026.2.0
-  repository="https://github.com/intel-retail/order-accuracy.git"
-  ports=(7861 8083 8002 8011 9000 8081 9091)
-}
-
-configure_order_accuracy_dine_in_device () {
-  local default_device=$(grep -E "^TARGET_DEVICE=" "$workspace"/dine-in/.env | tail -n1 | cut -f2 -d=)
-  local selected_device=$(ensure_select_device "$@")
-  if [ "$default_device" != "${selected_device^^}" ]; then
-    sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=${selected_device^^}|" "$workspace"/dine-in/.env
-    cd "$workspace"/ovms-service
-    ./setup_models.sh --app dine-in
-  fi
-}
-
-verify_order_accuracy_dine_in () {
-  local model="$(. "$workspace"/dine-in/.env 2> /dev/null || . "$workspace"/dine-in/.env.example 2> /dev/null; echo "$OVMS_MODEL_NAME")"
-  [ -e "$workspace"/ovms-service/models/$model/openvino_language_model.bin ]
-}
-
-debian_90_profile_order_accuracy_dine_in () {
-  echo "git curl gawk make python3_venv docker edge_base"
-}
-
-debian_90_install_order_accuracy_dine_in () {
-  configure_order_accuracy_dine_in
-
-  if verify_order_accuracy_dine_in && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Order accuracy is already installed. Skipping"
-  else 
-    ensure_ports_open "${ports[*]}" return 3
-    # clone the repository
-    ensure_disk_size 10000
-    ensure_git_clone "$workspace" $version $repository
-
-    # initialize .env
-    cd "$workspace"/dine-in
-    make init-env
-
-    # setup
-    local model="$(. .env; echo "$OVMS_MODEL_NAME")"
-    ensure_hf_token "${model/MiniCPM-V-4_5-int4/MiniCPM-V-4_5}"
-
-    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
-    sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=|" .env
-
-    cd "$workspace"/dine-in
-    make build
-  fi
-
-  configure_order_accuracy_dine_in_device "$@"
-  verify_order_accuracy_dine_in
-
-  echo "@@HIGHLIGHT workspace @$workspace"
-  echo "@@HIGHLIGHT $installer_name start"
-}
-
-debian_90_start_order_accuracy_dine_in () {
-  configure_order_accuracy_dine_in "$@"
-
-  ensure_ports_open "${ports[*]}" debian_90_stop_order_accuracy_dine_in "$@"
-  cd "$workspace"/dine-in
-  make up
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${ports[0]}"
-  echo "@@HIGHLIGHT $installer_name stop"
-  echo "@@HIGHLIGHT $installer_name remove"
-}
-
-debian_90_stop_order_accuracy_dine_in () {
-  configure_order_accuracy_dine_in "$@"
-  cd "$workspace"/dine-in && make down || true
-}
-
-debian_90_remove_order_accuracy_dine_in () {
-  debian_90_stop_order_accuracy_dine_in "$@"
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
-
-configure_order_accuracy_take_away () {
-  workspace="$(ensure_project_path)/order-accuracy-take-away"
-  version=v2026.2.0
-  repository="https://github.com/intel-retail/order-accuracy.git"
-  ports=(7861 8083 8002 8011 9000 8081 9091)
-}
-
-configure_order_accuracy_take_away_device () {
-  local default_device=$(grep -E "^TARGET_DEVICE=" "$workspace"/take-away/.env | tail -n1 | cut -f2 -d=)
-  local selected_device=$(ensure_select_device "$@")
-  if [ "$default_device" != "${selected_device^^}" ]; then
-    sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=${selected_device^^}|" "$workspace"/take-away/.env
-    cd "$workspace"/ovms-service
-    ./setup_models.sh --app take-away
-  fi
-}
-
-verify_order_accuracy_take_away () {
-  local model="$(. "$workspace"/take-away/.env 2> /dev/null || . "$workspace"/take-away/.env.example 2> /dev/null; echo "$OVMS_MODEL_NAME")"
-  [ -e "$workspace"/ovms-service/models/$model/openvino_language_model.bin ]
-}
-
-debian_90_profile_order_accuracy_take_away () {
-  echo "git curl gawk make python3_venv docker edge_base"
-}
-
-debian_90_install_order_accuracy_take_away () {
-  configure_order_accuracy_take_away
-
-  if verify_order_accuracy_take_away && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Order accuracy is already installed. Skipping"
-  else 
-    ensure_ports_open "${ports[*]}" return 3
-    # clone the repository
-    ensure_disk_size 10000
-    ensure_git_clone "$workspace" $version $repository
-
-    # initialize .env
-    cd "$workspace"/take-away
-    make init-env
-
-    # setup
-    local model="$(. .env; echo "$OVMS_MODEL_NAME")"
-    ensure_hf_token "${model/MiniCPM-V-4_5-int4/MiniCPM-V-4_5}"
-
-    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
-    sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=|" .env
-
-    cd "$workspace"/take-away
-    make build
-  fi
-
-  configure_order_accuracy_take_away_device "$@"
-  verify_order_accuracy_take_away
-
-  echo "@@HIGHLIGHT workspace @$workspace"
-  echo "@@HIGHLIGHT $installer_name start"
-}
-
-debian_90_start_order_accuracy_take_away () {
-  configure_order_accuracy_take_away "$@"
-
-  ensure_ports_open "${ports[*]}" debian_90_stop_order_accuracy_take_away "$@"
-  cd "$workspace"/take-away
-  make up
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${ports[0]}"
-  echo "@@HIGHLIGHT $installer_name stop"
-  echo "@@HIGHLIGHT $installer_name remove"
-}
-
-debian_90_stop_order_accuracy_take_away () {
-  configure_order_accuracy_take_away "$@"
-  cd "$workspace"/take-away && make down || true
-}
-
-debian_90_remove_order_accuracy_take_away () {
-  debian_90_stop_order_accuracy_take_away "$@"
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
-}
-
-
 configure_pallet_defect_detection () {
   workspace="$(ensure_project_path)/pallet-defect-detection"
   version=release-2026.2.0
@@ -6905,6 +6833,107 @@ EOF
 }
 
 
+configure_take_away () {
+  workspace="$(ensure_project_path)/take-away"
+  version=65d1959a5b3ac268370220e972f5c97efee21d48
+  repository="https://github.com/intel-retail/order-accuracy.git"
+  used_ports=(7860 8000 8080 8001 9000 9001 8010)
+}
+
+configure_take_away_device () {
+  local device="$1"
+
+  cd "$workspace"/ovms-service
+  sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=${device}|" ../take-away/.env
+  ./setup_models.sh --app take-away
+
+  . ../take-away/.env
+  [ -e models/$OVMS_MODEL_NAME/openvino_language_model.bin ] || {
+    echo "Missing $OVMS_MODEL_NAME" >&2
+    return 1
+  }
+}
+
+verify_take_away () {
+  [ -e "$workspace"/take-away/.env ] || return 1
+  cd "$workspace"/take-away
+  . .env
+  local video="${SAMPLE_VIDEO_DEST:-storage/videos/test.mp4}"
+  [ -e "$video" ] || {
+    echo "Missing $video" >&2
+    return 1
+  }
+}
+
+debian_90_profile_take_away () {
+  echo "git curl gawk make python3_venv docker edge_base"
+}
+
+debian_90_install_take_away () {
+  configure_take_away
+
+  if verify_take_away && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Order accuracy Take Away is already installed. Skipping"
+  else 
+    ensure_ports_open "${used_ports[*]}" return 3
+    # clone the repository
+    ensure_disk_size 10000
+    ensure_git_clone "$workspace" $version $repository
+
+    # initialize .env
+    cd "$workspace"/take-away
+    sed -i 's|^\(# *SAMPLE_VIDEO_DEST=.*\)$|\1|' .env.example
+    make init-env
+
+    # setup
+    . .env
+    ensure_hf_token "${OVMS_MODEL_NAME/MiniCPM-V-4_5-int4/MiniCPM-V-4_5}"
+    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env
+
+    # download video
+    make download-sample-video
+
+    # build image
+    make build
+
+    verify_take_away
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_take_away_device "${device^^}"
+
+  echo "@@HIGHLIGHT workspace $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_take_away () {
+  configure_take_away "$@"
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_take_away "$@"
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_take_away_device "${device^^}"
+
+  cd "$workspace"/take-away
+  make up
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_take_away () {
+  configure_take_away "$@"
+  cd "$workspace"/take-away && make down || true
+}
+
+debian_90_remove_take_away () {
+  debian_90_stop_take_away "$@"
+  rm -rf "$workspace" 2> /dev/null || ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+}
+
+
 configure_time_confighub () {
   workspace="$(ensure_project_path)/time_confighub"
   repository="https://github.com/intel/time-confighub.git"
@@ -7626,7 +7655,7 @@ debian_99_profile_metro_ai_suite () {
 
 debian_99_profile_retail_ai_suite () {
   # metro ai suites cannot start at the same time
-  [ "$1" = "start" ] || echo "loss_prevention order_accuracy_dine_in order_accuracy_take_away smart_kiosk_assistant"
+  [ "$1" = "start" ] || echo "loss_prevention dine_in take_away smart_kiosk_assistant"
 }
 
 
