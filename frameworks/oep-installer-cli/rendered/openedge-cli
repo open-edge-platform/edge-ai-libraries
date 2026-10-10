@@ -7174,7 +7174,7 @@ verify_video_processing_for_nvr () {
 }
 
 debian_90_profile_video_processing_for_nvr () {
-  echo "docker edgebase curl git python3_venv ffmpeg edge_base"
+  echo "docker curl git python3_venv ffmpeg edge_base"
 }
 
 debian_90_install_video_processing_for_nvr () {
