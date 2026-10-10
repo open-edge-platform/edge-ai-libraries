@@ -113,7 +113,9 @@ class MediaSource:
         )
 
 
-def resolve_media_source(bucket_name: str, video_id: str) -> MediaSource:
+def resolve_media_source(
+    bucket_name: str, video_id: str, media_path: Optional[str] = None
+) -> MediaSource:
     """Resolve ``video_id`` to a readable media source, stored or referenced.
 
     Tries the storage backend first (the common case), then falls back to the
@@ -124,6 +126,10 @@ def resolve_media_source(bucket_name: str, video_id: str) -> MediaSource:
     Args:
         bucket_name (str): The bucket containing the media.
         video_id (str): The media identifier to resolve.
+        media_path (str, optional): Relative path to one object inside the
+            ``video_id`` directory, e.g. ``"segments/1790655530.mp4"``. Required to
+            address live-stream media, which is stored a level below ``video_id``.
+            Must already be validated by ``sanitize_media_subpath``.
 
     Returns:
         MediaSource: A handle exposing the media's size and a byte-range reader.
@@ -134,6 +140,20 @@ def resolve_media_source(bucket_name: str, video_id: str) -> MediaSource:
     from src.core.media_ref import resolve_referenced_file
 
     minio_client = get_minio_client()
+
+    if media_path:
+        # Addressing one object directly. The prefix is always the caller's
+        # video_id, so a validated relative path cannot reach outside it.
+        object_name = f"{video_id}/{media_path}"
+        if minio_client.object_exists_by_path(bucket_name, object_name):
+            return MediaSource(filename=pathlib.Path(object_name).name, object_name=object_name)
+        logger.error(
+            "No media found at %s in bucket %s",
+            sanitize_for_log(object_name, max_length=256),
+            sanitize_for_log(bucket_name, max_length=128),
+        )
+        raise DataPrepException(status_code=404, msg=Strings.video_id_not_found)
+
     object_name = minio_client.get_video_in_directory(bucket_name, video_id)
     if object_name:
         return MediaSource(

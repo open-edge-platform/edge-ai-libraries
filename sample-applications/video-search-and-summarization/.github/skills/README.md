@@ -51,7 +51,7 @@ A comprehensive reference of all VSS skills and their use cases:
 | [`vss-model-onboarding`](./vss-model-onboarding/SKILL.md) | Ops | Bring a new VLM/embedding model into OVMS (OpenVINO IR conversion + model-dir layout). Ships `scripts/prepare_ovms_model.py`. |
 | [`vss-deploy-helm`](./vss-deploy-helm/SKILL.md) | Ops | Deploy VSS to Kubernetes via the Helm chart; map Compose/modes to `values.yaml`. |
 | [`vss-summarize-video`](./vss-summarize-video/SKILL.md) | Integrator | Summarize a video through the Pipeline Manager; run/inspect the summary pipeline. Start, poll, and retrieve results. |
-| [`vss-search-index`](./vss-search-index/SKILL.md) | Integrator | Upload, index, and natural-language search videos; generate embeddings and run queries with optional filtering. |
+| [`vss-search-index`](./vss-search-index/SKILL.md) | Integrator | Upload, index, and natural-language search videos; generate embeddings and run queries with optional filtering. Also registers and manages live RTSP cameras for continuous indexing (`/streams` CRUD). |
 | [`vss-api-client`](./vss-api-client/SKILL.md) | Integrator | Call the REST/WebSocket APIs correctly (upload → process → progress → summary, and search queries). Ships `scripts/api_smoke.py`. |
 | [`vss-e2e-smoke`](./vss-e2e-smoke/SKILL.md) | Integrator | One-command end-to-end verification per mode. Ships `scripts/e2e_summary.sh` and `e2e_search.sh`. |
 | [`vss-mcp-integration`](./vss-mcp-integration/SKILL.md) | Integrator | Configure/extend the spec-driven FastMCP proxy that exposes VSS search to AI agents. |
@@ -187,6 +187,9 @@ applies based on its `description`. You generally don't name skills explicitly.
 | "Verify my fresh VSS install actually works" | `vss-e2e-smoke` |
 | "Summarize this video for me" | `vss-summarize-video` |
 | "Search my videos for X" | `vss-search-index` |
+| "Add my RTSP camera to the search index" | `vss-search-index` |
+| "Pause / remove a live camera" | `vss-search-index` |
+| "My RTSP stream shows an error state" | `vss-troubleshoot` |
 | "Build and push the VSS images" | `vss-build` |
 
 If the agent doesn't pick up a skill when it should, you can nudge it: *"use the vss-deploy

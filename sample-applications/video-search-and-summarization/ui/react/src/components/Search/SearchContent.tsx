@@ -22,7 +22,6 @@ import { SearchResult, TimeFilterSelection } from '../../redux/search/search';
 import TimeFilterControl from './TimeFilterControl';
 import { StateActionStatus } from '../../redux/summary/summary';
 import { VideoTile } from '../../redux/search/VideoTile';
-import { UIActions, uiSelector } from '../../redux/ui/ui.slice';
 import VideoGroupsView from '../VideoGroups/VideoGroupsView';
 import TelemetryAccordion from './TelemetryAccordion';
 import { imageSearchEnabled } from '../../utils/featureFlags';
@@ -41,16 +40,31 @@ const QueryContentWrapper = styled.div`
   flex-flow: column nowrap;
   align-items: flex-start;
   justify-content: flex-start;
-  overflow: hidden;
+  /* The right content panel owns the single scrollbar: tiles + telemetry flow
+     naturally and this wrapper scrolls as one unit. min-height:0 lets it shrink
+     to the viewport-height grid cell so overflow actually scrolls instead of
+     pushing the layout past the viewport. */
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   .videos-container {
-    display: flex;
-    flex-flow: row wrap;
-    overflow-x: hidden;
-    overflow-y: auto;
+    display: grid;
+    /* Fixed-width columns so tiles keep a stable size and left-align instead of
+       stretching to fill the row when only a couple of results remain.
+       width:100% is required: this sits in an align-items:flex-start column
+       flex, so without a definite width the grid's auto-fill collapses to a
+       single column and tiles stack vertically. No internal overflow here: the
+       container grows to its natural height so tiles never shrink and lose their
+       playback controls; scrolling is handled by the panel above. */
+    width: 100%;
+    grid-template-columns: repeat(auto-fill, 20rem);
+    justify-content: start;
+    gap: 1rem;
+    padding: 1rem;
     .video-tile {
       position: relative;
-      width: 20rem;
-      margin: 1rem;
+      width: 100%;
       border: 1px solid rgba(0, 0, 0, 0.2);
       border-radius: 0.5rem;
       overflow: hidden;
@@ -65,10 +79,7 @@ const QueryContentWrapper = styled.div`
 `;
 
 const SettingsContainer = styled.div`
-  position: sticky;
   width: 100%;
-  top: 0;
-  z-index: 2;
   background-color: var(--color-sidebar);
   border-bottom: 1px solid var(--color-border);
   .cds--accordion__item {
@@ -121,6 +132,12 @@ const QueryBar = styled.div`
   background-color: #f4f4f4;
   border-bottom: 1px solid var(--color-border);
   width: 100%;
+  /* Sticky so the query text + Group-by-tag / Re-run controls stay reachable.
+     The Filters accordion above scrolls away first; once this bar reaches the
+     top of the scrolling content panel it pins there. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
 
   .query-label {
     font-weight: 600;
@@ -228,6 +245,12 @@ export const QuerySettings: FC = () => {
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
 
+  // Filters open/closed is tracked per query so expanding it on one search page
+  // does not leave it open on the others. Remembered per queryId while mounted.
+  const [openFiltersByQuery, setOpenFiltersByQuery] = useState<Record<string, boolean>>({});
+  const queryId = selectedQuery?.queryId;
+  const filtersOpen = queryId ? Boolean(openFiltersByQuery[queryId]) : false;
+
   const currentTimeFilter: TimeFilterSelection | null | undefined = selectedQuery?.timeFilter;
 
   const updateTimeFilter = (timeFilter: TimeFilterSelection | null) => {
@@ -239,7 +262,14 @@ export const QuerySettings: FC = () => {
   return (
     <SettingsContainer>
       <Accordion align='start' size='sm'>
-        <AccordionItem title={t('filters', 'Filters')}>
+        <AccordionItem
+          title={t('filters', 'Filters')}
+          open={filtersOpen}
+          onHeadingClick={() => {
+            if (!queryId) return;
+            setOpenFiltersByQuery((prev) => ({ ...prev, [queryId]: !prev[queryId] }));
+          }}
+        >
           <SettingsBar>
             <SettingsSection style={{ justifyContent: 'flex-start' }}>
               {isSelectedInProgress && (
@@ -365,10 +395,8 @@ export const QueryInfo: FC = () => {
         kind='ghost'
         size='sm'
         onClick={() => {
-          // toggle the grouped video view on/off
-          // eslint-disable-next-line no-console
-          console.log('Group by Tag button clicked (toggle)');
-          dispatch(UIActions.toggleVideoGroups());
+          // Toggle the grouped video view for THIS query only.
+          dispatch(SearchActions.toggleGroupByTag({ queryId: selectedQuery.queryId }));
         }}
       >
         {t('GroupByTag')}
@@ -487,7 +515,11 @@ const ErrorMessage: FC = () => {
 export const SearchContent: FC = () => {
   const hasSelectedQuery = useAppSelector((state) => Boolean(SearchSelector(state).selectedQuery));
   const isSelectedHasError = useAppSelector((state) => SearchSelector(state).isSelectedHasError);
-  const { showVideoGroups } = useAppSelector(uiSelector);
+  // Per-query view toggle: read the selected query's own flag so grouping never
+  // leaks across search result pages.
+  const showVideoGroups = useAppSelector(
+    (state) => Boolean(SearchSelector(state).selectedQuery?.showVideoGroups),
+  );
 
   return (
     <>

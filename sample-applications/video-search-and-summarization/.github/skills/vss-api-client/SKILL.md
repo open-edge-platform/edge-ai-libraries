@@ -138,4 +138,4 @@ Direct search microservice (bypasses Pipeline Manager) accepts a list at `POST h
 
 ## More detail
 
-See [references/api-lifecycle.md](references/api-lifecycle.md) for endpoint schemas, response shapes, and event names. Use [scripts/api_smoke.py](scripts/api_smoke.py) for a dependency-light smoke test.
+See [references/api-lifecycle.md](references/api-lifecycle.md) for endpoint schemas, response shapes, and event names - including the live RTSP stream routes (`/streams`) and the `streams:subscribe` / `streams:sync` websocket pair. Use [scripts/api_smoke.py](scripts/api_smoke.py) for a dependency-light smoke test.

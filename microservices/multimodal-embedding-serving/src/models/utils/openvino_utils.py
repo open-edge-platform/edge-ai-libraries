@@ -18,6 +18,7 @@ and only converting when necessary, reducing startup time for subsequent runs.
 import gc
 import math
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 import time
@@ -465,6 +466,12 @@ class AsyncBatchInference:
     """
     Reusable async batch inference for OpenVINO models.
 
+    A single instance owns one ``AsyncInferQueue`` and is shared by every caller
+    of the handler that created it, so ``infer``/``infer_stream`` serialize on an
+    instance lock. Without it, a second caller would overwrite the queue callback
+    while the first caller's requests are still in flight, and the stale callback
+    would write into the wrong output buffer.
+
     Args:
         compiled_model: Compiled OpenVINO model.
         batch_size: Number of samples per batch (default: 32).
@@ -482,46 +489,62 @@ class AsyncBatchInference:
         self.embedding_dim = embedding_dim
         self.async_queue = ov.AsyncInferQueue(compiled_model)
         self.preprocess_shape = preprocess_shape
+        self._lock = threading.Lock()
 
     def infer_stream(self, batch_generator, total_images):
+        with self._lock:
+            return self._infer_stream(batch_generator, total_images)
+
+    def _infer_stream(self, batch_generator, total_images):
         final_output = np.empty((total_images, self.embedding_dim), dtype=np.float32)
 
         submitted = 0
         completed = 0
+        callback_error: list = []
 
         def callback(request, userdata):
             nonlocal completed
 
-            start = userdata["start"]
-            count = userdata["count"]
+            # Raising here would escape into an OpenVINO C++ callback thread,
+            # which aborts the process, so failures are captured and re-raised
+            # by the submitting thread instead.
+            try:
+                start = userdata["start"]
+                count = userdata["count"]
 
-            out = request.output_tensors[0].data
-            final_output[start:start+count] = out[:count]
+                out = request.output_tensors[0].data
+                final_output[start : start + count] = out[:count]
 
-            completed += count
+                completed += count
+            except Exception as exc:  # pragma: no cover - defensive
+                callback_error.append(exc)
 
         self.async_queue.set_callback(callback)
 
-        for batch in batch_generator:
+        try:
+            for batch in batch_generator:
 
-            count = batch.shape[0]
+                count = batch.shape[0]
 
-            if count < self.batch_size:
-                padded = np.zeros(self.preprocess_shape, dtype=np.float32)
-                padded[:count] = batch
-                batch = padded
+                if count < self.batch_size:
+                    padded = np.zeros(self.preprocess_shape, dtype=np.float32)
+                    padded[:count] = batch
+                    batch = padded
 
-            while not self.async_queue.is_ready():
-                time.sleep(0.001)
+                while not self.async_queue.is_ready():
+                    time.sleep(0.001)
 
-            self.async_queue.start_async(
-                {0: batch},
-                userdata={"start": submitted, "count": count}
-            )
+                self.async_queue.start_async(
+                    {0: batch},
+                    userdata={"start": submitted, "count": count}
+                )
 
-            submitted += count
+                submitted += count
+        finally:
+            self.async_queue.wait_all()
 
-        self.async_queue.wait_all()
+        if callback_error:
+            raise callback_error[0]
 
         return final_output
 
@@ -535,39 +558,52 @@ class AsyncBatchInference:
         Returns:
             Embeddings as numpy array [N, embedding_dim].
         """
+        with self._lock:
+            return self._infer(images)
+
+    def _infer(self, images: np.ndarray) -> np.ndarray:
         total_images = images.shape[0]
         num_batches = math.ceil(total_images / self.batch_size)
         # TODO: check np.float16 option & accuracy
         final_output = np.empty((total_images, self.embedding_dim), dtype=np.float32)
+        callback_error: list = []
 
         def response_callback(request, userdata):
-            batch_idx = userdata.batch_idx
-            samples_in_batch = userdata.samples_in_batch
-            out = request.output_tensors[0].data
-            start = batch_idx * self.batch_size
-            end = start + samples_in_batch
-            final_output[start:end] = out[:samples_in_batch]
+            # See infer_stream: never let an exception reach the C++ callback.
+            try:
+                batch_idx = userdata.batch_idx
+                samples_in_batch = userdata.samples_in_batch
+                out = request.output_tensors[0].data
+                start = batch_idx * self.batch_size
+                end = start + samples_in_batch
+                final_output[start:end] = out[:samples_in_batch]
+            except Exception as exc:  # pragma: no cover - defensive
+                callback_error.append(exc)
 
         self.async_queue.set_callback(response_callback)
 
-        for i in range(num_batches):
+        try:
+            for i in range(num_batches):
 
-            batch_np = images[i * self.batch_size : (i + 1) * self.batch_size]
+                batch_np = images[i * self.batch_size : (i + 1) * self.batch_size]
 
-            samples_in_batch = batch_np.shape[0]
-            if samples_in_batch < self.batch_size:
-                # For uneven batch sizes, Pad with zeros to fill the batch
-                padded = np.zeros(self.preprocess_shape, dtype=np.float32)
-                padded[:samples_in_batch] = batch_np
-                batch_np = padded
+                samples_in_batch = batch_np.shape[0]
+                if samples_in_batch < self.batch_size:
+                    # For uneven batch sizes, Pad with zeros to fill the batch
+                    padded = np.zeros(self.preprocess_shape, dtype=np.float32)
+                    padded[:samples_in_batch] = batch_np
+                    batch_np = padded
 
-            metadata = BatchMetadata(batch_idx=i, samples_in_batch=samples_in_batch)
+                metadata = BatchMetadata(batch_idx=i, samples_in_batch=samples_in_batch)
 
-            if not self.async_queue.is_ready():
-                self.async_queue.wait_all()
+                if not self.async_queue.is_ready():
+                    self.async_queue.wait_all()
 
-            self.async_queue.start_async({0: batch_np}, userdata=metadata)
+                self.async_queue.start_async({0: batch_np}, userdata=metadata)
+        finally:
+            self.async_queue.wait_all()
 
-        self.async_queue.wait_all()
+        if callback_error:
+            raise callback_error[0]
 
         return final_output

@@ -45,6 +45,11 @@ _ERROR_DESCRIPTIONS: Dict[int, str] = {
         "The configured storage backend or vector database could not be reached "
         "or returned an error."
     ),
+    HTTPStatus.SERVICE_UNAVAILABLE: (
+        "The service cannot accept the request in its current state, for example "
+        "because the live-stream concurrency limit is already reached or the "
+        "live-stream subsystem is disabled."
+    ),
 }
 
 
@@ -108,5 +113,15 @@ INGEST_ERRORS_NO_CONFLICT = (
 READ_ERRORS = (
     HTTPStatus.BAD_REQUEST,
     HTTPStatus.NOT_FOUND,
+    HTTPStatus.INTERNAL_SERVER_ERROR,
+)
+
+#: Live-stream lifecycle endpoints: input validation, unknown stream, capacity,
+#: and backend failures during purge.
+LIVE_STREAM_ERRORS = (
+    HTTPStatus.BAD_REQUEST,
+    HTTPStatus.NOT_FOUND,
+    HTTPStatus.SERVICE_UNAVAILABLE,
+    HTTPStatus.BAD_GATEWAY,
     HTTPStatus.INTERNAL_SERVER_ERROR,
 )

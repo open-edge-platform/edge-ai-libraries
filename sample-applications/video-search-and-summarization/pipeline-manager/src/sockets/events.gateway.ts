@@ -5,6 +5,7 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
@@ -21,6 +22,8 @@ import {
 import { SearchEntity } from 'src/search/model/search.entity';
 import { SearchQuery } from 'src/search/model/search.model';
 import { UiService } from 'src/state-manager/services/ui.service';
+import { LiveStreamInfo } from 'src/streams/models/stream.model';
+import { StreamPollerService } from 'src/streams/services/stream-poller.service';
 
 @WebSocketGateway({
   cors: {
@@ -28,13 +31,27 @@ import { UiService } from 'src/state-manager/services/ui.service';
   },
   path: '/ws/',
 })
-export class EventsGateway {
+export class EventsGateway implements OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
   private logger = new Logger(EventsGateway.name);
 
-  constructor(private $ui: UiService) {}
+  /**
+   * Sockets currently in the live-streams room.
+   *
+   * Tracked explicitly so a disconnect can decrement the poller. socket.io
+   * removes a disconnecting socket from its rooms automatically, but it does
+   * not tell us which rooms it was in by the time `handleDisconnect` runs.
+   * Without this the poller's subscriber count would only ever go up, and the
+   * poll loop would outlive the last viewer.
+   */
+  private streamSubscribers = new Set<string>();
+
+  constructor(
+    private $ui: UiService,
+    private $streamPoller: StreamPollerService,
+  ) {}
 
   @OnEvent(SocketEvent.SEARCH_NOTIFICATION)
   searchNotification() {
@@ -121,5 +138,48 @@ export class EventsGateway {
   async handleJoin(client: Socket, roomName: string) {
     this.logger.log(`Client ${client.id} joining room ${roomName}`);
     await client.join(roomName);
+  }
+
+  // -- Live streams --------------------------------------------------------
+
+  /**
+   * Broadcast live-stream state to viewers only.
+   *
+   * Scoped to the room rather than `server.emit` so deployments that never
+   * open the Live Streams modal - and Live Video Search, which shares this
+   * image - receive nothing.
+   */
+  @OnEvent(SocketEvent.STREAMS_SYNC)
+  streamsSync(payload: LiveStreamInfo[]) {
+    this.server.to(StreamPollerService.ROOM).emit('streams:sync', payload);
+  }
+
+  @SubscribeMessage('streams:subscribe')
+  async handleStreamsSubscribe(client: Socket) {
+    if (this.streamSubscribers.has(client.id)) return;
+
+    this.streamSubscribers.add(client.id);
+    await client.join(StreamPollerService.ROOM);
+    this.$streamPoller.addSubscriber();
+    this.logger.log(`Client ${client.id} subscribed to live streams`);
+  }
+
+  @SubscribeMessage('streams:unsubscribe')
+  async handleStreamsUnsubscribe(client: Socket) {
+    if (!this.streamSubscribers.delete(client.id)) return;
+
+    await client.leave(StreamPollerService.ROOM);
+    this.$streamPoller.removeSubscriber();
+    this.logger.log(`Client ${client.id} unsubscribed from live streams`);
+  }
+
+  /**
+   * A viewer closing the tab must release its poller subscription, otherwise
+   * the poll loop runs forever against dataprep with nobody listening.
+   */
+  handleDisconnect(client: Socket) {
+    if (this.streamSubscribers.delete(client.id)) {
+      this.$streamPoller.removeSubscriber();
+    }
   }
 }

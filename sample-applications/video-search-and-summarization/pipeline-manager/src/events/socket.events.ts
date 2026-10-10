@@ -19,6 +19,8 @@ export enum SocketEvent {
 
   SEARCH_NOTIFICATION = 'socket.search.notification',
   SEARCH_UPDATE = 'socket.search.update',
+
+  STREAMS_SYNC = 'socket.streams.sync',
 }
 
 export interface SocketStateSyncPayload {

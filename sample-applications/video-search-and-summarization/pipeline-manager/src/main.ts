@@ -23,7 +23,8 @@ async function bootstrap() {
     .setDescription('Pipeline Manager API')
     .setVersion('1.0')
     .addTag('pipeline')
-    .addServer('/manager', 'Nginx manager prefix')
+    .addServer('/', 'Direct access to the pipeline-manager port (e.g. :3001)')
+    .addServer('/manager', 'Behind the nginx gateway (e.g. :12345/manager)')
     .build();
 
   const documentFactory = () => SwaggerModule.createDocument(app, config);

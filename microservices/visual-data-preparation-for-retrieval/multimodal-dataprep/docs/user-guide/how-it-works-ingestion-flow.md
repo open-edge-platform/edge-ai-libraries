@@ -798,7 +798,7 @@ The Multimodal DataPrep ingestion pipeline is a highly optimized system that eff
 
 ## References
 
-- **Source Code**: `/home/sdp/workbench/integration/edge-ai-libraries-mme-v2/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/`
+- **Source Code**: `microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/`
 - **Configuration**: `src/config.yaml`
 - **API Endpoints**: `src/endpoints/video_processing/`
 - **Core Processing**: `src/core/embedding/embedding_helper.py`

@@ -60,9 +60,14 @@ the storage backend with `MM_DATAPREP_STORAGE_BACKEND` (`minio` or `local`).
 | POST | `/media/*/batch`, `/media/ingest-dir` | Start asynchronous batch ingestion |
 | GET | `/media/jobs/{job_id}` | Poll a batch job |
 | POST | `/summary` | Embed a text summary with a video time range |
-| POST | `/media/rtsp` | Ingest an RTSP stream |
+| POST | `/media/streams` | Register an RTSP stream and start live ingestion |
+| POST | `/media/streams/batch` | Register several RTSP streams |
+| GET | `/media/streams` | List live streams (filter by `state`/`tags`) |
+| GET/PATCH/DELETE | `/media/streams/{stream_id}` | Inspect, pause/resume/reconfigure, or stop + deregister |
+| DELETE | `/media/streams` | Bulk stop + deregister |
 | GET | `/media` | List stored media |
 | GET | `/media/download` | Download or stream stored media |
+| GET | `/media/frame` | Extract one frame (full or detected-crop) of stored media on demand as JPEG/base64 |
 | DELETE | `/media/{bucket_name}/{video_id}` | Delete stored media |
 | GET | `/telemetry` | Recent ingestion telemetry |
 
@@ -76,10 +81,11 @@ the storage backend with `MM_DATAPREP_STORAGE_BACKEND` (`minio` or `local`).
 | `src/main.py` | FastAPI app (`root_path=/v1/dataprep`); lifespan preloads SDK client + YOLOX, flushes the VDMS index on shutdown. |
 | `src/endpoints/` | One router package per API area. |
 | `src/core/embedding/` | The pipeline: `sdk_embedding_helper.py` (SDK mode), `simple_client.py` (api mode), `sdk_client.py` (VDMS writes via langchain-vdms), `decoder.py` (frame extraction). |
+| `src/core/live/` | Live-stream registry, manager, per-stream worker, playback recorder, retention sweeper. |
 | `src/core/object_detection/` | YOLOX detector + utils. |
 | `src/core/minio_client.py`, `src/common/settings.py` | Object storage client; pydantic Settings. |
 | `scripts/` | Container entrypoint and runtime helpers. |
-| `tests/` | 12 pytest files + `conftest.py` (mocked MinIO, TestClient). |
+| `tests/` | pytest suite + `conftest.py` (mocked MinIO, TestClient); live-stream coverage in `test_live_stream_{store,manager,endpoints,retention}.py`. |
 
 ## Conventions
 

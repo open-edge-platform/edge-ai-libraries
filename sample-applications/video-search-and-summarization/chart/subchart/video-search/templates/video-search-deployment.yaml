@@ -113,3 +113,17 @@ spec:
               value: {{ .Values.videosearch.env.AGGREGATION_CONTEXT_SIGMA_SECONDS | quote }}
             - name: AGGREGATION_CONTEXT_BOOST_STRENGTH
               value: {{ .Values.videosearch.env.AGGREGATION_CONTEXT_BOOST_STRENGTH | quote }}
+            - name: SEARCH_QUERY_TIMEOUT_MS
+              value: {{ .Values.videosearch.env.SEARCH_QUERY_TIMEOUT_MS | quote }}
+            - name: SEARCH_WATCH_REFRESH_ENABLED
+              value: {{ .Values.videosearch.env.SEARCH_WATCH_REFRESH_ENABLED | quote }}
+            - name: SEARCH_WATCH_REFRESH_INTERVAL_MS
+              value: {{ .Values.videosearch.env.SEARCH_WATCH_REFRESH_INTERVAL_MS | quote }}
+            - name: SEARCH_WATCH_REFRESH_QUIET_PERIOD_MS
+              value: {{ .Values.videosearch.env.SEARCH_WATCH_REFRESH_QUIET_PERIOD_MS | quote }}
+            - name: SEARCH_WATCH_REFRESH_BATCH_SIZE
+              value: {{ .Values.videosearch.env.SEARCH_WATCH_REFRESH_BATCH_SIZE | quote }}
+            - name: SEARCH_WATCH_REFRESH_MIN_QUERY_INTERVAL_MS
+              value: {{ .Values.videosearch.env.SEARCH_WATCH_REFRESH_MIN_QUERY_INTERVAL_MS | quote }}
+            - name: SEARCH_WATCH_REFRESH_MAX_QUERIES_PER_TICK
+              value: {{ .Values.videosearch.env.SEARCH_WATCH_REFRESH_MAX_QUERIES_PER_TICK | quote }}

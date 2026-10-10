@@ -2,9 +2,10 @@
 name: multimodal-dataprep-dev
 description: >
   Develop and debug the Multimodal DataPrep microservice: its FastAPI media
-  endpoints, in-process embedding pipeline, batch jobs, object detection,
-  telemetry and Metrics Manager publishing, and pluggable VDMS/Milvus vector
-  stores plus MinIO/local storage. Use when changing source, adding a backend,
+  endpoints, in-process embedding pipeline, batch jobs, live RTSP stream
+  ingestion (registry, lifecycle manager, per-stream worker, retention
+  sweeper), object detection, telemetry and Metrics Manager publishing, and
+  pluggable VDMS/Milvus vector stores plus MinIO/local storage. Use when changing source, adding a backend,
   running pytest/coverage/format checks, or building the service image. Use
   multimodal-dataprep-user for deployment and API-consumer workflows.
 ---

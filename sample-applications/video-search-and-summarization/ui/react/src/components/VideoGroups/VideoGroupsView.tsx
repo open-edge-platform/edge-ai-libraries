@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { FC, useEffect, useMemo, useRef } from 'react';
+import { FC, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { InlineLoading } from '@carbon/react';
@@ -10,13 +10,15 @@ import { videosSelector } from '../../redux/video/videoSlice';
 import { SearchSelector } from '../../redux/search/searchSlice';
 import { ASSETS_ENDPOINT } from '../../config';
 import { resolveSearchResultVideoUrl, resolveVideoUrl } from '../../redux/video/videoUrl';
+import { useSeekableVideo } from '../../redux/video/useSeekableVideo';
 import { ScoreDisplay } from '../Search/ScoreDisplay';
 
 const VideoGroupsContainer = styled.div`
   padding: 1rem;
   width: 100%;
-  height: 100%;
-  overflow-y: auto;
+  /* No internal height cap/scroll: the grouped view flows to its natural height
+     so the content panel (QueryContentWrapper) owns the single scrollbar, matching
+     the ungrouped tile view. This keeps telemetry able to extend the page. */
   background-color: var(--color-gray-0);
 `;
 
@@ -56,7 +58,11 @@ const TagBadge = styled.span`
 
 const VideoGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  /* Fixed-width columns (not minmax(..., 1fr)): tiles must keep a stable size
+     and left-align instead of stretching to fill the row when only a couple of
+     results remain (e.g. after a date filter narrows the set). */
+  grid-template-columns: repeat(auto-fill, 300px);
+  justify-content: start;
   gap: 1rem;
 `;
 
@@ -243,21 +249,7 @@ interface ClipCardProps {
 const ClipCard: FC<ClipCardProps> = ({ clip, resolvedUrl }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  useEffect(() => {
-    const videoEl = videoRef.current;
-    if (!videoEl || !resolvedUrl) return undefined;
-
-    const seekToTimestamp = () => {
-      if (clip.timestamp > 0 && Number.isFinite(videoEl.duration)) {
-        videoEl.currentTime = Math.min(clip.timestamp, Math.max(videoEl.duration - 0.1, 0));
-      }
-    };
-
-    videoEl.addEventListener('loadedmetadata', seekToTimestamp);
-    videoEl.load();
-
-    return () => videoEl.removeEventListener('loadedmetadata', seekToTimestamp);
-  }, [resolvedUrl, clip.timestamp]);
+  useSeekableVideo(videoRef, resolvedUrl, clip.timestamp);
 
   return (
     <VideoCard>

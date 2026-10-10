@@ -5,10 +5,16 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { Button } from '@carbon/react';
 import PromptInputModal from '../Modals/PromptInputModal.tsx';
-import { FEATURE_CAMERA_CONFIG, FEATURE_SEARCH, FEATURE_SUMMARY } from '../../config.ts';
+import {
+  FEATURE_CAMERA_CONFIG,
+  FEATURE_LIVE_STREAMS,
+  FEATURE_SEARCH,
+  FEATURE_SUMMARY,
+} from '../../config.ts';
 import SummarizeModal from '../VideoActions/SummarizeModal';
 import VideoEmbeddingModal from '../VideoActions/VideoEmbeddingModal';
 import CameraConfigModal from '../VideoActions/CameraConfigModal';
+import LiveStreamModal from '../LiveStreams/LiveStreamModal';
 import { useAppDispatch } from '../../redux/store.ts';
 import { videosLoad } from '../../redux/video/videoSlice.ts';
 import { SearchModal } from '../PopupModal/SearchModal.tsx';
@@ -58,6 +64,7 @@ const Navbar: FC = () => {
   const [showSummarizeModal, setShowSummarizeModal] = useState(false);
   const [showEmbeddingModal, setShowEmbeddingModal] = useState(false);
   const [showCameraConfigModal, setShowCameraConfigModal] = useState(false);
+  const [showLiveStreamModal, setShowLiveStreamModal] = useState(false);
   const { t } = useTranslation();
 
   const dispatch = useAppDispatch();
@@ -120,6 +127,13 @@ const Navbar: FC = () => {
         />
       )}
 
+      {FEATURE_SEARCH == FEATURE_STATE.ON && FEATURE_LIVE_STREAMS == FEATURE_STATE.ON && (
+        <LiveStreamModal
+          open={showLiveStreamModal}
+          onClose={() => setShowLiveStreamModal(false)}
+        />
+      )}
+
       <StyledDiv>
         <Logo>{getBrandName()}</Logo>
         <span className='spacer'></span>
@@ -152,6 +166,19 @@ const Navbar: FC = () => {
             }}
           >
             {t('ConfigureCameras')}
+          </Button>
+        )}
+
+        {FEATURE_SEARCH == FEATURE_STATE.ON && FEATURE_LIVE_STREAMS == FEATURE_STATE.ON && (
+          <Button
+            kind='primary'
+            disabled={false}
+            data-testid='live-streams-button'
+            onClick={() => {
+              setShowLiveStreamModal(true);
+            }}
+          >
+            {t('liveStreams')}
           </Button>
         )}
 

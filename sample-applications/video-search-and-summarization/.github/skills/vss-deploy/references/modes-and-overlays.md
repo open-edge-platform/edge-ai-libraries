@@ -68,3 +68,27 @@ interactive shell, unset `VLM_STORAGE_MODEL_NAME` and
 - Search mode sets `VS_INDEX_NAME=video_frame_embeddings`, `APP_SUMMARY_FEATURE=FEATURE_OFF`, `APP_SEARCH_FEATURE=FEATURE_ON`.
 - Dual UI sets `VS_INDEX_NAME=video_frame_embeddings` and uses `config/nginx/dual_ui.conf`.
 - Unified UI sets `EMBEDDING_MODEL_NAME=${TEXT_EMBEDDING_MODEL}`, `VS_INDEX_NAME=video_summary_embeddings`, `APP_FEATURE_MUX=SUMMARY_SEARCH`, and uses `config/nginx/singleton_ui.conf`.
+
+## Live RTSP stream ingestion
+
+Registering live cameras for continuous indexing is gated per mode by
+`UI_LIVE_STREAMS_FEATURE` (the UI button) and `LIVE_STREAM_ENABLED` (the
+dataprep backend). `setup.sh` sets both together so they cannot disagree.
+
+| Mode | `UI_LIVE_STREAMS_FEATURE` | `LIVE_STREAM_ENABLED` | Why |
+|---|---|---|---|
+| Summary | `FEATURE_OFF` | n/a | `compose.search.yaml` is not loaded, so dataprep is not deployed |
+| Search | `FEATURE_ON` | `true` | multimodal embedding model indexes video frames |
+| Dual UI | `FEATURE_ON` | `true` | same as Search |
+| Unified UI | `FEATURE_OFF` | `false` | text-only embedding model - it indexes summary text and cannot embed live frames |
+
+Both are overridable: export `UI_LIVE_STREAMS_FEATURE=FEATURE_OFF` before
+sourcing `setup.sh` to hide the button in a search-bearing mode. The Unified
+values are **forced**, not defaulted, because live ingestion cannot work there.
+
+`LIVE_RETENTION_HOURS` (default `24`) bounds how long live footage and its
+embeddings are kept. Set it to `0` to keep everything - a 24/7 camera then
+grows the index and object store without bound.
+
+In Summary mode the Pipeline Manager `/streams` routes still exist but return
+`503` because `SEARCH_DATAPREP_ENDPOINT` is `""`. That is expected, not a fault.

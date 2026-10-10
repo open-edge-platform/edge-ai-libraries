@@ -44,3 +44,5 @@ spec:
               value: "{{ .Values.feature.search }}"
             - name: APP_FEATURE_MUX
               value: "{{ .Values.feature.mux }}"
+            - name: APP_LIVE_STREAMS_FEATURE
+              value: "{{ .Values.feature.liveStreams }}"

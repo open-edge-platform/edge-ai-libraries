@@ -34,6 +34,12 @@ global:
   env:
     MINIO_ROOT_USER:
     MINIO_ROOT_PASSWORD:
+    # Shared PostgreSQL credentials reused by the live-stream registry. Provided
+    # by the parent chart's global.env; placeholders kept here for standalone
+    # subchart rendering.
+    POSTGRES_DB: "video_summary_db"
+    POSTGRES_USER:
+    POSTGRES_PASSWORD:
 
 replicaCount: 1
 
@@ -185,6 +191,19 @@ sdkPipeline:
   enableTracing: false
   videoFrameDecoderWorkers: 2
   videoFrameLogLevel: "INFO"
+  # Transport used to hand decoded frames between pipeline stages: "heap"
+  # (in-process, default) or "shm" (POSIX shared memory).
+  videoFrameTransport: "heap"
+
+# Live (RTSP) stream ingestion. Registry state is persisted in the shared
+# PostgreSQL instance (postgresql block below) in a dedicated live_streams table.
+liveStream:
+  # Enable the /media/streams CRUD surface and live ingestion workers. Disable
+  # for text-embedding (unified) mode where live video frames cannot be embedded.
+  enabled: true
+  # Delete embeddings and media older than this many hours. 0 keeps everything
+  # (unbounded index growth); 24h is a safe default for continuous live streams.
+  retentionHours: 24
 
 minioServer:
   name: minio-server
@@ -192,3 +211,8 @@ minioServer:
     type: ClusterIP
     port: 9000
     targetPort: 9000
+
+postgresql:
+  name: postgresql
+  service:
+    port: 5432

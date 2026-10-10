@@ -71,3 +71,75 @@ def test_get_telemetry_endpoint_returns_data(mocker, test_client):
 	payload = response.json()
 	assert payload["count"] == 1
 	assert payload["items"][0]["request_id"] == "req-1"
+
+def test_live_pipeline_result_without_stream_id_still_records(tmp_path, mocker):
+	"""A live session must not lose its telemetry record to a sentinel value.
+
+	The live pipeline aggregates per-stream stats and does not surface a
+	top-level ``stream_id``. When the orchestrator defaulted that to ``-1`` the
+	value failed the non-negative ``TelemetryCounts`` constraint and the entire
+	record was dropped, so ``GET /telemetry`` never reported live ingestion.
+	"""
+	from src.core.embedding.embedding_orchestrator import record_pipeline_telemetry
+
+	recorded = {}
+
+	def _capture(**kwargs):
+		recorded.update(kwargs)
+		return None
+
+	mocker.patch("src.core.embedding.embedding_orchestrator.record_video_telemetry", _capture)
+
+	record_pipeline_telemetry(
+		context={"request_id": "live-1", "source": "live_stream", "requested_at": 0.0},
+		bucket_name="live-streams",
+		video_id="stream-1",
+		filename="stream-1.live",
+		frame_interval=15,
+		tags=[],
+		enable_object_detection=False,
+		detection_confidence=0.85,
+		metadata_dict={},
+		# Deliberately omits "stream_id", as the live pipeline result does.
+		pipeline_result={"total_frames_processed": 10, "total_stored_ids": 10},
+	)
+
+	assert recorded["pipeline_stats"]["properties"]["stream_id"] >= 0
+
+
+def test_batch_details_tolerate_missing_and_negative_counters():
+	"""Odd per-batch numbers must not invalidate the whole telemetry record."""
+	from src.core.telemetry.recorder import _convert_batches
+
+	# A batch that stored fewer items than it ingested (frames dropped) and one
+	# with no identifying keys at all.
+	details = _convert_batches(
+		[
+			{
+				"stream_id": 0,
+				"batch_id": 1,
+				"batch_size": 10,
+				"total": 4,
+				"stats": {
+					"detect": [0, 0, 0.0],
+					"embed": [0, 0, 0.0],
+					"store": [0, 0, 0.0],
+					"total": 0.0,
+				},
+			},
+			{
+				"stats": {
+					"detect": [0, 0, 0.0],
+					"embed": [0, 0, 0.0],
+					"store": [0, 0, 0.0],
+					"total": 0.0,
+				}
+			},
+		]
+	)
+
+	assert len(details) == 2
+	assert details[0].items_after_detection == 0
+	assert details[1].stream_id == 0
+	assert details[1].batch_index >= 0
+	assert details[1].input_frames == 0
