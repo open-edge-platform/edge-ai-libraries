@@ -103,10 +103,10 @@ Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` envi
    source setup.sh --down
    ```
 
-2. Set a larger VLM model (e.g., upgrade from 3B to 7B parameters):
+2. Set a larger VLM model (e.g., upgrade from 4B to 8B parameters):
 
    ```bash
-   export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"
+   export VLM_MODEL_NAME="Qwen/Qwen3-VL-8B-Instruct"
    ```
 
 3. Restart the application:
@@ -117,7 +117,7 @@ Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` envi
 
 **Alternative Models to Try**:
 
-- For CPU: `Qwen/Qwen2.5-VL-7B-Instruct` (larger version)
+- For CPU: `Qwen/Qwen3-VL-8B-Instruct` (larger version)
 - For GPU: Consider other supported VLM models with higher parameter counts
 
 > [!NOTE]
@@ -239,6 +239,91 @@ Alternatively, switch to a model with a larger context window.
    source setup.sh --down
    source setup.sh --summary
    ```
+
+## vLLM XPU Fails to Start with "No available memory for the cache blocks"
+
+**Problem**: With `ENABLE_VLLM_GPU=true`, the `vllm-xpu-service` container never becomes healthy and restarts in a loop. The logs end with:
+
+```text
+INFO [gpu_worker.py:640] Available KV cache memory: -1.66 GiB
+ValueError: No available memory for the cache blocks. Try increasing `gpu_memory_utilization` ...
+```
+
+A related variant appears once the KV cache is positive but still too small:
+
+```text
+ValueError: To serve at least one request with the model's max seq len (32000),
+(4.39 GiB KV cache is needed, which is larger than the available KV cache memory (0.93 GiB)
+```
+
+Because `pipeline-manager` waits on `vllm-xpu-service` being healthy, `pipeline-manager`, `nginx`, and the UI stay in `Created` state and the application never comes up.
+
+**Cause**: The GPU does not have enough memory for all three consumers at once — model weights, vision-encoder activations, and KV cache. vLLM reserves `total_memory x VLLM_GPU_MEM`, subtracts weights and activations, and uses whatever is left for KV cache. `Qwen/Qwen3-VL-4B-Instruct` in `bfloat16` needs about 8.6 GB for weights alone, and the vision encoder profiles against a full-size image (16384 encoder tokens by default), which costs several GB more. This fits on a 24 GB Arc Pro B60 but not on a 12 GB card such as the Arc B580.
+
+**Solution**: Check how much memory your GPU actually reports, then reduce one or more of the three consumers.
+
+1. Confirm the device and its total memory:
+
+   ```bash
+   docker run --rm --device /dev/dri:/dev/dri --group-add "$(getent group render | cut -d: -f3)" \
+     --entrypoint python3 vllm/vllm-openai-xpu:v0.31.0 -c \
+     "import torch; p = torch.xpu.get_device_properties(0); print(p.name, round(p.total_memory/1024**3, 2), 'GiB')"
+   ```
+
+2. Apply the fixes below, cheapest first, then restart with `source setup.sh --down` followed by your usual `setup.sh` command.
+
+   - **Use the FP8 checkpoint** — the single biggest win. This halves the weight footprint from 8.6 GB to 5.9 GB with no change to context length:
+
+     ```bash
+     export VLM_MODEL_NAME="Qwen/Qwen3-VL-4B-Instruct-FP8"
+     ```
+
+   - **Cap the image size** — the vision encoder, not the weights, is usually the largest remaining consumer. `VLLM_MM_MAX_PIXELS` is expressed in pixels and defaults to `16777216`:
+
+     ```bash
+     export VLLM_MM_MAX_PIXELS=401408
+     ```
+
+     **How to choose a value.** vLLM sizes the encoder on the *worst-case* frame the cap allows, not on your actual frames:
+
+     ```text
+     worst_case_tokens = VLLM_MM_MAX_PIXELS / 1024
+     encoder_budget    = max(VLLM_MAX_NUM_BATCHED_TOKENS, worst_case_tokens)
+     ```
+
+     The `1024` is `(patch_size x merge_size)^2`, which is `(16 x 2)^2` for Qwen3-VL. Encoder memory scales with `encoder_budget`, so the cap is the main lever — but only down to the `VLLM_MAX_NUM_BATCHED_TOKENS` floor (`2048` by default). Below that it frees no further memory and only downscales frames more.
+
+     | `VLLM_MM_MAX_PIXELS` | Worst-case tokens | A 1920x1080 frame becomes |
+     | -------------------- | ----------------- | ------------------------- |
+     | `16777216` (default) | 16384 | 1920x1088, unchanged |
+     | `401408` | 392 | 832x448 |
+     | `262144` | 256 | 672x384 |
+
+     The cap is a pixel-area budget, so the resulting dimensions follow the aspect ratio of the source frame. It limits the resolution of each frame, not how many frames you send — the default `PM_MULTI_FRAME_COUNT=12` works unchanged. Lowering it trades caption detail for memory, so raise it again if captions become too vague.
+
+   - **Lower the context length** — the error message tells you exactly how much KV cache one request at `VLLM_MAX_MODEL_LEN` requires. Scale the value down by the ratio of available to needed memory:
+
+     ```bash
+     export VLLM_MAX_MODEL_LEN=24000
+     ```
+
+   - **Raise the memory fraction** — only a small gain, and setting it too close to `1.0` risks out-of-memory errors during inference rather than at startup:
+
+     ```bash
+     export VLLM_GPU_MEM=0.95
+     ```
+
+**Working configurations** on a 12 GB Intel Arc B580, using `vllm/vllm-openai-xpu:v0.31.0`:
+
+| Model | `VLLM_GPU_MEM` | `VLLM_MAX_MODEL_LEN` | `VLLM_MM_MAX_PIXELS` | Usable context |
+| ----- | -------------- | -------------------- | -------------------- | -------------- |
+| `Qwen3-VL-4B-Instruct-FP8` | `0.95` | `24000` | `401408` | 25,659 tokens |
+| `Qwen3-VL-4B-Instruct` (bf16) | `0.95` | `8192` | `401408` | 10,496 tokens |
+
+The first row is the recommended recipe, and all four of its settings are required: weakening any single one — leaving the memory fraction at `0.9`, dropping the pixel cap, keeping `32000` context, or reverting to `bfloat16` — still fails to start on this card. The second row shows `bfloat16` remains usable if you accept a much shorter context instead of switching to FP8.
+
+> [!NOTE]
+> Only vLLM on Intel Arc GPUs is affected. The CPU vLLM backend and the default OVMS backend size their caches differently and are unaffected by these variables.
 
 ## Embedding Fails on NPU/GPU in Kubernetes (Device Permission)
 

@@ -1,6 +1,6 @@
 ---
 name: vss-deploy-helm
-description: Use this skill whenever a developer needs to deploy VSS to Kubernetes, helm install VSS, configure values.yaml for VSS, or run VSS on k8s with GPU/vLLM for the video-search-and-summarization sample app. This skill is especially useful when translating Docker Compose/setup.sh modes (--summary, --search, --summary-and-search/--unified, dual UI, ENABLE_VLLM, OVMS GPU/NPU) into the actual Helm chart override files and values keys. Prefer this skill for VSS Helm install/upgrade/troubleshooting even if the user only says “put VSS on k8s” or “make values.yaml for VSS”.
+description: Use this skill whenever a developer needs to deploy VSS to Kubernetes, helm install VSS, configure values.yaml for VSS, or run VSS on k8s with GPU/vLLM for the video-search-and-summarization sample app. This skill is especially useful when translating Docker Compose/setup.sh modes (--summary, --search, --summary-and-search/--unified, dual UI, ENABLE_VLLM, ENABLE_VLLM_GPU, OVMS GPU/NPU) into the actual Helm chart override files and values keys, including running vLLM on an Intel Arc GPU (XPU). Prefer this skill for VSS Helm install/upgrade/troubleshooting even if the user only says “put VSS on k8s” or “make values.yaml for VSS”.
 ---
 
 # VSS Helm deploy
@@ -148,10 +148,12 @@ Use exactly these chart override files:
 |---|---|---|
 | `source setup.sh --summary` | `-f summary_override.yaml -f user_values_override.yaml` | `rabbitmq`, `ovms`, `videoingestion`, `audioanalyzer`, `summaryui`; `pipelinemanager.env.SUMMARY_FEATURE=FEATURE_ON` |
 | `--summary` with `ENABLE_VLLM=true` | `-f summary_override.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml` | summary mode plus `vllm.enabled=true`, `ovms.enabled=false`, `pipelinemanager.env.USE_VLLM=CONFIG_ON` |
+| `--summary` with `ENABLE_VLLM_GPU=true` | `-f summary_override.yaml -f arc_vllm_values.yaml -f user_values_override.yaml` | same as above but `vllm.device=XPU`: Intel Arc GPU image, `/dev/dri` mount, GPU device-plugin resource |
 | `source setup.sh --search` | `-f search_override.yaml -f user_values_override.yaml` | `multimodalembeddingms`, `multimodaldataprep`, `vdmsvectordb`, `vectorretriever`, `videosearch`, `searchui`; `global.vdmsIndexName=video_frame_embeddings` |
 | `VECTORDB_BACKEND=milvus` + `source setup.sh --search` | `-f search_override.yaml -f search_milvus_override.yaml -f user_values_override.yaml` | switches search backend to Milvus (`global.vectordbBackend=milvus`), enables `milvusstandalone`, disables `vdmsvectordb`, keeps `multimodaldataprep` + `vectorretriever` + `videosearch` |
 | `--summary-and-search` / `--all` / `--unified` | `-f unified_summary_search.yaml -f user_values_override.yaml` | combined search+summary in one `summaryui` named `unified-ui`; `global.vdmsIndexName=video_summary_embeddings` |
 | unified with vLLM | `-f unified_summary_search.yaml -f xeon_vllm_values.yaml -f user_values_override.yaml` | unified mode plus vLLM backend |
+| unified with vLLM on Arc GPU | `-f unified_summary_search.yaml -f arc_vllm_values.yaml -f user_values_override.yaml` | unified mode plus vLLM on the XPU backend |
 | dual separate UIs | `-f summary_override.yaml -f search_override.yaml -f user_values_override.yaml` | both `summaryui` and `searchui`; nginx routes `/summary/` and `/search/` |
 
 Embedding model rule:
@@ -278,10 +280,6 @@ vllm:
     size: 80Gi
   env:
     vllmCpuKvCacheSpace: "48"
-    vllmRpcTimeout: "100000"
-    vllmAllowLongMaxModelLen: "1"
-    vllmEngineIterationTimeoutS: "120"
-    vllmCpuNumReservedCpu: "0"
     vllmLoggingLevel: "INFO"
   model:
     dtype: bfloat16
@@ -299,6 +297,32 @@ vllm:
 ```
 
 Prefer using `xeon_vllm_values.yaml` rather than hand-setting all of this; it also sets `pipelinemanager.env.USE_VLLM=CONFIG_ON` and resource requests for dependent services.
+
+vLLM on an Intel Arc GPU (XPU) — the Helm equivalent of `ENABLE_VLLM_GPU=true`
+and `docker/compose.vllm.xpu.yaml`:
+```yaml
+vllm:
+  enabled: true
+  device: XPU                      # CPU (default) or XPU
+  gpu:
+    key: "gpu.intel.com/i915"      # required when device is XPU
+    devicePath: /dev/dri
+  model:
+    enforceEager: true             # required on the XPU backend
+    gpuMemoryUtilization: "0.8"
+    mmMaxPixels: 16777216          # caps frame resolution, not frame count
+```
+
+Setting `device: XPU` selects the `vllm/vllm-openai-xpu` image, mounts `/dev/dri`
+into the pod, requests the GPU device-plugin resource in both requests and
+limits, applies `global.accelGroupIds` as the pod's `supplementalGroups`, and
+drops the CPU-only `VLLM_CPU_KVCACHE_SPACE`. Rendering fails fast if
+`vllm.gpu.key` is empty. Note this key is separate from `global.devices.*`,
+which only configures OVMS and the search services.
+
+Prefer `arc_vllm_values.yaml` over hand-setting these; it also lowers
+`pipelinemanager.env.VLM_CONCURRENT`/`LLM_CONCURRENT` for a single-card host and
+carries a commented recipe for GPUs with less than 16 GB.
 
 ## 5. Upgrade safely
 
@@ -370,6 +394,18 @@ curl http://localhost:8081/ovms/metrics
 
 - Helm fails with missing credentials: fill `global.env.POSTGRES_USER`, `global.env.POSTGRES_PASSWORD`, `global.env.MINIO_ROOT_USER`, `global.env.MINIO_ROOT_PASSWORD`, `global.env.RABBITMQ_DEFAULT_USER`, `global.env.RABBITMQ_DEFAULT_PASS`.
 - Helm fails with GPU key errors: set `global.devices.*.key` for every non-CPU device.
+- Helm fails with `vllm.gpu.key is required when vllm.device is XPU`: set
+  `vllm.gpu.key` to the key your Intel GPU device plugin advertises
+  (`gpu.intel.com/i915` or `gpu.intel.com/xe`).
+- vLLM XPU pod stays `Pending`: no node advertises `vllm.gpu.key`. Confirm the
+  Intel GPU device plugin is installed and the key matches the node's allocatable
+  resources.
+- vLLM XPU pod crash-loops with `No available memory for the cache blocks`: the
+  GPU is too small for the current settings. Use the FP8 checkpoint and the
+  reduced `vllm.model.*` values commented in `arc_vllm_values.yaml`; see
+  `docs/user-guide/troubleshooting.md` for the sizing formula.
+- vLLM XPU pod cannot open the device: `global.accelGroupIds` does not match the
+  host gids owning `/dev/dri` (check with `ls -ln /dev/dri`).
 - Model download job/init container fails: inspect the specific model-download
   log, verify `global.modelDownload.image`, proxy/token values, model id, device
   support, and available model storage before debugging the main container.

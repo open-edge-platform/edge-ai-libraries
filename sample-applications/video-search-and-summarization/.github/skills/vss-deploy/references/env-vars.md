@@ -102,12 +102,8 @@ written to `ov_models/model-download-*.log`.
 
 | Variable | Default | What it controls |
 |---|---|---|
-| `VLLM_IMAGE` | `public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.17.1` | vLLM CPU image. |
+| `VLLM_IMAGE` | `vllm/vllm-openai-cpu:v0.31.0` | vLLM CPU image. |
 | `VLLM_CPU_KVCACHE_SPACE` | `48` | CPU KV cache space. |
-| `VLLM_RPC_TIMEOUT` | `100000` | RPC timeout. |
-| `VLLM_ALLOW_LONG_MAX_MODEL_LEN` | `1` | Allows long max model length. |
-| `VLLM_ENGINE_ITERATION_TIMEOUT_S` | `120` | Engine iteration timeout. |
-| `VLLM_CPU_NUM_OF_RESERVED_CPU` | `0` | Reserved CPU count. |
 | `VLLM_LOGGING_LEVEL` | `INFO` | vLLM logging level. |
 | `VLLM_DTYPE` | `bfloat16` | `--dtype`. |
 | `VLLM_BLOCK_SIZE` | `128` | `--block-size`. |

@@ -6,7 +6,7 @@ services:
   vllm-xpu-service:
     profiles:
       - vllm-xpu
-    image: ${VLLM_XPU_IMAGE:-intel/vllm:0.14.1-xpu}
+    image: ${VLLM_XPU_IMAGE:-vllm/vllm-openai-xpu:v0.31.0}
     hostname: vllm-xpu-service
     ports:
       - "${VLLM_HOST_PORT:-8200}:8000"
@@ -17,8 +17,6 @@ services:
       https_proxy: ${https_proxy}
       HUGGING_FACE_HUB_TOKEN: ${HUGGINGFACE_TOKEN:-}
       HF_HOME: /cache
-      VLLM_RPC_TIMEOUT: ${VLLM_RPC_TIMEOUT:-100000}
-      VLLM_ENGINE_ITERATION_TIMEOUT_S: ${VLLM_ENGINE_ITERATION_TIMEOUT_S:-120}
       VLLM_LOGGING_LEVEL: ${VLLM_LOGGING_LEVEL:-INFO}
     command:
       - "--model"
@@ -42,6 +40,8 @@ services:
       - "${VLLM_TENSOR_PARALLEL_SIZE:-1}"
       - "--gpu-memory-utilization"
       - "${VLLM_GPU_MEM:-0.8}"
+      - "--mm-processor-kwargs"
+      - '{"max_pixels": ${VLLM_MM_MAX_PIXELS:-16777216}}'
     volumes:
       - vllm_model_cache:/cache
     devices:

@@ -1,0 +1,98 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Values override for running vLLM on an Intel Arc / Arc Pro GPU (XPU backend).
+# This is the Kubernetes equivalent of the docker/compose.vllm.xpu.yaml overlay.
+#
+# Prerequisites on the target node:
+#   - Intel GPU device plugin installed, exposing a resource key such as
+#     gpu.intel.com/i915 (older kernels) or gpu.intel.com/xe (newer kernels).
+#     Check with: kubectl get nodes -o jsonpath='{.items[*].status.allocatable}'
+#   - /dev/dri present on the node.
+#   - global.accelGroupIds set to the host gids owning /dev/dri (render, video).
+#     Check with: ls -ln /dev/dri
+#
+# Install with:
+#   helm install vss . -f arc_vllm_values.yaml --set global.vlmName=<model>
+
+pipelinemanager:
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+  env:
+    USE_VLLM: "CONFIG_ON"
+    TICK_INTERVAL_MS: "1000"
+    FAST_TICK_INTERVAL_MS: "100"
+    # A single Arc card serves both captioning and summarization. Captioning was
+    # measured to sustain 4 concurrent multi-frame requests; summarization is
+    # kept at 1 so long text requests do not compete for the same KV cache.
+    LLM_CONCURRENT: "1"
+    VLM_CONCURRENT: "4"
+
+# Disable OVMS when vLLM is selected
+ovms:
+  enabled: false
+
+vllm:
+  enabled: true
+  device: XPU
+  gpu:
+    # REQUIRED. Must match the key your Intel GPU device plugin advertises.
+    key: "gpu.intel.com/i915"
+  resources:
+    requests:
+      cpu: "4"
+      memory: "16Gi"
+    limits:
+      cpu: "8"
+      memory: "32Gi"
+  model:
+    # Defaults below match the compose overlay and suit cards with 16 GB or more
+    # (for example Arc Pro B60, 24 GB).
+    gpuMemoryUtilization: "0.8"
+    mmMaxPixels: 16777216
+    maxModelLen: 32000
+
+    # --- Cards with less than 16 GB (for example Arc B580, 12 GB) ---
+    # The defaults above fail to start with "No available memory for the cache
+    # blocks". Use the FP8 checkpoint and the settings below instead, and set
+    # global.vlmName=Qwen/Qwen3-VL-4B-Instruct-FP8. All four are required
+    # together; see docs/user-guide/troubleshooting.md for the sizing formula.
+    #
+    # gpuMemoryUtilization: "0.95"
+    # mmMaxPixels: 401408
+    # maxModelLen: 24000
+
+audioanalyzer:
+  audioanalyzer:
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+      limits:
+        cpu: "6"
+        memory: "8Gi"
+
+videoingestion:
+  videoingestion:
+    resources:
+      requests:
+        cpu: "3"
+        memory: "6Gi"
+      limits:
+        cpu: "10"
+        memory: "10Gi"
+
+postgresql:
+  postgresql:
+    resources:
+      requests:
+        cpu: "1"
+        memory: "8Gi"
+      limits:
+        cpu: "2"
+        memory: "12Gi"

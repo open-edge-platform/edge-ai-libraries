@@ -2,6 +2,8 @@
   {"query": "Deploy VSS to Kubernetes using Helm", "should_trigger": true},
   {"query": "How do I helm install the video search and summarization app on my k8s cluster?", "should_trigger": true},
   {"query": "Create a user_values_override.yaml for VSS with vLLM backend on Xeon", "should_trigger": true},
+  {"query": "Run VSS vLLM on an Intel Arc GPU in Kubernetes instead of CPU", "should_trigger": true},
+  {"query": "My VSS vllm pod is Pending because no node advertises gpu.intel.com/i915 - what Helm values fix this?", "should_trigger": true},
   {"query": "Put VSS on k8s with OVMS GPU using intel i915 device key", "should_trigger": true},
   {"query": "What helm -f override files do I need to deploy VSS in unified summary+search mode?", "should_trigger": true},
   {"query": "Install VSS in search-only mode on Kubernetes with a custom namespace", "should_trigger": true},
