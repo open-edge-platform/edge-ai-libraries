@@ -289,7 +289,7 @@ export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}  # Set this in your shell before r
 
 # env for audio-analyzer
 # Common ASR knobs mapped onto the image's baked config.yaml (AUDIO_ANALYZER__* overrides take top priority).
-export ASR_MODEL=${ASR_MODEL:-whisper-base}
+# ASR_MODEL is a required model var (validated below, like VLM_MODEL_NAME); its default lives in .env.example.
 export ASR_DEVICE=${ASR_DEVICE:-CPU}
 export ASR_WEIGHT_FORMAT=${ASR_WEIGHT_FORMAT:-null}
 export ASR_DIARIZATION=${ASR_DIARIZATION:-false}
@@ -526,7 +526,7 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
         require_env "$required_var" || return 1
     done
     if [ "$1" != "--search" ]; then
-        for required_var in VLM_MODEL_NAME OD_MODEL_NAME; do
+        for required_var in VLM_MODEL_NAME ASR_MODEL OD_MODEL_NAME; do
             require_env "$required_var" "This is required for all modes except --search." || return 1
         done
     fi
