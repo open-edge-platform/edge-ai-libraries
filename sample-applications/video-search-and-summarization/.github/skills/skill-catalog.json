@@ -216,13 +216,15 @@
     {
       "name": "vss-mcp-integration",
       "path": ".github/skills/vss-mcp-integration/SKILL.md",
-      "description": "Configure and extend the spec-driven FastMCP proxy that exposes VSS search to AI agents.",
+      "description": "Run, debug (MCP Inspector dev stack) and extend the VSS MCP tool server that exposes search and summary to AI agents, including claim-check image search.",
       "triggers": [
         "mcp integration",
-        "mcp proxy",
+        "mcp server",
+        "mcp inspector",
         "agent integration",
         "fastmcp",
-        "expose to agent"
+        "expose to agent",
+        "search by image via mcp"
       ],
       "requires": [
         ".github/skills/vss-mcp-integration/scripts/vss-bootstrap.sh",

@@ -162,6 +162,60 @@ paths:
       summary: Execute a one-off search query
       tags:
         - Search
+  /search/images:
+    post:
+      operationId: SearchImageController_uploadImage
+      description: >-
+        Stores the image in the object store and returns its URL. Pass
+        `imageUrl` to `POST /search` or `POST /search/query` to search by it
+        instead of sending base64 image data.
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SearchImageUploadDTO'
+      responses:
+        '201':
+          description: Image stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchImageRO'
+        '400':
+          description: No file, empty file, or image search not supported
+        '413':
+          description: Image larger than 2 MB
+        '415':
+          description: Not a JPEG, PNG or WebP image
+      summary: Upload a query image for search-by-image
+      tags:
+        - Search
+  /search/images/{imageId}:
+    delete:
+      operationId: SearchImageController_deleteImage
+      parameters:
+        - name: imageId
+          required: true
+          in: path
+          description: Image id returned by the upload
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchImageDeleteRO'
+        '400':
+          description: Malformed image id
+        '404':
+          description: Image not found
+      summary: Delete an uploaded query image
+      tags:
+        - Search
   /search/{queryId}/watch:
     patch:
       operationId: SearchController_watchQuery
@@ -615,8 +669,25 @@ components:
       properties:
         query:
           type: string
-          description: Search query string
+          description: >-
+            Non-blank text search query. Provide exactly one of `query`,
+            `image` or `imageUrl`.
           example: person walking
+        image:
+          type: string
+          description: >-
+            Query image as a base64 string or data URL, for image-based
+            search. Provide exactly one of `query`, `image` or `imageUrl`.
+            Only supported in frame-embedding modes (--search/--dual).
+        imageUrl:
+          type: string
+          description: >-
+            Reference to a query image previously uploaded with
+            `POST /search/images`: its `imageUrl`, `imagePath` or `imageId`.
+            Any host is accepted; only the path is used. Provide exactly one of
+            `query`, `image` or `imageUrl`. Only supported in frame-embedding
+            modes (--search/--dual).
+          example: http://192.168.1.10:12345/datastore/video-summary/search-images/3f0c1f1e-7c1b-4a8e-9a55-0d6f6c2b9e11.jpg
         tags:
           type: string
           description: Comma-separated tags to filter by
@@ -627,8 +698,58 @@ components:
           type: object
           allOf:
             - $ref: '#/components/schemas/TimeFilterSelection'
+    SearchImageUploadDTO:
+      type: object
+      properties:
+        image:
+          type: string
+          format: binary
+          description: >-
+            Query image file (.jpg, .jpeg, .png or .webp; image/jpeg,
+            image/png or image/webp) of at most 2 MB.
       required:
-        - query
+        - image
+    SearchImageRO:
+      type: object
+      properties:
+        imageId:
+          type: string
+          example: 3f0c1f1e-7c1b-4a8e-9a55-0d6f6c2b9e11.jpg
+        imageUrl:
+          type: string
+          description: >-
+            Externally reachable gateway URL of the image (MinIO behind
+            `/datastore`), based on `PM_PUBLIC_BASE_URL` or, when unset, the
+            request host. Falls back to `imagePath` if no valid host is known.
+          example: http://192.168.1.10:12345/datastore/video-summary/search-images/3f0c1f1e-7c1b-4a8e-9a55-0d6f6c2b9e11.jpg
+        imagePath:
+          type: string
+          description: >-
+            Gateway-relative path; prefix with any address that reaches the
+            gateway. Also accepted as `imageUrl`.
+          example: /datastore/video-summary/search-images/3f0c1f1e-7c1b-4a8e-9a55-0d6f6c2b9e11.jpg
+        contentType:
+          type: string
+          example: image/jpeg
+        size:
+          type: number
+          example: 48213
+      required:
+        - imageId
+        - imageUrl
+        - imagePath
+        - contentType
+        - size
+    SearchImageDeleteRO:
+      type: object
+      properties:
+        imageId:
+          type: string
+        deleted:
+          type: boolean
+      required:
+        - imageId
+        - deleted
     RefetchBodyDTO:
       type: object
       properties:

@@ -94,6 +94,7 @@ written to `ov_models/model-download-*.log`.
 | `PM_MULTI_FRAME_COUNT` | `12`, may reduce to `6` for non-CPU OVMS VLM | Multi-frame captioning count. |
 | `PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | `true` in compose | Enables full-transcript summary injection by default. |
 | `PM_PRODUCE_FINAL_SUMMARY` | `true` | Whether Pipeline Manager produces final summary. |
+| `PM_PUBLIC_BASE_URL` | `http://$HOST_IP:$APP_HOST_PORT` (set by `setup.sh`) | Externally reachable gateway URL used in links Pipeline Manager returns, such as `POST /search/images` `imageUrl`. If empty, it is derived from request `Host`/`X-Forwarded-*` headers. |
 | `HUGGINGFACE_TOKEN`, `HUGGINGFACEHUB_API_TOKEN` | unset | Optional token for gated model download. The model-download service accepts either; vLLM uses `HUGGINGFACE_TOKEN`. |
 
 ## vLLM-specific controls

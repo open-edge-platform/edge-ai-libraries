@@ -124,7 +124,13 @@ curl -s -X POST "$HOST/manager/search/query" \
   }' | jq -r '.results[].results[]
       | "score=\(.metadata.relevance_score)  clip=\(.metadata.segment_start)-\(.metadata.segment_end)s  seek=\(.metadata.seek_timestamp)s  video_id=\(.metadata.video_id)"'
 ```
-- `query` (required): natural language.
+- `query`: natural language. Required unless searching by image.
+- `image` / `imageUrl` (`--search`/`--dual` only, instead of `query`): search by
+  image. Upload once with `curl -F image=@q.jpg "$HOST/manager/search/images"`
+  (jpg/jpeg/png/webp, at most 2 MB), pass the returned `imageUrl` as
+  `"imageUrl"`, and delete it afterwards with
+  `DELETE /manager/search/images/<imageId>`. See
+  [`references/search-request.md`](./references/search-request.md).
 - `tags` (optional): comma-separated, intersected with the query.
 - `timeFilter` (optional): **either** relative (`value` + `unit` =
   `minutes|hours|days|weeks`) **or** absolute (`start`/`end` ISO-8601). See

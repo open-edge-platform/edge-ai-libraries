@@ -1,0 +1,37 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  mcp-server:
+    build:
+      context: ../mcp
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-}vss-mcp-server:${TAG:-latest}
+    container_name: vss-mcp-server
+    profiles:
+      - mcp
+    ports:
+      - "${MCP_HOST_PORT:-8000}:${MCP_PORT:-8000}"
+    environment:
+      - HOST_IP=${HOST_IP:-}
+      - VSS_IP=${VSS_IP:?Set VSS_IP to the VSS gateway host reachable by your agent}
+      - APP_HOST_PORT=${APP_HOST_PORT:-12345}
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=${MCP_PORT:-8000}
+      - LOG_LEVEL=${MCP_LOG_LEVEL:-INFO}
+      # Optional tuning; passed through only when set. See mcp/README.md.
+      - MCP_PATH
+      - MCP_STATELESS_HTTP
+      - REQUEST_TIMEOUT
+      - POLL_INTERVAL
+      - DEFAULT_WAIT_SECONDS
+      - VSS_INDEX_STRATEGY
+      - http_proxy=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      - no_proxy=${no_proxy:-},${HOST_IP:-},${VSS_IP}
+      - HTTP_PROXY=${http_proxy:-}
+      - HTTPS_PROXY=${https_proxy:-}
+      - NO_PROXY=${no_proxy:-},${HOST_IP:-},${VSS_IP}
+    networks:
+      - vs_network
+    restart: unless-stopped

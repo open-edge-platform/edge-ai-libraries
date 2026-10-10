@@ -346,7 +346,7 @@ describe('VideoController', () => {
     });
 
     it('should handle different feature states', async () => {
-      featuresService.getFeatures.mockReturnValueOnce({ search: FEATURE_STATE.ON, summary: FEATURE_STATE.ON });
+      featuresService.getFeatures.mockReturnValueOnce({ search: FEATURE_STATE.ON, summary: FEATURE_STATE.ON, imageSearchEnabled: true });
 
       const videoId = 'test-video-123';
       const result = await controller.createSearchEmbeddings({ videoId });

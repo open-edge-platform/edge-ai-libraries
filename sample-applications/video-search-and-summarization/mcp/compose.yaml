@@ -1,49 +1,75 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# MCP debugging stack: the VSS MCP server plus MCP Inspector.
+#
+# For working on the server from this folder. `source setup.sh --mcp` does NOT
+# use this file (it uses ../docker/compose.mcp.yaml and starts the MCP server
+# alone, without Inspector). Both build and run the same image and container
+# (vss-mcp-server, port 8000), so use one or the other: stop the setup.sh
+# server first with `source setup.sh --stop-mcp`.
+#
+# Bring VSS up first, then from this folder:
+#   HOST_IP=<vss-host-ip> docker compose up --build -d
+#
+# MCP server:    http://<HOST_IP>:${MCP_HOST_PORT:-8000}/mcp
+# MCP Inspector: http://<HOST_IP>:${INSPECTOR_PORT:-6274}
+
 services:
   mcp-server:
     build:
       context: .
       dockerfile: Dockerfile
+    image: ${REGISTRY:-}vss-mcp-server:${TAG:-latest}
     container_name: vss-mcp-server
-    network_mode: host
-    env_file:
-      - path: .env
-        required: false
+    ports:
+      - "${MCP_HOST_PORT:-8000}:8000"
     environment:
-      - API_SPEC_URL=${API_SPEC_URL}
-      - API_BASE_URL=${API_BASE_URL}
-      - FILTER_FILE_PATH=${FILTER_FILE_PATH:-/app/search.json}
-      - MCP_HOST=${MCP_HOST:-0.0.0.0}
-      - MCP_PORT=${MCP_PORT:-8000}
-      - MCP_PATH=${MCP_PATH:-/mcp}
-      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-60}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Not required here so `logs`/`down` work without it; the server itself
+      # exits at startup with a clear message when HOST_IP is missing.
+      - HOST_IP=${HOST_IP:-}
+      - VSS_IP=${VSS_IP:-${HOST_IP:-}}
+      - APP_HOST_PORT=${APP_HOST_PORT:-12345}
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
+      - LOG_LEVEL=${MCP_LOG_LEVEL:-DEBUG}
+      - MCP_PATH
+      - MCP_STATELESS_HTTP
+      - REQUEST_TIMEOUT
+      - POLL_INTERVAL
+      - DEFAULT_WAIT_SECONDS
+      - VSS_INDEX_STRATEGY
       - http_proxy=${http_proxy:-}
       - https_proxy=${https_proxy:-}
-      - no_proxy=${no_proxy:-},${VSS_IP:-}
+      - no_proxy=${no_proxy:-},${HOST_IP:-},${VSS_IP:-${HOST_IP:-}}
       - HTTP_PROXY=${http_proxy:-}
       - HTTPS_PROXY=${https_proxy:-}
-      - NO_PROXY=${no_proxy:-},${VSS_IP:-}
-    volumes:
-      - ./search.json:/app/search.json:ro
+      - NO_PROXY=${no_proxy:-},${HOST_IP:-},${VSS_IP:-${HOST_IP:-}}
     restart: unless-stopped
 
   mcp-inspector:
-    image: ghcr.io/modelcontextprotocol/inspector:latest
+    image: ghcr.io/modelcontextprotocol/inspector:${INSPECTOR_TAG:-2.8.0}
     container_name: vss-mcp-inspector
-    network_mode: host
+    # The container port must equal the published one: the Inspector checks the
+    # browser's Origin against it.
+    ports:
+      - "${INSPECTOR_BIND_ADDRESS:-0.0.0.0}:${INSPECTOR_PORT:-6274}:${INSPECTOR_PORT:-6274}"
     environment:
-      - HOST=0.0.0.0
-      - PORT=${INSPECTOR_CLIENT_PORT:-6274}
-      - MCP_AUTO_OPEN_ENABLED=false
+      - CLIENT_PORT=${INSPECTOR_PORT:-6274}
+      - ALLOWED_ORIGINS=http://${HOST_IP:-}:${INSPECTOR_PORT:-6274},http://localhost:${INSPECTOR_PORT:-6274},http://127.0.0.1:${INSPECTOR_PORT:-6274}
+      # Auth is off by default for a trusted dev host only. The Inspector
+      # backend can spawn processes, so anyone who can reach this port can run
+      # commands in the container. Set DANGEROUSLY_OMIT_AUTH=false to require
+      # the token printed in `docker compose logs mcp-inspector`.
       - DANGEROUSLY_OMIT_AUTH=${DANGEROUSLY_OMIT_AUTH:-true}
-      - MCP_PROXY_AUTH_TOKEN=${MCP_PROXY_AUTH_TOKEN:-}
-      - ALLOWED_ORIGINS=http://${HOST_IP}:${INSPECTOR_CLIENT_PORT:-6274}
-      - http_proxy=${http_proxy:-}
-      - https_proxy=${https_proxy:-}
-      - no_proxy=${no_proxy:-},${VSS_IP:-}
-      - HTTP_PROXY=${http_proxy:-}
-      - HTTPS_PROXY=${https_proxy:-}
-      - NO_PROXY=${no_proxy:-},${VSS_IP:-}
+      - MCP_INSPECTOR_API_TOKEN
+      # No keychain in the container; keep saved secrets in memory only.
+      - MCP_INSPECTOR_SECRET_STORE=memory
+      # Docker may inject a proxy into every container; the Inspector must
+      # reach the MCP server directly. Node matches no_proxy by exact host, so
+      # a CIDR such as 10.0.0.0/8 in the host's list does not cover HOST_IP.
+      - no_proxy=${no_proxy:-},mcp-server,localhost,127.0.0.1,${HOST_IP:-}
+      - NO_PROXY=${no_proxy:-},mcp-server,localhost,127.0.0.1,${HOST_IP:-}
     depends_on:
       - mcp-server
     restart: unless-stopped

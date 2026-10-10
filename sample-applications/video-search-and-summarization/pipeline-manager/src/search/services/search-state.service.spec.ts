@@ -12,6 +12,7 @@ import { VideoEntity } from 'src/video-upload/models/video.entity';
 import { of, throwError } from 'rxjs';
 import { SearchEvents } from 'src/events/Pipeline.events';
 import { SocketEvent } from 'src/events/socket.events';
+import { DatastoreService } from 'src/datastore/services/datastore.service';
 
 jest.mock('uuid', () => ({
   v4: jest.fn(() => 'mock-query-id'),
@@ -47,6 +48,12 @@ describe('SearchStateService', () => {
       search: jest.fn(),
     };
 
+    const mockDatastoreService = {
+      getObjectRelativePath: jest
+        .fn()
+        .mockImplementation((objectName: string) => `/mock-bucket/${objectName}`),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SearchStateService,
@@ -65,6 +72,10 @@ describe('SearchStateService', () => {
         {
           provide: SearchShimService,
           useValue: mockSearchShimService,
+        },
+        {
+          provide: DatastoreService,
+          useValue: mockDatastoreService,
         },
       ],
     }).compile();
@@ -108,6 +119,39 @@ describe('SearchStateService', () => {
       });
 
       expect(result).toEqual({ selection: null, range: null });
+    });
+  });
+
+  describe('getQuery', () => {
+    it('should return the query with its hits joined to their videos', async () => {
+      const video = {
+        videoId: 'video-1',
+        url: 'video-1/source.mp4',
+        dataStore: { bucket: 'video-summary' },
+      } as VideoEntity;
+      searchDbService.read.mockResolvedValue({
+        queryId: 'query-1',
+        query: 'test query',
+        watch: false,
+        queryStatus: SearchQueryStatus.IDLE,
+        tags: [],
+        results: [{ id: 'r1', metadata: { video_id: 'video-1' } }],
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      } as unknown as SearchEntity);
+      videoService.getVideos.mockResolvedValue([video]);
+
+      const result = await service.getQuery('query-1');
+
+      expect(searchDbService.read).toHaveBeenCalledWith('query-1');
+      expect(result?.results[0]?.video).toEqual(video);
+      expect(result?.results[0]?.videoPlaybackUrl).toBeDefined();
+    });
+
+    it('should return null for an unknown query', async () => {
+      searchDbService.read.mockResolvedValue(null);
+
+      expect(await service.getQuery('missing')).toBeNull();
     });
   });
 
@@ -212,6 +256,112 @@ describe('SearchStateService', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]?.results).toEqual([]);
+    });
+  });
+
+  describe('enrichResultsWithVideos', () => {
+    const baseMetadata = {
+      video_id: 'video-1',
+      bucket_name: 'test-bucket',
+      clip_duration: 30,
+      date: '2025-01-01',
+      date_time: '2025-01-01T00:00:00Z',
+      day: 1,
+      fps: 30,
+      frames_in_clip: 900,
+      hours: 0,
+      id: 'test-id',
+      interval_num: 1,
+      minutes: 0,
+      month: 1,
+      seconds: 0,
+      time: '00:00:00',
+      timestamp: 1640995200,
+      total_frames: 900,
+      video: 'test-video',
+      video_path: '/test/path',
+      video_rel_url: '/rel/path',
+      video_remote_path: '/remote/path',
+      video_url: 'http://test.com/video',
+      year: 2025,
+      relevance_score: 0.95,
+    };
+
+    it('attaches a gateway-relative playback URL for a video with object-store info', async () => {
+      videoService.getVideos.mockResolvedValue([
+        {
+          videoId: 'video-1',
+          name: 'test-video',
+          url: 'video-1/source.mp4',
+          tags: [],
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+          dataStore: {
+            bucket: 'test-bucket',
+            objectName: 'video-1',
+            fileName: 'clip.mp4',
+          },
+        } as VideoEntity,
+      ]);
+
+      const results = await service.enrichResultsWithVideos([
+        {
+          id: 'result-1',
+          page_content: 'test content',
+          type: 'test',
+          metadata: baseMetadata,
+        },
+      ]);
+
+      expect(results[0].video?.videoId).toBe('video-1');
+      expect(results[0].videoPlaybackUrl).toBe('/mock-bucket/video-1/source.mp4');
+    });
+
+    it('leaves a hit unenriched when its video is not found', async () => {
+      videoService.getVideos.mockResolvedValue([]);
+
+      const results = await service.enrichResultsWithVideos([
+        {
+          id: 'result-1',
+          page_content: 'test content',
+          type: 'test',
+          metadata: baseMetadata,
+        },
+      ]);
+
+      expect(results[0].video).toBeUndefined();
+      expect(results[0].videoPlaybackUrl).toBeUndefined();
+    });
+
+    it('does not set a playback URL when the video has no object-store info', async () => {
+      videoService.getVideos.mockResolvedValue([
+        {
+          videoId: 'video-1',
+          name: 'test-video',
+          url: '',
+          tags: [],
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        } as VideoEntity,
+      ]);
+
+      const results = await service.enrichResultsWithVideos([
+        {
+          id: 'result-1',
+          page_content: 'test content',
+          type: 'test',
+          metadata: baseMetadata,
+        },
+      ]);
+
+      expect(results[0].video?.videoId).toBe('video-1');
+      expect(results[0].videoPlaybackUrl).toBeUndefined();
+    });
+
+    it('returns an empty array unchanged', async () => {
+      const results = await service.enrichResultsWithVideos([]);
+      expect(results).toEqual([]);
+      expect(videoService.getVideos).not.toHaveBeenCalled();
     });
   });
 

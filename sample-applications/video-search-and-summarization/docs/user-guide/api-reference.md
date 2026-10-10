@@ -45,13 +45,46 @@ The Pipeline Manager is the primary API for interacting with the application. It
 | **Audio** | `GET /audio/models` | Available audio transcription models |
 | **Tags** | `GET /tags`, `DELETE /tags/{tagId}` | Tag management |
 | **Video** | `POST /videos`, `GET /videos`, `GET /videos/{videoId}`, `POST /videos/search-embeddings/{videoId}` | Video upload, listing, and embedding creation |
-| **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched` | Search query management and execution |
+| **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched`, `POST /search/images`, `DELETE /search/images/{imageId}` | Search query management and execution; query-image upload for search-by-image |
 | **Summary** | `POST /summary`, `GET /summary`, `GET /summary/ui`, `GET /summary/{stateId}`, `GET /summary/{stateId}/raw`, `DELETE /summary/{stateId}` | Video summarization pipeline |
 
 > [!NOTE]
 > When accessing the Pipeline Manager through nginx, all paths are prefixed with `/manager/` (for example, `GET /manager/health`).
 
 For full request/response schemas, refer to the interactive docs or the OpenAPI spec.
+
+## Search by an Uploaded Image
+
+In `--search` and `--dual` modes, search-by-image can use an image stored in the
+object store instead of inline base64 data (claim-check pattern). This keeps
+large image payloads out of search requests and out of agent/MCP tool calls.
+
+1. Upload the image with `POST /search/images` (`multipart/form-data`, field
+   `image`). Accepted: `.jpg`/`.jpeg` (`image/jpeg`), `.png` (`image/png`),
+   `.webp` (`image/webp`), at most 2 MB. The file content must match its
+   extension. The response carries `imageId`, `imageUrl`, and `imagePath`.
+   `imageUrl` is the image's externally reachable gateway URL, for example
+   `http://<HOST_IP>:12345/datastore/<bucket>/search-images/<imageId>`. It is
+   built from `PM_PUBLIC_BASE_URL` (`setup.sh` defaults it to
+   `http://$HOST_IP:$APP_HOST_PORT`; set it for a DNS name or TLS proxy). If
+   that is unset, it is built from the request's `Host`/`X-Forwarded-*`
+   headers. `imagePath` is the same URL without the host.
+2. Search with `imageUrl` in place of `image` or `query` on `POST /search/query`
+   or `POST /search`. It accepts the returned `imageUrl`, `imagePath`, or the
+   bare `imageId`. Any host is accepted, so a caller can use whatever address
+   reaches the gateway. Only the path is used, and it must name an image stored
+   by step 1: Pipeline Manager reads the object from its own bucket and never
+   fetches any other URL.
+3. Delete the image with `DELETE /search/images/{imageId}` when it is no longer
+   needed. After that, searching by its URL returns `404`.
+
+```bash
+BASE=http://<HOST_IP>:12345/manager
+IMAGE_URL=$(curl -s -F "image=@frame.jpg;type=image/jpeg" "$BASE/search/images" | jq -r .imageUrl)
+curl -s -X POST "$BASE/search/query" -H 'Content-Type: application/json' \
+  -d "{\"imageUrl\": \"$IMAGE_URL\"}"
+curl -s -X DELETE "$BASE/search/images/$(basename "$IMAGE_URL")"
+```
 
 ## Using the OpenAPI Specification Offline
 

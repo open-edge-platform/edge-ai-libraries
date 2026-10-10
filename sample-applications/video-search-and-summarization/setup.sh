@@ -51,6 +51,8 @@ fi
 stop_containers() {
     echo -e "${YELLOW}Bringing down all the Docker containers... ${NC}"
     docker rm -f "${MODEL_DOWNLOAD_CTR_NAME}" >/dev/null 2>&1
+    # MCP Inspector is no longer shipped; remove one left by an older release.
+    docker rm -f vss-mcp-inspector >/dev/null 2>&1
     docker compose \
         -f docker/compose.base.yaml \
         -f docker/compose.summary.yaml \
@@ -61,16 +63,114 @@ stop_containers() {
         -f docker/compose.search.milvus.yaml \
         -f docker/compose.ui.yaml \
         -f docker/compose.metrics-manager.yaml \
+        -f docker/compose.mcp.yaml \
         --profile ovms --profile vlm-ov --profile vllm --profile vllm-xpu \
         --profile dual_ui --profile singleton_unified_ui \
         --profile singleton_summary_ui \
         --profile singleton_search_ui \
+        --profile mcp \
         down
     if [ $? -ne 0 ]; then
         echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}" >&2
         return 1
     fi
     echo -e "${GREEN}All containers were successfully stopped and removed. ${NC}"
+    return 0
+}
+
+start_mcp() {
+    # By compose label rather than container name: base.yaml does not pin a
+    # container_name, so the running container is docker-pipeline-manager-1.
+    if [ -z "$(docker ps -q --filter 'label=com.docker.compose.service=pipeline-manager')" ]; then
+        echo -e "${RED}ERROR: ${PM_HOST:-pipeline-manager} is not running.${NC}" >&2
+        echo -e "${YELLOW}The MCP server reads VSS through Pipeline Manager, so bring VSS up first:${NC}" >&2
+        echo -e "${GRAY}  make deploy-unified${NC}" >&2
+        return 1
+    fi
+
+    # HOST_IP is this machine's address, detected the same way as for a deploy.
+    export HOST_IP="${HOST_IP:-$(ip route get 1 2>/dev/null | awk '{print $7}')}"
+    if [ -z "${HOST_IP}" ]; then
+        echo -e "${RED}ERROR: Could not detect HOST_IP from 'ip route get 1'.${NC}" >&2
+        echo -e "${YELLOW}Export HOST_IP (this host's address) and re-run.${NC}" >&2
+        return 1
+    fi
+
+    if [ -n "$(docker ps -q --filter 'name=^/vss-mcp-server$' --filter 'status=running')" ]; then
+        echo -e "${GREEN}MCP tool server is already running.${NC}"
+        echo -e "${GREEN}VSS MCP server: ${YELLOW}http://${HOST_IP}:${MCP_HOST_PORT:-8000}${MCP_PATH:-/mcp}${NC}"
+        return 0
+    fi
+
+    # VSS_IP is the VSS gateway host the MCP server calls and puts in the URLs
+    # it returns, so it must be reachable by the agent. Ask only when it is
+    # neither exported nor set in the env file (read, never sourced).
+    if [ -z "${VSS_IP}" ] && [ -f "${ENV_FILE:-.env}" ]; then
+        VSS_IP="$(sed -n 's/^[[:space:]]*VSS_IP[[:space:]]*=[[:space:]]*//p' "${ENV_FILE:-.env}" \
+            | tail -n 1 | sed -e 's/[[:space:]]*#.*$//' -e 's/^["'\'']//' -e 's/["'\'']$//')"
+    fi
+    if [ -z "${VSS_IP}" ]; then
+        if [ -t 0 ]; then
+            local vss_ip_input
+            read -r -p "VSS_IP (VSS gateway host reachable by your agent) [${HOST_IP}]: " vss_ip_input
+            VSS_IP="${vss_ip_input:-${HOST_IP}}"
+        else
+            echo -e "${YELLOW}VSS_IP is not set and no terminal to ask on; using HOST_IP (${HOST_IP}).${NC}"
+            VSS_IP="${HOST_IP}"
+        fi
+    fi
+    case "${VSS_IP}" in
+        *://*|*/*|*[[:space:]]*)
+            echo -e "${RED}ERROR: VSS_IP must be a bare IP address or hostname (no scheme or path), got '${VSS_IP}'.${NC}" >&2
+            unset VSS_IP
+            return 1
+            ;;
+    esac
+    export VSS_IP
+
+    # A stopped/exited vss-mcp-server container (e.g. left over from the
+    # mcp/compose.yaml dev stack) still holds the name and would make `up`
+    # fail with a raw Docker name conflict; clear it the same way `--stop-mcp`
+    # would, since we already know nothing is using it.
+    docker rm -f vss-mcp-server >/dev/null 2>&1
+
+    # Only build when the image is missing, so a plain `--mcp` run after the
+    # first one just reuses it. To pick up local mcp/ source edits, rebuild
+    # explicitly: `docker compose -f docker/compose.base.yaml -f docker/compose.mcp.yaml --profile mcp build mcp-server`.
+    local mcp_image="${REGISTRY:-}vss-mcp-server:${TAG:-latest}"
+    local build_flag="--build"
+    if docker image inspect "${mcp_image}" >/dev/null 2>&1; then
+        build_flag=""
+    fi
+
+    COMPOSE_IGNORE_ORPHANS=true docker compose --env-file "${ENV_FILE:-.env}" \
+        -f docker/compose.base.yaml \
+        -f docker/compose.mcp.yaml \
+        --profile mcp \
+        up ${build_flag} -d mcp-server
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}ERROR: Failed to start the MCP server.${NC}" >&2
+        return 1
+    fi
+
+    echo -e "${GREEN}VSS MCP server: ${YELLOW}http://${HOST_IP}:${MCP_HOST_PORT:-8000}${MCP_PATH:-/mcp}${NC}"
+    echo -e "${GREEN}VSS gateway used by MCP: ${YELLOW}http://${VSS_IP}:${APP_HOST_PORT:-12345}${NC}"
+    return 0
+}
+
+stop_mcp() {
+    echo -e "${YELLOW}Stopping the MCP server... ${NC}"
+    COMPOSE_IGNORE_ORPHANS=true docker compose --env-file "${ENV_FILE:-.env}" \
+        -f docker/compose.base.yaml \
+        -f docker/compose.mcp.yaml \
+        --profile mcp \
+        rm --stop --force mcp-server
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}ERROR: Failed to stop the MCP server.${NC}" >&2
+        return 1
+    fi
+    docker rm -f vss-mcp-inspector >/dev/null 2>&1
+    echo -e "${GREEN}MCP server stopped and removed; the rest of VSS is untouched. ${NC}"
     return 0
 }
 
@@ -109,8 +209,8 @@ docker_data-prep"
 
     if [ -n "$failed" ]; then
         echo -e "${YELLOW}Note: These volumes exist but could not be removed (likely still in use by a running container):${failed}${NC}"
-        echo -e "${YELLOW}Stop the containers first (source setup.sh --stop) and retry. ${NC}"
-        return 0
+        echo -e "${YELLOW}Stop the containers first (make stop) and retry. ${NC}" >&2
+        return 1
     fi
     if [ -z "$removed" ]; then
         echo -e "${GREEN}No user-data volumes present to remove. ${NC}"
@@ -123,7 +223,7 @@ docker_data-prep"
 show_concise_help() {
     echo -e "Video Search and Summarization Application setup script v1.0"
     echo -e "Copyright (C) 2026 Intel Corporation"
-    echo -e "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}--summary [--search] | --search [--summary] | --search-and-summary | --stop | --clean-data | config ${NC}"
+    echo -e "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}--summary [--search] | --search [--summary] | --search-and-summary | --mcp | --stop-mcp | --stop | --clean-data | config ${NC}"
     echo -e "${YELLOW}EXAMPLES:"
     echo -e "${GRAY}source setup.sh --summary"
     echo -e "source setup.sh --search"
@@ -146,7 +246,7 @@ enforce_npu_int4_weight_format() {
 show_full_help() {
     echo -e  "-----------------------------------------------------------------"
     echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[ --summary [--search] [config] | --search [--summary] [config] | --search-and-summary [config] |"
-    echo -e  "                         --stop | --clean-data | --set-env | --help ]"
+    echo -e  "                         --mcp | --stop-mcp | --stop | --clean-data | --set-env | --help ]"
     echo -e  "${YELLOW}"
     echo -e  "                -h, --help:  Shows this help message."
     echo -e  "                 --summary:  Deploy Video Summary Application."
@@ -154,9 +254,13 @@ show_full_help() {
     echo -e "${YELLOW}                  --search:  Deploy Video Search Application."
     echo -e  "                             ${GRAY}Use with ${GREEN}--summary${GRAY} option to deploy both search and summary applications together.${NC}"
     echo -e  "${YELLOW}      --summary-and-search:  Deploy a modified Video Search application which does video summarization first and searches on summary content."
-    echo -e  "                  --setenv:  Set environment variables without setting up application or starting any containers."
+    echo -e  "                     --mcp:  Deploy the VSS MCP server beside a running deployment."
+    echo -e  "                             ${GRAY}Needs VSS up first. HOST_IP is auto-detected; VSS_IP defaults to it if a deploy ran earlier in this shell, else you're asked. Builds the image only if it doesn't already exist; rebuild explicitly after editing mcp/ source. Brought down by ${GREEN}--stop-mcp${GRAY} or ${GREEN}--stop${GRAY}.${NC}"
+    echo -e  "${YELLOW}                --stop-mcp:  Stop and remove only the VSS MCP server; the rest of VSS keeps running."
+    echo -e  "${YELLOW}                  --setenv:  Set environment variables without setting up application or starting any containers."
     echo -e  "            --down, --stop:  Bring down all the docker containers for the application."
     echo -e  "              --clean-data:  Bring down all the docker containers and remove all docker volumes for the user data."
+    echo -e  "                             ${GRAY}Asks for confirmation; set ${GREEN}CONFIRM=yes${GRAY} to skip the prompt.${NC}"
     echo -e  "             [Mode] config:  Print the final compose configuration with all environment variables resolved without"
     echo -e  "                             starting containers."
     echo -e  "                             ${GRAY}Mode defaults to ${GREEN}--summary --search${GRAY} when omitted."
@@ -181,6 +285,7 @@ if [ "$#" -ge 1 ] \
      && [ "$1" != "--summary" ] && [ "$1" != "--search" ] \
      && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] \
      && [ "$1" != "--setenv" ] && [ "$1" != "config" ] \
+     && [ "$1" != "--mcp" ] && [ "$1" != "--stop-mcp" ] \
      && [ "$1" != "--help" ]; then
     # Default case for unrecognized first option
     echo -e "${RED}Unknown option: $1 ${NC}" >&2
@@ -204,8 +309,18 @@ elif [ "$#" -eq 2 ] && [ "$1" != "config" ] && [ "$2" != "config" ]; then
     set --
     return 1
 
+elif [ "$1" = "--mcp" ]; then
+    # Additive: brings the MCP server up beside a deployment that is already
+    # running, and leaves the rest of the stack untouched.
+    start_mcp || return 1
+    return 0
+
+elif [ "$1" = "--stop-mcp" ]; then
+    stop_mcp || return 1
+    return 0
+
 elif [ "$1" = "--stop" ] || [ "$1" = "--clean-data" ]; then
-    # Bring down all the Docker containers
+        # Bring down all the Docker containers
     stop_containers || return 1
     # Remove volumes if --clean-data is specified
     if [ "$1" = "--clean-data" ]; then
@@ -219,7 +334,11 @@ fi
 # ================================== Export Environment Variables ===================================
 # Base configuration
 export APP_HOST_PORT=${APP_HOST_PORT:-12345}  # Default host port for nginx proxy (external access to UIs)
-export HOST_IP=$(ip route get 1 | awk '{print $7}')  # Fetch the host IP
+export HOST_IP=${HOST_IP:-$(ip route get 1 | awk '{print $7}')}
+# Default VSS_IP to HOST_IP here so a later `source setup.sh --mcp` re-uses the same IP without prompting.
+export VSS_IP=${VSS_IP:-${HOST_IP}}
+# Externally reachable gateway URL Pipeline Manager uses in links it returns
+export PM_PUBLIC_BASE_URL=${PM_PUBLIC_BASE_URL:-http://${HOST_IP}:${APP_HOST_PORT}}
 export TAG=${TAG:-latest}
 
 # If REGISTRY_URL is set, ensure it ends with a trailing slash
@@ -290,6 +409,7 @@ export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}  # Set this in your shell before r
 # env for minio-service
 export MINIO_ROOT_USER=${MINIO_ROOT_USER} # Set this in your shell before running the script
 export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} # Set this in your shell before running the script
+export OVMS_ALLOWED_MEDIA_DOMAINS=${OVMS_ALLOWED_MEDIA_DOMAINS:-${MINIO_HOST:-minio-service},localhost}
 
 # env for vdms-vector-db
 export VDMS_VDB_HOST_PORT=55555
@@ -1095,12 +1215,12 @@ md_run_downloads() {
             "Object Detection (${OD_MODEL_NAME})" || { md_teardown 1; return 1; }
     fi
     if [ "$MD_NEED_VLM" = true ]; then
-        md_download_ovms_model vlm "$VLM_MODEL_NAME" "$VLM_TARGET_DEVICE" "$VLM_COMPRESSION_WEIGHT_FORMAT" \
-            || { md_teardown 1; return 1; }
+        md_download_ovms_model vlm "$VLM_MODEL_NAME" "$VLM_TARGET_DEVICE" \
+            "$VLM_COMPRESSION_WEIGHT_FORMAT" || { md_teardown 1; return 1; }
     fi
     if [ "$MD_NEED_LLM" = true ]; then
-        md_download_ovms_model llm "$LLM_MODEL_NAME" "$LLM_TARGET_DEVICE" "$LLM_COMPRESSION_WEIGHT_FORMAT" \
-            || { md_teardown 1; return 1; }
+        md_download_ovms_model llm "$LLM_MODEL_NAME" "$LLM_TARGET_DEVICE" \
+            "$LLM_COMPRESSION_WEIGHT_FORMAT" || { md_teardown 1; return 1; }
     fi
 
     # Post-download steps: one ownership sweep over everything the container wrote as UID 1000, then IR verification and OVMS registration.
@@ -1179,7 +1299,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             ;;
     esac
 
-    mkdir -p ${VS_WATCHER_DIR}
+    mkdir -p "${VS_WATCHER_DIR}" || return 1
 
     echo -e  "[pipeline-manager] ${GREEN}Setting up: ${DEPLOYMENT_LABEL}${NC}"
     if [ -n "${VS_INDEX_NAME}" ]; then
@@ -1350,14 +1470,17 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
     fi
 
     # if config is passed, set the command to only generate the config
-    FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
-    DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE --profile $BACKEND_PROFILE --profile $UI_PROFILE $FINAL_ARG"
+    FINAL_ARGS=(up -d)
+    [ "$2" = "config" ] && FINAL_ARGS=(config)
+    # Overlay paths above are fixed tokens, never shell commands.
+    read -r -a COMPOSE_ARGS <<< "$APP_COMPOSE_FILE"
+    DOCKER_COMMAND=(docker compose "${COMPOSE_ARGS[@]}" --profile "$BACKEND_PROFILE" --profile "$UI_PROFILE" "${FINAL_ARGS[@]}")
 fi
 
 # Run the Docker command to set up the application
-if [ -n "$DOCKER_COMMAND" ]; then
-    echo -e  "${GREEN}Running Docker command: $DOCKER_COMMAND ${NC}"
-    eval "$DOCKER_COMMAND"
+if [ "${#DOCKER_COMMAND[@]}" -gt 0 ]; then
+    echo -e  "${GREEN}Running Docker command: ${DOCKER_COMMAND[*]} ${NC}"
+    "${DOCKER_COMMAND[@]}"
 else
     echo -e  "No valid setup command provided. Please run with --help option to see available commands."
 fi

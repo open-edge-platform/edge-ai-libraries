@@ -4,6 +4,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   SearchQuery,
   SearchQueryStatus,
+  SearchResult,
   SearchResultBody,
   SearchShimQuery,
   TimeFilterSelection,
@@ -19,6 +20,7 @@ import { lastValueFrom } from 'rxjs';
 import { v4 as uuidV4 } from 'uuid';
 import { VideoService } from 'src/video-upload/services/video.service';
 import { VideoEntity } from 'src/video-upload/models/video.entity';
+import { DatastoreService } from 'src/datastore/services/datastore.service';
 
 @Injectable()
 export class SearchStateService {
@@ -27,6 +29,7 @@ export class SearchStateService {
     private $video: VideoService,
     private $emitter: EventEmitter2,
     private $searchShim: SearchShimService,
+    private $datastore: DatastoreService,
   ) {}
 
   private normalizeTimeFilter(timeFilter?: TimeFilterSelection | null): {
@@ -168,6 +171,15 @@ export class SearchStateService {
     return enrichedQueries.filter((query) => query !== null);
   }
 
+  /**
+   * Read one query with its hits joined to their videos, as `getQueries`
+   * and `newQuery` return them, so a hit is playable without a separate
+   * `GET /videos`. `null` when the query does not exist.
+   */
+  async getQuery(queryId: string): Promise<SearchQuery | null> {
+    return this.enrichQueryWithVideos(await this.$searchDB.read(queryId));
+  }
+
   async newQuery(
     query: string,
     tags: string[] = [],
@@ -207,6 +219,33 @@ export class SearchStateService {
       return null;
     }
 
+    if (query.results && query.results.length > 0) {
+      query.results = await this.enrichResultsWithVideos(query.results);
+    }
+
+    return this.toSearchQuery(query);
+  }
+
+  /**
+   * Join search hits with their source video's object-store info.
+   *
+   * `POST /search/query`'s one-off results and a persisted query's stored
+   * results carry only `metadata.video_id`; neither knows the bucket or
+   * object key needed to build a link a browser or another service can
+   * actually fetch. This is the one place that join happens, so both search
+   * paths return the same, directly usable `videoPlaybackUrl` instead of
+   * every caller re-deriving it (or falling back to a second `list_videos`
+   * call, as the MCP server previously had to).
+   *
+   * Mutates and returns `results`; a video that no longer exists (deleted
+   * after being indexed) is left without `video`/`videoPlaybackUrl` rather
+   * than dropping the hit.
+   */
+  async enrichResultsWithVideos(results: SearchResult[]): Promise<SearchResult[]> {
+    if (!results || results.length === 0) {
+      return results;
+    }
+
     const videos = await this.$video.getVideos();
     const videosKeyedById = videos.reduce(
       (acc, video) => {
@@ -216,17 +255,18 @@ export class SearchStateService {
       {} as Record<string, VideoEntity>,
     );
 
-    if (query.results && query.results.length > 0) {
-      query.results = query.results.map((result) => {
-        const video = videosKeyedById[result.metadata.video_id];
-        if (video) {
-          result.video = video;
+    return results.map((result) => {
+      const video = videosKeyedById[result.metadata?.video_id];
+      if (video) {
+        result.video = video;
+        if (video.dataStore?.bucket && video.url) {
+          result.videoPlaybackUrl = this.$datastore.getObjectRelativePath(
+            video.url,
+          );
         }
-        return result;
-      });
-    }
-
-    return this.toSearchQuery(query);
+      }
+      return result;
+    });
   }
 
   async addToWatch(queryId: string) {
