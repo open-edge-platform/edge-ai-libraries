@@ -6,14 +6,26 @@ app:
 
 models:
   asr:
-    provider: openvino  # openai | openvino | whispercpp
-    name: whisper-base  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
-    device: CPU # CPU | GPU | NPU for openvino; CPU only for openai/whispercpp
+    provider: openvino  # openai | openvino | whispercpp | funasr
+    name: whisper-base  # whisper-tiny|base|small|medium|large (whisper providers); paraformer-zh|paraformer-en|paraformer-online (funasr)
+    device: CPU # CPU | GPU | NPU for openvino; CPU only for openai/whispercpp/funasr
     weight_format: null # OpenVINO: int8 | fp16 | null. whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
     temperature: 0.0
     diarization: False  # True or False, applicable for provider: openvino
     hf_token: None  # needed only if diarization=true
     models_base_path: "models"
+    # Language: Whisper providers are multilingual — pass `language` per request
+    # (e.g. "en" or "zh"). For dedicated high-accuracy Chinese/English use the
+    # funasr provider with name: paraformer-zh | paraformer-en. FunASR needs the
+    # optional deps: pip install -r requirements-cjk.txt (or build --build-arg
+    # INSTALL_CJK=true). model_hub selects the download source for funasr models.
+    model_hub: modelscope  # modelscope | huggingface — used only by the funasr provider
+
+    # FunASR companion models for VAD (voice activity detection) and punctuation
+    # restoration, shared across Paraformer variants. Defaults are the canonical
+    # iic/ models; override to pin a different model. Used only by the funasr provider.
+    vad_model: iic/speech_fsmn_vad_zh-cn-16k-common-pytorch
+    punc_model: iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch
 
     # Hallucination filtering — openai provider uses native no_speech_prob/avg_logprob.
     # whispercpp derives the same values from per-token plog and ptsum.
