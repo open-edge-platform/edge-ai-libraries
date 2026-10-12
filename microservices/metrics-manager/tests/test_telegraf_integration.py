@@ -55,12 +55,12 @@ class TestDefaultTelegrafConfig:
 
     def test_prometheus_output_enabled(self, telegraf_text: str):
         assert "[[outputs.prometheus_client]]" in telegraf_text
-        assert ':9273"' in telegraf_text
+        assert 'listen = ":${TELEGRAF_PORT}"' in telegraf_text
 
     def test_http_listener_for_custom_metrics_relay(self, telegraf_text: str):
         # /api/v1/metrics endpoints persist via Telegraf's HTTP listener on :8186.
         assert "[[inputs.http_listener_v2]]" in telegraf_text
-        assert ':8186"' in telegraf_text
+        assert 'service_address = ":${TELEGRAF_HTTP_PORT}"' in telegraf_text
 
     def test_custom_metrics_directory_input(self, telegraf_text: str):
         # The default config must execute user scripts dropped into /app/custom-metrics.
@@ -78,7 +78,7 @@ class TestHostnameOverrideWiring:
     """METRICS_MANAGER_HOSTNAME must be wired through compose + both readers."""
 
     def test_compose_passes_env_var(self, compose_text: str):
-        assert "METRICS_MANAGER_HOSTNAME=${METRICS_MANAGER_HOSTNAME:-}" in compose_text
+        assert "METRICS_MANAGER_HOSTNAME: ${METRICS_MANAGER_HOSTNAME:-}" in compose_text
 
     def test_qmassa_reader_reads_env_var(self):
         text = (REPO_ROOT / "scripts" / "qmassa_reader.py").read_text(encoding="utf-8")
@@ -112,10 +112,49 @@ class TestComposeWiring:
         assert "8186" in compose_text  # HTTP listener
         assert "9090" in compose_text  # API + SSE
 
-    def test_host_network_mode(self, compose_text: str):
-        # inputs.net/inputs.ethtool must read the host's physical NICs, not the
-        # container's virtual eth0, so the service runs in the host netns.
-        assert "network_mode: host" in compose_text
+    def test_default_service_keeps_bridge_network_and_ports(self, compose_text: str):
+        # Existing deployments rely on the metric-network bridge, the
+        # metrics-manager service name, and configurable host-port mappings.
+        # This must be the default (no profile) startup contract.
+        default_block = compose_text.split("metrics-manager-host-nic:", 1)[0]
+        assert "${HOST_METRICS_PORT:-9090}:9090" in default_block
+        assert "${HOST_TELEGRAF_PORT:-9273}:9273" in default_block
+        assert "${HOST_TELEGRAF_HTTP_PORT:-8186}:8186" in default_block
+        assert "metric-network" in default_block
+
+    def test_host_nic_service_is_opt_in_profile(self, compose_text: str):
+        # inputs.net/inputs.ethtool need the host netns to read physical NICs,
+        # but that must never be the default startup behavior (see above).
+        host_nic_block = compose_text.split("metrics-manager-host-nic:", 1)[1]
+        assert "host-nic-telemetry" in host_nic_block
+        assert "network_mode: host" in host_nic_block
+        # No bridge attachment or Docker port mapping for this variant.
+        host_nic_section = host_nic_block.split("metrics-manager-test:", 1)[0]
+        assert "\n    ports:" not in host_nic_section
+        assert "\n    networks:" not in host_nic_section
+
+    def test_host_nic_service_derives_ports_from_host_vars(self, compose_text: str):
+        # Listener ports and connection URLs must track the same HOST_* knobs
+        # used for port mapping in the default variant.
+        host_nic_section = compose_text.split("metrics-manager-host-nic:", 1)[1].split(
+            "metrics-manager-test:", 1
+        )[0]
+        assert "METRICS_PORT: ${HOST_METRICS_PORT:-9090}" in host_nic_section
+        assert "TELEGRAF_PORT: ${HOST_TELEGRAF_PORT:-9273}" in host_nic_section
+        assert "TELEGRAF_HTTP_PORT: ${HOST_TELEGRAF_HTTP_PORT:-8186}" in host_nic_section
+        assert (
+            "PROMETHEUS_TELEGRAF_ENDPOINT: http://localhost:${HOST_TELEGRAF_PORT:-9273}"
+            in host_nic_section
+        )
+        assert (
+            "TELEGRAF_HTTP_ENDPOINT: http://localhost:${HOST_TELEGRAF_HTTP_PORT:-8186}/write"
+            in host_nic_section
+        )
+
+    def test_healthchecks_use_runtime_metrics_port(self, compose_text: str):
+        # Both variants must probe the port METRICS_PORT actually resolves to,
+        # not a hardcoded 9090 (the host-nic variant may remap it).
+        assert compose_text.count("os.environ.get('METRICS_PORT', '9090')") == 2
 
 
 class TestSupervisordOrdering:

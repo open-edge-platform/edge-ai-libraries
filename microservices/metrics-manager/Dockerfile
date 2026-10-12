@@ -300,6 +300,7 @@ RUN chmod +x /entrypoint.sh && \
 # Environment variables with defaults
 ENV METRICS_PORT=9090
 ENV TELEGRAF_PORT=9273
+ENV TELEGRAF_HTTP_PORT=8186
 # Gates the qmassa GPU collector in supervisord. Set to false for deployments
 # that cannot grant /dev/dri access (the Helm chart does this explicitly).
 ENV HARDWARE_TELEMETRY_ENABLED=true
@@ -328,9 +329,10 @@ LABEL org.opencontainers.image.title="metrics-manager" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.licenses="Apache-2.0"
 
-# Health check
+# Health check — reads METRICS_PORT at runtime so the host-NIC-telemetry
+# Compose variant (which may remap it) is checked on the right port.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:9090/health', timeout=8)" || exit 1
+    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://localhost:' + os.environ.get('METRICS_PORT', '9090') + '/health', timeout=8)" || exit 1
 
 # Use supervisor to manage both Telegraf and Python service
 CMD ["/entrypoint.sh"]

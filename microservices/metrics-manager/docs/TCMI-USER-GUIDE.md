@@ -313,11 +313,13 @@ scrape_configs:
   - job_name: metrics-manager
     static_configs:
       - targets:
-          # Metrics Manager runs with network_mode: host, so reach its :9273
-          # endpoint via host.docker.internal from a bridged Prometheus
-          # container (requires the extra_hosts mapping below), or localhost:9273
-          # if Prometheus also runs with host networking.
-          - host.docker.internal:9273
+          # Use the MM container name when both stacks share the metric-network
+          # bridge (the default deployment). If you opted into the
+          # host-nic-telemetry profile instead (metrics-manager-host-nic,
+          # network_mode: host), there is no bridge attachment or service name
+          # to resolve - use host.docker.internal:${HOST_TELEGRAF_PORT:-9273}
+          # (requires the extra_hosts mapping below) instead.
+          - metrics-manager:9273
 ```
 
 **Step 5a-2 — Create `docker-compose.viz.yaml`**
@@ -336,8 +338,10 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --web.enable-lifecycle       # enables POST /-/reload
-    # Metrics Manager runs on the host network namespace, so reach its :9273
-    # endpoint through the host gateway rather than a shared Docker network.
+    networks:
+      - metric-network               # same network as metrics-manager
+    # Only needed if you opted into the host-nic-telemetry profile instead of
+    # the default bridge deployment (see prometheus.yml above).
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
@@ -351,10 +355,17 @@ services:
       - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
+    networks:
+      - metric-network
     restart: unless-stopped
 
 volumes:
   grafana-data:
+
+networks:
+  metric-network:
+    external: true    # reuse the network created by metrics-manager's compose.yaml
+    name: metrics-manager_metric-network
 ```
 
 **Step 5a-3 — Start the visualization stack**
@@ -590,12 +601,58 @@ R panels stay empty (no crash — just no data).
 | Variable | Default | Purpose |
 |---|---|---|
 | `METRICS_MANAGER_HOSTNAME` | kernel hostname | stable `host=` tag so Grafana `$host` stays constant across restarts |
+| `HOST_METRICS_PORT` | `9090` | default variant: host port mapped to the API; host-nic-telemetry variant: the actual API listener port |
+| `HOST_TELEGRAF_PORT` | `9273` | default variant: host port mapped to the Prometheus endpoint; host-nic-telemetry variant: the actual listener port |
+| `HOST_TELEGRAF_HTTP_PORT` | `8186` | default variant: host port mapped to the Telegraf HTTP listener; host-nic-telemetry variant: the actual listener port |
 | `PRIVILEGED` | `true` | set `false` only if you want CPU/RAM/temp and nothing hardware-privileged |
 | `DRAM_BW_INTERVAL` | `1` | perf sampling window (seconds) for DRAM bandwidth |
 
-> The service runs with `network_mode: host`, so the API (`:9090`), Prometheus
-> endpoint (`:9273`) and Telegraf HTTP listener (`:8186`) are published directly
-> on the host and cannot be remapped to other host ports.
+### Two deployment variants: default bridge vs. opt-in host-NIC telemetry
+
+`docker compose up` starts the **default** `metrics-manager` service: existing
+bridge network, service name, and configurable host-port mappings. This is the
+only variant started by ordinary `docker compose up`, and it keeps `net_bytes_*`
+/`ethtool_*` reporting the container's own interface (not the host's physical
+NICs) — the same behavior already integrated by existing consumers.
+
+Enabling `inputs.net`/`inputs.ethtool` to report the host's real NICs instead
+requires the host network namespace, which changes the networking model for any
+client that previously connected via the `metrics-manager` service name. Opt in
+explicitly with the `host-nic-telemetry` Compose profile, naming the service:
+
+```bash
+docker compose stop metrics-manager
+docker compose --profile host-nic-telemetry up -d metrics-manager-host-nic
+```
+
+> Do not start it with `docker compose --profile host-nic-telemetry up -d`
+> alone — profiles select which services may start, they don't replace one
+> variant with another; that command also starts the default `metrics-manager`
+> service. Always name `metrics-manager-host-nic` explicitly, and stop the
+> variant you are switching away from — Compose does not do this for you.
+
+To switch back:
+
+```bash
+docker compose --profile host-nic-telemetry stop metrics-manager-host-nic
+docker compose up -d metrics-manager
+```
+
+In the `host-nic-telemetry` variant there is no Docker port mapping to remap —
+`HOST_METRICS_PORT`/`HOST_TELEGRAF_PORT`/`HOST_TELEGRAF_HTTP_PORT` become the
+actual listener ports on the host, and the container's internal
+`PROMETHEUS_TELEGRAF_ENDPOINT`/`TELEGRAF_HTTP_ENDPOINT` settings track them
+automatically. Bridge-network clients that need to reach this variant require a
+supported route to the host (e.g. a `host-gateway` alias — see
+`dashboards/prometheus-scrape-job.yml`); the alias only resolves the hostname,
+clients must still use the selected listener port. Updating the Metrics Manager
+image alone does not change networking in another team's Compose definition —
+switching variants is a deliberate action on each deployment.
+
+For ViPPET specifically, migrating to `host-nic-telemetry` means updating both
+its backend connection *and* the UI's Nginx metrics-stream upstream — not just
+one environment variable — and remains opt-in, not a requirement for existing
+default deployments.
 
 ### Prometheus scrape job
 

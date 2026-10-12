@@ -13,8 +13,11 @@ Prometheus format on `:9273`, Prometheus scrapes that, Grafana reads Prometheus.
 actually added are a few small Python readers for the metrics Telegraf's plugins can't reach on their
 own, and a little switchboard (`.env` → entrypoint) for turning each collector on or off.
 
-The container runs in the host network namespace (`network_mode: host`) so the `net` and `ethtool`
-collectors read the host's physical NICs rather than the container's virtual `eth0`.
+By default the container stays on the existing bridge network and service name, so `net`/`ethtool`
+report the container's own interface rather than the host's physical NICs. Teams that need host-NIC
+telemetry opt in explicitly with the `host-nic-telemetry` Compose profile (`metrics-manager-host-nic`),
+which runs the same image with `network_mode: host` instead — see `compose.yaml` for the switch
+commands.
 
 ## The flow
 
