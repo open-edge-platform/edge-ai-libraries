@@ -176,20 +176,14 @@ Returned by `DELETE /streams/{stream-id}` and `DELETE /records/{recording-id}`.
 
 ## Service APIs
 
-> [!NOTE]
-> `/health` and `/version` are documented but **not yet wired up** in this build — the
-> router does not register either route today. They are kept in the spec for the
-> upcoming updates.
+### Service status
 
-### Service health
+`GET /status`
 
-`GET /health`
-
-Returns `200` while the service is started and can reach its database and media storage;
-`503` otherwise. Having no streams attached is healthy.
+Reports service status and the running build's version, build number, and build date.
 
 ```bash
-curl -i http://localhost:8080/v1/health
+curl -i http://localhost:8080/v1/status
 ```
 
 ```http
@@ -197,39 +191,16 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
-  "service": "stream-manager",
   "status": "ok",
-  "checked_at": "2026-09-16T09:15:00.000000000Z"
+  "version": "v0.1.0",
+  "build_number": "42",
+  "build_date": "2026-09-16T00:00:00.000000000Z"
 }
 ```
 
 | Status | Meaning |
 |---|---|
-| 200 | Service is healthy. |
-| 503 | The service or a dependency is not reachable. |
-
-### Service version
-
-`GET /version`
-
-Reports build details held locally.
-
-```bash
-curl -i http://localhost:8080/v1/version
-```
-
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json
-
-{
-  "service": "stream-manager",
-  "version": "0.1.0",
-  "api_version": "v1",
-  "build_time": "2026-09-16T00:00:00.000000000Z",
-  "git_commit": "a1b2c3d"
-}
-```
+| 200 | Service status and build details. |
 
 ---
 
