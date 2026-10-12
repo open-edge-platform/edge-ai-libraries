@@ -78,7 +78,8 @@ debian_90_stop_live_video_search () {
     set +a
     . ./setup.sh --down || true
     . ./setup.sh --clean-data || true
-  }
+    docker volume rm docker_ov_models -f
+  } || true
 }
 
 debian_90_remove_live_video_search () {
