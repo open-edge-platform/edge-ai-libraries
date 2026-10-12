@@ -9,7 +9,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -32,8 +32,8 @@ var (
 	ErrInvalidFilter = errors.New("invalid recording filter or cursor")
 )
 
-const recordsSchema = `
-CREATE TABLE IF NOT EXISTS records (
+const recordingsSchema = `
+CREATE TABLE IF NOT EXISTS recordings (
 	recording_id TEXT PRIMARY KEY,
 	sensor_id TEXT NOT NULL,
 	stream_id TEXT,
@@ -48,7 +48,16 @@ CREATE TABLE IF NOT EXISTS records (
 	expiry_ts INTEGER,
 	error_detail TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_records_sensor_stream ON records(sensor_id, stream_id);`
+CREATE INDEX IF NOT EXISTS idx_recordings_sensor_stream ON recordings(sensor_id, stream_id);`
+
+// slogWriter adapts gorm's logger.Writer interface to log/slog. GORM only
+// calls Printf for warn-level-and-above diagnostics (per the configured
+// logger.Config.LogLevel), so these are reported at warning severity.
+type slogWriter struct{}
+
+func (slogWriter) Printf(format string, args ...any) {
+	slog.Warn(fmt.Sprintf(format, args...))
+}
 
 // Store owns the SQLite connection and the private recording filesystem root.
 type Store struct {
@@ -110,7 +119,7 @@ func Open(directory string) (_ *Store, result error) {
 	dsn := (&url.URL{Scheme: "file", Path: filepath.Join(absolute, "stream-manager.db")}).String()
 	dsn += "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)"
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
-		Logger: logger.New(log.New(os.Stderr, "", log.LstdFlags), logger.Config{
+		Logger: logger.New(slogWriter{}, logger.Config{
 			LogLevel: logger.Warn, ParameterizedQueries: true, IgnoreRecordNotFoundError: true,
 			SlowThreshold: time.Second,
 		}),
@@ -124,8 +133,8 @@ func Open(directory string) (_ *Store, result error) {
 		return nil, err
 	}
 	s.sql.SetMaxOpenConns(1)
-	if err := db.Transaction(func(tx *gorm.DB) error { return tx.Exec(recordsSchema).Error }); err != nil {
-		return nil, fmt.Errorf("initialize records schema: %w", err)
+	if err := db.Transaction(func(tx *gorm.DB) error { return tx.Exec(recordingsSchema).Error }); err != nil {
+		return nil, fmt.Errorf("initialize recordings schema: %w", err)
 	}
 	return s, nil
 }
@@ -210,9 +219,9 @@ func (s *Store) ListMetadata(ctx context.Context, filter model.RecordingFilter) 
 	for key, value := range filter.Metadata {
 		switch value.(type) {
 		case nil:
-			query = query.Where("EXISTS (SELECT 1 FROM json_each(records.metadata) WHERE key = ? AND type = 'null')", key)
+			query = query.Where("EXISTS (SELECT 1 FROM json_each(recordings.metadata) WHERE key = ? AND type = 'null')", key)
 		case string, bool, int, int64, float64:
-			query = query.Where("EXISTS (SELECT 1 FROM json_each(records.metadata) WHERE key = ? AND value = ?)", key, value)
+			query = query.Where("EXISTS (SELECT 1 FROM json_each(recordings.metadata) WHERE key = ? AND value = ?)", key, value)
 		default:
 			return nil, "", ErrInvalidFilter
 		}

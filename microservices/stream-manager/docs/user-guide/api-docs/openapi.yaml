@@ -1036,7 +1036,7 @@ components:
 
     Recording:
       type: object
-      description: One record is one recording of one sensor, and matches exactly one row of the records table.
+      description: One record is one recording of one sensor, and matches exactly one row of the recordings table.
       properties:
         recording_id:
           type: string

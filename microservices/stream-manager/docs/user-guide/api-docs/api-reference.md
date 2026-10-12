@@ -108,7 +108,7 @@ status codes each endpoint can return.
 
 ### Recording
 
-One record is one recording of one sensor, matching exactly one row of the records table.
+One record is one recording of one sensor, matching exactly one row of the recordings table.
 
 | Field | Type | Description |
 |---|---|---|

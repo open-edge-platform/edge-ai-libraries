@@ -13,11 +13,11 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-// Recording is one row of the records table.
+// Recording is one row of the recordings table.
 type Recording struct {
 	RecordingID   string         `gorm:"column:recording_id;type:text;primaryKey"`
-	SensorID      string         `gorm:"column:sensor_id;type:text;not null;index:idx_records_sensor_stream,priority:1"`
-	StreamID      *string        `gorm:"column:stream_id;type:text;index:idx_records_sensor_stream,priority:2"`
+	SensorID      string         `gorm:"column:sensor_id;type:text;not null;index:idx_recordings_sensor_stream,priority:1"`
+	StreamID      *string        `gorm:"column:stream_id;type:text;index:idx_recordings_sensor_stream,priority:2"`
 	StartTS       time.Time      `gorm:"column:start_ts;type:integer;not null;serializer:unixnano"`
 	EndTS         *time.Time     `gorm:"column:end_ts;type:integer;serializer:unixnano;check:end_ts IS NULL OR end_ts > start_ts"`
 	RecordingPath string         `gorm:"column:recording_path;type:text;not null"`
@@ -29,9 +29,6 @@ type Recording struct {
 	ExpiryTS      *time.Time     `gorm:"column:expiry_ts;type:integer;serializer:unixnano"`
 	ErrorDetail   *string        `gorm:"column:error_detail;type:text"`
 }
-
-// TableName keeps GORM from pluralising the table to "recordings".
-func (Recording) TableName() string { return "records" }
 
 // RecordingFilter selects recordings; zero-valued fields are not applied.
 type RecordingFilter struct {
