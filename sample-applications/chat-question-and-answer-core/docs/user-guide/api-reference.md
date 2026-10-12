@@ -247,6 +247,73 @@ Common errors:
 - `422`: Missing or empty `input`.
 - `500`: Inference or processing failure.
 
+#### Returning sources (opt-in)
+
+Set `RETURN_SOURCES: true` under `model_settings` in the model configuration YAML (or the
+`RETURN_SOURCES` environment variable) to make answers traceable to the retrieved chunks. The
+default is `false`, and the responses above are unchanged.
+
+When enabled:
+
+- The retrieved (and reranked) chunks are labelled `[S1]`, `[S2]`, … in the prompt, with the
+  file name and page, so a prompt template can ask the model to cite them.
+- A non-stream response adds a `sources` array:
+
+  ```json
+  {
+    "status": "Success",
+    "metadata": "<answer text that may contain [S1] markers>",
+    "sources": [
+      {"id": "S1", "source": "manual.pdf", "page": 4, "page_label": "5",
+       "snippet": "<first SOURCE_SNIPPET_CHARS characters>", "relevance_score": 0.93}
+    ]
+  }
+  ```
+
+  `page` is 0-based as set by the document loader (`null` for formats without pages).
+  `page_label` is the printed page label when the PDF has one, otherwise `page + 1`.
+  `relevance_score` is the reranker score (`null` when reranking is disabled).
+- A streamed response starts with one extra event, sent before the first token, so a client
+  can inspect the sources (for example, their `relevance_score`) without waiting for the answer:
+
+  ```text
+  event: sources
+  data: {"sources": [ ... ]}
+  ```
+
+  Each token chunk that follows is encoded as standard SSE `data:` lines (one per line of
+  text, so newlines are preserved). With the OpenVINO runtime, generation stops at the next
+  token when the client disconnects, and generations run one at a time.
+
+Related settings (same `model_settings` section or environment variables):
+
+| Setting | Default | Description |
+|---|---|---|
+| `SOURCE_SNIPPET_CHARS` | `300` | Maximum snippet length. |
+| `RETRIEVAL_K` | `3` | Chunks retrieved from the vector store. |
+| `RERANK_TOP_N` | `2` | Chunks kept after reranking. |
+| `RETRIEVAL_TRANSLATE_PROMPT` | empty | Optional prompt with a `{question}` placeholder. When set, the LLM (OpenVINO runtime) rewrites the question before retrieval, for example into English for an English-only embedding model. The answer still uses the original question. |
+
+#### Devices (OpenVINO runtime)
+
+`EMBEDDING_DEVICE`, `RERANKER_DEVICE` and `LLM_DEVICE` (`device_settings`) accept `CPU`, `GPU`
+or `NPU`, independently per model.
+
+- On `NPU`, the LLM runs through OpenVINO GenAI from an int4 channel-wise export in
+  `LLM_NPU_MODEL_DIR` (created at startup when missing; the image needs the NPU user-space driver).
+  The embedding model and reranker are compiled with static shapes.
+- NPU jobs (encoder batches and LLM generations) run one at a time with a short gap between
+  them, because concurrent or back-to-back jobs of different models fault the NPU. With the LLM
+  on NPU, retrieval for another request waits until the current answer ends.
+
+| Setting | Default | Description |
+|---|---|---|
+| `LLM_NPU_MODEL_DIR` | `<model cache>/<LLM_MODEL_ID>/npu` | OpenVINO GenAI model directory for the LLM on NPU. |
+| `NPU_MAX_PROMPT_LEN` | `4096` | Prompt token limit of the LLM on NPU. Lowest-ranked chunks are dropped to fit; a longer question is rejected. |
+| `NPU_EMBEDDING_BATCH` | `4` | Static batch size of the embedding model on NPU. |
+| `NPU_RERANKER_BATCH` | `2` | Static batch size of the reranker on NPU. |
+| `NPU_ENCODER_SEQ_LEN` | `512` | Static sequence length of the embedding model and reranker on NPU. |
+
 ### `GET /ollama-models` (Ollama runtime)
 
 Returns the list of currently loaded Ollama models.

@@ -12,6 +12,7 @@ from openvino_tokenizers import convert_tokenizer
 from langchain_community.embeddings import OpenVINOBgeEmbeddings
 from langchain_community.document_compressors.openvino_rerank import OpenVINOReranker
 from langchain_huggingface import HuggingFacePipeline
+from .openvino_xpu import GenAILLM, make_static
 import os
 import openvino as ov
 
@@ -27,6 +28,9 @@ class OpenVINOBackend:
         self.reranker_device = config.RERANKER_DEVICE
         self.llm_device = config.LLM_DEVICE
         self.max_tokens = config.MAX_TOKENS
+        self.llm_npu_model_dir = config.LLM_NPU_MODEL_DIR or os.path.join(
+            self.cache_dir, self.llm_model_id, "npu"
+        )
 
     def login_to_huggingface(self, token: str):
         """
@@ -159,6 +163,55 @@ class OpenVINOBackend:
 
         model.save_pretrained(model_path)
 
+    def convert_npu_llm(self, model_id: str, model_path: str):
+        """
+        Exports an LLM for the NPU: int4 symmetric channel-wise weights (the layout the NPU
+        runs best) plus the OpenVINO tokenizer and detokenizer used by OpenVINO GenAI.
+
+        Args:
+            model_id (str): Hugging Face model identifier (resolved from the HF cache).
+            model_path (str): Output directory.
+
+        Notes:
+            - Skipped when `model_path` already holds `openvino_model.xml`.
+        """
+
+        if os.path.isfile(os.path.join(model_path, "openvino_model.xml")):
+            logger.info(f"NPU export of {model_id} exists in {model_path}. Skipping conversion...")
+            return
+
+        from optimum.intel import OVWeightQuantizationConfig
+
+        logger.info(f"Converting {model_id} to OpenVINO™ int4 channel-wise for NPU...")
+        # 'main' is the only available revision and already handled in huggingfacehub module
+        hf_tokenizer = AutoTokenizer.from_pretrained(model_id)  # nosec B615
+        model = OVModelForCausalLM.from_pretrained(
+            model_id,
+            export=True,
+            compile=False,
+            quantization_config=OVWeightQuantizationConfig(bits=4, sym=True, group_size=-1, ratio=1.0),
+            trust_remote_code=True,
+        )
+        model.save_pretrained(model_path)
+        hf_tokenizer.save_pretrained(model_path)
+        ov_tokenizer, ov_detokenizer = convert_tokenizer(hf_tokenizer, with_detokenizer=True)
+        ov.save_model(ov_tokenizer, os.path.join(model_path, "openvino_tokenizer.xml"))
+        ov.save_model(ov_detokenizer, os.path.join(model_path, "openvino_detokenizer.xml"))
+
+    def _encoder_kwargs(self, model_id: str, device: str) -> dict:
+        kwargs = {"device": device, "compile": False}
+        if device == "NPU":
+            # NPU compilation takes seconds to minutes; reuse the compiled blob across restarts.
+            kwargs["ov_config"] = {"CACHE_DIR": os.path.join(self.cache_dir, model_id, "model_cache")}
+        return kwargs
+
+    def _compile_encoder(self, model, device: str, npu_batch: int):
+        if device == "NPU":
+            # The NPU needs static shapes.
+            return make_static(model, npu_batch, config.NPU_ENCODER_SEQ_LEN)
+        model.compile()
+        return model
+
     def init_models(self):
         """
         Initializes the OpenVINO models for embedding, LLM, and reranking.
@@ -182,20 +235,38 @@ class OpenVINOBackend:
         self.convert_model(self.embedding_model_id, self.cache_dir, "embedding")
         self.convert_model(self.reranker_model_id, self.cache_dir, "reranker")
         self.convert_model(self.llm_model_id, self.cache_dir, "llm")
+        if self.llm_device == "NPU":
+            self.convert_npu_llm(self.llm_model_id, self.llm_npu_model_dir)
 
         # Initialize embedding model
         embedding = OpenVINOBgeEmbeddings(
             model_name_or_path = os.path.join(self.cache_dir, self.embedding_model_id),
-            model_kwargs = {"device": self.embedding_device, "compile": False},
+            model_kwargs = self._encoder_kwargs(self.embedding_model_id, self.embedding_device),
         )
-        embedding.ov_model.compile()
+        embedding.ov_model = self._compile_encoder(
+            embedding.ov_model, self.embedding_device, config.NPU_EMBEDDING_BATCH
+        )
 
         # Initialize reranker model
         reranker = OpenVINOReranker(
             model_name_or_path = os.path.join(self.cache_dir, self.reranker_model_id),
-            model_kwargs = {"device": self.reranker_device},
+            model_kwargs = self._encoder_kwargs(self.reranker_model_id, self.reranker_device),
             top_n = 2,
         )
+        reranker.ov_model = self._compile_encoder(
+            reranker.ov_model, self.reranker_device, config.NPU_RERANKER_BATCH
+        )
+
+        if self.llm_device == "NPU":
+            # The NPU LLM runs through OpenVINO GenAI (the HF pipeline path does not support it).
+            llm = GenAILLM.load(
+                self.llm_npu_model_dir,
+                "NPU",
+                max_new_tokens=self.max_tokens,
+                max_prompt_tokens=config.NPU_MAX_PROMPT_LEN,
+                cache_dir=os.path.join(self.llm_npu_model_dir, "model_cache"),
+            )
+            return embedding, llm, reranker
 
         # Initialize LLM
         llm = HuggingFacePipeline.from_model_id(

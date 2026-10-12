@@ -31,6 +31,15 @@ class Settings(BaseSettings):
         LLM_DEVICE (str): Device for LLM ('CPU', etc.).
         MAX_TOKENS (int): Maximum number of tokens for LLM responses.
         KEEP_ALIVE (Union[str, int, None]): Keep-alive setting for the application.
+        RETURN_SOURCES (bool): When True, context chunks are labelled [S1..Sn] in the prompt and
+            `/chat` returns them as `sources` (JSON field or a final `event: sources` SSE frame).
+        SOURCE_SNIPPET_CHARS (int): Maximum length of the snippet returned per source.
+        LLM_NPU_MODEL_DIR (str): OpenVINO GenAI model directory for the LLM on NPU
+            (default: <model cache>/<LLM_MODEL_ID>/npu).
+        NPU_MAX_PROMPT_LEN (int): Prompt token limit of the LLM on NPU.
+        NPU_EMBEDDING_BATCH (int): Static batch size of the embedding model on NPU.
+        NPU_RERANKER_BATCH (int): Static batch size of the reranker on NPU.
+        NPU_ENCODER_SEQ_LEN (int): Static sequence length of the embedding and reranker on NPU.
 
     Private Attributes:
         _ENABLE_RERANK (bool): Whether reranking is enabled.
@@ -67,6 +76,25 @@ class Settings(BaseSettings):
     LLM_DEVICE: str = "CPU"
     MAX_TOKENS: int = 1024
     KEEP_ALIVE: Union[str, int, None] = None
+    # Opt-in: label context chunks [S1..Sn] in the prompt and return them as `sources`.
+    RETURN_SOURCES: bool = False
+    SOURCE_SNIPPET_CHARS: int = 300
+    # Chunks fetched from FAISS and kept after reranking (stock: 3 and 2).
+    RETRIEVAL_K: int = 3
+    RERANK_TOP_N: int = 2
+    # Optional LLM prompt with `{question}` that rewrites the question for retrieval.
+    RETRIEVAL_TRANSLATE_PROMPT: str = ""
+    # LLM on NPU runs through OpenVINO GenAI from an int4 channel-wise export
+    # (default: <model cache>/<LLM_MODEL_ID>/npu), compiled for at most NPU_MAX_PROMPT_LEN
+    # prompt tokens. Embedding and reranker on NPU are compiled with the static shapes
+    # [NPU_EMBEDDING_BATCH, NPU_ENCODER_SEQ_LEN] and [NPU_RERANKER_BATCH, NPU_ENCODER_SEQ_LEN].
+    # Embedding batch 4 matches the LangChain encode batch; granite-embedding-125m faults on
+    # the NPU (MMU translation fault) at batch 1 and 2 under sustained ingestion.
+    LLM_NPU_MODEL_DIR: str = ""
+    NPU_MAX_PROMPT_LEN: int = 4096
+    NPU_EMBEDDING_BATCH: int = 4
+    NPU_RERANKER_BATCH: int = 2
+    NPU_ENCODER_SEQ_LEN: int = 512
 
     # These fields will not be affected by environment variables
     _ENABLE_RERANK: bool = PrivateAttr(True)
