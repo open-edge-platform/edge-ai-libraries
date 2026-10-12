@@ -28,6 +28,13 @@ const (
 	shutdownGrace     = 7 * time.Second
 )
 
+// These variables get updated while building the app
+var (
+	Version     string = "v0.0.1"
+	BuildDate   string = "NA"
+	BuildNumber string = "NA"
+)
+
 func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
@@ -59,7 +66,7 @@ func run() (errResult error) {
 	defer func() { errResult = errors.Join(errResult, recordings.Close()) }()
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewRouter(buffers, recordings),
+		Handler:           api.NewRouter(buffers, recordings, Version, BuildNumber, BuildDate),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,

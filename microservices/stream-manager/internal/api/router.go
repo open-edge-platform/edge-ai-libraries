@@ -12,12 +12,16 @@ import (
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/stream"
 )
 
-// NewRouter builds the HTTP engine with the API mounted under /v1.
-func NewRouter(buffers stream.Bufferer, recordings *record.Service) *gin.Engine {
+// NewRouter builds the HTTP engine with the API mounted under /v1. version,
+// buildNumber, and buildDate are reported by the Service status API.
+func NewRouter(buffers stream.Bufferer, recordings *record.Service, version, buildNumber, buildDate string) *gin.Engine {
 	router := gin.New()
 	// adding global middlewares
 	router.Use(gin.Logger(), common.Recovery(), common.BodyLimit())
 	v1 := router.Group("/v1")
+
+	status := handler.StatusHandler{Version: version, BuildNumber: buildNumber, BuildDate: buildDate}
+	v1.GET("/status", status.Status)
 
 	streams := handler.StreamHandler{Buffers: buffers}
 	streamRoutesWithID := v1.Group("/streams/:stream-id", common.RequireID("stream-id", "stream_not_found", "stream not found"))
