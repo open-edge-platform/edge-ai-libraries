@@ -46,7 +46,14 @@ debian_90_stop_handheld_multi_modal () {
 }
 
 debian_90_remove_handheld_multi_modal () {
-  debian_90_stop_handheld_multi_modal $*
+  configure_handheld_multi_modal
+  local app_dir="$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
+  local vippet_dir="$workspace"/federal-and-aerospace-ai-suite/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool
+  [ ! -d "$app_dir" ] || debian_90_stop_handheld_multi_modal $* || true
+  # drop the stacks' containers, volumes and images (not a system-wide prune)
+  [ ! -r "$vippet_dir/compose.yml" ] || (cd "$vippet_dir" && docker compose down --remove-orphans --volumes --rmi all) || true
+  [ ! -r "$app_dir/docker-compose.yml" ] || (cd "$app_dir" && docker compose -f docker-compose.yml down --remove-orphans --volumes --rmi all) || true
+  docker image rm -f whisper-stt:latest > /dev/null 2>&1 || true
   ensure_rm "$workspace"
 }
 

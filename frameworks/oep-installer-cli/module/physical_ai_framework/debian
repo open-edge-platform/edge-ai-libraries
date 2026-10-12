@@ -54,7 +54,7 @@ debian_91_install_physical_ai_framework () {
   else
     ensure_disk_size 15000
 
-    rm -rf "$paif_venv" "$paif_device_file"
+    ensure_rm "$paif_venv" "$paif_device_file"
     mkdir -p "$workspace"
     uv venv --python 3.12 "$paif_venv" || {
       echo "Could not create the Physical AI Framework virtual environment." 1>&2

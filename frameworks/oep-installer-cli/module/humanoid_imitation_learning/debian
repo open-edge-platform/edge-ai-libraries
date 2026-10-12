@@ -24,7 +24,9 @@ debian_90_profile_humanoid_imitation_learning () {
 
 # the container recipes are checked out at the pinned version
 verify_humanoid_imitation_learning_workspace () {
-  [ "$(git -C "$workspace" rev-parse HEAD 2> /dev/null)" = "$version" ] && \
+  local head
+  head="$(git -C "$workspace" rev-parse -q --verify HEAD 2> /dev/null)" && \
+  [ "$head" = "$(git -C "$workspace" rev-parse -q --verify "$version^{commit}" 2> /dev/null)" ] && \
   [ -r "$container_dir/dockerfiles/humanoid-imitation-learning/base.dockerfile" ]
 }
 

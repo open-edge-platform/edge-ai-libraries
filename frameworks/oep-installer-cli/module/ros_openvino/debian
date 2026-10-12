@@ -19,7 +19,7 @@ configure_ros_openvino () {
   esac
   ov_deb_pref=(
     "Package: openvino"
-    "Pin: version $ov_version"
+    "Pin: version $ov_version*"
     "Pin-Priority: 1001"
     "Package: ros-$ros_distro-openvino-wrapper-lib"
     "Pin: version $ov_version*"
@@ -92,7 +92,7 @@ verify_robotics_in_use_ros_openvino () {
 remove_oneapi_ros_openvino () {
   configure_oneapi_ros_openvino
   ! verify_robotics_in_use_ros_openvino || return 0
-  ensure_sudo rm -f "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
+  ensure_rm "$oneapi_key_file" "$oneapi_list" "$oneapi_pref_file"
 }
 
 sbom_oneapi_ros_openvino () {
@@ -156,7 +156,15 @@ debian_55_install_ros_openvino () {
     echo "ros-$ros_distro-openvino-node ros-$ros_distro-openvino-node/install_models boolean true" | \
       ensure_sudo debconf-set-selections > /dev/null 2>&1 || true
 
-    ensure_apt install -y openvino
+    # drop a mismatched openvino release (e.g. pulled in before the pin took
+    # effect); its versioned packages conflict with the pinned release
+    local ov_installed
+    ov_installed="$(dpkg-query -W -f='${Version}' openvino 2> /dev/null | cut -d. -f1-3)"
+    if [ -n "$ov_installed" ] && [ "$ov_installed" != "$ov_version" ]; then
+      ensure_apt remove -y openvino $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "*openvino*-$ov_installed" 2> /dev/null | awk '$1 == "ii" {print $2}')
+    fi
+
+    ensure_apt install -y --allow-downgrades "openvino=$ov_version*"
     ensure_apt install -y ros-$ros_distro-openvino-node
   fi
 
@@ -171,7 +179,7 @@ debian_55_remove_ros_openvino () {
   configure_ros_openvino
   if verify_ros_openvino; then
     ensure_apt autoremove -m -y ros-$ros_distro-openvino-node openvino || true
-    ensure_sudo rm -f "$ov_key_file" "$ov_list" "$ov_pref" \
+    ensure_rm "$ov_key_file" "$ov_list" "$ov_pref" \
       "$amr_key_file" "$amr_list" "$amr_pref_file"
   else
     echo "ROS 2 OpenVINO toolkit already removed. Skipping"

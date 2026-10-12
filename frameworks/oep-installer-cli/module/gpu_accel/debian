@@ -71,7 +71,7 @@ debian_40_remove_gpu_accel () {
   # (anything referencing the gpu repo other than our own $apt_file) so the current
   # entry is authoritative.
   ensure_apt_source_remove https://repositories.intel.com/gpu
-  ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg $key_file $apt_file
+  ensure_rm /usr/share/keyrings/intel-gpu-archive-keyring.gpg "$key_file" "$apt_file"
 }
 
 debian_40_sbom_gpu_accel () {

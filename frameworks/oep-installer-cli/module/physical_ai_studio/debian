@@ -63,7 +63,7 @@ debian_92_install_physical_ai_studio () {
   else
     ensure_disk_size 20000
     debian_92_stop_physical_ai_studio "$@" || true
-    rm -f "$pais_device_file"
+    ensure_rm "$pais_device_file"
     echo "Installing ${pais_pkg}[${pais_extra}]==${pais_version} (PyTorch ${pais_extra} build; this may take a while)..."
     uv tool install --reinstall --python 3.12 \
       --index "$pais_index" --index-strategy unsafe-best-match \
