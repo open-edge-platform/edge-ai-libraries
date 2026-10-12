@@ -12,13 +12,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { type Variant } from "@/api/api.generated";
 import { UnsavedChangesDialog } from "@/components/shared/UnsavedChangesDialog";
+
+type SelectableVariant = { id: string; name: string };
 
 interface PipelineVariantSelectProps {
   pipelineId: string;
   currentVariant: string;
-  variants: Variant[];
+  variants: SelectableVariant[];
+  routeBase?: string;
   source?: string | null;
   hasUnsavedChanges?: boolean;
   disabled?: boolean;
@@ -28,8 +30,10 @@ export const PipelineVariantSelect = ({
   pipelineId,
   currentVariant,
   variants,
+  routeBase,
   source,
   hasUnsavedChanges = false,
+  disabled = false,
 }: PipelineVariantSelectProps) => {
   const navigate = useNavigate();
   const [showDialog, setShowDialog] = useState(false);
@@ -49,7 +53,9 @@ export const PipelineVariantSelect = ({
 
   const navigateToVariant = (variantId: string) => {
     const searchParams = source ? `?source=${source}` : "";
-    navigate(`/pipelines/${pipelineId}/${variantId}${searchParams}`);
+    navigate(
+      `${routeBase ?? `/pipelines/${pipelineId}`}/${variantId}${searchParams}`,
+    );
   };
 
   const handleDiscard = () => {
@@ -67,7 +73,11 @@ export const PipelineVariantSelect = ({
         <DropdownMenu>
           <Tooltip>
             <TooltipTrigger asChild>
-              <DropdownMenuTrigger className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent/50 transition-colors">
+              <DropdownMenuTrigger
+                aria-label="Switch variant"
+                disabled={disabled}
+                className="size-8 flex items-center justify-center hover:bg-accent dark:hover:bg-accent/50 transition-colors"
+              >
                 <ChevronDown className="size-4 text-muted-foreground" />
               </DropdownMenuTrigger>
             </TooltipTrigger>

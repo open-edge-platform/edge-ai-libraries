@@ -113,6 +113,16 @@ class ComposeProfileTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)["services"]
 
+    def test_audio_analyzer_disables_exit_cleanup(self) -> None:
+        services = self.compose_config("cpu", "base")
+
+        self.assertEqual(
+            services["audio-analyzer"]["environment"][
+                "AUDIO_ANALYZER__APP__CLEANUP_ON_EXIT"
+            ],
+            "false",
+        )
+
     def test_profile_matrix(self) -> None:
         for profile, mode in itertools.product(
             PROFILES, ("base", "dev", "experimental")

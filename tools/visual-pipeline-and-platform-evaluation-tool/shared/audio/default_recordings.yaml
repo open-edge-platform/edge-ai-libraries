@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+- url: "https://www.voiptroubleshooter.com/open_speech/american/OSR_us_000_0060_8k.wav"
+  filename: OSR_us_000_0060_8k.wav

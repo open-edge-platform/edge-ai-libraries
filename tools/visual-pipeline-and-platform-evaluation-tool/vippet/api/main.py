@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
+from audio_assets import AudioAssetsManager
 from api.middleware import InitializationMiddleware
 from api.routes import health
 from app_version import VIPPET_VERSION
@@ -15,6 +16,7 @@ from database import close_db, init_db
 from images import ImagesManager
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
+from managers.audio_pipeline_manager import get_audio_pipeline_manager
 from managers.model_manager import ModelManager
 from managers.pipeline_manager import PipelineManager
 from managers.pipeline_template_manager import PipelineTemplateManager
@@ -69,6 +71,12 @@ def _initialize_in_background(app: FastAPI) -> None:
         # Initialize VideosManager - downloads videos, scans files,
         # extracts metadata, and converts to TS format
         VideosManager()
+
+        # Download and validate managed inputs used by Audio pipeline presets.
+        AudioAssetsManager()
+
+        # Load and validate read-only Audio pipeline definitions.
+        get_audio_pipeline_manager()
 
         # Initialize ImagesManager - ensures the uploaded image-set
         # root directory exists with the right permissions before any

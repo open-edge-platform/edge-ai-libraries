@@ -593,6 +593,52 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["cameras"],
       }),
+      listAudioPipelinesVoicePipelinesGet: build.query<
+        ListAudioPipelinesVoicePipelinesGetApiResponse,
+        ListAudioPipelinesVoicePipelinesGetApiArg
+      >({
+        query: () => ({ url: `/voice/pipelines` }),
+        providesTags: ["voice"],
+      }),
+      runAudioPipelineVoicePipelinesPipelineIdRunsPost: build.mutation<
+        RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiResponse,
+        RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/pipelines/${queryArg.pipelineId}/runs`,
+          method: "POST",
+          body: queryArg.request,
+        }),
+        invalidatesTags: ["voice"],
+      }),
+      runAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPost:
+        build.mutation<
+          RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse,
+          RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiArg
+        >({
+          query: (queryArg) => ({
+            url: `/voice/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}/runs`,
+            method: "POST",
+            body: queryArg.request,
+          }),
+          invalidatesTags: ["voice"],
+        }),
+      getAudioPipelineJobVoiceJobsJobIdGet: build.query<
+        GetAudioPipelineJobVoiceJobsJobIdGetApiResponse,
+        GetAudioPipelineJobVoiceJobsJobIdGetApiArg
+      >({
+        query: (queryArg) => ({ url: `/voice/jobs/${queryArg.jobId}` }),
+        providesTags: ["voice"],
+      }),
+      getAudioPipelineArtifactVoiceJobsJobIdArtifactGet: build.query<
+        GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiResponse,
+        GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/jobs/${queryArg.jobId}/artifact`,
+        }),
+        providesTags: ["voice"],
+      }),
       transcribeVoice: build.mutation<
         TranscribeVoiceApiResponse,
         TranscribeVoiceApiArg
@@ -950,6 +996,33 @@ export type LoadCameraProfilesApiResponse =
 export type LoadCameraProfilesApiArg = {
   cameraId: string;
   cameraProfilesRequest: CameraProfilesRequest;
+};
+export type ListAudioPipelinesVoicePipelinesGetApiResponse =
+  /** status 200 Successful Response */ AudioPipelineResponse[];
+export type ListAudioPipelinesVoicePipelinesGetApiArg = void;
+export type RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiResponse =
+  /** status 202 Successful Response */ AudioPipelineJobStartResponse;
+export type RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiArg = {
+  pipelineId: string;
+  request: AudioPipelineRunRequest | null;
+};
+export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse =
+  /** status 202 Successful Response */ AudioPipelineJobStartResponse;
+export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiArg =
+  {
+    pipelineId: string;
+    variantId: string;
+    request: AudioPipelineRunRequest | null;
+  };
+export type GetAudioPipelineJobVoiceJobsJobIdGetApiResponse =
+  /** status 200 Successful Response */ AudioPipelineJobResponse;
+export type GetAudioPipelineJobVoiceJobsJobIdGetApiArg = {
+  jobId: string;
+};
+export type GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiResponse =
+  unknown;
+export type GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiArg = {
+  jobId: string;
 };
 export type TranscribeVoiceApiResponse =
   /** status 200 Successful Response */ TranscriptionResponse;
@@ -1732,6 +1805,55 @@ export type CameraProfilesRequest = {
   username: string;
   password: string;
 };
+export type AudioPipelineVariantResponse = {
+  id: string;
+  name: string;
+  device: "CPU" | "GPU" | "NPU";
+};
+export type AudioPipelineDefaultsResponse = {
+  audio?: string | null;
+  language?: string | null;
+  text?: string | null;
+  voice?: string | null;
+};
+export type AudioPipelineResponse = {
+  id: string;
+  name: string;
+  description: string;
+  type: "audio";
+  operation: "speech_to_text" | "text_to_speech";
+  tags: string[];
+  thumbnail?: string | null;
+  required_models: string[];
+  variants: AudioPipelineVariantResponse[];
+  defaults: AudioPipelineDefaultsResponse;
+  available: boolean;
+  unavailable_reason?: string | null;
+};
+export type AudioPipelineJobStartResponse = {
+  job_id: string;
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+};
+export type AudioPipelineRunRequest = {
+  input: string;
+  voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
+};
+export type AudioPipelineJobResponse = {
+  id: string;
+  pipeline_id: string;
+  pipeline_name: string;
+  variant_id: string;
+  variant_name: string;
+  device: "CPU" | "GPU" | "NPU";
+  operation: "speech_to_text" | "text_to_speech";
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  created_at: string;
+  modified_at: string;
+  transcript?: string | null;
+  artifact_url?: string | null;
+  service_round_trip_ms?: number | null;
+  error?: string | null;
+};
 export type TranscriptionResponse = {
   text: string;
 };
@@ -1859,6 +1981,14 @@ export const {
   useGetCameraQuery,
   useLazyGetCameraQuery,
   useLoadCameraProfilesMutation,
+  useListAudioPipelinesVoicePipelinesGetQuery,
+  useLazyListAudioPipelinesVoicePipelinesGetQuery,
+  useRunAudioPipelineVoicePipelinesPipelineIdRunsPostMutation,
+  useRunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostMutation,
+  useGetAudioPipelineJobVoiceJobsJobIdGetQuery,
+  useLazyGetAudioPipelineJobVoiceJobsJobIdGetQuery,
+  useGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,
+  useLazyGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,
   useTranscribeVoiceMutation,
   useSynthesizeVoiceMutation,
 } = injectedRtkApi;

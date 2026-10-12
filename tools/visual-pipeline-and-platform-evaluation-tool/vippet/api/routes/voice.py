@@ -10,8 +10,15 @@ from typing import Annotated, BinaryIO, Literal
 
 import httpx
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
+
+from audio_assets import AudioAssetsManager
+from managers.audio_pipeline_job_manager import (
+    AudioPipelineJobManager,
+    AudioPipelineJobStatus,
+)
+from managers.audio_pipeline_manager import get_audio_pipeline_manager
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.voice")
@@ -64,6 +71,69 @@ class SpeechRequest(BaseModel):
 
 class TranscriptionResponse(BaseModel):
     text: str = Field(max_length=16000)
+
+
+class AudioPipelineDefaultsResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    audio: str | None = None
+    language: str | None = None
+    text: str | None = None
+    voice: str | None = None
+
+
+class AudioPipelineVariantResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    device: Literal["CPU", "GPU", "NPU"]
+
+
+class AudioPipelineResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    description: str
+    type: Literal["audio"]
+    operation: Literal["speech_to_text", "text_to_speech"]
+    tags: list[str]
+    thumbnail: str | None = None
+    required_models: list[str]
+    variants: list[AudioPipelineVariantResponse]
+    defaults: AudioPipelineDefaultsResponse
+    available: bool
+    unavailable_reason: str | None = None
+
+
+class AudioPipelineJobStartResponse(BaseModel):
+    job_id: str
+    status: Literal["QUEUED", "RUNNING", "COMPLETED", "FAILED"]
+
+
+class AudioPipelineRunRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    input: str = Field(min_length=1, max_length=200)
+    voice: SpeechVoice
+
+
+class AudioPipelineJobResponse(BaseModel):
+    id: str
+    pipeline_id: str
+    pipeline_name: str
+    variant_id: str
+    variant_name: str
+    device: Literal["CPU", "GPU", "NPU"]
+    operation: Literal["speech_to_text", "text_to_speech"]
+    status: Literal["QUEUED", "RUNNING", "COMPLETED", "FAILED"]
+    created_at: str
+    modified_at: str
+    transcript: str | None = None
+    artifact_url: str | None = None
+    service_round_trip_ms: float | None = None
+    error: str | None = None
 
 
 def normalize_upload_filename(filename: str | None) -> str:
@@ -203,6 +273,224 @@ async def call_service(
         raise HTTPException(503, "The speech service is unavailable.") from exc
 
 
+async def execute_transcription(
+    file: BinaryIO,
+    filename: str,
+    content_type: str,
+    language: str,
+    device: str | None,
+) -> tuple[str, float]:
+    request_data = {
+        "language": language,
+        "response_format": "json",
+        "temperature": "0",
+    }
+    if device is not None:
+        request_data["device"] = device
+    upstream = await call_service(
+        f"{AUDIO_ANALYZER_URL.rstrip('/')}/v1/audio/transcriptions",
+        files={
+            "file": (
+                normalize_upload_filename(filename),
+                file,
+                normalize_media_type(content_type),
+            )
+        },
+        data=request_data,
+        max_bytes=128 * 1024,
+        rejected_detail=(
+            "The selected speech-to-text device is unavailable."
+            if device is not None
+            else "The speech service rejected the input."
+        ),
+        safe_rejected_details=SAFE_AUDIO_VALIDATION_DETAILS,
+    )
+    try:
+        result = TranscriptionResponse.model_validate(upstream.json())
+        service_round_trip_ms = float(upstream.headers[SERVICE_DURATION_HEADER])
+    except ValueError as exc:
+        raise HTTPException(
+            502, "The speech service returned an invalid transcription."
+        ) from exc
+    schedule_voice_metric(
+        "voice_asr",
+        service_round_trip_ms,
+        {
+            "device": device or "service-default",
+            "language": language,
+        },
+    )
+    return result.text, service_round_trip_ms
+
+
+async def execute_synthesis(
+    text: str,
+    voice: str,
+    device: str | None,
+) -> tuple[bytes, float]:
+    request_json = {
+        "input": text,
+        "voice": voice,
+        "response_format": "wav",
+    }
+    if device is not None:
+        request_json["device"] = device
+    upstream = await call_service(
+        f"{TEXT_TO_SPEECH_URL.rstrip('/')}/v1/audio/speech",
+        json=request_json,
+        rejected_detail=(
+            "The selected text-to-speech device is unavailable."
+            if device is not None
+            else "The speech service rejected the input."
+        ),
+    )
+    content = upstream.content
+    if (
+        upstream.headers.get("content-type", "").split(";")[0] != "audio/wav"
+        or len(content) < 44
+        or content[:4] != b"RIFF"
+        or content[8:12] != b"WAVE"
+    ):
+        raise HTTPException(502, "The speech service returned invalid audio.")
+    service_round_trip_ms = float(upstream.headers[SERVICE_DURATION_HEADER])
+    schedule_voice_metric(
+        "voice_tts",
+        service_round_trip_ms,
+        {
+            "device": device or "service-default",
+            "voice": voice,
+        },
+    )
+    return content, service_round_trip_ms
+
+
+_audio_pipeline_job_manager: AudioPipelineJobManager | None = None
+
+
+def get_audio_pipeline_job_manager() -> AudioPipelineJobManager:
+    global _audio_pipeline_job_manager
+    if _audio_pipeline_job_manager is None:
+        _audio_pipeline_job_manager = AudioPipelineJobManager(
+            get_audio_pipeline_manager(),
+            AudioAssetsManager(),
+            execute_transcription,
+            execute_synthesis,
+        )
+    return _audio_pipeline_job_manager
+
+
+def audio_job_response(job) -> AudioPipelineJobResponse:
+    return AudioPipelineJobResponse(
+        id=job.id,
+        pipeline_id=job.pipeline_id,
+        pipeline_name=job.pipeline_name,
+        variant_id=job.variant_id,
+        variant_name=job.variant_name,
+        device=job.device,
+        operation=job.operation,
+        status=job.status,
+        created_at=job.created_at.isoformat(),
+        modified_at=job.modified_at.isoformat(),
+        transcript=job.transcript,
+        artifact_url=(
+            f"/api/v1/voice/jobs/{job.id}/artifact"
+            if job.artifact_path is not None
+            else None
+        ),
+        service_round_trip_ms=job.service_round_trip_ms,
+        error=job.error,
+    )
+
+
+@router.get("/pipelines", response_model=list[AudioPipelineResponse])
+async def list_audio_pipelines() -> list[AudioPipelineResponse]:
+    return [
+        AudioPipelineResponse.model_validate(pipeline)
+        for pipeline in get_audio_pipeline_manager().list_pipelines()
+    ]
+
+
+@router.post(
+    "/pipelines/{pipeline_id}/runs",
+    response_model=AudioPipelineJobStartResponse,
+    status_code=202,
+)
+async def run_audio_pipeline(
+    pipeline_id: str,
+    request: AudioPipelineRunRequest | None = None,
+) -> AudioPipelineJobStartResponse:
+    return _start_audio_pipeline_job(pipeline_id, None, request)
+
+
+@router.post(
+    "/pipelines/{pipeline_id}/variants/{variant_id}/runs",
+    response_model=AudioPipelineJobStartResponse,
+    status_code=202,
+)
+async def run_audio_pipeline_variant(
+    pipeline_id: str,
+    variant_id: str,
+    request: AudioPipelineRunRequest | None = None,
+) -> AudioPipelineJobStartResponse:
+    return _start_audio_pipeline_job(pipeline_id, variant_id, request)
+
+
+def _start_audio_pipeline_job(
+    pipeline_id: str,
+    variant_id: str | None,
+    request: AudioPipelineRunRequest | None,
+) -> AudioPipelineJobStartResponse:
+    try:
+        if request is None:
+            job = get_audio_pipeline_job_manager().start_job(pipeline_id, variant_id)
+        else:
+            job = get_audio_pipeline_job_manager().start_job(
+                pipeline_id,
+                variant_id,
+                input_text=request.input,
+                voice=request.voice,
+            )
+    except ValueError as exc:
+        message = str(exc)
+        if "variant" in message and "not found" in message:
+            raise HTTPException(404, "Audio pipeline variant not found.") from exc
+        if "not found" in message:
+            raise HTTPException(404, "Audio pipeline not found.") from exc
+        if "do not accept TTS overrides" in message:
+            raise HTTPException(
+                400, "This Audio pipeline does not accept TTS input."
+            ) from exc
+        raise HTTPException(409, "Audio pipeline is unavailable.") from exc
+    return AudioPipelineJobStartResponse(job_id=job.id, status=job.status.value)
+
+
+@router.get("/jobs/{job_id}", response_model=AudioPipelineJobResponse)
+async def get_audio_pipeline_job(job_id: str) -> AudioPipelineJobResponse:
+    job = get_audio_pipeline_job_manager().get_job(job_id)
+    if job is None:
+        raise HTTPException(404, "Audio pipeline job not found.")
+    return audio_job_response(job)
+
+
+@router.get("/jobs/{job_id}/artifact", response_class=FileResponse)
+async def get_audio_pipeline_artifact(job_id: str) -> FileResponse:
+    job = get_audio_pipeline_job_manager().get_job(job_id)
+    if job is None:
+        raise HTTPException(404, "Audio pipeline job not found.")
+    if (
+        job.status not in {AudioPipelineJobStatus.COMPLETED, "COMPLETED"}
+        or job.artifact_path is None
+        or not os.path.isfile(job.artifact_path)
+    ):
+        raise HTTPException(409, "Audio pipeline artifact is not available.")
+    return FileResponse(
+        job.artifact_path,
+        media_type="audio/wav",
+        filename="speech.wav",
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
 @router.post(
     "/transcriptions",
     operation_id="transcribe_voice",
@@ -216,54 +504,19 @@ async def transcribe_voice(
     device: Annotated[InferenceDevice | None, Form()] = None,
 ) -> TranscriptionResponse:
     """Transcribe one independent recording. Previous recordings are never used as context."""
-    request_data = {
-        "language": language,
-        "response_format": "json",
-        "temperature": "0",
-    }
-    if device is not None:
-        request_data["device"] = device
     try:
-        upstream = await call_service(
-            f"{AUDIO_ANALYZER_URL.rstrip('/')}/v1/audio/transcriptions",
-            files={
-                "file": (
-                    normalize_upload_filename(file.filename),
-                    file.file,
-                    normalize_media_type(file.content_type),
-                )
-            },
-            data=request_data,
-            max_bytes=128 * 1024,
-            rejected_detail=(
-                "The selected speech-to-text device is unavailable."
-                if device is not None
-                else "The speech service rejected the input."
-            ),
-            safe_rejected_details=SAFE_AUDIO_VALIDATION_DETAILS,
+        text, service_round_trip_ms = await execute_transcription(
+            file.file,
+            file.filename or "audio",
+            file.content_type or "application/octet-stream",
+            language,
+            device,
         )
     finally:
         await file.close()
-    try:
-        result = TranscriptionResponse.model_validate(upstream.json())
-        service_round_trip_ms = float(upstream.headers[SERVICE_DURATION_HEADER])
-        schedule_voice_metric(
-            "voice_asr",
-            service_round_trip_ms,
-            {
-                "device": device or "service-default",
-                "language": language,
-            },
-        )
-        response.headers["Cache-Control"] = "no-store"
-        response.headers[SERVICE_DURATION_HEADER] = upstream.headers[
-            SERVICE_DURATION_HEADER
-        ]
-        return result
-    except ValueError as exc:
-        raise HTTPException(
-            502, "The speech service returned an invalid transcription."
-        ) from exc
+    response.headers["Cache-Control"] = "no-store"
+    response.headers[SERVICE_DURATION_HEADER] = f"{service_round_trip_ms:.3f}"
+    return TranscriptionResponse(text=text)
 
 
 @router.post(
@@ -281,45 +534,17 @@ async def transcribe_voice(
 )
 async def synthesize_voice(request: SpeechRequest) -> Response:
     """Synthesize one sentence with the selected voice. Returns WAV audio."""
-    request_json = {
-        "input": request.input,
-        "voice": request.voice,
-        "response_format": "wav",
-    }
-    if request.device is not None:
-        request_json["device"] = request.device
-    upstream = await call_service(
-        f"{TEXT_TO_SPEECH_URL.rstrip('/')}/v1/audio/speech",
-        json=request_json,
-        rejected_detail=(
-            "The selected text-to-speech device is unavailable."
-            if request.device is not None
-            else "The speech service rejected the input."
-        ),
-    )
-    content = upstream.content
-    if (
-        upstream.headers.get("content-type", "").split(";")[0] != "audio/wav"
-        or len(content) < 44
-        or content[:4] != b"RIFF"
-        or content[8:12] != b"WAVE"
-    ):
-        raise HTTPException(502, "The speech service returned invalid audio.")
-    service_round_trip_ms = float(upstream.headers[SERVICE_DURATION_HEADER])
-    schedule_voice_metric(
-        "voice_tts",
-        service_round_trip_ms,
-        {
-            "device": request.device or "service-default",
-            "voice": request.voice,
-        },
+    content, service_round_trip_ms = await execute_synthesis(
+        request.input,
+        request.voice,
+        request.device,
     )
     return Response(
         content=content,
         media_type="audio/wav",
         headers={
             "Cache-Control": "no-store",
-            SERVICE_DURATION_HEADER: upstream.headers[SERVICE_DURATION_HEADER],
+            SERVICE_DURATION_HEADER: f"{service_round_trip_ms:.3f}",
             "Content-Disposition": 'inline; filename="speech.wav"',
             "X-Content-Type-Options": "nosniff",
         },

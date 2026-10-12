@@ -9,7 +9,6 @@ import {
   GitFork,
   Camera,
   Image,
-  Mic,
 } from "lucide-react";
 import { redirect, type RouteObject } from "react-router";
 import { Home as HomePage } from "@/pages/Home.tsx";
@@ -52,7 +51,6 @@ export const menuItems: Array<NavigationItem> = [
   { url: "/videos", title: "Videos", icon: Film },
   { url: "/images", title: "Images", icon: Image },
   { url: "/cameras", title: "Cameras", icon: Camera },
-  { url: "/voice", title: "Voice", icon: Mic },
   {
     url: "/tests/performance",
     title: "Performance",
@@ -65,13 +63,16 @@ export const menuItems: Array<NavigationItem> = [
 export const routeConfig: Array<RouteObject> = [
   { index: true, path: "", Component: HomePage },
   { path: "pipelines", Component: PipelineList },
+  {
+    path: "pipelines/audio/:pipelineId/:variantId",
+    Component: VoiceConversion,
+  },
   { path: "pipelines/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
   { path: "images", Component: ImageSets },
   { path: "images/:imageSetName", Component: ImagesInSet },
   { path: "cameras", Component: Cameras },
-  { path: "voice", Component: VoiceConversion },
   { path: "tests/performance", Component: PerformanceTests },
   { path: "tests/density", Component: DensityTests },
   {

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router";
 import {
   Download,
   FileAudio,
@@ -13,6 +14,8 @@ import {
   X,
 } from "lucide-react";
 import { API_BASE_URL } from "@/api/apiSlice";
+import { useListAudioPipelinesVoicePipelinesGetQuery } from "@/api/api.generated";
+import { BackButton } from "@/components/shared/BackButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,8 +27,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard";
+import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog";
+import { useRequiredModelsStatus } from "@/features/models/useRequiredModelsStatus";
+import { PipelineVariantSelect } from "@/features/pipelines/PipelineVariantSelect";
 import { captureWav } from "./recording";
 import {
   VoiceMetrics,
@@ -33,10 +38,6 @@ import {
   type VoiceMetricsState,
 } from "./VoiceMetrics";
 import { VoiceAudio } from "./VoiceAudio";
-import {
-  VoiceDeviceSelect,
-  type VoiceInferenceDevice,
-} from "./VoiceDeviceSelect";
 
 const SAMPLE_TEXTS = [
   "Welcome to Intel Performance Studio.",
@@ -56,6 +57,14 @@ const SPEECH_VOICES = [
   "Angus",
 ] as const;
 type SpeechVoice = (typeof SPEECH_VOICES)[number];
+
+type AudioPipelineJob = {
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  transcript: string | null;
+  artifact_url: string | null;
+  service_round_trip_ms: number | null;
+  error: string | null;
+};
 
 function readConversionMetrics(
   response: Response,
@@ -113,13 +122,42 @@ function getMetricsState(
 }
 
 export function VoiceConversion() {
-  const [activeTab, setActiveTab] = useState("stt");
+  const { pipelineId = "speech-to-text", variantId = "cpu" } = useParams();
+  const {
+    data: pipelines = [],
+    error: catalogError,
+    isLoading,
+  } = useListAudioPipelinesVoicePipelinesGetQuery();
+  const selectedPipeline = pipelines.find(
+    (pipeline) => pipeline.id === pipelineId,
+  );
+  const selectedVariant = selectedPipeline?.variants.find(
+    (variant) => variant.id === variantId,
+  );
+  const requiredModels = selectedPipeline?.required_models ?? [];
+  const {
+    modelStatuses,
+    isDialogOpen: modelStatusDialogOpen,
+    setIsDialogOpen: setModelStatusDialogOpen,
+    refresh: refreshRequiredModels,
+  } = useRequiredModelsStatus(requiredModels, {
+    skip: !selectedPipeline || !selectedVariant,
+    errorMessage: "Failed to check models used in Audio pipeline",
+  });
+  const modelsReady =
+    requiredModels.length > 0 &&
+    requiredModels.every((model) =>
+      modelStatuses.some(
+        (status) =>
+          status.model === model && status.installStatus === "installed",
+      ),
+    );
+  const activeTab =
+    selectedPipeline?.operation === "text_to_speech" ? "tts" : "stt";
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState("en");
   const [text, setText] = useState("");
   const [voice, setVoice] = useState<SpeechVoice>("Ryan");
-  const [sttDevice, setSttDevice] = useState<VoiceInferenceDevice | "">("");
-  const [ttsDevice, setTtsDevice] = useState<VoiceInferenceDevice | "">("");
   const [transcription, setTranscription] = useState<string | null>(null);
   const [speech, setSpeech] = useState<Blob | null>(null);
   const [sttMetrics, setSttMetrics] = useState<ConversionMetrics | null>(null);
@@ -134,6 +172,7 @@ export function VoiceConversion() {
     | "synthesizing"
   >("idle");
   const operation = useRef<AbortController | null>(null);
+  const initializedPipelines = useRef(new Set<string>());
   const fileInput = useRef<HTMLInputElement | null>(null);
   const stopRecording = useRef<(() => void) | null>(null);
   const inputUrl = useAudioUrl(file);
@@ -141,6 +180,22 @@ export function VoiceConversion() {
   const busy = status !== "idle";
 
   useEffect(() => () => operation.current?.abort(), []);
+
+  useEffect(() => {
+    if (
+      !selectedPipeline ||
+      initializedPipelines.current.has(selectedPipeline.id)
+    )
+      return;
+    initializedPipelines.current.add(selectedPipeline.id);
+    const defaults = selectedPipeline.defaults;
+    if (selectedPipeline.operation === "speech_to_text") {
+      setLanguage(defaults.language ?? "en");
+    } else {
+      setText(defaults.text ?? "");
+      setVoice((defaults.voice as SpeechVoice | null) ?? "Ryan");
+    }
+  }, [selectedPipeline]);
 
   function cancel() {
     operation.current?.abort();
@@ -161,6 +216,83 @@ export function VoiceConversion() {
     setSpeech(null);
     setTtsMetrics(null);
     setError(null);
+  }
+
+  async function waitForJob(
+    jobId: string,
+    controller: AbortController,
+  ): Promise<AudioPipelineJob> {
+    while (true) {
+      const response = await fetch(`${API_BASE_URL}/voice/jobs/${jobId}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      await checkResponse(response);
+      const job = (await response.json()) as AudioPipelineJob;
+      if (job.status === "COMPLETED") return job;
+      if (job.status === "FAILED")
+        throw new Error(job.error ?? "Audio pipeline execution failed.");
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(resolve, 500);
+        controller.signal.addEventListener(
+          "abort",
+          () => {
+            window.clearTimeout(timeout);
+            reject(controller.signal.reason);
+          },
+          { once: true },
+        );
+      });
+    }
+  }
+
+  async function runManagedPipeline(
+    controller: AbortController,
+    startedAt: number,
+    ttsRequest?: { input: string; voice: SpeechVoice },
+  ) {
+    if (!selectedPipeline || !selectedVariant)
+      throw new Error("Audio pipeline variant not found.");
+    const response = await fetch(
+      `${API_BASE_URL}/voice/pipelines/${selectedPipeline.id}/variants/${selectedVariant.id}/runs`,
+      {
+        method: "POST",
+        headers: ttsRequest
+          ? { "Content-Type": "application/json" }
+          : undefined,
+        body: ttsRequest ? JSON.stringify(ttsRequest) : undefined,
+        cache: "no-store",
+        signal: controller.signal,
+      },
+    );
+    await checkResponse(response);
+    const start: unknown = await response.json();
+    if (
+      !start ||
+      typeof start !== "object" ||
+      !("job_id" in start) ||
+      typeof start.job_id !== "string"
+    )
+      throw new Error("The service returned an invalid Audio job.");
+    const job = await waitForJob(start.job_id, controller);
+    const metrics = {
+      requestMs: performance.now() - startedAt,
+      serviceMs: job.service_round_trip_ms,
+    };
+    if (selectedPipeline.operation === "speech_to_text") {
+      setTranscription(job.transcript ?? "");
+      setSttMetrics(metrics);
+      return;
+    }
+    if (!job.artifact_url)
+      throw new Error("The Audio job did not produce an artifact.");
+    const artifact = await fetch(job.artifact_url, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    await checkResponse(artifact);
+    setSpeech(await artifact.blob());
+    setTtsMetrics(metrics);
   }
 
   async function run(kind: "record" | "stt" | "tts") {
@@ -195,11 +327,18 @@ export function VoiceConversion() {
         controller.signal.throwIfAborted();
         setFile(recording);
         setTranscription(null);
+      } else if (
+        kind === "stt" &&
+        !file &&
+        selectedPipeline?.operation === "speech_to_text" &&
+        language === (selectedPipeline.defaults.language ?? "en")
+      ) {
+        await runManagedPipeline(controller, performance.now());
       } else if (kind === "stt" && file) {
         const data = new FormData();
         data.append("file", file);
         data.append("language", language);
-        if (sttDevice) data.append("device", sttDevice);
+        data.append("device", selectedVariant?.device ?? "CPU");
         const startedAt = performance.now();
         const response = await fetch(`${API_BASE_URL}/voice/transcriptions`, {
           method: "POST",
@@ -223,29 +362,14 @@ export function VoiceConversion() {
         setSttMetrics(
           readConversionMetrics(response, performance.now() - startedAt),
         );
-      } else if (kind === "tts") {
-        const payload: {
-          input: string;
-          voice: SpeechVoice;
-          device?: VoiceInferenceDevice;
-        } = { input: text.trim(), voice };
-        if (ttsDevice) payload.device = ttsDevice;
-        const startedAt = performance.now();
-        const response = await fetch(`${API_BASE_URL}/voice/speech`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: controller.signal,
-          cache: "no-store",
+      } else if (
+        kind === "tts" &&
+        selectedPipeline?.operation === "text_to_speech"
+      ) {
+        await runManagedPipeline(controller, performance.now(), {
+          input: text.trim(),
+          voice,
         });
-        await checkResponse(response);
-        const result = await response.blob();
-        controller.signal.throwIfAborted();
-        if (operation.current !== controller) return;
-        setSpeech(result);
-        setTtsMetrics(
-          readConversionMetrics(response, performance.now() - startedAt),
-        );
       }
     } catch (failure) {
       if (operation.current === controller) {
@@ -263,42 +387,51 @@ export function VoiceConversion() {
     }
   }
 
+  if (isLoading)
+    return (
+      <p className="p-6 text-sm text-muted-foreground">
+        Loading Audio pipeline...
+      </p>
+    );
+  if (catalogError)
+    return (
+      <p role="alert" className="p-6 text-sm text-destructive">
+        {catalogError}
+      </p>
+    );
+  if (!selectedPipeline || !selectedVariant)
+    return (
+      <p role="alert" className="p-6 text-sm text-destructive">
+        Audio pipeline not found.
+      </p>
+    );
+
   return (
     <div className="min-h-full w-full min-w-0 bg-muted text-foreground [color-scheme:light] dark:[color-scheme:dark]">
-      <header className="bg-primary px-5 py-4 text-primary-foreground sm:px-8">
-        <p className="mb-2 text-xs">
-          Voice / {activeTab === "stt" ? "Speech to text" : "Text to speech"}
-        </p>
-        <h1 className="text-2xl font-medium">
-          {activeTab === "stt"
-            ? "Automatic Speech Recognition"
-            : "Text to Speech"}
-        </h1>
+      <header className="flex h-[3.75rem] shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear">
+        <div className="flex flex-wrap items-center gap-2 px-2">
+          <BackButton to="/pipelines" aria-label="Back" />
+          <h1 className="font-medium">
+            {activeTab === "stt"
+              ? "Automatic Speech Recognition"
+              : "Text to Speech"}
+          </h1>
+          <PipelineVariantSelect
+            pipelineId={selectedPipeline.id}
+            currentVariant={selectedVariant.id}
+            variants={selectedPipeline.variants}
+            routeBase={`/pipelines/audio/${selectedPipeline.id}`}
+            disabled={busy}
+          />
+        </div>
       </header>
       <div className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-8">
-        <Tabs
-          value={activeTab}
-          onValueChange={(value) => {
-            cancel();
-            setError(null);
-            setActiveTab(value);
-          }}
-        >
-          <TabsList className="mb-4 grid h-auto w-full max-w-lg grid-cols-2">
-            <TabsTrigger value="stt" className="min-h-10 whitespace-normal">
-              <Mic />
-              Speech to text
-            </TabsTrigger>
-            <TabsTrigger value="tts" className="min-h-10 whitespace-normal">
-              <Volume2 />
-              Text to speech
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="stt">
+        <>
+          {activeTab === "stt" && (
             <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(32rem,40rem)] xl:items-start">
               <div className="min-w-0 space-y-4 bg-background p-4 sm:p-5">
                 <h2 className="text-base font-semibold">
-                  Speech Recognition Workload Configuration
+                  Automatic Speech Recognition Workload Configuration
                 </h2>
                 <section className="min-w-0 space-y-4">
                   <h3 className="text-sm font-medium">Select source</h3>
@@ -379,7 +512,7 @@ export function VoiceConversion() {
                       />
                     </div>
                   </div>
-                  <div className="grid max-w-4xl gap-4 md:grid-cols-2">
+                  <div className="max-w-md">
                     <div className="space-y-2 bg-muted p-3">
                       <Label htmlFor="voice-language">
                         Recognition language
@@ -408,24 +541,15 @@ export function VoiceConversion() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="bg-muted p-3">
-                      <VoiceDeviceSelect
-                        id="stt-device"
-                        label="Speech to text device"
-                        value={sttDevice}
-                        disabled={busy}
-                        onChange={(value) => {
-                          setSttDevice(value);
-                          setTranscription(null);
-                          setSttMetrics(null);
-                          setError(null);
-                        }}
-                      />
-                    </div>
                   </div>
                   {file && (
                     <p className="text-muted-foreground break-all text-sm">
                       Selected file: {file.name}
+                    </p>
+                  )}
+                  {!file && selectedPipeline.defaults.audio && (
+                    <p className="text-muted-foreground break-all text-sm">
+                      Managed recording: {selectedPipeline.defaults.audio}
                     </p>
                   )}
                   {inputUrl && (
@@ -437,7 +561,13 @@ export function VoiceConversion() {
                   )}
                   <div className="flex justify-end">
                     <Button
-                      disabled={!file || busy}
+                      disabled={
+                        !modelsReady ||
+                        busy ||
+                        (!file &&
+                          language !==
+                            (selectedPipeline.defaults.language ?? "en"))
+                      }
                       onClick={() => void run("stt")}
                     >
                       <FileAudio />
@@ -480,8 +610,8 @@ export function VoiceConversion() {
                 <MetricsDashboard showVideoMetrics={false} />
               </aside>
             </div>
-          </TabsContent>
-          <TabsContent value="tts">
+          )}
+          {activeTab === "tts" && (
             <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(32rem,40rem)] xl:items-start">
               <div className="min-w-0 space-y-4 bg-background p-4 sm:p-5">
                 <h2 className="text-base font-semibold">
@@ -513,18 +643,6 @@ export function VoiceConversion() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <VoiceDeviceSelect
-                      id="tts-device"
-                      label="Text to speech device"
-                      value={ttsDevice}
-                      disabled={busy}
-                      onChange={(value) => {
-                        setTtsDevice(value);
-                        setSpeech(null);
-                        setTtsMetrics(null);
-                        setError(null);
-                      }}
-                    />
                   </div>
                   <Label htmlFor="voice-text" className="text-sm font-semibold">
                     Text input (English)
@@ -575,7 +693,7 @@ export function VoiceConversion() {
                   </div>
                   <div className="flex justify-end">
                     <Button
-                      disabled={!text.trim() || busy}
+                      disabled={!modelsReady || !text.trim() || busy}
                       onClick={() => void run("tts")}
                     >
                       <Volume2 />
@@ -624,7 +742,7 @@ export function VoiceConversion() {
                 <MetricsDashboard showVideoMetrics={false} />
               </aside>
             </div>
-          </TabsContent>
+          )}
           {busy && (
             <div
               role="status"
@@ -654,8 +772,14 @@ export function VoiceConversion() {
               {error}
             </p>
           )}
-        </Tabs>
+        </>
       </div>
+      <PipelineModelsRequiredDialog
+        open={modelStatusDialogOpen}
+        onOpenChange={setModelStatusDialogOpen}
+        models={modelStatuses}
+        onModelsChanged={refreshRequiredModels}
+      />
     </div>
   );
 }

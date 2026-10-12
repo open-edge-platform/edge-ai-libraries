@@ -1,9 +1,110 @@
 // SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Request } from "@playwright/test";
 import { Buffer } from "node:buffer";
 import process from "node:process";
+
+const DEFAULT_TTS_TEXT =
+  "Welcome to Intel Performance Studio. This audio pipeline demonstrates clear text-to-speech synthesis, measures service latency, and produces a WAV file ready for playback on supported edge hardware.";
+
+const AUDIO_PIPELINES = [
+  {
+    id: "speech-to-text",
+    name: "Speech to Text",
+    description: "Transcribe the managed default recording.",
+    type: "audio",
+    operation: "speech_to_text",
+    tags: ["Audio", "Speech Recognition"],
+    thumbnail:
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mNk+M/wHwAF/gL+X1Y4WQAAAABJRU5ErkJggg==",
+    required_models: ["Whisper Base"],
+    variants: [
+      { id: "cpu", name: "CPU", device: "CPU" },
+      { id: "gpu", name: "GPU", device: "GPU" },
+      { id: "npu", name: "NPU", device: "NPU" },
+    ],
+    defaults: {
+      audio: "OSR_us_000_0060_8k.wav",
+      language: "en",
+      text: null,
+      voice: null,
+    },
+    available: true,
+    unavailable_reason: null,
+  },
+  {
+    id: "text-to-speech",
+    name: "Text to Speech",
+    description: "Generate WAV audio from the default text.",
+    type: "audio",
+    operation: "text_to_speech",
+    tags: ["Audio", "Speech Synthesis"],
+    thumbnail:
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mNk+M/wHwAF/gL+X1Y4WQAAAABJRU5ErkJggg==",
+    required_models: ["SpeechT5"],
+    variants: [
+      { id: "cpu", name: "CPU", device: "CPU" },
+      { id: "gpu", name: "GPU", device: "GPU" },
+    ],
+    defaults: {
+      audio: null,
+      language: null,
+      text: DEFAULT_TTS_TEXT,
+      voice: "Ryan",
+    },
+    available: true,
+    unavailable_reason: null,
+  },
+];
+const AUDIO_MODELS = [
+  {
+    name: "voice-whisper-base",
+    display_name: "Whisper Base",
+    description: "Speech recognition model",
+    category: "automatic_speech_recognition",
+    source: "huggingface",
+    install_status: "installed",
+    variants: [],
+  },
+  {
+    name: "voice-speecht5",
+    display_name: "SpeechT5",
+    description: "Speech synthesis model",
+    category: "text_to_speech",
+    source: "huggingface",
+    install_status: "installed",
+    variants: [],
+  },
+];
+
+const VISION_PIPELINES = [
+  "People Detection",
+  "Smart Parking",
+  "Defect Detection",
+].map((name, index) => ({
+  id: `vision-${index + 1}`,
+  name,
+  description: `${name} pipeline`,
+  source: "PREDEFINED",
+  type: "vision",
+  tags: ["Vision"],
+  variants: [
+    {
+      id: "default",
+      name: "Default",
+      read_only: true,
+      pipeline_graph: { nodes: [], edges: [] },
+      pipeline_graph_simple: { nodes: [], edges: [] },
+      created_at: "2026-10-09T10:00:00Z",
+      modified_at: "2026-10-09T10:00:00Z",
+    },
+  ],
+  thumbnail:
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mNk+M/wHwAF/gL+X1Y4WQAAAABJRU5ErkJggg==",
+  created_at: "2026-10-09T10:00:00Z",
+  modified_at: `2026-10-09T10:00:0${index}Z`,
+}));
 
 function wav(volume = 1): Buffer {
   const content = Buffer.alloc(32044);
@@ -34,10 +135,106 @@ async function chooseOption(page: Page, label: string, option: string) {
   await page.getByRole("option", { name: option, exact: true }).click();
 }
 
+let ttsJobSequence = 0;
+
+async function mockTtsJob(
+  page: Page,
+  {
+    content = wav(),
+    serviceMs = 250,
+    status = "COMPLETED",
+    error = null,
+    waitForStart,
+    inspectRequest,
+  }: {
+    content?: Buffer;
+    serviceMs?: number | null;
+    status?: "COMPLETED" | "FAILED";
+    error?: string | null;
+    waitForStart?: Promise<void>;
+    inspectRequest?: (request: Request) => void;
+  } = {},
+) {
+  const jobId = `tts-job-${++ttsJobSequence}`;
+  const artifactUrl = `/api/v1/voice/jobs/${jobId}/artifact`;
+
+  await page.route(
+    "**/voice/pipelines/text-to-speech/variants/*/runs",
+    async (route) => {
+      inspectRequest?.(route.request());
+      await waitForStart;
+      await route
+        .fulfill({
+          status: 202,
+          json: { job_id: jobId, status: "QUEUED" },
+        })
+        .catch(() => {});
+    },
+    { times: 1 },
+  );
+  await page.route(
+    `**/voice/jobs/${jobId}`,
+    (route) =>
+      route.fulfill({
+        json: {
+          id: jobId,
+          pipeline_id: "text-to-speech",
+          pipeline_name: "Text to Speech",
+          variant_id: "cpu",
+          variant_name: "CPU",
+          device: "CPU",
+          operation: "text_to_speech",
+          status,
+          created_at: "2026-10-09T10:00:00Z",
+          modified_at: "2026-10-09T10:00:01Z",
+          transcript: null,
+          artifact_url: status === "COMPLETED" ? artifactUrl : null,
+          service_round_trip_ms: serviceMs,
+          error,
+        },
+      }),
+    { times: 1 },
+  );
+  await page.route(
+    `**/voice/jobs/${jobId}/artifact`,
+    (route) => route.fulfill({ contentType: "audio/wav", body: content }),
+    { times: 1 },
+  );
+}
+
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/voice/pipelines")) {
+      await route.fulfill({ json: AUDIO_PIPELINES });
+      return;
+    }
+    if (path.endsWith("/models/check-status")) {
+      const request = route.request().postDataJSON() as {
+        display_names: string[];
+      };
+      await route.fulfill({
+        json: {
+          models: request.display_names.map((displayName) => ({
+            name:
+              AUDIO_MODELS.find((model) => model.display_name === displayName)
+                ?.name ?? displayName,
+            display_name: displayName,
+            install_status: "installed",
+          })),
+        },
+      });
+      return;
+    }
+    if (path.endsWith("/models")) {
+      await route.fulfill({ json: AUDIO_MODELS });
+      return;
+    }
     if (path.includes("/voice/")) return route.fallback();
+    if (path.endsWith("/pipelines")) {
+      await route.fulfill({ json: VISION_PIPELINES });
+      return;
+    }
     if (path.endsWith("/devices")) {
       await route.fulfill({
         json: [
@@ -75,34 +272,301 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/metrics/stream", (route) =>
     route.fulfill({ contentType: "text/event-stream", body: ": ready\n\n" }),
   );
-  await page.goto(process.env.VOICE_UI_URL ?? "http://127.0.0.1:5173/voice");
+  await page.goto(
+    process.env.VOICE_UI_URL ??
+      "http://127.0.0.1:5173/pipelines/audio/speech-to-text/cpu",
+  );
 });
 
-test("forwards independent STT and TTS devices", async ({ page }) => {
+test("hides pipeline sections until the catalog finishes loading", async ({
+  page,
+}) => {
+  let releaseRequests: (() => void) | undefined;
+  const pendingResponses = new Promise<void>((resolve) => {
+    releaseRequests = resolve;
+  });
+  const timeSeriesPipeline = {
+    ...VISION_PIPELINES[0],
+    id: "time-series-1",
+    name: "Anomaly Detection",
+    type: "time_series",
+  };
+
+  await page.route("**/api/v1/pipelines", async (route) => {
+    await pendingResponses;
+    await route.fulfill({ json: [...VISION_PIPELINES, timeSeriesPipeline] });
+  });
+  await page.route("**/api/v1/voice/pipelines", async (route) => {
+    await pendingResponses;
+    await route.fulfill({ json: AUDIO_PIPELINES });
+  });
+
+  await page.goto(new URL("/pipelines", page.url()).toString(), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(
+    page.getByRole("button", { name: "Create Pipeline" }),
+  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "Vision" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Time Series" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("region", { name: "Audio" })).toHaveCount(0);
+
+  releaseRequests?.();
+
+  await expect(page.getByRole("region", { name: "Vision" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Time Series" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Audio" })).toBeVisible();
+});
+
+test("hides Audio when the Audio catalog is empty", async ({ page }) => {
+  await page.route("**/api/v1/voice/pipelines", (route) =>
+    route.fulfill({ json: [] }),
+  );
+
+  await page.goto(new URL("/pipelines", page.url()).toString());
+
+  await expect(page.getByRole("region", { name: "Vision" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Audio" })).toHaveCount(0);
+});
+
+test("groups Vision, Time Series, and Audio pipelines", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(new URL("/pipelines", page.url()).toString());
+
+  const createPipeline = page.getByRole("button", { name: "Create Pipeline" });
+  await expect(createPipeline).toBeVisible();
+  await expect(createPipeline).toHaveCount(1);
+  const vision = page.getByRole("region", { name: "Vision" });
+  await expect(vision).toBeVisible();
+  await expect(
+    vision.getByRole("button", { name: "Create Pipeline" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Time Series" })).toHaveCount(
+    0,
+  );
+  const audio = page.getByRole("region", { name: "Audio" });
+  await expect(audio).toBeVisible();
+  await expect(
+    audio.getByRole("link", { name: /Speech to Text/ }),
+  ).toHaveAttribute("href", "/pipelines/audio/speech-to-text/cpu");
+  await expect(
+    audio.getByRole("link", { name: /Text to Speech/ }),
+  ).toHaveAttribute("href", "/pipelines/audio/text-to-speech/cpu");
+  await expect(
+    audio.getByRole("img", { name: "Speech to Text" }),
+  ).toBeVisible();
+  await expect(
+    audio.getByRole("img", { name: "Text to Speech" }),
+  ).toBeVisible();
+
+  const visionCard = vision.locator('[data-slot="card"]').first();
+  const audioCard = audio.locator('[data-slot="card"]').first();
+  const visionBox = await visionCard.boundingBox();
+  const audioBox = await audioCard.boundingBox();
+  expect(visionBox).not.toBeNull();
+  expect(audioBox).not.toBeNull();
+  expect(audioBox!.width).toBeLessThanOrEqual(visionBox!.width + 8);
+});
+
+test("returns from an Audio pipeline to the pipeline catalog", async ({
+  page,
+}) => {
+  const back = page.getByRole("link", { name: "Back" });
+  await expect(back).toHaveAttribute("href", "/pipelines");
+  await expect(page.getByText("Back to Pipelines")).toHaveCount(0);
+  await back.click();
+  await expect(page).toHaveURL(/\/pipelines$/);
+});
+
+test("prompts to install Whisper Base when the STT model is missing", async ({
+  page,
+}) => {
+  await page.route("**/models/check-status", (route) =>
+    route.fulfill({
+      json: {
+        models: [
+          {
+            name: "voice-whisper-base",
+            display_name: "Whisper Base",
+            install_status: "not_installed",
+          },
+        ],
+      },
+    }),
+  );
+  await page.reload();
+
+  const dialog = page.getByRole("dialog", {
+    name: "Required models are missing",
+  });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Whisper Base")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Install" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await expect(
+    page.getByRole("button", { name: "Transcribe", exact: true }),
+  ).toBeDisabled();
+});
+
+test("prompts to install SpeechT5 when the TTS model is missing", async ({
+  page,
+}) => {
+  await page.route("**/models/check-status", (route) =>
+    route.fulfill({
+      json: {
+        models: [
+          {
+            name: "voice-speecht5",
+            display_name: "SpeechT5",
+            install_status: "not_installed",
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto(
+    new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
+  );
+
+  const dialog = page.getByRole("dialog", {
+    name: "Required models are missing",
+  });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("SpeechT5")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Install" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await expect(
+    page.getByRole("button", { name: "Generate speech" }),
+  ).toBeDisabled();
+});
+
+test("runs the managed speech-to-text preset without an upload", async ({
+  page,
+}) => {
+  await page.route(
+    "**/voice/pipelines/speech-to-text/variants/cpu/runs",
+    (route) =>
+      route.fulfill({
+        status: 202,
+        json: { job_id: "stt-job", status: "QUEUED" },
+      }),
+  );
+  await page.route("**/voice/jobs/stt-job", (route) =>
+    route.fulfill({
+      json: {
+        id: "stt-job",
+        pipeline_id: "speech-to-text",
+        pipeline_name: "Speech to Text",
+        variant_id: "cpu",
+        variant_name: "CPU",
+        device: "CPU",
+        operation: "speech_to_text",
+        status: "COMPLETED",
+        created_at: "2026-10-09T10:00:00Z",
+        modified_at: "2026-10-09T10:00:01Z",
+        transcript: "The managed recording was transcribed.",
+        artifact_url: null,
+        service_round_trip_ms: 125,
+        error: null,
+      },
+    }),
+  );
+
+  await page.goto(
+    new URL("/pipelines/audio/speech-to-text/cpu", page.url()).toString(),
+  );
+  await expect(page.getByText("OSR_us_000_0060_8k.wav")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Transcribe", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Transcribe", exact: true }).click();
+  await expect(page.getByLabel("Transcription")).toHaveValue(
+    "The managed recording was transcribed.",
+  );
+});
+
+test("runs the managed text-to-speech preset with YAML defaults", async ({
+  page,
+}) => {
+  await page.route(
+    "**/voice/pipelines/text-to-speech/variants/cpu/runs",
+    (route) => {
+      expect(route.request().postDataJSON()).toEqual({
+        input: DEFAULT_TTS_TEXT,
+        voice: "Ryan",
+      });
+      return route.fulfill({
+        status: 202,
+        json: { job_id: "tts-job", status: "QUEUED" },
+      });
+    },
+  );
+  await page.route("**/voice/jobs/tts-job/artifact", (route) =>
+    route.fulfill({ contentType: "audio/wav", body: wav() }),
+  );
+  await page.route("**/voice/jobs/tts-job", (route) =>
+    route.fulfill({
+      json: {
+        id: "tts-job",
+        pipeline_id: "text-to-speech",
+        pipeline_name: "Text to Speech",
+        variant_id: "cpu",
+        variant_name: "CPU",
+        device: "CPU",
+        operation: "text_to_speech",
+        status: "COMPLETED",
+        created_at: "2026-10-09T10:00:00Z",
+        modified_at: "2026-10-09T10:00:01Z",
+        transcript: null,
+        artifact_url: "/api/v1/voice/jobs/tts-job/artifact",
+        service_round_trip_ms: 250,
+        error: null,
+      },
+    }),
+  );
+
+  await page.goto(
+    new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
+  );
+  await expect(page.getByLabel("Text input (English)")).toHaveValue(
+    DEFAULT_TTS_TEXT,
+  );
+  await expect(page.getByLabel("Voice")).toHaveText("Ryan");
+  await page.getByRole("button", { name: "Generate speech" }).click();
+  await expect(page.getByLabel("Generated speech")).toHaveJSProperty(
+    "readyState",
+    4,
+  );
+});
+
+test("Audio variants control STT and TTS devices", async ({ page }) => {
   await page.route("**/voice/transcriptions", async (route) => {
     const body = route.request().postData() ?? "";
     expect(body).toContain('name="device"');
     expect(body).toContain("GPU");
     await route.fulfill({ json: { text: "Hello world" } });
   });
-  await page.route("**/voice/speech", async (route) => {
-    expect(route.request().postDataJSON()).toEqual({
-      input: "Hello world",
-      voice: "Ryan",
-      device: "NPU",
-    });
-    await route.fulfill({ contentType: "audio/wav", body: wav() });
+  await mockTtsJob(page, {
+    inspectRequest: (request) => {
+      expect(request.url()).toContain(
+        "/voice/pipelines/text-to-speech/variants/gpu/runs",
+      );
+      expect(request.postDataJSON()).toEqual({
+        input: "Hello world",
+        voice: "Ryan",
+      });
+    },
   });
 
-  const sttDevice = page.getByLabel("Speech to text device");
-  await sttDevice.click();
-  await expect(page.getByRole("option")).toHaveText([
-    "Service default",
-    "CPU",
-    "GPU",
-    "NPU",
-  ]);
-  await page.getByRole("option", { name: "GPU", exact: true }).click();
+  await page.getByRole("button", { name: "Switch variant" }).click();
+  await expect(page.getByRole("menuitem")).toHaveText(["CPU", "GPU", "NPU"]);
+  await page.getByRole("menuitem", { name: "GPU", exact: true }).click();
+  await expect(page).toHaveURL(/\/pipelines\/audio\/speech-to-text\/gpu$/);
+  await expect(page.getByText("(GPU)", { exact: true })).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  await expect(page.getByLabel("Text input (English)")).toHaveCount(0);
   await page.getByLabel("Audio file").setInputFiles({
     name: "sentence.wav",
     mimeType: "audio/wav",
@@ -111,18 +575,23 @@ test("forwards independent STT and TTS devices", async ({ page }) => {
   await page.getByRole("button", { name: "Transcribe", exact: true }).click();
   await expect(page.getByLabel("Transcription")).toHaveValue("Hello world");
 
-  await page.getByRole("tab", { name: "Text to speech" }).click();
-  const ttsDevice = page.getByLabel("Text to speech device");
-  await expect(ttsDevice).toHaveText("Service default");
-  await chooseOption(page, "Text to speech device", "NPU");
+  await page.goto(
+    new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
+  );
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  await expect(page.getByLabel("Audio file")).toHaveCount(0);
+  await page.getByRole("button", { name: "Switch variant" }).click();
+  await expect(page.getByRole("menuitem")).toHaveText(["CPU", "GPU"]);
+  await page.getByRole("menuitem", { name: "GPU", exact: true }).click();
+  await expect(page.getByText("(GPU)", { exact: true })).toBeVisible();
   await page.getByLabel("Text input (English)").fill("Hello world");
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(page.getByLabel("Generated speech")).toHaveJSProperty(
     "readyState",
     4,
   );
-  await page.getByRole("tab", { name: "Speech to text" }).click();
-  await expect(page.getByLabel("Speech to text device")).toHaveText("GPU");
+  await expect(page.getByLabel("Speech to text device")).toHaveCount(0);
+  await expect(page.getByLabel("Text to speech device")).toHaveCount(0);
 });
 
 test("submits audio formats for service-side validation", async ({ page }) => {
@@ -186,10 +655,11 @@ for (const viewport of [
     ).toBeVisible();
     await expect(
       page.getByRole("heading", {
-        name: "Speech Recognition Workload Configuration",
+        name: "Automatic Speech Recognition Workload Configuration",
         exact: true,
       }),
     ).toBeVisible();
+    await expect(page.getByText(/Pipelines \/ Audio/)).toHaveCount(0);
     const sttMetrics = page.getByRole("region", {
       name: "Speech to text metrics",
     });
@@ -229,7 +699,7 @@ for (const viewport of [
     ).toBeVisible();
     const workflowBox = await page
       .getByRole("heading", {
-        name: "Speech Recognition Workload Configuration",
+        name: "Automatic Speech Recognition Workload Configuration",
         exact: true,
       })
       .boundingBox();
@@ -251,20 +721,18 @@ for (const viewport of [
         headers: { "X-Voice-Service-Duration-Ms": "250.000" },
       });
     });
-    await page.route("**/voice/speech", async (route) => {
-      expect(route.request().postDataJSON()).toEqual({
-        input: "Hello world",
-        voice: "Angus",
-      });
-      await route.fulfill({
-        contentType: "audio/wav",
-        body: wav(),
-        headers: { "X-Voice-Service-Duration-Ms": "750.000" },
-      });
+    await mockTtsJob(page, {
+      serviceMs: 750,
+      inspectRequest: (request) => {
+        expect(request.postDataJSON()).toEqual({
+          input: "Hello world",
+          voice: "Angus",
+        });
+      },
     });
     await expect(
       page.getByRole("button", { name: "Transcribe", exact: true }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await page.getByLabel("Audio file").setInputFiles({
       name: "sentence.wav",
       mimeType: "audio/wav",
@@ -302,7 +770,9 @@ for (const viewport of [
       path: `/tmp/voice-stt-${viewport.width}.png`,
       fullPage: true,
     });
-    await page.getByRole("tab", { name: "Text to speech" }).click();
+    await page.goto(
+      new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
+    );
     await expect(
       page.getByRole("region", { name: "Text to speech metrics" }),
     ).toContainText("Awaiting conversion");
@@ -320,17 +790,14 @@ for (const viewport of [
     ).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Generate speech" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await expect(page.getByLabel("Voice")).toHaveText("Ryan");
     await chooseOption(page, "Voice", "Angus");
     const textInput = page.getByLabel("Text input (English)");
     await expect(textInput).toHaveAttribute("maxlength", "200");
     await textInput.fill("Hello world");
     await expect(
-      page
-        .getByRole("tabpanel", { name: "Text to speech" })
-        .getByText("11 / 200", { exact: true })
-        .first(),
+      page.getByText("11 / 200", { exact: true }).first(),
     ).toBeVisible();
     await page.getByRole("button", { name: "Generate speech" }).click();
     await expect(page.getByLabel("Generated speech")).toHaveJSProperty(
@@ -419,25 +886,13 @@ for (const viewport of [
     await expect(
       page.getByRole("region", { name: "Text to speech metrics" }),
     ).toContainText("Awaiting conversion");
-    await page.getByRole("tab", { name: "Speech to text" }).click();
-    await expect(sttMetrics).toContainText("250.00ms");
-    await chooseOption(page, "Recognition language", "Polish");
-    await expect(sttMetrics).toContainText("Awaiting conversion");
-    await page.getByRole("button", { name: "Transcribe", exact: true }).click();
-    await expect(sttMetrics).toContainText("250.00ms");
-    await page.getByLabel("Audio file").setInputFiles({
-      name: "another.wav",
-      mimeType: "audio/wav",
-      buffer: wav(),
-    });
-    await expect(sttMetrics).toContainText("Awaiting conversion");
     await expect(
       metricsRail.getByRole("heading", { name: "CPU Usage", exact: true }),
     ).toBeVisible();
     await expect(
       metricsRail.getByRole("heading", { name: /Frame Rate|Latency/ }),
     ).toHaveCount(0);
-    const voiceMetricsBox = await sttMetrics.boundingBox();
+    const voiceMetricsBox = await ttsMetricsPanel.boundingBox();
     const platformMetricsBox = await metricsRail
       .getByRole("heading", { name: "CPU Usage", exact: true })
       .boundingBox();
@@ -460,13 +915,13 @@ for (const viewport of [
 }
 
 test("waveform scales quiet audio and keeps silence flat", async ({ page }) => {
-  await page.getByRole("tab", { name: "Text to speech" }).click();
+  await page.goto(
+    new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
+  );
   await page.getByLabel("Text input (English)").fill("Hello world");
   for (const volume of [0.01, 1, 0]) {
     const content = wav(volume);
-    await page.route("**/voice/speech", (route) =>
-      route.fulfill({ contentType: "audio/wav", body: content }),
-    );
+    await mockTtsJob(page, { content });
     await page.getByRole("button", { name: "Generate speech" }).click();
     const waveform = page.getByRole("img", {
       name: "Synthesized audio waveform",
@@ -506,24 +961,19 @@ test("waveform scales quiet audio and keeps silence flat", async ({ page }) => {
 });
 
 test("service failure and cancellation", async ({ page }) => {
-  await page.getByRole("tab", { name: "Text to speech" }).click();
+  await page.goto(
+    new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
+  );
   await page.getByLabel("Text input (English)").fill("Hello world");
   const metrics = page.getByRole("region", { name: "Text to speech metrics" });
-  await page.route("**/voice/speech", (route) =>
-    route.fulfill({
-      contentType: "audio/wav",
-      body: wav(),
-      headers: { "X-Voice-Service-Duration-Ms": "250.000" },
-    }),
-  );
+  await mockTtsJob(page, { serviceMs: 250 });
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(metrics).toContainText("250.00ms");
-  await page.route("**/voice/speech", (route) =>
-    route.fulfill({
-      status: 503,
-      json: { detail: "The speech service is unavailable." },
-    }),
-  );
+  await mockTtsJob(page, {
+    status: "FAILED",
+    serviceMs: null,
+    error: "The speech service is unavailable.",
+  });
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(page.getByRole("alert")).toHaveText(
     "The speech service is unavailable.",
@@ -533,16 +983,7 @@ test("service failure and cancellation", async ({ page }) => {
   const pending = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route("**/voice/speech", async (route) => {
-    await pending;
-    await route
-      .fulfill({
-        contentType: "audio/wav",
-        body: wav(),
-        headers: { "X-Voice-Service-Duration-Ms": "900.000" },
-      })
-      .catch(() => { });
-  });
+  await mockTtsJob(page, { serviceMs: 900, waitForStart: pending });
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(
     page.getByRole("button", { name: "Cancel", exact: true }),
@@ -553,42 +994,22 @@ test("service failure and cancellation", async ({ page }) => {
   ).toBeEnabled();
   await expect(page.getByLabel("Generated speech")).toHaveCount(0);
   await expect(metrics).toContainText("Awaiting conversion");
-  await page.route("**/voice/speech", (route) =>
-    route.fulfill({
-      contentType: "audio/wav",
-      body: wav(),
-      headers: { "X-Voice-Service-Duration-Ms": "700.000" },
-    }),
-  );
+  await mockTtsJob(page, { serviceMs: 700 });
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(metrics).toContainText("700.00ms");
   release?.();
   await expect(metrics).not.toContainText("900.00ms");
 });
 
-test("missing or invalid service timing does not break conversion", async ({
+test("missing or zero service timing does not break conversion", async ({
   page,
 }) => {
-  await page.getByRole("tab", { name: "Text to speech" }).click();
+  await page.goto(
+    new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
+  );
   await page.getByLabel("Text input (English)").fill("Hello world");
-  for (const value of [
-    null,
-    "",
-    "NaN",
-    "Infinity",
-    "-1",
-    "12ms",
-    "0x10",
-    "9".repeat(310),
-    "0",
-  ]) {
-    await page.route("**/voice/speech", (route) =>
-      route.fulfill({
-        contentType: "audio/wav",
-        body: wav(),
-        headers: value === null ? {} : { "X-Voice-Service-Duration-Ms": value },
-      }),
-    );
+  for (const value of [null, 0]) {
+    await mockTtsJob(page, { serviceMs: value });
     await page.getByRole("button", { name: "Generate speech" }).click();
     await expect(page.getByLabel("Generated speech")).toHaveJSProperty(
       "readyState",
@@ -600,7 +1021,7 @@ test("missing or invalid service timing does not break conversion", async ({
     await expect(
       metrics.getByRole("heading", { name: "Request duration" }),
     ).toBeVisible();
-    if (value === "0") {
+    if (value === 0) {
       await expect(metrics).toContainText("0.00ms");
     } else {
       const serviceDuration = metrics
@@ -666,16 +1087,11 @@ test("waveform failure preserves audio playback and conversion metrics", async (
       }
     } as unknown as typeof OfflineAudioContext;
   });
-  await page.reload();
-  await page.getByRole("tab", { name: "Text to speech" }).click();
-  await chooseOption(page, "Sample text", "Your audio is ready for playback.");
-  await page.route("**/voice/speech", (route) =>
-    route.fulfill({
-      contentType: "audio/wav",
-      body: wav(),
-      headers: { "X-Voice-Service-Duration-Ms": "120.000" },
-    }),
+  await page.goto(
+    new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
   );
+  await chooseOption(page, "Sample text", "Your audio is ready for playback.");
+  await mockTtsJob(page, { serviceMs: 120 });
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(
     page.getByText("Waveform unavailable", { exact: true }),

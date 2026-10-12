@@ -46,6 +46,9 @@ x-vippet: &vippet
     DEFAULT_RECORDINGS_FILE: /videos/default_recordings.yaml
     INPUT_VIDEO_DIR: /videos/input
     OUTPUT_VIDEO_DIR: /videos/output
+    AUTO_AUDIO_DIR: /audio/input/auto
+    OUTPUT_AUDIO_DIR: /audio/output
+    DEFAULT_AUDIO_RECORDINGS_FILE: /audio/default_recordings.yaml
     # Upload validation limits for POST /videos/upload. Keep
     # UPLOAD_MAX_SIZE_BYTES in sync with nginx 'client_max_body_size' in
     # ui/nginx.conf.
@@ -79,6 +82,9 @@ x-vippet: &vippet
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download"
+    HTTP_PROXY: ${http_proxy}
+    HTTPS_PROXY: ${https_proxy}
+    NO_PROXY: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download"
   device_cgroup_rules:
     # Broad access to USB devices is required to support a wide range of USB cameras.
     - 'c 189:* rmw'
@@ -91,6 +97,7 @@ x-vippet: &vippet
     - ./shared/images/:/images
     - ./shared/models/:/models
     - ./shared/videos/:/videos
+    - ./shared/audio/:/audio
     - ./shared/scripts/:/scripts
     - ./shared/onvif/:/onvif
     - ./shared/metadata/:/metadata
@@ -148,6 +155,7 @@ services:
       HF_HUB_ENABLE_HF_TRANSFER: "1"
       HF_TOKEN: ${HF_TOKEN:-}
       UV_CACHE_DIR: /cache/uv
+      UV_HTTP_TIMEOUT: ${UV_HTTP_TIMEOUT:-300}
       # Cache the Hugging Face hub downloads so HF-backed plugins reuse
       # large weights between container restarts.
       HF_HOME: /cache/huggingface
@@ -193,6 +201,7 @@ services:
       AUDIO_ANALYZER__MODELS__ASR__HALLUCINATION_PHRASE_FILTER: "false"
       AUDIO_ANALYZER__SENTIMENT__ENABLED: "false"
       AUDIO_ANALYZER__APP__CLEAR_STORAGE_ON_STARTUP: "true"
+      AUDIO_ANALYZER__APP__CLEANUP_ON_EXIT: "false"
       HF_HOME: /app/audio_analyzer/.cache/huggingface
       http_proxy: ${http_proxy:-}
       https_proxy: ${https_proxy:-}

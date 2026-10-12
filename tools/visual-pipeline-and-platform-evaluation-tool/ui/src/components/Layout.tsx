@@ -31,7 +31,8 @@ const Layout = () => {
   const hasModels = useAppSelector(selectIsAnyModelDownloaded);
 
   useEffect(() => {
-    if (!hasModels && location.pathname !== "/voice") {
+    const isAudioPipeline = location.pathname.startsWith("/pipelines/audio/");
+    if (!hasModels && !isAudioPipeline) {
       toast.warning("There are no models in the system.", {
         id: "no-models-warning",
         closeButton: false,

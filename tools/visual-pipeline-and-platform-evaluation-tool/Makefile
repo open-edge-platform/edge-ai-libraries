@@ -6,7 +6,7 @@ SHELL := bash -eu -o pipefail
 # default goal to show help
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
-	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator shell-dlsps stop clean clean-output-videos help \
+	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator shell-dlsps stop clean clean-output-videos clean-output-audio help \
 	build-videogenerator build-onvif-discovery docker-build env-setup build-test \
 	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental \
 	ui-e2e-setup ui-e2e-setup-cross-browser
@@ -149,6 +149,8 @@ $(ENV_DIRS_SENTINEL): Makefile
 	mkdir -p shared/videos/input && chmod o+w shared/videos/input
 	mkdir -p shared/videos/output && chmod o+w shared/videos/output
 	mkdir -p shared/videos/video-generator && chmod o+w shared/videos/video-generator
+	mkdir -p shared/audio/input/auto && chmod o+w shared/audio/input/auto
+	mkdir -p shared/audio/output && chmod o+w shared/audio/output
 	@touch $@
 
 # env-setup must run on every invocation: setup_env.sh detects the
@@ -281,8 +283,8 @@ shell-dlsps: ## Open shell in DLSPS 2.0 container (started with DLSPS2=1)
 stop: ## Stop ViPPET core and Voice services, preserving named volumes
 	$(call standard-compose,down)
 
-clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
-	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator
+clean: clean-model-download clean-models clean-output-videos clean-output-audio ## Clean all build artifacts
+	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator shared/audio/input
 	rm -f $(ENV_DIRS_SENTINEL) $(TEST_IMAGE_SENTINEL) \
 		$(UI_NPM_SENTINEL) $(UI_PW_CHROMIUM_SENTINEL) $(UI_PW_CROSS_SENTINEL)
 
@@ -295,6 +297,9 @@ clean-models: ## Clean only models
 
 clean-output-videos: ## Clean only output videos
 	rm -rf shared/videos/output/*
+
+clean-output-audio: ## Clean only output audio
+	rm -rf shared/audio/output/*
 
 help: ## Print help for each target
 	@echo ViPPET make targets
