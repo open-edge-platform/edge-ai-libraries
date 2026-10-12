@@ -41,7 +41,7 @@ services:
       VLM_MODEL_NAME: ${VLM_STORAGE_MODEL_NAME:-${VLM_MODEL_NAME}}
       USE_VLLM: CONFIG_OFF
       MULTI_FRAME_COUNT: ${PM_MULTI_FRAME_COUNT}
-      AUDIO_HOST: http://${AUDIO_HOST:-audio-analyzer}:${AUDIO_CONTAINER_PORT:-8010}
+      AUDIO_HOST: http://${AUDIO_HOST:-audio-analyzer}:8010
       AUDIO_DEVICE: CPU
       SEARCH_ENDPOINT: ""
       SEARCH_DATAPREP_ENDPOINT: ""
@@ -149,15 +149,15 @@ services:
     image: intel/audio-analyzer:2026.2.0
     hostname: audio-analyzer
     ports:
-      - "${AUDIO_HOST_PORT:-8999}:${AUDIO_CONTAINER_PORT:-8010}"
+      - "${AUDIO_HOST_PORT:-8999}:8010"
     volumes:
       - audio_analyzer_data:/data
       # Persist the exported/downloaded whisper model so it survives container recreation (no re-download).
       - audio_analyzer_models:/app/audio_analyzer/models
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     environment:
-      # AUDIO_CONTAINER_PORT is the single port knob; the 2026.x image reads AUDIO_ANALYZER_SERVER_PORT to pick its bind port.
-      - AUDIO_ANALYZER_SERVER_PORT=${AUDIO_CONTAINER_PORT:-8010}
+      # The 2026.x image reads AUDIO_ANALYZER_SERVER_PORT to pick its bind port.
+      - AUDIO_ANALYZER_SERVER_PORT=8010
       - http_proxy
       - https_proxy
       - no_proxy=$no_proxy,minio-service,localhost
@@ -168,7 +168,7 @@ services:
       # AUDIO_ANALYZER__<SECTION>__<KEY> onto its baked config.yaml; these env vars take top priority.
       - AUDIO_ANALYZER__MODELS__ASR__NAME=${ASR_MODEL}
       - AUDIO_ANALYZER__MODELS__ASR__DEVICE=${ASR_DEVICE:-CPU}
-      - AUDIO_ANALYZER__MODELS__ASR__WEIGHT_FORMAT=${ASR_WEIGHT_FORMAT:-null}
+      - AUDIO_ANALYZER__MODELS__ASR__WEIGHT_FORMAT=${ASR_WEIGHT_FORMAT:-fp32}
       - AUDIO_ANALYZER__MODELS__ASR__DIARIZATION=${ASR_DIARIZATION:-false}
       - AUDIO_ANALYZER__SENTIMENT__ENABLED=${AUDIO_SENTIMENT_ENABLED:-false}
       - HF_TOKEN=${HF_TOKEN:-}  # required only when ASR_DIARIZATION=true
@@ -188,7 +188,7 @@ services:
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request as r; r.urlopen('http://localhost:${AUDIO_CONTAINER_PORT:-8010}/api/v1/health')", "2>", "/dev/null", "||", "exit", "1"]
+      test: ["CMD", "python", "-c", "import urllib.request as r; r.urlopen('http://localhost:8010/api/v1/health')", "2>", "/dev/null", "||", "exit", "1"]
       interval: 30s
       timeout: 10s
       retries: 10
