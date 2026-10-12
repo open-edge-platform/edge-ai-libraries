@@ -11,25 +11,33 @@
 </div>
 hide_directive-->
 
-Stream Manager attaches to RTSP video sources, records selected intervals, and serves frames and
-clips by timestamp.
+Stream Manager is a microservice responsible for managing and orchestrating streaming data
+within the Edge AI platform.
 
-Recording and replay use filesystem storage and SQLite metadata.
+A reusable REST microservice that attaches live streaming sources, keeps bounded per-stream
+history in memory, saves requested intervals, and returns timestamp-correlated clips and
+frames.
 
 ## Overview
 
-Use the setup guide to attach a camera and record video. Use the API reference to call stream,
-recording, and replay endpoints.
+The repository currently includes only the scaffolding for the Stream Manager microservice.
 
-- [Get Started](get-started.md)
-- [API Reference](api-reference.md)
+## Project Status
+
+| Area | Status |
+| --- | --- |
+| API Contract | Ready |
+| Design | Ready |
+| Implementation | Work in Progress |
+| Documentation | Work in Progress |
+
+
 
 <!--hide_directive
 :::{toctree}
 :hidden:
 
 get-started
-api-reference
 
 :::
 hide_directive-->
