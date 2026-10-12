@@ -49,7 +49,11 @@ debian_85_start_uav_mission_compute_sdk () {
 
 debian_85_stop_uav_mission_compute_sdk () {
   configure_uav_mission_compute_sdk
-  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk && make down || true
+  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk && {
+    make down || true
+    docker volume rm -f uav-mission-compute-sdk_grafana-data uav-mission-compute-sdk_influxdb-data || true
+    docker volume prune -f
+  } || true
 }
 
 debian_85_remove_uav_mission_compute_sdk () {
