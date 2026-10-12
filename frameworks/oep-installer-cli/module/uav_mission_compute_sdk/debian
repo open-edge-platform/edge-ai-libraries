@@ -10,11 +10,11 @@ verify_uav_mission_compute_sdk () {
   [ -e "$workspace" ]
 }
 
-debian_85_profile_uav_mission_compute_sdk () {
+debian_90_profile_uav_mission_compute_sdk () {
   echo "docker git curl make v4l_utils"
 }
 
-debian_85_install_uav_mission_compute_sdk () {
+debian_90_install_uav_mission_compute_sdk () {
   configure_uav_mission_compute_sdk
   if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
     echo "UAV mission compute sdk is already installed. Skipping..." 1>&2
@@ -39,15 +39,15 @@ debian_85_install_uav_mission_compute_sdk () {
   echo "@@HIGHLIGHT workspace: $workspace"
 }
 
-debian_85_start_uav_mission_compute_sdk () {
-  ensure_ports_open "${used_ports[*]}" debian_85_stop_uav_mission_compute_sdk "$@"
+debian_90_start_uav_mission_compute_sdk () {
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_uav_mission_compute_sdk "$@"
   configure_uav_mission_compute_sdk
   cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
   . .env
   make up-$PROFILE
 }
 
-debian_85_stop_uav_mission_compute_sdk () {
+debian_90_stop_uav_mission_compute_sdk () {
   configure_uav_mission_compute_sdk
   cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk && {
     make down || true
@@ -56,11 +56,11 @@ debian_85_stop_uav_mission_compute_sdk () {
   } || true
 }
 
-debian_85_remove_uav_mission_compute_sdk () {
+debian_90_remove_uav_mission_compute_sdk () {
   configure_uav_mission_compute_sdk
   local app_dir="$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
   if [ -r "$app_dir/docker-compose.yml" ]; then
-    debian_85_stop_uav_mission_compute_sdk "$@"
+    debian_90_stop_uav_mission_compute_sdk "$@"
     # drop the stack's containers, volumes and images (not a system-wide prune)
     (cd "$app_dir" && docker compose -f docker-compose.yml --profile sim-camera --profile usb-camera --profile observability \
       down --remove-orphans --volumes --rmi all) || true

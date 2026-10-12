@@ -1,6 +1,4 @@
 
-# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-# SPDX-License-Identifier: Apache-2.0
 
 # safe removal: ensure_rm <path>...
 # removes files/directories, escalating to sudo only when needed (e.g. files

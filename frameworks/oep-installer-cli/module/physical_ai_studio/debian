@@ -40,7 +40,7 @@ configure_physical_ai_studio_device () {
   esac
 }
 
-debian_92_profile_physical_ai_studio () {
+debian_90_profile_physical_ai_studio () {
   echo "git curl edge_base uv ffmpeg"
 }
 
@@ -53,7 +53,7 @@ verify_physical_ai_studio () {
   uv tool list 2> /dev/null | grep -q -E "^$pais_pkg v${pais_version//./\\.}( |$)"
 }
 
-debian_92_install_physical_ai_studio () {
+debian_90_install_physical_ai_studio () {
   configure_physical_ai_studio
   configure_physical_ai_studio_device "$@"
   configure_uv
@@ -62,7 +62,7 @@ debian_92_install_physical_ai_studio () {
     echo "Physical AI Studio is already installed. Skipping..."
   else
     ensure_disk_size 20000
-    debian_92_stop_physical_ai_studio "$@" || true
+    debian_90_stop_physical_ai_studio "$@" || true
     ensure_rm "$pais_device_file"
     echo "Installing ${pais_pkg}[${pais_extra}]==${pais_version} (PyTorch ${pais_extra} build; this may take a while)..."
     uv tool install --reinstall --python 3.12 \
@@ -84,10 +84,10 @@ debian_92_install_physical_ai_studio () {
   echo "@@HIGHLIGHT $installer_name remove"
 }
 
-debian_92_start_physical_ai_studio () {
+debian_90_start_physical_ai_studio () {
   configure_physical_ai_studio
   # stop any instance already holding the port before starting a new one
-  ensure_ports_open "$pais_port" debian_92_stop_physical_ai_studio "$@"
+  ensure_ports_open "$pais_port" debian_90_stop_physical_ai_studio "$@"
 
   if [ ! -x "$pais_bin" ]; then
     echo "Physical AI Studio is not installed. Run 'install physical_ai_studio' first." 1>&2
@@ -112,7 +112,7 @@ debian_92_start_physical_ai_studio () {
   echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
-debian_92_stop_physical_ai_studio () {
+debian_90_stop_physical_ai_studio () {
   configure_physical_ai_studio
   [ -f "$pais_pid_file" ] || return 0
 
@@ -130,10 +130,10 @@ debian_92_stop_physical_ai_studio () {
   rm -f "$pais_pid_file"
 }
 
-debian_92_remove_physical_ai_studio () {
+debian_90_remove_physical_ai_studio () {
   configure_physical_ai_studio
   configure_uv
-  debian_92_stop_physical_ai_studio "$@" || true
+  debian_90_stop_physical_ai_studio "$@" || true
   uv tool uninstall "$pais_pkg" > /dev/null 2>&1 || true
   ensure_rm "$pais_run_dir"
 }

@@ -82,27 +82,6 @@ act_extract_args () {
   echo "${args1[*]} ${act_modules} -- ${args2[*]}"
 }
 
-# named components to act on without dependencies; handler-less (virtual)
-# profiles are expanded into their members
-act_find_targets () {
-  local act_name=${1%%,*}
-  local -a q=($(act_extract_modules "$@")) out=()
-  local -A seen=()
-  local i=0 n p
-  while [ $i -lt ${#q[*]} ]; do
-    n=${q[$i]}; i=$((i+1))
-    [ -z "${seen[$n]:-}" ] || continue
-    seen[$n]=1
-    if [ -n "${_act_cache_functions[${act_name}_$n]:-}" ]; then
-      out+=($n)
-    else
-      p="${_act_cache_functions[profile_$n]:-}"
-      [ -z "$p" ] || q+=($($p $act_name "${@:2}"))
-    fi
-  done
-  echo "${out[*]}"
-}
-
 act_find_deps () {
   local act_name=${1%%,*}
   local -A handlers=()
@@ -145,15 +124,17 @@ act_helper () {
   # scan for dependencies
   local handles=($(act_find_deps $act_name "$@"))
 
-  # remove is not recursive: act on the named components (and profile members) only
-  local remove_targets=""
-  [ "$act_name" != "remove" ] || [ $remove_all -eq 1 ] || remove_targets=" $(act_find_targets $act_name "$@") "
-
   # refuse to remove modules that other installed modules still depend on
   if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ] && [ ${#handles[@]} -gt 0 ]; then
-    local _h _pair
+    local _targets=() _top=0 _h _o _pair
+    for _h in $(printf '%s\n' "${handles[@]}" | sort $sort_options); do
+      _o=${_h#*_}; _o=${_o%%_*}
+      [ "$_top" -gt 0 ] || _top=$_o
+      [ "$_o" -ge "$_top" ] || break          # same order limit as the removal loop
+      _targets+=(${_h#*_*_*_})
+    done
     local -A _needed=()
-    for _pair in $(act_find_parents "$remove_targets" "$@"); do
+    for _pair in $(act_find_parents "${_targets[*]}" "$@"); do
       _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}"
     done
     if [ ${#_needed[@]} -gt 0 ]; then
@@ -210,13 +191,17 @@ act_helper () {
     [ -z "$sp" ] || export https_proxy="$sp" HTTPS_PROXY="$sp"
     [ -z "$np" ] || export no_proxy="${np%%,}" NO_PROXY="${np%%,}"
 
-    local rc=0
+    local rc=0 order=0
     local installer_state=""
     ensure_tmpdir create installer_state states /dev/shm
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
         local name1=${handler#*_*_*_}
-        [ "$act_name" != "remove" ] || [ $remove_all -eq 1 ] || [[ "$remove_targets" = *" $name1 "* ]] || continue
+        if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ]; then
+          local order1=${handler#*_};order1=${order1%%_*}
+          [ "$order" -gt 0 ] || order=$order1
+          [ "$order1" -ge "$order" ] || break
+        fi
         local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")"
         if [[ " $* " = *" --dry-run "* ]]; then
           echo "@@COMP $name1"

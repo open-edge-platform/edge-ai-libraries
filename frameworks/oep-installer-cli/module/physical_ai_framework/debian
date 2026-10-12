@@ -32,7 +32,7 @@ configure_physical_ai_framework_device () {
   paif_index="https://download.pytorch.org/whl/$paif_extra"
 }
 
-debian_91_profile_physical_ai_framework () {
+debian_90_profile_physical_ai_framework () {
   echo "git curl edge_base uv ffmpeg"
 }
 
@@ -44,7 +44,7 @@ verify_physical_ai_framework () {
   [ "$("$paif_venv/bin/python" -c "import importlib.metadata as m; print(m.version('$paif_pkg'))" 2> /dev/null)" = "$paif_version" ]
 }
 
-debian_91_install_physical_ai_framework () {
+debian_90_install_physical_ai_framework () {
   configure_physical_ai_framework
   configure_physical_ai_framework_device "$@"
   configure_uv
@@ -93,7 +93,7 @@ EOF
   echo "@@HIGHLIGHT $installer_name remove"
 }
 
-debian_91_remove_physical_ai_framework () {
+debian_90_remove_physical_ai_framework () {
   configure_physical_ai_framework
   ensure_rm "$workspace"
 }
