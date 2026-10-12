@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # TODO
 
 Items are listed roughly in order of priority.
@@ -19,12 +22,12 @@ Items are listed roughly in order of priority.
 ## Optimization or Improvements
 
 ### Major
-- [ ] Add a custom error-handling framework using `StreamManError`
-- [ ] Write `AGENTS.md` and `copilot-instructions.md`
+- [x] Add a custom error-handling framework using `StreamManError`
+- [x] Write `AGENTS.md` and `copilot-instructions.md`
 - [ ] Idempotency of the `POST /records/start` endpoint
 
 ### Incremental
-- [ ] Use of `log/slog` for logging
+- [x] Use of `log/slog` for logging
 - [ ] Check if `ffmpeg` can completely replace `blueviron/mediamtx` and whether it will be an optimal choice.
 - [ ] Check `cfg.RecordingStorage` quotas and enforce disk limits through host-based notifications or other mechanisms (rolling storage?)
 - [ ] Use `errors.Join()` to combine `recordingFilter` validation errors and similar errors across endpoints
@@ -47,7 +50,7 @@ Items are listed roughly in order of priority.
 
 Some of these items might have been already reconsidered for the TODO list above.
 
-- [ ] Defer pagination for `GET /streams`; pagination is currently planned only for `/records` endpoints
-- [ ] Do not implement sidecar indexes for keyframes or decoding assistance
-- [ ] Defer S3-based storage
-- [ ] Defer authentication and rate limiting; they are out of scope for now
+- Defer pagination for `GET /streams`; pagination is currently planned only for `/records` endpoints
+- Do not implement sidecar indexes for keyframes or decoding assistance
+- Defer S3-based storage
+- Defer authentication and rate limiting; they are out of scope for now

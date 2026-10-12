@@ -51,7 +51,7 @@ This should build the Docker image with the specified name and tag.
 
 ### Handling Build Issues
 
-If there are any errors or issues during build process, analyse the errors and try to root-cause the issue. Handle the errors appropriately and ensure all dependencies are correctly installed. In case of persistent issues, refer to the project documentation. Also explain to user, the reason of failure in a clear, comprehensive and conceptual manner and help them with further actions to get the issue fixed.
+If there are any errors or issues during build process, analyze the errors and try to root-cause the issue. Handle the errors appropriately and ensure all dependencies are correctly installed. In case of persistent issues, refer to the project documentation. Also explain to user, the reason of failure in a clear, comprehensive and conceptual manner and help them with further actions to get the issue fixed.
 
 ## Setup Commands
 
@@ -102,18 +102,18 @@ Please note the mount to `/data` or `/config.json` in the container is only prov
 
 ### Handling Setup Issues
 
-If there are any errors or issues during setup process, deep-dive and analyse the errors to root-cause the issue. Ensure all dependencies are correctly installed. look for possible edge cases. Check for any failing tests and try to fix them. In case of persistent issues, refer to the project documentation. Also explain to user, the reason of failure in a clear, comprehensive and conceptual manner and help them with further actions to get the issue fixed.
+If there are any errors or issues during setup process, deep-dive and analyze the errors to root-cause the issue. Ensure all dependencies are correctly installed. look for possible edge cases. Check for any failing tests and try to fix them. In case of persistent issues, refer to the project documentation. Also explain to user, the reason of failure in a clear, comprehensive and conceptual manner and help them with further actions to get the issue fixed.
 
 ## Code Style
 
 Following principles, styles and guidelines should be strictly followed while writing code :
 
 - Maintain high code quality standards throughout this project, for any change, feature, fix or development task requested.
-- Avoid bloated, complex implementation at all cost. Never fall for solutions which are overengineering or overkill for the given use-case.
+- Avoid bloated, complex implementation at all cost. Never fall for solutions which are over-engineering or overkill for the given use-case.
 - Weigh in all tradeoffs during decision making. Always look at the application context or the use-case at hand to identify actual bottlenecks.
-- Separate structual changes from behavioral changes. Follow the Kent Beck's "Tidy First" approach for this.
-- Use meaningful variable and function names. These names should eliminate the need for comments in general (but, put comments if relly required). That means write explicit functions, variables, object, structs, fields that behaviour and functionality is mostly evident from the naming itself.
-- Use comments only if extremely necessary. Keep the code elegant, simple, intuitive and self-comprehensible. When it is extremly hard to keep the code intuitive, use meaningful but brief concise and to-the-point comments. Avoid comments spanning across multiple lines, unless extremely necessary.
+- Separate structural changes from behavioral changes. Follow the Kent Beck's "Tidy First" approach for this.
+- Use meaningful variable and function names. These names should eliminate the need for comments in general (but, put comments if really required). That means write explicit functions, variables, object, structs, fields that behaviour and functionality is mostly evident from the naming itself.
+- Use comments only if extremely necessary. Keep the code elegant, simple, intuitive and self-comprehensible. When it is extremely hard to keep the code intuitive, use meaningful but brief concise and to-the-point comments. Avoid comments spanning across multiple lines, unless extremely necessary.
 - Changes should be separated in two categories:
     - **1. Structural Changes** : Changing/rearranging code without changing behaviour (e.g. renaming, extracting methods, moving etc.).
     - **2. Behavioral Change** : Adding/changing/updating the functionality of application. When both are needed - always do the structural changes first.
@@ -127,17 +127,17 @@ Following principles, styles and guidelines should be strictly followed while wr
 - Avoid un-necessary and irrelevant abstractions.
 - Avoid creating long change of indirections of function calls, unless required by design.
 - Minimize state and side effects.
-- Use simple or simplest possible solution that could work instead of overengineering a complex solution.
+- Use simple or simplest possible solution that could work instead of over-engineering a complex solution.
 
 ## Testing Instructions
 
-- Write tests rogorously for all the functionality and integration requirements.
+- Write tests rigorously for all the functionality and integration requirements.
 - Run all tests after any changes made to the application code, to make sure nothing breaks after the change.
-- Run end to end all functional and integration tests before commiting any change.
+- Run end to end all functional and integration tests before committing any change.
 
 ## Linting
 
-The application has pre-commit hooks configured, which lints and vets the application at each commit for any possible issues. However, follow linting and other required code-level checks pro-actively and use these tools after every change made by you, irrespective of whether it is commited or not. Keep the imports clean, modules tidy after every change. Use the tools used by pre-commit hooks to run the linters and other checkers. If not available look for GOPATH env and run the tools from there. If not installed, install the tools after taking permission from the user.
+The application has pre-commit hooks configured, which lints and vets the application at each commit for any possible issues. However, follow linting and other required code-level checks pro-actively and use these tools after every change made by you, irrespective of whether it is committed or not. Keep the imports clean, modules tidy after every change. Use the tools used by pre-commit hooks to run the linters and other checkers. If not available look for GOPATH env and run the tools from there. If not installed, install the tools after taking permission from the user.
 
 ## Commit and Pull Request Guidelines
 
@@ -145,11 +145,11 @@ The application has pre-commit hooks configured, which lints and vets the applic
 
 - Do not use any skills to commit the code, even if explicitly invoked.
 - Only commit when :
-    - linting cheks and function/integration tests are passing
+    - linting checks and function/integration tests are passing
     - All compiler/linker warnings are resolved.
-- Each commit should represent a sngle logical unit of work.
+- Each commit should represent a single logical unit of work.
 - Never commit structural and behavioral changes in same commit.
-- Commit messages should clearly indicate about structual or behavioral change.
+- Commit messages should clearly indicate about structural or behavioral change.
 - Write precise and brief, but descriptive commit messages to explain all change going into commit. Never write more than 5-6 lines at most in any commit message.
 - Never add any co-authors in the commit which are not humans.
 - Use small frequent commits rather than a large infrequent commit.
@@ -173,15 +173,16 @@ The application has pre-commit hooks configured, which lints and vets the applic
 
 ### Principles to follow to write documentation
 
-- Use ASD-STE100 standard (used for writing aircraft manuals in Simplified Technical English), strictly throughout the whole documentations for simple, comprehensive, unambigous writing for using this application.
+- Use ASD-STE100 standard (used for writing aircraft manuals in Simplified Technical English), strictly throughout the whole documentations for simple, comprehensive, unambiguous writing for using this application.
 - Use following principles of writing strictly without any fail:
-    - Use simplest most unamabigous english possible.
+    - Use simplest most unambiguous english possible.
     - One word, one meaning.
     - Do not use any synonyms.
     - Short sentences.
     - One action per step.
     - Use active voice only.
-    - No ommitted words.
+    - No omitted words.
+    - Do not reveal internal details for implementation, unless specifically and explicitly stated.
     - Clearly distinguish and emphasize - WARNING, CAUTION, and NOTE. They should be clearly defined and should not intermix (eg. something meant as WARNING should not be written as NOTE).
 
 
@@ -191,14 +192,14 @@ Following is the guidelines regarding the directory structure of the documentati
 
 #### README.md
 - This file `README.md` is present in the root of the project.
-- Start with extremely brief, concise yet brilliant, comprehensive and unambigous explanation of the application for why it exists.
+- Start with extremely brief, concise yet brilliant, comprehensive and unambiguous explanation of the application for why it exists.
 - Write a README file which contains the quick start section and links and small description to all documents inside the `docs` directory (except the `index.md` file)
 - Quick start section aims to give user a possible one-click solution for quickly spinning up the application.
 
 #### Get started Guide
 
 - This file `get-started.md` lives in `docs/user-guide` directory.
-- It tells you all possible details of setting up and using the application, like a simple user manual of an appliance. This does not include the building guidelines and assumes that application is present as an image in a public repository `intel/stream-manager:latest`. Use this information to intruct user to pull and use this image to run the applictaion. Add details about overriding `config.json` and useing volume mpunt or bind-mount for letting the application persist media and database files.
+- It tells you all possible details of setting up and using the application, like a simple user manual of an appliance. This does not include the building guidelines and assumes that application is present as an image in a public repository `intel/stream-manager:latest`. Use this information to instruct user to pull and use this image to run the application. Add details about overriding `config.json` and using volume mount or bind-mount for letting the application persist media and database files.
 
 #### API Reference Guide
 
@@ -208,7 +209,7 @@ Following is the guidelines regarding the directory structure of the documentati
 #### Build from Source Guide
 
 - Build from source guide should be present at the `docs/user-guide/build-from-source.md`.
-- This document guides user clearly towards how to build the application on host and how to build a container image. Refer to the [Build](#build) section here and other informations avilable to write a well designed guide.
+- This document guides user clearly towards how to build the application on host and how to build a container image. Refer to the [Build](#build) section here and other information available to write a well designed guide.
 
 ## Agent-Specific Notes
 
