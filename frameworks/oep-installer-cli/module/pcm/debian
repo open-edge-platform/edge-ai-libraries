@@ -6,12 +6,11 @@ configure_pcm () {
 }
 
 verify_pcm () {
-  [ -e "$workspace" ] &&
-  [ -x /usr/local/pcm ]
+  [ -x /usr/local/sbin/pcm ]
 }
 
 debian_40_profile_pcm () {
-  echo "git build_essential cmake"
+  echo "git make cmake kernel_module_essential"
 }
 
 debian_40_install_pcm () {

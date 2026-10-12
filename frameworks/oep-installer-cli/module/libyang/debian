@@ -6,7 +6,7 @@ configure_libyang () {
 }
   
 debian_40_profile_libyang () {
-  echo "git build_essential cmake"
+  echo "git cmake make kernel_module_essential"
 }
 
 verify_libyang () {

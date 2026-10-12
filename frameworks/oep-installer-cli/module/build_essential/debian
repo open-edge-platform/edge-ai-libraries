@@ -1,9 +1,0 @@
-
-debian_30_install_build_essential () {
-  ensure_apt_install_package build-essential
-}
-
-debian_30_sbom_build_essential () {
-  ensure_sbom_format pkg-list build-essential
-}
-
