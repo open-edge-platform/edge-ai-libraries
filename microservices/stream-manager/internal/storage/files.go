@@ -6,13 +6,20 @@ package storage
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"golang.org/x/sys/unix"
 )
+
+const derivedDir = "derived"
+
+// Derived media names carry offsets in nanoseconds from the recording start.
+var derivedName = regexp.MustCompile(`^(frame-[0-9]+\.(jpeg|png)|clip-[0-9]+-[0-9]+\.mp4)$`)
 
 // PrepareMedia reserves a private UUID directory. FFmpeg creates media.ts there.
 func (s *Store) PrepareMedia(ctx context.Context, id string) (filename, uri string, err error) {
@@ -108,4 +115,45 @@ func (s *Store) DeleteMedia(ctx context.Context, uri string) error {
 		return err
 	}
 	return nil
+}
+
+// DerivedDir returns the directory holding frames and clips cut from a
+// recording, creating it if needed. DeleteMedia removes it with the recording.
+func (s *Store) DerivedDir(ctx context.Context, uri string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	relative, err := s.relativeMedia(uri)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(filepath.Dir(relative), derivedDir)
+	if err := s.root.Mkdir(dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
+		return "", err
+	}
+	return filepath.Join(s.root.Name(), dir), nil
+}
+
+// OpenDerived opens a frame or clip cut from a recording. Unknown names
+// report fs.ErrNotExist.
+func (s *Store) OpenDerived(ctx context.Context, uri, name string) (*os.File, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if !derivedName.MatchString(name) {
+		return nil, fs.ErrNotExist
+	}
+	relative, err := s.relativeMedia(uri)
+	if err != nil {
+		return nil, err
+	}
+	file, err := s.root.OpenFile(filepath.Join(filepath.Dir(relative), derivedDir, name), os.O_RDONLY|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, errors.Join(fs.ErrNotExist, err, file.Close())
+	}
+	return file, nil
 }
