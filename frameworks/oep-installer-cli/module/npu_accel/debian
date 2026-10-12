@@ -15,8 +15,7 @@ configure_npu_accel_packages () {
 }
 
 verify_npu_accel () {
-  [ -c /dev/accel/accel0 ] &&
-  verify_npu_accel_packages
+  [ -c /dev/accel/accel0 ] && verify_npu_accel_packages
 }
 
 # checks the driver packages only, independent of NPU hardware being present.
@@ -55,14 +54,12 @@ debian_40_install_npu_accel () {
     for p in ${packages[*]}; do
       (set -o pipefail; ensure_fetch "$p" - | tar xfz -) || {
         echo "npu_accel: failed to download/extract $p" >&2
-        echo "If curl reported an SSL certificate problem, your network may use a TLS-inspecting proxy whose root CA is not trusted; add it to the system trust store and retry." >&2
         return 3
       }
     done 
 
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
-    cd - > /dev/null
     ensure_rm "$workspace"
     verify_npu_accel_packages
   fi
