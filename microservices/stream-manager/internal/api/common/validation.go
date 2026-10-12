@@ -53,6 +53,7 @@ func ParseLimit(s string) (int, error) {
 
 // ParseTimestamp accepts RFC 3339 UTC with a Z suffix and at most nine
 // fractional digits, within the range of int64 nanoseconds since 1970.
+// Sample timestamp : 2026-06-15T14:12:00.123456789Z, 2026-06-15 14:12:00Z, 2026-06-15t14:12:00.123Z
 func ParseTimestamp(name, s string) (time.Time, error) {
 	invalid := fmt.Errorf("%s must be an RFC 3339 UTC timestamp ending in Z with at most 9 fractional digits", name)
 	if !strings.HasSuffix(s, "Z") {

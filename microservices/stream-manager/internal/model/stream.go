@@ -5,7 +5,7 @@ package model
 
 import "time"
 
-// SyncConfidence describes the quality of a live stream's wall-clock mapping.
+// SyncConfidence tells how far a stream's timestamps can be trusted.
 type SyncConfidence string
 
 const (
@@ -14,19 +14,19 @@ const (
 	SyncUnverified SyncConfidence = "unverified"
 )
 
-// StreamBuffer is the in-memory state of one attached stream buffer.
+// StreamBuffer is the in-memory state of one attached stream's buffer.
 type StreamBuffer struct {
 	StreamID       string
 	SensorID       string
 	State          string
 	SyncConfidence SyncConfidence
 	Slices         []BufferSlice
-	BufferStat     BufferStat
-	FrameStat      FrameStat
+	BufferStat     bufferStat
+	FrameStat      frameStat
 	CreationTS     time.Time
 }
 
-// BufferSlice describes one complete MPEG-TS segment in the rolling buffer.
+// BufferSlice is one MPEG-TS segment held in the buffer.
 type BufferSlice struct {
 	SeqNo      int
 	StartTS    time.Time
@@ -39,14 +39,14 @@ type BufferSlice struct {
 	RefCount   int
 }
 
-type BufferStat struct {
+type bufferStat struct {
 	HeldBytes int64
 	Capacity  int
 	OldestTS  time.Time
 	NewestTS  time.Time
 }
 
-type FrameStat struct {
+type frameStat struct {
 	Framerate     float64
 	DroppedFrames int64
 }

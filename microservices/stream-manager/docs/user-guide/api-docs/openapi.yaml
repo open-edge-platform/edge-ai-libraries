@@ -15,16 +15,29 @@ servers:
   - url: /v1
     description: API base path
 tags:
+  - name: Service
+    description: Service status.
   - name: Stream Attachment APIs
     description: Attach sources, inspect buffers, resize buffers, and detach.
   - name: Recording Storage APIs
     description: Start, stop, import, find, read, and delete recordings.
   - name: Replay APIs
     description: Extracts frames and clips, extracting media directly or handing back a link to it.
-  - name: Service
-    description: Health and version.
 
 paths:
+  /status:
+    get:
+      tags: [Service]
+      summary: Service status
+      description: Reports service status and the running build's version, build number, and build date.
+      responses:
+        '200':
+          description: Service status and build details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+
   /streams:
     post:
       tags: [Stream Attachment APIs]
@@ -643,11 +656,11 @@ paths:
             type: number
         - name: format
           in: query
-          description: Clip format, mp4 (default), mkv or webm.
+          description: Clip format, mp4 (default). More formats to be supported in the future.
           required: false
           schema:
             type: string
-            enum: [mp4, mkv, webm]
+            enum: [mp4]
             default: mp4
       responses:
         '200':
@@ -670,14 +683,14 @@ paths:
               schema:
                 type: string
                 format: binary
-            video/x-matroska:
-              schema:
-                type: string
-                format: binary
-            video/webm:
-              schema:
-                type: string
-                format: binary
+            # video/x-matroska:
+            #   schema:
+            #     type: string
+            #     format: binary
+            # video/webm:
+            #   schema:
+            #     type: string
+            #     format: binary
         '400':
           description: Invalid range or both end selectors.
           content:
@@ -747,11 +760,11 @@ paths:
             type: number
         - name: format
           in: query
-          description: Clip format, mp4 (default), mkv or webm.
+          description: Clip format, mp4 (default). More formats to be supported in the future.
           required: false
           schema:
             type: string
-            enum: [mp4, mkv, webm]
+            enum: [mp4]
             default: mp4
       responses:
         '200':
@@ -806,38 +819,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
-  /health:
-    get:
-      tags: [Service]
-      summary: Service health
-      description: 200 while the service is started and can reach its database and media storage; 503 otherwise. Having no streams attached is healthy.
-      responses:
-        '200':
-          description: Service is healthy.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Health'
-        '503':
-          description: The service or a dependency is not reachable.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /version:
-    get:
-      tags: [Service]
-      summary: Service version
-      description: Reports build details held locally.
-      responses:
-        '200':
-          description: Version information.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Version'
 
 components:
   parameters:
@@ -1055,7 +1036,7 @@ components:
 
     Recording:
       type: object
-      description: One record is one recording of one sensor, and matches exactly one row of the records table.
+      description: One record is one recording of one sensor, and matches exactly one row of the recordings table.
       properties:
         recording_id:
           type: string
@@ -1268,38 +1249,19 @@ components:
         id: rec-2
         deleted: true
 
-    Health:
+    Status:
       type: object
       properties:
-        service:
-          type: string
         status:
-          type: string
-        checked_at:
-          type: string
-          format: date-time
-      example:
-        service: stream-manager
-        status: ok
-        checked_at: '2026-09-16T09:15:00.000000000Z'
-
-    Version:
-      type: object
-      properties:
-        service:
           type: string
         version:
           type: string
-        api_version:
+        build_number:
           type: string
-        build_time:
-          type: string
-          format: date-time
-        git_commit:
+        build_date:
           type: string
       example:
-        service: stream-manager
-        version: 0.1.0
-        api_version: v1
-        build_time: '2026-09-16T00:00:00.000000000Z'
-        git_commit: 9f1c0b2d4e6a8c0e2f4a6b8d0c2e4f6a8b0d2c4e
+        status: ok
+        version: v0.1.0
+        build_number: '42'
+        build_date: '2026-09-16T00:00:00.000000000Z'

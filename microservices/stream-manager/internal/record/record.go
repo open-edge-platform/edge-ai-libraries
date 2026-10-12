@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"os/exec"
 	"sync"
@@ -20,6 +20,13 @@ import (
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/storage"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/stream"
 )
+
+// Recorder starts, stops and deletes recordings.
+type Recorder interface {
+	StartRecording(ctx context.Context, sensorID string, streamID string, startTS time.Time, endTS time.Time, preEventDuration int, metadata map[string]any) (model.Recording, error)
+	StopRecording(ctx context.Context, recordingID string) error
+	DeleteRecording(ctx context.Context, recordingID string) error
+}
 
 var (
 	ErrInvalidRequest = errors.New("invalid recording request")
@@ -38,27 +45,26 @@ type StartOptions struct {
 	Metadata map[string]any
 }
 
-// Service owns recording workers; its metadata and live-media stores outlive Close.
+// Service owns recording workers; Store remains open until Close completes.
 type Service struct {
-	mu              sync.Mutex
-	buffers         stream.Bufferer
-	metadata        storage.RecordingLifecycleStore
-	media           storage.LiveRecordingLifecycleMediaStore
-	ffmpeg          string
-	ffprobe         string
-	max             int
-	allowBestEffort bool
-	jobs            map[string]*job
-	wg              sync.WaitGroup
-	closed          bool
-	closeOnce       sync.Once
-	closeErr        error
-	now             func() time.Time
+	mu        sync.Mutex
+	buffers   stream.Bufferer
+	store     *storage.Store
+	ffmpeg    string
+	ffprobe   string
+	max       int
+	jobs      map[string]*job
+	wg        sync.WaitGroup
+	closed    bool
+	closeOnce sync.Once
+	closeErr  error
+	now       func() time.Time
 }
 
 type job struct {
 	record   model.Recording
 	id       string
+	uri      string
 	lease    *stream.BufferLease
 	filename string
 	fixed    bool
@@ -68,11 +74,10 @@ type job struct {
 	err      error
 }
 
-func NewService(buffers stream.Bufferer, metadata storage.RecordingLifecycleStore, media storage.LiveRecordingLifecycleMediaStore, concurrentRecordings int, allowBestEffort bool) (*Service, error) {
+var _ Recorder = (*Service)(nil)
+
+func NewService(buffers stream.Bufferer, store *storage.Store, concurrentRecordings int) (*Service, error) {
 	if concurrentRecordings < 1 || concurrentRecordings > 1024 {
-		return nil, ErrInvalidRequest
-	}
-	if buffers == nil || metadata == nil || media == nil {
 		return nil, ErrInvalidRequest
 	}
 	ffmpeg, err := exec.LookPath("ffmpeg")
@@ -84,40 +89,9 @@ func NewService(buffers stream.Bufferer, metadata storage.RecordingLifecycleStor
 		return nil, err
 	}
 	return &Service{
-		buffers: buffers, metadata: metadata, media: media, ffmpeg: ffmpeg, ffprobe: ffprobe, max: concurrentRecordings,
-		allowBestEffort: allowBestEffort,
-		jobs:            make(map[string]*job), now: time.Now,
+		buffers: buffers, store: store, ffmpeg: ffmpeg, ffprobe: ffprobe, max: concurrentRecordings,
+		jobs: make(map[string]*job), now: time.Now,
 	}, nil
-}
-
-// RecoverInterrupted marks recordings left active by a previous process as
-// failed and removes their partial source and sidecar objects.
-func (s *Service) RecoverInterrupted(ctx context.Context) error {
-	for _, state := range []string{model.RecordingStateRecording, model.RecordingStateFinalizing} {
-		cursor := ""
-		for {
-			recordings, next, err := s.metadata.ListMetadata(ctx, model.RecordingFilter{State: state, Limit: 100, Cursor: cursor})
-			if err != nil {
-				return err
-			}
-			for _, recording := range recordings {
-				recording.State = model.RecordingStateFailed
-				recording.SizeBytes = 0
-				recording.ErrorDetails = "recording interrupted by service restart"
-				if _, err := s.metadata.UpdateMetadata(ctx, recording.RecordingID, recording); err != nil {
-					return err
-				}
-				if err := s.media.DeleteRecordingObjects(ctx, recording.RecordingID); err != nil {
-					return fmt.Errorf("clean interrupted recording %s: %w", recording.RecordingID, err)
-				}
-			}
-			if next == "" {
-				break
-			}
-			cursor = next
-		}
-	}
-	return nil
 }
 
 func Seconds(value float64) (time.Duration, error) {
@@ -131,8 +105,9 @@ func Seconds(value float64) (time.Duration, error) {
 
 // Start admits a recording of one stream; the requested history must be buffered.
 func (s *Service) Start(ctx context.Context, options StartOptions) (model.Recording, error) {
-	if options.StreamID == "" || options.StartTS.IsZero() || options.StartTS.After(s.now()) || options.PreEvent < 0 ||
-		options.PreEvent > 300*time.Second || (options.Duration != nil && *options.Duration <= 0) {
+	if options.StreamID == "" || options.StartTS.IsZero() || options.StartTS.After(s.now()) ||
+		options.PreEvent < 0 || options.PreEvent > 300*time.Second ||
+		(options.Duration != nil && *options.Duration <= 0) {
 		return model.Recording{}, ErrInvalidRequest
 	}
 	start := options.StartTS.Add(-options.PreEvent)
@@ -154,7 +129,6 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 			return model.Recording{}, err
 		}
 	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -167,8 +141,7 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 	if err != nil {
 		return model.Recording{}, err
 	}
-	confidenceOK := info.SyncConfidence == model.SyncNTPSynced || (s.allowBestEffort && info.SyncConfidence == model.SyncBestEffort)
-	if info.State != "buffering" || !confidenceOK ||
+	if info.State != "buffering" || info.SyncConfidence != model.SyncNTPSynced ||
 		info.BufferStat.OldestTS.IsZero() || start.Before(info.BufferStat.OldestTS) {
 		return model.Recording{}, stream.ErrHistoryUnavailable
 	}
@@ -178,12 +151,12 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 		cancel()
 		return model.Recording{}, err
 	}
-	recordingJob := &job{lease: lease, ctx: workerCtx, cancel: cancel, fixed: options.Duration != nil}
+	j := &job{lease: lease, ctx: workerCtx, cancel: cancel, fixed: options.Duration != nil}
 	rollback := func(cause error) error {
-		recordingJob.cancel()
-		cause = errors.Join(cause, recordingJob.lease.Close())
-		if recordingJob.record.RecordingPath != "" {
-			cause = errors.Join(cause, s.media.DeleteRecordingObjects(context.Background(), recordingJob.id))
+		cancel()
+		cause = errors.Join(cause, lease.Close())
+		if j.uri != "" {
+			cause = errors.Join(cause, s.store.DeleteMedia(context.Background(), j.uri))
 		}
 		return cause
 	}
@@ -194,103 +167,123 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 	if err != nil {
 		return model.Recording{}, rollback(err)
 	}
-	filename, recordingPath, err := s.media.PrepareLiveRecording(ctx, recordID.String())
+	filename, uri, err := s.store.PrepareMedia(ctx, recordID.String())
 	if err != nil {
 		return model.Recording{}, rollback(err)
 	}
+	j.id, j.uri, j.filename = recordID.String(), uri, filename
 	streamID := info.StreamID
-	recordingJob.id, recordingJob.filename = recordID.String(), filename
-	recordingJob.record = model.Recording{
-		RecordingID: recordingJob.id, SensorID: info.SensorID, StreamID: streamID,
-		Origin: model.RecordingOriginLive, StartTS: lease.StartTime(),
-		RecordingPath: recordingPath, State: model.RecordingStateRecording,
-		Container: "mpegts", CreationTS: s.now().UTC(), Metadata: metadata,
+	j.record = model.Recording{
+		RecordingID: j.id, SensorID: info.SensorID, StreamID: &streamID,
+		StartTS: lease.StartTime(), RecordingPath: uri, State: "recording",
+		Metadata: metadata, CreationTS: s.now().UTC(),
 	}
 	if !end.IsZero() {
 		target := end.UTC()
-		recordingJob.record.EndTS = &target
+		j.record.EndTS = &target
 	}
-	record, err := s.metadata.CreateMetadata(ctx, recordingJob.record)
+	rec, err := s.store.CreateMetadata(ctx, j.record)
 	if err != nil {
 		return model.Recording{}, rollback(err)
 	}
-	recordingJob.record = record
-	s.jobs[recordingJob.record.RecordingID] = recordingJob
-	s.wg.Go(func() { s.run(recordingJob) })
-	return recordingJob.record, nil
+	j.record = rec
+	s.jobs[rec.RecordingID] = j
+	s.wg.Go(func() { s.run(j) })
+	return rec, nil
+}
+
+// StartRecording implements Recorder for one stream; sensorID is ignored
+// because recordings are selected by stream ID only.
+func (s *Service) StartRecording(ctx context.Context, _ string, streamID string, start, end time.Time,
+	preEventDuration int, metadata map[string]any,
+) (model.Recording, error) {
+	options := StartOptions{
+		StreamID: streamID, StartTS: start, Metadata: metadata,
+		PreEvent: time.Duration(preEventDuration) * time.Second,
+	}
+	if !end.IsZero() {
+		duration := end.Sub(start)
+		options.Duration = &duration
+	}
+	return s.Start(ctx, options)
 }
 
 func (s *Service) Stop(ctx context.Context, id string) (model.Recording, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rec, err := s.metadata.GetMetadataByRecordingID(ctx, id)
+	rec, err := s.store.GetMetadataByRecordingID(ctx, id)
 	if err != nil {
 		return rec, false, err
 	}
 	if rec.State == "ready" {
 		return rec, false, nil
 	}
-	recordingJob := s.jobs[id]
-	if recordingJob == nil || recordingJob.fixed || rec.State == "failed" {
+	j := s.jobs[id]
+	if j == nil || j.fixed || rec.State == "failed" {
 		return rec, false, ErrConflict
 	}
-	if recordingJob.stopped {
+	if j.stopped {
 		return rec, true, nil
 	}
 	target := s.now().UTC()
-	if err := recordingJob.lease.SetEnd(target); err != nil {
+	if err := j.lease.SetEnd(target); err != nil {
 		return rec, false, err
 	}
 	rec.State, rec.EndTS = "finalizing", &target
-	rec, err = s.metadata.UpdateMetadata(ctx, id, rec)
+	rec, err = s.store.UpdateMetadata(ctx, id, rec)
 	if err != nil {
-		recordingJob.cancel()
+		j.cancel()
 		return rec, false, err
 	}
-	recordingJob.record, recordingJob.stopped = rec, true
+	j.record, j.stopped = rec, true
 	return rec, true, nil
 }
 
+func (s *Service) StopRecording(ctx context.Context, id string) error {
+	_, _, err := s.Stop(ctx, id)
+	return err
+}
+
 func (s *Service) Get(ctx context.Context, id string) (model.Recording, error) {
-	return s.metadata.GetMetadataByRecordingID(ctx, id)
+	return s.store.GetMetadataByRecordingID(ctx, id)
 }
 
 func (s *Service) List(ctx context.Context, filter model.RecordingFilter) ([]model.Recording, string, error) {
-	return s.metadata.ListMetadata(ctx, filter)
+	return s.store.ListMetadata(ctx, filter)
 }
 
 func (s *Service) DeleteRecording(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rec, err := s.metadata.GetMetadataByRecordingID(ctx, id)
+	rec, err := s.store.GetMetadataByRecordingID(ctx, id)
 	if err != nil {
 		return err
 	}
 	if rec.State == "recording" || rec.State == "finalizing" || s.jobs[id] != nil {
 		return ErrConflict
 	}
-	if err := s.media.DeleteRecordingObjects(ctx, id); err != nil {
+	if err := s.store.DeleteMedia(ctx, rec.RecordingPath); err != nil {
 		return fmt.Errorf("%w: %w", ErrCleanup, err)
 	}
-	if err := s.metadata.DeleteMetadata(ctx, id); err != nil {
+	if err := s.store.DeleteMetadata(ctx, id); err != nil {
 		return fmt.Errorf("%w: %w", ErrCleanup, err)
 	}
 	return nil
 }
 
-func (s *Service) run(recordingJob *job) {
-	defer recordingJob.cancel()
-	start, end, size, codec, err := s.writeMedia(recordingJob)
-	err = errors.Join(err, recordingJob.lease.Close())
+func (s *Service) run(j *job) {
+	defer j.cancel()
+	start, end, size, codec, err := s.writeMedia(j)
+	err = errors.Join(err, j.lease.Close())
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	defer delete(s.jobs, recordingJob.record.RecordingID)
+	defer delete(s.jobs, j.record.RecordingID)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err == nil {
-		recordingJob.record.StartTS, recordingJob.record.EndTS = start, &end
-		recordingJob.record.State, recordingJob.record.SizeBytes, recordingJob.record.Codec = model.RecordingStateReady, size, codec
-		_, err = s.metadata.UpdateMetadata(ctx, recordingJob.record.RecordingID, recordingJob.record)
+		j.record.StartTS, j.record.EndTS = start, &end
+		j.record.State, j.record.SizeBytes, j.record.Codec = "ready", &size, &codec
+		_, err = s.store.UpdateMetadata(ctx, j.record.RecordingID, j.record)
 	}
 	if err != nil {
 		detail := "recording could not be completed"
@@ -298,15 +291,15 @@ func (s *Service) run(recordingJob *job) {
 			detail = "a required buffer slice exceeded its retention grace period"
 		} else if errors.Is(err, stream.ErrSourceFailed) {
 			detail = "recording source became unavailable"
-		} else if recordingJob.ctx.Err() != nil {
+		} else if j.ctx.Err() != nil {
 			detail = "recording interrupted before completion"
 		}
-		recordingJob.record.State, recordingJob.record.SizeBytes, recordingJob.record.ErrorDetails = model.RecordingStateFailed, 0, detail
-		_, saveErr := s.metadata.UpdateMetadata(ctx, recordingJob.record.RecordingID, recordingJob.record)
-		cleanupErr := s.media.DeleteRecordingObjects(ctx, recordingJob.record.RecordingID)
-		recordingJob.err = errors.Join(saveErr, cleanupErr)
-		s.closeErr = errors.Join(s.closeErr, recordingJob.err)
-		log.Printf("recording %s failed: %v", recordingJob.record.RecordingID, errors.Join(err, recordingJob.err))
+		j.record.State, j.record.SizeBytes, j.record.ErrorDetail = "failed", nil, &detail
+		_, saveErr := s.store.UpdateMetadata(ctx, j.record.RecordingID, j.record)
+		cleanupErr := s.store.DeleteMedia(ctx, j.record.RecordingPath)
+		j.err = errors.Join(saveErr, cleanupErr)
+		s.closeErr = errors.Join(s.closeErr, j.err)
+		slog.Error("recording failed", "recording_id", j.record.RecordingID, "error", errors.Join(err, j.err))
 	}
 }
 
@@ -314,8 +307,8 @@ func (s *Service) Close() error {
 	s.closeOnce.Do(func() {
 		s.mu.Lock()
 		s.closed = true
-		for _, recordingJob := range s.jobs {
-			recordingJob.cancel()
+		for _, j := range s.jobs {
+			j.cancel()
 		}
 		s.mu.Unlock()
 		s.wg.Wait()
