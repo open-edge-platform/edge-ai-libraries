@@ -1,19 +1,20 @@
 // SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// Package config loads service configuration from the environment.
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 )
 
 const (
+	DefaultConfigFile   = "config.json" // relative to the CWD; override via SM_CONFIG_FILE.
 	DefaultHTTPAddr     = ":8080"
 	DefaultStorageDir   = "~/.local/share/stream-manager"
 	DefaultBufferDir    = "/dev/shm/stream-manager"
@@ -26,33 +27,55 @@ const (
 )
 
 type Config struct {
-	HTTPAddr             string // Override using SM_HTTP_ADDR (default ":8080")
+	HTTPAddr             string
 	BufferLength         time.Duration
 	BufferDir            string
-	StorageDir           string
+	StorageDir           string // Override via config.json or SM_DATA_DIR if set.
 	ConcurrentRecorders  int
-	RecordingStorageSize int // Override using SM_RECORDING_STORAGE (default 10240 MB)
+	RecordingStorageSize int
 }
 
-// Load reads the configuration from the environment.
+// Load reads the configuration from config.json (or the file named by SM_CONFIG_FILE),
+// falling back to the default config for any unset field.
 func Load() (Config, error) {
 	cfg := Config{
 		HTTPAddr:             DefaultHTTPAddr,
 		BufferLength:         DefaultBufferLength,
-		BufferDir:            DefaultBufferDir,
 		StorageDir:           DefaultStorageDir,
 		ConcurrentRecorders:  ConcurrentRecorders,
 		RecordingStorageSize: DefaultStorageSize,
 	}
-	if v := strings.TrimSpace(os.Getenv("SM_HTTP_ADDR")); v != "" {
-		cfg.HTTPAddr = v
-	}
-	if v := strings.TrimSpace(os.Getenv("SM_RECORDING_STORAGE")); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < MinStorageSize {
-			return Config{}, fmt.Errorf("SM_RECORDING_STORAGE must be an integer greater than or equal to %d", MinStorageSize)
+
+	// look for config file provided via env var
+	configFile := DefaultConfigFile
+	if v := strings.TrimSpace(os.Getenv("SM_CONFIG_FILE")); v != "" {
+		if absConfigPath, err := expandHome(v); err == nil {
+			configFile = absConfigPath
+		} else {
+			slog.Warn("User config file path is invalid. Continuing with default config file.", "path", v, "error", err)
 		}
-		cfg.RecordingStorageSize = n
+	}
+
+	// proceed to read the config file if it exists
+	if data, errFile := os.ReadFile(configFile); errFile == nil {
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			slog.Warn("Invalid config file. Continuing with default config value.", "path", configFile, "error", err)
+		} else if hasKey(data, "BufferLength") {
+			// config.json expresses BufferLength in whole seconds, but time.Duration keeps ns.
+			// once we confirm config.json had BufferLength we convert it to ns.
+			cfg.BufferLength *= time.Second
+		}
+	} else {
+		slog.Warn("Failed to read config file. Continuing with default config value.", "path", configFile, "error", errFile)
+	}
+
+	// override storage dir using env var if available
+	if dataDir := strings.TrimSpace(os.Getenv("SM_DATA_DIR")); dataDir != "" {
+		cfg.StorageDir = dataDir
+	}
+
+	if cfg.BufferLength < MinBufferLength || cfg.BufferLength > MaxBufferLength {
+		return Config{}, fmt.Errorf("buffer length can not be less than %v or greater than %v", MinBufferLength, MaxBufferLength)
 	}
 
 	if storageDir, err := expandHome(cfg.StorageDir); err == nil {
@@ -61,7 +84,20 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	// this config is internally determined.
+	cfg.BufferDir = DefaultBufferDir
+
 	return cfg, nil
+}
+
+// hasKey verifies whether the top-level JSON object in data contains a given key.
+func hasKey(data []byte, key string) bool {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return false
+	}
+	_, ok := raw[key]
+	return ok
 }
 
 // Resolve ~ in the any path either coming from const defined above or user supplied config.
