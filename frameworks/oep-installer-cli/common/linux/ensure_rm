@@ -1,9 +1,5 @@
 
 
-# safe removal: ensure_rm <path>...
-# removes files/directories, escalating to sudo only when needed (e.g. files
-# created by containers). empty arguments and missing paths are skipped;
-# relative paths and top-level system/home locations are refused.
 ensure_rm () {
   local p norm rc=0
   local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var \
