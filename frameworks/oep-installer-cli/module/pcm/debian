@@ -6,7 +6,7 @@ configure_pcm () {
 }
 
 verify_pcm () {
-  [ -e "$workspace" ]
+  [ -e "$workspace" ] &&
   [ -x /usr/local/pcm ]
 }
 

@@ -6,7 +6,7 @@ configure_anomalib () {
 }
 
 verify_anomalib () {
-  [ -r "$workspace"/.venv/bin/activate ]
+  [ -r "$workspace"/.venv/bin/activate ] || return 1
   . "$workspace"/.venv/bin/activate
   python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
 }

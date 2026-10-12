@@ -13,7 +13,7 @@ configure_smart_nvr () {
 }
 
 verify_smart_nvr () {
-  [ -d "$workspace"/smart-nvr ]
+  [ -d "$workspace"/smart-nvr ] &&
   [ -d "$workspace"/metro-vision-ai-app-recipe ]
 }
 

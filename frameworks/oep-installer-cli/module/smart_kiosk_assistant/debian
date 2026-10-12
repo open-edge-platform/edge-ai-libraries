@@ -1,0 +1,121 @@
+
+configure_smart_kiosk_assistant () {
+  workspace="$(ensure_project_path)/smart-kiosk-assistant"
+  version=8d7c6d0a652525d834e63de07b1dda64bf7ef58a
+  repository="https://github.com/intel-retail/voice-enabled-interactions.git"
+  used_ports=(7860 7861 8012 8000 9000 8090 8020 8554 9001 8010 8011)
+  used_models=(
+    pyannote/speaker-diarization-community-1
+    pyannote/speaker-diarization-3.1
+    pyannote/segmentation-3.0
+  )
+}
+
+configure_smart_kiosk_assistant_device () {
+  local device="$1"
+
+  cd "$workspace"/smart-kiosk-assistant
+  sed -i "s|^TARGET_DEVICE=.*|TARGET_DEVICE=$device|" .env
+  sed -i "s|^QUEUE_DEVICE=.*|QUEUE_DEVICE=$device|" .env
+  sed -i "s|^RAG_EMBEDDING_DEVICE=.*|RAG_EMBEDDING_DEVICE=$device|" .env
+  sed -i "s|^RAG_RERANKER_DEVICE=.*|RAG_RERANKER_DEVICE=$device|" .env
+  sed -i "s|^IDENTITY_DEVICE=.*|IDENTITY_DEVICE=$device|" .env
+
+  ./setup_models.sh --device ${device}
+
+  . .env
+  [ -e "$workspace"/smart-kiosk-assistant/models/${OVMS_MODEL_NAME}/openvino_model.bin ] || {
+    echo "Missing ${OVMS_MODEL_NAME}" >&2
+    return 1
+  }
+}
+
+verify_smart_kiosk_assistant () {
+  [ -f "$workspace"/smart-kiosk-assistant/.env ] || return 1
+
+  cd "$workspace"/smart-kiosk-assistant
+  . .env
+  local f
+  for f in ${MEDIA_FILES//,/ }; do
+    [ -e "$SAMPLE_DATA_DIR/$f" ] || { 
+      echo "Missing $f" >&2
+      return 1
+    }
+  done
+  [ -e "$workspace"/smart-kiosk-assistant/queue-service/models/yolo26n.bin ] || {
+    echo "Missing yolo26n.bin" >&2
+    return 1
+  }
+}
+
+debian_90_profile_smart_kiosk_assistant () {
+  echo "docker make edge_base"
+}
+
+debian_90_install_smart_kiosk_assistant () {
+  configure_smart_kiosk_assistant
+  if verify_smart_kiosk_assistant && [[ " $* " = *" --reinstall "* ]]; then
+    echo "Smart Kiosk Assistant is installed. Skipping" 1>&2
+  else
+    ensure_ports_open "${used_ports[*]}" debian_90_remove_smart_kiosk_assistant "$@"
+    ensure_disk_size 300
+    ensure_git_clone "$workspace" "$version" "$repository"
+
+    cd "$workspace"/smart-kiosk-assistant
+
+    # add ovms model
+    . .env.example
+    used_models+=("$OVMS_MODEL_NAME")
+
+    # add HF_TOKEN
+    ensure_hf_token "${used_models[@]}"
+
+    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|" .env.example
+    sed -i "s|^RENDER_GID=.*|RENDER_GID=$(getent group render | cut -d: -f3 || echo 992)|" .env.example
+    sed -i "s|^KIOSK_CORE_IDENTITY_ENABLED=.*|KIOSK_CORE_IDENTITY_ENABLED=true|" .env.example
+
+    # setup
+    make init-env && make setup-dirs 
+    make download-sample-video
+
+    # build
+    REGISTRY=true make build
+    docker compose pull --ignore-buildable
+  fi
+
+  local device="$(ensure_select_device "$@")"
+  configure_smart_kiosk_assistant_device "${device^^}"
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_smart_kiosk_assistant () {
+  configure_smart_kiosk_assistant
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_kiosk_assistant "$@"
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}"
+
+  cd "$workspace"/smart-kiosk-assistant
+  make up
+
+  echo "@@HIGHLIGHT Admin UI: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT Kiosk UI: http://$(ensure_ip):${used_ports[1]}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_smart_kiosk_assistant () {
+  configure_smart_kiosk_assistant
+  cd "$workspace"/smart-kiosk-assistant && make down || true
+}
+
+debian_90_remove_smart_kiosk_assistant () {
+  debian_90_stop_smart_kiosk_assistant "$@"
+  cd "$workspace"/smart-kiosk-assistant && make clean || true
+  rm -rf "$workspace" || ensure_sudo rm -rf "$workspace"
+}
+

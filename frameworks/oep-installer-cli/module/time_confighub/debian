@@ -6,8 +6,8 @@ configure_time_confighub () {
 }
 
 verify_time_confighub () {
-  [ -e "$workspace" ]
-  [ -d /opt/tch ]
+  [ -e "$workspace" ] &&
+  [ -d /opt/tch ] &&
   [ -x /usr/local/bin/tch ]
 }
 

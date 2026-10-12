@@ -21,7 +21,7 @@ configure_live_video_captioning_rag_device () {
 }
 
 verify_live_video_captioning_rag () {
-  [ -e "$workspace"/live-video-analysis/live-video-captioning-rag/.env ]
+  [ -e "$workspace"/live-video-analysis/live-video-captioning-rag/.env ] &&
   [ -d "$workspace"/live-video-analysis/live-video-captioning ]
 }
 

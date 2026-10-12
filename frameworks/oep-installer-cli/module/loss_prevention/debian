@@ -50,8 +50,7 @@ configure_loss_prevention_options () {
 }
 
 verify_loss_prevention () {
-  [ -d "$workspace" ]
-  [ -e "$workspace"/src/.env ]
+  [ -e "$workspace"/src/.env ] && 
   [ -e "$workspace"/Makefile ]
 }
 

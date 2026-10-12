@@ -18,7 +18,10 @@ configure_agentic_predictive_maintenance_pipeline_device () {
 }
 
 verify_agentic_predictive_maintenance_pipeline () {
-  [ -f "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection/resources/videos/datastream.mp4 ]
+  [ -f "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection/resources/videos/datastream.mp4 ] || {
+    echo "Missing datastream.mp4" >&2
+    return 1
+  }
 }
 
 debian_90_profile_agentic_predictive_maintenance_pipeline () {
@@ -41,7 +44,7 @@ debian_90_install_agentic_predictive_maintenance_pipeline () {
     echo "HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN" >> .env_pipeline-defect-detection
 
     # download video
-    curl -fsSL https://github.com/open-edge-platform/edge-ai-resources/raw/c13b8dbf23d514c2667d39b66615bd1400cb889d/videos/anomalib_pcb_test.avi -o resources/videos/datastream.mp4
+    ensure_fetch https://github.com/open-edge-platform/edge-ai-resources/raw/c13b8dbf23d514c2667d39b66615bd1400cb889d/videos/anomalib_pcb_test.avi resources/videos/datastream.mp4
 
     verify_agentic_predictive_maintenance_pipeline
   fi
