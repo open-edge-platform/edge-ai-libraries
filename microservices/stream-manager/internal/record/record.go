@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"os/exec"
 	"sync"
@@ -299,7 +299,7 @@ func (s *Service) run(j *job) {
 		cleanupErr := s.store.DeleteMedia(ctx, j.record.RecordingPath)
 		j.err = errors.Join(saveErr, cleanupErr)
 		s.closeErr = errors.Join(s.closeErr, j.err)
-		log.Printf("recording %s failed: %v", j.record.RecordingID, errors.Join(err, j.err))
+		slog.Error("recording failed", "recording_id", j.record.RecordingID, "error", errors.Join(err, j.err))
 	}
 }
 

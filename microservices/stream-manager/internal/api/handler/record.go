@@ -6,7 +6,7 @@ package handler
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -182,7 +182,7 @@ func writeRecordError(c *gin.Context, err error) {
 	case errors.Is(err, record.ErrCleanup):
 		common.WriteError(c, http.StatusServiceUnavailable, "storage_unavailable", "recording cleanup failed; retry later")
 	default:
-		log.Printf("recording operation failed: %v", err)
+		slog.Error("recording operation failed", "error", err)
 		common.WriteInternalError(c)
 	}
 }

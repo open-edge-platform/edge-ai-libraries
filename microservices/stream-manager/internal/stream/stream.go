@@ -8,7 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"os"
 	"os/exec"
@@ -221,7 +221,7 @@ func (e *attachedStream) fail(err error) {
 	e.mu.Unlock()
 	e.buffer.fail(err)
 	if !wasFailed {
-		log.Printf("stream %s failed: %v", e.id, err)
+		slog.Error("stream failed", "stream_id", e.id, "error", err)
 	}
 }
 

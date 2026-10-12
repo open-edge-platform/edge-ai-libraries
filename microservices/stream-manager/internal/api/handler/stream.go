@@ -5,7 +5,7 @@ package handler
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"syscall"
 	"time"
@@ -145,7 +145,7 @@ func writeStreamError(c *gin.Context, err error) {
 	case errors.Is(err, syscall.ENOSPC), errors.Is(err, syscall.EDQUOT):
 		common.WriteError(c, http.StatusTooManyRequests, "capacity_exhausted", "not enough buffer storage")
 	default:
-		log.Printf("stream operation failed: %v", err)
+		slog.Error("stream operation failed", "error", err)
 		common.WriteInternalError(c)
 	}
 }

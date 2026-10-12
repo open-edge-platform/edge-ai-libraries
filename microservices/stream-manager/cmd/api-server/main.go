@@ -7,8 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -24,7 +25,7 @@ const (
 	readHeaderTimeout = 10 * time.Second
 	readTimeout       = 30 * time.Second
 	writeTimeout      = 60 * time.Second
-	idleTimeout       = 120 * time.Second
+	idleTimeout       = 120 * time.Second // for keep-alive connection
 	shutdownGrace     = 7 * time.Second
 )
 
@@ -37,7 +38,8 @@ var (
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatal(err)
+		slog.Error("Irrecoverable Error. Shutting down stream manager.", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -78,7 +80,7 @@ func run() (errResult error) {
 
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- server.ListenAndServe() }()
-	log.Printf("Stream Manager listening on %s", cfg.HTTPAddr)
+	slog.Info("Stream Manager listening", "addr", cfg.HTTPAddr)
 
 	select {
 	case err := <-serveErr:
@@ -86,7 +88,7 @@ func run() (errResult error) {
 	case <-ctx.Done():
 	}
 
-	log.Print("shutting down")
+	slog.Info("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
