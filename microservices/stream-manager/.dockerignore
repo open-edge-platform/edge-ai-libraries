@@ -12,3 +12,6 @@ bin/
 *.test
 *.out
 coverage/
+
+# User Config do not get copied to container
+config.json
