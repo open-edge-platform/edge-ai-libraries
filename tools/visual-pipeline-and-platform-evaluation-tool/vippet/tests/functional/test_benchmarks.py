@@ -1,10 +1,10 @@
 """Functional tests for the /benchmarks endpoints."""
 
 import logging
-import shutil
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -17,11 +17,10 @@ logger = logging.getLogger(__name__)
 type JsonDict = dict[str, Any]
 
 # Local sqlite file backing the running backend (see compose.yml's
-# `./shared/db:/db` mount). Used only to trim test-case counts for full
-# suite runs below; the shared YAML catalog is never touched.
+# `./shared/db:/db` mount). Used only to trim test-case counts for the
+# run-list tests below; the shared YAML catalog is never touched.
 _BENCHMARK_DB_PATH = PROJECT_ROOT / "shared" / "db" / "app.db"
-# Whole-file backup taken before shrinking, so restoring never depends on
-# replaying individual row deletes (which a mid-test crash could skip).
+# Backup preserves trimmed test cases even if a test run is interrupted.
 _BENCHMARK_DB_BACKUP_PATH = PROJECT_ROOT / "shared" / "db" / "app_test.db"
 _FULL_RUN_STREAM_COUNTS = (1, 4)
 
@@ -30,14 +29,12 @@ _FULL_RUN_STREAM_COUNTS = (1, 4)
 def _shrink_suite_to_streams(
     suite_slug: str, streams: tuple[int, ...] = _FULL_RUN_STREAM_COUNTS
 ) -> Iterator[None]:
-    """Temporarily delete benchmark_test_cases rows outside *streams* for *suite_slug*.
+    """Temporarily keep one CPU workload at *streams* for *suite_slug*.
 
-    Keeps full-suite-run tests fast by trimming the seeded test-case matrix
-    down to a couple of stream counts. The backend reads this same sqlite
-    file, so the delete must be committed for it to take effect, but the
-    whole file is copied to ``_BENCHMARK_DB_BACKUP_PATH`` first and copied
-    back on exit - success or failure - so restoring never depends on
-    replaying individual rows.
+    Keeps run-list tests fast without depending on every hardware variant.
+    The backend reads this same sqlite file, so the delete must be committed
+    for it to take effect; removed rows are restored from the backup on exit
+    without discarding benchmark runs created during the test.
     """
     if not _BENCHMARK_DB_PATH.is_file():
         logger.warning(
@@ -53,39 +50,125 @@ def _shrink_suite_to_streams(
         pytest.skip(
             f"Found leftover benchmark DB backup at {_BENCHMARK_DB_BACKUP_PATH}; "
             "a previous test run likely crashed before restoring it. Restore "
-            f"{_BENCHMARK_DB_PATH} from that backup manually, then remove the "
-            "backup file before re-running."
+            "the deleted benchmark_test_cases rows from that backup manually, "
+            "then remove the backup file before re-running."
         )
 
-    shutil.copy2(_BENCHMARK_DB_PATH, _BENCHMARK_DB_BACKUP_PATH)
+    placeholders = ",".join("?" for _ in streams)
+    with sqlite3.connect(_BENCHMARK_DB_PATH) as conn:
+        workload = conn.execute(
+            f"""
+            SELECT btc.workload_id
+            FROM benchmark_test_cases btc
+            JOIN benchmark_workloads bw ON bw.id = btc.workload_id
+            JOIN benchmark_suites bs ON bs.id = bw.suite_id
+            WHERE bs.slug = ? AND btc.variant_id = 'cpu'
+              AND btc.streams IN ({placeholders})
+            GROUP BY btc.workload_id
+            HAVING COUNT(DISTINCT btc.streams) = ?
+            ORDER BY btc.workload_id
+            LIMIT 1
+            """,
+            (suite_slug, *streams, len(streams)),
+        ).fetchone()
+        assert workload is not None, (
+            f"Suite {suite_slug!r} has no CPU workload with streams={streams}"
+        )
+        workload_id = workload[0]
+        with sqlite3.connect(_BENCHMARK_DB_BACKUP_PATH) as backup:
+            conn.backup(backup)
     try:
-        placeholders = ",".join("?" for _ in streams)
         with sqlite3.connect(_BENCHMARK_DB_PATH) as conn:
             conn.execute(
                 f"""
                 DELETE FROM benchmark_test_cases
-                WHERE streams NOT IN ({placeholders})
+                WHERE NOT (workload_id = ? AND variant_id = 'cpu'
+                           AND streams IN ({placeholders}))
                   AND workload_id IN (
                       SELECT bw.id FROM benchmark_workloads bw
                       JOIN benchmark_suites bs ON bs.id = bw.suite_id
                       WHERE bs.slug = ?
                   )
                 """,
-                (*streams, suite_slug),
+                (workload_id, *streams, suite_slug),
             )
             conn.commit()
         logger.info(
-            "Shrunk suite %s benchmark test cases to streams=%s (backed up to %s)",
+            "Shrunk suite %s to CPU workload %s streams=%s (backed up to %s)",
             suite_slug,
+            workload_id,
             streams,
             _BENCHMARK_DB_BACKUP_PATH,
         )
 
         yield
     finally:
-        shutil.copy2(_BENCHMARK_DB_BACKUP_PATH, _BENCHMARK_DB_PATH)
+        with sqlite3.connect(_BENCHMARK_DB_BACKUP_PATH) as backup:
+            rows = backup.execute(
+                f"""
+                SELECT id, workload_id, variant_id, streams
+                FROM benchmark_test_cases
+                                WHERE NOT (workload_id = ? AND variant_id = 'cpu'
+                                                     AND streams IN ({placeholders}))
+                  AND workload_id IN (
+                      SELECT bw.id FROM benchmark_workloads bw
+                      JOIN benchmark_suites bs ON bs.id = bw.suite_id
+                      WHERE bs.slug = ?
+                  )
+                """,
+                (workload_id, *streams, suite_slug),
+            ).fetchall()
+        with sqlite3.connect(_BENCHMARK_DB_PATH) as conn:
+            conn.executemany(
+                "INSERT OR IGNORE INTO benchmark_test_cases "
+                "(id, workload_id, variant_id, streams) VALUES (?, ?, ?, ?)",
+                rows,
+            )
         _BENCHMARK_DB_BACKUP_PATH.unlink()
         logger.info("Restored benchmark DB for suite %s from backup", suite_slug)
+
+
+def test_shrink_suite_restores_cases_without_erasing_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "app.db"
+    monkeypatch.setattr("test_benchmarks._BENCHMARK_DB_PATH", db_path)
+    monkeypatch.setattr(
+        "test_benchmarks._BENCHMARK_DB_BACKUP_PATH", tmp_path / "app_test.db"
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE benchmark_suites (id INTEGER PRIMARY KEY, slug TEXT);
+            CREATE TABLE benchmark_workloads (id INTEGER PRIMARY KEY, suite_id INTEGER);
+            CREATE TABLE benchmark_test_cases (
+                id INTEGER PRIMARY KEY, workload_id INTEGER, variant_id TEXT, streams INTEGER
+            );
+            CREATE TABLE benchmark_suite_runs (id INTEGER PRIMARY KEY, job_id TEXT);
+            INSERT INTO benchmark_suites VALUES (1, 'suite');
+            INSERT INTO benchmark_workloads VALUES (1, 1);
+            INSERT INTO benchmark_workloads VALUES (2, 1);
+            INSERT INTO benchmark_test_cases VALUES
+                (1, 1, 'cpu', 1), (2, 1, 'cpu', 4), (3, 1, 'cpu', 8),
+                (4, 1, 'gpu', 1), (5, 2, 'cpu', 1);
+            """
+        )
+
+    with _shrink_suite_to_streams("suite"):
+        with sqlite3.connect(db_path) as conn:
+            assert conn.execute("SELECT id FROM benchmark_test_cases").fetchall() == [
+                (1,),
+                (2,),
+            ]
+            conn.execute("INSERT INTO benchmark_suite_runs VALUES (1, 'new-job')")
+
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute(
+            "SELECT id FROM benchmark_test_cases ORDER BY id"
+        ).fetchall() == [(1,), (2,), (3,), (4,), (5,)]
+        assert conn.execute("SELECT job_id FROM benchmark_suite_runs").fetchall() == [
+            ("new-job",)
+        ]
 
 
 def _fetch_benchmark_suites(session: requests.Session) -> list[JsonDict]:
