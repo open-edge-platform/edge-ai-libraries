@@ -54,6 +54,6 @@ debian_90_stop_smart_nvr () {
 
 debian_90_remove_smart_nvr () {
   debian_90_stop_smart_nvr "$@"
-  ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

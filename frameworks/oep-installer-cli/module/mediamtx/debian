@@ -20,6 +20,6 @@ debian_70_install_mediamtx () {
 }
 
 debian_70_remove_mediamtx () {
-  ensure_sudo rm -f "$bin_path/mediamtx"
+  ensure_rm "$bin_path/mediamtx"
 }
 

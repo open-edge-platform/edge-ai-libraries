@@ -135,5 +135,5 @@ debian_92_remove_physical_ai_studio () {
   configure_uv
   debian_92_stop_physical_ai_studio "$@" || true
   uv tool uninstall "$pais_pkg" > /dev/null 2>&1 || true
-  ensure_sudo rm -rf "$pais_run_dir"
+  ensure_rm "$pais_run_dir"
 }

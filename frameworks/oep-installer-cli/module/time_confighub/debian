@@ -31,6 +31,6 @@ debian_70_install_time_confighub () {
 debian_70_remove_time_confighub () {
   configure_time_confighub
   cd "$workspace" && ensure_sudo ./uninstall.sh --force || true
-  rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

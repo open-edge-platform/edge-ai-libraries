@@ -1,0 +1,10 @@
+
+# robustly remove files or dirs
+ensure_rm () {
+  local d
+  for d in "$@"; do
+    [ -e "$d" ] || continue
+    rm -rf "$d" > /dev/null 2>&1 || ensure_sudo rm -rf "$d" > /dev/null 2>&1 || true
+  done
+}
+

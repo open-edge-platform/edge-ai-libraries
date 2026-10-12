@@ -96,6 +96,6 @@ debian_90_stop_take_away () {
 
 debian_90_remove_take_away () {
   debian_90_stop_take_away "$@"
-  rm -rf "$workspace" 2> /dev/null || ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }
 

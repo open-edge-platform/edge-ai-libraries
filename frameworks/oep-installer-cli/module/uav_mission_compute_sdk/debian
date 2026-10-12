@@ -54,6 +54,6 @@ debian_85_stop_uav_mission_compute_sdk () {
 
 debian_85_remove_uav_mission_compute_sdk () {
   debian_85_stop_uav_mission_compute_sdk "$@"
-  ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

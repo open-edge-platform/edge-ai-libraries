@@ -112,6 +112,6 @@ debian_90_stop_video_processing_for_nvr () {
 
 debian_90_remove_video_processing_for_nvr () {
   debian_90_stop_video_processing_for_nvr "$@"
-  rm -rf "$workspace" || ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

@@ -95,5 +95,5 @@ EOF
 
 debian_91_remove_physical_ai_framework () {
   configure_physical_ai_framework
-  ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
 }

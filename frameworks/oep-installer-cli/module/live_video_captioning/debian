@@ -78,5 +78,5 @@ debian_90_stop_live_video_captioning () {
 
 debian_90_remove_live_video_captioning () {
   debian_90_stop_live_video_captioning || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }

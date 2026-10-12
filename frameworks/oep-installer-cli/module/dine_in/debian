@@ -85,6 +85,6 @@ debian_90_stop_dine_in () {
 
 debian_90_remove_dine_in () {
   debian_90_stop_dine_in "$@"
-  rm -rf "$workspace" 2> /dev/null || ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }
 

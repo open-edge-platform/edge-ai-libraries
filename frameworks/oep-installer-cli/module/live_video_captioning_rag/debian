@@ -77,11 +77,11 @@ debian_90_start_live_video_captioning_rag () {
 
 debian_90_stop_live_video_captioning_rag () {
   configure_live_video_captioning_rag
-  cd "$workspace"/live-video-analysis/live-video-captioning-rag
-  docker compose -f compose.yaml down -v --remove-orphans
+  cd "$workspace"/live-video-analysis/live-video-captioning-rag && 
+  docker compose -f compose.yaml down -v --remove-orphans || true
 }
 
 debian_90_remove_live_video_captioning_rag () {
-  debian_90_stop_live_video_captioning_rag || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  debian_90_stop_live_video_captioning_rag
+  ensure_rm "$workspace"
 }

@@ -137,6 +137,6 @@ debian_90_stop_wind_turbine_anomaly_detection () {
 
 debian_90_remove_wind_turbine_anomaly_detection () {
   debian_90_stop_wind_turbine_anomaly_detection "$@"
-  rm -rf "$workspace" || ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

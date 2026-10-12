@@ -82,5 +82,5 @@ debian_90_remove_humanoid_imitation_learning () {
     images+=("robotics-ai-suite:humanoid-imitation-learning-$sample")
   done
   docker image rm -f "${images[@]}" > /dev/null 2>&1 || true
-  ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
