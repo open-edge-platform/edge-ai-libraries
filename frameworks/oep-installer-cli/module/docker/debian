@@ -96,7 +96,5 @@ EOF
 }
 
 debian_30_sbom_docker () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list docker.io docker-buildx docker-compose-v2)
-EOF
+  ensure_sbom_format pkg-list docker.io docker-buildx docker-compose-v2
 }

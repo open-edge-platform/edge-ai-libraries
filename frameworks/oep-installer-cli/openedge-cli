@@ -150,6 +150,8 @@ subcommand_bootstrap () {
     echo "  --install=<name>       set default installation component|profile."
     echo "  --start=<name>         set default start component|profile."
     echo "  --output/-o            specify the installer path to be created."
+    echo "  --validate             validate installation orders."
+    echo "  --dry-run              dry run the bootstrapping process."
     echo
     local profiles=($(cd "$mydir";find profile -name "$ID_LIKE" | cut -f2 -d/))
     [ ${#profiles[*]} -eq 0 ] || (
@@ -198,7 +200,7 @@ subcommand_bootstrap () {
   # scan for dependencies
   [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";find profile module -name "$ID_LIKE" | cut -f2 -d/))
   modules=(${modules[*]##*/})
-  local -A scripts=()
+  local -A scripts=() orders=() known=() depsof=()
   local i=0 script license_common=0
   while [ $i -lt ${#modules[*]} ]; do
     local script="$mydir"/profile/${modules[$i]}/${ID_LIKE}
@@ -208,18 +210,28 @@ subcommand_bootstrap () {
     elif [ -r "$script" ]; then
       scripts["$script"]=1
       local script_nos="${script%/*}/linux"
-      local profiler=$(
+      local name=${modules[$i]}
+      local funcs=($(
         [ ! -r "$script_nos" ] || . "$script_nos"
         . "$script"
-        declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_profile_${modules[$i]}$" | cut -f3 -d' '
-      )
-      [ -z "$profiler" ] || modules+=($(
-        [ ! -r "$script_nos" ] || . "$script_nos"
-        . "$script"
-        for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do 
-          $profiler $cmd
-        done
+        declare -F | grep -E " ${ID_LIKE}_[0-9]+_(install|profile)_${name}$" | cut -f3 -d' '
       ))
+      local profiler=$(printf '%s\n' "${funcs[@]}" | grep -m1 "_profile_${name}$")
+      local installer=$(printf '%s\n' "${funcs[@]}" | grep -m1 "_install_${name}$")
+      if [ -n "$installer" ]; then
+        local o=${installer#${ID_LIKE}_}; orders[$name]=${o%%_*}
+      fi
+      known[$name]=1
+      local deps=()
+      [ -z "$profiler" ] || deps=($(
+        [ ! -r "$script_nos" ] || . "$script_nos"
+        . "$script"
+        for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do
+          $profiler $cmd
+        done | sort -u
+      ))
+      depsof[$name]="${deps[*]}"
+      modules+=(${deps[*]})
       local licenser=$(
         [ ! -r "$script_nos" ] || . "$script_nos"
         . "$script"
@@ -231,6 +243,33 @@ subcommand_bootstrap () {
     fi
     i=$((i+1))
   done
+
+  # validate dependencies
+  if [[ " $* " = *" --validate "* ]]; then
+    echo "Checking component installation orders..."
+    local bad=0 p d j
+    for p in ${!known[*]}; do
+      [ -n "${orders[$p]:-}" ] || continue # virtual: checked through the modules that use it
+      local q=(${depsof[$p]}); local -A seen=(); j=0
+      while [ $j -lt ${#q[@]} ]; do
+        d=${q[$j]}; j=$((j+1))
+        [[ "$d" != "$p" && -z "${seen[$d]:-}" ]] || continue
+        seen[$d]=1
+        if [ -z "${known[$d]:-}" ]; then
+          [[ " $* " != *" --strict "* ]] || { echo "$p: unknown dependency '$d'" 1>&2; bad=1; }
+        elif [ -z "${orders[$d]:-}" ]; then
+          q+=(${depsof[$d]}) # virtual: look through it
+        elif [ "$d" != reboot ] && [ $((10#${orders[$d]})) -gt $((10#${orders[$p]})) ]; then
+          echo "$p (${orders[$p]}) depends on $d (${orders[$d]}) which installs later" 1>&2; bad=1
+        fi
+      done
+      unset seen
+    done
+    for p in ${!known[*]}; do
+      for d in ${depsof[$p]}; do [ "$d" = "$p" ] || echo "$d $p"; done
+    done | tsort > /dev/null || bad=1
+    [ $bad -eq 0 ] || exit 3
+  fi
 
   # construct final installer
   if [ ${#scripts[@]} -eq 0 ]; then
