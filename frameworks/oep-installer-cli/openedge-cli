@@ -278,44 +278,53 @@ subcommand_bootstrap () {
     exit 3
   fi
 
-  if [[ " $* " != *" --dry-run "* ]]; then
-    rendered="${rendered:-$mydir/rendered/$installer_name}"
-    sed '/^#### COLLECTION OF MODULES ####/q' "$0" > "$rendered"
-    cat "$mydir"/common/linux/* >> "$rendered"
-    if [ -d "$mydir"/common/${ID_LIKE} ]; then
-      cat "$mydir"/common/${ID_LIKE}/* >> "$rendered"
-    fi
-    [ $license_common -eq 0 ] || {
-      cat "$mydir"/license/linux/ensure_license_* >> "$rendered" 2> /dev/null || true
-      cat "$mydir"/license/${ID_LIKE}/ensure_license_* >> "$rendered" 2> /dev/null || true
-    }
+  # collect sources
+  local sources=() f
+  sources+=("$mydir"/common/linux/*)
+  [ ! -d "$mydir"/common/${ID_LIKE} ] || sources+=("$mydir"/common/${ID_LIKE}/*)
+  if [ $license_common -ne 0 ]; then
+    for f in "$mydir"/license/linux/ensure_license_* "$mydir"/license/${ID_LIKE}/ensure_license_*; do
+      [ ! -r "$f" ] || sources+=("$f")
+    done
   fi
 
   local scripts_ordered
   mapfile -t scripts_ordered < <(printf '%s\n' "${!scripts[@]}" | sort)
   for script in "${scripts_ordered[@]}"; do
     echo "==== bootstrapping ${script#"$mydir/"} ===="
-    [[ " $* " != *" --dry-run "* ]] || continue
-    cat "$script" >> "$rendered" 2> /dev/null || true
-    cat "${script%/*}/linux" 2> /dev/null >> "$rendered" || true
+    sources+=("$script")
+    [ ! -r "${script%/*}/linux" ] || sources+=("${script%/*}/linux")
   done
 
-  if [[ " $* " != *" --dry-run "* ]]; then
-    local misc_funcs=($(
-      local bfuncs=($(declare -F | cut -f3 -d' '))
-      . "$rendered"
-      for f in $(declare -F | grep -v -E " (${ID_LIKE}_[0-9]+|ensure_|act_|verify_|configure_|subcommand_|main)" | cut -f3 -d' '); do
-        [[ " ${bfuncs[*]} " = *" $f "* ]] || printf "%s " $f
+  [[ " $* " != *" --dry-run "* ]] || return 0
+
+  rendered="${rendered:-$mydir/rendered/$installer_name}"
+  local tmp="$rendered.tmp.$$"
+  {
+    # header from openedge-cli verbatim (keeps license headers and comments)
+    sed '/^#### COLLECTION OF MODULES ####/q' "$0"
+    echo
+    # sanitized module code: source in a clean subshell, emit via declare -f
+    (
+      unset -f $(declare -F | cut -f3 -d' ')
+      for f in "${sources[@]}"; do
+        . "$f" || { echo "Failed to source $f" 1>&2; exit 3; }
       done
-    ))
-    sed -i "/^subcommand_setup *[(][)] *[{]/,/^[}]/{s|local  *installer_misc_functions=.*|local installer_misc_functions=(${misc_funcs[*]})|}" "$rendered"
-    [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- start ${start_modules[*]} \"\$@\"" >> "$rendered"
-    [ ${#install_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- install ${install_modules[*]} \"\$@\"" >> "$rendered"
-    echo "[ \"\$0\" != bash ] || set -- setup \"\$@\"" >> "$rendered"
-    echo 'main "$@"' >> "$rendered"
-    chmod a+rx "$rendered"
-    echo "Rendered to $rendered"
-  fi
+      unset -f main   # main comes from the verbatim header
+      misc_funcs=($(declare -F | cut -f3 -d' ' | grep -v -E "^(${ID_LIKE}_[0-9]+|ensure_|act_|verify_|configure_|subcommand_|main$)"))
+      declare -f | sed "/^subcommand_setup () *\$/,/^}/ s|local installer_misc_functions=[^;]*|local installer_misc_functions=(${misc_funcs[*]})|"
+    ) || exit 3
+    echo
+    [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- start ${start_modules[*]} \"\$@\""
+    [ ${#install_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- install ${install_modules[*]} \"\$@\""
+    echo "[ \"\$0\" != bash ] || set -- setup \"\$@\""
+    echo 'main "$@"'
+  } > "$tmp" || { rm -f "$tmp"; exit 3; }
+
+  bash -n "$tmp" || { echo "Rendered installer has syntax errors: $tmp" 1>&2; exit 3; }
+  mv -f "$tmp" "$rendered"
+  chmod a+rx "$rendered"
+  echo "Rendered to $rendered"
 }
 
 main "$@"
