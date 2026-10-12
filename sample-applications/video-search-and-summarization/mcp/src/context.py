@@ -180,8 +180,133 @@ def _register_prompts(mcp: FastMCP, deps: Deps) -> None:
 
     if deps.features.search:
         _register_search_prompts(mcp, deps)
+    if deps.features.live_streams:
+        _register_live_prompts(mcp)
     if deps.features.summary:
         _register_summary_prompts(mcp, deps)
+
+
+def _register_live_prompts(mcp: FastMCP) -> None:
+    @mcp.prompt(
+        name="monitor_camera",
+        description=(
+            "Add an RTSP camera to VSS (or pick a registered one), confirm it "
+            "is being indexed, then search it and verify the hits."
+        ),
+    )
+    def monitor_camera(camera: str, looking_for: str = "", name: str = "") -> str:
+        """Bring a camera into search and look for something on it.
+
+        Args:
+            camera: An rtsp:// URL to add, or the name/id of a registered camera.
+            looking_for: What to look for on it, if anything yet.
+            name: A friendly name for a new camera.
+        """
+
+        steps = [
+            f"Camera: the user gave {camera!r}. Call vss_list_streams; if a "
+            "camera with that URL, name or id is listed, use its stream_id. "
+            "Otherwise, if it is an rtsp:// or rtsps:// URL, call "
+            "vss_add_stream with it"
+            + (f" and name={name!r}" if name else "")
+            + " and object_detection=true (detected objects -- people, "
+            "vehicles, animals, bags -- are then also embedded as crops, "
+            "which makes them easier to find). Never "
+            "repeat the URL's credentials back to the user.",
+            "Confirm ingestion: call vss_get_stream. state \"running\" with "
+            "stats.embeddings_created rising means footage is searchable "
+            "about 10-30 s later. \"reconnecting\" or \"error\": report "
+            "`error` and stop; a URL VSS cannot reach is not fixed by retrying.",
+        ]
+        if looking_for:
+            steps += [
+                "Search: call vss_search_video with query set to a short "
+                f"visual description of {looking_for!r} and stream_ids=[the "
+                "camera's stream_id]. For recent footage only, pass start/end "
+                "computed from vss_get_deployment_info's server_time_utc.",
+                "Verify before reporting: for the best hits, call "
+                "vss_get_media_frame with the hit's `frame` fields unchanged "
+                "and look at the image. Report observed_at (when it "
+                "happened, UTC) and the clip `url` exactly as returned.",
+                "To keep watching for it, use the track_object prompt or "
+                "vss_watch_search.",
+            ]
+        else:
+            steps.append(
+                "Tell the user the camera is being indexed and can now be "
+                "searched with vss_search_video or tracked with "
+                "vss_watch_search."
+            )
+        return "\n".join([f"Monitor camera: {camera}", ""] + _numbered(steps))
+
+    @mcp.prompt(
+        name="track_object",
+        description=(
+            "Follow a specific object -- a person, vehicle, animal, bag or "
+            "other item -- across live cameras: start a watched search, poll "
+            "it for new sightings, verify each against the reference, and "
+            "stop at the user's time limit."
+        ),
+    )
+    def track_object(target: str, minutes: str = "", cameras: str = "") -> str:
+        """Follow one object live across the cameras VSS is ingesting.
+
+        Args:
+            target: What to follow, e.g. "man in a red jacket", "white van",
+                "black backpack", or "this hit" after a search.
+            minutes: How long to track, if the user said, e.g. "10".
+            cameras: Camera names or ids to limit tracking to, if any.
+        """
+
+        duration = minutes.strip()
+        steps = [
+            "Cameras: call vss_list_streams and keep only those in state "
+            "\"running\"."
+            + (
+                f" The user named {cameras!r}: map those to stream_ids for "
+                "`stream_ids`; if none match, say so and list the real ones."
+                if cameras
+                else ""
+            )
+            + " Cameras added with object_detection=true give the best "
+            "results: the detector crops people, vehicles, animals and "
+            "common items, so a sighting is matched on the object rather "
+            "than the whole scene.",
+            "Seed: if the user pointed at a search hit, pass that hit's "
+            "`frame` object unchanged as from_hit -- searching by the hit's "
+            "detected crop is the closest thing to that specific object. "
+            f"Otherwise pass query={target!r} rewritten as a short visual "
+            "description: the object's kind plus what sets it apart (colour, "
+            "clothing or markings, size, what it carries or is attached to). "
+            "Leave out names, plate numbers and text: embeddings cannot read "
+            "them.",
+            "Start: call vss_watch_search with the seed, window_minutes=5 so "
+            "each refresh ranks only recent footage"
+            + (
+                f", and duration_minutes={duration} because the user asked for "
+                f"{duration} minutes"
+                if duration
+                else "; add duration_minutes only if the user gives a time limit"
+            )
+            + ". Keep its query_id and next_cursor.",
+            "Poll: wait poll_after_seconds, then call vss_watch_search with "
+            "query_id and cursor=next_cursor. Repeat while watch is true. "
+            "Report only new sightings: camera (video_name), observed_at, and "
+            "the clip url exactly as returned. last_seen shows where the "
+            "object was most recently seen on each camera.",
+            "Verify: a sighting whose `label` names a different kind of object "
+            "than the target (a car when tracking a person) is not it. "
+            "Otherwise, call vss_get_media_frame with the sighting's `frame` "
+            "and compare it to the seed. Look-alikes are common -- many white "
+            "vans, many black backpacks -- and embedding similarity is not "
+            "identity: say \"possible match\" when unsure, and ignore low "
+            "raw_score noise (min_raw_score can filter it).",
+            "Stop: when expired is true the watch has already stopped. If the "
+            "user says stop, call vss_watch_search with query_id and "
+            "watch=false. Summarise the route: sightings in time order, with "
+            "the camera each was on.",
+        ]
+        return "\n".join([f"Track: {target}", ""] + _numbered(steps))
 
 
 def _register_search_prompts(mcp: FastMCP, deps: Deps) -> None:

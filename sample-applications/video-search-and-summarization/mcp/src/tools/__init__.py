@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
-from . import discovery, ingest, search, summary
+from . import discovery, ingest, search, streams, summary
 from ._deps import Deps
 
 __all__ = ["Deps", "register_all"]
@@ -20,3 +20,4 @@ def register_all(mcp: FastMCP, deps: Deps) -> None:
     ingest.register(mcp, deps)
     summary.register(mcp, deps)
     search.register(mcp, deps)
+    streams.register(mcp, deps)

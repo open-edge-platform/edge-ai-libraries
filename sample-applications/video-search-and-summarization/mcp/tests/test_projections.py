@@ -198,6 +198,7 @@ def test_indexed_status(row: dict, expected: bool | None) -> None:
 def test_slim_search_hit_keeps_only_actionable_fields() -> None:
     assert set(slim_search_hit(make_search_hit())) == {
         "video_id",
+        "source",
         "start_s",
         "end_s",
         "seek_s",

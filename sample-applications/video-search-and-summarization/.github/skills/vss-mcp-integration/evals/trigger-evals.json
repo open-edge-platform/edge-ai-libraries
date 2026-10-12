@@ -7,7 +7,7 @@
   {"query": "Add a new hand-declared tool to the VSS MCP server in mcp/src/tools", "should_trigger": true},
   {"query": "How does the VSS MCP tool search by image without sending base64 over MCP?", "should_trigger": true},
   {"query": "Which env vars does the VSS MCP server need - is HOST_IP enough?", "should_trigger": true},
-  {"query": "Why doesn't setup.sh --mcp start MCP Inspector for VSS?", "should_trigger": true},
+  {"query": "Why doesn't the VSS stack start MCP Inspector?", "should_trigger": true},
   {"query": "spin up the vss mcp server and hook it up to an ai agent", "should_trigger": true},
   {"query": "How do I upload a video to VSS using the REST API?", "should_trigger": false},
   {"query": "Set up an MCP server for a different project - not VSS, just a generic FastMCP server", "should_trigger": false},

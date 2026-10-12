@@ -12,6 +12,7 @@ from typing import Any, Iterable
 
 from fastmcp import FastMCP
 
+from ..clients import VssError
 from ..projections import cap_payload, slim_video
 from ..schemas import DeploymentInfo, Resolution, TagList, VideoList
 from ._deps import READ_ONLY, Deps
@@ -52,6 +53,17 @@ async def get_deployment_info(deps: Deps) -> DeploymentInfo:
         ]
         info["videos_indexed"] = statuses.count(True)
         info["videos_index_unknown"] = statuses.count(None)
+        info["live_streams_enabled"] = deps.features.live_streams
+        try:
+            config = await deps.client.get_refresh_config()
+        except VssError:
+            config = None
+        interval = (config or {}).get("intervalMs")
+        if isinstance(interval, (int, float)) and not isinstance(interval, bool):
+            info["watch_refresh"] = {
+                "enabled": config.get("enabled", True) is not False,
+                "interval_seconds": interval / 1000,
+            }
     return info
 
 

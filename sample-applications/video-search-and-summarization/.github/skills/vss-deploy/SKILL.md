@@ -280,8 +280,6 @@ or credentials sourced first.
 source setup.sh --stop       # stop/remove containers across all VSS overlays/profiles
 source setup.sh --down       # alias for --stop
 source setup.sh --clean-data # also removes the VSS application data volumes (asks first)
-source setup.sh --mcp        # add the MCP tool server to a running deployment (no MCP Inspector)
-source setup.sh --stop-mcp   # stop/remove only the MCP server; VSS keeps running
 source setup.sh --help       # full help
 ```
 
@@ -304,6 +302,7 @@ and the host-backed `ov_models/` directory are deliberately **preserved**, so a
 | Pipeline Manager API + docs | `…/manager/docs`, health `…/manager/health` |
 | Data Prep docs (search modes) | `http://<HOST_IP>:7890/docs` |
 | Embedding server docs (search modes) | `http://<HOST_IP>:9777/docs` |
+| MCP server (all modes) | `http://<HOST_IP>:12345/mcp` (via the nginx gateway) |
 
 ## Troubleshooting ("why won't vss come up")
 

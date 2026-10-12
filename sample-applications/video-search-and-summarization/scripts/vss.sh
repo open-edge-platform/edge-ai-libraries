@@ -93,12 +93,12 @@ main() {
                     ;;
             esac
             ;;
-        stop|clean-data|mcp|stop-mcp|setenv|health-check) ;;
+        stop|clean-data|setenv|health-check) ;;
         *) echo "ERROR: Unknown VSS operation: $action" >&2; return 1 ;;
     esac
 
     case "$action" in
-        stop|clean-data|stop-mcp)
+        stop|clean-data)
             docker_preflight || return 1
             # Teardown must also work before any environment file is created.
             if [ -f "${ENV_FILE:-.env}" ] || [ -n "${ENV_FILE:-}" ]; then
@@ -129,15 +129,11 @@ main() {
     load_env || return 1
 
     case "$action" in
-        deploy|mcp) docker_preflight || return 1 ;;
+        deploy) docker_preflight || return 1 ;;
     esac
     case "$action" in
         deploy) source ./setup.sh "--$mode" ;;
         config) source ./setup.sh "--$mode" config ;;
-        mcp)
-            export HOST_IP="${HOST_IP:-$(ip route get 1 | awk '{print $7}')}"
-            source ./setup.sh --mcp
-            ;;
         health-check) wait_for_health ;;
         setenv)
             source ./setup.sh --setenv >&2 || return 1

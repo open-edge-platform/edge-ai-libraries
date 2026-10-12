@@ -18,6 +18,10 @@ from fastmcp.exceptions import ToolError
 
 logger = logging.getLogger(__name__)
 
+
+def _ms(started: float) -> float:
+    return (time.perf_counter() - started) * 1000
+
 #: Image suffixes accepted by :func:`encode_image_file` -- the same types the
 #: UI's file picker accepts -- mapped to the MIME type of the data URL.
 IMAGE_SUFFIXES = {
@@ -155,19 +159,28 @@ class VssClient:
             VssError: On timeout, connection failure, or a non-2xx status.
         """
 
+        started = time.perf_counter()
         try:
             response = await self._client.request(method, path, **kwargs)
         except httpx.TimeoutException as exc:
+            logger.info("VSS %s %s timed out after %.0f ms", method, path, _ms(started))
             raise VssError(
                 f"VSS did not respond within {self._timeout:.0f}s for "
                 f"{method} {path}. The service may be busy loading a model."
             ) from exc
         except httpx.RequestError as exc:
+            logger.info(
+                "VSS %s %s unreachable: %s", method, path, exc.__class__.__name__
+            )
             raise VssError(
                 f"Could not reach VSS at {self._base_url} ({exc.__class__.__name__}). "
                 "Check that the deployment is running and VSS_IP is correct."
             ) from exc
 
+        logger.info(
+            "VSS %s %s -> %d in %.0f ms",
+            method, path, response.status_code, _ms(started),
+        )
         if response.status_code >= 400:
             raise VssError(
                 self._describe_failure(response, method, path),
@@ -366,6 +379,68 @@ class VssClient:
         await self._request(
             "PATCH", f"/search/{query_id}/watch", json={"watch": watch}
         )
+
+    async def get_refresh_config(self) -> dict[str, Any]:
+        """Return how Pipeline Manager auto-refreshes watched queries."""
+
+        payload = await self._request("GET", "/search/refresh-config")
+        return payload if isinstance(payload, dict) else {}
+
+    # -- Live streams ----------------------------------------------------
+
+    async def list_streams(
+        self, *, state: str | None = None, tags: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """Return registered live streams, optionally filtered."""
+
+        params: list[tuple[str, str]] = []
+        if state:
+            params.append(("state", state))
+        params.extend(("tags", tag) for tag in tags or [])
+        payload = await self._request("GET", "/streams", params=params) or {}
+        streams = payload.get("streams") if isinstance(payload, dict) else None
+        return [item for item in streams or [] if isinstance(item, dict)]
+
+    async def get_stream(self, stream_id: str) -> dict[str, Any] | None:
+        """Return one live stream, or ``None`` when it does not exist."""
+
+        try:
+            payload = await self._request("GET", f"/streams/{stream_id}") or {}
+        except VssError as exc:
+            if exc.status_code == 404:
+                return None
+            raise
+        return payload.get("stream") if isinstance(payload, dict) else None
+
+    async def create_stream(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Register and start one RTSP stream; returns its record."""
+
+        payload = await self._request("POST", "/streams", json=body) or {}
+        stream = payload.get("stream") if isinstance(payload, dict) else None
+        if not isinstance(stream, dict) or not stream.get("stream_id"):
+            raise VssError("Stream registration returned no stream id.")
+        return stream
+
+    async def create_streams(self, items: list[dict[str, Any]]) -> dict[str, Any]:
+        """Register several RTSP streams; returns the per-item outcomes."""
+
+        payload = await self._request("POST", "/streams/batch", json={"items": items})
+        return payload if isinstance(payload, dict) else {}
+
+    async def update_stream(
+        self, stream_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Pause, resume or reconfigure a stream; returns its new record."""
+
+        payload = await self._request("PATCH", f"/streams/{stream_id}", json=body) or {}
+        stream = payload.get("stream") if isinstance(payload, dict) else None
+        return stream if isinstance(stream, dict) else {}
+
+    async def delete_stream(self, stream_id: str) -> dict[str, Any]:
+        """Stop and deregister a stream, keeping its media and embeddings."""
+
+        payload = await self._request("DELETE", f"/streams/{stream_id}")
+        return payload if isinstance(payload, dict) else {}
 
     async def get_frame(self, params: dict[str, Any]) -> dict[str, Any]:
         """Fetch one stored frame as ``GET /frames?format=json`` returns it:

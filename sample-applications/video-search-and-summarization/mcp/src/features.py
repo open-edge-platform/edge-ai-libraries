@@ -23,12 +23,27 @@ class Features:
     #: both report identical ``summary``/``search`` flags.
     image_search_enabled: bool = False
 
+    @property
+    def live_streams(self) -> bool:
+        """Whether RTSP cameras can be added -- a gate derived from
+        ``search``, not a third VSS feature.
+
+        Live ingestion embeds frames, so it needs the frame-embedding index:
+        ``setup.sh`` enables it in search and dual mode, and disables it in
+        unified mode, whose text-only index can never embed a live frame.
+        """
+
+        return self.search and self.image_search_enabled
+
     def describe(self) -> str:
         """Return the enabled features as a phrase, e.g. ``summary, search``."""
 
         names = [
             name
-            for name, on in (("summary", self.summary), ("search", self.search))
+            for name, on in (
+                ("summary", self.summary),
+                ("search", self.search),
+            )
             if on
         ]
         return ", ".join(names) or "none"

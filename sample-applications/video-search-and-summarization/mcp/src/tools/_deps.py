@@ -29,12 +29,19 @@ DEFAULT_CHUNK_DURATION = 8
 
 #: MCP tool hints. Clients use ``readOnlyHint`` to run a tool without asking
 #: for confirmation; everything talks only to this VSS deployment, so no tool
-#: is open-world, and none deletes anything.
+#: is open-world. Only removing a camera is destructive, and even that keeps
+#: the camera's recorded media and embeddings.
 READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 STARTS_WORK = ToolAnnotations(
     readOnlyHint=False, destructiveHint=False, openWorldHint=False
 )
 IDEMPOTENT_WORK = STARTS_WORK.model_copy(update={"idempotentHint": True})
+DESTRUCTIVE = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=True,
+    idempotentHint=True,
+    openWorldHint=False,
+)
 
 #: EVAM pipeline preference: ``object_detection`` keeps labelled detections
 #: alongside the chunks; ``video_ingestion`` is the fallback.

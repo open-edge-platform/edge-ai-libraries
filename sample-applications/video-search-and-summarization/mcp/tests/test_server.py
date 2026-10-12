@@ -54,13 +54,23 @@ SEARCH_TOOLS = {
     "vss_get_media_frame",
 }
 
+#: Registered only where search runs with frame embeddings (search or dual
+#: mode), the only modes that ingest live RTSP cameras.
+STREAM_TOOLS = {
+    "vss_list_streams",
+    "vss_get_stream",
+    "vss_add_stream",
+    "vss_update_stream",
+    "vss_remove_stream",
+}
+
 #: Registered only where the deployment has the summary feature.
 SUMMARY_TOOLS = {
     "vss_summarize_video",
     "vss_get_video_timeline",
 }
 
-EXPECTED_TOOLS = LIBRARY_TOOLS | SEARCH_TOOLS | SUMMARY_TOOLS
+EXPECTED_TOOLS = LIBRARY_TOOLS | SEARCH_TOOLS | STREAM_TOOLS | SUMMARY_TOOLS
 
 #: Tools that start backend work or change stored state; everything else only
 #: reads. A search is persisted in VSS's search history, so it writes too.
@@ -70,7 +80,14 @@ WORK_TOOLS = {
     "vss_search_video",
     "vss_refetch_search",
     "vss_watch_search",
+    "vss_add_stream",
+    "vss_update_stream",
+    "vss_remove_stream",
 }
+
+#: The only tool that deletes anything: it deregisters a camera, keeping its
+#: recorded footage and embeddings.
+DESTRUCTIVE_TOOLS = {"vss_remove_stream"}
 
 #: Any tool name a prompt, a resource description or the instructions might
 #: mention. Deliberately not anchored to the known names: the point is to find
@@ -82,6 +99,7 @@ FEATURE_SHAPES = (
     Features(summary=True, search=True),
     Features(summary=True, search=False),
     Features(summary=False, search=True),
+    Features(summary=False, search=True, image_search_enabled=True),
     Features(summary=False, search=False),
 )
 
@@ -130,12 +148,23 @@ async def test_registers_the_expected_tools() -> None:
     assert await _tool_names() == EXPECTED_TOOLS
 
 
-async def test_nothing_on_the_surface_destroys_anything() -> None:
-    """The surface reads and creates; it never deletes."""
+async def test_nothing_on_the_surface_destroys_anything_but_a_camera() -> None:
+    """The surface reads and creates; it deletes only camera registrations."""
 
     names = await _tool_names()
 
-    assert not {name for name in names if "delete" in name or "remove" in name}
+    assert {
+        name for name in names if "delete" in name or "remove" in name
+    } == DESTRUCTIVE_TOOLS
+
+
+async def test_stream_tools_need_frame_embeddings() -> None:
+    """Unified mode searches summaries and ingests no live cameras."""
+
+    names = await _tool_names(Features(summary=True, search=True))
+
+    assert not names & STREAM_TOOLS
+    assert SEARCH_TOOLS <= names
 
 
 async def test_annotations_tell_clients_which_tools_only_read() -> None:
@@ -145,7 +174,7 @@ async def test_annotations_tell_clients_which_tools_only_read() -> None:
         hints = tool.annotations
         assert hints.read_only_hint is (tool.name not in WORK_TOOLS), tool.name
         assert hints.open_world_hint is False, tool.name
-        assert not hints.destructive_hint, tool.name
+        assert bool(hints.destructive_hint) is (tool.name in DESTRUCTIVE_TOOLS), tool.name
 
 
 @pytest.mark.parametrize(
@@ -542,6 +571,15 @@ async def test_every_tool_result_matches_its_output_schema(name: str, args: dict
     [
         pytest.param(
             {"summary": "FEATURE_ON", "search": "FEATURE_ON"},
+            EXPECTED_TOOLS - STREAM_TOOLS,
+            id="unified",
+        ),
+        pytest.param(
+            {
+                "summary": "FEATURE_ON",
+                "search": "FEATURE_ON",
+                "imageSearchEnabled": True,
+            },
             EXPECTED_TOOLS,
             id="all-features",
         ),

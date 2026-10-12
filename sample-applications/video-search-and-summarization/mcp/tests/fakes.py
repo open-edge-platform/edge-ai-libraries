@@ -185,6 +185,62 @@ def make_hit(video_id: str, score: float, start: float) -> dict:
     }
 
 
+def make_live_hit(
+    stream_id: str, score: float, epoch: int, offset: float = 4.5, raw: float = 0.36
+) -> dict:
+    """Return a hit on a live camera, shaped as observed on a real system:
+    gateway-relative segment URL, string ``crop_bbox``, absolute raw score."""
+
+    return {
+        "id": None,
+        "type": "Document",
+        "page_content": "Video segment",
+        "metadata": {
+            "video_id": stream_id,
+            "video_url": f"/live-streams/{stream_id}/segments/{epoch}.mp4",
+            "seek_timestamp": offset,
+            "segment_start": 0.0,
+            "segment_end": 10.0,
+            "relevance_score": score,
+            "score_breakdown": {"raw_score": raw},
+            "best_frame_info": {
+                "is_live": True,
+                "video_id": stream_id,
+                "media_path": f"segments/{epoch}.mp4",
+                "timestamp": offset,
+                "crop_bbox": "395,452,542,894",
+                "detected_label": "person",
+                "is_detected_crop": True,
+                "bucket_name": "live-streams",
+            },
+        },
+    }
+
+
+def make_stream(
+    stream_id: str,
+    name: str = "Lobby",
+    *,
+    state: str = "running",
+    url: str = "rtsp://cam.local:8554/lobby",
+    tags: list[str] | None = None,
+) -> dict:
+    """Return a stream as ``GET /streams`` lists it."""
+
+    return {
+        "stream_id": stream_id,
+        "stream_name": name,
+        "stream_url": url,
+        "state": state,
+        "tags": tags or [],
+        "frame_interval": 15,
+        "enable_object_detection": True,
+        "detection_confidence": 0.5,
+        "stats": {"frames_processed": 10, "embeddings_created": 4},
+        "created_at": "2026-01-01T00:00:00Z",
+    }
+
+
 @contextlib.contextmanager
 def make_temp_image() -> Any:
     """Yield the path to a minimal, valid one-pixel PNG for image-search tests."""
@@ -218,6 +274,7 @@ class FakeVss:
         states: list[dict] | None = None,
         features: dict[str, str] | None = None,
         hits: list[dict] | None = None,
+        streams: list[dict] | None = None,
     ) -> None:
         self.videos = videos if videos is not None else []
         self.states = states if states is not None else []
@@ -226,6 +283,9 @@ class FakeVss:
             "search": "FEATURE_ON",
         }
         self.hits = hits or []
+        self.streams = streams if streams is not None else []
+        #: ``GET /search/refresh-config`` body.
+        self.refresh_config: dict[str, Any] = {"enabled": True, "intervalMs": 10000}
         self.requests: list[tuple[str, str, Any]] = []
         #: State appended on the next POST /summary, letting a test simulate a
         #: pipeline that finishes (or does not) after being started.
@@ -321,8 +381,14 @@ class FakeVss:
             # Pipeline Manager answers 200 with a null body for unknown ids.
             return httpx.Response(200, json=match)
 
+        if path == "/search/refresh-config":
+            return httpx.Response(200, json=self.refresh_config)
+
         if path.startswith("/search"):
             return self._handle_search(request.method, path, body)
+
+        if path.startswith("/streams"):
+            return self._handle_streams(request, path, body)
 
         if path == "/frames" and request.method == "GET":
             return self._handle_frame(dict(request.url.params))
@@ -333,7 +399,10 @@ class FakeVss:
         """``GET /frames``: one frame, as dataprep's JSON variant returns it."""
 
         self.frame_params.append(params)
-        if params.get("video_id") not in {v["videoId"] for v in self.videos}:
+        known = {v["videoId"] for v in self.videos} | {
+            s["stream_id"] for s in self.streams
+        }
+        if params.get("video_id") not in known:
             return httpx.Response(404, json={"message": "Media or frame not found."})
         cropped = params.get("variant") == "crop"
         return httpx.Response(
@@ -354,6 +423,79 @@ class FakeVss:
                 },
             },
         )
+
+    def _handle_streams(
+        self, request: httpx.Request, path: str, body: Any
+    ) -> httpx.Response:
+        """``/streams`` routes, as in ``StreamsController``."""
+
+        method = request.method
+        if path == "/streams" and method == "GET":
+            state = request.url.params.get("state")
+            tags = request.url.params.get_list("tags")
+            listed = [
+                s
+                for s in self.streams
+                if (not state or s["state"] == state)
+                and all(t in s["tags"] for t in tags)
+            ]
+            return httpx.Response(200, json={"count": len(listed), "streams": listed})
+        if path == "/streams" and method == "POST":
+            stream = self._new_stream(body or {})
+            return httpx.Response(202, json={"stream": stream})
+        if path == "/streams/batch" and method == "POST":
+            items = []
+            for item in (body or {}).get("items") or []:
+                if "bad" in item.get("stream_url", ""):
+                    items.append(
+                        {
+                            "identifier": item["stream_url"],
+                            "status": "error",
+                            "message": "unreachable",
+                        }
+                    )
+                    continue
+                stream = self._new_stream(item)
+                items.append(
+                    {
+                        "identifier": item["stream_url"],
+                        "stream_id": stream["stream_id"],
+                        "status": "success",
+                    }
+                )
+            accepted = sum(i["status"] == "success" for i in items)
+            return httpx.Response(
+                202,
+                json={
+                    "accepted": accepted,
+                    "rejected": len(items) - accepted,
+                    "items": items,
+                },
+            )
+        stream_id = path.strip("/").split("/")[1]
+        stream = next((s for s in self.streams if s["stream_id"] == stream_id), None)
+        if stream is None:
+            return httpx.Response(404, json={"message": "Stream not found"})
+        if method == "GET":
+            return httpx.Response(200, json={"stream": stream})
+        if method == "PATCH":
+            stream.update(body or {})
+            return httpx.Response(200, json={"stream": stream})
+        if method == "DELETE":
+            self.streams.remove(stream)
+            return httpx.Response(200, json={"stream_id": stream_id, "deleted": True})
+        return httpx.Response(404, json={"message": f"no route {path}"})
+
+    def _new_stream(self, body: dict) -> dict:
+        stream = make_stream(
+            f"s{len(self.streams) + 1}",
+            body.get("stream_name") or "",
+            state="pending",
+            url=body["stream_url"],
+            tags=body.get("tags"),
+        )
+        self.streams.append(stream)
+        return stream
 
     def _handle_search(self, method: str, path: str, body: Any) -> httpx.Response:
         """``/search`` routes: persisted queries, as in ``SearchController``."""

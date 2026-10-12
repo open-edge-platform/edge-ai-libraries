@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlsplit
@@ -19,19 +20,25 @@ from pydantic import TypeAdapter
 
 from ..clients import VssError, is_image_reference, resolve_image_input
 from ..projections import (
+    redact_url,
     attach_video_names,
     cap_payload,
+    iso_utc,
+    observed_epoch,
+    parse_iso_epoch,
     slim_search_hit,
     slim_video,
     unwrap_search_results,
 )
 from ..schemas import (
+    FrameLocator,
     Hit,
     MediaFrame,
     SearchList,
     SearchResult,
     SearchSummary,
     StoredSearch,
+    WatchResult,
 )
 from ._deps import IDEMPOTENT_WORK, READ_ONLY, STARTS_WORK, Deps
 from .discovery import match_tags, tag_counts
@@ -67,6 +74,10 @@ _CROP_BBOX_RE = re.compile(r"^\d+,\d+,\d+,\d+$")
 #: JPEG quality for returned frames: smaller than the backend's 90, still
 #: plenty for a vision model to read.
 DEFAULT_FRAME_QUALITY = 80
+
+#: Bucket live-camera segments are stored in when the camera's own record
+#: is gone (dataprep's ``LIVE_STREAM_BUCKET`` default).
+DEFAULT_LIVE_STREAM_BUCKET = "live-streams"
 
 
 def _parse_iso(name: str, value: str) -> datetime:
@@ -132,27 +143,96 @@ async def _video_names(deps: Deps, videos: list[dict[str, Any]] | None) -> dict[
     return {slim["video_id"]: slim["name"] for slim in slims if slim["video_id"]}
 
 
+async def _stream_names(deps: Deps) -> dict[str, str]:
+    """Return camera names by stream id; empty if streams cannot be listed."""
+
+    if not deps.features.live_streams:
+        return {}
+    try:
+        streams = await deps.client.list_streams()
+    except VssError as exc:
+        logger.warning("Could not list streams to name live hits: %s", exc)
+        return {}
+    return {
+        str(item["stream_id"]): redact_url(str(item.get("stream_name") or item["stream_id"]))
+        for item in streams
+        if item.get("stream_id")
+    }
+
+
+def _hit_epoch(raw: dict[str, Any]) -> float:
+    """When a hit happened, for ordering sightings: the wall-clock time of a
+    live frame, else when its video was added (so a newly indexed video
+    counts as new). ``0`` when unknown."""
+
+    metadata = raw.get("metadata") or {}
+    observed = observed_epoch(metadata)
+    if observed is not None:
+        return observed
+    video = raw.get("video") or {}
+    for value in (
+        video.get("createdAt"),
+        metadata.get("created_at"),
+        (metadata.get("video_metadata") or {}).get("created_at"),
+    ):
+        parsed = parse_iso_epoch(value)
+        if parsed is not None:
+            return parsed
+    return 0.0
+
+
+async def _project_pairs(
+    deps: Deps,
+    raw_results: Any,
+    videos: list[dict[str, Any]] | None = None,
+    *,
+    video_ids: set[str] | None = None,
+) -> list[tuple[float, Hit]]:
+    """Slim and name every hit, paired with its :func:`_hit_epoch`.
+
+    ``video_ids`` keeps only hits from those videos or cameras.
+    """
+
+    pairs = []
+    for item in unwrap_search_results(raw_results):
+        hit = slim_search_hit(item, deps.settings.vss_datastore_url)
+        if not hit.get("video_id"):
+            continue
+        if video_ids is not None and hit["video_id"] not in video_ids:
+            continue
+        pairs.append((_hit_epoch(item), hit))
+    hits = [hit for _, hit in pairs]
+    if any(not hit.get("video_name") and hit.get("source") != "live" for hit in hits):
+        attach_video_names(
+            [hit for hit in hits if hit.get("source") != "live"],
+            await _video_names(deps, videos),
+        )
+    if any(not hit.get("video_name") and hit.get("source") == "live" for hit in hits):
+        attach_video_names(
+            [hit for hit in hits if hit.get("source") == "live"],
+            await _stream_names(deps),
+        )
+    return pairs
+
+
 async def _project_hits(
     deps: Deps,
     raw_results: Any,
     limit: int,
     videos: list[dict[str, Any]] | None = None,
+    *,
+    video_ids: set[str] | None = None,
 ) -> list[Hit]:
     """Slim, rank and name the hits of a search, best first."""
 
     hits = [
         hit
-        for hit in (
-            slim_search_hit(item, deps.settings.vss_datastore_url)
-            for item in unwrap_search_results(raw_results)
+        for _, hit in await _project_pairs(
+            deps, raw_results, videos, video_ids=video_ids
         )
-        if hit.get("video_id")
     ]
     hits.sort(key=lambda hit: hit.get("score") or 0, reverse=True)
-    hits = hits[: max(1, min(limit, MAX_LIMIT))]
-    if any(not hit.get("video_name") for hit in hits):
-        attach_video_names(hits, await _video_names(deps, videos))
-    return hits
+    return hits[: max(1, min(limit, MAX_LIMIT))]
 
 
 def _status(stored: dict[str, Any]) -> dict[str, Any]:
@@ -185,6 +265,7 @@ def _summarize_search(stored: dict[str, Any]) -> SearchSummary:
         "result_count": len(unwrap_search_results(stored.get("results") or [])),
         "created_at": stored.get("createdAt"),
         "updated_at": stored.get("updatedAt"),
+        "last_refreshed": stored.get("lastRefreshedAt"),
         "error": stored.get("errorMessage"),
     }
     return {
@@ -203,7 +284,14 @@ async def _stored_search_payload(
     summary = _summarize_search(stored)
     payload: dict[str, Any] = {"count": len(hits), "results": hits}
     payload.update(_status(stored))
-    for key in ("query", "image_search", "watch", "created_at", "updated_at"):
+    for key in (
+        "query",
+        "image_search",
+        "watch",
+        "created_at",
+        "updated_at",
+        "last_refreshed",
+    ):
         if key in summary:
             payload[key] = summary[key]
     if stored.get("tags"):
@@ -214,6 +302,34 @@ async def _stored_search_payload(
     payload = cap_payload(payload, "results")
     payload["count"] = len(payload["results"])
     return payload
+
+
+def _id_filter(ids: list[str] | None) -> set[str] | None:
+    """The set of video/stream ids to keep, or ``None`` to keep every hit."""
+
+    if ids is None:
+        return None
+    wanted = {str(value).strip() for value in ids if str(value).strip()}
+    return wanted or None
+
+
+async def _stream_tag_counts(deps: Deps) -> dict[str, int]:
+    """Tags carried by live cameras, which label their embeddings like a
+    video's tags do; empty when there are none or they cannot be listed."""
+
+    if not deps.features.live_streams:
+        return {}
+    try:
+        streams = await deps.client.list_streams()
+    except VssError as exc:
+        logger.warning("Could not list streams for their tags: %s", exc)
+        return {}
+    counts: dict[str, int] = {}
+    for stream in streams:
+        for tag in stream.get("tags") or []:
+            if isinstance(tag, str) and tag.strip():
+                counts[tag] = counts.get(tag, 0) + 1
+    return counts
 
 
 async def _require_search(deps: Deps, query_id: str) -> dict[str, Any]:
@@ -257,6 +373,7 @@ async def search_video(
     end: str | None = None,
     limit: int = DEFAULT_LIMIT,
     wait_seconds: float | None = None,
+    stream_ids: list[str] | None = None,
 ) -> SearchResult:
     """Search indexed videos for moments matching a description or an image.
 
@@ -269,8 +386,12 @@ async def search_video(
     ``image`` is a data URL (forwarded unchanged), a reference to an image
     uploaded with ``POST /search/images`` (its URL, path or id; forwarded as
     ``imageUrl`` so Pipeline Manager loads it from the object store), or a
-    local path (read from disk). Tag words are matched to existing tags
-    before searching, because VSS answers an unknown tag with an empty result rather than an error.
+    local path (read from disk). Tag words are matched to existing tags --
+    of videos, and of live cameras where they exist -- before searching,
+    because VSS answers an unknown tag with an empty result rather than an
+    error. ``stream_ids`` keeps only hits from those cameras (or videos);
+    it filters the ranked results, so a narrow camera set can come back
+    with fewer hits than ``limit``.
 
     Raises:
         VssError: If neither or both of ``query``/``image`` are given, the
@@ -295,7 +416,11 @@ async def search_video(
 
     videos = await deps.client.list_videos() if tags else None
     counts = tag_counts(videos or [])
+    if tags:
+        for tag, cameras in (await _stream_tag_counts(deps)).items():
+            counts[tag] = counts.get(tag, 0) + cameras
     matched, unmatched = match_tags(tags or [], counts)
+    wanted = _id_filter(stream_ids)
     if unmatched and not matched:
         # Searching without the filter would answer a broader question than
         # the one asked, so nothing is searched.
@@ -323,7 +448,9 @@ async def search_video(
     stored = stored or created
     _raise_if_failed(stored)
 
-    hits = await _project_hits(deps, stored.get("results") or [], limit, videos)
+    hits = await _project_hits(
+        deps, stored.get("results") or [], limit, videos, video_ids=wanted
+    )
 
     # `count` is set before capping so the budget accounts for it; it can only
     # shrink afterwards.
@@ -333,6 +460,8 @@ async def search_video(
         payload["tags"] = matched
     if unmatched:
         payload["unknown_tags"] = unmatched
+    if wanted is not None:
+        payload["stream_ids"] = sorted(wanted)
     time_range = _time_range(time_filter)
     if time_range:
         payload["time_range"] = time_range
@@ -355,13 +484,19 @@ async def get_search(
     )
 
 
-async def list_searches(deps: Deps, *, limit: int = DEFAULT_LIST_LIMIT) -> SearchList:
+async def list_searches(
+    deps: Deps, *, limit: int = DEFAULT_LIST_LIMIT, watched_only: bool = False
+) -> SearchList:
     """Return persisted search queries, newest first, without their hits."""
 
     searches = [
         _summarize_search(stored) for stored in await deps.client.list_searches()
     ]
-    searches = [item for item in searches if item.get("query_id")]
+    searches = [
+        item
+        for item in searches
+        if item.get("query_id") and (item.get("watch") or not watched_only)
+    ]
     searches.sort(key=lambda item: item.get("created_at") or "", reverse=True)
     total = len(searches)
     payload: dict[str, Any] = {
@@ -405,20 +540,300 @@ async def refetch_search(
     return await _stored_search_payload(deps, refreshed, limit)
 
 
-async def watch_search(deps: Deps, query_id: str, watch: bool) -> SearchSummary:
-    """Watch or unwatch a persisted search query.
+#: Cursor format: ``w1.<newest sighting, epoch ms>.<expiry, epoch ms or 0>``.
+_CURSOR_RE = re.compile(r"^w1\.(\d{1,16})\.(\d{1,16})$")
+
+#: Default and maximum sightings returned per watch call.
+DEFAULT_SIGHTINGS = 10
+
+#: Fallback for ``poll_after_seconds`` when the refresh config is unreadable;
+#: Pipeline Manager's own default.
+DEFAULT_REFRESH_SECONDS = 10.0
+
+#: Longest rolling window and tracking duration accepted, in minutes.
+MAX_WINDOW_MINUTES = 7 * 24 * 60
+MAX_DURATION_MINUTES = 24 * 60
+
+
+def encode_cursor(newest: float, expires: float | None) -> str:
+    """Encode the tracker state the agent hands back on its next call."""
+
+    return f"w1.{max(0, int(newest * 1000))}.{int((expires or 0) * 1000)}"
+
+
+def decode_cursor(cursor: str) -> tuple[float, float | None]:
+    """Return ``(newest sighting epoch, expiry epoch or None)``.
 
     Raises:
-        VssError: If no query has that id.
+        VssError: If the cursor was not produced by this server.
     """
 
-    stored = await _require_search(deps, query_id)
-    await deps.client.set_search_watch(stored["queryId"], bool(watch))
-    stored = await deps.client.get_search(stored["queryId"]) or {
-        **stored,
-        "watch": bool(watch),
+    match = _CURSOR_RE.match((cursor or "").strip())
+    if not match:
+        raise VssError(
+            "cursor is not one this server issued. Pass next_cursor from the "
+            "previous vss_watch_search result unchanged, or omit it to get "
+            "every current sighting."
+        )
+    expires = int(match.group(2)) / 1000
+    return int(match.group(1)) / 1000, expires or None
+
+
+async def _refresh_interval(deps: Deps) -> tuple[bool, float]:
+    """Whether VSS auto-refreshes watched searches, and how often (seconds)."""
+
+    try:
+        config = await deps.client.get_refresh_config()
+    except VssError as exc:
+        logger.warning("Could not read the watch refresh config: %s", exc)
+        return True, DEFAULT_REFRESH_SECONDS
+    interval = config.get("intervalMs")
+    seconds = (
+        interval / 1000
+        if isinstance(interval, (int, float)) and not isinstance(interval, bool) and interval > 0
+        else DEFAULT_REFRESH_SECONDS
+    )
+    return config.get("enabled", True) is not False, seconds
+
+
+async def _seed_image_from_hit(deps: Deps, from_hit: dict[str, Any]) -> str:
+    """Fetch a hit's peak frame (its detected crop when it has one) as a
+    data URL to search by.
+
+    Raises:
+        VssError: If the locator is unusable or the frame cannot be read.
+    """
+
+    if not isinstance(from_hit, dict):
+        raise VssError("from_hit must be a search hit's `frame` object.")
+    meta, data = await get_media_frame(
+        deps,
+        str(from_hit.get("video_id") or ""),
+        from_hit.get("timestamp"),  # type: ignore[arg-type]
+        media_path=from_hit.get("media_path"),
+        bucket_name=from_hit.get("bucket_name"),
+        crop_bbox=from_hit.get("crop_bbox"),
+        quality=90,
+    )
+    return f"data:{meta['mime']};base64,{data}"
+
+
+async def _start_watch(
+    deps: Deps,
+    *,
+    query: str | None,
+    image: str | None,
+    from_hit: dict[str, Any] | None,
+    tags: list[str] | None,
+    window_minutes: int | None,
+) -> dict[str, Any]:
+    """Create a persisted search for the target and wait for its first
+    results. Returns the stored query (not yet watched)."""
+
+    query = (query or "").strip() or None
+    image = (image or "").strip() or None
+    given = [name for name, value in (("query", query), ("image", image), ("from_hit", from_hit)) if value]
+    if len(given) != 1:
+        raise VssError(
+            "To start watching, give exactly one of query, image or from_hit; "
+            "to poll or stop an existing watch, give its query_id."
+        )
+    if (image or from_hit) and not deps.features.image_search_enabled:
+        raise VssError(
+            "This deployment cannot search by image (it has no frame-embedding "
+            "index). Describe the target with query instead."
+        )
+
+    image_url = image if image and is_image_reference(image) else None
+    image_data_url = resolve_image_input(image) if image and not image_url else None
+    if from_hit:
+        image_data_url = await _seed_image_from_hit(deps, from_hit)
+
+    time_filter = None
+    if window_minutes is not None:
+        if (
+            isinstance(window_minutes, bool)
+            or not isinstance(window_minutes, int)
+            or not 1 <= window_minutes <= MAX_WINDOW_MINUTES
+        ):
+            raise VssError(
+                f"window_minutes must be a whole number from 1 to {MAX_WINDOW_MINUTES}."
+            )
+        time_filter = {"value": window_minutes, "unit": "minutes", "source": "relative"}
+
+    created = await deps.client.create_search(
+        query,
+        image=image_data_url,
+        image_url=image_url,
+        tags=[tag.strip() for tag in tags if tag.strip()] if tags else None,
+        time_filter=time_filter,
+    )
+    stored, _ = await deps.client.poll_search(
+        created["queryId"],
+        wait_seconds=_wait_budget(deps, None),
+        poll_interval_seconds=_poll_interval(deps),
+    )
+    return stored or created
+
+
+async def watch_search(
+    deps: Deps,
+    query_id: str | None = None,
+    watch: bool = True,
+    *,
+    query: str | None = None,
+    image: str | None = None,
+    from_hit: dict[str, Any] | None = None,
+    tags: list[str] | None = None,
+    stream_ids: list[str] | None = None,
+    window_minutes: int | None = None,
+    duration_minutes: float | None = None,
+    cursor: str | None = None,
+    min_raw_score: float | None = None,
+    limit: int = DEFAULT_SIGHTINGS,
+) -> WatchResult:
+    """Start, poll or stop a watched search, reporting sightings as a tracker.
+
+    The server keeps no state between calls: the newest sighting already
+    reported and the expiry travel in ``cursor``. Pipeline Manager re-runs a
+    watched search on its own cadence when new embeddings arrive, so polling
+    only reads the stored results -- unless auto-refresh is disabled, when
+    the poll re-runs the search itself.
+
+    Raises:
+        VssError: On invalid arguments, an unknown query id, or a backend
+            failure while starting.
+    """
+
+    if duration_minutes is not None and (
+        isinstance(duration_minutes, bool)
+        or not isinstance(duration_minutes, (int, float))
+        or not 0 < duration_minutes <= MAX_DURATION_MINUTES
+    ):
+        raise VssError(
+            f"duration_minutes must be more than 0 and at most {MAX_DURATION_MINUTES}."
+        )
+    newest, expires = decode_cursor(cursor) if cursor else (0.0, None)
+    now = time.time()
+    if duration_minutes is not None:
+        expires = now + duration_minutes * 60
+
+    if query_id:
+        if query or image or from_hit or window_minutes is not None:
+            raise VssError(
+                "query, image, from_hit and window_minutes only apply when "
+                "starting a watch; omit query_id to start a new one."
+            )
+        stored = await _require_search(deps, query_id)
+    elif not watch:
+        raise VssError("query_id is required to stop watching.")
+    else:
+        stored = await _start_watch(
+            deps,
+            query=query,
+            image=image,
+            from_hit=from_hit,
+            tags=tags,
+            window_minutes=window_minutes,
+        )
+    qid = stored["queryId"]
+
+    expired = bool(watch and expires is not None and now >= expires)
+    want_watch = bool(watch) and not expired
+    refresh_on, interval = await _refresh_interval(deps)
+    if want_watch and not refresh_on and query_id and stored.get("queryStatus") != "running":
+        # Nothing re-runs watched searches; do it on the agent's behalf.
+        await deps.client.refetch_search(qid)
+        stored = await deps.client.get_search(qid) or stored
+    if bool(stored.get("watch")) != want_watch:
+        await deps.client.set_search_watch(qid, want_watch)
+        stored = {**stored, "watch": want_watch}
+
+    wanted = _id_filter(stream_ids)
+    pairs = await _project_pairs(deps, stored.get("results") or [], video_ids=wanted)
+    if min_raw_score is not None:
+        pairs = [
+            (epoch, hit)
+            for epoch, hit in pairs
+            if hit.get("raw_score") is None or hit["raw_score"] >= min_raw_score
+        ]
+
+    last_seen: dict[str, tuple[float, dict[str, Any]]] = {}
+    for epoch, hit in pairs:
+        key = hit["video_id"]
+        if key not in last_seen or epoch > last_seen[key][0]:
+            last_seen[key] = (epoch, hit)
+    seen = [
+        {
+            key: value
+            for key, value in {
+                "video_id": hit["video_id"],
+                "name": hit.get("video_name"),
+                "source": hit.get("source") or "video",
+                "observed_at": hit.get("observed_at"),
+                "raw_score": hit.get("raw_score"),
+                "url": hit.get("url"),
+            }.items()
+            if value is not None
+        }
+        for _, hit in sorted(last_seen.values(), key=lambda item: item[0], reverse=True)
+    ]
+
+    fresh = sorted(
+        ((epoch, hit) for epoch, hit in pairs if not cursor or epoch > newest),
+        key=lambda item: item[0],
+        reverse=True,
+    )
+    newest_now = max([newest] + [epoch for epoch, _ in fresh])
+    fresh = fresh[: max(1, min(limit, MAX_LIMIT))]
+
+    payload: dict[str, Any] = {
+        "query_id": qid,
+        "watch": want_watch,
+        "status": stored.get("queryStatus"),
+        "image_search": bool(stored.get("image")),
+        "server_time_utc": iso_utc(now),
+        "expired": expired,
+        "new_count": len(fresh),
+        "sightings": [hit for _, hit in fresh],
+        "last_seen": seen,
+        "next_cursor": encode_cursor(newest_now, expires) if want_watch else None,
+        "poll_after_seconds": interval,
     }
-    return _summarize_search(stored)
+    logger.info(
+        "watch %s %s: watch=%s expired=%s new=%d cameras_seen=%d",
+        qid,
+        "start" if not query_id else ("poll" if watch else "stop"),
+        want_watch,
+        expired,
+        len(fresh),
+        len(seen),
+    )
+    if stored.get("query"):
+        payload["query"] = stored["query"]
+    selection = stored.get("timeFilter") or {}
+    if isinstance(selection, dict) and selection.get("unit") == "minutes" and isinstance(
+        selection.get("value"), int
+    ):
+        payload["window_minutes"] = selection["value"]
+    if wanted is not None:
+        payload["stream_ids"] = sorted(wanted)
+    if stored.get("lastRefreshedAt"):
+        payload["last_refreshed"] = stored["lastRefreshedAt"]
+    if expires is not None:
+        payload["expires_at"] = iso_utc(expires)
+        if want_watch:
+            payload["remaining_seconds"] = max(0, int(expires - now))
+    if stored.get("errorMessage"):
+        payload["error"] = stored["errorMessage"]
+    elif want_watch and not refresh_on:
+        payload["error"] = (
+            "VSS auto-refresh is disabled on this deployment; each poll "
+            "re-runs the search instead."
+        )
+    payload = cap_payload(payload, "sightings")
+    payload["new_count"] = len(payload["sightings"])
+    return payload
 
 
 async def get_media_frame(
@@ -468,10 +883,16 @@ async def get_media_frame(
     }
     if crop_bbox:
         params["crop_bbox"] = crop_bbox
-    if (media_path or "").strip():
-        params["media_path"] = media_path.strip()
-    if (bucket_name or "").strip():
-        params["bucket_name"] = bucket_name.strip()
+    media_path = (media_path or "").strip() or None
+    bucket_name = (bucket_name or "").strip() or None
+    if media_path and not bucket_name:
+        # Only live-camera hits carry a media_path. Without their bucket the
+        # backend looks in the uploads bucket and returns 404.
+        bucket_name = await _live_stream_bucket(deps, video_id)
+    if media_path:
+        params["media_path"] = media_path
+    if bucket_name:
+        params["bucket_name"] = bucket_name
 
     payload = await deps.client.get_frame(params)
     frame = payload.get("frame") or {}
@@ -487,6 +908,19 @@ async def get_media_frame(
         "mime": payload.get("mime") or "image/jpeg",
     }
     return meta, payload["image_base64"]
+
+
+async def _live_stream_bucket(deps: Deps, stream_id: str) -> str:
+    """Bucket holding a live camera's segments: the camera's own, or the
+    default when the camera has been removed or cannot be looked up."""
+
+    try:
+        stream = await deps.client.get_stream(stream_id)
+    except VssError as exc:
+        logger.debug("Stream lookup for %s failed: %s", stream_id, exc)
+        stream = None
+    bucket = (stream or {}).get("bucket_name")
+    return bucket if isinstance(bucket, str) and bucket.strip() else DEFAULT_LIVE_STREAM_BUCKET
 
 
 def _is_absolute_http(url: str) -> bool:
@@ -549,8 +983,10 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         end: str | None = None,
         limit: int = DEFAULT_LIMIT,
         wait_seconds: float | None = None,
+        stream_ids: list[str] | None = None,
     ) -> ToolResult:
-        """Find moments across all indexed videos matching a description or an image.
+        """Find moments across all indexed videos and live cameras matching
+        a description or an image.
 
         The search is saved in VSS's search history, like one run from the
         VSS UI, and its query_id can be passed to vss_get_search,
@@ -576,17 +1012,21 @@ def register(mcp: FastMCP, deps: Deps) -> None:
                 also accepted, but a data URL is the reliable choice when
                 you hold the image yourself. Only supported in deployments
                 with frame-embedding search enabled.
-            tags: Only search videos carrying these tags.
+            tags: Only search videos and cameras carrying these tags.
             start: Range start, ISO-8601 UTC. Requires end.
             end: Range end, ISO-8601 UTC. Requires start.
             limit: Maximum results to return.
             wait_seconds: How long to wait for results before returning
                 the query_id with status "running".
+            stream_ids: Only keep hits from these cameras (or video ids).
+                Applied to the ranked results, so it can return fewer than
+                limit; tag the cameras to narrow the search itself.
 
         Results are best first; each hit's url plays its video, with
         start_s/end_s bounding the moment and seek_s where to start; a
         hit's frame, when present, locates its best-matching frame for
-        vss_get_media_frame. Each
+        vss_get_media_frame. A live-camera hit has source "live", its
+        stream_id, and observed_at (when it happened, UTC). Each
         clip is also returned as a resource_link. status "running" means
         the results were not ready in time: call vss_get_search with
         query_id later. unknown_tags lists tag words matching no existing
@@ -603,6 +1043,7 @@ def register(mcp: FastMCP, deps: Deps) -> None:
             end=end,
             limit=limit,
             wait_seconds=wait_seconds,
+            stream_ids=stream_ids,
         )
         return search_tool_result(payload)
 
@@ -621,15 +1062,19 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         return search_tool_result(await get_search(deps, query_id, limit=limit))
 
     @mcp.tool(annotations=READ_ONLY)
-    async def vss_list_searches(limit: int = DEFAULT_LIST_LIMIT) -> SearchList:
+    async def vss_list_searches(
+        limit: int = DEFAULT_LIST_LIMIT, watched_only: bool = False
+    ) -> SearchList:
         """List saved searches (VSS search history), newest first, without
         their hits. Use vss_get_search for a search's results.
 
         Args:
             limit: Maximum searches to return.
+            watched_only: Only searches being watched (tracked), e.g. to
+                find a watch to poll or stop.
         """
 
-        return await list_searches(deps, limit=limit)
+        return await list_searches(deps, limit=limit, watched_only=watched_only)
 
     @mcp.tool(annotations=IDEMPOTENT_WORK, output_schema=STORED_SEARCH_SCHEMA)
     async def vss_refetch_search(
@@ -660,18 +1105,74 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         )
         return search_tool_result(payload)
 
-    @mcp.tool(annotations=IDEMPOTENT_WORK)
-    async def vss_watch_search(query_id: str, watch: bool = True) -> SearchSummary:
-        """Watch or unwatch a saved search. VSS re-runs watched searches
-        automatically whenever new videos are indexed, and notifies the VSS
-        UI of new matches.
+    @mcp.tool(annotations=STARTS_WORK)
+    async def vss_watch_search(
+        query_id: str | None = None,
+        watch: bool = True,
+        query: str | None = None,
+        image: str | None = None,
+        from_hit: FrameLocator | None = None,
+        tags: list[str] | None = None,
+        stream_ids: list[str] | None = None,
+        window_minutes: int | None = None,
+        duration_minutes: float | None = None,
+        cursor: str | None = None,
+        min_raw_score: float | None = None,
+        limit: int = DEFAULT_SIGHTINGS,
+    ) -> WatchResult:
+        """Track an object (person, vehicle, bag, ...) live: watch a search and poll it for new
+        sightings. VSS re-runs a watched search by itself (about every
+        poll_after_seconds) whenever new video or camera footage is indexed.
+
+        Start: give exactly one of query (a visual description), image, or
+        from_hit (a hit's `frame` object -- searches by that hit's detected
+        crop, i.e. for that same-looking person/object). Usually also
+        window_minutes (e.g. 5) so each refresh ranks only recent footage,
+        and duration_minutes when the user gave a time limit ("for 10
+        minutes"). Or give query_id to start watching an existing search.
+
+        Poll: call again with query_id and the previous next_cursor, waiting
+        poll_after_seconds between calls. sightings are only the hits new
+        since that cursor, newest first; last_seen is the latest sighting
+        per camera/video. Keep polling while watch is true.
+
+        Stop: watch=false with query_id, or automatically on the first poll
+        after duration_minutes (expired=true). The search stays in history.
+
+        Similarity is not identity: verify a sighting with
+        vss_get_media_frame before telling the user it is the same object.
 
         Args:
-            query_id: The saved search's query_id.
-            watch: true to watch, false to stop watching.
+            query_id: An existing search to watch, poll or stop.
+            watch: false to stop watching.
+            query: What to track, e.g. "man in a red jacket" (start only).
+            image: Image to track, as for vss_search_video (start only).
+            from_hit: A search hit's frame object, unchanged (start only).
+            tags: Only footage carrying these tags (start only).
+            stream_ids: Only report sightings from these cameras.
+            window_minutes: Rolling window of recent footage each refresh
+                searches, in minutes (start only).
+            duration_minutes: Stop watching after this many minutes.
+            cursor: next_cursor from the previous call.
+            min_raw_score: Drop sightings whose raw_score is below this.
+            limit: Maximum sightings per call.
         """
 
-        return await watch_search(deps, query_id, watch)
+        return await watch_search(
+            deps,
+            query_id,
+            watch,
+            query=query,
+            image=image,
+            from_hit=dict(from_hit) if from_hit else None,
+            tags=tags,
+            stream_ids=stream_ids,
+            window_minutes=window_minutes,
+            duration_minutes=duration_minutes,
+            cursor=cursor,
+            min_raw_score=min_raw_score,
+            limit=limit,
+        )
 
     @mcp.tool(annotations=READ_ONLY, output_schema=MEDIA_FRAME_SCHEMA)
     async def vss_get_media_frame(
@@ -692,7 +1193,8 @@ def register(mcp: FastMCP, deps: Deps) -> None:
             video_id: frame.video_id of the hit (a video or live stream id).
             timestamp: frame.timestamp of the hit, in seconds. Not seek_s.
             media_path: frame.media_path; required for live-stream hits.
-            bucket_name: frame.bucket_name, when present.
+            bucket_name: frame.bucket_name, when present. Worked out from
+                the camera for live-stream hits if omitted.
             crop_bbox: frame.crop_bbox, "x1,y1,x2,y2", to return only that
                 region.
             quality: JPEG quality, 1-100.

@@ -3,11 +3,11 @@
 
 # MCP debugging stack: the VSS MCP server plus MCP Inspector.
 #
-# For working on the server from this folder. `source setup.sh --mcp` does NOT
-# use this file (it uses ../docker/compose.mcp.yaml and starts the MCP server
-# alone, without Inspector). Both build and run the same image and container
-# (vss-mcp-server, port 8000), so use one or the other: stop the setup.sh
-# server first with `source setup.sh --stop-mcp`.
+# For working on the server from this folder. Every `source setup.sh <mode>`
+# deployment already runs the MCP server (docker/compose.mcp.yaml) in the same
+# `vss-mcp-server` container, reachable only through nginx at :12345/mcp. This
+# stack publishes it directly on port 8000 instead. Use one or the other: stop
+# the stack's server first with `source setup.sh --stop`.
 #
 # Bring VSS up first, then from this folder:
 #   HOST_IP=<vss-host-ip> docker compose up --build -d

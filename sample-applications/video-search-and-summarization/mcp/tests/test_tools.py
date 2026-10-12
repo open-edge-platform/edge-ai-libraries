@@ -55,6 +55,7 @@ from tests.fakes import (
     make_hit,
     make_settings,
     make_state,
+    make_stream,
     make_temp_image,
     make_video,
     seed_searches,
@@ -1313,6 +1314,39 @@ async def test_get_media_frame_crops_to_the_hit_box_and_forwards_the_live_segmen
     assert params["bucket_name"] == "video-summary"
     assert meta["cropped"] is True
     assert meta["media_path"] == "segments/1790655530.mp4"
+
+
+async def test_get_media_frame_takes_a_live_hits_bucket_from_its_camera(
+    fake: FakeVss, deps: Deps
+) -> None:
+    stream = make_stream("cam-1")
+    stream["bucket_name"] = "cam-bucket"
+    fake.streams = [stream]
+
+    await get_media_frame(deps, "cam-1", 3.2, media_path="segments/1790655530.mp4")
+
+    assert fake.frame_params[-1]["bucket_name"] == "cam-bucket"
+
+
+async def test_get_media_frame_defaults_a_removed_cameras_bucket(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.videos = [make_video("gone-cam", "cam.mp4")]
+
+    await get_media_frame(deps, "gone-cam", 3.2, media_path="segments/1790655530.mp4")
+
+    assert fake.frame_params[-1]["bucket_name"] == "live-streams"
+
+
+async def test_get_media_frame_leaves_uploaded_video_hits_without_a_bucket(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.videos = [make_video("v1", "a.mp4")]
+
+    await get_media_frame(deps, "v1", 1.0)
+
+    assert "bucket_name" not in fake.frame_params[-1]
+    assert not [r for r in fake.requests if r[1].startswith("/streams")]
 
 
 @pytest.mark.parametrize(

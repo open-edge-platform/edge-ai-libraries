@@ -12,6 +12,7 @@ from fastmcp import FastMCP
 from .clients import VssClient
 from .core import Settings, configure_logging, get_settings
 from . import context
+from .call_log import CallLogMiddleware
 from .features import Features, detect_features
 from .tools import Deps, register_all
 
@@ -60,6 +61,22 @@ Search:
   * "Show me / check that frame" -> vss_get_media_frame with the fields of
     the hit's `frame` object, unchanged. Hits without `frame` have no
     stored peak frame.
+  * "Tell me when X shows up" / "keep watching for X" -> vss_watch_search,
+    then poll it with the returned next_cursor every poll_after_seconds.
+"""
+
+_INSTRUCTIONS_LIVE = """\
+Live cameras:
+  * Hits from a camera have source "live", its stream_id, and observed_at
+    (wall-clock UTC). Report observed_at, not seek_s, as when it happened.
+  * "Add / pause / remove this camera" -> vss_add_stream, vss_update_stream
+    (state "paused"/"running"), vss_remove_stream. Removing keeps the
+    camera's recorded footage searchable; prefer pausing when in doubt.
+  * "Track this person / car / bag" -> vss_watch_search with from_hit set to the hit's
+    `frame` (or a query), window_minutes for recent footage only, and
+    duration_minutes when the user gives a time limit. It stops itself on
+    the first poll after that limit. Verify sightings with
+    vss_get_media_frame: similarity is not identity.
 """
 
 #: Closing note when a capability is missing. A model that cannot find a search
@@ -79,6 +96,8 @@ def build_instructions(features: Features) -> str:
         parts.append(_INSTRUCTIONS_SUMMARY)
     if features.search:
         parts.append(_INSTRUCTIONS_SEARCH)
+    if features.live_streams:
+        parts.append(_INSTRUCTIONS_LIVE)
     if not (features.summary and features.search):
         parts.append(_INSTRUCTIONS_LIMITS.format(enabled=features.describe()))
     return "\n".join(parts)
@@ -121,6 +140,7 @@ def create_mcp(
         instructions=build_instructions(features),
         mask_error_details=True,
     )
+    mcp.add_middleware(CallLogMiddleware())
     register_all(mcp, deps)
     context.register(mcp, deps)
 

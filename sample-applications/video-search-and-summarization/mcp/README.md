@@ -23,6 +23,7 @@ mcp/                             ← cd here for tests and source work
 │   ├── features.py              # Startup probe: what this deployment can do
 │   ├── context.py               # Resources and prompts
 │   ├── projections.py           # Wire payloads → agent-sized results
+│   ├── call_log.py              # Call-flow logging middleware
 │   ├── core/config.py           # Settings and environment parsing
 │   ├── clients/vss.py           # Typed Pipeline Manager client
 │   └── tools/
@@ -30,7 +31,8 @@ mcp/                             ← cd here for tests and source work
 │       ├── discovery.py         # deployment info, list, tags, resolve
 │       ├── ingest.py            # index one, index many
 │       ├── summary.py           # summarize, timeline
-│       └── search.py            # search, search within a video
+│       ├── search.py            # search, watch/track, frames
+│       └── streams.py           # live RTSP cameras
 │
 └── tests/                       # unit tests, no deployment required
 ```
@@ -40,7 +42,14 @@ mcp/                             ← cd here for tests and source work
 
 The **Needs** column is what a deployment must have for the tool to exist at
 all: at startup the server reads `GET /app/features` and registers only the
-tools that deployment can serve.
+tools that deployment can serve. **live** means search with a frame-embedding
+index (`--search` or `--dual`, `imageSearchEnabled` true); unified mode
+ingests no live cameras.
+
+Hits from a live camera carry `source: "live"`, `stream_id`, `observed_at`
+(wall-clock UTC of the matched frame) and `raw_score` (the absolute
+similarity; `score` is normalized so the top hit is 1). `vss_remove_stream`
+is the only tool that deletes anything, and is annotated destructive.
 
 | Tool | Needs | Purpose |
 |---|---|---|
@@ -49,12 +58,17 @@ tools that deployment can serve.
 | `vss_list_tags` | — | The tag vocabulary a filter has to be drawn from |
 | `vss_resolve_video` | — | Turn "the warehouse clip" into a video id |
 | `vss_index_video` | search | Make a video searchable (call once per video) |
-| `vss_search_video` | search | Find moments across indexed videos, by text query or by image; the search is saved in VSS's search history |
+| `vss_search_video` | search | Find moments across indexed videos and live cameras, by text query or by image, optionally kept to some cameras (`stream_ids`); the search is saved in VSS's search history |
 | `vss_get_search` | search | A saved search and its latest results, by `query_id` |
-| `vss_list_searches` | search | Saved searches (VSS search history), newest first |
+| `vss_list_searches` | search | Saved searches (VSS search history), newest first; `watched_only` for active watches |
 | `vss_refetch_search` | search | Re-run a saved search, optionally over a new time range |
-| `vss_watch_search` | search | Watch a saved search so VSS re-runs it when new videos are indexed |
+| `vss_watch_search` | search | Track someone or something live: start a watched search (from a `query`, `image`, or a hit's `frame` via `from_hit`, over a rolling `window_minutes`), poll it with `cursor` for new sightings and `last_seen` per camera, and stop it (`watch=false`, or automatically after `duration_minutes`) |
 | `vss_get_media_frame` | search | The image of a search hit's best-matching frame, from the hit's `frame` locator; crops to the detected object when the hit has a `crop_bbox` |
+| `vss_list_streams` | live | Registered RTSP cameras with state and ingest stats; filter by `state` or `tags` |
+| `vss_get_stream` | live | One camera's state, stats and last error |
+| `vss_add_stream` | live | Add one or more RTSP cameras (batch with `streams`); ingestion starts in the background |
+| `vss_update_stream` | live | Pause/resume a camera or change its name, tags, frame interval or detection settings |
+| `vss_remove_stream` | live | Stop and deregister cameras; their recorded footage and embeddings are kept (never purged) |
 | `vss_summarize_video` | summary | Summarize a video: a timeline plus, by default, a final summary; sampling, EVAM pipeline and audio are configurable, with the VSS UI defaults |
 | `vss_get_video_timeline` | summary | Timeline (and final summary, if produced) of an already-summarized video |
 
@@ -71,33 +85,34 @@ then pass the returned `videoId` to `vss_index_video`.
 
 ## Quick start
 
-**The MCP server sits on top of VSS — bring VSS up first.** Every tool it
-exposes is a call into Pipeline Manager, so on its own it has nothing to serve.
+**The MCP server runs with every VSS deployment.** Every tool it exposes is a
+call into Pipeline Manager, so it probes the deployment for its features at
+startup and registers only the tools that deployment can serve.
 
-It is a **profile of the VSS deployment** rather than a stack of its own: same
+It is a **part of the VSS deployment** rather than a stack of its own: same
 Compose project, same `vs_network`, same `.env`. Its compose file lives in
-[`../docker`](../docker) with the rest of the stack, and `setup.sh` starts it:
+[`../docker`](../docker) with the rest of the stack, and `setup.sh` starts it
+along with everything else. It is reachable through the nginx gateway at
+`http://<HOST_IP>:<APP_HOST_PORT>/mcp` (default `http://<HOST_IP>:12345/mcp`).
 
 ```bash
 cd sample-applications/video-search-and-summarization
-source setup.sh --mcp
+source setup.sh --search   # or --summary, --dual, --unified
 ```
 
-`setup.sh --mcp` needs no exports:
+`setup.sh` needs no MCP-specific exports:
 
 - **`HOST_IP`** is detected from `ip route get 1`, as for a normal deploy.
   Export it only to override the detected address.
 - **`VSS_IP`** — the VSS gateway host the server calls and puts in every URL it
-  returns — is asked for at the prompt, defaulting to `HOST_IP` (press Enter to
-  accept). If `VSS_IP` is already exported, or set in `.env`, it is used as-is
-  and nothing is asked. Without a terminal (CI, scripts) it falls back to
-  `HOST_IP` with a notice. It must be a bare IP or hostname reachable by your
-  agent, never `localhost`.
+  returns — defaults to `HOST_IP`. Set it in `.env` or your shell when the
+  VSS gateway runs on another machine. It must be a bare IP or hostname
+  reachable by your agent, never `localhost`.
 
-`source setup.sh --stop-mcp` (or `make stop-mcp`) stops only the MCP server
-and leaves VSS running; `--stop` brings it down with everything else.
+`source setup.sh --stop` (or `make stop`) stops the MCP server along with the
+rest of the stack.
 
-To run it by hand, from the repository root:
+To run the MCP server by hand, from the repository root:
 
 ```bash
 export VSS_IP=$(ip route get 1 | awk '{print $7}')
@@ -125,7 +140,7 @@ server always reaches the gateway directly.
 
 | Service | URL |
 |---|---|
-| MCP Server | `http://<HOST_IP>:8000/mcp` |
+| MCP Server (via nginx gateway) | `http://<HOST_IP>:<APP_HOST_PORT>/mcp` (default port `12345`) |
 
 To try the tools interactively, point any MCP client that supports the
 **Streamable HTTP** transport at that URL, or use MCP Inspector as described
@@ -138,15 +153,16 @@ next.
 with VSS running:
 
 ```bash
-(cd .. && source setup.sh --stop-mcp)   # if the setup.sh server is running
+(cd .. && source setup.sh --stop)   # stops the stack, including its MCP server
 HOST_IP=<vss-host-ip> docker compose up --build -d
 ```
 
 This builds and runs the same image (`${REGISTRY}vss-mcp-server:${TAG}`,
-default `vss-mcp-server:latest`) and the same `vss-mcp-server` container on
-port 8000 as `setup.sh --mcp`, plus `vss-mcp-inspector`, with
+default `vss-mcp-server:latest`) and the same `vss-mcp-server` container as
+the VSS stack, but publishes it directly on host port 8000 (the stack only
+exposes it through nginx at `:12345/mcp`), plus `vss-mcp-inspector`, with
 `LOG_LEVEL=DEBUG`. Run one or the other, not both; a dev build also replaces
-the image `setup.sh --mcp` runs.
+the image the VSS stack runs.
 
 Open **`http://<HOST_IP>:6274`**, choose **Streamable HTTP**, and connect to
 **`http://mcp-server:8000/mcp`**. Stop it with `docker compose down`.
@@ -154,15 +170,34 @@ Open **`http://<HOST_IP>:6274`**, choose **Streamable HTTP**, and connect to
 > **Warning:** Inspector auth is disabled in this dev stack. Use it only on a
 > trusted network.
 
+## Tracing agent calls
+
+Every tool, resource and prompt call gets a short id, and every log line it
+causes -- including each Pipeline Manager request -- carries it as `[id]`:
+
+```text
+DEBUG | vss_mcp.calls   | [9fcbb83c] tool vss_search_video called with {'query': 'person walking'}
+INFO  | src.clients.vss | [9fcbb83c] VSS POST /search -> 201 in 18 ms
+INFO  | src.clients.vss | [9fcbb83c] VSS GET /search/339b... -> 200 in 25 ms
+INFO  | vss_mcp.calls   | [9fcbb83c] tool vss_search_video ok in 5105 ms
+INFO  | vss_mcp.calls   | [64ffe9f8] tool vss_get_stream failed in 34 ms: No live stream with id 'nope'. ...
+```
+
+`vss_watch_search` also logs one `watch <query_id> start|poll|stop` line with
+the new-sighting count and whether it expired. At `INFO` you get the call flow,
+timings and errors; `LOG_LEVEL=DEBUG` adds each call's arguments, with URL
+credentials masked and image data and long text shortened. Follow one call
+with `docker logs vss-mcp-server 2>&1 | grep '\[9fcbb83c\]'`.
+
 
 ## Configuration
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `VSS_IP` | asked by `setup.sh --mcp`, defaulting to `HOST_IP` | Host of the VSS gateway, reachable by your agent; a bare IP or hostname. Not asked for when already set |
+| `VSS_IP` | `HOST_IP` | Host of the VSS gateway, reachable by your agent; a bare IP or hostname |
 | `HOST_IP` | auto-detected by `setup.sh` | This host's address; the fallback for `VSS_IP` and the host shown in the MCP URL |
 | `APP_HOST_PORT` | `12345` | VSS gateway port |
-| `MCP_HOST` / `MCP_PORT` / `MCP_PATH` | `0.0.0.0` / `8000` / `/mcp` | Listener |
+| `MCP_HOST` / `MCP_PORT` / `MCP_PATH` | `0.0.0.0` / `8000` / `/mcp` | Listener (the VSS stack pins `8000` and `/mcp` to match the nginx route) |
 | `REQUEST_TIMEOUT` | `60` | Per-HTTP-call timeout, seconds |
 | `POLL_INTERVAL` | `5` | Delay between pipeline polls, seconds |
 | `DEFAULT_WAIT_SECONDS` | `600` | Budget for tools that wait on a pipeline |

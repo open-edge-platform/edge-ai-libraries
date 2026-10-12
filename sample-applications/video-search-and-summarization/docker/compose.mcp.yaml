@@ -10,17 +10,18 @@ services:
     container_name: vss-mcp-server
     profiles:
       - mcp
-    ports:
-      - "${MCP_HOST_PORT:-8000}:${MCP_PORT:-8000}"
+    expose:
+      - "8000"
     environment:
       - HOST_IP=${HOST_IP:-}
-      - VSS_IP=${VSS_IP:?Set VSS_IP to the VSS gateway host reachable by your agent}
+      - VSS_IP=${VSS_IP:-}
       - APP_HOST_PORT=${APP_HOST_PORT:-12345}
       - MCP_HOST=0.0.0.0
-      - MCP_PORT=${MCP_PORT:-8000}
+      # Fixed to match the nginx upstream (mcp-server:8000) and route (/mcp).
+      - MCP_PORT=8000
+      - MCP_PATH=/mcp
       - LOG_LEVEL=${MCP_LOG_LEVEL:-INFO}
       # Optional tuning; passed through only when set. See mcp/README.md.
-      - MCP_PATH
       - MCP_STATELESS_HTTP
       - REQUEST_TIMEOUT
       - POLL_INTERVAL

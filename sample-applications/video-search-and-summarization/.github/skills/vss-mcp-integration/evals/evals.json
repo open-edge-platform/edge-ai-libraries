@@ -5,12 +5,12 @@
       "id": 1,
       "prompt_file": "example-prompts/01-start-and-connect-claude.md",
       "prompt": "I already have VSS deployed in search mode and reachable at `http://10.10.1.20:12345`. I want the VSS MCP server running so Claude Desktop can call the VSS search tools. How do I start it, and exactly what URL and transport should I configure in Claude Desktop?",
-      "expected_output": "Explains starting the MCP server with `source setup.sh --mcp` after VSS is up, with HOST_IP as the only required setting, and connecting via Streamable HTTP at http://<HOST_IP>:8000/mcp.",
+      "expected_output": "Explains the MCP server comes up with the VSS deployment (source setup.sh <mode>) and connecting via Streamable HTTP at http://<HOST_IP>:12345/mcp (proxied by the nginx gateway).",
       "files": [],
       "expectations": [
-        "Uses the real start path: `source setup.sh --mcp` (or `make mcp`) from the app root, after VSS is already running; mentions `--stop-mcp` to stop only the MCP server.",
+        "Uses the real start path: `source setup.sh <mode>` (e.g. `make deploy-search`) from the app root - the MCP server runs with the stack and needs no separate start step.",
         "States HOST_IP is the only required setting and VSS_IP defaults to it (set only when VSS runs elsewhere); does not invent API_SPEC_URL, FILTER_FILE_PATH, search.json or mcp/.env.",
-        "Gives the endpoint http://<HOST_IP>:8000/mcp with the Streamable HTTP transport, not stdio.",
+        "Gives the endpoint http://<HOST_IP>:12345/mcp (via the nginx gateway) with the Streamable HTTP transport, not stdio.",
         "Notes the tool surface follows GET /app/features, so a search-mode deployment exposes search tools but no summary tools.",
         "Includes a verification step such as calling vss_get_deployment_info, checking `docker logs vss-mcp-server`, or probing /manager/health."
       ]
@@ -18,14 +18,14 @@
     {
       "id": 2,
       "prompt_file": "example-prompts/02-debug-with-inspector.md",
-      "prompt": "I'm changing code under `mcp/src` and want to poke at the tools in MCP Inspector. VSS is up on `192.168.1.50`. Does `setup.sh --mcp` give me Inspector? If not, what's the quickest way to get it?",
-      "expected_output": "Explains setup.sh --mcp never starts Inspector; the dev stack in mcp/compose.yaml does, with one command, and how to connect.",
+      "prompt": "I'm changing code under `mcp/src` and want to poke at the tools in MCP Inspector. VSS is up on `192.168.1.50`. Does the VSS stack give me Inspector? If not, what's the quickest way to get it?",
+      "expected_output": "Explains the VSS stack never starts Inspector; the dev stack in mcp/compose.yaml does, with one command, and how to connect.",
       "files": [],
       "expectations": [
-        "States that `setup.sh --mcp` (docker/compose.mcp.yaml) runs only the MCP server and never MCP Inspector.",
+        "States that the VSS stack (docker/compose.mcp.yaml, profile mcp) runs only the MCP server and never MCP Inspector.",
         "Gives the dev-stack command from mcp/: `HOST_IP=192.168.1.50 docker compose up --build -d`.",
         "Says to open http://<HOST_IP>:6274, choose Streamable HTTP, and connect to http://mcp-server:8000/mcp (or http://<HOST_IP>:8000/mcp).",
-        "Mentions the dev stack runs the same vss-mcp-server image and container on port 8000 as setup.sh --mcp, so stop that first with `source setup.sh --stop-mcp`; stop the dev stack with `docker compose down`.",
+        "Mentions the dev stack runs the same vss-mcp-server image and container as the VSS stack (published on host port 8000, whereas the stack only exposes it via nginx at :12345/mcp), so stop the stack first with `source setup.sh --stop`; stop the dev stack with `docker compose down`.",
         "Warns that Inspector auth is disabled in the dev stack and it should only be used on a trusted network."
       ]
     },

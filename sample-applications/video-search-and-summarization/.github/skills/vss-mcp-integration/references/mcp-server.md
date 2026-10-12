@@ -11,7 +11,7 @@ Sources: `mcp/src/**`, `mcp/compose.yaml`, `docker/compose.mcp.yaml`,
 ## Request flow
 
 ```text
-agent --Streamable HTTP--> MCP server (:8000/mcp)
+agent --Streamable HTTP--> nginx gateway http://<VSS_IP>:12345/mcp --> MCP server (:8000/mcp)
       --HTTP--> nginx gateway http://<VSS_IP>:12345/manager/... --> Pipeline Manager
 ```
 
@@ -41,12 +41,30 @@ it hands to an agent is one it has reached itself.
   `vss_watch_search` wrap `GET /search`, `POST /search/{id}/refetch` and
   `PATCH /search/{id}/watch`. A failed query (`queryStatus: "error"`) is
   returned as a tool error.
+- **Watching is tracking.** `vss_watch_search` can create the search itself
+  (`query`, `image`, or `from_hit`, which fetches the hit's crop with
+  `GET /frames` and searches by it), with `window_minutes` as a relative
+  `timeFilter` that Pipeline Manager recomputes on every refresh. Polls read
+  `GET /search/{id}` and return hits newer than `cursor`
+  (`w1.<newest_ms>.<expiry_ms>`, opaque to the agent); `poll_after_seconds`
+  comes from `GET /search/refresh-config`. When auto-refresh is disabled the
+  poll calls `POST /search/{id}/refetch` itself. Expiry (`duration_minutes`)
+  is applied on the next poll, which unwatches and returns `expired: true`.
+- **Live cameras.** The stream tools wrap `/streams` (`GET`, `POST`,
+  `POST /streams/batch`, `PATCH /{id}`, `DELETE /{id}` without purge) and are
+  registered only with `imageSearchEnabled`. Every URL, name and error is
+  credential-redacted. Live hits carry `source`, `stream_id`, `observed_at`
+  (segment epoch from `media_path` plus the frame offset) and `raw_score`;
+  their gateway-relative segment URL is prefixed with the datastore URL.
+  `stream_ids` on search and watch is a post-filter on the ranked hits.
 - **Hits locate their best frame.** A hit's `frame` is the search backend's
   `best_frame_info` cut down to what `GET /frames` takes (`video_id`,
   `timestamp`, `bucket_name`, `media_path` for live streams, `crop_bbox` for
   detected objects); `label` names the detected object. `vss_get_media_frame`
   passes those to `GET /frames?format=json` and returns the JPEG as MCP image
-  content plus the frame metadata.
+  content plus the frame metadata. If a live-stream hit arrives without
+  `bucket_name`, the tool takes it from the camera's record, or uses
+  `live-streams` when the camera was removed.
 - **Indexing path is chosen for you.** When a frame-embedding index is
   deployed (dual or search-only mode; `imageSearchEnabled` in
   `/app/features`), the standalone frame-embedding endpoint

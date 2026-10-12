@@ -33,8 +33,9 @@ not executed, because it exports env vars into the shell):
 | Unified UI | `source setup.sh --summary-and-search` (`--unified`) | Search over summary text in one UI |
 
 Other `setup.sh` verbs: `config` (render config without starting), `--stop`
-(`--down`), `--clean-data`, `--mcp` / `--stop-mcp` (MCP tool server only, on top
-of a running deployment), `--help`. Use the `vss-deploy` skill to drive these.
+(`--down`), `--clean-data`, `--help`. Use the `vss-deploy` skill to drive these.
+Every deployment also starts the **MCP tool server** (`docker/compose.mcp.yaml`)
+itself; it is brought down with `--stop`.
 
 ## Architecture at a Glance
 
@@ -64,7 +65,7 @@ gateway. Core services (see `docker/compose.*.yaml`):
 | `pipeline-manager/` | NestJS/TypeScript orchestrator + `/manager` API. |
 | `search-ms/` | Python (Poetry, `^3.11`) video-search microservice. |
 | `video-ingestion/` | Python ingestion service. |
-| `mcp/` | MCP tool server exposing VSS search and summary to AI agents. `mcp/compose.yaml` is a dev-only stack with MCP Inspector; `setup.sh --mcp` never starts Inspector. |
+| `mcp/` | MCP tool server exposing VSS search and summary to AI agents; runs with every VSS deployment (`docker/compose.mcp.yaml`). `mcp/compose.yaml` is a dev-only stack with MCP Inspector. |
 | `cli/` | Go (`go 1.23`) summarizer CLI. |
 | `ui/react/` | React front-end(s). |
 | `chart/` | Helm chart for Kubernetes deployment. |

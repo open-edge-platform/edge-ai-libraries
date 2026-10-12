@@ -57,33 +57,43 @@ process exits instead of guessing, and the container restart policy retries.
 |---|---|
 | `vss_get_deployment_info`, `vss_list_videos`, `vss_list_tags`, `vss_resolve_video` | — |
 | `vss_index_video`, `vss_search_video`, `vss_get_search`, `vss_list_searches`, `vss_refetch_search`, `vss_watch_search`, `vss_get_media_frame` | search |
+| `vss_list_streams`, `vss_get_stream`, `vss_add_stream`, `vss_update_stream`, `vss_remove_stream` | live (search + `imageSearchEnabled`) |
 | `vss_summarize_video`, `vss_get_video_timeline` | summary |
 
+`vss_watch_search` is also the live tracker: start (`query`/`image`/`from_hit`,
+`window_minutes`, `duration_minutes`), poll (`query_id` + `cursor`), stop
+(`watch=false`, or auto-expiry on the first poll after `duration_minutes`).
+`vss_remove_stream` is the only destructive tool and never purges footage.
+
 Resources: `vss://deployment`, `vss://videos`, `vss://tags`, plus
-`vss://search-patterns` with search. The live resources are dated snapshots
+`vss://search-patterns` with search. Cameras are deliberately a tool only (`vss_list_streams`), not a resource, since their state changes constantly. The live resources are dated snapshots
 (`as_of`, `refresh_with`) of the matching tool, without `server_time_utc`. Prompts:
-`search_videos` and `upload_and_index_videos` (search), `summarize_video`
-(summary); the upload steps give the exact `curl` to `POST /manager/videos`
+`search_videos` and `upload_and_index_videos` (search), `monitor_camera` and
+`track_object` (live), `summarize_video` (summary); the upload steps give the exact `curl` to `POST /manager/videos`
 before `vss_index_video`/`vss_summarize_video`. Video upload is deliberately **not** a tool: callers POST to
 `upload_url` from `vss_get_deployment_info` (`/manager/videos`, field `video`).
 
 ## Run and connect
 
-Bring VSS up first. There are three ways to run the server:
+The MCP server **runs with every VSS deployment** (`source setup.sh <mode>`); it
+probes `GET /manager/app/features` at startup and registers only the tools the
+deployment can serve. There are three ways to run it:
 
 | Way | Command | MCP URL | Inspector |
 |---|---|---|---|
-| Deployment profile | `source setup.sh --mcp` (stop: `--stop-mcp`) | `http://<HOST_IP>:8000/mcp` | no |
+| VSS stack (default) | `source setup.sh --search` (any mode) | `http://<HOST_IP>:12345/mcp` (nginx gateway) | no |
 | Dev stack, from `mcp/` | `HOST_IP=<ip> docker compose up --build -d` | `http://<HOST_IP>:8000/mcp` | `http://<HOST_IP>:6274` |
 | Local Poetry, from `mcp/` | `poetry install && HOST_IP=<ip> poetry run mcp-app` | `http://<HOST_IP>:8000/mcp` | no |
 
-- `setup.sh --mcp` uses `docker/compose.mcp.yaml` and runs **only** the MCP
-  server; it never starts MCP Inspector. Do not add Inspector to it.
+- The VSS stack runs the MCP server via `docker/compose.mcp.yaml` (profile
+  `mcp`) and never starts MCP Inspector. `source setup.sh --stop` brings the
+  MCP server down with the rest of the stack.
 - `mcp/compose.yaml` is the dev-only stack: it builds the same image
   (`${REGISTRY}vss-mcp-server:${TAG}`) and runs the same `vss-mcp-server`
-  container on port 8000 as `setup.sh --mcp`, plus `vss-mcp-inspector`, with
-  `LOG_LEVEL=DEBUG`. Run one or the other: `source setup.sh --stop-mcp` before
-  starting it. A dev build replaces the image setup.sh runs. In Inspector, choose **Streamable HTTP** and connect to
+  container as the VSS stack (published directly on host port 8000; the stack
+  only exposes it through nginx at `:12345/mcp`), plus `vss-mcp-inspector`, with
+  `LOG_LEVEL=DEBUG`. Run one or the other: `source setup.sh --stop` before
+  starting it. A dev build replaces the image the VSS stack runs. In Inspector, choose **Streamable HTTP** and connect to
   `http://mcp-server:8000/mcp`. Stop with `docker compose down` (no `HOST_IP`
   needed). Inspector auth is off (`DANGEROUSLY_OMIT_AUTH=true`), so warn the
   user it is for trusted networks only.
@@ -100,9 +110,9 @@ docker compose exec mcp-inspector mcp-inspector --cli \
 ## Real config keys
 
 From `mcp/src/core/config.py`. The server needs `VSS_IP` or, as its fallback,
-`HOST_IP`. `setup.sh --mcp` detects `HOST_IP` and asks for `VSS_IP` (default
-`HOST_IP`) only when it is not already set; `docker/compose.mcp.yaml` requires
-`VSS_IP` when run by hand.
+`HOST_IP`. The VSS stack sets both: `HOST_IP` is auto-detected by `setup.sh`
+and `VSS_IP` defaults to it (override in `.env` only when the gateway runs
+elsewhere); `docker/compose.mcp.yaml` requires `VSS_IP` when run by hand.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -151,14 +161,18 @@ frame-embedding mode (`--search` or `--dual`); otherwise the search call returns
 1. Check the feature gate: `curl http://<VSS_IP>:12345/manager/app/features`.
    Search tools need `search: FEATURE_ON`, summary tools need
    `summary: FEATURE_ON`. `vss_get_deployment_info` reports the same.
-2. Check the server log: `docker logs vss-mcp-server` (setup.sh) or
+2. Check the server log: `docker logs vss-mcp-server` (VSS stack) or
    `cd mcp && docker compose logs mcp-server` (dev stack). The startup line
    `Deployment features: [...]` shows what was registered.
 3. The feature set is read once. Restart the MCP server after changing the VSS
-   mode.
+   mode (or re-deploy).
 4. For a new tool, confirm it is registered in its module's `register()` and
    that the image was rebuilt (`--build`).
-5. Use Inspector (dev stack) or the CLI above to list tools directly, which
+5. To trace what an agent actually called, read the server log: each call
+   logs `tool <name> ok|failed in <ms>` under a `[call id]` that also tags its
+   `VSS <METHOD> <path> -> <status>` lines; `LOG_LEVEL=DEBUG` adds the
+   (credential-masked) arguments. See "Tracing agent calls" in `mcp/README.md`.
+6. Use Inspector (dev stack) or the CLI above to list tools directly, which
    rules out client-side caching.
 
 See [references/mcp-server.md](references/mcp-server.md) for the request flow,

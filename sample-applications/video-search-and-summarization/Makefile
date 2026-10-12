@@ -78,7 +78,7 @@ REGISTRY  ?= $(_REG_URL)$(_PRJ_NAME)
 # Component Configuration
 # ==============================================================================
 
-COMPONENTS := pipeline-manager vss-ui video-search video-ingestion
+COMPONENTS := pipeline-manager vss-ui video-search video-ingestion mcp
 TEST_COMPONENTS := pipeline-manager vss-ui video-search video-ingestion
 
 # Build contexts and Dockerfiles
@@ -97,13 +97,15 @@ video-search_LANG := python
 video-ingestion_CONTEXT_DIR := ./video-ingestion
 video-ingestion_DOCKERFILE := ./video-ingestion/docker/Dockerfile
 video-ingestion_LANG := python
-
-# MCP tool server. Optional (profile "mcp" in docker/compose.mcp.yaml), so it
-# is built by its own target rather than folded into COMPONENTS/`make build`.
 mcp_CONTEXT_DIR := ./mcp
 mcp_DOCKERFILE := ./mcp/Dockerfile
 mcp_LANG := python
+# Per-component image-name override (defaults to the component name); the MCP
+# image is named vss-mcp-server to match docker/compose.mcp.yaml.
+mcp_IMAGE_NAME := vss-mcp-server
 MCP_IMAGE := $(REGISTRY)vss-mcp-server:$(TAG)
+# Full image reference for a component, honouring the per-component override.
+component_image = $(REGISTRY)$(if $($(1)_IMAGE_NAME),$($(1)_IMAGE_NAME),$(1)):$(TAG)
 
 # Dependency microservices (built via build-deps, pulled from registry or official images via compose)
 # multimodal-dataprep, multimodal-embedding-serving, vector-retriever, ovms-service, audio-analyzer
@@ -157,7 +159,7 @@ TEST_TARGETS := $(addprefix test-,$(TEST_COMPONENTS))
         get-service-name get-component-names get-image-tags get-context-dirs \
         get-python-version get-node-version get-go-version get-scan-matrix-json \
         deploy deploy-summary deploy-search deploy-dual deploy-unified \
-        deploy-stop deploy-clean deploy-mcp mcp stop-mcp deploy-stop-mcp stop down clean-data \
+        deploy-stop deploy-clean stop down clean-data \
         config deploy-config config-summary config-search config-dual config-unified \
         init-env setenv health-check test-setup
 
@@ -174,9 +176,9 @@ build: check-docker
 	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
 	@echo "Building all application services..."
 	@$(foreach component,$(COMPONENTS), \
-		echo "  → Building $(component): $(REGISTRY)$(component):$(TAG)"; \
+		echo "  → Building $(component): $(call component_image,$(component))"; \
 		docker build $(DOCKER_BUILD_ARGS) \
-			-t $(REGISTRY)$(component):$(TAG) \
+			-t $(call component_image,$(component)) \
 			-f $($(component)_DOCKERFILE) $($(component)_CONTEXT_DIR); \
 	)
 	@echo "All application services built successfully."
@@ -214,8 +216,8 @@ build-deps: check-docker
 	fi
 	@echo "All dependency microservices built successfully."
 
-# Build the VSS MCP server image (mcp/Dockerfile). Optional: only needed when
-# running `source setup.sh --mcp` / docker/compose.mcp.yaml.
+# Build the VSS MCP server image (mcp/Dockerfile). Kept as a convenience for
+# building just the MCP image; `make build` covers it via COMPONENTS.
 build-mcp: check-docker
 	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
 	@echo "Building VSS MCP server: $(MCP_IMAGE)"
@@ -293,12 +295,6 @@ deploy-stop stop down:
 
 deploy-clean clean-data:
 	@bash scripts/vss.sh clean-data
-
-deploy-mcp mcp:
-	@bash scripts/vss.sh mcp
-
-stop-mcp deploy-stop-mcp:
-	@bash scripts/vss.sh stop-mcp
 
 init-env:
 	@bash scripts/vss.sh init-env
@@ -508,21 +504,23 @@ trivy-scan-image: build
 	@mkdir -p security-results
 	@$(ENSURE_TRIVY_HTML_TPL); \
 	for component in $(COMPONENTS) $(DEP_COMPONENTS); do \
+		image_name="$$component"; \
+		[ "$$component" = mcp ] && image_name="vss-mcp-server"; \
 		echo "  → Scanning $$component image..."; \
-		if [ -z "$$(docker images -q $(REGISTRY)$$component:$(TAG) 2>/dev/null)" ]; then \
-			echo "Image '$(REGISTRY)$$component:$(TAG)' not found, skipping."; \
+		if [ -z "$$(docker images -q $(REGISTRY)$$image_name:$(TAG) 2>/dev/null)" ]; then \
+			echo "Image '$(REGISTRY)$$image_name:$(TAG)' not found, skipping."; \
 		else \
 			trivy image --severity HIGH,CRITICAL --ignore-unfixed --format json \
 				--output security-results/trivy-image-$(SERVICE_NAME)-$$component.json \
-				$(REGISTRY)$$component:$(TAG); \
+				$(REGISTRY)$$image_name:$(TAG); \
 			trivy image --format spdx-json \
 				--output security-results/trivy-image-$(SERVICE_NAME)-$$component.spdx.json \
-				$(REGISTRY)$$component:$(TAG); \
+				$(REGISTRY)$$image_name:$(TAG); \
 			if [ -n "$$TRIVY_HTML_TPL" ] && [ -f "$$TRIVY_HTML_TPL" ]; then \
 				trivy image --severity HIGH,CRITICAL --ignore-unfixed --format template \
 					--template "@$$TRIVY_HTML_TPL" \
 					--output security-results/trivy-image-$(SERVICE_NAME)-$$component.html \
-					$(REGISTRY)$$component:$(TAG); \
+					$(REGISTRY)$$image_name:$(TAG); \
 			fi; \
 		fi; \
 	done
@@ -742,13 +740,10 @@ list:
 	@echo "  Go:               $(GO_VERSION)"
 	@echo ""
 	@echo "Application Images:"
-	@$(foreach component,$(COMPONENTS), echo "  • $(REGISTRY)$(component):$(TAG)";)
+	@$(foreach component,$(COMPONENTS), echo "  • $(call component_image,$(component))";)
 	@echo ""
 	@echo "Dependency Images:"
 	@$(foreach img,$(DEP_IMAGES), echo "  • $(img)";)
-	@echo ""
-	@echo "Optional Images (built separately):"
-	@echo "  • $(MCP_IMAGE)   (make build-mcp)"
 	@echo ""
 	@echo "Test Components:"
 	@$(foreach component,$(TEST_COMPONENTS), echo "  • $(component)";)
@@ -756,9 +751,8 @@ list:
 clean:
 	@echo "Removing Docker images..."
 	@$(foreach component,$(COMPONENTS), \
-		docker rmi -f $(REGISTRY)$(component):$(TAG) 2>/dev/null || true; \
+		docker rmi -f $(call component_image,$(component)) 2>/dev/null || true; \
 	)
-	@docker rmi -f $(MCP_IMAGE) 2>/dev/null || true
 	@echo "Cleanup complete."
 
 # ==============================================================================
@@ -772,7 +766,7 @@ get-component-names:
 	@echo "$(COMPONENTS)"
 
 get-image-tags:
-	@$(foreach component,$(COMPONENTS), echo "$(REGISTRY)$(component):$(TAG)";)
+	@$(foreach component,$(COMPONENTS), echo "$(call component_image,$(component))";)
 
 get-context-dirs:
 	@$(foreach component,$(COMPONENTS), echo "$($(component)_CONTEXT_DIR)";)
@@ -790,7 +784,7 @@ get-scan-matrix-json:
 	@printf '{"include":['
 	@$(foreach component,$(COMPONENTS), \
 		$(eval COMMA := $(if $(findstring $(component),$(firstword $(COMPONENTS))),,',')) \
-		printf '%s' '$(COMMA){"name":"$(component)","image":"$(REGISTRY)$(component):$(TAG)","context":"$($(component)_CONTEXT_DIR)","dockerfile":"$($(component)_DOCKERFILE)"}'; \
+		printf '%s' '$(COMMA){"name":"$(component)","image":"$(call component_image,$(component))","context":"$($(component)_CONTEXT_DIR)","dockerfile":"$($(component)_DOCKERFILE)"}'; \
 	)
 	@printf ']}\n'
 
@@ -809,10 +803,10 @@ help:
 	@echo "BUILD & TEST"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "  build            Build application service images (video-ingestion,"
-	@echo "                   pipeline-manager, video-search, vss-ui)"
+	@echo "                   pipeline-manager, video-search, vss-ui, mcp)"
 	@echo "  build-deps       Build dependency images (multimodal-dataprep,"
 	@echo "                   multimodal-embedding-serving)"
-	@echo "  build-mcp        Build the VSS MCP server image (vss-mcp-server)"
+	@echo "  build-mcp        Build just the VSS MCP server image (vss-mcp-server)"
 	@echo "  push             Push all built images to the registry"
 	@echo "  test             Run all unit tests"
 	@echo "  test-pipeline-manager   Run pipeline-manager tests (NestJS/Jest)"
@@ -841,9 +835,6 @@ help:
 	@echo "  clean-data/deploy-clean     Stop/remove containers and user-data volumes"
 	@echo "                             Asks for confirmation; CONFIRM=yes skips the prompt"
 	@echo "                             Preserve model caches and ov_models/"
-	@echo "  mcp/deploy-mcp    Start MCP against an already running VSS deployment"
-	@echo "                   HOST_IP auto-detected; asks for VSS_IP unless set"
-	@echo "  stop-mcp/deploy-stop-mcp  Stop/remove only the MCP server"
 	@echo "  setenv           Emit Bash-quoted application exports; diagnostics on stderr"
 	@echo "                   Mode-agnostic; does not change the parent shell"
 	@echo "  health-check     Wait for /manager/health (HEALTH_TIMEOUT=300 seconds)"

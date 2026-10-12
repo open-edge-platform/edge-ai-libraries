@@ -143,7 +143,16 @@ async def test_search_patterns_is_not_dated() -> None:
 @pytest.mark.parametrize(
     ("features", "expected"),
     [
-        (ALL_FEATURES, {"search_videos", "upload_and_index_videos", "summarize_video"}),
+        (
+            ALL_FEATURES,
+            {
+                "search_videos",
+                "upload_and_index_videos",
+                "summarize_video",
+                "monitor_camera",
+                "track_object",
+            },
+        ),
         (Features(summary=False, search=True), {"search_videos", "upload_and_index_videos"}),
         (Features(summary=True, search=False), {"summarize_video"}),
         (Features(summary=False, search=False), set()),

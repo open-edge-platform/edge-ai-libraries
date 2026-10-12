@@ -11,6 +11,8 @@ mostly scoring telemetry.
 from __future__ import annotations
 
 import json
+import re
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 #: Upper bound on any single tool result, in bytes, so several results fit a
@@ -23,6 +25,77 @@ MAX_CAPTION_CHARS = 600
 #: Video-row columns that record whether a video is in the search index:
 #: frame embeddings and summary-text embeddings respectively.
 _INDEX_FLAGS = ("searchEmbeddings", "textEmbeddings")
+
+#: A live segment's object name is the epoch second its recording started,
+#: e.g. ``segments/1791446440.mp4``.
+_SEGMENT_EPOCH_RE = re.compile(r"(?:^|/)(\d{9,11})(?:\.\d+)?\.mp4$")
+
+#: ``user:pass@`` in a stream URL.
+_URL_CREDENTIALS_RE = re.compile(r"(?i)\b(rtsps?://)[^/@\s]+@")
+
+
+def redact_url(text: str | None) -> str | None:
+    """Replace credentials in any RTSP URL inside ``text`` with ``***``.
+
+    Dataprep already redacts the URLs it returns; this is the belt to that
+    brace, applied to everything stream-related that leaves this server.
+    """
+
+    if not text:
+        return text
+    return _URL_CREDENTIALS_RE.sub(r"\1***@", text)
+
+
+def iso_utc(epoch: float | int | None) -> str | None:
+    """Render epoch seconds as ISO-8601 UTC with millisecond precision."""
+
+    if isinstance(epoch, bool) or not isinstance(epoch, (int, float)) or epoch <= 0:
+        return None
+    moment = datetime.fromtimestamp(epoch, tz=timezone.utc)
+    return moment.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def parse_iso_epoch(value: Any) -> float | None:
+    """Parse an ISO-8601 timestamp to epoch seconds, treating naive as UTC."""
+
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.timestamp()
+
+
+def observed_epoch(metadata: dict[str, Any]) -> float | None:
+    """Wall-clock epoch seconds of a live hit's peak frame, or ``None``.
+
+    A live frame is addressed as ``media_path`` (a segment named after the
+    epoch second its recording started) plus ``timestamp`` seconds into it.
+    The segment row's ``created_at`` is the fallback when the name does not
+    carry the epoch. Uploaded videos have no wall-clock time and yield
+    ``None``.
+    """
+
+    info = metadata.get("best_frame_info")
+    if not isinstance(info, dict) or not info.get("is_live"):
+        return None
+    offset = info.get("timestamp")
+    if isinstance(offset, bool) or not isinstance(offset, (int, float)):
+        offset = 0.0
+    match = _SEGMENT_EPOCH_RE.search(str(info.get("media_path") or ""))
+    if match:
+        return int(match.group(1)) + float(offset)
+    created = parse_iso_epoch(
+        (metadata.get("video_metadata") or {}).get("created_at")
+        or metadata.get("created_at")
+    )
+    return created + float(offset) if created is not None else None
 
 
 def truncate(text: str | None, limit: int = MAX_CAPTION_CHARS) -> str:
@@ -155,20 +228,58 @@ def slim_search_hit(
         url = playback_path or metadata.get("video_url") or metadata.get(
             "video_rel_url"
         )
+        # Live segments carry a gateway-relative path under the datastore.
+        if (
+            url
+            and not playback_path
+            and str(url).startswith("/")
+            and datastore_base_url
+        ):
+            url = f"{datastore_base_url.rstrip('/')}{url}"
+
+    is_live = isinstance(best_frame, dict) and bool(best_frame.get("is_live"))
+    breakdown = metadata.get("score_breakdown") or {}
 
     hit = {
         "video_id": metadata.get("video_id"),
         "video_name": data_store.get("fileName")
         or (metadata.get("video_metadata") or {}).get("file_name"),
+        "source": "live" if is_live else "video",
+        "stream_id": metadata.get("video_id") if is_live else None,
+        "observed_at": iso_utc(observed_epoch(metadata)),
         "start_s": _round(start, 1),
         "end_s": _round(end, 1),
         "seek_s": _round(seek, 1),
         "score": _round(metadata.get("relevance_score"), 3),
+        "raw_score": _round(
+            breakdown.get("raw_score") if isinstance(breakdown, dict) else None, 4
+        ),
         "url": url,
         "frame": slim_best_frame(best_frame),
         "label": best_frame.get("detected_label") if isinstance(best_frame, dict) else None,
     }
     return {key: value for key, value in hit.items() if value not in (None, "")}
+
+
+def _bbox_string(bbox: Any) -> str | None:
+    """Render a crop box, as a 4-number list or ``"x1,y1,x2,y2"``, as the
+    string ``GET /frames`` takes; ``None`` if malformed."""
+
+    if isinstance(bbox, str):
+        parts = [part.strip() for part in bbox.split(",")]
+        if len(parts) == 4 and all(re.fullmatch(r"-?\d+(?:\.\d+)?", p) for p in parts):
+            return ",".join(str(int(float(part))) for part in parts)
+        return None
+    if (
+        isinstance(bbox, (list, tuple))
+        and len(bbox) == 4
+        and all(
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+            for value in bbox
+        )
+    ):
+        return ",".join(str(int(value)) for value in bbox)
+    return None
 
 
 def slim_best_frame(info: Any) -> dict[str, Any] | None:
@@ -196,17 +307,9 @@ def slim_best_frame(info: Any) -> dict[str, Any] | None:
     for key in ("bucket_name", "media_path"):
         if info.get(key):
             frame[key] = str(info[key])
-    bbox = info.get("crop_bbox")
-    if (
-        info.get("is_detected_crop")
-        and isinstance(bbox, (list, tuple))
-        and len(bbox) == 4
-        and all(
-            isinstance(value, (int, float)) and not isinstance(value, bool)
-            for value in bbox
-        )
-    ):
-        frame["crop_bbox"] = ",".join(str(int(value)) for value in bbox)
+    bbox = _bbox_string(info.get("crop_bbox"))
+    if info.get("is_detected_crop") and bbox:
+        frame["crop_bbox"] = bbox
     return frame
 
 
@@ -364,3 +467,54 @@ def unwrap_search_results(payload: Any) -> list[dict[str, Any]]:
         elif isinstance(block, dict):
             hits.append(block)
     return hits
+
+
+#: Stream stats an agent can act on; the rest is ingestion telemetry.
+_STREAM_STATS = (
+    "frames_processed",
+    "embeddings_created",
+    "segments_stored",
+    "reconnect_count",
+)
+
+
+def slim_stream(info: dict[str, Any]) -> dict[str, Any]:
+    """Project a dataprep ``LiveStreamInfo`` to what an agent acts on.
+
+    Epoch timestamps become ISO-8601 UTC; the URL and any error are redacted.
+    """
+
+    stats = info.get("stats") or {}
+    slim_stats: dict[str, Any] = {
+        key: stats[key]
+        for key in _STREAM_STATS
+        if isinstance(stats.get(key), (int, float)) and not isinstance(stats.get(key), bool)
+    }
+    uptime = stats.get("uptime_seconds")
+    if isinstance(uptime, (int, float)) and not isinstance(uptime, bool):
+        slim_stats["uptime_s"] = round(uptime, 1)
+    last_frame = iso_utc(stats.get("last_frame_ts"))
+    if last_frame:
+        slim_stats["last_frame_at"] = last_frame
+
+    stream = {
+        "stream_id": info.get("stream_id"),
+        # Pipeline Manager defaults the name to the URL, credentials included.
+        "name": redact_url(info.get("stream_name")),
+        "url": redact_url(info.get("stream_url")),
+        "state": info.get("state"),
+        "description": info.get("description"),
+        "sensor_id": info.get("sensor_id"),
+        "tags": list(info.get("tags") or []),
+        "frame_interval": info.get("frame_interval"),
+        "object_detection": info.get("enable_object_detection"),
+        "detection_confidence": info.get("detection_confidence"),
+        "stats": slim_stats,
+        "error": redact_url(info.get("last_error")),
+        "created_at": iso_utc(info.get("created_ts")),
+    }
+    return {
+        key: value
+        for key, value in stream.items()
+        if value not in (None, "") or key in {"tags", "stats"}
+    }
