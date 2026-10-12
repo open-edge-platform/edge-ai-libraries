@@ -487,11 +487,22 @@ const VideosContainer: FC = () => {
     );
   }
 
+  // Identical video/timestamp pairs (e.g. overlapping live-stream segments) would
+  // otherwise collide on the same React key. Duplicate keys break reconciliation and
+  // leak orphaned tiles on every result-set change (switching query tabs), inflating
+  // the visible count past the configured output limit. Suffix repeats so keys stay
+  // unique while unchanged tiles still keep their <video> elements mounted.
+  const seen = new Map<string, number>();
+
   return (
     <div className='videos-container'>
-      {selectedResults.map((result, index) => (
-        <VideoTile key={searchResultKey(result, index)} resultIndex={index} />
-      ))}
+      {selectedResults.map((result, index) => {
+        const baseKey = searchResultKey(result, index);
+        const occurrence = seen.get(baseKey) ?? 0;
+        seen.set(baseKey, occurrence + 1);
+        const key = occurrence === 0 ? baseKey : `${baseKey}-${occurrence}`;
+        return <VideoTile key={key} resultIndex={index} />;
+      })}
     </div>
   );
 };
