@@ -1,4 +1,5 @@
 
+# robustly remove files or dirs
 
 ensure_rm () {
   local p norm rc=0
