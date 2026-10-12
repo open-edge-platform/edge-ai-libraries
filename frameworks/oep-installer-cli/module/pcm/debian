@@ -11,7 +11,7 @@ verify_pcm () {
 }
 
 debian_40_profile_pcm () {
-  echo "git build_essential"
+  echo "git build_essential cmake"
 }
 
 debian_40_install_pcm () {

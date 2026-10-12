@@ -12,7 +12,7 @@ verify_time_confighub () {
 }
 
 debian_70_profile_time_confighub () {
-  echo "libyang git build_essential"
+  echo "libyang git build_essential cmake"
 }
 
 debian_70_install_time_confighub () {

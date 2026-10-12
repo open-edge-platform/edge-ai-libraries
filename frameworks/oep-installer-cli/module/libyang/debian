@@ -6,7 +6,7 @@ configure_libyang () {
 }
   
 debian_40_profile_libyang () {
-  echo "git build_essential"
+  echo "git build_essential cmake"
 }
 
 verify_libyang () {
