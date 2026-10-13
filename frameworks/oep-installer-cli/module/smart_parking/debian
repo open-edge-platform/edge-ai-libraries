@@ -7,11 +7,6 @@ configure_smart_parking () {
   wait_timeout=120
 }
 
-configure_smart_parking_device () {
-  local device="$1"
-  sed -i "/No device selected/,/fi/{s|defaulting to ...|defaulting to ${device^^}|;s|forced.*=.*$|forced${device^^}=true|}" "$workspace"/metro-vision-ai-app-recipe/smart-parking/sample_start.sh
-}
-
 verify_smart_parking () {
   local i p
   for i in 1 2 3 4; do

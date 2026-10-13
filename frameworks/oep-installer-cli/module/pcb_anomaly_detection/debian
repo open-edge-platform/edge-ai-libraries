@@ -6,11 +6,6 @@ configure_pcb_anomaly_detection () {
   used_ports=(80 443)
 }
 
-configure_pcb_anomaly_detection_device () {
-  local device="$1"
-  sed -i "s|^PIPELINE=.*$|PIPELINE=pcb_anomaly_detection${device//_cpu/}|" "$workspace"/industrial-edge-insights-vision/sample_start.sh
-}
-
 verify_pcb_anomaly_detection () {
   [ -e "$workspace"/industrial-edge-insights-vision/resources/pcb-anomaly-detection/videos/anomalib_pcb_test.avi ] || {
     echo "anomalib_pcb_test.avi missing" 1>&2
@@ -55,7 +50,7 @@ EOF
   fi
 
   local device=$(ensure_select_device "$@")
-  configure_pcb_anomaly_detection_device "_$device"
+  echo "_$device" > "$workspace"/.device
 
   echo "@@HIGHLIGHT workspace: $workspace"
   echo "@@HIGHLIGHT $installer_name install [--gpu|--npu|--cpu]"
@@ -68,7 +63,7 @@ debian_90_start_pcb_anomaly_detection () {
   ensure_ports_open "${used_ports[*]}" debian_90_stop_pcb_anomaly_detection
 
   local device=$(ensure_select_device "$@")
-  [[ " ${*,,} " != *" --$device "* ]] || configure_pcb_anomaly_detection_device "_$device"
+  [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device
   
   cd "$workspace"/industrial-edge-insights-vision
   docker compose up -d --wait
@@ -77,7 +72,18 @@ debian_90_start_pcb_anomaly_detection () {
   echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]"
   echo "@@HIGHLIGHT $installer_name stop|remove"
 
-  ./sample_start.sh && ./sample_status.sh
+  local pipeline="pcb_anomaly_detection$(< ../.device)"
+  ./sample_start.sh -p ${pipeline%_cpu} && {
+    local status
+    while true; do
+      status="$(./sample_status.sh)" || break
+      printf "%s\n" "$status" | grep frame_fps
+      case "$status" in
+      *COMPLETE*|*ERROR*) break;;
+      esac
+      sleep 5
+    done
+  }
 }
 
 debian_90_stop_pcb_anomaly_detection () {

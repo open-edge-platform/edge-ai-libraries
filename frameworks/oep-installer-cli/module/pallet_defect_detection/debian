@@ -4,11 +4,7 @@ configure_pallet_defect_detection () {
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
   used_ports=(80 443)
-}
-
-configure_pallet_defect_detection_device () {
-  local device="$1"
-  sed -i "s|^PIPELINE=.*$|PIPELINE=pallet_defect_detection${device//_cpu/}|" "$workspace"/industrial-edge-insights-vision/sample_start.sh
+  wait_timeout=120
 }
 
 verify_pallet_defect_detection () {
@@ -55,7 +51,7 @@ EOF
   fi
 
   local device=$(ensure_select_device "$@")
-  configure_pallet_defect_detection_device "_$device"
+  echo "_$device" > "$workspace"/.device
 
   echo "@@HIGHLIGHT workspace: $workspace"
   echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
@@ -68,16 +64,38 @@ debian_90_start_pallet_defect_detection () {
   ensure_ports_open "${used_ports[*]}" debian_90_stop_pallet_defect_detection
 
   local device=$(ensure_select_device "$@")
-  [[ " ${*,,} " != *" --$device "* ]] || configure_pallet_defect_detection_device "_$device"
+  [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device
 
   cd "$workspace"/industrial-edge-insights-vision
-  docker compose up -d --wait
+  docker compose up -d
+
+  local start_time=$SECONDS elapsed
+  while true; do
+    elapsed=$(( SECONDS - start_time ))
+    echo "Waiting...elapsed $elapsed seconds" >&2
+    if [[ $elapsed -gt $wait_timeout ]]; then
+      echo "Timeout waiting for pipelines up." >&2
+      return 3
+    fi
+    curl -k -s https://localhost/api/pipelines/status -H "accept: application/json" > /dev/null && break || sleep 5
+  done
 
   echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"
 
-  ./sample_start.sh && ./sample_status.sh
+  local pipeline="pallet_defect_detection$(< ../.device)"
+  ./sample_start.sh -p ${pipeline%_cpu} && {
+    local status
+    while true; do
+      status="$(./sample_status.sh)" || break
+      printf "%s\n" "$status" | grep frame_fps
+      case "$status" in
+      *COMPLETE*|*ERROR*) break;;
+      esac
+      sleep 5
+    done
+  }
 }
 
 debian_90_stop_pallet_defect_detection () {
