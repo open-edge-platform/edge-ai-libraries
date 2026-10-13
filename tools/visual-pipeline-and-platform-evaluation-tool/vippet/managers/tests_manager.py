@@ -840,6 +840,7 @@ class TestsManager:
                             # Save result data even when cancelled with exit code 0
                             job.total_fps = result.total_fps
                             job.per_stream_fps = result.per_stream_fps
+                            job.min_stream_fps = result.min_stream_fps
                             job.total_streams = result.num_streams
                             job.video_output_paths = video_output_paths
                             # Record the last observed latency_tracer
@@ -867,6 +868,7 @@ class TestsManager:
                         # Update performance metrics
                         job.total_fps = result.total_fps
                         job.per_stream_fps = result.per_stream_fps
+                        job.min_stream_fps = result.min_stream_fps
                         job.total_streams = result.num_streams
                         job.video_output_paths = video_output_paths
                         # Record the last observed latency_tracer sample
@@ -1046,6 +1048,7 @@ class TestsManager:
 
                         job.total_fps = None
                         job.per_stream_fps = results.per_stream_fps
+                        job.min_stream_fps = results.min_stream_fps
                         job.streams_per_pipeline = results.streams_per_pipeline
                         job.total_streams = results.n_streams
                         job.video_output_paths = video_output_paths

@@ -1907,6 +1907,7 @@ class TestsJobStatus(BaseModel):
     - `details` - List of human-readable messages explaining why the job reached its current state. Cleared when the job transitions to a new state, then new entries are appended. Examples: ["Pipeline completed successfully"], ["Cancelled by user"], ["Cancelled by user", "Pipeline exited with non-zero exit code: 1"], ["Pipeline runtime error: ..."]
     - `total_fps` - Total FPS across all streams (may be null)
     - `per_stream_fps` - Average FPS per stream (may be null)
+    - `min_stream_fps` - FPS of the slowest stream (null when per-stream FPS is not available)
     - `total_streams` - Number of active streams (may be null)
     - `streams_per_pipeline` - List of pipeline IDs with stream counts (each entry contains: id (pipeline identifier: variant path or synthetic graph ID) and streams (number of streams for this pipeline))
     - `video_output_paths` - Mapping from pipeline id to list of output file paths (keys use the same id format as streams_per_pipeline entries)
@@ -1925,6 +1926,16 @@ class TestsJobStatus(BaseModel):
     total_streams: int | None
     streams_per_pipeline: list[PipelineStreamSpec] | None
     video_output_paths: dict[str, list[str]] | None
+    min_stream_fps: float | None = Field(
+        default=None,
+        description=(
+            "FPS of the slowest stream. A density test passes a stream count "
+            "only if this reaches `fps_floor`. `null` when the run reports "
+            "total FPS only (local runner); `per_stream_fps` is then the "
+            "only measure."
+        ),
+        examples=[27.5],
+    )
     latency_tracer_metrics: dict[str, LatencyMetrics] | None = Field(
         default=None,
         description=(
@@ -1948,7 +1959,7 @@ class PerformanceJobStatus(TestsJobStatus):
     carrying recent live pipeline events.
 
     ## Attributes
-    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     - `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)
     - `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)
     - `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer
@@ -1974,7 +1985,7 @@ class DensityJobStatus(TestsJobStatus):
     live-streaming output mode (only disabled or file modes are allowed).
 
     ## Attributes
-    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     """
 
     pass

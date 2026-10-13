@@ -648,6 +648,8 @@ class InternalPerformanceJobStatus:
         details: List of human-readable messages for the current state. Cleared on state transition.
         total_fps: Total FPS across all streams.
         per_stream_fps: Average FPS per stream.
+        min_stream_fps: FPS of the slowest stream, or None when the
+            runner reports totals only.
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
@@ -670,6 +672,7 @@ class InternalPerformanceJobStatus:
     details: list[str] = field(default_factory=list)
     total_fps: float | None = None
     per_stream_fps: float | None = None
+    min_stream_fps: float | None = None
     total_streams: int | None = None
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
@@ -707,6 +710,8 @@ class InternalDensityJobStatus:
         details: List of human-readable messages for the current state. Cleared on state transition.
         total_fps: Total FPS across all streams.
         per_stream_fps: Average FPS per stream.
+        min_stream_fps: FPS of the slowest stream in the reported run, or
+            None when the runner reports totals only.
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
@@ -725,6 +730,7 @@ class InternalDensityJobStatus:
     details: list[str] = field(default_factory=list)
     total_fps: float | None = None
     per_stream_fps: float | None = None
+    min_stream_fps: float | None = None
     total_streams: int | None = None
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None

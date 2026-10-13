@@ -2206,6 +2206,7 @@ class TestDlsps2Backend(unittest.TestCase):
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, InternalTestJobState.COMPLETED)
         self.assertEqual(updated.per_stream_fps, 25.0)
+        self.assertEqual(updated.min_stream_fps, 20.0)
 
     @patch("managers.tests_manager.collect_video_outputs_from_dirs", return_value={})
     @patch("managers.tests_manager.PipelineManager")

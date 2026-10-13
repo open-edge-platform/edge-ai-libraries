@@ -709,7 +709,7 @@
           "jobs"
         ],
         "summary": "List all performance test jobs",
-        "description": "**List statuses of all performance test jobs.**\n\n## Operation\n\nReads current state and metrics for every performance test job created via the performance test API.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of PerformanceJobStatus objects |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n- Zero or more jobs may be present\n\n### \u274c Failure\n- Internal errors \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job123\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 120000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": 480.0,\n    \"per_stream_fps\": 30.0,\n    \"total_streams\": 16,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 8},\n      {\"id\": \"pipeline-2\", \"streams\": 8}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n    }\n  }\n]\n```",
+        "description": "**List statuses of all performance test jobs.**\n\n## Operation\n\nReads current state and metrics for every performance test job created via the performance test API.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of PerformanceJobStatus objects |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n- Zero or more jobs may be present\n\n### \u274c Failure\n- Internal errors \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job123\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 120000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": 480.0,\n    \"per_stream_fps\": 30.0,\n    \"min_stream_fps\": 27.5,\n    \"total_streams\": 16,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 8},\n      {\"id\": \"pipeline-2\", \"streams\": 8}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n    }\n  }\n]\n```",
         "operationId": "get_performance_statuses",
         "responses": {
           "200": {
@@ -735,7 +735,7 @@
           "jobs"
         ],
         "summary": "Get performance test job status",
-        "description": "**Get detailed status of a single performance test job.**\n\n## Operation\n\nRetrieves current state, timings, FPS metrics, and output paths for a specific performance test job.\n\n## Path Parameters\n\n- `job_id`: Identifier of the performance job to inspect\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | PerformanceJobStatus with current state, timings, FPS and output paths |\n| 404  | Job with given id does not exist |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- Job with given id exists in TestsManager\n\n### \u274c Failure\n- Unknown job id \u2192 404\n- Unexpected job status type \u2192 500\n\n## Examples\n\nSuccess (200):\n```json\n{\n  \"id\": \"job123\",\n  \"start_time\": 1715000000000,\n  \"elapsed_time\": 60000,\n  \"state\": \"COMPLETED\",\n  \"details\": [\"Pipeline completed successfully\"],\n  \"total_fps\": 480.0,\n  \"per_stream_fps\": 30.0,\n  \"total_streams\": 16,\n  \"streams_per_pipeline\": [\n    {\"id\": \"pipeline-1\", \"streams\": 8},\n    {\"id\": \"pipeline-2\", \"streams\": 8}\n  ],\n  \"video_output_paths\": {\n    \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n  }\n}\n```\n\nError (404):\n```json\n{\n  \"message\": \"Performance job job123 not found\"\n}\n```\n\nError (500):\n```json\n{\n  \"message\": \"Unexpected job status type for job job123\"\n}\n```",
+        "description": "**Get detailed status of a single performance test job.**\n\n## Operation\n\nRetrieves current state, timings, FPS metrics, and output paths for a specific performance test job.\n\n## Path Parameters\n\n- `job_id`: Identifier of the performance job to inspect\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200  | PerformanceJobStatus with current state, timings, FPS and output paths |\n| 404  | Job with given id does not exist |\n| 500  | Unexpected internal error |\n\n## Conditions\n\n### \u2705 Success\n- Job with given id exists in TestsManager\n\n### \u274c Failure\n- Unknown job id \u2192 404\n- Unexpected job status type \u2192 500\n\n## Examples\n\nSuccess (200):\n```json\n{\n  \"id\": \"job123\",\n  \"start_time\": 1715000000000,\n  \"elapsed_time\": 60000,\n  \"state\": \"COMPLETED\",\n  \"details\": [\"Pipeline completed successfully\"],\n  \"total_fps\": 480.0,\n  \"per_stream_fps\": 30.0,\n  \"min_stream_fps\": 27.5,\n  \"total_streams\": 16,\n  \"streams_per_pipeline\": [\n    {\"id\": \"pipeline-1\", \"streams\": 8},\n    {\"id\": \"pipeline-2\", \"streams\": 8}\n  ],\n  \"video_output_paths\": {\n    \"pipeline-1\": [\"/outputs/job123-p1-0.mp4\"]\n  }\n}\n```\n\nError (404):\n```json\n{\n  \"message\": \"Performance job job123 not found\"\n}\n```\n\nError (500):\n```json\n{\n  \"message\": \"Unexpected job status type for job job123\"\n}\n```",
         "operationId": "get_performance_job_status",
         "parameters": [
           {
@@ -1081,7 +1081,7 @@
           "jobs"
         ],
         "summary": "List all density test jobs",
-        "description": "**List statuses of all density test jobs.**\n\n## Operation\n\nReads current state and metrics for every density test job.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of DensityJobStatus objects |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job456\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 45000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": null,\n    \"per_stream_fps\": 28.5,\n    \"total_streams\": 32,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 16},\n      {\"id\": \"pipeline-2\", \"streams\": 16}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job456-p1-0.mp4\"]\n    }\n  }\n]\n```",
+        "description": "**List statuses of all density test jobs.**\n\n## Operation\n\nReads current state and metrics for every density test job.\n\n## Parameters\n\nNone\n\n## Response Format\n\n| Code | Description |\n|------|-------------|\n| 200  | JSON array of DensityJobStatus objects |\n\n## Conditions\n\n### \u2705 Success\n- TestsManager is initialized\n\n## Example Response\n\n```json\n[\n  {\n    \"id\": \"job456\",\n    \"start_time\": 1715000000000,\n    \"elapsed_time\": 45000,\n    \"state\": \"RUNNING\",\n    \"details\": [],\n    \"total_fps\": null,\n    \"per_stream_fps\": 28.5,\n    \"min_stream_fps\": 25.1,\n    \"total_streams\": 32,\n    \"streams_per_pipeline\": [\n      {\"id\": \"pipeline-1\", \"streams\": 16},\n      {\"id\": \"pipeline-2\", \"streams\": 16}\n    ],\n    \"video_output_paths\": {\n      \"pipeline-1\": [\"/outputs/job456-p1-0.mp4\"]\n    }\n  }\n]\n```",
         "operationId": "get_density_statuses",
         "responses": {
           "200": {
@@ -5473,6 +5473,21 @@
             ],
             "title": "Video Output Paths"
           },
+          "min_stream_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Stream Fps",
+            "description": "FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when the run reports total FPS only (local runner); `per_stream_fps` is then the only measure.",
+            "examples": [
+              27.5
+            ]
+          },
           "latency_tracer_metrics": {
             "anyOf": [
               {
@@ -5503,7 +5518,7 @@
           "video_output_paths"
         ],
         "title": "DensityJobStatus",
-        "description": "**Status of a density test job.**\n\nInherits all fields from TestsJobStatus without changes.\nDoes not include live_stream_urls because density tests do not support\nlive-streaming output mode (only disabled or file modes are allowed).\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths"
+        "description": "**Status of a density test job.**\n\nInherits all fields from TestsJobStatus without changes.\nDoes not include live_stream_urls because density tests do not support\nlive-streaming output mode (only disabled or file modes are allowed).\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths"
       },
       "DensityJobSummary": {
         "properties": {
@@ -7051,6 +7066,21 @@
             ],
             "title": "Video Output Paths"
           },
+          "min_stream_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Stream Fps",
+            "description": "FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when the run reports total FPS only (local runner); `per_stream_fps` is then the only measure.",
+            "examples": [
+              27.5
+            ]
+          },
           "latency_tracer_metrics": {
             "anyOf": [
               {
@@ -7122,7 +7152,7 @@
           "metadata_stream_urls"
         ],
         "title": "PerformanceJobStatus",
-        "description": "**Status of a performance test job.**\n\nInherits all fields from TestsJobStatus and adds live_stream_urls and\nmetadata_stream_urls for live-streaming output mode support, plus events\ncarrying recent live pipeline events.\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths\n- `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)\n- `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)\n- `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer"
+        "description": "**Status of a performance test job.**\n\nInherits all fields from TestsJobStatus and adds live_stream_urls and\nmetadata_stream_urls for live-streaming output mode support, plus events\ncarrying recent live pipeline events.\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths\n- `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)\n- `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)\n- `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer"
       },
       "PerformanceJobSummary": {
         "properties": {

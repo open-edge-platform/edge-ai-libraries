@@ -1211,6 +1211,8 @@ export type PerformanceJobStatus = {
   video_output_paths: {
     [key: string]: string[];
   } | null;
+  /** FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when the run reports total FPS only (local runner); `per_stream_fps` is then the only measure. */
+  min_stream_fps?: number | null;
   /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples — for example when the pipeline exited before the first 1000 ms interval closed. */
   latency_tracer_metrics?: {
     [key: string]: LatencyMetrics;
@@ -1243,6 +1245,8 @@ export type DensityJobStatus = {
   video_output_paths: {
     [key: string]: string[];
   } | null;
+  /** FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when the run reports total FPS only (local runner); `per_stream_fps` is then the only measure. */
+  min_stream_fps?: number | null;
   /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples — for example when the pipeline exited before the first 1000 ms interval closed. */
   latency_tracer_metrics?: {
     [key: string]: LatencyMetrics;
