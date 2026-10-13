@@ -6,7 +6,7 @@ configure_libyang () {
 }
   
 debian_40_profile_libyang () {
-  echo "cmake make git"
+  echo "git cmake make kernel_module_essential"
 }
 
 verify_libyang () {
@@ -32,6 +32,6 @@ debian_40_install_libyang () {
 debian_40_remove_libyang () {
   configure_libyang
   cd "$workspace/build" && ensure_sudo make uninstall || true
-  rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

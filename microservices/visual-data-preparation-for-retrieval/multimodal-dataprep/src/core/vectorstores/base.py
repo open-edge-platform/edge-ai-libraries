@@ -110,5 +110,32 @@ class BaseVectorStore(ABC):
         """
 
     @abstractmethod
+    def delete_embeddings_before(
+        self, bucket_name: str, video_id: str, cutoff_epoch: float
+    ) -> int:
+        """Delete vectors of one video that were ingested before ``cutoff_epoch``.
+
+        Used by live-stream retention to bound index growth: every embedding
+        carries a numeric ``ingest_epoch`` (epoch seconds), and this removes the
+        subset older than the cutoff while leaving newer vectors in place.
+
+        The operation is idempotent: a cutoff that matches nothing is not an
+        error and returns ``0``.
+
+        Args:
+            bucket_name: The storage bucket the vectors were ingested under.
+            video_id: The video / live-stream identifier whose vectors to prune.
+            cutoff_epoch: Epoch seconds; vectors with ``ingest_epoch`` strictly
+                less than this are removed.
+
+        Returns:
+            int: The number of vectors deleted, or ``-1`` when the backend cannot
+            report an exact count but the delete succeeded.
+
+        Raises:
+            Exception: If the backend delete operation fails.
+        """
+
+    @abstractmethod
     def health(self) -> dict:
         """Return a backend-agnostic health/status dict for the active backend."""

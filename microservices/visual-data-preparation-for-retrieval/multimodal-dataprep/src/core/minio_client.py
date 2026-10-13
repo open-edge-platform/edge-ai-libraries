@@ -9,6 +9,7 @@ metadata helpers. Exposed as a process-wide singleton via :class:`MinioClient`.
 """
 
 import io
+import json
 import pathlib
 from http import HTTPStatus
 from typing import Iterator, List, Optional, Tuple
@@ -85,6 +86,43 @@ class MinioClient:
 
             logger.error(f"Error with bucket operations: {ex}")
             raise Exception(f"Error while ensuring bucket {bucket_name} exists.")
+
+    def set_anonymous_read_policy(self, bucket_name: str) -> None:
+        """Grant anonymous (public) ``s3:GetObject`` on every object in a bucket.
+
+        This mirrors the policy the VSS pipeline-manager applies to its uploaded
+        video bucket (``s3:GetObject`` for ``Principal: "*"``). Browsers play
+        recorded media back by hitting the object store directly through the
+        gateway's ``/datastore`` proxy, which forwards the request to MinIO
+        without credentials; without this policy MinIO answers ``403 Forbidden``
+        and the player cannot load the file.
+
+        Best-effort: a failure here must not break ingestion, so it is logged
+        and swallowed. Playback simply keeps failing until the policy sticks.
+        """
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {"AWS": ["*"]},
+                    "Action": ["s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::{bucket_name}/*"],
+                }
+            ],
+        }
+        try:
+            self.client.set_bucket_policy(bucket_name, json.dumps(policy))
+            logger.info(
+                "Set anonymous read policy on bucket '%s'",
+                sanitize_for_log(bucket_name, max_length=128),
+            )
+        except Exception as ex:  # noqa: BLE001 - best-effort, never fatal
+            logger.error(
+                "Failed to set anonymous read policy on bucket '%s': %s",
+                sanitize_for_log(bucket_name, max_length=128),
+                sanitize_for_log(str(ex), max_length=256),
+            )
 
     @staticmethod
     def _validate_object_component(value: str, field_name: str) -> str:
@@ -167,9 +205,9 @@ class MinioClient:
             for directory in directories:
                 videos = []
                 for obj in all_objects:
-                    if obj.object_name.startswith(
-                        f"{directory}/"
-                    ) and is_media_file(obj.object_name):
+                    if obj.object_name.startswith(f"{directory}/") and is_media_file(
+                        obj.object_name
+                    ):
                         videos.append(pathlib.Path(obj.object_name).name)
 
                 if videos:  # Only include directories that have videos

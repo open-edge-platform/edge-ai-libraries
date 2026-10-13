@@ -116,6 +116,6 @@ debian_90_stop_smart_kiosk_assistant () {
 debian_90_remove_smart_kiosk_assistant () {
   debian_90_stop_smart_kiosk_assistant "$@"
   cd "$workspace"/smart-kiosk-assistant && make clean || true
-  rm -rf "$workspace" || ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

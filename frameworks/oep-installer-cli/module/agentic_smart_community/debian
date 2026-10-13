@@ -69,6 +69,6 @@ debian_90_stop_agentic_smart_community () {
 
 debian_90_remove_agentic_smart_community () {
   debian_90_stop_agentic_smart_community "$@"
-  ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

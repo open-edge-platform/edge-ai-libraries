@@ -108,6 +108,6 @@ test_anomalib_pipeline(root_path, dataset_path, sys.argv[2])
 
 debian_80_remove_anomalib () {
   configure_anomalib $*
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }
 

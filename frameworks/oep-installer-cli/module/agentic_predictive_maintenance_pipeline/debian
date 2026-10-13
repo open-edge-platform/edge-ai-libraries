@@ -76,12 +76,13 @@ debian_90_stop_agentic_predictive_maintenance_pipeline () {
   configure_agentic_predictive_maintenance_pipeline
   cd "$workspace"/agentic-predictive-maintenance-pipeline && {
     . ./setup.sh --stop || true
-    . ./setup.sh --clean-data
+    . ./setup.sh --clean-data || true
+    docker volume prune -f
   } || true
 }
 
 debian_90_remove_agentic_predictive_maintenance_pipeline () {
   debian_90_stop_agentic_predictive_maintenance_pipeline "$@"
-  ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

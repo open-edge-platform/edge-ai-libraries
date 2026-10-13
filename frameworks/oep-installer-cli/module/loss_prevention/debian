@@ -142,6 +142,6 @@ debian_90_start_loss_prevention () {
 debian_90_remove_loss_prevention () {
   configure_loss_prevention
   cd "$workspace" && make down-lp || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }
 
