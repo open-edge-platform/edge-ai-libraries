@@ -269,33 +269,37 @@ func (s *Service) openTimeline(ctx context.Context, rec model.Recording) (*timel
 // derive returns the cached file called name while its TTL holds, otherwise
 // cuts it again with the FFmpeg arguments built for a destination path.
 func (s *Service) derive(ctx context.Context, rec model.Recording, tl *timeline, name string, args func(dst string) []string) (string, time.Time, error) {
-	dir, err := s.media.DerivedDir(ctx, rec.RecordingPath)
+	path, mtime, err := s.cachedDerived(ctx, rec, name)
+	if err != nil || path != "" {
+		return path, mtime, err
+	}
+	path, mtime, err = s.media.PutDerived(ctx, rec.RecordingPath, name, func(dst string) error {
+		return runFFmpeg(ctx, s.ffmpeg, tl.path, ffmpegArgs(args(dst))...)
+	})
+	if errors.Is(err, storage.ErrEmptyMedia) {
+		return "", time.Time{}, fmt.Errorf("%w: %w", ErrExtraction, err)
+	}
+	return path, mtime, err
+}
+
+// cachedDerived returns the path and modification time of the file called
+// name, or an empty path when it is missing or older than derivedTTL.
+func (s *Service) cachedDerived(ctx context.Context, rec model.Recording, name string) (string, time.Time, error) {
+	file, err := s.media.OpenDerived(ctx, rec.RecordingPath, name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", time.Time{}, nil
+	}
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	path := filepath.Join(dir, name)
-	if info, err := os.Lstat(path); err == nil && info.Mode().IsRegular() && s.now().Before(info.ModTime().Add(derivedTTL)) {
-		return path, info.ModTime(), nil
-	}
-	tmp, err := os.CreateTemp(dir, ".tmp-*"+filepath.Ext(name))
-	if err != nil {
+	info, err := file.Stat()
+	if err := errors.Join(err, file.Close()); err != nil {
 		return "", time.Time{}, err
 	}
-	tmpName := tmp.Name()
-	if err := tmp.Close(); err != nil {
-		return "", time.Time{}, errors.Join(err, os.Remove(tmpName))
+	if !s.now().Before(info.ModTime().Add(derivedTTL)) {
+		return "", time.Time{}, nil
 	}
-	if err := runFFmpeg(ctx, s.ffmpeg, tl.path, ffmpegArgs(args(tmpName))...); err != nil {
-		return "", time.Time{}, errors.Join(err, os.Remove(tmpName))
-	}
-	info, err := os.Stat(tmpName)
-	if err != nil || info.Size() == 0 {
-		return "", time.Time{}, errors.Join(ErrExtraction, err, os.Remove(tmpName))
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		return "", time.Time{}, errors.Join(err, os.Remove(tmpName))
-	}
-	return path, info.ModTime(), nil
+	return file.Name(), info.ModTime(), nil
 }
 
 // ffmpegArgs prefixes the shared FFmpeg flags.

@@ -98,7 +98,7 @@ func (s *Service) writeMedia(j *job) (start, end time.Time, size int64, codec st
 	}
 	s.mu.Lock()
 	j.record.State = "finalizing"
-	_, saveErr := s.store.UpdateMetadata(context.Background(), j.id, j.record)
+	_, saveErr := s.metadata.UpdateMetadata(context.Background(), j.id, j.record)
 	s.mu.Unlock()
 	if saveErr != nil {
 		return start, end, 0, "", saveErr
@@ -117,10 +117,7 @@ func (s *Service) writeMedia(j *job) (start, end time.Time, size int64, codec st
 	if err := j.ctx.Err(); err != nil {
 		return start, end, 0, "", err
 	}
-	if _, err := s.store.PutMedia(j.ctx, j.uri); err != nil {
-		return start, end, 0, "", err
-	}
-	info, err := os.Stat(j.filename)
+	_, size, err = s.media.PutMedia(j.ctx, j.uri)
 	if err != nil {
 		return start, end, 0, "", err
 	}
@@ -145,7 +142,7 @@ func (s *Service) writeMedia(j *job) (start, end time.Time, size int64, codec st
 	if metadata.Streams[0].Codec != "h264" && metadata.Streams[0].Codec != "hevc" {
 		return start, end, 0, "", errors.New("recording codec is not supported")
 	}
-	return start, end, info.Size(), metadata.Streams[0].Codec, nil
+	return start, end, size, metadata.Streams[0].Codec, nil
 }
 
 type limitedOutput struct{ data []byte }

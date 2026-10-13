@@ -5,6 +5,7 @@ package storage
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"io"
 	"io/fs"
@@ -14,6 +15,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -22,10 +24,10 @@ import (
 // frames and clips derived from it.
 type MediaHandler interface {
 	PrepareMedia(ctx context.Context, recordingID string) (filename, uri string, err error)
-	PutMedia(ctx context.Context, uri string) (string, error)
+	PutMedia(ctx context.Context, uri string) (string, int64, error)
 	OpenMedia(ctx context.Context, uri string) (string, error)
 	DeleteMedia(ctx context.Context, uri string) error
-	DerivedDir(ctx context.Context, uri string) (string, error)
+	PutDerived(ctx context.Context, uri, name string, write func(path string) error) (string, time.Time, error)
 	OpenDerived(ctx context.Context, uri, name string) (*os.File, error)
 }
 
@@ -51,6 +53,8 @@ func OpenMediaStore(directory string) (*MediaStore, error) {
 }
 
 const derivedDir = "derived"
+
+var ErrEmptyMedia = errors.New("media is empty or invalid")
 
 // Derived media names carry offsets in nanoseconds from the recording start.
 var derivedName = regexp.MustCompile(`^(frame-[0-9]+\.(jpeg|png)|clip-[0-9]+-[0-9]+\.mp4)$`)
@@ -87,36 +91,37 @@ func (s *MediaStore) relativeMedia(uri string) (string, error) {
 	return relative, nil
 }
 
-// PutMedia durably publishes an already-written file; readiness is recorded in SQLite.
-func (s *MediaStore) PutMedia(ctx context.Context, uri string) (string, error) {
+// PutMedia durably publishes an already-written file and returns its URI and
+// size in bytes; readiness is recorded in the metadata.
+func (s *MediaStore) PutMedia(ctx context.Context, uri string) (string, int64, error) {
 	if err := ctx.Err(); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	relative, err := s.relativeMedia(uri)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	file, err := s.root.OpenFile(relative, os.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	info, statErr := file.Stat()
 	if statErr != nil || !info.Mode().IsRegular() || info.Size() == 0 {
-		return "", errors.Join(errors.New("recording media is empty or invalid"), statErr, file.Close())
+		return "", 0, errors.Join(ErrEmptyMedia, statErr, file.Close())
 	}
 	if err := errors.Join(file.Sync(), file.Close()); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	for _, name := range []string{filepath.Dir(relative), "."} {
 		directory, err := s.root.Open(name)
 		if err != nil {
-			return "", err
+			return "", 0, err
 		}
 		if err := errors.Join(directory.Sync(), directory.Close()); err != nil {
-			return "", err
+			return "", 0, err
 		}
 	}
-	return uri, nil
+	return uri, info.Size(), nil
 }
 
 func (s *MediaStore) OpenMedia(ctx context.Context, uri string) (string, error) {
@@ -151,21 +156,60 @@ func (s *MediaStore) DeleteMedia(ctx context.Context, uri string) error {
 	return nil
 }
 
-// DerivedDir returns the directory holding frames and clips cut from a
-// recording, creating it if needed. DeleteMedia removes it with the recording.
-func (s *MediaStore) DerivedDir(ctx context.Context, uri string) (string, error) {
-	if err := ctx.Err(); err != nil {
-		return "", err
-	}
+// relativeDerived returns the directory, relative to the root, that holds the
+// frames and clips cut from a recording. DeleteMedia removes it with the recording.
+func (s *MediaStore) relativeDerived(uri string) (string, error) {
 	relative, err := s.relativeMedia(uri)
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(filepath.Dir(relative), derivedDir)
-	if err := s.root.Mkdir(dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
-		return "", err
+	return filepath.Join(filepath.Dir(relative), derivedDir), nil
+}
+
+// PutDerived saves the frame or clip called name for a recording. write fills
+// a private temporary file, which then replaces name atomically. It returns
+// the absolute path and modification time of the saved file.
+func (s *MediaStore) PutDerived(ctx context.Context, uri, name string,
+	write func(path string) error,
+) (_ string, _ time.Time, result error) {
+	if err := ctx.Err(); err != nil {
+		return "", time.Time{}, err
 	}
-	return filepath.Join(s.root.Name(), dir), nil
+	if !derivedName.MatchString(name) {
+		return "", time.Time{}, errors.New("invalid derived media name")
+	}
+	dir, err := s.relativeDerived(uri)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	if err := s.root.Mkdir(dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
+		return "", time.Time{}, err
+	}
+	tmp := filepath.Join(dir, ".tmp-"+rand.Text()+filepath.Ext(name))
+	file, err := s.root.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY|unix.O_NOFOLLOW, 0o600)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	defer func() {
+		if result != nil {
+			result = errors.Join(result, s.root.Remove(tmp))
+		}
+	}()
+	if err := file.Close(); err != nil {
+		return "", time.Time{}, err
+	}
+	if err := write(file.Name()); err != nil {
+		return "", time.Time{}, err
+	}
+	info, err := s.root.Lstat(tmp)
+	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+		return "", time.Time{}, errors.Join(ErrEmptyMedia, err)
+	}
+	target := filepath.Join(dir, name)
+	if err := s.root.Rename(tmp, target); err != nil {
+		return "", time.Time{}, err
+	}
+	return filepath.Join(s.root.Name(), target), info.ModTime(), nil
 }
 
 // OpenDerived opens a frame or clip cut from a recording. Unknown names
@@ -177,11 +221,11 @@ func (s *MediaStore) OpenDerived(ctx context.Context, uri, name string) (*os.Fil
 	if !derivedName.MatchString(name) {
 		return nil, fs.ErrNotExist
 	}
-	relative, err := s.relativeMedia(uri)
+	dir, err := s.relativeDerived(uri)
 	if err != nil {
 		return nil, err
 	}
-	file, err := s.root.OpenFile(filepath.Join(filepath.Dir(relative), derivedDir, name), os.O_RDONLY|unix.O_NOFOLLOW, 0)
+	file, err := s.root.OpenFile(filepath.Join(dir, name), os.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err != nil {
 		return nil, err
 	}
