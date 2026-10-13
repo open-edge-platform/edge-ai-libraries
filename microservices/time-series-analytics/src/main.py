@@ -30,7 +30,7 @@ from fastapi import FastAPI, File, HTTPException, Response, status, Request, Que
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
 import uvicorn
-from influxdb3_backend import InfluxDB3Backend, InfluxDB3Error, udf_plugin_directory
+from influxdb3_backend import InfluxDB3Backend, InfluxDB3Error
 from opcua_alerts import OpcuaAlerts
 
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -48,7 +48,7 @@ REST_API_ROOT_PATH = os.getenv('REST_API_ROOT_PATH', '/')
 app = FastAPI(root_path=REST_API_ROOT_PATH)
 
 MAX_SIZE = 5 * 1024  # 5 KB
-MAX_UPLOAD_SIZE = int(os.getenv('UDF_MAX_FILE_SIZE_MB', 100)) * 1024 * 1024  # 100 MB — max allowed tar upload
+MAX_UPLOAD_SIZE = int(os.getenv('PLUGIN_MAX_FILE_SIZE_MB', 100)) * 1024 * 1024  # 100 MB — max plugin tar upload
 
 config = {}
 OPCUA_SEND_ALERT = None
@@ -72,7 +72,7 @@ class DataPoint(BaseModel):
 
 class Config(BaseModel):
     """Configuration model for the service."""
-    udfs: dict = {"name": "udf_name", "device": "CPU"}
+    plugin: dict
     alerts: Optional[dict] = {}
 
 
@@ -111,15 +111,15 @@ def json_to_line_protocol(data_point: DataPoint):
     return line_protocol
 
 
-def check_udf_package(service_config, dir_name):
-    udf_config = service_config.get("udfs", {})
-    udf_name = udf_config.get("name")
-    if not isinstance(udf_name, str) or not udf_name:
+def check_plugin_package(service_config, dir_name):
+    plugin_config = service_config.get("plugin")
+    if not isinstance(plugin_config, dict):
+        return False
+    plugin_name = plugin_config.get("name")
+    if not isinstance(plugin_name, str) or not plugin_name:
         return False
     root = os.path.realpath(os.path.join(tempfile.gettempdir(), dir_name))
-    plugin_dir = os.path.realpath(os.path.join(
-        root, "udfs", udf_plugin_directory(udf_name)
-    ))
+    plugin_dir = os.path.realpath(os.path.join(root, "plugin"))
     if os.path.commonpath((root, plugin_dir)) != root:
         return False
     if not os.path.isfile(os.path.join(plugin_dir, "__init__.py")):
@@ -127,7 +127,7 @@ def check_udf_package(service_config, dir_name):
     requirements_path = os.path.join(plugin_dir, "requirements.txt")
     if os.path.exists(requirements_path) and not os.path.isfile(requirements_path):
         return False
-    model_name = udf_config.get("models")
+    model_name = plugin_config.get("models")
     if model_name:
         model_path = os.path.realpath(os.path.join(root, "models", model_name))
         if os.path.commonpath((root, model_path)) != root or not os.path.isfile(model_path):
@@ -137,7 +137,7 @@ def check_udf_package(service_config, dir_name):
 
 def restart_influxdb3():
     try:
-        return get_influxdb3_backend().configure_udf(config, os.getenv("SAMPLE_APP"))
+        return get_influxdb3_backend().configure_plugin(config, os.getenv("SAMPLE_APP"))
     except InfluxDB3Error:
         logger.exception("Failed to configure InfluxDB 3 processing trigger")
         raise
@@ -388,15 +388,14 @@ async def receive_line_protocol(request: Request, db: str = Query("datain"), pre
 async def get_config(
     request: Request,
     restart: Optional[bool] = Query(False,
-                                   description="Restart the Time Series Analytics "
-                                             "Microservice UDF deployment if true"),
+                                   description="Reapply the Core plugin trigger if true"),
     background_tasks: BackgroundTasks = None):
     """
     Endpoint to retrieve the current configuration of the input service.
     Accepts an optional 'restart' query parameter and returns the current configuration 
     in JSON format.
-    If 'restart=true' is provided, the Time Series Analytics Microservice UDF deployment 
-    service will be restarted before returning the configuration.
+    If 'restart=true' is provided, the Core plugin trigger is reapplied before
+    returning the configuration.
 
     ---
     parameters:
@@ -405,7 +404,7 @@ async def get_config(
           schema:
             type: boolean
             default: false
-          description: Restart the Time Series Analytics Microservice UDF deployment if true
+          description: Reapply the Core plugin trigger if true
     responses:
         200:
             description: Current configuration retrieved successfully
@@ -416,7 +415,7 @@ async def get_config(
                         additionalProperties: true
                         example:
                             {
-                                "udfs": { "name": "udf_name", "model": "model_name" },
+                                "plugin": { "name": "plugin_name", "models": "model_name" },
                                 "alerts": {}
                             }
         500:
@@ -450,8 +449,8 @@ async def get_config(
     413: {"description": "Request payload exceeds the maximum allowed size of 5 KB",
           "content": {"application/json": {"example": {"error": "Request exceeds the maximum allowed payload size of 5 KB."}}}},
     422: {"description": "Unprocessable request - invalid or missing fields, invalid device value, "
-                         "or UDF deployment package files are missing from the server",
-          "content": {"application/json": {"example": {"detail": "UDF deployment package validation failed for <udf_name>."}}}},
+                         "or plugin package files are missing from the server",
+          "content": {"application/json": {"example": {"detail": "Plugin package validation failed for <plugin_name>."}}}},
     500: {"description": "Failed to write configuration to file",
           "content": {"application/json": {"example": {"detail": "Failed to write configuration to file"}}}},
 })
@@ -471,9 +470,9 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                     additionalProperties: true
                 example:
                     {
-                    "udfs": {
-                        "name": "udf_name",
-                        "model": "model_name",
+                    "plugin": {
+                        "name": "plugin_name",
+                        "models": "model_name",
                         "device": "CPU/cpu or GPU/gpu"},
                     "alerts": {
                     }
@@ -505,7 +504,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
         422:
             description: >
                 Unprocessable request - invalid or missing fields, invalid device value,
-                or UDF deployment package files are missing from the server
+                or plugin package files are missing from the server
             content:
                 application/json:
                     schema:
@@ -513,7 +512,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                         properties:
                             detail:
                                 type: string
-                                example: "UDF deployment package validation failed for <udf_name>."
+                                example: "Plugin package validation failed for <plugin_name>."
         500:
             description: Failed to write configuration to file
             content:
@@ -530,40 +529,40 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
             return JSONResponse(
                 status_code=413,
                 content={"error": "Request exceeds the maximum allowed payload size of 5 KB."})
-        udfs = config_data.udfs
-        if "name" not in udfs:
-            logger.error("Missing key 'name' in udfs")
+        plugin_config = config_data.plugin
+        if "name" not in plugin_config:
+            logger.error("Missing key 'name' in plugin")
             raise HTTPException(
             status_code=422,
-            detail="Missing key 'name' in udfs"
+            detail="Missing key 'name' in plugin"
             )
-        if "device" in udfs:
-            device_value = udfs["device"].lower()
+        if "device" in plugin_config:
+            device_value = plugin_config["device"].lower()
             is_valid = (device_value == "cpu" or 
                        device_value == "gpu" or 
                        (device_value.startswith("gpu:") and device_value.split(":")[1].isdigit()))
             
             if not is_valid:
-                error_msg = "Invalid value for 'device' in udfs: {}, must be 'CPU/cpu', 'GPU/gpu', or 'GPU:N/gpu:N' (e.g., 'GPU:0')".format(udfs["device"])
+                error_msg = "Invalid value for 'device' in plugin: {}, must be 'CPU/cpu', 'GPU/gpu', or 'GPU:N/gpu:N' (e.g., 'GPU:0')".format(plugin_config["device"])
                 logger.error(error_msg)
                 raise HTTPException(status_code=422, detail=error_msg)
 
         if os.getenv("SAMPLE_APP") is not None:
             dir_name = os.getenv("SAMPLE_APP")
         else:
-            dir_name = config_data.udfs["name"]
-        if not check_udf_package(config_data.model_dump(), dir_name):
+            dir_name = plugin_config["name"]
+        if not check_plugin_package(config_data.model_dump(), dir_name):
             error_msg = (
-                f"UDF deployment package validation failed for {config_data.udfs['name']}. "
-                "Please check and upload/copy the UDF deployment package with correct structure and files."
+                f"Plugin package validation failed for {plugin_config['name']}. "
+                "Please check and upload/copy the plugin package with correct structure and files."
             )
             logger.error(error_msg)
             raise HTTPException(status_code=422, detail=error_msg)
-        logger.info("UDF deployment package %s validated successfully.", config_data.udfs["name"])        
+        logger.info("Plugin package %s validated successfully.", plugin_config["name"])
 
-        config["udfs"] = {}
+        config.pop("plugin", None)
         config["alerts"] = {}
-        config["udfs"] = config_data.udfs
+        config["plugin"] = plugin_config
         if config_data.alerts:
             config["alerts"] = config_data.alerts
         else:
@@ -587,8 +586,8 @@ def _scan_tar(tf: tarfile.TarFile, archive_size_bytes: int) -> None:
 
     Raises HTTPException(400) for any detected threat.
     """
-    # Security limits for uploaded UDF tar files
-    max_file_size = int(os.getenv("UDF_MAX_FILE_SIZE_MB", 100))  # Max size for a single UDF file in MB
+    # Security limits for uploaded plugin tar files
+    max_file_size = int(os.getenv("PLUGIN_MAX_FILE_SIZE_MB", 100))
     _TAR_MAX_TOTAL_BYTES       = max_file_size * 1024 * 1024   # 100 MB total
     _TAR_MAX_SINGLE_FILE_BYTES = max_file_size * 1024 * 1024   # 100 MB per entry
     _TAR_MAX_FILE_COUNT        = 100
@@ -596,7 +595,7 @@ def _scan_tar(tf: tarfile.TarFile, archive_size_bytes: int) -> None:
     _TAR_ENCRYPTED_EXTENSIONS  = {".enc", ".gpg", ".pgp", ".age", ".aes"}
     _TAR_ALLOWED_EXTENSIONS    = {
         ".py", ".txt", ".cb",
-        ".pkl", ".joblib", ".xml", ".bin", ".onnx", ".pt", ".pth", ".json",
+                ".pkl", ".joblib", ".xml", ".bin", ".onnx", ".pt", ".pth", ".json",
     }
     entries = tf.getmembers()
 
@@ -636,7 +635,7 @@ def _scan_tar(tf: tarfile.TarFile, archive_size_bytes: int) -> None:
         if ext in _TAR_ENCRYPTED_EXTENSIONS:
             raise HTTPException(
                 status_code=400,
-                detail=f"Encrypted file '{name}' is not allowed in the UDF deployment package."
+                detail=f"Encrypted file '{name}' is not allowed in the plugin package."
             )
 
         # 6. Allowed file extensions
@@ -644,14 +643,14 @@ def _scan_tar(tf: tarfile.TarFile, archive_size_bytes: int) -> None:
         if ext not in _TAR_ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=400,
-                detail=f"File type '{ext}' is not allowed in the UDF deployment package: {name}"
+                detail=f"File type '{ext}' is not allowed in the plugin package: {name}"
             )
 
         # 7. Reject sparse files to prevent low-size/high-expansion tar-bomb payloads.
         if getattr(info, "sparse", None):
             raise HTTPException(
                 status_code=400,
-                detail=f"Sparse file '{name}' is not allowed in the UDF deployment package."
+                detail=f"Sparse file '{name}' is not allowed in the plugin package."
             )
 
         # 8. Single-file size limit
@@ -696,48 +695,32 @@ def _scan_tar(tf: tarfile.TarFile, archive_size_bytes: int) -> None:
                     return True
         return False
 
-    configured_plugin_directory = os.getenv("INFLUXDB3_UDF_PLUGIN_DIR")
     plugin_entries = [
         name for name in file_names
-        if len(name.split("/")) == 3
-        and name.split("/")[0] == "udfs"
-        and name.split("/")[2] == "__init__.py"
+        if name == "plugin/__init__.py"
     ]
-    if configured_plugin_directory:
-        plugin_entry = f"udfs/{configured_plugin_directory}/__init__.py"
-        if plugin_entry not in file_names:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Tar archive must contain the InfluxDB 3 plugin entry '{plugin_entry}'."
-            )
-    elif len(plugin_entries) != 1:
+    if len(plugin_entries) != 1:
         raise HTTPException(
             status_code=400,
-            detail="Tar archive must contain exactly one InfluxDB 3 plugin entry under 'udfs/<plugin>/__init__.py'."
+            detail="Tar archive must contain the InfluxDB 3 plugin entry 'plugin/__init__.py'."
         )
-    else:
-        import re
-
-        plugin_directory = plugin_entries[0].split("/")[1]
-        if plugin_directory in {".", ".."} or not re.fullmatch(r"[A-Za-z0-9._-]+", plugin_directory):
-            raise HTTPException(status_code=400, detail="Invalid InfluxDB 3 plugin directory in tar archive.")
 
     # models/ is optional — log a notice if absent
     if not _has_file_in_folder(file_names, "models"):
         logger.info("Tar archive does not contain a 'models/' folder (optional, skipping).")
 
 
-@app.post("/udfs/package", responses={
+@app.post("/plugin/package", responses={
     400: {"description": "Invalid file — not a .tar, corrupt archive, failed security scan (path traversal, symlink, encrypted payload, tar-bomb expansion), or missing required folders",
-          "content": {"application/json": {"example": {"detail": "Tar archive must contain the InfluxDB 3 plugin entry 'udfs/influx3_windturbine/__init__.py'."}}}},
+          "content": {"application/json": {"example": {"detail": "Tar archive must contain the InfluxDB 3 plugin entry 'plugin/__init__.py'."}}}},
     413: {"description": "Uploaded file exceeds the maximum allowed size",
           "content": {"application/json": {"example": {"detail": "Uploaded file exceeds the maximum allowed size of 100 MB."}}}},
-    500: {"description": "Failed to extract the UDF deployment package on the server",
-          "content": {"application/json": {"example": {"detail": "Failed to extract UDF deployment package."}}}},
+    500: {"description": "Failed to extract the plugin package on the server",
+          "content": {"application/json": {"example": {"detail": "Failed to extract plugin package."}}}},
 })
-async def adds_udf_deployment_package(file: UploadFile = File(...)):
+async def adds_plugin_package(file: UploadFile = File(...)):
     """
-    Adds UDF deployment package.
+    Adds an InfluxDB 3 Core plugin package.
 
     **Request body**: multipart/form-data with a single field named `file` containing the tar archive.
 
@@ -745,10 +728,9 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
 
     .. code-block:: text
 
-        udfs/
-            <plugin_name>/
-                __init__.py         (required Core trigger entry point)
-                requirements.txt    (optional)
+        plugin/
+            __init__.py             (required Core trigger entry point)
+            requirements.txt        (optional)
         models/                    (optional)
             <model_files>
 
@@ -762,7 +744,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
 
     responses:
         200:
-            description: UDF deployment package uploaded and extracted successfully
+            description: Plugin package uploaded and extracted successfully
             content:
                 application/json:
                     schema:
@@ -773,7 +755,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
                                 example: "success"
                             message:
                                 type: string
-                                example: "UDF deployment package 'my_udf.tar' uploaded successfully."
+                                example: "Plugin package 'my_plugin.tar' uploaded successfully."
         400:
             description: >
                 Invalid upload — file is not a .tar, archive is corrupt, failed security
@@ -787,7 +769,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
                         properties:
                             detail:
                                 type: string
-                                example: "Tar archive must contain the InfluxDB 3 plugin entry 'udfs/influx3_windturbine/__init__.py'."
+                                example: "Tar archive must contain the InfluxDB 3 plugin entry 'plugin/__init__.py'."
         413:
             description: Uploaded file exceeds the maximum allowed size
             content:
@@ -799,7 +781,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
                                 type: string
                                 example: "Uploaded file exceeds the maximum allowed size of 100 MB."
         500:
-            description: Server failed to extract the UDF deployment package
+            description: Server failed to extract the plugin package
             content:
                 application/json:
                     schema:
@@ -807,7 +789,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
                         properties:
                             detail:
                                 type: string
-                                example: "Failed to extract UDF deployment package."
+                                example: "Failed to extract plugin package."
     """
     if not file.filename.endswith(".tar"):
         raise HTTPException(status_code=400, detail="Uploaded file must be a .tar archive.")
@@ -843,7 +825,7 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
 
         # Reserved names that must not be used as extraction directory names
         # to avoid colliding with service-critical paths under /tmp.
-        _RESERVED_DIR_NAMES = {"tmp", "log", "udfs", "models", ".", ".."}
+        _RESERVED_DIR_NAMES = {"tmp", "log", "plugin", "models", ".", ".."}
 
         def _safe_dir_name(name: str) -> str:
             """Validate and return a safe directory name, or raise HTTPException."""
@@ -886,9 +868,9 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
         try:
             tf.extractall(staging_dir, filter='data')
         except Exception as exc:
-            logger.error("Failed to extract UDF deployment package: %s", exc)
+            logger.error("Failed to extract plugin package: %s", exc)
             shutil.rmtree(staging_dir, ignore_errors=True)
-            raise HTTPException(status_code=500, detail="Failed to extract UDF deployment package.") from exc
+            raise HTTPException(status_code=500, detail="Failed to extract plugin package.") from exc
 
     if os.path.exists(dest_dir):
         old_dir = dest_dir + ".old"
@@ -899,14 +881,14 @@ async def adds_udf_deployment_package(file: UploadFile = File(...)):
             # Roll back: restore previous deployment
             os.rename(old_dir, dest_dir)
             shutil.rmtree(staging_dir, ignore_errors=True)
-            logger.error("Failed to replace UDF deployment directory: %s", exc)
-            raise HTTPException(status_code=500, detail="Failed to extract UDF deployment package.") from exc
+            logger.error("Failed to replace plugin directory: %s", exc)
+            raise HTTPException(status_code=500, detail="Failed to extract plugin package.") from exc
         shutil.rmtree(old_dir, ignore_errors=True)
     else:
         os.rename(staging_dir, dest_dir)
 
-    logger.info("UDF deployment package '%s' uploaded and extracted to %s.", file.filename, dest_dir)
-    return {"status": "success", "message": f"UDF deployment package '{file.filename}' uploaded successfully."}
+    logger.info("Plugin package '%s' uploaded and extracted to %s.", file.filename, dest_dir)
+    return {"status": "success", "message": f"Plugin package '{file.filename}' uploaded successfully."}
 
 if __name__ == "__main__":  # pragma: no cover
     uvicorn.run(app, host="0.0.0.0", port=5000)

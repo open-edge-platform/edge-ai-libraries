@@ -11,8 +11,6 @@ import tarfile
 import pytest
 from unittest import mock
 from fastapi.testclient import TestClient
-import types
-import builtins
 import asyncio
 
 import main
@@ -25,7 +23,7 @@ def patch_config(monkeypatch):
     if getattr(main, "config", None) is not None:
         main.config.clear()
     main.config = {
-        "udfs": {"name": "udf_name", "model": "model_name"},
+        "plugin": {"name": "plugin_name", "models": "model_name"},
         "alerts": {"opcua": {"opcua_server": "opc.tcp://localhost:4840", "node_id": "ns=2;i=2", "namespace": 2}}
     }
     yield
@@ -47,36 +45,34 @@ def test_health_check_not_running(monkeypatch):
     assert resp.status_code == 503
     assert "InfluxDB 3 Core is not running" in resp.json()["status"]
 
-def test_check_udf_package_defaults_plugin_to_udf_name(monkeypatch, tmp_path):
-    plugin_dir = tmp_path / "temperature_classifier" / "udfs" / "temperature_classifier"
+def test_check_plugin_package_uses_plugin_root(monkeypatch, tmp_path):
+    plugin_dir = tmp_path / "temperature_classifier" / "plugin"
     plugin_dir.mkdir(parents=True)
     (plugin_dir / "__init__.py").touch()
     monkeypatch.setattr(main.tempfile, "gettempdir", lambda: str(tmp_path))
-    monkeypatch.delenv("INFLUXDB3_UDF_PLUGIN_DIR", raising=False)
 
-    assert main.check_udf_package(
-        {"udfs": {"name": "temperature_classifier"}},
+    assert main.check_plugin_package(
+        {"plugin": {"name": "temperature_classifier"}},
         "temperature_classifier",
     )
 
-def test_upload_udf_package_accepts_temperature_plugin_without_override(monkeypatch, tmp_path):
+def test_upload_plugin_package_accepts_temperature_plugin(monkeypatch, tmp_path):
     plugin_content = b"def process_writes(influxdb3_local, table_batches, args=None): pass\n"
     archive_buffer = io.BytesIO()
     with tarfile.open(fileobj=archive_buffer, mode="w") as archive:
-        plugin_info = tarfile.TarInfo("udfs/temperature_classifier/__init__.py")
+        plugin_info = tarfile.TarInfo("plugin/__init__.py")
         plugin_info.size = len(plugin_content)
         archive.addfile(plugin_info, io.BytesIO(plugin_content))
 
     monkeypatch.setattr(main.tempfile, "gettempdir", lambda: str(tmp_path))
     monkeypatch.setenv("SAMPLE_APP", "temperature_classifier")
-    monkeypatch.delenv("INFLUXDB3_UDF_PLUGIN_DIR", raising=False)
     response = client.post(
-        "/udfs/package",
+        "/plugin/package",
         files={"file": ("temperature_classifier.tar", archive_buffer.getvalue(), "application/x-tar")},
     )
 
     assert response.status_code == 200
-    assert (tmp_path / "temperature_classifier" / "udfs" / "temperature_classifier" / "__init__.py").is_file()
+    assert (tmp_path / "temperature_classifier" / "plugin" / "__init__.py").is_file()
 
 def test_receive_data_success(monkeypatch):
     backend = mock.Mock()
@@ -152,7 +148,7 @@ def test_receive_line_protocol_rejects_missing_auth():
 def test_get_config(monkeypatch):
     resp = client.get("/config")
     assert resp.status_code == 200
-    assert "udfs" in resp.json()
+    assert "plugin" in resp.json()
     assert "alerts" in resp.json()
 
 def test_get_config_with_restart(monkeypatch):
@@ -162,13 +158,13 @@ def test_get_config_with_restart(monkeypatch):
     monkeypatch.setattr(main, "restart_influxdb3", fake_restart)
     resp = client.get("/config?restart=true")
     assert resp.status_code == 200
-    assert "udfs" in resp.json()
+    assert "plugin" in resp.json()
 
 def test_post_config(monkeypatch):
-    monkeypatch.setattr(main, "check_udf_package", lambda *args: True)
+    monkeypatch.setattr(main, "check_plugin_package", lambda *args: True)
     monkeypatch.setattr(main, "restart_influxdb3", lambda: None)
     data = {
-        "udfs": {"name": "udf_name", "model": "model_name"},
+        "plugin": {"name": "plugin_name", "models": "model_name"},
         "alerts": {}
     }
     resp = client.post("/config", json=data)
@@ -193,74 +189,6 @@ def test_json_to_line_protocol_no_tags():
     )
     line = main.json_to_line_protocol(dp)
     assert line == "test x=1 123"
-
-@pytest.mark.skip(reason="Kapacitor lifecycle is replaced by InfluxDB 3 Core")
-def test_start_kapacitor_service_calls_classifier_startup(monkeypatch):
-    called = {}
-    def fake_classifier_startup(cfg):
-        called["called"] = cfg
-    monkeypatch.setattr(main.classifier_startup, "classifier_startup", fake_classifier_startup)
-    test_cfg = {"foo": "bar"}
-    main.start_kapacitor_service(test_cfg)
-    assert called["called"] == test_cfg
-
-@pytest.mark.skip(reason="Kapacitor lifecycle is replaced by InfluxDB 3 Core")
-def test_stop_kapacitor_service_not_running(monkeypatch, caplog):
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is not running"})
-    logs = []
-    def fake_info(msg):
-        logs.append(msg)
-    monkeypatch.setattr(main.logger, "info", fake_info)
-    main.stop_kapacitor_service()
-    assert any("Kapacitor daemon is not running." in l for l in logs)
-
-@pytest.mark.skip(reason="Kapacitor lifecycle is replaced by InfluxDB 3 Core")
-def test_stop_kapacitor_service_success(monkeypatch):
-    # health_check returns running
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
-    # Mock requests.get to return a fake task list
-    class FakeResp:
-        def json(self):
-            return {"tasks": [{"id": "task1"}]}
-    monkeypatch.setattr(main.requests, "get", lambda url, **kwargs: FakeResp())
-    # Track subprocess.run calls
-    calls = []
-    def fake_run(cmd, check):
-        calls.append((tuple(cmd), check))
-    monkeypatch.setattr(main.subprocess, "run", fake_run)
-    # Track kill-by-name calls instead of subprocess pkill
-    killed = []
-    monkeypatch.setattr(main, "_kill_processes_by_name", lambda name: killed.append(name))
-    # Mock logger
-    monkeypatch.setattr(main.logger, "info", lambda *args, **kwargs: None)
-    main.stop_kapacitor_service()
-    assert (("kapacitor", "disable", "task1"), False) in calls
-    assert "kapacitord" in killed
-
-@pytest.mark.skip(reason="Kapacitor lifecycle is replaced by InfluxDB 3 Core")
-def test_stop_kapacitor_service_subprocess_error(monkeypatch):
-    monkeypatch.setattr(main, "health_check", lambda r: {"status": "Kapacitor daemon is running"})
-    class FakeResp:
-        def json(self):
-            return {"tasks": [{"id": "task1"}]}
-    monkeypatch.setattr(main.requests, "get", lambda url, **kwargs: FakeResp())
-    def fake_run(cmd, check):
-        raise main.subprocess.CalledProcessError(1, cmd)
-    monkeypatch.setattr(main.subprocess, "run", fake_run)
-    errors = []
-    monkeypatch.setattr(main.logger, "error", lambda msg, *args, **kwargs: errors.append(msg))
-    main.stop_kapacitor_service()
-    assert any("Error stopping Kapacitor service" in e for e in errors)
-
-@pytest.mark.skip(reason="Kapacitor lifecycle is replaced by InfluxDB 3 Core")
-def test_restart_kapacitor_calls_stop_and_start(monkeypatch):
-    called = {"stop": False, "start": False}
-    monkeypatch.setattr(main, "stop_kapacitor_service", lambda: called.update({"stop": True}))
-    monkeypatch.setattr(main, "start_kapacitor_service", lambda cfg: called.update({"start": cfg}))
-    main.config["foo"] = "bar"
-    main.restart_kapacitor()
-    assert called["stop"] is True
-    assert called["start"] == main.config
 
 def test_health_check_status_running_204(monkeypatch):
     monkeypatch.setattr(main, "get_influxdb3_backend", lambda: mock.Mock())
@@ -426,18 +354,18 @@ async def test_get_config_returns_full_config(monkeypatch):
 async def test_get_config_filters_by_query(monkeypatch):
     # Simulate a request with query params to filter config
     class DummyRequest:
-        query_params = {"udfs": "1"}
+        query_params = {"plugin": "1"}
     result = await main.get_config(DummyRequest())
     # Should only return the filtered key
-    assert result == {"udfs": main.config["udfs"]}
+    assert result == {"plugin": main.config["plugin"]}
 
 @pytest.mark.asyncio
 async def test_get_config_removes_restart_param(monkeypatch):
     # Simulate a request with 'restart' and another param
     class DummyRequest:
-        query_params = {"restart": "true", "udfs": "1"}
+        query_params = {"restart": "true", "plugin": "1"}
     result = await main.get_config(DummyRequest())
-    assert result == {"udfs": main.config["udfs"]}
+    assert result == {"plugin": main.config["plugin"]}
 
 @pytest.mark.asyncio
 async def test_get_config_restart_triggers_background_task(monkeypatch):
@@ -458,217 +386,54 @@ async def test_get_config_restart_no_background_task(monkeypatch):
     result = await main.get_config(DummyRequest(), restart=True, background_tasks=None)
 
 
-@pytest.mark.skip(reason="The Core-backed service runs Uvicorn directly without a daemon thread")
-def test_main_run_server_thread(monkeypatch):
-    # Patch uvicorn.run to just set a flag
-    called = {}
-    def fake_run(app, host, port):
-        called["ran"] = (app, host, port)
-    monkeypatch.setattr(main.uvicorn, "run", fake_run)
-    # Patch threading.Thread to call target immediately
-    class DummyThread:
-        def __init__(self, target):
-            self.target = target
-        def start(self):
-            self.target()
-    monkeypatch.setattr(main.threading, "Thread", DummyThread)
-    # Patch open to raise FileNotFoundError
-    monkeypatch.setattr(builtins, "open", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()))
-    # Patch logger
-    logs = []
-    monkeypatch.setattr(main.logger, "warning", lambda msg: logs.append(msg))
-    # Patch time.sleep to break loop
-    monkeypatch.setattr(main.time, "sleep", lambda x: (_ for _ in ()).throw(KeyboardInterrupt()))
-    # Patch start_kapacitor_service to do nothing
-    monkeypatch.setattr(main, "start_kapacitor_service", lambda cfg: None)
-    # Patch json.load to return a dict
-    monkeypatch.setattr(main.json, "load", lambda f: {"foo": "bar"})
-    # Patch logger.info
-    monkeypatch.setattr(main.logger, "info", lambda msg: logs.append(msg))
-    # Patch logger.error
-    monkeypatch.setattr(main.logger, "error", lambda msg: logs.append(msg))
-    # Simulate __name__ == "__main__"
-    main_mod = types.ModuleType("main")
-    for k in dir(main):
-        setattr(main_mod, k, getattr(main, k))
-    main_mod.__name__ = "__main__"
-    # Patch builtins.open to raise FileNotFoundError for config file
-    monkeypatch.setattr(builtins, "open", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()))
-    # Run the block and check warning is logged
-    try:
-        exec(
-            "def run_server():\n"
-            "    uvicorn.run(app, host='0.0.0.0', port=5000)\n"
-            "server_thread = threading.Thread(target=run_server)\n"
-            "server_thread.start()\n"
-            "try:\n"
-            "    with open(CONFIG_FILE, 'r') as file:\n"
-            "        config = json.load(file)\n"
-            "    logger.info('App configuration loaded successfully from config.json file')\n"
-            "    start_kapacitor_service(config)\n"
-            "    while True:\n"
-            "        time.sleep(1)\n"
-            "except FileNotFoundError:\n"
-            "    logger.warning('config.json file not found, waiting for the configuration')\n"
-            "except Exception as e:\n"
-            "    logger.error(f'Time Series Analytics Microservice failure - {e}')\n",
-            main_mod.__dict__
-        )
-    except Exception:
-        pass
-    assert any("config.json file not found" in l for l in logs)
-
-@pytest.mark.skip(reason="Kapacitor startup/config loop is replaced by Core trigger configuration")
-def test_main_config_load_and_loop(monkeypatch):
-    # Patch open to return a dummy file-like object
-    class DummyFile:
-        def __enter__(self): return self
-        def __exit__(self, *a): pass
-    monkeypatch.setattr(builtins, "open", lambda *a, **k: DummyFile())
-    # Patch json.load to return a dict
-    monkeypatch.setattr(main.json, "load", lambda f: {"foo": "bar"})
-    # Patch logger
-    logs = []
-    monkeypatch.setattr(main.logger, "info", lambda msg: logs.append(msg))
-    # Patch start_kapacitor_service
-    monkeypatch.setattr(main, "start_kapacitor_service", lambda cfg: logs.append("kapacitor started"))
-    # Patch time.sleep to raise KeyboardInterrupt to break loop
-    monkeypatch.setattr(main.time, "sleep", lambda x: (_ for _ in ()).throw(KeyboardInterrupt()))
-    # Patch threading.Thread to call target immediately
-    class DummyThread:
-        def __init__(self, target):
-            self.target = target
-        def start(self):
-            self.target()
-    monkeypatch.setattr(main.threading, "Thread", DummyThread)
-    # Patch uvicorn.run
-    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **k: None)
-    # Simulate __name__ == "__main__"
-    main_mod = types.ModuleType("main")
-    for k in dir(main):
-        setattr(main_mod, k, getattr(main, k))
-    main_mod.__name__ = "__main__"
-    # Run the block and check info log
-    try:
-        exec(
-            "def run_server():\n"
-            "    uvicorn.run(app, host='0.0.0.0', port=5000)\n"
-            "server_thread = threading.Thread(target=run_server)\n"
-            "server_thread.start()\n"
-            "try:\n"
-            "    with open(CONFIG_FILE, 'r') as file:\n"
-            "        config = json.load(file)\n"
-            "    logger.info('App configuration loaded successfully from config.json file')\n"
-            "    start_kapacitor_service(config)\n"
-            "    while True:\n"
-            "        time.sleep(1)\n"
-            "except FileNotFoundError:\n"
-            "    logger.warning('config.json file not found, waiting for the configuration')\n"
-            "except Exception as e:\n"
-            "    logger.error(f'Time Series Analytics Microservice failure - {e}')\n",
-            main_mod.__dict__
-        )
-    except KeyboardInterrupt:
-        pass
-    assert any("App configuration loaded successfully" in l for l in logs)
-    assert any("kapacitor started" in l for l in logs)
-
-@pytest.mark.skip(reason="Kapacitor startup/config loop is replaced by Core trigger configuration")
-def test_main_config_load_exception(monkeypatch):
-    # Patch open to raise generic Exception
-    monkeypatch.setattr(builtins, "open", lambda *a, **k: (_ for _ in ()).throw(Exception("fail")))
-    # Patch logger
-    logs = []
-    monkeypatch.setattr(main.logger, "error", lambda msg: logs.append(msg))
-    # Patch threading.Thread to call target immediately
-    class DummyThread:
-        def __init__(self, target):
-            self.target = target
-        def start(self):
-            self.target()
-    monkeypatch.setattr(main.threading, "Thread", DummyThread)
-    # Patch uvicorn.run
-    monkeypatch.setattr(main.uvicorn, "run", lambda *a, **k: None)
-    # Patch time.sleep to break loop
-    monkeypatch.setattr(main.time, "sleep", lambda x: (_ for _ in ()).throw(KeyboardInterrupt()))
-    # Simulate __name__ == "__main__"
-    main_mod = types.ModuleType("main")
-    for k in dir(main):
-        setattr(main_mod, k, getattr(main, k))
-    main_mod.__name__ = "__main__"
-    # Run the block and check error log
-    try:
-        exec(
-            "def run_server():\n"
-            "    uvicorn.run(app, host='0.0.0.0', port=5000)\n"
-            "server_thread = threading.Thread(target=run_server)\n"
-            "server_thread.start()\n"
-            "try:\n"
-            "    with open(CONFIG_FILE, 'r') as file:\n"
-            "        config = json.load(file)\n"
-            "    logger.info('App configuration loaded successfully from config.json file')\n"
-            "    start_kapacitor_service(config)\n"
-            "    while True:\n"
-            "        time.sleep(1)\n"
-            "except FileNotFoundError:\n"
-            "    logger.warning('config.json file not found, waiting for the configuration')\n"
-            "except Exception as e:\n"
-            "    logger.error(f'Time Series Analytics Microservice failure - {e}')\n",
-            main_mod.__dict__
-        )
-    except Exception:
-        pass
-    assert any("Time Series Analytics Microservice failure" in l for l in logs)
-
-
 def test_post_config_success(monkeypatch):
-    monkeypatch.setattr(main, "check_udf_package", lambda *args: True)
+    monkeypatch.setattr(main, "check_plugin_package", lambda *args: True)
     monkeypatch.setattr(main, "restart_influxdb3", lambda: None)
     data = {
-        "udfs": {"name": "udf_name", "model": "model_name"},
+        "plugin": {"name": "plugin_name", "models": "model_name"},
         "alerts": {"opcua": {"opcua_server": "opc.tcp://localhost:4840", "node_id": "ns=2;i=2", "namespace": 2}}
     }
     resp = client.post("/config", json=data)
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"
-    assert main.config["udfs"]["name"] == "udf_name"
+    assert main.config["plugin"]["name"] == "plugin_name"
     assert "opcua" in main.config["alerts"]
 
 def test_post_config_alerts_optional(monkeypatch):
-    monkeypatch.setattr(main, "check_udf_package", lambda *args: True)
+    monkeypatch.setattr(main, "check_plugin_package", lambda *args: True)
     monkeypatch.setattr(main, "restart_influxdb3", lambda: None)
     data = {
-        "udfs": {"name": "udf_name", "model": "model_name"}
+        "plugin": {"name": "plugin_name", "models": "model_name"}
         # alerts omitted
     }
     resp = client.post("/config", json=data)
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"
-    assert main.config["udfs"]["model"] == "model_name"
+    assert main.config["plugin"]["models"] == "model_name"
 
 def test_post_config_invalid_json(monkeypatch):
     # Patch Config to raise JSONDecodeError
     class DummyConfig:
         def model_dump(self):
             return {}
-        udfs = {}
+        plugin = {}
         alerts = {}
     with pytest.raises(main.HTTPException) as exc:
         asyncio.run(main.config_file_change(DummyConfig(), mock.Mock()))
     assert exc.value.status_code == 422
-    assert "Missing key 'name' in udfs" in exc.value.detail
+    assert "Missing key 'name' in plugin" in exc.value.detail
 
 def test_post_config_missing_key(monkeypatch):
     # Patch Config to raise KeyError
     class DummyConfig:
         def model_dump(self):
             return {}
-        udfs = {}
+        plugin = {}
         alerts = {}
     with pytest.raises(main.HTTPException) as exc:
         asyncio.run(main.config_file_change(DummyConfig(), mock.Mock()))
     assert exc.value.status_code == 422
-    assert "Missing key 'name' in udfs" in exc.value.detail
+    assert "Missing key 'name' in plugin" in exc.value.detail
 
 def test_post_config_triggers_background_task(monkeypatch):
     called = {}
@@ -677,10 +442,10 @@ def test_post_config_triggers_background_task(monkeypatch):
     class DummyBackgroundTasks:
         def add_task(self, fn):
             fake_add_task(fn)
-    monkeypatch.setattr(main, "check_udf_package", lambda *args: True)
+    monkeypatch.setattr(main, "check_plugin_package", lambda *args: True)
     monkeypatch.setattr(main, "restart_influxdb3", lambda: None)
     data = {
-        "udfs": {"name": "udf_name", "model": "model_name"},
+        "plugin": {"name": "plugin_name", "models": "model_name"},
         "alerts": {}
     }
     resp = client.post("/config", json=data)

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from udfs.temperature_classifier import process_writes
+from plugin import process_writes
 
 
 class InfluxDB3Local:

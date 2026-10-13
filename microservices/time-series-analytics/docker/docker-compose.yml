@@ -53,7 +53,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
       INFLUXDB_DBNAME: datain
       PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
-      UDF_MAX_FILE_SIZE_MB: 100
+      PLUGIN_MAX_FILE_SIZE_MB: 100
       SSL_CERT_FILE: /run/secrets/ca_certificate.pem
     networks:
     - timeseries_network

@@ -36,7 +36,7 @@ def health_check(port):
     try:
         response = requests.get(url, timeout=10)
         assert response.status_code == 200
-        assert response.json() == {"status": "Kapacitor daemon is running"}
+        assert response.json() == {"status": "InfluxDB 3 Core is running"}
     except Exception as e:
         pytest.fail(f"Health check failed: {e}")
 
@@ -142,25 +142,25 @@ def get_config_endpoint(port):
     except Exception as e:
         pytest.fail(f"Failed to get config data: {e}")
 
-# Upload the UDF deployment tar to the /udfs/package endpoint
+# Upload the Core plugin package to the package endpoint
 def upload_tar_file(port):
     """
-    Create and upload the temperature_classifier UDF deployment tar to the microservice.
+    Create and upload the temperature plugin tar to the microservice.
     Equivalent to:
-        tar cf temperature_classifier.tar udfs/ tick_scripts/
-        curl -X POST http://localhost:<port>/udfs/package -F "file=@temperature_classifier.tar"
+        tar cf temperature_classifier.tar plugin/
+        curl -X POST http://localhost:<port>/plugin/package -F "file=@temperature_classifier.tar"
     """
     tar_path = os.path.join(TS_DIR, "temperature_classifier.tar")
     prev_dir = os.getcwd()
     try:
         os.chdir(TS_DIR)
-        run_command(["tar", "cf", tar_path, "udfs/", "tick_scripts/"])
+        run_command(["tar", "--exclude=__pycache__", "--exclude=*.pyc", "cf", tar_path, "plugin/"])
     except RuntimeError as e:
         pytest.fail(f"Failed to create tar file: {e}")
     finally:
         os.chdir(prev_dir)
 
-    url = f"http://localhost:{port}/udfs/package"
+    url = f"http://localhost:{port}/plugin/package"
     try:
         with open(tar_path, "rb") as tf:
             response = requests.post(url, files={"file": ("temperature_classifier.tar", tf, "application/x-tar")}, timeout=30)
@@ -172,7 +172,7 @@ def upload_tar_file(port):
 # Post config.json to the /config endpoint
 def update_config(port):
     """
-    Post config.json to the microservice to activate the uploaded UDF deployment package.
+    Post config.json to the microservice to activate the uploaded plugin.
     Equivalent to:
         curl -s -X POST http://localhost:<port>/config
             -H 'accept: application/json'
@@ -200,10 +200,9 @@ def post_config_endpoint(port, command):
         response = requests.post(url, json=config_file, timeout=10)
         assert response.status_code == 200
         assert response.json() == {"status": "success", "message": "Configuration updated successfully"}
-        time.sleep(10)  # Wait for the configuration to be applied
-        output = run_command(command)
-        output = output.stdout + output.stderr
-        assert "Kapacitor daemon process has exited and was reaped." in output
+        applied_config = requests.get(url, timeout=10)
+        assert applied_config.status_code == 200
+        assert applied_config.json() == config_file
     except Exception as e:
         pytest.fail(f"Failed to post config data: {e}")
 
@@ -261,8 +260,8 @@ def concurrent_api_requests(port):
             print(f"POST /input: {future_post_input.result()}")
             print(f"POST /config: {future_post_config.result()}")
 
-            health_status_code = [200, 500, 503, 400]
-            health_status_json = [{"status": "Kapacitor daemon is running"}, {"status": "Kapacitor daemon is not running"}]
+            health_status_code = [200, 503]
+            health_status_json = [{"status": "InfluxDB 3 Core is running"}, {"status": "InfluxDB 3 Core is not running"}]
             assert get_health_result[0] in health_status_code
             assert json.loads(get_health_result[1]) in health_status_json
             assert get_config_result[0] == 200
@@ -271,7 +270,7 @@ def concurrent_api_requests(port):
             assert post_alert_result[1] == {'detail': 'OPC UA alerts are not configured in the service'}
             assert future_post_input.result()[0] == 200 or future_post_input.result()[0] == 503
             assert future_post_input.result()[1] == {"status": "success", "message": "Data sent to Time Series Analytics microservice"} or \
-                future_post_input.result()[1] == {'status': 'Kapacitor daemon is not running'}
+                future_post_input.result()[1] == {"detail": "InfluxDB 3 Core is not running"}
             assert future_post_config.result()[0] == 200
             assert future_post_config.result()[1] == {"status": "success", "message": "Configuration updated successfully"}
         except Exception as e:
@@ -284,15 +283,14 @@ def post_invalid_config_endpoint(port, command):
     """
     url = f"http://localhost:{port}/config"
     invalid_config_data = copy.deepcopy(config_file)
-    invalid_config_data["udfs"]["name"] = "udf_classifier"
+    invalid_config_data["plugin"]["name"] = "plugin_classifier"
     try:
         response = requests.post(url, json=invalid_config_data, timeout=10)
         assert response.status_code == 422
         response_json = response.json()
-        assert "UDF deployment package validation failed" in response_json.get("detail", "")
-        time.sleep(15)  # Wait for the configuration to be applied
-        output = run_command(command)
-        output = output.stdout + output.stderr
-        assert "UDF deployment package directory udf_classifier does not exist. Please check and upload/copy the UDF deployment package." in output
+        assert "Plugin package validation failed" in response_json.get("detail", "")
+        applied_config = requests.get(url, timeout=10)
+        assert applied_config.status_code == 200
+        assert applied_config.json() == config_file
     except Exception as e:
         pytest.fail(f"Failed to post config data: {e}")

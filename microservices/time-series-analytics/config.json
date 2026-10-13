@@ -1,5 +1,5 @@
 {
-    "udfs": {
+    "plugin": {
         "name": "temperature_classifier"
     }
 }

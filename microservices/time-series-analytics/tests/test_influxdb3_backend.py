@@ -29,9 +29,9 @@ class InfluxDB3BackendTests(unittest.TestCase):
     def test_stream_config_creates_table_trigger_and_disables_batch(self, request):
         request.return_value = Mock(status_code=200, text="")
 
-        with patch.dict("os.environ", {"INFLUXDB3_UDF_PLUGIN_DIR": "", "INFLUXDB3_TRIGGER_SPEC": ""}):
-            result = self.backend.configure_udf(
-                {"udfs": {"name": "windturbine_anomaly_detector", "models": "model.pkl"}},
+        with patch.dict("os.environ", {"INFLUXDB3_TRIGGER_SPEC": ""}):
+            result = self.backend.configure_plugin(
+                {"plugin": {"name": "windturbine_anomaly_detector", "models": "model.pkl"}},
                 sample_app="wind-turbine-anomaly-detection",
             )
 
@@ -56,7 +56,7 @@ class InfluxDB3BackendTests(unittest.TestCase):
         self.assertEqual(create_call.kwargs["json"]["trigger_specification"], "table:point_data")
         self.assertEqual(
             create_call.kwargs["json"]["plugin_filename"],
-            "wind-turbine-anomaly-detection/udfs/windturbine_anomaly_detector",
+            "wind-turbine-anomaly-detection/plugin",
         )
         self.assertEqual(create_call.kwargs["json"]["trigger_arguments"]["model_path"],
                          "/tmp/wind-turbine-anomaly-detection/models/model.pkl")
@@ -65,26 +65,37 @@ class InfluxDB3BackendTests(unittest.TestCase):
     def test_batch_config_uses_twenty_minute_schedule(self, request):
         request.return_value = Mock(status_code=200, text="")
 
-        result = self.backend.configure_udf(
-            {"udfs": {"name": "windturbine_anomaly_detector_batch"}},
+        result = self.backend.configure_plugin(
+            {"plugin": {"name": "windturbine_anomaly_detector_batch"}},
             sample_app="wind-turbine-anomaly-detection",
         )
 
         self.assertEqual(result["trigger_specification"], "every:20m")
+        create_call = next(
+            item for item in request.call_args_list
+            if item.args[0] == "POST" and item.args[1].endswith("processing_engine_trigger")
+        )
+        self.assertEqual(
+            create_call.kwargs["json"]["plugin_filename"],
+            "wind-turbine-anomaly-detection/plugin",
+        )
 
     @patch("influxdb3_backend.requests.request")
     def test_stream_config_honors_sample_plugin_and_trigger_overrides(self, request):
         request.return_value = Mock(status_code=200, text="")
 
-        with patch.dict(
-            "os.environ",
-            {
-                "INFLUXDB3_UDF_PLUGIN_DIR": "influx3_windturbine",
-                "INFLUXDB3_TRIGGER_SPEC": "table:wind-turbine-data",
-            },
-        ):
-            result = self.backend.configure_udf(
-                {"udfs": {"name": "windturbine_anomaly_detector"}},
+        with patch.dict("os.environ", {"INFLUXDB3_TRIGGER_SPEC": "table:wind-turbine-data"}):
+            result = self.backend.configure_plugin(
+                {
+                    "plugin": {"name": "windturbine_anomaly_detector"},
+                    "alerts": {
+                        "mqtt": {
+                            "mqtt_broker_host": "secure-broker",
+                            "mqtt_broker_port": 8883,
+                            "tls_ca": "/run/secrets/ca_certificate.pem",
+                        }
+                    },
+                },
                 sample_app="wind-turbine-anomaly-detection",
             )
 
@@ -95,7 +106,11 @@ class InfluxDB3BackendTests(unittest.TestCase):
         self.assertEqual(result["trigger_specification"], "table:wind-turbine-data")
         self.assertEqual(
             create_call.kwargs["json"]["plugin_filename"],
-            "wind-turbine-anomaly-detection/udfs/influx3_windturbine",
+            "wind-turbine-anomaly-detection/plugin",
+        )
+        self.assertEqual(
+            create_call.kwargs["json"]["trigger_arguments"]["mqtt_tls_ca"],
+            "/run/secrets/ca_certificate.pem",
         )
 
 

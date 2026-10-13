@@ -12,10 +12,6 @@ class InfluxDB3Error(RuntimeError):
     pass
 
 
-def udf_plugin_directory(udf_name):
-    return os.getenv("INFLUXDB3_UDF_PLUGIN_DIR") or udf_name.removesuffix("_batch")
-
-
 class InfluxDB3Backend:
     def __init__(self, base_url=None, token=None, database=None):
         self.base_url = (base_url or os.getenv("INFLUXDB3_URL", "http://localhost:8181")).rstrip("/")
@@ -92,26 +88,26 @@ class InfluxDB3Backend:
             raise InfluxDB3Error(f"InfluxDB 3 trigger setup failed: HTTP {response.status_code}: {response.text}")
         return response
 
-    def configure_udf(self, config, sample_app=None):
-        udf_config = config.get("udfs") or {}
-        udf_name = udf_config.get("name")
-        if not isinstance(udf_name, str) or not udf_name:
-            raise InfluxDB3Error("The udfs.name config value is required")
+    def configure_plugin(self, config, sample_app=None):
+        plugin_config = config.get("plugin") or {}
+        plugin_name = plugin_config.get("name")
+        if not isinstance(plugin_name, str) or not plugin_name:
+            raise InfluxDB3Error("The plugin.name config value is required")
 
-        is_batch = udf_name.endswith("_batch")
-        base_name = udf_name.removesuffix("_batch") if is_batch else udf_name
-        trigger_name = udf_name
+        is_batch = plugin_name.endswith("_batch")
+        base_name = plugin_name.removesuffix("_batch") if is_batch else plugin_name
+        trigger_name = plugin_name
         alternate_name = base_name if is_batch else f"{base_name}_batch"
         trigger_specification = "every:20m" if is_batch else os.getenv(
             "INFLUXDB3_TRIGGER_SPEC"
         ) or "table:point_data"
-        sample_app = sample_app or os.getenv("SAMPLE_APP", udf_name)
-        plugin_directory = udf_plugin_directory(udf_name)
-        plugin_filename = f"{sample_app}/udfs/{plugin_directory}"
+        sample_app = sample_app or os.getenv("SAMPLE_APP", plugin_name)
+        package_path = "plugin"
+        plugin_filename = f"{sample_app}/{package_path}"
 
         self.ensure_database()
 
-        requirements_path = Path("/tmp") / sample_app / "udfs" / plugin_directory / "requirements.txt"
+        requirements_path = Path("/tmp") / sample_app / package_path / "requirements.txt"
         if requirements_path.is_file():
             response = self.request(
                 "POST",
@@ -139,10 +135,10 @@ class InfluxDB3Backend:
             )
 
         trigger_arguments = {}
-        model_name = udf_config.get("models")
+        model_name = plugin_config.get("models")
         if model_name:
             trigger_arguments["model_path"] = str(Path("/tmp") / sample_app / "models" / model_name)
-        device = udf_config.get("device")
+        device = plugin_config.get("device")
         if device:
             device_value = str(device).lower()
             trigger_arguments["device"] = "auto" if device_value == "cpu" else device_value
@@ -154,6 +150,8 @@ class InfluxDB3Backend:
                 "mqtt_topic": "alerts/wind_turbine",
                 "mqtt_qos": "1",
             })
+            if mqtt_config.get("tls_ca"):
+                trigger_arguments["mqtt_tls_ca"] = str(mqtt_config["tls_ca"])
         opcua_config = (config.get("alerts") or {}).get("opcua") or {}
         if opcua_config:
             trigger_arguments["opcua_url"] = os.getenv(
