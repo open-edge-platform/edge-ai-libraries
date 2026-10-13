@@ -67,26 +67,19 @@ type MediaFile struct {
 	ExpiryTS    time.Time
 }
 
-// Store is the subset of storage the replay service needs.
-type Store interface {
-	GetMetadataByRecordingID(ctx context.Context, id string) (model.Recording, error)
-	OpenMedia(ctx context.Context, uri string) (string, error)
-	DerivedDir(ctx context.Context, uri string) (string, error)
-	OpenDerived(ctx context.Context, uri, name string) (*os.File, error)
-}
-
 // Service implements Replayer with FFmpeg and FFprobe.
 type Service struct {
-	store   Store
-	ffmpeg  string
-	ffprobe string
-	slots   chan struct{}
-	now     func() time.Time
+	metadata storage.MetadataHandler
+	media    storage.MediaHandler
+	ffmpeg   string
+	ffprobe  string
+	slots    chan struct{}
+	now      func() time.Time
 }
 
 var _ Replayer = (*Service)(nil)
 
-func NewService(store Store) (*Service, error) {
+func NewService(metadata storage.MetadataHandler, media storage.MediaHandler) (*Service, error) {
 	ffmpeg, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return nil, fmt.Errorf("find FFmpeg: %w", err)
@@ -96,7 +89,7 @@ func NewService(store Store) (*Service, error) {
 		return nil, fmt.Errorf("find FFprobe: %w", err)
 	}
 	return &Service{
-		store: store, ffmpeg: ffmpeg, ffprobe: ffprobe,
+		metadata: metadata, media: media, ffmpeg: ffmpeg, ffprobe: ffprobe,
 		slots: make(chan struct{}, maxConcurrentExtractions), now: time.Now,
 	}, nil
 }
@@ -211,7 +204,7 @@ func (s *Service) OpenMedia(ctx context.Context, id, name string) (*os.File, Med
 	if err != nil {
 		return nil, MediaFile{}, err
 	}
-	file, err := s.store.OpenDerived(ctx, rec.RecordingPath, name)
+	file, err := s.media.OpenDerived(ctx, rec.RecordingPath, name)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, MediaFile{}, ErrMediaNotFound
 	}
@@ -232,7 +225,7 @@ func (s *Service) OpenMedia(ctx context.Context, id, name string) (*os.File, Med
 
 // recording returns a recording that has not expired.
 func (s *Service) recording(ctx context.Context, id string) (model.Recording, error) {
-	rec, err := s.store.GetMetadataByRecordingID(ctx, id)
+	rec, err := s.metadata.GetMetadataByRecordingID(ctx, id)
 	if errors.Is(err, storage.ErrNotFound) {
 		return model.Recording{}, ErrNotFound
 	}
@@ -266,7 +259,7 @@ func (s *Service) acquire() (func(), error) {
 }
 
 func (s *Service) openTimeline(ctx context.Context, rec model.Recording) (*timeline, error) {
-	path, err := s.store.OpenMedia(ctx, rec.RecordingPath)
+	path, err := s.media.OpenMedia(ctx, rec.RecordingPath)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +269,7 @@ func (s *Service) openTimeline(ctx context.Context, rec model.Recording) (*timel
 // derive returns the cached file called name while its TTL holds, otherwise
 // cuts it again with the FFmpeg arguments built for a destination path.
 func (s *Service) derive(ctx context.Context, rec model.Recording, tl *timeline, name string, args func(dst string) []string) (string, time.Time, error) {
-	dir, err := s.store.DerivedDir(ctx, rec.RecordingPath)
+	dir, err := s.media.DerivedDir(ctx, rec.RecordingPath)
 	if err != nil {
 		return "", time.Time{}, err
 	}

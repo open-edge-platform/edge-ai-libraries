@@ -49,22 +49,27 @@ func run() (errResult error) {
 	if err != nil {
 		return err
 	}
-	store, err := storage.Open(cfg.StorageDir)
+	metadata, err := storage.OpenMetadataStore(cfg.StorageDir)
 	if err != nil {
 		return err
 	}
-	defer func() { errResult = errors.Join(errResult, store.Close()) }()
+	defer func() { errResult = errors.Join(errResult, metadata.Close()) }()
+	media, err := storage.OpenMediaStore(cfg.StorageDir)
+	if err != nil {
+		return err
+	}
+	defer func() { errResult = errors.Join(errResult, media.Close()) }()
 	buffers, err := stream.NewService(cfg)
 	if err != nil {
 		return err
 	}
 	defer func() { errResult = errors.Join(errResult, buffers.Close()) }()
-	recordings, err := record.NewService(buffers, store, cfg.ConcurrentRecorders)
+	recordings, err := record.NewService(buffers, metadata, media, cfg.ConcurrentRecorders)
 	if err != nil {
 		return err
 	}
 	defer func() { errResult = errors.Join(errResult, recordings.Close()) }()
-	replays, err := replay.NewService(store)
+	replays, err := replay.NewService(metadata, media)
 	if err != nil {
 		return err
 	}
