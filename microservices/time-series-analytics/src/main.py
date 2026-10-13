@@ -210,6 +210,31 @@ def stop_pipeline(expected_task_id: Optional[str] = None):
     return {"status": "success", "task_id": task_id}
 
 
+@app.get("/pipeline_status")
+def pipeline_status(expected_task_id: Optional[str] = None):
+    """Return the status of the configured UDF task."""
+    task_id = config.get("udfs", {}).get("name")
+    if not isinstance(task_id, str) or not task_id:
+        raise HTTPException(status_code=409, detail="No UDF task is configured")
+    if expected_task_id is not None and expected_task_id != task_id:
+        raise HTTPException(status_code=409, detail="Configured UDF task does not match the requested task")
+
+    try:
+        response = requests.get(
+            f"{KAPACITOR_URL}/kapacitor/v1/tasks/{quote(task_id, safe='')}", timeout=30,
+        )
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as error:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Kapacitor failed to retrieve the task: HTTP {error.response.status_code}",
+        ) from error
+    except requests.exceptions.RequestException as error:
+        raise HTTPException(status_code=503, detail="Kapacitor is unavailable") from error
+
+    return {"task_id": task_id, "status": response.json()["status"]}
+
+
 @app.get("/health")
 def health_check(response: Response):
     """Get the health status of the Kapacitor daemon."""

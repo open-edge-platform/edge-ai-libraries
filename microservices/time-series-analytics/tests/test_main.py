@@ -142,6 +142,62 @@ def test_stop_pipeline_reports_kapacitor_failures(monkeypatch):
     assert rejected.status_code == 502
     assert rejected.json()["detail"] == "Kapacitor failed to disable the task: HTTP 404"
 
+@pytest.mark.parametrize("task_status", ["enabled", "disabled"])
+@pytest.mark.parametrize("expected_task_id", [None, "udf_name"])
+def test_pipeline_status_reports_configured_task(monkeypatch, task_status, expected_task_id):
+    monkeypatch.setattr(main, "KAPACITOR_URL", "http://kapacitor:9092")
+    get_task = mock.Mock(return_value=mock.Mock(json=lambda: {"status": task_status}))
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    params = {"expected_task_id": expected_task_id} if expected_task_id else None
+    resp = client.get("/pipeline_status", params=params)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"task_id": "udf_name", "status": task_status}
+    get_task.assert_called_once_with("http://kapacitor:9092/kapacitor/v1/tasks/udf_name", timeout=30)
+
+def test_pipeline_status_without_configured_task(monkeypatch):
+    main.config["udfs"] = {}
+    get_task = mock.Mock()
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    resp = client.get("/pipeline_status")
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "No UDF task is configured"
+    get_task.assert_not_called()
+
+def test_pipeline_status_rejects_different_configured_task(monkeypatch):
+    get_task = mock.Mock()
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    resp = client.get("/pipeline_status", params={"expected_task_id": "other_task"})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Configured UDF task does not match the requested task"
+    get_task.assert_not_called()
+
+def test_pipeline_status_reports_kapacitor_failures(monkeypatch):
+    get_task = mock.Mock(side_effect=main.requests.exceptions.ConnectionError("Connection refused"))
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    unavailable = client.get("/pipeline_status")
+
+    assert unavailable.status_code == 503
+    assert unavailable.json()["detail"] == "Kapacitor is unavailable"
+
+    rejected_response = mock.Mock(status_code=404)
+    rejected_response.raise_for_status.side_effect = main.requests.exceptions.HTTPError(
+        response=rejected_response
+    )
+    get_task.side_effect = None
+    get_task.return_value = rejected_response
+
+    rejected = client.get("/pipeline_status")
+
+    assert rejected.status_code == 502
+    assert rejected.json()["detail"] == "Kapacitor failed to retrieve the task: HTTP 404"
+
 def test_get_config_with_restart(monkeypatch):
     called = {}
     def fake_restart():
