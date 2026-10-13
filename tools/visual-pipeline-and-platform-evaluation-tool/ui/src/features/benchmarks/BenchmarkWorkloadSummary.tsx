@@ -1,4 +1,8 @@
-import type { BenchmarkWorkloadRun, Pipeline } from "@/api/api.generated.ts";
+import type {
+  BenchmarkWorkload,
+  BenchmarkWorkloadRun,
+  Pipeline,
+} from "@/api/api.generated.ts";
 import { BenchmarkWorkloadSummaryChart } from "@/features/benchmarks/BenchmarkWorkloadSummaryChart";
 
 const SUMMARY_CHARTS = [
@@ -23,11 +27,13 @@ const SUMMARY_CHARTS = [
 ] as const;
 
 type BenchmarkWorkloadSummaryProps = {
+  benchmarkWorkload?: BenchmarkWorkload;
   workloadRun: BenchmarkWorkloadRun;
   pipeline?: Pipeline;
 };
 
 export const BenchmarkWorkloadSummary = ({
+  benchmarkWorkload,
   workloadRun,
   pipeline,
 }: BenchmarkWorkloadSummaryProps) => (
@@ -35,6 +41,7 @@ export const BenchmarkWorkloadSummary = ({
     {SUMMARY_CHARTS.map((chart) => (
       <BenchmarkWorkloadSummaryChart
         key={chart.metricKey}
+        benchmarkWorkload={benchmarkWorkload}
         workloadRun={workloadRun}
         pipeline={pipeline}
         title={chart.title}

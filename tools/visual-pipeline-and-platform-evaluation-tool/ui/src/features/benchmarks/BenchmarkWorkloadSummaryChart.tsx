@@ -1,4 +1,8 @@
-import type { BenchmarkWorkloadRun, Pipeline } from "@/api/api.generated.ts";
+import type {
+  BenchmarkWorkload,
+  BenchmarkWorkloadRun,
+  Pipeline,
+} from "@/api/api.generated.ts";
 import {
   ChartContainer,
   ChartLegend,
@@ -49,8 +53,28 @@ const getMetricValue = (
   return typeof metricValue === "number" ? metricValue : 0;
 };
 
+const getBenchmarkVariantIds = (benchmarkWorkload?: BenchmarkWorkload) => {
+  if (!benchmarkWorkload) {
+    return [];
+  }
+
+  const testCaseVariantIds = benchmarkWorkload.test_cases
+    .map((testCase) => testCase.variant_id.trim())
+    .filter(Boolean);
+
+  if (testCaseVariantIds.length > 0) {
+    return [...new Set(testCaseVariantIds)];
+  }
+
+  return benchmarkWorkload.variants
+    .split(",")
+    .map((variantId) => variantId.trim())
+    .filter(Boolean);
+};
+
 const buildWorkloadSummaryChart = (
   workloadRun: BenchmarkWorkloadRun,
+  benchmarkWorkload?: BenchmarkWorkload,
   pipeline?: Pipeline,
   metricKey: SummaryMetricKey = "total_fps",
 ): {
@@ -59,11 +83,16 @@ const buildWorkloadSummaryChart = (
   config: ChartConfig;
 } => {
   const seriesByKey = new Map<string, WorkloadSummaryChartSeries>();
+  const benchmarkVariantIds = getBenchmarkVariantIds(benchmarkWorkload);
 
-  pipeline?.variants.forEach((variant, index) => {
-    seriesByKey.set(variant.id, {
-      key: variant.id,
-      label: variant.name,
+  benchmarkVariantIds.forEach((variantId, index) => {
+    const pipelineVariant = pipeline?.variants.find(
+      (variant) => variant.id === variantId,
+    );
+
+    seriesByKey.set(variantId, {
+      key: variantId,
+      label: pipelineVariant?.name ?? variantId,
       color: CHART_COLORS[index % CHART_COLORS.length],
     });
   });
@@ -135,11 +164,13 @@ const buildWorkloadSummaryChart = (
 };
 
 type BenchmarkWorkloadSummaryChartProps = {
+  benchmarkWorkload?: BenchmarkWorkload;
   workloadRun: BenchmarkWorkloadRun;
   pipeline?: Pipeline;
 } & WorkloadSummaryChartDefinition;
 
 export const BenchmarkWorkloadSummaryChart = ({
+  benchmarkWorkload,
   workloadRun,
   pipeline,
   title,
@@ -152,8 +183,14 @@ export const BenchmarkWorkloadSummaryChart = ({
     series,
     config: chartConfig,
   } = useMemo(
-    () => buildWorkloadSummaryChart(workloadRun, pipeline, metricKey),
-    [workloadRun, pipeline, metricKey],
+    () =>
+      buildWorkloadSummaryChart(
+        workloadRun,
+        benchmarkWorkload,
+        pipeline,
+        metricKey,
+      ),
+    [workloadRun, benchmarkWorkload, pipeline, metricKey],
   );
 
   if (chartData.length === 0) {

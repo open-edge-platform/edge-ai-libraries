@@ -220,10 +220,13 @@ export const BenchmarkSuiteRunDetailsTable = ({
               isExpanded ? (
                 <TableRow key={`details-${workloadRun.id}`}>
                   <TableCell colSpan={9} className="bg-muted/25 px-12">
-                    <BenchmarkWorkloadSummary
-                      workloadRun={workloadRun}
-                      pipeline={pipeline}
-                    />
+                    {workloadRun.status !== "running" ? (
+                      <BenchmarkWorkloadSummary
+                        benchmarkWorkload={workload}
+                        workloadRun={workloadRun}
+                        pipeline={pipeline}
+                      />
+                    ) : null}
                     <div className="mt-4">
                       <Table>
                         <TestCaseColGroup />
