@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { ChartNoAxesCombined, type LucideIcon } from "lucide-react";
 import {
   Cpu,
@@ -23,6 +26,7 @@ import { Jobs } from "@/pages/Jobs.tsx";
 import { PerformanceJobDetail } from "@/pages/PerformanceJobDetail.tsx";
 import { DensityJobDetail } from "@/pages/DensityJobDetail.tsx";
 import { OptimizationJobDetail } from "@/pages/OptimizationJobDetail.tsx";
+import { AudioJobDetail } from "@/pages/AudioJobDetail.tsx";
 import { PipelineList } from "@/pages/PipelineList";
 import { Cameras } from "@/pages/Cameras";
 import { Benchmarks } from "@/pages/Benchmarks";
@@ -86,6 +90,8 @@ export const routeConfig: Array<RouteObject> = [
   { path: "jobs/density/:jobId", Component: DensityJobDetail },
   { path: "jobs/optimize", Component: Jobs },
   { path: "jobs/optimize/:jobId", Component: OptimizationJobDetail },
+  { path: "jobs/audio", Component: Jobs },
+  { path: "jobs/audio/:jobId", Component: AudioJobDetail },
   { path: "benchmarks", Component: Benchmarks },
   { path: "benchmarks/:id", Component: BenchmarkDetail },
   { path: "benchmarks/:id/run/:runId", Component: BenchmarkRunDetail },

@@ -118,6 +118,20 @@ const injectedRtkApi = api
         query: () => ({ url: `/devices` }),
         providesTags: ["devices"],
       }),
+      getAudioStatuses: build.query<
+        GetAudioStatusesApiResponse,
+        GetAudioStatusesApiArg
+      >({
+        query: () => ({ url: `/jobs/audio/status` }),
+        providesTags: ["jobs"],
+      }),
+      getAudioJobStatus: build.query<
+        GetAudioJobStatusApiResponse,
+        GetAudioJobStatusApiArg
+      >({
+        query: (queryArg) => ({ url: `/jobs/audio/${queryArg.jobId}/status` }),
+        providesTags: ["jobs"],
+      }),
       getPerformanceStatuses: build.query<
         GetPerformanceStatusesApiResponse,
         GetPerformanceStatusesApiArg
@@ -724,6 +738,14 @@ export type ToDescriptionApiArg = {
 export type GetDevicesApiResponse =
   /** status 200 List of devices successfully retrieved. */ Device[];
 export type GetDevicesApiArg = void;
+export type GetAudioStatusesApiResponse =
+  /** status 200 Successful Response */ AudioJobSummary[];
+export type GetAudioStatusesApiArg = void;
+export type GetAudioJobStatusApiResponse =
+  /** status 200 Successful Response */ AudioJobStatus;
+export type GetAudioJobStatusApiArg = {
+  jobId: string;
+};
 export type GetPerformanceStatusesApiResponse =
   /** status 200 Successful Response */ PerformanceJobStatus[];
 export type GetPerformanceStatusesApiArg = void;
@@ -1245,6 +1267,44 @@ export type Device = {
   device_type: DeviceType;
   device_family: DeviceFamily;
   gpu_id: number | null;
+};
+export type AudioJobState =
+  | "QUEUED"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED";
+export type AudioJobSummary = {
+  id: string;
+  pipeline_id: string;
+  pipeline_name: string;
+  operation: "speech_to_text" | "text_to_speech";
+  variant_id: string;
+  variant_name: string;
+  device: "CPU" | "GPU" | "NPU";
+  state: AudioJobState;
+  created_at: string;
+  modified_at: string;
+  service_round_trip_ms?: number | null;
+  artifact_available: boolean;
+  error?: string | null;
+};
+export type AudioJobStatus = {
+  id: string;
+  pipeline_id: string;
+  pipeline_name: string;
+  operation: "speech_to_text" | "text_to_speech";
+  variant_id: string;
+  variant_name: string;
+  device: "CPU" | "GPU" | "NPU";
+  state: AudioJobState;
+  created_at: string;
+  modified_at: string;
+  service_round_trip_ms?: number | null;
+  artifact_available: boolean;
+  error?: string | null;
+  transcript?: string | null;
+  artifact_url?: string | null;
 };
 export type TestJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type PipelineStreamSpec = {
@@ -1846,7 +1906,7 @@ export type AudioPipelineJobResponse = {
   variant_name: string;
   device: "CPU" | "GPU" | "NPU";
   operation: "speech_to_text" | "text_to_speech";
-  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
   created_at: string;
   modified_at: string;
   transcript?: string | null;
@@ -1892,6 +1952,10 @@ export const {
   useToDescriptionMutation,
   useGetDevicesQuery,
   useLazyGetDevicesQuery,
+  useGetAudioStatusesQuery,
+  useLazyGetAudioStatusesQuery,
+  useGetAudioJobStatusQuery,
+  useLazyGetAudioJobStatusQuery,
   useGetPerformanceStatusesQuery,
   useLazyGetPerformanceStatusesQuery,
   useGetPerformanceJobStatusQuery,

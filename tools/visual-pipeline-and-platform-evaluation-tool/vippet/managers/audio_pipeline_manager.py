@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 import yaml
 
@@ -33,6 +33,9 @@ class AudioPipelineOperation(str, Enum):
     TEXT_TO_SPEECH = "text_to_speech"
 
 
+AudioDevice = Literal["CPU", "GPU", "NPU"]
+
+
 SUPPORTED_DEVICES = {
     AudioPipelineOperation.SPEECH_TO_TEXT: {"CPU", "GPU", "NPU"},
     AudioPipelineOperation.TEXT_TO_SPEECH: {"CPU", "GPU"},
@@ -43,7 +46,7 @@ SUPPORTED_DEVICES = {
 class AudioPipelineVariant:
     id: str
     name: str
-    device: str
+    device: AudioDevice
 
 
 @dataclass(frozen=True)
@@ -270,7 +273,7 @@ class AudioPipelineManager:
                 AudioPipelineVariant(
                     id=variant_id,
                     name=name.strip(),
-                    device=device,
+                    device=cast(AudioDevice, device),
                 )
             )
         return variants

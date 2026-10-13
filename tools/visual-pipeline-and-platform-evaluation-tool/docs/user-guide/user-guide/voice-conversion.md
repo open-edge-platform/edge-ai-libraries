@@ -36,7 +36,8 @@ managed job, including conversions with edited text or another voice. Each
 successful job publishes a UUID-named WAV file under `shared/audio/output` and
 the browser downloads or plays that persisted artifact. The lower-level
 `POST /api/v1/voice/speech` endpoint remains response-only and does not persist
-its WAV response.
+its WAV response. Accepted managed Audio runs appear under **Jobs > Audio** at
+`/jobs/audio`.
 
 ## Deployment
 
@@ -297,9 +298,14 @@ The preset API follows the asynchronous ViPPET job pattern:
 - `POST /api/v1/voice/pipelines/{pipeline_id}/runs` remains available for
   compatibility and selects the pipeline's first variant.
 - `GET /api/v1/voice/jobs/{job_id}` returns `QUEUED`, `RUNNING`, `COMPLETED`,
-  or `FAILED`, selected variant metadata, and the transcript or artifact URL
-  when available.
+  `FAILED`, or `CANCELLED`, selected variant metadata, and the transcript or
+  artifact URL when available.
 - `GET /api/v1/voice/jobs/{job_id}/artifact` returns a completed TTS WAV.
+- `GET /api/v1/jobs/audio/status` lists Audio job operational metadata without
+  transcript content or Text to Speech input text.
+- `GET /api/v1/jobs/audio/{job_id}/status` returns the Jobs detail model. A
+  completed Speech to Text detail can include a transcript, and a completed
+  Text to Speech detail can include the public WAV artifact URL.
 
 Managed Speech to Text runs accept no request body and use the selected
 variant's device plus the validated YAML recording and language defaults.
@@ -366,7 +372,8 @@ curl --noproxy '*' -sS -X POST \
 ```
 
 Each start returns HTTP 202 with a `job_id`. Poll the job until its status is
-`COMPLETED` or `FAILED`:
+`COMPLETED`, `FAILED`, or `CANCELLED`. The run also appears under
+**Jobs > Audio**. Poll the Voice status endpoint:
 
 ```bash
 curl --noproxy '*' -sS \

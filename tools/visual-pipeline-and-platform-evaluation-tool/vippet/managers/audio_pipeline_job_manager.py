@@ -6,7 +6,7 @@ import logging
 import os
 import tempfile
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from audio_assets import AudioAssetsManager
 from managers.audio_pipeline_manager import (
+    AudioDevice,
     AudioPipeline,
     AudioPipelineManager,
     AudioPipelineOperation,
@@ -27,12 +28,34 @@ Transcribe = Callable[
 ]
 Synthesize = Callable[[str, str, str | None], Awaitable[tuple[bytes, float]]]
 
+DEFAULT_MAX_TERMINAL_JOBS = 500
+
 
 class AudioPipelineJobStatus(str, Enum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+TERMINAL_STATUSES = {
+    AudioPipelineJobStatus.COMPLETED,
+    AudioPipelineJobStatus.FAILED,
+    AudioPipelineJobStatus.CANCELLED,
+}
+
+_ALLOWED_TRANSITIONS = {
+    AudioPipelineJobStatus.QUEUED: {
+        AudioPipelineJobStatus.RUNNING,
+        AudioPipelineJobStatus.CANCELLED,
+    },
+    AudioPipelineJobStatus.RUNNING: {
+        AudioPipelineJobStatus.COMPLETED,
+        AudioPipelineJobStatus.FAILED,
+        AudioPipelineJobStatus.CANCELLED,
+    },
+}
 
 
 @dataclass
@@ -42,7 +65,7 @@ class AudioPipelineJob:
     pipeline_name: str
     variant_id: str
     variant_name: str
-    device: str
+    device: AudioDevice
     operation: AudioPipelineOperation
     status: AudioPipelineJobStatus
     created_at: datetime
@@ -61,15 +84,20 @@ class AudioPipelineJobManager:
         assets: AudioAssetsManager,
         transcribe: Transcribe,
         synthesize: Synthesize,
+        max_terminal_jobs: int = DEFAULT_MAX_TERMINAL_JOBS,
     ) -> None:
+        if max_terminal_jobs < 0:
+            raise ValueError("max_terminal_jobs must not be negative")
         self.pipelines = pipelines
         self.assets = assets
         self.transcribe = transcribe
         self.synthesize = synthesize
         self._jobs: dict[str, AudioPipelineJob] = {}
         self._tasks: dict[str, asyncio.Task[None]] = {}
+        self._lock = asyncio.Lock()
+        self._max_terminal_jobs = max_terminal_jobs
 
-    def start_job(
+    async def start_job(
         self,
         pipeline_id: str,
         variant_id: str | None = None,
@@ -115,42 +143,111 @@ class AudioPipelineJobManager:
             created_at=now,
             modified_at=now,
         )
-        self._jobs[job.id] = job
-        self._tasks[job.id] = asyncio.create_task(
-            self._execute(job, pipeline, input_text=input_text, voice=voice)
-        )
-        return job
+        async with self._lock:
+            self._jobs[job.id] = job
+            task = asyncio.create_task(
+                self._execute(
+                    job.id,
+                    pipeline,
+                    input_text=input_text,
+                    voice=voice,
+                )
+            )
+            self._tasks[job.id] = task
+            task.add_done_callback(
+                lambda completed, job_id=job.id: self._on_task_done(job_id, completed)
+            )
+        return replace(job)
 
     async def _execute(
         self,
-        job: AudioPipelineJob,
+        job_id: str,
         pipeline: AudioPipeline,
         *,
         input_text: str | None,
         voice: str | None,
     ) -> None:
-        self._set_status(job, AudioPipelineJobStatus.RUNNING)
+        uncommitted_artifact_path: str | None = None
         try:
+            async with self._lock:
+                job = self._jobs.get(job_id)
+                if job is None or job.status in TERMINAL_STATUSES:
+                    return
+                self._transition_locked(job, AudioPipelineJobStatus.RUNNING)
+                device = job.device
+
             if pipeline.operation is AudioPipelineOperation.SPEECH_TO_TEXT:
-                await self._execute_stt(job, pipeline)
+                transcript, duration = await self._execute_stt(pipeline, device)
+                artifact_path = None
+                artifact_filename = None
             else:
-                await self._execute_tts(
-                    job,
+                artifact_path, artifact_filename, duration = await self._execute_tts(
+                    job_id,
                     pipeline,
+                    device,
                     input_text=input_text,
                     voice=voice,
                 )
-            self._set_status(job, AudioPipelineJobStatus.COMPLETED)
+                uncommitted_artifact_path = artifact_path
+                transcript = None
+
+            async with self._lock:
+                job = self._jobs.get(job_id)
+                if job is None or job.status in TERMINAL_STATUSES:
+                    cleanup_paths: list[str] = []
+                else:
+                    job.transcript = transcript
+                    job.artifact_path = artifact_path
+                    job.artifact_filename = artifact_filename
+                    job.service_round_trip_ms = duration
+                    self._transition_locked(job, AudioPipelineJobStatus.COMPLETED)
+                    uncommitted_artifact_path = None
+                    cleanup_paths = self._prune_terminal_jobs_locked()
+            await self._delete_artifacts(
+                cleanup_paths
+                + (
+                    [uncommitted_artifact_path]
+                    if uncommitted_artifact_path is not None
+                    else []
+                )
+            )
+        except asyncio.CancelledError:
+            async with self._lock:
+                job = self._jobs.get(job_id)
+                if job is not None and job.status not in TERMINAL_STATUSES:
+                    self._transition_locked(job, AudioPipelineJobStatus.CANCELLED)
+                cleanup_paths = self._prune_terminal_jobs_locked()
+            await self._delete_artifacts(
+                cleanup_paths
+                + (
+                    [uncommitted_artifact_path]
+                    if uncommitted_artifact_path is not None
+                    else []
+                )
+            )
+            raise
         except Exception:
-            logger.exception("Audio pipeline job %s failed", job.id)
-            job.error = "Audio pipeline execution failed."
-            self._set_status(job, AudioPipelineJobStatus.FAILED)
+            logger.exception("Audio pipeline job %s failed", job_id)
+            async with self._lock:
+                job = self._jobs.get(job_id)
+                if job is not None and job.status not in TERMINAL_STATUSES:
+                    job.error = "Audio pipeline execution failed."
+                    self._transition_locked(job, AudioPipelineJobStatus.FAILED)
+                cleanup_paths = self._prune_terminal_jobs_locked()
+            await self._delete_artifacts(
+                cleanup_paths
+                + (
+                    [uncommitted_artifact_path]
+                    if uncommitted_artifact_path is not None
+                    else []
+                )
+            )
 
     async def _execute_stt(
         self,
-        job: AudioPipelineJob,
         pipeline: AudioPipeline,
-    ) -> None:
+        device: str,
+    ) -> tuple[str, float]:
         defaults = pipeline.defaults
         filename = defaults.audio or ""
         path = self.assets.get_path(filename)
@@ -162,28 +259,28 @@ class AudioPipelineJobManager:
                 filename,
                 "audio/wav",
                 defaults.language or "en",
-                job.device,
+                device,
             )
-        job.transcript = transcript
-        job.service_round_trip_ms = duration
+        return transcript, duration
 
     async def _execute_tts(
         self,
-        job: AudioPipelineJob,
+        job_id: str,
         pipeline: AudioPipeline,
+        device: str,
         *,
         input_text: str | None,
         voice: str | None,
-    ) -> None:
+    ) -> tuple[str, str, float]:
         defaults = pipeline.defaults
         content, duration = await self.synthesize(
             input_text if input_text is not None else defaults.text or "",
             voice if voice is not None else defaults.voice or "Ryan",
-            job.device,
+            device,
         )
         output_directory = Path(self.assets.get_output_directory())
         output_directory.mkdir(parents=True, exist_ok=True)
-        destination = output_directory / f"{job.id}.wav"
+        destination = output_directory / f"{job_id}.wav"
         temporary_path: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -200,23 +297,112 @@ class AudioPipelineJobManager:
         finally:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
-        job.artifact_path = str(destination)
-        job.artifact_filename = destination.name
-        job.service_round_trip_ms = duration
+        return str(destination), destination.name, duration
 
     @staticmethod
-    def _set_status(
+    def _transition_locked(
         job: AudioPipelineJob,
         status: AudioPipelineJobStatus,
     ) -> None:
+        if status not in _ALLOWED_TRANSITIONS.get(job.status, set()):
+            raise RuntimeError(
+                f"Invalid Audio job transition: {job.status} -> {status}"
+            )
         job.status = status
         job.modified_at = datetime.now(timezone.utc)
 
-    def get_job(self, job_id: str) -> AudioPipelineJob | None:
-        return self._jobs.get(job_id)
+    def _prune_terminal_jobs_locked(self) -> list[str]:
+        terminal_jobs = sorted(
+            (job for job in self._jobs.values() if job.status in TERMINAL_STATUSES),
+            key=lambda candidate: candidate.modified_at,
+            reverse=True,
+        )
+        artifact_paths: list[str] = []
+        for job in terminal_jobs[self._max_terminal_jobs :]:
+            removed = self._jobs.pop(job.id, None)
+            if removed is not None and removed.artifact_path is not None:
+                artifact_paths.append(removed.artifact_path)
+        return artifact_paths
+
+    async def _delete_artifacts(self, artifact_paths: list[str]) -> None:
+        if not artifact_paths:
+            return
+        output_directory = Path(self.assets.get_output_directory()).resolve()
+        for artifact_path in set(artifact_paths):
+            candidate = Path(artifact_path).resolve()
+            if candidate == output_directory or not candidate.is_relative_to(
+                output_directory
+            ):
+                logger.warning(
+                    "Refusing to delete Audio artifact outside output directory: %s",
+                    candidate,
+                )
+                continue
+            try:
+                candidate.unlink(missing_ok=True)
+            except OSError:
+                logger.exception("Failed to delete Audio artifact %s", candidate)
+
+    def _on_task_done(
+        self,
+        job_id: str,
+        task: asyncio.Task[None],
+    ) -> None:
+        try:
+            task.exception()
+        except asyncio.CancelledError:
+            pass
+        asyncio.create_task(self._remove_task(job_id, task))
+
+    async def _remove_task(
+        self,
+        job_id: str,
+        task: asyncio.Task[None],
+    ) -> None:
+        async with self._lock:
+            if self._tasks.get(job_id) is task:
+                self._tasks.pop(job_id, None)
+
+    async def get_job(self, job_id: str) -> AudioPipelineJob | None:
+        async with self._lock:
+            job = self._jobs.get(job_id)
+            return replace(job) if job is not None else None
+
+    async def list_jobs(self) -> list[AudioPipelineJob]:
+        async with self._lock:
+            return [
+                replace(job)
+                for job in sorted(
+                    self._jobs.values(),
+                    key=lambda candidate: candidate.created_at,
+                    reverse=True,
+                )
+            ]
 
     async def wait(self, job_id: str) -> None:
-        task = self._tasks.get(job_id)
-        if task is None:
+        async with self._lock:
+            task = self._tasks.get(job_id)
+            job = self._jobs.get(job_id)
+        if task is None and job is None:
             raise ValueError(f"Audio pipeline job '{job_id}' not found.")
-        await task
+        if task is None:
+            return
+        await asyncio.gather(task, return_exceptions=True)
+        await self._remove_task(job_id, task)
+
+    async def shutdown(self) -> None:
+        async with self._lock:
+            tasks = list(self._tasks.items())
+            for job in self._jobs.values():
+                if job.status not in TERMINAL_STATUSES:
+                    self._transition_locked(job, AudioPipelineJobStatus.CANCELLED)
+            cleanup_paths = self._prune_terminal_jobs_locked()
+        await self._delete_artifacts(cleanup_paths)
+        for _, task in tasks:
+            task.cancel()
+        await asyncio.gather(
+            *(task for _, task in tasks),
+            return_exceptions=True,
+        )
+        for job_id, task in tasks:
+            await self._remove_task(job_id, task)

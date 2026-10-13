@@ -1,10 +1,15 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 import time
+from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 import api.api_schemas as schemas
+from api.dependencies.audio_jobs import get_audio_pipeline_job_manager
 from graph import Graph
 from internal_types import (
     InternalBenchmarkJobStatus,
@@ -23,6 +28,10 @@ from internal_types import (
     InternalValidationJobSummary,
 )
 from managers.benchmark_manager import BenchmarkManager
+from managers.audio_pipeline_job_manager import (
+    AudioPipelineJob,
+    AudioPipelineJobManager,
+)
 from managers.metadata_manager import MetadataManager
 from managers.model_manager import ModelManager
 from managers.optimization_manager import OptimizationManager
@@ -34,6 +43,42 @@ METADATA_SNAPSHOT_LIMIT = 1000
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.jobs")
+
+AudioJobManagerDependency = Annotated[
+    AudioPipelineJobManager,
+    Depends(get_audio_pipeline_job_manager),
+]
+
+
+def _audio_job_to_api_summary(job: AudioPipelineJob) -> schemas.AudioJobSummary:
+    return schemas.AudioJobSummary(
+        id=job.id,
+        pipeline_id=job.pipeline_id,
+        pipeline_name=job.pipeline_name,
+        operation=job.operation.value,
+        variant_id=job.variant_id,
+        variant_name=job.variant_name,
+        device=job.device,
+        state=schemas.AudioJobState(job.status.value),
+        created_at=job.created_at,
+        modified_at=job.modified_at,
+        service_round_trip_ms=job.service_round_trip_ms,
+        artifact_available=job.artifact_path is not None,
+        error=job.error,
+    )
+
+
+def _audio_job_to_api_status(job: AudioPipelineJob) -> schemas.AudioJobStatus:
+    summary = _audio_job_to_api_summary(job)
+    return schemas.AudioJobStatus(
+        **summary.model_dump(),
+        transcript=job.transcript,
+        artifact_url=(
+            f"/api/v1/voice/jobs/{job.id}/artifact"
+            if job.artifact_path is not None
+            else None
+        ),
+    )
 
 
 def get_test_job_status(job_id: str, job_type: str):
@@ -137,6 +182,32 @@ def stop_benchmark_job_handler(job_id: str):
         content=response.model_dump(),
         status_code=500,
     )
+
+
+@router.get(
+    "/audio/status",
+    operation_id="get_audio_statuses",
+    response_model=list[schemas.AudioJobSummary],
+)
+async def get_audio_statuses(
+    manager: AudioJobManagerDependency,
+) -> list[schemas.AudioJobSummary]:
+    return [_audio_job_to_api_summary(job) for job in await manager.list_jobs()]
+
+
+@router.get(
+    "/audio/{job_id}/status",
+    operation_id="get_audio_job_status",
+    response_model=schemas.AudioJobStatus,
+)
+async def get_audio_job_status(
+    job_id: str,
+    manager: AudioJobManagerDependency,
+) -> schemas.AudioJobStatus:
+    job = await manager.get_job(job_id)
+    if job is None:
+        raise HTTPException(404, "Audio pipeline job not found.")
+    return _audio_job_to_api_status(job)
 
 
 @router.get(

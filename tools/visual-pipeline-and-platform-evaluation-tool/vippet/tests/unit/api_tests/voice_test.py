@@ -10,12 +10,18 @@ import wave
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import httpx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from api.dependencies.audio_jobs import (
+    _reset_audio_pipeline_job_manager_for_tests,
+    configure_audio_pipeline_job_manager_factory,
+    get_audio_pipeline_job_manager,
+    shutdown_audio_pipeline_job_manager,
+)
 from api.routes import voice
 from managers.audio_pipeline_job_manager import AudioPipelineJobStatus
 
@@ -30,10 +36,41 @@ def wav_bytes(seconds: int = 1, channels: int = 1) -> bytes:
     return buffer.getvalue()
 
 
+class AudioJobManagerDependencyTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        _reset_audio_pipeline_job_manager_for_tests()
+
+    def tearDown(self) -> None:
+        _reset_audio_pipeline_job_manager_for_tests()
+        configure_audio_pipeline_job_manager_factory(
+            voice._create_audio_pipeline_job_manager
+        )
+
+    async def test_audio_job_manager_dependency_is_shared(self) -> None:
+        manager = MagicMock()
+        factory = MagicMock(return_value=manager)
+        configure_audio_pipeline_job_manager_factory(factory)
+
+        self.assertIs(get_audio_pipeline_job_manager(), manager)
+        self.assertIs(get_audio_pipeline_job_manager(), manager)
+        factory.assert_called_once_with()
+
+    async def test_audio_job_manager_dependency_shutdown(self) -> None:
+        manager = MagicMock()
+        manager.shutdown = AsyncMock()
+        configure_audio_pipeline_job_manager_factory(lambda: manager)
+        get_audio_pipeline_job_manager()
+
+        await shutdown_audio_pipeline_job_manager()
+
+        manager.shutdown.assert_awaited_once_with()
+
+
 class VoiceTests(unittest.TestCase):
     def setUp(self) -> None:
         app = FastAPI()
         app.include_router(voice.router, prefix="/voice")
+        self.app = app
         self.requests: list[httpx.Request] = []
         self.upstream: httpx.Response | None = None
         self.failure: type[httpx.RequestError] | None = None
@@ -49,6 +86,10 @@ class VoiceTests(unittest.TestCase):
         metrics_patch = patch.object(voice, "schedule_voice_metric")
         self.schedule_metric = metrics_patch.start()
         self.addCleanup(metrics_patch.stop)
+        self.addCleanup(app.dependency_overrides.clear)
+
+    def use_audio_jobs(self, jobs) -> None:
+        self.app.dependency_overrides[get_audio_pipeline_job_manager] = lambda: jobs
 
     def respond(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -468,57 +509,42 @@ class VoiceTests(unittest.TestCase):
             error=None,
         )
         jobs = SimpleNamespace(
-            start_job=MagicMock(return_value=job),
-            get_job=lambda job_id: job if job_id == "job-1" else None,
+            start_job=AsyncMock(return_value=job),
+            get_job=AsyncMock(
+                side_effect=lambda job_id: job if job_id == "job-1" else None
+            ),
         )
-        with patch.object(
-            voice,
-            "get_audio_pipeline_job_manager",
-            return_value=jobs,
-            create=True,
-        ):
-            started = self.client.post("/voice/pipelines/speech-to-text/runs")
-            status = self.client.get("/voice/jobs/job-1")
+        self.use_audio_jobs(jobs)
+        started = self.client.post("/voice/pipelines/speech-to-text/runs")
+        status = self.client.get("/voice/jobs/job-1")
 
         self.assertEqual(started.status_code, 202)
         self.assertEqual(started.json(), {"job_id": "job-1", "status": "QUEUED"})
-        jobs.start_job.assert_called_once_with("speech-to-text", None)
+        jobs.start_job.assert_awaited_once_with("speech-to-text", None)
         self.assertEqual(status.status_code, 200)
         self.assertEqual(status.json()["pipeline_id"], "speech-to-text")
         self.assertEqual(status.json()["variant_id"], "cpu")
 
     def test_starts_audio_pipeline_variant_job(self) -> None:
         job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
-        jobs = SimpleNamespace(start_job=MagicMock(return_value=job))
-        with patch.object(
-            voice,
-            "get_audio_pipeline_job_manager",
-            return_value=jobs,
-            create=True,
-        ):
-            response = self.client.post(
-                "/voice/pipelines/speech-to-text/variants/gpu/runs"
-            )
+        jobs = SimpleNamespace(start_job=AsyncMock(return_value=job))
+        self.use_audio_jobs(jobs)
+        response = self.client.post("/voice/pipelines/speech-to-text/variants/gpu/runs")
 
         self.assertEqual(response.status_code, 202)
-        jobs.start_job.assert_called_once_with("speech-to-text", "gpu")
+        jobs.start_job.assert_awaited_once_with("speech-to-text", "gpu")
 
     def test_starts_custom_tts_pipeline_job(self) -> None:
         job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
-        jobs = SimpleNamespace(start_job=MagicMock(return_value=job))
-        with patch.object(
-            voice,
-            "get_audio_pipeline_job_manager",
-            return_value=jobs,
-            create=True,
-        ):
-            response = self.client.post(
-                "/voice/pipelines/text-to-speech/variants/gpu/runs",
-                json={"input": "Custom sentence", "voice": "Angus"},
-            )
+        jobs = SimpleNamespace(start_job=AsyncMock(return_value=job))
+        self.use_audio_jobs(jobs)
+        response = self.client.post(
+            "/voice/pipelines/text-to-speech/variants/gpu/runs",
+            json={"input": "Custom sentence", "voice": "Angus"},
+        )
 
         self.assertEqual(response.status_code, 202)
-        jobs.start_job.assert_called_once_with(
+        jobs.start_job.assert_awaited_once_with(
             "text-to-speech",
             "gpu",
             input_text="Custom sentence",
@@ -526,47 +552,37 @@ class VoiceTests(unittest.TestCase):
         )
 
     def test_rejects_invalid_custom_tts_pipeline_input(self) -> None:
-        jobs = SimpleNamespace(start_job=MagicMock())
+        jobs = SimpleNamespace(start_job=AsyncMock())
         invalid_payloads = [
             {"input": "", "voice": "Ryan"},
             {"input": "x" * 201, "voice": "Ryan"},
             {"input": "Custom sentence", "voice": "Unknown"},
             {"input": "Custom sentence", "voice": "Ryan", "extra": True},
         ]
-        with patch.object(
-            voice,
-            "get_audio_pipeline_job_manager",
-            return_value=jobs,
-            create=True,
-        ):
-            for payload in invalid_payloads:
-                with self.subTest(payload=payload):
-                    response = self.client.post(
-                        "/voice/pipelines/text-to-speech/runs",
-                        json=payload,
-                    )
-                    self.assertEqual(response.status_code, 422)
+        self.use_audio_jobs(jobs)
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                response = self.client.post(
+                    "/voice/pipelines/text-to-speech/runs",
+                    json=payload,
+                )
+                self.assertEqual(response.status_code, 422)
 
         jobs.start_job.assert_not_called()
 
     def test_rejects_tts_input_for_stt_pipeline(self) -> None:
         jobs = SimpleNamespace(
-            start_job=MagicMock(
+            start_job=AsyncMock(
                 side_effect=ValueError(
                     "Speech-to-text pipelines do not accept TTS overrides."
                 )
             )
         )
-        with patch.object(
-            voice,
-            "get_audio_pipeline_job_manager",
-            return_value=jobs,
-            create=True,
-        ):
-            response = self.client.post(
-                "/voice/pipelines/speech-to-text/runs",
-                json={"input": "Custom sentence", "voice": "Ryan"},
-            )
+        self.use_audio_jobs(jobs)
+        response = self.client.post(
+            "/voice/pipelines/speech-to-text/runs",
+            json={"input": "Custom sentence", "voice": "Ryan"},
+        )
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
@@ -576,21 +592,16 @@ class VoiceTests(unittest.TestCase):
 
     def test_rejects_unknown_audio_pipeline_variant_run(self) -> None:
         jobs = SimpleNamespace(
-            start_job=MagicMock(
+            start_job=AsyncMock(
                 side_effect=ValueError(
                     "Audio pipeline 'speech-to-text' variant 'missing' not found."
                 )
             )
         )
-        with patch.object(
-            voice,
-            "get_audio_pipeline_job_manager",
-            return_value=jobs,
-            create=True,
-        ):
-            response = self.client.post(
-                "/voice/pipelines/speech-to-text/variants/missing/runs"
-            )
+        self.use_audio_jobs(jobs)
+        response = self.client.post(
+            "/voice/pipelines/speech-to-text/variants/missing/runs"
+        )
 
         self.assertEqual(response.status_code, 404)
         self.assertEqual(
@@ -599,17 +610,12 @@ class VoiceTests(unittest.TestCase):
 
     def test_rejects_unknown_audio_pipeline_run(self) -> None:
         jobs = SimpleNamespace(
-            start_job=lambda _pipeline_id, _variant_id: (_ for _ in ()).throw(
-                ValueError("Audio pipeline 'missing' not found.")
+            start_job=AsyncMock(
+                side_effect=ValueError("Audio pipeline 'missing' not found.")
             )
         )
-        with patch.object(
-            voice,
-            "get_audio_pipeline_job_manager",
-            return_value=jobs,
-            create=True,
-        ):
-            response = self.client.post("/voice/pipelines/missing/runs")
+        self.use_audio_jobs(jobs)
+        response = self.client.post("/voice/pipelines/missing/runs")
 
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json(), {"detail": "Audio pipeline not found."})
@@ -623,17 +629,15 @@ class VoiceTests(unittest.TestCase):
                 artifact_path=str(artifact),
                 artifact_filename="job-1.wav",
             )
-            jobs = SimpleNamespace(get_job=lambda _job_id: job)
-            with patch.object(
-                voice,
-                "get_audio_pipeline_job_manager",
-                return_value=jobs,
-                create=True,
-            ):
-                response = self.client.get("/voice/jobs/job-1/artifact")
+            jobs = SimpleNamespace(get_job=AsyncMock(return_value=job))
+            self.use_audio_jobs(jobs)
+            response = self.client.get("/voice/jobs/job-1/artifact")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, wav_bytes())
+        self.assertEqual(response.headers["content-type"], "audio/wav")
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertEqual(response.headers["x-content-type-options"], "nosniff")
         self.assertIn("speech.wav", response.headers["content-disposition"])
 
 

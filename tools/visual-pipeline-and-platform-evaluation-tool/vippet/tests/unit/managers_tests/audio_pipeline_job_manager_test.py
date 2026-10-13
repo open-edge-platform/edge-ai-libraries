@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import io
 import tempfile
 import unittest
@@ -90,9 +91,9 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
             AudioPipelineOperation.SPEECH_TO_TEXT
         )
 
-        job = self.manager.start_job("speech-to-text")
+        job = await self.manager.start_job("speech-to-text")
         await self.manager.wait(job.id)
-        completed = self.manager.get_job(job.id)
+        completed = await self.manager.get_job(job.id)
 
         assert completed is not None
         self.assertEqual(completed.status, AudioPipelineJobStatus.COMPLETED)
@@ -109,7 +110,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
             AudioPipelineOperation.SPEECH_TO_TEXT
         )
 
-        job = self.manager.start_job("speech-to-text", "npu")
+        job = await self.manager.start_job("speech-to-text", "npu")
         await self.manager.wait(job.id)
 
         self.assertEqual(job.variant_id, "npu")
@@ -123,9 +124,9 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
             AudioPipelineOperation.TEXT_TO_SPEECH
         )
 
-        job = self.manager.start_job("text-to-speech", "gpu")
+        job = await self.manager.start_job("text-to-speech", "gpu")
         await self.manager.wait(job.id)
-        completed = self.manager.get_job(job.id)
+        completed = await self.manager.get_job(job.id)
 
         assert completed is not None
         self.assertEqual(completed.status, AudioPipelineJobStatus.COMPLETED)
@@ -144,23 +145,25 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
             AudioPipelineOperation.TEXT_TO_SPEECH
         )
 
-        job = self.manager.start_job(
+        job = await self.manager.start_job(
             "text-to-speech",
             "gpu",
             input_text="Custom sentence",
             voice="Angus",
         )
         await self.manager.wait(job.id)
+        completed = await self.manager.get_job(job.id)
 
         self.synthesize.assert_awaited_once_with(
             "Custom sentence",
             "Angus",
             "GPU",
         )
-        self.assertEqual(job.status, AudioPipelineJobStatus.COMPLETED)
-        self.assertEqual(job.artifact_filename, f"{job.id}.wav")
-        assert job.artifact_path is not None
-        self.assertEqual(Path(job.artifact_path).read_bytes(), wav_bytes())
+        assert completed is not None
+        self.assertEqual(completed.status, AudioPipelineJobStatus.COMPLETED)
+        self.assertEqual(completed.artifact_filename, f"{job.id}.wav")
+        assert completed.artifact_path is not None
+        self.assertEqual(Path(completed.artifact_path).read_bytes(), wav_bytes())
 
     async def test_rejects_tts_overrides_for_stt_job(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(
@@ -168,7 +171,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "do not accept TTS overrides"):
-            self.manager.start_job(
+            await self.manager.start_job(
                 "speech-to-text",
                 input_text="Custom sentence",
                 voice="Ryan",
@@ -178,7 +181,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
         self.pipeline_manager.get_pipeline.return_value = None
 
         with self.assertRaisesRegex(ValueError, "not found"):
-            self.manager.start_job("missing")
+            await self.manager.start_job("missing")
 
     async def test_rejects_unavailable_pipeline(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(
@@ -187,7 +190,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "unavailable"):
-            self.manager.start_job("speech-to-text")
+            await self.manager.start_job("speech-to-text")
 
     async def test_rejects_unknown_variant(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(
@@ -195,7 +198,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "variant 'missing' not found"):
-            self.manager.start_job("speech-to-text", "missing")
+            await self.manager.start_job("speech-to-text", "missing")
 
     async def test_failure_uses_stable_public_message(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(
@@ -206,15 +209,142 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
             raise RuntimeError("private upstream details")
 
         self.manager.transcribe = fail
-        job = self.manager.start_job("speech-to-text")
+        job = await self.manager.start_job("speech-to-text")
         await self.manager.wait(job.id)
-        failed = self.manager.get_job(job.id)
+        failed = await self.manager.get_job(job.id)
 
         assert failed is not None
         self.assertEqual(failed.status, AudioPipelineJobStatus.FAILED)
         self.assertEqual(failed.error, "Audio pipeline execution failed.")
         assert failed.error is not None
         self.assertNotIn("private", failed.error)
+
+    async def test_lists_newest_jobs_as_snapshots(self) -> None:
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+
+        first = await self.manager.start_job("speech-to-text")
+        await self.manager.wait(first.id)
+        second = await self.manager.start_job("speech-to-text", "npu")
+        await self.manager.wait(second.id)
+
+        jobs = await self.manager.list_jobs()
+        self.assertEqual([job.id for job in jobs], [second.id, first.id])
+        jobs[0].error = "external mutation"
+        stored = await self.manager.get_job(second.id)
+        assert stored is not None
+        self.assertIsNone(stored.error)
+
+    async def test_shutdown_cancels_active_jobs_and_cleans_tasks(self) -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def blocked_transcription(*_args):
+            started.set()
+            await release.wait()
+            return "unreachable", 0.0
+
+        self.manager.transcribe = blocked_transcription
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+        job = await self.manager.start_job("speech-to-text")
+        await started.wait()
+
+        await self.manager.shutdown()
+
+        cancelled = await self.manager.get_job(job.id)
+        assert cancelled is not None
+        self.assertEqual(cancelled.status, AudioPipelineJobStatus.CANCELLED)
+        await self.manager.wait(job.id)
+        self.assertEqual(self.manager._tasks, {})
+
+    async def test_rejects_transition_from_terminal_state(self) -> None:
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+        job = await self.manager.start_job("speech-to-text")
+        await self.manager.wait(job.id)
+
+        with self.assertRaisesRegex(RuntimeError, "Invalid Audio job transition"):
+            self.manager._transition_locked(
+                self.manager._jobs[job.id],
+                AudioPipelineJobStatus.RUNNING,
+            )
+
+    async def test_prunes_oldest_terminal_job_and_its_artifact(self) -> None:
+        self.manager = AudioPipelineJobManager(
+            self.pipeline_manager,
+            self.assets,
+            self.transcribe,
+            self.synthesize,
+            max_terminal_jobs=2,
+        )
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.TEXT_TO_SPEECH
+        )
+
+        jobs = []
+        artifact_paths = []
+        for _ in range(3):
+            job = await self.manager.start_job("text-to-speech")
+            await self.manager.wait(job.id)
+            completed = await self.manager.get_job(job.id)
+            jobs.append(job)
+            if completed is not None and completed.artifact_path is not None:
+                artifact_paths.append(Path(completed.artifact_path))
+
+        self.assertIsNone(await self.manager.get_job(jobs[0].id))
+        self.assertIsNotNone(await self.manager.get_job(jobs[1].id))
+        self.assertIsNotNone(await self.manager.get_job(jobs[2].id))
+        self.assertFalse(artifact_paths[0].exists())
+        self.assertTrue(artifact_paths[1].exists())
+
+    async def test_retention_never_removes_active_job(self) -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def blocked_transcription(*_args):
+            started.set()
+            await release.wait()
+            return "Managed transcript", 12.5
+
+        self.manager = AudioPipelineJobManager(
+            self.pipeline_manager,
+            self.assets,
+            blocked_transcription,
+            self.synthesize,
+            max_terminal_jobs=1,
+        )
+        self.pipeline_manager.get_pipeline.side_effect = lambda pipeline_id: pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+            if pipeline_id == "speech-to-text"
+            else AudioPipelineOperation.TEXT_TO_SPEECH
+        )
+
+        active = await self.manager.start_job("speech-to-text")
+        await started.wait()
+        for _ in range(2):
+            completed = await self.manager.start_job("text-to-speech")
+            await self.manager.wait(completed.id)
+
+        retained = await self.manager.get_job(active.id)
+        assert retained is not None
+        self.assertEqual(retained.status, AudioPipelineJobStatus.RUNNING)
+        release.set()
+        await self.manager.wait(active.id)
+
+    async def test_artifact_cleanup_rejects_path_outside_output_directory(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as external_directory:
+            external_artifact = Path(external_directory) / "external.wav"
+            external_artifact.write_bytes(wav_bytes())
+
+            await self.manager._delete_artifacts([str(external_artifact)])
+
+            self.assertTrue(external_artifact.exists())
 
 
 if __name__ == "__main__":

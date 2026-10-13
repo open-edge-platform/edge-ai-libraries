@@ -703,6 +703,73 @@
         }
       }
     },
+    "/jobs/audio/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Audio Statuses",
+        "operationId": "get_audio_statuses",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AudioJobSummary"
+                  },
+                  "type": "array",
+                  "title": "Response Get Audio Statuses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/audio/{job_id}/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Audio Job Status",
+        "operationId": "get_audio_job_status",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioJobStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/jobs/tests/performance/status": {
       "get": {
         "tags": [
@@ -4187,6 +4254,229 @@
         "title": "AppStatus",
         "description": "**Application status enum for tracking initialization progress.**\n\n## Values\n- `STARTING` - Application is starting, no initialization yet\n- `INITIALIZING` - Application is initializing resources (e.g., loading videos)\n- `READY` - Application is fully initialized and ready to serve requests\n- `SHUTDOWN` - Application is shutting down\n\n### Example\n```json\n\"ready\"\n```"
       },
+      "AudioJobState": {
+        "type": "string",
+        "enum": [
+          "QUEUED",
+          "RUNNING",
+          "COMPLETED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "title": "AudioJobState"
+      },
+      "AudioJobStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id"
+          },
+          "pipeline_name": {
+            "type": "string",
+            "title": "Pipeline Name"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "speech_to_text",
+              "text_to_speech"
+            ],
+            "title": "Operation"
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "variant_name": {
+            "type": "string",
+            "title": "Variant Name"
+          },
+          "device": {
+            "type": "string",
+            "enum": [
+              "CPU",
+              "GPU",
+              "NPU"
+            ],
+            "title": "Device"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AudioJobState"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "service_round_trip_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Round Trip Ms"
+          },
+          "artifact_available": {
+            "type": "boolean",
+            "title": "Artifact Available"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "artifact_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pipeline_id",
+          "pipeline_name",
+          "operation",
+          "variant_id",
+          "variant_name",
+          "device",
+          "state",
+          "created_at",
+          "modified_at",
+          "artifact_available"
+        ],
+        "title": "AudioJobStatus"
+      },
+      "AudioJobSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id"
+          },
+          "pipeline_name": {
+            "type": "string",
+            "title": "Pipeline Name"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "speech_to_text",
+              "text_to_speech"
+            ],
+            "title": "Operation"
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "variant_name": {
+            "type": "string",
+            "title": "Variant Name"
+          },
+          "device": {
+            "type": "string",
+            "enum": [
+              "CPU",
+              "GPU",
+              "NPU"
+            ],
+            "title": "Device"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AudioJobState"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "service_round_trip_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Round Trip Ms"
+          },
+          "artifact_available": {
+            "type": "boolean",
+            "title": "Artifact Available"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pipeline_id",
+          "pipeline_name",
+          "operation",
+          "variant_id",
+          "variant_name",
+          "device",
+          "state",
+          "created_at",
+          "modified_at",
+          "artifact_available"
+        ],
+        "title": "AudioJobSummary"
+      },
       "AudioPipelineDefaultsResponse": {
         "properties": {
           "audio": {
@@ -4282,7 +4572,8 @@
               "QUEUED",
               "RUNNING",
               "COMPLETED",
-              "FAILED"
+              "FAILED",
+              "CANCELLED"
             ],
             "title": "Status"
           },

@@ -6,14 +6,18 @@ import logging
 import os
 import re
 from time import perf_counter
-from typing import Annotated, BinaryIO, Literal
+from typing import Annotated, BinaryIO, Literal, cast
 
 import httpx
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from audio_assets import AudioAssetsManager
+from api.dependencies.audio_jobs import (
+    configure_audio_pipeline_job_manager_factory,
+    get_audio_pipeline_job_manager,
+)
 from managers.audio_pipeline_job_manager import (
     AudioPipelineJobManager,
     AudioPipelineJobStatus,
@@ -127,7 +131,7 @@ class AudioPipelineJobResponse(BaseModel):
     variant_name: str
     device: Literal["CPU", "GPU", "NPU"]
     operation: Literal["speech_to_text", "text_to_speech"]
-    status: Literal["QUEUED", "RUNNING", "COMPLETED", "FAILED"]
+    status: Literal["QUEUED", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"]
     created_at: str
     modified_at: str
     transcript: str | None = None
@@ -364,19 +368,21 @@ async def execute_synthesis(
     return content, service_round_trip_ms
 
 
-_audio_pipeline_job_manager: AudioPipelineJobManager | None = None
+def _create_audio_pipeline_job_manager() -> AudioPipelineJobManager:
+    return AudioPipelineJobManager(
+        get_audio_pipeline_manager(),
+        AudioAssetsManager(),
+        execute_transcription,
+        execute_synthesis,
+    )
 
 
-def get_audio_pipeline_job_manager() -> AudioPipelineJobManager:
-    global _audio_pipeline_job_manager
-    if _audio_pipeline_job_manager is None:
-        _audio_pipeline_job_manager = AudioPipelineJobManager(
-            get_audio_pipeline_manager(),
-            AudioAssetsManager(),
-            execute_transcription,
-            execute_synthesis,
-        )
-    return _audio_pipeline_job_manager
+configure_audio_pipeline_job_manager_factory(_create_audio_pipeline_job_manager)
+
+AudioJobManagerDependency = Annotated[
+    AudioPipelineJobManager,
+    Depends(get_audio_pipeline_job_manager),
+]
 
 
 def audio_job_response(job) -> AudioPipelineJobResponse:
@@ -417,9 +423,10 @@ async def list_audio_pipelines() -> list[AudioPipelineResponse]:
 )
 async def run_audio_pipeline(
     pipeline_id: str,
+    manager: AudioJobManagerDependency,
     request: AudioPipelineRunRequest | None = None,
 ) -> AudioPipelineJobStartResponse:
-    return _start_audio_pipeline_job(pipeline_id, None, request)
+    return await _start_audio_pipeline_job(manager, pipeline_id, None, request)
 
 
 @router.post(
@@ -430,21 +437,23 @@ async def run_audio_pipeline(
 async def run_audio_pipeline_variant(
     pipeline_id: str,
     variant_id: str,
+    manager: AudioJobManagerDependency,
     request: AudioPipelineRunRequest | None = None,
 ) -> AudioPipelineJobStartResponse:
-    return _start_audio_pipeline_job(pipeline_id, variant_id, request)
+    return await _start_audio_pipeline_job(manager, pipeline_id, variant_id, request)
 
 
-def _start_audio_pipeline_job(
+async def _start_audio_pipeline_job(
+    manager: AudioPipelineJobManager,
     pipeline_id: str,
     variant_id: str | None,
     request: AudioPipelineRunRequest | None,
 ) -> AudioPipelineJobStartResponse:
     try:
         if request is None:
-            job = get_audio_pipeline_job_manager().start_job(pipeline_id, variant_id)
+            job = await manager.start_job(pipeline_id, variant_id)
         else:
-            job = get_audio_pipeline_job_manager().start_job(
+            job = await manager.start_job(
                 pipeline_id,
                 variant_id,
                 input_text=request.input,
@@ -461,20 +470,32 @@ def _start_audio_pipeline_job(
                 400, "This Audio pipeline does not accept TTS input."
             ) from exc
         raise HTTPException(409, "Audio pipeline is unavailable.") from exc
-    return AudioPipelineJobStartResponse(job_id=job.id, status=job.status.value)
+    return AudioPipelineJobStartResponse(
+        job_id=job.id,
+        status=cast(
+            Literal["QUEUED", "RUNNING", "COMPLETED", "FAILED"],
+            job.status.value,
+        ),
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=AudioPipelineJobResponse)
-async def get_audio_pipeline_job(job_id: str) -> AudioPipelineJobResponse:
-    job = get_audio_pipeline_job_manager().get_job(job_id)
+async def get_audio_pipeline_job(
+    job_id: str,
+    manager: AudioJobManagerDependency,
+) -> AudioPipelineJobResponse:
+    job = await manager.get_job(job_id)
     if job is None:
         raise HTTPException(404, "Audio pipeline job not found.")
     return audio_job_response(job)
 
 
 @router.get("/jobs/{job_id}/artifact", response_class=FileResponse)
-async def get_audio_pipeline_artifact(job_id: str) -> FileResponse:
-    job = get_audio_pipeline_job_manager().get_job(job_id)
+async def get_audio_pipeline_artifact(
+    job_id: str,
+    manager: AudioJobManagerDependency,
+) -> FileResponse:
+    job = await manager.get_job(job_id)
     if job is None:
         raise HTTPException(404, "Audio pipeline job not found.")
     if (

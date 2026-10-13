@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 import os
 import threading
@@ -9,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
 from audio_assets import AudioAssetsManager
+from api.dependencies.audio_jobs import shutdown_audio_pipeline_job_manager
 from api.middleware import InitializationMiddleware
 from api.routes import health
 from app_version import VIPPET_VERSION
@@ -185,6 +189,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Application shutting down...")
+    await shutdown_audio_pipeline_job_manager()
     await close_db()
     app_state_manager.set_status(InternalAppStatus.SHUTDOWN)
 
