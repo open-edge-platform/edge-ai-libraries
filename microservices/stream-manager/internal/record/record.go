@@ -297,11 +297,11 @@ func (s *Service) DeleteRecording(ctx context.Context, id string) error {
 	if rec.State == "recording" || rec.State == "finalizing" || s.jobs[id] != nil {
 		return ErrConflict
 	}
-	if err := s.media.DeleteMedia(ctx, rec.RecordingPath); err != nil {
-		return fmt.Errorf("%w: %w", ErrCleanup, err)
-	}
 	if err := s.metadata.DeleteMetadata(ctx, id); err != nil {
 		return fmt.Errorf("%w: %w", ErrCleanup, err)
+	}
+	if err := s.media.DeleteMedia(ctx, rec.RecordingPath); err != nil {
+		slog.Error("recording media left after delete", "recording_id", id, "error", err)
 	}
 	return nil
 }

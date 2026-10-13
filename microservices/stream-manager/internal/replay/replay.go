@@ -2,10 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package replay cuts frames and clips out of ready recordings.
-//
-// A recording starts on a keyframe at its start_ts and its slices are
-// contiguous, so the wall time of any frame is start_ts plus the frame's PTS
-// offset from the first frame. No index besides the media itself is needed.
 package replay
 
 import (
@@ -24,8 +20,8 @@ import (
 
 const (
 	maxConcurrentExtractions = 6
-	// derivedTTL is how long a cut frame or clip is served; the recording's own
-	// expiry_ts wins when it comes sooner.
+	// derivedTTL is how long a cut frame or clip is kept stored (response caching);
+	// the recording's own expiry_ts wins when it comes sooner.
 	derivedTTL = 15 * time.Minute
 	// exactTolerance is how far a frame may sit from the requested time and
 	// still count as an exact match.
@@ -45,15 +41,14 @@ var (
 
 var contentTypes = map[string]string{"jpeg": "image/jpeg", "png": "image/png", "mp4": "video/mp4"}
 
-// Replayer cuts frames and clips from recordings and serves them until they expire.
 type Replayer interface {
 	Frame(ctx context.Context, recordingID string, timestamp time.Time, format, match string) (Media, error)
 	Clip(ctx context.Context, recordingID string, startTS time.Time, duration time.Duration, format string) (Media, error)
 	OpenMedia(ctx context.Context, recordingID, name string) (*os.File, MediaFile, error)
 }
 
-// Media is a cut frame or clip. Name is the file name under the recording's
-// derived directory and Path its absolute location.
+// `Media` is a extracted frame or a cut clip (aka derived media).
+// `Name` is the file name under the recording's derived directory and `Path` its absolute location.
 type Media struct {
 	Result     model.MediaResult
 	Name       string
@@ -61,7 +56,7 @@ type Media struct {
 	ExactMatch bool
 }
 
-// MediaFile describes an opened derived file.
+// MediaFile describes an opened derived media (frame or clip).
 type MediaFile struct {
 	ContentType string
 	ExpiryTS    time.Time
@@ -149,9 +144,7 @@ func (s *Service) Frame(ctx context.Context, id string, ts time.Time, format, ma
 	}, nil
 }
 
-// Clip returns the span [startTS, startTS+duration) as a stream copy. The
-// clip begins on the keyframe at or before startTS, which is reported as its
-// start_ts.
+// Clip returns the media spanning [startTS, startTS+duration).
 func (s *Service) Clip(ctx context.Context, id string, start time.Time, duration time.Duration, format string) (Media, error) {
 	if format != "mp4" || duration <= 0 {
 		return Media{}, ErrInvalidRequest
@@ -198,7 +191,7 @@ func (s *Service) Clip(ctx context.Context, id string, start time.Time, duration
 	}, nil
 }
 
-// OpenMedia opens a frame or clip cut earlier, unless it or its recording expired.
+// OpenMedia opens a frame or clip cut earlier, unless its recording or itself has expired.
 func (s *Service) OpenMedia(ctx context.Context, id, name string) (*os.File, MediaFile, error) {
 	rec, err := s.recording(ctx, id)
 	if err != nil {
