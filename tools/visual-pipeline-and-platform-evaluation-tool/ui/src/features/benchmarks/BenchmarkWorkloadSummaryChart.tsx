@@ -88,7 +88,8 @@ const buildWorkloadSummaryChart = (
     seriesByKey.set("npu-placeholder", {
       key: "npu-placeholder",
       label: "NPU",
-      color: "#94a3b8",
+      color:
+        CHART_COLORS[seriesByKey.size % CHART_COLORS.length] ?? CHART_COLORS[0],
     });
   }
 
@@ -203,7 +204,7 @@ export const BenchmarkWorkloadSummaryChart = ({
                 formatter={(value, name) => {
                   const numericValue =
                     typeof value === "number" ? value : Number(value);
-                  const label = chartConfig[name as string]?.label || name;
+                  const label = chartConfig[name as string]?.label ?? name;
                   return `${label}: ${formatValue(numericValue)}`;
                 }}
               />
