@@ -388,14 +388,15 @@ async def receive_line_protocol(request: Request, db: str = Query("datain"), pre
 async def get_config(
     request: Request,
     restart: Optional[bool] = Query(False,
-                                   description="Reapply the Core plugin trigger if true"),
+                                   description="Restart the Time Series Analytics "
+                                             "Microservice UDF deployment if true"),
     background_tasks: BackgroundTasks = None):
     """
     Endpoint to retrieve the current configuration of the input service.
     Accepts an optional 'restart' query parameter and returns the current configuration 
     in JSON format.
-    If 'restart=true' is provided, the Core plugin trigger is reapplied before
-    returning the configuration.
+    If 'restart=true' is provided, the Time Series Analytics Microservice UDF deployment 
+    service will be restarted before returning the configuration.
 
     ---
     parameters:
@@ -404,7 +405,7 @@ async def get_config(
           schema:
             type: boolean
             default: false
-          description: Reapply the Core plugin trigger if true
+          description: Restart the Time Series Analytics Microservice UDF deployment if true
     responses:
         200:
             description: Current configuration retrieved successfully

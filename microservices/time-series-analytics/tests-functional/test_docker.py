@@ -84,6 +84,22 @@ def test_timeseries_microservice_started_successfully():
     except Exception as e:
         pytest.fail(f"Failed to check if Time Series Analytics Microservice is running: {e}")
 
+# Test to check if Time Series Analytics Microservice is built and running
+def test_test_timeseries_microservice_start():
+    """
+    Test to check if 'Time Series Analytics Microservice Initialized Successfully. Ready to Receive the Data...' 
+    is present in the Time Series Analytics Microservice container logs.
+    """
+    try:
+        command = ["docker", "logs", CONTAINER_NAME]
+        time.sleep(45)  # Wait for the container to initialize
+        output = subprocess.run(command, check=False, capture_output=True, text=True)
+        print(output.stdout)
+        output = output.stdout + output.stderr
+        assert "Kapacitor Initialized Successfully. Ready to Receive the Data..." in output
+    except Exception as e:
+        pytest.fail(f"Failed to check Time Series Analytics Microservice initialization: {e}")
+
 ## REST API Tests 
 
 def test_health_check():
