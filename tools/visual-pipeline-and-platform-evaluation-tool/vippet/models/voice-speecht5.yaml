@@ -7,26 +7,16 @@ source: huggingface
 hub: huggingface
 type: text_to_speech
 precisions:
-  - precision: INT8
-    model_path: voice/text-to-speech/openvino/microsoft_speecht5_tts__int8/openvino_encoder_model.xml
-    model_proc: ""
   - precision: FP16
     model_path: voice/text-to-speech/openvino/microsoft_speecht5_tts__fp16/openvino_encoder_model.xml
     model_proc: ""
 extra_model_procs: []
 unsupported_devices: ""
 download_request:
-  - hub: openvino
-    name: microsoft/speecht5_tts
-    type: text2speech
-    target: text-to-speech
-    config:
-      precision: int8
-      device: CPU
-  - hub: openvino
-    name: microsoft/speecht5_tts
-    type: text2speech
-    target: text-to-speech
-    config:
-      precision: fp16
-      device: CPU
+  hub: openvino
+  name: microsoft/speecht5_tts
+  type: text2speech
+  target: text-to-speech
+  config:
+    precision: fp16
+    device: CPU

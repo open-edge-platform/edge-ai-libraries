@@ -91,11 +91,7 @@ HTTP_REQUEST_TIMEOUT_S: float = float(
 # Upload streaming chunk size.
 UPLOAD_CHUNK_SIZE: int = 8 * 1024 * 1024  # 8 MiB
 
-DownloadRequest = dict[str, Any] | list[dict[str, Any]]
-
-
-def _normalize_download_requests(request: DownloadRequest) -> list[dict[str, Any]]:
-    return [request] if isinstance(request, dict) else request
+DownloadRequest = dict[str, Any]
 
 
 def _precision_is_complete(category: str | None, model_path: str) -> bool:
@@ -457,7 +453,7 @@ class ModelManager:
         try:
             download_path = self._resolve_download_path(download_request)
             url = f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/models/download"
-            body = {"models": _normalize_download_requests(download_request)}
+            body = {"models": [download_request]}
 
             self._append_detail(
                 job_id,
@@ -471,57 +467,50 @@ class ModelManager:
                 response.raise_for_status()
                 payload = response.json()
 
-            external_ids: list[str] = list(payload.get("job_ids") or [])
-            if not external_ids:
-                self._fail_job(job_id, "model-download returned no job ids")
+            external_ids = payload.get("job_ids")
+            if (
+                not isinstance(external_ids, list)
+                or len(external_ids) != 1
+                or not isinstance(external_ids[0], str)
+                or not external_ids[0]
+            ):
+                self._fail_job(
+                    job_id, "model-download did not return exactly one job id"
+                )
                 return
+            external_id = external_ids[0]
 
             with self._jobs_lock:
                 job = self._jobs.get(job_id)
                 if job is not None:
-                    job.external_job_ids = list(external_ids)
+                    job.external_job_id = external_id
                     job.progress_message = payload.get("status")
 
-            # Poll until every external job reports completed/failed.
             deadline = time.monotonic() + DOWNLOAD_TIMEOUT_S
             with httpx.Client(timeout=HTTP_REQUEST_TIMEOUT_S) as client:
                 while time.monotonic() < deadline:
-                    statuses = []
-                    for ext_id in external_ids:
-                        r = client.get(
-                            f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/jobs/{ext_id}"
-                        )
-                        if r.status_code == 404:
-                            statuses.append(("failed", f"job {ext_id} not found"))
-                            continue
-                        r.raise_for_status()
-                        data = r.json()
-                        statuses.append(
-                            (
-                                data.get("status", "processing"),
-                                data.get("error"),
-                            )
-                        )
-
-                    progress = ", ".join(s for s, _ in statuses)
+                    response = client.get(
+                        f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/jobs/{external_id}"
+                    )
+                    if response.status_code == 404:
+                        self._fail_job(job_id, f"job {external_id} not found")
+                        return
+                    response.raise_for_status()
+                    data = response.json()
+                    status = data.get("status", "processing")
                     with self._jobs_lock:
                         job = self._jobs.get(job_id)
                         if job is not None:
-                            job.progress_message = progress
+                            job.progress_message = status
 
-                    if all(s in ("completed", "failed") for s, _ in statuses):
-                        if all(s == "completed" for s, _ in statuses):
-                            self._finalize_success(job_id, model_name)
-                            return
-                        # At least one failed and none is still processing —
-                        # aggregate every failure reason into a single message
-                        # so callers see all root causes at once.
-                        errors = [
-                            err or "model-download reported a failed job"
-                            for s, err in statuses
-                            if s == "failed"
-                        ]
-                        self._fail_job(job_id, "; ".join(errors))
+                    if status == "completed":
+                        self._finalize_success(job_id, model_name)
+                        return
+                    if status == "failed":
+                        self._fail_job(
+                            job_id,
+                            data.get("error") or "model-download reported a failed job",
+                        )
                         return
 
                     time.sleep(DOWNLOAD_POLL_INTERVAL_S)
@@ -560,8 +549,7 @@ class ModelManager:
         ``model_path`` entries must therefore include the full
         ``<hub>/<source>/<model_name>/<precision>/<file>`` prefix.
         """
-        requests = _normalize_download_requests(download_request)
-        return "voice" if all(request.get("target") for request in requests) else "."
+        return "voice" if download_request.get("target") else "."
 
     # ------------------------------------------------------------------
     # Job state transitions
@@ -693,11 +681,7 @@ class ModelManager:
                     if model_path is None:
                         model_path = full_path
 
-            installation_complete = bool(variant_results) and (
-                all(variant_results)
-                if isinstance(db_model.download_request, list)
-                else any(variant_results)
-            )
+            installation_complete = any(variant_results)
             db_model.install_status = (
                 InternalModelInstallStatus.INSTALLED.value
                 if installation_complete

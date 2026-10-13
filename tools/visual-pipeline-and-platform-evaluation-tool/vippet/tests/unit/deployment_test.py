@@ -188,7 +188,7 @@ class ComposeProfileTest(unittest.TestCase):
                 )
                 self.assertEqual(
                     tts["environment"]["TEXT_TO_SPEECH__MODELS__TTS__DTYPE"],
-                    "int8" if profile in ("cpu", "igpu-wsl") else "fp16",
+                    "fp16",
                 )
                 for service in (asr, tts):
                     if mode == "dev":

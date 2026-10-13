@@ -1139,9 +1139,9 @@ class InternalSupportedModel:
         unsupported_devices: Comma-separated string of devices on which
             the model cannot run (e.g. "NPU"). ``None`` when no
             restrictions exist.
-        download_request: One body fragment or a list of fragments to POST to
-            the model-download microservice in order to install this model.
-            ``None`` when no automated download is wired up yet.
+        download_request: Body fragment to POST to the model-download
+            microservice in order to install this model. ``None`` when no
+            automated download is wired up yet.
         description: Human-readable explanation of what the model
             detects/classifies. ``None`` when not provided in the YAML.
     """
@@ -1156,7 +1156,7 @@ class InternalSupportedModel:
     used_by_pipelines: list[str] = field(default_factory=list)
     default: bool = False
     unsupported_devices: str | None = None
-    download_request: dict[str, Any] | list[dict[str, Any]] | None = None
+    download_request: dict[str, Any] | None = None
     description: str | None = None
 
 
@@ -1207,7 +1207,7 @@ class InternalModelDownloadJobStatus:
     Internal state of a single model download job.
 
     Mirrors the optimization/validation job pattern: no cancellation, jobs
-    live in memory only. ``external_job_ids`` is kept internal and is not
+    live in memory only. ``external_job_id`` is kept internal and is not
     exposed by the API.
 
     Attributes:
@@ -1223,8 +1223,8 @@ class InternalModelDownloadJobStatus:
             (or by the local OMZ downloader).
         model_path: Absolute filesystem path to the installed model,
             populated only when the job completes successfully.
-        external_job_ids: Job ids returned by the model-download
-            microservice; not exposed via the API (internal only).
+        external_job_id: Job id returned by the model-download microservice;
+            not exposed via the API (internal only).
     """
 
     id: str
@@ -1236,7 +1236,7 @@ class InternalModelDownloadJobStatus:
     details: list[str] = field(default_factory=list)
     progress_message: str | None = None
     model_path: str | None = None
-    external_job_ids: list[str] = field(default_factory=list)
+    external_job_id: str | None = None
 
 
 @dataclass

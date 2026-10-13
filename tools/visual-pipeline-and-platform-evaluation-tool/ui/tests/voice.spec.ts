@@ -530,9 +530,7 @@ test("runs the managed text-to-speech preset with YAML defaults", async ({
   await page.goto(
     new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
   );
-  await expect(page.getByLabel("Text input (English)")).toHaveValue(
-    DEFAULT_TTS_TEXT,
-  );
+  await expect(page.getByLabel("Text input")).toHaveValue(DEFAULT_TTS_TEXT);
   await expect(page.getByLabel("Voice")).toHaveText("Ryan");
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(page.getByLabel("Generated speech")).toHaveJSProperty(
@@ -566,7 +564,7 @@ test("Audio variants control STT and TTS devices", async ({ page }) => {
   await expect(page).toHaveURL(/\/pipelines\/audio\/speech-to-text\/gpu$/);
   await expect(page.getByText("(GPU)", { exact: true })).toBeVisible();
   await expect(page.getByRole("tab")).toHaveCount(0);
-  await expect(page.getByLabel("Text input (English)")).toHaveCount(0);
+  await expect(page.getByLabel("Text input")).toHaveCount(0);
   await page.getByLabel("Audio file").setInputFiles({
     name: "sentence.wav",
     mimeType: "audio/wav",
@@ -584,7 +582,7 @@ test("Audio variants control STT and TTS devices", async ({ page }) => {
   await expect(page.getByRole("menuitem")).toHaveText(["CPU", "GPU"]);
   await page.getByRole("menuitem", { name: "GPU", exact: true }).click();
   await expect(page.getByText("(GPU)", { exact: true })).toBeVisible();
-  await page.getByLabel("Text input (English)").fill("Hello world");
+  await page.getByLabel("Text input").fill("Hello world");
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(page.getByLabel("Generated speech")).toHaveJSProperty(
     "readyState",
@@ -660,6 +658,26 @@ for (const viewport of [
       }),
     ).toBeVisible();
     await expect(page.getByText(/Pipelines \/ Audio/)).toHaveCount(0);
+    const recordBox = await page
+      .getByRole("button", { name: "Record", exact: true })
+      .boundingBox();
+    const uploadBox = await page
+      .getByRole("button", { name: /^Upload audio/ })
+      .boundingBox();
+    const languageBox = await page
+      .getByLabel("Recognition language")
+      .boundingBox();
+    expect(recordBox).not.toBeNull();
+    expect(uploadBox).not.toBeNull();
+    expect(languageBox).not.toBeNull();
+    if (viewport.width >= 768) {
+      expect(Math.abs(recordBox!.width - uploadBox!.width)).toBeLessThan(2);
+      expect(Math.abs(recordBox!.width - languageBox!.width)).toBeLessThan(2);
+      expect(Math.abs(recordBox!.x - languageBox!.x)).toBeLessThan(2);
+    } else {
+      expect(uploadBox!.y).toBeGreaterThan(recordBox!.y);
+      expect(languageBox!.y).toBeGreaterThan(uploadBox!.y);
+    }
     const sttMetrics = page.getByRole("region", {
       name: "Speech to text metrics",
     });
@@ -792,8 +810,23 @@ for (const viewport of [
       page.getByRole("button", { name: "Generate speech" }),
     ).toBeEnabled();
     await expect(page.getByLabel("Voice")).toHaveText("Ryan");
+    const voiceBox = await page.getByLabel("Voice").boundingBox();
+    const sampleBox = await page.getByLabel("Sample text").boundingBox();
+    const textBox = await page.getByLabel("Text input").boundingBox();
+    expect(voiceBox).not.toBeNull();
+    expect(sampleBox).not.toBeNull();
+    expect(textBox).not.toBeNull();
+    expect(Math.abs(sampleBox!.width - voiceBox!.width)).toBeLessThan(2);
+    expect(Math.abs(sampleBox!.x - voiceBox!.x)).toBeLessThan(2);
+    if (viewport.width >= 768) {
+      expect(textBox!.width).toBeGreaterThan(voiceBox!.width * 1.8);
+      expect(Math.abs(textBox!.x - voiceBox!.x)).toBeLessThan(2);
+    } else {
+      expect(Math.abs(textBox!.width - voiceBox!.width)).toBeLessThan(2);
+      expect(textBox!.y).toBeGreaterThan(voiceBox!.y);
+    }
     await chooseOption(page, "Voice", "Angus");
-    const textInput = page.getByLabel("Text input (English)");
+    const textInput = page.getByLabel("Text input");
     await expect(textInput).toHaveAttribute("maxlength", "200");
     await textInput.fill("Hello world");
     await expect(
@@ -845,7 +878,7 @@ for (const viewport of [
     });
     await page.getByRole("button", { name: "Toggle theme" }).click();
     await expect(page.locator("html")).toHaveClass(/dark/);
-    await expect(page.getByLabel("Text input (English)")).toHaveCSS(
+    await expect(page.getByLabel("Text input")).toHaveCSS(
       "color",
       "oklch(1 0 0)",
     );
@@ -867,9 +900,7 @@ for (const viewport of [
       fullPage: true,
     });
     await chooseOption(page, "Voice", "Miles");
-    await expect(page.getByLabel("Text input (English)")).toHaveValue(
-      "Hello world",
-    );
+    await expect(page.getByLabel("Text input")).toHaveValue("Hello world");
     await expect(page.getByLabel("Generated speech")).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "Text to speech metrics" }),
@@ -879,7 +910,7 @@ for (const viewport of [
       "Sample text",
       "Welcome to Intel Performance Studio.",
     );
-    await expect(page.getByLabel("Text input (English)")).toHaveValue(
+    await expect(page.getByLabel("Text input")).toHaveValue(
       "Welcome to Intel Performance Studio.",
     );
     await expect(page.getByLabel("Generated speech")).toHaveCount(0);
@@ -918,7 +949,7 @@ test("waveform scales quiet audio and keeps silence flat", async ({ page }) => {
   await page.goto(
     new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
   );
-  await page.getByLabel("Text input (English)").fill("Hello world");
+  await page.getByLabel("Text input").fill("Hello world");
   for (const volume of [0.01, 1, 0]) {
     const content = wav(volume);
     await mockTtsJob(page, { content });
@@ -964,7 +995,7 @@ test("service failure and cancellation", async ({ page }) => {
   await page.goto(
     new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
   );
-  await page.getByLabel("Text input (English)").fill("Hello world");
+  await page.getByLabel("Text input").fill("Hello world");
   const metrics = page.getByRole("region", { name: "Text to speech metrics" });
   await mockTtsJob(page, { serviceMs: 250 });
   await page.getByRole("button", { name: "Generate speech" }).click();
@@ -1007,7 +1038,7 @@ test("missing or zero service timing does not break conversion", async ({
   await page.goto(
     new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
   );
-  await page.getByLabel("Text input (English)").fill("Hello world");
+  await page.getByLabel("Text input").fill("Hello world");
   for (const value of [null, 0]) {
     await mockTtsJob(page, { serviceMs: value });
     await page.getByRole("button", { name: "Generate speech" }).click();

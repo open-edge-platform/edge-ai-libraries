@@ -435,7 +435,7 @@ export function VoiceConversion() {
                 </h2>
                 <section className="min-w-0 space-y-4">
                   <h3 className="text-sm font-medium">Select source</h3>
-                  <div className="grid gap-4 md:max-w-4xl md:grid-cols-2">
+                  <div className="grid min-w-0 gap-4 md:grid-cols-2">
                     <div className="space-y-3 rounded-sm bg-muted p-3">
                       <h4 className="text-xs text-muted-foreground">
                         Record audio
@@ -511,9 +511,7 @@ export function VoiceConversion() {
                         }}
                       />
                     </div>
-                  </div>
-                  <div className="max-w-md">
-                    <div className="space-y-2 bg-muted p-3">
+                    <div className="min-w-0 space-y-2 rounded-sm bg-muted p-3">
                       <Label htmlFor="voice-language">
                         Recognition language
                       </Label>
@@ -541,38 +539,40 @@ export function VoiceConversion() {
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-                  {file && (
-                    <p className="text-muted-foreground break-all text-sm">
-                      Selected file: {file.name}
-                    </p>
-                  )}
-                  {!file && selectedPipeline.defaults.audio && (
-                    <p className="text-muted-foreground break-all text-sm">
-                      Managed recording: {selectedPipeline.defaults.audio}
-                    </p>
-                  )}
-                  {inputUrl && (
-                    <VoiceAudio
-                      src={inputUrl}
-                      label="Input recording"
-                      title="Selected audio"
-                    />
-                  )}
-                  <div className="flex justify-end">
-                    <Button
-                      disabled={
-                        !modelsReady ||
-                        busy ||
-                        (!file &&
-                          language !==
-                            (selectedPipeline.defaults.language ?? "en"))
-                      }
-                      onClick={() => void run("stt")}
-                    >
-                      <FileAudio />
-                      Transcribe
-                    </Button>
+                    {file && (
+                      <p className="text-muted-foreground break-all text-sm md:col-span-2">
+                        Selected file: {file.name}
+                      </p>
+                    )}
+                    {!file && selectedPipeline.defaults.audio && (
+                      <p className="text-muted-foreground break-all text-sm md:col-span-2">
+                        Managed recording: {selectedPipeline.defaults.audio}
+                      </p>
+                    )}
+                    {inputUrl && (
+                      <div className="min-w-0 md:col-span-2">
+                        <VoiceAudio
+                          src={inputUrl}
+                          label="Input recording"
+                          title="Selected audio"
+                        />
+                      </div>
+                    )}
+                    <div className="flex justify-end md:col-span-2">
+                      <Button
+                        disabled={
+                          !modelsReady ||
+                          busy ||
+                          (!file &&
+                            language !==
+                              (selectedPipeline.defaults.language ?? "en"))
+                        }
+                        onClick={() => void run("stt")}
+                      >
+                        <FileAudio />
+                        Transcribe
+                      </Button>
+                    </div>
                   </div>
                 </section>
                 <section className="min-w-0 space-y-4">
@@ -617,81 +617,78 @@ export function VoiceConversion() {
                 <h2 className="text-base font-semibold">
                   Text to Speech Workload Configuration
                 </h2>
-                <section className="min-w-0 space-y-4 rounded-sm bg-muted p-3 sm:p-4">
-                  <div className="grid max-w-4xl gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="speech-voice">Voice</Label>
-                      <Select
-                        value={voice}
-                        disabled={busy}
-                        onValueChange={(value) =>
-                          updateVoice(value as SpeechVoice)
-                        }
+                <section className="grid min-w-0 gap-4 rounded-sm bg-muted p-3 sm:p-4 md:grid-cols-2">
+                  <div className="min-w-0 space-y-2">
+                    <Label htmlFor="speech-voice">Voice</Label>
+                    <Select
+                      value={voice}
+                      disabled={busy}
+                      onValueChange={(value) =>
+                        updateVoice(value as SpeechVoice)
+                      }
+                    >
+                      <SelectTrigger
+                        id="speech-voice"
+                        className="h-10 w-full bg-background"
                       >
-                        <SelectTrigger
-                          id="speech-voice"
-                          className="h-10 w-full bg-background"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {SPEECH_VOICES.map((voiceName) => (
-                            <SelectItem key={voiceName} value={voiceName}>
-                              {voiceName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <Label htmlFor="voice-text" className="text-sm font-semibold">
-                    Text input (English)
-                  </Label>
-                  <Textarea
-                    id="voice-text"
-                    maxLength={MAX_SPEECH_TEXT_LENGTH}
-                    value={text}
-                    disabled={busy}
-                    onChange={(event) => updateText(event.target.value)}
-                    className="min-h-32 resize-y bg-background text-foreground"
-                  />
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <Label htmlFor="voice-sample" className="text-xs">
-                        Sample text
-                      </Label>
-                      <Select
-                        disabled={busy}
-                        value={
-                          SAMPLE_TEXTS.includes(text)
-                            ? text
-                            : CUSTOM_SAMPLE_VALUE
-                        }
-                        onValueChange={updateText}
-                      >
-                        <SelectTrigger
-                          id="voice-sample"
-                          className="h-9 w-full max-w-80 min-w-0 bg-background text-xs sm:w-80"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={CUSTOM_SAMPLE_VALUE} disabled>
-                            Select a sample
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SPEECH_VOICES.map((voiceName) => (
+                          <SelectItem key={voiceName} value={voiceName}>
+                            {voiceName}
                           </SelectItem>
-                          {SAMPLE_TEXTS.map((sample) => (
-                            <SelectItem key={sample} value={sample}>
-                              {sample}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <p className="text-muted-foreground text-right text-xs">
-                      {text.length} / {MAX_SPEECH_TEXT_LENGTH}
-                    </p>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="flex justify-end">
+                  <div className="min-w-0 space-y-2 md:col-span-2">
+                    <Label
+                      htmlFor="voice-text"
+                      className="text-sm font-semibold"
+                    >
+                      Text input
+                    </Label>
+                    <Textarea
+                      id="voice-text"
+                      maxLength={MAX_SPEECH_TEXT_LENGTH}
+                      value={text}
+                      disabled={busy}
+                      onChange={(event) => updateText(event.target.value)}
+                      className="min-h-32 resize-y bg-background text-foreground"
+                    />
+                  </div>
+                  <div className="min-w-0 space-y-2">
+                    <Label htmlFor="voice-sample">Sample text</Label>
+                    <Select
+                      disabled={busy}
+                      value={
+                        SAMPLE_TEXTS.includes(text) ? text : CUSTOM_SAMPLE_VALUE
+                      }
+                      onValueChange={updateText}
+                    >
+                      <SelectTrigger
+                        id="voice-sample"
+                        className="h-10 w-full bg-background"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={CUSTOM_SAMPLE_VALUE} disabled>
+                          Select a sample
+                        </SelectItem>
+                        {SAMPLE_TEXTS.map((sample) => (
+                          <SelectItem key={sample} value={sample}>
+                            {sample}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-muted-foreground self-end justify-self-end text-right text-xs">
+                    {text.length} / {MAX_SPEECH_TEXT_LENGTH}
+                  </p>
+                  <div className="flex justify-end md:col-span-2">
                     <Button
                       disabled={!modelsReady || !text.trim() || busy}
                       onClick={() => void run("tts")}

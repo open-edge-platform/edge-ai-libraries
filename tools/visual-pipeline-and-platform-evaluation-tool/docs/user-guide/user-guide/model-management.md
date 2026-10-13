@@ -22,9 +22,8 @@ You can select one or more models and click the "Install" button to download the
 
 The Models page also provides the models used by Voice Conversion. Install
 **Whisper Base** for speech recognition and **SpeechT5** for speech synthesis
-before using the Voice page. SpeechT5 appears as one model with INT8 and FP16
-precisions; installing it downloads both variants in one operation. Wait until
-both rows show **Installed** before sending Voice requests.
+before using the Voice page. SpeechT5 appears as one FP16 model; wait until it
+shows **Installed** before sending Voice requests.
 
 ![Models](../_assets/ViPPET-UI-Models-light.png)
 

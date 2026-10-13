@@ -108,8 +108,7 @@ these calls.
   Protect direct access with deployment-level access control and TLS.
 - The Models page starts ViPPET background jobs for Whisper Base and SpeechT5.
   `ModelManager` forwards their OpenVINO requests to Model Download, polls the
-  returned jobs and tracks installed state. SpeechT5 installs INT8 and FP16 in
-  one ViPPET job.
+  returned job and tracks installed state. SpeechT5 installs one FP16 artifact.
 - Model Download exports device-neutral OpenVINO artifacts on CPU under
   `shared/models/output/voice`. Audio Analyzer and Text to Speech mount the
   shared model tree read-only and compile the selected artifact for the runtime
@@ -274,21 +273,21 @@ sequenceDiagram
   API-->>Web: 202 Accepted with ViPPET job ID
   Web-->>UI: Forward response
   API->>Download: POST /api/v1/models/download?download_path=voice
-  Note over API,Download: Whisper starts one export while SpeechT5 starts INT8 and FP16 exports
+  Note over API,Download: Each catalog model starts one OpenVINO export
   Download->>Store: Stage and publish complete OpenVINO artifacts
-  loop Until all external jobs complete or fail
+  loop Until the external job completes or fails
     API->>Download: GET /api/v1/jobs/{job_id}
     Download-->>API: Processing, completed or failed
     UI->>Web: Poll ViPPET model job status
     Web->>API: Forward status request
-    API-->>Web: Aggregated progress
+    API-->>Web: Download progress
     Web-->>UI: Forward status response
   end
   API->>Store: Verify required artifacts
-  API->>Catalog: Persist variant and aggregate install state
-  Note over API,Catalog: SpeechT5 is Installed only when INT8 and FP16 are complete
+  API->>Catalog: Persist variant and install state
+  Note over API,Catalog: SpeechT5 is Installed when its FP16 artifact is complete
   Note over Service,Store: Voice services must start after installation
-  Service->>Store: Load selected precision read-only
+  Service->>Store: Load the selected artifact read-only
   Service->>Service: Compile for configured or per-request device
 ```
 
