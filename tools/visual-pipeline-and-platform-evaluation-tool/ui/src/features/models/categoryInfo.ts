@@ -12,7 +12,7 @@ export const CATEGORY_INFO: Record<
   image_segmentation: {
     label: "Image Segmentation",
     description:
-      "Instance segmentation provides pixel-level boundaries (polygons) for individual objects to capture their exact shape.",
+      "Image segmentation provides pixel-level boundaries (polygons) for individual objects to capture their exact shape.",
   },
   pose_estimation: {
     label: "Pose Estimation",
