@@ -10,7 +10,24 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from .hw_monitor import FAMILY_KPI_KEYS
+
 logger = logging.getLogger(__name__)
+
+# Reverse index: base KPI key (no _avg/_max suffix) -> device family. Used to
+# decide which CSV cells belong to a family whose kpi_status is
+# "no_samples", so they can show "NO_SAMPLES" instead of a blank string.
+_KEY_TO_FAMILY: dict[str, str] = {
+    key: family for family, keys in FAMILY_KPI_KEYS.items() for key in keys
+}
+
+
+def _family_for_column(column: str) -> str | None:
+    """Map a CSV column like ``npu_utilization_avg`` back to its device family."""
+    for suffix in ("_avg", "_max"):
+        if column.endswith(suffix):
+            return _KEY_TO_FAMILY.get(column[: -len(suffix)])
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +104,7 @@ class CSVReporter:
             "npu_bandwidth_avg",
             "npu_bandwidth_max",
             "hw_sample_count",
+            "kpi_warnings",
             "job_id",
             "error",
         ]
@@ -102,10 +120,20 @@ class CSVReporter:
                     "per_stream_fps"
                 )
                 hw = tc.get("hw_metrics", {}) or {}
+                kpi_status = hw.get("kpi_status", {}) or {}
 
                 def _f(key: str) -> str:
                     v = hw.get(key)
-                    return f"{v:.2f}" if v is not None else ""
+                    if v is not None:
+                        return f"{v:.2f}"
+                    # No numeric value: if this column belongs to a family
+                    # that never reported a single sample, say so explicitly
+                    # instead of leaving a blank cell that looks like a
+                    # formatting bug.
+                    family = _family_for_column(key)
+                    if family and kpi_status.get(family) == "no_samples":
+                        return "NO_SAMPLES"
+                    return ""
 
                 row = {
                     "pipeline_name": tc.get("pipeline_name", ""),
@@ -159,6 +187,7 @@ class CSVReporter:
                     "npu_bandwidth_avg": _f("npu_bandwidth_avg"),
                     "npu_bandwidth_max": _f("npu_bandwidth_max"),
                     "hw_sample_count": hw.get("sample_count", ""),
+                    "kpi_warnings": hw.get("kpi_warnings", ""),
                     "job_id": tc.get("job_id", ""),
                     "error": tc.get("error", ""),
                 }
@@ -238,6 +267,21 @@ def _fmt(val: Any, suffix: str = "", fallback: str = "—") -> str:
     if val is None:
         return fallback
     return f"{val}{suffix}"
+
+
+def _kpi_badge(status: str | None) -> str:
+    """Render a small warning badge for a non-"ok" per-family ``kpi_status``.
+
+    Returns "" for ``"ok"``/``None`` (nothing to flag). ``"no_samples"`` and
+    ``"idle"`` get a human-readable warning badge so the gap or lack of
+    device activity is visible in the report instead of silently producing
+    a blank/zero-looking cell.
+    """
+    if status == "no_samples":
+        return ' <span class="badge warn">no samples</span>'
+    if status == "idle":
+        return ' <span class="badge warn">idle</span>'
+    return ""
 
 
 def _build_fps_charts(test_cases: list[dict[str, Any]]) -> dict[str, Any]:
@@ -397,6 +441,7 @@ def _build_summary_rows(test_cases: list[dict[str, Any]]) -> list[dict[str, Any]
     for tc in test_cases:
         hw = tc.get("hw_metrics") or {}
         result_data = tc.get("result", {}) or {}
+        kpi_status = hw.get("kpi_status") or {}
         rows.append(
             {
                 "pipeline": tc["pipeline_name"],
@@ -424,10 +469,15 @@ def _build_summary_rows(test_cases: list[dict[str, Any]]) -> list[dict[str, Any]
                 "gpu_power_max": _safe(hw.get("gpu_power_w_max"), 2),
                 "pkg_power": _safe(hw.get("pkg_power_w_avg"), 2),
                 "npu_util": _safe(hw.get("npu_utilization_avg"), 1),
+                # npu_frequency is reported in MHz by metrics-manager.
+                "npu_freq": _safe(hw.get("npu_frequency_avg"), 0),
                 "npu_power": _safe(hw.get("npu_power_avg"), 2),
                 "cpu_util": _safe(hw.get("cpu_util_pct_avg"), 1),
                 "cpu_temp": _safe(hw.get("cpu_temperature_avg"), 1),
                 "cpu_temp_max": _safe(hw.get("cpu_temperature_max"), 1),
+                "cpu_status": kpi_status.get("CPU"),
+                "gpu_status": kpi_status.get("GPU"),
+                "npu_status": kpi_status.get("NPU"),
                 "error": tc.get("error"),
             }
         )
@@ -527,14 +577,15 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
                 <td class="r hi">{_fmt(r["total_fps"])}</td>
                 <td class="r">{_fmt(r["per_stream_fps"])}</td>
                 <td class="r">{_fmt(r["duration_s"], "s")}</td>
-                <td class="r">{_fmt(r["gpu_util"], "%")}</td>
+                <td class="r">{_fmt(r["gpu_util"], "%")}{_kpi_badge(r.get("gpu_status"))}</td>
                 <td class="r">{_fmt(r["gpu_freq"], " MHz")}</td>
                 <td class="r">{_fmt(r["gpu_power"], " W")}</td>
                 <td class="r">{_fmt(r["gpu_power_max"], " W")}</td>
                 <td class="r">{_fmt(r["pkg_power"], " W")}</td>
-                <td class="r">{_fmt(r["npu_util"], "%")}</td>
+                <td class="r">{_fmt(r["npu_util"], "%")}{_kpi_badge(r.get("npu_status"))}</td>
+                <td class="r">{_fmt(r["npu_freq"], " MHz")}</td>
                 <td class="r">{_fmt(r["npu_power"], " W")}</td>
-                <td class="r">{_fmt(r["cpu_util"], "%")}</td>
+                <td class="r">{_fmt(r["cpu_util"], "%")}{_kpi_badge(r.get("cpu_status"))}</td>
                 <td class="r">{_fmt(r["cpu_temp"], "°C")}</td>
                 <td class="r">{_fmt(r["cpu_temp_max"], "°C")}</td>
             </tr>"""
@@ -582,7 +633,7 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
                 <th style="text-align:right">GPU Util</th><th style="text-align:right">GPU Freq</th>
                 <th style="text-align:right">GPU Power</th><th style="text-align:right">GPU Peak</th>
                 <th style="text-align:right">Pkg Power</th>
-                <th style="text-align:right">NPU Util</th><th style="text-align:right">NPU Power</th>
+                <th style="text-align:right">NPU Util</th><th style="text-align:right">NPU Freq</th><th style="text-align:right">NPU Power</th>
                 <th style="text-align:right">CPU Util</th><th style="text-align:right">CPU Temp</th><th style="text-align:right">CPU Temp Peak</th>
               </tr></thead>
               <tbody>{"".join(table_rows_html)}</tbody>
@@ -686,6 +737,7 @@ html {{ background: #ffffff; }}
   --text: #1b1b1b; --text-2: #4b5563; --text-3: #6e7781;
   --ok: #1a7f37; --ok-dim: rgba(26,127,55,.1);
   --fail: #cf222e; --fail-dim: rgba(207,34,46,.1);
+  --warn: #9a6700; --warn-dim: rgba(154,103,0,.12);
   --accent: #0071c5; --accent-hi: #0550ae;
   --radius: 10px; --radius-sm: 6px;
 }}
@@ -738,6 +790,8 @@ td.hi {{ color: var(--text); font-weight: 500; }}
 .badge.pass::before {{ background: var(--ok); }}
 .badge.fail {{ background: var(--fail-dim); color: var(--fail); }}
 .badge.fail::before {{ background: var(--fail); }}
+.badge.warn {{ background: var(--warn-dim); color: var(--warn); padding: 1px 6px; font-size: 10px; }}
+.badge.warn::before {{ background: var(--warn); }}
 .chip {{ display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: .2px; }}
 .chip.cpu {{ background: rgba(0,113,197,.12); color: #0550ae; }}
 .chip.gpu {{ background: rgba(26,127,55,.12); color: #1a7f37; }}

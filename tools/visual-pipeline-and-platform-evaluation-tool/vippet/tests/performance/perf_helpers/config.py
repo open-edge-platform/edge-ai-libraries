@@ -49,6 +49,14 @@ METRICS_SAMPLE_INTERVAL: float = float(
         "PERF_METRICS_INTERVAL", str(_METRICS_CFG.get("sample_interval_seconds", 2.0))
     )
 )
+# Fraction of time-ordered HW samples trimmed from each end before averaging,
+# to discard warm-up/wind-down outliers. Mirrors VIPPET's built-in benchmark
+# (managers.benchmark_metrics.TRIM_FRACTION). See hw_monitor._trim_edge_samples.
+METRICS_TRIM_FRACTION: float = float(
+    os.environ.get(
+        "PERF_METRICS_TRIM_FRACTION", str(_METRICS_CFG.get("trim_fraction", 0.1))
+    )
+)
 
 # --- benchmark section ---
 _BENCHMARK_CFG: dict[str, Any] = _PERF_YAML.get("benchmark", {})

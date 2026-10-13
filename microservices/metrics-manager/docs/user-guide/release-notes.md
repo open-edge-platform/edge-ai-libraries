@@ -1,5 +1,19 @@
 # Release Notes: Metrics Manager
 
+## Version 2026.3.0-dev
+
+**Release Date:** TBD
+
+**Fixed:**
+
+- **NPU Bandwidth Rate**: `npu_bandwidth` is now a true MB/s rate (NoC bandwidth delta divided by the actual elapsed sampling interval) instead of a raw, interval-agnostic delta, and correctly handles the underlying 32-bit hardware counter rolling over.
+- **NPU Frequency Unit**: `npu_frequency` now reports the NPU's display frequency in **MHz** (previously a mislabeled pseudo-Hz value). The field key is unchanged, so existing dashboards keep working — only the displayed magnitude changes.
+- **No More Fake Sentinel Values**: `npu_utilization` is omitted from the emitted sample (instead of a fake `0`) when `npu_busy_time_us` isn't exposed by the platform, and `npu_memory_mb` is omitted (instead of a fake `-1`) when the memory-utilization sysfs node isn't supported. Consumers should treat a missing field as "not measurable on this platform", not as a real zero/negative reading.
+
+**Improved:**
+
+- **Testability**: The per-sample NPU telemetry calculation in `scripts/npu_reader.py` was extracted into a pure, unit-testable function (previously inlined in the polling loop).
+
 ## Version 2026.2.0
 
 **Release Date:** September 9, 2026

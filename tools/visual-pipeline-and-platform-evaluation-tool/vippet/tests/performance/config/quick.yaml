@@ -31,6 +31,16 @@ benchmark:
     skip_missing_models: true
     on_unknown_id: "fail"
 
+# Hardware metrics collection
+metrics:
+  metrics_url: "http://localhost/metrics/stream"
+  sample_interval_seconds: 2.0
+
+  # Fraction of time-ordered HW samples trimmed from each end before
+  # averaging, to discard warm-up/wind-down outliers (same as VIPPET's
+  # built-in benchmark). 0.1 = trim 10% off each end.
+  trim_fraction: 0.1
+
 results:
   output_dir: "./results"
   formats:

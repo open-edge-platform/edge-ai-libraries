@@ -478,21 +478,21 @@ Filtered to `coretemp_package_id_*` (CPU package temperature). Tag: `sensor`.
 
 ### Intel NPU (`npu`) via `scripts/npu_reader.py`
 
-| Prometheus Name   | Field         | Description                                                                     |
-| ----------------- | ------------- | ------------------------------------------------------------------------------- |
-| `npu_power`       | `power`       | NPU power draw in watts (derived from `VPU_ENERGY` delta)                       |
-| `npu_frequency`   | `frequency`   | NPU display frequency in Hz                                                     |
-| `npu_temperature` | `temperature` | NPU SoC temperature in °C (integer)                                             |
-| `npu_bandwidth`   | `bandwidth`   | NoC memory bandwidth delta in MB/s                                              |
-| `npu_tile_config` | `tile_config` | Active tile configuration                                                       |
-| `npu_utilization` | `utilization` | % NPU utilization over the last interval (0–100)                                |
-| `npu_memory_mb`   | `memory_mb`   | NPU memory usage in MB (`-1` on platforms without the sysfs node, e.g. MTL/ARL) |
+| Prometheus Name   | Field         | Description                                                                                                                                       |
+|-------------------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `npu_power`       | `power`       | NPU power draw in watts (derived from `VPU_ENERGY` delta)                                                                                         |
+| `npu_frequency`   | `frequency`   | NPU display frequency in **MHz**                                                                                                                  |
+| `npu_temperature` | `temperature` | NPU SoC temperature in °C (integer)                                                                                                               |
+| `npu_bandwidth`   | `bandwidth`   | NoC memory bandwidth **rate** in MB/s (delta over the actual elapsed sampling interval, corrected for the underlying 32-bit counter rolling over) |
+| `npu_tile_config` | `tile_config` | Active tile configuration                                                                                                                         |
+| `npu_utilization` | `utilization` | % NPU utilization over the last interval (0–100). **Omitted** (not sent as `0`) when the `npu_busy_time_us` sysfs node isn't exposed              |
+| `npu_memory_mb`   | `memory_mb`   | NPU memory usage in MB. **Omitted** (not sent as `-1`) on platforms without the `npu_memory_utilization` sysfs node, e.g. MTL/ARL                 |
 
 **Requirements:**
 
 - Intel NPU present and the `intel_vpu` driver loaded (`ls /sys/bus/pci/drivers/intel_vpu/`)
 - `/sys/class/intel_pmt/` accessible inside the container (provided by `privileged: true` + `/sys:/sys:ro`)
-- Supported generations: Meteor Lake (MTL), Arrow Lake (ARL/ARL-H/ARL-S), Lunar Lake (LNL), Panther Lake (PTL). On pre-PTL platforms, `npu_memory_mb` reports `-1`
+- Supported generations: Meteor Lake (MTL), Arrow Lake (ARL/ARL-H/ARL-S), Lunar Lake (LNL), Panther Lake (PTL). On pre-PTL platforms, `npu_memory_mb` is **omitted** from the emitted sample entirely (rather than a sentinel value) — a consumer that needs to distinguish "not supported" from "zero" should treat a missing field as the former, not query for `-1`.
 
 ---
 
