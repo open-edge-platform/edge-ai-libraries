@@ -19,25 +19,21 @@ import (
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/replay"
 )
 
-// replayWriteTimeout replaces the server write timeout on replay requests,
-// which may wait on FFmpeg and stream large clips.
+// replayWriteTimeout replaces the server write timeout on replay requests
 const replayWriteTimeout = 15 * time.Minute
 
-// ReplayHandler serves the Replay APIs and the media they link to.
+// ReplayHandler is initialized with the instance of Replay's new
+// service which also implements Replayer interface
 type ReplayHandler struct {
 	Replays replay.Replayer
 }
 
-// Frame handles GET /replays/{recording-id}/frame.
-func (h ReplayHandler) Frame(c *gin.Context) { h.frame(c, false) }
-
-// FrameURL handles GET /replays/{recording-id}/frame/url.
+// handles /frame and /frame/url endpoints
+func (h ReplayHandler) Frame(c *gin.Context)    { h.frame(c, false) }
 func (h ReplayHandler) FrameURL(c *gin.Context) { h.frame(c, true) }
 
-// Clip handles GET /replays/{recording-id}/clip.
-func (h ReplayHandler) Clip(c *gin.Context) { h.clip(c, false) }
-
-// ClipURL handles GET /replays/{recording-id}/clip/url.
+// handles /clip and /clip/url endpoints
+func (h ReplayHandler) Clip(c *gin.Context)    { h.clip(c, false) }
 func (h ReplayHandler) ClipURL(c *gin.Context) { h.clip(c, true) }
 
 func (h ReplayHandler) frame(c *gin.Context, linkOnly bool) {
