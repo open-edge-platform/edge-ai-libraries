@@ -211,6 +211,13 @@ Following is the guidelines regarding the directory structure of the documentati
 - Build from source guide should be present at the `docs/user-guide/build-from-source.md`.
 - This document guides user clearly towards how to build the application on host and how to build a container image. Refer to the [Build](#build) section here and other information available to write a well designed guide.
 
+#### Openapi Specs
+
+- `openapi.yaml` file lives in the `docs/user-guide/api-docs/openapi.yaml` file.
+- This contains the YAML content read by the gin-swagger tool to present the Swagger UI for using the API along with all the API specification, request and response schemas, sample request and response examples, and error codes with corresponding error response.
+- Wehenevr asked to update the Swagger UI or openapi specs - Keep the YAML file upto date with the actual implementation of API routes and schema, request body, response body and error code/response being used.
+- Apart from explicitly being asked, update or work on it to sync with the changes whenever asked to update the documentation.
+
 ## Agent-Specific Notes
 
 Read the (`copilot-instructions.md`)[.github/copilot-instructions.md] for guidance on how to interact with the copilot agents.

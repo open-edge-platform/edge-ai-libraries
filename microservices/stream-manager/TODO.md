@@ -12,27 +12,32 @@ Items are listed roughly in order of priority.
 - [x] Package and distribution - Discuss and implement a strategy for containerizing.
 - [ ] Implement the `PUT /buffer` endpoint to resize stream buffers
 - [ ] Add S3-compatible storage for videos
-- [ ] Support multiple `stream_ids` in start-recording request bodies
+- [ ] Discuss, analyse and implement multiple `stream_ids` in start-recording request bodies
+- [ ] Discuss if TTL or expiry of retrieved clips and frames is a desired or undesired feature. Act accordingly.
 
 ### Incremental
 - [x] Implement support for user supplied config file. JSON or YAML preferred.
 - [ ] Add pagination to the `GET /streams` endpoint
 - [ ] Add a tools directory. This remains added to .dockerignore, but contain shell scripts that allow anyone to add stream-manager with proper config/data file dir to an existing docker compose file which is passed as an argument.
+- [ ] Analyse if ranger headers needed in media access APIs and implement accordingly
 
 ## Optimization or Improvements
 
 ### Major
 - [x] Add a custom error-handling framework using `StreamManError`
+- [ ] See possibilities to use `StreamManError` across all error chains, or even as Custom Sentinel Errors.
 - [x] Write `AGENTS.md` and `copilot-instructions.md`
 - [ ] Idempotency of the `POST /records/start` endpoint
 
 ### Incremental
 - [x] Use of `log/slog` for logging
-- [ ] Check if `ffmpeg` can completely replace `blueviron/mediamtx` and whether it will be an optimal choice.
+- [ ] Check if `ffmpeg` can completely replace `blueviron/mediamtx` and whether it will be an optimal choice. (or vice-versa :O)
 - [ ] Check `cfg.RecordingStorage` quotas and enforce disk limits through host-based notifications or other mechanisms (rolling storage?)
 - [ ] Use `errors.Join()` to combine `recordingFilter` validation errors and similar errors across endpoints
 - [ ] Evaluate whether `DecodeJSON` would be useful as middleware
-- [ ] Optimize request coupling - Should POST /streams be always called before POST /records/start by consumer?
+- [ ] Optimize request sequences - Should POST /streams be always called before POST /records/start by consumer?
+- [ ] Make the derived media TTL (fixed 15 min for replay frames and clips) configurable via `config.json`
+- [ ] Add a cleanup job that deletes expired derived media in `<recording-dir>/derived/` and expired recordings with all their derived media. A recording's `expiry_ts` always wins: when the recording expires, its derived items are deleted with it even if their own TTL has not run out
 
 ## Research/Exploration
 - [ ] Weigh in tradeoffs of using random UUIDs as primary key in the database - should UUIDv7 be used or a shorter UUID or incremental int prefixed to UUIDs.
@@ -45,6 +50,8 @@ Items are listed roughly in order of priority.
 
 - [ ] A `sensor_id` and `source_uri` both together make a unique stream, not just the sensor_id. Fix the stream attached error coming up for duplicate streams with the same `sensor_id` but different `source_uri`.
 - [ ] Update the unique identifier (`stream_id`) for a stream to be a short uuid prefixed with `sensor_id`. (See related item in Research/Exploration)
+- [ ] Update OpenAPI specs error response and error codes to be inline with actual implementation.
+- [ ] Fix incorrect examples for /clip and /frame endpoints in OpenAPI specs.
 
 # Deferred
 
