@@ -35,6 +35,8 @@ var (
 	ErrCleanup        = errors.New("recording storage cleanup failed")
 )
 
+const recoveryBatchSize = 100
+
 // StartOptions describes one recording of a single attached stream.
 // TODO: accept several stream IDs and admit their recordings atomically.
 type StartOptions struct {
@@ -45,11 +47,12 @@ type StartOptions struct {
 	Metadata map[string]any
 }
 
-// Service owns recording workers; Store remains open until Close completes.
+// Service owns recording workers; metadata and media stay open until Close completes.
 type Service struct {
 	mu        sync.Mutex
 	buffers   stream.Bufferer
-	store     *storage.Store
+	metadata  storage.MetadataHandler
+	media     storage.MediaHandler
 	ffmpeg    string
 	ffprobe   string
 	max       int
@@ -76,7 +79,9 @@ type job struct {
 
 var _ Recorder = (*Service)(nil)
 
-func NewService(buffers stream.Bufferer, store *storage.Store, concurrentRecordings int) (*Service, error) {
+func NewService(buffers stream.Bufferer, metadata storage.MetadataHandler, media storage.MediaHandler,
+	concurrentRecordings int,
+) (*Service, error) {
 	if concurrentRecordings < 1 || concurrentRecordings > 1024 {
 		return nil, ErrInvalidRequest
 	}
@@ -88,10 +93,40 @@ func NewService(buffers stream.Bufferer, store *storage.Store, concurrentRecordi
 	if err != nil {
 		return nil, err
 	}
-	return &Service{
-		buffers: buffers, store: store, ffmpeg: ffmpeg, ffprobe: ffprobe, max: concurrentRecordings,
+	s := &Service{
+		buffers: buffers, metadata: metadata, media: media, ffmpeg: ffmpeg, ffprobe: ffprobe, max: concurrentRecordings,
 		jobs: make(map[string]*job), now: time.Now,
-	}, nil
+	}
+	if err := s.recoverInterrupted(context.Background()); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// recoverInterrupted fails the recordings that a previous run left unfinished and deletes their media.
+func (s *Service) recoverInterrupted(ctx context.Context) error {
+	detail := "recording interrupted by service restart"
+	for _, state := range []string{"recording", "finalizing"} {
+		for {
+			records, _, err := s.metadata.ListMetadata(ctx, model.RecordingFilter{State: state, Limit: recoveryBatchSize})
+			if err != nil {
+				return err
+			}
+			if len(records) == 0 {
+				break
+			}
+			for _, rec := range records {
+				rec.State, rec.ErrorDetail = "failed", &detail
+				if _, err := s.metadata.UpdateMetadata(ctx, rec.RecordingID, rec); err != nil {
+					return err
+				}
+				if err := s.media.DeleteMedia(ctx, rec.RecordingPath); err != nil {
+					return fmt.Errorf("clean interrupted recording %s: %w", rec.RecordingID, err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func Seconds(value float64) (time.Duration, error) {
@@ -156,7 +191,7 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 		cancel()
 		cause = errors.Join(cause, lease.Close())
 		if j.uri != "" {
-			cause = errors.Join(cause, s.store.DeleteMedia(context.Background(), j.uri))
+			cause = errors.Join(cause, s.media.DeleteMedia(context.Background(), j.uri))
 		}
 		return cause
 	}
@@ -167,7 +202,7 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 	if err != nil {
 		return model.Recording{}, rollback(err)
 	}
-	filename, uri, err := s.store.PrepareMedia(ctx, recordID.String())
+	filename, uri, err := s.media.PrepareMedia(ctx, recordID.String())
 	if err != nil {
 		return model.Recording{}, rollback(err)
 	}
@@ -182,7 +217,7 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 		target := end.UTC()
 		j.record.EndTS = &target
 	}
-	rec, err := s.store.CreateMetadata(ctx, j.record)
+	rec, err := s.metadata.CreateMetadata(ctx, j.record)
 	if err != nil {
 		return model.Recording{}, rollback(err)
 	}
@@ -211,7 +246,7 @@ func (s *Service) StartRecording(ctx context.Context, _ string, streamID string,
 func (s *Service) Stop(ctx context.Context, id string) (model.Recording, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rec, err := s.store.GetMetadataByRecordingID(ctx, id)
+	rec, err := s.metadata.GetMetadataByRecordingID(ctx, id)
 	if err != nil {
 		return rec, false, err
 	}
@@ -230,7 +265,7 @@ func (s *Service) Stop(ctx context.Context, id string) (model.Recording, bool, e
 		return rec, false, err
 	}
 	rec.State, rec.EndTS = "finalizing", &target
-	rec, err = s.store.UpdateMetadata(ctx, id, rec)
+	rec, err = s.metadata.UpdateMetadata(ctx, id, rec)
 	if err != nil {
 		j.cancel()
 		return rec, false, err
@@ -245,28 +280,28 @@ func (s *Service) StopRecording(ctx context.Context, id string) error {
 }
 
 func (s *Service) Get(ctx context.Context, id string) (model.Recording, error) {
-	return s.store.GetMetadataByRecordingID(ctx, id)
+	return s.metadata.GetMetadataByRecordingID(ctx, id)
 }
 
 func (s *Service) List(ctx context.Context, filter model.RecordingFilter) ([]model.Recording, string, error) {
-	return s.store.ListMetadata(ctx, filter)
+	return s.metadata.ListMetadata(ctx, filter)
 }
 
 func (s *Service) DeleteRecording(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rec, err := s.store.GetMetadataByRecordingID(ctx, id)
+	rec, err := s.metadata.GetMetadataByRecordingID(ctx, id)
 	if err != nil {
 		return err
 	}
 	if rec.State == "recording" || rec.State == "finalizing" || s.jobs[id] != nil {
 		return ErrConflict
 	}
-	if err := s.store.DeleteMedia(ctx, rec.RecordingPath); err != nil {
+	if err := s.metadata.DeleteMetadata(ctx, id); err != nil {
 		return fmt.Errorf("%w: %w", ErrCleanup, err)
 	}
-	if err := s.store.DeleteMetadata(ctx, id); err != nil {
-		return fmt.Errorf("%w: %w", ErrCleanup, err)
+	if err := s.media.DeleteMedia(ctx, rec.RecordingPath); err != nil {
+		slog.Error("recording media left after delete", "recording_id", id, "error", err)
 	}
 	return nil
 }
@@ -283,7 +318,7 @@ func (s *Service) run(j *job) {
 	if err == nil {
 		j.record.StartTS, j.record.EndTS = start, &end
 		j.record.State, j.record.SizeBytes, j.record.Codec = "ready", &size, &codec
-		_, err = s.store.UpdateMetadata(ctx, j.record.RecordingID, j.record)
+		_, err = s.metadata.UpdateMetadata(ctx, j.record.RecordingID, j.record)
 	}
 	if err != nil {
 		detail := "recording could not be completed"
@@ -295,8 +330,8 @@ func (s *Service) run(j *job) {
 			detail = "recording interrupted before completion"
 		}
 		j.record.State, j.record.SizeBytes, j.record.ErrorDetail = "failed", nil, &detail
-		_, saveErr := s.store.UpdateMetadata(ctx, j.record.RecordingID, j.record)
-		cleanupErr := s.store.DeleteMedia(ctx, j.record.RecordingPath)
+		_, saveErr := s.metadata.UpdateMetadata(ctx, j.record.RecordingID, j.record)
+		cleanupErr := s.media.DeleteMedia(ctx, j.record.RecordingPath)
 		j.err = errors.Join(saveErr, cleanupErr)
 		s.closeErr = errors.Join(s.closeErr, j.err)
 		slog.Error("recording failed", "recording_id", j.record.RecordingID, "error", errors.Join(err, j.err))

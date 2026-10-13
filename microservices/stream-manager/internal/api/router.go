@@ -9,12 +9,13 @@ import (
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api/common"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api/handler"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/record"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/replay"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/stream"
 )
 
 // NewRouter builds the HTTP engine with the API mounted under /v1. version,
 // buildNumber, and buildDate are reported by the Service status API.
-func NewRouter(buffers stream.Bufferer, recordings *record.Service, version, buildNumber, buildDate string) *gin.Engine {
+func NewRouter(buffers stream.Bufferer, recordings *record.Service, replays replay.Replayer, version, buildNumber, buildDate string) *gin.Engine {
 	router := gin.New()
 	// adding global middlewares
 	router.Use(gin.Logger(), common.Recovery(), common.BodyLimit())
@@ -42,6 +43,16 @@ func NewRouter(buffers stream.Bufferer, recordings *record.Service, version, bui
 	v1.GET("/records", records.List)
 	recordRoutesWithID.GET("", records.Get)
 	recordRoutesWithID.DELETE("", records.Delete)
+
+	replayer := handler.ReplayHandler{Replays: replays}
+	requireRecordingID := common.RequireID("recording-id", "record_not_found", "record not found")
+	replayRoutesWithID := v1.Group("/replays/:recording-id", requireRecordingID)
+
+	replayRoutesWithID.GET("/frame", replayer.Frame)
+	replayRoutesWithID.GET("/frame/url", replayer.FrameURL)
+	replayRoutesWithID.GET("/clip", replayer.Clip)
+	replayRoutesWithID.GET("/clip/url", replayer.ClipURL)
+	v1.GET("/media/:recording-id/:file", requireRecordingID, replayer.Media)
 
 	// Serving Swagger UI
 	router.GET("/docs/v1/*any", handler.ServeSwaggerUI)

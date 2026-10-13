@@ -17,6 +17,7 @@ import (
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/config"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/record"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/replay"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/storage"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/stream"
 )
@@ -48,27 +49,33 @@ func run() (errResult error) {
 	if err != nil {
 		return err
 	}
-	store, err := storage.Open(cfg.StorageDir)
+	metadata, err := storage.OpenMetadataStore(cfg.StorageDir)
 	if err != nil {
 		return err
 	}
-	defer func() { errResult = errors.Join(errResult, store.Close()) }()
-	if err := store.RecoverInterrupted(context.Background()); err != nil {
+	defer func() { errResult = errors.Join(errResult, metadata.Close()) }()
+	media, err := storage.OpenMediaStore(cfg.StorageDir)
+	if err != nil {
 		return err
 	}
+	defer func() { errResult = errors.Join(errResult, media.Close()) }()
 	buffers, err := stream.NewService(cfg)
 	if err != nil {
 		return err
 	}
 	defer func() { errResult = errors.Join(errResult, buffers.Close()) }()
-	recordings, err := record.NewService(buffers, store, cfg.ConcurrentRecorders)
+	recordings, err := record.NewService(buffers, metadata, media, cfg.ConcurrentRecorders)
 	if err != nil {
 		return err
 	}
 	defer func() { errResult = errors.Join(errResult, recordings.Close()) }()
+	replays, err := replay.NewService(metadata, media)
+	if err != nil {
+		return err
+	}
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewRouter(buffers, recordings, Version, BuildNumber, BuildDate),
+		Handler:           api.NewRouter(buffers, recordings, replays, Version, BuildNumber, BuildDate),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,
