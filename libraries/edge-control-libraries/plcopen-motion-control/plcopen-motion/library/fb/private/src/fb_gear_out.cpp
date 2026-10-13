@@ -19,6 +19,9 @@ void FbGearOut::setSlave(AXIS_REF slave)
 
 MC_ERROR_CODE FbGearOut::onRisingEdgeExecution()
 {
+  if (jerk_ == 0)
+    return mcErrorCodeMotionLimitUnset;
+
   // change slave axis state from mcSynchronizedMotion
   axis_->setAxisState(mcContinuousMotion);
   // set slave velocity to current velocity
