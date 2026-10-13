@@ -35,6 +35,8 @@ var (
 	ErrCleanup        = errors.New("recording storage cleanup failed")
 )
 
+const recoveryBatchSize = 100
+
 // StartOptions describes one recording of a single attached stream.
 // TODO: accept several stream IDs and admit their recordings atomically.
 type StartOptions struct {
@@ -88,10 +90,40 @@ func NewService(buffers stream.Bufferer, store *storage.Store, concurrentRecordi
 	if err != nil {
 		return nil, err
 	}
-	return &Service{
+	s := &Service{
 		buffers: buffers, store: store, ffmpeg: ffmpeg, ffprobe: ffprobe, max: concurrentRecordings,
 		jobs: make(map[string]*job), now: time.Now,
-	}, nil
+	}
+	if err := s.recoverInterrupted(context.Background()); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// recoverInterrupted fails the recordings that a previous run left unfinished and deletes their media.
+func (s *Service) recoverInterrupted(ctx context.Context) error {
+	detail := "recording interrupted by service restart"
+	for _, state := range []string{"recording", "finalizing"} {
+		for {
+			records, _, err := s.store.ListMetadata(ctx, model.RecordingFilter{State: state, Limit: recoveryBatchSize})
+			if err != nil {
+				return err
+			}
+			if len(records) == 0 {
+				break
+			}
+			for _, rec := range records {
+				rec.State, rec.ErrorDetail = "failed", &detail
+				if _, err := s.store.UpdateMetadata(ctx, rec.RecordingID, rec); err != nil {
+					return err
+				}
+				if err := s.store.DeleteMedia(ctx, rec.RecordingPath); err != nil {
+					return fmt.Errorf("clean interrupted recording %s: %w", rec.RecordingID, err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func Seconds(value float64) (time.Duration, error) {

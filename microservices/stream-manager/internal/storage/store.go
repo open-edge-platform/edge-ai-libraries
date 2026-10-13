@@ -254,24 +254,6 @@ func (s *Store) ListMetadata(ctx context.Context, filter model.RecordingFilter) 
 	return records, next, nil
 }
 
-func (s *Store) RecoverInterrupted(ctx context.Context) error {
-	var records []model.Recording
-	if err := s.db.WithContext(ctx).Where("state IN ?", []string{"recording", "finalizing"}).Find(&records).Error; err != nil {
-		return err
-	}
-	for _, rec := range records {
-		detail := "recording interrupted by service restart"
-		rec.State, rec.ErrorDetail = "failed", &detail
-		if _, err := s.UpdateMetadata(ctx, rec.RecordingID, rec); err != nil {
-			return err
-		}
-		if err := s.DeleteMedia(ctx, rec.RecordingPath); err != nil {
-			return fmt.Errorf("clean interrupted recording %s: %w", rec.RecordingID, err)
-		}
-	}
-	return nil
-}
-
 func validRecordingID(id string) bool {
 	parsed, err := uuid.Parse(id)
 	return err == nil && parsed.String() == id

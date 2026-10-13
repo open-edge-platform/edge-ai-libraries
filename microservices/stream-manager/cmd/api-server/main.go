@@ -54,9 +54,6 @@ func run() (errResult error) {
 		return err
 	}
 	defer func() { errResult = errors.Join(errResult, store.Close()) }()
-	if err := store.RecoverInterrupted(context.Background()); err != nil {
-		return err
-	}
 	buffers, err := stream.NewService(cfg)
 	if err != nil {
 		return err
