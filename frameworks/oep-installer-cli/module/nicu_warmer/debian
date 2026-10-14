@@ -36,7 +36,7 @@ verify_nicu_warmer () {
       return 1
     }
   done
-  [ -e "$workspace"/NICU-Warmer/.env ]
+  [ -e "$workspace"/NICU-Warmer/.env ] || return 1
   . "$workspace"/NICU-Warmer/.env 2> /dev/null
   docker inspect intel/hl-ai-nicu-backend:$TAG > /dev/null
 }
@@ -102,10 +102,14 @@ debian_90_start_nicu_warmer () {
 
 debian_90_stop_nicu_warmer () {
   configure_nicu_warmer "$@"
-  cd "$workspace"/NICU-Warmer && make down || true
+  cd "$workspace"/NICU-Warmer && {
+    make down || true
+    docker volume rm -f nicu-warmer_dlsps-shared || true
+    docker volume prune -f
+  } || true
 }
 
 debian_90_remove_nicu_warmer () {
   debian_90_stop_nicu_warmer
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }

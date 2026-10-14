@@ -196,6 +196,32 @@ describe('SearchContent Component', () => {
       
       expect(document.querySelectorAll("video")).toHaveLength(2);
     });
+
+    it('should assign unique keys to results sharing the same video and timestamp', () => {
+      // Overlapping live-stream segments can yield duplicate video_id+timestamp
+      // pairs. Duplicate React keys break reconciliation and leak orphaned tiles
+      // on list changes, inflating the visible count past topK.
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const mockResults: SearchResult[] = [
+        createMockSearchResult('result-1', 'video-1', 0.95, 120),
+        createMockSearchResult('result-2', 'video-1', 0.87, 120),
+        createMockSearchResult('result-3', 'video-1', 0.80, 120),
+      ];
+
+      const mockQuery = createMockQuery('query-1', 'Test Query 1', 4, mockResults);
+
+      renderSearchContent({
+        selectedQuery: 'query-1',
+        searchQueries: [mockQuery],
+      });
+
+      expect(document.querySelectorAll('video')).toHaveLength(3);
+      const duplicateKeyWarning = consoleError.mock.calls.some((args) =>
+        args.some((arg) => typeof arg === 'string' && arg.includes('same key')),
+      );
+      expect(duplicateKeyWarning).toBe(false);
+      consoleError.mockRestore();
+    });
   });
 
   describe('Query Header', () => {

@@ -5,7 +5,7 @@ SHELL := bash -eu -o pipefail
 
 # default goal to show help
 .DEFAULT_GOAL := help
-.PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
+.PHONY: all lint build mdlint ruff fix-linter format pyright run run-prebuilt build-dev run-dev test \
 	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator shell-dlsps stop clean clean-output-videos help \
 	build-videogenerator build-sensor-manager build-onvif-discovery docker-build env-setup build-test \
 	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental \
@@ -156,6 +156,11 @@ docker-build: build build-videogenerator ## Build all images
 
 run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) up -d
+
+run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source
+	. .env && export DOCKER_TAG="$$PREBUILT_TAG" && echo "Running published images tagged $$DOCKER_TAG" && \
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml pull vippet vippet-ui sensor-manager && \
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d --no-build
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
