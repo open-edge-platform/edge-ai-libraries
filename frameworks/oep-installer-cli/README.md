@@ -59,6 +59,12 @@ openedge-cli start smart_intersection
 
 <hr>
 
+### Installation Location
+
+- The OEP installer is installed under `~/.local/bin` and the installer logs are stored under `~/.local/open-edge-platform/openedge-cli/*.logs`.  
+- System components (such as curl and git) are installed under their defined system locations. See [List SBOM](#list-sbom) for how to list installed system components.
+- Software components such as libraries, samples, and applications are installed under `~/.local/open-edge-platform/<component-name>`.
+
 ## Start and Stop
 
 Start or stop a component:
@@ -91,10 +97,11 @@ The OEP installer uses the following commandline options:
 Usage: openedge-cli <subcommand> [options] [modules/profiles] [module options] ...
 ```
 
-Multiple subcommands can be specified at once. They are executed in order:
+Multiple subcommands can be specified at once. They are executed in order and the component list from a previous command is passed to next:
 
 ```bash
-openedge-cli install smart_parking --gpu start smart_parking --gpu
+# install with --gpu, start, stop and then start again with --npu
+openedge-cli install smart_parking --gpu start stop start -npu
 ```
 
 The following global options are supported:
