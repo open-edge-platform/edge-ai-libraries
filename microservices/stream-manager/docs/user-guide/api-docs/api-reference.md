@@ -55,8 +55,13 @@ http://localhost:8080/v1
   [Replay APIs](#replay-apis)).
 - **Timestamps**: RFC 3339, UTC, with a `Z` suffix and up to 9 fractional digits
   (nanosecond precision), for example `2026-09-16T09:12:03.400000000Z`.
-- **Identifiers**: `stream_id`, `recording_id`, and `sensor_id` are opaque strings, 1-128
-  characters, matching `^[A-Za-z0-9][A-Za-z0-9._:-]*$`.
+- **Identifiers**: New `stream_id` values start with `str-` and contain 22 URL-safe
+  characters after the prefix (26 characters total). New `recording_id` values contain
+  22 URL-safe characters without a prefix. Both encode a random UUID. Existing records
+  can retain their 36-character UUIDs. Treat all IDs as opaque strings. `sensor_id` is
+  the name supplied by the caller. Resource IDs are 1-128 characters and match
+  `^[A-Za-z0-9_-][A-Za-z0-9._:-]*$`. Sensor IDs are 1-128 characters and match
+  `^[A-Za-z0-9][A-Za-z0-9._:-]*$`.
 - **Pagination**: list endpoints accept `cursor` and `limit` (1-100, default 20) query
   parameters and return `next_cursor`, an opaque token to pass back as `cursor` for the next
   page. `next_cursor` is `null` when there are no more pages. Stream listing is not paged yet
@@ -67,9 +72,9 @@ http://localhost:8080/v1
 
 ## Common response objects
 
-> [!CAUTION]
-> The format of different IDs being used in this reference file could be different from the actual IDs used in the implementation.
-> Dummy IDs (like `str-1`, `cam-07`, `rec-3`) are used in this reference as the IDs form factor is still subject to change.
+> [!NOTE]
+> The examples use short placeholders such as `str-1` and `rec-2`. These are not
+> generated IDs. Use the IDs returned by the service in later requests.
 
 ### Error
 
@@ -244,7 +249,7 @@ any history has built up.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `sensor_id` | string | yes | Sensor identity; the name recordings will be filed under. |
+| `sensor_id` | string | yes | Sensor identity; the name recordings will be filed under. One sensor can have many sources. |
 | `source_uri` | string | yes | Absolute URI of the source, no credentials, up to 2048 characters. |
 | `buffer_length` | integer | no | Seconds of history the buffer holds, 5-300. Default is 30. |
 
@@ -287,13 +292,13 @@ curl -i -X POST http://localhost:8080/v1/streams \
       }'
 ```
 
-**Error example — sensor already attached**
+**Error example — source already attached for the sensor**
 
 ```json
 {
   "status": 409,
   "error_code": "stream_exists",
-  "error_detail": "stream on provided source_uri on sensor cam-07 is already attached as str-1"
+  "error_detail": "this source is already attached for the sensor as str-1"
 }
 ```
 
@@ -301,7 +306,7 @@ curl -i -X POST http://localhost:8080/v1/streams \
 |---|---|---|
 | 201 | — | Stream attached. |
 | 400 | `invalid_request` | Malformed body, missing fields, or `buffer_length` out of 5-300 range. |
-| 409 | `stream_exists` | That sensor is already attached; the existing `stream_id` is named in `error_detail`. |
+| 409 | `stream_exists` | The same `source_uri` is already attached for that `sensor_id`; the existing `stream_id` is named in `error_detail`. |
 | 415 | `unsupported_media` | `source_uri` is not an `rtsp://` or `rtsps://` address, embeds credentials, or has no host. |
 | 429 | `capacity_exhausted` | No room left for another stream. |
 
@@ -636,7 +641,7 @@ Content-Type: application/json
 |---|---|---|
 | 200 | — | The recording was already finished; the current record is returned. |
 | 202 | — | Record accepted for finalizing. |
-| 404 | `record_not_found` | Unknown record. |
+| 404 | `recording_not_found` | Unknown recording. |
 | 409 | `record_not_ready` | The record is not an active open recording. Repeated stops while finalizing retain the original stop target and return `202`. |
 
 ### Find records
@@ -758,7 +763,7 @@ Content-Type: application/json
 | Status | `error_code` | Meaning |
 |---|---|---|
 | 200 | — | The `Recording` object. |
-| 404 | `record_not_found` | Unknown or deleted record. |
+| 404 | `recording_not_found` | Unknown or deleted recording. |
 
 ### Delete a record
 
@@ -782,7 +787,7 @@ Content-Type: application/json
 | Status | `error_code` | Meaning |
 |---|---|---|
 | 200 | — | Record deleted. |
-| 404 | `record_not_found` | Unknown or already deleted record. |
+| 404 | `recording_not_found` | Unknown or already deleted recording. |
 | 409 | `record_not_ready` | Record is still recording or finalizing. |
 | 503 | `storage_unavailable` | Storage cleanup failed, leaving the record for retry. |
 
@@ -850,7 +855,7 @@ X-Exact-Match: false
 |---|---|---|
 | 200 | — | `MediaResult`, or the image bytes when an image `Accept` header is used. |
 | 400 | `invalid_timestamp` | Invalid timestamp, format, or match. |
-| 404 | `record_not_found` / `frame_not_found` | Record not found, timestamp outside coverage, or exact frame missing. |
+| 404 | `recording_not_found` / `frame_not_found` | Recording not found, timestamp outside coverage, or exact frame missing. |
 | 406 | `not_acceptable` | Incompatible `Accept` header. |
 | 409 | `record_not_ready` | Record not ready. |
 | 429 | `capacity_exhausted` | Extraction capacity reached. |
@@ -940,7 +945,7 @@ curl -i "http://localhost:8080/v1/replays/rec-2/clip?start_ts=2026-09-16T09:12:0
 |---|---|---|
 | 200 | — | `MediaResult`, or video bytes when a video `Accept` header is used. |
 | 400 | `invalid_request` | Invalid `start_ts`, `duration`, or `format`. |
-| 404 | `frame_not_found` | Record not found, or the requested interval is not fully covered. |
+| 404 | `recording_not_found` / `clip_not_found` | Recording not found, or the requested interval is not fully covered. |
 | 406 | `not_acceptable` | Incompatible `Accept` header. |
 | 409 | `record_not_ready` | Record not ready. |
 | 429 | `capacity_exhausted` | Extraction capacity reached. |
@@ -986,7 +991,7 @@ X-Content-Type-Options: nosniff
 | Status | `error_code` | Meaning |
 |---|---|---|
 | 200 | — | The frame or clip bytes (`image/jpeg`, `image/png`, or `video/mp4`). |
-| 404 | | Unknown record, or the file is missing or past its `expiry_ts`. |
+| 404 | `recording_not_found` / `frame_not_found` / `clip_not_found` | Unknown recording, or the frame or clip is missing or past its `expiry_ts`. |
 
 ---
 
@@ -1001,10 +1006,11 @@ X-Content-Type-Options: nosniff
 | `invalid_selector` | 400 | A referenced identifier (e.g. `stream_id`) is malformed. |
 | `invalid_timestamp` | 400 | A timestamp is missing, malformed, or out of the allowed range. |
 | `stream_not_found` | 404 | The stream is unknown or has been detached. |
-| `record_not_found` | 404 | The record is unknown or has been deleted. |
-| `frame_not_found` | 404 | No frame sits at the exact requested time (`match=exact`), or a clip's interval is not fully covered. |
+| `recording_not_found` | 404 | The recording is unknown or has been deleted. |
+| `frame_not_found` | 404 | The requested frame is not covered, no frame sits at the exact requested time (`match=exact`), or a frame file is missing or expired. |
+| `clip_not_found` | 404 | The requested clip interval is not covered, or a clip file is missing or expired. |
 | `not_acceptable` | 406 | The `Accept` header cannot be satisfied. |
-| `stream_exists` | 409 | The sensor is already attached; the existing `stream_id` is named in `error_detail`. |
+| `stream_exists` | 409 | The same `source_uri` is already attached for that `sensor_id`; the existing `stream_id` is named in `error_detail`. |
 | `record_not_ready` | 409 | The record is not in a state that allows the requested action. |
 | `history_unavailable` | 409 | Requested pre-event or playback history is not in the buffer. |
 | `active_dependency` | 409 | Another resource still depends on this one (e.g. an active recording). |

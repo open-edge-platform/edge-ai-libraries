@@ -84,7 +84,7 @@ func TestStreamRoutes(t *testing.T) {
 		}
 		return recorder
 	}
-	created := request("POST", "/v1/streams", `{"sensor_id":"camera","source_uri":"rtsp://127.0.0.1:1/unavailable"}`, 201)
+	created := request("POST", "/v1/streams", `{"sensor_id":"camera","source_uri":"rtsp://127.0.0.1:1/unavailable?token=secret"}`, 201)
 	var result struct {
 		StreamID string `json:"stream_id"`
 		Buffer   struct {
@@ -95,10 +95,14 @@ func TestStreamRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := "/v1/streams/" + result.StreamID
-	if result.StreamID == "" || created.Header().Get("Location") != path || result.Buffer.Capacity != 45 {
+	if result.StreamID == "" || created.Header().Get("Location") != path || result.Buffer.Capacity != 45 ||
+		strings.Contains(created.Body.String(), "secret") ||
+		strings.Contains(created.Body.String(), "127.0.0.1") {
 		t.Fatalf("unexpected creation response: %s", created.Body)
 	}
-	request("POST", "/v1/streams", `{"sensor_id":"camera","source_uri":"rtsp://127.0.0.1:1/unavailable"}`, 409)
+	request("POST", "/v1/streams", `{"sensor_id":"camera","source_uri":"rtsp://127.0.0.1:1/unavailable?token=secret"}`, 409)
+	substream := request("POST", "/v1/streams", `{"sensor_id":"camera","source_uri":"rtsp://127.0.0.1:1/substream"}`, 201)
+	request("DELETE", substream.Header().Get("Location"), "", 200)
 	sized := request("POST", "/v1/streams", `{"sensor_id":"sized","source_uri":"rtsp://127.0.0.1:1/unavailable","buffer_length":60}`, 201)
 	var sizedResult struct {
 		StreamID string `json:"stream_id"`
@@ -157,7 +161,7 @@ func TestStreamRoutes(t *testing.T) {
 		{"POST", "/v1/records/start", `{"stream_id":"` + result.StreamID + `","start_ts":"2026-01-01T00:00:00Z"}`, "history_unavailable", 409},
 		{"POST", "/v1/records/stop", `{}`, "invalid_request", 400},
 		{"GET", "/v1/records?limit=0", "", "invalid_request", 400},
-		{"GET", "/v1/records/.bad", "", "record_not_found", 404},
+		{"GET", "/v1/records/.bad", "", "recording_not_found", 404},
 	} {
 		response := request(tc.method, tc.path, tc.body, tc.status)
 		var failure struct {
@@ -173,6 +177,38 @@ func TestStreamRoutes(t *testing.T) {
 	request("DELETE", path, "", 200)
 	request("GET", path, "", 404)
 	request("DELETE", path, "", 404)
+	const retryBody = `{"sensor_id":"retry-camera","source_uri":"rtsp://127.0.0.1:1/unreachable"}`
+	firstAttempt := request("POST", "/v1/streams", retryBody, 201)
+	var firstStream struct {
+		StreamID string `json:"stream_id"`
+	}
+	if err := json.Unmarshal(firstAttempt.Body.Bytes(), &firstStream); err != nil || firstStream.StreamID == "" {
+		t.Fatalf("invalid initial attach response: %s %v", firstAttempt.Body, err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		info, err := service.GetStream(t.Context(), firstStream.StreamID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.State == "failed" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("unreachable source did not fail, state %q", info.State)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	retry := request("POST", "/v1/streams", retryBody, 201)
+	var retryStream struct {
+		StreamID string `json:"stream_id"`
+	}
+	if err := json.Unmarshal(retry.Body.Bytes(), &retryStream); err != nil ||
+		retryStream.StreamID == "" || retryStream.StreamID == firstStream.StreamID {
+		t.Fatalf("retry did not create a new stream: %s %v", retry.Body, err)
+	}
+	request("DELETE", "/v1/streams/"+firstStream.StreamID, "", 200)
+	request("DELETE", "/v1/streams/"+retryStream.StreamID, "", 200)
 	empty := request("GET", "/v1/streams", "", 200)
 	if empty.Body.String() != `{"items":[],"next_cursor":null}` {
 		t.Fatalf("empty stream list: %s", empty.Body)

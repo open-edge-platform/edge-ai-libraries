@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -59,7 +60,7 @@ func (h ReplayHandler) frame(c *gin.Context, linkOnly bool) {
 	extendWriteDeadline(c)
 	media, err := h.Replays.Frame(c.Request.Context(), c.Param("recording-id"), ts, format, match)
 	if err != nil {
-		writeReplayError(c, err)
+		writeReplayError(c, err, false)
 		return
 	}
 	h.respond(c, media, asJSON)
@@ -87,7 +88,7 @@ func (h ReplayHandler) clip(c *gin.Context, linkOnly bool) {
 	extendWriteDeadline(c)
 	media, err := h.Replays.Clip(c.Request.Context(), c.Param("recording-id"), start, duration, "mp4")
 	if err != nil {
-		writeReplayError(c, err)
+		writeReplayError(c, err, true)
 		return
 	}
 	h.respond(c, media, asJSON)
@@ -97,9 +98,10 @@ func (h ReplayHandler) clip(c *gin.Context, linkOnly bool) {
 // until its expiry_ts.
 func (h ReplayHandler) Media(c *gin.Context) {
 	extendWriteDeadline(c)
-	file, info, err := h.Replays.OpenMedia(c.Request.Context(), c.Param("recording-id"), c.Param("file"))
+	name := c.Param("file")
+	file, info, err := h.Replays.OpenMedia(c.Request.Context(), c.Param("recording-id"), name)
 	if err != nil {
-		writeReplayError(c, err)
+		writeReplayError(c, err, strings.HasPrefix(name, "clip-"))
 		return
 	}
 	defer closeMedia(file)
@@ -118,7 +120,7 @@ func (h ReplayHandler) respond(c *gin.Context, media replay.Media, asJSON bool) 
 	}
 	file, info, err := h.Replays.OpenMedia(c.Request.Context(), media.Result.RecordingID, media.Name)
 	if err != nil {
-		writeReplayError(c, err)
+		writeReplayError(c, err, media.Result.MediaType == "clip")
 		return
 	}
 	defer closeMedia(file)
@@ -178,16 +180,28 @@ func extendWriteDeadline(c *gin.Context) {
 	}
 }
 
-func writeReplayError(c *gin.Context, err error) {
+func writeReplayError(c *gin.Context, err error, clip bool) {
+	notFoundCode := "frame_not_found"
+	if clip {
+		notFoundCode = "clip_not_found"
+	}
 	switch {
 	case errors.Is(err, replay.ErrNotFound):
-		common.WriteError(c, http.StatusNotFound, "record_not_found", "record not found")
+		common.WriteError(c, http.StatusNotFound, "recording_not_found", "recording not found")
 	case errors.Is(err, replay.ErrNotCovered):
-		common.WriteError(c, http.StatusNotFound, "frame_not_found", "the requested time is not covered by the record")
+		detail := "the requested time is not covered by the record"
+		if clip {
+			detail = "the requested interval is not covered by the record"
+		}
+		common.WriteError(c, http.StatusNotFound, notFoundCode, detail)
 	case errors.Is(err, replay.ErrFrameNotFound):
-		common.WriteError(c, http.StatusNotFound, "frame_not_found", "no frame sits at exactly the requested time")
+		detail := "no frame sits at exactly the requested time"
+		if clip {
+			detail = "no clip is available for the requested interval"
+		}
+		common.WriteError(c, http.StatusNotFound, notFoundCode, detail)
 	case errors.Is(err, replay.ErrMediaNotFound):
-		common.WriteError(c, http.StatusNotFound, "frame_not_found", "media not found or expired")
+		common.WriteError(c, http.StatusNotFound, notFoundCode, "media not found or expired")
 	case errors.Is(err, replay.ErrNotReady):
 		common.WriteError(c, http.StatusConflict, "record_not_ready", "record is not ready")
 	case errors.Is(err, replay.ErrBusy):

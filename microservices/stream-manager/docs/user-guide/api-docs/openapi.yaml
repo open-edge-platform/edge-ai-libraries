@@ -9,6 +9,7 @@ info:
 
     Stream Manager attaches live sources, keeps a bounded per-stream buffer,
     saves media around events, and returns timestamp-correlated clips and frames.
+    Example IDs such as str-1 and rec-2 are placeholders. Use IDs returned by the service.
 
 servers:
   - url: /v1
@@ -78,7 +79,7 @@ paths:
                 error_code: invalid_request
                 error_detail: sensor_id is required
         '409':
-          description: That sensor is already attached; the existing stream_id is named in error_detail.
+          description: The same source_uri is already attached for that sensor_id; the existing stream_id is named in error_detail.
           content:
             application/json:
               schema:
@@ -86,7 +87,7 @@ paths:
               example:
                 status: 409
                 error_code: stream_exists
-                error_detail: sensor is already attached as str-1
+                error_detail: this source is already attached for the sensor as str-1
         '415':
           description: source_uri uses a scheme other than rtsp:// or rtsps://.
           content:
@@ -321,15 +322,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/Recording'
         '404':
-          description: Unknown record.
+          description: Unknown recording.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
                 status: 404
-                error_code: record_not_found
-                error_detail: record not found
+                error_code: recording_not_found
+                error_detail: recording not found
         '409':
           description: The record is not an active open recording. Repeated stops while finalizing retain the original stop target and return 202.
           content:
@@ -428,15 +429,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/Recording'
         '404':
-          description: Unknown or deleted record.
+          description: Unknown or deleted recording.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
                 status: 404
-                error_code: record_not_found
-                error_detail: record not found
+                error_code: recording_not_found
+                error_detail: recording not found
     delete:
       tags: [Recording Storage APIs]
       summary: Delete a record
@@ -451,15 +452,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/Deletion'
         '404':
-          description: Unknown or already deleted record.
+          description: Unknown or already deleted recording.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
                 status: 404
-                error_code: record_not_found
-                error_detail: record not found
+                error_code: recording_not_found
+                error_detail: recording not found
         '409':
           description: Record is still recording or finalizing.
           content:
@@ -814,8 +815,8 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 status: 404
-                error_code: frame_not_found
-                error_detail: the requested time is not covered by the record
+                error_code: clip_not_found
+                error_detail: the requested interval is not covered by the record
         '406':
           description: Incompatible Accept header.
           content:
@@ -935,8 +936,8 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 status: 404
-                error_code: frame_not_found
-                error_detail: the requested time is not covered by the record
+                error_code: clip_not_found
+                error_detail: the requested interval is not covered by the record
         '406':
           description: Incompatible Accept header.
           content:
@@ -1021,7 +1022,7 @@ paths:
                 type: string
                 format: binary
         '404':
-          description: Unknown record, or the file is missing or past its expiry_ts.
+          description: Unknown recording, or the frame or clip file is missing or past its expiry_ts. Missing frame files return frame_not_found; missing clip files return clip_not_found.
           content:
             application/json:
               schema:
@@ -1037,14 +1038,14 @@ components:
       name: stream-id
       in: path
       required: true
-      description: Attached stream, for example str-1.
+      description: Attached stream. New IDs start with str- and contain 22 URL-safe characters after the prefix. Treat the ID as opaque.
       schema:
         type: string
     RecordingId:
       name: recording-id
       in: path
       required: true
-      description: The recording, for example rec-2.
+      description: Recording ID. New IDs contain 22 URL-safe characters without a prefix. Existing records can retain a 36-character UUID. Treat the ID as opaque.
       schema:
         type: string
     Cursor:
@@ -1082,8 +1083,9 @@ components:
             - invalid_selector
             - invalid_timestamp
             - stream_not_found
-            - record_not_found
+            - recording_not_found
             - frame_not_found
+            - clip_not_found
             - not_acceptable
             - stream_exists
             - record_not_ready
@@ -1104,7 +1106,7 @@ components:
       properties:
         sensor_id:
           type: string
-          description: Sensor identity; the name the recordings will be filed under.
+          description: Sensor identity; the name the recordings will be filed under. One sensor can have many sources.
         source_uri:
           type: string
           description: The address of the source, with no credentials in it, up to 2048 characters.
@@ -1164,7 +1166,7 @@ components:
       properties:
         stream_id:
           type: string
-          description: Identity given to the stream when it was attached.
+          description: Identity given to the stream when it was attached. New IDs start with str- and contain 22 URL-safe characters after the prefix.
         sensor_id:
           type: string
           description: Identity of the sensor. For a uri source this is simply the name the caller chose for it.
@@ -1211,7 +1213,7 @@ components:
       properties:
         recording_id:
           type: string
-          description: Recording identity.
+          description: Recording identity. New IDs are 22 URL-safe characters without a prefix. Existing records can retain a 36-character UUID.
         sensor_id:
           type: string
           description: Recorded sensor.
@@ -1272,7 +1274,7 @@ components:
       properties:
         recording_id:
           type: string
-          description: The record the media was taken from.
+          description: The record the media was taken from. It has the same ID format as Recording.recording_id.
         sensor_id:
           type: string
           description: The sensor the media belongs to.
@@ -1326,7 +1328,7 @@ components:
       properties:
         stream_id:
           type: string
-          description: The attached stream to record.
+          description: The attached stream to record. Use the stream_id returned by stream attachment.
         start_ts:
           type: string
           format: date-time
@@ -1367,7 +1369,7 @@ components:
       properties:
         recording_id:
           type: string
-          description: The open recording to stop. Active fixed-length and failed recordings are refused. Repeated stops while finalizing retain their target; ready recordings return their current record.
+          description: The open recording to stop. Use the returned recording_id. Active fixed-length and failed recordings are refused. Repeated stops while finalizing retain their target; ready recordings return their current record.
       example:
         recording_id: rec-open-1
 

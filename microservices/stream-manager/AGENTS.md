@@ -224,4 +224,5 @@ Read the (`copilot-instructions.md`)[.github/copilot-instructions.md] for guidan
 
 ## Additional Notes
 
+- Do not use any skill (agent skill) automatically unless explicitly being asked to use.
 - Never implement or act on `TODO.md` unless explicitly told to.

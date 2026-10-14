@@ -31,6 +31,7 @@ var replayStart = time.Date(2026, 6, 15, 14, 12, 0, 0, time.UTC)
 type fakeReplayer struct {
 	dir      string
 	err      error
+	openErr  error
 	exact    bool
 	duration time.Duration
 	calls    int
@@ -67,6 +68,9 @@ func (f *fakeReplayer) OpenMedia(_ context.Context, _, name string) (*os.File, r
 	if f.err != nil {
 		return nil, replay.MediaFile{}, f.err
 	}
+	if f.openErr != nil {
+		return nil, replay.MediaFile{}, f.openErr
+	}
 	file, err := os.Open(filepath.Join(f.dir, filepath.Base(name)))
 	if err != nil {
 		return nil, replay.MediaFile{}, replay.ErrMediaNotFound
@@ -79,7 +83,7 @@ func replayRouter(f *fakeReplayer) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	h := ReplayHandler{Replays: f}
-	requireID := common.RequireID("recording-id", "record_not_found", "record not found")
+	requireID := common.RequireID("recording-id", "recording_not_found", "recording not found")
 	group := router.Group("/v1/replays/:recording-id", requireID)
 	group.GET("/frame", h.Frame)
 	group.GET("/frame/url", h.FrameURL)
@@ -211,7 +215,7 @@ func TestReplayErrors(t *testing.T) {
 		status int
 		code   string
 	}{
-		{replay.ErrNotFound, http.StatusNotFound, "record_not_found"},
+		{replay.ErrNotFound, http.StatusNotFound, "recording_not_found"},
 		{replay.ErrNotCovered, http.StatusNotFound, "frame_not_found"},
 		{replay.ErrFrameNotFound, http.StatusNotFound, "frame_not_found"},
 		{replay.ErrMediaNotFound, http.StatusNotFound, "frame_not_found"},
@@ -223,21 +227,49 @@ func TestReplayErrors(t *testing.T) {
 	}
 	targets := []string{
 		"/v1/replays/" + testRecordingID + "/frame?timestamp=2026-06-15T14:12:01Z",
+		"/v1/replays/" + testRecordingID + "/clip?start_ts=2026-06-15T14:12:01Z&duration=1",
 		"/v1/replays/" + testRecordingID + "/clip/url?start_ts=2026-06-15T14:12:01Z&duration=1",
 		"/v1/media/" + testRecordingID + "/frame-1.jpeg",
+		"/v1/media/" + testRecordingID + "/clip-1-2.mp4",
 	}
 	for _, tc := range cases {
 		for _, target := range targets {
 			t.Run(tc.code+" "+strings.Split(target, "?")[0], func(t *testing.T) {
 				rec := get(replayRouter(&fakeReplayer{dir: t.TempDir(), err: tc.err}), target, "")
-				if rec.Code != tc.status || errorCode(t, rec) != tc.code {
-					t.Fatalf("got %d %s, want %d %s", rec.Code, rec.Body, tc.status, tc.code)
+				code := tc.code
+				if code == "frame_not_found" && strings.Contains(target, "/clip") {
+					code = "clip_not_found"
+				}
+				if rec.Code != tc.status || errorCode(t, rec) != code {
+					t.Fatalf("got %d %s, want %d %s", rec.Code, rec.Body, tc.status, code)
+				}
+				if tc.err == replay.ErrNotCovered {
+					detail := "the requested time is not covered by the record"
+					if code == "clip_not_found" {
+						detail = "the requested interval is not covered by the record"
+					}
+					if !strings.Contains(rec.Body.String(), detail) {
+						t.Fatalf("got %s, want detail %q", rec.Body, detail)
+					}
+				}
+				if tc.err == replay.ErrFrameNotFound && code == "clip_not_found" &&
+					strings.Contains(rec.Body.String(), "frame") {
+					t.Fatalf("clip error mentions a frame: %s", rec.Body)
 				}
 				if strings.Contains(rec.Body.String(), "secret") || strings.Contains(rec.Body.String(), "FFmpeg") {
 					t.Fatalf("error body leaks internals: %s", rec.Body)
 				}
 			})
 		}
+	}
+}
+
+func TestClipBinaryMediaError(t *testing.T) {
+	f := &fakeReplayer{dir: t.TempDir(), openErr: replay.ErrMediaNotFound}
+	target := "/v1/replays/" + testRecordingID + "/clip?start_ts=2026-06-15T14:12:01Z&duration=1"
+	rec := get(replayRouter(f), target, "video/mp4")
+	if rec.Code != http.StatusNotFound || errorCode(t, rec) != "clip_not_found" {
+		t.Fatalf("got %d %s, want 404 clip_not_found", rec.Code, rec.Body)
 	}
 }
 

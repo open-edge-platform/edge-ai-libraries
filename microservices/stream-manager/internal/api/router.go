@@ -34,7 +34,7 @@ func NewRouter(buffers stream.Bufferer, recordings *record.Service, replays repl
 	streamRoutesWithID.PUT("/buffer", streams.UpdateBuffer)
 
 	records := handler.RecordHandler{Records: recordings}
-	recordRoutesWithID := v1.Group("/records/:recording-id", common.RequireID("recording-id", "record_not_found", "record not found"))
+	recordRoutesWithID := v1.Group("/records/:recording-id", common.RequireID("recording-id", "recording_not_found", "recording not found"))
 
 	v1.POST("/records/start", records.Start)
 	v1.POST("/records/stop", records.Stop)
@@ -43,7 +43,7 @@ func NewRouter(buffers stream.Bufferer, recordings *record.Service, replays repl
 	recordRoutesWithID.DELETE("", records.Delete)
 
 	replayer := handler.ReplayHandler{Replays: replays}
-	requireRecordingID := common.RequireID("recording-id", "record_not_found", "record not found")
+	requireRecordingID := common.RequireID("recording-id", "recording_not_found", "recording not found")
 	replayRoutesWithID := v1.Group("/replays/:recording-id", requireRecordingID)
 
 	replayRoutesWithID.GET("/frame", replayer.Frame)

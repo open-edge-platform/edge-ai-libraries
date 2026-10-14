@@ -21,7 +21,7 @@ Items are listed roughly in order of priority.
 - [x] Implement support for user supplied config file. JSON or YAML preferred.
 - [x] Add a tool for building and running the application on host and as a container (`Makefile` with `build`/`run`/`start`/`docker-build`/`docker-run`/`docker-stop` targets).
 - [ ] Add pagination to the `GET /streams` endpoint
-- [ ] Decide whether `make deploy` should add stream-manager (with its config and data mounts) to an existing docker compose file passed as an argument.
+- [ ] Decide whether `make deploy` should add stream-manager (with its config and data mounts) to an existing docker compose file, which is passed as an argument.
 - [ ] Analyse if ranger headers needed in media access APIs and implement accordingly
 
 ## Optimization or Improvements
@@ -44,7 +44,7 @@ Items are listed roughly in order of priority.
 - [ ] Decide whether `PUT /streams/{stream-id}/buffer` should reject resizing a stream that is in `failed` state, or whether resizing an already-failed stream's buffer should keep succeeding as it does today
 
 ## Research/Exploration
-- [ ] Weigh in tradeoffs of using random UUIDs as primary key in the database - should UUIDv7 be used or a shorter UUID or incremental int prefixed to UUIDs.
+- [x] Weigh in tradeoffs of using random UUIDs as primary key in the database - should UUIDv7 be used or a shorter UUID or incremental int prefixed to UUIDs.
 - [x] Analyse tradeoffs of using distroless/scratch base image for the container - whether its even feasible or practical for our use case.
 - [ ] Evaluate S3-compatible storage tradeoffs for video recordings, especially open recordings and real-time ingestion
 - [ ] Evaluate whether fMP4 or another format can reduce MPEG-TS storage overhead while retaining its robustness
@@ -52,10 +52,11 @@ Items are listed roughly in order of priority.
 
 ## Bugs/Issues
 
-- [ ] A `sensor_id` and `source_uri` both together make a unique stream, not just the sensor_id. Fix the stream attached error coming up for duplicate streams with the same `sensor_id` but different `source_uri`.
-- [ ] Update the unique identifier (`stream_id`) for a stream to be a short uuid prefixed with `sensor_id`. (See related item in Research/Exploration)
-- [ ] Update OpenAPI specs error response and error codes to be inline with actual implementation.
-- [ ] Fix incorrect examples for /clip and /frame endpoints in OpenAPI specs.
+- [x] A `sensor_id` and `source_uri` both together make a unique stream, not just the sensor_id. Fix the stream attached error coming up for duplicate streams with the same `sensor_id` but different `source_uri`.
+- [x] Even if buffering or stream attachment fails, a re-attachment request fails with Stream_exists. This should not be the behavior.
+- [x] Update the unique identifier (`stream_id`) for a stream to be a short uuid prefixed with `sensor_id`. (See related item in Research/Exploration)
+- [x] Update OpenAPI specs error response and error codes to be inline with actual implementation.
+- [x] Fix incorrect examples for /clip and /frame endpoints in OpenAPI specs.
 - [ ] MPEG-TS (and also other alternative fMP4) are unseekable. Cut clips are seekable (MP4). Analyze whether this is a prospective issue.
 
 # Deferred

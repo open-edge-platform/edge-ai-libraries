@@ -168,7 +168,7 @@ func (h RecordHandler) Delete(c *gin.Context) {
 func writeRecordError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, storage.ErrNotFound):
-		common.WriteError(c, http.StatusNotFound, "record_not_found", "record not found")
+		common.WriteError(c, http.StatusNotFound, "recording_not_found", "recording not found")
 	case errors.Is(err, stream.ErrStreamNotFound):
 		common.WriteError(c, http.StatusNotFound, "stream_not_found", "stream is not attached")
 	case errors.Is(err, stream.ErrHistoryUnavailable), errors.Is(err, stream.ErrSliceExpired):
