@@ -79,7 +79,7 @@ Remove a profile or a component:
 openedge-cli remove video_conferencing
 ```
 
-> Unlike installation where dependency items are installed automatically, the OEP installer removes a component without touching any dependency items. For example, the OEP installer does not uninstall GPU and NPU drivers upon a sample removal operation. You have to invoke the OEP installer explicitly to remove the GPU and NPU drivers.
+> Unlike installation where dependency items are installed automatically, the OEP installer removes a component without touching any dependency items. For example, the OEP installer does not uninstall GPU and NPU drivers upon a sample removal operation. You have to invoke the OEP installer explicitly to remove the GPU and NPU drivers. Use `remove --remove-all` to force removing all installed components.    
 
 ## Advanced Usage
 

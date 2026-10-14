@@ -353,3 +353,49 @@ Example:
 ```bash
 curl -X POST http://localhost:12345/manager/videos/search-embeddings/$VIDEO_ID
 ```
+
+---
+
+## Live RTSP streams
+
+Available only when Pipeline Manager has a DataPrep endpoint configured
+(`STREAMS_DATAPREP_ENDPOINT`, falling back to `SEARCH_DATAPREP_ENDPOINT`). In
+summary-only mode that value is empty and every route below returns `503`.
+Pipeline Manager proxies these to the Multimodal DataPrep `/media/streams`
+API; it holds no stream state of its own.
+
+Through nginx, prefix each path with `/manager`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/streams` | Register and start one RTSP camera; returns `stream_id` |
+| `POST` | `/streams/batch` | Register several cameras, per-item accept/reject |
+| `GET` | `/streams` | List streams; filter with `state=` and repeated `tags=` |
+| `GET` | `/streams/{streamId}` | One stream: config, state, stats, last error |
+| `PATCH` | `/streams/{streamId}` | Update tags, frame interval, detection settings, description, or `state` (`paused`/`running`) |
+| `DELETE` | `/streams/{streamId}` | Stop and deregister; `purge_embeddings` / `purge_media` flags |
+| `DELETE` | `/streams` | Bulk delete by `stream_ids` |
+
+The `stream_url` is **not** updatable — delete and re-create instead.
+Responses always carry the **redacted** URL (no `user:pass@`), so a credentialed
+URL is never echoed back, logged, or persisted by Pipeline Manager.
+
+Example:
+
+```bash
+HOST=http://localhost:12345
+
+STREAM_ID=$(curl -s -X POST "$HOST/manager/streams" \
+  -H 'Content-Type: application/json' \
+  -d '{"stream_url":"rtsp://camera-host:554/stream","stream_name":"lobby-cam","tags":["lobby"]}' \
+  | jq -r .stream.stream_id)
+
+curl -s "$HOST/manager/streams/$STREAM_ID" | jq .
+curl -s -X PATCH "$HOST/manager/streams/$STREAM_ID" \
+  -H 'Content-Type: application/json' -d '{"state":"paused"}' | jq .
+curl -s -X DELETE "$HOST/manager/streams/$STREAM_ID?purge_embeddings=true&purge_media=true" | jq .
+```
+
+UI clients additionally emit `streams:subscribe` on the websocket while a
+stream view is open and receive `streams:sync` snapshots; the server only polls
+DataPrep while at least one subscriber is present.

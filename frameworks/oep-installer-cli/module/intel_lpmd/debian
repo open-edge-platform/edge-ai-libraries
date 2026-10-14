@@ -4,8 +4,6 @@ debian_30_install_intel_lpmd () {
 }
 
 debian_30_sbom_intel_lpmd () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list intel-lpmd)
-EOF
+  ensure_sbom_format pkg-list intel-lpmd
 }
 

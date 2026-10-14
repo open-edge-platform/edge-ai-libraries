@@ -74,7 +74,7 @@ debian_90_stop_smart_traffic_intersection_agent () {
 
 debian_90_remove_smart_traffic_intersection_agent () {
   debian_90_stop_smart_traffic_intersection_agent "$@"
-  . ./setup.sh --clean --all
-  ensure_sudo rm -rf "$workspace" 
+  . ./setup.sh --clean --all || true
+  ensure_rm "$workspace" 
 }
  

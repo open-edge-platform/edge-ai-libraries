@@ -51,6 +51,6 @@ debian_90_stop_scenescape () {
 debian_90_remove_scenescape () {
   debian_90_stop_scenescape "$@"
   cd "$workspace" && make clean-all || true
-  ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

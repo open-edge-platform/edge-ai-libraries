@@ -798,6 +798,7 @@ Startup<./get-started/startup-models.md>
 Ephemeral Container <./get-started/quickstart.md>
 ./get-started/build-from-source
 ./get-started/deploy-with-helm-chart
+MCP Server <./get-started/using-mcp-server.md>
 
 :::
 hide_directive-->
