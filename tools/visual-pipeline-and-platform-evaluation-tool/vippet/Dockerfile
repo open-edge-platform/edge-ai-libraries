@@ -17,7 +17,8 @@
 # syntax=docker/dockerfile:1.7
 
 # Use DLStreamer as the base image
-FROM intel/dlstreamer:2026.3.0-20260922-weekly-ubuntu24 AS prod
+ARG DLSTREAMER_IMAGE=intel/dlstreamer:latest
+FROM ${DLSTREAMER_IMAGE} AS prod
 
 # Switch to root user to install dependencies
 USER root
@@ -33,7 +34,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update && \
-    apt-get install --yes --no-install-recommends yq v4l-utils
+    apt-get install --yes --no-install-recommends yq
 
 # Remove kernel headers inherited from base image (not needed at runtime,
 # source of CVE-2026-* critical vulnerabilities reported by Trivy).

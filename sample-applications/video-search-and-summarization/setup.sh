@@ -1130,6 +1130,9 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             export APP_FEATURE_MUX="ATOMIC"
             export APP_SUMMARY_FEATURE="FEATURE_ON"
             export APP_SEARCH_FEATURE="FEATURE_OFF"
+            # Live RTSP ingestion writes to the search index, which this mode
+            # does not deploy.
+            export UI_LIVE_STREAMS_FEATURE="FEATURE_OFF"
             DEPLOYMENT_LABEL="Summary-only UI deployment. For summarizing video content."
             UI_PROFILE="singleton_summary_ui"
             APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.summary.yaml"
@@ -1140,6 +1143,12 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             export APP_FEATURE_MUX="ATOMIC"
             export APP_SUMMARY_FEATURE="FEATURE_OFF"
             export APP_SEARCH_FEATURE="FEATURE_ON"
+            # Live streams are a property of the mode, set unconditionally:
+            # setup.sh is sourced, so a `:-` default would reuse a flag a prior
+            # `--summary`/`--unified` left in the same shell and silently keep
+            # live off here.
+            export UI_LIVE_STREAMS_FEATURE="FEATURE_ON"
+            export LIVE_STREAM_ENABLED="true"
             DEPLOYMENT_LABEL="Search-only UI deployment. For searching over video frame embeddings."
             UI_PROFILE="singleton_search_ui"
             APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.search.yaml"
@@ -1151,6 +1160,13 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             export APP_FEATURE_MUX="SUMMARY_SEARCH"
             export APP_SUMMARY_FEATURE="FEATURE_ON"
             export APP_SEARCH_FEATURE="FEATURE_ON"
+            # Unified mode indexes *summaries* with a text-only embedding
+            # model, so dataprep here cannot embed live video frames. Live
+            # stream ingestion is therefore unavailable in this mode. Disable
+            # it in dataprep too, not just in the UI, so the /media/streams
+            # API cannot accept a registration that could never succeed.
+            export UI_LIVE_STREAMS_FEATURE="FEATURE_OFF"
+            export LIVE_STREAM_ENABLED="false"
             DEPLOYMENT_LABEL="Unified single UI for summarization and searching. For searching over text embeddings of summaries."
             UI_PROFILE="singleton_unified_ui"
             APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.summary.yaml -f docker/compose.search.yaml"
@@ -1158,6 +1174,8 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
         --dual)
             export VS_INDEX_NAME="video_frame_embeddings"
             export NGINX_UI_CONFIG="${nginx_config_dir}/dual_ui.conf"
+            export UI_LIVE_STREAMS_FEATURE="FEATURE_ON"
+            export LIVE_STREAM_ENABLED="true"
             DEPLOYMENT_LABEL="Dual UI (Separate Summary and Search UI) deployment. For summarizing video content and searching over video frame embeddings."
             UI_PROFILE="dual_ui"
             APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.summary.yaml -f docker/compose.search.yaml"
@@ -1195,7 +1213,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
         case "$APP_COMPOSE_FILE" in
             *docker/compose.search.yaml*)
                 APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.metrics-manager.yaml"
-                echo -e  "[metrics-manager] ${GREEN}Metrics Manager enabled (set ENABLE_METRICS_MANAGER=true to keep enabled)${NC}"
+                echo -e  "[metrics-manager] ${GREEN}Metrics Manager enabled ${NC}"
                 ;;
             *)
                 echo -e  "[metrics-manager] ${YELLOW}Metrics Manager requires a search-enabled mode; ignoring ENABLE_METRICS_MANAGER for summary-only mode${NC}"
@@ -1283,8 +1301,12 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
 
             # Adjust concurrency and frame count for non-CPU devices
             if [[ "$VLM_TARGET_DEVICE" != "CPU" ]]; then
-                export PM_VLM_CONCURRENT=1
-                export PM_LLM_CONCURRENT=1
+                if [ "$PM_VLM_CONCURRENT_DEFAULTED" = true ]; then
+                    export PM_VLM_CONCURRENT=1
+                fi
+                if [ "$PM_LLM_CONCURRENT_DEFAULTED" = true ]; then
+                    export PM_LLM_CONCURRENT=1
+                fi
                 if [ "$PM_MULTI_FRAME_COUNT_DEFAULTED" = true ]; then
                     export PM_MULTI_FRAME_COUNT=6
                 fi

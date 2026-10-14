@@ -28,7 +28,7 @@ All paths below are relative to `/v1/dataprep`.
 |---|---|
 | `GET /health` | `health/check_health.py` |
 | `POST /summary` | `document_processing/process_text.py` |
-| `POST /media/upload` and `/media/rtsp` | `video_processing/upload_and_process_video.py` |
+| `POST /media/upload` | `video_processing/upload_and_process_video.py` |
 | `POST /media/process` | `video_processing/process_minio_video.py` |
 | `POST /media/ingest` and `/media/ingest/batch` | `video_processing/ingest_image.py` |
 | `POST /media/upload/batch`, `/media/process/batch`, `/media/ingest-dir` | `video_processing/batch_ingest.py` |
@@ -36,6 +36,7 @@ All paths below are relative to `/v1/dataprep`.
 | `GET /media` | `video_management/list_videos.py` |
 | `GET /media/download` | `video_management/download_video.py` |
 | `DELETE /media/{bucket_name}/{video_id}` | `video_management/delete_video.py` |
+| `POST/GET/PATCH/DELETE /media/streams*` | `live_streams/live_streams.py` |
 | `GET /telemetry` | `telemetry/telemetry.py` |
 
 Request and response models live in `src/common/schema.py`, including typed
@@ -49,6 +50,7 @@ image sources and asynchronous batch job state/results.
 | `src/core/embedding/embedding_helper.py` | In-process model/detector singletons, preload/warmup, threaded video pipeline, shared-memory frame handling, detection, embedding, storage workers, and runtime pipeline statistics |
 | `src/core/embedding/client.py` | `EmbeddingClient`: loads the model handler from `multimodal-embedding-serving`, probes capabilities/dimensions, generates image/text vectors, and delegates persistence to the active vector store |
 | `src/core/embedding/decoder.py` | File/bytes/RTSP decoding, frame batching, shared-memory pool, and `VideoFrameExtractor` |
+| `src/core/live/` | Live-stream registry (`store.py`), lifecycle (`manager.py`), per-stream worker (`worker.py`), playback recorder (`recorder.py`), segment naming (`segments.py`), URL redaction (`urls.py`), retention sweeper (`retention.py`) |
 | `src/core/image_ingest.py` | Base64/data-URL decoding, remote image fetching with limits, image validation, and filename resolution |
 | `src/core/media.py` | Supported video/image extensions, kind detection, and MIME helpers |
 | `src/core/dedup.py` | Content-hash registration and duplicate-upload policy |

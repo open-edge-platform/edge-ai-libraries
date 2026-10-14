@@ -7,7 +7,7 @@ ensure_git_clone () {
   local version="$2"
   local repository="$3"
 
-  ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
   mkdir -p "$(dirname "$workspace")"
   if [ ${#@} -ge 4 ]; then
     # sparse checkout
@@ -34,6 +34,6 @@ ensure_git_clone () {
 # clone then remove .git
 ensure_git_export () {
   ensure_git_clone "$@"
-  rm -rf "$1"/.git
+  ensure_rm "$1"/.git
 }
 

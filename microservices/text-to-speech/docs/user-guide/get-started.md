@@ -72,14 +72,15 @@ To list available voices and confirm the active model:
 curl --noproxy '*' http://127.0.0.1:8011/v1/audio/voices
 ```
 
-Expected output (example with the default SpeechT5 model):
+Expected output (example with the default Kokoro model):
 
 ```json
 {
-  "model": "microsoft/speecht5_tts",
-  "runtime": "openvino",
-  "speakers": ["default"],
-  "languages": ["English"]
+  "model": "kokoro",
+  "runtime": "pytorch",
+  "default_speaker": "af_heart",
+  "supported_speakers": ["af_heart", "am_michael", "bf_emma", "..."],
+  "default_language": "English"
 }
 ```
 

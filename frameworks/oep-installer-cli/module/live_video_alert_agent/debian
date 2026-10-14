@@ -84,5 +84,5 @@ debian_90_stop_live_video_alert_agent () {
 
 debian_90_remove_live_video_alert_agent () {
   debian_90_stop_live_video_alert_agent "$@"
-  rm -rf "$workspace" 2> /dev/null || ensure_sudo rm -rf "$workspace" 
+  ensure_rm "$workspace"
 }
