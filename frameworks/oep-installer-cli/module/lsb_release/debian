@@ -1,0 +1,9 @@
+
+debian_40_install_lsb_release () {
+  ensure_apt_install_package lsb-release
+}
+
+debian_10_sbom_lsb_release () {
+  ensure_sbom_format pkg-list lsb-release
+}
+

@@ -4,6 +4,10 @@
 Convert `sentence-transformers/all-MiniLM-L6-v2` to an OVMS-ready OpenVINO embedding model for a RAG pipeline:
 - Enable the required Model Download plugins
 - Use INT8 precision on CPU
+- For the per-request path, prompt the user (via `ask_user`) for their
+  already-base64-encoded `HF_TOKEN` before submitting the job — do not ask for
+  the raw token and encode it yourself. Pass the value the user supplies
+  as-is into `override_credentials.HF_TOKEN` in the request body
 - Submit the conversion job and poll it until completion
 - Verify the converted model output path
 

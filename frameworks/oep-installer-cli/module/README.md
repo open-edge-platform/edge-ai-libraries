@@ -39,7 +39,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
   - The `install` function should cover the following conditions: (1) The component is not yet installed. (2) The component is previously installed but misconfigured. (3) The component of an older version is installed. After installation, it is assumed that the component is fully configured and ready to be launched (`start`).
   - If the component (of the same version) is already installed, the `install` function should skip the installation unless the `--reinstall` option is specified, in which case, the `install` function should reinstall the component cleanly.    
   - For components that support multiple device accelerations, the `install` function must use the [`ensure_select_device`](../common/linux/ensure_select_device) function to take user input and configure the component accordingly. 
-  - For components that require certain memory size or disk space, use the [`ensure_disk_space`](../common/linux/ensure_disk_space) and [`ensure_ram_size`](../common/linux/ensure_ram_size) functions to enforce the requirements and exit early.
+  - For components that require certain memory size or disk space, use the [`ensure_disk_size`](../common/linux/ensure_disk_size) and [`ensure_ram_size`](../common/linux/ensure_ram_size) functions to enforce the requirements and exit early.
   - For components that need to download AI models from huggingface, use the [`ensure_hf_token`](../common/linux/ensure_hf_token) function to set `HF_TOKEN`. The `ensure_hf_token` function can be used to check model access permissions for gated models.   
   - For components that download any dataset, video files, AI models, implement a check that the download files actually exist, to ensure there is no silent failure during installation/setup. The check can be part of the `verify_<component>` helper, which checks if a previous installation/setup is complete.   
   - For libraries, SDKs, applications or tools, after installation, the `install` function should highlight what is next to the users. For example, for SDKs, show the workspace location and instructions of how to configure and play with samples included in the SDKs. See the [`@@HIGHLIGH`](#highlight-protocol) section for more details.
@@ -47,6 +47,8 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
   - For kernel drivers intallation (order 00-29), if a reboot is requried, specify `reboot` as a dependency in the `profile` function and invoke `configure_reboot "$@"` to request a reboot. The actual reboot is delayed until installation order 29.   
 
 - `remove`: The optional `remove` function removes the component from the system. If the component has a `stop` function, the `remove` function usually invokes the `stop` function to terminate the component before physically remove the component from the system.
+  - `openedge-cli remove --remove-all` (invoked with no explicit component name) removes every component previously installed through the installer, bypassing the usual dependency-tier cutoff so shared/lower-tier components (for example GPU/NPU drivers, ROS 2, OpenVINO) are torn down too, not just the top-level component(s).
+  - A component that is shared across other components (for example a driver, repository, or toolkit that may already exist on the system independently of this installer) must not be removed if the installer never actually installed it. Use the [`ensure_prop`](../common/linux/ensure_prop) helper to record ownership: in the `install` function, call `ensure_prop set installed/<component>/owned true` only inside the real-install branch (never in the "already installed, skipping" branch, so a pre-existing/inherited install is never marked as owned). In the `remove` function, guard the removal with `[ "$(ensure_prop get installed/<component>/owned)" = "true" ] || return 0` so the function is a no-op for anything the installer didn't itself install (whether the component pre-existed on the system before the installer ran, or is still relied upon by another component). See `gpu_accel`, `npu_accel`, `ros2`, `ros_openvino`, `realsense`, and the `edge_pack_*` modules for examples.
 
 - `start`: The optional `start` function launches the component.
   - The `start` function should check the system to make sure the system meet the launch criteria. Use the [`ensure_ports_open`](../common/linux/ensure_ports_open) function to ensure required TCP or UDP ports are not occupied. The `ensure_ports_open` function invokes the component `stop` function to stop the component if a previous run occupies the ports.  
@@ -65,7 +67,7 @@ debian_45_license_my_name () {
 EOF
 }
 ```
-where `<license-id>` must be a unique identifier to the license. Multiple licenses with the same license-id's can be accepted at once by the users. Use the [`ensure_license_fetch`](../license/linux/ensure_license_fetch) function if the license text must be fetched from the Internet. The `ensure_license_fetch` function does not use any unresolved dependencies at the time of a license clickthrough.  
+where `<license-id>` must be a unique identifier to the license. Multiple licenses with the same license-id's can be accepted at once by the users. Use the [`ensure_fetch`](../common/linux/ensure_fetch) function if the license text must be fetched from the Internet. The `ensure_fetch` function does not use any unresolved dependencies at the time of a license clickthrough.  
    
 - `sbom`: The optional `sbom` function declares any `apt` packages to be installed by the component. Do not define a `sbom` function if there is no system-wide installation. See [`openvino`](openvino/debian) for an example. For uniformity, specify the SBOM with the [`ensure_sbom_format`](../common/linux/ensure_sbom#ensure_sbom_format) function and the following keys:
   - `name`: The name of an external repository that hosts the package(s).  
@@ -148,7 +150,7 @@ debian_85_install_my_component () {
 #debian_85_license_my_component () {
 #  echo "@@LICENSE-ID my_component_license_id"
 #  echo "@@LICENSE-TITLE my_component_license_title"
-#  echo "..." # LICENSE-TEXT or $(ensure_license_fetch <URL>) to fetch license text
+#  echo "..." # LICENSE-TEXT or $(ensure_fetch <URL> -) to fetch license text
 #}
 ```
 
@@ -188,3 +190,57 @@ echo "@@HIGHLIGHT workspace: $workspace"
 echo "@@HIGHLIGHT setup env: setup-vars.sh"
 echo "@@HIGHLIGHT make help to see full list of build targets"
 ```
+
+### Custom Options
+
+A component can define custom options, for example, `--gpu`, `--npu`, or `--cpu`. Such options are usually handled at the `install` function, which has more flexibility in changing configurations and downloading new models, based on the specified options. Special care must be taken to **pass on** the options to the `start` function, which may or may not carry the same options.  
+
+The component implementation must support the following common use patterns:
+- **`install --gpu start`**: This is the default use pattern. An option is specified at the installation time and then inherited at the `start` time, which does not repeat the option. This is usually implemented as modifying the component defaults to the specified values.     
+- `install --gpu start --npu`: If the `start` function also accepts options, then the component must be re-configured on top of the installation options.  
+
+The following is a skeleton of common implementation:
+
+```
+configure_my_component_device () {
+  local device="$1"
+  # modify component defaults with the device setting
+  # download models and/or videos if required
+  # verify downloads
+}
+
+verify_my_component () {
+  # check workspace download and installation time configurations
+}
+
+debian_90_install_my_component () {
+  ...
+  if verify_my_component && [[ " $* " != *" --reinstall "* ]]; then
+    ...
+  else
+    ensure_git_clone ...
+    # setup
+    ...
+    verify_my_component
+  fi
+
+  # configure device (default GPU)
+  local device=$(ensure_select_device "$@")
+  configure_my_component_device "${device^^}"
+  ...
+  echo "@@HIGHLIGHTS $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHTS $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHTS $installer_name remove"
+}
+
+debian_90_start_my_component () {
+  ...
+  # Reconfigure only if a device option is specified
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_my_component_device "${device^^}"
+  ...
+  echo "@@HIGHLIGHTS $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHTS $installer_name stop|remove"
+}
+```
+

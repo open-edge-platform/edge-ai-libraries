@@ -14,8 +14,7 @@ Effective configuration precedence (later wins)::
 A normal run writes the fully resolved config to a private temp file,
 exports it through ``PERF_CONFIG_FILE`` and runs ``python -m pytest -m perf``
 in a subprocess. ``--dry-run`` prints the resolved matrix with exclusion
-reasons and exits without submitting any job. ``--report-only [PATH ...]``
-rebuilds the HTML report from saved result JSON without contacting ViPPET.
+reasons and exits without submitting any job.
 """
 
 import argparse
@@ -50,6 +49,7 @@ FUNCTIONAL_DIR: Path = PERF_DIR.parent / "functional"
 
 EXIT_OK = 0
 EXIT_USAGE = 2
+EXIT_NOT_IMPLEMENTED = 3
 LATEST_LINK_NAME = "latest"
 
 

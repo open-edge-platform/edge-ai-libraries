@@ -1,5 +1,17 @@
 
 debian_99_profile_edge_base () {
-  [[ "$1" = "start" || "$1" = "stop" ]] || echo "gpu_accel npu_accel core_types pre_system_scan"
+  case "$1" in
+  bootstrap) # all components
+    echo "core_types pre_system_scan edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
+    ;;
+  *)
+    echo "core_types pre_system_scan"
+    if [[ " $* " = *" --edgepack "* ]]; then
+      echo "edge_pack_base_standard edge_pack_npu"
+    else
+      echo "gpu_accel npu_accel"
+    fi
+    ;;
+  esac
 }
 

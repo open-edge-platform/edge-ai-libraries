@@ -4,7 +4,15 @@
 Download `meta-llama/Llama-3.2-1B` and convert it into an OVMS-ready OpenVINO model:
 - Use INT4 precision on CPU
 - Enable the required Model Download plugins
-- Configure Hugging Face authentication for the gated model
+- Configure Hugging Face authentication for the gated model: either a plain-text
+  `HUGGINGFACEHUB_API_TOKEN`/`HF_TOKEN` at service/CLI startup, or a per-request
+  top-level `override_credentials.HF_TOKEN` (base64-encoded, sibling of
+  `name`/`hub`/`config`) plus `validate_credentials: true` to fail fast on a bad
+  token before conversion runs
+- For the per-request path, prompt the user (via `ask_user`) for their
+  already-base64-encoded `HF_TOKEN` before submitting the job — do not ask for
+  the raw token and encode it yourself. Pass the value the user supplies
+  as-is into `override_credentials.HF_TOKEN` in the request body
 - Set an appropriate cache size
 - Submit the conversion job and monitor it until completion
 - Verify the converted model path can be mounted into OVMS

@@ -4,7 +4,5 @@ debian_30_install_make () {
 }
 
 debian_30_sbom_make () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list make)
-EOF
+  ensure_sbom_format pkg-list make
 }

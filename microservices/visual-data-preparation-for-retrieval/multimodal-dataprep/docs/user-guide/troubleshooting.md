@@ -31,18 +31,21 @@ UserWarning: resource_tracker: There appear to be 1024 leaked shared_memory obje
 pre-allocated pool of fixed-size shared-memory blocks
 (`SharedMemoryPool` in `src/core/embedding/decoder.py`). Every decoded frame is
 written into **one** block as a raw RGB buffer of exactly `width × height × 3`
-bytes. The block size is controlled by `SDK_VIDEO_SHM_BLOCK_SIZE`, which defaults
+bytes. The block size is controlled by `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE`, which defaults
 to `6220800 = 1920 × 1080 × 3` (1080p). When a frame is larger than the block,
-the write into the too-small buffer fails inside the decode worker; the frame is
-never enqueued, so every downstream stage (detection → embed → store → result)
-sits on an empty queue and eventually the whole worker hits the Gunicorn timeout
-and is force-killed, orphaning the shared-memory blocks it had acquired.
+the decode worker rejects it and the request now fails fast with a
+`FrameTooLargeForPoolError` naming the required byte count.
 
-**Fix.** Set `SDK_VIDEO_SHM_BLOCK_SIZE` to at least `width × height × 3` for your
+> **Note:** Before 2026.3.0 this condition killed the decode thread silently, so
+> every downstream stage (detection → embed → store → result) sat on an empty
+> queue until the Gunicorn timeout force-killed the worker — the symptom shown
+> above. If you see the hang rather than a clear error, you are on an older image.
+
+**Fix.** Set `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` to at least `width × height × 3` for your
 highest-resolution source **before** sourcing the setup script (or bring the
 stack down and back up so the new value is applied):
 
-| Source resolution | Pixels (W × H) | Minimum `SDK_VIDEO_SHM_BLOCK_SIZE` (`W × H × 3`) |
+| Source resolution | Pixels (W × H) | Minimum `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` (`W × H × 3`) |
 | --- | --- | --- |
 | 1080p (default) | 1920 × 1080 | `6220800` |
 | 4K UHD | 3840 × 2160 | `24883200` |
@@ -51,20 +54,20 @@ stack down and back up so the new value is applied):
 
 ```bash
 # Example: enable 4K ingestion (3840 x 2160 x 3 = 24883200 bytes per block)
-export SDK_VIDEO_SHM_BLOCK_SIZE=24883200
+export MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE=24883200
 source ./setup.sh          # or: source ./setup.sh --down && source ./setup.sh
 ```
 
 **Also budget the total shared memory.** The pool pre-allocates
-`SDK_VIDEO_SHM_MAX_BLOCKS × SDK_VIDEO_SHM_BLOCK_SIZE` bytes in the host `/dev/shm`
+`MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS × MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` bytes in the host `/dev/shm`
 (the container runs with `ipc: host`). With the default `512` blocks, 4K needs
 ≈ `12.7 GB` and 8K needs ≈ `51 GB` of `/dev/shm`. If the host cannot spare that
-much, lower `SDK_VIDEO_SHM_MAX_BLOCKS` to keep the product within your available
+much, lower `MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS` to keep the product within your available
 `/dev/shm` (check with `df -h /dev/shm`), for example:
 
 ```bash
-export SDK_VIDEO_SHM_BLOCK_SIZE=24883200   # 4K frame size
-export SDK_VIDEO_SHM_MAX_BLOCKS=128        # 128 x 24883200 ≈ 3.2 GB of /dev/shm
+export MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE=24883200   # 4K frame size
+export MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS=128        # 128 x 24883200 ≈ 3.2 GB of /dev/shm
 ```
 
 > [!TIP]

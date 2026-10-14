@@ -356,13 +356,13 @@ SPECS: tuple[SettingSpec, ...] = (
         metavar="VARIANTS",
     ),
     SettingSpec(
-        "benchmark.filters.require_models",
-        "--require-models",
+        "benchmark.filters.skip_missing_models",
+        "--skip-missing-models",
         "bool",
         True,
-        "Require all pipeline models to be installed. Accepted; the "
-        "run-time behaviour of --no-require-models is pending.",
-        negative_flag="--no-require-models",
+        "Skip pipelines with missing models; set false to expose runtime "
+        "failures instead.",
+        negative_flag="--no-skip-missing-models",
     ),
     SettingSpec(
         "benchmark.filters.on_unknown_id",

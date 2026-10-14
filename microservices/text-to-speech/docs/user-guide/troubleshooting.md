@@ -161,6 +161,40 @@ Check these in order:
 That separation matters because a working Whisper or SpeechT5 GPU path does not
 guarantee that Qwen GPU initialization will also succeed.
 
+## NPU Does Not Behave As Expected
+
+No TTS model in this service can currently complete a request on NPU, even
+though `NPU` is an accepted `device` value. Device validation
+(`utils/device_validation.py::resolve_tts_device`) applies to per-request
+`device` selections and to the startup GPU-warmup synthesis — but not to
+`preload_models()`, which loads the configured model directly at startup
+without going through this check. A warmup failure after preload is only
+logged as a warning and does not stop the service from starting. The
+exact error for an actual request depends on the model/runtime:
+
+- **Kokoro**: rejected immediately for per-request selections —
+  `"The configured Kokoro model supports only CPU inference."`. If
+  `models.tts.device: NPU` is configured instead, Kokoro still loads at
+  startup (the device is ignored) and only a warmup warning is logged.
+- **`models.tts.runtime: pytorch`** (non-Kokoro models): rejected
+  immediately — `"The PyTorch TTS runtime does not support NPU
+  inference."`
+- **`models.tts.runtime: openvino` + SpeechT5**: if no NPU device is
+  visible to OpenVINO, rejected with `"Requested TTS device 'NPU' is not
+  visible in this runtime."`. If an NPU device *is* visible, this check
+  passes, but the request then fails during model compilation with a raw
+  OpenVINO compiler error (a `Reshape` / dynamic-dimension error) — this
+  is a model limitation that device validation does not catch.
+- **Qwen3-TTS**: fails with a dependency error on startup regardless of
+  device (`CPU`, `GPU`, or `NPU`) — see
+  [Configuration > Qwen3-TTS dependency limitation](./get-started/configuration.md#qwen3-tts-dependency-limitation).
+- **Parler-TTS**: fails separately, because the `parler-tts` package is
+  not installed (missing from `requirements.txt`), regardless of device.
+  This is not the Qwen3-TTS/Transformers conflict described above.
+
+See [Configuration > NPU](./get-started/configuration.md#npu) for the
+full per-model breakdown.
+
 ## Permission Errors On Mounted Folders
 
 The container runs as UID/GID `1000:1000` (baked into the image).

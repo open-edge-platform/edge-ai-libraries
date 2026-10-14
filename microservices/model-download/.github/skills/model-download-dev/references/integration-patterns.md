@@ -17,6 +17,25 @@ Treat model-download as an external dependency with a narrow contract:
 
 Avoid importing `src.core.*` or plugin code into the caller application. That couples the app to service internals and bypasses plugin activation, env setup, and job management.
 
+### MCP as an alternative boundary
+
+If the caller is an LLM agent (or an app embedding an MCP client) rather than
+a conventional backend, use the MCP server at `/mcp` instead of raw REST
+calls. It exposes the same underlying operations as tools/resources:
+
+- `health_check`, `download_model`, `get_job_status`, `list_jobs`,
+  `cancel_job`, `get_model_jobs`, `get_model_results`, `list_plugins`,
+  `list_hub_models`
+- Resources: `models://jobs`, `models://jobs/{job_id}`, `models://results`,
+  `models://plugins`
+
+Both boundaries share the same `ModelManager`/`PluginRegistry` runtime, so
+plugin activation, storage wiring, and failure semantics below apply
+identically — pick REST for conventional service-to-service integration and
+MCP when the caller is an agent/MCP client. See
+`docs/user-guide/get-started/using-mcp-server.md` for transports (stdio vs.
+HTTP) and client configuration examples.
+
 ## 2. Recommended caller workflow
 
 ### Runtime on-demand download
