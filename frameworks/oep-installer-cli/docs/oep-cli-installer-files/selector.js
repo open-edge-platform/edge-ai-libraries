@@ -199,6 +199,26 @@ function flagDefault(cfg) {
   return cfg.default ?? cfg.options?.[0]?.value;
 }
 
+// Options offered for the selected module: a module flag may be `true` (all
+// options) or an array of allowed values (e.g. `deployment: ["docker"]`).
+function flagOptions(spec) {
+  const cfg = CONFIG[spec.config];
+  const allowed = findSelectedOption("MODULE", STATE)?.[spec.moduleFlag];
+  const options = cfg?.options || [];
+  return Array.isArray(allowed) ? options.filter((o) => allowed.includes(o.value)) : options;
+}
+
+// Effective value: the user's choice if the selected module allows it,
+// otherwise the default (or first allowed option). STATE keeps the user's
+// choice so it is restored when switching back to a module that allows it.
+function flagValue(spec) {
+  const cfg = CONFIG[spec.config];
+  const options = flagOptions(spec);
+  const has = (v) => options.some((o) => o.value === v);
+  if (has(STATE[cfg.key])) return STATE[cfg.key];
+  return has(flagDefault(cfg)) ? flagDefault(cfg) : options[0]?.value;
+}
+
 function flagSectionActive(spec) {
   const selectedModule = findSelectedOption("MODULE", STATE);
   return Boolean(CONFIG[spec.config]) && !isInstallAllProfile(STATE) && Boolean(selectedModule?.[spec.moduleFlag]);
@@ -216,13 +236,14 @@ function renderFlagSection(spec) {
     return;
   }
 
-  (cfg.options || []).forEach((opt) => {
+  const current = flagValue(spec);
+  flagOptions(spec).forEach((opt) => {
     const btn = el("button", "spark-button spark-button-size-l spark-button-ghost");
     const inner = el("span", "spark-button-content");
     inner.append(el("span", "", opt.label));
     btn.append(inner);
 
-    if (STATE[cfg.key] === opt.value) {
+    if (current === opt.value) {
       btn.classList.add("spark-toggle-button-clicked-ghost", "pill-active");
     }
 
@@ -243,7 +264,7 @@ function renderFlagSection(spec) {
 function commandFlags(forStart) {
   return FLAG_SECTIONS.filter((spec) => (!forStart || spec.start) && flagSectionActive(spec))
     .map((spec) => {
-      const v = STATE[CONFIG[spec.config].key];
+      const v = flagValue(spec);
       return v ? ` --${v}` : "";
     })
     .join("");

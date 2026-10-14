@@ -41,6 +41,12 @@ debian_60_install_edge_node_infrastructure_blueprint () {
     echo "Conflicting deployment models: select either --docker or --k3s." 1>&2
     return 1
   fi
+  # handheld_multi_modal publishes TCP 6443, which is also the K3s API server port
+  if [ "$deployment" = k3s ] && { [[ " $* " = *" handheld_multi_modal "* ]] || [ -d "$(ensure_project_path)/$installer_name/installed/handheld_multi_modal" ]; }; then
+    echo "The K3s deployment model is not yet supported with handheld_multi_modal (both use TCP port 6443)." 1>&2
+    echo "Use the Docker deployment model (to switch: openedge-cli install edge_node_infrastructure_blueprint --reinstall --docker)." 1>&2
+    return 1
+  fi
   if [ -n "$installed_deployment" ] && [ "$installed_deployment" != "$deployment" ] && [[ " $* " != *" --reinstall "* ]]; then
     echo "edge_node_infrastructure_blueprint is installed with $installed_deployment, but $deployment was requested." 1>&2
     echo "To switch, run: openedge-cli install edge_node_infrastructure_blueprint --reinstall --$deployment" 1>&2

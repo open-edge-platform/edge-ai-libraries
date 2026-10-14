@@ -104,7 +104,15 @@ def build_config() -> dict:
                 option["startStop"] = True
             if module.get("device"):
                 option["device"] = True
-            if module.get("deployment"):
+            deployment = module.get("deployment")
+            if isinstance(deployment, list):
+                # restrict the Deployment Model section to a subset of the options
+                known = {o["value"] for o in base["deployment"]["options"]}
+                unknown = [v for v in deployment if v not in known]
+                if not deployment or unknown:
+                    sys.exit(f"error: {frag['_path']}: module '{module['value']}' has invalid deployment values: {unknown or deployment}")
+                option["deployment"] = list(deployment)
+            elif deployment:
                 option["deployment"] = True
             module_options.append(option)
     module_cat["options"] = module_options

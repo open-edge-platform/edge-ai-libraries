@@ -417,7 +417,9 @@
             ]
           },
           "startStop": true,
-          "deployment": true
+          "deployment": [
+            "docker"
+          ]
         },
         {
           "label": "UAV Mission Compute SDK",

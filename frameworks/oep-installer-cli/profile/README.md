@@ -69,6 +69,7 @@ point. The schema is:
   //                        appended to the install and start commands (--gpu, ...).
   //   deployment: true  -> show the "Deployment Model" (Docker/K3s) section; the
   //                        choice is appended to the install command (--docker/--k3s).
+  //                        Use a list (e.g. ["docker"]) to offer only some models.
   "modules": [
     { "label": "My Module", "value": "my_module" },
     { "label": "My Service", "value": "my_service", "startStop": true }

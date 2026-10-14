@@ -2,7 +2,7 @@
   "profile": { "label": "Federal and Aerospace", "value": "federal_and_aerospace_ai_suite" },
   "modules": [
     { "label": "Edge Node Infrastructure Blueprint", "value": "edge_node_infrastructure_blueprint", "deployment": true },
-    { "label": "Handheld Multi-Modal", "value": "handheld_multi_modal", "startStop": true, "deployment": true },
+    { "label": "Handheld Multi-Modal", "value": "handheld_multi_modal", "startStop": true, "deployment": ["docker"] },
     { "label": "UAV Mission Compute SDK", "value": "uav_mission_compute_sdk", "startStop": true, "deployment": true }
   ],
   "getStarted": {
