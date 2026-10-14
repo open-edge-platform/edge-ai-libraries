@@ -142,6 +142,7 @@ Every YAML key has a CLI flag:
 | `--skip-variants`            | `benchmark.filters.skip_variants`         |                                   |
 | `--[no-]skip-missing-models` | `benchmark.filters.skip_missing_models`   |                                   |
 | `--metrics-url`              | `metrics.metrics_url`                     | `VIPPET_METRICS_URL`              |
+| `--capabilities-url`         | `metrics.capabilities_url`                | `VIPPET_CAPABILITIES_URL`         |
 | `--metrics-interval`         | `metrics.sample_interval_seconds`         | `PERF_METRICS_INTERVAL`           |
 | `--results-dir`              | `results.output_dir`                      | `PERF_RESULTS_DIR`                |
 | `--formats`                  | `results.formats`                         |                                   |
@@ -157,24 +158,28 @@ Notes:
 - `--no-skip-missing-models` lets pipelines with missing models run anyway
   (and fail at runtime) instead of being skipped with the missing-model
   reason shown.
+- `--metrics-url`/`--capabilities-url` default to `--base-url`'s host (same
+  host/port for metrics, same host on port 9090 for capabilities), so setting
+  only `--base-url` (or `VIPPET_BASE_URL`) is enough to target a remote
+  device; set either flag explicitly to override its default.
 - The CLI always passes `vippet/tests/performance` to pytest, so arguments after
   `--` can't move collection elsewhere. Paths or node ids after `--` don't narrow
   the run; use `--pipelines`, `--variants`, `--streams` or `-k` instead.
 
 Environment variable defaults:
 
-| Env var                      | Default                           | Description                                                                                                                    |
-|------------------------------|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `VIPPET_BASE_URL`         | `http://localhost/api/v1`                        | VIPPET API endpoint. Its host (and port) is reused to build the default `VIPPET_METRICS_URL`/`VIPPET_CAPABILITIES_URL` below, so set this alone to target a remote device |
-| `VIPPET_METRICS_URL`      | derived from `VIPPET_BASE_URL`'s host/port       | Metrics endpoint (via nginx proxy); set explicitly to override                                                                                                            |
-| `VIPPET_CAPABILITIES_URL` | derived from `VIPPET_BASE_URL`'s host, port 9090 | metrics-manager capabilities endpoint (direct, not nginx-proxied); set explicitly to override  
-| `VIPPET_JOB_POLL_INTERVAL`   | `2.0`                             | Job status polling interval (seconds)                                                                                          |
-| `VIPPET_JOB_TIMEOUT_SECONDS` | `600`                             | Max wait for a job, whole seconds                                                                                              |
-| `PERF_CONFIG`                | `default`                         | Config preset (`default`, `quick`, `full`)                                                                                     |
-| `PERF_CONFIG_FILE`           | (unset)                           | Explicit YAML path; wins over `PERF_CONFIG`                                                                                    |
-| `PERF_RESULTS_DIR`           | `./results`                       | Output directory for reports                                                                                                   |
-| `PERF_METRICS_INTERVAL`      | `2.0`                             | HW sampling interval (seconds)                                                                                                 |
-| `PERF_ON_UNKNOWN_ID`         | `fail`                            | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning |
+| Env var                      | Default                                          | Description                                                                                                                                                               |
+|------------------------------|--------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `VIPPET_BASE_URL`            | `http://localhost/api/v1`                        | VIPPET API endpoint. Its host (and port) is reused to build the default `VIPPET_METRICS_URL`/`VIPPET_CAPABILITIES_URL` below, so set this alone to target a remote device |
+| `VIPPET_METRICS_URL`         | derived from `VIPPET_BASE_URL`'s host/port       | Metrics endpoint (via nginx proxy); set explicitly to override                                                                                                            |
+| `VIPPET_CAPABILITIES_URL`    | derived from `VIPPET_BASE_URL`'s host, port 9090 | metrics-manager capabilities endpoint (direct, not nginx-proxied); set explicitly to override                                                                             |
+| `VIPPET_JOB_POLL_INTERVAL`   | `2.0`                                            | Job status polling interval (seconds)                                                                                                                                     |
+| `VIPPET_JOB_TIMEOUT_SECONDS` | `600`                                            | Max wait for a job, whole seconds                                                                                                                                         |
+| `PERF_CONFIG`                | `default`                                        | Config preset (`default`, `quick`, `full`)                                                                                                                                |
+| `PERF_CONFIG_FILE`           | (unset)                                          | Explicit YAML path; wins over `PERF_CONFIG`                                                                                                                               |
+| `PERF_RESULTS_DIR`           | `./results`                                      | Output directory for reports                                                                                                                                              |
+| `PERF_METRICS_INTERVAL`      | `2.0`                                            | HW sampling interval (seconds)                                                                                                                                            |
+| `PERF_ON_UNKNOWN_ID`         | `fail`                                           | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning                                            |
 
 `VIPPET_JOB_POLL_INTERVAL` and `VIPPET_JOB_TIMEOUT_SECONDS` are also read by the
 functional-test helpers. The CLI and direct pytest both resolve them the same way.

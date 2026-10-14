@@ -18,7 +18,12 @@ from typing import Any
 from dataclasses import dataclass
 from helpers.pipeline_case_helpers import SUPPORTED_DEVICE_FAMILIES, PipelineCase
 from perf_helpers.hw_monitor import HardwareMonitor
-from perf_helpers.preflight import fetch_discovered_devices, run_preflight_or_exit
+from perf_helpers.preflight import (
+    fetch_capabilities,
+    fetch_discovered_devices,
+    fetch_vippet_version,
+    run_preflight_or_exit,
+)
 from perf_helpers.reporters import ResultExporter, generate_html_report
 from perf_helpers.settings import SettingsError
 

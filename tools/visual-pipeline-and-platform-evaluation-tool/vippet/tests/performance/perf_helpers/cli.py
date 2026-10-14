@@ -18,6 +18,7 @@ reasons and exits without submitting any job.
 """
 
 import argparse
+import httpx
 import os
 import subprocess
 import sys
@@ -25,7 +26,6 @@ import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO
-
 from .matrix import Matrix, MatrixFilters
 from .preflight import FATAL_PREFLIGHT_EXIT_CODE, PreflightError, wait_for_vippet_ready
 from .settings import (
@@ -267,11 +267,31 @@ def _default_discover(settings: ResolvedSettings) -> Matrix:
     return discover_matrix(MatrixFilters.from_settings(settings))
 
 
+def _default_preflight(
+    base_url: str,
+    readiness_timeout_seconds: float,
+    poll_interval: float,
+    request_timeout: float,
+    *,
+    report: Callable[[str], None] = print,
+) -> None:
+    """Open an HTTP client and run the real ViPPET readiness check."""
+    with httpx.Client(headers={"Accept": "application/json"}) as client:
+        wait_for_vippet_ready(
+            base_url,
+            readiness_timeout_seconds,
+            poll_interval,
+            request_timeout,
+            client=client,
+            report=report,
+        )
+
+
 def run_dry_run(
     settings: ResolvedSettings,
     *,
     discover: Callable[[ResolvedSettings], Matrix] = _default_discover,
-    preflight: Callable[..., None] = wait_for_vippet_ready,
+    preflight: Callable[..., None] = _default_preflight,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
