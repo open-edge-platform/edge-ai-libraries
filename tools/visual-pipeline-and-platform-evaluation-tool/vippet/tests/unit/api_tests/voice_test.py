@@ -551,6 +551,130 @@ class VoiceTests(unittest.TestCase):
             voice="Angus",
         )
 
+    def test_starts_managed_stt_upload_on_existing_variant_run(self) -> None:
+        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
+        observed: dict[str, object] = {}
+
+        async def start_job(pipeline_id, variant_id, *, stt_input):
+            observed["pipeline"] = (pipeline_id, variant_id)
+            observed["content"] = stt_input.file.read()
+            observed["metadata"] = (
+                stt_input.filename,
+                stt_input.content_type,
+                stt_input.language,
+            )
+            return job
+
+        jobs = SimpleNamespace(start_job=AsyncMock(side_effect=start_job))
+        self.use_audio_jobs(jobs)
+
+        response = self.client.post(
+            "/voice/pipelines/speech-to-text/variants/npu/runs",
+            data={"language": "pl"},
+            files={
+                "file": (
+                    "../folder\\sample.mp3",
+                    b"uploaded audio",
+                    "audio/mpeg",
+                )
+            },
+        )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json(), {"job_id": "job-1", "status": "QUEUED"})
+        self.assertEqual(observed["pipeline"], ("speech-to-text", "npu"))
+        self.assertEqual(observed["content"], b"uploaded audio")
+        self.assertEqual(
+            observed["metadata"],
+            ("sample.mp3", "audio/mpeg", "pl"),
+        )
+
+    def test_normalizes_managed_stt_upload_media_type(self) -> None:
+        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
+        observed: dict[str, object] = {}
+
+        async def start_job(_pipeline_id, _variant_id, *, stt_input):
+            observed["content_type"] = stt_input.content_type
+            return job
+
+        jobs = SimpleNamespace(start_job=AsyncMock(side_effect=start_job))
+        self.use_audio_jobs(jobs)
+
+        response = self.client.post(
+            "/voice/pipelines/speech-to-text/runs",
+            data={"language": "en"},
+            files={
+                "file": (
+                    "sample.wav",
+                    b"audio",
+                    "not-a-media-type",
+                )
+            },
+        )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(observed["content_type"], "application/octet-stream")
+
+    def test_rejects_invalid_managed_stt_multipart(self) -> None:
+        jobs = SimpleNamespace(start_job=AsyncMock())
+        self.use_audio_jobs(jobs)
+
+        missing_file = self.client.post(
+            "/voice/pipelines/speech-to-text/runs",
+            data={"language": "en"},
+            files={
+                "ignored": (
+                    "ignored.bin",
+                    b"ignored",
+                    "application/octet-stream",
+                )
+            },
+        )
+        invalid_language = self.client.post(
+            "/voice/pipelines/speech-to-text/runs",
+            data={"language": "english"},
+            files={"file": ("sample.wav", b"audio", "audio/wav")},
+        )
+
+        self.assertEqual(missing_file.status_code, 422)
+        self.assertEqual(invalid_language.status_code, 422)
+        jobs.start_job.assert_not_called()
+
+    def test_rejects_unsupported_managed_run_content_type(self) -> None:
+        jobs = SimpleNamespace(start_job=AsyncMock())
+        self.use_audio_jobs(jobs)
+
+        response = self.client.post(
+            "/voice/pipelines/speech-to-text/runs",
+            content=b"audio",
+            headers={"Content-Type": "audio/wav"},
+        )
+
+        self.assertEqual(response.status_code, 415)
+        jobs.start_job.assert_not_called()
+
+    def test_rejects_stt_upload_for_tts_pipeline(self) -> None:
+        jobs = SimpleNamespace(
+            start_job=AsyncMock(
+                side_effect=ValueError(
+                    "Text-to-speech pipelines do not accept STT input."
+                )
+            )
+        )
+        self.use_audio_jobs(jobs)
+
+        response = self.client.post(
+            "/voice/pipelines/text-to-speech/runs",
+            data={"language": "en"},
+            files={"file": ("sample.wav", b"audio", "audio/wav")},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(),
+            {"detail": "This Audio pipeline does not accept STT input."},
+        )
+
     def test_rejects_invalid_custom_tts_pipeline_input(self) -> None:
         jobs = SimpleNamespace(start_job=AsyncMock())
         invalid_payloads = [

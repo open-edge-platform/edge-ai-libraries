@@ -54,6 +54,8 @@ test("lists Audio jobs without transcript content or stop actions", async ({
     await expect(
         page.getByRole("row").filter({ hasText: "job-stt" }),
     ).toContainText("Speech to Text");
+    await expect(page.getByRole("row").nth(1)).toContainText("job-stt");
+    await expect(page.getByRole("row").nth(2)).toContainText("job-tts");
     await expect(page.getByText("private transcript")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "View" })).toHaveCount(2);

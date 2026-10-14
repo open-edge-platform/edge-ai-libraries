@@ -5,7 +5,8 @@
 
 Every performance test, density test, and managed Audio pipeline run creates a **job** — a tracked
 unit of work with a unique ID, state, timing information, and results. The Jobs page lets you monitor
-running work, review completed results, and stop supported test jobs that are no longer needed.
+running work, review completed results, and stop supported test jobs that are no longer needed. The
+Audio list is ordered from oldest to newest, matching the Vision job list.
 
 ![Jobs](../../_assets/ViPPET-UI-Jobs-light.png)
 
@@ -44,7 +45,8 @@ Click on a completed job to view its detailed results:
   while the other pipeline reports the highest count that still met `fps_floor`.
 - **Audio jobs** — Pipeline, operation, variant, device, state, timestamps, and service latency. A
   completed Speech to Text detail shows its transcript. A completed Text to Speech detail links to
-  its WAV artifact. Transcript content is not included in the Audio jobs list.
+  its WAV artifact. The Audio jobs list excludes transcript and TTS input content, uploaded
+  filenames, and local filesystem paths.
 - **Latency metrics** — If latency metrics were enabled for the job, the results include avg/min/max latency
   values (in milliseconds) per reporting interval.
 

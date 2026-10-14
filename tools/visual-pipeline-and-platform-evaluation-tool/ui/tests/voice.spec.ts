@@ -136,6 +136,61 @@ async function chooseOption(page: Page, label: string, option: string) {
 }
 
 let ttsJobSequence = 0;
+let sttJobSequence = 0;
+
+async function mockSttJob(
+  page: Page,
+  {
+    transcript = "Hello world",
+    serviceMs = 250,
+    status = "COMPLETED",
+    error = null,
+    inspectRequest,
+  }: {
+    transcript?: string | null;
+    serviceMs?: number | null;
+    status?: "COMPLETED" | "FAILED" | "CANCELLED";
+    error?: string | null;
+    inspectRequest?: (request: Request) => void;
+  } = {},
+) {
+  const jobId = `stt-job-${++sttJobSequence}`;
+
+  await page.route(
+    "**/voice/pipelines/speech-to-text/variants/*/runs",
+    async (route) => {
+      inspectRequest?.(route.request());
+      await route.fulfill({
+        status: 202,
+        json: { job_id: jobId, status: "QUEUED" },
+      });
+    },
+    { times: 1 },
+  );
+  await page.route(
+    `**/voice/jobs/${jobId}`,
+    (route) =>
+      route.fulfill({
+        json: {
+          id: jobId,
+          pipeline_id: "speech-to-text",
+          pipeline_name: "Speech to Text",
+          variant_id: "cpu",
+          variant_name: "CPU",
+          device: "CPU",
+          operation: "speech_to_text",
+          status,
+          created_at: "2026-10-09T10:00:00Z",
+          modified_at: "2026-10-09T10:00:01Z",
+          transcript: status === "COMPLETED" ? transcript : null,
+          artifact_url: null,
+          service_round_trip_ms: serviceMs,
+          error,
+        },
+      }),
+    { times: 1 },
+  );
+}
 
 async function mockTtsJob(
   page: Page,
@@ -168,7 +223,7 @@ async function mockTtsJob(
           status: 202,
           json: { job_id: jobId, status: "QUEUED" },
         })
-        .catch(() => {});
+        .catch(() => { });
     },
     { times: 1 },
   );
@@ -274,7 +329,7 @@ test.beforeEach(async ({ page }) => {
   );
   await page.goto(
     process.env.VOICE_UI_URL ??
-      "http://127.0.0.1:5173/pipelines/audio/speech-to-text/cpu",
+    "http://127.0.0.1:5173/pipelines/audio/speech-to-text/cpu",
   );
 });
 
@@ -540,11 +595,19 @@ test("runs the managed text-to-speech preset with YAML defaults", async ({
 });
 
 test("Audio variants control STT and TTS devices", async ({ page }) => {
-  await page.route("**/voice/transcriptions", async (route) => {
-    const body = route.request().postData() ?? "";
-    expect(body).toContain('name="device"');
-    expect(body).toContain("GPU");
-    await route.fulfill({ json: { text: "Hello world" } });
+  await mockSttJob(page, {
+    inspectRequest: (request) => {
+      const body = request.postData() ?? "";
+      expect(request.url()).toContain(
+        "/voice/pipelines/speech-to-text/variants/gpu/runs",
+      );
+      expect(request.headers()["content-type"]).toContain(
+        "multipart/form-data",
+      );
+      expect(body).toContain('name="file"');
+      expect(body).toContain('name="language"');
+      expect(body).not.toContain('name="device"');
+    },
   });
   await mockTtsJob(page, {
     inspectRequest: (request) => {
@@ -593,11 +656,13 @@ test("Audio variants control STT and TTS devices", async ({ page }) => {
 });
 
 test("submits audio formats for service-side validation", async ({ page }) => {
-  await page.route("**/voice/transcriptions", async (route) => {
-    const body = route.request().postData() ?? "";
-    expect(body).toContain('filename="sample.mp3"');
-    expect(body).toContain("Content-Type: audio/mpeg");
-    await route.fulfill({ json: { text: "Service accepted audio" } });
+  await mockSttJob(page, {
+    transcript: "Service accepted audio",
+    inspectRequest: (request) => {
+      const body = request.postData() ?? "";
+      expect(body).toContain('filename="sample.mp3"');
+      expect(body).toContain("Content-Type: audio/mpeg");
+    },
   });
 
   await expect(page.getByText("Maximum size: 200 MiB")).toBeVisible();
@@ -619,11 +684,13 @@ test("submits audio formats for service-side validation", async ({ page }) => {
 });
 
 test("shows Audio Analyzer file validation errors", async ({ page }) => {
-  await page.route("**/voice/transcriptions", (route) =>
-    route.fulfill({
-      status: 400,
-      json: { detail: "File too large" },
-    }),
+  await page.route(
+    "**/voice/pipelines/speech-to-text/variants/*/runs",
+    (route) =>
+      route.fulfill({
+        status: 400,
+        json: { detail: "File too large" },
+      }),
   );
 
   await page.getByLabel("Audio file").setInputFiles({
@@ -729,15 +796,14 @@ for (const viewport of [
     } else {
       expect(metricsBox!.y).toBeGreaterThan(workflowBox!.y);
     }
-    await page.route("**/voice/transcriptions", async (route) => {
-      expect(route.request().headers()["content-type"]).toContain(
-        "multipart/form-data",
-      );
-      expect(route.request().postData()).not.toContain("session_id");
-      await route.fulfill({
-        json: { text: "Hello world" },
-        headers: { "X-Voice-Service-Duration-Ms": "250.000" },
-      });
+    await mockSttJob(page, {
+      serviceMs: 250,
+      inspectRequest: (request) => {
+        expect(request.headers()["content-type"]).toContain(
+          "multipart/form-data",
+        );
+        expect(request.postData()).not.toContain("session_id");
+      },
     });
     await mockTtsJob(page, {
       serviceMs: 750,

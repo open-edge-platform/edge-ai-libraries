@@ -4,6 +4,7 @@
 import asyncio
 import logging
 import os
+import shutil
 import tempfile
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
@@ -77,6 +78,22 @@ class AudioPipelineJob:
     error: str | None = None
 
 
+@dataclass(frozen=True)
+class AudioPipelineSTTInput:
+    file: BinaryIO
+    filename: str
+    content_type: str
+    language: str
+
+
+@dataclass(frozen=True)
+class _StagedSTTInput:
+    path: Path
+    filename: str
+    content_type: str
+    language: str
+
+
 class AudioPipelineJobManager:
     def __init__(
         self,
@@ -96,6 +113,10 @@ class AudioPipelineJobManager:
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._lock = asyncio.Lock()
         self._max_terminal_jobs = max_terminal_jobs
+        self._input_directory_owner = tempfile.TemporaryDirectory(
+            prefix="vippet-audio-job-inputs-"
+        )
+        self._input_directory = Path(self._input_directory_owner.name).resolve()
 
     async def start_job(
         self,
@@ -104,6 +125,7 @@ class AudioPipelineJobManager:
         *,
         input_text: str | None = None,
         voice: str | None = None,
+        stt_input: AudioPipelineSTTInput | None = None,
     ) -> AudioPipelineJob:
         pipeline = self.pipelines.get_pipeline(pipeline_id)
         if pipeline is None:
@@ -114,6 +136,11 @@ class AudioPipelineJobManager:
             input_text is not None or voice is not None
         ):
             raise ValueError("Speech-to-text pipelines do not accept TTS overrides.")
+        if (
+            pipeline.operation is not AudioPipelineOperation.SPEECH_TO_TEXT
+            and stt_input is not None
+        ):
+            raise ValueError("Text-to-speech pipelines do not accept STT input.")
         variant = (
             pipeline.variants[0]
             if variant_id is None
@@ -143,21 +170,67 @@ class AudioPipelineJobManager:
             created_at=now,
             modified_at=now,
         )
-        async with self._lock:
-            self._jobs[job.id] = job
-            task = asyncio.create_task(
-                self._execute(
-                    job.id,
-                    pipeline,
-                    input_text=input_text,
-                    voice=voice,
+        staged_stt_input = (
+            await self._stage_stt_input_async(stt_input)
+            if stt_input is not None
+            else None
+        )
+        try:
+            async with self._lock:
+                self._jobs[job.id] = job
+                task = asyncio.create_task(
+                    self._execute(
+                        job.id,
+                        pipeline,
+                        input_text=input_text,
+                        voice=voice,
+                        stt_input=staged_stt_input,
+                    )
                 )
-            )
-            self._tasks[job.id] = task
-            task.add_done_callback(
-                lambda completed, job_id=job.id: self._on_task_done(job_id, completed)
-            )
+                self._tasks[job.id] = task
+                task.add_done_callback(
+                    lambda completed, job_id=job.id: self._on_task_done(
+                        job_id, completed
+                    )
+                )
+        except BaseException:
+            await self._delete_staged_input(staged_stt_input)
+            raise
         return replace(job)
+
+    async def _stage_stt_input_async(
+        self,
+        source: AudioPipelineSTTInput,
+    ) -> _StagedSTTInput:
+        task = asyncio.create_task(asyncio.to_thread(self._stage_stt_input, source))
+        try:
+            return await asyncio.shield(task)
+        except BaseException:
+            try:
+                staged = await task
+            except Exception:
+                pass
+            else:
+                await self._delete_staged_input(staged)
+            raise
+
+    def _stage_stt_input(self, source: AudioPipelineSTTInput) -> _StagedSTTInput:
+        destination = self._input_directory / f"{uuid4()}.upload"
+        try:
+            with destination.open("xb") as target:
+                shutil.copyfileobj(source.file, target, length=1024 * 1024)
+        except Exception:
+            try:
+                destination.unlink(missing_ok=True)
+            except OSError:
+                logger.error("Failed to remove incomplete staged Audio input")
+            raise RuntimeError("Unable to stage Audio input.") from None
+        return _StagedSTTInput(
+            path=destination,
+            filename=source.filename,
+            content_type=source.content_type,
+            language=source.language,
+        )
 
     async def _execute(
         self,
@@ -166,6 +239,7 @@ class AudioPipelineJobManager:
         *,
         input_text: str | None,
         voice: str | None,
+        stt_input: _StagedSTTInput | None,
     ) -> None:
         uncommitted_artifact_path: str | None = None
         try:
@@ -177,7 +251,11 @@ class AudioPipelineJobManager:
                 device = job.device
 
             if pipeline.operation is AudioPipelineOperation.SPEECH_TO_TEXT:
-                transcript, duration = await self._execute_stt(pipeline, device)
+                transcript, duration = await self._execute_stt(
+                    pipeline,
+                    device,
+                    stt_input,
+                )
                 artifact_path = None
                 artifact_filename = None
             else:
@@ -226,8 +304,12 @@ class AudioPipelineJobManager:
                 )
             )
             raise
-        except Exception:
-            logger.exception("Audio pipeline job %s failed", job_id)
+        except Exception as exc:
+            logger.error(
+                "Audio pipeline job %s failed (%s)",
+                job_id,
+                type(exc).__name__,
+            )
             async with self._lock:
                 job = self._jobs.get(job_id)
                 if job is not None and job.status not in TERMINAL_STATUSES:
@@ -242,23 +324,34 @@ class AudioPipelineJobManager:
                     else []
                 )
             )
+        finally:
+            await self._delete_staged_input(stt_input)
 
     async def _execute_stt(
         self,
         pipeline: AudioPipeline,
         device: str,
+        stt_input: _StagedSTTInput | None,
     ) -> tuple[str, float]:
-        defaults = pipeline.defaults
-        filename = defaults.audio or ""
-        path = self.assets.get_path(filename)
-        if path is None:
-            raise RuntimeError("Default audio input became unavailable")
+        if stt_input is None:
+            defaults = pipeline.defaults
+            filename = defaults.audio or ""
+            path = self.assets.get_path(filename)
+            if path is None:
+                raise RuntimeError("Default audio input became unavailable")
+            content_type = "audio/wav"
+            language = defaults.language or "en"
+        else:
+            filename = stt_input.filename
+            path = str(stt_input.path)
+            content_type = stt_input.content_type
+            language = stt_input.language
         with open(path, "rb") as audio_file:
             transcript, duration = await self.transcribe(
                 audio_file,
                 filename,
-                "audio/wav",
-                defaults.language or "en",
+                content_type,
+                language,
                 device,
             )
         return transcript, duration
@@ -343,6 +436,28 @@ class AudioPipelineJobManager:
             except OSError:
                 logger.exception("Failed to delete Audio artifact %s", candidate)
 
+    async def _delete_staged_input(
+        self,
+        staged_input: _StagedSTTInput | None,
+    ) -> None:
+        if staged_input is None:
+            return
+        candidate = staged_input.path.resolve()
+        if candidate == self._input_directory or not candidate.is_relative_to(
+            self._input_directory
+        ):
+            logger.warning(
+                "Refusing to delete staged Audio input outside its directory"
+            )
+            return
+        try:
+            await asyncio.to_thread(candidate.unlink, missing_ok=True)
+        except OSError as exc:
+            logger.error(
+                "Failed to delete staged Audio input (%s)",
+                type(exc).__name__,
+            )
+
     def _on_task_done(
         self,
         job_id: str,
@@ -375,7 +490,6 @@ class AudioPipelineJobManager:
                 for job in sorted(
                     self._jobs.values(),
                     key=lambda candidate: candidate.created_at,
-                    reverse=True,
                 )
             ]
 
@@ -406,3 +520,4 @@ class AudioPipelineJobManager:
         )
         for job_id, task in tasks:
             await self._remove_task(job_id, task)
+        await asyncio.to_thread(self._input_directory_owner.cleanup)

@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 from managers.audio_pipeline_job_manager import (
+    AudioPipelineSTTInput,
     AudioPipelineJobManager,
     AudioPipelineJobStatus,
 )
@@ -85,6 +86,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
             self.transcribe,
             self.synthesize,
         )
+        self.addAsyncCleanup(self.manager.shutdown)
 
     async def test_completes_stt_job_with_transcript(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(
@@ -118,6 +120,44 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job.device, "NPU")
         assert self.transcribe.await_args is not None
         self.assertEqual(self.transcribe.await_args.args[-1], "NPU")
+
+    async def test_completes_stt_job_with_uploaded_input_and_cleans_it(self) -> None:
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+        observed: dict[str, object] = {}
+
+        async def transcribe(
+            audio_file, filename, content_type, language, device
+        ) -> tuple[str, float]:
+            observed["content"] = audio_file.read()
+            observed["metadata"] = (filename, content_type, language, device)
+            return "Uploaded transcript", 14.5
+
+        self.manager.transcribe = transcribe
+
+        job = await self.manager.start_job(
+            "speech-to-text",
+            "npu",
+            stt_input=AudioPipelineSTTInput(
+                file=io.BytesIO(b"uploaded audio"),
+                filename="sample.mp3",
+                content_type="audio/mpeg",
+                language="pl",
+            ),
+        )
+        await self.manager.wait(job.id)
+
+        completed = await self.manager.get_job(job.id)
+        assert completed is not None
+        self.assertEqual(completed.status, AudioPipelineJobStatus.COMPLETED)
+        self.assertEqual(completed.transcript, "Uploaded transcript")
+        self.assertEqual(observed["content"], b"uploaded audio")
+        self.assertEqual(
+            observed["metadata"],
+            ("sample.mp3", "audio/mpeg", "pl", "NPU"),
+        )
+        self.assertEqual(list(self.manager._input_directory.iterdir()), [])
 
     async def test_completes_tts_job_with_atomic_wav_artifact(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(
@@ -177,6 +217,22 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
                 voice="Ryan",
             )
 
+    async def test_rejects_stt_input_for_tts_job(self) -> None:
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.TEXT_TO_SPEECH
+        )
+
+        with self.assertRaisesRegex(ValueError, "do not accept STT input"):
+            await self.manager.start_job(
+                "text-to-speech",
+                stt_input=AudioPipelineSTTInput(
+                    file=io.BytesIO(b"audio"),
+                    filename="sample.wav",
+                    content_type="audio/wav",
+                    language="en",
+                ),
+            )
+
     async def test_rejects_unknown_pipeline(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = None
 
@@ -209,8 +265,9 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
             raise RuntimeError("private upstream details")
 
         self.manager.transcribe = fail
-        job = await self.manager.start_job("speech-to-text")
-        await self.manager.wait(job.id)
+        with self.assertLogs("audio_pipeline_jobs", level="ERROR") as logs:
+            job = await self.manager.start_job("speech-to-text")
+            await self.manager.wait(job.id)
         failed = await self.manager.get_job(job.id)
 
         assert failed is not None
@@ -218,8 +275,9 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failed.error, "Audio pipeline execution failed.")
         assert failed.error is not None
         self.assertNotIn("private", failed.error)
+        self.assertNotIn("private upstream details", "\n".join(logs.output))
 
-    async def test_lists_newest_jobs_as_snapshots(self) -> None:
+    async def test_lists_oldest_jobs_as_snapshots(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(
             AudioPipelineOperation.SPEECH_TO_TEXT
         )
@@ -230,11 +288,66 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
         await self.manager.wait(second.id)
 
         jobs = await self.manager.list_jobs()
-        self.assertEqual([job.id for job in jobs], [second.id, first.id])
-        jobs[0].error = "external mutation"
+        self.assertEqual([job.id for job in jobs], [first.id, second.id])
+        jobs[1].error = "external mutation"
         stored = await self.manager.get_job(second.id)
         assert stored is not None
         self.assertIsNone(stored.error)
+
+    async def test_failed_uploaded_stt_job_cleans_staged_input(self) -> None:
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+
+        async def fail(*_args) -> tuple[str, float]:
+            raise RuntimeError("private upstream details")
+
+        self.manager.transcribe = fail
+        job = await self.manager.start_job(
+            "speech-to-text",
+            stt_input=AudioPipelineSTTInput(
+                file=io.BytesIO(b"uploaded audio"),
+                filename="sample.wav",
+                content_type="audio/wav",
+                language="en",
+            ),
+        )
+        await self.manager.wait(job.id)
+
+        failed = await self.manager.get_job(job.id)
+        assert failed is not None
+        self.assertEqual(failed.status, AudioPipelineJobStatus.FAILED)
+        self.assertEqual(list(self.manager._input_directory.iterdir()), [])
+
+    async def test_shutdown_cleans_active_uploaded_stt_input(self) -> None:
+        started = asyncio.Event()
+
+        async def blocked_transcription(*_args) -> tuple[str, float]:
+            started.set()
+            await asyncio.Event().wait()
+            return "unreachable", 0.0
+
+        self.manager.transcribe = blocked_transcription
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+        job = await self.manager.start_job(
+            "speech-to-text",
+            stt_input=AudioPipelineSTTInput(
+                file=io.BytesIO(b"uploaded audio"),
+                filename="sample.wav",
+                content_type="audio/wav",
+                language="en",
+            ),
+        )
+        await started.wait()
+
+        await self.manager.shutdown()
+
+        cancelled = await self.manager.get_job(job.id)
+        assert cancelled is not None
+        self.assertEqual(cancelled.status, AudioPipelineJobStatus.CANCELLED)
+        self.assertFalse(self.manager._input_directory.exists())
 
     async def test_shutdown_cancels_active_jobs_and_cleans_tasks(self) -> None:
         started = asyncio.Event()
@@ -281,6 +394,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
             self.synthesize,
             max_terminal_jobs=2,
         )
+        self.addAsyncCleanup(self.manager.shutdown)
         self.pipeline_manager.get_pipeline.return_value = pipeline(
             AudioPipelineOperation.TEXT_TO_SPEECH
         )
@@ -317,6 +431,7 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
             self.synthesize,
             max_terminal_jobs=1,
         )
+        self.addAsyncCleanup(self.manager.shutdown)
         self.pipeline_manager.get_pipeline.side_effect = lambda pipeline_id: pipeline(
             AudioPipelineOperation.SPEECH_TO_TEXT
             if pipeline_id == "speech-to-text"

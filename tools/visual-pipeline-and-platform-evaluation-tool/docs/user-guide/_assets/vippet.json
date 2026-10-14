@@ -3951,23 +3951,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/AudioPipelineRunRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Request"
-              }
-            }
-          }
-        },
         "responses": {
           "202": {
             "description": "Successful Response",
@@ -3985,6 +3968,62 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "input": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Input",
+                    "type": "string"
+                  },
+                  "voice": {
+                    "enum": [
+                      "Ryan",
+                      "Miles",
+                      "Aaron",
+                      "Nora",
+                      "Elena",
+                      "Kabir",
+                      "Angus"
+                    ],
+                    "title": "Voice",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input",
+                  "voice"
+                ],
+                "title": "AudioPipelineRunRequest",
+                "type": "object"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "language"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "language": {
+                    "type": "string",
+                    "pattern": "^[a-z]{2}$"
+                  }
                 }
               }
             }
@@ -4019,23 +4058,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/AudioPipelineRunRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Request"
-              }
-            }
-          }
-        },
         "responses": {
           "202": {
             "description": "Successful Response",
@@ -4053,6 +4075,62 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "input": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Input",
+                    "type": "string"
+                  },
+                  "voice": {
+                    "enum": [
+                      "Ryan",
+                      "Miles",
+                      "Aaron",
+                      "Nora",
+                      "Elena",
+                      "Kabir",
+                      "Angus"
+                    ],
+                    "title": "Voice",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input",
+                  "voice"
+                ],
+                "title": "AudioPipelineRunRequest",
+                "type": "object"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "language"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "language": {
+                    "type": "string",
+                    "pattern": "^[a-z]{2}$"
+                  }
                 }
               }
             }
@@ -4761,36 +4839,6 @@
           "available"
         ],
         "title": "AudioPipelineResponse"
-      },
-      "AudioPipelineRunRequest": {
-        "properties": {
-          "input": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Input"
-          },
-          "voice": {
-            "type": "string",
-            "enum": [
-              "Ryan",
-              "Miles",
-              "Aaron",
-              "Nora",
-              "Elena",
-              "Kabir",
-              "Angus"
-            ],
-            "title": "Voice"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "input",
-          "voice"
-        ],
-        "title": "AudioPipelineRunRequest"
       },
       "AudioPipelineVariantResponse": {
         "properties": {

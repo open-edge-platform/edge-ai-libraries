@@ -59,24 +59,14 @@ const SPEECH_VOICES = [
 type SpeechVoice = (typeof SPEECH_VOICES)[number];
 
 type AudioPipelineJob = {
-  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
   transcript: string | null;
   artifact_url: string | null;
   service_round_trip_ms: number | null;
   error: string | null;
 };
 
-function readConversionMetrics(
-  response: Response,
-  requestMs: number,
-): ConversionMetrics {
-  const raw = response.headers.get("X-Voice-Service-Duration-Ms");
-  const serviceMs = raw && /^\d+(?:\.\d+)?$/.test(raw) ? Number(raw) : NaN;
-  return {
-    requestMs,
-    serviceMs: Number.isFinite(serviceMs) ? serviceMs : null,
-  };
-}
+type ManagedAudioRunBody = FormData | { input: string; voice: SpeechVoice };
 
 async function checkResponse(response: Response): Promise<void> {
   if (response.ok) return;
@@ -232,6 +222,8 @@ export function VoiceConversion() {
       if (job.status === "COMPLETED") return job;
       if (job.status === "FAILED")
         throw new Error(job.error ?? "Audio pipeline execution failed.");
+      if (job.status === "CANCELLED")
+        throw new Error(job.error ?? "Audio pipeline execution was cancelled.");
       await new Promise<void>((resolve, reject) => {
         const timeout = window.setTimeout(resolve, 500);
         controller.signal.addEventListener(
@@ -249,18 +241,24 @@ export function VoiceConversion() {
   async function runManagedPipeline(
     controller: AbortController,
     startedAt: number,
-    ttsRequest?: { input: string; voice: SpeechVoice },
+    requestBody?: ManagedAudioRunBody,
   ) {
     if (!selectedPipeline || !selectedVariant)
       throw new Error("Audio pipeline variant not found.");
+    const multipart = requestBody instanceof FormData;
     const response = await fetch(
       `${API_BASE_URL}/voice/pipelines/${selectedPipeline.id}/variants/${selectedVariant.id}/runs`,
       {
         method: "POST",
-        headers: ttsRequest
-          ? { "Content-Type": "application/json" }
-          : undefined,
-        body: ttsRequest ? JSON.stringify(ttsRequest) : undefined,
+        headers:
+          requestBody && !multipart
+            ? { "Content-Type": "application/json" }
+            : undefined,
+        body: multipart
+          ? requestBody
+          : requestBody
+            ? JSON.stringify(requestBody)
+            : undefined,
         cache: "no-store",
         signal: controller.signal,
       },
@@ -329,39 +327,18 @@ export function VoiceConversion() {
         setTranscription(null);
       } else if (
         kind === "stt" &&
-        !file &&
-        selectedPipeline?.operation === "speech_to_text" &&
-        language === (selectedPipeline.defaults.language ?? "en")
+        selectedPipeline?.operation === "speech_to_text"
       ) {
-        await runManagedPipeline(controller, performance.now());
-      } else if (kind === "stt" && file) {
-        const data = new FormData();
-        data.append("file", file);
-        data.append("language", language);
-        data.append("device", selectedVariant?.device ?? "CPU");
-        const startedAt = performance.now();
-        const response = await fetch(`${API_BASE_URL}/voice/transcriptions`, {
-          method: "POST",
-          body: data,
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        await checkResponse(response);
-        const result: unknown = await response.json();
-        if (
-          !result ||
-          typeof result !== "object" ||
-          !("text" in result) ||
-          typeof result.text !== "string"
-        ) {
-          throw new Error("The service returned an invalid transcription.");
+        if (!file && language !== (selectedPipeline.defaults.language ?? "en"))
+          throw new Error(
+            "Select an audio file to use a non-default language.",
+          );
+        const requestBody = file ? new FormData() : undefined;
+        if (requestBody) {
+          requestBody.append("file", file);
+          requestBody.append("language", language);
         }
-        controller.signal.throwIfAborted();
-        if (operation.current !== controller) return;
-        setTranscription(result.text);
-        setSttMetrics(
-          readConversionMetrics(response, performance.now() - startedAt),
-        );
+        await runManagedPipeline(controller, performance.now(), requestBody);
       } else if (
         kind === "tts" &&
         selectedPipeline?.operation === "text_to_speech"
@@ -565,7 +542,7 @@ export function VoiceConversion() {
                           busy ||
                           (!file &&
                             language !==
-                              (selectedPipeline.defaults.language ?? "en"))
+                            (selectedPipeline.defaults.language ?? "en"))
                         }
                         onClick={() => void run("stt")}
                       >

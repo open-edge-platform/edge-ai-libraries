@@ -9,9 +9,10 @@ from time import perf_counter
 from typing import Annotated, BinaryIO, Literal, cast
 
 import httpx
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from audio_assets import AudioAssetsManager
 from api.dependencies.audio_jobs import (
@@ -21,6 +22,7 @@ from api.dependencies.audio_jobs import (
 from managers.audio_pipeline_job_manager import (
     AudioPipelineJobManager,
     AudioPipelineJobStatus,
+    AudioPipelineSTTInput,
 )
 from managers.audio_pipeline_manager import get_audio_pipeline_manager
 
@@ -121,6 +123,29 @@ class AudioPipelineRunRequest(BaseModel):
 
     input: str = Field(min_length=1, max_length=200)
     voice: SpeechVoice
+
+
+AUDIO_PIPELINE_RUN_OPENAPI = {
+    "requestBody": {
+        "required": False,
+        "content": {
+            "application/json": {"schema": AudioPipelineRunRequest.model_json_schema()},
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "required": ["file", "language"],
+                    "properties": {
+                        "file": {"type": "string", "format": "binary"},
+                        "language": {
+                            "type": "string",
+                            "pattern": "^[a-z]{2}$",
+                        },
+                    },
+                }
+            },
+        },
+    }
+}
 
 
 class AudioPipelineJobResponse(BaseModel):
@@ -420,45 +445,111 @@ async def list_audio_pipelines() -> list[AudioPipelineResponse]:
     "/pipelines/{pipeline_id}/runs",
     response_model=AudioPipelineJobStartResponse,
     status_code=202,
+    openapi_extra=AUDIO_PIPELINE_RUN_OPENAPI,
 )
 async def run_audio_pipeline(
     pipeline_id: str,
+    request: Request,
     manager: AudioJobManagerDependency,
-    request: AudioPipelineRunRequest | None = None,
 ) -> AudioPipelineJobStartResponse:
-    return await _start_audio_pipeline_job(manager, pipeline_id, None, request)
+    return await _start_audio_pipeline_request(request, manager, pipeline_id, None)
 
 
 @router.post(
     "/pipelines/{pipeline_id}/variants/{variant_id}/runs",
     response_model=AudioPipelineJobStartResponse,
     status_code=202,
+    openapi_extra=AUDIO_PIPELINE_RUN_OPENAPI,
 )
 async def run_audio_pipeline_variant(
     pipeline_id: str,
     variant_id: str,
+    request: Request,
     manager: AudioJobManagerDependency,
-    request: AudioPipelineRunRequest | None = None,
 ) -> AudioPipelineJobStartResponse:
-    return await _start_audio_pipeline_job(manager, pipeline_id, variant_id, request)
+    return await _start_audio_pipeline_request(
+        request,
+        manager,
+        pipeline_id,
+        variant_id,
+    )
+
+
+async def _start_audio_pipeline_request(
+    request: Request,
+    manager: AudioPipelineJobManager,
+    pipeline_id: str,
+    variant_id: str | None,
+) -> AudioPipelineJobStartResponse:
+    media_type = request.headers.get("content-type", "").partition(";")[0].lower()
+    if not media_type:
+        if await request.body():
+            raise HTTPException(415, "Unsupported Audio pipeline request type.")
+        return await _start_audio_pipeline_job(manager, pipeline_id, variant_id)
+
+    if media_type == "application/json":
+        try:
+            tts_request = AudioPipelineRunRequest.model_validate_json(
+                await request.body()
+            )
+        except ValidationError as exc:
+            raise HTTPException(422, "Invalid Audio pipeline run request.") from exc
+        return await _start_audio_pipeline_job(
+            manager,
+            pipeline_id,
+            variant_id,
+            tts_request=tts_request,
+        )
+
+    if media_type == "multipart/form-data":
+        async with request.form(max_files=1, max_fields=2) as form:
+            upload = form.get("file")
+            language = form.get("language")
+            if not isinstance(upload, StarletteUploadFile) or not isinstance(
+                language, str
+            ):
+                raise HTTPException(422, "Invalid managed STT input.")
+            if re.fullmatch(r"[a-z]{2}", language) is None:
+                raise HTTPException(422, "Invalid managed STT language.")
+            return await _start_audio_pipeline_job(
+                manager,
+                pipeline_id,
+                variant_id,
+                stt_input=AudioPipelineSTTInput(
+                    file=upload.file,
+                    filename=normalize_upload_filename(upload.filename),
+                    content_type=normalize_media_type(upload.content_type),
+                    language=language,
+                ),
+            )
+
+    raise HTTPException(415, "Unsupported Audio pipeline request type.")
 
 
 async def _start_audio_pipeline_job(
     manager: AudioPipelineJobManager,
     pipeline_id: str,
     variant_id: str | None,
-    request: AudioPipelineRunRequest | None,
+    *,
+    tts_request: AudioPipelineRunRequest | None = None,
+    stt_input: AudioPipelineSTTInput | None = None,
 ) -> AudioPipelineJobStartResponse:
     try:
-        if request is None:
-            job = await manager.start_job(pipeline_id, variant_id)
-        else:
+        if stt_input is not None:
             job = await manager.start_job(
                 pipeline_id,
                 variant_id,
-                input_text=request.input,
-                voice=request.voice,
+                stt_input=stt_input,
             )
+        elif tts_request is not None:
+            job = await manager.start_job(
+                pipeline_id,
+                variant_id,
+                input_text=tts_request.input,
+                voice=tts_request.voice,
+            )
+        else:
+            job = await manager.start_job(pipeline_id, variant_id)
     except ValueError as exc:
         message = str(exc)
         if "variant" in message and "not found" in message:
@@ -468,6 +559,10 @@ async def _start_audio_pipeline_job(
         if "do not accept TTS overrides" in message:
             raise HTTPException(
                 400, "This Audio pipeline does not accept TTS input."
+            ) from exc
+        if "do not accept STT input" in message:
+            raise HTTPException(
+                400, "This Audio pipeline does not accept STT input."
             ) from exc
         raise HTTPException(409, "Audio pipeline is unavailable.") from exc
     return AudioPipelineJobStartResponse(

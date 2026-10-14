@@ -621,7 +621,7 @@ const injectedRtkApi = api
         query: (queryArg) => ({
           url: `/voice/pipelines/${queryArg.pipelineId}/runs`,
           method: "POST",
-          body: queryArg.request,
+          body: queryArg.audioPipelineRunRequest,
         }),
         invalidatesTags: ["voice"],
       }),
@@ -633,7 +633,7 @@ const injectedRtkApi = api
           query: (queryArg) => ({
             url: `/voice/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}/runs`,
             method: "POST",
-            body: queryArg.request,
+            body: queryArg.audioPipelineRunRequest,
           }),
           invalidatesTags: ["voice"],
         }),
@@ -1026,7 +1026,10 @@ export type RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiResponse =
   /** status 202 Successful Response */ AudioPipelineJobStartResponse;
 export type RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiArg = {
   pipelineId: string;
-  request: AudioPipelineRunRequest | null;
+  audioPipelineRunRequest: {
+    input: string;
+    voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
+  };
 };
 export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse =
   /** status 202 Successful Response */ AudioPipelineJobStartResponse;
@@ -1034,7 +1037,10 @@ export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRuns
   {
     pipelineId: string;
     variantId: string;
-    request: AudioPipelineRunRequest | null;
+    audioPipelineRunRequest: {
+      input: string;
+      voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
+    };
   };
 export type GetAudioPipelineJobVoiceJobsJobIdGetApiResponse =
   /** status 200 Successful Response */ AudioPipelineJobResponse;
@@ -1893,10 +1899,6 @@ export type AudioPipelineResponse = {
 export type AudioPipelineJobStartResponse = {
   job_id: string;
   status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
-};
-export type AudioPipelineRunRequest = {
-  input: string;
-  voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
 };
 export type AudioPipelineJobResponse = {
   id: string;

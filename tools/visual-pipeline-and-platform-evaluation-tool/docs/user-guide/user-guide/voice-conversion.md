@@ -31,13 +31,14 @@ the source URL before transfer, then the resulting size and elapsed duration
 after validation and atomic publication. The log does not contain recording or
 transcript content.
 
-Every Text to Speech conversion started from the Audio pipeline UI runs as a
-managed job, including conversions with edited text or another voice. Each
-successful job publishes a UUID-named WAV file under `shared/audio/output` and
-the browser downloads or plays that persisted artifact. The lower-level
-`POST /api/v1/voice/speech` endpoint remains response-only and does not persist
-its WAV response. Accepted managed Audio runs appear under **Jobs > Audio** at
-`/jobs/audio`.
+Every Speech to Text and Text to Speech conversion started from the Audio
+pipeline UI runs as a managed job. This includes uploaded or recorded audio,
+edited text, and another voice. Each successful TTS job publishes a UUID-named
+WAV file under `shared/audio/output`, which the browser downloads or plays. The
+lower-level `POST /api/v1/voice/transcriptions` and
+`POST /api/v1/voice/speech` endpoints remain synchronous headless options; the
+latter does not persist its WAV response. Accepted managed Audio runs appear
+under **Jobs > Audio** at `/jobs/audio`.
 
 ## Deployment
 
@@ -302,13 +303,17 @@ The preset API follows the asynchronous ViPPET job pattern:
   artifact URL when available.
 - `GET /api/v1/voice/jobs/{job_id}/artifact` returns a completed TTS WAV.
 - `GET /api/v1/jobs/audio/status` lists Audio job operational metadata without
-  transcript content or Text to Speech input text.
+  transcript content, Text to Speech input text, uploaded filenames, or local
+  paths. Jobs are ordered oldest first, matching the Vision job list.
 - `GET /api/v1/jobs/audio/{job_id}/status` returns the Jobs detail model. A
   completed Speech to Text detail can include a transcript, and a completed
   Text to Speech detail can include the public WAV artifact URL.
 
-Managed Speech to Text runs accept no request body and use the selected
-variant's device plus the validated YAML recording and language defaults.
+Managed Speech to Text runs accept no request body to use the selected variant's
+device plus the validated YAML recording and language defaults. Alternatively,
+they accept multipart `file` and two-letter `language` fields for uploaded or
+recorded input. ViPPET copies multipart input to a random private temporary path
+owned by the job and removes it after every terminal outcome or shutdown.
 Managed Text to Speech runs may omit the body to use YAML defaults or provide
 both `input` and `voice`:
 
@@ -322,9 +327,9 @@ Job state is process-local and is lost when the ViPPET backend restarts. TTS
 artifacts remain on the mounted Audio output directory until deployment cleanup
 removes them.
 
-The direct conversion endpoints remain available to synchronous API clients.
-The Audio pipeline UI uses direct STT for uploaded or recorded files, but all UI
-TTS conversions use managed jobs.
+The direct conversion endpoints remain available to synchronous headless API
+clients. The Audio pipeline UI uses managed jobs for all STT and TTS
+conversions.
 
 `POST /api/v1/voice/transcriptions` accepts multipart `file`, optional
 two-letter `language` (default `en`), and optional `device` (`CPU`, `GPU`, or
@@ -360,6 +365,15 @@ Start managed CPU STT with the registered recording and language:
 ```bash
 curl --noproxy '*' -sS -X POST \
   http://127.0.0.1/api/v1/voice/pipelines/speech-to-text/variants/cpu/runs
+```
+
+Start managed NPU STT with an uploaded recording and Polish recognition:
+
+```bash
+curl --noproxy '*' -sS -X POST \
+  -F 'file=@recording.wav;type=audio/wav' \
+  -F 'language=pl' \
+  http://127.0.0.1/api/v1/voice/pipelines/speech-to-text/variants/npu/runs
 ```
 
 Start managed CPU TTS with request-specific text and voice:
@@ -437,7 +451,7 @@ identify a particular request.
 The previous result and its timings are cleared when the input or recognition
 language changes, a new recording starts, or a replacement conversion starts.
 Failed or cancelled browser requests do not display new results or timings.
-Navigating away aborts browser recording, polling, or direct fetches. It does
+Navigating away aborts browser recording, polling, or managed-run fetches. It does
 not cancel an already-started managed backend job, which can still finish and
 persist a TTS artifact. Missing or invalid service timing values show "Service
 round trip unavailable" while conversion and browser-side duration remain
