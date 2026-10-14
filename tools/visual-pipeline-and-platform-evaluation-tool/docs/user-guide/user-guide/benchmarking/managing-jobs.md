@@ -50,6 +50,15 @@ Click on a completed job to view its detailed results:
 - **Latency metrics** — If latency metrics were enabled for the job, the results include avg/min/max latency
   values (in milliseconds) per reporting interval.
 
+## Audio job retention
+
+Audio job state is process-local and is cleared when the ViPPET backend
+restarts. The manager retains every active Audio job and at most 500 terminal
+jobs. The list remains ordered from oldest to newest among retained jobs. When
+an older terminal Text to Speech job is evicted, ViPPET removes its managed WAV
+artifact. Other Audio Analyzer storage and deployment cleanup remain governed
+by the retention guidance in the [Audio Pipelines guide](../voice-conversion.md).
+
 ## Stopping a running test job
 
 To stop a performance or density job that is currently running:
@@ -70,7 +79,9 @@ To stop a performance or density job that is currently running:
 > Stopping a job sends a cancellation signal to the underlying GStreamer subprocesses.
 > The actual termination may take a few seconds while pipelines flush their buffers.
 
-Audio jobs do not provide a Stop action.
+Audio jobs do not provide a Stop action. Cancel in the Audio pipeline workflow
+stops monitoring in that browser view; it does not cancel an accepted backend
+job. Continue observing that run under **Jobs > Audio**.
 
 ## API endpoints
 

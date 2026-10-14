@@ -286,10 +286,27 @@ For GPU/NPU/WSL, use the same profile and override files as at startup.
   selectors are added; those settings
   remain service configuration. Upload format support follows the Audio
   Analyzer configuration.
-- Cancel aborts the browser request or recording; it does not guarantee that
-  already-started inference in the upstream service stops immediately.
+- After ViPPET accepts a managed run and returns a valid job ID, the UI shows
+  **Audio pipeline run started**. It shows **Audio pipeline run completed** only
+  after applying the transcript or downloading and applying the generated WAV.
+  A failed run keeps its inline error and shows a persistent, dismissible
+  **Audio pipeline run failed** notification. A backend `CANCELLED` state shows
+  **Audio pipeline run cancelled** instead.
+- Cancel stops local recording or the current browser request before a job is
+  accepted. After acceptance, it stops monitoring in that browser view and
+  shows **Audio job monitoring stopped** with a reminder that the backend job
+  may continue. The accepted run remains observable under **Jobs > Audio**.
+  Replaced requests and unmount cleanup discard stale terminal responses without
+  showing lifecycle notifications.
 
 ## API
+
+Voice exposes two execution models. Managed pipeline endpoints return `202`,
+create tracked process-local Audio jobs, and support the browser workflow.
+Direct conversion endpoints wait for one synchronous response and do not create
+an Audio job.
+
+### Managed pipeline runs
 
 The preset API follows the asynchronous ViPPET job pattern:
 
@@ -298,16 +315,6 @@ The preset API follows the asynchronous ViPPET job pattern:
   returns `202` with a job ID for the selected device variant.
 - `POST /api/v1/voice/pipelines/{pipeline_id}/runs` remains available for
   compatibility and selects the pipeline's first variant.
-- `GET /api/v1/voice/jobs/{job_id}` returns `QUEUED`, `RUNNING`, `COMPLETED`,
-  `FAILED`, or `CANCELLED`, selected variant metadata, and the transcript or
-  artifact URL when available.
-- `GET /api/v1/voice/jobs/{job_id}/artifact` returns a completed TTS WAV.
-- `GET /api/v1/jobs/audio/status` lists Audio job operational metadata without
-  transcript content, Text to Speech input text, uploaded filenames, or local
-  paths. Jobs are ordered oldest first, matching the Vision job list.
-- `GET /api/v1/jobs/audio/{job_id}/status` returns the Jobs detail model. A
-  completed Speech to Text detail can include a transcript, and a completed
-  Text to Speech detail can include the public WAV artifact URL.
 
 Managed Speech to Text runs accept no request body to use the selected variant's
 device plus the validated YAML recording and language defaults. Alternatively,
@@ -326,6 +333,26 @@ longer than 200 characters. Sending this body to an STT pipeline returns 400.
 Job state is process-local and is lost when the ViPPET backend restarts. TTS
 artifacts remain on the mounted Audio output directory until deployment cleanup
 removes them.
+
+### Voice job results and shared Jobs API
+
+- `GET /api/v1/voice/jobs/{job_id}` returns `QUEUED`, `RUNNING`, `COMPLETED`,
+  `FAILED`, or `CANCELLED`, selected variant metadata, and the transcript or
+  artifact URL when available.
+- `GET /api/v1/voice/jobs/{job_id}/artifact` returns a completed TTS WAV.
+- `GET /api/v1/jobs/audio/status` lists Audio job operational metadata without
+  transcript content, Text to Speech input text, uploaded filenames, or local
+  paths. Jobs are ordered oldest first, matching the Vision job list.
+- `GET /api/v1/jobs/audio/{job_id}/status` returns the Jobs detail model. A
+  completed Speech to Text detail can include a transcript, and a completed
+  Text to Speech detail can include the public WAV artifact URL.
+
+The Voice job endpoints are the conversion workflow's result and artifact API.
+The shared Jobs endpoints are a read-only projection of the same manager for
+the **Jobs > Audio** list and detail views; they do not create, stop, or cancel
+Audio jobs.
+
+### Direct synchronous conversions
 
 The direct conversion endpoints remain available to synchronous headless API
 clients. The Audio pipeline UI uses managed jobs for all STT and TTS
@@ -348,7 +375,7 @@ two-letter `language` (default `en`), and optional `device` (`CPU`, `GPU`, or
 This endpoint returns the WAV in the same synchronous response and does not
 persist it as a managed artifact.
 
-### Headless managed pipelines
+### Headless managed pipeline examples
 
 Headless clients use the same managed API as the browser. The examples below
 assume Nginx is available at `http://127.0.0.1` and bypass environment proxies
@@ -412,8 +439,10 @@ Backend service locations are configured with `AUDIO_ANALYZER_URL` (default
 `http://text-to-speech:8011`). They must be deployment-controlled URLs, never
 user-provided targets. Internal service calls bypass environment HTTP proxies.
 
-The adapter uses a 5-second connection timeout and a 120-second total upstream
-deadline. Responses are limited to 128 KiB for STT and 64 MiB for TTS.
+The adapter uses a 5-second connection timeout and a 20-minute total upstream
+deadline. The browser conversion timer and Nginx Voice read/send timeouts are
+1210 seconds, allowing ten seconds beyond the backend deadline. Responses are
+limited to 128 KiB for STT and 64 MiB for TTS.
 Input rejected by a speech service returns 400; invalid request fields return
 422; invalid upstream responses return 502; unavailable/busy services return
 503; timeouts return 504. ViPPET forwards known Audio Analyzer file-validation

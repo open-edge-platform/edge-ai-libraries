@@ -3,7 +3,7 @@
 
 # Audio Pipeline Architecture: STT, TTS and Metrics
 
-These diagrams describe the implemented Audio integration as of 2026-10-12.
+These diagrams describe the implemented Audio integration as of 2026-10-14.
 They follow the [C4 model](https://c4model.com/diagrams) at System Context,
 Container and Component levels only. Flow diagrams describe runtime behavior;
 there is no Code-level diagram.
@@ -63,11 +63,11 @@ flowchart TB
   automation["Automation client<br/>[External software system]"]:::external
   subgraph vippet[ViPPET - System]
     direction TB
-    spa["Browser UI<br/>[Container: React / TypeScript]<br/>Audio catalog, execution, model installation and metrics"]:::internal
+    spa["Browser UI<br/>[Container: React / TypeScript]<br/>Audio catalog, execution, Jobs, notifications, model installation and metrics"]:::internal
     web["UI web server<br/>[Container: Nginx :80]<br/>Serves assets and proxies API / SSE"]:::internal
     api["Backend<br/>[Container: FastAPI / Python :7860]<br/>Catalog, direct conversions, process-local jobs and artifacts"]:::internal
     spa -->|"Assets, API requests and SSE<br/>HTTP; HTTPS at deployment edge"| web
-    web -->|"/api/v1/voice/* and model APIs<br/>HTTP :7860"| api
+    web -->|"/api/v1/voice/*, /api/v1/jobs/audio/* and model APIs<br/>HTTP :7860"| api
   end
   asr["Audio Analyzer<br/>[External software system]<br/>Whisper Base / OpenVINO"]:::external
   tts["Text to Speech<br/>[External software system]<br/>SpeechT5 / OpenVINO"]:::external
@@ -149,28 +149,35 @@ flowchart TB
     direction TB
     catalog["AudioPipelineCards<br/>[Component: React]<br/>Catalog cards grouped under Pipelines"]:::internal
     voice["VoiceConversion<br/>[Component: React]<br/>Route-selected STT or TTS workflow"]:::internal
-    device["VoiceDeviceSelect<br/>[Component: React]<br/>Available CPU/GPU/NPU families and service default"]:::internal
+    variant["PipelineVariantSelect<br/>[Component: React]<br/>Route-backed Audio device variant selection"]:::internal
     recorder["Recording adapter<br/>[Component: Web Audio]<br/>captureWav prepares local PCM WAV"]:::internal
     audio["VoiceAudio<br/>[Component: Web Audio / Recharts]<br/>Waveform and native audio playback"]:::internal
     timings["VoiceMetrics<br/>[Component: React]<br/>Request and service round-trip timings"]:::internal
+    jobs["Jobs / Audio tab<br/>[Component: React / RTK Query]<br/>Oldest-first Audio job list polled every 2 seconds"]:::internal
+    detail["AudioJobDetail<br/>[Component: React / RTK Query]<br/>Polls status and displays transcript or WAV link"]:::internal
+    notifications["Toaster / shared toast<br/>[Component: Sonner]<br/>Audio run lifecycle notifications"]:::internal
     stream["MetricsProvider / useMetricsStream<br/>[Component: EventSource]<br/>Shared SSE subscription and reconnect"]:::internal
     store["Metrics state<br/>[Component: Redux Toolkit]<br/>Current samples and connection state"]:::internal
     dashboard["MetricsDashboard<br/>[Component: React / Recharts]<br/>useMetrics and useMetricHistory"]:::internal
     cards["MetricCard<br/>[Component: React]<br/>Shared numeric presentation"]:::internal
     voice -->|"Uploaded or recorded STT<br/>Async capture and AbortSignal"| recorder
-    voice -->|Selected route variant| device
-    device -->|Reads available device families| store
+    voice -->|Renders selected route variant| variant
+    variant -->|Updates route parameters| voice
     voice -->|Blob URL props| audio
     voice -->|Timing props| timings
+    voice -->|Lifecycle events| notifications
     voice -->|Always mounts below VoiceMetrics in right rail; no video metrics| dashboard
+    jobs -->|Opens selected Audio job| detail
     stream -->|Dispatches Redux actions| store
     dashboard -->|Reads Redux selectors| store
     dashboard -->|Renders platform values| cards
   end
   catalog -->|"GET /api/v1/voice/pipelines"| web
-  catalog -->|"Opens selected preset"| voice
+  catalog -->|"Opens first available variant"| voice
   voice -->|"All STT: start and poll managed job; multipart for a selected file"| web
   voice -->|"All TTS: start job with input/voice, poll and fetch artifact"| web
+  jobs -->|"GET /api/v1/jobs/audio/status"| web
+  detail -->|"GET /api/v1/jobs/audio/{job_id}/status until terminal"| web
   stream -->|"SSE subscription"| web
   classDef internal fill:#1168bd,color:#fff,stroke:#0b4884
   classDef external fill:#666,color:#fff,stroke:#444
@@ -181,6 +188,12 @@ Default STT uses the managed YAML input. Selecting or recording a file sends
 multipart input to the same managed run endpoint. Every UI STT and TTS
 conversion uses a managed job; TTS retrieves its persisted artifact after
 completion.
+
+The Audio tab on the shared Jobs page polls oldest-first operational summaries.
+Its detail view polls until `COMPLETED`, `FAILED`, or `CANCELLED`, then displays
+the transcript or managed WAV link when available. `VoiceConversion` publishes
+lifecycle notifications through the application-level Sonner toaster. These
+notifications complement, rather than replace, inline errors and result panels.
 
 `VoiceMetrics` does not read global service `/v1/performance` values. On desktop,
 it and the always-visible platform `MetricsDashboard` share the right-hand rail;
@@ -199,23 +212,27 @@ flowchart TB
   subgraph api[Backend - Container]
     direction TB
     direct["Direct conversion routes<br/>[Component: FastAPI / Pydantic]<br/>Synchronous multipart STT and response-only TTS"]:::internal
-    jobroutes["Audio pipeline routes<br/>[Component: FastAPI / Pydantic]<br/>Catalog, 202 start, status polling and artifact response"]:::internal
+    voiceroutes["Voice pipeline routes<br/>[Component: FastAPI / Pydantic]<br/>Catalog, 202 starts, Voice status and artifact response"]:::internal
+    jobsroutes["Audio Jobs adapter<br/>[Component: FastAPI / Pydantic]<br/>Read-only list and detail projection for the shared Jobs UI"]:::internal
+    audiodependency["Audio job dependency<br/>[Component: FastAPI dependency]<br/>Provides the shared manager instance"]:::internal
     conversion["Voice conversion execution<br/>[Component: Python / wave]<br/>Validation, upstream calls and request timing"]:::internal
     adapter["Upstream service adapter<br/>[Component: httpx / asyncio / perf_counter]<br/>Bounded reads, errors, timeout, cleanup and timing"]:::internal
     publisher["Voice metrics publisher<br/>[Component: asyncio / httpx]<br/>Best-effort service round-trip publication"]:::internal
     assets["AudioAssetsManager<br/>[Component: Python / YAML / wave]<br/>Bounded HTTPS download and managed paths"]:::internal
     audiocatalog["AudioPipelineManager<br/>[Component: Python / YAML]<br/>Strict preset definitions and availability"]:::internal
-    audiojobs["AudioPipelineJobManager<br/>[Component: asyncio]<br/>Process-local state, managed defaults and atomic TTS artifacts"]:::internal
+    audiojobs["AudioPipelineJobManager<br/>[Component: asyncio]<br/>Locked process-local state, private STT staging, retention and atomic TTS artifacts"]:::internal
     modelapi["Model routes / ModelManager<br/>[Component: FastAPI / Python]<br/>Catalog, background jobs and installed state"]:::internal
     catalog["Voice model catalog<br/>[Component: DB-backed models / model_variants]<br/>Seeded from vippet/models/*.yaml; requests, variants and install state"]:::internal
     direct -->|Validated synchronous request| conversion
-    jobroutes -->|"Start with defaults, JSON TTS, or multipart STT"| audiojobs
-    jobroutes -->|Read process-local status| audiojobs
+    voiceroutes -->|"Start with defaults, JSON TTS, or multipart STT"| audiodependency
+    voiceroutes -->|Read Voice status and artifact metadata| audiodependency
+    jobsroutes -->|Read list and detail snapshots| audiodependency
+    audiodependency -->|Shared instance| audiojobs
     audiojobs -->|Execute managed STT or TTS| conversion
     conversion -->|Async call, bounded response| adapter
     conversion -->|Schedules validated Voice timing| publisher
     audiocatalog -->|Resolves registered default input| assets
-    jobroutes -->|Lists pipeline definitions| audiocatalog
+    voiceroutes -->|Lists pipeline definitions| audiocatalog
     audiojobs -->|Resolves pipeline and variant| audiocatalog
     audiojobs -->|Reads default STT WAV; publishes TTS WAV| assets
     modelapi -->|Reads download requests and required variants| catalog
@@ -228,14 +245,15 @@ flowchart TB
   modelstore[("Shared Voice model storage<br/>[External data store]<br/>OpenVINO artifacts")]:::external
   audiostore[("Managed Audio storage<br/>[External data store]<br/>Default STT input and UUID TTS output")]:::external
   web -->|"Direct STT/TTS requests"| direct
-  web -->|"List pipelines; start/poll jobs; fetch artifact"| jobroutes
+  web -->|"Catalog, managed starts, Voice status and artifact"| voiceroutes
+  web -->|"GET /api/v1/jobs/audio/*"| jobsroutes
   automation -->|"Direct conversions or managed jobs"| web
   web -->|"Model list, install and job status<br/>HTTP JSON"| modelapi
   adapter -->|"POST /v1/audio/transcriptions<br/>HTTP multipart; JSON response"| asr
   adapter -->|"POST /v1/audio/speech<br/>HTTP JSON; WAV response"| tts
   publisher -->|"POST /api/v1/metrics<br/>HTTP JSON; 2-second timeout"| telemetry
   assets -->|"Managed input read and atomic output write"| audiostore
-  jobroutes -->|"Completed TTS FileResponse"| audiostore
+  voiceroutes -->|"Completed TTS FileResponse"| audiostore
   modelapi -->|"POST downloads; poll jobs"| downloader
   modelapi -->|"Checks required artifacts"| modelstore
   downloader -->|"Exports into voice target path"| modelstore
@@ -245,18 +263,26 @@ flowchart TB
   classDef external fill:#666,color:#fff,stroke:#444
 ```
 
-The direct routes, managed pipeline routes, conversion execution, upstream
-adapter and metrics publisher currently reside in the same router module.
+The direct and managed Voice routes, conversion execution, upstream adapter and
+metrics publisher currently reside in the Voice router module. The separate
+Jobs router is a read-only adapter over the same `AudioPipelineJobManager`
+provided by dependency injection; neither router imports the other.
 `AudioPipelineJobManager`, `AudioPipelineManager` and `AudioAssetsManager` are
-separate Python components in the same backend process. Direct uploaded audio
-is streamed to Audio Analyzer for validation. Managed uploaded audio is first
-copied to a manager-owned temporary file, then opened for the same validated
-conversion path. Default managed STT opens the registered WAV; managed TTS
-atomically publishes a UUID-named artifact. Successful direct responses expose
-service timing in `X-Voice-Service-Duration-Ms`; managed jobs expose the same
-timing in job status. Publication failures do not fail a direct conversion or
-managed job. Model routes and `ModelManager` remain separate from the Voice
-router but run in the same backend container.
+separate Python components in the same backend process.
+
+The job manager guards its job and task maps with an `asyncio.Lock`. It returns
+list snapshots oldest first by creation time and retains every active job plus
+at most 500 terminal jobs. Evicting an older terminal TTS job removes its
+managed artifact. Direct uploaded audio is streamed to Audio Analyzer for
+validation. Managed uploaded audio is first copied to a UUID-named file in a
+manager-owned temporary directory and deleted on every exit path, then opened
+for the same validated conversion path. Default managed STT opens the
+registered WAV; managed TTS atomically publishes a UUID-named artifact.
+Successful direct responses expose service timing in
+`X-Voice-Service-Duration-Ms`; managed jobs expose the same timing in job
+status. Publication failures do not fail a direct conversion or managed job.
+Model routes and `ModelManager` remain separate from the Voice router but run
+in the same backend container.
 
 ## Flow: Install Voice Models
 
@@ -403,7 +429,7 @@ sequenceDiagram
   Jobs-->>Metrics: Best-effort TTS service timing
   Jobs->>Store: Write temporary file and atomically publish {job_id}.wav
   Jobs->>Jobs: Store artifact path and timing; set COMPLETED
-  loop Until COMPLETED or FAILED
+  loop Until COMPLETED, FAILED, or CANCELLED
     Client->>Web: GET /api/v1/voice/jobs/{job_id}
     Web->>API: Forward status request
     API-->>Web: Job JSON with artifact_url when complete
@@ -523,22 +549,27 @@ service actually used.
 ```mermaid
 flowchart TD
     Start[Start independent conversion; clear its previous result and timings] --> Active{Outcome}
-    Active -->|Success and still current| Publish[Publish result and request metrics]
-    Active -->|Local input or capture error| UIError[Display safe error; no new result]
-  Active -->|Cancel or start replacement| Abort[AbortController aborts browser work]
-    Active -->|130-second browser deadline| Deadline[Abort with timeout message]
-    Active -->|Navigate away| Unmount[Abort on unmount; release browser state]
-    Abort --> Discard[Discard late or superseded response]
+    Active -->|202 with valid job_id| Accepted[Own accepted job and show run started]
+    Accepted --> Poll[Poll Voice job status]
+    Poll -->|COMPLETED and still current| Apply[Apply transcript or download and apply TTS artifact]
+    Apply --> Complete[Show run completed notification]
+    Poll -->|CANCELLED| Cancelled[Show run cancelled notification]
+    Poll -->|FAILED or request failure| UIError[Display safe inline error and persistent failure notification]
+    Active -->|Input validation or start failure| UIError
+    Active -->|Local recording or capture error| LocalError[Display safe inline error; no job notification]
+    Active -->|Explicit browser Cancel| Abort[AbortController stops local recording, fetch or polling]
     Abort --> Managed{Managed job already started?}
-    Managed -->|Yes| Continue[Backend job can continue and persist TTS output]
-    Managed -->|No| Discard
+    Managed -->|Yes| StopToast[Show monitoring stopped; backend job may continue]
+    Managed -->|No| Discard[Discard local or pre-acceptance work]
+    Active -->|Start replacement| Supersede[Abort and silently discard superseded response]
+    Active -->|Navigate away| Unmount[Abort and silently discard on unmount]
+    Active -->|1210-second browser deadline| Deadline[Abort with timeout message]
     Deadline --> UIError
-    Unmount --> Discard
     Active -->|Backend or proxy failure| Status{Failure class}
     Status -->|Invalid input| Input[400 or 422; oversized input 413]
     Status -->|Upstream 400 / 413 / 422| Rejected[400 sanitized rejection]
     Status -->|Upstream 429 or HTTP transport error| Unavailable[503 busy or unavailable]
-    Status -->|120-second upstream deadline or httpx timeout| Timeout[504 timeout]
+    Status -->|20-minute upstream deadline or httpx timeout| Timeout[504 timeout]
     Status -->|Other upstream status, invalid payload or response too large| BadGateway[502 sanitized service failure]
     Input --> UIError
     Rejected --> UIError
@@ -551,18 +582,25 @@ Cancellation stops browser recording or fetches and prevents stale results from
 being displayed. It does **not** cancel a managed backend task or guarantee that
 an already-started upstream inference stops. A managed TTS job can therefore
 finish and persist its WAV after the browser stops polling. Backend contexts
-close resources on return or exceptions; their total upstream deadline is 120
-seconds, with a 5-second connection timeout. Nginx Voice read/send timeouts are
-130 seconds, separate from the browser's timer. Proxy-generated failures may
-differ from the backend's status mapping above.
+close resources on return or exceptions; their total upstream deadline is 20
+minutes, with a 5-second connection timeout. The browser and Nginx Voice
+read/send timeouts are 1210 seconds, allowing ten seconds beyond the backend
+deadline. Proxy-generated failures may differ from the backend's status mapping
+above.
 
 ## Implementation References
 
 - [Voice workflow](../../../ui/src/features/voice/VoiceConversion.tsx),
+  [pipeline variant selector](../../../ui/src/features/pipelines/PipelineVariantSelect.tsx),
   [recording adapter](../../../ui/src/features/voice/recording.ts),
   [audio preview](../../../ui/src/features/voice/VoiceAudio.tsx) and
   [performance panel](../../../ui/src/features/voice/VoiceMetrics.tsx).
-- [Voice API and upstream adapter](../../../vippet/api/routes/voice.py).
+- [Jobs page](../../../ui/src/pages/Jobs.tsx),
+  [Audio job detail](../../../ui/src/pages/AudioJobDetail.tsx),
+  [application layout and toaster](../../../ui/src/components/Layout.tsx),
+  [Voice API and upstream adapter](../../../vippet/api/routes/voice.py),
+  [Jobs API adapter](../../../vippet/api/routes/jobs.py) and
+  [Audio job dependency](../../../vippet/api/dependencies/audio_jobs.py).
 - [Audio pipeline manager](../../../vippet/managers/audio_pipeline_manager.py),
   [job manager](../../../vippet/managers/audio_pipeline_job_manager.py) and
   [managed Audio assets](../../../vippet/audio_assets.py).
@@ -581,4 +619,5 @@ differ from the backend's status mapping above.
   [system telemetry architecture](./metrics/system-performance.md).
 - [Voice user guide](../user-guide/voice-conversion.md),
   [backend regression tests](../../../vippet/tests/unit/api_tests/voice_test.py) and
-  [browser regression tests](../../../ui/tests/voice.spec.ts).
+  [Voice browser regression tests](../../../ui/tests/voice.spec.ts) and
+  [Audio Jobs browser regression tests](../../../ui/tests/audio-jobs.spec.ts).
