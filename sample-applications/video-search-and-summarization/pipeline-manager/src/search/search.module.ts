@@ -9,14 +9,26 @@ import { SearchEntity } from './model/search.entity';
 import { SearchShimService } from './services/search-shim.service';
 import { HttpModule } from '@nestjs/axios';
 import { VideoUploadModule } from 'src/video-upload/video-upload.module';
+import { FeaturesModule } from 'src/features/features.module';
+import { SearchIndexVersionService } from './services/search-index-version.service';
+import { SearchRefreshConfigService } from './services/search-refresh-config.service';
+import { SearchRefreshSchedulerService } from './services/search-refresh-scheduler.service';
 
 @Module({
-  providers: [SearchStateService, SearchDbService, SearchShimService],
+  providers: [
+    SearchStateService,
+    SearchDbService,
+    SearchShimService,
+    SearchIndexVersionService,
+    SearchRefreshConfigService,
+    SearchRefreshSchedulerService,
+  ],
   controllers: [SearchController],
   imports: [
     HttpModule,
     TypeOrmModule.forFeature([SearchEntity]),
     VideoUploadModule,
+    FeaturesModule,
   ],
   exports: [],
 })

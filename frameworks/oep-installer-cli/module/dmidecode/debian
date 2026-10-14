@@ -4,8 +4,6 @@ debian_05_install_dmidecode () {
 }
 
 debian_05_sbom_dmidecode () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list dmidecode)
-EOF
+  ensure_sbom_format pkg-list dmidecode
 }
 

@@ -61,9 +61,10 @@ make test-full
 
 ## Configuration
 
-| Environment variable         | Default                   | Description                                                                        |
-|------------------------------|---------------------------|------------------------------------------------------------------------------------|
+| Environment variable          | Default                   | Description                      |
+|-------------------------------|---------------------------|----------------------------------|
 | `TARGET_HOST`                | `localhost`               | Host/IP used to build the `VIPPET_BASE_URL` default; set to target a remote device |
-| `VIPPET_BASE_URL`            | `http://localhost/api/v1` | Base URL of the VIPPET API                                                         |
-| `VIPPET_JOB_TIMEOUT_SECONDS` | `600`                     | Max wait time for job completion                                                   |
-| `VIPPET_JOB_POLL_INTERVAL`   | `2.0`                     | Polling interval in seconds                                                        |
+| `VIPPET_BASE_URL`             | `http://localhost/api/v1` | Base URL of the VIPPET API       |
+| `VIPPET_JOB_TIMEOUT_SECONDS`  | `600`                     | Max wait time for job completion |
+| `VIPPET_JOB_POLL_INTERVAL`    | `2.0`                     | Polling interval in seconds      |
+| `VIPPET_BENCHMARK_SUITE_TIMEOUT_SECONDS` | `1800`         | Max wait time for a full benchmark suite run to complete |
