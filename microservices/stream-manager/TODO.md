@@ -10,15 +10,18 @@ Items are listed roughly in order of priority.
 ### Major
 - [x] Design and implement DATA dir setup and handling logic for both host and containerised environments
 - [x] Package and distribution - Discuss and implement a strategy for containerizing.
-- [ ] Implement the `PUT /buffer` endpoint to resize stream buffers
+- [x] Implement the `PUT /buffer` endpoint to resize stream buffers
 - [ ] Add S3-compatible storage for videos
 - [ ] Discuss, analyse and implement multiple `stream_ids` in start-recording request bodies
 - [ ] Discuss if TTL or expiry of retrieved clips and frames is a desired or undesired feature. Act accordingly.
+- [x] Documentation Update - With forked repo references
+- [ ] Documentation Update - With mainline repo references
 
 ### Incremental
 - [x] Implement support for user supplied config file. JSON or YAML preferred.
+- [x] Add a tool for building and running the application on host and as a container (`Makefile` with `build`/`run`/`start`/`docker-build`/`docker-run`/`docker-stop` targets).
 - [ ] Add pagination to the `GET /streams` endpoint
-- [ ] Add a tools directory. This remains added to .dockerignore, but contain shell scripts that allow anyone to add stream-manager with proper config/data file dir to an existing docker compose file which is passed as an argument.
+- [ ] Decide whether `make deploy` should add stream-manager (with its config and data mounts) to an existing docker compose file passed as an argument.
 - [ ] Analyse if ranger headers needed in media access APIs and implement accordingly
 
 ## Optimization or Improvements
@@ -38,6 +41,7 @@ Items are listed roughly in order of priority.
 - [ ] Optimize request sequences - Should POST /streams be always called before POST /records/start by consumer?
 - [ ] Make the derived media TTL (fixed 15 min for replay frames and clips) configurable via `config.json`
 - [ ] Add a cleanup job that deletes expired derived media in `<recording-dir>/derived/` and expired recordings with all their derived media. A recording's `expiry_ts` always wins: when the recording expires, its derived items are deleted with it even if their own TTL has not run out
+- [ ] Decide whether `PUT /streams/{stream-id}/buffer` should reject resizing a stream that is in `failed` state, or whether resizing an already-failed stream's buffer should keep succeeding as it does today
 
 ## Research/Exploration
 - [ ] Weigh in tradeoffs of using random UUIDs as primary key in the database - should UUIDv7 be used or a shorter UUID or incremental int prefixed to UUIDs.
@@ -52,6 +56,7 @@ Items are listed roughly in order of priority.
 - [ ] Update the unique identifier (`stream_id`) for a stream to be a short uuid prefixed with `sensor_id`. (See related item in Research/Exploration)
 - [ ] Update OpenAPI specs error response and error codes to be inline with actual implementation.
 - [ ] Fix incorrect examples for /clip and /frame endpoints in OpenAPI specs.
+- [ ] MPEG-TS (and also other alternative fMP4) are unseekable. Cut clips are seekable (MP4). Analyze whether this is a prospective issue.
 
 # Deferred
 

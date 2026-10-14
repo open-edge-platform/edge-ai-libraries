@@ -3,35 +3,38 @@
 
 # Stream Manager
 
-Stream Manager is a microservice responsible for managing streaming video sources within the Edge AI platform.
-This is a REST API based microservice that attaches  live streaming sources, keeps bounded per-stream history in memory,
-saves requested intervals and returns timestamp-correlated clips and frames.
+Stream Manager is a microservice for Intel Open Edge Platform. It attaches RTSP video streams,
+keeps a rolling buffer of each stream, and records video on request. It also returns clips and
+frames from a recording for a given time range.
 
-# Quick Start
+## Quick Start
 
-__**[WIP] This section will contain the details of the simplest way possible (probably one-click) to launch the Stream Manager microservice.**__
+### Prerequisites
 
-## Overview
+- **Operating system**: Ubuntu 22.04 LTS or later (this guide was tested on Ubuntu 22.04.5 LTS).
+- **Docker**: version 29.0 or later (this guide was tested on Docker 29.4.3).
 
-### Stream APIs
-The stream APIs attach RTSP/RTSPS video, manage rolling buffers, report
-their status, and detach them. Buffer resizing is not implemented yet.
+The simplest way to run Stream Manager is to pull and run its pre-built image.
 
-### Recording APIs
-Recording endpoints persist metadata in SQLite and save fixed or open recordings
-under UUID-named directories on the local filesystem. Overlapping recordings share
-buffered footage through bounded reader leases.
+```bash
+docker run -d --name stream-manager -p 49173:8080 \
+  -v stream-manager-data:/data \
+  intel/stream-manager:latest
+```
 
-### Replay APIs
-Replay APIs allow clients to request and retrieve previously recorded video clips or frames based on timestamps, leveraging the buffered footage and stored recordings.
+Once the command succeeds, you can access the API status and docs here:
 
-See [Get Started](docs/user-guide/get-started.md) for configuration and usage.
+Status: http://localhost:49173/v1/status
 
-## Project Status
+API docs: http://localhost:49173/docs/v1/index.html
 
-| Area | Status |
-| --- | --- |
-| API Contract | Ready |
-| Design | Ready |
-| Implementation | Work in Progress |
-| Documentation | Work in Progress |
+> [!Note]
+> Port `49173` might already be in use on your machine. If so, `docker run` fails.
+> Pick a free port. Replace `49173` in the command and the URLs above with it.
+
+## Documentation
+
+- [Get Started](docs/user-guide/get-started.md): Run the application as a container.
+- [Build From Source](docs/user-guide/build-from-source.md): Build and run on a host or as a container image.
+- [Configuration](docs/user-guide/configuration.md): All `config.json` settings and their defaults.
+- [API Reference](docs/user-guide/api-docs/api-reference.md): All REST API endpoints.

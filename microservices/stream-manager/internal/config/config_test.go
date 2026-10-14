@@ -138,6 +138,25 @@ func TestLoadDataDirOverridesConfigFile(t *testing.T) {
 	}
 }
 
+func TestLoadHTTPAddrOverridesConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	chdir(t, dir)
+
+	const body = `{"HTTPAddr": "127.0.0.1:9000"}`
+	if err := os.WriteFile(filepath.Join(dir, DefaultConfigFile), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SM_HTTP_ADDR", ":8080")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.HTTPAddr != ":8080" {
+		t.Fatalf("HTTPAddr = %q, want SM_HTTP_ADDR to win over config.json", cfg.HTTPAddr)
+	}
+}
+
 func TestLoadInvalidBufferLength(t *testing.T) {
 	dir := t.TempDir()
 	chdir(t, dir)

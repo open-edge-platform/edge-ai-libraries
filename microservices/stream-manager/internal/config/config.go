@@ -15,7 +15,7 @@ import (
 
 const (
 	DefaultConfigFile   = "config.json" // relative to the CWD; override via SM_CONFIG_FILE.
-	DefaultHTTPAddr     = ":8080"
+	DefaultHTTPAddr     = ":8080"       // override via config.json or SM_HTTP_ADDR if set.
 	DefaultStorageDir   = "~/.local/share/stream-manager"
 	DefaultBufferDir    = "/dev/shm/stream-manager"
 	DefaultBufferLength = 30 * time.Second
@@ -27,7 +27,7 @@ const (
 )
 
 type Config struct {
-	HTTPAddr             string
+	HTTPAddr             string // Override via config.json or SM_HTTP_ADDR if set.
 	BufferLength         time.Duration
 	BufferDir            string
 	StorageDir           string // Override via config.json or SM_DATA_DIR if set.
@@ -72,6 +72,12 @@ func Load() (Config, error) {
 	// override storage dir using env var if available
 	if dataDir := strings.TrimSpace(os.Getenv("SM_DATA_DIR")); dataDir != "" {
 		cfg.StorageDir = dataDir
+	}
+
+	// override http listen address using env var if available; this lets a
+	// container fix its internal listen port regardless of a mounted config.json.
+	if httpAddr := strings.TrimSpace(os.Getenv("SM_HTTP_ADDR")); httpAddr != "" {
+		cfg.HTTPAddr = httpAddr
 	}
 
 	if cfg.BufferLength < MinBufferLength || cfg.BufferLength > MaxBufferLength {
