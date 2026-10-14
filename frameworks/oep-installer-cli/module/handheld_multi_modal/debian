@@ -3,6 +3,7 @@ configure_handheld_multi_modal () {
   workspace="$(ensure_project_path)/handheld_multi_modal"
   version=release-2026.2.0
   repository=https://github.com/open-edge-platform/edge-ai-suites.git
+  used_ports=(443 1443 5443 6443 7443 8443 80 7860 8000 9090 8554 8889)
 }
 
 verify_handheld_multi_modal () {
@@ -18,6 +19,7 @@ debian_90_install_handheld_multi_modal () {
   if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
     echo "handheld_multi_modal already installed. Skipping"
   else
+    ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 300
 
     ensure_git_clone "$workspace" $version $repository federal-and-aerospace-ai-suite/handheld-multi-modal
@@ -32,11 +34,11 @@ debian_90_install_handheld_multi_modal () {
 }
 
 debian_90_start_handheld_multi_modal () {
-  ensure_ports_open "443 1443 5443 6443 7443 8443 80 7860 8000 9090 8554 8889" debian_90_stop_handheld_multi_modal $*
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_handheld_multi_modal $*
   configure_handheld_multi_modal
   cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
   make deploy
-  echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}"
 }
 
 debian_90_stop_handheld_multi_modal () {
