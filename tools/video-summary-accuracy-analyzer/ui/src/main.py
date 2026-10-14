@@ -272,6 +272,9 @@ def evaluate_metrics(reference, generated, metric):
 
             return formatted
 
+        logger.error("Metric evaluation failed with status %s: %s", response.status_code, response.text)
+        return f"Metric evaluation failed (status {response.status_code}). Please try again or check that the services are running."
+
     except Exception:
         logger.exception("Request to backend failed")
         return "Request failed. Please try again or contact support if this persists."
