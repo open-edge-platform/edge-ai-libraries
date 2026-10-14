@@ -58,6 +58,7 @@ Items are listed roughly in order of priority.
 - [x] Update OpenAPI specs error response and error codes to be inline with actual implementation.
 - [x] Fix incorrect examples for /clip and /frame endpoints in OpenAPI specs.
 - [ ] MPEG-TS (and also other alternative fMP4) are unseekable. Cut clips are seekable (MP4). Analyze whether this is a prospective issue.
+- [ ] Debug - (intermittent) not disk space left issue in docker container while buffering.
 
 # Deferred
 

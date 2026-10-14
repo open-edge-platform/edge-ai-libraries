@@ -15,3 +15,9 @@ coverage/
 
 # User Config do not get copied to container
 config.json
+
+.gitignore
+.dockerignore
+Makefile
+.pre-commit-config.yaml
+AGENTS.md

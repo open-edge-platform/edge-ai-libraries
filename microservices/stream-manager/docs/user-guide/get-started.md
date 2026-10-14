@@ -40,7 +40,7 @@ A healthy response looks like this:
 Stop and remove the running container:
 
 ```bash
-make docker-stop
+curl -fsSL https://raw.githubusercontent.com/krish918/edge-ai-libraries/feat/stream-record-routers/microservices/stream-manager/Makefile | make -f - docker-stop
 ```
 
 ## Keep your data on the host

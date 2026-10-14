@@ -16,6 +16,7 @@ IMAGE          ?= intel/stream-manager:latest
 IMAGE_REF      := $(if $(findstring :,$(notdir $(IMAGE))),$(IMAGE),$(IMAGE):latest-dev)
 CONTAINER_NAME := stream-manager
 CONTAINER_PORT := 8080
+ACCESS_PORT    ?= 8080
 
 CONFIG_FILE    :=
 
@@ -24,13 +25,14 @@ DATA_DIR       :=
 
 DOCS_PATH      := /docs/v1/index.html
 
-.PHONY: help build run start docker-build docker-run docker-stop clean
+.PHONY: help build run start access-urls docker-build docker-run docker-stop clean
 
 help: ## Show this help
 	@echo "Host targets:"
 	@echo "  make build                 Build the binary into $(BIN_DIR)"
 	@echo "  make run                   Run the already-built binary"
 	@echo "  make start                 Build then run the binary"
+	@echo "  make access-urls           Show URLs (ACCESS_PORT=$(ACCESS_PORT), must match app port)"
 	@echo ""
 	@echo "Container targets:"
 	@echo "  make docker-build          Build IMAGE (default: intel/stream-manager:latest)"
@@ -46,12 +48,21 @@ build: ## Build the binary on host into ./bin
 
 run: ## Run the binary already built in ./bin
 	@echo "Starting $(BINARY_PATH)"
-	@echo "App and docs are served on the address from config.json (default http://localhost:8080)"
-	@echo "App:  http://localhost:8080/v1/status"
-	@echo "Docs: http://localhost:8080$(DOCS_PATH)"
+	@$(MAKE) --no-print-directory access-urls ACCESS_PORT=$(ACCESS_PORT)
 	$(BINARY_PATH)
 
 start: build run ## Build then run the binary on host
+
+access-urls: ## Show local and primary remote URLs for ACCESS_PORT
+	@echo "App (localhost): http://localhost:$(ACCESS_PORT)/v1/status"
+	@echo "Docs (localhost): http://localhost:$(ACCESS_PORT)$(DOCS_PATH)"
+	@REMOTE_IP="$$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([^ ]*\).*/\1/p')"; \
+	if [ -n "$$REMOTE_IP" ]; then \
+		echo "App (remote): http://$$REMOTE_IP:$(ACCESS_PORT)/v1/status"; \
+		echo "Docs (remote): http://$$REMOTE_IP:$(ACCESS_PORT)$(DOCS_PATH)"; \
+	else \
+		echo "No primary IPv4 address found. Check the host network configuration."; \
+	fi
 
 docker-build: ## Build IMAGE (default: intel/stream-manager:latest).
 	docker build \
@@ -83,8 +94,7 @@ endif
 		$(IMAGE_REF)
 	@PORT=$$(docker port $(CONTAINER_NAME) $(CONTAINER_PORT)/tcp | head -1 | cut -d: -f2); \
 	echo "Container '$(CONTAINER_NAME)' started."; \
-	echo "App:  http://localhost:$$PORT/v1/status"; \
-	echo "Docs: http://localhost:$$PORT$(DOCS_PATH)"
+	$(MAKE) --no-print-directory access-urls ACCESS_PORT=$$PORT
 
 docker-stop: ## Stop and remove the running container
 	docker stop $(CONTAINER_NAME) && docker rm $(CONTAINER_NAME)
