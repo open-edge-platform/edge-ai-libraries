@@ -4,44 +4,18 @@
     "OP_SYSTEM",
     "PROFILE",
     "MODULE",
-    "DEVICE",
-    "DEPLOYMENT"
+    "OPTIONS"
   ],
-  "device": {
-    "key": "DEVICE",
-    "label": "Device",
-    "type": "single",
-    "default": "gpu",
-    "options": [
-      {
-        "label": "CPU",
-        "value": "cpu"
-      },
-      {
-        "label": "GPU",
-        "value": "gpu"
-      },
-      {
-        "label": "NPU",
-        "value": "npu"
-      }
-    ]
-  },
-  "deployment": {
-    "key": "DEPLOYMENT",
-    "label": "Deployment Model",
-    "type": "single",
-    "default": "docker",
-    "options": [
-      {
-        "label": "Docker",
-        "value": "docker"
-      },
-      {
-        "label": "K3s",
-        "value": "k3s"
-      }
-    ]
+  "options": {
+    "key": "OPTIONS",
+    "label": "Options",
+    "labels": {
+      "--cpu": "CPU",
+      "--gpu": "GPU",
+      "--npu": "NPU",
+      "--docker": "Docker",
+      "--k3s": "K3s"
+    }
   },
   "categories": [
     {
@@ -157,7 +131,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Agentic Smart Community",
@@ -188,7 +166,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Live Video Captioning RAG",
@@ -199,7 +181,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Live Video Search",
@@ -210,7 +196,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Live Video Alert Agent",
@@ -221,7 +211,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Loitering Detection",
@@ -232,7 +226,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Smart Intersection",
@@ -243,7 +241,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Smart Parking",
@@ -254,7 +256,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Smart Traffic Intersection Agent",
@@ -265,7 +271,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Video Search and Summarization",
@@ -276,7 +286,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Video Processing for NVR",
@@ -287,7 +301,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Visual Pipeline and Platform Evaluation Tool (ViPPET)",
@@ -308,7 +326,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "PCB Anomaly Detection",
@@ -319,7 +341,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Wind Turbine Anormaly Detection",
@@ -330,7 +356,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Multimodal Weld Defect Detection",
@@ -341,7 +371,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Loss Prevention",
@@ -352,7 +386,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Order Accuracy - Dine In",
@@ -363,7 +401,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Order Accuracy - Take Away",
@@ -374,7 +416,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Voice Enabled Interactions - Smart Kiosk Assistant",
@@ -385,7 +431,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "NICU Warmer",
@@ -396,7 +446,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Edge Node Infrastructure Blueprint",
@@ -406,7 +460,10 @@
               "federal_and_aerospace_ai_suite"
             ]
           },
-          "deployment": true
+          "options": [
+            "--docker",
+            "--k3s"
+          ]
         },
         {
           "label": "Handheld Multi-Modal",
@@ -417,8 +474,8 @@
             ]
           },
           "startStop": true,
-          "deployment": [
-            "docker"
+          "options": [
+            "--docker"
           ]
         },
         {
@@ -430,7 +487,10 @@
             ]
           },
           "startStop": true,
-          "deployment": true
+          "options": [
+            "--docker",
+            "--k3s"
+          ]
         },
         {
           "label": "Autonomous Mobile Robot",

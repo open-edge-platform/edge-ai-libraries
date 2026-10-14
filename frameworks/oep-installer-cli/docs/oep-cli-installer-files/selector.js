@@ -85,24 +85,9 @@ function init() {
     const first = cat.options?.[0]?.value;
     if (first != null) defaults[cat.key] = first;
   });
-  // Flag sections (Device, Deployment Model) are not normal categories (each
-  // renders as its own section before Install), so seed their defaults separately.
-  FLAG_SECTIONS.forEach((spec) => {
-    const cfg = CONFIG[spec.config];
-    if (cfg) defaults[cfg.key] = flagDefault(cfg);
-  });
-
   // state from URL (shareable)
   STATE = { ...defaults, ...parseQuery(CONFIG.shareKeys || []) };
   repairState(STATE);
-  // Reset flag values that are not among the configured options (e.g. a
-  // hand-edited share URL) so they can never leak into the emitted command.
-  FLAG_SECTIONS.forEach((spec) => {
-    const cfg = CONFIG[spec.config];
-    if (cfg && !(cfg.options || []).some((o) => o.value === STATE[cfg.key])) {
-      STATE[cfg.key] = flagDefault(cfg);
-    }
-  });
 
   renderCategories();
   updateOutputsAndUrl();
@@ -179,77 +164,85 @@ function renderCategories() {
     host.append(sec);
   });
 
-  FLAG_SECTIONS.forEach(renderFlagSection);
+  renderOptions();
 }
 
-// Single-choice sections rendered before Install whose selection is appended to
-// the command as a lowercase flag (e.g. " --gpu", " --k3s"). Each is shown only
-// for modules that declare the matching module flag (`device: true`,
-// `deployment: true`) and hidden otherwise (including for installAll profiles,
-// which have no single module). `start` controls whether the flag is also
-// appended to the start command.
-//   - Device (CPU/GPU/NPU): accelerator selection; applies to install and start.
-//   - Deployment Model (Docker/K3s): infrastructure selection; install only.
-const FLAG_SECTIONS = [
-  { config: "device", moduleFlag: "device", section: "#deviceSection", host: "#deviceOptions", start: true },
-  { config: "deployment", moduleFlag: "deployment", section: "#deploymentSection", host: "#deploymentOptions", start: false },
-];
+// Install options: each module may list CLI flags in `options` (for example
+// ["--gpu", "--cpu", "--npu"] or ["--docker", "--k3s"]). They are shown as
+// toggle buttons in a single Options section before Install, and the selected
+// flags are appended to the install command in the module's order. Only one
+// flag can be selected unless the module sets `multiSelect: true`. The first
+// flag is pre-selected. The section is hidden for modules without options and
+// for installAll profiles, which have no single module.
+//
+// STATE[OPTIONS] holds the selection as a comma-separated list without the
+// leading "--" (e.g. "gpu" or "docker,gpu"), or "none" for an empty
+// multi-select. Values are always filtered against the module's own list, so a
+// hand-edited share URL can never inject flags into the command.
+const optionsKey = () => CONFIG.options?.key || "OPTIONS";
 
-function flagDefault(cfg) {
-  return cfg.default ?? cfg.options?.[0]?.value;
+function moduleOptions() {
+  if (isInstallAllProfile(STATE)) return [];
+  return findSelectedOption("MODULE", STATE)?.options || [];
 }
 
-// Options offered for the selected module: a module flag may be `true` (all
-// options) or an array of allowed values (e.g. `deployment: ["docker"]`).
-function flagOptions(spec) {
-  const cfg = CONFIG[spec.config];
-  const allowed = findSelectedOption("MODULE", STATE)?.[spec.moduleFlag];
-  const options = cfg?.options || [];
-  return Array.isArray(allowed) ? options.filter((o) => allowed.includes(o.value)) : options;
+function isMultiSelect() {
+  return Boolean(findSelectedOption("MODULE", STATE)?.multiSelect);
 }
 
-// Effective value: the user's choice if the selected module allows it,
-// otherwise the default (or first allowed option). STATE keeps the user's
-// choice so it is restored when switching back to a module that allows it.
-function flagValue(spec) {
-  const cfg = CONFIG[spec.config];
-  const options = flagOptions(spec);
-  const has = (v) => options.some((o) => o.value === v);
-  if (has(STATE[cfg.key])) return STATE[cfg.key];
-  return has(flagDefault(cfg)) ? flagDefault(cfg) : options[0]?.value;
+function selectedFlags() {
+  const allowed = moduleOptions();
+  if (!allowed.length) return [];
+  const raw = String(STATE[optionsKey()] ?? "");
+  if (raw === "none" && isMultiSelect()) return [];
+  const chosen = new Set(raw.split(",").filter(Boolean).map((v) => `--${v}`));
+  let flags = allowed.filter((f) => chosen.has(f));
+  if (!isMultiSelect()) flags = flags.slice(0, 1);
+  return flags.length ? flags : [allowed[0]];
 }
 
-function flagSectionActive(spec) {
-  const selectedModule = findSelectedOption("MODULE", STATE);
-  return Boolean(CONFIG[spec.config]) && !isInstallAllProfile(STATE) && Boolean(selectedModule?.[spec.moduleFlag]);
+function setSelectedFlags(flags) {
+  STATE[optionsKey()] = flags.length ? flags.map((f) => f.replace(/^--/, "")).join(",") : "none";
 }
 
-function renderFlagSection(spec) {
-  const section = $(spec.section);
-  const host = $(spec.host);
-  const cfg = CONFIG[spec.config];
-  if (!section || !host || !cfg) return;
+// Keep STATE (and so the share URL) in sync with what the command uses.
+function syncOptionsState() {
+  if (moduleOptions().length) setSelectedFlags(selectedFlags());
+  else delete STATE[optionsKey()];
+}
+
+function renderOptions() {
+  const section = $("#optionsSection");
+  const host = $("#optionsHost");
+  if (!section || !host) return;
 
   host.innerHTML = "";
-  if (!flagSectionActive(spec)) {
+  const allowed = moduleOptions();
+  if (!allowed.length) {
     section.style.display = "none";
     return;
   }
 
-  const current = flagValue(spec);
-  flagOptions(spec).forEach((opt) => {
+  $("#optionsTitle").textContent = CONFIG.options?.label || "Options";
+  const labels = CONFIG.options?.labels || {};
+  const multi = isMultiSelect();
+  const current = selectedFlags();
+  allowed.forEach((flag) => {
     const btn = el("button", "spark-button spark-button-size-l spark-button-ghost");
     const inner = el("span", "spark-button-content");
-    inner.append(el("span", "", opt.label));
+    inner.append(el("span", "", labels[flag] || flag));
     btn.append(inner);
+    btn.title = flag;
 
-    if (current === opt.value) {
-      btn.classList.add("spark-toggle-button-clicked-ghost", "pill-active");
-    }
+    const active = current.includes(flag);
+    btn.setAttribute("aria-pressed", String(active));
+    if (active) btn.classList.add("spark-toggle-button-clicked-ghost", "pill-active");
 
     btn.addEventListener("click", () => {
-      STATE[cfg.key] = opt.value;
-      renderFlagSection(spec);
+      const flags = selectedFlags();
+      if (!multi) setSelectedFlags([flag]);
+      else setSelectedFlags(active ? flags.filter((f) => f !== flag) : [...flags, flag]);
+      renderOptions();
       updateOutputsAndUrl();
     });
 
@@ -259,15 +252,9 @@ function renderFlagSection(spec) {
   section.style.display = "";
 }
 
-// Flags to append to a command: `forStart` limits them to sections that also
-// apply to start. Returns "" when no section is active for the selected module.
-function commandFlags(forStart) {
-  return FLAG_SECTIONS.filter((spec) => (!forStart || spec.start) && flagSectionActive(spec))
-    .map((spec) => {
-      const v = flagValue(spec);
-      return v ? ` --${v}` : "";
-    })
-    .join("");
+// Selected flags as a suffix for the install command (e.g. " --gpu").
+function installFlags() {
+  return selectedFlags().map((f) => ` ${f}`).join("");
 }
 
 // Return true if `opt` in category `cat` is compatible with the rest of `state`.
@@ -369,6 +356,7 @@ function makeStepLabel(text) {
 
 function updateOutputsAndUrl() {
   // keep URL in sync
+  syncOptionsState();
   const shareUrl = writeQuery(STATE, CONFIG.shareKeys || []);
 
   // compute outputs
@@ -377,7 +365,7 @@ function updateOutputsAndUrl() {
 
     if (o.id === "install") {
       const finalText = matched?.text ? interpolate(String(matched.text), STATE) : (o.fallback ?? "");
-      $("#installText").textContent = finalText === (o.fallback ?? "") ? finalText : finalText + commandFlags(false);
+      $("#installText").textContent = finalText === (o.fallback ?? "") ? finalText : finalText + installFlags();
     }
 
     if (o.id === "nextsteps") {
@@ -396,7 +384,7 @@ function updateOutputsAndUrl() {
       // so hide Next Steps (Start/Stop) entirely for them.
       if (!isInstallAllProfile(STATE) && selectedModule?.startStop && startStop) {
         if (startStop.start) {
-          const startText = interpolate(String(startStop.start), STATE) + commandFlags(true);
+          const startText = interpolate(String(startStop.start), STATE);
           container.appendChild(makeStepLabel("Start"));
           container.appendChild(makeCommandBox(startText, "copyNextStart"));
         }
