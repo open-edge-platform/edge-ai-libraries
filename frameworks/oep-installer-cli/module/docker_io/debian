@@ -108,3 +108,4 @@ debian_30_remove_docker_io () {
 debian_30_sbom_docker_io () {
   ensure_sbom_format pkg-list docker.io docker-buildx docker-compose-v2
 }
+
