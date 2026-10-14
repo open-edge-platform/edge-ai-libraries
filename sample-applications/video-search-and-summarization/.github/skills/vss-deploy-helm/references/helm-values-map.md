@@ -9,6 +9,8 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `compose.base.yaml` common services | Always installed main chart plus `minioserver`, `postgresql`, `pipelinemanager`, `nginx` | Nginx NodePort reverse proxy, pipeline-manager, MinIO, Postgres |
 | `setup.sh --summary` / `compose.summary.yaml` | `summary_override.yaml`; `rabbitmq.enabled=true`, `ovms.enabled=true`, `videoingestion.enabled=true`, `audioanalyzer.enabled=true`, `summaryui.enabled=true`, `pipelinemanager.env.SUMMARY_FEATURE=FEATURE_ON` | Summary stack with OVMS backend and singleton Summary UI |
 | `ENABLE_VLLM=true` / `compose.vllm.yaml` | Add `xeon_vllm_values.yaml`; `vllm.enabled=true`, `ovms.enabled=false`, `pipelinemanager.env.USE_VLLM=CONFIG_ON` | vLLM CPU backend replaces OVMS; vLLM service is `cpu-vllm-service` on port 80/target 8000 |
+| `ENABLE_VLLM_GPU=true` / `compose.vllm.xpu.yaml` | Add `arc_vllm_values.yaml`; same keys plus `vllm.device=XPU`, `vllm.gpu.key` | vLLM on an Intel Arc GPU; same service name and port as the CPU backend |
+| Compose `devices: /dev/dri` + `group_add` on the vLLM XPU service | `vllm.gpu.key` (device-plugin resource) + `vllm.gpu.devicePath` + `global.accelGroupIds` | Kubernetes needs a device-plugin resource key; `accelGroupIds` becomes `supplementalGroups` |
 | `setup.sh --search` / `compose.search.yaml` | `search_override.yaml`; `multimodalembeddingms.enabled=true`, `multimodaldataprep.enabled=true`, `vdmsvectordb.enabled=true`, `vectorretriever.enabled=true`, `videosearch.enabled=true`, `searchui.enabled=true`, `global.vdmsIndexName=video_frame_embeddings` | Search-only stack with singleton Search UI |
 | `VECTORDB_BACKEND=milvus` + `setup.sh --search` / `compose.search.milvus.yaml` | add `search_milvus_override.yaml`; `global.vectordbBackend=milvus`, `milvusstandalone.enabled=true`, `vdmsvectordb.enabled=false` | Search stack on Milvus backend with the same `multimodaldataprep` + `vectorretriever` query path |
 | `setup.sh --summary-and-search`, `--all`, `--unified` | `unified_summary_search.yaml`; enables summary+search services and `summaryui.name=unified-ui`, `summaryui.feature.mux=SUMMARY_SEARCH`, `searchui.enabled=false`, `global.vdmsIndexName=video_summary_embeddings` | One UI for summarization and search over summary text embeddings |
@@ -81,11 +83,18 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `multimodaldataprep.modelPvc.size` | chart value | DataPrep model-cache PVC size when enabled. |
 | `multimodalembeddingms.modelPvc.size` | chart value | Multimodal embedding model-cache PVC size when enabled. |
 | `vllm.enabled` | `false` | vLLM backend gate. |
-| `vllm.image.repository/tag` | `public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo` / `v0.17.1` | vLLM CPU image. |
+| `vllm.image.repository/tag` | `vllm/vllm-openai-cpu` / `v0.31.0` | vLLM CPU image. |
+| `vllm.image.xpu.repository/tag` | `vllm/vllm-openai-xpu` / `v0.31.0` | vLLM XPU image, used when `vllm.device=XPU`. |
+| `vllm.device` | `CPU` | `CPU` or `XPU`. `XPU` switches image, args, device mount, and GPU resource. |
+| `vllm.gpu.key` | `gpu.intel.com/i915` | Device-plugin resource key. Required when `vllm.device=XPU`. |
+| `vllm.gpu.devicePath` | `/dev/dri` | Host device path mounted into the vLLM pod on XPU. |
 | `vllm.service.name/port/targetPort` | `cpu-vllm-service` / `80` / `8000` | Pipeline-manager calls `http://cpu-vllm-service:80/v1`. |
 | `vllm.pvc.size` | `80Gi` | vLLM model cache size. |
 | `vllm.env.vllmCpuKvCacheSpace` | `48` | vLLM CPU KV cache space. |
 | `vllm.model.maxModelLen` | `32000` | vLLM max model length. |
+| `vllm.model.enforceEager` | `true` | XPU only. Skips graph capture; required on the XPU backend. |
+| `vllm.model.gpuMemoryUtilization` | `0.8` | XPU only. Fraction of GPU memory vLLM may reserve. |
+| `vllm.model.mmMaxPixels` | `16777216` | XPU only. Max pixels per frame; caps frame resolution, not frame count. |
 | `vllm.model.maxNumBatchedTokens` | `2048` | vLLM batching limit. |
 | `vllm.model.tensorParallelSize` | `1` | vLLM tensor parallel size. |
 | `rabbitmq.enabled` | `false` | Enabled by summary/unified. Service name `rabbitmq`. |

@@ -86,6 +86,6 @@ debian_90_stop_visual_search_question_and_answering () {
 }
 
 debian_90_remove_visual_search_question_and_answering () {
-  debian_90_stop_visual_search_question_and_answering $* || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  debian_90_stop_visual_search_question_and_answering "$@"
+  ensure_rm "$workspace"
 }

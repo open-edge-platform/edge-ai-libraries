@@ -48,7 +48,7 @@ automatically because `compose.yml` already declares
 
 ```bash
 export HF_TOKEN="hf_your_token_here"
-make run
+make run-prebuilt    # or `make run` when building from source
 ```
 
 To make the variable persistent, add the `export` line to `~/.bashrc`, `~/.zshrc`, or your

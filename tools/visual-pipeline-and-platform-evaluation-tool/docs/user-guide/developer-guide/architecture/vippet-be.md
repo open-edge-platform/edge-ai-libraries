@@ -167,10 +167,12 @@ custom models, and computes the `used_by_pipelines` field shown in the UI. Key m
 
 ### CameraManager
 
-Discovers media input sources: local USB cameras under `/dev/video*` and network (RTSP / ONVIF) cameras
-through the `onvif_discovery` agent. Resolves user-supplied identifiers to concrete device descriptors and
-exposes capabilities and encodings to the rest of the stack. Key methods: `discover_usb_cameras()`,
-`discover_network_cameras()`, `discover_all_cameras()`, `get_camera_by_id()`, `get_encoding_for_rtsp_url()`.
+Provides media input sources discovered by the `sensor-manager` microservice: local USB cameras under
+`/dev/video*` and ONVIF network cameras. Caches the camera list for pipeline graph lookups (device path or
+RTSP URL to capture format, encoding and credentials) and keeps ONVIF credentials entered by the user in
+memory only. Key methods: `discover_all_cameras()`, `get_camera_by_id()`, `load_camera_profiles()`,
+`get_usb_camera_details_by_device_path()`, `get_network_camera_details_by_rtsp_url()`,
+`get_encoding_for_rtsp_url()`.
 
 ### TestsManager
 
@@ -214,8 +216,10 @@ The backend does not run alone. It cooperates with a small set of sibling contai
   `ModelManager` calls into it and polls job status; the backend exposes a stable `/models` API on top.
 - **`metrics-manager`** - collects hardware telemetry via Telegraf and qmassa and pushes it to clients
   over SSE. The UI subscribes to `/metrics/stream`, which nginx routes to this service.
-- **`onvif_discovery`** (built locally) - a short-lived helper used by `CameraManager` to discover
-  ONVIF-capable network cameras on the local network.
+- **`sensor-manager`** (built locally from `microservices/sensor-manager`) - discovers USB cameras and
+  ONVIF network cameras and loads their ONVIF media profiles. It runs with host networking (required by
+  WS-Discovery multicast); `CameraManager` reaches it at `SENSOR_MANAGER_URL`
+  (default `http://host.docker.internal:8090`) and exposes the stable `/cameras` API on top.
 
 ## Summary
 

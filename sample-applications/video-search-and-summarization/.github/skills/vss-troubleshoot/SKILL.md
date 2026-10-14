@@ -115,7 +115,7 @@ Inspect `ovms-service` logs and `ov_models/ovms/config.json`. Converted models
 live under
 `ov_models/ovms/openvino_models/<device>/<precision>/<source-model>`; setup
 registers storage-aware names such as
-`Qwen_Qwen2.5-VL-3B-Instruct_CPU_int8`.
+`Qwen_Qwen3-VL-4B-Instruct_CPU_int8`.
 
 Why: `pipeline-manager` sends VLM/LLM requests to `http://ovms-service/v3` when `ENABLE_VLLM` is false. If OVMS is unhealthy, summary jobs can remain `Ready` or `In Progress`.
 
@@ -152,8 +152,11 @@ Why: In vLLM mode OVMS is not the active inference backend. Debugging OVMS logs 
 Actions: check the active vLLM service's `/health` endpoint and logs for model
 download/context/cache problems. Verify `VLM_MODEL_NAME`,
 `HUGGINGFACE_TOKEN`, and `VLLM_MAX_MODEL_LEN`; for CPU also inspect
-`VLLM_CPU_KVCACHE_SPACE`, and for XPU inspect device visibility and
-`VLLM_GPU_MEM`.
+`VLLM_CPU_KVCACHE_SPACE`, and for XPU inspect device visibility,
+`VLLM_GPU_MEM`, and `VLLM_MM_MAX_PIXELS`. On XPU, `No available memory for the
+cache blocks` means weights plus the vision encoder left no room for the KV
+cache; see `docs/user-guide/troubleshooting.md` for the sizing formula and
+working configurations.
 
 ### 6. DLStreamer/EVAM pipeline errors or ingestion stalls
 
@@ -190,6 +193,48 @@ Actions:
 - Confirm the `vector-retriever` container is healthy and matches the backend: `vector-retriever-vdms` for VDMS, `vector-retriever-milvus` for Milvus (selected by `VECTORDB_BACKEND`). A mismatch, or a metric/index mismatch (`VDB_METRIC_TYPE`/`VDB_INDEX_TYPE`) between `multimodal-dataprep` and `vector-retriever`, yields empty results.
 - Check `vector-retriever` logs for the embedding call to `multimodal-embedding-serving` and the vector-DB read; check `video-search` logs for the delegation call to `http://vector-retriever:8000/query`.
 - Check accuracy settings: model dimensionality, `FRAME_INTERVAL`, `ENABLE_OBJECT_DETECTION`, and video diversity affect result quality.
+
+### 9. A live RTSP camera will not ingest
+
+First decide whether the feature is even deployed. The **Live Streams** button
+is absent in `--summary` (no dataprep) and `--unified` (text-only embedding
+model). If `curl -s "$HOST/manager/streams"` returns `503` with "no dataprep
+endpoint is configured", that is the deployment mode, not a bug.
+
+Otherwise read the stream's own record first - it carries the reason:
+
+```bash
+curl -s "$HOST/manager/streams" | jq '.streams[] | {stream_name, state, last_error, stats}'
+```
+
+Map the `state` to a cause:
+
+| State | Meaning | Action |
+|---|---|---|
+| `pending` / `starting` | Not yet connected | Normal for a few seconds |
+| `running` but `frames_processed` is 0 and not rising | Connected, nothing decoded | Codec or transport problem - check `multimodal-dataprep` logs |
+| `reconnecting` | Transport dropped, retrying | Transient; check camera/network reachability |
+| `error` | Reconnect budget exhausted | Read `last_error`; fix, then delete and re-create |
+| `paused` | Deliberately paused | `PATCH {"state":"running"}` to resume |
+
+Common causes:
+
+- **Bad credentials or URL.** Responses carry a **redacted** URL by design, so
+  you cannot read the password back to verify it. Confirm the URL independently
+  (e.g. `ffprobe`) and re-create the stream if it is wrong - `stream_url` is not
+  updatable.
+- **Concurrency cap.** A `503` on create saying the maximum number of concurrent
+  streams is running means dataprep is at `MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT`
+  (default 8). Pause or delete a camera.
+- **Camera unreachable from the container**, not just from the host. Test from
+  inside: `docker exec multimodal-dataprep curl -sv telnet://<camera-host>:554`.
+- **Results vanish after a while.** Expected: `LIVE_RETENTION_HOURS` defaults to
+  `24`, so older live footage and embeddings are swept. Set it to `0` to keep
+  everything, accepting unbounded growth.
+
+If the UI list never updates but the API shows progress, the websocket room is
+the suspect - the server only polls while a client has emitted
+`streams:subscribe`, so check the browser console for socket errors.
 
 ## Log and data locations
 
