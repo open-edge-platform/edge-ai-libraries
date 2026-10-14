@@ -4,7 +4,8 @@
     "OP_SYSTEM",
     "PROFILE",
     "MODULE",
-    "DEVICE"
+    "DEVICE",
+    "DEPLOYMENT"
   ],
   "device": {
     "key": "DEVICE",
@@ -23,6 +24,22 @@
       {
         "label": "NPU",
         "value": "npu"
+      }
+    ]
+  },
+  "deployment": {
+    "key": "DEPLOYMENT",
+    "label": "Deployment Model",
+    "type": "single",
+    "default": "docker",
+    "options": [
+      {
+        "label": "Docker",
+        "value": "docker"
+      },
+      {
+        "label": "K3s",
+        "value": "k3s"
       }
     ]
   },
@@ -153,6 +170,16 @@
           "startStop": true
         },
         {
+          "label": "Image Based Video Search",
+          "value": "image_based_video_search",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true
+        },
+        {
           "label": "Live Video Captioning",
           "value": "live_video_captioning",
           "supports": {
@@ -230,8 +257,30 @@
           "device": true
         },
         {
+          "label": "Smart Traffic Intersection Agent",
+          "value": "smart_traffic_intersection_agent",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "device": true
+        },
+        {
           "label": "Video Search and Summarization",
           "value": "video_search_and_summarization",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "device": true
+        },
+        {
+          "label": "Video Processing for NVR",
+          "value": "video_processing_for_nvr",
           "supports": {
             "PROFILE": [
               "metro_ai_suite"
@@ -301,25 +350,42 @@
             "PROFILE": [
               "retail_ai_suite"
             ]
-          }
+          },
+          "startStop": true,
+          "device": true
         },
         {
-          "label": "Order Accuracy - DineIn",
-          "value": "order_accuracy_dine_in",
+          "label": "Order Accuracy - Dine In",
+          "value": "dine_in",
           "supports": {
             "PROFILE": [
               "retail_ai_suite"
             ]
-          }
+          },
+          "startStop": true,
+          "device": true
         },
         {
-          "label": "Order Accuracy - Takeaway",
-          "value": "order_accuracy_take_away",
+          "label": "Order Accuracy - Take Away",
+          "value": "take_away",
           "supports": {
             "PROFILE": [
               "retail_ai_suite"
             ]
-          }
+          },
+          "startStop": true,
+          "device": true
+        },
+        {
+          "label": "Voice Enabled Interactions - Smart Kiosk Assistant",
+          "value": "smart_kiosk_assistant",
+          "supports": {
+            "PROFILE": [
+              "retail_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "device": true
         },
         {
           "label": "NICU Warmer",
@@ -333,6 +399,16 @@
           "device": true
         },
         {
+          "label": "Edge Node Infrastructure Blueprint",
+          "value": "edge_node_infrastructure_blueprint",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite"
+            ]
+          },
+          "deployment": true
+        },
+        {
           "label": "Handheld Multi-Modal",
           "value": "handheld_multi_modal",
           "supports": {
@@ -340,7 +416,8 @@
               "federal_and_aerospace_ai_suite"
             ]
           },
-          "startStop": true
+          "startStop": true,
+          "deployment": true
         },
         {
           "label": "UAV Mission Compute SDK",
@@ -350,7 +427,8 @@
               "federal_and_aerospace_ai_suite"
             ]
           },
-          "startStop": true
+          "startStop": true,
+          "deployment": true
         },
         {
           "label": "Autonomous Mobile Robot",
@@ -565,6 +643,10 @@
               "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-smart-community/index.html"
             },
             {
+              "text": "Image Based Video Search",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/image-based-video-search/index.html"
+            },
+            {
               "text": "Live Video Captioning",
               "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-captioning/index.html"
             },
@@ -593,8 +675,16 @@
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html"
             },
             {
+              "text": "Smart Traffic Intersection Agent",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/smart-traffic-intersection-agent/index.html"
+            },
+            {
               "text": "Video Search and Summarization",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html"
+            },
+            {
+              "text": "Video Processing for NVR",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/video-processing-for-nvr/index.html"
             },
             {
               "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)",
@@ -639,6 +729,10 @@
             {
               "text": "Order Accuracy",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/order-accuracy/index.html"
+            },
+            {
+              "text": "Voice Enabled Interactions",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/voice-enabled-interactions/index.html"
             }
           ]
         },
@@ -660,6 +754,10 @@
             "OP_SYSTEM": "UBUNTU"
           },
           "links": [
+            {
+              "text": "Edge Node Infrastructure Blueprint",
+              "url": "https://github.com/open-edge-platform/edge-node-infrastructure-blueprint"
+            },
             {
               "text": "Handheld Multi-Modal Application",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"

@@ -104,6 +104,8 @@ def build_config() -> dict:
                 option["startStop"] = True
             if module.get("device"):
                 option["device"] = True
+            if module.get("deployment"):
+                option["deployment"] = True
             module_options.append(option)
     module_cat["options"] = module_options
 
@@ -179,6 +181,7 @@ def build_config() -> dict:
         "title": base["title"],
         "shareKeys": base["shareKeys"],
         "device": base["device"],
+        "deployment": base["deployment"],
         "categories": categories,
         "outputs": [install_output, nextsteps_output, getstarted_output, resources_output],
     }

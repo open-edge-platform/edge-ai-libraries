@@ -1,0 +1,37 @@
+
+configure_edge_node_infrastructure_blueprint () {
+  workspace="$(ensure_project_path)/edge_node_infrastructure_blueprint"
+  version=enib-packages-installer
+  repository=https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git
+  # deployment model: --k3s selects k3s, otherwise docker (the default; --docker is accepted)
+  deployment=docker
+  [[ " $* " != *" --k3s "* ]] || deployment=k3s
+}
+
+verify_edge_node_infrastructure_blueprint () {
+  [ "$(cat "$workspace"/.oep-deployment 2>/dev/null)" = "$deployment" ]
+}
+
+debian_60_profile_edge_node_infrastructure_blueprint () {
+  echo "git make curl docker"
+}
+
+debian_60_install_edge_node_infrastructure_blueprint () {
+  configure_edge_node_infrastructure_blueprint $*
+  if verify_edge_node_infrastructure_blueprint && [[ " $* " != *" --reinstall "* ]]; then
+    echo "edge_node_infrastructure_blueprint ($deployment) already installed. Skipping"
+  else
+    ensure_git_clone "$workspace" $version $repository
+    cd "$workspace"
+    ensure_sudo make $deployment
+    echo "$deployment" > "$workspace"/.oep-deployment
+    verify_edge_node_infrastructure_blueprint
+  fi
+  echo "@@HIGHLIGHT deployment model: $deployment"
+  echo "@@HIGHLIGHT workspace: $workspace"
+}
+
+debian_60_remove_edge_node_infrastructure_blueprint () {
+  configure_edge_node_infrastructure_blueprint $*
+  ensure_rm "$workspace"
+}

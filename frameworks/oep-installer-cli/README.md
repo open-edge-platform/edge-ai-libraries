@@ -106,6 +106,7 @@ The following global options are supported:
 | `--validate` | Validate features after installation. |
 | `--reinstall` | Force to reinstall a component, if already installed. |
 | `--gpu`/`--npu`/`--cpu` | Select GPU/NPU/CPU device at the component level. |
+| `--docker`/`--k3s` | Select the deployment model (Docker or K3s) for `edge_node_infrastructure_blueprint` and the Federal and Aerospace components that depend on it. Docker is the default. |
 
 To specify component specific options, insert a `--<component-name>` tag:
 
@@ -115,6 +116,15 @@ openedge-cli install smart_parking smart_intersection --smart_parking --gpu
 where `--gpu` applies to the smart_parking component.  
 
 > Omit `--<component-name>` if there is only a single component or the specified options apply to all components.  
+
+For example, the Federal and Aerospace components install the Edge Node Infrastructure Blueprint first, using the selected deployment model:
+
+```bash
+openedge-cli install handheld_multi_modal --k3s
+openedge-cli install edge_node_infrastructure_blueprint --docker
+```
+
+> Because `docker` is also a component name, `--docker` acts as a component tag (like `--smart_parking`) and is effectively the same as omitting the option. Place it last on the command line.
 
 ### List Profiles and Components
 

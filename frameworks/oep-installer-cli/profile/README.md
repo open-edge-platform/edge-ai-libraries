@@ -65,6 +65,10 @@ point. The schema is:
   // Required. The modules that belong to this profile.
   //   startStop: true   -> the module exposes start/stop lifecycle commands and
   //                        gets a "Next Steps" (Start/Stop) section.
+  //   device: true      -> show the "Device" (CPU/GPU/NPU) section; the choice is
+  //                        appended to the install and start commands (--gpu, ...).
+  //   deployment: true  -> show the "Deployment Model" (Docker/K3s) section; the
+  //                        choice is appended to the install command (--docker/--k3s).
   "modules": [
     { "label": "My Module", "value": "my_module" },
     { "label": "My Service", "value": "my_service", "startStop": true }
