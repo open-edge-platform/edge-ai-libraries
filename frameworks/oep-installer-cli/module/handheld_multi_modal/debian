@@ -31,6 +31,9 @@ debian_90_install_handheld_multi_modal () {
     docker compose -f docker-compose.yml pull --ignore-buildable
     verify_handheld_multi_modal $*
   fi
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|remove"
 }
 
 debian_90_start_handheld_multi_modal () {
@@ -39,6 +42,7 @@ debian_90_start_handheld_multi_modal () {
   cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
   make deploy
   echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 debian_90_stop_handheld_multi_modal () {
