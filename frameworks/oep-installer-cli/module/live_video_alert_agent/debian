@@ -34,7 +34,7 @@ verify_live_video_alert_agent () {
 }
 
 debian_90_profile_live_video_alert_agent () {
-  echo "git curl gawk jq edge_base docker"
+  echo "git curl gawk jq edge_base docker_io"
 }
 
 debian_90_install_live_video_alert_agent () {

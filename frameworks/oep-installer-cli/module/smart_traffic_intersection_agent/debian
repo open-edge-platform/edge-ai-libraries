@@ -14,7 +14,7 @@ verify_smart_traffic_intersection_agent () {
 }
 
 debian_90_profile_smart_traffic_intersection_agent () {
-  echo "docker git edge_base curl"
+  echo "docker_io git edge_base curl"
 }
 
 debian_90_install_smart_traffic_intersection_agent () {

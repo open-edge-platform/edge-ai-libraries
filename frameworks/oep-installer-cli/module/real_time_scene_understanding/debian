@@ -23,7 +23,7 @@ verify_real_time_scene_understanding () {
 }
 
 debian_90_profile_real_time_scene_understanding () {
-  echo "git curl gawk jq edge_base docker"
+  echo "git curl gawk jq edge_base docker_io"
 }
 
 debian_90_install_real_time_scene_understanding () {

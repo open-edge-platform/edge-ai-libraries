@@ -72,7 +72,7 @@ verify_video_search_and_summarization () {
 }
 
 debian_85_profile_video_search_and_summarization () {
-  echo "git curl gawk python3_venv edge_base docker"
+  echo "git curl gawk python3_venv edge_base docker_io"
 }
 
 debian_85_install_video_search_and_summarization () {

@@ -91,10 +91,11 @@ The OEP installer uses the following commandline options:
 Usage: openedge-cli <subcommand> [options] [modules/profiles] [module options] ...
 ```
 
-Multiple subcommands can be specified at once. They are executed in order:
+Multiple subcommands can be specified at once. They are executed in order and the component list from a previous command is passed to next:
 
 ```bash
-openedge-cli install smart_parking --gpu start smart_parking --gpu
+# install with --gpu, start, stop and then start again with --npu
+openedge-cli install smart_parking --gpu start stop start -npu
 ```
 
 The following global options are supported:
@@ -150,6 +151,8 @@ openedge-cli sbom computer_vision
 > The listing is limited to system-level installation only.
 
 > User level installation is under `~/.local/open-edge-platform/<component-name>`.  
+
+> The OEP installer script is installed under `~/.local/bin` with bash completion under `~/.local/share/bash-completion`, and logs under `~/.local/open-edge-platform/openedge-cli/*.logs`.  
 
 ### Bootstrapping
 
