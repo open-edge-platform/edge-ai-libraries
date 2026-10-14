@@ -158,5 +158,5 @@ debian_90_stop_multimodal_weld_defect_detection () {
 
 debian_90_remove_multimodal_weld_defect_detection () {
   debian_90_stop_multimodal_weld_defect_detection "$@"
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }

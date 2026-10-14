@@ -86,10 +86,17 @@ def _convert_batches(raw_batches: Iterable[Dict[str, Any]]) -> List[TelemetryBat
 	for idx, batch in enumerate(raw_batches, start=1):
 		details.append(
 			TelemetryBatchDetail(
-				stream_id=batch.get("stream_id", -1),
-				batch_index=batch.get("batch_id", -1),
-				input_frames=batch.get("batch_size", -1),
-				items_after_detection=batch.get("total", 0) - batch.get("batch_size", 0),
+				# These mirror non-negative schema fields; a -1 "unknown" sentinel
+				# would fail validation and discard the entire telemetry record.
+				stream_id=batch.get("stream_id", 0),
+				batch_index=batch.get("batch_id", idx),
+				input_frames=batch.get("batch_size", 0),
+				# Extra items detection contributed on top of the input frames.
+				# Clamped: a batch that stored fewer items than it ingested would
+				# otherwise go negative and invalidate the record.
+				items_after_detection=max(
+					0, batch.get("total", 0) - batch.get("batch_size", 0)
+				),
 				detection_seconds=float(batch.get("stats", {}).get("detect")[2]),
 				embedding_seconds=float(batch.get("stats", {}).get("embed")[2]),
 				embedding_infer_seconds=float(batch.get("stats", {}).get("embed_inference_time", 0.0)),

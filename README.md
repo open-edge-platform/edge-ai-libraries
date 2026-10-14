@@ -286,9 +286,17 @@ to help users get started quickly and understand integration patterns: 
   configure hardware, and validate platform readiness for Intel-based
   edge devices.
 
-> Visit the [Edge AI Suites](https://github.com/open-edge-platform/edge-ai-suites)
-  repository for a broader set of sample applications targeted at
-  specific industry segments. 
+> [!NOTE]
+> Visit the Edge AI Suites repositories for a broader set of sample applications targeted at
+> specific industry segments:
+>
+> - [Metro AI Suite](https://github.com/open-edge-platform/metro-ai-suite)
+> - [Manufacturing AI Suite](https://github.com/open-edge-platform/manufacturing-ai-suite)
+> - [Retail AI Suite](https://github.com/intel-retail/)
+> - [Robotics AI Suite](https://github.com/open-edge-platform/robotics-ai-suite)
+> - [Education AI Suite](https://github.com/open-edge-platform/education-ai-suite)
+> - [Health and Life Sciences AI Suite](https://github.com/open-edge-platform/health-and-life-sciences-ai-suite)
+> - [Federal and Aerospace AI Suite](https://github.com/open-edge-platform/federal-and-aerospace-ai-suite)
      
 ### Edge Analytics Microservices
 

@@ -52,6 +52,6 @@ debian_90_stop_geti () {
 
 debian_90_remove_geti () {
   debian_90_stop_geti "$@"
-  docker image rm $image_name || true
+  docker image rm -f $image_name || true
 }
 

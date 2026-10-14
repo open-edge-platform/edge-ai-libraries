@@ -1,7 +1,7 @@
 
 # robust fetch: ensure_fetch URL <DEST|-> [--html]
 ensure_fetch() {
-  local url="$1" dest="${2:-?}" html="$3"
+  local url="$1" dest="${2:-?}" html="${3:-}"
   local rc=1 first tmp_dir i
 
   ensure_tmpdir create tmp_dir fetch || return 1

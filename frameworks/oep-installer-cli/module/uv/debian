@@ -13,6 +13,13 @@ debian_30_install_uv () {
     echo "Uv is already installed. Skipping..."
   else
     pipx install uv
+    ensure_prop set installed/uv/owned true
   fi
+}
+
+debian_30_remove_uv () {
+  # leave untouched if not installed by uv
+  [ "$(ensure_prop get installed/uv/owned)" = "true" ] || return 0
+  pipx uninstall uv
 }
 
