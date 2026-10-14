@@ -15,7 +15,7 @@ const SUMMARY_CHARTS = [
   },
   {
     title: "Latency",
-    metricKey: "latency_avg_ms",
+    metricKey: "latency_max_ms",
     description: "Lower is better",
     formatValue: (value: number) => `${value.toFixed(2)} ms`,
     allowDecimals: true,
