@@ -213,12 +213,14 @@ class ModelConverter:
             # Download model
             self.download_model()
             
-            # Load model
-            model = AutoModel.from_pretrained(self.orig_model_dir, trust_remote_code=True)
+            # Load model. Use AutoModelForCausalLM because many VLM checkpoints
+            # (e.g. Phi-3.5-vision) register their config only with the causal LM
+            # auto class, not with AutoModel.
+            model = AutoModelForCausalLM.from_pretrained(self.orig_model_dir, trust_remote_code=True)
             model.eval()
             
             # Create example input
-            example_input = torch.randn(1, 128, 768)
+            example_input = torch.ones([1, 1], dtype=torch.long)
             
             # Convert model
             output_path = self.download_path / "model.xml"
