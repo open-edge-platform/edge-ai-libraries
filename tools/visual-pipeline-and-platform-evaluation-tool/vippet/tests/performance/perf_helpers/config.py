@@ -6,6 +6,7 @@
 import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -28,17 +29,9 @@ _PERF_YAML: dict[str, Any] = _load_perf_config()
 # --- vippet section (connection settings) ---
 _VIPPET_CFG: dict[str, Any] = _PERF_YAML.get("vippet", {})
 
-# Host/IP shared by all ViPPET-related URLs below (base_url, metrics_url,
-# capabilities_url). Override with the TARGET_HOST env var, or set
-# vippet.target_host in the YAML config, to point the suite at a remote
-# device instead of localhost.
-TARGET_HOST: str = os.environ.get("TARGET_HOST") or str(
-    _VIPPET_CFG.get("target_host", "localhost")
-)
-
 BASE_URL: str = os.environ.get("VIPPET_BASE_URL") or str(
-    _VIPPET_CFG.get("base_url", "http://{target_host}/api/v1")
-).format(target_host=TARGET_HOST)
+    _VIPPET_CFG.get("base_url", "http://localhost/api/v1")
+)
 REQUEST_TIMEOUT: float = float(_VIPPET_CFG.get("timeout", 600))
 READINESS_TIMEOUT_SECONDS: float = float(
     _VIPPET_CFG.get("readiness_timeout_seconds", 60)
@@ -46,23 +39,34 @@ READINESS_TIMEOUT_SECONDS: float = float(
 POLL_INTERVAL: float = float(_VIPPET_CFG.get("poll_interval", 2))
 POLL_TIMEOUT: float = float(_VIPPET_CFG.get("max_job_duration", 600))
 
+_BASE_URL_PARTS = urlsplit(BASE_URL)
+if not _BASE_URL_PARTS.hostname:
+    raise ValueError(
+        f"VIPPET_BASE_URL {BASE_URL!r} is missing a host; cannot derive "
+        "metrics/capabilities endpoint defaults from it."
+    )
+
 # --- metrics section ---
 _METRICS_CFG: dict[str, Any] = _PERF_YAML.get("metrics", {})
 
-METRICS_URL: str = os.environ.get("VIPPET_METRICS_URL") or str(
-    _METRICS_CFG.get("metrics_url", "http://{target_host}/metrics/stream")
-).format(target_host=TARGET_HOST)
+METRICS_URL: str = (
+    os.environ.get("VIPPET_METRICS_URL")
+    or _METRICS_CFG.get("metrics_url")
+    or f"{_BASE_URL_PARTS.scheme}://{_BASE_URL_PARTS.netloc}/metrics/stream"
+)
 METRICS_SAMPLE_INTERVAL: float = float(
     os.environ.get(
         "PERF_METRICS_INTERVAL", str(_METRICS_CFG.get("sample_interval_seconds", 2.0))
     )
 )
 
-CAPABILITIES_URL: str = os.environ.get("VIPPET_CAPABILITIES_URL") or str(
-    _METRICS_CFG.get(
-        "capabilities_url", "http://{target_host}:9090/api/v1/capabilities"
-    )
-).format(target_host=TARGET_HOST)
+# metrics-manager capabilities endpoint (direct, not nginx-proxied); defaults to BASE_URL's host
+# on metrics-manager's own port (9090), ignoring any port in BASE_URL
+CAPABILITIES_URL: str = (
+    os.environ.get("VIPPET_CAPABILITIES_URL")
+    or _METRICS_CFG.get("capabilities_url")
+    or f"{_BASE_URL_PARTS.scheme}://{_BASE_URL_PARTS.hostname}:9090/api/v1/capabilities"
+)
 
 # --- benchmark section ---
 _BENCHMARK_CFG: dict[str, Any] = _PERF_YAML.get("benchmark", {})

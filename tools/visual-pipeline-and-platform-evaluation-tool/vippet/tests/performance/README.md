@@ -39,16 +39,15 @@ cases are reported as skipped with the missing model names. Set it to `false` to
 schedule those cases and expose runtime failures, for example when validating
 behavior on a host without the models.
 
-| Env var                   | Default                                     | Description                                                                                                                    |
-|---------------------------|---------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `TARGET_HOST`             | `localhost`                                 | Host/IP shared by `VIPPET_BASE_URL`, `VIPPET_METRICS_URL`, and `VIPPET_CAPABILITIES_URL` defaults; set to target a remote device |
-| `VIPPET_BASE_URL`         | `http://localhost/api/v1`                   | VIPPET API endpoint                                                                                                            |
-| `VIPPET_METRICS_URL`      | `http://localhost/metrics/stream`           | Metrics endpoint (via nginx proxy)                                                                                             |
-| `VIPPET_CAPABILITIES_URL` | `http://localhost:9090/api/v1/capabilities` | metrics-manager capabilities endpoint (direct, not nginx-proxied)                                                              |
-| `PERF_CONFIG`             | `default`                                   | Config preset (`default`, `quick`, `full`)                                                                                     |
-| `PERF_RESULTS_DIR`        | `./results`                                 | Output directory for reports                                                                                                   |
-| `PERF_METRICS_INTERVAL`   | `2.0`                                       | HW sampling interval (seconds)                                                                                                 |
-| `PERF_ON_UNKNOWN_ID`      | `fail`                                      | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning |
+| Env var                   | Default                                          | Description                                                                                                                                                               |
+|---------------------------|--------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `VIPPET_BASE_URL`         | `http://localhost/api/v1`                        | VIPPET API endpoint. Its host (and port) is reused to build the default `VIPPET_METRICS_URL`/`VIPPET_CAPABILITIES_URL` below, so set this alone to target a remote device |
+| `VIPPET_METRICS_URL`      | derived from `VIPPET_BASE_URL`'s host/port       | Metrics endpoint (via nginx proxy); set explicitly to override                                                                                                            |
+| `VIPPET_CAPABILITIES_URL` | derived from `VIPPET_BASE_URL`'s host, port 9090 | metrics-manager capabilities endpoint (direct, not nginx-proxied); set explicitly to override                                                                             |
+| `PERF_CONFIG`             | `default`                                        | Config preset (`default`, `quick`, `full`)                                                                                                                                |
+| `PERF_RESULTS_DIR`        | `./results`                                      | Output directory for reports                                                                                                                                              |
+| `PERF_METRICS_INTERVAL`   | `2.0`                                            | HW sampling interval (seconds)                                                                                                                                            |
+| `PERF_ON_UNKNOWN_ID`      | `fail`                                           | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning                                            |
 
 ## Layout
 
