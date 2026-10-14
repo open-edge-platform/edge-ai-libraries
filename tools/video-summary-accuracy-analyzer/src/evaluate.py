@@ -586,7 +586,7 @@ class Evaluator:
             "contradiction_ratio": round(contradiction_rg / total_rg, 4) if total_rg > 0 else 0,
             "average_cosine_score": round(total_cosine_rg / total_rg, 4) if total_rg > 0 else 0,
         }
-        stats_gr = self._compute_factual_stats(generated, reference)
+        # stats_gr = self._compute_factual_stats(generated, reference)
 
         # Calculate MENLI score using E - N - 2C formula with bidirectional sentence-level scoring
         # M1 (S→G / precision): for each generated sentence, find best match in reference
