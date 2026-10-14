@@ -329,10 +329,26 @@ func (s *Service) AcquireBuffer(ctx context.Context, streamID string, start, end
 	return entry.buffer.Acquire(ctx, start, end)
 }
 
-// ResizeBuffer is not implemented yet; the length is fixed when the stream is created.
-// TODO: implement resizing for PUT /streams/{stream-id}/buffer.
-func (s *Service) ResizeBuffer(context.Context, string, int) (model.StreamBuffer, error) {
-	return model.StreamBuffer{}, ErrNotImplemented
+// ResizeBuffer changes a stream's retention window. Growing keeps every existing
+// slice; shrinking discards the oldest slices that no longer fit the window.
+func (s *Service) ResizeBuffer(ctx context.Context, streamID string, bufferLength int) (model.StreamBuffer, error) {
+	if err := ctx.Err(); err != nil {
+		return model.StreamBuffer{}, err
+	}
+	length := time.Duration(bufferLength) * time.Second
+	if length < config.MinBufferLength || length > config.MaxBufferLength {
+		return model.StreamBuffer{}, ErrInvalidRequest
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	entry := s.streams[streamID]
+	if entry == nil {
+		return model.StreamBuffer{}, ErrStreamNotFound
+	}
+	if err := entry.buffer.resize(length); err != nil {
+		return model.StreamBuffer{}, err
+	}
+	return entry.snapshot()
 }
 
 func (s *Service) RemoveBuffer(ctx context.Context, streamID string) error {
@@ -378,7 +394,7 @@ func (s *Service) Close() error {
 	return s.closeErr
 }
 
-// Bufferer creates, reads and removes the buffers of attached streams.
+// Bufferer creates, reads, resizes and removes the buffers of attached streams.
 type Bufferer interface {
 	CreateBuffer(ctx context.Context, sourceURI string, sensorID string, bufferLength time.Duration) (string, error)
 	GetBuffer(ctx context.Context, streamID string, startTS time.Time, endTS time.Time) ([]model.BufferSlice, error)
@@ -400,5 +416,4 @@ var (
 	ErrBufferClosed       = errors.New("buffer is closed")
 	ErrLeaseClosed        = errors.New("buffer lease is closed")
 	ErrSourceFailed       = errors.New("stream ingestion failed")
-	ErrNotImplemented     = errors.New("not implemented")
 )

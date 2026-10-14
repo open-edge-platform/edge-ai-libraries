@@ -255,6 +255,49 @@ func TestRollingBufferRejectsGapsAndUnsafePaths(t *testing.T) {
 	}
 }
 
+func TestRollingBufferResize(t *testing.T) {
+	b := testBuffer(t, 10)
+	now := time.Now()
+	start := time.Unix(100, 0).UTC()
+	oldest := addTestSlice(t, b, 1, start, now.Add(-9*time.Second))
+	newest := addTestSlice(t, b, 2, oldest.EndTS, now.Add(-1*time.Second))
+
+	// Growing keeps every existing slice untouched.
+	if err := b.resize(20 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if snap := b.snapshot(); len(snap.Slices) != 2 || snap.BufferStat.Capacity != 20 {
+		t.Fatalf("grow altered slices: %+v", snap)
+	}
+
+	// Requesting the same length is a no-op.
+	if err := b.resize(20 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if snap := b.snapshot(); len(snap.Slices) != 2 {
+		t.Fatalf("no-op altered slices: %+v", snap)
+	}
+
+	// Shrinking discards slices that no longer fit the smaller window.
+	if err := b.resize(2 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	snap := b.snapshot()
+	if len(snap.Slices) != 1 || snap.Slices[0].SeqNo != newest.SeqNo || snap.BufferStat.Capacity != 2 {
+		t.Fatalf("shrink did not discard the oldest slice: %+v", snap)
+	}
+	if _, err := os.Stat(filepath.Join(b.root.Name(), sliceName(oldest.SeqNo))); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("discarded slice file was not removed: %v", err)
+	}
+
+	if err := b.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.resize(5 * time.Second); !errors.Is(err, ErrBufferClosed) {
+		t.Fatalf("resize on closed buffer: %v", err)
+	}
+}
+
 func TestLeaseEndAndTerminalNotification(t *testing.T) {
 	b := testBuffer(t, 30)
 	start := time.Unix(100, 0).UTC()

@@ -47,8 +47,8 @@ func TestServiceLifecycleAndIsolation(t *testing.T) {
 		t.Fatalf("list: %+v %v", streams, err)
 	}
 	id := streams[0].StreamID
-	if _, err := s.ResizeBuffer(context.Background(), id, 45); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("resize must report not implemented: %v", err)
+	if _, err := s.ResizeBuffer(context.Background(), id, 45); err != nil {
+		t.Fatalf("resize: %v", err)
 	}
 	lease, err := s.AcquireBuffer(context.Background(), id, time.Now(), time.Time{})
 	if err != nil {
@@ -133,5 +133,34 @@ func TestServiceBufferLength(t *testing.T) {
 		if err != nil || info.BufferStat.Capacity != want {
 			t.Fatalf("%s capacity: %+v %v", sensor, info.BufferStat, err)
 		}
+	}
+}
+
+func TestServiceResizeBuffer(t *testing.T) {
+	s := testService(t, 30)
+	s.ingest = idleIngest
+	id, err := s.CreateBuffer(context.Background(), "rtsp://camera.invalid/live", "camera", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, seconds := range []int{4, 301} {
+		if _, err := s.ResizeBuffer(context.Background(), id, seconds); !errors.Is(err, ErrInvalidRequest) {
+			t.Fatalf("resize to %ds: %v", seconds, err)
+		}
+	}
+	if _, err := s.ResizeBuffer(context.Background(), "unknown", 60); !errors.Is(err, ErrStreamNotFound) {
+		t.Fatalf("resize unknown stream: %v", err)
+	}
+	info, err := s.ResizeBuffer(context.Background(), id, 60)
+	if err != nil || info.BufferStat.Capacity != 60 {
+		t.Fatalf("grow: %+v %v", info.BufferStat, err)
+	}
+	info, err = s.ResizeBuffer(context.Background(), id, 60)
+	if err != nil || info.BufferStat.Capacity != 60 {
+		t.Fatalf("no-op resize: %+v %v", info.BufferStat, err)
+	}
+	info, err = s.ResizeBuffer(context.Background(), id, 5)
+	if err != nil || info.BufferStat.Capacity != 5 {
+		t.Fatalf("shrink: %+v %v", info.BufferStat, err)
 	}
 }

@@ -23,6 +23,10 @@ type streamCreateRequest struct {
 	BufferLength *int   `json:"buffer_length"`
 }
 
+type streamUpdateBufferRequest struct {
+	BufferLength *int `json:"buffer_length"`
+}
+
 type streamResponse struct {
 	StreamID       string               `json:"stream_id"`
 	SensorID       string               `json:"sensor_id"`
@@ -125,9 +129,23 @@ func (h StreamHandler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, deletionResponse{Resource: "stream", ID: id, Deleted: true})
 }
 
-// UpdateBuffer handles PUT /streams/{stream-id}/buffer, which is not implemented yet.
-func (StreamHandler) UpdateBuffer(c *gin.Context) {
-	common.WriteError(c, http.StatusNotImplemented, "not_implemented", "resizing a stream buffer is not implemented yet")
+// UpdateBuffer handles PUT /streams/{stream-id}/buffer.
+func (h StreamHandler) UpdateBuffer(c *gin.Context) {
+	var req streamUpdateBufferRequest
+	if err := common.DecodeJSON(c, &req); err != nil {
+		common.WriteError(c, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	if err := req.validate(); err != nil {
+		common.WriteError(c, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	sb, err := h.Buffers.ResizeBuffer(c.Request.Context(), c.Param("stream-id"), *req.BufferLength)
+	if err != nil {
+		writeStreamError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toStreamResponse(sb))
 }
 
 func writeStreamError(c *gin.Context, err error) {
@@ -200,4 +218,11 @@ func (r streamCreateRequest) validate() error {
 		return common.CheckBufferLength(*r.BufferLength)
 	}
 	return nil
+}
+
+func (r streamUpdateBufferRequest) validate() error {
+	if r.BufferLength == nil {
+		return errors.New("buffer_length is required")
+	}
+	return common.CheckBufferLength(*r.BufferLength)
 }

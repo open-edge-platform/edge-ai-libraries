@@ -437,6 +437,25 @@ func (b *RollingBuffer) expire(now time.Time) error {
 	return b.expireLocked(now)
 }
 
+// resize changes the retention window; a smaller window immediately evicts the
+// oldest slices that now fall outside it. Growing never touches existing slices.
+func (b *RollingBuffer) resize(length time.Duration) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return ErrBufferClosed
+	}
+	if length == b.capacity {
+		return nil
+	}
+	shrinking := length < b.capacity
+	b.capacity = length
+	if shrinking {
+		return b.expireLocked(time.Now())
+	}
+	return nil
+}
+
 func (b *RollingBuffer) expireLocked(now time.Time) error {
 	kept := b.slices[:0]
 	var result error

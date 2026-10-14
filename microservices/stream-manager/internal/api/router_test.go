@@ -112,6 +112,15 @@ func TestStreamRoutes(t *testing.T) {
 	request("DELETE", "/v1/streams/"+sizedResult.StreamID, "", 200)
 	request("GET", path, "", 200)
 	request("GET", "/v1/streams?limit=0&cursor=ignored", "", 200)
+	resized := request("PUT", path+"/buffer", `{"buffer_length":60}`, 200)
+	var resizedResult struct {
+		Buffer struct {
+			Capacity int `json:"capacity"`
+		} `json:"buffer"`
+	}
+	if err := json.Unmarshal(resized.Body.Bytes(), &resizedResult); err != nil || resizedResult.Buffer.Capacity != 60 {
+		t.Fatalf("buffer was not resized: %s %v", resized.Body, err)
+	}
 	for _, tc := range []struct {
 		method, path, body, code string
 		status                   int
@@ -128,12 +137,22 @@ func TestStreamRoutes(t *testing.T) {
 		{"GET", "/v1/streams/.bad", "", "stream_not_found", 404},
 		{"GET", "/v1/streams/unknown", "", "stream_not_found", 404},
 		{"PUT", "/v1/streams/.bad/buffer", "invalid JSON", "stream_not_found", 404},
-		{"PUT", path + "/buffer", `{"buffer_length":60}`, "not_implemented", 501},
+		{"PUT", path + "/buffer", `{}`, "invalid_request", 400},
+		{"PUT", path + "/buffer", `{"buffer_length":4}`, "invalid_request", 400},
+		{"PUT", path + "/buffer", `{"buffer_length":301}`, "invalid_request", 400},
+		{"PUT", "/v1/streams/unknown/buffer", `{"buffer_length":60}`, "stream_not_found", 404},
 		{"POST", "/v1/records/start", `{"start_ts":"2026-01-01T00:00:00Z"}`, "invalid_selector", 400},
 		{"POST", "/v1/records/start", `{"stream_id":".bad","start_ts":"2026-01-01T00:00:00Z"}`, "invalid_selector", 400},
 		{"POST", "/v1/records/start", `{"stream_ids":["a"],"start_ts":"2026-01-01T00:00:00Z"}`, "invalid_request", 400},
 		{"POST", "/v1/records/start", `{"stream_id":"a","sensor_ids":["a"],"start_ts":"2026-01-01T00:00:00Z"}`, "invalid_request", 400},
 		{"POST", "/v1/records/start", `{"stream_id":"a","start_ts":"invalid"}`, "invalid_timestamp", 400},
+		{"POST", "/v1/records/start", `{"stream_id":"a","start_ts":"2026-01-01T00:00:00Z","duration":0}`, "invalid_request", 400},
+		{"POST", "/v1/records/start", `{"stream_id":"a","start_ts":"2026-01-01T00:00:00Z","duration":-1}`, "invalid_request", 400},
+		{"POST", "/v1/records/start", `{"stream_id":"a","start_ts":"2026-01-01T00:00:00Z","duration":1e300}`, "invalid_request", 400},
+		{"POST", "/v1/records/start", `{"stream_id":"a","start_ts":"2026-01-01T00:00:00Z","duration":1e-12}`, "invalid_request", 400},
+		{"POST", "/v1/records/start", `{"stream_id":"a","start_ts":"2026-01-01T00:00:00Z","pre_event_duration":-1}`, "invalid_request", 400},
+		{"POST", "/v1/records/start", `{"stream_id":"a","start_ts":"2026-01-01T00:00:00Z","pre_event_duration":301}`, "invalid_request", 400},
+		{"POST", "/v1/records/start", `{"stream_id":"a","start_ts":"2026-01-01T00:00:00Z","pre_event_duration":1e-12}`, "invalid_request", 400},
 		{"POST", "/v1/records/start", `{"stream_id":"missing","start_ts":"2026-01-01T00:00:00Z"}`, "stream_not_found", 404},
 		{"POST", "/v1/records/start", `{"stream_id":"` + result.StreamID + `","start_ts":"2026-01-01T00:00:00Z"}`, "history_unavailable", 409},
 		{"POST", "/v1/records/stop", `{}`, "invalid_request", 400},

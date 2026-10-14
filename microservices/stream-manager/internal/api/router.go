@@ -31,8 +31,6 @@ func NewRouter(buffers stream.Bufferer, recordings *record.Service, replays repl
 	v1.GET("/streams", streams.List)
 	streamRoutesWithID.GET("", streams.Get)
 	streamRoutesWithID.DELETE("", streams.Delete)
-
-	// TODO: implement buffer resizing; PUT /streams/{stream-id}/buffer returns 501 until then.
 	streamRoutesWithID.PUT("/buffer", streams.UpdateBuffer)
 
 	records := handler.RecordHandler{Records: recordings}

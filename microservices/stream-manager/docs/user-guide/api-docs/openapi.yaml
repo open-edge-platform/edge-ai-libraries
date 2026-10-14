@@ -6,7 +6,6 @@ info:
   title: Stream Manager API
   version: 0.1.0-draft
   description: |
-    WORKING DRAFT - this API may still change.
 
     Stream Manager attaches live sources, keeps a bounded per-stream buffer,
     saves media around events, and returns timestamp-correlated clips and frames.
@@ -42,7 +41,14 @@ paths:
     post:
       tags: [Stream Attachment APIs]
       summary: Attach a source
-      description: Attaches a source and starts reading and buffering it. The reply returns before any history has built up.
+      description: |-
+        Attaches a source and starts reading and buffering it. The reply returns before any history has built up.
+
+        | Field | Type | Required | Unit / range |
+        |---|---|---|---|
+        | sensor_id | string | yes | — |
+        | source_uri | string | yes | up to 2048 characters, no credentials |
+        | buffer_length | integer | no | seconds, 5-300, default 30 |
       requestBody:
         required: true
         content:
@@ -62,37 +68,45 @@ paths:
               schema:
                 $ref: '#/components/schemas/Stream'
         '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          description: Unknown sensor.
+          description: Malformed JSON body, a missing or malformed sensor_id or source_uri, or a buffer_length outside the 5-300 second range.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 400
+                error_code: invalid_request
+                error_detail: sensor_id is required
         '409':
           description: That sensor is already attached; the existing stream_id is named in error_detail.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 409
+                error_code: stream_exists
+                error_detail: sensor is already attached as str-1
         '415':
-          description: Unsupported protocol or codec.
+          description: source_uri uses a scheme other than rtsp:// or rtsps://.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 415
+                error_code: unsupported_media
+                error_detail: only RTSP or RTSPS H.264/H.265 video is supported
         '429':
-          $ref: '#/components/responses/Error429'
-        '503':
-          description: Sensor Manager could not be reached.
+          description: No room left for another stream.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 429
+                error_code: capacity_exhausted
+                error_detail: not enough buffer storage
     get:
       tags: [Stream Attachment APIs]
       summary: List streams
@@ -104,10 +118,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StreamPage'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
 
   /streams/{stream-id}:
     get:
@@ -123,16 +133,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Stream'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
         '404':
           description: The stream is unknown or has been detached.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: stream_not_found
+                error_detail: stream not found
     delete:
       tags: [Stream Attachment APIs]
       summary: Detach a stream
@@ -146,34 +156,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Deletion'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
         '404':
           description: Not attached.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: stream_not_found
+                error_detail: stream not found
         '409':
-          description: A recording is still using the stream.
+          description: A recording still holds a lease on the buffer.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '503':
-          description: The buffer could not be released safely.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+              example:
+                status: 409
+                error_code: active_dependency
+                error_detail: active readers still need this buffer
 
   /streams/{stream-id}/buffer:
     put:
       tags: [Stream Attachment APIs]
       summary: Resize a stream buffer
-      description: Not implemented yet; returns 501 not_implemented. Set the buffer size with buffer_length when the stream is attached. Planned behavior sets the buffer size in seconds; setting a size does not create that much history at once.
+      description: |-
+        Changes how many seconds of history the buffer holds. Growing keeps every existing slice and lets the buffer hold more history. Shrinking immediately discards the oldest slices that no longer fit the smaller window. The same buffer_length limits as attachment apply, and requesting the current size is a no-op.
+
+        | Field | Type | Required | Unit / range |
+        |---|---|---|---|
+        | buffer_length | integer | yes | seconds, 5-300 |
       parameters:
         - $ref: '#/components/parameters/StreamId'
       requestBody:
@@ -184,51 +197,46 @@ paths:
               $ref: '#/components/schemas/BufferUpdate'
       responses:
         '200':
-          description: Buffer status.
+          description: The updated stream, including its new buffer.capacity.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BufferStatus'
+                $ref: '#/components/schemas/Stream'
         '400':
-          description: Invalid value.
+          description: Malformed JSON body, a missing buffer_length, or a buffer_length outside the 5-300 second range.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
+              example:
+                status: 400
+                error_code: invalid_request
+                error_detail: buffer_length is required
         '404':
           description: Unknown stream.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '409':
-          description: A running recording still needs the data that would be freed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '429':
-          description: Not enough memory left to grow the buffer.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '501':
-          description: Resizing is not implemented yet.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: stream_not_found
+                error_detail: stream not found
 
   /records/start:
     post:
       tags: [Recording Storage APIs]
       summary: Start a recording
-      description: Saves the video around an event from one attached stream. If the stream lacks the requested history, no record is created. Video is copied as whole keyframe-aligned MPEG-TS slices without re-encoding; the stored window can extend to the enclosing keyframes, and ready records report those actual bounds.
+      description: |-
+        Saves the video around an event from one attached stream. If the stream lacks the requested history, no record is created. Video is copied as whole keyframe-aligned MPEG-TS slices without re-encoding; the stored window can extend to the enclosing keyframes, and ready records report those actual bounds.
+
+        | Field | Type | Required | Unit / range |
+        |---|---|---|---|
+        | stream_id | string | yes | — |
+        | start_ts | string (date-time) | yes | RFC 3339 UTC timestamp, cannot be in the future |
+        | duration | number | no | seconds, fixed-length recording when given |
+        | pre_event_duration | number | no | seconds, 0-300, default 0 |
+        | metadata | object | no | arbitrary key-value pairs |
       requestBody:
         required: true
         content:
@@ -243,39 +251,56 @@ paths:
               schema:
                 $ref: '#/components/schemas/RecordStartResult'
         '400':
-          description: Invalid stream_id or times.
+          description: Malformed stream_id (invalid_selector), a missing, malformed, or future start_ts (invalid_timestamp), or an out-of-range duration or pre_event_duration (invalid_request).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
+              example:
+                status: 400
+                error_code: invalid_timestamp
+                error_detail: start_ts must not be in the future
         '404':
           description: Unknown stream.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: stream_not_found
+                error_detail: stream is not attached
         '409':
           description: Requested history unavailable, or the stream is not buffering with NTP-synced timestamps.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 409
+                error_code: history_unavailable
+                error_detail: requested history is not available
         '429':
           description: Recording capacity reached.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 429
+                error_code: capacity_exhausted
+                error_detail: recording capacity reached
 
   /records/stop:
     post:
       tags: [Recording Storage APIs]
       summary: Stop an open recording
-      description: Stops an open recording. The stop time is fixed and does not move if the request is repeated. An already finished recording returns 200 with the current record.
+      description: |-
+        Stops an open recording. The stop time is fixed and does not move if the request is repeated. An already finished recording returns 200 with the current record.
+
+        | Field | Type | Required | Unit / range |
+        |---|---|---|---|
+        | recording_id | string | yes | — |
       requestBody:
         required: true
         content:
@@ -295,22 +320,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Recording'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
         '404':
           description: Unknown record.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: record_not_found
+                error_detail: record not found
         '409':
           description: The record is not an active open recording. Repeated stops while finalizing retain the original stop target and return 202.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 409
+                error_code: record_not_ready
+                error_detail: recording cannot be changed in its current state
 
   /records:
     get:
@@ -379,10 +408,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
+              example:
+                status: 400
+                error_code: invalid_request
+                error_detail: limit must be an integer between 1 and 100
 
   /records/{recording-id}:
     get:
@@ -398,20 +427,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Recording'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
         '404':
           description: Unknown or deleted record.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: record_not_found
+                error_detail: record not found
     delete:
       tags: [Recording Storage APIs]
       summary: Delete a record
-      description: Deletes the record and its media. The reply comes only once both the media and its row are gone. Deleting again, or reading it afterwards, returns 404.
+      description: Deletes the record's metadata and its media. The reply returns once the metadata row is gone; if the media delete fails afterward, it is only logged, not surfaced to the caller. Deleting again, or reading it afterwards, returns 404.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
       responses:
@@ -421,28 +450,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Deletion'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
         '404':
           description: Unknown or already deleted record.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: record_not_found
+                error_detail: record not found
         '409':
           description: Record is still recording or finalizing.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 409
+                error_code: record_not_ready
+                error_detail: recording cannot be changed in its current state
         '503':
           description: Storage cleanup failed, leaving the record for retry.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 503
+                error_code: storage_unavailable
+                error_detail: recording cleanup failed; retry later
 
   /replays/{recording-id}/frame:
     get:
@@ -509,46 +546,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
+              example:
+                status: 400
+                error_code: invalid_timestamp
+                error_detail: timestamp must be an RFC 3339 UTC timestamp ending in Z with at most 9 fractional digits
         '404':
           description: Record not found, timestamp outside coverage or exact frame missing.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: frame_not_found
+                error_detail: the requested time is not covered by the record
         '406':
           description: Incompatible Accept header.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 406
+                error_code: not_acceptable
+                error_detail: the Accept header allows none of the available media types
         '409':
           description: Record not ready.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '415':
-          description: Undecodable profile.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+              example:
+                status: 409
+                error_code: record_not_ready
+                error_detail: record is not ready
         '429':
           description: Extraction capacity reached.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 429
+                error_code: capacity_exhausted
+                error_detail: extraction capacity reached, retry later
         '503':
           description: Extraction or storage failure.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 503
+                error_code: storage_unavailable
+                error_detail: media extraction failed
 
   /replays/{recording-id}/frame/url:
     get:
@@ -582,57 +633,96 @@ paths:
             default: nearest
       responses:
         '200':
-          description: MediaResult.
+          description: MediaResult, always, regardless of the Accept header.
+          headers:
+            X-Frame-Timestamp:
+              description: The real time of the returned frame.
+              schema:
+                type: string
+            X-Exact-Match:
+              description: Whether the frame landed on the exact time requested.
+              schema:
+                type: string
+                enum: ['true', 'false']
+            Cache-Control:
+              description: Always no-store.
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MediaResult'
+              example:
+                recording_id: rec-2
+                sensor_id: cam-07
+                media_type: frame
+                content_type: image/jpeg
+                requested_start_ts: '2026-09-16T09:12:03.400000000Z'
+                requested_end_ts: null
+                start_ts: '2026-09-16T09:12:03.400000000Z'
+                end_ts: null
+                url: /v1/media/rec-2/frame-3000000000.jpg
+                expiry_ts: '2026-09-16T09:20:00.000000000Z'
         '400':
           description: Invalid timestamp, format or match.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
+              example:
+                status: 400
+                error_code: invalid_timestamp
+                error_detail: timestamp must be an RFC 3339 UTC timestamp ending in Z with at most 9 fractional digits
         '404':
           description: Record not found, timestamp outside coverage or exact frame missing.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: frame_not_found
+                error_detail: the requested time is not covered by the record
         '406':
           description: Incompatible Accept header.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 406
+                error_code: not_acceptable
+                error_detail: the Accept header allows none of the available media types
         '409':
           description: Record not ready.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '415':
-          description: Undecodable profile.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+              example:
+                status: 409
+                error_code: record_not_ready
+                error_detail: record is not ready
         '429':
           description: Extraction capacity reached.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 429
+                error_code: capacity_exhausted
+                error_detail: extraction capacity reached, retry later
         '503':
           description: Extraction or storage failure.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 503
+                error_code: storage_unavailable
+                error_detail: media extraction failed
 
   /replays/{recording-id}/clip:
     get:
@@ -675,10 +765,25 @@ paths:
               schema:
                 type: string
                 enum: ['true', 'false']
+            Cache-Control:
+              description: no-store on JSON replies.
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MediaResult'
+              example:
+                recording_id: rec-2
+                sensor_id: cam-07
+                media_type: clip
+                content_type: video/mp4
+                requested_start_ts: '2026-09-16T09:12:00.400000000Z'
+                requested_end_ts: '2026-09-16T09:12:05.400000000Z'
+                start_ts: '2026-09-16T09:12:00.400000000Z'
+                end_ts: '2026-09-16T09:12:05.400000000Z'
+                url: /v1/media/rec-2/clip-0-5000000000.mp4
+                expiry_ts: '2026-09-16T09:20:00.000000000Z'
             video/mp4:
               schema:
                 type: string
@@ -692,51 +797,65 @@ paths:
             #     type: string
             #     format: binary
         '400':
-          description: Invalid range or both end selectors.
+          description: Invalid start_ts, duration or format.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
+              example:
+                status: 400
+                error_code: invalid_request
+                error_detail: duration must be a positive number of seconds
         '404':
-          description: Interval not covered.
+          description: Record not found, or the requested interval is not fully covered.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: frame_not_found
+                error_detail: the requested time is not covered by the record
         '406':
           description: Incompatible Accept header.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 406
+                error_code: not_acceptable
+                error_detail: the Accept header allows none of the available media types
         '409':
           description: Record not ready.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '415':
-          description: Unavailable output profile.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+              example:
+                status: 409
+                error_code: record_not_ready
+                error_detail: record is not ready
         '429':
           description: Extraction capacity reached.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 429
+                error_code: capacity_exhausted
+                error_detail: extraction capacity reached, retry later
         '503':
           description: Extraction or storage failure.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 503
+                error_code: storage_unavailable
+                error_detail: media extraction failed
 
   /replays/{recording-id}/clip/url:
     get:
@@ -768,57 +887,149 @@ paths:
             default: mp4
       responses:
         '200':
-          description: MediaResult.
+          description: MediaResult, always, regardless of the Accept header.
+          headers:
+            X-Frame-Timestamp:
+              description: The real time of the first returned frame.
+              schema:
+                type: string
+            X-Exact-Match:
+              description: Whether the first frame landed on the exact time requested.
+              schema:
+                type: string
+                enum: ['true', 'false']
+            Cache-Control:
+              description: Always no-store.
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MediaResult'
+              example:
+                recording_id: rec-2
+                sensor_id: cam-07
+                media_type: clip
+                content_type: video/mp4
+                requested_start_ts: '2026-09-16T09:12:00.400000000Z'
+                requested_end_ts: '2026-09-16T09:12:05.400000000Z'
+                start_ts: '2026-09-16T09:12:00.400000000Z'
+                end_ts: '2026-09-16T09:12:05.400000000Z'
+                url: /v1/media/rec-2/clip-0-5000000000.mp4
+                expiry_ts: '2026-09-16T09:20:00.000000000Z'
         '400':
-          description: Invalid range or both end selectors.
+          description: Invalid start_ts, duration or format.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
+              example:
+                status: 400
+                error_code: invalid_request
+                error_detail: duration must be a positive number of seconds
         '404':
-          description: Interval not covered.
+          description: Record not found, or the requested interval is not fully covered.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: frame_not_found
+                error_detail: the requested time is not covered by the record
         '406':
           description: Incompatible Accept header.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 406
+                error_code: not_acceptable
+                error_detail: the Accept header allows none of the available media types
         '409':
           description: Record not ready.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '415':
-          description: Unavailable output profile.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+              example:
+                status: 409
+                error_code: record_not_ready
+                error_detail: record is not ready
         '429':
           description: Extraction capacity reached.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 429
+                error_code: capacity_exhausted
+                error_detail: extraction capacity reached, retry later
         '503':
           description: Extraction or storage failure.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 503
+                error_code: storage_unavailable
+                error_detail: media extraction failed
+
+  /media/{recording-id}/{file}:
+    get:
+      tags: [Replay APIs]
+      summary: Gets a produced frame or clip
+      description: Serves the bytes of a frame or clip named by a MediaResult's url. The file is kept only until its expiry_ts, which is capped by the recording's own expiry_ts.
+      parameters:
+        - $ref: '#/components/parameters/RecordingId'
+        - name: file
+          in: path
+          required: true
+          description: The file name from a MediaResult's url, for example frame-3000000000.jpg or clip-0-5000000000.mp4.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The frame or clip bytes.
+          headers:
+            Cache-Control:
+              description: private, max-age=<seconds until expiry_ts>.
+              schema:
+                type: string
+            Expires:
+              description: The file's expiry_ts, as an HTTP-date.
+              schema:
+                type: string
+            X-Content-Type-Options:
+              description: Always nosniff.
+              schema:
+                type: string
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Unknown record, or the file is missing or past its expiry_ts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error_code: frame_not_found
+                error_detail: media not found or expired
 
 components:
   parameters:
@@ -854,38 +1065,6 @@ components:
         maximum: 100
         default: 20
 
-  responses:
-    Error400:
-      description: The request is malformed, or its fields contradict each other.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Error401:
-      description: No credentials were supplied, or the access token is not valid.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Error403:
-      description: The caller is not allowed.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Error413:
-      description: The upload is bigger or longer than the configured limit.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Error429:
-      description: No room left for another stream, more memory or another extraction.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-
   schemas:
     Error:
       type: object
@@ -902,8 +1081,6 @@ components:
             - invalid_request
             - invalid_selector
             - invalid_timestamp
-            - unauthenticated
-            - forbidden
             - stream_not_found
             - record_not_found
             - frame_not_found
@@ -912,19 +1089,13 @@ components:
             - record_not_ready
             - history_unavailable
             - active_dependency
-            - payload_too_large
             - unsupported_media
             - capacity_exhausted
             - internal_error
             - storage_unavailable
-            - not_implemented
         error_detail:
           type: string
           description: A short explanation for a person. Never contains file paths, source addresses, credentials or FFmpeg output.
-      example:
-        status: 409
-        error_code: history_unavailable
-        error_detail: Requested pre-event history is not in the buffer.
 
     StreamCreate:
       type: object
@@ -955,7 +1126,7 @@ components:
       properties:
         buffer_length:
           type: integer
-          description: The new size in seconds, 5-300. Setting a size does not conjure up that much history straight away.
+          description: The new size in seconds, 5-300. Growing does not conjure up that much history straight away; shrinking immediately discards the oldest slices that no longer fit.
           minimum: 5
           maximum: 300
       example:
@@ -1131,11 +1302,11 @@ components:
           description: Where the clip really ends, that instant not included; empty for a single frame.
         url:
           type: string
-          description: A short-lived link to the file that was produced. It never points at the original recording.
+          description: A path, relative to the API base, that serves the produced file via GET /media/{recording-id}/{file} until expiry_ts. It never points at the original recording.
         expiry_ts:
           type: string
           format: date-time
-          description: Expiry of url. It is same as the lifetime of the recording.
+          description: When url stops working; capped by the recording's own expiry_ts.
       example:
         recording_id: rec-2
         sensor_id: cam-07
@@ -1145,7 +1316,7 @@ components:
         requested_end_ts: null
         start_ts: '2026-09-16T09:12:03.400000000Z'
         end_ts: null
-        url: https://sm.example.com/v1/media/eyJ0eXAi...
+        url: /v1/media/rec-2/frame-3000000000.jpg
         expiry_ts: '2026-09-16T09:20:00.000000000Z'
 
     RecordStart:
