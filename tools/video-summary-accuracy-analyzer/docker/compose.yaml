@@ -9,9 +9,18 @@ services:
       - "8101:8080"
     volumes:
       - ../nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      # Probes the backend through the gateway, so it also verifies nginx routing.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "--max-time", "4", "http://127.0.0.1:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
-      - video-accuracy-eval
-      - video-accuracy-eval-ui
+      video-accuracy-eval:
+        condition: service_healthy
+      video-accuracy-eval-ui:
+        condition: service_healthy
 
   video-accuracy-eval:
     image: ${REGISTRY:-intel/}video-accuracy-eval:${TAG:-latest}
@@ -33,6 +42,13 @@ services:
       - "127.0.0.1:9000:9000"
     volumes:
       - "${MODEL_CACHE_PATH}:/tmp/model_cache"
+    healthcheck:
+      # Models are downloaded and loaded before the API binds, so allow a long start period on first run.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/v1/eval/health', timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 600s
 
   video-accuracy-eval-ui:
     image: ${REGISTRY:-intel/}video-accuracy-eval-ui:${TAG:-latest}
@@ -47,8 +63,15 @@ services:
       APP_BACKEND_URL: ${APP_BACKEND_URL}
     ports:
       - "127.0.0.1:5174:7860"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:7860/', timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     depends_on:
-      - video-accuracy-eval
+      video-accuracy-eval:
+        condition: service_healthy
 
 networks:
   default:

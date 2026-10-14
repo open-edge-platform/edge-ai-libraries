@@ -65,7 +65,7 @@ Run the following commands from the project root:
 	docker compose -f docker/compose.yaml ps
 	```
 
-	On the first run, startup can take several minutes while the evaluation models are downloaded to the model cache.
+	Each service reports a health status, and the application is ready when all three services show `(healthy)`. The UI waits for the backend to become healthy, and the `nginx` gateway waits for both. On the first run, startup can take several minutes while the evaluation models are downloaded to the model cache.
 
 If you prefer to build the images locally instead of pulling them, follow [How to Build from Source](./build-from-source.md).
 
