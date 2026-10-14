@@ -8,7 +8,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-for lib in colors state sudo shim gpu-intel docker-setup nodejs notice gateway sandbox express openvino agents; do
+for lib in colors state sudo shim gpu-intel docker-setup nodejs gateway sandbox express openvino agents; do
   # shellcheck disable=SC1090
   . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
 done
@@ -83,15 +83,19 @@ remove_state_dir() {
 
 main() {
   [[ -n "${HOME:-}" ]] || error "HOME is not set; refusing to guess the state directory to remove."
-  local installed_agent
-  installed_agent="$(cat "$(harness_state_root)/installed-agent" 2>/dev/null || true)"
-  local agent="${HARNESS_AGENT:-${installed_agent:-openclaw}}"
+  # Shared with run_agent_onboard/print_status (see resolve_installed_agent
+  # in agents.sh) so all read paths agree on which agent was actually
+  # installed instead of each re-deriving it slightly differently.
+  local agent
+  agent="$(resolve_installed_agent)"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --yes) ASSUME_YES=1 ;;
       --delete-models) DELETE_MODELS=1 ;;
       --keep-agent-data) KEEP_AGENT_DATA=1 ;;
-      --agent) agent="$2"; shift ;;
+      --agent)
+        [[ -n "${2:-}" ]] || { usage; error "--agent requires a value (openclaw|deepagents-code|hermes)."; }
+        agent="$2"; shift ;;
       --help | -h) usage; exit 0 ;;
       *) usage; error "Unknown option: $1" ;;
     esac
@@ -119,13 +123,13 @@ main() {
   remove_gateway
   ok "Shared gateway removed"
 
-  if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
-    info "Skipping OpenVINO Model Server removal (routed externally to
-${HARNESS_LLM_ROUTER_ENDPOINT}; this installer never started it)."
-  else
+  if ovms_is_managed; then
     info "Removing OpenVINO Model Server…"
     remove_openvino_model_server
     ok "OpenVINO Model Server removed"
+  else
+    info "Skipping OpenVINO Model Server removal (this install routed externally;
+this installer never started it)."
   fi
 
   remove_cli_shim "$(agent_cli_bin "$(canonical_agent_name "$agent")")" || true

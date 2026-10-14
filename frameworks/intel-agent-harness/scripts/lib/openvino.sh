@@ -379,6 +379,7 @@ ${endpoint}); it may still be loading. Retry if the next step fails."
 # since routing to infrastructure this installer doesn't own is the point.
 ensure_inference_backend() {
   if [[ -n "$HARNESS_LLM_ROUTER_ENDPOINT" ]]; then
+    record_ovms_managed 0
     if [[ -n "${HARNESS_HF_MODEL:-}" ]]; then
       warn "HARNESS_HF_MODEL is ignored when HARNESS_LLM_ROUTER_ENDPOINT is set —
 no local model export happens; the external endpoint owns model selection."
@@ -389,6 +390,7 @@ no local model export happens; the external endpoint owns model selection."
   fi
   case "$HARNESS_LLM_PROVIDER" in
     ovms)
+      record_ovms_managed 1
       ensure_openvino_model_server
       if [[ -n "${HARNESS_HF_MODEL:-}" ]]; then
         case "$HARNESS_OVMS_EXPORTER" in
@@ -509,10 +511,41 @@ _remove_model_from_ovms_config_locked() {
     ' "$config_file" "$name" >"$tmp" && mv -f "$tmp" "$config_file" || { rm -f "$tmp"; return 1; }
 }
 
+# ovms_managed_marker_file / record_ovms_managed / ovms_is_managed — persist
+# whether the most recent install run manages OVMS locally (vs. routing to
+# an external endpoint), so uninstall reads *that* instead of re-deriving it
+# from HARNESS_LLM_ROUTER_ENDPOINT's *current* value. Without this, changing
+# the router endpoint between install and uninstall can either leave a
+# harness-owned OVMS container behind, or remove an unrelated container that
+# merely happens to share its name.
+ovms_managed_marker_file() {
+  printf '%s/ovms-managed' "$(harness_state_root)"
+}
+
+record_ovms_managed() {
+  ensure_state_dir >/dev/null
+  atomic_write_file "$(ovms_managed_marker_file)" "$1"
+}
+
+# Falls back to the current HARNESS_LLM_ROUTER_ENDPOINT only when no marker
+# exists yet (installs made before this marker was introduced).
+ovms_is_managed() {
+  local file
+  file="$(ovms_managed_marker_file)"
+  if [[ -f "$file" ]]; then
+    assert_state_path_safe "$file"
+    assert_owned_by_current_user "$file"
+    [[ "$(cat "$file" 2>/dev/null)" == "1" ]]
+    return
+  fi
+  [[ -z "$HARNESS_LLM_ROUTER_ENDPOINT" ]]
+}
+
 # Used by the uninstaller; leaves the image and models dir untouched. No-op
-# when routed externally, since this installer never started that backend.
+# when this install routed externally, since this installer never started
+# that backend (see ovms_is_managed above for how that's determined).
 remove_openvino_model_server() {
-  [[ -z "$HARNESS_LLM_ROUTER_ENDPOINT" ]] || return 0
+  ovms_is_managed || return 0
   command_exists docker || return 0
   docker rm -f "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1 || true
 }

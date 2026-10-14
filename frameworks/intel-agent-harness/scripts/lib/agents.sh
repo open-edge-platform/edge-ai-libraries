@@ -15,11 +15,16 @@
 #                      hermes-agent.nousresearch.com/install.sh.
 
 canonical_agent_name() {
-  case "$(printf '%s' "${1:-openclaw}" | tr '[:upper:]' '[:lower:]')" in
+  local lowered
+  lowered="$(printf '%s' "${1:-openclaw}" | tr '[:upper:]' '[:lower:]')"
+  case "$lowered" in
     openclaw | open-claw) printf 'openclaw' ;;
-    deepagents | deep-agents | deepagents-code | langgraph | langchain-deepagents) printf 'deepagents-code' ;;
+    deepagents | deep-agents | deepagents-code | dcode | langgraph | langchain-deepagents) printf 'deepagents-code' ;;
     hermes) printf 'hermes' ;;
-    *) printf '%s' "$1" ;;
+    # Returns the lowercased (not raw) input so downstream case matches stay
+    # consistent with the patterns above, and so the caller's own "unknown
+    # agent" error echoes back the same string it just failed to match.
+    *) printf '%s' "$lowered" ;;
   esac
 }
 
@@ -37,6 +42,14 @@ agent_cli_bin() {
     openclaw) printf 'openclaw' ;;
     deepagents-code) printf 'dcode' ;;
     hermes) printf 'hermes' ;;
+    # Returns 1 (not error()'s exit) for an unrecognized name -- callers that
+    # assign this straight into a variable via `cli_bin="$(agent_cli_bin ..)"`
+    # run under `set -e` in a context where the substitution IS the entire
+    # command, so a bare `exit` here would abort the whole script before an
+    # outer `|| ...` fallback (e.g. print_status's graceful degrade) ever
+    # got a chance to run. Callers that want a hard failure instead do
+    # `cli_bin="$(agent_cli_bin "$agent")" || error "..."` themselves.
+    *) return 1 ;;
   esac
 }
 
@@ -97,6 +110,32 @@ install_openclaw() {
   fi
   info "Installing OpenClaw (openclaw@${version}) from the public npm registry…"
   spin "npm install -g openclaw" npm install "${npm_args[@]}"
+}
+
+# Registers this installer's OpenAI-compatible endpoint as a custom OpenClaw
+# model provider named "ovms", using OpenClaw's own documented, non-fabricated
+# mechanism (`models.providers` — see docs/gateway/config-tools/
+# custom-providers.md in github.com/openclaw/openclaw) and selects it as the
+# default model. Mirrors configure_dcode_provider's role for dcode.
+# `openclaw config set` requires the local Gateway to be stopped (it refuses
+# to write otherwise, leaving any existing config untouched) -- callers
+# should treat a non-zero return as "configure it manually instead".
+configure_openclaw_provider() {
+  local endpoint="$1" model_name="$2" endpoint_esc model_name_esc provider_json
+  # Escape backslashes/quotes before interpolating into JSON string literals
+  # -- same reasoning as configure_dcode_provider's TOML escaping.
+  endpoint_esc="$(printf '%s' "$endpoint" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  model_name_esc="$(printf '%s' "$model_name" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  # contextWindow/maxTokens are required-ish catalog fields with no per-model
+  # value this installer can verify for an arbitrary --hf-model; these are
+  # conservative generic defaults the operator can override afterward with
+  # another `openclaw config set models.providers.ovms.models ...`.
+  provider_json="{\"baseUrl\":\"${endpoint_esc}\",\"api\":\"openai-completions\",\"apiKey\":\"not-needed\",\"models\":[{\"id\":\"${model_name_esc}\",\"name\":\"${model_name_esc}\",\"reasoning\":false,\"input\":[\"text\"],\"cost\":{\"input\":0,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":32768,\"maxTokens\":4096}]}"
+  openclaw config set models.providers.ovms "$provider_json" --strict-json --merge \
+    || { warn "'openclaw config set' failed -- if the OpenClaw Gateway daemon is running,
+stop it first ('openclaw gateway stop'), then re-run: ./install.sh onboard."; return 1; }
+  openclaw models set "ovms/${model_name}" \
+    || { warn "Registered the 'ovms' provider but could not set it as the default model."; return 1; }
 }
 
 # dcode ("Deep Agents Code") is LangChain's own official terminal coding
@@ -196,6 +235,25 @@ to accept the risk and proceed without pinning)."
   spin "Installing Hermes" bash "$installer_tmp" --skip-setup --non-interactive
   rm -f "$installer_tmp"
   export PATH="$HOME/.local/bin:$PATH"
+}
+
+# resolve_installed_agent — the agent to operate on when the caller didn't
+# pin one explicitly via HARNESS_AGENT: whatever install_selected_agent last
+# recorded as actually installed (~/.intel-agent/installed-agent), falling
+# back to openclaw only if nothing was ever recorded. Without this,
+# run_agent_onboard/print_status defaulted straight to "openclaw" whenever
+# HARNESS_AGENT wasn't re-exported in the current shell -- silently
+# onboarding/reporting the wrong agent after e.g. `--agent hermes` in an
+# earlier session. Shared with uninstall.sh so all four read paths
+# (install/onboard/status/uninstall) agree on the same installed agent.
+resolve_installed_agent() {
+  local installed_agent
+  if [[ -n "${HARNESS_AGENT:-}" ]]; then
+    canonical_agent_name "$HARNESS_AGENT"
+    return
+  fi
+  installed_agent="$(cat "$(harness_state_root)/installed-agent" 2>/dev/null || true)"
+  canonical_agent_name "${installed_agent:-openclaw}"
 }
 
 install_selected_agent() {
@@ -344,22 +402,32 @@ hermes_skill_remove() {
 }
 
 # run_agent_onboard — wires the installed agent to HARNESS_LLM_ENDPOINT and
-# verifies it runs. Configuration specifics for OpenClaw's own provider setup
-# are intentionally not fabricated here — its exact CLI/config surface isn't
-# something this installer has verified beyond its published package.json.
+# verifies it runs.
 run_agent_onboard() {
   local agent endpoint cli_bin
-  agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
+  agent="$(resolve_installed_agent)"
   endpoint="${HARNESS_LLM_ENDPOINT:-$(harness_llm_endpoint)}"
-  cli_bin="$(agent_cli_bin "$agent")"
+  cli_bin="$(agent_cli_bin "$agent")" \
+    || error "Unknown agent: '${agent}' (expected openclaw, deepagents-code, or hermes).
+Check HARNESS_AGENT, or re-install with --agent <name>."
 
   case "$agent" in
     openclaw)
       command_exists "$cli_bin" || error "openclaw CLI not found after install."
-      ok "OpenClaw is installed. Endpoint to configure: ${endpoint}"
-      info "Run 'openclaw' interactively and add a custom OpenAI-compatible provider
-pointed at ${endpoint} — see github.com/openclaw/openclaw for its exact
-provider-setup steps; this installer does not assume flags it hasn't verified."
+      local model_hint="default"
+      [[ -n "${HARNESS_HF_MODEL:-}" ]] && model_hint="${HARNESS_HF_MODEL##*/}"
+      model_hint="${HARNESS_LLM_MODEL:-$model_hint}"
+      if configure_openclaw_provider "$endpoint" "$model_hint"; then
+        info "Smoke-testing OpenClaw against ${endpoint} (model: ovms/${model_hint})…"
+        "$cli_bin" infer model run --prompt "Say hello." --model "ovms/${model_hint}" --json >/dev/null \
+          || warn "Smoke test failed — check that the model server at ${endpoint} is reachable and that
+'${model_hint}' matches a model name registered with it."
+      else
+        warn "Could not configure OpenClaw's 'ovms' provider automatically. Configure it
+manually instead: openclaw config set models.providers.ovms '{\"baseUrl\":\"${endpoint}\",
+\"api\":\"openai-completions\",\"models\":[{\"id\":\"${model_hint}\", ...}]}' --strict-json --merge
+(see github.com/openclaw/openclaw docs/gateway/config-tools/custom-providers.md)."
+      fi
       ;;
     deepagents-code)
       command_exists "$cli_bin" || error "dcode not found after install."
@@ -379,5 +447,6 @@ provider-setup steps; this installer does not assume flags it hasn't verified."
 (providers.<name>.base_url) — point a provider at ${endpoint}, or run 'hermes setup'
 for the interactive wizard. See github.com/NousResearch/hermes-agent for details."
       ;;
+    *) error "Unknown agent: $agent (expected openclaw, deepagents-code, or hermes)" ;;
   esac
 }

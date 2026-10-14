@@ -15,7 +15,11 @@
 HARNESS_GATEWAY_ENABLED="${HARNESS_GATEWAY_ENABLED:-}"
 HARNESS_GATEWAY_NETWORK="${HARNESS_GATEWAY_NETWORK:-intel-agent-net}"
 HARNESS_GATEWAY_CONTAINER="${HARNESS_GATEWAY_CONTAINER:-intel-agent-gateway}"
-HARNESS_GATEWAY_IMAGE="${HARNESS_GATEWAY_IMAGE:-node:22-alpine}"
+# Pinned to an immutable digest (not just the floating "22-alpine" tag) so a
+# later install can't silently run a different, unreviewed/unscanned gateway
+# image. Re-verified against Docker Hub's library/node "22-alpine" manifest
+# list as of 2026-10-14; bump both the tag and digest together when updating.
+HARNESS_GATEWAY_IMAGE="${HARNESS_GATEWAY_IMAGE:-node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402}"
 HARNESS_GATEWAY_PORT="${HARNESS_GATEWAY_PORT:-8888}"
 
 sandbox_gateway_enabled() {

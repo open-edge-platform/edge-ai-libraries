@@ -43,6 +43,24 @@ describe_harness_profile() {
   esac
 }
 
+# apply_gpu_profile_defaults — the actual effect of HARNESS_GPU_PROFILE
+# (set either by maybe_offer_express_install's prompt, or directly by the
+# operator, per its documented env var). Without this, accepting the express
+# prompt changed no install behavior at all. "Express install with profile
+# defaults" means: don't prompt again, and skip re-running GPU diagnostics
+# that profile detection already just performed for an already-confirmed
+# Intel GPU profile (arc/intel-gpu-other) -- cpu-only still runs them, since
+# nothing was confirmed in that case.
+apply_gpu_profile_defaults() {
+  [[ -n "${HARNESS_GPU_PROFILE:-}" ]] || return 0
+  NON_INTERACTIVE=1
+  export NON_INTERACTIVE
+  case "$HARNESS_GPU_PROFILE" in
+    arc | intel-gpu-other) SKIP_GPU_CHECK=1 ;;
+  esac
+  info "Using '${HARNESS_GPU_PROFILE}' profile defaults: non-interactive$([[ -n "${SKIP_GPU_CHECK:-}" ]] && printf ', GPU check skipped')."
+}
+
 # Offers a one-shot non-interactive express install using profile defaults,
 # mirroring maybe_offer_express_install's Y/n prompt + env-var activation.
 maybe_offer_express_install() {

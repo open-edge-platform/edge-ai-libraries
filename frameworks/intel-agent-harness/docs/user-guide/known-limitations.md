@@ -1,13 +1,22 @@
 # Known Limitations
 
-- OpenClaw's own provider/config CLI surface isn't reproduced here. Its npm
-  package is confirmed real and installable, but its runtime configuration
-  commands aren't modeled, so onboarding reports the endpoint to configure
-  (the OVMS endpoint) rather than fabricating flags. OpenClaw is installed
-  via `npm install -g openclaw` rather than its own `curl | bash` installer
-  intentionally — that installer exists for people who don't want to manage
-  Node.js themselves, but Agentic Harness deliberately manages Node.js (via
-  nvm) itself, consistently across all three agents; using OpenClaw's own
+- OpenClaw onboarding registers the inference endpoint as a custom model
+  provider (`openclaw config set models.providers.ovms ...`, OpenClaw's own
+  documented `models.providers` mechanism — see
+  docs/gateway/config-tools/custom-providers.md in
+  github.com/openclaw/openclaw), selects it with `openclaw models set`, and
+  smoke-tests it with `openclaw infer model run` — the same shape as the
+  dcode/Hermes onboarding paths. This requires OpenClaw's local Gateway
+  daemon to be stopped (its own `config set` refuses to write otherwise);
+  on a fresh install there is no daemon running yet, so this only matters
+  when re-running `./install.sh onboard` after `openclaw gateway run`/
+  `openclaw onboard --install-daemon` has started one — stop it first, or
+  configure the provider manually with the command the warning prints.
+  OpenClaw is installed via `npm install -g openclaw` rather than its own
+  `curl | bash` installer intentionally — that installer exists for people
+  who don't want to manage Node.js themselves, but Agentic Harness
+  deliberately manages Node.js (via nvm) itself, consistently across all
+  three agents; using OpenClaw's own
   installer too would mean two separate, possibly-conflicting Node.js
   runtimes. `npm install -g` is OpenClaw's own documented path for
   environments that already manage Node.js.

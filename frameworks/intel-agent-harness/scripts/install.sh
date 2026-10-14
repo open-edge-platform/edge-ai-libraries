@@ -63,7 +63,10 @@ usage() {
     HARNESS_HF_MODEL             Hugging Face model to export/serve via OpenVINO
     HARNESS_OVMS_REST_PORT, HARNESS_MODELS_DIR
     HARNESS_SANDBOX_NAME, HARNESS_SANDBOX_IMAGE, HARNESS_SANDBOX_PORT
-    HARNESS_GPU_PROFILE, MIN_NODE_VERSION
+    HARNESS_GPU_PROFILE          arc | intel-gpu-other | cpu-only — forces non-interactive mode
+                                  with that profile's defaults (arc/intel-gpu-other also skip the
+                                  GPU check); set directly, or accepted via the express-install prompt
+    MIN_NODE_VERSION
     HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser hermes3)
     HARNESS_OVMS_EXPORTER         docker-pull (default) | export-model-py | model-download (see Known limitations)
     HARNESS_OVMS_EXPORT_MODEL_PY_SHA256, HARNESS_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256  Pin export_model.py/requirements.txt (export-model-py exporter only)
@@ -117,6 +120,7 @@ maybe_prompt_advertised_host() {
 
 prepare_installer_host() {
   maybe_offer_express_install
+  apply_gpu_profile_defaults
   maybe_prompt_advertised_host
 
   info "Checking Intel GPU…"
@@ -196,8 +200,13 @@ print_status() {
 
   printf "\n${C_BOLD}Agent${C_RESET}\n"
   local display
-  agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
-  cli_bin="$(agent_cli_bin "$agent")"
+  agent="$(resolve_installed_agent)"
+  # agent_cli_bin returns 1 on an unrecognized name -- status is read-only
+  # and must never hard-fail just because a stale/corrupted installed-agent
+  # marker holds something unknown, so degrade to "not installed" instead.
+  # The fallback must be outside the substitution (not `... || true` inside
+  # it) -- see agent_cli_bin's comment for why that distinction matters here.
+  cli_bin="$(agent_cli_bin "$agent")" || cli_bin=""
   display="$(agent_display_name "$agent")"
   if [[ -n "$cli_bin" ]] && command_exists "$cli_bin"; then
     ok "${display} installed ($(command -v "$cli_bin"))"
@@ -278,8 +287,12 @@ main() {
     case "$1" in
       --non-interactive) NON_INTERACTIVE=1 ;;
       --skip-gpu-check) SKIP_GPU_CHECK=1 ;;
-      --agent) HARNESS_AGENT="$2"; shift ;;
-      --hf-model) HARNESS_HF_MODEL="$2"; shift ;;
+      --agent)
+        [[ -n "${2:-}" ]] || { usage; error "--agent requires a value (openclaw|deepagents-code|hermes)."; }
+        HARNESS_AGENT="$2"; shift ;;
+      --hf-model)
+        [[ -n "${2:-}" ]] || { usage; error "--hf-model requires a value (a Hugging Face model id)."; }
+        HARNESS_HF_MODEL="$2"; shift ;;
       --help | -h) usage; exit 0 ;;
       --) ;;
       *) positional+=("$1") ;;
