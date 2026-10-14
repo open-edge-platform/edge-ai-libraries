@@ -400,7 +400,7 @@ act_helper ()
                 echo "@@REPORT SYSTEM SUMMARY";
                 $scan_handler $(act_extract_args $act_name pre_system_scan "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@");
             fi
-        } > >(LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%Y-%m-%d).logs"
+        } > >(LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%m-%d-%Y).logs"
 mkdir -p "$(dirname "$LOG_FILE")"
 echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
 echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
