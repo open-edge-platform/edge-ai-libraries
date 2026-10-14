@@ -185,7 +185,8 @@ func readSegments(ctx context.Context, reports io.Reader, keyframes <-chan keyfr
 		reportEnd, err := strconv.ParseFloat(row[2], 64)
 		if err != nil || math.IsNaN(reportEnd) || math.IsInf(reportEnd, 0) ||
 			reportEnd <= reportStart ||
-			math.Abs(reportEnd-float64(end.pts)/videoClockRate) > 0.00002 {
+			// 5ms of tolerance b/w current slice last frame PTS + duration and next keyframe PTS
+			math.Abs(reportEnd-float64(end.pts)/videoClockRate) > 0.005 {
 			return fmt.Errorf("FFmpeg slice end %.6f does not match next keyframe PTS %.6f",
 				reportEnd, float64(end.pts)/videoClockRate)
 		}
