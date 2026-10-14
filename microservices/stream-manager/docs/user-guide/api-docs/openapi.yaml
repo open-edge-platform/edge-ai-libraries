@@ -20,9 +20,9 @@ tags:
   - name: Stream Attachment APIs
     description: Attach sources, inspect buffers, resize buffers, and detach.
   - name: Recording Storage APIs
-    description: Start, stop, import, find, read, and delete recordings.
+    description: Start, stop, find, read, and delete recordings.
   - name: Replay APIs
-    description: Extracts frames and clips, extracting media directly or handing back a link to it.
+    description: Extract frames and clips. Return media directly or provide a retrieval link.
 
 paths:
   /status:
@@ -89,7 +89,7 @@ paths:
                 error_code: stream_exists
                 error_detail: this source is already attached for the sensor as str-1
         '415':
-          description: source_uri uses a scheme other than rtsp:// or rtsps://.
+          description: The source is not RTSP/RTSPS H.264/H.265 video.
           content:
             application/json:
               schema:
@@ -235,7 +235,7 @@ paths:
         |---|---|---|---|
         | stream_id | string | yes | — |
         | start_ts | string (date-time) | yes | RFC 3339 UTC timestamp, cannot be in the future |
-        | duration | number | no | seconds, fixed-length recording when given |
+        | duration | number | no | positive seconds, fixed-length recording when given |
         | pre_event_duration | number | no | seconds, 0-300, default 0 |
         | metadata | object | no | arbitrary key-value pairs |
       requestBody:
@@ -252,7 +252,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RecordStartResult'
         '400':
-          description: Malformed stream_id (invalid_selector), a missing, malformed, or future start_ts (invalid_timestamp), or an out-of-range duration or pre_event_duration (invalid_request).
+          description: Missing or malformed stream_id (invalid_selector), missing start_ts or invalid duration/pre_event_duration (invalid_request), or malformed or future start_ts (invalid_timestamp).
           content:
             application/json:
               schema:
@@ -321,6 +321,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Recording'
+        '400':
+          description: Malformed JSON body or invalid recording_id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                status: 400
+                error_code: invalid_request
+                error_detail: recording_id is required
         '404':
           description: Unknown recording.
           content:
@@ -362,21 +372,21 @@ paths:
             type: string
         - name: start_ts
           in: query
-          description: Keep only records whose covered window overlaps this one; this is its near end. The window is [start_ts, end_ts).
+          description: Inclusive lower bound of the filter window. Timestamps must be RFC 3339 UTC and end in Z. Records must overlap [start_ts, end_ts).
           required: false
           schema:
             type: string
             format: date-time
         - name: end_ts
           in: query
-          description: The far end of that same window. It must be later than start_ts when both are supplied.
+          description: Exclusive upper bound of the filter window. It must be later than start_ts when both are supplied. Timestamps must be RFC 3339 UTC and end in Z.
           required: false
           schema:
             type: string
             format: date-time
         - name: expiry_ts
           in: query
-          description: Filter by expiry timestamp (e.g., recordings set to expire before this time).
+          description: Keep records that expire at or before this time. Timestamp must be RFC 3339 UTC and end in Z.
           required: false
           schema:
             type: string
@@ -404,7 +414,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RecordingPage'
         '400':
-          description: Invalid filter, cursor or limit.
+          description: Invalid ID, state, metadata filter, cursor, or limit (invalid_request), or invalid timestamp filter (invalid_timestamp).
           content:
             application/json:
               schema:
@@ -441,7 +451,7 @@ paths:
     delete:
       tags: [Recording Storage APIs]
       summary: Delete a record
-      description: Deletes the record's metadata and its media. The reply returns once the metadata row is gone; if the media delete fails afterward, it is only logged, not surfaced to the caller. Deleting again, or reading it afterwards, returns 404.
+      description: Deletes the record's metadata and its media. The reply returns once the metadata row is gone; if media deletion then fails, the failure is logged but not returned. If metadata deletion fails, the record remains and the request returns 503. Deleting again, or reading a deleted record, returns 404.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
       responses:
@@ -472,7 +482,7 @@ paths:
                 error_code: record_not_ready
                 error_detail: recording cannot be changed in its current state
         '503':
-          description: Storage cleanup failed, leaving the record for retry.
+          description: Metadata deletion failed. The record remains; retry later.
           content:
             application/json:
               schema:
@@ -486,12 +496,12 @@ paths:
     get:
       tags: [Replay APIs]
       summary: Extracts a frame
-      description: Extracts a frame from a ready record, or gets a http link to the frame, depending on the Accept header.
+      description: Returns a JSON MediaResult by default, or image bytes when the Accept header allows. Use /url to always request the JSON result.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: timestamp
           in: query
-          description: The time wanted. Must fall inside the record's covered window [start_ts, end_ts).
+          description: The wanted time. Must be RFC 3339 UTC, end in Z, and fall inside the record's covered window [start_ts, end_ts).
           required: true
           schema:
             type: string
@@ -542,7 +552,7 @@ paths:
                 type: string
                 format: binary
         '400':
-          description: Invalid timestamp, format or match.
+          description: Missing or invalid timestamp (invalid_timestamp), or unsupported format or match (invalid_request).
           content:
             application/json:
               schema:
@@ -606,12 +616,12 @@ paths:
     get:
       tags: [Replay APIs]
       summary: Gets an HTTP link to a frame
-      description: Extracts the same frame as /replays/{recording-id}/frame, but always gets an HTTP link to the frame.
+      description: Extracts the same frame as /replays/{recording-id}/frame, but returns a MediaResult link as JSON. The Accept header must allow application/json.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: timestamp
           in: query
-          description: The time wanted. Must fall inside the record's covered window [start_ts, end_ts).
+          description: The wanted time. Must be RFC 3339 UTC, end in Z, and fall inside the record's covered window [start_ts, end_ts).
           required: true
           schema:
             type: string
@@ -634,7 +644,7 @@ paths:
             default: nearest
       responses:
         '200':
-          description: MediaResult, always, regardless of the Accept header.
+          description: MediaResult as JSON.
           headers:
             X-Frame-Timestamp:
               description: The real time of the returned frame.
@@ -665,7 +675,7 @@ paths:
                 url: /v1/media/rec-2/frame-3000000000.jpg
                 expiry_ts: '2026-09-16T09:20:00.000000000Z'
         '400':
-          description: Invalid timestamp, format or match.
+          description: Missing or invalid timestamp (invalid_timestamp), or unsupported format or match (invalid_request).
           content:
             application/json:
               schema:
@@ -729,19 +739,19 @@ paths:
     get:
       tags: [Replay APIs]
       summary: Extracts a clip
-      description: Extracts a clip from a ready record, or gets an HTTP link to the clip, depending on the Accept header. The whole span must be covered; a gap gives 404.
+      description: Returns a JSON MediaResult by default, or video bytes when the Accept header allows. Use /url to always request the JSON result. The whole span must be covered; a gap gives 404.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: start_ts
           in: query
-          description: Where the clip starts, that moment included.
+          description: Where the clip starts, inclusive. Must be an RFC 3339 UTC timestamp ending in Z.
           required: true
           schema:
             type: string
             format: date-time
         - name: duration
           in: query
-          description: How long the clip should be in seconds, within the configured limit.
+          description: Positive clip duration in seconds. The full interval must be covered by the recording.
           required: true
           schema:
             type: number
@@ -798,7 +808,7 @@ paths:
             #     type: string
             #     format: binary
         '400':
-          description: Invalid start_ts, duration or format.
+          description: Missing or invalid start_ts (invalid_timestamp), or missing or invalid duration or unsupported format (invalid_request).
           content:
             application/json:
               schema:
@@ -862,19 +872,19 @@ paths:
     get:
       tags: [Replay APIs]
       summary: Gets an HTTP link to a clip
-      description: Extracts the same clip as /replays/{recording-id}/clip, but always gets an HTTP link to the clip.
+      description: Extracts the same clip as /replays/{recording-id}/clip, but returns a MediaResult link as JSON. The Accept header must allow application/json.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: start_ts
           in: query
-          description: Where the clip starts, that moment included.
+          description: Where the clip starts, inclusive. Must be an RFC 3339 UTC timestamp ending in Z.
           required: true
           schema:
             type: string
             format: date-time
         - name: duration
           in: query
-          description: How long the clip should be in seconds, within the configured limit.
+          description: Positive clip duration in seconds. The full interval must be covered by the recording.
           required: true
           schema:
             type: number
@@ -888,7 +898,7 @@ paths:
             default: mp4
       responses:
         '200':
-          description: MediaResult, always, regardless of the Accept header.
+          description: MediaResult as JSON.
           headers:
             X-Frame-Timestamp:
               description: The real time of the first returned frame.
@@ -919,7 +929,7 @@ paths:
                 url: /v1/media/rec-2/clip-0-5000000000.mp4
                 expiry_ts: '2026-09-16T09:20:00.000000000Z'
         '400':
-          description: Invalid start_ts, duration or format.
+          description: Missing or invalid start_ts (invalid_timestamp), or missing or invalid duration or unsupported format (invalid_request).
           content:
             application/json:
               schema:
@@ -1041,6 +1051,9 @@ components:
       description: Attached stream. New IDs start with str- and contain 22 URL-safe characters after the prefix. Treat the ID as opaque.
       schema:
         type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9_-][A-Za-z0-9._:-]*$'
     RecordingId:
       name: recording-id
       in: path
@@ -1048,6 +1061,9 @@ components:
       description: Recording ID. New IDs contain 22 URL-safe characters without a prefix. Existing records can retain a 36-character UUID. Treat the ID as opaque.
       schema:
         type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9_-][A-Za-z0-9._:-]*$'
     Cursor:
       name: cursor
       in: query
@@ -1107,9 +1123,13 @@ components:
         sensor_id:
           type: string
           description: Sensor identity; the name the recordings will be filed under. One sensor can have many sources.
+          minLength: 1
+          maxLength: 128
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$'
         source_uri:
           type: string
           description: The address of the source, with no credentials in it, up to 2048 characters.
+          format: uri
           maxLength: 2048
         buffer_length:
           type: integer
@@ -1170,6 +1190,9 @@ components:
         sensor_id:
           type: string
           description: Identity of the sensor. For a uri source this is simply the name the caller chose for it.
+          minLength: 1
+          maxLength: 128
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$'
         state:
           type: string
           enum: [connecting, buffering, reconnecting, failed]
@@ -1209,7 +1232,7 @@ components:
 
     Recording:
       type: object
-      description: One record is one recording of one sensor, and matches exactly one row of the recordings table.
+      description: One recording for one sensor.
       properties:
         recording_id:
           type: string
@@ -1304,7 +1327,7 @@ components:
           description: Where the clip really ends, that instant not included; empty for a single frame.
         url:
           type: string
-          description: A path, relative to the API base, that serves the produced file via GET /media/{recording-id}/{file} until expiry_ts. It never points at the original recording.
+          description: An origin-relative path that serves the produced file via GET /media/{recording-id}/{file} until expiry_ts. It never points at the original recording.
         expiry_ts:
           type: string
           format: date-time
@@ -1324,18 +1347,21 @@ components:
     RecordStart:
       type: object
       required: [stream_id, start_ts]
-      description: Records one attached stream. Recording several streams in one request is planned.
+      description: Records one attached stream.
       properties:
         stream_id:
           type: string
           description: The attached stream to record. Use the stream_id returned by stream attachment.
+          minLength: 1
+          maxLength: 128
+          pattern: '^[A-Za-z0-9_-][A-Za-z0-9._:-]*$'
         start_ts:
           type: string
           format: date-time
-          description: The moment the event happened, called T. It cannot be in the future.
+          description: The event time (T), as RFC 3339 UTC ending in Z with at most 9 fractional digits. Missing or future times are not accepted.
         duration:
           type: number
-          description: How many seconds to record after T. Give it for a fixed-length recording, leave it out for an open one that will be ended with stop.
+          description: Positive seconds to record after T. Give it for a fixed-length recording; leave it out for an open one that will be ended with stop.
         pre_event_duration:
           type: number
           description: How many seconds from before T to keep, 0-300, default 0. That history must really be in the buffer, not merely fit inside its configured size.
@@ -1359,7 +1385,7 @@ components:
       properties:
         recordings:
           type: array
-          description: Holds exactly one Record, in the recording state; an array so that multi-stream requests can be added later. start_ts is the enclosing starting keyframe; end_ts is the planned end for a fixed-length recording, and empty for an open one. Once ready, end_ts is the actual ending slice boundary.
+          description: Contains one Record in the recording state. start_ts is the enclosing starting keyframe; end_ts is the planned end for a fixed-length recording and null for an open one. Once ready, end_ts is the actual ending slice boundary.
           items:
             $ref: '#/components/schemas/Recording'
 
@@ -1370,6 +1396,9 @@ components:
         recording_id:
           type: string
           description: The open recording to stop. Use the returned recording_id. Active fixed-length and failed recordings are refused. Repeated stops while finalizing retain their target; ready recordings return their current record.
+          minLength: 1
+          maxLength: 128
+          pattern: '^[A-Za-z0-9_-][A-Za-z0-9._:-]*$'
       example:
         recording_id: rec-open-1
 
@@ -1437,4 +1466,4 @@ components:
         status: ok
         version: v0.1.0
         build_number: '42'
-        build_date: '2026-09-16T00:00:00.000000000Z'
+        build_date: '2026-09-16T00:00:00+0000'

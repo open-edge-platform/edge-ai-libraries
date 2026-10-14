@@ -50,8 +50,8 @@ http://localhost:8080/v1
 
 ## Conventions
 
-- **Content type**: requests and responses use `application/json`, except the media
-  endpoints (`/replays/*`), which may return raw image/video bytes (see
+- **Content type**: requests and responses use `application/json`, except `/replays/*`
+  and `/media/*`, which may return raw image/video bytes (see
   [Replay APIs](#replay-apis)).
 - **Timestamps**: RFC 3339, UTC, with a `Z` suffix and up to 9 fractional digits
   (nanosecond precision), for example `2026-09-16T09:12:03.400000000Z`.
@@ -62,10 +62,9 @@ http://localhost:8080/v1
   the name supplied by the caller. Resource IDs are 1-128 characters and match
   `^[A-Za-z0-9_-][A-Za-z0-9._:-]*$`. Sensor IDs are 1-128 characters and match
   `^[A-Za-z0-9][A-Za-z0-9._:-]*$`.
-- **Pagination**: list endpoints accept `cursor` and `limit` (1-100, default 20) query
-  parameters and return `next_cursor`, an opaque token to pass back as `cursor` for the next
-  page. `next_cursor` is `null` when there are no more pages. Stream listing is not paged yet
-  (`next_cursor` is always `null`).
+- **Pagination**: `GET /records` accepts `cursor` and `limit` (1-100, default 20) and
+  returns `next_cursor`, an opaque token to pass back as `cursor` for the next page.
+  `next_cursor` is `null` when there are no more pages. Stream listing is not paged.
 - **Metadata filtering**: `GET /records` accepts repeated `metadata[key]=value` query
   parameters, AND-combined with every other filter.
 - **Errors**: every non-2xx response returns the same [`Error`](#error) shape.
@@ -138,7 +137,7 @@ status codes each endpoint can return.
 
 ### Recording
 
-One record is one recording of one sensor, matching exactly one row of the recordings table.
+One record is one recording of one sensor.
 
 | Field | Type | Description |
 |---|---|---|
@@ -185,7 +184,7 @@ media.
 | `requested_end_ts` | string (date-time), nullable | End the caller asked for (exclusive); `null` for a single frame. |
 | `start_ts` | string (date-time) | Real time of the returned frame, or first frame of the clip. |
 | `end_ts` | string (date-time), nullable | Where the clip really ends (exclusive); `null` for a single frame. |
-| `url` | string | Path, relative to the API base, that serves the file via [`GET /media/{recording-id}/{file}`](#get-produced-media) until `expiry_ts`. Never points at the original recording. |
+| `url` | string | Origin-relative path that serves the file via [`GET /media/{recording-id}/{file}`](#get-produced-media) until `expiry_ts`. Never points at the original recording. |
 | `expiry_ts` | string (date-time) | When `url` stops working; capped by the recording's own `expiry_ts`. |
 
 ### Deletion
@@ -224,7 +223,7 @@ Content-Type: application/json
   "status": "ok",
   "version": "v0.1.0",
   "build_number": "42",
-  "build_date": "2026-09-16T00:00:00.000000000Z"
+  "build_date": "2026-09-16T00:00:00+0000"
 }
 ```
 
@@ -307,7 +306,7 @@ curl -i -X POST http://localhost:8080/v1/streams \
 | 201 | — | Stream attached. |
 | 400 | `invalid_request` | Malformed body, missing fields, or `buffer_length` out of 5-300 range. |
 | 409 | `stream_exists` | The same `source_uri` is already attached for that `sensor_id`; the existing `stream_id` is named in `error_detail`. |
-| 415 | `unsupported_media` | `source_uri` is not an `rtsp://` or `rtsps://` address, embeds credentials, or has no host. |
+| 415 | `unsupported_media` | The source is not RTSP/RTSPS H.264/H.265 video. Invalid URIs, embedded credentials, or a missing host return `400 invalid_request`. |
 | 429 | `capacity_exhausted` | No room left for another stream. |
 
 ### List streams
@@ -480,7 +479,7 @@ keyframes, and `ready` records report those actual bounds.
 |---|---|---|---|
 | `stream_id` | string | yes | The attached stream to record. |
 | `start_ts` | string (date-time) | yes | The moment the event happened (T). Cannot be in the future. |
-| `duration` | number | no | Seconds to record after T. Omit for an open recording ended later with `/records/stop`. |
+| `duration` | number | no | Positive seconds to record after T. Omit for an open recording ended later with `/records/stop`. |
 | `pre_event_duration` | number | no | Seconds of history before T to keep, 0-300, default 0. Must already be in the buffer. |
 | `metadata` | object | no | Arbitrary metadata to store with the record. |
 
@@ -571,7 +570,7 @@ Content-Type: application/json
 | Status | `error_code` | Meaning |
 |---|---|---|
 | 201 | — | Record accepted in the `recording` state. Acceptance does not mean the media is finished. |
-| 400 | `invalid_request` / `invalid_selector` / `invalid_timestamp` | Invalid `stream_id`, missing/invalid `start_ts`, or `duration`/`pre_event_duration` out of range. |
+| 400 | `invalid_request` / `invalid_selector` / `invalid_timestamp` | Malformed body or missing `start_ts` (`invalid_request`); malformed `stream_id` (`invalid_selector`); invalid or future `start_ts` (`invalid_timestamp`); invalid `duration` or `pre_event_duration` (`invalid_request`). |
 | 404 | `stream_not_found` | Unknown stream. |
 | 409 | `history_unavailable` | Requested history unavailable, or the stream is not buffering with NTP-synced timestamps. |
 | 429 | `capacity_exhausted` | Recording capacity reached. |
@@ -641,6 +640,7 @@ Content-Type: application/json
 |---|---|---|
 | 200 | — | The recording was already finished; the current record is returned. |
 | 202 | — | Record accepted for finalizing. |
+| 400 | `invalid_request` | Malformed body or invalid `recording_id`. |
 | 404 | `recording_not_found` | Unknown recording. |
 | 409 | `record_not_ready` | The record is not an active open recording. Repeated stops while finalizing retain the original stop target and return `202`. |
 
@@ -655,9 +655,9 @@ requires only that the recorded window overlaps the filter.
 |---|---|---|---|
 | `sensor_id` | query | string | Only records from this sensor, imported as well as live. |
 | `stream_id` | query | string | Only records from this stream (never includes imports). |
-| `start_ts` | query | date-time | Near end of the overlap window `[start_ts, end_ts)`. |
-| `end_ts` | query | date-time | Far end of that window; must be later than `start_ts` when both are supplied. |
-| `expiry_ts` | query | date-time | Keep only records expiring before this time. |
+| `start_ts` | query | date-time | Inclusive lower bound of the filter window. |
+| `end_ts` | query | date-time | Exclusive upper bound of the filter window; must be later than `start_ts` when both are supplied. |
+| `expiry_ts` | query | date-time | Keep only records expiring at or before this time. |
 | `state` | query | string | One of `recording`, `finalizing`, `ready`, `failed`. |
 | `metadata[key]` | query | string | One or more metadata keys/values to match against. Repeatable. |
 | `cursor` | query | string | Opaque cursor from a previous page's `next_cursor`. |
@@ -672,7 +672,7 @@ curl -i "http://localhost:8080/v1/records?sensor_id=cam-07&state=ready"
 **Example — filter by time window and metadata, custom page size**
 
 ```bash
-curl -i "http://localhost:8080/v1/records?start_ts=2026-09-16T09:00:00Z&end_ts=2026-09-16T10:00:00Z&metadata[incident_id]=incident-17&limit=10"
+curl -i "http://localhost:8080/v1/records?start_ts=2026-09-16T09:00:00Z&end_ts=2026-09-16T10:00:00Z&metadata%5Bincident_id%5D=incident-17&limit=10"
 ```
 
 ```http
@@ -702,7 +702,7 @@ Content-Type: application/json
 **Example — paging with a cursor**
 
 ```bash
-curl -i "http://localhost:8080/v1/records?limit=20&cursor=MTc1ODAwMDAwMDAwMDAwMDAwMA..cmVjLTE"
+curl -i "http://localhost:8080/v1/records?limit=20&cursor=MTc4OTU0OTkyMzYwMDAwMDAwMApBQUVDQXdRRkJnY0lDUW9MREEwT0R3"
 ```
 
 No matches returns `200` with an empty `items` list, never `404`.
@@ -710,7 +710,7 @@ No matches returns `200` with an empty `items` list, never `404`.
 | Status | `error_code` | Meaning |
 |---|---|---|
 | 200 | — | Page of `Recording` objects. |
-| 400 | — | Invalid filter, cursor, or limit. |
+| 400 | `invalid_request` / `invalid_timestamp` | Invalid ID, state, metadata filter, cursor, or limit (`invalid_request`); invalid timestamp filter (`invalid_timestamp`). |
 
 ### Get a record
 
@@ -789,14 +789,15 @@ Content-Type: application/json
 | 200 | — | Record deleted. |
 | 404 | `recording_not_found` | Unknown or already deleted recording. |
 | 409 | `record_not_ready` | Record is still recording or finalizing. |
-| 503 | `storage_unavailable` | Storage cleanup failed, leaving the record for retry. |
+| 503 | `storage_unavailable` | Metadata deletion failed. The record remains; retry later. |
 
 ---
 
 ## Replay APIs
 
-Extracts frames and clips from a `ready` record, or hands back a link that serves the
-produced file separately, depending on the `Accept` header.
+Extracts media from a `ready` record. Frame and clip endpoints return JSON by default
+or media bytes when the `Accept` header allows them. Their `/url` endpoints return a
+JSON `MediaResult` with a link to the produced file.
 
 ### Extract a frame
 
@@ -854,7 +855,8 @@ X-Exact-Match: false
 | Status | `error_code` | Meaning |
 |---|---|---|
 | 200 | — | `MediaResult`, or the image bytes when an image `Accept` header is used. |
-| 400 | `invalid_timestamp` | Invalid timestamp, format, or match. |
+| 400 | `invalid_timestamp` | Missing or invalid `timestamp`. |
+| 400 | `invalid_request` | Unsupported `format` or `match`. |
 | 404 | `recording_not_found` / `frame_not_found` | Recording not found, timestamp outside coverage, or exact frame missing. |
 | 406 | `not_acceptable` | Incompatible `Accept` header. |
 | 409 | `record_not_ready` | Record not ready. |
@@ -865,8 +867,8 @@ X-Exact-Match: false
 
 `GET /replays/{recording-id}/frame/url`
 
-Same parameters as [Extract a frame](#extract-a-frame), but always returns a
-`MediaResult` link regardless of `Accept`.
+Same parameters as [Extract a frame](#extract-a-frame), but returns a `MediaResult`
+link as JSON. The `Accept` header must allow `application/json`.
 
 ```bash
 curl -i "http://localhost:8080/v1/replays/rec-2/frame/url?timestamp=2026-09-16T09:12:03.400000000Z&format=jpeg&match=exact"
@@ -904,8 +906,8 @@ The whole requested span must be covered by the recording; a gap returns `404`.
 | Parameter | In | Type | Required | Description |
 |---|---|---|---|---|
 | `recording-id` | path | string | yes | The recording, e.g. `rec-2`. |
-| `start_ts` | query | date-time | yes | Where the clip starts, inclusive. |
-| `duration` | query | number | yes | Clip length in seconds, within the configured limit. |
+| `start_ts` | query | date-time | yes | Where the clip starts, inclusive. Must be RFC 3339 UTC and end in `Z`. |
+| `duration` | query | number | yes | Positive clip length in seconds. The full interval must be covered by the recording. |
 | `format` | query | string | no | `mp4` (default) |
 
 ```bash
@@ -944,7 +946,8 @@ curl -i "http://localhost:8080/v1/replays/rec-2/clip?start_ts=2026-09-16T09:12:0
 | Status | `error_code` | Meaning |
 |---|---|---|
 | 200 | — | `MediaResult`, or video bytes when a video `Accept` header is used. |
-| 400 | `invalid_request` | Invalid `start_ts`, `duration`, or `format`. |
+| 400 | `invalid_timestamp` | Missing or invalid `start_ts`. |
+| 400 | `invalid_request` | Missing or invalid `duration`, or unsupported `format`. |
 | 404 | `recording_not_found` / `clip_not_found` | Recording not found, or the requested interval is not fully covered. |
 | 406 | `not_acceptable` | Incompatible `Accept` header. |
 | 409 | `record_not_ready` | Record not ready. |
@@ -955,8 +958,8 @@ curl -i "http://localhost:8080/v1/replays/rec-2/clip?start_ts=2026-09-16T09:12:0
 
 `GET /replays/{recording-id}/clip/url`
 
-Same parameters as [Extract a clip](#extract-a-clip), but always returns a `MediaResult`
-link regardless of `Accept`.
+Same parameters as [Extract a clip](#extract-a-clip), but returns a `MediaResult` link
+as JSON. The `Accept` header must allow `application/json`.
 
 ```bash
 curl -i "http://localhost:8080/v1/replays/rec-2/clip/url?start_ts=2026-09-16T09:12:00.400000000Z&duration=5&format=mp4"
@@ -995,16 +998,13 @@ X-Content-Type-Options: nosniff
 
 ---
 
-
----
-
 ## Error code reference
 
 | `error_code` | Typical status | Meaning |
 |---|---|---|
 | `invalid_request` | 400 | The request is malformed, or its fields contradict each other. |
-| `invalid_selector` | 400 | A referenced identifier (e.g. `stream_id`) is malformed. |
-| `invalid_timestamp` | 400 | A timestamp is missing, malformed, or out of the allowed range. |
+| `invalid_selector` | 400 | `stream_id` in `POST /records/start` is missing or malformed. |
+| `invalid_timestamp` | 400 | A timestamp is malformed or out of range. A future `start_ts` in `POST /records/start` also uses this code. A missing `start_ts` there returns `invalid_request`. |
 | `stream_not_found` | 404 | The stream is unknown or has been detached. |
 | `recording_not_found` | 404 | The recording is unknown or has been deleted. |
 | `frame_not_found` | 404 | The requested frame is not covered, no frame sits at the exact requested time (`match=exact`), or a frame file is missing or expired. |
@@ -1012,9 +1012,9 @@ X-Content-Type-Options: nosniff
 | `not_acceptable` | 406 | The `Accept` header cannot be satisfied. |
 | `stream_exists` | 409 | The same `source_uri` is already attached for that `sensor_id`; the existing `stream_id` is named in `error_detail`. |
 | `record_not_ready` | 409 | The record is not in a state that allows the requested action. |
-| `history_unavailable` | 409 | Requested pre-event or playback history is not in the buffer. |
+| `history_unavailable` | 409 | Requested history is unavailable, or the stream is not buffering with NTP-synced timestamps. |
 | `active_dependency` | 409 | Another resource still depends on this one (e.g. an active recording). |
-| `unsupported_media` | 415 | `source_uri` is not a supported RTSP address. |
-| `capacity_exhausted` | 429 | No room left for another stream, more memory, or another extraction. |
+| `unsupported_media` | 415 | The source is not RTSP/RTSPS H.264/H.265 video. |
+| `capacity_exhausted` | 429 | Capacity limit reached for a stream, recording, or extraction. |
 | `internal_error` | 500 | An unexpected server-side failure. |
-| `storage_unavailable` | 503 | Storage or an upstream dependency could not be reached. |
+| `storage_unavailable` | 503 | Storage or media processing failed. |
