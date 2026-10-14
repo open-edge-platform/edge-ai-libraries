@@ -419,7 +419,26 @@ def ensure_model():
     if provider == "openvino":
         output_dir = get_asr_model_path()
         weight_format = getattr(config.models.asr, "weight_format", None)
-        _download_openvino_model(f"openai/{config.models.asr.name}", output_dir, weight_format)
+        # config.models.asr.name may be a short OpenAI alias ("whisper-small",
+        # exported as "openai/whisper-small") or a full HF repo id containing
+        # "/" (e.g. "distil-whisper/distil-small.en") -- pass those through
+        # unchanged instead of forcing the openai/ prefix onto them.
+        hf_model_id = config.models.asr.name if "/" in config.models.asr.name else f"openai/{config.models.asr.name}"
+        _download_openvino_model(hf_model_id, output_dir, weight_format)
+        # The preview pool (see pipeline.py / config.models.asr.preview) may
+        # run a DIFFERENT model on a different device than the main/final asr
+        # config above -- export it too so it is cached before the pipeline's
+        # first preview call, instead of paying a cold HF export on the
+        # request path. get_asr_model_path()'s directory naming is keyed off
+        # the model name + weight_format, so this never collides with the
+        # main model's cache directory.
+        _preview_cfg = getattr(config.models.asr, "preview", None)
+        if _preview_cfg is not None and getattr(_preview_cfg, "provider", "openvino") == "openvino":
+            preview_name = _preview_cfg.name
+            preview_weight_format = getattr(_preview_cfg, "weight_format", None) or weight_format
+            preview_output_dir = get_asr_model_path(model_name=preview_name, weight_format=preview_weight_format)
+            preview_hf_model_id = preview_name if "/" in preview_name else f"openai/{preview_name}"
+            _download_openvino_model(preview_hf_model_id, preview_output_dir, preview_weight_format)
     elif provider == "whispercpp":
         if str(getattr(config.models.asr, "device", "CPU")).upper() != "CPU":
             logger.warning("whispercpp backend is CPU-only; ignoring configured device %s", config.models.asr.device)
@@ -502,19 +521,28 @@ def ensure_sentiment_model():
         raise ValueError(f"Unknown sentiment provider: {provider!r}")
 
 
-def get_asr_model_path() -> str:
+def get_asr_model_path(model_name: str | None = None, weight_format: str | None = None) -> str:
     provider = config.models.asr.provider
-    if provider == "openvino":
-        weight_format = getattr(config.models.asr, "weight_format", None)
-    elif provider == "whispercpp":
-        weight_format = _normalize_whispercpp_weight_format(
-            config.models.asr.name,
-            getattr(config.models.asr, "weight_format", None),
-        )
-    else:
-        weight_format = None
+    name = model_name or config.models.asr.name
+    if weight_format is None:
+        # If `name` is the preview-pool override's model (see
+        # config.models.asr.preview / pipeline.py), use ITS weight_format,
+        # not the main/final config's -- the two pools' models can use
+        # different quantizations, and get_asr_model_path()'s caller (the
+        # runtime OVGenAIWhisper loader) has no other way to know which pool
+        # it's resolving for, only the model_name it was constructed with.
+        _preview_cfg = getattr(config.models.asr, "preview", None)
+        if _preview_cfg is not None and getattr(_preview_cfg, "name", None) == name:
+            weight_format = getattr(_preview_cfg, "weight_format", None)
+        if weight_format is None and provider == "openvino":
+            weight_format = getattr(config.models.asr, "weight_format", None)
+        elif weight_format is None and provider == "whispercpp":
+            weight_format = _normalize_whispercpp_weight_format(
+                name,
+                getattr(config.models.asr, "weight_format", None),
+            )
     return os.path.join(
         config.models.asr.models_base_path,
         provider,
-        _model_dir_name(config.models.asr.name, weight_format),
+        _model_dir_name(name, weight_format),
     )

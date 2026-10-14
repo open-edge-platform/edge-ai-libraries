@@ -7,6 +7,11 @@ import time
 import logging
 from utils.config_loader import config
 from utils.app_paths import get_chunks_dir, get_session_chunks_dir
+from utils.wav_header import (
+    TARGET_CHANNELS,
+    TARGET_SAMPLE_RATE,
+    read_pcm_wav_info,
+)
 from dto.audiosource import AudioSource
 
 logger = logging.getLogger(__name__)
@@ -25,6 +30,7 @@ DENOISE_MODEL = getattr(config.audio_preprocessing, "denoise_model", "")
 
 FFMPEG_PROCESSES = {}
 
+
 @atexit.register
 def cleanup_chunks_folder():
     if os.path.exists(CHUNKS_DIR) and CLEAN_UP_ON_EXIT:
@@ -34,6 +40,10 @@ def cleanup_chunks_folder():
 def get_audio_duration(audio_path):
     if not os.path.isfile(audio_path):
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+    info = read_pcm_wav_info(audio_path)
+    if info is not None:
+        return info.duration_seconds
 
     result = subprocess.run([
         "ffprobe", "-v", "error", "-show_entries",
@@ -102,16 +112,39 @@ def _resolve_chunks_dir(session_id: str | None = None) -> str:
     return CHUNKS_DIR
 
 
-def process_audio_segment(audio_path, start_time, end_time, chunk_index, session_id: str | None = None):
+def process_audio_segment(audio_path, start_time, end_time, chunk_index, session_id: str | None = None,
+                          full_file: bool = False):
+    """Extract [start_time, end_time) of ``audio_path`` as a 16kHz mono PCM chunk.
+
+    When ``full_file`` is set the segment covers the whole input, so the
+    ``-ss/-to`` trim is dropped; if the input is additionally already in the
+    target format and no denoising is configured, the file is used as-is and no
+    ffmpeg process is spawned at all (``passthrough``).
+    """
+    if full_file and not DENOISE:
+        info = read_pcm_wav_info(audio_path)
+        if info is not None and info.matches_target_format():
+            logger.debug("Chunk %s passthrough (already 16kHz mono PCM): %s", chunk_index, audio_path)
+            return {
+                "chunk_path": audio_path,
+                "start_time": start_time,
+                "end_time": end_time,
+                "chunk_index": chunk_index,
+                # Tells the pipeline not to delete this file: it is the
+                # caller's saved upload, not an ffmpeg temporary.
+                "passthrough": True,
+            }
+
     chunks_dir = _resolve_chunks_dir(session_id)
     os.makedirs(chunks_dir, exist_ok=True)
     chunk_name = f"chunk_{chunk_index}_{uuid4().hex[:6]}.wav"
     chunk_path = os.path.join(chunks_dir, chunk_name)
+    trim_args = [] if full_file else ["-ss", str(start_time), "-to", str(end_time)]
     result = subprocess.run(
         [
             "ffmpeg", "-y", "-i", audio_path,
-            "-ss", str(start_time), "-to", str(end_time),
-            "-ar", "16000", "-ac", "1",
+            *trim_args,
+            "-ar", str(TARGET_SAMPLE_RATE), "-ac", str(TARGET_CHANNELS),
             *_build_af_filter(),
             "-c:a", "pcm_s16le", "-vn",
             chunk_path
@@ -141,6 +174,18 @@ def chunk_audio_by_silence(audio_path, session_id: str | None = None):
             f"Silence search window ({SEARCH_WINDOW}s) can't be more than chunk duration ({CHUNK_DURATION}s)."
         )
     duration = get_audio_duration(audio_path)
+
+    # Short input: it already fits inside one chunk, so there is no boundary to
+    # place and nothing for silencedetect to decide. Skipping it avoids a full
+    # extra ffmpeg decode of the file. Streaming clients (kiosk-core posts
+    # ~1-2s chunks per request) are always on this path, where that pass cost
+    # more than the transcription itself.
+    if duration <= CHUNK_DURATION:
+        yield process_audio_segment(
+            audio_path, 0.0, duration, 0, session_id=session_id, full_file=True
+        )
+        return
+
     silences = detect_silences(audio_path)
     current_time, chunk_index = 0.0, 0
     while current_time < duration:
