@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Skill Benchmark: vdms-dataprep-user
+# Skill Benchmark: multimodal-dataprep-user
 
 **Agents**: Copilot (`claude-haiku-4.5`)  
 **Grader**: Copilot (`gpt-5.3-codex`)  
