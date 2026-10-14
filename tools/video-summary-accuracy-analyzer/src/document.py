@@ -22,6 +22,35 @@ def validate_files(file_objects: List[UploadFile]) -> bool:
 
     return True
 
+
+class FileTooLargeError(Exception):
+    """Raised when an uploaded file exceeds the configured size limit."""
+
+    def __init__(self, limit_bytes: int):
+        self.limit_bytes = limit_bytes
+        super().__init__(f"Uploaded file exceeds the maximum allowed size of {limit_bytes} bytes.")
+
+
+async def _read_bounded(file_obj: UploadFile, limit_bytes: int, chunk_size: int) -> bytearray:
+    # Reject early when the client-declared size already exceeds the limit.
+    declared_size = getattr(file_obj, "size", None)
+    if declared_size is not None and declared_size > limit_bytes:
+        raise FileTooLargeError(limit_bytes)
+
+    await file_obj.seek(0)
+    content = bytearray()
+    while True:
+        # Never request more than one byte past the limit, so memory stays bounded
+        # even if the declared size is missing or wrong.
+        chunk = await file_obj.read(min(chunk_size, limit_bytes + 1 - len(content)))
+        if not chunk:
+            break
+        content.extend(chunk)
+        if len(content) > limit_bytes:
+            raise FileTooLargeError(limit_bytes)
+    return content
+
+
 async def save_files_to_tmp(file_objects: list[UploadFile]) -> List[str]:
     saved_files = []
     for file_obj in file_objects:
@@ -33,8 +62,9 @@ async def save_files_to_tmp(file_objects: list[UploadFile]) -> List[str]:
             tmp_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            await file_obj.seek(0)
-            content = await file_obj.read()
+            content = await _read_bounded(
+                file_obj, config.MAX_UPLOAD_SIZE_BYTES, config._UPLOAD_CHUNK_SIZE
+            )
 
             # clean tsv content by replacing spaces with tabs
             if tmp_path.suffix.lower() == ".tsv":
@@ -59,6 +89,10 @@ async def save_files_to_tmp(file_objects: list[UploadFile]) -> List[str]:
 
 
             saved_files.append(str(tmp_path))
+
+        except FileTooLargeError:
+            logger.warning("Rejected upload %r: exceeds %d bytes.", safe_name, config.MAX_UPLOAD_SIZE_BYTES)
+            raise
 
         except Exception as e:
             logger.exception(f"Error saving file {file_obj.filename}: {e}")

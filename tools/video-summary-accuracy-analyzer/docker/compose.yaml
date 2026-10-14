@@ -25,6 +25,7 @@ services:
       no_proxy: localhost,127.0.0.1,${no_proxy}
       HF_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
       SBERT_MODEL_ID: ${SBERT_MODEL_ID}
+      MAX_UPLOAD_SIZE_BYTES: ${MAX_UPLOAD_SIZE_BYTES:-10485760}
       NLTK_ALLOW_PROXIED_URLOPEN: 1
     group_add:
       - ${USER_GROUP_ID-1000}

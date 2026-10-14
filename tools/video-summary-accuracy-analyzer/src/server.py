@@ -11,7 +11,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from pydantic import BaseModel, Field
 from typing import Optional, List, Annotated
 from .config import config
-from .document import validate_files, save_files_to_tmp
+from .document import FileTooLargeError, validate_files, save_files_to_tmp
 from .evaluate import Evaluator
 from .logger import logger
 
@@ -209,7 +209,13 @@ async def evaluate_video_accuracy(
             )
 
         # Save the file in /tmp/documents to load it later
-        tmp_files = await save_files_to_tmp([file])
+        try:
+            tmp_files = await save_files_to_tmp([file])
+        except FileTooLargeError as e:
+            raise HTTPException(
+                status_code=HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File too large. Maximum allowed size is {e.limit_bytes} bytes."
+            )
         if tmp_files is None or len(tmp_files) == 0:
             logger.error("Error saving file.")
             raise HTTPException(
