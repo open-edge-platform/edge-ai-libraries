@@ -9,18 +9,21 @@ const SUMMARY_CHARTS = [
   {
     title: "Total FPS",
     metricKey: "total_fps",
+    description: "Higher is better",
     formatValue: (value: number) => value.toFixed(2),
     allowDecimals: false,
   },
   {
     title: "Latency",
     metricKey: "latency_avg_ms",
+    description: "Lower is better",
     formatValue: (value: number) => `${value.toFixed(2)} ms`,
     allowDecimals: true,
   },
   {
     title: "Power",
     metricKey: "power_usage",
+    description: "Lower is better",
     formatValue: (value: number) => `${value.toFixed(2)} W`,
     allowDecimals: true,
   },
@@ -45,6 +48,7 @@ export const BenchmarkWorkloadSummary = ({
         workloadRun={workloadRun}
         pipeline={pipeline}
         title={chart.title}
+        description={chart.description}
         metricKey={chart.metricKey}
         formatValue={chart.formatValue}
         allowDecimals={chart.allowDecimals}

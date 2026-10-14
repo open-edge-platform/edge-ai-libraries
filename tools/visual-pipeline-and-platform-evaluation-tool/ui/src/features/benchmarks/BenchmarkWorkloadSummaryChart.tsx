@@ -38,6 +38,7 @@ type WorkloadSummaryChartDatum = {
 
 type WorkloadSummaryChartDefinition = {
   title: string;
+  description: string;
   metricKey: SummaryMetricKey;
   formatValue: (value: number) => string;
   allowDecimals?: boolean;
@@ -186,6 +187,7 @@ export const BenchmarkWorkloadSummaryChart = ({
   workloadRun,
   pipeline,
   title,
+  description,
   metricKey,
   formatValue,
   allowDecimals = false,
@@ -216,7 +218,10 @@ export const BenchmarkWorkloadSummaryChart = ({
   return (
     <div className="border bg-background p-4">
       <div className="mb-4 flex items-start justify-between gap-3">
-        <h3 className="font-medium">{title}</h3>
+        <div>
+          <h3 className="font-medium">{title}</h3>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
       </div>
       <ChartContainer config={chartConfig} className="h-[18rem] w-full">
         <BarChart
