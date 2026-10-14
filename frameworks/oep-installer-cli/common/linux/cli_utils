@@ -120,6 +120,8 @@ act_helper () {
     fi
   fi
   set -- $(act_resolve_args $act_name "$@")
+  # full argument list, for handlers that need options scoped to their dependents
+  local _act_args="$*"
 
   # scan for dependencies
   local handles=($(act_find_deps $act_name "$@"))
