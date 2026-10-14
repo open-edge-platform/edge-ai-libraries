@@ -609,8 +609,8 @@ class Evaluator:
                 {"Metric": "neutral_ratio",              "Value": stats_rg["neutral_ratio"]},
                 {"Metric": "contradiction_ratio",        "Value": stats_rg["contradiction_ratio"]},
                 {"Metric": "average_cosine_score",       "Value": f"{stats_rg['average_cosine_score']}/1.0"},
-                {"Metric": "Reference → Generated",         "Value": menli_result["m1"]},
                 {"Metric": "Generated → Reference",         "Value": menli_result["m2"]},
+                {"Metric": "Reference → Generated",         "Value": menli_result["m1"]},                
                 {"Metric": "MENLI_Score",                "Value": menli_result["menli_score"]},
             ]
         })

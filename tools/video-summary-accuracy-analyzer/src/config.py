@@ -9,11 +9,9 @@ import os
 
 class Settings(BaseSettings):
     """
-    Settings class for configuring the Chatqna-Core application.
-    This class manages application settings, including model backend runtime selection,
-    model IDs, device configurations, prompt templates, and various internal paths.
-    It loads configuration from a YAML file, validates backend-specific requirements,
-    and ensures prompt templates contain required placeholders.
+    Environment-backed settings for the Video Summary Accuracy Analyzer.
+    Configures the application name, evaluation model identifiers, debug mode,
+    and internal cache, dataset, and temporary-file paths.
     """
 
     APP_DISPLAY_NAME: str = "Video-Accuracy Evaluation"
