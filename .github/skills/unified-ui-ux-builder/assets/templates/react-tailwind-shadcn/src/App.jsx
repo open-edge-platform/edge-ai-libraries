@@ -1,7 +1,7 @@
 // Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
-// Example "Dashboard Grid" page (see references/layout-patterns.md, pattern 2):
+// Example "Dashboard Grid" page (see references/layout-patterns.html, pattern 2):
 // Header -> stat card row -> content panels. Replace the sample stats/panels
 // with the target app's real data, wired through src/services/api.js.
 

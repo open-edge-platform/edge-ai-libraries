@@ -1,161 +1,247 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Component Library
 
-Canonical, recurring components found in the **three reference apps only** (see `SKILL.md`
-"Survey of the repo"). Prefer reusing one of these patterns (adapted to the target stack) over
-inventing a new component — this is what makes a new app feel like it belongs with the reference
-apps.
+Canonical components, organized **by stack**. Read only your target stack's section — don't
+cross-reference other stacks.
 
-> **Ask, don't assume:** not every app needs every component below (live-status pill, data table,
-> resizable panels, chat surface). Confirm with the user which are actually relevant to their use
-> case and backend before wiring them in — do not add a component just because it's used in a
-> reference app.
+Rules:
+- Reuse a pattern below (adapted to the target stack) instead of inventing a new component.
+- Not every app needs every component. Confirm relevance with the user before wiring one in —
+  don't add a component just because it's listed here.
+- If a stack has no entry/convention for something the app needs, say so explicitly and ask the
+  user how to proceed — don't silently invent one.
 
-## Header
+---
 
-- **Stack A** (`src/components/Layout.tsx`): fixed 60px bar, sidebar trigger + vertical separator +
-  dynamic page title on the left, light/dark theme toggle (sun/moon icon button) on the right.
-  `className="flex h-[60px] shrink-0 items-center gap-2 justify-between border-b"`.
-- **Stack B** (`components/Header/Header.tsx`, `TopPanel/TopPanel.tsx`): a `TopPanel` (screen
-  switcher / global nav) above a conditional `HeaderBar` shown only on the main screen.
-- **Stack C** (`<header class="topbar">`): title with inline SVG icon, a `system-capability-cards`
-  region showing CPU/GPU/NPU device info, and a `header-actions` button group (chat toggle, theme
-  toggle) — see `index.html:10-49`.
+## Stack A — React + Redux Toolkit + Tailwind v4 + Radix (shadcn-style)
 
-Always keep: title/brand on the left, a theme toggle that writes the stack's theming mechanism
-(`.dark` class for A/B via `next-themes`, `data-theme` attribute for C), and any live/engine status
-as a colored dot + label using the stack's own status colors. Status pill and multi-screen nav are
-optional — ask the user whether the app needs them.
+Reference: `visual-pipeline-and-platform-evaluation-tool/ui`
 
-## Sidebar / navigation
+### Header
+- `src/components/Layout.tsx`, fixed 60px bar.
+- Left: sidebar trigger + vertical separator + dynamic page title.
+- Right: light/dark theme toggle (sun/moon icon button).
+- Class: `flex h-[60px] shrink-0 items-center gap-2 justify-between border-b`.
+- Status pill (optional) in the header: colored dot + label, using this stack's status colors.
+- Theme toggle writes `.dark` class via `next-themes`.
 
-- **Stack A only** (`src/components/Navigation.tsx`): collapsible icon sidebar (`Sidebar
-  collapsible="icon"`) with a `SidebarMenu` of `NavLink`s; active item gets
-  `"bg-sidebar-accent border-r-3 border-brand-accent"`. Use this for any stack-A app with more than
-  one page/route.
-- **Stacks B/C** don't use a persistent sidebar — stack B switches full-screen "screens" via local
-  React state (`activeScreen`, no router); stack C is single-page. Don't add a sidebar to a B/C app
-  unless the user explicitly wants multi-page navigation (in which case, consider recommending
-  stack A instead and asking the user if they'd like to switch).
+### Sidebar / Navigation
+- `src/components/Navigation.tsx`.
+- Collapsible icon sidebar: `Sidebar collapsible="icon"` wrapping a `SidebarMenu` of `NavLink`s.
+- Active item: `bg-sidebar-accent border-r-3 border-brand-accent`.
+- Use for any app with more than one page/route. Don't add for a single-page app.
 
-## Cards / panels
+### Cards / Panels
+- `src/components/ui/card.tsx`.
+- Parts: `Card` / `CardHeader` / `CardTitle` / `CardDescription` / `CardAction` / `CardContent` /
+  `CardFooter`.
+- Base class: `bg-card text-card-foreground flex flex-col gap-6 border py-6`.
+- Header uses CSS container queries: `@container/card-header grid ... has-data-[slot=card-action]:grid-cols-[1fr_auto]`.
+- Footer detects a top border via `[.border-t]:pt-6`.
+- Scaffold: `npx shadcn@latest add card`, then reconcile with this exact structure.
 
-- **Stack A** (`src/components/ui/card.tsx`): `Card` / `CardHeader` / `CardTitle` /
-  `CardDescription` / `CardAction` / `CardContent` / `CardFooter`. Base: `"bg-card text-card-foreground
-  flex flex-col gap-6 border py-6"`; header uses CSS container queries
-  (`@container/card-header grid ... has-data-[slot=card-action]:grid-cols-[1fr_auto]`); footer
-  detects a top border via `[.border-t]:pt-6`. Scaffold with `npx shadcn@latest add card` then
-  reconcile with this exact structure.
-- **Stack B**: no shared `Card` primitive — each feature has its own container + dedicated `.css`
-  file (`LeftPanel.css`, `RightPanel.css`, etc). The closest shared pattern is `Accordion`
-  (`components/common/Accordion.tsx` + `Accordion.css`): flat background `#f8f8f8`, no shadow,
-  full-width `1px solid #e6e7e8` separator, blue (`#0071c5`) toggle icon, 16px section title /14px
-  body. Use an accordion for collapsible grouped content in this stack; use a plain `<section>` +
-  dedicated CSS file for everything else.
-- **Stack C**: `.card` — `background: var(--panel); border: 3px solid var(--border); border-radius:
-  10px; padding: 8px; box-shadow: var(--shadow);` (`<article class="card">`). Cards nest for
-  specialized sections (e.g. a `.system-stats-card` nested inside a form card with
-  `background: var(--panel-strong)`).
+### Buttons
+- `src/components/ui/button.tsx`.
+- Variants (CVA): `default | destructive | outline | secondary | ghost | link`.
+- Sizes: `default | xs | sm | lg | icon | icon-xs | icon-sm | icon-lg`.
+- Attributes: `data-slot="button"` + `data-variant` + `data-size`.
+- Supports `asChild` via Radix `Slot.Root`.
+- Scaffold: `npx shadcn@latest add button`, then reconcile with this variant/size set.
 
-## Buttons
+### Forms / Inputs
+- Primitives: `input.tsx`, `select.tsx`, `checkbox.tsx`, `radio-group.tsx`, `switch.tsx`,
+  `slider.tsx`, `combobox.tsx`, `label.tsx`, `field.tsx` (Radix primitives + CVA).
+- Validation: `react-hook-form` + `@hookform/resolvers` + `zod` schemas.
+- Pattern reference: `src/features/pipelines/pipelineSchemas.ts`.
 
-- **Stack A** (`src/components/ui/button.tsx`): CVA variants `default | destructive | outline |
-  secondary | ghost | link`; sizes `default | xs | sm | lg | icon | icon-xs | icon-sm | icon-lg`;
-  `data-slot="button"` + `data-variant` + `data-size` attributes; supports `asChild` via Radix
-  `Slot.Root`. Scaffold with `npx shadcn@latest add button` then reconcile with this variant/size
-  set.
-- **Stack B**: plain `<button>`/`.text-button` — `font-size: 12px; font-weight: 500; color:
-  var(--color-dark); background: #FFF; border-radius: 4px; border: none; padding: 6px 16px;`. No
-  variant system; differentiate primary/secondary/danger with a modifier class per-feature.
-- **Stack C**: `.btn` base (`border: 0; border-radius: 6px; padding: 8px 14px;`) + `.btn-primary`
-  (`background: var(--accent); color: #fff;`), `.btn-danger` (`background: #dc3545;`),
-  `.btn-secondary.btn-sm` for compact secondary actions, `.icon-button` for icon-only actions (uses
-  inline SVG, no icon library).
+### Tables
+- `@tanstack/react-table` + `src/components/ui/table.tsx` primitives.
+- Use for any sortable/filterable data grid.
+- Reference instances: `BenchmarkSuiteRunsTable.tsx`, `ModelsTable.tsx`.
 
-## Forms / inputs
+### Status pill / dot / chip
+- Status utilities: `status-info` / `status-success` / `status-error` classes (see
+  `design-tokens.md`), driving `--status-bg` / `--status-border` / `--status-fg`.
 
-- **Stack A**: shadcn-style `input.tsx`, `select.tsx`, `checkbox.tsx`, `radio-group.tsx`,
-  `switch.tsx`, `slider.tsx`, `combobox.tsx`, `label.tsx`, `field.tsx` (Radix primitives + CVA).
-  Validation: `react-hook-form` + `@hookform/resolvers` + `zod` schemas (see
-  `src/features/pipelines/pipelineSchemas.ts` for the pattern).
-- **Stack B**: controlled React state + native `<input>`/`<select>`, no form library. Global input
-  styling: `--control-padding: 8px 12px; --control-radius: 4px; --control-border-color: #ccc;
-  --control-focus-ring: 0 0 0 2px rgba(0, 123, 255, 0.25);`.
-- **Stack C**: `<label class="field"><span class="label">…</span><select class="input">…`
-  structure; related controls grouped in a `.field-row`; conditional sections toggled via
-  `style="display:none"` + JS (`#detectionSection`, `#alertRulesSection` pattern).
+### Tooltips
+- Radix `tooltip.tsx` wrapper.
 
-## Tables
+### Toasts / notifications
+- `sonner` library (`components/ui/sonner.tsx`), theme-aware via `useTheme`.
+- Install globally: `<Toaster position="top-center" richColors />`.
+- App-specific helpers wrap `toast.warning(...)` etc. in `src/lib/toast.ts`.
 
-- **Stack A**: `@tanstack/react-table` + `src/components/ui/table.tsx` primitives — use for any
-  sortable/filterable data grid (see `BenchmarkSuiteRunsTable.tsx`, `ModelsTable.tsx`).
-- **Stack B**: no shared table primitive — feature-specific markup (e.g. `FileManager`,
-  `Timeline`). Build a plain `<table>` with the stack's existing CSS conventions if a new feature
-  needs one.
-- **Stack C**: no `<table>` convention at all — lists are rendered as cards/chips/rows (see
-  `Chips` below) or a Chart.js canvas. If a new stack-C feature genuinely needs tabular data, a
-  plain semantic `<table>` is fine but there's no established styling to match — ask the user.
+### Charts
+- `recharts`.
 
-## Status pill / dot / chip
+### Resizable panels
+- `src/components/ui/resizable.tsx` wraps `react-resizable-panels`.
+- Parts: `ResizablePanelGroup` / `ResizablePanel` / a draggable `Separator` handle
+  (`w-[0.0625rem]` divider, enlarged interaction area, grip icon on hover).
+- Use for any user-resizable split view (e.g. editor + preview).
+- Stacks B/C don't have this capability — use a fixed-ratio split instead, or recommend stack A.
 
-- **Stack A**: status utilities (`status-info`/`status-success`/`status-error`, see
-  `design-tokens.md`) applied as a class, driving `--status-bg`/`--status-border`/`--status-fg`.
-- **Stack B**: `.status-dot.success|.warning|.error` — small colored circle + label text (see
-  `Services.css`).
-- **Stack C**: `.dot` (base, `background: var(--muted)`) + `.dot.active` (green glow) / `.dot.error`
-  (red glow); `.chips`/`.chip` for metadata tags — `border-radius: 999px; padding: 4px 8px;
-  background: var(--panel-strong);` — created dynamically in JS via a `createChip()` helper
-  (`run-card.js`).
+### Data / state architecture
+- Redux Toolkit + **RTK Query** (generated from OpenAPI, `src/api/api.generated.ts`) for server
+  state.
+- Plain slices for local UI state.
+- `redux-persist` for the subset that should survive reloads (e.g. `uiConfig`).
+- Typed hooks: `src/store/hooks.ts`.
 
-## Tooltips
+---
 
-- **Stack A**: Radix `tooltip.tsx` wrapper.
-- **Stack C**: pure-CSS pseudo-element tooltip — `.tooltip-btn::after { content:
-  attr(data-tooltip); ... opacity: 0; visibility: hidden; }`, shown on hover/focus. No JS tooltip
-  library. Reuse this for stack C instead of pulling in a tooltip dependency.
+## Stack B — React + Redux Toolkit + plain CSS (no UI kit)
 
-## Toasts / notifications
+Reference: `education-ai-suite/smart-classroom/ui`
 
-- **Stack A**: `sonner` (`components/ui/sonner.tsx`, theme-aware via `useTheme`), installed
-  globally as `<Toaster position="top-center" richColors />`; app-specific helpers wrap
-  `toast.warning(...)` etc. in `src/lib/toast.ts`.
-- **Stack B/C**: no toast library — errors surface as inline banners (`.pipeline-error-banner`,
-  `#pipelineServerError`) or status text/dots, not floating toasts. Don't introduce a toast
-  dependency into these stacks without asking the user first.
+### Header
+- `components/Header/Header.tsx` + `TopPanel/TopPanel.tsx`.
+- `TopPanel`: screen switcher / global nav, always shown.
+- `HeaderBar`: conditional, shown only on the main screen.
+- Theme toggle writes the stack's own theming mechanism (same light/dark convention as stack A,
+  via plain CSS not `next-themes`).
 
-## Charts
+### Sidebar / Navigation
+- **None.** No persistent sidebar in this stack.
+- Navigation is screen-state driven: local React state `activeScreen` (no router), full-screen
+  "screens" replace the body rather than navigating to a new route.
+- Don't add a sidebar unless the user explicitly wants multi-page navigation — in that case,
+  recommend stack A instead and ask if they'd like to switch.
 
-- **Stack A**: `recharts`.
-- **Stack B**: `react-chartjs-2`.
-- **Stack C**: vendored `Chart.js` (no CDN, no React wrapper) via a hand-written `ChartManager`
-  (`js/utils/charts.js`) that re-themes on light/dark toggle and keeps a rolling window
-  (`maxPoints = 60`) of samples — reuse this wrapper pattern (`createConsolidatedChart`,
-  `pushStatFrame`, `updateChartColors`) rather than adding a charting dependency to a no-build app.
+### Cards / Panels
+- No shared `Card` primitive. Each feature has its own container + dedicated `.css` file
+  (`LeftPanel.css`, `RightPanel.css`, etc.).
+- Closest shared pattern: `Accordion` (`components/common/Accordion.tsx` + `Accordion.css`).
+  - Flat background `#f8f8f8`, no shadow.
+  - Full-width `1px solid #e6e7e8` separator.
+  - Blue (`#0071c5`) toggle icon.
+  - 16px section title / 14px body.
+  - Use for collapsible grouped content.
+- Everything else: plain `<section>` + dedicated CSS file.
 
-## Data/state architecture (not just visual, but affects how components are wired)
+### Buttons
+- Plain `<button>` / `.text-button`.
+- `font-size: 12px; font-weight: 500; color: var(--color-dark); background: #FFF;
+  border-radius: 4px; border: none; padding: 6px 16px;`
+- No variant system — differentiate primary/secondary/danger with a modifier class per feature.
 
-- **Stack A**: Redux Toolkit + **RTK Query** (generated from OpenAPI, `src/api/api.generated.ts`)
-  for server state, plain slices for local UI state, `redux-persist` for the subset that should
-  survive reloads (e.g. `uiConfig`), typed hooks (`src/store/hooks.ts`).
-- **Stack B**: Redux Toolkit with hand-written slices (`createSlice`, no RTK Query) per domain
-  concept (`transcriptSlice`, `summarySlice`, etc.), `axios` for HTTP, typed hooks
-  (`src/redux/hooks.ts`).
-- **Stack C**: no store — plain JS variables/`Map`s as state, the DOM as the source of rendered
-  truth, `localStorage` for persisted settings/theme. Live data arrives via `EventSource` (SSE) for
-  metrics/captions, not polling.
+### Forms / Inputs
+- Controlled React state + native `<input>`/`<select>`. No form library.
+- Global input styling:
+  - `--control-padding: 8px 12px;`
+  - `--control-radius: 4px;`
+  - `--control-border-color: #ccc;`
+  - `--control-focus-ring: 0 0 0 2px rgba(0, 123, 255, 0.25);`
 
-## Resizable panels (stack A only)
+### Tables
+- No shared table primitive — feature-specific markup (e.g. `FileManager`, `Timeline`).
+- Build a plain `<table>` with the stack's existing CSS conventions if a new feature needs one.
 
-`src/components/ui/resizable.tsx` wraps `react-resizable-panels` — `ResizablePanelGroup` /
-`ResizablePanel` / a draggable `Separator` handle (`w-[0.0625rem]` divider with an enlarged
-interaction area and a visible grip icon on hover). Use for any stack-A app that needs a
-user-resizable split view (e.g. editor + preview); stacks B/C don't have this capability — use a
-fixed-ratio split (see `layout-patterns.md`) instead, or flag it as infeasible and suggest stack A.
+### Status pill / dot / chip
+- `.status-dot.success|.warning|.error` — small colored circle + label text.
+- Reference: `Services.css`.
 
-## Video / stream preview
+### Tooltips
+- No tooltip pattern established in this stack. Ask the user before adding a dependency or
+  hand-rolling one.
 
-- **Stack B**: `video.js` + `@videojs/http-streaming`, `react-player` for simpler playback.
-- **Stack C**: native `<video>`/WebRTC (WHEP) elements built dynamically per run, with chips for
-  latency/TTFT/TPOT/throughput and an error overlay — see `RunCardComponent` in `run-card.js`.
+### Toasts / notifications
+- No toast library. Errors surface as inline banners (`.pipeline-error-banner`,
+  `#pipelineServerError`) or status text/dots.
+- Don't introduce a toast dependency without asking the user first.
 
-If a stack has no established convention for something the new app needs, say so explicitly and
-ask the user how to proceed rather than silently inventing a pattern.
+### Charts
+- `react-chartjs-2`.
+
+### Video / stream preview
+- `video.js` + `@videojs/http-streaming` for streaming.
+- `react-player` for simpler playback.
+
+### Data / state architecture
+- Redux Toolkit with hand-written slices (`createSlice`, no RTK Query), one per domain concept
+  (`transcriptSlice`, `summarySlice`, etc.).
+- `axios` for HTTP.
+- Typed hooks: `src/redux/hooks.ts`.
+- i18n (optional): `i18next` + `react-i18next`, `src/i18n/{en,zh}.json`. Add only if the new app
+  genuinely needs multi-language — ask the user.
+
+---
+
+## Stack C — Vanilla JS, no build step
+
+Reference: `live-video-analysis/live-video-captioning`
+
+### Header
+- `<header class="topbar">`.
+- Title with inline SVG icon.
+- `system-capability-cards` region: CPU/GPU/NPU device info.
+- `header-actions` button group: chat toggle, theme toggle.
+- Reference: `index.html:10-49`.
+- Theme toggle writes `data-theme` attribute (not a `.dark` class).
+
+### Sidebar / Navigation
+- **None.** Stack C is single-page.
+- If the app needs multi-page navigation, recommend stack A instead and ask if they'd like to
+  switch.
+
+### Cards / Panels
+- `.card` — `background: var(--panel); border: 3px solid var(--border); border-radius: 10px;
+  padding: 8px; box-shadow: var(--shadow);`.
+- Markup: `<article class="card">`.
+- Cards nest for specialized sections, e.g. `.system-stats-card` nested inside a form card with
+  `background: var(--panel-strong)`.
+
+### Buttons
+- `.btn` base: `border: 0; border-radius: 6px; padding: 8px 14px;`
+- `.btn-primary`: `background: var(--accent); color: #fff;`
+- `.btn-danger`: `background: #dc3545;`
+- `.btn-secondary.btn-sm`: compact secondary actions.
+- `.icon-button`: icon-only actions, inline SVG (no icon library).
+
+### Forms / Inputs
+- Structure: `<label class="field"><span class="label">…</span><select class="input">…`.
+- Related controls grouped in a `.field-row`.
+- Conditional sections: toggled via `style="display:none"` + JS
+  (e.g. `#detectionSection`, `#alertRulesSection`).
+
+### Tables
+- No `<table>` convention. Lists render as cards/chips/rows, or a Chart.js canvas.
+- If a feature genuinely needs tabular data, a plain semantic `<table>` is fine, but there's no
+  established styling to match — ask the user.
+
+### Status pill / dot / chip
+- `.dot` base: `background: var(--muted)`.
+- `.dot.active`: green glow. `.dot.error`: red glow.
+- `.chips` / `.chip`: metadata tags — `border-radius: 999px; padding: 4px 8px;
+  background: var(--panel-strong);`.
+- Created dynamically in JS via a `createChip()` helper (`run-card.js`).
+
+### Tooltips
+- Pure-CSS pseudo-element tooltip: `.tooltip-btn::after { content: attr(data-tooltip); ...
+  opacity: 0; visibility: hidden; }`, shown on hover/focus.
+- No JS tooltip library — reuse this pattern instead of adding a dependency.
+
+### Toasts / notifications
+- No toast library. Errors surface as inline banners or status text/dots.
+- Don't introduce a toast dependency without asking the user first.
+
+### Charts
+- Vendored `Chart.js` (no CDN, no React wrapper), via a hand-written `ChartManager`
+  (`js/utils/charts.js`).
+- Re-themes on light/dark toggle; keeps a rolling window (`maxPoints = 60`) of samples.
+- Reuse this wrapper's functions (`createConsolidatedChart`, `pushStatFrame`,
+  `updateChartColors`) instead of adding a charting dependency.
+
+### Video / stream preview
+- Native `<video>` / WebRTC (WHEP) elements, built dynamically per run.
+- Chips for latency/TTFT/TPOT/throughput + an error overlay.
+- Reference: `RunCardComponent` in `run-card.js`.
+
+### Data / state architecture
+- No store. Plain JS variables/`Map`s as state; the DOM is the source of rendered truth.
+- `localStorage` for persisted settings/theme.
+- Live data via `EventSource` (SSE) for metrics/captions — not polling.

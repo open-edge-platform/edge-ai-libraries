@@ -1,0 +1,64 @@
+/* SPDX-FileCopyrightText: (C) 2026 Intel Corporation */
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copied from the reference app (education-ai-suite/smart-classroom/ui). */
+
+.accordion {
+  border: none;
+  border-radius: 0;
+  margin-bottom: 0;
+  background: #f8f8f8;
+  box-shadow: none;
+}
+
+.accordion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  cursor: pointer;
+  background: none;
+  border-bottom: 1px solid #e6e7e8;
+  font-family: var(--font-text);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-dark);
+  line-height: 20px;
+}
+
+.accordion-header h3 {
+  margin: 0;
+  font-family: var(--font-text);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--color-dark);
+}
+
+.accordion-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 1.2rem;
+  color: var(--color-theme);
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.accordion-toggle:hover {
+  background: #e6e7e8;
+}
+
+.accordion-content {
+  padding: 0.5rem 0 1rem 0;
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-dark);
+  line-height: 20px;
+  background: none;
+  border-bottom: 1px solid #e6e7e8;
+}

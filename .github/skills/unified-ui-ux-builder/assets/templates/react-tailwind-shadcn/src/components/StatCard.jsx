@@ -1,7 +1,7 @@
 // Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
-// Dashboard Grid stat card row (see references/layout-patterns.md, pattern 2).
+// Dashboard Grid stat card row (see references/layout-patterns.html, pattern 2).
 // Pass one entry per metric; `color` must be one of the shared accent keys so
 // the gradient bar and icon tint stay consistent with design-tokens.md.
 

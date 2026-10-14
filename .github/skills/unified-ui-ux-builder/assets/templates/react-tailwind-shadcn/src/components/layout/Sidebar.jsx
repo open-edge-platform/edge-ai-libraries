@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // App Shell sidebar — vertical nav list. Use for multi-page apps (see
-// references/layout-patterns.md, pattern 1). Omit entirely for single-page
+// references/layout-patterns.html, pattern 1). Omit entirely for single-page
 // Dashboard Grid or Split Panel apps.
 
 export default function Sidebar({ items = [], activeId, onSelect }) {
