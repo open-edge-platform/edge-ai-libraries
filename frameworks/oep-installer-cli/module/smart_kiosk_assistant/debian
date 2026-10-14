@@ -110,7 +110,10 @@ debian_90_start_smart_kiosk_assistant () {
 
 debian_90_stop_smart_kiosk_assistant () {
   configure_smart_kiosk_assistant
-  cd "$workspace"/smart-kiosk-assistant && make down || true
+  cd "$workspace"/smart-kiosk-assistant && {
+    make down || true
+    docker volume rm -f smart-kiosk-assistant_identity_data
+  } || true
 }
 
 debian_90_remove_smart_kiosk_assistant () {

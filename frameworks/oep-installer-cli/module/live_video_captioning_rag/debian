@@ -48,7 +48,7 @@ debian_90_install_live_video_captioning_rag () {
     sed -i "s|^HUGGINGFACEHUB_API_TOKEN=.*|HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN|" .env.example
 
     bash scripts/setup_env.sh
-    docker compose -f compose.yaml pull 
+    docker compose -f compose.yaml pull || docker compose -f compose.yaml build
 
     verify_live_video_captioning_rag
   fi

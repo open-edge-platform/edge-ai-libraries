@@ -1,6 +1,6 @@
 
-configure_sensor_fusion_for_traffic_management_post_fusion () {
-  workspace="$(ensure_project_path)/sensor-fusion-for-traffic-management-post-fusion"
+configure_post_fusion () {
+  workspace="$(ensure_project_path)/post-fusion"
   version=release-2026.2.0
   repository=https://github.com/open-edge-platform/metro-ai-suite.git
   inputs=2
@@ -11,7 +11,7 @@ configure_sensor_fusion_for_traffic_management_post_fusion () {
   duration=1800
 }
 
-configure_sensor_fusion_for_traffic_management_post_fusion_device () {
+configure_post_fusion_device () {
   local device="$1" image=tfcc-npu
   [ "$device" = "npu" ] || image=tfcc
 
@@ -21,17 +21,17 @@ configure_sensor_fusion_for_traffic_management_post_fusion_device () {
   docker compose -f docker/docker-compose.yml build $image --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
 }
 
-verify_sensor_fusion_for_traffic_management_post_fusion () {
+verify_post_fusion () {
   [ -d "$workspace" ]
 }
 
-debian_90_profile_sensor_fusion_for_traffic_management_post_fusion () {
+debian_90_profile_post_fusion () {
   echo "edge_base docker"
 }
 
-debian_90_install_sensor_fusion_for_traffic_management_post_fusion () {
-  configure_sensor_fusion_for_traffic_management_post_fusion "$@"
-  if verify_sensor_fusion_for_traffic_management_post_fusion && [[ " $* " != *" --reinstall "* ]]; then
+debian_90_install_post_fusion () {
+  configure_post_fusion "$@"
+  if verify_post_fusion && [[ " $* " != *" --reinstall "* ]]; then
     echo "Sensor Fusion for Traffic Management - Post Fusion is installed. Skipping" 1>&2
   else
     ensure_disk_size 300
@@ -47,23 +47,23 @@ BASE_VERSION=$VERSION_ID
 BASE=$ID
 EOF
 
-    verify_sensor_fusion_for_traffic_management_post_fusion
+    verify_post_fusion
   fi
 
   local device=$(ensure_select_device "$@")
-  configure_sensor_fusion_for_traffic_management_post_fusion_device "$device"
+  configure_post_fusion_device "$device"
 
   echo "@@HIGHLIGHT workspace: $workspace"
   echo "@@HIGHLIGHT $installer_name install|start [--gpu/npu]"
   echo "@@HIGHLIGHT $installer_name remove"
 }
 
-debian_90_start_sensor_fusion_for_traffic_management_post_fusion () {
-  configure_sensor_fusion_for_traffic_management_post_fusion "$@"
-  debian_90_stop_sensor_fusion_for_traffic_management_post_fusion "$@"
+debian_90_start_post_fusion () {
+  configure_post_fusion "$@"
+  debian_90_stop_post_fusion "$@"
 
   local device=$(ensure_select_device "$@")
-  [[ " ${*,,} " != *" --$device "* ]] || configure_sensor_fusion_for_traffic_management_post_fusion_device "$device"
+  [[ " ${*,,} " != *" --$device "* ]] || configure_post_fusion_device "$device"
 
   cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion
   local image="$(< .image)"
@@ -83,14 +83,14 @@ debian_90_start_sensor_fusion_for_traffic_management_post_fusion () {
   echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
-debian_90_stop_sensor_fusion_for_traffic_management_post_fusion () {
-  configure_sensor_fusion_for_traffic_management_post_fusion "$@"                              
-  cd "$workspace"/metro-ai-suite/sensor-fusion-for-traffic-management/post-fusion && \
+debian_90_stop_post_fusion () {
+  configure_post_fusion "$@"                              
+  cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion && \
     docker compose -f docker/docker-compose.yml down -v --remove-orphans || true
 }
 
-debian_90_remove_sensor_fusion_for_traffic_management_post_fusion () {
-  debian_90_stop_sensor_fusion_for_traffic_management_post_fusion "$@"
+debian_90_remove_post_fusion () {
+  debian_90_stop_post_fusion "$@"
   ensure_rm "$workspace"
 }
 

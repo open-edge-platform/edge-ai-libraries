@@ -238,6 +238,16 @@ def fetch_pipeline_templates(session: requests.Session) -> list[JsonDict]:
     return payload
 
 
+def start_benchmark_suite_run(session: requests.Session, suite_slug: str) -> str:
+    """Submit a benchmark suite run and return the assigned ``job_id``."""
+    response = session.post(f"{BASE_URL}/benchmarks/{suite_slug}/run", timeout=30)
+    response.raise_for_status()
+    job_id: str = response.json().get("job_id", "")
+    assert job_id, "Benchmark suite run response missing 'job_id'"
+    logger.info("Benchmark suite run started: slug=%s job_id=%s", suite_slug, job_id)
+    return job_id
+
+
 def start_density_job(session: requests.Session, payload: JsonDict) -> str:
     """Submit a density test job and return the assigned job ID."""
     logger.info(
@@ -354,6 +364,7 @@ def wait_for_job_completion(
     *,
     assert_initial_running: bool = True,
     fail_on_timeout: bool = True,
+    timeout_seconds: float | None = None,
 ) -> JsonDict:
     """Poll *status_url* until the job leaves ``RUNNING`` state.
 
@@ -369,14 +380,19 @@ def wait_for_job_completion(
         ``RUNNING``; this matches the contract expected by density and
         performance job tests.
     fail_on_timeout:
-        When ``True`` (default) a job still ``RUNNING`` after
-        ``POLL_TIMEOUT_SECONDS`` raises via ``pytest.fail`` – this is the
-        contract relied upon by the functional suite. When ``False`` the
-        timeout is instead reported by returning the last polled status
-        merged with a synthetic ``state="TIMEOUT"`` and an explicit
-        ``error_message``, so callers (e.g. performance benchmarks) can
-        treat it like any other non-``COMPLETED`` terminal state and retry
-        or record it without an unhandled exception.
+        When ``True`` (default) a job still ``RUNNING`` after the timeout
+        raises via ``pytest.fail`` – this is the contract relied upon by
+        the functional suite. When ``False`` the timeout is instead
+        reported by returning the last polled status merged with a
+        synthetic ``state="TIMEOUT"`` and an explicit ``error_message``,
+        so callers (e.g. performance benchmarks) can treat it like any
+        other non-``COMPLETED`` terminal state and retry or record it
+        without an unhandled exception.
+    timeout_seconds:
+        Overrides ``POLL_TIMEOUT_SECONDS`` for callers whose jobs are
+        known to legitimately run longer (e.g. a full benchmark suite
+        run, which executes many sequential test cases). Defaults to
+        ``POLL_TIMEOUT_SECONDS`` when omitted.
 
     Returns
     -------
@@ -389,10 +405,13 @@ def wait_for_job_completion(
     Raises
     ------
     pytest.fail
-        If the job is still ``RUNNING`` after ``POLL_TIMEOUT_SECONDS`` and
+        If the job is still ``RUNNING`` after the effective timeout and
         ``fail_on_timeout`` is ``True``.
     """
-    deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
+    effective_timeout = (
+        POLL_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+    )
+    deadline = time.monotonic() + effective_timeout
 
     response = session.get(status_url, timeout=30)
     response.raise_for_status()
@@ -428,7 +447,7 @@ def wait_for_job_completion(
 
     timeout_message = (
         f"Job at {status_url} did not reach COMPLETED within "
-        f"{POLL_TIMEOUT_SECONDS} seconds"
+        f"{effective_timeout} seconds"
     )
     if not fail_on_timeout:
         logger.error(timeout_message)
