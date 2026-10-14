@@ -59,12 +59,6 @@ openedge-cli start smart_intersection
 
 <hr>
 
-### Installation Location
-
-- The OEP installer is installed under `~/.local/bin` and the installer logs are stored under `~/.local/open-edge-platform/openedge-cli/*.logs`.  
-- System components (such as curl and git) are installed under their defined system locations. See [List SBOM](#list-sbom) for how to list installed system components.
-- Software components such as libraries, samples, and applications are installed under `~/.local/open-edge-platform/<component-name>`.
-
 ## Start and Stop
 
 Start or stop a component:
@@ -142,6 +136,8 @@ openedge-cli sbom computer_vision
 > The listing is limited to system-level installation only.
 
 > User level installation is under `~/.local/open-edge-platform/<component-name>`.  
+
+> The OEP installer script is installed under `~/.local/bin` with bash completion under `~/.local/share/bash-completion`, and logs under `~/.local/open-edge-platform/openedge-cli/*.logs`.  
 
 ### Bootstrapping
 
