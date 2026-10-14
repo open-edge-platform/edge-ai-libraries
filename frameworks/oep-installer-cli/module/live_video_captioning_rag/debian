@@ -26,7 +26,7 @@ verify_live_video_captioning_rag () {
 }
 
 debian_90_profile_live_video_captioning_rag () {
-  echo "git curl gawk jq edge_base docker"
+  echo "git curl gawk jq edge_base docker_io"
 }
 
 debian_90_install_live_video_captioning_rag () {

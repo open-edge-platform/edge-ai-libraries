@@ -2019,7 +2019,7 @@ configure_dlstreamer ()
     model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
     allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium)
 }
-configure_docker () 
+configure_docker_io () 
 { 
     if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
         echo "Configure docker engine proxies...";
@@ -2124,9 +2124,10 @@ configure_gpu_accel ()
 }
 configure_handheld_multi_modal () 
 { 
-    workspace="$(ensure_project_path)/handheld_multi_modal";
+    workspace="$(ensure_project_path)/handheld-multi-modal";
     version=release-2026.2.0;
-    repository=https://github.com/open-edge-platform/edge-ai-suites.git
+    repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git;
+    used_ports=(443 1443 5443 6443 7443 8443 80 7860 8000 9090 8554 8889)
 }
 configure_humanoid_imitation_learning () 
 { 
@@ -2835,7 +2836,7 @@ configure_uav_mission_compute_sdk ()
 { 
     workspace="$(ensure_project_path)/uav-mission-compute-sdk";
     version="release-2026.2.0";
-    repository="https://github.com/open-edge-platform/edge-ai-suites.git";
+    repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
     used_ports=(8086 3000 9090 9273)
 }
 configure_uv () 
@@ -3459,7 +3460,7 @@ debian_29_install_reboot ()
     rm -f "${installer_state?}"/reboot_required;
     sleep infinity
 }
-debian_30_group_docker () 
+debian_30_group_docker_io () 
 { 
     echo "docker:"
 }
@@ -3471,7 +3472,7 @@ debian_30_install_cmake ()
 { 
     ensure_apt_install_package cmake
 }
-debian_30_install_docker () 
+debian_30_install_docker_io () 
 { 
     if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
         echo "Docker is already installed. Skipping...";
@@ -3484,10 +3485,9 @@ debian_30_install_docker ()
                 ensure_apt update;
                 ensure_apt install -y docker-buildx-plugin docker-compose-plugin;
             else
+                ensure_prop set installed/docker_io/owned true;
                 echo "Remove legacy installation";
-                ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
-                ensure_sudo systemctl stop docker.socket docker.service 2> /dev/null || true;
-                ensure_apt purge -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc;
+                debian_30_remove_docker_io "$@";
                 ensure_sudo mkdir -p /etc/systemd/system/docker.service.d;
                 ensure_sudo tee /etc/systemd/system/docker.service.d/10-socket.conf <<EOF
 [Unit]
@@ -3524,7 +3524,7 @@ EOF
             fi;
         fi;
     fi;
-    configure_docker
+    configure_docker_io
 }
 debian_30_install_git () 
 { 
@@ -3594,6 +3594,15 @@ debian_30_profile_uv ()
 { 
     echo "pipx"
 }
+debian_30_remove_docker_io () 
+{ 
+    [ "$(ensure_prop get installed/docker_io/owned)" = "true" ] || return 0;
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
+    ensure_sudo systemctl stop docker.socket docker.service 2> /dev/null || true;
+    ensure_apt purge -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc || true;
+    ensure_rm /etc/systemd/system/docker.service.d || true;
+    ensure_sudo systemctl daemon-reload || true
+}
 debian_30_remove_kernel_module_essential () 
 { 
     configure_kernel_module_essential_debian;
@@ -3618,7 +3627,7 @@ debian_30_sbom_cmake ()
 { 
     ensure_sbom_format pkg-list cmake
 }
-debian_30_sbom_docker () 
+debian_30_sbom_docker_io () 
 { 
     ensure_sbom_format pkg-list docker.io docker-buildx docker-compose-v2
 }
@@ -4351,11 +4360,11 @@ debian_85_install_video_search_and_summarization ()
 }
 debian_85_profile_esq () 
 { 
-    echo "curl git libgl1 make docker uv edge_base openvino dlstreamer"
+    echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer"
 }
 debian_85_profile_video_search_and_summarization () 
 { 
-    echo "git curl gawk python3_venv edge_base docker"
+    echo "git curl gawk python3_venv edge_base docker_io"
 }
 debian_85_remove_esq () 
 { 
@@ -4509,16 +4518,19 @@ debian_90_install_handheld_multi_modal ()
     if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
         echo "handheld_multi_modal already installed. Skipping";
     else
+        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 300;
-        ensure_git_clone "$workspace" $version $repository federal-and-aerospace-ai-suite/handheld-multi-modal;
-        cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal;
+        ensure_git_clone "$workspace" $version $repository handheld-multi-modal;
+        cd "$workspace"/handheld-multi-modal;
         make setup;
         make build-whisper;
         make vippet-get;
         yes | make models-license;
         docker compose -f docker-compose.yml pull --ignore-buildable;
         verify_handheld_multi_modal $*;
-    fi
+    fi;
+    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_humanoid_imitation_learning () 
 { 
@@ -5151,8 +5163,8 @@ debian_90_install_uav_mission_compute_sdk ()
         echo "UAV mission compute sdk is already installed. Skipping..." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_git_export "$workspace" "$version" "$repository" federal-and-aerospace-ai-suite/uav-mission-compute-sdk;
-        cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk;
+        ensure_git_export "$workspace" "$version" "$repository" uav-mission-compute-sdk;
+        cd "$workspace"/uav-mission-compute-sdk;
         make init;
         sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env;
         make build;
@@ -5162,10 +5174,11 @@ debian_90_install_uav_mission_compute_sdk ()
     [[ " $* " != *" --sim "* ]] || profile="sim-camera";
     [[ " $* " != *" --usb "* ]] || profile="usb-camera";
     [[ " $* " != *" --realsense "* ]] || profile="realsense-camera";
-    cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk;
-    sed -i '/^PROFILE=/{d}' "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/.env;
-    echo "PROFILE=$profile" >> "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/.env;
-    echo "@@HIGHLIGHT workspace: $workspace"
+    cd "$workspace"/uav-mission-compute-sdk;
+    sed -i '/^PROFILE=/{d}' "$workspace"/uav-mission-compute-sdk/.env;
+    echo "PROFILE=$profile" >> "$workspace"/uav-mission-compute-sdk/.env;
+    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_video_processing_for_nvr () 
 { 
@@ -5275,11 +5288,11 @@ EOF
 }
 debian_90_profile_agentic_predictive_maintenance_pipeline () 
 { 
-    echo "git curl gawk jq edge_base docker"
+    echo "git curl gawk jq edge_base docker_io"
 }
 debian_90_profile_agentic_smart_community () 
 { 
-    echo "curl wget git jq python3_venv ffmpeg nodejs docker edge_base mediamtx"
+    echo "curl wget git jq python3_venv ffmpeg nodejs docker_io edge_base mediamtx"
 }
 debian_90_profile_autonomous_mobile_robot () 
 { 
@@ -5287,7 +5300,7 @@ debian_90_profile_autonomous_mobile_robot ()
 }
 debian_90_profile_dine_in () 
 { 
-    echo "git curl gawk make python3_venv docker edge_base"
+    echo "git curl gawk make python3_venv docker_io edge_base"
 }
 debian_90_profile_edge_base_robotics () 
 { 
@@ -5307,59 +5320,59 @@ debian_90_profile_edge_base_robotics ()
 }
 debian_90_profile_geti () 
 { 
-    echo "docker edge_base"
+    echo "docker_io edge_base"
 }
 debian_90_profile_handheld_multi_modal () 
 { 
-    echo "yq make curl git docker edge_base"
+    echo "yq make curl git docker_io edge_base"
 }
 debian_90_profile_humanoid_imitation_learning () 
 { 
-    echo "git curl edge_base docker"
+    echo "git curl edge_base docker_io"
 }
 debian_90_profile_image_based_video_search () 
 { 
-    echo "git curl edge_base docker"
+    echo "git curl edge_base docker_io"
 }
 debian_90_profile_live_video_alert_agent () 
 { 
-    echo "git curl gawk jq edge_base docker"
+    echo "git curl gawk jq edge_base docker_io"
 }
 debian_90_profile_live_video_captioning () 
 { 
-    echo "git curl gawk jq edge_base docker"
+    echo "git curl gawk jq edge_base docker_io"
 }
 debian_90_profile_live_video_captioning_rag () 
 { 
-    echo "git curl gawk jq edge_base docker"
+    echo "git curl gawk jq edge_base docker_io"
 }
 debian_90_profile_live_video_search () 
 { 
-    echo "git curl gawk jq edge_base docker"
+    echo "git curl gawk jq edge_base docker_io"
 }
 debian_90_profile_loitering_detection () 
 { 
-    echo "git curl gawk docker edge_base"
+    echo "git curl gawk docker_io edge_base"
 }
 debian_90_profile_loss_prevention () 
 { 
-    echo "git curl gawk make python3_venv docker edge_base"
+    echo "git curl gawk make python3_venv docker_io edge_base"
 }
 debian_90_profile_multimodal_weld_defect_detection () 
 { 
-    echo "git gawk curl make docker edge_base"
+    echo "git gawk curl make docker_io edge_base"
 }
 debian_90_profile_nicu_warmer () 
 { 
-    echo "git curl make gawk docker edge_base"
+    echo "git curl make gawk docker_io edge_base"
 }
 debian_90_profile_pallet_defect_detection () 
 { 
-    echo "git curl gawk unzip docker edge_base"
+    echo "git curl gawk unzip docker_io edge_base"
 }
 debian_90_profile_pcb_anomaly_detection () 
 { 
-    echo "git curl gawk edge_base docker"
+    echo "git curl gawk edge_base docker_io"
 }
 debian_90_profile_physical_ai_framework () 
 { 
@@ -5371,23 +5384,23 @@ debian_90_profile_physical_ai_studio ()
 }
 debian_90_profile_post_fusion () 
 { 
-    echo "edge_base docker"
+    echo "edge_base docker_io"
 }
 debian_90_profile_real_time_scene_understanding () 
 { 
-    echo "git curl gawk jq edge_base docker"
+    echo "git curl gawk jq edge_base docker_io"
 }
 debian_90_profile_scenescape () 
 { 
-    echo "docker curl git make unzip rsync python3_venv edge_base"
+    echo "docker_io curl git make unzip rsync python3_venv edge_base"
 }
 debian_90_profile_smart_intersection () 
 { 
-    echo "git curl gawk jq edge_base docker"
+    echo "git curl gawk jq edge_base docker_io"
 }
 debian_90_profile_smart_kiosk_assistant () 
 { 
-    echo "docker make edge_base"
+    echo "docker_io make edge_base"
 }
 debian_90_profile_smart_nvr () 
 { 
@@ -5395,11 +5408,11 @@ debian_90_profile_smart_nvr ()
 }
 debian_90_profile_smart_parking () 
 { 
-    echo "git curl gawk edge_base docker"
+    echo "git curl gawk edge_base docker_io"
 }
 debian_90_profile_smart_traffic_intersection_agent () 
 { 
-    echo "docker git edge_base curl"
+    echo "docker_io git edge_base curl"
 }
 debian_90_profile_stationary_robot_vision () 
 { 
@@ -5407,27 +5420,27 @@ debian_90_profile_stationary_robot_vision ()
 }
 debian_90_profile_take_away () 
 { 
-    echo "git curl gawk make python3_venv docker edge_base"
+    echo "git curl gawk make python3_venv docker_io edge_base"
 }
 debian_90_profile_uav_mission_compute_sdk () 
 { 
-    echo "docker git curl make v4l_utils"
+    echo "docker_io git curl make v4l_utils"
 }
 debian_90_profile_video_processing_for_nvr () 
 { 
-    echo "docker curl git python3_venv ffmpeg edge_base"
+    echo "docker_io curl git python3_venv ffmpeg edge_base"
 }
 debian_90_profile_vippet () 
 { 
-    echo "docker make curl git edge_base"
+    echo "docker_io make curl git edge_base"
 }
 debian_90_profile_visual_search_question_and_answering () 
 { 
-    echo "git curl gawk python3_venv edge_base docker"
+    echo "git curl gawk python3_venv edge_base docker_io"
 }
 debian_90_profile_wind_turbine_anomaly_detection () 
 { 
-    echo "git gawk curl make docker edge_base python3_venv"
+    echo "git gawk curl make docker_io edge_base python3_venv"
 }
 debian_90_remove_agentic_predictive_maintenance_pipeline () 
 { 
@@ -5464,8 +5477,8 @@ debian_90_remove_geti ()
 debian_90_remove_handheld_multi_modal () 
 { 
     configure_handheld_multi_modal;
-    local app_dir="$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal;
-    local vippet_dir="$workspace"/federal-and-aerospace-ai-suite/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool;
+    local app_dir="$workspace"/handheld-multi-modal;
+    local vippet_dir="$workspace"/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool;
     [ ! -d "$app_dir" ] || debian_90_stop_handheld_multi_modal $* || true;
     [ ! -r "$vippet_dir/compose.yml" ] || ( cd "$vippet_dir" && docker compose down --remove-orphans --volumes --rmi all ) || true;
     [ ! -r "$app_dir/docker-compose.yml" ] || ( cd "$app_dir" && docker compose -f docker-compose.yml down --remove-orphans --volumes --rmi all ) || true;
@@ -5615,7 +5628,7 @@ debian_90_remove_take_away ()
 debian_90_remove_uav_mission_compute_sdk () 
 { 
     configure_uav_mission_compute_sdk;
-    local app_dir="$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk;
+    local app_dir="$workspace"/uav-mission-compute-sdk;
     if [ -r "$app_dir/docker-compose.yml" ]; then
         debian_90_stop_uav_mission_compute_sdk "$@";
         ( cd "$app_dir" && docker compose -f docker-compose.yml --profile sim-camera --profile usb-camera --profile observability down --remove-orphans --volumes --rmi all ) || true;
@@ -5712,11 +5725,12 @@ debian_90_start_geti ()
 }
 debian_90_start_handheld_multi_modal () 
 { 
-    ensure_ports_open "443 1443 5443 6443 7443 8443 80 7860 8000 9090 8554 8889" debian_90_stop_handheld_multi_modal $*;
+    ensure_ports_open "${used_ports[*]}" debian_90_stop_handheld_multi_modal $*;
     configure_handheld_multi_modal;
-    cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal;
+    cd "$workspace"/handheld-multi-modal;
     make deploy;
-    echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
+    echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}";
+    echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 debian_90_start_image_based_video_search () 
 { 
@@ -6119,9 +6133,10 @@ debian_90_start_uav_mission_compute_sdk ()
 { 
     ensure_ports_open "${used_ports[*]}" debian_90_stop_uav_mission_compute_sdk "$@";
     configure_uav_mission_compute_sdk;
-    cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk;
+    cd "$workspace"/uav-mission-compute-sdk;
     . .env;
-    make up-$PROFILE
+    make up-$PROFILE;
+    echo "@@HIGHLIGHT $installer_name remove"
 }
 debian_90_start_video_processing_for_nvr () 
 { 
@@ -6267,7 +6282,7 @@ debian_90_stop_geti ()
 debian_90_stop_handheld_multi_modal () 
 { 
     configure_handheld_multi_modal;
-    cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal;
+    cd "$workspace"/handheld-multi-modal;
     make down
 }
 debian_90_stop_image_based_video_search () 
@@ -6420,7 +6435,7 @@ debian_90_stop_take_away ()
 debian_90_stop_uav_mission_compute_sdk () 
 { 
     configure_uav_mission_compute_sdk;
-    cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk && { 
+    cd "$workspace"/uav-mission-compute-sdk && { 
         make down || true;
         docker volume rm -f uav-mission-compute-sdk_grafana-data uav-mission-compute-sdk_influxdb-data || true;
         docker volume prune -f
@@ -7513,7 +7528,7 @@ verify_gpu_accel_packages ()
 }
 verify_handheld_multi_modal () 
 { 
-    [ -e "$workspace"/federal-and-aerospace-ai-suite/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml ]
+    [ -e "$workspace"/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml ]
 }
 verify_humanoid_imitation_learning () 
 { 

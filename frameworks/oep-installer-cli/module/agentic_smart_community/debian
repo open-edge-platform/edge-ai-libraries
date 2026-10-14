@@ -24,7 +24,7 @@ verify_agentic_smart_community () {
 }
 
 debian_90_profile_agentic_smart_community () {
-  echo "curl wget git jq python3_venv ffmpeg nodejs docker edge_base mediamtx"
+  echo "curl wget git jq python3_venv ffmpeg nodejs docker_io edge_base mediamtx"
 }
 
 debian_90_install_agentic_smart_community () {

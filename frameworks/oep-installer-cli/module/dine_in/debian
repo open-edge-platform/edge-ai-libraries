@@ -25,7 +25,7 @@ verify_dine_in () {
 }
 
 debian_90_profile_dine_in () {
-  echo "git curl gawk make python3_venv docker edge_base"
+  echo "git curl gawk make python3_venv docker_io edge_base"
 }
 
 debian_90_install_dine_in () {

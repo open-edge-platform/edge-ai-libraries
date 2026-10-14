@@ -32,7 +32,7 @@ verify_take_away () {
 }
 
 debian_90_profile_take_away () {
-  echo "git curl gawk make python3_venv docker edge_base"
+  echo "git curl gawk make python3_venv docker_io edge_base"
 }
 
 debian_90_install_take_away () {

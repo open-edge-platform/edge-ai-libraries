@@ -19,7 +19,7 @@ configure_humanoid_imitation_learning () {
 }
 
 debian_90_profile_humanoid_imitation_learning () {
-  echo "git curl edge_base docker"
+  echo "git curl edge_base docker_io"
 }
 
 # the container recipes are checked out at the pinned version

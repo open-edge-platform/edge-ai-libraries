@@ -1,12 +1,13 @@
 
 configure_handheld_multi_modal () {
-  workspace="$(ensure_project_path)/handheld_multi_modal"
+  workspace="$(ensure_project_path)/handheld-multi-modal"
   version=release-2026.2.0
-  repository=https://github.com/open-edge-platform/edge-ai-suites.git
+  repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git
+  used_ports=(443 1443 5443 6443 7443 8443 80 7860 8000 9090 8554 8889)
 }
 
 verify_handheld_multi_modal () {
-  [ -e "$workspace"/federal-and-aerospace-ai-suite/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml ]
+  [ -e "$workspace"/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml ]
 }
 
 debian_90_profile_handheld_multi_modal () {
@@ -18,10 +19,11 @@ debian_90_install_handheld_multi_modal () {
   if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
     echo "handheld_multi_modal already installed. Skipping"
   else
+    ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 300
 
-    ensure_git_clone "$workspace" $version $repository federal-and-aerospace-ai-suite/handheld-multi-modal
-    cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
+    ensure_git_clone "$workspace" $version $repository handheld-multi-modal
+    cd "$workspace"/handheld-multi-modal
     make setup
     make build-whisper
     make vippet-get
@@ -29,26 +31,30 @@ debian_90_install_handheld_multi_modal () {
     docker compose -f docker-compose.yml pull --ignore-buildable
     verify_handheld_multi_modal $*
   fi
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|remove"
 }
 
 debian_90_start_handheld_multi_modal () {
-  ensure_ports_open "443 1443 5443 6443 7443 8443 80 7860 8000 9090 8554 8889" debian_90_stop_handheld_multi_modal $*
+  ensure_ports_open "${used_ports[*]}" debian_90_stop_handheld_multi_modal $*
   configure_handheld_multi_modal
-  cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
+  cd "$workspace"/handheld-multi-modal
   make deploy
-  echo "@@HIGHLIGHT URL: https://$(ensure_ip)"
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 debian_90_stop_handheld_multi_modal () {
   configure_handheld_multi_modal
-  cd "$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
+  cd "$workspace"/handheld-multi-modal
   make down
 }
 
 debian_90_remove_handheld_multi_modal () {
   configure_handheld_multi_modal
-  local app_dir="$workspace"/federal-and-aerospace-ai-suite/handheld-multi-modal
-  local vippet_dir="$workspace"/federal-and-aerospace-ai-suite/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool
+  local app_dir="$workspace"/handheld-multi-modal
+  local vippet_dir="$workspace"/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool
   [ ! -d "$app_dir" ] || debian_90_stop_handheld_multi_modal $* || true
   # drop the stacks' containers, volumes and images (not a system-wide prune)
   [ ! -r "$vippet_dir/compose.yml" ] || (cd "$vippet_dir" && docker compose down --remove-orphans --volumes --rmi all) || true
