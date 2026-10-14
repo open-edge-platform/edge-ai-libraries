@@ -26,6 +26,26 @@ configure_edge_node_infrastructure_blueprint () {
   fi
 }
 
+# Tear down the K3s runtime installed by this blueprint (the upstream K3s installer places its
+# binaries, data and systemd service outside the workspace). Only runs when the blueprint
+# recorded a k3s installation; shared components such as Docker and Helm are left intact.
+uninstall_k3s_edge_node_infrastructure_blueprint () {
+  [ "$installed_deployment" = k3s ] || return 0
+  local script found=0 kubeconfig=0
+  # the blueprint copies the K3s kubeconfig to ~/.kube/config; drop it only if unchanged
+  [ ! -f "$HOME"/.kube/config ] || ! ensure_sudo cmp -s /etc/rancher/k3s/k3s.yaml "$HOME"/.kube/config || kubeconfig=1
+  for script in /usr/local/bin/k3s-uninstall.sh /usr/local/bin/k3s-agent-uninstall.sh; do
+    [ -x "$script" ] || continue
+    found=1
+    echo "Removing the K3s runtime ($script)..."
+    ensure_sudo "$script"
+  done
+  [ $found -eq 1 ] || echo "K3s uninstall script not found; assuming K3s was already removed."
+  [ $kubeconfig -eq 0 ] || rm -f "$HOME"/.kube/config
+  rm -f "$workspace"/.oep-deployment
+  installed_deployment=
+}
+
 verify_edge_node_infrastructure_blueprint () {
   [ "$installed_deployment" = "$deployment" ]
 }
@@ -54,6 +74,8 @@ debian_60_install_edge_node_infrastructure_blueprint () {
   if verify_edge_node_infrastructure_blueprint && [[ " $* " != *" --reinstall "* ]]; then
     echo "edge_node_infrastructure_blueprint ($deployment) already installed. Skipping"
   else
+    # switching away from k3s: stop and remove its runtime so it no longer holds TCP 6443
+    [ "$deployment" = k3s ] || uninstall_k3s_edge_node_infrastructure_blueprint
     ensure_git_clone "$workspace" $version $repository
     cd "$workspace"
     ensure_sudo make $deployment
@@ -67,5 +89,6 @@ debian_60_install_edge_node_infrastructure_blueprint () {
 
 debian_60_remove_edge_node_infrastructure_blueprint () {
   configure_edge_node_infrastructure_blueprint $*
+  uninstall_k3s_edge_node_infrastructure_blueprint
   ensure_rm "$workspace"
 }

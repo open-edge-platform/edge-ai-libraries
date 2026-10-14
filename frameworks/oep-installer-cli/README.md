@@ -128,7 +128,7 @@ openedge-cli install edge_node_infrastructure_blueprint --k3s
 
 > The Edge Node Infrastructure Blueprint is shared, so `--docker` or `--k3s` scoped to any component that depends on it (or to the `federal_and_aerospace_ai_suite` profile) selects that model for the whole installation. Selecting both `--docker` and `--k3s` is rejected.
 
-> To switch an installed blueprint to the other deployment model, run `openedge-cli install edge_node_infrastructure_blueprint --reinstall --k3s` (or `--reinstall --docker`). Requesting a different model without `--reinstall` fails with this hint.
+> To switch an installed blueprint to the other deployment model, run `openedge-cli install edge_node_infrastructure_blueprint --reinstall --k3s` (or `--reinstall --docker`). Requesting a different model without `--reinstall` fails with this hint. Switching from K3s to Docker, or running `openedge-cli remove edge_node_infrastructure_blueprint` on a K3s installation, also removes the K3s runtime installed by the blueprint (using `k3s-uninstall.sh`) and its unmodified `~/.kube/config` copy; Docker, Helm and other shared components are kept.
 
 > The K3s deployment model is not yet supported with `handheld_multi_modal`: both K3s and the application use TCP port 6443. Installing K3s together with, or after, `handheld_multi_modal` (including `federal_and_aerospace_ai_suite --k3s`) is rejected; use Docker.
 
