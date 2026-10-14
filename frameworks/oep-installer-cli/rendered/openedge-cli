@@ -285,6 +285,7 @@ act_helper ()
         fi;
     fi;
     set -- $(act_resolve_args $act_name "$@");
+    local _act_args="$*";
     local handles=($(act_find_deps $act_name "$@"));
     if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ] && [ ${#handles[@]} -gt 0 ]; then
         local _targets=() _top=0 _h _o _pair;
@@ -2048,6 +2049,33 @@ cfg.setdefault("proxies", {})["default"] = {
 json.dump(cfg, open(p, "w"), indent=2)
 EOF
 
+    fi
+}
+configure_edge_node_infrastructure_blueprint () 
+{ 
+    workspace="$(ensure_project_path)/edge_node_infrastructure_blueprint";
+    version=enib-packages-installer;
+    repository=https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git;
+    installed_deployment="$(cat "$workspace"/.oep-deployment 2> /dev/null || true)";
+    local k3s=0 m scoped;
+    [[ " $* " != *" --k3s "* ]] || k3s=1;
+    for m in ${_act_cache_names[*]:-};
+    do
+        [[ "$m" != edge_node_infrastructure_blueprint && " ${_act_args:-} " = *" --$m "* ]] || continue;
+        [[ " $(act_expand_modules install "$m" ${_act_args:-}) " = *" edge_node_infrastructure_blueprint "* ]] || continue;
+        scoped="$(act_extract_args install "$m" "" ${_act_args:-})";
+        [[ " ${scoped#* -- } " != *" --k3s "* ]] || k3s=1;
+    done;
+    deployment_conflict=0;
+    if [[ " ${_act_args:-} " = *" --docker "* ]]; then
+        deployment=docker;
+        [ $k3s -eq 0 ] || deployment_conflict=1;
+    else
+        if [ $k3s -eq 1 ]; then
+            deployment=k3s;
+        else
+            deployment=${installed_deployment:-docker};
+        fi;
     fi
 }
 configure_edge_pack () 
@@ -3985,6 +4013,49 @@ debian_55_sbom_ros_openvino ()
     echo "---";
     ensure_sbom_format pkg-list curl gnupg
 }
+debian_60_install_edge_node_infrastructure_blueprint () 
+{ 
+    configure_edge_node_infrastructure_blueprint $*;
+    if [ $deployment_conflict -eq 1 ]; then
+        echo "Conflicting deployment models: select either --docker or --k3s." 1>&2;
+        return 1;
+    fi;
+    if [ "$deployment" = k3s ] && { 
+        [[ " $* " = *" handheld_multi_modal "* ]] || [ -d "$(ensure_project_path)/$installer_name/installed/handheld_multi_modal" ]
+    }; then
+        echo "The K3s deployment model is not yet supported with handheld_multi_modal (both use TCP port 6443)." 1>&2;
+        echo "Use the Docker deployment model (to switch: openedge-cli install edge_node_infrastructure_blueprint --reinstall --docker)." 1>&2;
+        return 1;
+    fi;
+    if [ -n "$installed_deployment" ] && [ "$installed_deployment" != "$deployment" ] && [[ " $* " != *" --reinstall "* ]]; then
+        echo "edge_node_infrastructure_blueprint is installed with $installed_deployment, but $deployment was requested." 1>&2;
+        echo "To switch, run: openedge-cli install edge_node_infrastructure_blueprint --reinstall --$deployment" 1>&2;
+        return 1;
+    fi;
+    if verify_edge_node_infrastructure_blueprint && [[ " $* " != *" --reinstall "* ]]; then
+        echo "edge_node_infrastructure_blueprint ($deployment) already installed. Skipping";
+    else
+        [ "$deployment" = k3s ] || uninstall_k3s_edge_node_infrastructure_blueprint;
+        ensure_git_clone "$workspace" $version $repository;
+        cd "$workspace";
+        ensure_sudo make $deployment;
+        echo "$deployment" > "$workspace"/.oep-deployment;
+        installed_deployment=$deployment;
+        verify_edge_node_infrastructure_blueprint;
+    fi;
+    echo "@@HIGHLIGHT deployment model: $deployment";
+    echo "@@HIGHLIGHT workspace: $workspace"
+}
+debian_60_profile_edge_node_infrastructure_blueprint () 
+{ 
+    echo "git make curl docker_io"
+}
+debian_60_remove_edge_node_infrastructure_blueprint () 
+{ 
+    configure_edge_node_infrastructure_blueprint $*;
+    uninstall_k3s_edge_node_infrastructure_blueprint;
+    ensure_rm "$workspace"
+}
 debian_70_install_edge_pack_media_ffmpeg () 
 { 
     configure_edge_pack_media_ffmpeg "$@";
@@ -5324,7 +5395,7 @@ debian_90_profile_geti ()
 }
 debian_90_profile_handheld_multi_modal () 
 { 
-    echo "yq make curl git docker_io edge_base"
+    echo "yq make curl git docker_io edge_base edge_node_infrastructure_blueprint"
 }
 debian_90_profile_humanoid_imitation_learning () 
 { 
@@ -5424,7 +5495,7 @@ debian_90_profile_take_away ()
 }
 debian_90_profile_uav_mission_compute_sdk () 
 { 
-    echo "docker_io git curl make v4l_utils"
+    echo "docker_io git curl make v4l_utils edge_node_infrastructure_blueprint"
 }
 debian_90_profile_video_processing_for_nvr () 
 { 
@@ -6487,7 +6558,7 @@ debian_99_profile_edge_base ()
 }
 debian_99_profile_federal_and_aerospace_ai_suite () 
 { 
-    [ "$1" = "start" ] || echo "handheld_multi_modal uav_mission_compute_sdk"
+    [ "$1" = "start" ] || echo "edge_node_infrastructure_blueprint handheld_multi_modal uav_mission_compute_sdk"
 }
 debian_99_profile_health_and_life_science_ai_suite () 
 { 
@@ -7273,7 +7344,7 @@ subcommand_sbom ()
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
-    local installer_misc_functions=(remove_oneapi_ros_openvino remove_osrf_gazebo_ros2 sbom_oneapi_ros_openvino sbom_osrf_gazebo_ros2 system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary);
+    local installer_misc_functions=(remove_oneapi_ros_openvino remove_osrf_gazebo_ros2 sbom_oneapi_ros_openvino sbom_osrf_gazebo_ros2 system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary uninstall_k3s_edge_node_infrastructure_blueprint);
     mkdir -p "$(dirname "$installer_bin")";
     cat > "$installer_bin" <<EOF
 #!/bin/bash
@@ -7480,6 +7551,23 @@ system_scan_get_system_summary ()
     [[ "$meminfo" != *mB ]] || meminfo="$(( ${meminfo%mB} / 1024 ))GB";
     echo "$cpuinfo · $coreinfo · $meminfo RAM"
 }
+uninstall_k3s_edge_node_infrastructure_blueprint () 
+{ 
+    [ "$installed_deployment" = k3s ] || return 0;
+    local script found=0 kubeconfig=0;
+    [ ! -f "$HOME"/.kube/config ] || ! ensure_sudo cmp -s /etc/rancher/k3s/k3s.yaml "$HOME"/.kube/config || kubeconfig=1;
+    for script in /usr/local/bin/k3s-uninstall.sh /usr/local/bin/k3s-agent-uninstall.sh;
+    do
+        [ -x "$script" ] || continue;
+        found=1;
+        echo "Removing the K3s runtime ($script)...";
+        ensure_sudo "$script";
+    done;
+    [ $found -eq 1 ] || echo "K3s uninstall script not found; assuming K3s was already removed.";
+    [ $kubeconfig -eq 0 ] || rm -f "$HOME"/.kube/config;
+    rm -f "$workspace"/.oep-deployment;
+    installed_deployment=
+}
 verify_agentic_predictive_maintenance_pipeline () 
 { 
     [ -f "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection/resources/videos/datastream.mp4 ] || { 
@@ -7513,6 +7601,10 @@ verify_dlstreamer ()
     cd "$workspace";
     . .venv/bin/activate;
     pip show ultralytics nncf
+}
+verify_edge_node_infrastructure_blueprint () 
+{ 
+    [ "$installed_deployment" = "$deployment" ]
 }
 verify_geti () 
 { 
