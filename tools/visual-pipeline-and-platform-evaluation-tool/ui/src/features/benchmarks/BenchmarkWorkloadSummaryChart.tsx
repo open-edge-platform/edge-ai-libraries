@@ -72,6 +72,33 @@ const getBenchmarkVariantIds = (benchmarkWorkload?: BenchmarkWorkload) => {
     .filter(Boolean);
 };
 
+const getSkippedBenchmarkVariantIds = (
+  workloadRun: BenchmarkWorkloadRun,
+  benchmarkWorkload?: BenchmarkWorkload,
+) => {
+  if (!benchmarkWorkload) {
+    return new Set<string>();
+  }
+
+  const benchmarkVariantIds = getBenchmarkVariantIds(benchmarkWorkload);
+  const skippedVariantIds = new Set<string>();
+
+  benchmarkVariantIds.forEach((variantId) => {
+    const variantRuns = workloadRun.test_case_runs.filter(
+      (testCaseRun) => testCaseRun.variant_id === variantId,
+    );
+
+    if (
+      variantRuns.length > 0 &&
+      variantRuns.every((testCaseRun) => testCaseRun.status === "skipped")
+    ) {
+      skippedVariantIds.add(variantId);
+    }
+  });
+
+  return skippedVariantIds;
+};
+
 const buildWorkloadSummaryChart = (
   workloadRun: BenchmarkWorkloadRun,
   benchmarkWorkload?: BenchmarkWorkload,
@@ -83,7 +110,13 @@ const buildWorkloadSummaryChart = (
   config: ChartConfig;
 } => {
   const seriesByKey = new Map<string, WorkloadSummaryChartSeries>();
-  const benchmarkVariantIds = getBenchmarkVariantIds(benchmarkWorkload);
+  const skippedBenchmarkVariantIds = getSkippedBenchmarkVariantIds(
+    workloadRun,
+    benchmarkWorkload,
+  );
+  const benchmarkVariantIds = getBenchmarkVariantIds(benchmarkWorkload).filter(
+    (variantId) => !skippedBenchmarkVariantIds.has(variantId),
+  );
 
   benchmarkVariantIds.forEach((variantId, index) => {
     const pipelineVariant = pipeline?.variants.find(
@@ -96,31 +129,6 @@ const buildWorkloadSummaryChart = (
       color: CHART_COLORS[index % CHART_COLORS.length],
     });
   });
-
-  workloadRun.test_case_runs.forEach((testCaseRun) => {
-    if (!seriesByKey.has(testCaseRun.variant_id)) {
-      seriesByKey.set(testCaseRun.variant_id, {
-        key: testCaseRun.variant_id,
-        label: testCaseRun.variant_id,
-        color:
-          CHART_COLORS[seriesByKey.size % CHART_COLORS.length] ??
-          CHART_COLORS[0],
-      });
-    }
-  });
-
-  const hasNpuSeries = Array.from(seriesByKey.values()).some((variant) =>
-    variant.label.toLowerCase().includes("npu"),
-  );
-
-  if (!hasNpuSeries) {
-    seriesByKey.set("npu-placeholder", {
-      key: "npu-placeholder",
-      label: "NPU",
-      color:
-        CHART_COLORS[seriesByKey.size % CHART_COLORS.length] ?? CHART_COLORS[0],
-    });
-  }
 
   const series = Array.from(seriesByKey.values());
 
@@ -148,6 +156,10 @@ const buildWorkloadSummaryChart = (
 
     const row = groupedByStreams.get(testCaseRun.streams);
     if (!row) continue;
+
+    if (!seriesByKey.has(testCaseRun.variant_id)) {
+      continue;
+    }
 
     const matchingSeries = seriesByKey.get(testCaseRun.variant_id);
     const seriesKey = matchingSeries?.key ?? testCaseRun.variant_id;
@@ -193,7 +205,7 @@ export const BenchmarkWorkloadSummaryChart = ({
     [workloadRun, benchmarkWorkload, pipeline, metricKey],
   );
 
-  if (chartData.length === 0) {
+  if (series.length === 0 || chartData.length === 0) {
     return (
       <div className="border bg-background p-4 text-sm text-muted-foreground">
         No summary chart data available.
