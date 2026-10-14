@@ -338,7 +338,7 @@ def create_ui():
                 )
 
             with gr.TabItem("Metrics"):
-                gr.Markdown("This section allow user to quickly understand what are the avaiable metrics provided.")
+                gr.Markdown("This section allows users to quickly understand the available metrics.")
 
                 with gr.Row():
                     with gr.Column(scale=1):
