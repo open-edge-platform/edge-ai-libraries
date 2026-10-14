@@ -1,5 +1,5 @@
 
-configure_docker () {
+configure_docker_io () {
   if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
     echo "Configure docker engine proxies..."
     grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
@@ -31,11 +31,11 @@ EOF
   fi
 }
 
-debian_30_group_docker () {
+debian_30_group_docker_io () {
   echo "docker:"
 }
 
-debian_30_install_docker () {
+debian_30_install_docker_io () {
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
     echo "Docker is already installed. Skipping..."
   elif ensure_apt_is_installed docker.io && [[ " $* " != *" --reinstall "* ]]; then
@@ -92,9 +92,9 @@ EOF
       sleep 1
     done
   fi
-  configure_docker
+  configure_docker_io
 }
 
-debian_30_sbom_docker () {
+debian_30_sbom_docker_io () {
   ensure_sbom_format pkg-list docker.io docker-buildx docker-compose-v2
 }

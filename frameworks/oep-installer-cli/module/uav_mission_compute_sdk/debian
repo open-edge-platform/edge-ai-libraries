@@ -11,7 +11,7 @@ verify_uav_mission_compute_sdk () {
 }
 
 debian_90_profile_uav_mission_compute_sdk () {
-  echo "docker git curl make v4l_utils"
+  echo "docker_io git curl make v4l_utils"
 }
 
 debian_90_install_uav_mission_compute_sdk () {
