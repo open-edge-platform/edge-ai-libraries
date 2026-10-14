@@ -35,6 +35,7 @@ import {
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils";
+import { hasFileMetadataPublisher, hasMetadataPublisher } from "@/lib/pipelineUtils";
 import type { OutputMode } from "@/api/api.generated";
 import {
   Tooltip,
@@ -387,9 +388,7 @@ export const Pipelines = () => {
       }
 
       // Check the ADVANCED graph for gvametapublish (simple mode hides these nodes)
-      const hasMetadata = payloadGraphData.nodes.some(
-        (n) => n.type === "gvametapublish",
-      );
+      const hasMetadata = hasFileMetadataPublisher(payloadGraphData.nodes);
 
       const status = await runPipeline({
         performanceTestSpec: {
@@ -506,10 +505,14 @@ export const Pipelines = () => {
           : 0;
     const currentVariantData = data.variants.find((v) => v.id === variant);
     const isReadOnly = currentVariantData?.read_only ?? false;
-    const pipelineHasMetadata =
-      currentVariantData?.pipeline_graph.nodes.some(
-        (n) => n.type === "gvametapublish",
-      ) ?? false;
+    // The simple view hides publish nodes, so only trust live edits in advanced mode.
+    const metadataPublisherNodes =
+      !isSimpleMode && hasMetadataPublisher(currentNodes)
+        ? currentNodes
+        : (currentVariantData?.pipeline_graph.nodes ?? []);
+    const pipelineHasMetadata = hasFileMetadataPublisher(
+      metadataPublisherNodes,
+    );
     const hasMissingRequiredModels = pipelineModelStatuses.some(
       (item) => item.installStatus !== "installed",
     );
