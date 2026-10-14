@@ -82,7 +82,7 @@ def extract(data):
     for i, entry in enumerate(sentences):
         missing = [k for k in SENTENCE_KEYS if k not in entry]
         if missing:
-            warnings.append(f"Sentence entry {i} missing keys: {missing}")
+            errors.append(f"Sentence entry {i} missing keys: {missing}")
 
     factual_raw = {m.get("Metric"): m.get("Value") for m in factual_list if isinstance(m, dict)}
     factual = {}
