@@ -25,6 +25,16 @@ This guide assumes basic familiarity with Docker commands and terminal usage.
 - **INFER_BATCH_SIZE** - Batch size for inference (default: 64; `setup.sh` overrides this to 16 on CPU/NPU and 32 on GPU). Compiles model to accept fixed batch input. Padding or split is done to accommodate dynamic input sizes.
 - **PREPROCESS_WORKERS** - Number of parallel preprocessing workers (default: min(16, cpu_count * 2)). Higher is better but yields diminishing returns if > number of CPU cores.
 
+### QwenText Models on NPU
+
+QwenText models require static-shape compilation on NPU and expose two
+additional variables (`EMBEDDING_STATIC_SEQ_LEN` and
+`EMBEDDING_CHUNK_LONG_TEXT`) that control the token budget and how longer text
+is handled. These apply only to the QwenText family on NPU and need no
+configuration by default.
+
+See [QwenText Models on NPU](./qwentext-on-npu.md).
+
 ### Video Frame Extraction
 
 These variables control the video frame extraction pipeline performance and memory usage.

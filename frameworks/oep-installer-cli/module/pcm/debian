@@ -6,12 +6,11 @@ configure_pcm () {
 }
 
 verify_pcm () {
-  [ -e "$workspace" ]
-  [ -x /usr/local/pcm ]
+  [ -x /usr/local/sbin/pcm ]
 }
 
 debian_40_profile_pcm () {
-  echo "cmake make"
+  echo "git make cmake kernel_module_essential"
 }
 
 debian_40_install_pcm () {
@@ -34,7 +33,7 @@ debian_40_install_pcm () {
 
 debian_40_remove_pcm () {
   configure_pcm
-  ensure_sudo rm -rf "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* \
+  ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* \
     /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM
 }
 

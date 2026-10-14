@@ -12,8 +12,14 @@ debian_20_install_core_types () {
   local script="https://raw.githubusercontent.com/open-edge-platform/edge-workloads-and-benchmarks/refs/heads/main/utils/obtain_cores.sh"
 
   set -o pipefail
-  curl -sSL $script | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types
-
+  ensure_fetch "$script" - | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types
+  ensure_prop set installed/core_types/owned true
   echo "Core types are detected and written to /etc/core-types"
+}
+
+debian_20_remove_core_types () {
+  # leave untouched if not written by core_types
+  [ "$(ensure_prop get installed/core_types/owned)" = "true" ] || return 0
+  ensure_rm /etc/core-types
 }
 

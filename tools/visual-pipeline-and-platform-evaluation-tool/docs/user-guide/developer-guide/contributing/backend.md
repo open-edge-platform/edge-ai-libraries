@@ -35,7 +35,7 @@ vippet/
 ├── managers/             # Business logic; thread-safe singletons
 │   ├── pipeline_manager.py
 │   ├── pipeline_template_manager.py
-│   ├── camera_manager.py
+│   ├── camera_manager.py # Client of the sensor-manager microservice
 │   ├── model_manager.py
 │   ├── metadata_manager.py
 │   ├── optimization_manager.py
@@ -52,7 +52,6 @@ vippet/
 ├── video_encoder.py      # Encoding / live-streaming sub-pipelines
 ├── video_decoder.py      # Decoder selection / caps building
 ├── device.py             # OpenVINO device detection (CPU/GPU/NPU)
-├── camera.py             # Camera enumeration helpers
 ├── videos.py             # Input/output video management
 ├── images.py             # Image set management
 ├── models.py             # In-memory read cache of the models/model_variants DB tables

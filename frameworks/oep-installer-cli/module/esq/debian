@@ -43,7 +43,7 @@ debian_85_start_esq () {
 debian_85_remove_esq () {
   configure_uv
   configure_esq
-  esq clean --all
+  esq clean --all || true
   uv tool uninstall --force esq || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }

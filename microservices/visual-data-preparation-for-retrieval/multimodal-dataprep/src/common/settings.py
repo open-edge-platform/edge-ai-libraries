@@ -52,6 +52,7 @@ class Settings(BaseSettings):
         if not path.startswith("/"):
             raise ValueError(f"APP_ROOT_PATH must start with '/', got: {path!r}")
         return path if path == "/" else path.rstrip("/")
+
     APP_PORT: int = 8000
     APP_HOST: str = ""
 
@@ -164,11 +165,122 @@ class Settings(BaseSettings):
         description="Maximum number of finished batch jobs retained in memory for status polling.",
     )
 
+    # ------------------------------------------------------------------
+    # Live (RTSP) stream ingestion settings
+    # ------------------------------------------------------------------
+    LIVE_STREAM_ENABLED: bool = Field(
+        default=True,
+        description="Enable the live-stream ingestion subsystem and its CRUD endpoints.",
+    )
+    LIVE_STREAM_DB_HOST: str = Field(
+        default="localhost",
+        description="PostgreSQL host backing the live-stream registry.",
+    )
+    LIVE_STREAM_DB_PORT: int = Field(
+        default=5432,
+        description="PostgreSQL port backing the live-stream registry.",
+    )
+    LIVE_STREAM_DB_NAME: str = Field(
+        default="dataprep",
+        description="PostgreSQL database name for the live-stream registry.",
+    )
+    LIVE_STREAM_DB_USER: str = Field(
+        default="postgres",
+        description="PostgreSQL user for the live-stream registry.",
+    )
+    LIVE_STREAM_DB_PASSWORD: str = Field(
+        default="postgres",
+        description="PostgreSQL password for the live-stream registry.",
+    )
+    LIVE_STREAM_BUCKET: str = Field(
+        default="live-streams",
+        description="Storage bucket and vector-metadata bucket_name used for live "
+        "stream media and embeddings.",
+    )
+    LIVE_STREAM_MAX_CONCURRENT: int = Field(
+        default=8,
+        ge=1,
+        description="Maximum number of concurrently running live streams. Each "
+        "running stream holds decode/detect/embed threads and shared-memory blocks.",
+    )
+    LIVE_SEGMENT_DURATION_SECONDS: int = Field(
+        default=10,
+        ge=1,
+        le=600,
+        description="Duration of each recorded live-stream video segment, in seconds.",
+    )
+    LIVE_STORE_SEGMENTS: bool = Field(
+        default=True,
+        description="Persist N-second video segments of live streams for playback.",
+    )
+    LIVE_SEGMENT_QUEUE_MAXSIZE: int = Field(
+        default=512,
+        ge=16,
+        description="Bounded hand-off queue between the single live decode loop and the "
+        "segment muxer thread. Packets are teed off the one RTSP connection that also "
+        "feeds embedding, so this must never block the decode loop: when the muxer or "
+        "storage cannot keep up, the oldest excess packets are dropped (degrading the "
+        "current segment) rather than stalling embedding. 512 comfortably covers several "
+        "seconds of packets at typical frame rates.",
+    )
+    LIVE_BATCH_MAX_AGE_SECONDS: float = Field(
+        default=20.0,
+        ge=0,
+        description="Force a partially filled frame batch from a live stream into the "
+        "embedding pipeline once its oldest frame reaches this age, in seconds. Live "
+        "sources never reach end-of-stream, so without this they stall until "
+        "VIDEO_EXTRACTION_BATCH_SIZE sampled frames accumulate, which at a low sampling "
+        "rate takes minutes and pins that many shared-memory blocks. 0 disables the timer.",
+    )
+    LIVE_RECONNECT_INTERVAL_SECONDS: float = Field(
+        default=5.0,
+        gt=0,
+        description="Base delay between live-stream reconnect attempts, in seconds.",
+    )
+    LIVE_RECONNECT_MAX_ATTEMPTS: int = Field(
+        default=10,
+        ge=0,
+        description="Consecutive reconnect attempts before a stream moves to 'error'. "
+        "0 retries forever.",
+    )
+    LIVE_RECONNECT_WINDOW_SECONDS: float = Field(
+        default=60.0,
+        gt=0,
+        description="Healthy duration after which a stream's reconnect attempt " "budget is reset.",
+    )
+    LIVE_RETENTION_HOURS: float = Field(
+        default=0.0,
+        ge=0,
+        description="Delete live-stream embeddings and media older than this many "
+        "hours. 0 (default) retains everything forever.",
+    )
+    LIVE_RETENTION_SWEEP_MINUTES: float = Field(
+        default=15.0,
+        gt=0,
+        description="Interval between live-stream retention sweeps, in minutes.",
+    )
+    LIVE_CLOCK_CHECK_ENABLED: bool = Field(
+        default=True,
+        description="On starting a live stream, probe the camera's HTTP Date header "
+        "and log a warning when its clock is adrift from this host. Purely "
+        "diagnostic: ingestion timestamps always come from the host clock. A camera "
+        "with a wrong clock cannot be used as a shared time reference when "
+        "correlating embeddings with an external recording service.",
+    )
+    LIVE_CLOCK_SKEW_WARN_SECONDS: float = Field(
+        default=2.0,
+        gt=0,
+        description="Camera-to-host clock drift, in seconds, above which "
+        "LIVE_CLOCK_CHECK_ENABLED logs a warning.",
+    )
+
     EMBEDDING_MODEL_NAME: str = ""  # Model name - must be explicitly set
 
     # Embedding settings
     # Note: EMBEDDING_MODEL_NAME is used for model selection
-    USE_OPENVINO: bool = True  # Whether to use OpenVINO optimization (default: True for better performance)
+    USE_OPENVINO: bool = (
+        True  # Whether to use OpenVINO optimization (default: True for better performance)
+    )
     MAX_PARALLEL_WORKERS: int | None = Field(
         default=None,
         description="Hard cap for parallel worker threads; auto-calculated when unset",
@@ -190,9 +302,24 @@ class Settings(BaseSettings):
         default=None,
         description="Device for object detection; when unset, config/default value is used",
     )
-    OV_MODELS_DIR: str = "/app/ov_models"  # Directory for OpenVINO models (used by the embedding pipeline)
+    OV_MODELS_DIR: str = (
+        "/app/ov_models"  # Directory for OpenVINO models (used by the embedding pipeline)
+    )
 
     # Video pipeline settings
+    VIDEO_FRAME_TRANSPORT: str = Field(
+        default="shm",
+        pattern="^(shm|heap)$",
+        description=(
+            "How decoded frames travel from the decoder to the embed/detect "
+            "workers. 'shm' uses the POSIX shared-memory pool (cross-process "
+            "capable, fixed-capacity, can exhaust under concurrent live "
+            "streams). 'heap' passes the frame ndarray by reference through the "
+            "in-process queues (no pool, no /dev/shm usage, one fewer copy per "
+            "frame); valid because the embedding SDK runs in-process. Both "
+            "produce identical embeddings."
+        ),
+    )
     VIDEO_SHM_MAX_BLOCKS: int = Field(
         default=512,
         ge=1,
@@ -249,6 +376,22 @@ class Settings(BaseSettings):
         default=2,
         ge=1,
         description="Thread count for detection worker local pool",
+    )
+    DETECTION_INFERENCE_MAX_CONCURRENCY: int = Field(
+        default=2,
+        ge=1,
+        description=(
+            "Process-wide cap on concurrent object-detection GPU inferences "
+            "across all pipelines (including every live stream). Each live "
+            "stream runs its own detection workers; without this cap, N streams "
+            "issue N x DETECTION_WORKER_THREADS unsynchronized infer_new_request "
+            "calls against the single shared OpenVINO detector, which can "
+            "saturate and wedge the GPU (an in-flight request never completes, "
+            "deadlocking the whole pipeline). Embedding inference is already "
+            "serialized by the shared client's lock; this bounds the detection "
+            "side to the known-good single-stream load (default 2 = "
+            "DETECTION_WORKER_THREADS) regardless of how many streams run."
+        ),
     )
     EMBED_WORKER_THREADS: int = Field(
         default=2,
@@ -320,6 +463,7 @@ class Settings(BaseSettings):
     def effective_bucket_name(self) -> str:
         """Get the effective bucket name, checking environment variables first"""
         import os
+
         return os.getenv(
             "MM_DATAPREP_PM_MINIO_BUCKET",
             os.getenv("MM_DATAPREP_DEFAULT_BUCKET_NAME", self.DEFAULT_BUCKET_NAME),
@@ -332,5 +476,6 @@ class Settings(BaseSettings):
         if value in (None, ""):
             return None
         return value
+
 
 settings = Settings()

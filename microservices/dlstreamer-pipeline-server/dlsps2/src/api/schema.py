@@ -1,9 +1,20 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from typing import Any, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _validate_cpu_cores(value: Optional[List[int]]) -> Optional[List[int]]:
+    if not value:
+        return None
+    allowed = os.sched_getaffinity(0)
+    invalid = sorted(set(value) - allowed)
+    if invalid:
+        raise ValueError(f"cpu_cores {invalid} not available; allowed cores: {sorted(allowed)}")
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -12,6 +23,9 @@ from pydantic import BaseModel, Field
 
 class StartPipelineRequest(BaseModel):
     pipeline: str
+    cpu_cores: Optional[List[int]] = None  # CPU core indices to pin this pipeline to (e.g., [0, 1, 2])
+
+    _check_cpu_cores = field_validator("cpu_cores")(_validate_cpu_cores)
 
 
 class SourceConfig(BaseModel):
@@ -60,6 +74,9 @@ class StartNamedPipelineRequest(BaseModel):
     destination: Optional[DestinationConfig] = None
     parameters: Optional[dict[str, Any]] = None
     tags: Optional[dict[str, Any]] = None
+    cpu_cores: Optional[List[int]] = None  # CPU core indices to pin this pipeline to (e.g., [0, 1, 2])
+
+    _check_cpu_cores = field_validator("cpu_cores")(_validate_cpu_cores)
 
     model_config = {"extra": "allow"}
 
@@ -90,6 +107,7 @@ class PipelineSummaryResponse(PipelineStatusResponse):
     name: Optional[str] = None
     version: Optional[str] = None
     request: Optional[dict] = None
+    cpu_cores: Optional[List[int]] = None
 
 
 class PipelineDefinitionResponse(BaseModel):
