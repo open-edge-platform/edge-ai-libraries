@@ -1,0 +1,33 @@
+{
+    "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+    "SPDX-License-Identifier": "Apache-2.0",
+    "schemaVersion": "1.0",
+    "description": "Harness-neutral discovery catalog for Video Summary Accuracy Analyzer workflow skills. Paths are relative to the analyzer project root (tools/video-summary-accuracy-analyzer).",
+    "skillsRoot": ".github/skills",
+    "skills": [
+        {
+            "name": "video-summary-accuracy",
+            "path": ".github/skills/video-summary-accuracy/SKILL.md",
+            "description": "Evaluate a generated video summary against a reference summary with the Video Summary Accuracy Analyzer and report factual consistency, MENLI, semantic similarity, BERTScore, ROUGE, and temporal coherence with an evidence-based verdict.",
+            "triggers": [
+                "evaluate video summary accuracy",
+                "compare generated and reference summary",
+                "score compare.md",
+                "summary factual consistency",
+                "menli score",
+                "summary temporal order",
+                "is the generated summary accurate"
+            ],
+            "requires": [
+                "src/evaluate.py",
+                "src/server.py",
+                "scripts/setup_env.sh",
+                "docker/compose.yaml",
+                "nginx.conf",
+                "docker compose",
+                "curl",
+                "python3"
+            ]
+        }
+    ]
+}

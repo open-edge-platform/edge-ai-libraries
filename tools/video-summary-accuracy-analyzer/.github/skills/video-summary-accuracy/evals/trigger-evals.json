@@ -1,0 +1,38 @@
+[
+    {
+        "query": "Evaluate the accuracy of the generated video summary in compare.md against the reference.",
+        "should_trigger": true
+    },
+    {
+        "query": "How good is this generated video summary compared to the ground-truth summary?",
+        "should_trigger": true
+    },
+    {
+        "query": "Run the video summary accuracy analyzer on my markdown file and give me a verdict.",
+        "should_trigger": true
+    },
+    {
+        "query": "Measure factual consistency, MENLI, and BERTScore for my generated summary versus the reference.",
+        "should_trigger": true
+    },
+    {
+        "query": "Check whether the generated summary keeps the same temporal order of events as the reference video summary.",
+        "should_trigger": true
+    },
+    {
+        "query": "Does this summary pass if contradiction ratio must be under 10%? File is summary_eval.md.",
+        "should_trigger": true
+    },
+    {
+        "query": "Build the video-accuracy-eval Docker image from source.",
+        "should_trigger": false
+    },
+    {
+        "query": "Generate a summary of this video file for me.",
+        "should_trigger": false
+    },
+    {
+        "query": "Benchmark CPU and GPU usage of the video search application.",
+        "should_trigger": false
+    }
+]

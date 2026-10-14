@@ -1,0 +1,43 @@
+{
+  "skill_name": "video-summary-accuracy",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Evaluate how accurate the generated video summary in compare.md is against its reference summary and tell me whether it is good enough.",
+      "expected_output": "A real analyzer run against compare.md through the local gateway, followed by a KPI table, the six-row Accuracy Quality Overview with traffic-light statuses, up to three evidence-backed discrepancies, a plain-language Final Verdict labeled reference-relative, and limitations.",
+      "files": ["compare.md"],
+      "expectations": [
+        "Checks GET http://localhost:8101/api/health before evaluating and reuses the running service instead of restarting it.",
+        "Uploads compare.md unmodified as multipart field 'file' to POST /api/evaluate rather than scoring the text manually.",
+        "Reports entailment, neutral, and contradiction counts and ratios against total_sentences_compared, plus average_cosine_score and MENLI_Score in native -2 to 1 units.",
+        "Includes the Accuracy Quality Overview table with exactly the columns KPI, Status, Value, Why it Matters, Assessment and the six rows Temporal Order, Semantic Similarity, Factual Support (Entailment), Neutral Content Rate, Contradiction Risk, Overall Faithfulness (MENLI).",
+        "Without acceptance criteria, gives a qualitative verdict labeled reference-relative, not threshold-certified, and does not claim PASS."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Score summary_eval.md for me. Accept it only if contradiction ratio is at most 10% and MENLI is at least 0. The analyzer might not be running.",
+      "expected_output": "A health check that detects the unavailable service, a request for approval before starting it with the documented setup_env.sh and docker compose commands, a single evaluation run after health is confirmed, and a criterion-by-criterion PASS/FAIL verdict grounded in measured values.",
+      "files": [],
+      "expectations": [
+        "Probes /api/health first and, if it is unreachable, asks before starting the stack.",
+        "Uses 'source scripts/setup_env.sh' and 'docker compose -f docker/compose.yaml up -d --build' from the analyzer root, then re-checks health before evaluating.",
+        "Never prints HUGGINGFACEHUB_API_TOKEN or expanded compose configuration.",
+        "Lists each acceptance criterion with its observed value and whether it is satisfied, then returns PASS or FAIL (or INCONCLUSIVE if evidence is missing).",
+        "Does not fabricate KPI values if the service cannot be started or the evaluation fails."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Compare the reference and generated summaries in notes.md. The file has '## Generated' before '## Reference'. Just fix the order and run it.",
+      "expected_output": "A refusal to edit the input file, an explanation that the analyzer treats the first section as reference and the second as generated, and a request for the user to supply a correctly ordered file; no KPI results are reported.",
+      "files": [],
+      "expectations": [
+        "Does not modify, reorder, or rewrite the input file.",
+        "Explains that the analyzer reads the first '##' section as Reference and the second as Generated, so reversed headings would invert the evaluation.",
+        "Stops and asks the user for a correctly ordered file instead of guessing.",
+        "Does not report any KPI values or an accuracy verdict."
+      ]
+    }
+  ]
+}
