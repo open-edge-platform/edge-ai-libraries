@@ -200,13 +200,15 @@ async function mockTtsJob(
     status = "COMPLETED",
     error = null,
     waitForStart,
+    waitForStatus,
     inspectRequest,
   }: {
     content?: Buffer;
     serviceMs?: number | null;
-    status?: "COMPLETED" | "FAILED";
+    status?: "COMPLETED" | "FAILED" | "CANCELLED";
     error?: string | null;
     waitForStart?: Promise<void>;
+    waitForStatus?: Promise<void>;
     inspectRequest?: (request: Request) => void;
   } = {},
 ) {
@@ -229,25 +231,29 @@ async function mockTtsJob(
   );
   await page.route(
     `**/voice/jobs/${jobId}`,
-    (route) =>
-      route.fulfill({
-        json: {
-          id: jobId,
-          pipeline_id: "text-to-speech",
-          pipeline_name: "Text to Speech",
-          variant_id: "cpu",
-          variant_name: "CPU",
-          device: "CPU",
-          operation: "text_to_speech",
-          status,
-          created_at: "2026-10-09T10:00:00Z",
-          modified_at: "2026-10-09T10:00:01Z",
-          transcript: null,
-          artifact_url: status === "COMPLETED" ? artifactUrl : null,
-          service_round_trip_ms: serviceMs,
-          error,
-        },
-      }),
+    async (route) => {
+      await waitForStatus;
+      await route
+        .fulfill({
+          json: {
+            id: jobId,
+            pipeline_id: "text-to-speech",
+            pipeline_name: "Text to Speech",
+            variant_id: "cpu",
+            variant_name: "CPU",
+            device: "CPU",
+            operation: "text_to_speech",
+            status,
+            created_at: "2026-10-09T10:00:00Z",
+            modified_at: "2026-10-09T10:00:01Z",
+            transcript: null,
+            artifact_url: status === "COMPLETED" ? artifactUrl : null,
+            service_round_trip_ms: serviceMs,
+            error,
+          },
+        })
+        .catch(() => { });
+    },
     { times: 1 },
   );
   await page.route(
@@ -540,6 +546,8 @@ test("runs the managed speech-to-text preset without an upload", async ({
   await expect(page.getByLabel("Transcription")).toHaveValue(
     "The managed recording was transcribed.",
   );
+  await expect(page.getByText("Audio pipeline run started")).toHaveCount(1);
+  await expect(page.getByText("Audio pipeline run completed")).toHaveCount(1);
 });
 
 test("runs the managed text-to-speech preset with YAML defaults", async ({
@@ -592,6 +600,8 @@ test("runs the managed text-to-speech preset with YAML defaults", async ({
     "readyState",
     4,
   );
+  await expect(page.getByText("Audio pipeline run started")).toHaveCount(1);
+  await expect(page.getByText("Audio pipeline run completed")).toHaveCount(1);
 });
 
 test("Audio variants control STT and TTS devices", async ({ page }) => {
@@ -701,6 +711,8 @@ test("shows Audio Analyzer file validation errors", async ({ page }) => {
   await page.getByRole("button", { name: "Transcribe", exact: true }).click();
 
   await expect(page.getByRole("alert")).toHaveText("File too large");
+  await expect(page.getByText("Audio pipeline run failed")).toHaveCount(1);
+  await expect(page.getByText("File too large")).toHaveCount(2);
 });
 
 for (const viewport of [
@@ -1075,6 +1087,7 @@ test("service failure and cancellation", async ({ page }) => {
   await expect(page.getByRole("alert")).toHaveText(
     "The speech service is unavailable.",
   );
+  await expect(page.getByText("Audio pipeline run failed")).toHaveCount(1);
   await expect(metrics).toContainText("Conversion failed");
   let release: (() => void) | undefined;
   const pending = new Promise<void>((resolve) => {
@@ -1096,6 +1109,41 @@ test("service failure and cancellation", async ({ page }) => {
   await expect(metrics).toContainText("700.00ms");
   release?.();
   await expect(metrics).not.toContainText("900.00ms");
+  await expect(page.getByText("Audio pipeline run completed")).toHaveCount(2);
+});
+
+test("distinguishes backend cancellation from stopped monitoring", async ({
+  page,
+}) => {
+  await page.goto(
+    new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
+  );
+  await page.getByLabel("Text input").fill("Hello world");
+
+  await mockTtsJob(page, {
+    status: "CANCELLED",
+    serviceMs: null,
+    error: "Audio pipeline execution was cancelled.",
+  });
+  await page.getByRole("button", { name: "Generate speech" }).click();
+  await expect(page.getByText("Audio pipeline run cancelled")).toHaveCount(1);
+  await expect(page.getByText("Audio pipeline run failed")).toHaveCount(0);
+
+  let releaseStatus: (() => void) | undefined;
+  const statusReleased = new Promise<void>((resolve) => {
+    releaseStatus = resolve;
+  });
+  await mockTtsJob(page, { waitForStatus: statusReleased });
+  await page.getByRole("button", { name: "Generate speech" }).click();
+  await expect(page.getByText("Audio pipeline run started")).toHaveCount(2);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByText("Audio job monitoring stopped")).toHaveCount(1);
+  await expect(
+    page.getByText("The job may continue in the background."),
+  ).toBeVisible();
+  await expect(page.getByText("Audio pipeline run cancelled")).toHaveCount(1);
+  releaseStatus?.();
+  await expect(page.getByText("Audio pipeline run completed")).toHaveCount(0);
 });
 
 test("missing or zero service timing does not break conversion", async ({

@@ -31,6 +31,7 @@ import { MetricsDashboard } from "@/features/metrics/MetricsDashboard";
 import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog";
 import { useRequiredModelsStatus } from "@/features/models/useRequiredModelsStatus";
 import { PipelineVariantSelect } from "@/features/pipelines/PipelineVariantSelect";
+import { toast } from "@/lib/toast";
 import { captureWav } from "./recording";
 import {
   VoiceMetrics,
@@ -67,6 +68,8 @@ type AudioPipelineJob = {
 };
 
 type ManagedAudioRunBody = FormData | { input: string; voice: SpeechVoice };
+
+class AudioPipelineCancelledError extends Error { }
 
 async function checkResponse(response: Response): Promise<void> {
   if (response.ok) return;
@@ -162,6 +165,7 @@ export function VoiceConversion() {
     | "synthesizing"
   >("idle");
   const operation = useRef<AbortController | null>(null);
+  const activeJobId = useRef<string | null>(null);
   const initializedPipelines = useRef(new Set<string>());
   const fileInput = useRef<HTMLInputElement | null>(null);
   const stopRecording = useRef<(() => void) | null>(null);
@@ -169,7 +173,15 @@ export function VoiceConversion() {
   const speechUrl = useAudioUrl(speech);
   const busy = status !== "idle";
 
-  useEffect(() => () => operation.current?.abort(), []);
+  useEffect(
+    () => () => {
+      const controller = operation.current;
+      operation.current = null;
+      activeJobId.current = null;
+      controller?.abort();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (
@@ -188,10 +200,17 @@ export function VoiceConversion() {
   }, [selectedPipeline]);
 
   function cancel() {
+    const monitoringManagedJob = activeJobId.current !== null;
     operation.current?.abort();
     operation.current = null;
+    activeJobId.current = null;
     stopRecording.current = null;
     setStatus("idle");
+    if (monitoringManagedJob) {
+      toast.info("Audio job monitoring stopped", {
+        description: "The job may continue in the background.",
+      });
+    }
   }
 
   function updateText(value: string) {
@@ -223,7 +242,9 @@ export function VoiceConversion() {
       if (job.status === "FAILED")
         throw new Error(job.error ?? "Audio pipeline execution failed.");
       if (job.status === "CANCELLED")
-        throw new Error(job.error ?? "Audio pipeline execution was cancelled.");
+        throw new AudioPipelineCancelledError(
+          job.error ?? "Audio pipeline execution was cancelled.",
+        );
       await new Promise<void>((resolve, reject) => {
         const timeout = window.setTimeout(resolve, 500);
         controller.signal.addEventListener(
@@ -272,7 +293,15 @@ export function VoiceConversion() {
       typeof start.job_id !== "string"
     )
       throw new Error("The service returned an invalid Audio job.");
+    controller.signal.throwIfAborted();
+    if (operation.current !== controller) return;
+    activeJobId.current = start.job_id;
+    toast.success("Audio pipeline run started", {
+      description: new Date().toISOString(),
+    });
     const job = await waitForJob(start.job_id, controller);
+    controller.signal.throwIfAborted();
+    if (operation.current !== controller) return;
     const metrics = {
       requestMs: performance.now() - startedAt,
       serviceMs: job.service_round_trip_ms,
@@ -280,21 +309,28 @@ export function VoiceConversion() {
     if (selectedPipeline.operation === "speech_to_text") {
       setTranscription(job.transcript ?? "");
       setSttMetrics(metrics);
-      return;
+    } else {
+      if (!job.artifact_url)
+        throw new Error("The Audio job did not produce an artifact.");
+      const artifact = await fetch(job.artifact_url, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      await checkResponse(artifact);
+      const content = await artifact.blob();
+      controller.signal.throwIfAborted();
+      if (operation.current !== controller) return;
+      setSpeech(content);
+      setTtsMetrics(metrics);
     }
-    if (!job.artifact_url)
-      throw new Error("The Audio job did not produce an artifact.");
-    const artifact = await fetch(job.artifact_url, {
-      cache: "no-store",
-      signal: controller.signal,
+    toast.success("Audio pipeline run completed", {
+      description: new Date().toISOString(),
     });
-    await checkResponse(artifact);
-    setSpeech(await artifact.blob());
-    setTtsMetrics(metrics);
   }
 
   async function run(kind: "record" | "stt" | "tts") {
     operation.current?.abort();
+    activeJobId.current = null;
     const controller = new AbortController();
     operation.current = controller;
     setError(null);
@@ -350,14 +386,23 @@ export function VoiceConversion() {
       }
     } catch (failure) {
       if (operation.current === controller) {
-        setError(
-          failure instanceof Error ? failure.message : "Conversion failed.",
-        );
+        const message =
+          failure instanceof Error ? failure.message : "Conversion failed.";
+        if (failure instanceof AudioPipelineCancelledError) {
+          toast.info("Audio pipeline run cancelled", {
+            description: new Date().toISOString(),
+          });
+        } else {
+          setError(message);
+          if (kind !== "record")
+            toast.error("Audio pipeline run failed", { description: message });
+        }
       }
     } finally {
       window.clearTimeout(timer);
       if (operation.current === controller) {
         operation.current = null;
+        activeJobId.current = null;
         stopRecording.current = null;
         setStatus("idle");
       }
