@@ -11,7 +11,7 @@ verify_handheld_multi_modal () {
 }
 
 debian_90_profile_handheld_multi_modal () {
-  echo "yq make curl git docker edge_base edge_node_infrastructure_blueprint"
+  echo "yq make curl git docker_io edge_base edge_node_infrastructure_blueprint"
 }
 
 debian_90_install_handheld_multi_modal () {

@@ -3,10 +3,9 @@ configure_edge_node_infrastructure_blueprint () {
   workspace="$(ensure_project_path)/edge_node_infrastructure_blueprint"
   version=enib-packages-installer
   repository=https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git
-  # deployment model: --k3s may be global, scoped to this component, or scoped to any
-  # component that depends on it (e.g. --handheld_multi_modal --k3s). --docker is also a
-  # component tag, so it is detected anywhere. Without a selection, keep the installed
-  # model, or default to docker.
+  # deployment model: --docker/--k3s may be global, scoped to this component, or scoped to
+  # any component that depends on it (e.g. --handheld_multi_modal --k3s). --docker is
+  # detected anywhere. Without a selection, keep the installed model, or default to docker.
   installed_deployment="$(cat "$workspace"/.oep-deployment 2>/dev/null || true)"
   local k3s=0 m scoped
   [[ " $* " != *" --k3s "* ]] || k3s=1
@@ -32,7 +31,7 @@ verify_edge_node_infrastructure_blueprint () {
 }
 
 debian_60_profile_edge_node_infrastructure_blueprint () {
-  echo "git make curl docker"
+  echo "git make curl docker_io"
 }
 
 debian_60_install_edge_node_infrastructure_blueprint () {

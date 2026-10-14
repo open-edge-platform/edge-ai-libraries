@@ -126,7 +126,7 @@ openedge-cli install handheld_multi_modal uav_mission_compute_sdk --uav_mission_
 openedge-cli install edge_node_infrastructure_blueprint --k3s
 ```
 
-> The Edge Node Infrastructure Blueprint is shared, so `--k3s` scoped to any component that depends on it (or to the `federal_and_aerospace_ai_suite` profile) selects K3s for the whole installation. Because `docker` is also a component name, `--docker` acts as a component tag (like `--smart_parking`); place it last on the command line. Selecting both `--docker` and `--k3s` is rejected.
+> The Edge Node Infrastructure Blueprint is shared, so `--docker` or `--k3s` scoped to any component that depends on it (or to the `federal_and_aerospace_ai_suite` profile) selects that model for the whole installation. Selecting both `--docker` and `--k3s` is rejected.
 
 > To switch an installed blueprint to the other deployment model, run `openedge-cli install edge_node_infrastructure_blueprint --reinstall --k3s` (or `--reinstall --docker`). Requesting a different model without `--reinstall` fails with this hint.
 
