@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Annotated
 from .config import config
 from .document import FileTooLargeError, validate_files, save_files_to_tmp
-from .evaluate import Evaluator
+from .evaluate import Evaluator, InvalidInputFileError
 from .logger import logger
 
 
@@ -223,7 +223,14 @@ async def evaluate_video_accuracy(
                 detail="Error saving file."
             )
 
-        result = evaluator.run_evaluation_from_file(tmp_files[0])
+        try:
+            result = evaluator.run_evaluation_from_file(tmp_files[0])
+        except InvalidInputFileError as e:
+            logger.warning(f"Invalid evaluation input file: {e}")
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail=str(e)
+            )
 
         return result
 

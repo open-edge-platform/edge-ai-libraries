@@ -101,6 +101,8 @@ The ground-truth summary goes here.
 The machine-generated summary goes here.
 ```
 
+Sections are matched by their `## Reference` and `## Generated` heading names, not by position, and other `##` sections are ignored. Each of the two sections must appear exactly once and must not be empty; otherwise, the `/evaluate` API returns `400 Bad Request` with a message that describes the problem.
+
 ## Verify the Deployment
 
 Check the backend health endpoint through the application gateway:

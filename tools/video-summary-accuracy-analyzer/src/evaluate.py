@@ -19,7 +19,14 @@ import nltk
 import torch
 
 
+class InvalidInputFileError(ValueError):
+    """Raised when an uploaded evaluation file is malformed."""
+
+
 class Evaluator:
+    REFERENCE_SECTION = "Reference"
+    GENERATED_SECTION = "Generated"
+
     def __init__(
         self,
         bert_scorer_model_name: str = None,
@@ -646,20 +653,53 @@ class Evaluator:
 
                 # Parse HTML with BeautifulSoup
                 soup = BeautifulSoup(html, "html.parser")
-                headers = soup.find_all("h2")
+                sections = self._extract_markdown_sections(soup)
 
-                sections = []
-                for header in headers:
-                    content = []
-                    for sibling in header.find_next_siblings():
-                        if sibling.name == "h2":
-                            break
-                        content.append(sibling.get_text())
-                    sections.append("\n".join(content).strip())
-
-                if len(sections) < 2:
-                    raise ValueError("Markdown file must contain at least two sections for comparison.")
-
-                results = self._evaluate_summaries(sections[0], sections[1])
+                results = self._evaluate_summaries(
+                    sections[self.REFERENCE_SECTION],
+                    sections[self.GENERATED_SECTION],
+                )
 
                 return results
+
+    @classmethod
+    def _extract_markdown_sections(cls, soup: BeautifulSoup) -> Dict[str, str]:
+        """
+        Extracts the named Reference and Generated H2 sections from parsed Markdown.
+
+        Sections are matched by heading name (case-insensitive), not position.
+        Other H2 sections are ignored.
+
+        Raises:
+            InvalidInputFileError: If a required section is missing, duplicated, or empty.
+        """
+        required = {cls.REFERENCE_SECTION.casefold(): cls.REFERENCE_SECTION,
+                    cls.GENERATED_SECTION.casefold(): cls.GENERATED_SECTION}
+        sections: Dict[str, str] = {}
+
+        for header in soup.find_all("h2"):
+            name = required.get(header.get_text(strip=True).casefold())
+            if name is None:
+                continue
+            if name in sections:
+                raise InvalidInputFileError(
+                    f"Markdown file must contain exactly one '## {name}' section."
+                )
+            content = []
+            for sibling in header.find_next_siblings():
+                if sibling.name == "h2":
+                    break
+                content.append(sibling.get_text())
+            sections[name] = "\n".join(content).strip()
+
+        for name in required.values():
+            if name not in sections:
+                raise InvalidInputFileError(
+                    f"Markdown file must contain a '## {name}' section."
+                )
+            if not sections[name]:
+                raise InvalidInputFileError(
+                    f"The '## {name}' section in the Markdown file must not be empty."
+                )
+
+        return sections
