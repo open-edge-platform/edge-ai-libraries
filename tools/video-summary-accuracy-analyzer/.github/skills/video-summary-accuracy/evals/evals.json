@@ -21,7 +21,7 @@
       "files": [],
       "expectations": [
         "Probes /api/health first and, if it is unreachable, asks before starting the stack.",
-        "Uses 'source scripts/setup_env.sh' and 'docker compose -f docker/compose.yaml up -d --build' from the analyzer root, then re-checks health before evaluating.",
+        "Uses 'source scripts/setup_env.sh' and 'docker compose -f docker/compose.yaml up -d' from the analyzer root, then re-checks health before evaluating.",
         "Never prints HUGGINGFACEHUB_API_TOKEN or expanded compose configuration.",
         "Lists each acceptance criterion with its observed value and whether it is satisfied, then returns PASS or FAIL (or INCONCLUSIVE if evidence is missing).",
         "Does not fabricate KPI values if the service cannot be started or the evaluation fails."
