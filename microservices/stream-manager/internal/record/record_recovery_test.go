@@ -5,6 +5,7 @@ package record
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
@@ -20,8 +21,9 @@ import (
 func seed(t *testing.T, metadata *storage.MetadataStore, media *storage.MediaStore, state string) (model.Recording, string) {
 	t.Helper()
 	ctx := context.Background()
-	id := uuid.NewString()
-	filename, uri, err := media.PrepareMedia(ctx, id)
+	recordingUUID := uuid.New()
+	recordingID := base64.RawURLEncoding.EncodeToString(recordingUUID[:])
+	filename, uri, err := media.PrepareMedia(ctx, recordingID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +31,7 @@ func seed(t *testing.T, metadata *storage.MetadataStore, media *storage.MediaSto
 		t.Fatal(err)
 	}
 	rec, err := metadata.CreateMetadata(ctx, model.Recording{
-		RecordingID: id, SensorID: "s", StartTS: time.Unix(1, 0), RecordingPath: uri,
+		RecordingID: recordingID, SensorID: "s", StartTS: time.Unix(1, 0), RecordingPath: uri,
 		State: state, Metadata: map[string]any{}, CreationTS: time.Now(),
 	})
 	if err != nil {

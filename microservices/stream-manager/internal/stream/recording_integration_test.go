@@ -5,6 +5,7 @@ package stream
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -22,18 +23,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/config"
 )
 
 type recordingWire struct {
-	ID    string     `json:"recording_id"`
-	State string     `json:"state"`
-	Start time.Time  `json:"start_ts"`
-	End   *time.Time `json:"end_ts"`
-	Size  *int64     `json:"size_bytes"`
-	Error *string    `json:"error_detail"`
+	ID       string     `json:"recording_id"`
+	StreamID *string    `json:"stream_id"`
+	State    string     `json:"state"`
+	Start    time.Time  `json:"start_ts"`
+	End      *time.Time `json:"end_ts"`
+	Size     *int64     `json:"size_bytes"`
+	Error    *string    `json:"error_detail"`
 }
 
 var integrationRace bool
@@ -244,11 +244,16 @@ func TestRecordingEndToEnd(t *testing.T) {
 			Recordings []recordingWire `json:"recordings"`
 		}
 		decode(data, &response)
-		if len(response.Recordings) != 1 || response.Recordings[0].State != "recording" {
+		if len(response.Recordings) != 1 || response.Recordings[0].State != "recording" ||
+			response.Recordings[0].StreamID == nil || *response.Recordings[0].StreamID != attached.ID {
 			t.Fatalf("invalid acceptance response: %s", data)
 		}
-		if _, err := uuid.Parse(response.Recordings[0].ID); err != nil {
-			t.Fatal(err)
+		if len(response.Recordings[0].ID) != 22 {
+			t.Fatalf("recording ID is not shortened: %q", response.Recordings[0].ID)
+		}
+		raw, err := base64.RawURLEncoding.Strict().DecodeString(response.Recordings[0].ID)
+		if err != nil || len(raw) != 16 {
+			t.Fatalf("invalid recording ID: %v", err)
 		}
 		return response.Recordings[0]
 	}
@@ -396,7 +401,7 @@ func TestRecordingEndToEnd(t *testing.T) {
 	data, _ = request("GET", "/records/"+open.ID, nil, 200)
 	var persisted recordingWire
 	decode(data, &persisted)
-	if persisted.State != "ready" {
+	if persisted.State != "ready" || persisted.StreamID == nil || *persisted.StreamID != attached.ID {
 		t.Fatalf("ready recording did not survive restart: %s", data)
 	}
 	t.Log("fixed/open recordings, stop, admission, filters, pagination, deletion and restart passed")

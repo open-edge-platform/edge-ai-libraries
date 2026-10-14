@@ -5,11 +5,15 @@ package storage
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func TestStoreLocks(t *testing.T) {
@@ -59,6 +63,30 @@ func TestStoreLocks(t *testing.T) {
 	}
 }
 
+func TestValidRecordingID(t *testing.T) {
+	for _, tc := range []struct {
+		name, value string
+		valid       bool
+	}{
+		{"short", "ABEiM0RVZneImaq7zN3u_w", true},
+		{"leading underscore", "_BEiM0RVZneImaq7zN3u_w", true},
+		{"legacy", "00112233-4455-6677-8899-aabbccddeeff", true},
+		{"empty", "", false},
+		{"too short", "ABEiM0RVZneImaq7zN3u_", false},
+		{"padded", "ABEiM0RVZneImaq7zN3u_w==", false},
+		{"invalid alphabet", "ABEiM0RVZneImaq7zN3u/w", false},
+		{"noncanonical trailing bits", "ABEiM0RVZneImaq7zN3u_x", false},
+		{"legacy uppercase", "00112233-4455-6677-8899-AABBCCDDEEFF", false},
+		{"path traversal", "../recording", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := validRecordingID(tc.value); got != tc.valid {
+				t.Fatalf("validRecordingID(%q) = %t, want %t", tc.value, got, tc.valid)
+			}
+		})
+	}
+}
+
 func TestPutMediaAndDerived(t *testing.T) {
 	ctx := context.Background()
 	media, err := OpenMediaStore(filepath.Join(t.TempDir(), "storage"))
@@ -66,9 +94,17 @@ func TestPutMediaAndDerived(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = media.Close() })
-	filename, uri, err := media.PrepareMedia(ctx, "0b6f7a52-6f63-4e0e-9f0b-2d1d6c1f2a10")
+	recordingUUID := uuid.MustParse("0b6f7a52-6f63-4e0e-9f0b-2d1d6c1f2a10")
+	recordingID := base64.RawURLEncoding.EncodeToString(recordingUUID[:])
+	filename, uri, err := media.PrepareMedia(ctx, recordingID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, invalidID := range []string{"../escape", "0b6f7a52-6f63-4e0e-9f0b-2d1d6c1f2a10/",
+		strings.Repeat("a", 22), recordingID + "=", recordingID[:21]} {
+		if _, _, err := media.PrepareMedia(ctx, invalidID); err == nil {
+			t.Fatalf("invalid recording ID accepted: %q", invalidID)
+		}
 	}
 	if _, _, err := media.PutMedia(ctx, uri); err == nil {
 		t.Fatal("missing media published")

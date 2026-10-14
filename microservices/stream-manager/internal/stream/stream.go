@@ -6,6 +6,7 @@ package stream
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -31,30 +32,36 @@ type AttachmentConflict struct {
 }
 
 func (e *AttachmentConflict) Error() string {
-	return fmt.Sprintf("sensor is already attached as %s", e.StreamID)
+	return fmt.Sprintf("this source is already attached for the sensor as %s", e.StreamID)
+}
+
+type attachmentKey struct {
+	sensorID  string
+	sourceURI string
 }
 
 func (*AttachmentConflict) Unwrap() error { return ErrStreamExists }
 
 // Service owns stream ingestion and only the directories it creates.
 type Service struct {
-	mu        sync.RWMutex
-	root      *os.Root
-	cfg       config.Config
-	ffmpeg    string
-	streams   map[string]*attachedStream
-	sensors   map[string]string
-	wg        sync.WaitGroup
-	closed    bool
-	closeOnce sync.Once
-	closeErr  error
-	ingest    func(context.Context, string, string, *RollingBuffer, func(bool), func(), time.Duration) error
+	mu          sync.RWMutex
+	root        *os.Root
+	cfg         config.Config
+	ffmpeg      string
+	streams     map[string]*attachedStream
+	attachments map[attachmentKey]string
+	wg          sync.WaitGroup
+	closed      bool
+	closeOnce   sync.Once
+	closeErr    error
+	ingest      func(context.Context, string, string, *RollingBuffer, func(bool), func(), time.Duration) error
 }
 
 type attachedStream struct {
 	mu          sync.Mutex
 	id          string
 	sensor      string
+	source      string
 	directory   string
 	created     time.Time
 	state       string
@@ -72,7 +79,7 @@ var _ Bufferer = (*Service)(nil)
 
 func NewService(cfg config.Config) (*Service, error) {
 	if !filepath.IsAbs(cfg.BufferDir) || filepath.Clean(cfg.BufferDir) == "/" {
-		return nil, errors.New("SM_BUFFER_DIR must be an absolute private tmpfs directory")
+		return nil, errors.New("BufferDir must be an absolute private tmpfs directory")
 	}
 	executable, err := exec.LookPath("ffmpeg")
 	if err != nil {
@@ -90,7 +97,7 @@ func NewService(cfg config.Config) (*Service, error) {
 	}
 	return &Service{
 		root: root, cfg: cfg, ffmpeg: executable, ingest: runIngest,
-		streams: make(map[string]*attachedStream), sensors: make(map[string]string),
+		streams: make(map[string]*attachedStream), attachments: make(map[attachmentKey]string),
 	}, nil
 }
 
@@ -105,14 +112,14 @@ func validateBufferRoot(root *os.Root) (result error) {
 		return err
 	}
 	if fs.Type != unix.TMPFS_MAGIC {
-		return errors.New("SM_BUFFER_DIR must be on tmpfs")
+		return errors.New("BufferDir must be on tmpfs")
 	}
 	var stat unix.Stat_t
 	if err := unix.Fstat(int(f.Fd()), &stat); err != nil {
 		return err
 	}
 	if stat.Uid != uint32(os.Geteuid()) || stat.Mode&0o077 != 0 {
-		return errors.New("SM_BUFFER_DIR must be owned by the service user with private permissions (0700)")
+		return errors.New("BufferDir must be owned by the service user with private permissions (0700)")
 	}
 	return nil
 }
@@ -143,14 +150,23 @@ func (s *Service) CreateBuffer(ctx context.Context, sourceURI, sensorID string, 
 	if s.closed {
 		return "", ErrBufferClosed
 	}
-	if existing := s.sensors[sensorID]; existing != "" {
-		return "", &AttachmentConflict{StreamID: existing}
+	key := attachmentKey{sensorID: sensorID, sourceURI: sourceURI}
+	if existing := s.attachments[key]; existing != "" {
+		entry := s.streams[existing]
+		if entry != nil {
+			entry.mu.Lock()
+			active := entry.state != "failed"
+			entry.mu.Unlock()
+			if active {
+				return "", &AttachmentConflict{StreamID: existing}
+			}
+		}
 	}
-	id, err := uuid.NewRandom()
+	streamUUID, err := uuid.NewRandom()
 	if err != nil {
 		return "", err
 	}
-	streamID := "str-" + id.String()
+	streamID := "str-" + base64.RawURLEncoding.EncodeToString(streamUUID[:])
 	directory := sensorID + "-" + streamID
 	if err := s.root.Mkdir(directory, 0o700); err != nil {
 		return "", fmt.Errorf("create stream buffer: %w", err)
@@ -161,22 +177,26 @@ func (s *Service) CreateBuffer(ctx context.Context, sourceURI, sensorID string, 
 	}
 	workerCtx, cancel := context.WithCancel(context.Background())
 	entry := &attachedStream{
-		id: streamID, sensor: sensorID, directory: directory, created: time.Now().UTC(),
+		id: streamID, sensor: sensorID, source: sourceURI, directory: directory, created: time.Now().UTC(),
 		state: "connecting", buffer: buffer, cancel: cancel, done: make(chan struct{}),
 		statsErrors: make(chan error, 1),
 	}
-	s.streams[streamID], s.sensors[sensorID] = entry, streamID
-	s.wg.Go(func() { s.run(workerCtx, entry, sourceURI) })
+	s.streams[streamID], s.attachments[key] = entry, streamID
+	s.wg.Go(func() { s.run(workerCtx, entry) })
 	return streamID, nil
 }
 
-func (s *Service) run(ctx context.Context, entry *attachedStream, source string) {
+func (e *attachedStream) attachmentKey() attachmentKey {
+	return attachmentKey{sensorID: e.sensor, sourceURI: e.source}
+}
+
+func (s *Service) run(ctx context.Context, entry *attachedStream) {
 	defer close(entry.done)
 	ingestCtx, stopIngest := context.WithCancel(ctx)
 	defer stopIngest()
 	finished := make(chan error, 1)
 	go func() {
-		finished <- s.ingest(ingestCtx, s.ffmpeg, source, entry.buffer, entry.frame, func() {
+		finished <- s.ingest(ingestCtx, s.ffmpeg, entry.source, entry.buffer, entry.frame, func() {
 			entry.mu.Lock()
 			if entry.state != "failed" {
 				entry.state, entry.synced = "buffering", true
@@ -265,7 +285,7 @@ func (e *attachedStream) snapshot() (model.StreamBuffer, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.pruneArrivals(time.Now())
-	result.StreamID, result.SensorID, result.CreationTS = e.id, e.sensor, e.created
+	result.StreamID, result.SensorID, result.SourceURI, result.CreationTS = e.id, e.sensor, e.source, e.created
 	result.State, result.SyncConfidence = e.state, model.SyncUnverified
 	if e.synced {
 		result.SyncConfidence = model.SyncNTPSynced
@@ -366,7 +386,9 @@ func (s *Service) RemoveBuffer(ctx context.Context, streamID string) error {
 		return ErrActiveReaders
 	}
 	delete(s.streams, streamID)
-	delete(s.sensors, entry.sensor)
+	if s.attachments[entry.attachmentKey()] == streamID {
+		delete(s.attachments, entry.attachmentKey())
+	}
 	entry.cancel()
 	s.mu.Unlock()
 	<-entry.done
@@ -383,7 +405,7 @@ func (s *Service) Close() error {
 			entry.cancel()
 		}
 		clear(s.streams)
-		clear(s.sensors)
+		clear(s.attachments)
 		s.mu.Unlock()
 		s.wg.Wait()
 		for _, entry := range entries {
@@ -407,7 +429,7 @@ type Bufferer interface {
 
 var (
 	ErrStreamNotFound     = errors.New("stream not found")
-	ErrStreamExists       = errors.New("sensor is already attached")
+	ErrStreamExists       = errors.New("source is already attached for the sensor")
 	ErrUnsupportedSource  = errors.New("only RTSP or RTSPS H.264/H.265 video is supported")
 	ErrInvalidRequest     = errors.New("invalid buffer request")
 	ErrActiveReaders      = errors.New("buffer has active readers")

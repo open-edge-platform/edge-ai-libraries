@@ -26,7 +26,8 @@ const (
 )
 
 var (
-	idPattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
+	idPattern       = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._:-]*$`)
+	sensorIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
 	recordingStates = map[string]bool{"recording": true, "finalizing": true, "ready": true, "failed": true}
 )
 
@@ -34,8 +35,12 @@ func CheckID(name, id string) error {
 	if id == "" {
 		return fmt.Errorf("%s is required", name)
 	}
-	if len(id) > maxIDLength || !idPattern.MatchString(id) {
-		return fmt.Errorf("%s must be 1-%d characters matching %s", name, maxIDLength, idPattern)
+	pattern := idPattern
+	if name == "sensor_id" {
+		pattern = sensorIDPattern
+	}
+	if len(id) > maxIDLength || !pattern.MatchString(id) {
+		return fmt.Errorf("%s must be 1-%d characters matching %s", name, maxIDLength, pattern)
 	}
 	return nil
 }

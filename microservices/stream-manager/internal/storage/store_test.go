@@ -5,6 +5,7 @@ package storage
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
@@ -41,13 +42,14 @@ func testStores(t *testing.T) (*MetadataStore, *MediaStore, string) {
 
 func testRecording(t *testing.T, media *MediaStore) model.Recording {
 	t.Helper()
-	id := uuid.NewString()
-	_, uri, err := media.PrepareMedia(context.Background(), id)
+	recordingUUID := uuid.New()
+	recordingID := base64.RawURLEncoding.EncodeToString(recordingUUID[:])
+	_, uri, err := media.PrepareMedia(context.Background(), recordingID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return model.Recording{
-		RecordingID: id, SensorID: "camera", RecordingPath: uri,
+		RecordingID: recordingID, SensorID: "camera", RecordingPath: uri,
 		StartTS:    time.Date(2026, 1, 1, 0, 0, 0, 123456789, time.UTC),
 		CreationTS: time.Date(2026, 1, 1, 0, 1, 0, 987654321, time.UTC),
 		State:      "recording", Metadata: map[string]any{"label": "door", "a.b": "literal"},
@@ -71,6 +73,11 @@ func TestSchemaSerializationAndReopen(t *testing.T) {
 	if err := metadata.db.Raw("SELECT start_ts FROM recordings WHERE recording_id = ?", rec.RecordingID).Scan(&stored).Error; err != nil ||
 		stored != rec.StartTS.UnixNano() {
 		t.Fatalf("timestamp is not INTEGER nanoseconds: %d %v", stored, err)
+	}
+	var storedID string
+	if err := metadata.db.Raw("SELECT recording_id FROM recordings WHERE recording_id = ?", rec.RecordingID).
+		Scan(&storedID).Error; err != nil || storedID != rec.RecordingID || len(storedID) != 22 {
+		t.Fatalf("database recording ID = %q: %v", storedID, err)
 	}
 	var indexes []struct{ Name string }
 	if err := metadata.db.Raw("PRAGMA index_list('recordings')").Scan(&indexes).Error; err != nil {
@@ -101,6 +108,43 @@ func TestSchemaSerializationAndReopen(t *testing.T) {
 	got, err = reopened.GetMetadataByRecordingID(ctx, rec.RecordingID)
 	if err != nil || !got.StartTS.Equal(rec.StartTS) {
 		t.Fatalf("migration was not idempotent: %+v %v", got, err)
+	}
+}
+
+func TestLegacyRecordingIDRemainsAccessible(t *testing.T) {
+	metadata, media, _ := testStores(t)
+	ctx := context.Background()
+	current := testRecording(t, media)
+	legacyID := uuid.NewString()
+	_, legacyURI, err := media.PrepareMedia(ctx, legacyID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := current
+	legacy.RecordingID, legacy.RecordingPath = legacyID, legacyURI
+	for _, rec := range []model.Recording{current, legacy} {
+		if _, err := metadata.CreateMetadata(ctx, rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seen := make(map[string]bool)
+	cursor := ""
+	for range 2 {
+		page, next, err := metadata.ListMetadata(ctx, model.RecordingFilter{Limit: 1, Cursor: cursor})
+		if err != nil || len(page) != 1 || seen[page[0].RecordingID] {
+			t.Fatalf("mixed-ID pagination: %+v %q %v", page, next, err)
+		}
+		seen[page[0].RecordingID] = true
+		cursor = next
+	}
+	if len(seen) != 2 || !seen[current.RecordingID] || !seen[legacyID] || cursor != "" {
+		t.Fatalf("mixed-ID pagination missed records: %+v %q", seen, cursor)
+	}
+	if _, err := media.OpenMedia(ctx, legacyURI); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy URI rejected before file lookup: %v", err)
+	}
+	if err := media.DeleteMedia(ctx, legacyURI); err != nil {
+		t.Fatalf("legacy media not deletable: %v", err)
 	}
 }
 

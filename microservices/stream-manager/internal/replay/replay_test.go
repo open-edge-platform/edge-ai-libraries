@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -120,8 +121,9 @@ func newEnv(t *testing.T, bFrames int) testEnv {
 // addRecording stores a recording of the fixture, edited by opts.
 func (e testEnv) addRecording(t *testing.T, opts ...func(*model.Recording)) model.Recording {
 	t.Helper()
-	id := uuid.NewString()
-	filename, uri, err := e.mediaStore.PrepareMedia(context.Background(), id)
+	recordingUUID := uuid.New()
+	recordingID := base64.RawURLEncoding.EncodeToString(recordingUUID[:])
+	filename, uri, err := e.mediaStore.PrepareMedia(context.Background(), recordingID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +136,7 @@ func (e testEnv) addRecording(t *testing.T, opts ...func(*model.Recording)) mode
 	}
 	end, expiry := fixtureEnd, time.Now().Add(time.Hour)
 	rec := model.Recording{
-		RecordingID: id, SensorID: "cam-1", StartTS: fixtureStart, EndTS: &end, RecordingPath: uri,
+		RecordingID: recordingID, SensorID: "cam-1", StartTS: fixtureStart, EndTS: &end, RecordingPath: uri,
 		State: "ready", CreationTS: time.Now(), ExpiryTS: &expiry, Metadata: map[string]any{},
 	}
 	for _, opt := range opts {

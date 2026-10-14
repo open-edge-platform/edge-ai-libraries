@@ -6,6 +6,7 @@ package record
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -202,11 +203,12 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 	if err != nil {
 		return model.Recording{}, rollback(err)
 	}
-	filename, uri, err := s.media.PrepareMedia(ctx, recordID.String())
+	shortID := base64.RawURLEncoding.EncodeToString(recordID[:])
+	filename, uri, err := s.media.PrepareMedia(ctx, shortID)
 	if err != nil {
 		return model.Recording{}, rollback(err)
 	}
-	j.id, j.uri, j.filename = recordID.String(), uri, filename
+	j.id, j.uri, j.filename = shortID, uri, filename
 	streamID := info.StreamID
 	j.record = model.Recording{
 		RecordingID: j.id, SensorID: info.SensorID, StreamID: &streamID,

@@ -6,6 +6,7 @@ package stream
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -363,13 +364,13 @@ type videoRelay struct {
 }
 
 func newVideoRelay(codec format.Format, onClosed func()) (*videoRelay, error) {
-	id, err := uuid.NewRandom()
+	relayUUID, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
 	}
 	r := &videoRelay{
-		path: "/" + id.String(), onClosed: onClosed,
-		timestampOrigin: binary.BigEndian.Uint32(id[:4]) | 1,
+		path: "/" + base64.RawURLEncoding.EncodeToString(relayUUID[:]), onClosed: onClosed,
+		timestampOrigin: binary.BigEndian.Uint32(relayUUID[:4]) | 1,
 		media:           &description.Media{Type: description.MediaTypeVideo, Formats: []format.Format{codec}},
 	}
 	r.server = &gortsplib.Server{

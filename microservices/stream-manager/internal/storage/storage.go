@@ -5,6 +5,7 @@
 package storage
 
 import (
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
@@ -54,7 +55,11 @@ func openPrivateDir(directory, lockName string) (_ *os.Root, _ *os.File, result 
 	return root, lock, nil
 }
 
-func validRecordingID(id string) bool {
-	parsed, err := uuid.Parse(id)
-	return err == nil && parsed.String() == id
+func validRecordingID(recordingID string) bool {
+	if len(recordingID) == base64.RawURLEncoding.EncodedLen(16) {
+		decoded, err := base64.RawURLEncoding.Strict().DecodeString(recordingID)
+		return err == nil && len(decoded) == 16
+	}
+	parsed, err := uuid.Parse(recordingID)
+	return err == nil && parsed.String() == recordingID
 }

@@ -18,6 +18,7 @@ const (
 type StreamBuffer struct {
 	StreamID       string
 	SensorID       string
+	SourceURI      string
 	State          string
 	SyncConfidence SyncConfidence
 	Slices         []BufferSlice

@@ -5,6 +5,7 @@ package stream
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -38,6 +39,13 @@ func TestRelayDescription(t *testing.T) {
 	u, err := base.ParseURL(relay.url())
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(relay.path) != 23 || !strings.HasPrefix(relay.path, "/") {
+		t.Fatalf("relay path is not shortened: %q", relay.path)
+	}
+	raw, err := base64.RawURLEncoding.Strict().DecodeString(strings.TrimPrefix(relay.path, "/"))
+	if err != nil || len(raw) != 16 {
+		t.Fatalf("relay path is not an encoded UUID: %v", err)
 	}
 	client := &gortsplib.Client{Scheme: u.Scheme, Host: u.Host}
 	if err := client.Start(); err != nil {

@@ -5,9 +5,11 @@ package stream
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -47,6 +49,13 @@ func TestServiceLifecycleAndIsolation(t *testing.T) {
 		t.Fatalf("list: %+v %v", streams, err)
 	}
 	id := streams[0].StreamID
+	if !strings.HasPrefix(id, "str-") || len(id) != 26 {
+		t.Fatalf("stream ID is not shortened: %q", id)
+	}
+	raw, err := base64.RawURLEncoding.Strict().DecodeString(strings.TrimPrefix(id, "str-"))
+	if err != nil || len(raw) != 16 {
+		t.Fatalf("stream ID does not contain a shortened UUID: %v", err)
+	}
 	if _, err := s.ResizeBuffer(context.Background(), id, 45); err != nil {
 		t.Fatalf("resize: %v", err)
 	}
@@ -68,6 +77,88 @@ func TestServiceLifecycleAndIsolation(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(s.cfg.BufferDir, "camera-"+id)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("owned buffer directory was not removed: %v", err)
+	}
+}
+
+func TestServiceAttachesOneSensorToManySources(t *testing.T) {
+	s := testService(t, 30)
+	s.ingest = idleIngest
+	ctx := context.Background()
+	const main, sub = "rtsp://camera.invalid/main", "rtsp://camera.invalid/sub"
+	mainID, err := s.CreateBuffer(ctx, main, "camera", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	subID, err := s.CreateBuffer(ctx, sub, "camera", 0)
+	if err != nil {
+		t.Fatalf("second source on the same sensor: %v", err)
+	}
+	if _, err := s.CreateBuffer(ctx, main, "other-camera", 0); err != nil {
+		t.Fatalf("same source on another sensor: %v", err)
+	}
+	var conflict *AttachmentConflict
+	if _, err := s.CreateBuffer(ctx, main, "camera", 0); !errors.As(err, &conflict) || conflict.StreamID != mainID {
+		t.Fatalf("duplicate sensor and source: %v", err)
+	}
+	for id, want := range map[string]string{mainID: main, subID: sub} {
+		info, err := s.GetStream(ctx, id)
+		if err != nil || info.SourceURI != want || info.SensorID != "camera" {
+			t.Fatalf("stream %s: %+v %v", id, info, err)
+		}
+	}
+}
+
+func TestServiceRemovingFailedStreamKeepsReplacement(t *testing.T) {
+	s := testService(t, 30)
+	s.ingest = idleIngest
+	ctx := context.Background()
+	const source = "rtsp://camera.invalid/live"
+	failedID, err := s.CreateBuffer(ctx, source, "camera", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.streams[failedID].fail(errors.New("test failure"))
+	replacementID, err := s.CreateBuffer(ctx, source, "camera", 0)
+	if err != nil {
+		t.Fatalf("re-attach after failure: %v", err)
+	}
+	if err := s.RemoveBuffer(ctx, failedID); err != nil {
+		t.Fatal(err)
+	}
+	var conflict *AttachmentConflict
+	if _, err := s.CreateBuffer(ctx, source, "camera", 0); !errors.As(err, &conflict) || conflict.StreamID != replacementID {
+		t.Fatalf("replacement attachment was forgotten: %v", err)
+	}
+}
+
+func TestServiceRetriesAttachAfterRealIngestFailure(t *testing.T) {
+	s := testService(t, 30)
+	ctx := context.Background()
+	const source = "rtsp://127.0.0.1:1/unreachable"
+	failedID, err := s.CreateBuffer(ctx, source, "camera", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(ingestTimeout + 5*time.Second)
+	for {
+		info, err := s.GetStream(ctx, failedID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.State == "failed" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("unreachable source did not fail, state %q", info.State)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	retryID, err := s.CreateBuffer(ctx, source, "camera", 0)
+	if errors.Is(err, ErrStreamExists) {
+		t.Fatalf("failed stream blocked the retry: %v", err)
+	}
+	if err != nil || retryID == failedID {
+		t.Fatalf("retry: id %q, err %v", retryID, err)
 	}
 }
 
