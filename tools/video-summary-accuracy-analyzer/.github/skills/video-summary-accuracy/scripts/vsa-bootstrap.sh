@@ -27,8 +27,8 @@
 
 set -euo pipefail
 
-REPO_URL="${VSA_REPO_URL:-https://github.com/rudra-intel/edge-ai-libraries.git}"  #"${VSA_REPO_URL:-https://github.com/open-edge-platform/edge-ai-libraries.git}"
-REPO_BRANCH="video-summary-accuracy" #"${VSA_REPO_BRANCH:-main}"
+REPO_URL="${VSA_REPO_URL:-https://github.com/open-edge-platform/edge-ai-libraries.git}"
+REPO_BRANCH="${VSA_REPO_BRANCH:-main}"
 CACHE_BASE="${XDG_CACHE_HOME:-$HOME/.cache}"
 CLONE_DIR="${VSA_CLONE_DIR:-$CACHE_BASE/video-summary-accuracy-src/edge-ai-libraries}"
 VSA_SUBPATH="tools/video-summary-accuracy-analyzer"
