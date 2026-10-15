@@ -64,6 +64,11 @@ Hugging Face Hub.
    available hardware (CPU/GPU/NPU) and writes the appropriate `.env` file. They also create
    the required directories under `shared/`.
 
+   The images are tagged with the version of the checked-out sources (for example `2026.3.0-dev`), or with
+   `DOCKER_TAG` if it is set in the environment. `make run` does not rebuild images: after changing the
+   sources, run `make build` again. To run published images instead, see
+   [Use Pre-Built Docker Images](./docker-compose.md).
+
 3. Verify that the application is running:
 
    ```bash
@@ -99,6 +104,10 @@ same repository, gives it the same devices as `vippet`, and sets
   tests, multi-stream performance tests and tests with latency metrics still run inside
   `vippet`.
 - A pipeline that finishes in less than about one second reports 0 FPS.
+
+The server is not part of `compose.yml`, so `docker compose logs` does not show it. Use
+`docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to
+open a shell in it.
 
 ## Stop the application
 

@@ -24,7 +24,7 @@ verify_visual_search_question_and_answering () {
 }
 
 debian_90_profile_visual_search_question_and_answering () {
-  echo "git curl gawk python3_venv edge_base docker"
+  echo "git curl gawk python3_venv edge_base docker_io"
 }
 
 debian_90_install_visual_search_question_and_answering () {
@@ -86,6 +86,6 @@ debian_90_stop_visual_search_question_and_answering () {
 }
 
 debian_90_remove_visual_search_question_and_answering () {
-  debian_90_stop_visual_search_question_and_answering $* || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  debian_90_stop_visual_search_question_and_answering "$@"
+  ensure_rm "$workspace"
 }
