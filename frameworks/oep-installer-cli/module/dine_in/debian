@@ -80,7 +80,7 @@ debian_90_start_dine_in () {
 
 debian_90_stop_dine_in () {
   configure_dine_in "$@"
-  cd "$workspace"/dine-in && make down || true
+  cd "$workspace"/dine-in && make clean || true
 }
 
 debian_90_remove_dine_in () {
