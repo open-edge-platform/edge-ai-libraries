@@ -24,8 +24,9 @@ from typing import Optional
 import requests
 
 from fastapi import FastAPI, File, HTTPException, Response, status, Request, Query, BackgroundTasks, UploadFile
+from fastapi.openapi.docs import get_swagger_ui_html
 from pydantic import BaseModel
-from starlette.responses import JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse
 import uvicorn
 import classifier_startup
 from opcua_alerts import OpcuaAlerts
@@ -42,7 +43,23 @@ logging.basicConfig(
 logger = logging.getLogger()
 
 REST_API_ROOT_PATH = os.getenv('REST_API_ROOT_PATH', '/')
-app = FastAPI(root_path=REST_API_ROOT_PATH)
+app = FastAPI(root_path=REST_API_ROOT_PATH, docs_url=None)
+
+@app.get("/docs", include_in_schema=False)
+async def swagger_ui(request: Request):
+    root_path = request.scope.get("root_path", "").rstrip("/")
+    docs = get_swagger_ui_html(
+        openapi_url=f"{root_path}{app.openapi_url}",
+        oauth2_redirect_url=(
+            f"{root_path}{app.swagger_ui_oauth2_redirect_url}"
+            if app.swagger_ui_oauth2_redirect_url
+            else None
+        ),
+        title=f"{app.title} - Swagger UI",
+    )
+    css = "<style>.swagger-ui select option[value=''] { display: none; }</style>"
+    html = docs.body.decode("utf-8").replace("</head>", f"{css}</head>", 1)
+    return HTMLResponse(html)
 
 KAPACITOR_URL = os.getenv('KAPACITOR_URL', 'http://localhost:9092').rstrip('/')
 CONFIG_FILE = "/app/config.json"
@@ -390,9 +407,9 @@ async def receive_data(data_point: DataPoint):
 @app.get("/config")
 async def get_config(
     request: Request,
-    restart: Optional[bool] = Query(False,
-                                   description="Restart the Time Series Analytics "
-                                             "Microservice UDF deployment if true"),
+    restart: bool = Query(False,
+                          description="Restart the Time Series Analytics "
+                                      "Microservice UDF deployment if true"),
     background_tasks: BackgroundTasks = None):
     """
     Endpoint to retrieve the current configuration of the input service.

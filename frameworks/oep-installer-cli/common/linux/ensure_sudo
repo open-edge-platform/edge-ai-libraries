@@ -20,8 +20,8 @@ ensure_sudo () {
     (
       flock -w 300 -e 9 || { echo "ensure_sudo: timed out waiting for another installer" >&2; exit 1; }
       if [ ! -x "$SUDO_ASKPASS" ]; then
-        askpass_helper="$rundir"/askpass
-        act_panelled_logs_askpass "$askpass_helper" || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
+        askpass_helper="$rundir"/askpass-sudo
+        act_panelled_logs_askpass "$askpass_helper" SUDO_PASSWORD || { echo "ensure_sudo: failed to create askpass helper" >&2; exit 1; }
         export SUDO_ASKPASS="$askpass_helper"
       fi
       sudo -A env "${proxy_args[@]}" "$@"

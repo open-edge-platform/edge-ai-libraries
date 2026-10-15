@@ -27,7 +27,6 @@ from src.core.telemetry.recorder import record_video_telemetry
 
 # Import embedding helper for optimized processing
 from .embedding_helper import (
-    generate_rtsp_video_embedding_pipeline,
     generate_video_embedding_pipeline,
     get_embedding_client,
     get_global_detector,
@@ -144,7 +143,7 @@ def _log_telemetry_record(record: TelemetryRecord | None) -> None:
         logger.debug("Unable to summarize telemetry record %s: %s", record.request_id, exc)
 
 
-def _record_pipeline(
+def record_pipeline_telemetry(
     *,
     context: Dict[str, Any],
     bucket_name: str,
@@ -170,7 +169,12 @@ def _record_pipeline(
 
         pipeline_stats = {
             "properties": {
-                "stream_id": pipeline_result.get("stream_id", -1),
+                # Index of the video stream within the source container. Sources
+                # that do not report one are single-stream (the decoder always
+                # reads ``streams.video[0]``), so 0 is the truthful default.
+                # A negative sentinel here would fail TelemetryCounts validation
+                # and silently discard the whole record.
+                "stream_id": pipeline_result.get("stream_id", 0),
                 "frames_extracted": pipeline_result.get("total_frames_processed", 0),
                 "items_after_detection": pipeline_result.get("total_detected_crops", 0),
                 "embeddings_stored": pipeline_result.get("total_stored_ids", 0),
@@ -432,7 +436,7 @@ async def generate_video_embedding_from_content(
             video_id = stream_result["video_metadata"]["_video_id"]
             filename = stream_result["video_metadata"]["_filename"]
 
-            _record_pipeline(
+            record_pipeline_telemetry(
                 context=telemetry_context,
                 bucket_name=bucket_name,
                 video_id=video_id,
@@ -456,68 +460,6 @@ async def generate_video_embedding_from_content(
     except Exception as ex:
         logger.error(f"Error in video embedding from content: {ex}")
         raise
-
-
-async def generate_video_embedding_from_uri(
-    video_uris: list[str],
-    bucket_name: str,
-    video_id: str,
-    filename: str,
-    metadata_temp_path: pathlib.Path,
-    frame_interval: int = 15,
-    enable_object_detection: bool = True,
-    detection_confidence: float = 0.85,
-    tags: List[str] = None,
-    telemetry_context: Optional[Dict[str, Any]] = None,
-    shutdown_event: Optional[threading.Event] = None,
-) -> List[str]:
-    """
-    Generate video embeddings directly from video URI.
-
-    This function processes video content directly
-    from the provided URI, allowing for maximum performance without intermediate storage.
-
-    Args:
-        video_uri: List of video URIs to process
-        bucket_name: Bucket name where the video is stored
-        video_id: Directory containing the video
-        filename: Video filename
-        metadata_temp_path: Path to store metadata
-        frame_interval: Number of frames between extractions
-        enable_object_detection: Whether to enable object detection
-        detection_confidence: Confidence threshold for object detection
-        tags: Tags for the video
-
-    Returns:
-        List of IDs of the created embeddings
-
-    """
-
-    logger.info(f"Starting video embedding from URI for {video_id}/{filename}")
-    logger.info(f"Video URI: {video_uris}")
-    logger.info("ID of shutdown_event in generate_video_embedding_from_uri: %s", id(shutdown_event))
-
-    # Create metadata for video (including video URLs for search-ms compatibility)
-
-    # Offload the blocking RTSP pipeline engine to a worker thread so the event
-    # loop stays responsive (the engine skips SIGINT registration off the main
-    # thread; graceful shutdown is driven by shutdown_event).
-    result = await asyncio.to_thread(
-        generate_rtsp_video_embedding_pipeline,
-        video_uris=video_uris,
-        metadata_dict={
-            "bucket_name": "RTSP_BUCKET",
-            "video_id": -1,
-            "filename": "filename",
-            "tags": tags or [],
-        },
-        frame_interval=frame_interval,
-        enable_object_detection=enable_object_detection,
-        detection_confidence=detection_confidence,
-        shutdown_event=shutdown_event,
-    )
-
-    return (result or {}).get("stored_ids", [])
 
 
 async def _generate_video_embedding(
@@ -587,7 +529,7 @@ async def _generate_video_embedding(
         video_id = stream_result["video_metadata"]["_video_id"]
         filename = stream_result["video_metadata"]["_filename"]
 
-        _record_pipeline(
+        record_pipeline_telemetry(
             context=telemetry_context or {},
             bucket_name=bucket_name,
             video_id=video_id,
@@ -871,3 +813,7 @@ async def generate_image_embedding_from_content(
         source_path=source_path,
         custom_metadata=custom_metadata,
     )
+
+
+#: Backwards-compatible alias for the previously private helper name.
+_record_pipeline = record_pipeline_telemetry

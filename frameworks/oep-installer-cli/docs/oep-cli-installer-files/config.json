@@ -4,27 +4,18 @@
     "OP_SYSTEM",
     "PROFILE",
     "MODULE",
-    "DEVICE"
+    "OPTIONS"
   ],
-  "device": {
-    "key": "DEVICE",
-    "label": "Device",
-    "type": "single",
-    "default": "gpu",
-    "options": [
-      {
-        "label": "CPU",
-        "value": "cpu"
-      },
-      {
-        "label": "GPU",
-        "value": "gpu"
-      },
-      {
-        "label": "NPU",
-        "value": "npu"
-      }
-    ]
+  "options": {
+    "key": "OPTIONS",
+    "label": "Options",
+    "labels": {
+      "--cpu": "CPU",
+      "--gpu": "GPU",
+      "--npu": "NPU",
+      "--docker": "Docker",
+      "--k3s": "K3s"
+    }
   },
   "categories": [
     {
@@ -132,26 +123,99 @@
           }
         },
         {
-          "label": "Smart Intersection",
-          "value": "smart_intersection",
+          "label": "Agentic Predictive Maintenance Pipeline",
+          "value": "agentic_predictive_maintenance_pipeline",
           "supports": {
             "PROFILE": [
               "metro_ai_suite"
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
-          "label": "Smart Parking",
-          "value": "smart_parking",
+          "label": "Agentic Smart Community",
+          "value": "agentic_smart_community",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true
+        },
+        {
+          "label": "Image Based Video Search",
+          "value": "image_based_video_search",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true
+        },
+        {
+          "label": "Live Video Captioning",
+          "value": "live_video_captioning",
           "supports": {
             "PROFILE": [
               "metro_ai_suite"
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Live Video Captioning RAG",
+          "value": "live_video_captioning_rag",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Live Video Search",
+          "value": "live_video_search",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Live Video Alert Agent",
+          "value": "live_video_alert_agent",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Loitering Detection",
@@ -162,7 +226,56 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Smart Intersection",
+          "value": "smart_intersection",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Smart Parking",
+          "value": "smart_parking",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Smart Traffic Intersection Agent",
+          "value": "smart_traffic_intersection_agent",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Video Search and Summarization",
@@ -173,7 +286,36 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Video Processing for NVR",
+          "value": "video_processing_for_nvr",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Visual Pipeline and Platform Evaluation Tool (ViPPET)",
+          "value": "vippet",
+          "supports": {
+            "PROFILE": [
+              "metro_ai_suite"
+            ]
+          },
+          "startStop": true
         },
         {
           "label": "Pallet Defect Detection",
@@ -184,7 +326,11 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "PCB Anomaly Detection",
@@ -195,7 +341,41 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Wind Turbine Anormaly Detection",
+          "value": "wind_turbine_anomaly_detection",
+          "supports": {
+            "PROFILE": [
+              "manufacturing_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Multimodal Weld Defect Detection",
+          "value": "multimodal_weld_defect_detection",
+          "supports": {
+            "PROFILE": [
+              "manufacturing_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "Loss Prevention",
@@ -204,16 +384,58 @@
             "PROFILE": [
               "retail_ai_suite"
             ]
-          }
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
-          "label": "Order Accuracy",
-          "value": "order_accuracy",
+          "label": "Order Accuracy - Dine In",
+          "value": "dine_in",
           "supports": {
             "PROFILE": [
               "retail_ai_suite"
             ]
-          }
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Order Accuracy - Take Away",
+          "value": "take_away",
+          "supports": {
+            "PROFILE": [
+              "retail_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Voice Enabled Interactions - Smart Kiosk Assistant",
+          "value": "smart_kiosk_assistant",
+          "supports": {
+            "PROFILE": [
+              "retail_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
         },
         {
           "label": "NICU Warmer",
@@ -224,7 +446,24 @@
             ]
           },
           "startStop": true,
-          "device": true
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
+          "label": "Edge Node Infrastructure Blueprint",
+          "value": "edge_node_infrastructure_blueprint",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite"
+            ]
+          },
+          "options": [
+            "--docker",
+            "--k3s"
+          ]
         },
         {
           "label": "Handheld Multi-Modal",
@@ -234,7 +473,24 @@
               "federal_and_aerospace_ai_suite"
             ]
           },
-          "startStop": true
+          "startStop": true,
+          "options": [
+            "--docker"
+          ]
+        },
+        {
+          "label": "UAV Mission Compute SDK",
+          "value": "uav_mission_compute_sdk",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "options": [
+            "--docker",
+            "--k3s"
+          ]
         },
         {
           "label": "Autonomous Mobile Robot",
@@ -296,20 +552,20 @@
             "PROFILE": "computer_vision",
             "OP_SYSTEM": "UBUNTU"
           },
-          "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision"
         },
         {
           "when": {
             "PROFILE": "inferencing",
             "OP_SYSTEM": "UBUNTU"
           },
-          "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install inferencing"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install inferencing"
         },
         {
           "when": {
             "OP_SYSTEM": "UBUNTU"
           },
-          "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
+          "text": "curl -sSfL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
         }
       ]
     },
@@ -441,6 +697,38 @@
           },
           "links": [
             {
+              "text": "Agentic Predictive Maintenance Pipeline",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-predictive-maintenance-pipeline/index.html"
+            },
+            {
+              "text": "Agentic Smart Community",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-smart-community/index.html"
+            },
+            {
+              "text": "Image Based Video Search",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/image-based-video-search/index.html"
+            },
+            {
+              "text": "Live Video Captioning",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-captioning/index.html"
+            },
+            {
+              "text": "Live Video Captioning RAG",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-captioning-rag/index.html"
+            },
+            {
+              "text": "Live Video Search",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-search/index.html"
+            },
+            {
+              "text": "Live Video Alert Agent",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-alert-agent/index.html"
+            },
+            {
+              "text": "Loitering Detection",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/loitering-detection/index.html"
+            },
+            {
               "text": "Smart Intersection",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-intersection/index.html"
             },
@@ -449,12 +737,20 @@
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html"
             },
             {
-              "text": "Loitering Detection",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/loitering-detection/index.html"
+              "text": "Smart Traffic Intersection Agent",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/smart-traffic-intersection-agent/index.html"
             },
             {
               "text": "Video Search and Summarization",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html"
+            },
+            {
+              "text": "Video Processing for NVR",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/video-processing-for-nvr/index.html"
+            },
+            {
+              "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
             }
           ]
         },
@@ -471,6 +767,14 @@
             {
               "text": "PCB Anomaly Detection",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-vision/index.html"
+            },
+            {
+              "text": "Wind Turbine Anormaly Detection",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/wind-turbine-anomaly-detection/index.html"
+            },
+            {
+              "text": "Multimodal Weld Defect Detection",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-multimodal/index.html"
             }
           ]
         },
@@ -487,6 +791,10 @@
             {
               "text": "Order Accuracy",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/order-accuracy/index.html"
+            },
+            {
+              "text": "Voice Enabled Interactions",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/voice-enabled-interactions/index.html"
             }
           ]
         },
@@ -509,8 +817,16 @@
           },
           "links": [
             {
+              "text": "Edge Node Infrastructure Blueprint",
+              "url": "https://github.com/open-edge-platform/edge-node-infrastructure-blueprint"
+            },
+            {
               "text": "Handheld Multi-Modal Application",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
+            },
+            {
+              "text": "UAV Mission Compute SDK",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
             }
           ]
         },

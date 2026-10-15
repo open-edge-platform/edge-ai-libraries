@@ -332,6 +332,162 @@ paths:
       summary: Remove a tag by ID
       tags:
         - Tags
+  /streams:
+    post:
+      operationId: StreamsController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveStreamCreateDto'
+      responses:
+        '202':
+          description: Stream registered.
+      summary: Register and start one RTSP stream.
+      tags:
+        - Live Streams
+    get:
+      operationId: StreamsController_list
+      parameters:
+        - name: state
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - pending
+              - starting
+              - running
+              - paused
+              - reconnecting
+              - error
+              - stopped
+        - name: tags
+          required: false
+          in: query
+          description: Only streams carrying all of these tags.
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '200':
+          description: ''
+      summary: List registered live streams.
+      tags:
+        - Live Streams
+    delete:
+      operationId: StreamsController_removeBatch
+      parameters:
+        - name: purge_embeddings
+          required: false
+          in: query
+          description: Also delete every embedding generated from this stream.
+          schema:
+            default: false
+            type: boolean
+        - name: purge_media
+          required: false
+          in: query
+          description: Also delete the stream's recorded segments and frames.
+          schema:
+            default: false
+            type: boolean
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveStreamBatchDeleteDto'
+      responses:
+        '200':
+          description: ''
+      summary: Stop and deregister several live streams.
+      tags:
+        - Live Streams
+  /streams/batch:
+    post:
+      operationId: StreamsController_createBatch
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveStreamBatchCreateDto'
+      responses:
+        '202':
+          description: ''
+      summary: Register several RTSP streams in one call.
+      tags:
+        - Live Streams
+  /streams/{streamId}:
+    get:
+      operationId: StreamsController_get
+      parameters:
+        - name: streamId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      summary: Get one live stream.
+      tags:
+        - Live Streams
+    patch:
+      operationId: StreamsController_update
+      parameters:
+        - name: streamId
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveStreamUpdateDto'
+      responses:
+        '200':
+          description: ''
+      summary: Update a live stream, or pause/resume it via `state`.
+      tags:
+        - Live Streams
+    delete:
+      operationId: StreamsController_remove
+      parameters:
+        - name: streamId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: purge_embeddings
+          required: false
+          in: query
+          description: Also delete every embedding generated from this stream.
+          schema:
+            default: false
+            type: boolean
+        - name: purge_media
+          required: false
+          in: query
+          description: Also delete the stream's recorded segments and frames.
+          schema:
+            default: false
+            type: boolean
+      responses:
+        '200':
+          description: ''
+      summary: >-
+        Stop and deregister a live stream. Captured footage is retained unless
+        the purge flags are set.
+      tags:
+        - Live Streams
   /summary:
     get:
       operationId: SummaryController_getSummary
@@ -770,3 +926,93 @@ components:
           description: ID of the created summary pipeline state
       required:
         - summaryPipelineId
+    LiveStreamCreateDto:
+      type: object
+      properties:
+        stream_url:
+          type: string
+          description: >-
+            RTSP source URL (rtsp:// or rtsps://). May carry credentials, which
+            are never logged, never persisted by the Pipeline Manager, and never
+            returned in a response.
+          example: rtsp://camera-1.local:554/stream1
+        stream_name:
+          type: string
+          description: Friendly label for the camera.
+        description:
+          type: string
+          description: Free-text description.
+        sensor_id:
+          type: string
+          description: >-
+            Stable logical identity of the physical source, recorded on every
+            embedding. Defaults to the generated stream_id.
+        frame_interval:
+          type: number
+          description: Sample every Nth frame.
+          minimum: 1
+          maximum: 60
+        enable_object_detection:
+          type: boolean
+          description: Enable object detection and crop extraction.
+        detection_confidence:
+          type: number
+          minimum: 0.1
+          maximum: 1
+        tags:
+          description: Tags applied to every embedding.
+          type: array
+          items:
+            type: string
+        start:
+          type: boolean
+          description: Start ingesting immediately. False registers the stream paused.
+          default: true
+      required:
+        - stream_url
+    LiveStreamBatchCreateDto:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LiveStreamCreateDto'
+      required:
+        - items
+    LiveStreamUpdateDto:
+      type: object
+      properties:
+        stream_name:
+          type: string
+        description:
+          type: string
+        frame_interval:
+          type: number
+          minimum: 1
+          maximum: 60
+        enable_object_detection:
+          type: boolean
+        detection_confidence:
+          type: number
+          minimum: 0.1
+          maximum: 1
+        tags:
+          description: Replaces the existing tag list.
+          type: array
+          items:
+            type: string
+        state:
+          type: string
+          enum:
+            - running
+            - paused
+          description: Only running (resume) and paused (pause) are accepted.
+    LiveStreamBatchDeleteDto:
+      type: object
+      properties:
+        stream_ids:
+          type: array
+          items:
+            type: string
+      required:
+        - stream_ids
