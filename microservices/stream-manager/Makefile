@@ -25,6 +25,18 @@ DATA_DIR       :=
 
 DOCS_PATH      := /docs/v1/index.html
 
+define PRINT_ACCESS_URLS
+	echo "App (localhost): http://localhost:$$PORT/v1/status"; \
+	echo "Docs (localhost): http://localhost:$$PORT$(DOCS_PATH)"; \
+	REMOTE_IP="$$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([^ ]*\).*/\1/p')"; \
+	if [ -n "$$REMOTE_IP" ]; then \
+		echo "App (remote): http://$$REMOTE_IP:$$PORT/v1/status"; \
+		echo "Docs (remote): http://$$REMOTE_IP:$$PORT$(DOCS_PATH)"; \
+	else \
+		echo "No primary IPv4 address found. Check the host network configuration."; \
+	fi
+endef
+
 .PHONY: help build run start access-urls docker-build docker-run docker-stop clean
 
 help: ## Show this help
@@ -48,21 +60,15 @@ build: ## Build the binary on host into ./bin
 
 run: ## Run the binary already built in ./bin
 	@echo "Starting $(BINARY_PATH)"
-	@$(MAKE) --no-print-directory access-urls ACCESS_PORT=$(ACCESS_PORT)
+	@PORT=$(ACCESS_PORT); \
+	$(PRINT_ACCESS_URLS)
 	$(BINARY_PATH)
 
 start: build run ## Build then run the binary on host
 
 access-urls: ## Show local and primary remote URLs for ACCESS_PORT
-	@echo "App (localhost): http://localhost:$(ACCESS_PORT)/v1/status"
-	@echo "Docs (localhost): http://localhost:$(ACCESS_PORT)$(DOCS_PATH)"
-	@REMOTE_IP="$$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([^ ]*\).*/\1/p')"; \
-	if [ -n "$$REMOTE_IP" ]; then \
-		echo "App (remote): http://$$REMOTE_IP:$(ACCESS_PORT)/v1/status"; \
-		echo "Docs (remote): http://$$REMOTE_IP:$(ACCESS_PORT)$(DOCS_PATH)"; \
-	else \
-		echo "No primary IPv4 address found. Check the host network configuration."; \
-	fi
+	@PORT=$(ACCESS_PORT); \
+	$(PRINT_ACCESS_URLS)
 
 docker-build: ## Build IMAGE (default: intel/stream-manager:latest).
 	docker build \
@@ -93,8 +99,9 @@ endif
 		$(CONFIG_MOUNT) \
 		$(IMAGE_REF)
 	@PORT=$$(docker port $(CONTAINER_NAME) $(CONTAINER_PORT)/tcp | head -1 | cut -d: -f2); \
+	if [ -z "$$PORT" ]; then echo "Could not determine the published container port." >&2; exit 1; fi; \
 	echo "Container '$(CONTAINER_NAME)' started."; \
-	$(MAKE) --no-print-directory access-urls ACCESS_PORT=$$PORT
+	$(PRINT_ACCESS_URLS)
 
 docker-stop: ## Stop and remove the running container
 	docker stop $(CONTAINER_NAME) && docker rm $(CONTAINER_NAME)
