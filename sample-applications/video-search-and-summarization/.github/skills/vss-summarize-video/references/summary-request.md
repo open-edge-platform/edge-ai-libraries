@@ -36,7 +36,7 @@ Source: `pipeline-manager/src/summary/models/*` (`SummaryPipelineDTO`).
   },
 
   "audio": {                        // optional
-    "audioModel": "whisper-base",    // deploy-time ASR model (ASR_MODEL); 2026.x serves one model per instance
+    "audioModel": "small.en",        // one of ENABLED_WHISPER_MODELS (GET /manager/audio/models)
     "useFullTranscriptSummary": false
   },
 
@@ -59,7 +59,8 @@ Response: `{ "summaryPipelineId": "<stateId>" }` - use it as `stateId` for
 
 ## Picking audio models
 
-The 2026.x `audio-analyzer` serves a single model per instance, set at deploy
-time via `ASR_MODEL` (default `whisper-base`; one of
-`whisper-{tiny,base,small,medium,large}`). Per-request `audioModel` selection is
-not supported — change the model by redeploying with a different `ASR_MODEL`.
+List what's loaded before setting `audio.audioModel`:
+```bash
+curl -s "$HOST/manager/audio/models" | jq .
+```
+Driven by `ENABLED_WHISPER_MODELS` at deploy time (e.g. `tiny.en,small.en,medium.en`).
