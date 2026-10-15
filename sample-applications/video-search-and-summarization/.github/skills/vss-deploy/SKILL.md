@@ -106,6 +106,12 @@ to overwrite an existing non-VSS clone destination.
 
 If the user is ambiguous, ask which mode; do **not** default silently.
 
+If the user wants to index **live RTSP cameras**, route to `--search` or
+`--dual`. Live ingestion is deliberately off in `--summary` (no dataprep) and
+in `--unified` (text-only embedding model, which cannot embed video frames).
+See [references/modes-and-overlays.md](references/modes-and-overlays.md) for the
+`UI_LIVE_STREAMS_FEATURE` / `LIVE_STREAM_ENABLED` / `LIVE_RETENTION_HOURS` knobs.
+
 ## Quick deployment flow
 
 1. Work from the app root:
@@ -251,8 +257,7 @@ ENABLE_EMBEDDING_GPU=true source setup.sh --search                       # GPU f
 
 For vLLM, `setup.sh` adds `docker/compose.vllm.yaml`, starts `vllm-cpu-service`
 (profile `vllm`) on host port `8200`, and uses `VLM_MODEL_NAME` for both
-captioning and final summary (use `VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"`).
-Experimental `ENABLE_VLLM_GPU=true` instead adds
+captioning and final summary. Experimental `ENABLE_VLLM_GPU=true` instead adds
 `docker/compose.vllm.xpu.yaml`, selects profile `vllm-xpu`, and disables OVMS.
 For OVMS GPU, `setup.sh` adds
 `docker/compose.gpu_ovms.yaml` and switches `ovms-service` to

@@ -204,10 +204,33 @@ class TestApplyDestination:
     """Test apply_destination function."""
     
     def test_no_destination(self):
-        """Test with None destination (no-op)."""
+        """Test with None destination releases the unconsumed appsink."""
         pipeline = "videotestsrc ! appsink name=appsink"
         result = apply_destination(pipeline, None)
-        assert result == pipeline
+        assert result == (
+            "videotestsrc ! appsink name=appsink drop=true max-buffers=1 wait-on-eos=false"
+        )
+
+    def test_file_metadata_releases_appsink(self):
+        """file metadata doesn't replace appsink, so it must still be released."""
+        pipeline = "videotestsrc ! gvametapublish name=destination ! appsink name=appsink"
+        meta = MetadataDestinationConfig(type="file", path="/tmp/out.jsonl")
+        result = apply_destination(pipeline, DestinationConfig(metadata=meta))
+        assert "file-path=/tmp/out.jsonl" in result
+        assert result.endswith("appsink name=appsink drop=true max-buffers=1 wait-on-eos=false")
+
+    def test_release_keeps_existing_appsink_properties(self):
+        """Properties already set on appsink in the template are not overridden."""
+        pipeline = "videotestsrc ! appsink name=appsink sync=false max-buffers=5"
+        result = apply_destination(pipeline, None)
+        assert result == (
+            "videotestsrc ! appsink name=appsink sync=false max-buffers=5 "
+            "drop=true wait-on-eos=false"
+        )
+
+    def test_no_appsink_is_unchanged(self):
+        pipeline = "videotestsrc ! fakesink"
+        assert apply_destination(pipeline, None) == pipeline
     
     def test_metadata_mqtt_only(self):
         """Test MQTT metadata destination only (no frame dest)."""

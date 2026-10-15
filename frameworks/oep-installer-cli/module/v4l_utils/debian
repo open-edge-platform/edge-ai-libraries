@@ -4,8 +4,6 @@ debian_30_install_v4l_utils () {
 }
 
 debian_30_sbom_v4l_utils () {
-  cat <<EOF
-$(ensure_sbom_format pkg-list v4l-utils)
-EOF
+  ensure_sbom_format pkg-list v4l-utils
 }
 

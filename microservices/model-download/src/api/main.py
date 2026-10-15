@@ -29,6 +29,7 @@ from .models import (
     ModelRequest,
 )
 from ..core.interfaces import ListingAuthError, ListingNotSupportedError
+from ..mcp.server import configure_runtime, mcp
 from ..utils.logging import logger
 from ..utils.helper import validate_zip_contents_within_target, validate_zip_file, sanitize_path_part, get_hub_config_keys
 
@@ -175,6 +176,18 @@ app.add_middleware(
     allow_methods=os.getenv("CORS_ALLOW_METHODS", "*").split(","),
     allow_headers=os.getenv("CORS_ALLOW_HEADERS", "*").split(","),
 )
+
+configure_runtime(plugin_registry, model_manager, models_dir, _background_tasks)
+mcp_http_app = mcp.http_app(path="/mcp", stateless_http=True)
+
+
+@asynccontextmanager
+async def combined_lifespan(fastapi_app: FastAPI):
+    async with lifespan(fastapi_app), mcp_http_app.lifespan(mcp_http_app):
+        yield
+
+
+app.router.lifespan_context = combined_lifespan
 
 
 @app.get("/health", tags=["Health"])
@@ -648,3 +661,7 @@ async def upload_model(
         "model_name": sanitized_model_name,
         "model_path": target_dir,
     }
+
+
+# Keep this catch-all mount last so REST routes retain precedence.
+app.mount("/", mcp_http_app)

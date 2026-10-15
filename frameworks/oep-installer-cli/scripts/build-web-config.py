@@ -31,8 +31,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
+
+# A module option is a lowercase CLI flag, e.g. "--gpu" or "--k3s".
+OPTION_FLAG_RE = re.compile(r"--[a-z0-9][a-z0-9_-]*")
 
 # Repository layout (paths are relative to this script's location).
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -102,8 +106,26 @@ def build_config() -> dict:
             option["supports"] = {"PROFILE": [profile_value]}
             if module.get("startStop"):
                 option["startStop"] = True
-            if module.get("device"):
-                option["device"] = True
+            where = f"{frag['_path']}: module '{module['value']}'"
+            for legacy in ("device", "deployment"):
+                if legacy in module:
+                    sys.exit(f"error: {where}: '{legacy}' is no longer supported; list the flags in 'options'")
+            flags = module.get("options")
+            if flags is not None:
+                if (
+                    not isinstance(flags, list)
+                    or not flags
+                    or len(set(flags)) != len(flags)
+                    or not all(isinstance(f, str) and OPTION_FLAG_RE.fullmatch(f) for f in flags)
+                ):
+                    sys.exit(f"error: {where}: 'options' must be a non-empty list of unique flags like \"--gpu\"")
+                option["options"] = list(flags)
+            multi = module.get("multiSelect")
+            if multi is not None:
+                if not isinstance(multi, bool) or flags is None:
+                    sys.exit(f"error: {where}: 'multiSelect' must be true/false and requires 'options'")
+                if multi:
+                    option["multiSelect"] = True
             module_options.append(option)
     module_cat["options"] = module_options
 
@@ -178,7 +200,7 @@ def build_config() -> dict:
     return {
         "title": base["title"],
         "shareKeys": base["shareKeys"],
-        "device": base["device"],
+        "options": base["options"],
         "categories": categories,
         "outputs": [install_output, nextsteps_output, getstarted_output, resources_output],
     }

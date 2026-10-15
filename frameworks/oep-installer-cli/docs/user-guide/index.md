@@ -67,37 +67,37 @@ corresponding suite:
 
 ::::{grid} 1 1 2 2
 :::{grid-item-card} Metro AI
-:link: ../../ai-suite-metro.md
+:link: ../../ai-suite-metro.html
 
 City monitoring and traffic management applications.
 :::
 :::{grid-item-card} Manufacturing AI
-:link: ../../ai-suite-manufacturing.md
+:link: ../../ai-suite-manufacturing.html
 
 Industrial environment analysis and recognition.
 :::
 :::{grid-item-card} Retail AI
-:link: ../../ai-suite-retail.md
+:link: ../../ai-suite-retail.html
 
 Monitoring and enhancing the retail buying process.
 :::
 :::{grid-item-card} Robotics AI
-:link: ../../ai-suite-robotics.md
+:link: ../../ai-suite-robotics.html
 
 Software empowering robotic appliances.
 :::
 :::{grid-item-card} Education AI
-:link: ../../ai-suite-education.md
+:link: ../../ai-suite-education.html
 
 Enhancing the classroom teaching and learning experience.
 :::
 :::{grid-item-card} Health and Life Sciences
-:link: ../../ai-suite-health-and-life-sciences.md
+:link: ../../ai-suite-health-and-life-sciences.html
 
 New ways of monitoring patients and their vitals.
 :::
 :::{grid-item-card} Aerospace and Defense
-:link: ../../ai-suite-fed-aero.md
+:link: ../../ai-suite-fed-aero.html
 
 Multi-modal applications for federal and aerospace use cases.
 :::
