@@ -1,6 +1,3 @@
-// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
-
 import type { Page } from "@playwright/test";
 
 export const mockDemoApi = async (page: Page) => {

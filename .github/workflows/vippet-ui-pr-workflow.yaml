@@ -1,6 +1,3 @@
-# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-# SPDX-License-Identifier: Apache-2.0
-
 name: "[ViPPET] UI PR workflow"
 run-name: "[ViPPET] UI PR workflow (by @${{ github.actor }} via ${{ github.event_name }})"
 
