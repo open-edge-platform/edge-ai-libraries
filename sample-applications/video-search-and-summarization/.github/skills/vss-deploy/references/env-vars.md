@@ -31,7 +31,7 @@ override individual ASR settings on top of it (mapped to
 | Variable | Default | Maps to | What it controls |
 |---|---|---|---|
 | `ASR_DEVICE` | `CPU` | `AUDIO_ANALYZER__MODELS__ASR__DEVICE` | ASR device: `CPU` \| `GPU` \| `NPU`. |
-| `ASR_WEIGHT_FORMAT` | `fp32` | `AUDIO_ANALYZER__MODELS__ASR__WEIGHT_FORMAT` | OpenVINO export precision: `int8` \| `fp16` \| `fp32`. |
+| `ASR_WEIGHT_FORMAT` | `null` | `AUDIO_ANALYZER__MODELS__ASR__WEIGHT_FORMAT` | OpenVINO export precision: `int8` \| `fp16` \| `null`. |
 | `ASR_DIARIZATION` | `false` | `AUDIO_ANALYZER__MODELS__ASR__DIARIZATION` | Enable speaker diarization (also export `HF_TOKEN`). |
 | `AUDIO_SENTIMENT_ENABLED` | `false` | `AUDIO_ANALYZER__SENTIMENT__ENABLED` | Enable parallel voice sentiment analysis. |
 | `HF_TOKEN` | unset | `HF_TOKEN` | HuggingFace token; required only when `ASR_DIARIZATION=true` (gated pyannote models). |
