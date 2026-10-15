@@ -42,7 +42,7 @@ verify_smart_intersection () {
 }
 
 debian_90_profile_smart_intersection () {
-  echo "git curl gawk jq edge_base docker"
+  echo "git curl gawk jq edge_base docker_io"
 }
 
 debian_90_install_smart_intersection () {
@@ -94,5 +94,5 @@ debian_90_stop_smart_intersection () {
 
 debian_90_remove_smart_intersection () {
   debian_90_stop_smart_intersection
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }

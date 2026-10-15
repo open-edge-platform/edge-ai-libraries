@@ -244,3 +244,16 @@ debian_90_start_my_component () {
 }
 ```
 
+### Handling Credentials
+
+Use [`ensure_hf_token`](../common/linux/ensure_hf_token) to scan the specified list of models. If any model is a gated model, the function scans the following locations for the token value:
+- The `HF_TOKEN` environment variable
+- Read from `~/.cache/huggingface/token`, if available    
+- Read `HF_TOKEN` from `~/.vscode/launch.json`, if available
+- Prompt the user for `HF_TOKEN`   
+
+```
+ensure_hf_token meta-llama/Llama-3.2-3B-Instruct
+# return HF_TOKEN 
+```
+

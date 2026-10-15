@@ -6,215 +6,107 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.tsx";
-import { Button } from "@/components/ui/button.tsx";
-import { Checkbox } from "@/components/ui/checkbox.tsx";
 import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
-import { selectPipelinesMap } from "@/store/reducers/pipelines";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, Loader2 } from "lucide-react";
-import { useModelInstall } from "@/features/models/useModelInstall";
+import { useMemo } from "react";
+import { Download, EllipsisVertical, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.tsx";
 import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
-import { ModelInstallButtonSlot } from "@/features/models/ModelInstallButtonSlot";
+import type { ModelCategory } from "@/api/api.generated.ts";
 
-export const ModelsTable = () => {
-  const models = useAppSelector(selectModels);
-  const pipelinesMap = useAppSelector(selectPipelinesMap);
-  const { pendingDownloads, installModels: runModelInstall } =
-    useModelInstall();
-  const [selectedNames, setSelectedNames] = useState<ReadonlySet<string>>(
-    () => new Set(),
+type ModelsTableProps = {
+  /** Only models whose `category` matches this value are shown (`null` = uncategorized). */
+  category: ModelCategory | null;
+  pendingDownloads: ReadonlySet<string>;
+  onInstallOne: (modelName: string) => void;
+};
+
+export const ModelsTable = ({
+  category,
+  pendingDownloads,
+  onInstallOne,
+}: ModelsTableProps) => {
+  const allModels = useAppSelector(selectModels);
+  const models = useMemo(
+    () => allModels.filter((m) => (m.category ?? null) === category),
+    [allModels, category],
   );
-
-  const installableNames = useMemo(
-    () =>
-      models
-        .filter(
-          (m) =>
-            m.install_status === "not_installed" ||
-            m.install_status === "failed",
-        )
-        .map((m) => m.name),
-    [models],
-  );
-
-  const autoSelectedRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    const installable = new Set(installableNames);
-    const toAdd: string[] = [];
-    for (const m of models) {
-      if (
-        m.default &&
-        installable.has(m.name) &&
-        !autoSelectedRef.current.has(m.name)
-      ) {
-        toAdd.push(m.name);
-        autoSelectedRef.current.add(m.name);
-      }
-    }
-    if (toAdd.length > 0) {
-      setSelectedNames((prev) => {
-        const next = new Set(prev);
-        for (const n of toAdd) next.add(n);
-        return next;
-      });
-    }
-  }, [models, installableNames]);
-
-  const effectiveSelection = useMemo(() => {
-    const installable = new Set(installableNames);
-    return new Set([...selectedNames].filter((n) => installable.has(n)));
-  }, [selectedNames, installableNames]);
-
-  const toggleSelected = useCallback((modelName: string, value: boolean) => {
-    setSelectedNames((prev) => {
-      const next = new Set(prev);
-      if (value) next.add(modelName);
-      else next.delete(modelName);
-      return next;
-    });
-  }, []);
-
-  const toggleSelectAll = useCallback(
-    (value: boolean) => {
-      setSelectedNames(value ? new Set(installableNames) : new Set());
-    },
-    [installableNames],
-  );
-
-  const installSelectedModels = useCallback(
-    async (names: readonly string[]) => {
-      if (names.length === 0) return;
-      await runModelInstall(names);
-      setSelectedNames((prev) => {
-        const next = new Set(prev);
-        for (const n of names) next.delete(n);
-        return next;
-      });
-    },
-    [runModelInstall],
-  );
-
-  const handleInstall = useCallback(
-    (modelName: string) => installSelectedModels([modelName]),
-    [installSelectedModels],
-  );
-
-  const handleInstallSelected = useCallback(
-    () => installSelectedModels([...effectiveSelection]),
-    [effectiveSelection, installSelectedModels],
-  );
-
   return (
-    <>
-      <div className="mb-3 flex items-center justify-end gap-3">
-        <span className="text-sm text-muted-foreground">
-          {effectiveSelection.size > 0
-            ? `${effectiveSelection.size} model${effectiveSelection.size === 1 ? "" : "s"} selected`
-            : "Select one or more available models to install"}
-        </span>
-        <Button
-          size="sm"
-          disabled={
-            effectiveSelection.size === 0 ||
-            [...effectiveSelection].some((n) => pendingDownloads.has(n))
-          }
-          onClick={handleInstallSelected}
-        >
-          {[...effectiveSelection].some((n) => pendingDownloads.has(n)) ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Download className="size-4" />
-          )}
-          Install
-          {effectiveSelection.size > 0 ? ` (${effectiveSelection.size})` : ""}
-        </Button>
-      </div>
-
-      <Table className="mb-10">
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-8">
-              <Checkbox
-                aria-label="Select all installable models"
-                disabled={installableNames.length === 0}
-                checked={
-                  installableNames.length > 0 &&
-                  effectiveSelection.size === installableNames.length
-                    ? true
-                    : effectiveSelection.size > 0
-                      ? "indeterminate"
-                      : false
-                }
-                onCheckedChange={(value) => toggleSelectAll(value === true)}
-              />
-            </TableHead>
-            <TableHead className="w-[33%] truncate">Name</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Source</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Precisions</TableHead>
-            <TableHead>Used by</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {models.map((model) => {
-            const isPending = pendingDownloads.has(model.name);
-            const canInstall =
-              model.install_status === "not_installed" ||
-              model.install_status === "failed";
-            const isChecked = effectiveSelection.has(model.name);
-            return (
-              <TableRow key={model.name}>
-                <TableCell>
-                  <Checkbox
-                    aria-label={`Select ${model.display_name}`}
-                    disabled={!canInstall || isPending}
-                    checked={isChecked}
-                    onCheckedChange={(value) =>
-                      toggleSelected(model.name, value === true)
-                    }
-                  />
-                </TableCell>
-                <TableCell className="font-medium max-w-0">
-                  <div className="truncate" title={model.display_name}>
-                    {model.display_name}
-                  </div>
-                </TableCell>
-                <TableCell>{model.category ?? "-"}</TableCell>
-                <TableCell>{model.source}</TableCell>
-                <TableCell>
-                  <ModelInstallStatusIndicator status={model.install_status} />
-                </TableCell>
-                <TableCell>
-                  {Array.from(
-                    new Set(
-                      model.variants
-                        ?.map((v) => v.precision)
-                        .filter((p): p is string => Boolean(p)) ?? [],
-                    ),
-                  ).join(", ") || "-"}
-                </TableCell>
-                <TableCell className="whitespace-pre-line">
-                  {(model.used_by_pipelines ?? [])
-                    .map(
-                      (pipelineId) =>
-                        pipelinesMap.get(pipelineId)?.name ?? pipelineId,
-                    )
-                    .join("\n") || "-"}
-                </TableCell>
-                <TableCell className="text-right">
-                  <ModelInstallButtonSlot
-                    showButton={canInstall && !isPending}
-                    onInstall={() => handleInstall(model.name)}
-                  />
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-[20%]">Name</TableHead>
+          <TableHead className="w-28">Source</TableHead>
+          <TableHead className="w-32">Precisions</TableHead>
+          <TableHead className="w-24">Status</TableHead>
+          <TableHead className="w-10 text-right">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {models.map((model) => {
+          const isPending = pendingDownloads.has(model.name);
+          const canInstall =
+            model.install_status === "not_installed" ||
+            model.install_status === "failed";
+          return (
+            <TableRow key={model.name} className="odd:bg-muted/30">
+              <TableCell className="font-medium max-w-0 whitespace-normal break-words">
+                <div
+                  title={model.description ?? undefined}
+                  className="whitespace-normal break-words"
+                >
+                  {model.display_name}
+                </div>
+              </TableCell>
+              <TableCell>{model.source}</TableCell>
+              <TableCell>
+                {Array.from(
+                  new Set(
+                    model.variants
+                      ?.map((v) => v.precision)
+                      .filter((p): p is string => Boolean(p)) ?? [],
+                  ),
+                ).join(", ") || "-"}
+              </TableCell>
+              <TableCell>
+                <ModelInstallStatusIndicator status={model.install_status} />
+              </TableCell>
+              <TableCell className="text-right">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`Actions for ${model.display_name}`}
+                      title="Model actions"
+                      className="inline-flex size-8 items-center justify-center rounded hover:bg-accent"
+                    >
+                      <EllipsisVertical className="size-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      disabled={!canInstall || isPending}
+                      onClick={() => onInstallOne(model.name)}
+                    >
+                      <Download className="size-4" />
+                      Install
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled>
+                      <Trash2 className="size-4" />
+                      Uninstall
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 };

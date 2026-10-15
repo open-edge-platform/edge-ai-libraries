@@ -120,6 +120,40 @@ backoff, but a newer completion supersedes an older retry. Publishing failures
 never fail or delay media ingestion, and the existing JSONL history and
 `GET /telemetry` API remain unchanged.
 
+### Live-stream embeddings/second
+
+File uploads publish `dataprep_embeddings_per_second` once at the end of the
+request, as `embeddings_stored / pipeline_wall_duration` — a job processed
+back-to-back, so its wall time *is* active processing time and the value
+reflects the device's true ingestion rate.
+
+A live RTSP stream never reaches that end-of-request publish, and its frames
+arrive in **real time**: a 30 fps camera sampled every `MM_DATAPREP_FRAME_INTERVAL`
+frames only feeds a few embeddings per second. Dividing by wall-clock time would
+therefore report the camera's *delivery cadence* (~7 eps), not the device's
+*ingestion rate* (hundreds of eps). So live streams are measured differently:
+
+- A single process-wide aggregator (`LiveThroughputAggregator`) samples every
+  5 s and publishes **one combined** gauge for the whole fleet — never a
+  per-stream value, which would make the single gauge flap to the last writer.
+- The denominator is **active compute time, not wall time**. Each stored batch
+  reports its `detect + embed + store` seconds. **Decode is excluded** (for a
+  live source that stage blocks on real-time packet arrival), and **detection is
+  included** — it is genuine pipeline work and is ~0 when object detection is
+  disabled, so the rate adapts automatically to OD on/off.
+- Each tick the gauge is `Σ new embeddings / Σ new active seconds` across all
+  running streams. Because embedding inference is serialized behind a shared
+  lock, summing active seconds approximates the device's real busy time, so the
+  combined figure is the true fleet ingestion rate (a sum, not a per-stream
+  average that would understate the work).
+- Streams that (re)join the running set are **baselined** for one tick so an
+  accumulated backlog never spikes the gauge, and paused/stopped/errored streams
+  drop out without producing a negative delta.
+- Intervals that produced no embeddings **publish nothing**; the gauge holds its
+  last reported rate until the next burst. There is intentionally **no decay** —
+  EPS reflects the last observed ingestion rate, while device capacity is covered
+  by the separate RAM/CPU/GPU/NPU gauges.
+
 ## Metric derivations
 
 ### Timestamps

@@ -9,8 +9,10 @@
 # --realtime selects the edge-pack real-time base bundle instead of the
 # standard one; it implies the edge-pack route since no direct-driver
 # real-time equivalent exists. NOTE: intel-edge-base-realtime is not yet
-# published on the Intel edge-pack apt feed as of this writing - --realtime
-# will fail to install until Intel publishes it.
+# published on the Intel edge-pack apt feed as of this writing, so
+# edge_pack_base_realtime transparently falls back to installing the
+# standard bundle (intel-edge-base-standard) instead until Intel publishes
+# the real-time package.
 debian_90_profile_edge_base_robotics () {
   case "$1" in
   bootstrap) # all components

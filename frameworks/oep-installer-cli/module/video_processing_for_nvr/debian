@@ -22,7 +22,7 @@ verify_video_processing_for_nvr () {
 }
 
 debian_90_profile_video_processing_for_nvr () {
-  echo "docker curl git python3_venv ffmpeg edge_base"
+  echo "docker_io curl git python3_venv ffmpeg edge_base"
 }
 
 debian_90_install_video_processing_for_nvr () {
@@ -112,6 +112,6 @@ debian_90_stop_video_processing_for_nvr () {
 
 debian_90_remove_video_processing_for_nvr () {
   debian_90_stop_video_processing_for_nvr "$@"
-  rm -rf "$workspace" || ensure_sudo rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

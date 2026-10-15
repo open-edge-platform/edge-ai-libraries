@@ -11,11 +11,25 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBody, ApiParam, ApiOkResponse, ApiCreatedResponse, ApiBadRequestResponse } from '@nestjs/swagger';
-import { SearchQueryDTO, SearchShimQuery, RefetchBodyDTO, WatchBodyDTO } from '../model/search.model';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBody,
+  ApiParam,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+} from '@nestjs/swagger';
+import {
+  SearchQueryDTO,
+  SearchShimQuery,
+  RefetchBodyDTO,
+  WatchBodyDTO,
+} from '../model/search.model';
 import { SearchStateService } from '../services/search-state.service';
 import { SearchDbService } from '../services/search-db.service';
 import { SearchShimService } from '../services/search-shim.service';
+import { SearchRefreshConfigService } from '../services/search-refresh-config.service';
 import { FeaturesService } from 'src/features/features.service';
 import { lastValueFrom } from 'rxjs';
 
@@ -29,6 +43,7 @@ export class SearchController {
     private $searchDB: SearchDbService,
     private $searchShim: SearchShimService,
     private $feature: FeaturesService,
+    private $refreshConfig: SearchRefreshConfigService,
   ) {}
 
   private assertValidSearchInput(reqBody: SearchQueryDTO): boolean {
@@ -66,9 +81,25 @@ export class SearchController {
     return await this.$searchDB.readAllWatched();
   }
 
+  @Get('refresh-config')
+  @ApiOperation({
+    summary: 'Get the auto-refresh configuration for watched search queries',
+  })
+  @ApiOkResponse({
+    description:
+      'Effective auto-refresh settings applied to watched (checked) queries',
+  })
+  getRefreshConfig() {
+    return this.$refreshConfig.getConfig();
+  }
+
   @Get(':queryId')
   @ApiOperation({ summary: 'Get a search query by ID' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query',
+  })
   @ApiOkResponse({ description: 'Search query details' })
   async getQuery(@Param() params: { queryId: string }) {
     return await this.$searchDB.read(params.queryId);
@@ -110,10 +141,17 @@ export class SearchController {
 
   @Post(':queryId/refetch')
   @ApiOperation({ summary: 'Refetch search results for a query' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query to refetch' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query to refetch',
+  })
   @ApiBody({ type: RefetchBodyDTO, required: false })
   @ApiOkResponse({ description: 'Search query refetched' })
-  async refetchQuery(@Param() params: { queryId: string }, @Body() body?: RefetchBodyDTO) {
+  async refetchQuery(
+    @Param() params: { queryId: string },
+    @Body() body?: RefetchBodyDTO,
+  ) {
     const res = await this.$search.reRunQuery(params.queryId, body?.timeFilter);
     return res;
   }
@@ -153,13 +191,14 @@ export class SearchController {
 
   @Patch(':queryId/watch')
   @ApiOperation({ summary: 'Toggle watch status for a search query' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query',
+  })
   @ApiBody({ type: WatchBodyDTO })
   @ApiOkResponse({ description: 'Watch status updated' })
-  watchQuery(
-    @Param() params: { queryId: string },
-    @Body() body: WatchBodyDTO,
-  ) {
+  watchQuery(@Param() params: { queryId: string }, @Body() body: WatchBodyDTO) {
     if (!Object.prototype.hasOwnProperty.call(body, 'watch')) {
       throw new BadRequestException('Watch property is required');
     }
@@ -171,7 +210,11 @@ export class SearchController {
 
   @Delete(':queryId')
   @ApiOperation({ summary: 'Delete a search query' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query to delete' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query to delete',
+  })
   @ApiOkResponse({ description: 'Search query deleted' })
   async deleteQuery(@Param() params: { queryId: string }) {
     return await this.$searchDB.remove(params.queryId);

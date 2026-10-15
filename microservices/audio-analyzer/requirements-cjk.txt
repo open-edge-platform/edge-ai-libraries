@@ -1,0 +1,11 @@
+# Optional dependencies for Chinese (and English) ASR via the FunASR Paraformer
+# provider — enabled with models.asr.provider: funasr (name: paraformer-zh |
+# paraformer-en | paraformer-online).
+#
+# These are NOT part of the default image. Existing Whisper/OpenVINO consumers
+# and the default build are unaffected. Install only when Chinese support is
+# required:
+#     pip install -r requirements-cjk.txt
+# or build the image with: --build-arg INSTALL_CJK=true
+funasr==1.2.7
+modelscope>=1.15.0

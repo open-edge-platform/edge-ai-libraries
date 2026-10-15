@@ -17,6 +17,23 @@ debian_20_install_edge_pack_base_realtime () {
   if ensure_apt_is_installed intel-edge-base-realtime=$version && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-base-realtime already installed. Skipping" 1>&2
   else
+    local candidate
+    candidate="$(apt-cache policy intel-edge-base-realtime 2> /dev/null | awk '/Candidate:/{print $2}')"
+    if [ -z "$candidate" ] || [ "$candidate" = "(none)" ]; then
+      echo "intel-edge-base-realtime is not available in the edge-pack apt repo ($edge_pack_repo)." 1>&2
+      echo "This is a known upstream gap: Intel has not yet published intel-edge-base-realtime." 1>&2
+      echo "Falling back to the standard edge-pack base bundle (intel-edge-base-standard) instead." 1>&2
+
+      # record the fallback so remove/verify know real-time wasn't actually
+      # installed and the standard bundle should be treated as its stand-in
+      ensure_prop set installed/edge_pack_base_realtime/fallback true
+      debian_20_install_edge_pack_base_standard "$@"
+      [ -c /dev/dri/renderD128 ]
+      ensure_group_add $(debian_20_group_edge_pack_base_realtime)
+      echo "@@HIGHLIGHT intel-edge-base-realtime unavailable @installed intel-edge-base-standard instead"
+      return 0
+    fi
+
     ensure_prop set installed/edge_pack_base_realtime/owned true
     ensure_apt autoremove -y intel-edge-base-realtime || true
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
@@ -27,9 +44,15 @@ debian_20_install_edge_pack_base_realtime () {
 }
 
 debian_20_remove_edge_pack_base_realtime () {
-  [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0
-  ensure_apt autoremove -y intel-edge-base-realtime || true
-  debian_15_remove_edge_pack "$@" || true
+  # real-time wasn't available at install time; the standard bundle was
+  # installed in its place, so defer removal to it instead
+  if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" != "true" ]; then
+    [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0
+    ensure_apt autoremove -y intel-edge-base-realtime || true
+    debian_15_remove_edge_pack "$@" || true
+  else
+    debian_20_remove_edge_pack_base_standard "$@"
+  fi
 }
 
 debian_20_sbom_edge_pack_base_realtime () {
@@ -41,6 +64,10 @@ debian_20_sbom_edge_pack_base_realtime () {
   ensure_sbom_format apt-list-file "$edge_pack_list_file"
   ensure_sbom_format apt-pref "${edge_pack_pref[@]}"
   ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
-  ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*"
+  if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" = "true" ]; then
+    ensure_sbom_format pkg-list "intel-edge-base-standard=$version*"
+  else
+    ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*"
+  fi
 }
 
