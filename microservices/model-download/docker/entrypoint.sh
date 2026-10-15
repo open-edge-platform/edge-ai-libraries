@@ -132,36 +132,12 @@ install_dependencies() {
             echo "0" > "${status_file}"
             ;;
         ollama)
-            echo -e "${BLUE}INFO:${NC} Installing Ollama binary..."
-            OLLAMA_VERSION="v0.32.0"
-            OLLAMA_ARCHIVE="${PARALLEL_TMP_DIR}/ollama-linux-amd64.tar.zst"
-            OLLAMA_URL="https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst"
-
-            # Ensure zstd is available
-            if ! command -v zstd &> /dev/null && ! command -v unzstd &> /dev/null; then
-                echo -e "${RED} ERROR:${NC} zstd is not installed. Please install zstd package."
-                echo "1" > "${status_file}"
-                return 1
-            fi
-
-            mkdir -p /opt/bin
-
-            echo -e "${BLUE}INFO:${NC} Downloading and extracting Ollama ${OLLAMA_VERSION} binary only..."
-            # Stream the archive and extract only the ollama binary - avoids writing full archive to disk
-            if ! curl -fSL "${OLLAMA_URL}" | tar --use-compress-program=unzstd -xf - -C /opt/bin --strip-components=1 bin/ollama; then
-                echo -e "${RED} ERROR:${NC} Failed to download or extract Ollama binary"
-                echo "1" > "${status_file}"
-                return 1
-            fi
-
-            chmod +x /opt/bin/ollama
-
-            # Verify ollama binary is present and executable
+            # The binary is baked into the image at build time (see docker/Dockerfile).
             if [ -x "/opt/bin/ollama" ]; then
-                echo -e "${GREEN} SUCCESS:${NC} Ollama binary ${OLLAMA_VERSION} installed successfully to /opt/bin/ollama"
+                echo -e "${GREEN} SUCCESS:${NC} Ollama binary available at /opt/bin/ollama"
                 /opt/bin/ollama --version 2>&1 | grep -i "version" || true
             else
-                echo -e "${RED} ERROR:${NC} Ollama binary not found or not executable at /opt/bin/ollama"
+                echo -e "${RED} ERROR:${NC} Ollama binary not found or not executable at /opt/bin/ollama. Rebuild the image."
                 echo "1" > "${status_file}"
                 return 1
             fi
