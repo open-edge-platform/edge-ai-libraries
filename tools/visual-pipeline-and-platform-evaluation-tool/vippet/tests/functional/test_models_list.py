@@ -7,16 +7,21 @@ import pytest
 import requests
 
 from helpers.api_helpers import fetch_models
+from helpers.config import BASE_URL
 
 logger = logging.getLogger(__name__)
 
 type ModelDict = dict[str, Any]
 
 VALID_MODEL_CATEGORIES: set[str] = {
-    "detection",
-    "classification",
-    "segmentation",
-    "genai",
+    "object_detection",
+    "image_classification",
+    "image_segmentation",
+    "pose_estimation",
+    "vision_language_models",
+    "large_language_models",
+    "automatic_speech_recognition",
+    "text_to_speech",
 }
 VALID_MODEL_PRECISIONS: set[str] = {"FP32", "FP16", "INT8", "INT4"}
 
@@ -143,17 +148,46 @@ def test_models_endpoint_returns_models(http_client: requests.Session) -> None:
                 ), f"Variant has unsupported precision: {variant.get('precision')}"
 
 
+@pytest.mark.smoke
+def test_models_check_status_returns_matching_models(
+    http_client: requests.Session,
+) -> None:
+    """Calls POST /models/check-status and asserts matching model statuses."""
+    models: list[ModelDict] = fetch_models(http_client)
+    assert models, "Models endpoint returned an empty list"
+
+    display_name = models[0]["display_name"]
+    response = http_client.post(
+        f"{BASE_URL}/models/check-status",
+        json={"display_names": [display_name, "Definitely Not A Real Model"]},
+        timeout=30,
+    )
+
+    assert response.status_code == 200, (
+        f"Expected 200 from /models/check-status, "
+        f"got {response.status_code}, body={response.text}"
+    )
+    body = response.json()
+    status_models = body.get("models")
+    assert isinstance(status_models, list), "Response models field must be a list"
+    matches = [m for m in status_models if m.get("display_name") == display_name]
+    assert matches, f"Expected status response for display_name={display_name!r}"
+    assert isinstance(matches[0].get("install_status"), str), (
+        "Status item must include install_status"
+    )
+
+
 @pytest.mark.full
 def test_all_models_present_in_api(
     http_client: requests.Session,
     supported_models_config: list[ModelDict],
 ) -> None:
-    """Every model defined in supported_models.yaml must be returned by the API
+    """Every model defined in the model catalog (vippet/models/*.yaml) must be returned by the API
     with the correct display_name, precision and category."""
     api_models = fetch_models(http_client)
 
     all_models = _expand_model_precisions(supported_models_config)
-    assert all_models, "No models found in supported_models.yaml"
+    assert all_models, "No models found in the model catalog (vippet/models/*.yaml)"
     logger.info("Verifying %d model variant(s) from config", len(all_models))
 
     _assert_models_present_in_api(api_models, all_models)

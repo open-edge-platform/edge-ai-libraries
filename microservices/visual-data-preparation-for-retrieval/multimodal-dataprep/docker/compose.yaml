@@ -29,6 +29,21 @@ services:
         depends_on:
             - minio-server
 
+    postgres:
+        image: postgres:17.4
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-postgres}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+            POSTGRES_DB: ${MM_DATAPREP_LIVE_STREAM_DB_NAME:-dataprep}
+            PGDATA: /var/lib/postgresql/data/pgdata
+        volumes:
+            - 'dataprep-postgres:/var/lib/postgresql/data'
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${MM_DATAPREP_LIVE_STREAM_DB_NAME:-dataprep}"]
+            interval: 10s
+            timeout: 5s
+            retries: 10
+
     multimodal-dataprep:
         hostname: multimodal-dataprep
         build:
@@ -104,6 +119,30 @@ services:
             - MM_DATAPREP_BATCH_MAX_ITEMS=${MM_DATAPREP_BATCH_MAX_ITEMS:-100}
             - MM_DATAPREP_BATCH_JOB_RETENTION=${MM_DATAPREP_BATCH_JOB_RETENTION:-200}
 
+            # Live (RTSP) stream ingestion. The registry is persisted in
+            # PostgreSQL so registrations survive a restart.
+            - MM_DATAPREP_LIVE_STREAM_ENABLED=${MM_DATAPREP_LIVE_STREAM_ENABLED:-true}
+            - MM_DATAPREP_LIVE_STREAM_DB_HOST=${MM_DATAPREP_LIVE_STREAM_DB_HOST:-postgres}
+            - MM_DATAPREP_LIVE_STREAM_DB_PORT=${MM_DATAPREP_LIVE_STREAM_DB_PORT:-5432}
+            - MM_DATAPREP_LIVE_STREAM_DB_NAME=${MM_DATAPREP_LIVE_STREAM_DB_NAME:-dataprep}
+            - MM_DATAPREP_LIVE_STREAM_DB_USER=${POSTGRES_USER:-postgres}
+            - MM_DATAPREP_LIVE_STREAM_DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+            - MM_DATAPREP_LIVE_STREAM_BUCKET=${MM_DATAPREP_LIVE_STREAM_BUCKET:-live-streams}
+            - MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT=${MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT:-8}
+            - MM_DATAPREP_LIVE_SEGMENT_DURATION_SECONDS=${MM_DATAPREP_LIVE_SEGMENT_DURATION_SECONDS:-10}
+            - MM_DATAPREP_LIVE_STORE_SEGMENTS=${MM_DATAPREP_LIVE_STORE_SEGMENTS:-true}
+            - MM_DATAPREP_LIVE_BATCH_MAX_AGE_SECONDS=${MM_DATAPREP_LIVE_BATCH_MAX_AGE_SECONDS:-20}
+            - MM_DATAPREP_LIVE_RECONNECT_INTERVAL_SECONDS=${MM_DATAPREP_LIVE_RECONNECT_INTERVAL_SECONDS:-5}
+            - MM_DATAPREP_LIVE_RECONNECT_MAX_ATTEMPTS=${MM_DATAPREP_LIVE_RECONNECT_MAX_ATTEMPTS:-10}
+            - MM_DATAPREP_LIVE_RECONNECT_WINDOW_SECONDS=${MM_DATAPREP_LIVE_RECONNECT_WINDOW_SECONDS:-60}
+            # 0 keeps live embeddings and media forever; set hours to prune.
+            - MM_DATAPREP_LIVE_RETENTION_HOURS=${MM_DATAPREP_LIVE_RETENTION_HOURS:-0}
+            - MM_DATAPREP_LIVE_RETENTION_SWEEP_MINUTES=${MM_DATAPREP_LIVE_RETENTION_SWEEP_MINUTES:-15}
+            # Diagnostic only: warns when a camera's own clock is adrift, which makes it
+            # unusable as a shared time reference for correlating with an external recorder.
+            - MM_DATAPREP_LIVE_CLOCK_CHECK_ENABLED=${MM_DATAPREP_LIVE_CLOCK_CHECK_ENABLED:-true}
+            - MM_DATAPREP_LIVE_CLOCK_SKEW_WARN_SECONDS=${MM_DATAPREP_LIVE_CLOCK_SKEW_WARN_SECONDS:-2}
+
             # Duplicate-upload policy: set false to reject content-identical re-uploads (409)
             - MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=${MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS:-true}
 
@@ -147,6 +186,7 @@ services:
             - ${RENDER_GROUP_ID:-1002}
         depends_on:
             - minio-server
+            - postgres
 
 networks:
     default:
@@ -160,4 +200,6 @@ volumes:
     ov-models:
         driver: local
     data-prep:
+        driver: local
+    dataprep-postgres:
         driver: local

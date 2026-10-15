@@ -163,14 +163,24 @@ class InternalModelCategory(str, Enum):
     Internal representation of model category.
 
     Values:
-        CLASSIFICATION: Classification model.
-        DETECTION: Detection model.
-        GENAI: Generative AI model (e.g. VLM/LLM).
+        IMAGE_CLASSIFICATION: Image classification model.
+        OBJECT_DETECTION: Object detection model.
+        IMAGE_SEGMENTATION: Image segmentation model.
+        POSE_ESTIMATION: Pose estimation model.
+        VISION_LANGUAGE_MODELS: Vision-language model (e.g. VLM).
+        LARGE_LANGUAGE_MODELS: Large language model (text-only, e.g. LLM).
+        AUTOMATIC_SPEECH_RECOGNITION: Automatic speech recognition model.
+        TEXT_TO_SPEECH: Text-to-speech synthesis model.
     """
 
-    CLASSIFICATION = "classification"
-    DETECTION = "detection"
-    GENAI = "genai"
+    IMAGE_CLASSIFICATION = "image_classification"
+    OBJECT_DETECTION = "object_detection"
+    IMAGE_SEGMENTATION = "image_segmentation"
+    POSE_ESTIMATION = "pose_estimation"
+    VISION_LANGUAGE_MODELS = "vision_language_models"
+    LARGE_LANGUAGE_MODELS = "large_language_models"
+    AUTOMATIC_SPEECH_RECOGNITION = "automatic_speech_recognition"
+    TEXT_TO_SPEECH = "text_to_speech"
 
 
 class InternalModelDownloadJobState(str, Enum):
@@ -1103,8 +1113,9 @@ class InternalModelVariant:
 @dataclass
 class InternalSupportedModel:
     """
-    Internal representation of one entry in ``supported_models.yaml``
-    enriched with runtime state (install status, recommendation).
+    Internal representation of one model in the catalog
+    (``vippet/models/*.yaml``, seeded into the DB at startup) enriched
+    with runtime state (install status, recommendation).
 
     The route layer maps this into the API ``Model`` schema.
 
@@ -1123,8 +1134,8 @@ class InternalSupportedModel:
             installing / failed).
         used_by_pipelines: List of predefined-pipeline ids that reference
             this model. Empty list means the model is not recommended.
-        default: Whether this model is marked as a default choice in
-            ``supported_models.yaml`` (internal-only; not exposed via API).
+        default: Whether at least one predefined pipeline references this
+            model (mirrors ``used_by_pipelines``; internal-only, not exposed via API).
         unsupported_devices: Comma-separated string of devices on which
             the model cannot run (e.g. "NPU"). ``None`` when no
             restrictions exist.
@@ -1184,7 +1195,7 @@ class InternalModelDownloadRequest:
     Internal representation of a model download request.
 
     Attributes:
-        name: Supported model name (must exist in supported_models.yaml).
+        name: Supported model name (must exist in the model catalog).
     """
 
     name: str

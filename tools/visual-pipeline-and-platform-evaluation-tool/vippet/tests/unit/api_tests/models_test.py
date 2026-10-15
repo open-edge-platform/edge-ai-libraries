@@ -2,7 +2,7 @@ import io
 import unittest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import api.api_schemas as schemas
 from api.routes.models import _aggregate_status, router as models_router
@@ -82,21 +82,21 @@ class TestModelsAPI(unittest.TestCase):
             self._make_model(
                 "resnet-50-tf_INT8",
                 "ResNet-50 TF",
-                "classification",
+                "image_classification",
                 "INT8",
                 "/fake/path/resnet.xml",
             ),
             self._make_model(
                 "yolov10m",
                 "YOLO v10m 640x640",
-                "detection",
+                "object_detection",
                 "FP16",
                 "/fake/path/yolo.xml",
             ),
         ]
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.list_models.return_value = mock_models
+            mock_manager_instance.list_models = AsyncMock(return_value=mock_models)
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.get("/models")
@@ -109,7 +109,7 @@ class TestModelsAPI(unittest.TestCase):
             # Check first model
             self.assertEqual(data[0]["name"], "resnet-50-tf_INT8")
             self.assertEqual(data[0]["display_name"], "ResNet-50 TF")
-            self.assertEqual(data[0]["category"], "classification")
+            self.assertEqual(data[0]["category"], "image_classification")
             self.assertEqual(data[0]["install_status"], "installed")
             self.assertEqual(data[0]["source"], "pipeline-zoo-models")
             self.assertEqual(
@@ -129,7 +129,7 @@ class TestModelsAPI(unittest.TestCase):
             # Check second model
             self.assertEqual(data[1]["name"], "yolov10m")
             self.assertEqual(data[1]["display_name"], "YOLO v10m 640x640")
-            self.assertEqual(data[1]["category"], "detection")
+            self.assertEqual(data[1]["category"], "object_detection")
             self.assertEqual(
                 data[1]["variants"],
                 [
@@ -148,7 +148,7 @@ class TestModelsAPI(unittest.TestCase):
             self._make_model(
                 "mobilenet",
                 "MobileNetV2",
-                "classification",
+                "image_classification",
                 None,
                 "/fake/path/mobilenet.xml",
                 install_status=InternalModelInstallStatus.NOT_INSTALLED,
@@ -156,7 +156,7 @@ class TestModelsAPI(unittest.TestCase):
         ]
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.list_models.return_value = mock_models
+            mock_manager_instance.list_models = AsyncMock(return_value=mock_models)
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.get("/models")
@@ -171,7 +171,7 @@ class TestModelsAPI(unittest.TestCase):
         """Test GET /models returns empty list when no models available."""
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.list_models.return_value = []
+            mock_manager_instance.list_models = AsyncMock(return_value=[])
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.get("/models")
@@ -193,7 +193,7 @@ class TestModelsAPI(unittest.TestCase):
         ]
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.list_models.return_value = mock_models
+            mock_manager_instance.list_models = AsyncMock(return_value=mock_models)
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.get("/models")
@@ -223,7 +223,9 @@ class TestModelsAPI(unittest.TestCase):
         """list_models raising should map to a 500 MessageResponse."""
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.list_models.side_effect = RuntimeError("boom")
+            mock_manager_instance.list_models = AsyncMock(
+                side_effect=RuntimeError("boom")
+            )
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.get("/models")
@@ -254,7 +256,7 @@ class TestModelsUploadAPI(unittest.TestCase):
         return InternalSupportedModel(
             name="my-detector",
             display_name="my-detector",
-            category=InternalModelCategory.DETECTION,
+            category=InternalModelCategory.OBJECT_DETECTION,
             source=InternalModelSource.CUSTOM,
             precisions=[
                 InternalModelPrecision(precision="", model_path="/models/output/x")
@@ -279,7 +281,7 @@ class TestModelsUploadAPI(unittest.TestCase):
         self,
         *,
         model_name: str = "my-detector",
-        category: str = "detection",
+        category: str = "object_detection",
         file_bytes: bytes = b"fake-zip-bytes",
         file_name: str = "my-detector.zip",
         description: str | None = None,
@@ -300,10 +302,12 @@ class TestModelsUploadAPI(unittest.TestCase):
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_cls.write_upload_to_tempfile.return_value = "/tmp/upload.zip"
             mock_manager_instance = MagicMock()
-            mock_manager_instance.upload_model.return_value = (
-                model,
-                201,
-                "Model uploaded successfully",
+            mock_manager_instance.upload_model = AsyncMock(
+                return_value=(
+                    model,
+                    201,
+                    "Model uploaded successfully",
+                )
             )
             mock_manager_cls.return_value = mock_manager_instance
 
@@ -321,7 +325,7 @@ class TestModelsUploadAPI(unittest.TestCase):
             # Manager was driven with the form fields verbatim.
             spec = mock_manager_instance.upload_model.call_args.args[0]
             self.assertEqual(spec.model_name, "my-detector")
-            self.assertEqual(spec.category, InternalModelCategory.DETECTION)
+            self.assertEqual(spec.category, InternalModelCategory.OBJECT_DETECTION)
             self.assertEqual(spec.file_path, "/tmp/upload.zip")
             self.assertEqual(spec.description, "Detects vehicles")
 
@@ -330,10 +334,12 @@ class TestModelsUploadAPI(unittest.TestCase):
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_cls.write_upload_to_tempfile.return_value = "/tmp/upload.zip"
             mock_manager_instance = MagicMock()
-            mock_manager_instance.upload_model.return_value = (
-                None,
-                409,
-                "Model already exists",
+            mock_manager_instance.upload_model = AsyncMock(
+                return_value=(
+                    None,
+                    409,
+                    "Model already exists",
+                )
             )
             mock_manager_cls.return_value = mock_manager_instance
 
@@ -348,10 +354,12 @@ class TestModelsUploadAPI(unittest.TestCase):
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_cls.write_upload_to_tempfile.return_value = "/tmp/upload.zip"
             mock_manager_instance = MagicMock()
-            mock_manager_instance.upload_model.return_value = (
-                None,
-                502,
-                "Upload failed: connection refused",
+            mock_manager_instance.upload_model = AsyncMock(
+                return_value=(
+                    None,
+                    502,
+                    "Upload failed: connection refused",
+                )
             )
             mock_manager_cls.return_value = mock_manager_instance
 
@@ -365,7 +373,9 @@ class TestModelsUploadAPI(unittest.TestCase):
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_cls.write_upload_to_tempfile.return_value = "/tmp/upload.zip"
             mock_manager_instance = MagicMock()
-            mock_manager_instance.upload_model.side_effect = RuntimeError("nope")
+            mock_manager_instance.upload_model = AsyncMock(
+                side_effect=RuntimeError("nope")
+            )
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self._post_upload()
@@ -381,7 +391,9 @@ class TestModelsUploadAPI(unittest.TestCase):
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_cls.write_upload_to_tempfile.return_value = "/tmp/upload.zip"
             mock_manager_instance = MagicMock()
-            mock_manager_instance.upload_model.return_value = (model, 201, "ok")
+            mock_manager_instance.upload_model = AsyncMock(
+                return_value=(model, 201, "ok")
+            )
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self._post_upload(file_name="archive.zip")
@@ -393,7 +405,7 @@ class TestModelsUploadAPI(unittest.TestCase):
         """FastAPI validation rejects requests without ``model_name``."""
         response = self.client.post(
             "/models/upload",
-            data={"category": "detection"},
+            data={"category": "object_detection"},
             files={
                 "file": ("a.zip", io.BytesIO(b"x"), "application/zip"),
             },
@@ -430,10 +442,12 @@ class TestModelsDownloadAPI(unittest.TestCase):
         """One model accepted -> envelope status 202 + jobs map entry."""
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.start_download.return_value = (
-                "job-1",
-                202,
-                "Download started (job job-1)",
+            mock_manager_instance.start_download = AsyncMock(
+                return_value=(
+                    "job-1",
+                    202,
+                    "Download started (job job-1)",
+                )
             )
             mock_manager_cls.return_value = mock_manager_instance
 
@@ -455,7 +469,7 @@ class TestModelsDownloadAPI(unittest.TestCase):
 
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.start_download.side_effect = fake_start
+            mock_manager_instance.start_download = AsyncMock(side_effect=fake_start)
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.post(
@@ -473,10 +487,12 @@ class TestModelsDownloadAPI(unittest.TestCase):
         """All entries fail with the same client error code -> that code."""
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.start_download.return_value = (
-                None,
-                404,
-                "unknown",
+            mock_manager_instance.start_download = AsyncMock(
+                return_value=(
+                    None,
+                    404,
+                    "unknown",
+                )
             )
             mock_manager_cls.return_value = mock_manager_instance
 
@@ -496,7 +512,7 @@ class TestModelsDownloadAPI(unittest.TestCase):
 
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.start_download.side_effect = fake_start
+            mock_manager_instance.start_download = AsyncMock(side_effect=fake_start)
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.post(
@@ -509,7 +525,9 @@ class TestModelsDownloadAPI(unittest.TestCase):
         """An unexpected error inside ``start_download`` maps to 500."""
         with patch("api.routes.models.ModelManager") as mock_manager_cls:
             mock_manager_instance = MagicMock()
-            mock_manager_instance.start_download.side_effect = RuntimeError("boom")
+            mock_manager_instance.start_download = AsyncMock(
+                side_effect=RuntimeError("boom")
+            )
             mock_manager_cls.return_value = mock_manager_instance
 
             response = self.client.post("/models/download", json={"names": ["yolo11n"]})
@@ -526,6 +544,98 @@ class TestModelsDownloadAPI(unittest.TestCase):
         """Duplicate names are rejected (the per-name response map must be unambiguous)."""
         response = self.client.post("/models/download", json={"names": ["a", "a"]})
         self.assertEqual(response.status_code, 422)
+
+
+class TestModelsCheckStatusAPI(unittest.TestCase):
+    """Tests for POST /models/check-status route layer."""
+
+    @classmethod
+    def setUpClass(cls):
+        app = FastAPI()
+        app.include_router(models_router, prefix="/models")
+        cls.client = TestClient(app)
+
+    def test_check_status_returns_matching_model_statuses(self):
+        """Known display names are returned; unknown display names are omitted."""
+        mock_models = [
+            TestModelsAPI._make_model(
+                "yolo11n",
+                "YOLO 11n 640x640",
+                "detection",
+                "FP16",
+                install_status=InternalModelInstallStatus.INSTALLED,
+            ),
+            TestModelsAPI._make_model(
+                "mobilenet-v2-pytorch",
+                "MobileNet V2 PyTorch",
+                "classification",
+                "FP32",
+                install_status=InternalModelInstallStatus.NOT_INSTALLED,
+            ),
+        ]
+        with patch("api.routes.models.ModelManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
+            mock_manager_instance.list_models = AsyncMock(return_value=mock_models)
+            mock_manager_cls.return_value = mock_manager_instance
+
+            response = self.client.post(
+                "/models/check-status",
+                json={
+                    "display_names": [
+                        "YOLO 11n 640x640",
+                        "Missing Model",
+                        "MobileNet V2 PyTorch",
+                    ]
+                },
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.json(),
+                {
+                    "models": [
+                        {
+                            "name": "yolo11n",
+                            "display_name": "YOLO 11n 640x640",
+                            "install_status": "installed",
+                        },
+                        {
+                            "name": "mobilenet-v2-pytorch",
+                            "display_name": "MobileNet V2 PyTorch",
+                            "install_status": "not_installed",
+                        },
+                    ]
+                },
+            )
+            mock_manager_instance.list_models.assert_called_once_with()
+
+    def test_check_status_empty_display_names_rejected_by_validator(self):
+        """``display_names=[]`` is rejected by the Pydantic ``min_length=1`` rule."""
+        response = self.client.post("/models/check-status", json={"display_names": []})
+        self.assertEqual(response.status_code, 422)
+
+    def test_check_status_blank_display_name_rejected_by_validator(self):
+        """Whitespace-only display names are rejected by the model validator."""
+        response = self.client.post(
+            "/models/check-status", json={"display_names": ["YOLO", "  "]}
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_check_status_returns_500_when_manager_raises(self):
+        """An unexpected error inside ``list_models`` maps to 500."""
+        with patch("api.routes.models.ModelManager") as mock_manager_cls:
+            mock_manager_instance = MagicMock()
+            mock_manager_instance.list_models = AsyncMock(
+                side_effect=RuntimeError("boom")
+            )
+            mock_manager_cls.return_value = mock_manager_instance
+
+            response = self.client.post(
+                "/models/check-status", json={"display_names": ["YOLO"]}
+            )
+
+            self.assertEqual(response.status_code, 500)
+            self.assertIn("Unexpected error", response.json()["message"])
 
 
 class TestAggregateStatus(unittest.TestCase):

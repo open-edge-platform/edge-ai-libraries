@@ -232,7 +232,7 @@ class PipelineManager:
         filesystem paths because pipeline ingest replaces paths with
         display names (see ``_model_path_to_display_name`` in
         ``graph.py``); callers that need the canonical model ``name``
-        from ``supported_models.yaml`` must resolve the display name via
+        from the model catalog must resolve the display name via
         ``SupportedModelsManager``.
 
         Returns:

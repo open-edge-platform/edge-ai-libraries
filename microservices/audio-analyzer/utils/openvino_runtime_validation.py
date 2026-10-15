@@ -7,13 +7,15 @@ from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
 
-_SUPPORTED_ASR_PROVIDERS = {"openai", "openvino", "whispercpp"}
+_SUPPORTED_ASR_PROVIDERS = {"openai", "openvino", "whispercpp", "funasr"}
 _SUPPORTED_ASR_DEVICES = {"CPU", "GPU", "NPU"}
 _SUPPORTED_DIARIZATION_DEVICES = {"CPU", "GPU", "NPU"}
 _ASR_PROVIDER_DEVICE_MATRIX = {
     "openai": {"CPU"},
     "openvino": {"CPU", "GPU", "NPU"},
     "whispercpp": {"CPU"},
+    # FunASR Paraformer (Chinese/English) runs on the CPU torch build only.
+    "funasr": {"CPU"},
 }
 
 # Models confirmed not to execute on NPU with OpenVINO 2026.1 on Intel Core Ultra

@@ -6,7 +6,7 @@ configure_anomalib () {
 }
 
 verify_anomalib () {
-  [ -r "$workspace"/.venv/bin/activate ]
+  [ -r "$workspace"/.venv/bin/activate ] || return 1
   . "$workspace"/.venv/bin/activate
   python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
 }
@@ -20,7 +20,7 @@ debian_80_install_anomalib () {
   if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
     echo "Anomalib already installed. Skipping"
   else
-    ensure_disk_space 6000
+    ensure_disk_size 6000
     mkdir -p "$workspace"
     cd "$workspace"
     python3 -m venv .venv
@@ -108,6 +108,6 @@ test_anomalib_pipeline(root_path, dataset_path, sys.argv[2])
 
 debian_80_remove_anomalib () {
   configure_anomalib $*
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }
 

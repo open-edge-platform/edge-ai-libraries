@@ -14,45 +14,20 @@ as well as virtual groups (**profiles**).
 ## Profiles and Modules
 
 Profiles are groupings of installable components targeting specific domain workloads or
-marketing segments. The table lists the profiles and their components.  
+marketing segments. The table lists the profiles:
 
-| Profile | Domain | Modules |
-| ------- | ------ | ------- |
-| `inferencing` | Core AI inferencing runtime | `openvino` |
-| `computer_vision` | Computer-vision pipelines, models, and runtimes | `dlstreamer`, `vippet`, `geti`, `anomalib` |
-| `metro_ai_suite` | City monitoring and traffic management | `smart_intersection`, `smart_parking`, `loitering_detection`, `live_video_captioning`, `video_search_and_summarization` |
-| `manufacturing_ai_suite` | Industrial inspection and defect detection | `pallet_defect_detection`, `pcb_anomaly_detection`, `multimodal_weld_defect_detection` |
-| `retail_ai_suite` | Retail buying-process monitoring | `loss_prevention`, `order_accuracy` |
-| `robotics_ai_suite` | Robotics and Physical AI workflows | `autonomous_mobile_robot`, `stationary_robot_vision`, `humanoid_imitation_learning`, `physical_ai_framework`, `physical_ai_studio` |
-| `federal_and_aerospace_ai_suite` | Multi-modal federal and aerospace use cases | `handheld_multi_modal` |
-| `health_and_life_science_ai_suite` | Patient and vitals monitoring | `nicu_warmer` |
+| Profile | Description |
+| ------- | ------ |
+| `inferencing` | Core AI inferencing runtime |
+| `computer_vision` | Computer-vision pipelines, models, and runtimes | 
+| `metro_ai_suite` | City monitoring and traffic management |
+| `manufacturing_ai_suite` | Industrial inspection and defect detection |
+| `retail_ai_suite` | Retail buying-process monitoring |
+| `robotics_ai_suite` | Robotics and Physical AI workflows |
+| `federal_and_aerospace_ai_suite` | Multi-modal federal and aerospace use cases |
+| `health_and_life_science_ai_suite` | Patient and vitals monitoring |
 
-### Module reference
-
-| Module | Description |
-| ------ | ----------- |
-| `openvino` | The OpenVINO™ inference runtime and toolkit. |
-| `dlstreamer` | The Intel® DL Streamer video-analytics pipeline framework. |
-| `vippet` | The Visual Pipeline and Platform Evaluation Tool. |
-| `geti` | The Intel® Geti™ computer-vision model training platform. |
-| `anomalib` | The deep-learning library for visual anomaly detection. |
-| `smart_intersection` | A traffic-intersection monitoring reference sample. |
-| `smart_parking` | A smart-parking occupancy and monitoring sample. |
-| `loitering_detection` | A loitering-detection video analytics sample. |
-| `live_video_captioning` | A real-time video captioning sample. |
-| `video_search_and_summarization` | A video search and summarization (VLM-based) sample. |
-| `pallet_defect_detection` | A pallet defect-detection inspection sample. |
-| `pcb_anomaly_detection` | A PCB anomaly-detection inspection sample. |
-| `multimodal_weld_defect_detection` | A multi-modal weld defect-detection sample. |
-| `loss_prevention` | A Retail loss-prevention sample. |
-| `order_accuracy` | A Retail order-accuracy verification sample. |
-| `handheld_multi_modal` | A handheld multi-modal sample for federal/aerospace use cases. |
-| `nicu_warmer` | A NICU warmer patient-monitoring sample. |
-| `autonomous_mobile_robot` | Robotics AI Suite ROS 2 SDK for sensing, SLAM, and navigation. |
-| `stationary_robot_vision` | Vision-guided pick-and-place reference sample (RVC). |
-| `humanoid_imitation_learning` | Imitation-learning track (ACT and Pi0.5 policies). |
-| `physical_ai_framework` | Physical AI training/deployment SDK (`physicalai` CLI). |
-| `physical_ai_studio` | Physical AI Studio backend + web UI for data collection and training. |
+> See [`module`](module) for the list of available modules.   
 
 ## Installation
 
@@ -104,7 +79,7 @@ Remove a profile or a component:
 openedge-cli remove video_conferencing
 ```
 
-> Unlike installation where dependency items are installed automatically, the OEP installer removes a component without touching any dependency items. For example, the OEP installer does not uninstall GPU and NPU drivers upon a sample removal operation. You have to invoke the OEP installer explicitly to remove the GPU and NPU drivers.
+> Unlike installation where dependency items are installed automatically, the OEP installer removes a component without touching any dependency items. For example, the OEP installer does not uninstall GPU and NPU drivers upon a sample removal operation. You have to invoke the OEP installer explicitly to remove the GPU and NPU drivers. Use `remove --remove-all` to force removing all installed components.    
 
 ## Advanced Usage
 
@@ -116,10 +91,11 @@ The OEP installer uses the following commandline options:
 Usage: openedge-cli <subcommand> [options] [modules/profiles] [module options] ...
 ```
 
-Multiple subcommands can be specified at once. They are executed in order:
+Multiple subcommands can be specified at once. They are executed in order and the component list from a previous command is passed to next:
 
 ```bash
-openedge-cli install smart_parking --gpu start smart_parking --gpu
+# install with --gpu, start, stop and then start again with --npu
+openedge-cli install smart_parking --gpu start stop start -npu
 ```
 
 The following global options are supported:
@@ -131,6 +107,7 @@ The following global options are supported:
 | `--validate` | Validate features after installation. |
 | `--reinstall` | Force to reinstall a component, if already installed. |
 | `--gpu`/`--npu`/`--cpu` | Select GPU/NPU/CPU device at the component level. |
+| `--docker`/`--k3s` | Select the deployment model (Docker or K3s) for `edge_node_infrastructure_blueprint` and the Federal and Aerospace components that depend on it. If neither is given, the installed model is kept, or Docker is used for a new installation. |
 
 To specify component specific options, insert a `--<component-name>` tag:
 
@@ -140,6 +117,20 @@ openedge-cli install smart_parking smart_intersection --smart_parking --gpu
 where `--gpu` applies to the smart_parking component.  
 
 > Omit `--<component-name>` if there is only a single component or the specified options apply to all components.  
+
+For example, the Federal and Aerospace components install the Edge Node Infrastructure Blueprint first, using the selected deployment model:
+
+```bash
+openedge-cli install uav_mission_compute_sdk --k3s
+openedge-cli install handheld_multi_modal uav_mission_compute_sdk --uav_mission_compute_sdk --docker
+openedge-cli install edge_node_infrastructure_blueprint --k3s
+```
+
+> The Edge Node Infrastructure Blueprint is shared, so `--docker` or `--k3s` scoped to any component that depends on it (or to the `federal_and_aerospace_ai_suite` profile) selects that model for the whole installation. Selecting both `--docker` and `--k3s` is rejected.
+
+> To switch an installed blueprint to the other deployment model, run `openedge-cli install edge_node_infrastructure_blueprint --reinstall --k3s` (or `--reinstall --docker`). Requesting a different model without `--reinstall` fails with this hint. Switching from K3s to Docker, or running `openedge-cli remove edge_node_infrastructure_blueprint` on a K3s installation, also removes the K3s runtime installed by the blueprint (using `k3s-uninstall.sh`) and its unmodified `~/.kube/config` copy; Docker, Helm and other shared components are kept.
+
+> The K3s deployment model is not yet supported with `handheld_multi_modal`: both K3s and the application use TCP port 6443. Installing K3s together with, or after, `handheld_multi_modal` (including `federal_and_aerospace_ai_suite --k3s`) is rejected; use Docker.
 
 ### List Profiles and Components
 
@@ -160,6 +151,8 @@ openedge-cli sbom computer_vision
 > The listing is limited to system-level installation only.
 
 > User level installation is under `~/.local/open-edge-platform/<component-name>`.  
+
+> The OEP installer script is installed under `~/.local/bin` with bash completion under `~/.local/share/bash-completion`, and logs under `~/.local/open-edge-platform/openedge-cli/*.logs`.  
 
 ### Bootstrapping
 
