@@ -1,4 +1,4 @@
-# Release Notes
+# Release Notes: Sensor Manager
 
 ## Version 1.0.0
 
