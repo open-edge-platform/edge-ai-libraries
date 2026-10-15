@@ -143,7 +143,8 @@ See [references/modes-and-overlays.md](references/modes-and-overlays.md) for the
 
    Common to every mode: `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`,
    `POSTGRES_USER`, `POSTGRES_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`.
-   Mode-specific model vars (`VLM_MODEL_NAME`, `ASR_MODEL`, `OD_MODEL_NAME` for summary;
+   Mode-specific model vars (`VLM_MODEL_NAME`, `OD_MODEL_NAME` for summary;
+   optional `ASR_MODEL` for the audio-analyzer, default `whisper-base`;
    `MULTIMODAL_EMBEDDING_MODEL` for search/dual;
    `TEXT_EMBEDDING_MODEL` for unified) ship with defaults in `vss.config` -
    see [`references/env-vars.md`](./references/env-vars.md) for the full table.
