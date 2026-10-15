@@ -15,6 +15,7 @@ Unit test conventions for the Model Download microservice.
 7. [Parametrize for can_handle](#parametrize-for-can_handle)
 8. [Testing Error Paths](#testing-error-paths)
 9. [Test File Template](#test-file-template)
+10. [Testing MCP Tools](#testing-mcp-tools)
 
 ---
 
@@ -24,6 +25,7 @@ Unit test conventions for the Model Download microservice.
 tests/
 ├── __init__.py
 ├── conftest.py              ← shared fixtures (temp dirs, mock env vars)
+├── test_mcp_server.py       ← MCP tool/resource unit tests
 └── unit/
     ├── test_huggingface_plugin.py
     ├── test_ollama_plugin.py
@@ -304,3 +306,75 @@ class TestMyHubPlugin:
         with pytest.raises(RuntimeError, match="Connection failed"):
             plugin.download(model_name="org/model", output_dir=temp_dir)
 ```
+
+---
+
+## Testing MCP Tools
+
+`src/mcp/server.py` builds `plugin_registry` and `model_manager` as
+**module-level globals** at import time. Tests must patch those exact
+globals — not `src.core.plugin_registry.PluginRegistry` — before importing
+the tool functions, otherwise the real `PluginRegistry.discover_plugins(...)`
+runs against the actual `src/plugins` package.
+
+Use an autouse fixture that patches the globals, then import each tool
+function *inside* the test (after patching takes effect):
+
+```python
+from unittest.mock import MagicMock, AsyncMock, patch
+import pytest
+
+@pytest.fixture(autouse=True)
+def _patch_core_init(monkeypatch):
+    mock_registry = MagicMock()
+    mock_registry.plugins = {"downloader": {}, "converter": {}}
+    mock_registry.activated_plugins = ["all"]
+    mock_registry.hub_is_available.return_value = (True, "")
+
+    mock_manager = MagicMock()
+    mock_manager._jobs = {}
+    mock_manager.get_job_status.side_effect = lambda job_id: (
+        dict(mock_manager._jobs[job_id]) if job_id in mock_manager._jobs else None
+    )
+    mock_manager.list_jobs.side_effect = lambda **_kwargs: [
+        dict(job) for job in mock_manager._jobs.values()
+    ]
+
+    with (
+        patch("src.mcp.server.plugin_registry", mock_registry),
+        patch("src.mcp.server.model_manager", mock_manager),
+        patch("src.mcp.server.models_dir", "/opt/models"),
+    ):
+        yield {"registry": mock_registry, "manager": mock_manager}
+
+
+def test_get_job_status_missing(_patch_core_init):
+    from src.mcp.server import get_job_status  # import after patch is active
+
+    result = get_job_status("nonexistent")
+    assert "error" in result
+
+
+@pytest.mark.asyncio
+async def test_download_model_success(_patch_core_init):
+    from src.mcp.server import download_model
+
+    with patch("src.mcp.server.submit_models", new_callable=AsyncMock) as mock_submit:
+        mock_submit.return_value = ["job-1"]
+        result = await download_model(name="test/model", hub="huggingface")
+        assert result["status"] == "processing"
+        assert result["job_ids"] == ["job-1"]
+```
+
+Key points:
+
+- Call tool/resource functions **directly as plain Python functions**
+  (`health_check()`, `await download_model(...)`) rather than spinning up an
+  MCP client — FastMCP's `@mcp.tool`/`@mcp.resource` decorators return
+  callables that behave normally outside a running server.
+- Async tools (`download_model`, `list_hub_models`) need
+  `@pytest.mark.asyncio`; mock `submit_models` with `AsyncMock`, not `MagicMock`.
+- If you add a new prompt source or change `src/mcp/prompts.py`, see
+  `test_mcp_server.py::TestPromptLoading` for the pattern of patching
+  `_SKILL_DIR`/`_EXAMPLES_DIR`/`_SKILL_FILE` with a `tmp_path` fixture instead
+  of touching the real skill files on disk.

@@ -15,13 +15,14 @@ requests to the `model-download` microservice.
 
 ### Smoke tests
 
-Smoke tests require the default models (those marked `default: true` in
-`shared/models/supported_models.yaml`) to be installed.
+Smoke tests require the default-recommended models (those returned with
+`default: true` by the `/api/v1/models` API, i.e. models referenced by at
+least one predefined pipeline) to be installed.
 
 ### Full tests
 
-Full tests require **all** models listed in `shared/models/supported_models.yaml` to be
-installed.
+Full tests require **all** models defined under `vippet/models/*.yaml`
+(one YAML file per model) to be installed.
 
 ## Test behavior
 
@@ -60,8 +61,9 @@ make test-full
 
 ## Configuration
 
-| Environment variable          | Default                   | Description                      |
-|-------------------------------|---------------------------|----------------------------------|
-| `VIPPET_BASE_URL`             | `http://localhost/api/v1` | Base URL of the VIPPET API       |
-| `VIPPET_JOB_TIMEOUT_SECONDS`  | `600`                     | Max wait time for job completion |
-| `VIPPET_JOB_POLL_INTERVAL`    | `2.0`                     | Polling interval in seconds      |
+| Environment variable                     | Default                   | Description                                               |
+|------------------------------------------|---------------------------|-----------------------------------------------------------|
+| `VIPPET_BASE_URL`                        | `http://localhost/api/v1` | Base URL of the VIPPET API; set to target a remote device |
+| `VIPPET_JOB_TIMEOUT_SECONDS`             | `600`                     | Max wait time for job completion                          |
+| `VIPPET_JOB_POLL_INTERVAL`               | `2.0`                     | Polling interval in seconds                               |
+| `VIPPET_BENCHMARK_SUITE_TIMEOUT_SECONDS` | `1800`                    | Max wait time for a full benchmark suite run to complete  |

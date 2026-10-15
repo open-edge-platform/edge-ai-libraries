@@ -15,7 +15,11 @@ import pytest
 import requests
 import yaml
 
-from helpers.config import DEFAULT_RECORDINGS_YAML, PROJECT_ROOT, SUPPORTED_MODELS_YAML
+from helpers.config import (
+    DEFAULT_RECORDINGS_YAML,
+    PROJECT_ROOT,
+    SUPPORTED_MODELS_CATALOG_DIR,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,10 +80,12 @@ def recorded_api_calls() -> set[tuple[str, str]]:
 
 @pytest.fixture(scope="session")
 def supported_models_config() -> list[dict[str, Any]]:
-    """Load supported_models.yaml as the source-of-truth for model tests."""
-    with SUPPORTED_MODELS_YAML.open() as f:
-        data = yaml.safe_load(f)
-    assert isinstance(data, list), "supported_models.yaml must be a list"
+    """Load vippet/models/*.yaml (one dict per file) as the source-of-truth for model tests."""
+    data = [
+        yaml.safe_load(path.read_text())
+        for path in sorted(SUPPORTED_MODELS_CATALOG_DIR.glob("*.yaml"))
+    ]
+    assert data, "No model catalog files found under vippet/models/"
     return data
 
 
@@ -98,7 +104,7 @@ def _skip_when_external_model_missing(request: pytest.FixtureRequest) -> None:
 
     Applies to pipelines listed in ``_EXTERNAL_MODEL_PATH_TEMPLATES`` (e.g. the
     VLM Video Captioning pipeline, which hard-codes its model path instead
-    of going through ``supported_models.yaml``).
+    of going through the model catalog).
     """
     case = getattr(request.node, "callspec", None)
     case_value = case.params.get("case") if case is not None else None
@@ -330,11 +336,11 @@ def make_tar_archive(sample_frame_bgr: "np.ndarray[Any, Any]"):
 
 _UPLOAD_MODEL_SOURCES: dict[str, dict[str, str]] = {
     "face-detection-retail-0004": {
-        "category": "detection",
+        "category": "object_detection",
         "fp16_dir": "shared/models/output/omz/face-detection-retail-0004/FP16",
     },
     "age-gender-recognition-retail-0013": {
-        "category": "classification",
+        "category": "image_classification",
         "fp16_dir": "shared/models/output/omz/age-gender-recognition-retail-0013/FP16",
     },
 }

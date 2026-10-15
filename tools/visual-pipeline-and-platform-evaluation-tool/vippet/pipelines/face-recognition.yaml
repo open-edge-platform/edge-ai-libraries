@@ -1,0 +1,185 @@
+name: Face Recognition
+definition: >
+  Detects faces, tracks them across frames, and extracts a face embedding for each tracked face.
+  The embeddings are published as tensor metadata and can be matched against a gallery downstream.
+tags:
+  - Safety and Security
+thumbnail: images/face-recognition.png
+type: vision
+variants:
+  - name: CPU
+    pipeline_description: >-
+      filesrc location=/videos/input/age_prediction.mp4 !
+      decodebin3 !
+      gvadetect
+        batch-size=1
+        model-instance-id=face-detect-cpu
+        model=/models/output/omz/face-detection-retail-0004/FP16/face-detection-retail-0004.xml
+        model-proc=/models/output/omz/face-detection-retail-0004/face-detection-retail-0004.json
+        inference-interval=3
+        inference-region=full-frame
+        threshold=0.5
+        device=CPU
+        pre-process-backend=opencv
+        ie-config=CPU_THROUGHPUT_STREAMS=2
+        nireq=2 !
+      queue !
+      gvatrack tracking-type=short-term-imageless !
+      queue !
+      gvaclassify
+        batch-size=1
+        model-instance-id=face-reid-cpu
+        model=/models/output/omz/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml
+        device=CPU
+        pre-process-backend=opencv
+        inference-region=roi-list
+        object-class=face
+        reclassify-interval=1 !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      gvametaconvert add-empty-results=true add-tensor-data=true !
+      queue !
+      gvametapublish file-format=json-lines file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false
+  - name: GPU
+    pipeline_description: >-
+      filesrc location=/videos/input/age_prediction.mp4 !
+      decodebin3 !
+      gvadetect
+        batch-size=1
+        model-instance-id=face-detect-gpu
+        model=/models/output/omz/face-detection-retail-0004/FP16/face-detection-retail-0004.xml
+        model-proc=/models/output/omz/face-detection-retail-0004/face-detection-retail-0004.json
+        inference-interval=3
+        inference-region=full-frame
+        threshold=0.5
+        device=GPU
+        pre-process-backend=va-surface-sharing
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        nireq=2 !
+      queue !
+      gvatrack tracking-type=short-term-imageless !
+      queue !
+      gvaclassify
+        batch-size=1
+        model-instance-id=face-reid-gpu
+        model=/models/output/omz/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml
+        device=GPU
+        pre-process-backend=va-surface-sharing
+        inference-region=roi-list
+        object-class=face
+        reclassify-interval=1 !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      gvametaconvert add-empty-results=true add-tensor-data=true !
+      queue !
+      gvametapublish file-format=json-lines file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false
+  - name: GPU (WSL)
+    pipeline_description: >-
+      filesrc location=/videos/input/age_prediction.mp4 !
+      parsebin !
+      avdec_h264 !
+      video/x-raw !
+      gvadetect
+        batch-size=1
+        model-instance-id=face-detect-gpu
+        model=/models/output/omz/face-detection-retail-0004/FP16/face-detection-retail-0004.xml
+        model-proc=/models/output/omz/face-detection-retail-0004/face-detection-retail-0004.json
+        inference-interval=3
+        inference-region=full-frame
+        threshold=0.5
+        device=GPU
+        pre-process-backend=opencv
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        nireq=2 !
+      queue !
+      gvatrack tracking-type=short-term-imageless !
+      queue !
+      gvaclassify
+        batch-size=1
+        model-instance-id=face-reid-gpu
+        model=/models/output/omz/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml
+        device=GPU
+        pre-process-backend=opencv
+        inference-region=roi-list
+        object-class=face
+        reclassify-interval=1 !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      gvametaconvert add-empty-results=true add-tensor-data=true !
+      queue !
+      gvametapublish file-format=json-lines file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false
+  - name: NPU
+    pipeline_description: >-
+      filesrc location=/videos/input/age_prediction.mp4 !
+      decodebin3 !
+      gvadetect
+        batch-size=1
+        model-instance-id=face-detect-npu
+        model=/models/output/omz/face-detection-retail-0004/FP16/face-detection-retail-0004.xml
+        model-proc=/models/output/omz/face-detection-retail-0004/face-detection-retail-0004.json
+        inference-interval=3
+        inference-region=full-frame
+        threshold=0.5
+        device=NPU
+        pre-process-backend=va
+        nireq=4 !
+      queue !
+      gvatrack tracking-type=short-term-imageless !
+      queue !
+      gvaclassify
+        batch-size=1
+        model-instance-id=face-reid-npu
+        model=/models/output/omz/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml
+        device=NPU
+        pre-process-backend=va
+        inference-region=roi-list
+        object-class=face
+        reclassify-interval=1 !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      gvametaconvert add-empty-results=true add-tensor-data=true !
+      queue !
+      gvametapublish file-format=json-lines file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false
+  - name: GPU_NPU
+    pipeline_description: >-
+      filesrc location=/videos/input/age_prediction.mp4 !
+      decodebin3 !
+      gvadetect
+        batch-size=1
+        model-instance-id=face-detect-gpu-npu
+        model=/models/output/omz/face-detection-retail-0004/FP16/face-detection-retail-0004.xml
+        model-proc=/models/output/omz/face-detection-retail-0004/face-detection-retail-0004.json
+        inference-interval=3
+        inference-region=full-frame
+        threshold=0.5
+        device=GPU
+        pre-process-backend=va-surface-sharing
+        ie-config=GPU_THROUGHPUT_STREAMS=2
+        nireq=2 !
+      queue !
+      gvatrack tracking-type=short-term-imageless !
+      queue !
+      gvaclassify
+        batch-size=1
+        model-instance-id=face-reid-gpu-npu
+        model=/models/output/omz/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml
+        device=NPU
+        pre-process-backend=va
+        inference-region=roi-list
+        object-class=face
+        reclassify-interval=1 !
+      queue !
+      gvafpscounter starting-frame=100 !
+      gvawatermark !
+      gvametaconvert add-empty-results=true add-tensor-data=true !
+      queue !
+      gvametapublish file-format=json-lines file-path=/dev/null !
+      fakesink name=default_output_sink sync=false async=false

@@ -30,9 +30,13 @@ daemon), `PYTHON_VERSION` (3.13), `TIMESERIES_UID`/`TIMESERIES_USER_NAME`
 
 ## GPU support
 
-- `scripts/install_gpu_drivers.sh` installs Intel iGPU drivers into the
-  image at build time (version pinned via `INSTALL_DRIVER_VERSION` build
-  arg).
+- The `Dockerfile`'s driver-install `RUN` step installs Intel iGPU drivers
+  into the image at build time from pinned `.deb` URLs (compute-runtime
+  26.27.39122 + matching IGC/libigdgmm releases). There's no build arg for
+  the version anymore — to bump the driver, update the four version
+  variables (`IGC_RELEASE_TAG`, `IGC_DEB_VERSION`,
+  `COMPUTE_RUNTIME_RELEASE_TAG`, `LIBIGDGMM_DEB_VERSION`) at the top of that
+  `RUN` step together.
 - The compose file unconditionally mounts `/dev/dri` (as both a volume and
   under `devices:`) and adds render-group GIDs for Ubuntu 20.04/22.04/24.04
   hosts via `group_add`. On a host with no Intel iGPU, this device mount

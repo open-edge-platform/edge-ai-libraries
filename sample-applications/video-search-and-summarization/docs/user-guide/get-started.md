@@ -189,7 +189,46 @@ Before running the application, you need to set several environment variables:
 
    > **Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with `--search` and `--summary --search` modes.
 
-6. **Control the frame extraction interval (Search and Dual UI mode)**:
+6. **Configure live RTSP stream ingestion (Search and Dual UI mode)**:
+
+   Live camera ingestion is enabled by default in `--search` and
+   `--summary --search` modes. Registered RTSP cameras are decoded
+   continuously, embedded, and indexed for search. Manage them from the
+   **Live Streams** button in the UI toolbar.
+
+   It is **not** available in `--summary` mode (there is no search index) or
+   in `--summary-and-search` mode, where the index holds text embeddings of
+   summaries rather than video frame embeddings.
+
+      ```bash
+      # Set to FEATURE_OFF to hide the Live Streams button.
+      export UI_LIVE_STREAMS_FEATURE=FEATURE_ON
+
+      # Hours of live footage and embeddings to retain. 0 keeps everything,
+      # which grows the index without bound.
+      export LIVE_RETENTION_HOURS=24
+      ```
+
+   > **Credentials:** An RTSP URL may embed `user:password`. DataPrep stores
+   > the credentialed URL only in its own registry, and returns a redacted
+   > URL (`rtsp://camera-host:554/stream`) in every API response, log line,
+   > and search result. The UI never persists the credentialed URL.
+
+   In the **Add Stream** dialog, the **RTSP URL** is the only required field;
+   every other field is optional and falls back to a service default. Each
+   field carries an info icon explaining what it does and how it affects
+   search results. Notable defaults:
+
+   | Field | Default | Effect on search |
+   |---|---|---|
+   | Name | The redacted URL | Label shown in the camera list and with results |
+   | Tags | None | Lets you narrow a search to one camera or group |
+   | Frame interval | 15 | Lower indexes more moments; higher costs less |
+   | Enable object detection | On | Indexes detected objects separately, improving accuracy for small or crowded subjects |
+   | Detection confidence | 0.85 | Lower catches more objects but adds false matches; higher indexes only confident detections |
+   | Start ingesting immediately | On | Clear it to register the camera paused |
+
+7. **Control the frame extraction interval (Search and Dual UI mode)**:
 
    The DataPrep microservice samples frames from uploaded videos according to the `FRAME_INTERVAL` environment variable. Set this variable before running `source setup.sh` to control how often frames are selected for processing.
 
@@ -199,7 +238,7 @@ Before running the application, you need to set several environment variables:
 
    In the example above, DataPrep processes every fifteenth frame: each selected frame (optionally after object detection) is converted into embeddings and stored in the vector database. Lower values improve recall at the cost of higher compute and storage usage, while higher values reduce processing load but may skip important frames. If you do not set this variable, the service falls back to its configured default.
 
-7. **Control duplicate-upload behavior in DataPrep (Search and Dual UI mode)**:
+8. **Control duplicate-upload behavior in DataPrep (Search and Dual UI mode)**:
 
    This setting controls whether DataPrep accepts repeated uploads of the same video content:
 
@@ -211,7 +250,7 @@ Before running the application, you need to set several environment variables:
 
    Duplicate detection is **content-based** (SHA-256 of uploaded bytes), not filename-based. A renamed copy of the same video is still detected as duplicate content, while two different videos that share the same filename are treated as different uploads.
 
-8. **Enable ROI consolidation (Search and Dual UI mode)**:
+9. **Enable ROI consolidation (Search and Dual UI mode)**:
 
    ROI consolidation groups overlapping object detections into merged regions of interest (ROIs) before cropping for embeddings. Enable this feature and tune it with the following environment variables:
 
@@ -238,7 +277,7 @@ Before running the application, you need to set several environment variables:
    > [!NOTE]
    > Enabling ROI consolidation can improve search relevance by creating more meaningful regions for embedding, but it may also increase processing time.
 
-9. **(Optional) Metrics Manager (Search, Dual UI, and Unified UI modes)**:
+10. **(Optional) Metrics Manager (Search, Dual UI, and Unified UI modes)**:
 
    Metrics Manager collects CPU, RAM, Intel® GPU, and Intel® NPU metrics and
    serves them to the UI over server-sent events. Multimodal DataPrep publishes
@@ -258,7 +297,7 @@ Before running the application, you need to set several environment variables:
    non-blocking: video ingestion continues if Metrics Manager is unavailable.
    GPU and NPU panels remain empty on hosts without those devices.
 
-10. **Tune Inference Concurrency (Summary and Dual UI mode)**:
+11. **Tune Inference Concurrency (Summary and Dual UI mode)**:
 
     Control how many concurrent inference requests the pipeline manager sends to OVMS or vLLM. These values affect throughput and resource utilization:
 
@@ -273,7 +312,7 @@ Before running the application, you need to set several environment variables:
     > [!NOTE]
     > For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
 
-11. **Override OVMS Model Weight Compression Format (Summary and Dual UI mode)**:
+12. **Override OVMS Model Weight Compression Format (Summary and Dual UI mode)**:
 
     When using OVMS for inference, the setup script auto-selects the model weight compression format based on the target device (`int8` for CPU, `int4` for GPU/NPU). You can override this auto-detection by setting these variables before running the setup script:
 
@@ -288,7 +327,7 @@ Before running the application, you need to set several environment variables:
     > [!NOTE]
     > Lower precision formats like `int4` reduce memory usage and can improve throughput, but may affect output quality. The default auto-detection (`int8` for CPU, `int4` for GPU/NPU) is recommended for most use cases.
 
-12. **Configure Embedding Execution (Search and Dual UI mode)**:
+13. **Configure Embedding Execution (Search and Dual UI mode)**:
 
     The `multimodal-dataprep` service loads the embedding model in-process and generates
     embeddings during video search indexing. Enable OpenVINO™ optimization for the
@@ -303,7 +342,7 @@ Before running the application, you need to set several environment variables:
     > [!NOTE]
     > `multimodal-dataprep` embeds in-process (no separate embedding service is required for indexing). The standalone `multimodal-embedding-serving` service is used by `vector-retriever` to embed queries at search time.
 
-13. **Select devices per processing component (Search and Unified UI mode)**:
+14. **Select devices per processing component (Search and Unified UI mode)**:
 
     Each processing component picks its device independently. All default to `CPU`; set any to `GPU` or `NPU` as needed.
 
@@ -320,7 +359,7 @@ Before running the application, you need to set several environment variables:
 
     > **Device note:** `DATAPREP_EMBEDDING_DEVICE` controls in-process embedding execution in `multimodal-dataprep`. `DATAPREP_DETECTION_DEVICE` controls YOLOX object detection in `multimodal-dataprep`. `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving`, which `vector-retriever` uses to embed queries at search time. `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
 
-14. **🧪 EXPERIMENTAL: Configure vLLM Intel Arc Pro B-series GPU/XPU Backend**:
+15. **EXPERIMENTAL: Configure vLLM Intel Arc Pro B-series GPU/XPU Backend**:
 
     > **⚠️ Experimental Feature:** Intel Arc Pro B-series GPU (XPU) support with vLLM is in early development stages and may have stability issues. Not recommended for production use.
 
@@ -331,14 +370,14 @@ Before running the application, you need to set several environment variables:
     export ENABLE_VLLM_GPU=true
 
     # Set the VLM model for vLLM GPU inference
-    export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"
+    export VLM_MODEL_NAME="Qwen/Qwen3-VL-4B-Instruct"
     ```
 
     **Additional vLLM GPU/XPU configuration options:**
 
     | Variable | Description | Default |
     | -------- | ----------- | ------- |
-    | `VLLM_XPU_IMAGE` | Docker image for vLLM XPU service | `intel/vllm:0.14.1-xpu` |
+    | `VLLM_XPU_IMAGE` | Docker image for vLLM XPU service | `vllm/vllm-openai-xpu:v0.31.0` |
     | `VLLM_DTYPE` | Model precision | `bfloat16` |
     | `VLLM_GPU_MEM` | GPU memory utilization (0-1) | `0.8` |
     | `VLLM_MAX_MODEL_LEN` | Maximum sequence length | `32000` |
@@ -346,13 +385,26 @@ Before running the application, you need to set several environment variables:
     | `VLLM_BLOCK_SIZE` | KV cache block size | `128` |
     | `VLLM_MAX_NUM_BATCHED_TOKENS` | Maximum batched tokens | `2048` |
     | `VLLM_TENSOR_PARALLEL_SIZE` | Tensor parallel size | `1` |
+    | `VLLM_MM_MAX_PIXELS` | Maximum pixels per frame (caps resolution, not frame count) | `16777216` |
     | `VLLM_HOST_PORT` | Host port for vLLM service | `8200` |
 
     **System Requirements:**
     - Intel Arc Pro B-series GPU (e.g., Intel Arc Pro B60, B65, B70)
     - Intel GPU drivers installed on host
     - User in `video` and `render` groups
-    - Minimum 8GB GPU memory
+    - Minimum 16GB GPU memory for the default `bfloat16` configuration. 
+
+    > [!TIP]
+    > **GPUs with less than 16 GB (for example Intel Arc B580, 12 GB):** the default `bfloat16` configuration will fail to start with `No available memory for the cache blocks`. Use the FP8 checkpoint, which halves the weight footprint, and cap the image size:
+    >
+    > ```bash
+    > export VLM_MODEL_NAME="Qwen/Qwen3-VL-4B-Instruct-FP8"
+    > export VLLM_GPU_MEM=0.95
+    > export VLLM_MM_MAX_PIXELS=401408
+    > export VLLM_MAX_MODEL_LEN=24000
+    > ```
+    >
+    > All four are needed together; omitting any one still fails to start on a 12 GB card at these settings. The FP8 checkpoint cuts the weights, `VLLM_GPU_MEM` raises the share of the card vLLM may reserve, `VLLM_MM_MAX_PIXELS` shrinks the vision encoder, and `VLLM_MAX_MODEL_LEN` lowers the KV cache needed per request. `VLLM_MM_MAX_PIXELS` caps the resolution of each frame, not how many frames you send: at `401408` a 1920x1080 frame is downscaled to 832x448, and the default `PM_MULTI_FRAME_COUNT=12` still works unchanged. See [Troubleshooting](./troubleshooting.md#vllm-xpu-fails-to-start-with-no-available-memory-for-the-cache-blocks) for the sizing formula and how to derive these values for other cards.
 
     **Behavior when enabled:**
     - Automatically sets `VLLM_HOST=vllm-xpu-service`
@@ -414,8 +466,8 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 | OVMS split-model GPU/CPU | OVMS-hosted VLM on GPU | OVMS-hosted LLM on CPU | `VLM_MODEL_NAME=Qwen/Qwen3-VL-4B-Instruct` + `VLM_TARGET_DEVICE=GPU` + `LLM_TARGET_DEVICE=CPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `Qwen/Qwen3-VL-4B-Instruct` (or dedicated `OVMS_LLM_MODEL_NAME`) | Use GPU for captioning while keeping final summary on CPU; also supports same-source split by device/weight. |
 | OVMS split-model CPU/GPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on GPU | `VLM_MODEL_NAME=Qwen/Qwen3-VL-4B-Instruct` + `LLM_TARGET_DEVICE=GPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `Qwen/Qwen3-VL-4B-Instruct` (or dedicated `OVMS_LLM_MODEL_NAME`) | Use GPU for final summary while keeping captioning on CPU; also supports same-source split by device/weight. |
 | OVMS split-model CPU/NPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on NPU | `LLM_TARGET_DEVICE=NPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>` for a dedicated LLM) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `OpenVINO/Qwen3-8B-int4-cw-ov` | Use NPU for the final-summary LLM while keeping captioning on CPU. |
-| vLLM-only CPU | vLLM-hosted VLM on CPU | Same vLLM-hosted VLM on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | All-vLLM mode for CPU-only deployments. |
-| 🧪 vLLM-only GPU/XPU (**EXPERIMENTAL**) | vLLM-hosted VLM on Intel Arc Pro B-series GPU | Same vLLM-hosted VLM on Intel Arc Pro B-series GPU | `ENABLE_VLLM_GPU=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | **EXPERIMENTAL**: All-vLLM mode with Intel Arc Pro B-series GPU/XPU acceleration. Early-stage feature. |
+| vLLM-only CPU | vLLM-hosted VLM on CPU | Same vLLM-hosted VLM on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen3-VL-4B-Instruct` | All-vLLM mode for CPU-only deployments. |
+| vLLM-only GPU/XPU (**EXPERIMENTAL**) | vLLM-hosted VLM on Intel Arc Pro B-series GPU | Same vLLM-hosted VLM on Intel Arc Pro B-series GPU | `ENABLE_VLLM_GPU=true` | VLM: `Qwen/Qwen3-VL-4B-Instruct` | **EXPERIMENTAL**: All-vLLM mode with Intel Arc Pro B-series GPU/XPU acceleration. Early-stage feature. |
 
 > [!NOTE]
 > 
@@ -426,7 +478,7 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 > 5) **NPU Support:** Not all models support NPU execution. Verify model compatibility at the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
 > 6) OVMS mode selection is based on effective VLM/LLM settings: if model source, target device, and compression format are all identical, setup uses shared mode; otherwise it uses split mode.
 > 7) For same-source split examples (same model name on different devices/formats), prefer non-`OpenVINO/` source models (for example, `Qwen/Qwen3-VL-4B-Instruct`). `OpenVINO/` namespace models are pre-converted and use model-intrinsic/fixed weight formats.
-> 8) **🧪 EXPERIMENTAL - Intel Arc Pro B-series GPU Support:** vLLM on Intel Arc Pro B-series GPUs/XPUs (`ENABLE_VLLM_GPU=true`) is **experimental** and in early development stages. This feature provides GPU-accelerated inference for both VLM captioning and LLM summarization but may have stability issues and requires specific Intel Arc Pro B-series GPU hardware (e.g., B60, B65, B70). When enabled, it automatically disables OVMS and uses vLLM exclusively. Not recommended for production use.
+> 8) ** EXPERIMENTAL - Intel Arc Pro B-series GPU Support:** vLLM on Intel Arc Pro B-series GPUs/XPUs (`ENABLE_VLLM_GPU=true`) is **experimental** and in early development stages. This feature provides GPU-accelerated inference for both VLM captioning and LLM summarization but may have stability issues and requires specific Intel Arc Pro B-series GPU hardware (e.g., B60, B65, B70). When enabled, it automatically disables OVMS and uses vLLM exclusively. Not recommended for production use.
 
 ### Deployment Options for Video Search
 
@@ -616,7 +668,7 @@ Follow these steps to run the application:
     > - The vLLM configuration has been tested on Intel® Xeon® 6 processors.
     > - Review [docker/compose.vllm.yaml](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/video-search-and-summarization/docker/compose.vllm.yaml) to understand the VLLM engine and environment variables exposed. Modify it as per your use case. Refer to the [vLLM Engine Arguments documentation](https://docs.vllm.ai/en/stable/configuration/engine_args/) and [vLLM Environment Variables documentation](https://docs.vllm.ai/en/stable/configuration/env_vars/) for more details.
 
-   - **🧪 EXPERIMENTAL: Use vLLM with Intel Arc Pro B-series GPU/XPU acceleration:**
+   - ** EXPERIMENTAL: Use vLLM with Intel Arc Pro B-series GPU/XPU acceleration:**
 
       > **⚠️ Experimental Feature - Intel Arc Pro B-series GPU Support:**
       > Intel Arc Pro B-series GPU/XPU support with vLLM is currently **experimental** and in early stages. This implementation provides foundational infrastructure for Intel Arc Pro B-series enablement and may require further tuning and optimization. Performance characteristics on Intel Arc Pro B-series hardware are still being evaluated.
@@ -626,7 +678,7 @@ Follow these steps to run the application:
       - Intel GPU drivers properly installed on the host system
       - User must be a member of the `video` and `render` groups
       - Access to `/dev/dri` devices
-      - Minimum 8GB GPU memory recommended
+      - Minimum 16GB GPU memory for the default `bfloat16` configuration. See [Configure vLLM Intel Arc Pro B-series GPU/XPU Backend](#set-required-environment-variables) for the settings to use on cards with less memory.
 
       **Verify GPU access before enabling:**
 
