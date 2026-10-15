@@ -15,7 +15,6 @@ configure_video_search_and_summarization () {
   export OD_MODEL_NAME=yolov8l-worldv2
   export TEXT_EMBEDDING_MODEL=Qwen/qwen3-embedding-0.6b
   export OVMS_LLM_MODEL_NAME=meta-llama/Llama-3.2-3B-Instruct
-  ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME
 
   export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false
   export MULTIMODAL_EMBEDDING_MODEL=CLIP/clip-vit-b-32
@@ -35,10 +34,7 @@ configure_video_search_and_summarization () {
   export DATAPREP_DETECTION_DEVICE=${device^^}
   export MME_EMBEDDING_DEVICE=${device^^}
   export VLM_TARGET_DEVICE=${device^^}
-  export HUGGINGFACE_TOKEN=$HF_TOKEN
-  export HF_TOKEN=$HF_TOKEN
   export HF_HUB_CACHE="$workspace"/sample-applications/video-search-and-summarization/.cache
-  export GATED_MODEL=$([ -n "$HF_TOKEN" ] && echo true || echo false)
   export LLM_TARGET_DEVICE=${device^^}
   export PM_MULTI_FRAME_COUNT=34
   export ENABLE_EMBEDDING_GPU=$([ "$device" = "gpu" ] && echo true || echo false)
@@ -52,6 +48,12 @@ configure_video_search_and_summarization () {
   export RABBITMQ_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
   export REGISTRY_URL=intel
   export TAG=latest
+}
+
+configure_video_search_and_summarization_gated () {
+  ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME
+  export HUGGINGFACE_TOKEN="$HF_TOKEN"
+  export GATED_MODEL=$([ -n "$HF_TOKEN" ] && echo true || echo false)
 }
 
 verify_video_search_and_summarization () {
@@ -80,10 +82,14 @@ debian_85_install_video_search_and_summarization () {
   if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
     echo "Video Search and Summarization is already installed. Skipping..."
   else
+    ensure_ports_open "${used_ports[*]}" return 3
+
     # clone the repository
     ensure_disk_size 8000
-    ensure_ports_open "${used_ports[*]}" return 3
     ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization
+
+    # gated model setup
+    configure_video_search_and_summarization_gated
 
     # setup
     cd "$workspace"/sample-applications/video-search-and-summarization
@@ -106,6 +112,7 @@ debian_85_start_video_search_and_summarization () {
   configure_video_search_and_summarization "$@"
   ensure_ports_open "${used_ports[*]}" debian_85_stop_video_search_and_summarization $*
 
+  configure_video_search_and_summarization_gated
   cd "$workspace"/sample-applications/video-search-and-summarization
   export FINAL_ARG=
   . ./setup.sh --search-and-summary
@@ -115,7 +122,7 @@ debian_85_start_video_search_and_summarization () {
 }
 
 debian_85_stop_video_search_and_summarization () {
-  configure_video_search_and_summarization "$@"
+  configure_video_search_and_summarization "$@" || true
 
   cd "$workspace"/sample-applications/video-search-and-summarization && {
   . ./setup.sh --stop || true
