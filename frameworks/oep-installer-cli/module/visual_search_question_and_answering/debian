@@ -82,7 +82,11 @@ debian_90_start_visual_search_question_and_answering () {
 
 debian_90_stop_visual_search_question_and_answering () {
   configure_visual_search_question_and_answering "$@"
-  cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && . ./env.sh && docker compose -f compose_milvus.yaml down -v --remove-orphans || true
+  cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && {
+    . ./env.sh || true
+    docker compose -f compose_milvus.yaml down -v --remove-orphans || true
+    docker volume rm -f ov-models
+  } || true
 }
 
 debian_90_remove_visual_search_question_and_answering () {
