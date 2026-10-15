@@ -18,6 +18,7 @@ debian_40_install_libyang () {
   if verify_libyang && [[ " $* " != *" --reinstall "* ]]; then
     echo "libyang is installed. Skipping..." 1>&2
   else
+    configure_kernel_module_essential_debian "$@"
     ensure_git_export "$workspace" "$version" "$repository"
     mkdir "$workspace"/build
     cd "$workspace"/build
