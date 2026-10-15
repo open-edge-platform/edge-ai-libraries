@@ -130,6 +130,36 @@ intel_gpu_docker_device_args() {
   done
 }
 
+# Prints --group-add=<gid> for each Intel render node's owning group
+# (deduplicated), to pair with intel_gpu_docker_device_args's --device args.
+# --device alone only grants the container the device *node*; the kernel
+# still enforces that node's own owner/group permission bits (typically
+# root:render, mode 660) against whatever uid/gid the container process
+# actually runs as. OVMS's own docs (accelerators.md, "Using AI
+# Accelerators") document --group-add=$(stat -c '%g' /dev/dri/render* | head
+# -n 1) as a required *additional* flag alongside --device for GPU-targeted
+# containers -- without it, a container running as the image's own fixed
+# user (e.g. the published openvino/model_server image's uid 5000 'ovms'
+# user, which has no reason to share the host's render GID) gets a
+# permission-denied opening the render node even though --device correctly
+# attached it.
+intel_gpu_docker_group_add_args() {
+  local drm_dir vendor render_num node gid seen=" "
+  for drm_dir in /sys/class/drm/renderD*; do
+    [[ -e "${drm_dir}/device/vendor" ]] || continue
+    vendor="$(cat "${drm_dir}/device/vendor" 2>/dev/null || true)"
+    [[ "$vendor" == "0x${INTEL_PCI_VENDOR_ID}" ]] || continue
+    render_num="${drm_dir##*/renderD}"
+    node="/dev/dri/renderD${render_num}"
+    [[ -e "$node" ]] || continue
+    gid="$(stat -c '%g' "$node" 2>/dev/null || true)"
+    [[ -n "$gid" ]] || continue
+    case "$seen" in *" ${gid} "*) continue ;; esac
+    seen="${seen}${gid} "
+    printf ' --group-add=%s' "$gid"
+  done
+}
+
 # docker_proxy_env_args_into arr_name — appends -e KEY=VALUE docker args for
 # any set proxy env var to the named array (nameref). Docker does not forward
 # the host's proxy environment into containers automatically, so without this

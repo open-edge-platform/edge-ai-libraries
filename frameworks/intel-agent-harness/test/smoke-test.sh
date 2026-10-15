@@ -351,6 +351,20 @@ phase_02_selfcheck() {
   # already-exported model always 404'd even though the server was healthy.
   check "run_agent_onboard auto-discovers the sole registered model instead of a bare 'default'" \
     bash -c "grep -q 'ovms_sole_registered_model_name' '$REPO_ROOT/scripts/lib/agents.sh'"
+  # --device alone doesn't grant a non-root container GPU access -- OVMS's
+  # own docs (accelerators.md) document --group-add=<render-gid> as a
+  # required *additional* flag. Without it, GPU acceleration would silently
+  # fail (permission denied opening the render node) on any real GPU host,
+  # even though --device was correctly attached and target_device=GPU was
+  # selected -- confirmed as a real gap, not caught by any CPU-only test.
+  check "docker-setup.sh defines intel_gpu_docker_group_add_args" \
+    bash -c "grep -q 'intel_gpu_docker_group_add_args()' '$REPO_ROOT/scripts/lib/docker-setup.sh'"
+  check "ensure_openvino_model_server passes --group-add alongside --device" \
+    bash -c "awk '/^ensure_openvino_model_server\\(\\)/,/^}/' '$REPO_ROOT/scripts/lib/openvino.sh' | grep -q 'group_add_args=\"\$(intel_gpu_docker_group_add_args)\"'"
+  check "export_model_via_docker_pull passes --device/--group-add when targeting GPU (was missing --device entirely)" \
+    bash -c "awk '/^export_model_via_docker_pull\\(\\)/,/^}/' '$REPO_ROOT/scripts/lib/openvino.sh' | grep -q 'gpu_args=\"\$(intel_gpu_docker_device_args)\"'"
+  check "create_sandbox passes --group-add alongside --device" \
+    bash -c "awk '/^create_sandbox\\(\\)/,/^}/' '$REPO_ROOT/scripts/lib/sandbox.sh' | grep -q 'group_add_args=\"\$(intel_gpu_docker_group_add_args)\"'"
 }
 
 phase_03_libunit() {

@@ -105,6 +105,7 @@ export step's HTTP client may not support (only http/https/socks5/socks5h are)."
 # the server itself from (HARNESS_OVMS_IMAGE).
 export_model_via_docker_pull() {
   local hf_model_id="$1" model_name="${2:-${1##*/}}" out_dir pull_image target_device
+  local gpu_args group_add_args
   out_dir="${HARNESS_MODELS_DIR}/${model_name}"
   # --model_name's documented effect on output placement (OVMS's own "Pull
   # mode with optimum cli" doc) has been observed not to hold on at least
@@ -150,12 +151,24 @@ OVMS config.json registration -- add a model_config_list entry for base_path
     *) pull_image="${HARNESS_OVMS_IMAGE}-py" ;;
   esac
   target_device="CPU"
-  [[ -n "$(intel_gpu_docker_device_args)" ]] && target_device="GPU"
+  gpu_args="$(intel_gpu_docker_device_args)"
+  group_add_args=""
+  if [[ -n "$gpu_args" ]]; then
+    target_device="GPU"
+    # Needed alongside --device for the same reason as
+    # ensure_openvino_model_server's matching comment -- this container runs
+    # as the host user (-u "$(id -u):$(id -g)" below), but that user's own
+    # render-group membership doesn't carry over into the container unless
+    # explicitly added here too.
+    group_add_args="$(intel_gpu_docker_group_add_args)"
+  fi
   local -a proxy_args=()
   docker_proxy_env_args_into proxy_args
+  # shellcheck disable=SC2086
   if ! spin "Pulling+converting ${hf_model_id} via ${pull_image} (--pull, target: ${target_device})" \
     docker run --rm -u "$(id -u):$(id -g)" \
       -v "${HARNESS_MODELS_DIR}:/models:rw" \
+      $gpu_args $group_add_args \
       "${proxy_args[@]}" \
       "$pull_image" --pull \
       --source_model "$hf_model_id" --model_name "$model_name" \
@@ -388,7 +401,7 @@ _add_model_config_entry_locked() {
 }
 
 ensure_openvino_model_server() {
-  local gpu_args
+  local gpu_args group_add_args
   local -a proxy_args=()
   ensure_ovms_config
   if docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
@@ -404,11 +417,17 @@ using port ${HARNESS_OVMS_REST_PORT} (check with 'docker ps -a' and
     return 0
   fi
   gpu_args="$(intel_gpu_docker_device_args)"
+  # --device alone doesn't grant GPU access -- the server runs as the
+  # image's own fixed non-root user (see the config.json permission fix
+  # above for the same root cause), which needs the render node's own
+  # group added as a supplementary group too (OVMS's own docs require this
+  # exact extra flag for GPU-targeted containers).
+  group_add_args="$(intel_gpu_docker_group_add_args)"
   docker_proxy_env_args_into proxy_args
   info "Starting OpenVINO Model Server on port ${HARNESS_OVMS_REST_PORT}…"
   # shellcheck disable=SC2086
   docker run -d --name "$HARNESS_OVMS_CONTAINER" --restart unless-stopped \
-    -p "$(resolve_bind_host):${HARNESS_OVMS_REST_PORT}:8000" $gpu_args \
+    -p "$(resolve_bind_host):${HARNESS_OVMS_REST_PORT}:8000" $gpu_args $group_add_args \
     "${proxy_args[@]}" \
     -v "${HARNESS_MODELS_DIR}:/models" \
     "$HARNESS_OVMS_IMAGE" \

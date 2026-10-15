@@ -207,7 +207,7 @@ validate_image_reference() {
 # env_pairs: space-separated KEY=VALUE tokens forwarded as -e KEY=VALUE to
 # docker run (e.g. to parameterize a generic sandbox image).
 create_sandbox() {
-  local name="$1" image="$2" port_spec="${3:-}" env_pairs="${4:-}" container gpu_args entry
+  local name="$1" image="$2" port_spec="${3:-}" env_pairs="${4:-}" container gpu_args group_add_args entry
   local host_port container_port use_gateway
   validate_sandbox_name "$name" || error "Sandbox name '$name' must be lowercase
 letters/digits/hyphens, start/end alphanumeric, no consecutive hyphens."
@@ -247,19 +247,25 @@ choose another name."
   done
 
   gpu_args="$(intel_gpu_docker_device_args)"
+  # Added defensively alongside --device even though a generic sandbox
+  # image's own user is unknown here (could be root, which wouldn't need
+  # it) -- harmless when not needed, but required whenever the image runs
+  # as a non-root user without the host's render-group GID (the same
+  # --device-isn't-enough-by-itself issue OVMS's own docs document).
+  group_add_args="$(intel_gpu_docker_group_add_args)"
   if [[ "$use_gateway" == "1" ]]; then
     ensure_gateway_running
     info "Creating sandbox '${name}' from ${image} behind the shared gateway…"
     # shellcheck disable=SC2086
     docker run -d --name "$container" --restart unless-stopped \
-      --network "$HARNESS_GATEWAY_NETWORK" "${env_args[@]}" $gpu_args "$image" \
+      --network "$HARNESS_GATEWAY_NETWORK" "${env_args[@]}" $gpu_args $group_add_args "$image" \
       || error "Could not start container for sandbox '${name}'."
     gateway_set_route "$name" "http://${container}:${container_port}"
   else
     info "Creating sandbox '${name}' from ${image} on port ${host_port}…"
     # shellcheck disable=SC2086
     docker run -d --name "$container" --restart unless-stopped \
-      -p "$(resolve_bind_host):${host_port}:${container_port}" "${env_args[@]}" $gpu_args "$image" \
+      -p "$(resolve_bind_host):${host_port}:${container_port}" "${env_args[@]}" $gpu_args $group_add_args "$image" \
       || error "Could not start container for sandbox '${name}'."
   fi
 
