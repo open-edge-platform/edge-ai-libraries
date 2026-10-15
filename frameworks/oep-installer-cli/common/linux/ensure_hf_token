@@ -5,13 +5,8 @@ ensure_hf_token () {
   local models=($*)
 
   export HF_TOKEN
-  if [ -z "$HF_TOKEN" ]; then
-    if [ -r "$HOME"/.cache/huggingface/token ]; then
-      export HF_TOKEN="$(< "$HOME"/.cache/huggingface/token)"
-    elif [ -r "$HOME"/.vscode/launch.json ]; then
-      export HF_TOKEN="$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json)"
-    fi
-  fi
+  [ -n "$HF_TOKEN" ] || [ ! -r "$HOME"/.cache/huggingface/token ] || export HF_TOKEN="$(< "$HOME"/.cache/huggingface/token)"
+  [ -n "$HF_TOKEN" ] || [ ! -r "$HOME"/.vscode/launch.json ] || export HF_TOKEN="$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json)"
 
   if ! ensure_hf_token_check_models "$@"; then
     [ -z "$HF_TOKEN" ] || { echo "Invalid or unauthroized HF_TOKEN" 1>&2; return 3; }
