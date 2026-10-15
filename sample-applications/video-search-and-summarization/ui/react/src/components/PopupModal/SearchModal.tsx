@@ -247,6 +247,10 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
             <TextArea
               labelText=''
               ref={textAreaRef}
+              // Focus the query box as soon as the modal opens so the user can
+              // type straight away. Carbon's Modal moves focus here on open via
+              // its default selectorPrimaryFocus ([data-modal-primary-focus]).
+              data-modal-primary-focus
               value={textInput}
               maxLength={250}
               invalid={emptyQueryError}

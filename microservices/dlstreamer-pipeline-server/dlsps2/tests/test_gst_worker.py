@@ -218,3 +218,49 @@ class TestPollFps:
             worker._poll_fps(inst)
 
         mock_emit.assert_not_called()
+
+
+class TestTeardownFlushesFinalFps:
+    """Test GstWorker._teardown: flushes one final "fps" event (via
+    _poll_fps) before emitting "stopped", so pipelines stopped/aborted
+    before the periodic poll timer ever got to fire on its own (i.e. torn
+    down within the first _FPS_POLL_INTERVAL_SECONDS of running) still
+    report real fps instead of 0."""
+
+    def test_emits_final_fps_event_for_short_lived_pipeline(self):
+        """A pipeline that processed frames but is torn down before its
+        first periodic poll must still report non-zero fps, not 0, and
+        that final fps event must precede "stopped"."""
+        now = time.monotonic()
+        inst = _Instance(
+            instance_id="short-lived",
+            pipeline=MagicMock(),
+            frame_count=5,
+            total_frame_count=5,
+            start_time=now - 0.2,
+            last_poll_time=now - 0.2,
+        )
+        worker = GstWorker()
+        with worker._lock:
+            worker._instances["short-lived"] = inst
+
+        with patch("core.gst_worker._emit") as mock_emit:
+            worker._teardown("short-lived")
+
+        events = [call.args[0] for call in mock_emit.call_args_list]
+        assert [e["event"] for e in events] == ["fps", "stopped"]
+        assert events[0]["avg_fps"] > 0
+
+    def test_destroys_fps_source_before_final_poll(self):
+        """fps_source.destroy() happens first, so the periodic timer is
+        guaranteed not to fire again concurrently with the final poll."""
+        fps_source = MagicMock()
+        inst = _Instance(instance_id="inst", pipeline=MagicMock(), fps_source=fps_source)
+        worker = GstWorker()
+        with worker._lock:
+            worker._instances["inst"] = inst
+
+        with patch("core.gst_worker._emit"):
+            worker._teardown("inst")
+
+        fps_source.destroy.assert_called_once()

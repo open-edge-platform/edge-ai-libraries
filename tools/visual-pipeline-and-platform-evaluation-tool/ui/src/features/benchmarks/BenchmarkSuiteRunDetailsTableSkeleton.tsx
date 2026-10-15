@@ -22,7 +22,6 @@ export const BenchmarkSuiteRunDetailsTableSkeleton = () => (
         <TableHead className="w-max">Duration</TableHead>
         <TableHead className="w-max">Pass rate</TableHead>
         <TableHead className="w-[3.125rem]">Status</TableHead>
-        <TableHead className="w-[3.5rem]"></TableHead>
       </TableRow>
     </TableHeader>
     <TableBody>
@@ -56,12 +55,9 @@ export const BenchmarkSuiteRunDetailsTableSkeleton = () => (
             <TableCell>
               <Skeleton className="h-4 w-16" />
             </TableCell>
-            <TableCell>
-              <Skeleton className="h-7 w-7" />
-            </TableCell>
           </TableRow>
           <TableRow>
-            <TableCell colSpan={10} className="bg-muted/25 px-12">
+            <TableCell colSpan={9} className="bg-muted/25 px-12">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -70,6 +66,7 @@ export const BenchmarkSuiteRunDetailsTableSkeleton = () => (
                     <TableHead>Duration</TableHead>
                     <TableHead>Total FPS</TableHead>
                     <TableHead>Per-stream FPS</TableHead>
+                    <TableHead>Latency</TableHead>
                     <TableHead>CPU</TableHead>
                     <TableHead>GPU</TableHead>
                     <TableHead>NPU</TableHead>
@@ -93,6 +90,9 @@ export const BenchmarkSuiteRunDetailsTableSkeleton = () => (
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-16" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-14" />
                       </TableCell>
                       <TableCell>
                         <Skeleton className="h-4 w-14" />

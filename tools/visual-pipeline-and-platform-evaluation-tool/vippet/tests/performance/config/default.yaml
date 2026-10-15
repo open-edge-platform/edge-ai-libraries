@@ -59,8 +59,8 @@ benchmark:
     # Skip these variants
     skip_variants: []
 
-    # Only test pipelines with all required models installed
-    require_models: true
+    # Skip pipelines with missing models; set false to expose runtime failures.
+    skip_missing_models: true
 
     # How to react when pipelines/skip_pipelines/skip_variants/variants above
     # reference an id that doesn't exist (e.g. a typo):

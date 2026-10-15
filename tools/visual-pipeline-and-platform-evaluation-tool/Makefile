@@ -5,9 +5,9 @@ SHELL := bash -eu -o pipefail
 
 # default goal to show help
 .DEFAULT_GOAL := help
-.PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
-	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator stop clean clean-output-videos help \
-	build-videogenerator build-onvif-discovery docker-build env-setup build-test \
+.PHONY: all lint build mdlint ruff fix-linter format pyright run run-prebuilt build-dev run-dev test \
+	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator shell-dlsps stop clean clean-output-videos help \
+	build-videogenerator build-sensor-manager build-onvif-discovery docker-build env-setup build-test \
 	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental \
 	ui-e2e-setup ui-e2e-setup-cross-browser
 
@@ -138,22 +138,29 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-ui, vippet-onvif-discovery); DLSPS2=1 adds DLSPS 2.0
+build: env-setup ## Build core images (vippet-app, vippet-ui, sensor-manager); DLSPS2=1 adds DLSPS 2.0
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) build
 
-build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, vippet-onvif-discovery)
+build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, sensor-manager)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
 
 build-videogenerator: env-setup ## Build videogenerator image
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build videogenerator
 
-build-onvif-discovery: env-setup ## Build onvif discovery image
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build onvif-discovery
+build-sensor-manager: env-setup ## Build sensor-manager image (from microservices/sensor-manager)
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build sensor-manager
+
+build-onvif-discovery: build-sensor-manager ## Deprecated alias of build-sensor-manager
 
 docker-build: build build-videogenerator ## Build all images
 
 run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) up -d
+
+run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source
+	. .env && export DOCKER_TAG="$$PREBUILT_TAG" && echo "Running published images tagged $$DOCKER_TAG" && \
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml pull vippet vippet-ui sensor-manager && \
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d --no-build
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
@@ -214,9 +221,10 @@ test-full: $(VENV_SENTINEL) ## Run full functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO vippet/tests/functional/
 
-test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full)
+test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full, PERF_ARGS="--dry-run ...")
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
-	PERF_CONFIG=$(or $(PERF_CONFIG),default) python -m pytest --log-cli-level=INFO -m perf vippet/tests/performance/
+	PYTHONPATH=vippet/tests/performance PERF_CONFIG=$(or $(PERF_CONFIG),default) \
+		python -m perf_helpers.cli $(PERF_ARGS) -- --log-cli-level=INFO
 
 # UI end-to-end setup — Playwright installs are slow, so both recipes are
 # sentinel-gated. Re-runs are a no-op unless package-lock.json changes or
@@ -255,11 +263,14 @@ shell-metrics-manager: ## Open shell in metrics-manager container
 shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
+shell-dlsps: ## Open shell in DLSPS 2.0 container (started with DLSPS2=1)
+	$(MAKE) shell SERVICE=dlstreamer-pipeline-server
+
 stop: ## Stop the docker compose services
 	docker compose $(if $(DLSPS2_COMPOSE),-f $(COMPOSE_FILE) $(DLSPS2_COMPOSE)) down
 
 clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
-	rm -rf shared/onvif/onvif_cameras.json shared/videos/input shared/videos/video-generator
+	rm -rf shared/videos/input shared/videos/video-generator
 	rm -f $(ENV_DIRS_SENTINEL) $(TEST_IMAGE_SENTINEL) \
 		$(UI_NPM_SENTINEL) $(UI_PW_CHROMIUM_SENTINEL) $(UI_PW_CROSS_SENTINEL)
 

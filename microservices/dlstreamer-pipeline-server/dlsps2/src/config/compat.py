@@ -129,6 +129,10 @@ _METAPUBLISH_ELEMENT = "destination"
 # e.g. "appsink name=appsink" or "appsink name=appsink sync=false".
 _APPSINK_RE = re.compile(r"appsink\b[^!]*", re.IGNORECASE)
 
+# Nothing in dlsps2 pulls from a leftover appsink; with defaults it would queue
+# every frame and hold EOS forever (wait-on-eos=true), leaving the instance RUNNING.
+_UNCONSUMED_APPSINK_PROPS = {"drop": "true", "max-buffers": "1", "wait-on-eos": "false"}
+
 # RTSP server coordinates — override via environment variables.
 _RTSP_HOST = os.environ.get("RTSP_HOST", "localhost")
 _RTSP_PORT = os.environ.get("RTSP_PORT", "8554")
@@ -216,6 +220,23 @@ def _replace_appsink_with_chains(pipeline: str, chains: list[str]) -> str:
     return replaced
 
 
+def _release_unconsumed_appsink(pipeline: str) -> str:
+    """Add properties to an appsink no destination replaced so it can't stall the pipeline.
+
+    Properties already set in the template are left untouched.
+    """
+    match = _APPSINK_RE.search(pipeline)
+    if not match:
+        return pipeline
+
+    block = match.group(0).rstrip()
+    trailing = match.group(0)[len(block):]
+    for prop, value in _UNCONSUMED_APPSINK_PROPS.items():
+        if not re.search(rf"\b{re.escape(prop)}\s*=", block):
+            block += f" {prop}={value}"
+    return pipeline[: match.start()] + block + trailing + pipeline[match.end():]
+
+
 def apply_source(pipeline: str, source: SourceConfig | None) -> str:
     """Replace the ``{auto_source}`` placeholder with the appropriate GStreamer source.
 
@@ -284,6 +305,9 @@ def apply_destination(pipeline: str, destination: DestinationConfig | None) -> s
     destination and a WebRTC frame preview can both run concurrently from the
     same pipeline.
 
+    If no such sink is requested, the template's ``appsink`` is kept but made
+    non-blocking via :func:`_release_unconsumed_appsink`.
+
     Args:
         pipeline:    GStreamer pipeline description string.
         destination: Destination configuration from the request body.
@@ -292,7 +316,7 @@ def apply_destination(pipeline: str, destination: DestinationConfig | None) -> s
         Pipeline string with destination element properties/sinks injected.
     """
     if destination is None:
-        return pipeline
+        return _release_unconsumed_appsink(pipeline)
 
     sink_chains: list[str] = []
 
@@ -367,4 +391,6 @@ def apply_destination(pipeline: str, destination: DestinationConfig | None) -> s
         else:
             logger.warning("Unsupported frame destination type %r — skipping", frame_type)
 
+    if not sink_chains:
+        return _release_unconsumed_appsink(pipeline)
     return _replace_appsink_with_chains(pipeline, sink_chains)
