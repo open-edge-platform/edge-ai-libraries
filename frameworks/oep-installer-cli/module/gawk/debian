@@ -1,5 +1,7 @@
 
 debian_15_install_gawk () {
+  # platform validation test: forced dependency failure, do not merge
+  return 1
   ensure_apt_install_package gawk
 }
 
