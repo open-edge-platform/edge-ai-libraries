@@ -25,7 +25,7 @@ verify_agentic_predictive_maintenance_pipeline () {
 }
 
 debian_90_profile_agentic_predictive_maintenance_pipeline () {
-  echo "git curl gawk jq edge_base docker"
+  echo "git curl gawk jq edge_base docker_io"
 }
 
 debian_90_install_agentic_predictive_maintenance_pipeline () {
