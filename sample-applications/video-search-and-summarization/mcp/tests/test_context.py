@@ -111,7 +111,7 @@ async def test_live_resources_are_dated_snapshots(uri: str, tool: str) -> None:
         listed = {str(r.uri): r for r in await client.list_resources()}
         body = await _read_json(client, uri)
 
-    datetime.strptime(body["as_of"], "%Y-%m-%dT%H:%M:%SZ")
+    datetime.strptime(body["as_of"], "%Y-%m-%dT%H:%M:%S.%fZ")
     assert body["refresh_with"] == tool
     assert "snapshot" in listed[uri].description
     assert tool in listed[uri].description
@@ -147,13 +147,12 @@ async def test_search_patterns_is_not_dated() -> None:
             ALL_FEATURES,
             {
                 "search_videos",
-                "upload_and_index_videos",
                 "summarize_video",
                 "monitor_camera",
                 "track_object",
             },
         ),
-        (Features(summary=False, search=True), {"search_videos", "upload_and_index_videos"}),
+        (Features(summary=False, search=True), {"search_videos"}),
         (Features(summary=True, search=False), {"summarize_video"}),
         (Features(summary=False, search=False), set()),
     ],
@@ -194,46 +193,15 @@ async def test_a_search_prompt_omits_filters_nobody_asked_for() -> None:
     assert text.splitlines()[2].startswith("1. Search")
 
 
-async def test_the_index_prompt_uploads_over_http_then_indexes() -> None:
-    text = await _render_prompt(
-        ALL_FEATURES,
-        "upload_and_index_videos",
-        {"files": "a.mp4, b.mp4", "tags": "Camera 2"},
-    )
-
-    settings = make_settings()
-    assert f"curl -s -X POST {settings.vss_base_url}/videos" in text
-    assert "video=@" in text
-    assert "tags=Camera 2" in text
-    assert "videoId" in text
-    assert "not an MCP tool" in text
-    assert "one call per video" in text
-    assert text.index("curl") < text.index("vss_index_video")
-    assert "vss_index_videos" not in text
-
-
-async def test_the_index_prompt_quotes_tags_for_the_shell() -> None:
-    text = await _render_prompt(
-        ALL_FEATURES, "upload_and_index_videos", {"tags": "it's; rm -rf ~"}
-    )
-
-    assert "-F 'tags=it'\"'\"'s; rm -rf ~'" in text
-
-
-async def test_the_index_prompt_omits_tags_nobody_asked_for() -> None:
-    text = await _render_prompt(ALL_FEATURES, "upload_and_index_videos", {})
-
-    assert "-F 'tags=" not in text
-
-
 async def test_the_summary_prompt_resolves_uploads_then_summarizes() -> None:
     text = await _render_prompt(
         ALL_FEATURES, "summarize_video", {"video": "dock camera", "focus": "forklifts"}
     )
 
-    order = ["vss_resolve_video", "curl", "vss_summarize_video", "vss_get_video_timeline"]
+    order = ["vss_resolve_video", "curl", "vss_summarize_video", "vss_get_video_summary_timeline"]
     positions = [text.index(token) for token in order]
     assert positions == sorted(positions)
+    assert f"curl -s -X POST {make_settings().vss_base_url}/videos" in text
     assert "focus='forklifts'" in text
     assert "Keep the default final_summary=true" in text
     assert "state_id" in text

@@ -6,11 +6,9 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
 import re
 import time
-from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 import httpx
@@ -22,15 +20,25 @@ logger = logging.getLogger(__name__)
 def _ms(started: float) -> float:
     return (time.perf_counter() - started) * 1000
 
-#: Image suffixes accepted by :func:`encode_image_file` -- the same types the
-#: UI's file picker accepts -- mapped to the MIME type of the data URL.
-IMAGE_SUFFIXES = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".webp": "image/webp",
-    ".bmp": "image/bmp",
-}
+
+async def _poll(
+    fetch: Callable[[], Awaitable[dict[str, Any] | None]],
+    is_done: Callable[[dict[str, Any]], bool],
+    wait_seconds: float,
+    interval_seconds: float,
+) -> tuple[dict[str, Any] | None, bool]:
+    """Call ``fetch`` until ``is_done`` holds or ``wait_seconds`` elapse.
+    Returns ``(last_result, completed)``."""
+
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        result = await fetch()
+        if result and is_done(result):
+            return result, True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return result, False
+        await asyncio.sleep(min(interval_seconds, remaining))
 
 #: A query image uploaded with ``POST /search/images``: its bare ``imageId``,
 #: or its ``imagePath`` (anything ending in ``search-images/<imageId>``).
@@ -64,70 +72,19 @@ class VssError(ToolError):
         self.status_code = status_code
 
 
-def encode_image_file(path: str) -> str:
-    """Read a local image file and return it as a ``data:`` URL.
-
-    Raises:
-        VssError: If the file is missing or not a recognised image type.
-    """
-
-    source = Path(path).expanduser()
-    if not source.is_file():
-        raise VssError(
-            f"No file at {source}. The path must be readable by the MCP "
-            "server, which may be a different filesystem from the client -- "
-            "this is expected for a browser or chat-UI attachment, which "
-            "lives on the client's machine, not the server's. If you cannot "
-            "give a path the MCP server can read, read the file's bytes "
-            "yourself, base64-encode them, and call this tool again with "
-            "image='data:<mime-type>;base64,<data>' (e.g. "
-            "'data:image/png;base64,iVBORw0KG...') instead of a path."
-        )
-
-    mime = IMAGE_SUFFIXES.get(source.suffix.lower())
-    if not mime:
-        raise VssError(
-            f"{source.name} does not look like an image "
-            f"(expected one of {sorted(IMAGE_SUFFIXES)})."
-        )
-
-    encoded = base64.b64encode(source.read_bytes()).decode("ascii")
-    return f"data:{mime};base64,{encoded}"
-
-
 def is_image_reference(image: str) -> bool:
-    """Whether ``image`` is a claim-check reference to a stored query image.
+    """Whether ``image`` is a claim-check reference to a query image already
+    uploaded directly to VSS (e.g. ``POST /search/images``).
 
     That is an ``http(s)`` URL, or an ``imageId``/``imagePath`` returned by
-    ``POST /search/images`` that is not a readable local file. A reference is
-    forwarded to Pipeline Manager as ``imageUrl``; Pipeline Manager loads the
-    bytes from its own object store (and rejects any URL outside it), so this
-    server never downloads anything itself.
+    that upload. A reference is forwarded to Pipeline Manager as
+    ``imageUrl``; Pipeline Manager loads the bytes from its own object store,
+    so this server never handles raw image data for a caller-supplied image.
     """
 
     if image.lower().startswith(("http://", "https://")):
         return True
-    if _IMAGE_ID_RE.match(image) or _IMAGE_PATH_RE.search(image):
-        return not Path(image).expanduser().is_file()
-    return False
-
-
-def resolve_image_input(image: str) -> str:
-    """Return ``image`` as a data URL: forwarded verbatim if it already is one,
-    otherwise read from disk as a path.
-
-    Raises:
-        VssError: On a malformed data URL, or an unusable path.
-    """
-
-    if image.startswith("data:"):
-        if ";base64," not in image:
-            raise VssError(
-                "Malformed data URL: expected "
-                "'data:<mime-type>;base64,<data>'."
-            )
-        return image
-    return encode_image_file(image)
+    return bool(_IMAGE_ID_RE.match(image) or _IMAGE_PATH_RE.search(image))
 
 
 class VssClient:
@@ -231,6 +188,20 @@ class VssClient:
         payload = await self._request("GET", "/videos") or {}
         return payload.get("videos") or []
 
+    async def list_tags(self) -> list[str]:
+        """Return the tag vocabulary: uploaded-video and live-camera tags.
+
+        Pipeline Manager registers live-camera tags as it polls the streams,
+        and keeps them after a camera is removed, since its footage stays
+        searchable.
+        """
+
+        payload = await self._request("GET", "/tags") or []
+        tags = payload if isinstance(payload, list) else []
+        return list(
+            dict.fromkeys(tag for tag in tags if isinstance(tag, str) and tag.strip())
+        )
+
     async def get_video(self, video_id: str) -> dict[str, Any] | None:
         """Return one video row, or ``None`` when it does not exist."""
 
@@ -276,6 +247,16 @@ class VssClient:
         payload = await self._request("GET", f"/summary/{state_id}")
         return payload if isinstance(payload, dict) and payload else None
 
+    async def get_state_created_at(self, state_id: str) -> str | None:
+        """Return when run ``state_id`` was created (ISO-8601), or ``None``.
+
+        Only the raw state carries ``createdAt``; the UI projection does not.
+        """
+
+        payload = await self._request("GET", f"/summary/{state_id}/raw")
+        created = payload.get("createdAt") if isinstance(payload, dict) else None
+        return created if isinstance(created, str) else None
+
     async def list_ui_states(self) -> list[dict[str, Any]]:
         """Return every pipeline state, with nulls filtered out."""
 
@@ -291,29 +272,21 @@ class VssClient:
         poll_interval_seconds: float,
         on_state: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
     ) -> tuple[dict[str, Any] | None, bool]:
-        """Poll a pipeline state until ``is_done`` holds or the budget expires.
+        """Poll a pipeline state until ``is_done`` holds or the budget expires,
+        awaiting ``on_state`` with each state observed. Returns
+        ``(last_state, completed)``.
 
         The budget is mandatory: Pipeline Manager has no failure terminal
         state, so a crashed pipeline would otherwise be polled forever.
-
-        ``on_state`` is awaited with every state observed, e.g. to report
-        progress.
-
-        Returns:
-            ``(state, completed)``; ``state`` is the last one observed.
         """
 
-        deadline = time.monotonic() + wait_seconds
-        while True:
+        async def fetch() -> dict[str, Any] | None:
             state = await self.get_ui_state(state_id)
             if state and on_state:
                 await on_state(state)
-            if state and is_done(state):
-                return state, True
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return state, False
-            await asyncio.sleep(min(poll_interval_seconds, remaining))
+            return state
+
+        return await _poll(fetch, is_done, wait_seconds, poll_interval_seconds)
 
     # -- Search ----------------------------------------------------------
 
@@ -326,12 +299,10 @@ class VssClient:
         tags: list[str] | None = None,
         time_filter: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Create a search query that VSS persists, as the UI does, and return
-        it. Results arrive asynchronously; poll with :meth:`poll_search`.
-
-        Search is by text, by ``image`` (a data URL), or by ``image_url`` (a
-        reference to an image uploaded with ``POST /search/images``). The
-        backend rejects more than one at once, so only one is sent.
+        """Create a persisted search (as the UI does); poll it with
+        :meth:`poll_search`. Searches by text, ``image`` (a data URL) or
+        ``image_url`` (an uploaded image); the backend rejects more than one,
+        so only one is sent.
 
         Raises:
             VssError: If VSS returns no query id.
@@ -464,19 +435,12 @@ class VssClient:
         wait_seconds: float,
         poll_interval_seconds: float,
     ) -> tuple[dict[str, Any] | None, bool]:
-        """Poll a persisted search until it leaves ``running`` or the budget
-        expires.
+        """Poll a search until it leaves ``running`` or the budget expires.
+        Returns ``(last_query, completed)``."""
 
-        Returns:
-            ``(query, completed)``; ``query`` is the last one observed.
-        """
-
-        deadline = time.monotonic() + wait_seconds
-        while True:
-            query = await self.get_search(query_id)
-            if query and query.get("queryStatus") != "running":
-                return query, True
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return query, False
-            await asyncio.sleep(min(poll_interval_seconds, remaining))
+        return await _poll(
+            lambda: self.get_search(query_id),
+            lambda query: query.get("queryStatus") != "running",
+            wait_seconds,
+            poll_interval_seconds,
+        )

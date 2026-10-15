@@ -17,12 +17,17 @@ your agent, install the VSS skills, and then try the use cases.
 
 ## How It Works
 
-An agent works with VSS through two complementary building blocks:
+VSS provides three agent-facing artifacts. An agent can use any combination of
+them:
 
-| Building block | What it gives the agent | Where it lives |
+| Artifact | What it gives the agent | Where it lives |
 |---|---|---|
 | **VSS MCP server** | Tools the agent calls at run time: list and resolve videos, index them, search by text or image, watch a search live, fetch the matching frame, manage cameras, and summarize videos. | Starts with every VSS deployment at `http://<HOST_IP>:12345/mcp`. See [MCP Server](./mcp-server.md). |
-| **VSS skills** | Know-how the agent loads on demand: how to deploy and stop VSS, check its health, upload videos through the REST API, and drive the search and summary workflows correctly. | `SKILL.md` folders under `.github/skills/` in the VSS source tree. |
+| **VSS skills** | Know-how the agent loads on demand: how to deploy, check, and repair VSS and its MCP server, plus the search and summary workflows written out as REST API calls. | `SKILL.md` folders under `.github/skills/` in the VSS source tree. See [Step 4](#step-4-add-the-vss-skills). |
+| **Pipeline Manager REST API** | The HTTP API behind both of them. An agent calls it directly to upload videos and reference images. | `http://<HOST_IP>:12345/manager/...` |
+
+A typical setup connects the agent to the MCP server and adds the skills that
+deploy and look after VSS.
 
 ![AI agent connects over Streamable HTTP to nginx at :12345/mcp, which proxies to the VSS MCP server and on to the Pipeline Manager; VSS skills are loaded by the agent on demand](./_assets/agentic-video-analytics.png)
 
@@ -90,9 +95,9 @@ ffmpeg -i in.mp4 -c copy -movflags +faststart out.mp4
 ```
 
 Video upload is deliberately **not** an MCP tool: the MCP server does not carry
-video bytes. An agent with a shell runs the `curl` command above for you. The
-`vss-search-index` and `vss-summarize-video` skills describe it. Otherwise,
-the agent gives you the command to run.
+video bytes. An agent with a shell runs the `curl` command above for you; the
+standing instructions in Step 4 give it the endpoint. Otherwise, the agent
+gives you the command to run.
 
 In search modes, a video can be found only after it has been indexed. Once your
 agent is connected (Step 3), you can hand the whole job to it:
@@ -211,23 +216,31 @@ library is indexed.
 
 ## Step 4: Add the VSS Skills
 
-Skills give the agent the procedures that MCP tools alone don't cover, such
-as uploading videos, bringing VSS up in the right mode, and diagnosing a
-failing deployment. Install these five:
+Skills give the agent procedures it loads only when a task needs them. VSS ships two kinds.
+
+**Deployment and operations.** These cover what the MCP tools don't: running
+VSS itself.
+
+| Skill | Use it to |
+|---|---|
+| `vss-deploy` | Start, stop, switch modes, and clean up VSS with `setup.sh` |
+| `vss-troubleshoot` | Check health, detect the running mode, and diagnose failing services |
+| `vss-mcp-integration` | Run, connect to, and debug the VSS MCP server, including missing tools |
+
+**API workflows.** These cover the same search, indexing, camera, and summary work as the MCP tools, written out as REST calls. They suit an agent that works without MCP, or one that scripts  against the API.
 
 | Skill | Use it to |
 |---|---|
 | `vss-search-index` | Upload videos, generate search embeddings, run searches, and manage live cameras through the REST API |
 | `vss-summarize-video` | Start a summary, poll it, and fetch the result through the REST API |
-| `vss-mcp-integration` | Run, connect to, and debug the VSS MCP server, including missing tools |
-| `vss-deploy` | Start, stop, switch modes, and clean up VSS with `setup.sh` |
-| `vss-troubleshoot` | Check health, detect the running mode, and diagnose failing services |
 
 Copy the skill folders from the VSS source tree into your agent's skills
 directory. Run the command from the application root:
 
 ```bash
-SKILLS="vss-search-index vss-summarize-video vss-mcp-integration vss-deploy vss-troubleshoot"
+SKILLS="vss-deploy vss-troubleshoot vss-mcp-integration"
+# For REST-based work without MCP, also add:
+# SKILLS="$SKILLS vss-search-index vss-summarize-video"
 
 # Claude Code: personal skills (use .claude/skills/ inside a project to share them)
 mkdir -p ~/.claude/skills && for s in $SKILLS; do cp -r .github/skills/$s ~/.claude/skills/; done
@@ -243,7 +256,7 @@ Then confirm that the agent has loaded the skills:
 
 - **Claude Code:** start a new session; the skills appear in the `/` command menu.
 - **OpenClaw:** run `openclaw skills list`. Start a new session with `/new`.
-- **Hermes Agent:** start a new session; skills become slash commands such as `/vss-search-index`.
+- **Hermes Agent:** start a new session; skills become slash commands such as `/vss-troubleshoot`.
 
 ### Recommended: standing instructions for the agent
 
@@ -258,6 +271,10 @@ When using VSS:
 - Use the `vss` MCP tools (`vss_*`) for every VSS question, starting with
   vss_get_deployment_info. Use the REST API only for what the tools don't
   cover, such as uploading video or image files.
+- Upload a video with
+  `curl -F video=@<file> -F tags=<tags> http://<HOST_IP>:12345/manager/videos`
+  and a reference image with
+  `curl -F image=@<file> http://<HOST_IP>:12345/manager/search/images`.
 - Describe what to look for as it would appear on camera (clothing, colours,
   objects carried); do not search by names, faces, plate numbers or text.
 - Put the camera/place in `tags` and the time range in `start`/`end`, not in
@@ -275,8 +292,7 @@ When using VSS:
 Each use case below shows a prompt you can adapt, what the agent does with the
 VSS tools, and which mode it needs. Clients that support MCP prompts also
 offer ready-made workflows from the server: `search_videos`,
-`upload_and_index_videos`, `monitor_camera`, `track_object`, and
-`summarize_video`.
+`monitor_camera`, `track_object`, and `summarize_video`.
 
 ### 1. Review incidents in a time window
 
@@ -371,9 +387,9 @@ What the agent does:
    by that hit's detected crop, which is the closest match to that specific
    person. It also sets `window_minutes=5` so each refresh ranks only recent
    footage, and `duration_minutes=15`.
-2. Polls `vss_watch_search` with the returned `query_id` and `next_cursor`
-   every `poll_after_seconds`, and reports only new sightings: camera, time,
-   and clip.
+2. Polls `vss_watch_search` with the returned `query_id` and `next_cursor`.
+   Each poll waits (30 s by default, `wait_seconds`) until a new sighting
+   arrives, and the agent reports only new sightings: camera, time, and clip.
 3. Checks sightings with `vss_get_media_frame`, because look-alikes are common.
 4. Stops when the duration expires, or when you say *"stop tracking"*
    (`watch=false`). It then summarizes the route in time order.
@@ -390,10 +406,10 @@ in the conversation.
 > *"Summarize the warehouse shift recording."*
 
 The agent resolves the video by name with `vss_resolve_video` and calls
-`vss_summarize_video`. It returns a timeline of captions (what happens when)
-and one overall summary. Long videos can outlast the tool's wait budget. In
+`vss_summarize_video`. It returns the video's final summary, in full; ask for
+a timeline (what happens when) to get the chunk captions instead. Long videos can outlast the tool's wait budget. In
 that case the result says `completed=false`, and the agent fetches the rest
-later with `vss_get_video_timeline`. If the video isn't in VSS yet, upload it
+later with `vss_get_video_summary_timeline`. If the video isn't in VSS yet, upload it
 first as described in Step 2. An agent with a shell can do this for you.
 
 ### 6. Get a customized summary

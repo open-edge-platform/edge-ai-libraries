@@ -6,16 +6,14 @@
 from __future__ import annotations
 
 import re
-from collections import Counter
-from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from fastmcp import FastMCP
 
-from ..clients import VssError
-from ..projections import cap_payload, slim_video
+from ..projections import cap_payload, now_iso, slim_video
 from ..schemas import DeploymentInfo, Resolution, TagList, VideoList
-from ._deps import READ_ONLY, Deps
+from ._deps import READ_ONLY, Deps, read_refresh_config
+from .ingest import choose_index_strategy
 
 #: Candidates returned by :func:`resolve_videos`. A model asked to choose
 #: between more than a handful is being asked to guess.
@@ -38,7 +36,7 @@ async def get_deployment_info(deps: Deps) -> DeploymentInfo:
         "summary_enabled": deps.features.summary,
         "search_enabled": deps.features.search,
         "videos_total": len(videos),
-        "server_time_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "server_time_utc": now_iso(),
         "upload": {
             "url": f"{deps.settings.vss_base_url}/videos",
             "method": "POST",
@@ -48,21 +46,18 @@ async def get_deployment_info(deps: Deps) -> DeploymentInfo:
         },
     }
     if deps.features.search:
+        strategy = choose_index_strategy(deps.features, deps.settings.index_strategy)
         statuses = [
-            slim_video(video)["indexed"] for video in videos
+            slim_video(video, strategy=strategy)["indexed"] for video in videos
         ]
         info["videos_indexed"] = statuses.count(True)
         info["videos_index_unknown"] = statuses.count(None)
         info["live_streams_enabled"] = deps.features.live_streams
-        try:
-            config = await deps.client.get_refresh_config()
-        except VssError:
-            config = None
-        interval = (config or {}).get("intervalMs")
-        if isinstance(interval, (int, float)) and not isinstance(interval, bool):
+        refresh = await read_refresh_config(deps)
+        if refresh is not None:
             info["watch_refresh"] = {
-                "enabled": config.get("enabled", True) is not False,
-                "interval_seconds": interval / 1000,
+                "enabled": refresh[0],
+                "interval_seconds": refresh[1],
             }
     return info
 
@@ -77,8 +72,13 @@ async def list_videos(
     deployments, which have no search index.
     """
 
+    strategy = (
+        choose_index_strategy(deps.features, deps.settings.index_strategy)
+        if deps.features.search
+        else None
+    )
     videos = [
-        slim_video(video, include_indexed=deps.features.search)
+        slim_video(video, include_indexed=deps.features.search, strategy=strategy)
         for video in await deps.client.list_videos()
     ]
     if tag:
@@ -89,15 +89,6 @@ async def list_videos(
     return cap_payload(
         {"total": len(videos), "videos": videos[: max(1, limit)]}, "videos"
     )
-
-
-def tag_counts(videos: Iterable[dict[str, Any]]) -> dict[str, int]:
-    """Count how many videos carry each tag, most used first."""
-
-    counts = Counter(
-        tag for video in videos for tag in dict.fromkeys(video.get("tags") or [])
-    )
-    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
 def match_tags(
@@ -139,14 +130,14 @@ def match_tags(
 
 
 async def list_tags(deps: Deps) -> TagList:
-    """Return the tags in use, most used first, with how many videos carry each.
+    """Return the tags videos and live cameras are labelled with, sorted.
 
     A tag filter must come from this vocabulary: VSS answers an unknown tag
-    with an empty result rather than an error.
+    with an empty result rather than an error. It is the same vocabulary
+    :func:`~.search.search_video` matches tag words against.
     """
 
-    counts = tag_counts(await deps.client.list_videos())
-    tags = [{"tag": tag, "videos": count} for tag, count in counts.items()]
+    tags = sorted(await deps.client.list_tags())
     return cap_payload({"count": len(tags), "tags": tags}, "tags")
 
 
@@ -194,8 +185,13 @@ def resolve_videos(videos: list[dict[str, Any]], hint: str) -> list[dict[str, An
 async def resolve_video(deps: Deps, hint: str) -> Resolution:
     """Find the video a user means from an id, filename or loose description."""
 
+    strategy = (
+        choose_index_strategy(deps.features, deps.settings.index_strategy)
+        if deps.features.search
+        else None
+    )
     videos = [
-        slim_video(video, include_indexed=deps.features.search)
+        slim_video(video, include_indexed=deps.features.search, strategy=strategy)
         for video in await deps.client.list_videos()
     ]
     candidates = resolve_videos(videos, hint)
@@ -246,7 +242,7 @@ def register(mcp: FastMCP, deps: Deps) -> None:
 
     @mcp.tool(annotations=READ_ONLY)
     async def vss_list_tags() -> TagList:
-        """List the tags videos are labelled with, most used first.
+        """List the tags videos and live cameras are labelled with.
 
         Use this before filtering a search by place or camera, so the filter
         uses a tag that exists. An unknown tag returns no results rather than

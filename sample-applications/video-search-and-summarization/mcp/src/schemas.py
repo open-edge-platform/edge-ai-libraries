@@ -35,16 +35,11 @@ class VideoList(Capped):
     videos: list[Video]
 
 
-class TagCount(TypedDict):
-    tag: str
-    videos: int
-
-
 class TagList(Capped):
-    """Tags in use, most used first."""
+    """Tags on videos and live cameras, sorted."""
 
     count: int
-    tags: list[TagCount]
+    tags: list[str]
 
 
 class Candidate(Video):
@@ -104,18 +99,28 @@ class TimelineEntry(TypedDict):
     caption: str
 
 
-class Timeline(Capped):
-    """Chunk captions of a summary run, ordered by start time."""
-
+class _SummaryRun(TypedDict):
     video_id: str | None
     state_id: str | None
     title: str | None
     completed: bool
     captioned: int
     total_chunks: int
-    timeline: list[TimelineEntry]
     summary: NotRequired[str]
     audio_summary: NotRequired[str]
+
+
+class VideoSummary(_SummaryRun):
+    """A summary run. summary is the final summary, in full, once completed;
+    timeline is present only when no final summary was requested."""
+
+    timeline: NotRequired[list[TimelineEntry]]
+
+
+class Timeline(_SummaryRun):
+    """Chunk captions of a summary run, in full, ordered by start time."""
+
+    timeline: list[TimelineEntry]
 
 
 class FrameLocator(TypedDict):
@@ -156,8 +161,9 @@ class Hit(TypedDict):
 
 
 class MediaFrame(TypedDict):
-    """Metadata of a frame returned by vss_get_media_frame; the pixels are
-    in the result's image content."""
+    """Metadata of a frame returned by vss_get_media_frame. The pixels are
+    in the result's image content; url serves the same JPEG over HTTP, for
+    a user's browser or a client that does not pass images to the model."""
 
     video_id: str
     requested_timestamp: float
@@ -168,6 +174,7 @@ class MediaFrame(TypedDict):
     width: int
     height: int
     mime: str
+    url: str
 
 
 class TimeRange(TypedDict):
@@ -175,7 +182,7 @@ class TimeRange(TypedDict):
     end: str
 
 
-class SearchResult(Capped):
+class SearchResult(TypedDict):
     """Hits best first. With only unknown_tags, nothing was searched.
 
     query_id names the query VSS persisted; status is "running" while its
@@ -309,7 +316,7 @@ class LastSeen(TypedDict):
     url: NotRequired[str]
 
 
-class WatchResult(Capped):
+class WatchResult(TypedDict):
     """A watched search, as a tracker.
 
     sightings are the hits new since the cursor passed in (all current hits

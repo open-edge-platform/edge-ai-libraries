@@ -12,15 +12,14 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-#: Upper bound on any single tool result, in bytes, so several results fit a
-#: small model's context alongside the conversation.
+#: Upper bound on a listing tool's result, in bytes, so several results fit a
+#: small model's context alongside the conversation. Search hits and summaries
+#: are content the agent asked for and are never capped.
 MAX_RESULT_BYTES = 8_000
-
-#: Longest caption text returned inside a timeline entry before truncation.
-MAX_CAPTION_CHARS = 600
 
 #: Video-row columns that record whether a video is in the search index:
 #: frame embeddings and summary-text embeddings respectively.
@@ -46,17 +45,35 @@ def redact_url(text: str | None) -> str | None:
     return _URL_CREDENTIALS_RE.sub(r"\1***@", text)
 
 
+def is_number(value: Any, *, integer: bool = False) -> bool:
+    """Whether ``value`` is a real number (an ``int`` if ``integer``).
+
+    ``bool`` is excluded: it subclasses ``int``, so ``True`` would otherwise
+    pass as ``1``.
+    """
+
+    kinds = int if integer else (int, float)
+    return isinstance(value, kinds) and not isinstance(value, bool)
+
+
 def iso_utc(epoch: float | int | None) -> str | None:
     """Render epoch seconds as ISO-8601 UTC with millisecond precision."""
 
-    if isinstance(epoch, bool) or not isinstance(epoch, (int, float)) or epoch <= 0:
+    if not is_number(epoch) or epoch <= 0:
         return None
     moment = datetime.fromtimestamp(epoch, tz=timezone.utc)
     return moment.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def parse_iso_epoch(value: Any) -> float | None:
-    """Parse an ISO-8601 timestamp to epoch seconds, treating naive as UTC."""
+def now_iso() -> str:
+    """The current time as :func:`iso_utc` renders it."""
+
+    return iso_utc(time.time()) or ""
+
+
+def parse_iso(value: Any) -> datetime | None:
+    """Parse an ISO-8601 timestamp as an aware UTC datetime, treating a
+    naive value as UTC; ``None`` if it is not one."""
 
     if not isinstance(value, str) or not value.strip():
         return None
@@ -69,7 +86,14 @@ def parse_iso_epoch(value: Any) -> float | None:
         return None
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
-    return moment.timestamp()
+    return moment.astimezone(timezone.utc)
+
+
+def parse_iso_epoch(value: Any) -> float | None:
+    """Parse an ISO-8601 timestamp to epoch seconds, treating naive as UTC."""
+
+    moment = parse_iso(value)
+    return moment.timestamp() if moment else None
 
 
 def observed_epoch(metadata: dict[str, Any]) -> float | None:
@@ -86,7 +110,7 @@ def observed_epoch(metadata: dict[str, Any]) -> float | None:
     if not isinstance(info, dict) or not info.get("is_live"):
         return None
     offset = info.get("timestamp")
-    if isinstance(offset, bool) or not isinstance(offset, (int, float)):
+    if not is_number(offset):
         offset = 0.0
     match = _SEGMENT_EPOCH_RE.search(str(info.get("media_path") or ""))
     if match:
@@ -96,15 +120,6 @@ def observed_epoch(metadata: dict[str, Any]) -> float | None:
         or metadata.get("created_at")
     )
     return created + float(offset) if created is not None else None
-
-
-def truncate(text: str | None, limit: int = MAX_CAPTION_CHARS) -> str:
-    """Shorten ``text`` to ``limit`` characters, marking the cut."""
-
-    value = (text or "").strip()
-    if len(value) <= limit:
-        return value
-    return f"{value[:limit].rstrip()}... [truncated]"
 
 
 def _payload_size(payload: Any) -> int:
@@ -147,16 +162,38 @@ def cap_payload(
     return build(low)
 
 
-def indexed_status(entity: dict[str, Any]) -> bool | None:
+#: Which index flag means "searchable" for each concrete strategy from
+#: :func:`choose_index_strategy` -- frame mode and unified mode write to, and
+#: query, different collections (``video_frame_embeddings`` vs
+#: ``video_summary_embeddings``), so only one flag is meaningful once a
+#: strategy is known.
+_STRATEGY_INDEX_FLAG = {"embeddings": "searchEmbeddings", "summary": "textEmbeddings"}
+
+
+def indexed_status(entity: dict[str, Any], *, strategy: str | None = None) -> bool | None:
     """Read whether a video is searchable from its own row.
 
+    Args:
+        strategy: The deployment's resolved indexing strategy, ``"embeddings"``
+            or ``"summary"`` (see ``choose_index_strategy``). When given, only
+            the flag that strategy actually writes and queries is checked, so
+            a video indexed under a different, previously active strategy is
+            not mistaken for searchable now. ``None`` falls back to treating
+            either flag as sufficient, for callers with no resolved strategy
+            (e.g. summary-only deployments, where indexing is off entirely).
+
     Returns:
-        ``True`` if any index flag is set, ``False`` if one is explicitly
+        ``True`` if the relevant flag is set, ``False`` if it is explicitly
         unset, ``None`` when the backend reports neither -- unknown, not
         unindexed.
     """
 
-    flags = [entity.get(key) for key in _INDEX_FLAGS]
+    keys = (
+        (_STRATEGY_INDEX_FLAG[strategy],)
+        if strategy in _STRATEGY_INDEX_FLAG
+        else _INDEX_FLAGS
+    )
+    flags = [entity.get(key) for key in keys]
     if any(flag is True for flag in flags):
         return True
     if any(flag is False for flag in flags):
@@ -164,7 +201,12 @@ def indexed_status(entity: dict[str, Any]) -> bool | None:
     return None
 
 
-def slim_video(entity: dict[str, Any], *, include_indexed: bool = True) -> dict[str, Any]:
+def slim_video(
+    entity: dict[str, Any],
+    *,
+    include_indexed: bool = True,
+    strategy: str | None = None,
+) -> dict[str, Any]:
     """Project a ``VideoEntity`` down to the fields an agent can act on.
 
     ``name`` comes from ``dataStore.fileName``: ``POST /videos`` ignores the
@@ -175,6 +217,7 @@ def slim_video(entity: dict[str, Any], *, include_indexed: bool = True) -> dict[
             ``False`` in summary-only deployments, where there is no search
             index at all, so the flag would be meaningless rather than
             merely unknown.
+        strategy: Forwarded to :func:`indexed_status`.
     """
 
     data_store = entity.get("dataStore") or {}
@@ -185,25 +228,19 @@ def slim_video(entity: dict[str, Any], *, include_indexed: bool = True) -> dict[
         "created_at": entity.get("createdAt"),
     }
     if include_indexed:
-        video["indexed"] = indexed_status(entity)
+        video["indexed"] = indexed_status(entity, strategy=strategy)
     return video
 
 
 def slim_search_hit(
     raw: dict[str, Any], datastore_base_url: str | None = None
 ) -> dict[str, Any]:
-    """Project one search result to the fields that carry meaning.
+    """Project one search result (aggregated or legacy flat shape) to the
+    fields that carry meaning; missing or non-numeric values are dropped.
 
-    Scoring internals, per-frame scores and templated ``page_content`` are
-    dropped. Both the aggregated shape and the legacy flat shape (no segment
-    bounds) are handled.
-
-    ``url`` is built from the backend's ``videoPlaybackUrl`` join, prefixed with
-    ``datastore_base_url`` (kept relative when that is absent). The metadata's
-    ``video_url``/``video_rel_url`` point at an internal hostname and are only
-    a fallback for backends that predate the join. Missing and non-numeric
-    values are dropped rather than sent as ``null`` or ``""``.
-
+    ``url`` comes from the backend's ``videoPlaybackUrl``, prefixed with
+    ``datastore_base_url`` when set. The metadata's ``video_url`` points at an
+    internal hostname, so it is only a fallback for older backends.
     ``best_frame_info`` becomes ``frame``, the locator ``vss_get_media_frame``
     takes, plus the detected object's ``label``.
     """
@@ -217,7 +254,7 @@ def slim_search_hit(
     end = metadata.get("segment_end", seek)
 
     def _round(value: Any, places: int) -> float | None:
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
+        if not is_number(value):
             return None
         return round(value, places)
 
@@ -273,10 +310,7 @@ def _bbox_string(bbox: Any) -> str | None:
     if (
         isinstance(bbox, (list, tuple))
         and len(bbox) == 4
-        and all(
-            isinstance(value, (int, float)) and not isinstance(value, bool)
-            for value in bbox
-        )
+        and all(is_number(value) for value in bbox)
     ):
         return ",".join(str(int(value)) for value in bbox)
     return None
@@ -297,8 +331,7 @@ def slim_best_frame(info: Any) -> dict[str, Any] | None:
     timestamp = info.get("timestamp")
     if (
         not video_id
-        or isinstance(timestamp, bool)
-        or not isinstance(timestamp, (int, float))
+        or not is_number(timestamp)
         or timestamp < 0
     ):
         return None
@@ -366,7 +399,7 @@ def build_timeline(ui_state: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         start_s, end_s = _frame_bounds(frame_summary, frames_by_id)
         entries.append(
-            {"start_s": start_s, "end_s": end_s, "caption": truncate(caption)}
+            {"start_s": start_s, "end_s": end_s, "caption": caption}
         )
 
     entries.sort(key=lambda item: (item["start_s"] is None, item["start_s"] or 0))
@@ -416,12 +449,13 @@ def slim_summary(
     ui_state: dict[str, Any],
     *,
     final_summary: bool = False,
+    include_timeline: bool = True,
 ) -> dict[str, Any]:
-    """Project a ``UIState`` to a :class:`~.schemas.Timeline`, capped in size.
+    """Project a ``UIState`` to a :class:`~.schemas.Timeline`, never
+    shortening captions or summaries.
 
-    Drops per-frame entries, chunks, prompt templates and inference config.
-    ``completed`` follows the rollup when ``final_summary`` is set and the
-    timeline otherwise; the rollup ``summary`` is only included once done.
+    ``completed`` follows the rollup when ``final_summary`` is set, else the
+    timeline; the rollup ``summary`` appears only once done.
     """
 
     progress = caption_progress(ui_state)
@@ -433,17 +467,18 @@ def slim_summary(
         "completed": done(ui_state),
         "captioned": progress["complete"],
         "total_chunks": progress["total"],
-        "timeline": build_timeline(ui_state),
     }
+    if include_timeline:
+        result["timeline"] = build_timeline(ui_state)
 
     if final_summary and result["completed"]:
-        result["summary"] = ui_state.get("summary") or ""
+        result["summary"] = (ui_state.get("summary") or "").strip()
 
-    transcript_summary = ui_state.get("audioTranscriptSummary")
+    transcript_summary = (ui_state.get("audioTranscriptSummary") or "").strip()
     if transcript_summary:
-        result["audio_summary"] = truncate(transcript_summary, 1_500)
+        result["audio_summary"] = transcript_summary
 
-    return cap_payload(result, "timeline")
+    return result
 
 
 def unwrap_search_results(payload: Any) -> list[dict[str, Any]]:
@@ -488,10 +523,10 @@ def slim_stream(info: dict[str, Any]) -> dict[str, Any]:
     slim_stats: dict[str, Any] = {
         key: stats[key]
         for key in _STREAM_STATS
-        if isinstance(stats.get(key), (int, float)) and not isinstance(stats.get(key), bool)
+        if is_number(stats.get(key))
     }
     uptime = stats.get("uptime_seconds")
-    if isinstance(uptime, (int, float)) and not isinstance(uptime, bool):
+    if is_number(uptime):
         slim_stats["uptime_s"] = round(uptime, 1)
     last_frame = iso_utc(stats.get("last_frame_ts"))
     if last_frame:

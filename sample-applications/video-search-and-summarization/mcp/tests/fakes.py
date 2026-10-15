@@ -11,11 +11,7 @@ the final rollup is skipped. Nothing here opens a network connection.
 
 from __future__ import annotations
 
-import base64
-import contextlib
 import json
-import tempfile
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -241,25 +237,6 @@ def make_stream(
     }
 
 
-@contextlib.contextmanager
-def make_temp_image() -> Any:
-    """Yield the path to a minimal, valid one-pixel PNG for image-search tests."""
-
-    # The smallest possible PNG: a 1x1 transparent pixel. Content-sniffing is
-    # not part of `encode_image_file`, but a real image is used anyway so this
-    # fixture stays honest about what it stands in for.
-    one_pixel_png = base64.b64decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgAAIAAAUAAen63NgAAAAASUVORK5CYII="
-    )
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as handle:
-        handle.write(one_pixel_png)
-        path = handle.name
-    try:
-        yield path
-    finally:
-        Path(path).unlink(missing_ok=True)
-
-
 #: Stand-in JPEG payload for ``GET /frames``; only its passthrough matters.
 FRAME_JPEG_BASE64 = "/9j/4AAQSkZJRg=="
 
@@ -287,6 +264,9 @@ class FakeVss:
         #: ``GET /search/refresh-config`` body.
         self.refresh_config: dict[str, Any] = {"enabled": True, "intervalMs": 10000}
         self.requests: list[tuple[str, str, Any]] = []
+        #: Raw-state ``createdAt`` per state id, as ``GET /summary/{id}/raw``
+        #: reports it; the UI states carry no timestamp.
+        self.state_created_at: dict[str, str] = {}
         #: State appended on the next POST /summary, letting a test simulate a
         #: pipeline that finishes (or does not) after being started.
         self.state_on_create: dict | None = None
@@ -349,6 +329,16 @@ class FakeVss:
         if path == "/videos" and request.method == "GET":
             return httpx.Response(200, json={"videos": self.videos})
 
+        if path == "/tags" and request.method == "GET":
+            # Pipeline Manager's tag table: upload tags plus the tags it
+            # registers from polling the live streams.
+            tags = [
+                tag
+                for item in (*self.videos, *self.streams)
+                for tag in item.get("tags") or []
+            ]
+            return httpx.Response(200, json=list(dict.fromkeys(tags)))
+
         if path.startswith("/videos/search-embeddings/"):
             return httpx.Response(201, json={"status": "success", "message": "ok"})
 
@@ -372,6 +362,18 @@ class FakeVss:
 
         if path == "/summary/ui":
             return httpx.Response(200, json=self.states)
+
+        if path.startswith("/summary/") and path.endswith("/raw"):
+            state_id = path.split("/")[-2]
+            match = next(
+                (s for s in self.states if s["stateId"] == state_id), None
+            )
+            if match is None:
+                return httpx.Response(200, json=None)
+            created = self.state_created_at.get(state_id)
+            return httpx.Response(
+                200, json={**match, **({"createdAt": created} if created else {})}
+            )
 
         if path.startswith("/summary/") and request.method == "GET":
             state_id = path.rsplit("/", 1)[-1]

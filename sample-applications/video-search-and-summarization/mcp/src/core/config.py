@@ -29,6 +29,7 @@ DEFAULT_APP_HOST_PORT = 12345
 #: How ``vss_index_video`` makes a video searchable; ``auto`` follows the
 #: deployment's features.
 INDEX_STRATEGIES = ("auto", "summary", "embeddings")
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
 #: A bare hostname or IPv4 literal -- no scheme, port, path or spaces.
 _HOSTNAME_PATTERN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?")
@@ -182,6 +183,12 @@ def get_settings() -> Settings:
             f"got {index_strategy!r}."
         )
 
+    log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
+    if log_level not in LOG_LEVELS:
+        raise ValueError(
+            f"LOG_LEVEL must be one of {', '.join(LOG_LEVELS)}; got {log_level!r}."
+        )
+
     settings = Settings(
         vss_base_url=f"{gateway}/manager",
         vss_datastore_url=f"{gateway}/datastore",
@@ -195,7 +202,7 @@ def get_settings() -> Settings:
             "DEFAULT_WAIT_SECONDS", DEFAULT_WAIT_SECONDS, _positive_float
         ),
         index_strategy=index_strategy,
-        log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        log_level=log_level,
         mcp_host=os.getenv("MCP_HOST", DEFAULT_MCP_HOST).strip() or DEFAULT_MCP_HOST,
         mcp_port=_read_env("MCP_PORT", DEFAULT_MCP_PORT, _port),
         mcp_path=_read_path("MCP_PATH", DEFAULT_MCP_PATH),

@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -17,6 +18,7 @@ from ..features import ALL_FEATURES, Features
 from ..projections import (
     caption_progress,
     is_final_summary_done,
+    is_number,
     is_timeline_done,
     slim_video,
 )
@@ -62,6 +64,38 @@ class Deps:
     features: Features = ALL_FEATURES
 
 
+#: Watch auto-refresh interval assumed when the config gives none or cannot
+#: be read; Pipeline Manager's own default.
+DEFAULT_REFRESH_SECONDS = 10.0
+
+
+async def read_refresh_config(deps: Deps) -> tuple[bool, float] | None:
+    """Whether VSS auto-refreshes watched searches, and how often (seconds).
+
+    The one reading of ``GET /search/refresh-config``: ``enabled`` defaults
+    to true and a missing or non-positive ``intervalMs`` to
+    :data:`DEFAULT_REFRESH_SECONDS`. ``None`` when the config cannot be read,
+    leaving the caller to decide what an unknown setting means.
+    """
+
+    try:
+        config = await deps.client.get_refresh_config()
+    except VssError as exc:
+        logging.getLogger(__name__).warning(
+            "Could not read the watch refresh config: %s", exc
+        )
+        return None
+    if not config:
+        return None
+    interval = config.get("intervalMs")
+    seconds = (
+        interval / 1000
+        if is_number(interval) and interval > 0
+        else DEFAULT_REFRESH_SECONDS
+    )
+    return config.get("enabled", True) is not False, seconds
+
+
 async def require_video(deps: Deps, video_id: str) -> dict[str, Any]:
     """Return the video row for ``video_id``, or raise a usable error."""
 
@@ -77,7 +111,7 @@ async def require_video(deps: Deps, video_id: str) -> dict[str, Any]:
 def _positive_int(name: str, value: Any, *, minimum: int) -> int:
     """Validate an integer option, so VSS is not handed one it rejects."""
 
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != int(value):
+    if not is_number(value) or value != int(value):
         raise VssError(f"{name} must be a whole number, got {value!r}.")
     if value < minimum:
         raise VssError(f"{name} must be at least {minimum}, got {value}.")
@@ -173,16 +207,12 @@ async def build_summary_body(
     audio_model: str | None = None,
     audio_full_transcript_summary: bool = False,
 ) -> dict[str, Any]:
-    """Construct a body that passes ``POST /summary``'s validation.
+    """Construct a body that passes ``POST /summary``'s validation, filling
+    omitted options with the VSS UI's defaults.
 
-    Omitted options take the defaults the VSS UI uses: an 8 s chunk, 8
-    frames per chunk (capped by the deployment's batch size), the
-    deployment's frame overlap and EVAM pipeline, audio transcription with
-    the default audio model, and a final summary.
-
-    Each of these otherwise returns a bare 400: ``multiFrame`` above the
-    deployment's maximum, ``frameOverlap + samplingFrame != multiFrame``, or no
-    EVAM pipeline named. All three are derived from ``GET /app/config``.
+    ``GET /app/config`` supplies what would otherwise be a bare 400:
+    ``multiFrame`` above the deployment's maximum, ``frameOverlap +
+    samplingFrame != multiFrame``, or no EVAM pipeline named.
 
     Raises:
         VssError: If an option is invalid for this deployment, or it
@@ -200,10 +230,23 @@ async def build_summary_body(
         minimum=1,
     )
     # Pipeline Manager ignores a frameOverlap of 0 and applies the
-    # deployment's own, so that is the effective default.
+    # deployment's own, so that is the effective default -- but that also
+    # means an explicit 0 cannot be told apart from "unset" there, so a
+    # nonzero deployment default silently replaces it and then mismatches
+    # the multiFrame computed below.
+    deployment_overlap = int(config.get("frameOverlap") or 0)
+    if frame_overlap == 0 and deployment_overlap:
+        raise VssError(
+            "frame_overlap=0 cannot be honored on this deployment: Pipeline "
+            "Manager treats a zero frameOverlap as unset and applies its own "
+            f"default ({deployment_overlap}) instead, which would then "
+            "mismatch the multi-frame batch size requested here. Omit "
+            "frame_overlap to use the deployment default, or pass a "
+            "positive value."
+        )
     overlap = _positive_int(
         "frame_overlap",
-        int(config.get("frameOverlap") or 0) if frame_overlap is None else frame_overlap,
+        deployment_overlap if frame_overlap is None else frame_overlap,
         minimum=0,
     )
     if sampling_frames is None:
@@ -268,16 +311,12 @@ async def run_summary(
     ctx: Context | None = None,
     **options: Any,
 ) -> tuple[str, dict[str, Any] | None, bool]:
-    """Start a summary pipeline and wait for it within the time budget.
+    """Start a summary (``options`` go to :func:`build_summary_body`) and wait
+    within the budget. Returns ``(state_id, last_state, completed)``.
 
-    ``options`` are passed to :func:`build_summary_body`. With
-    ``produceFinalSummary`` off, ``videoSummaryStatus`` never reaches
-    ``complete``, so the timeline predicate is the terminal signal. Given a
-    ``ctx``, captioning progress is sent as MCP progress notifications, which
-    clients can display and use to keep a long call from timing out.
-
-    Returns:
-        ``(state_id, last_state, completed)``.
+    Without a final summary ``videoSummaryStatus`` never reaches
+    ``complete``, so the timeline is the terminal signal. Progress goes to
+    ``ctx`` as MCP notifications, which also keep long calls from timing out.
     """
 
     body = await build_summary_body(
@@ -296,7 +335,11 @@ async def run_summary(
     state, completed = await deps.client.poll_state(
         state_id,
         is_final_summary_done if final_summary else is_timeline_done,
-        wait_seconds=wait_seconds or deps.settings.default_wait_seconds,
+        wait_seconds=(
+            deps.settings.default_wait_seconds
+            if wait_seconds is None
+            else wait_seconds
+        ),
         poll_interval_seconds=deps.settings.poll_interval_seconds,
         on_state=report if ctx else None,
     )

@@ -6,22 +6,24 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
 from src.projections import (
-    MAX_RESULT_BYTES,
     attach_video_names,
     build_timeline,
     cap_payload,
     caption_progress,
     indexed_status,
     is_final_summary_done,
+    is_number,
     is_timeline_done,
+    now_iso,
+    parse_iso,
     slim_search_hit,
     slim_summary,
     slim_video,
-    truncate,
     unwrap_search_results,
 )
 from src.tools.search import clip_links
@@ -138,18 +140,6 @@ def make_ui_state(*, captions: int = 2, complete: bool = True) -> dict:
 
 
 # Text, videos and indexing
-
-
-@pytest.mark.parametrize(
-    ("text", "limit", "expected"),
-    [("hello", 100, "hello"), (None, 1000, "")],
-)
-def test_truncate_leaves_short_text_and_none_untouched(text, limit: int, expected: str) -> None:
-    assert truncate(text, limit) == expected
-
-
-def test_truncate_marks_truncated_text() -> None:
-    assert truncate("a" * 50, 10).endswith("[truncated]")
 
 
 def test_slim_video_prefers_datastore_filename_over_the_hex_name_column() -> None:
@@ -514,15 +504,21 @@ def test_slim_summary_reports_caption_progress() -> None:
     assert (result["captioned"], result["total_chunks"]) == (3, 3)
 
 
-def test_slim_summary_stays_within_the_byte_budget_for_a_long_video() -> None:
-    """A 40-chunk state must still fit; excess timeline entries are dropped."""
+def test_slim_summary_keeps_every_caption_in_full_for_a_long_video() -> None:
     state = make_ui_state(captions=40)
+    caption = "A detailed caption. " * 30
     for entry in state["frameSummaries"]:
-        entry["summary"] = "A detailed caption. " * 30
+        entry["summary"] = caption
     result = slim_summary(state)
-    assert len(json.dumps(result).encode()) <= MAX_RESULT_BYTES
-    assert result["truncated"] is True
-    assert result["omitted"] == 40 - len(result["timeline"])
+    assert len(result["timeline"]) == 40
+    assert all(entry["caption"] == caption.strip() for entry in result["timeline"])
+    assert "truncated" not in result
+
+
+def test_slim_summary_can_leave_out_the_timeline() -> None:
+    result = slim_summary(make_ui_state(), final_summary=True, include_timeline=False)
+    assert "timeline" not in result
+    assert result["summary"] == "A long rolled-up summary."
 
 
 def test_raw_state_is_far_larger_than_the_summary_projection() -> None:
@@ -538,6 +534,17 @@ def test_summary_completion_follows_the_requested_product() -> None:
     rollup = slim_summary(state, final_summary=True)
     assert rollup["completed"] is False
     assert "summary" not in rollup
+
+
+def test_slim_summary_returns_a_long_final_summary_in_full() -> None:
+    state = make_ui_state()
+    state["summary"] = "A very long rolled-up summary. " * 1_000
+    state["audioTranscriptSummary"] = "Spoken words. " * 500
+
+    result = slim_summary(state, final_summary=True)
+
+    assert result["summary"] == state["summary"].strip()
+    assert result["audio_summary"] == state["audioTranscriptSummary"].strip()
 
 
 def test_cap_payload_leaves_small_payloads_untouched() -> None:
@@ -579,3 +586,36 @@ def test_unwrap_search_results_flattens_multiple_query_blocks() -> None:
 @pytest.mark.parametrize("payload", (None, {"results": []}, "nonsense"))
 def test_unwrap_search_results_returns_empty_for_unrecognised_shapes(payload) -> None:
     assert unwrap_search_results(payload) == []
+
+
+@pytest.mark.parametrize(
+    "text", ["2026-08-04T14:00:00Z", "2026-08-04T14:00:00", "2026-08-04T16:00:00+02:00"]
+)
+def test_parse_iso_reads_every_form_as_the_same_utc_moment(text: str) -> None:
+    assert parse_iso(text).isoformat() == "2026-08-04T14:00:00+00:00"
+
+
+@pytest.mark.parametrize("value", [None, "", "yesterday", 42])
+def test_parse_iso_returns_none_for_non_timestamps(value) -> None:
+    assert parse_iso(value) is None
+
+
+def test_now_iso_uses_the_same_format_as_iso_utc() -> None:
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z", now_iso())
+
+
+@pytest.mark.parametrize(
+    ("value", "integer", "expected"),
+    [
+        (1, False, True),
+        (1.5, False, True),
+        (1, True, True),
+        (1.0, True, False),
+        (True, False, False),
+        (False, True, False),
+        ("1", False, False),
+        (None, False, False),
+    ],
+)
+def test_is_number_excludes_bool(value, integer, expected) -> None:
+    assert is_number(value, integer=integer) is expected

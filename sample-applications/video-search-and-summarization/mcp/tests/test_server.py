@@ -49,7 +49,6 @@ SEARCH_TOOLS = {
     "vss_search_video",
     "vss_get_search",
     "vss_list_searches",
-    "vss_refetch_search",
     "vss_watch_search",
     "vss_get_media_frame",
 }
@@ -67,18 +66,19 @@ STREAM_TOOLS = {
 #: Registered only where the deployment has the summary feature.
 SUMMARY_TOOLS = {
     "vss_summarize_video",
-    "vss_get_video_timeline",
+    "vss_get_video_summary_timeline",
 }
 
 EXPECTED_TOOLS = LIBRARY_TOOLS | SEARCH_TOOLS | STREAM_TOOLS | SUMMARY_TOOLS
 
 #: Tools that start backend work or change stored state; everything else only
-#: reads. A search is persisted in VSS's search history, so it writes too.
+#: reads. A search is persisted in VSS's search history, so it writes too;
+#: vss_get_search can re-run one.
 WORK_TOOLS = {
     "vss_index_video",
     "vss_summarize_video",
     "vss_search_video",
-    "vss_refetch_search",
+    "vss_get_search",
     "vss_watch_search",
     "vss_add_stream",
     "vss_update_stream",
@@ -260,7 +260,7 @@ async def test_feature_gated_deployments_offer_only_supported_tools(
         assert not names & SEARCH_TOOLS
     if not features.summary:
         assert "vss_summarize_video" not in names
-        assert "vss_get_video_timeline" not in names
+        assert "vss_get_video_summary_timeline" not in names
 
 
 @pytest.mark.parametrize(
@@ -414,6 +414,28 @@ async def test_summarize_reports_progress_to_the_client() -> None:
     assert "Captioned" in message
 
 
+async def test_a_waiting_watch_poll_reports_progress_to_the_client() -> None:
+    fake = FakeVss(hits=[make_hit("v1", 0.9, 0)])
+    updates: list[str | None] = []
+
+    async def on_progress(progress, total, message) -> None:
+        updates.append(message)
+
+    async with Client(_protocol_mcp(fake), progress_handler=on_progress) as client:
+        started = await client.call_tool("vss_watch_search", {"query": "person"})
+        polled = await client.call_tool(
+            "vss_watch_search",
+            {
+                "query_id": "q1",
+                "cursor": started.structured_content["next_cursor"],
+                "wait_seconds": 0.2,
+            },
+        )
+
+    assert polled.structured_content["new_count"] == 0
+    assert updates and updates[0] == "Waiting for new sightings"
+
+
 async def test_search_returns_clips_as_resource_links() -> None:
     video_id = "5268a11c-c049-4c01-a614-b723f2cb3de2"
     hits = [make_hit(video_id, 0.9, i * 10) for i in range(25)]
@@ -435,9 +457,8 @@ async def test_search_returns_clips_as_resource_links() -> None:
     text, *links = result.content
     payload = result.structured_content
     assert json.loads(text.text) == payload
-    assert len(text.text.encode("utf-8")) <= MAX_RESULT_BYTES
-    assert payload["count"] == len(payload["results"])
-    assert payload["count"] + payload["omitted"] == 25
+    assert payload["count"] == len(payload["results"]) == 25
+    assert "truncated" not in payload
     assert [str(link.uri) for link in links] == [
         hit["url"] for hit in payload["results"]
     ]
@@ -499,15 +520,13 @@ async def test_unexpected_failures_do_not_leak_internals() -> None:
     ("name", "args"),
     [
         ("vss_list_videos", {}),
-        ("vss_search_video", {"query": "forklift", "limit": 25}),
-        ("vss_get_search", {"query_id": "q1", "limit": 25}),
         ("vss_list_searches", {"limit": 100}),
-        ("vss_get_video_timeline", {"state_id": "s0"}),
         ("vss_resolve_video", {"hint": "clip"}),
     ],
 )
 async def test_every_tool_result_fits_the_byte_budget(name: str, args: dict) -> None:
-    """The acceptance test that matters: no tool may flood a context window."""
+    """Listing tools must not flood a context window. Search hits and
+    summaries are returned in full, so they are not budgeted."""
 
     fake = FakeVss(
         videos=[make_video(f"v{i}", f"clip-{i}.mp4") for i in range(60)],
@@ -533,12 +552,12 @@ async def test_every_tool_result_fits_the_byte_budget(name: str, args: dict) -> 
         ("vss_index_video", {"video_id": "v1"}),
         ("vss_index_video", {"video_id": "v2"}),
         ("vss_summarize_video", {"video_id": "v2"}),
-        ("vss_get_video_timeline", {"video_id": "v1"}),
+        ("vss_get_video_summary_timeline", {"video_id": "v1"}),
         ("vss_search_video", {"query": "forklift"}),
         ("vss_search_video", {"query": "forklift", "tags": ["Camera 9"]}),
         ("vss_get_search", {"query_id": "q1"}),
         ("vss_list_searches", {}),
-        ("vss_refetch_search", {"query_id": "q1"}),
+        ("vss_get_search", {"query_id": "q1", "refresh": True}),
         ("vss_watch_search", {"query_id": "q1"}),
     ],
 )
@@ -640,3 +659,30 @@ async def test_a_real_client_cannot_reach_the_network() -> None:
         await client.get_features()
 
     assert _contains_network_refusal(caught), f"network was not blocked: {caught.value!r}"
+
+
+@pytest.mark.parametrize(
+    ("args", "reruns"),
+    [
+        ({"query_id": "q1"}, False),
+        ({"query_id": "q1", "refresh": True}, True),
+        (
+            {
+                "query_id": "q1",
+                "start": "2026-08-04T00:00:00Z",
+                "end": "2026-08-05T00:00:00Z",
+            },
+            True,
+        ),
+    ],
+)
+async def test_get_search_only_reruns_when_asked(args: dict, reruns: bool) -> None:
+    fake = FakeVss(hits=[make_hit("v1", 0.9, 10)])
+    seed_searches(fake, 1)
+
+    async with Client(_protocol_mcp(fake)) as client:
+        result = await client.call_tool("vss_get_search", args)
+
+    posted = [path for method, path, _ in fake.requests if method == "POST"]
+    assert ("/search/q1/refetch" in posted) is reruns
+    assert result.structured_content["query_id"] == "q1"

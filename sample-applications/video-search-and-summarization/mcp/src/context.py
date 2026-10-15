@@ -7,14 +7,13 @@
 from __future__ import annotations
 
 import json
-import shlex
-from datetime import datetime, timezone
 from typing import Any, Awaitable, Iterable
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ResourceError
 
 from .clients import VssError
+from .projections import now_iso
 from .tools import Deps
 from .tools.discovery import get_deployment_info, list_tags, list_videos
 
@@ -49,10 +48,6 @@ _SNAPSHOT_NOTE = (
 )
 
 
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 async def _snapshot(
     coroutine: Awaitable[dict[str, Any]],
     refresh_with: str,
@@ -65,7 +60,7 @@ async def _snapshot(
     except VssError as exc:
         raise ResourceError(str(exc)) from exc
     excluded = set(drop)
-    snapshot = {"as_of": _utc_now(), "refresh_with": refresh_with}
+    snapshot = {"as_of": now_iso(), "refresh_with": refresh_with}
     snapshot.update({k: v for k, v in body.items() if k not in excluded})
     return json.dumps(snapshot, separators=(",", ":"))
 
@@ -153,19 +148,18 @@ def _numbered(steps: list[str]) -> list[str]:
     return lines
 
 
-def _upload_steps(deps: Deps, tags: str) -> list[str]:
+def _upload_steps(deps: Deps) -> list[str]:
     """How to get a file into VSS; the MCP server itself cannot carry bytes."""
 
     url = f"{deps.settings.vss_base_url}/videos"
-    tag_arg = f" -F {shlex.quote(f'tags={tags}')}" if tags else ""
     return [
         "Upload -- this is a plain HTTP call, not an MCP tool; this server "
         "cannot carry video bytes. Run it yourself if you have a shell, "
         "otherwise give the user the command:",
-        f"     curl -s -X POST {url} -F 'video=@<path/to/file.mp4>'{tag_arg}",
+        f"     curl -s -X POST {url} -F 'video=@<path/to/file.mp4>'",
         "   The file must be a streamable MP4 (a 422 says it is not; remux with "
-        "`ffmpeg -i in.mp4 -c copy -movflags +faststart out.mp4`). Tags are "
-        "one comma-separated field. The response is {\"videoId\": \"...\"}; "
+        "`ffmpeg -i in.mp4 -c copy -movflags +faststart out.mp4`). "
+        "The response is {\"videoId\": \"...\"}; "
         "keep that id. If this URL is unreachable, vss_get_deployment_info "
         "reports the current upload target.",
     ]
@@ -289,8 +283,9 @@ def _register_live_prompts(mcp: FastMCP) -> None:
                 else "; add duration_minutes only if the user gives a time limit"
             )
             + ". Keep its query_id and next_cursor.",
-            "Poll: wait poll_after_seconds, then call vss_watch_search with "
-            "query_id and cursor=next_cursor. Repeat while watch is true. "
+            "Poll: call vss_watch_search with query_id and "
+            "cursor=next_cursor (after poll_after_seconds, usually 0: the "
+            "call itself waits for new sightings). Repeat while watch is true. "
             "Report only new sightings: camera (video_name), observed_at, and "
             "the clip url exactly as returned. last_seen shows where the "
             "object was most recently seen on each camera.",
@@ -351,36 +346,6 @@ def _register_search_prompts(mcp: FastMCP, deps: Deps) -> None:
         ]
         return "\n".join([f"Find moments matching: {looking_for}", ""] + _numbered(steps))
 
-    @mcp.prompt(
-        name="upload_and_index_videos",
-        description=(
-            "Upload video files to VSS over its HTTP API, then index each one "
-            "with vss_index_video so it can be searched."
-        ),
-    )
-    def upload_and_index_videos(files: str = "", tags: str = "") -> str:
-        """Make new footage searchable.
-
-        Args:
-            files: The video files to add, if known.
-            tags: Comma-separated tags to label them with, e.g. a camera name.
-        """
-
-        target = f"Make these videos searchable: {files}" if files else (
-            "Make the user's new videos searchable."
-        )
-        steps = _upload_steps(deps, tags) + [
-            "Index: call vss_index_video with each returned videoId, one call "
-            "per video. It waits up to its wait budget; indexed=true means the "
-            "video is searchable now, indexed=false means indexing continues "
-            "in the background -- check later with vss_list_videos.",
-            "Report each video separately: its videoId, and whether it is "
-            "searchable yet. Do not call the batch done while any is still "
-            "running. In vss_list_videos, indexed=null means unknown, not "
-            "failed; do not re-index because of it.",
-        ]
-        return "\n".join([target, ""] + _numbered(steps))
-
 
 def _register_summary_prompts(mcp: FastMCP, deps: Deps) -> None:
     @mcp.prompt(
@@ -406,7 +371,7 @@ def _register_summary_prompts(mcp: FastMCP, deps: Deps) -> None:
             "returns several candidates, ask the user which one. If it returns "
             "none, the video has to be uploaded first:",
         ]
-        steps += ["  " + line for line in _upload_steps(deps, "")]
+        steps += ["  " + line for line in _upload_steps(deps)]
         summarize = (
             "Summarize: call vss_summarize_video with the video_id"
             + (f" and focus={focus!r}" if focus else "")
@@ -421,7 +386,7 @@ def _register_summary_prompts(mcp: FastMCP, deps: Deps) -> None:
         steps += [
             summarize,
             "If completed=false the wait budget ran out, not the job. Show the "
-            "captions so far, then call vss_get_video_timeline with the "
+            "captions so far, then call vss_get_video_summary_timeline with the "
             "returned state_id to fetch the rest.",
             "Report the overall summary, if any, then the timeline as times "
             "and what happens, in order. Do not add events the captions do "

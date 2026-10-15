@@ -49,7 +49,10 @@ describe('StreamsController', () => {
       value: true,
       configurable: true,
     });
-    poller = { ensurePolling: jest.fn() };
+    poller = {
+      ensurePolling: jest.fn(),
+      poll: jest.fn().mockResolvedValue(undefined),
+    };
     emit = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -82,6 +85,15 @@ describe('StreamsController', () => {
         stream_url: 'rtsp://cam/1',
       } as LiveStreamCreateDto);
       expect(poller.ensurePolling).toHaveBeenCalledTimes(1);
+    });
+
+    it('polls right after a create so the new tags are registered', async () => {
+      (shim.create as jest.Mock).mockResolvedValue({ stream: { id: 'a' } });
+      await controller.create({
+        stream_url: 'rtsp://cam/1',
+        tags: ['lobby'],
+      } as LiveStreamCreateDto);
+      expect(poller.poll).toHaveBeenCalledTimes(1);
     });
 
     it('does not start the poller when create fails', async () => {

@@ -50,12 +50,11 @@ async def index_video(
         "strategy": None,
         "state_id": None,
     }
-    if indexed_status(video):
+    strategy = choose_index_strategy(deps.features, deps.settings.index_strategy)
+    if indexed_status(video, strategy=strategy):
         return result
 
-    result["strategy"] = choose_index_strategy(
-        deps.features, deps.settings.index_strategy
-    )
+    result["strategy"] = strategy
     if result["strategy"] == "embeddings":
         await deps.client.create_search_embeddings(video_id)
         return result

@@ -19,7 +19,7 @@ from fastmcp import FastMCP
 from typing_extensions import TypedDict, NotRequired
 
 from ..clients import VssError
-from ..projections import cap_payload, redact_url, slim_stream
+from ..projections import cap_payload, is_number, redact_url, slim_stream
 from ..schemas import (
     Stream,
     StreamAddResult,
@@ -64,16 +64,14 @@ def _check_tuning(
     frame_interval: Any, detection_confidence: Any, tags: Any
 ) -> None:
     if frame_interval is not None and (
-        isinstance(frame_interval, bool)
-        or not isinstance(frame_interval, int)
+        not is_number(frame_interval, integer=True)
         or not 1 <= frame_interval <= 60
     ):
         raise VssError(
             f"frame_interval must be a whole number from 1 to 60, got {frame_interval!r}."
         )
     if detection_confidence is not None and (
-        isinstance(detection_confidence, bool)
-        or not isinstance(detection_confidence, (int, float))
+        not is_number(detection_confidence)
         or not 0.1 <= detection_confidence <= 1.0
     ):
         raise VssError(

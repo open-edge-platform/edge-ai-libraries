@@ -6,15 +6,11 @@
 from .vss import (
     VssClient,
     VssError,
-    encode_image_file,
     is_image_reference,
-    resolve_image_input,
 )
 
 __all__ = [
     "VssClient",
     "VssError",
-    "encode_image_file",
     "is_image_reference",
-    "resolve_image_input",
 ]

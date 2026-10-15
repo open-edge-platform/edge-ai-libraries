@@ -76,13 +76,12 @@ the feature set behind the decision. **live** means search with a frame-embeddin
 |---|---|---|
 | `vss_get_deployment_info` | — | Which features are on, and how much of the library is indexed (search only) |
 | `vss_list_videos` | — | Library listing, each entry with an `indexed` flag (search only) |
-| `vss_list_tags` | — | The tags videos are labelled with |
+| `vss_list_tags` | — | The tags videos and live cameras are labelled with |
 | `vss_resolve_video` | — | Turn "the warehouse clip" into a video id |
 | `vss_index_video` | search | Make a video searchable (call once per video) |
 | `vss_search_video` | search | Find moments across indexed videos and live cameras; the search is saved in VSS's search history |
-| `vss_get_search` | search | A saved search and its latest results |
+| `vss_get_search` | search | A saved search and its latest results; `refresh=true` re-runs it first |
 | `vss_list_searches` | search | Saved searches, newest first |
-| `vss_refetch_search` | search | Re-run a saved search |
 | `vss_watch_search` | search | Track a person or object live: start a watched search, poll it for new sightings, stop it (or let it expire after `duration_minutes`) |
 | `vss_get_media_frame` | search | The image of a search hit's best-matching frame (or its detected object), from the hit's `frame` locator |
 | `vss_list_streams` | live | Registered RTSP cameras, with state and ingest stats |
@@ -90,8 +89,8 @@ the feature set behind the decision. **live** means search with a frame-embeddin
 | `vss_add_stream` | live | Add one or more RTSP cameras |
 | `vss_update_stream` | live | Pause, resume or retune a camera |
 | `vss_remove_stream` | live | Stop and deregister cameras; recorded footage and embeddings are kept |
-| `vss_summarize_video` | summary | Summarize a video: a timeline plus, by default, a final summary |
-| `vss_get_video_timeline` | summary | Timeline (and final summary, if produced) of an already-summarized video |
+| `vss_summarize_video` | summary | Summarize a video and return only its final summary, in full (`final_summary=false` returns the timeline instead) |
+| `vss_get_video_summary_timeline` | summary | Full timeline (and final summary, if produced) of an already-summarized video |
 
 ## Video Upload
 

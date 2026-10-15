@@ -62,7 +62,8 @@ Search:
     the hit's `frame` object, unchanged. Hits without `frame` have no
     stored peak frame.
   * "Tell me when X shows up" / "keep watching for X" -> vss_watch_search,
-    then poll it with the returned next_cursor every poll_after_seconds.
+    then poll it with the returned next_cursor; each poll waits for new
+    sightings by itself.
 """
 
 _INSTRUCTIONS_LIVE = """\

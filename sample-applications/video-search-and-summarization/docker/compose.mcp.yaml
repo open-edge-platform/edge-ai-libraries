@@ -33,6 +33,14 @@ services:
       - HTTP_PROXY=${http_proxy:-}
       - HTTPS_PROXY=${https_proxy:-}
       - NO_PROXY=${no_proxy:-},${HOST_IP:-},${VSS_IP}
+    # The server probes /manager/app/features through the nginx gateway once at
+    # startup and exits if VSS is unreachable, so start it only once Pipeline
+    # Manager is healthy.
+    depends_on:
+      pipeline-manager:
+        condition: service_healthy
+      nginx:
+        condition: service_started
     networks:
       - vs_network
     restart: unless-stopped

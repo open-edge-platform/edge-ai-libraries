@@ -232,3 +232,14 @@ def test_index_strategy_accepts_an_explicit_path(env: Callable[..., None]) -> No
 def test_index_strategy_typo_fails_at_boot(env: Callable[..., None]) -> None:
     with pytest.raises(ValueError, match="VSS_INDEX_STRATEGY"):
         settings_with(env, VSS_INDEX_STRATEGY="sumary")
+
+
+def test_log_level_is_normalised(env: Callable[..., None]) -> None:
+    assert settings_with(env, LOG_LEVEL=" debug ").log_level == "DEBUG"
+
+
+def test_log_level_typo_fails_at_boot_naming_the_variable(
+    env: Callable[..., None],
+) -> None:
+    with pytest.raises(ValueError, match="LOG_LEVEL"):
+        settings_with(env, LOG_LEVEL="verbose")

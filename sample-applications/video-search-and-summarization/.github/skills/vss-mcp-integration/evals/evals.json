@@ -19,14 +19,14 @@
       "id": 2,
       "prompt_file": "example-prompts/02-debug-with-inspector.md",
       "prompt": "I'm changing code under `mcp/src` and want to poke at the tools in MCP Inspector. VSS is up on `192.168.1.50`. Does the VSS stack give me Inspector? If not, what's the quickest way to get it?",
-      "expected_output": "Explains the VSS stack never starts Inspector; the dev stack in mcp/compose.yaml does, with one command, and how to connect.",
+      "expected_output": "Explains the VSS stack never starts Inspector, but mcp/compose.yaml's standalone mcp-inspector service does, with one command and no need to stop VSS.",
       "files": [],
       "expectations": [
         "States that the VSS stack (docker/compose.mcp.yaml, profile mcp) runs only the MCP server and never MCP Inspector.",
-        "Gives the dev-stack command from mcp/: `HOST_IP=192.168.1.50 docker compose up --build -d`.",
-        "Says to open http://<HOST_IP>:6274, choose Streamable HTTP, and connect to http://mcp-server:8000/mcp (or http://<HOST_IP>:8000/mcp).",
-        "Mentions the dev stack runs the same vss-mcp-server image and container as the VSS stack (published on host port 8000, whereas the stack only exposes it via nginx at :12345/mcp), so stop the stack first with `source setup.sh --stop`; stop the dev stack with `docker compose down`.",
-        "Warns that Inspector auth is disabled in the dev stack and it should only be used on a trusted network."
+        "Gives the standalone command from mcp/: `HOST_IP=192.168.1.50 docker compose up -d mcp-inspector` (no need to stop VSS first).",
+        "Says to open http://<HOST_IP>:6274, choose Streamable HTTP, and connect to http://<HOST_IP>:12345/mcp (the running deployment's own MCP server via the nginx gateway).",
+        "For testing an uncommitted code change specifically, mentions the optional mcp-server service in the same file builds a separate vss-mcp-server-dev container on its own host port (default 8001), distinct from the deployment's vss-mcp-server container, so both can run at once.",
+        "States Inspector auth is on by default (a token is printed in `docker compose logs mcp-inspector`) and that DANGEROUSLY_OMIT_AUTH=true should only be used on a trusted network."
       ]
     },
     {
@@ -38,7 +38,7 @@
       "expectations": [
         "Says tools are hand-declared code in mcp/src/tools/*.py, not an OpenAPI filter entry; there is no search.json.",
         "Describes registering with @mcp.tool inside the module's register(), with annotations such as readOnlyHint and a model-facing docstring.",
-        "Says to return a projection rather than the raw Pipeline Manager payload and keep it within the byte budget (cap_payload).",
+        "Says to return a projection rather than the raw Pipeline Manager payload and keep listing results within the byte budget (cap_payload); search hits and summaries are not capped.",
         "Mentions gating on deps.features when the tool needs search or summary.",
         "Adds a test in mcp/tests/test_tools.py against FakeVss and runs `poetry run python -m pytest -q tests` from mcp/."
       ]

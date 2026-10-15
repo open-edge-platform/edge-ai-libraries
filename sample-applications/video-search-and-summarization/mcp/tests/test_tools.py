@@ -18,9 +18,7 @@ comes with FastMCP's anyio dependency. Shared fixtures (``fake``, ``deps``,
 from __future__ import annotations
 
 import json
-import tempfile
 from datetime import datetime, timezone
-from pathlib import Path
 
 import httpx
 import pytest
@@ -33,7 +31,6 @@ from src.tools.discovery import (
     list_videos,
     match_tags,
     resolve_video,
-    tag_counts,
 )
 from src.tools.ingest import index_video
 from src.tools.search import (
@@ -56,7 +53,6 @@ from tests.fakes import (
     make_settings,
     make_state,
     make_stream,
-    make_temp_image,
     make_video,
     seed_searches,
 )
@@ -131,7 +127,7 @@ async def test_deployment_info_reports_server_time_for_time_ranges(deps: Deps) -
 
     info = await get_deployment_info(deps)
 
-    parsed = datetime.strptime(info["server_time_utc"], "%Y-%m-%dT%H:%M:%SZ")
+    parsed = datetime.strptime(info["server_time_utc"], "%Y-%m-%dT%H:%M:%S.%fZ")
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     assert abs((now - parsed).total_seconds()) < 60
 
@@ -163,8 +159,7 @@ async def test_list_videos_surfaces_the_real_filename(fake: FakeVss, deps: Deps)
     ("flags", "expected"),
     [
         ({"searchEmbeddings": True}, True),
-        ({"textEmbeddings": True}, True),
-        ({"searchEmbeddings": False, "textEmbeddings": True}, True),
+        ({"searchEmbeddings": False, "textEmbeddings": True}, False),
         ({"searchEmbeddings": False}, False),
         ({}, None),
     ],
@@ -172,12 +167,46 @@ async def test_list_videos_surfaces_the_real_filename(fake: FakeVss, deps: Deps)
 async def test_indexing_status_comes_from_the_video_row(
     flags: dict, expected: bool | None
 ) -> None:
+    """Default deployment features resolve to the embeddings strategy, so
+    only ``searchEmbeddings`` counts."""
+
     fake = FakeVss(videos=[{**make_video("v1", "a.mp4"), **flags}])
     deps = Deps(client=fake.client(), settings=make_settings())
 
     listed = await list_videos(deps)
 
     assert listed["videos"][0]["indexed"] is expected
+
+
+async def test_indexing_status_checks_only_the_active_strategys_flag() -> None:
+    """A video indexed only under the deployment's previous mode is not
+    mistaken for indexed under the current one (and vice versa)."""
+
+    fake = FakeVss(
+        videos=[
+            {
+                **make_video("v1", "a.mp4"),
+                "searchEmbeddings": False,
+                "textEmbeddings": True,
+            }
+        ]
+    )
+    frame_mode_deps = Deps(
+        client=fake.client(),
+        settings=make_settings(),
+        features=make_features(image_search_enabled=True),
+    )
+    unified_mode_deps = Deps(
+        client=fake.client(),
+        settings=make_settings(),
+        features=make_features(image_search_enabled=False),
+    )
+
+    frame_mode_listed = await list_videos(frame_mode_deps)
+    unified_mode_listed = await list_videos(unified_mode_deps)
+
+    assert frame_mode_listed["videos"][0]["indexed"] is False
+    assert unified_mode_listed["videos"][0]["indexed"] is True
 
 
 async def test_summary_runs_are_not_read_as_indexing_status(
@@ -362,7 +391,7 @@ async def test_summarize_with_final_summary_waits_for_complete(
     assert posted_body(fake, "/summary")["produceFinalSummary"] is True
 
 
-async def test_summarize_returns_a_partial_timeline_when_the_budget_expires() -> None:
+async def test_summarize_returns_progress_when_the_budget_expires() -> None:
     """A stuck pipeline must degrade to a partial result, not hang."""
 
     fake = FakeVss(videos=[make_video("v1", "clip.mp4")])
@@ -373,7 +402,34 @@ async def test_summarize_returns_a_partial_timeline_when_the_budget_expires() ->
 
     assert not result["completed"]
     assert result["state_id"] == "s1"
-    assert "timeline" in result
+    assert "timeline" not in result
+    assert "summary" not in result
+
+
+async def test_summarize_returns_only_the_full_final_summary(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.videos = [make_video("v1", "clip.mp4")]
+    fake.state_on_create = make_state("s1", "v1", captions=40, final="complete")
+    fake.state_on_create["summary"] = "Rolled up. " * 2_000
+
+    result = await summarize_video(deps, "v1")
+
+    assert result["completed"]
+    assert result["summary"] == fake.state_on_create["summary"].strip()
+    assert "timeline" not in result
+
+
+async def test_summarize_without_final_summary_returns_the_timeline(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.videos = [make_video("v1", "clip.mp4")]
+    fake.state_on_create = make_state("s1", "v1", captions=3)
+
+    result = await summarize_video(deps, "v1", final_summary=False)
+
+    assert len(result["timeline"]) == 3
+    assert "summary" not in result
 
 
 async def test_summarize_builds_a_body_that_passes_validation(
@@ -419,6 +475,42 @@ async def test_timeline_reports_when_a_video_was_never_summarized(
 
     with pytest.raises(VssError, match="has not been summarized"):
         await get_video_timeline(deps, video_id="v1")
+
+
+async def test_timeline_picks_the_most_recently_created_run(
+    fake: FakeVss, deps: Deps
+) -> None:
+    """/summary/ui is an unordered DB read: list position means nothing."""
+
+    fake.states = [
+        make_state("new", "v1", captions=3),
+        make_state("old", "v1", captions=1),
+    ]
+    fake.state_created_at = {
+        "new": "2026-10-13T10:00:00.000Z",
+        "old": "2026-10-01T10:00:00.000Z",
+    }
+
+    result = await get_video_timeline(deps, video_id="v1")
+
+    assert result["state_id"] == "new"
+
+
+async def test_timeline_prefers_a_completed_run_over_a_newer_running_one(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.states = [
+        make_state("done", "v1", captions=2),
+        make_state("running", "v1", captions=1, in_progress=2, chunking="inProgress"),
+    ]
+    fake.state_created_at = {
+        "done": "2026-10-01T10:00:00.000Z",
+        "running": "2026-10-13T10:00:00.000Z",
+    }
+
+    result = await get_video_timeline(deps, video_id="v1")
+
+    assert result["state_id"] == "done"
 
 
 async def test_timeline_by_state_id(fake: FakeVss, deps: Deps) -> None:
@@ -572,59 +664,6 @@ async def test_search_honours_the_limit(fake: FakeVss, deps: Deps) -> None:
     assert result["count"] == 3
 
 
-async def test_search_by_image_posts_an_image_not_a_query(
-    fake: FakeVss, deps: Deps
-) -> None:
-    fake.videos = [make_video("v1", "a.mp4")]
-    fake.states = [make_state("s1", "v1")]
-    fake.hits = [make_hit("v1", 0.9, 10)]
-
-    with make_temp_image() as image_path:
-        result = await search_video(deps, image=image_path)
-
-    posted = posted_body(fake, "/search")
-    assert "image" in posted
-    assert posted["image"].startswith("data:image/png;base64,")
-    assert "query" not in posted
-    assert "image" not in result
-    assert result["count"] == 1
-
-
-async def test_search_by_image_data_url_does_not_starve_the_byte_budget(
-    fake: FakeVss, deps: Deps
-) -> None:
-    """Large image inputs should not truncate the search hits."""
-
-    fake.videos = [make_video("v1", "a.mp4")]
-    fake.states = [make_state("s1", "v1")]
-    fake.hits = [make_hit("v1", 0.9, 10)]
-    large_data_url = "data:image/jpeg;base64," + ("A" * 50_000)
-
-    result = await search_video(deps, image=large_data_url)
-
-    assert result["count"] == 1
-    assert not result["truncated"]
-
-
-async def test_search_by_image_forwards_a_data_url_unchanged(
-    fake: FakeVss, deps: Deps
-) -> None:
-    fake.videos = [make_video("v1", "a.mp4")]
-    fake.states = [make_state("s1", "v1")]
-    fake.hits = [make_hit("v1", 0.9, 10)]
-    data_url = "data:image/png;base64,aGVsbG8="
-
-    result = await search_video(deps, image=data_url)
-
-    assert posted_body(fake, "/search")["image"] == data_url
-    assert "image" not in result
-
-
-async def test_search_by_image_rejects_a_malformed_data_url(deps: Deps) -> None:
-    with pytest.raises(VssError, match="Malformed data URL"):
-        await search_video(deps, image="data:image/png,not-base64")
-
-
 @pytest.mark.parametrize(
     "reference",
     [
@@ -652,49 +691,36 @@ async def test_search_by_image_forwards_an_uploaded_image_reference(
     assert result["count"] == 1
 
 
-async def test_search_by_image_reads_a_local_file_named_like_an_upload(
-    fake: FakeVss, deps: Deps
+@pytest.mark.parametrize(
+    "image",
+    [
+        "data:image/png;base64,aGVsbG8=",
+        "/nonexistent/still.png",
+        "not-a-reference-at-all",
+    ],
+)
+async def test_search_by_image_rejects_anything_that_is_not_an_upload_reference(
+    deps: Deps, image: str
 ) -> None:
-    fake.videos = [make_video("v1", "a.mp4")]
-    fake.states = [make_state("s1", "v1")]
-    fake.hits = [make_hit("v1", 0.9, 10)]
+    """Images are uploaded directly to VSS now; the server only ever
+    forwards a reference, never a data URL or a local path it reads itself."""
 
-    with make_temp_image() as image_path, tempfile.TemporaryDirectory() as tmp:
-        local = Path(tmp) / "search-images" / "3f0c1f1e-7c1b-4a8e-9a55-0d6f6c2b9e11.png"
-        local.parent.mkdir()
-        local.write_bytes(Path(image_path).read_bytes())
-        await search_video(deps, image=str(local))
-
-    posted = posted_body(fake, "/search")
-    assert "imageUrl" not in posted
-    assert posted["image"].startswith("data:image/png;base64,")
+    with pytest.raises(VssError, match="Upload the image directly to VSS first"):
+        await search_video(deps, image=image)
 
 
-async def test_search_rejects_both_query_and_image(deps: Deps) -> None:
-    with make_temp_image() as image_path:
-        with pytest.raises(VssError, match="not both"):
-            await search_video(deps, "forklift", image=image_path)
+async def test_search_rejects_both_query_and_image() -> None:
+    fake = FakeVss()
+    deps = Deps(client=fake.client(), settings=make_settings())
+    reference = "3f0c1f1e-7c1b-4a8e-9a55-0d6f6c2b9e11.jpg"
+
+    with pytest.raises(VssError, match="not both"):
+        await search_video(deps, "forklift", image=reference)
 
 
 async def test_search_rejects_neither_query_nor_image(deps: Deps) -> None:
     with pytest.raises(VssError, match="Provide a query"):
         await search_video(deps)
-
-
-@pytest.mark.parametrize(
-    "message",
-    ["No file at", r"data:<mime-type>;base64,"],
-)
-async def test_search_by_image_missing_file_error_guides_the_caller(
-    deps: Deps, message: str
-) -> None:
-    with pytest.raises(VssError, match=message):
-        await search_video(deps, image="/nonexistent/still.png")
-
-
-async def test_search_by_image_rejects_an_unsupported_suffix(deps: Deps) -> None:
-    with pytest.raises(VssError, match="does not look like an image"):
-        await search_video(deps, image=__file__)
 
 
 # Search request shaping
@@ -722,7 +748,7 @@ async def test_unnamed_hits_are_named_from_the_library(
     assert library_fetches(fake) == 1
 
 
-async def test_a_tag_filter_reuses_the_listing_for_names(
+async def test_a_tag_filter_lists_the_library_once_for_names(
     fake: FakeVss, deps: Deps
 ) -> None:
     fake.videos = [make_video("v1", "a.mp4", tags=["Camera 2"])]
@@ -734,22 +760,25 @@ async def test_a_tag_filter_reuses_the_listing_for_names(
     assert library_fetches(fake) == 1
 
 
-async def test_an_unknown_tag_lists_the_library_once(fake: FakeVss, deps: Deps) -> None:
+async def test_an_unknown_tag_reads_the_tag_list_not_the_library(
+    fake: FakeVss, deps: Deps
+) -> None:
     fake.videos = [make_video("v1", "a.mp4", tags=["Camera 2"])]
 
     result = await search_video(deps, "x", tags=["Camera 9"])
 
     assert result["available_tags"] == ["Camera 2"]
-    assert library_fetches(fake) == 1
+    assert request_paths(fake).count("/tags") == 1
+    assert library_fetches(fake) == 0
 
 
-async def test_an_unknown_tag_does_not_echo_a_data_url(
+async def test_an_unknown_tag_does_not_echo_the_image_reference(
     fake: FakeVss, deps: Deps
 ) -> None:
     fake.videos = [make_video("v1", "a.mp4", tags=["Camera 2"])]
-    data_url = "data:image/png;base64," + "A" * 50_000
+    reference = "3f0c1f1e-7c1b-4a8e-9a55-0d6f6c2b9e11.jpg"
 
-    result = await search_video(deps, image=data_url, tags=["Camera 9"])
+    result = await search_video(deps, image=reference, tags=["Camera 9"])
 
     assert "image" not in result
     assert result["available_tags"] == ["Camera 2"]
@@ -871,19 +900,26 @@ def test_vss_error_failure_with_no_response_has_no_status() -> None:
 # Tags
 
 
-async def test_tag_counts_how_many_videos_carry_each(tagged_fake: FakeVss) -> None:
+async def test_list_tags_returns_the_vss_tag_vocabulary_once_each(
+    tagged_fake: FakeVss,
+) -> None:
     tagged_fake.videos.append(make_video("v3", "c.mp4", tags=["Camera 2"]))
 
     listed = await list_tags(Deps(client=tagged_fake.client(), settings=make_settings()))
 
-    assert listed["tags"][0] == {"tag": "Camera 2", "videos": 2}
+    assert listed["tags"] == ["Camera 2", "Camera 3", "Parking Lot"]
+    assert listed["count"] == 3
+
+
+def _video_tags(fake: FakeVss) -> list[str]:
+    return [tag for video in fake.videos for tag in video.get("tags") or []]
 
 
 @pytest.mark.parametrize("said", ["camera 2", "CAMERA 2", "camera-2", "camera2"])
 def test_tag_match_ignores_case_and_punctuation(tagged_fake: FakeVss, said: str) -> None:
     """Operators say "camera 2"; the tag might be "Camera 2"."""
 
-    matched, unmatched = match_tags([said], tag_counts(tagged_fake.videos))
+    matched, unmatched = match_tags([said], _video_tags(tagged_fake))
 
     assert matched == ["Camera 2"]
     assert unmatched == []
@@ -892,13 +928,13 @@ def test_tag_match_ignores_case_and_punctuation(tagged_fake: FakeVss, said: str)
 def test_exact_tag_is_never_beaten_by_a_longer_one(tagged_fake: FakeVss) -> None:
     tagged_fake.videos.append(make_video("v3", "c.mp4", tags=["Camera 2 North"]))
 
-    matched, _ = match_tags(["Camera 2"], tag_counts(tagged_fake.videos))
+    matched, _ = match_tags(["Camera 2"], _video_tags(tagged_fake))
 
     assert matched == ["Camera 2"]
 
 
 def test_a_tag_nobody_uses_is_reported(tagged_fake: FakeVss) -> None:
-    matched, unmatched = match_tags(["Camera 9"], tag_counts(tagged_fake.videos))
+    matched, unmatched = match_tags(["Camera 9"], _video_tags(tagged_fake))
 
     assert matched == []
     assert unmatched == ["Camera 9"]
@@ -1166,6 +1202,54 @@ async def test_summary_forwards_caller_options(fake: FakeVss, deps: Deps) -> Non
     assert posted["audio"] == {"audioModel": "small.en", "useFullTranscriptSummary": True}
 
 
+async def test_summary_rejects_an_explicit_zero_overlap_the_deployment_cannot_honor(
+    fake: FakeVss, deps: Deps
+) -> None:
+    """Pipeline Manager treats frameOverlap=0 as unset and substitutes its own
+    nonzero default, which would then mismatch the multiFrame requested here."""
+
+    fake.videos = [make_video("v1", "clip.mp4")]
+    fake.app_config = {
+        "frameOverlap": 2,
+        "meta": {"evamPipelines": [{"value": "video_ingestion"}]},
+    }
+
+    with pytest.raises(VssError, match="frame_overlap=0 cannot be honored"):
+        await summarize_video(deps, "v1", frame_overlap=0)
+
+
+async def test_summary_accepts_an_explicit_zero_overlap_matching_the_deployment(
+    fake: FakeVss, deps: Deps
+) -> None:
+    """An explicit 0 is fine when it already matches the deployment default."""
+
+    fake.videos = [make_video("v1", "clip.mp4")]
+    fake.state_on_create = make_state("s1", "v1", final="complete")
+    fake.app_config = {
+        "frameOverlap": 0,
+        "meta": {"evamPipelines": [{"value": "video_ingestion"}]},
+    }
+
+    await summarize_video(deps, "v1", frame_overlap=0)
+
+    assert posted_body(fake, "/summary")["sampling"]["frameOverlap"] == 0
+
+
+async def test_summary_wait_seconds_zero_is_not_replaced_by_the_default(
+    fake: FakeVss,
+) -> None:
+    """``wait_seconds=0`` is a valid budget (return a progress handle right
+    away); it must not be treated as falsy and swapped for the default."""
+
+    fake.videos = [make_video("v1", "clip.mp4")]
+    fake.state_on_create = make_state("s1", "v1")  # stays incomplete
+    deps = Deps(client=fake.client(), settings=make_settings(default_wait_seconds=30))
+
+    result = await summarize_video(deps, "v1", wait_seconds=0)
+
+    assert result["completed"] is False
+
+
 async def test_full_transcript_summary_needs_a_final_summary(
     fake: FakeVss, deps: Deps
 ) -> None:
@@ -1291,6 +1375,23 @@ async def test_get_media_frame_returns_the_whole_frame_by_default(
     assert fake.frame_params == [
         {"video_id": "v1", "timestamp": "42.47", "quality": "80", "variant": "full", "format": "json"}
     ]
+    assert meta["url"] == (
+        f"{deps.settings.vss_base_url}/frames"
+        "?video_id=v1&timestamp=42.47&quality=80&variant=full&format=image"
+    )
+
+
+async def test_get_media_frame_url_serves_the_same_crop_as_an_image(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.videos = [make_video("v1", "a.mp4")]
+
+    meta, _ = await get_media_frame(deps, "v1", 1.5, crop_bbox="1,2,30,40")
+
+    assert meta["url"].startswith(f"{deps.settings.vss_base_url}/frames?")
+    assert "variant=crop" in meta["url"]
+    assert "crop_bbox=1%2C2%2C30%2C40" in meta["url"]
+    assert meta["url"].endswith("format=image")
 
 
 async def test_get_media_frame_crops_to_the_hit_box_and_forwards_the_live_segment(

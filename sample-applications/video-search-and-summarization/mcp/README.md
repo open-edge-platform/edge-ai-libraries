@@ -9,42 +9,11 @@ The **MCP (Model Context Protocol) server** for the
 [Video Search and Summarization (VSS)](https://github.com/open-edge-platform/edge-ai-libraries)
 sample application. It exposes VSS as a set of tools for agents, and IDE extensions.
 
-## Project structure
-
-```
-mcp/                             ← cd here for tests and source work
-├── pyproject.toml
-├── Dockerfile
-├── compose.yaml                 # dev stack: server + MCP Inspector (not used by setup.sh)
-│
-├── src/
-│   ├── main.py                  # Process entrypoint
-│   ├── server.py                # FastMCP factory, tool registration
-│   ├── features.py              # Startup probe: what this deployment can do
-│   ├── context.py               # Resources and prompts
-│   ├── projections.py           # Wire payloads → agent-sized results
-│   ├── call_log.py              # Call-flow logging middleware
-│   ├── core/config.py           # Settings and environment parsing
-│   ├── clients/vss.py           # Typed Pipeline Manager client
-│   └── tools/
-│       ├── _deps.py             # Shared dependencies and domain helpers
-│       ├── discovery.py         # deployment info, list, tags, resolve
-│       ├── ingest.py            # index one, index many
-│       ├── summary.py           # summarize, timeline
-│       ├── search.py            # search, watch/track, frames
-│       └── streams.py           # live RTSP cameras
-│
-└── tests/                       # unit tests, no deployment required
-```
-
-
 ## Tools
 
 The **Needs** column is what a deployment must have for the tool to exist at
 all: at startup the server reads `GET /app/features` and registers only the
-tools that deployment can serve. **live** means search with a frame-embedding
-index (`--search` or `--dual`, `imageSearchEnabled` true); unified mode
-ingests no live cameras.
+tools that deployment can serve.
 
 Hits from a live camera carry `source: "live"`, `stream_id`, `observed_at`
 (wall-clock UTC of the matched frame) and `raw_score` (the absolute
@@ -59,136 +28,69 @@ is the only tool that deletes anything, and is annotated destructive.
 | `vss_resolve_video` | — | Turn "the warehouse clip" into a video id |
 | `vss_index_video` | search | Make a video searchable (call once per video) |
 | `vss_search_video` | search | Find moments across indexed videos and live cameras, by text query or by image, optionally kept to some cameras (`stream_ids`); the search is saved in VSS's search history |
-| `vss_get_search` | search | A saved search and its latest results, by `query_id` |
+| `vss_get_search` | search | A saved search and its latest results, by `query_id`; `refresh=true` (or `start`/`end`) re-runs it first |
 | `vss_list_searches` | search | Saved searches (VSS search history), newest first; `watched_only` for active watches |
-| `vss_refetch_search` | search | Re-run a saved search, optionally over a new time range |
-| `vss_watch_search` | search | Track someone or something live: start a watched search (from a `query`, `image`, or a hit's `frame` via `from_hit`, over a rolling `window_minutes`), poll it with `cursor` for new sightings and `last_seen` per camera, and stop it (`watch=false`, or automatically after `duration_minutes`) |
-| `vss_get_media_frame` | search | The image of a search hit's best-matching frame, from the hit's `frame` locator; crops to the detected object when the hit has a `crop_bbox` |
-| `vss_list_streams` | live | Registered RTSP cameras with state and ingest stats; filter by `state` or `tags` |
-| `vss_get_stream` | live | One camera's state, stats and last error |
-| `vss_add_stream` | live | Add one or more RTSP cameras (batch with `streams`); ingestion starts in the background |
-| `vss_update_stream` | live | Pause/resume a camera or change its name, tags, frame interval or detection settings |
-| `vss_remove_stream` | live | Stop and deregister cameras; their recorded footage and embeddings are kept (never purged) |
-| `vss_summarize_video` | summary | Summarize a video: a timeline plus, by default, a final summary; sampling, EVAM pipeline and audio are configurable, with the VSS UI defaults |
-| `vss_get_video_timeline` | summary | Timeline (and final summary, if produced) of an already-summarized video |
+| `vss_watch_search` | search | Track someone or something live: start a watched search (from a `query`, `image`, or a hit's `frame` via `from_hit`, over a rolling `window_minutes`), poll it with `cursor` (each poll waits up to `wait_seconds`, default 30, for a new sighting) for new sightings and `last_seen` per camera, and stop it (`watch=false`, or automatically after `duration_minutes`) |
+| `vss_get_media_frame` | search | The image of a search hit's best-matching frame, from the hit's `frame` locator; crops to the detected object when the hit has a `crop_bbox`. Returns the image inline plus a shareable `url` |
+| `vss_list_streams` | search | Registered RTSP cameras with state and ingest stats; filter by `state` or `tags` |
+| `vss_get_stream` | search | One camera's state, stats and last error |
+| `vss_add_stream` | search | Add one or more RTSP cameras (batch with `streams`); ingestion starts in the background |
+| `vss_update_stream` | search | Pause/resume a camera or change its name, tags, frame interval or detection settings |
+| `vss_remove_stream` | search | Stop and deregister cameras; their recorded footage and embeddings are kept (never purged) |
+| `vss_summarize_video` | summary | Summarize a video and return only its final summary, in full (`final_summary=false` returns the timeline instead); sampling, Ingestion pipeline and audio are configurable, with the VSS UI defaults |
+| `vss_get_video_summary_timeline` | summary | Full timeline (and final summary, if produced) of an already-summarized video |
 
-**Uploading a video is not a tool.** This server has no way to accept file
-bytes over MCP that is both safe and reliable across deployments: reading a
-path only works when the caller's file already lives on this server's own
-filesystem, and a general-purpose HTTP tool would turn this server into an
-open proxy onto its network for one narrow feature. Call
-`vss_get_deployment_info` for `upload_url`
-(`http://<VSS_IP>:<APP_HOST_PORT>/manager/videos`); have the file POSTed there — by the user or their own
-tooling, outside this server — as `multipart/form-data` with field `video`,
-then pass the returned `videoId` to `vss_index_video`.
-
+**Uploading a video is not a tool.** Call `vss_get_deployment_info` for
+`upload_url` (`http://<VSS_IP>:<APP_HOST_PORT>/manager/videos`); have the file
+POSTed there — by the user or their own tooling, outside this server — as
+`multipart/form-data` with field `video`, then pass the returned `videoId` to
+`vss_index_video`.
 
 ## Quick start
 
-**The MCP server runs with every VSS deployment.** Every tool it exposes is a
-call into Pipeline Manager, so it probes the deployment for its features at
-startup and registers only the tools that deployment can serve.
-
-It is a **part of the VSS deployment** rather than a stack of its own: same
-Compose project, same `vs_network`, same `.env`. Its compose file lives in
-[`../docker`](../docker) with the rest of the stack, and `setup.sh` starts it
-along with everything else. It is reachable through the nginx gateway at
-`http://<HOST_IP>:<APP_HOST_PORT>/mcp` (default `http://<HOST_IP>:12345/mcp`).
+**The MCP server runs with every VSS deployment.** It is a part of the VSS
+deployment rather than a stack of its own — same Compose project, same
+`vs_network`, same `.env` — and `setup.sh` starts it along with everything
+else. At startup it probes `GET /app/features` and registers only the tools
+that deployment can serve.
 
 ```bash
 cd sample-applications/video-search-and-summarization
 source setup.sh --search   # or --summary, --dual, --unified
 ```
 
-`setup.sh` needs no MCP-specific exports:
-
-- **`HOST_IP`** is detected from `ip route get 1`, as for a normal deploy.
-  Export it only to override the detected address.
-- **`VSS_IP`** — the VSS gateway host the server calls and puts in every URL it
-  returns — defaults to `HOST_IP`. Set it in `.env` or your shell when the
-  VSS gateway runs on another machine. It must be a bare IP or hostname
-  reachable by your agent, never `localhost`.
-
-`source setup.sh --stop` (or `make stop`) stops the MCP server along with the
-rest of the stack.
-
-To run the MCP server by hand, from the repository root:
-
-```bash
-export VSS_IP=$(ip route get 1 | awk '{print $7}')
-COMPOSE_IGNORE_ORPHANS=true docker compose --env-file .env \
-  -f docker/compose.base.yaml -f docker/compose.mcp.yaml \
-  --profile mcp up --build -d mcp-server
-```
-
-Both leading pieces are load-bearing:
-
-- **`--env-file .env`** — Compose resolves the default `.env` against the
-  *project directory*, which is the directory of the first `-f` file (`docker/`),
-  not against your shell's cwd. Without the flag settings such as
-  `APP_HOST_PORT` and `VSS_IP` in the root `.env` are ignored.
-- **`VSS_IP`** — the only required setting when running Compose by hand
-  (`setup.sh` fills it in for you). Every URL the server calls or hands to
-  agents is built from it.
-- **`COMPOSE_IGNORE_ORPHANS=true`** — passing a subset of the project's compose
-  files makes every other VSS container look like an orphan. Don't "fix" that
-  warning with `--remove-orphans`; it would take the rest of the deployment down.
-
-Behind a corporate proxy set `http_proxy`, `https_proxy` and `no_proxy`;
-`HOST_IP` and `VSS_IP` are appended to `no_proxy` inside the container so the
-server always reaches the gateway directly.
-
 | Service | URL |
 |---|---|
 | MCP Server (via nginx gateway) | `http://<HOST_IP>:<APP_HOST_PORT>/mcp` (default port `12345`) |
 
-To try the tools interactively, point any MCP client that supports the
-**Streamable HTTP** transport at that URL, or use MCP Inspector as described
-next.
-
+Point any MCP client that supports the **Streamable HTTP** transport at that
+URL, or use MCP Inspector as described next.
 
 ## Debugging with MCP Inspector
 
-`setup.sh` does not start MCP Inspector. To debug the server from this folder,
-with VSS running:
+`setup.sh` does not start MCP Inspector, but it can connect to the running
+deployment's MCP server without stopping anything. From `mcp/`:
 
 ```bash
-(cd .. && source setup.sh --stop)   # stops the stack, including its MCP server
-HOST_IP=<vss-host-ip> docker compose up --build -d
+cd mcp
+HOST_IP=<vss-host-ip> docker compose up -d mcp-inspector
 ```
 
-This builds and runs the same image (`${REGISTRY}vss-mcp-server:${TAG}`,
-default `vss-mcp-server:latest`) and the same `vss-mcp-server` container as
-the VSS stack, but publishes it directly on host port 8000 (the stack only
-exposes it through nginx at `:12345/mcp`), plus `vss-mcp-inspector`, with
-`LOG_LEVEL=DEBUG`. Run one or the other, not both; a dev build also replaces
-the image the VSS stack runs.
+Open Inspector at **`http://localhost:6274`** then choose **Streamable HTTP** and connect to
+**`http://<HOST_IP>:<APP_HOST_PORT>/mcp`** (default `http://<HOST_IP>:12345/mcp`),
+the running deployment's own MCP server.
 
-Open **`http://<HOST_IP>:6274`**, choose **Streamable HTTP**, and connect to
-**`http://mcp-server:8000/mcp`**. Stop it with `docker compose down`.
+If your browser runs on the host, use `http://localhost:6274` directly. If it runs elsewhere, tunnel instead of using the bare IP:
 
-> **Warning:** Inspector auth is disabled in this dev stack. Use it only on a
-> trusted network.
-
-## Tracing agent calls
-
-Every tool, resource and prompt call gets a short id, and every log line it
-causes -- including each Pipeline Manager request -- carries it as `[id]`:
-
-```text
-DEBUG | vss_mcp.calls   | [9fcbb83c] tool vss_search_video called with {'query': 'person walking'}
-INFO  | src.clients.vss | [9fcbb83c] VSS POST /search -> 201 in 18 ms
-INFO  | src.clients.vss | [9fcbb83c] VSS GET /search/339b... -> 200 in 25 ms
-INFO  | vss_mcp.calls   | [9fcbb83c] tool vss_search_video ok in 5105 ms
-INFO  | vss_mcp.calls   | [64ffe9f8] tool vss_get_stream failed in 34 ms: No live stream with id 'nope'. ...
+```bash
+ssh -L 6274:localhost:6274 <user>@host-ip>
 ```
 
-`vss_watch_search` also logs one `watch <query_id> start|poll|stop` line with
-the new-sighting count and whether it expired. At `INFO` you get the call flow,
-timings and errors; `LOG_LEVEL=DEBUG` adds each call's arguments, with URL
-credentials masked and image data and long text shortened. Follow one call
-with `docker logs vss-mcp-server 2>&1 | grep '\[9fcbb83c\]'`.
+then open `http://localhost:6274` locally.
 
+Inspector auth is on by default; find the session token with
+`docker compose logs mcp-inspector`. Only set `DANGEROUSLY_OMIT_AUTH=true` on
+a trusted, isolated network.
 
 ## Configuration
 
@@ -203,39 +105,4 @@ with `docker logs vss-mcp-server 2>&1 | grep '\[9fcbb83c\]'`.
 | `DEFAULT_WAIT_SECONDS` | `600` | Budget for tools that wait on a pipeline |
 | `VSS_INDEX_STRATEGY` | `auto` | `auto`, `summary`, or `embeddings` |
 | `LOG_LEVEL` | `INFO` | Python log level |
-
-Every VSS URL is derived from those three: Pipeline Manager at
-`http://<VSS_IP>:<APP_HOST_PORT>/manager` (also the upload and frame links
-handed to agents) and the datastore at `.../datastore`. The server always
-goes through the gateway rather than the internal `pipeline-manager:3000`
-address, so the links it returns are the ones it has itself reached.
-Configuration comes from the application's root `.env`; there is no separate
-MCP env file.
-
-
-## Adding a tool
-
-Tools are code now, so adding one is a small edit rather than a config change —
-the trade for no longer being able to expose an endpoint by listing it.
-
-1. Add an async function to the relevant module in `src/tools/`, taking `Deps`
-   as its first argument, and returning a projected dict.
-2. Register it inside that module's `register()` with an `@mcp.tool` wrapper
-   whose docstring is written for a model to read.
-3. Add a test in `tests/test_tools.py` against `FakeVss` (from `tests/fakes.py`).
-
-Two rules for anything new: return a projection rather than the upstream
-payload, and keep results inside the byte budget with `cap_payload`.
-
-
-## Tests
-
-From `mcp/`:
-
-```bash
-uv run pytest                                   # whole suite
-uv run pytest tests/test_tools.py -k search     # a subset
-```
-
-`uv run` creates `.venv` from `pyproject.toml` and `uv.lock`, including the `dev` dependency group. Poetry reads the same `pyproject.toml` (`poetry install --with dev && poetry run pytest`).
 

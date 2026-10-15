@@ -16,7 +16,8 @@ SPDX-License-Identifier: Apache-2.0
 
 Natural-language search over the indexed video library. Call the documented API
 yourself and report only observed responses. Endpoints use the nginx `/manager`
-prefix.
+prefix. When the `vss_*` MCP tools are connected, they cover the same search,
+indexing, and camera work; this skill is the REST route.
 
 Set `HOST=http://${HOST_IP:-localhost}:${APP_HOST_PORT:-12345}`.
 

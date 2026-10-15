@@ -23,6 +23,9 @@ it hands to an agent is one it has reached itself.
 - **Surface follows the deployment.** `GET /app/features` is read once at
   startup. Tools, resources and prompts for a disabled feature are never
   registered. There is no way to force the surface by hand.
+- **`vss_summarize_video` returns only the final summary**, in full; with
+  `final_summary=false` it returns the full timeline instead.
+  `vss_get_video_summary_timeline` always returns the timeline.
 - **Summaries use the VSS defaults.** `vss_summarize_video` sends
   `produceFinalSummary: true` and polls until `videoSummaryStatus` is
   `"complete"`, like the UI. Sampling (8 s chunks, 8 frames, the deployment's
@@ -32,24 +35,30 @@ it hands to an agent is one it has reached itself.
   `final_summary=false`, `videoSummaryStatus` ends at `"na"`, so polling keys
   off chunking completion plus a drained `frameSummaryStatus`. Summary-based
   indexing (`vss_index_video`) stays chunk-only without audio. If the wait
-  budget runs out, the tool returns a `state_id` for `vss_get_video_timeline`.
+  budget runs out, the tool returns a `state_id` for `vss_get_video_summary_timeline`.
 - **Searches are persisted.** `vss_search_video` creates a query with
   `POST /search`, as the UI does, then polls `GET /search/{queryId}` until
   `queryStatus` leaves `running` (default budget 60 s, or `wait_seconds`). It
   returns `query_id` and `status`; `status: "running"` means fetch the hits
-  later with `vss_get_search`. `vss_list_searches`, `vss_refetch_search` and
-  `vss_watch_search` wrap `GET /search`, `POST /search/{id}/refetch` and
-  `PATCH /search/{id}/watch`. A failed query (`queryStatus: "error"`) is
+  later with `vss_get_search`, which with `refresh=true` (or `start`/`end`)
+  re-runs it via `POST /search/{id}/refetch` first. `vss_list_searches` and
+  `vss_watch_search` wrap `GET /search` and `PATCH /search/{id}/watch`. A failed query (`queryStatus: "error"`) is
   returned as a tool error.
 - **Watching is tracking.** `vss_watch_search` can create the search itself
   (`query`, `image`, or `from_hit`, which fetches the hit's crop with
   `GET /frames` and searches by it), with `window_minutes` as a relative
   `timeFilter` that Pipeline Manager recomputes on every refresh. Polls read
   `GET /search/{id}` and return hits newer than `cursor`
-  (`w1.<newest_ms>.<expiry_ms>`, opaque to the agent); `poll_after_seconds`
-  comes from `GET /search/refresh-config`. When auto-refresh is disabled the
-  poll calls `POST /search/{id}/refetch` itself. Expiry (`duration_minutes`)
-  is applied on the next poll, which unwatches and returns `expired: true`.
+  (`w1.<newest_ms>.<expiry_ms>`, opaque to the agent). A poll with a cursor
+  is a long poll: it re-reads the search until a new sighting arrives or
+  `wait_seconds` (default 30, max 120, capped by `DEFAULT_WAIT_SECONDS` and
+  the expiry) runs out, sending MCP progress notifications meanwhile, so
+  `poll_after_seconds` is `0`. When `GET /search/refresh-config` reports
+  auto-refresh disabled, nothing new can arrive: the poll returns at once with
+  an `error` pointing at `vss_get_search refresh=true`, and
+  `poll_after_seconds` is the configured interval. Expiry
+  (`duration_minutes`) is applied on the next poll, which unwatches and
+  returns `expired: true`.
 - **Live cameras.** The stream tools wrap `/streams` (`GET`, `POST`,
   `POST /streams/batch`, `PATCH /{id}`, `DELETE /{id}` without purge) and are
   registered only with `imageSearchEnabled`. Every URL, name and error is
@@ -80,8 +89,9 @@ it hands to an agent is one it has reached itself.
   Do not re-index just because the value is `null`.
 - **Search hits carry a reachable `url`** under
   `http://<VSS_IP>:<APP_HOST_PORT>/datastore`, with `start_s`/`end_s`/`seek_s`
-  in seconds. Output is multiline JSON inside an 8,000-byte budget; only whole
-  hits are dropped (`truncated: true`), and URLs are never shortened.
+  in seconds. Search hits, captions and summaries are never truncated; only
+  listing tools (videos, tags, searches, cameras) are trimmed to an
+  8,000-byte budget (`truncated: true`).
 - **Time filters are absolute.** `start` and `end` are ISO-8601 and both are
   required. The agent resolves "last 2 hours" using `server_time_utc` from
   `vss_get_deployment_info`.
@@ -126,18 +136,25 @@ its own bucket under `search-images/`. The host in `imageUrl` comes from
 | Container restarts in a loop, log says to set `HOST_IP` | `HOST_IP` unset. Export it or pass it on the `up` command |
 | Startup fails reaching `/manager/app/features` | VSS is not up, or `VSS_IP`/`APP_HOST_PORT` are wrong. Check `curl http://<VSS_IP>:12345/manager/health` |
 | Inspector shows a corporate proxy error page | Proxy injected by Docker. Node matches `no_proxy` by exact host, not by CIDR; `mcp/compose.yaml` already adds `mcp-server` and `HOST_IP` |
-| Inspector returns 403 on connect | Browser origin not in `ALLOWED_ORIGINS`. Browse at `http://<HOST_IP>:6274`, `localhost` or `127.0.0.1` on `INSPECTOR_PORT` |
+| Inspector returns 403 on connect | Browser origin not in `ALLOWED_ORIGINS`. Browse at `http://localhost:6274` or `http://127.0.0.1:6274` on `INSPECTOR_PORT` |
+| "Add Server" fails with `crypto.randomUUID is not a function` | Inspector was opened from `http://<HOST_IP>:6274` (plain HTTP, non-localhost host) -- not a secure context, so the browser hides `crypto.randomUUID()`. Browse to `http://localhost:6274` instead; from a different machine, `ssh -L 6274:localhost:6274 <user>@<host-ip>` and browse to `localhost` there. The target MCP server is not at fault |
 | Search tools missing | Search feature off, or the server started before the mode changed. Restart it |
 | `--remove-orphans` took VSS down | Never use it with the MCP-only compose file set. `setup.sh` sets `COMPOSE_IGNORE_ORPHANS=true` instead |
 
-## Dev stack settings (`mcp/compose.yaml`)
+## Inspector settings (`mcp/compose.yaml`)
+
+Standalone and name/port-isolated from the VSS stack's own `vss-mcp-server`
+container, so it runs alongside a live deployment without stopping it.
+`mcp-inspector` alone is enough to debug that deployment's MCP server at
+`http://<HOST_IP>:<APP_HOST_PORT>/mcp`; the optional `mcp-server` service here
+is only for exercising an uncommitted code change.
 
 | Variable | Default |
 |---|---|
-| `MCP_HOST_PORT` | `8000` |
+| `MCP_HOST_PORT` | `8001` (optional dev build only; the VSS stack's own server is not published on the host) |
 | `MCP_LOG_LEVEL` | `DEBUG` |
 | `INSPECTOR_PORT` | `6274` |
 | `INSPECTOR_BIND_ADDRESS` | `0.0.0.0` (set `127.0.0.1` for loopback only) |
-| `INSPECTOR_TAG` | `2.8.0` |
-| `DANGEROUSLY_OMIT_AUTH` | `true` (set `false` to require the logged `Auth token`) |
+| `INSPECTOR_TAG` | `2.10.0` |
+| `DANGEROUSLY_OMIT_AUTH` | `false` (set `true` to skip the logged `Auth token`, trusted networks only) |
 | `MCP_INSPECTOR_API_TOKEN` | generated per launch |

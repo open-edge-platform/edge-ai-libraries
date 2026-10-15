@@ -35,6 +35,11 @@ export enum SearchEvents {
   RUN_QUERY = 'search.run.query',
 }
 
+export enum StreamEvents {
+  /** Payload: `string[]`, the union of tags on all registered live streams. */
+  TAGS_SEEN = 'streams.tags.seen',
+}
+
 export enum PipelineErrors {}
 
 export interface PipelineDTOBase {

@@ -5,13 +5,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastmcp import Context, FastMCP
 
 from ..clients import VssError
-from ..projections import is_timeline_done, slim_summary
-from ..schemas import Timeline
+from ..projections import is_timeline_done, parse_iso_epoch, slim_summary
+from ..schemas import Timeline, VideoSummary
 from ._deps import READ_ONLY, STARTS_WORK, Deps, require_video, run_summary
 
 
@@ -30,10 +31,11 @@ async def summarize_video(
     wait_seconds: float | None = None,
     ctx: Context | None = None,
     **options: Any,
-) -> Timeline:
+) -> VideoSummary:
     """Caption a video chunk by chunk and, by default, roll the captions up
-    into a final summary, as VSS does. Returns the result so far; it is
-    partial (``completed`` false) when the budget expires first.
+    into a final summary, as VSS does. Returns only the final summary then,
+    or the full timeline with ``final_summary=False``. ``completed`` is false
+    when the wait budget expires first.
 
     ``options`` are the sampling, EVAM and audio options of
     :func:`~._deps.build_summary_body`.
@@ -56,6 +58,7 @@ async def summarize_video(
     result = slim_summary(
         state or {"videoId": video_id, "stateId": state_id},
         final_summary=final_summary,
+        include_timeline=not final_summary,
     )
     return {**result, "state_id": state_id, "completed": completed}
 
@@ -64,7 +67,7 @@ async def get_video_timeline(
     deps: Deps, video_id: str | None = None, state_id: str | None = None
 ) -> Timeline:
     """Return the caption timeline of a run, by ``state_id`` or else the
-    latest run for ``video_id`` (preferring a completed one).
+    most recently created run for ``video_id`` (preferring a completed one).
 
     Raises:
         VssError: If neither argument is given, or no run exists.
@@ -90,8 +93,32 @@ async def get_video_timeline(
             "summarize_video first."
         )
     done = [state for state in states if is_timeline_done(state)]
-    state = (done or states)[-1]
+    state = await _newest_run(deps, done or states)
     return slim_summary(state, final_summary=produced_final_summary(state))
+
+
+async def _newest_run(deps: Deps, states: list[dict[str, Any]]) -> dict[str, Any]:
+    """Pick the most recently created of ``states``.
+
+    ``GET /summary/ui`` is in no defined order (an unsorted database read),
+    so creation times come from each run's raw state. A run whose time
+    cannot be read sorts oldest; ties keep the backend's order.
+    """
+
+    if len(states) == 1:
+        return states[0]
+
+    async def created(state: dict[str, Any]) -> float:
+        try:
+            stamp = await deps.client.get_state_created_at(str(state.get("stateId")))
+        except VssError:
+            stamp = None
+        epoch = parse_iso_epoch(stamp)
+        return epoch if epoch is not None else float("-inf")
+
+    epochs = await asyncio.gather(*(created(state) for state in states))
+    newest = max(range(len(states)), key=lambda index: (epochs[index], index))
+    return states[newest]
 
 
 def register(mcp: FastMCP, deps: Deps) -> None:
@@ -119,22 +146,22 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         audio_model: str | None = None,
         audio_full_transcript_summary: bool = False,
         wait_seconds: float | None = None,
-    ) -> Timeline:
-        """Summarize a video: a timeline of what happens when, plus one
-        overall prose summary.
+    ) -> VideoSummary:
+        """Summarize a video and return its final summary, in full.
 
-        Defaults match the VSS UI and API. Set final_summary=false for only
-        the chunk-level timeline, which is faster. completed=false means the
-        wait budget ran out: the result holds the captions so far, and
-        vss_get_video_timeline with state_id returns the rest later. Leave
+        Defaults match the VSS UI and API. Set final_summary=false to get
+        the chunk-level timeline (what happens when) instead, which is
+        faster. completed=false means the wait budget ran out: call
+        vss_get_video_summary_timeline with state_id later for the result. Leave
         the sampling, pipeline and audio options unset unless the user asks
         for them; an invalid value is rejected with the allowed ones.
 
         Args:
             video_id: Video to summarize.
             focus: Steer the captions, e.g. "forklifts and pedestrians".
-            final_summary: Also roll the captions up into one prose summary
-                (default true, as in VSS). False returns the timeline only.
+            final_summary: Roll the captions up into one prose summary and
+                return only that (default true, as in VSS). False returns
+                the timeline instead.
             chunk_duration: Seconds of video per chunk (default 8).
             sampling_frames: Frames sampled per chunk (default 8, capped by
                 the deployment's batch size).
@@ -168,16 +195,17 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         )
 
     @mcp.tool(annotations=READ_ONLY)
-    async def vss_get_video_timeline(
+    async def vss_get_video_summary_timeline(
         video_id: str | None = None, state_id: str | None = None
     ) -> Timeline:
-        """Return the caption timeline of an already-summarized video, with
-        its final summary when the run produced one.
+        """Return the full caption timeline of an already-summarized video,
+        with its final summary when the run produced one.
 
         completed=false means the run is still going.
 
         Args:
-            video_id: Video whose most recent run should be used.
+            video_id: Video whose most recently created run should be used,
+                preferring a completed one.
             state_id: A specific run, taking precedence over video_id.
         """
 
