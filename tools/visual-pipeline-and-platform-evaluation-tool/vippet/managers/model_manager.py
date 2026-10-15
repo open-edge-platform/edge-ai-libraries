@@ -307,7 +307,8 @@ class ModelManager:
     # Public: model listing
     # ------------------------------------------------------------------
 
-    async def list_hub_models(self, request: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    async def list_hub_models(request: dict[str, Any]) -> dict[str, Any]:
         """Proxy a model-catalog listing request to model-download."""
         url = f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/models/list"
         async with httpx.AsyncClient(timeout=HTTP_REQUEST_TIMEOUT_S) as client:

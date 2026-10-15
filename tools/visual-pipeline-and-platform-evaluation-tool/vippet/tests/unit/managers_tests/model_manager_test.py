@@ -615,9 +615,11 @@ class TestScanHuggingfaceVariant(unittest.TestCase):
         )
 
         open(os.path.join(model_dir, "openvino_language_model.xml"), "w").close()
-        precision, model_path = mm_module.scan_huggingface_variant(
+        scan_result = mm_module.scan_huggingface_variant(
             name, InternalModelCategory.VISION_LANGUAGE_MODELS
         )
+        assert scan_result is not None
+        precision, model_path = scan_result
         self.assertEqual(precision, "INT8")
         self.assertEqual(model_path, f"huggingface/{name.replace('/', '_')}")
 
@@ -628,9 +630,11 @@ class TestScanHuggingfaceVariant(unittest.TestCase):
         os.makedirs(nested, exist_ok=True)
         open(os.path.join(nested, "openvino_language_model.xml"), "w").close()
 
-        precision, model_path = mm_module.scan_huggingface_variant(
+        scan_result = mm_module.scan_huggingface_variant(
             name, InternalModelCategory.VISION_LANGUAGE_MODELS
         )
+        assert scan_result is not None
+        precision, model_path = scan_result
         self.assertEqual(precision, "")
         self.assertEqual(
             model_path, f"huggingface/{name.replace('/', '_')}/openvino_model"
@@ -641,9 +645,11 @@ class TestScanHuggingfaceVariant(unittest.TestCase):
         model_dir = self._model_dir(name)
         open(os.path.join(model_dir, "openvino_model.bin"), "w").close()
 
-        precision, model_path = mm_module.scan_huggingface_variant(
+        scan_result = mm_module.scan_huggingface_variant(
             name, InternalModelCategory.LARGE_LANGUAGE_MODELS
         )
+        assert scan_result is not None
+        precision, model_path = scan_result
         self.assertEqual(precision, "INT4")
         self.assertEqual(model_path, f"huggingface/{name.replace('/', '_')}")
 
@@ -653,9 +659,11 @@ class TestScanHuggingfaceVariant(unittest.TestCase):
         open(os.path.join(model_dir, "tokenizer.xml"), "w").close()
         open(os.path.join(model_dir, "openvino_model.xml"), "w").close()
 
-        precision, model_path = mm_module.scan_huggingface_variant(
+        scan_result = mm_module.scan_huggingface_variant(
             name, InternalModelCategory.OBJECT_DETECTION
         )
+        assert scan_result is not None
+        precision, model_path = scan_result
         self.assertEqual(precision, "FP16")
         self.assertEqual(
             model_path,

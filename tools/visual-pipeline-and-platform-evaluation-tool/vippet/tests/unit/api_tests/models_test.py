@@ -322,9 +322,7 @@ class TestModelHubListAPI(unittest.TestCase):
         with patch(
             "managers.model_manager.httpx.AsyncClient", return_value=mock_client
         ):
-            result = asyncio.run(
-                ConcreteModelManager.list_hub_models(None, request_body)
-            )
+            result = asyncio.run(ConcreteModelManager.list_hub_models(request_body))
 
         self.assertEqual(result, catalog)
         mock_client.post.assert_awaited_once_with(
