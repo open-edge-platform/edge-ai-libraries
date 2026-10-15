@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 # Wireframing — the approval gate before any code is written
 
 - Hard gate: a low-fidelity, drag-and-drop-editable wireframe must be **explicitly approved by the
-  user** before Step 7 (Scaffold and build) starts.
+  user** before Step A.7 (Scaffold and build) starts.
 - Existing app → wireframe reflects the *current* UI. New app → wireframe represents the *proposed*
   UI.
 - Never skip straight to scaffolding because the layout "seems obvious" — diagram feedback is
@@ -31,19 +31,20 @@ Use `ask_user` — never assume:
 ## 2. Determine the layout and component list to draw
 
 - Resolve the layout pattern: `layout-patterns.html` → "Choosing a layout for a new resource"
-  (driven by backend resource shapes from Step 2 and/or the blueprint mapping from Step 4). If it's
+  (driven by backend resource shapes from Step A.2 and/or the blueprint mapping from Step A.4). If
+  it's
   not obvious, ask the user — don't guess.
 - **Existing app, no blueprint**: read its current component tree (JSX/template structure, routes,
   CSS grid/flex regions actually rendered). Enumerate the real regions/component instances (Header,
   Sidebar, Card, Table, etc.) with approximate nesting/position. The wireframe must match what's
   live today — don't invent or "improve" structure at this stage.
 - **Existing app, blueprint provided**: read the current component tree first (as above), then for
-  the region(s) the blueprint covers, lay out boxes from the backend resources/fields (Step 2) and
-  the blueprint's region mapping (Step 4) — same as a new app. Slot these into the existing
+  the region(s) the blueprint covers, lay out boxes from the backend resources/fields (Step A.2)
+  and the blueprint's region mapping (Step A.4) — same as a new app. Slot these into the existing
   layout/nav structure rather than discarding it; untouched existing regions still reflect what's
   live today, not a redesign.
 - **New app**: lay out boxes region-by-region using the chosen layout pattern, the backend
-  resources/fields (Step 2), and the blueprint's region mapping (Step 4, if provided).
+  resources/fields (Step A.2), and the blueprint's region mapping (Step A.4, if provided).
 - Map each element to a neutral, labeled box — gray/placeholder-styled, not final brand colors
   (this stage reviews *structure*, not visual polish):
 
@@ -91,13 +92,14 @@ Use `ask_user` — never assume:
   may drag/resize/add/remove boxes directly in the tool, or describe changes in chat for the skill
   to apply to the same XML file.
 - Update the **same** file on every round of feedback — never generate a new file per round.
-- Do not proceed to Step 7 until the user gives **explicit** approval (e.g. "approved", "looks
+- Do not proceed to Step A.7 until the user gives **explicit** approval (e.g. "approved", "looks
   good, build it"). If the response is ambiguous, ask directly — never assume approval.
-- Once approved, the box layout/component list is the authoritative structure for Step 7 — build to
+- Once approved, the box layout/component list is the authoritative structure for Step A.7 —
+  build to
   match it, don't redesign on the fly.
-- After the UI is built (Step 8), ask the user whether the wireframe file should be kept in the
+- After the UI is built (Step A.8), ask the user whether the wireframe file should be kept in the
   repo (e.g. under `docs/wireframes/`), moved, or deleted — same handling as blueprint images in
-  Step 4.
+  Step A.4.
 
 ## Figma/FigJam specifics
 

@@ -6,7 +6,7 @@
  * edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool/ui — see
  * .github/skills/unified-ui-ux-builder/references/design-tokens.md for the full palette and rationale.
  * Keep the base/neutral/status tokens as-is; only the "Brand accent" block below should be
- * revisited per-app, and only after asking the user (see SKILL.md Step 6).
+ * revisited per-app, and only after asking the user (see SKILL.md Step A.6).
  */
 
 @import "tailwindcss";

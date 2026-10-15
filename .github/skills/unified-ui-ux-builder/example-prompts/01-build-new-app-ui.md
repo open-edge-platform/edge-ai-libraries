@@ -11,7 +11,7 @@ SPDX-License-Identifier: Apache-2.0
 > (see `metro-ai-suite/fleet-health-monitor/backend/routes.py`). It should look
 > and feel consistent with the rest of the repo.
 
-Expected agent behavior (`SKILL.md` Steps 1–8):
+Expected agent behavior (`SKILL.md` Steps A.1–A.8):
 
 1. **Path** — confirm target path; no `ui/` exists yet → new app, not an edit.
 2. **Use case + backend**
@@ -19,7 +19,7 @@ Expected agent behavior (`SKILL.md` Steps 1–8):
    - Enumerate real endpoints/fields (`/vehicles`, `/alerts`, `/telemetry/{vehicle_id}`).
    - State inferred use case back to the user; never invent fields.
 3. **Stack** — brand-new app → `ask_user` with the 3 stack options + "recommend one"; never
-   assume. Must be resolved before blueprint analysis (Step 4), since component mapping depends
+   assume. Must be resolved before blueprint analysis (Step A.4), since component mapping depends
    on it.
 4. **Blueprint** — ask if one exists; none → ask if the user wants to describe the layout in
    text; neither given → build from `layout-patterns.html` + `component-library.md` +

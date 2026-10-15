@@ -14,7 +14,7 @@ SPDX-License-Identifier: Apache-2.0
 > exposes `/api/alerts` (see
 > `predictive-maintenance-suite/machine-health-monitor/backend/routes.py`).
 
-Expected agent behavior (`SKILL.md` Steps 1–8):
+Expected agent behavior (`SKILL.md` Steps A.1–A.8):
 
 1. **Path** — confirm target path if ambiguous.
 2. **Analyze existing UI first**
@@ -24,7 +24,7 @@ Expected agent behavior (`SKILL.md` Steps 1–8):
    - Read current component tree/routes to locate the live dashboard page.
    - Check OpenAPI spec/docs first for `/api/alerts`; read route source only if missing.
    - Enumerate real fields; never invent a severity/field the backend doesn't return.
-3. **Stack** — already resolved in Step 2 → skip, no `ask_user` prompt.
+3. **Stack** — already resolved in Step A.2 → skip, no `ask_user` prompt.
 4. **Blueprint** — ask if one exists for the new panel.
    - None → `ask_user` if the user wants to describe the panel in text; neither given → design from the
      backend shape + existing page layout, using `layout-patterns.html` + `component-library.md` + `design-tokens.md` for the new region — not an invented layout/styling.
@@ -32,6 +32,11 @@ Expected agent behavior (`SKILL.md` Steps 1–8):
      patterns; keep untouched regions exactly as they are today; flag anything the stack can't
      faithfully build, and any backend-data gap, separately — never silently approximate or
      switch stacks.
+   - **Must-have check** — while reading the existing header/page (Step A.2) and the blueprint, this
+     app turns out to have no light/dark theme toggle — a must-have every reference stack has. Flag
+     it to the user explicitly (separate from the new alerts-panel work), `ask_user` whether to add
+     it in this same pass or skip it for now; skipping it → note as an open gap in the Step A.8
+     summary, don't drop it silently.
 5. **Design system** — reuse the existing app's exact accent/status-pill/card patterns; no new
    colors or components for this feature.
 6. **Wireframe (hard gate)**

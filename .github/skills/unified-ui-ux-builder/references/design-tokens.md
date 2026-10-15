@@ -33,7 +33,7 @@ Consolidated from **only** the three reference apps this skill is grounded in (s
 >   propose the closest matching token as the default. Still insisted on → tell them plainly it
 >   breaks visual consistency with the rest of the product family (this skill's core goal); never
 >   apply it silently. Proceed only after their explicit confirmation, and record the override in
->   the Step 8 summary (`SKILL.md`).
+>   the Step A.8 summary (`SKILL.md`).
 
 ## Stack A — React + Redux Toolkit + Tailwind v4 + Radix (shadcn-style)
 
