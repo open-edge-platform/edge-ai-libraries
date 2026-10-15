@@ -59,19 +59,17 @@ export const LivePipelineEvents = ({
               </span>
               <Badge
                 variant={event.source === "vlm" ? "default" : "secondary"}
-                className="shrink-0"
+                className="w-16 shrink-0 justify-center"
               >
                 {SOURCE_LABELS[event.source] ?? event.source}
               </Badge>
-              <span className="whitespace-pre-wrap break-words min-w-0">
+              <span className="min-w-0 whitespace-pre-wrap break-words leading-relaxed">
                 {event.prompt && (
                   <span className="text-muted-foreground">
                     {event.prompt} →{" "}
                   </span>
                 )}
-                <span className={event.prompt ? "font-medium" : undefined}>
-                  {event.text}
-                </span>
+                <span className="font-medium">{event.text}</span>
               </span>
             </li>
           ))}
