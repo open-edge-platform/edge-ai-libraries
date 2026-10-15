@@ -100,14 +100,6 @@ act_helper () {
   shift
   shift
 
-  if [[ " $* " = *" --help "* ]]; then
-    echo "${act_name} options:"
-    echo "  --dry-run       dry-run operations"
-    echo "  --continue      ignore errors and proceed to the end"
-    echo
-    return 0
-  fi
-
   # fill in the saved module list if none is named; remember explicit ones
   local mods_file="$(ensure_project_path)/$installer_name/modules"
   local explicit_mods="$(act_extract_modules $act_name "$@")"
