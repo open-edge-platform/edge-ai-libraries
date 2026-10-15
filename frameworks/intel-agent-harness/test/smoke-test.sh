@@ -351,6 +351,16 @@ phase_02_selfcheck() {
   # already-exported model always 404'd even though the server was healthy.
   check "run_agent_onboard auto-discovers the sole registered model instead of a bare 'default'" \
     bash -c "grep -q 'ovms_sole_registered_model_name' '$REPO_ROOT/scripts/lib/agents.sh'"
+  # dcode's own internal LangGraph dev-server health check over-eagerly
+  # respects HTTP_PROXY/HTTPS_PROXY for what's purely local loopback
+  # traffic -- behind a corporate proxy, that gets routed through the
+  # proxy (which 403s it), and dcode times out after 60s. Neither that
+  # health check nor the actual OVMS call afterward need external network
+  # access, so the onboarding smoke test must strip these vars for just
+  # this invocation -- confirmed empirically (403/60s-timeout with them
+  # set, clean success in ~1-2s without).
+  check "run_agent_onboard strips proxy vars for dcode's own onboarding smoke test" \
+    bash -c "awk '/^run_agent_onboard\\(\\)/,/^}/' '$REPO_ROOT/scripts/lib/agents.sh' | grep -q 'env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy'"
   # --device alone doesn't grant a non-root container GPU access -- OVMS's
   # own docs (accelerators.md) document --group-add=<render-gid> as a
   # required *additional* flag. Without it, GPU acceleration would silently

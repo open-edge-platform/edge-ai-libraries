@@ -443,7 +443,21 @@ manually instead: openclaw config set models.providers.ovms '{\"baseUrl\":\"${en
       command_exists "$cli_bin" || error "dcode not found after install."
       configure_dcode_provider "$endpoint" "$model_hint"
       info "Smoke-testing dcode against ${endpoint} (model: ${model_hint})…"
+      # dcode starts its own local LangGraph dev server as part of this
+      # invocation and health-checks it over plain HTTP before running the
+      # prompt. Behind a corporate proxy (HTTP_PROXY/HTTPS_PROXY set),
+      # that purely-local health check gets routed through the proxy
+      # instead of hitting the server directly; the proxy then rejects it
+      # (403), and dcode times out after 60s waiting for a health check
+      # that was never going to succeed. Neither that health check nor the
+      # actual OVMS call dcode makes afterward (http://127.0.0.1:...) ever
+      # needs external network access, so stripping the proxy vars just
+      # for this one invocation is safe and fixes the smoke test outright
+      # instead of always failing behind a proxy -- confirmed empirically
+      # (reproduced the 403/60s-timeout with proxy vars set, confirmed
+      # clean success within ~1-2s with them unset).
       HARNESS_DCODE_API_KEY="${HARNESS_DCODE_API_KEY:-not-needed}" DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 \
+        env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy \
         "$cli_bin" -n "Say hello." --model "openai:${model_hint}" \
         || warn "Smoke test failed — check that the model server at ${endpoint} is reachable and that
 '${model_hint}' matches a model name registered with it."
