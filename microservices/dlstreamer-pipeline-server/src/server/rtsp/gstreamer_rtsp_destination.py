@@ -10,6 +10,7 @@ gi.require_version('Gst', '1.0')
 from gi.repository import Gst
 from src.server.common.utils import logging
 from src.server.app_destination import AppDestination
+from src.server.rtsp.gstreamer_rtsp_server import Stream
 # pylint: enable=wrong-import-position
 
 _SUPPORTED_ENCODINGS = ("mjpeg", "h264")
@@ -52,8 +53,8 @@ class GStreamerRtspDestination(AppDestination):
         encoding = str(request.get("encoding", "mjpeg")).lower()
         if encoding not in _SUPPORTED_ENCODINGS:
             self._logger.warning(
-                "Unsupported RTSP 'encoding' value '{}', falling back to 'mjpeg'. "
-                "Supported values: {}".format(encoding, _SUPPORTED_ENCODINGS))
+                "Unsupported RTSP 'encoding' value '%s', falling back to 'mjpeg'. "
+                "Supported values: %s", encoding, _SUPPORTED_ENCODINGS)
             encoding = "mjpeg"
         self.encoding = encoding
 
@@ -62,8 +63,8 @@ class GStreamerRtspDestination(AppDestination):
         caps = sample.get_caps()
         self._pipeline.appsink_element.props.caps = caps
         self._need_data = False
-        self._rtsp_server.add_stream(self._identifier, self._rtsp_path, caps, self, self.overlay,
-                                      self.overlay_properties, encoding=self.encoding)
+        stream = Stream(self, caps, self.overlay, self.overlay_properties, self.encoding)
+        self._rtsp_server.add_stream(self._identifier, self._rtsp_path, stream)
         self._last_timestamp = self._clock.get_time()
         if self._sync_with_source is not None:
             self._pipeline.appsink_element.set_property("sync", self._sync_with_source)
@@ -102,8 +103,8 @@ class GStreamerRtspDestination(AppDestination):
                 h264_encoder.set_property("bitrate", self._encode_bitrate)
             else:
                 self._logger.debug(
-                    "Skipping encode-bitrate for non-openh264enc H.264 encoder '{}'; "
-                    "using element default.".format(factory.get_name() if factory else "unknown"))
+                    "Skipping encode-bitrate for non-openh264enc H.264 encoder '%s'; "
+                    "using element default.", factory.get_name() if factory else "unknown")
 
     def _push_buffer(self, buffer):
         buffer.make_writable()
