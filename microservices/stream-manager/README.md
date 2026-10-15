@@ -17,7 +17,7 @@ frames from a recording for a given time range.
 The simplest way to run Stream Manager is to pull and run its pre-built image.
 
 ```bash
-docker run -d --name stream-manager -p 49173:8080 \
+docker run --rm -d --name stream-manager -p 49173:8080 \
   -v stream-manager-data:/data \
   intel/stream-manager:latest
 ```
@@ -27,6 +27,12 @@ Once the command succeeds, you can access the API status and docs here:
 Status: http://localhost:49173/v1/status
 
 API docs: http://localhost:49173/docs/v1/index.html
+
+To stop the application:
+
+```bash
+docker stop stream-manager
+```
 
 > [!Note]
 > Port `49173` might already be in use on your machine. If so, `docker run` fails.

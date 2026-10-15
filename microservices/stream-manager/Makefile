@@ -92,6 +92,7 @@ ifneq ($(strip $(CONFIG_FILE)),)
 	$(eval CONFIG_MOUNT := -v $(CONFIG_FILE):/config.json:ro)
 endif
 	docker run -d \
+		--rm \
 		--name $(CONTAINER_NAME) \
 		--pull missing \
 		-P \
@@ -104,7 +105,7 @@ endif
 	$(PRINT_ACCESS_URLS)
 
 docker-stop: ## Stop and remove the running container
-	docker stop $(CONTAINER_NAME) && docker rm $(CONTAINER_NAME)
+	docker stop $(CONTAINER_NAME)
 
 clean: ## Remove built binaries from ./bin (keeps the directory)
 	rm -f $(BIN_DIR)/*
