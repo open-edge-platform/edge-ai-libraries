@@ -23,7 +23,7 @@ verify_live_video_captioning () {
 }
 
 debian_90_profile_live_video_captioning () {
-  echo "git curl gawk jq edge_base docker"
+  echo "git curl gawk jq edge_base docker_io"
 }
 
 debian_90_install_live_video_captioning () {
@@ -45,7 +45,7 @@ debian_90_install_live_video_captioning () {
     sed -i "s|^HUGGINGFACEHUB_API_TOKEN=.*|HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN|" .env.example
     bash scripts/setup_env.sh
 
-    docker compose -f compose.yaml pull 
+    docker compose -f compose.yaml pull || docker compose -f compose.yaml build
     verify_live_video_captioning
   fi
 
@@ -78,5 +78,5 @@ debian_90_stop_live_video_captioning () {
 
 debian_90_remove_live_video_captioning () {
   debian_90_stop_live_video_captioning || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }

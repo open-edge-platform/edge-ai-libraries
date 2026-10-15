@@ -140,6 +140,70 @@ def sanitize_video_id(video_id: Optional[str], min_length: int = 3) -> str:
     return video_id
 
 
+# A media sub-path is at most this many components deep (e.g. "segments/x.mp4").
+_MAX_MEDIA_SUBPATH_DEPTH = 4
+
+
+def sanitize_media_subpath(media_path: Optional[str]) -> Optional[str]:
+    """Validate a relative path addressing one object inside a media directory.
+
+    Live-stream media is stored one level deep (``<stream_id>/segments/<ts>.mp4``),
+    so a plain ``video_id`` cannot name a specific segment. This validates the part
+    *after* the ``video_id`` so callers can address one object without being able to
+    escape that prefix.
+
+    Each component must be a plain safe name: no ``..``, no absolute paths, no
+    backslashes, and no empty components (which would collapse the path).
+
+    Args:
+        media_path: Relative path such as ``"segments/1790655530.mp4"``.
+
+    Returns:
+        The normalized path, or None when not provided.
+
+    Raises:
+        DataPrepException: 400 if the path is unsafe or malformed.
+    """
+    if not media_path:
+        return None
+
+    media_path = sanitize_string(media_path)
+    if not media_path:
+        return None
+
+    if media_path.startswith("/") or "\\" in media_path:
+        raise DataPrepException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            msg="Media path must be relative and use '/' as the separator.",
+        )
+
+    components = media_path.split("/")
+    if len(components) > _MAX_MEDIA_SUBPATH_DEPTH:
+        raise DataPrepException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            msg=f"Media path may be at most {_MAX_MEDIA_SUBPATH_DEPTH} components deep.",
+        )
+
+    for component in components:
+        # An empty component means a leading/trailing/double slash; ".." would escape
+        # the video_id prefix. Both are rejected outright rather than normalized away.
+        if not component or component in (".", ".."):
+            raise DataPrepException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                msg="Media path contains unsafe path characters.",
+            )
+        if not re.match(r"^[a-zA-Z0-9._-]+$", component):
+            raise DataPrepException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                msg=(
+                    "Media path contains invalid characters. Use only alphanumeric "
+                    "characters, periods, hyphens, and underscores."
+                ),
+            )
+
+    return "/".join(components)
+
+
 def sanitize_video_name(video_name: Optional[str]) -> Optional[str]:
     """
     Sanitize and validate a video name

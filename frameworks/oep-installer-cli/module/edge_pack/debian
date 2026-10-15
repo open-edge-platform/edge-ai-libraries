@@ -16,7 +16,7 @@ configure_edge_pack () {
 }
 
 debian_15_profile_edge_pack () {
-  echo "curl gpg"
+  echo "curl gnupg"
 }
 
 debian_15_install_edge_pack () {

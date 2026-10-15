@@ -45,8 +45,18 @@ The Pipeline Manager is the primary API for interacting with the application. It
 | **Audio** | `GET /audio/models` | Available audio transcription models |
 | **Tags** | `GET /tags`, `DELETE /tags/{tagId}` | Tag management |
 | **Video** | `POST /videos`, `GET /videos`, `GET /videos/{videoId}`, `POST /videos/search-embeddings/{videoId}` | Video upload, listing, and embedding creation |
-| **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched` | Search query management and execution |
+| **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched`, `GET /search/refresh-config` | Search query management and execution. `GET /search/refresh-config` returns the effective auto-refresh settings applied to watched queries. |
+| **Frames** | `GET /frames` | On-demand single-frame retrieval for a search hit. Extracts one frame of stored media (uploaded video or live segment) by `video_id` + `timestamp` — nothing is persisted. Supports the full frame or a detected-crop region (`variant=full\|crop` + `crop_bbox`) and raw `image/jpeg` (default) or JSON base64 output (`format=json`). Fed by the `best_frame_info` returned on each search result. |
+| **Live Streams** | `POST /streams`, `POST /streams/batch`, `GET /streams`, `GET /streams/{streamId}`, `PATCH /streams/{streamId}`, `DELETE /streams/{streamId}`, `DELETE /streams` | RTSP camera registration and lifecycle (search deployments only) |
 | **Summary** | `POST /summary`, `GET /summary`, `GET /summary/ui`, `GET /summary/{stateId}`, `GET /summary/{stateId}/raw`, `DELETE /summary/{stateId}` | Video summarization pipeline |
+
+> [!NOTE]
+> The **Live Streams** and **Frames** endpoints are a thin pass-through to the
+> Multimodal DataPrep service. They are available only when
+> `SEARCH_DATAPREP_ENDPOINT` (or `STREAMS_DATAPREP_ENDPOINT`) is configured,
+> which is the case in `--search` and `--dual` deployments. In summary-only
+> deployments these routes return an error explaining that the feature is
+> not configured.
 
 > [!NOTE]
 > When accessing the Pipeline Manager through nginx, all paths are prefixed with `/manager/` (for example, `GET /manager/health`).

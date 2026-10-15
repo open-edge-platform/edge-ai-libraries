@@ -36,13 +36,13 @@ verify_nicu_warmer () {
       return 1
     }
   done
-  [ -e "$workspace"/NICU-Warmer/.env ]
+  [ -e "$workspace"/NICU-Warmer/.env ] || return 1
   . "$workspace"/NICU-Warmer/.env 2> /dev/null
   docker inspect intel/hl-ai-nicu-backend:$TAG > /dev/null
 }
 
 debian_90_profile_nicu_warmer () {
-  echo "git curl make gawk docker edge_base"
+  echo "git curl make gawk docker_io edge_base"
 }
 
 debian_90_install_nicu_warmer () {
@@ -68,7 +68,7 @@ debian_90_install_nicu_warmer () {
     for model1 in "${models[@]}"; do
       [ -e ${model1#* } ] || {
         echo "Downloading ${model1%% *}..."
-        curl -sSf -L --retry 5 --retry-all-errors --retry-delay 2 "${model1%% *}" -o ${model1#* }
+        ensure_fetch "${model1%% *}" "${model1#* }"
       }
     done
 
@@ -102,10 +102,14 @@ debian_90_start_nicu_warmer () {
 
 debian_90_stop_nicu_warmer () {
   configure_nicu_warmer "$@"
-  cd "$workspace"/NICU-Warmer && make down || true
+  cd "$workspace"/NICU-Warmer && {
+    make down || true
+    docker volume rm -f nicu-warmer_dlsps-shared || true
+    docker volume prune -f
+  } || true
 }
 
 debian_90_remove_nicu_warmer () {
   debian_90_stop_nicu_warmer
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }

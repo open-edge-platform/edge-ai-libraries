@@ -41,6 +41,14 @@ subcommand_install () {
 }
 
 subcommand_remove () {
+  if [[ " $* " = *" --help "* ]]; then
+    echo "remove options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
+    echo "  --remove-all    remove all previously installed components"
+    echo
+    return 0
+  fi
   act_helper "remove,Removal,Removing,Removed" "-r" "$@"
 }
 
@@ -49,8 +57,7 @@ subcommand_start () {
 }
 
 subcommand_stop () {
-  [[ " $* " != *" --help "* ]] || return
-  act_helper "stop,Stop,Stopping,Stopped" "-r" $(act_resolve_args stop "$@") --continue
+  act_helper "stop,Stop,Stopping,Stopped" "-r" "$@" --continue
 }
 
 subcommand_list () {
@@ -113,15 +120,12 @@ subcommand_list () {
   {
     if [ ${#profile_lines[@]} -gt 0 ]; then
       printf "List of Profiles:\n"
-      printf "%s\n" "${profile_lines[@]}"
+      printf "%s\n" "${profile_lines[@]}" | sort
       printf "\n"
     fi
     if [ ${#module_lines[@]} -gt 0 ]; then
       printf "List of Components:\n"
-      local i
-      for ((i=${#module_lines[@]}-1;i>=0;i--)); do
-        printf "%s\n" "${module_lines[$i]}"
-      done
+      printf "%s\n" "${module_lines[@]}" | sort
       printf "\n"
     fi
   } | ensure_columns
@@ -136,7 +140,7 @@ subcommand_setup () {
   cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
   chmod a+rx "$installer_bin"

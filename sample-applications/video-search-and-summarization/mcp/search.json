@@ -40,7 +40,12 @@
     "POST /search/query": {
       "type": "tool",
       "name": "run_search_query",
-      "description": "Execute an immediate, one-off natural-language search across all indexed videos. Provide a text query (e.g. 'person wearing a red jacket near a car') and receive a ranked list of matching video segments with timestamps and relevance scores."
+      "description": "Execute an immediate, one-off search across all indexed videos. Provide a natural-language `query` (e.g. 'person wearing a red jacket near a car') OR, in frame-embedding deployments, an `image` (base64 string or data URL) for image-based search — supply exactly one. Returns a ranked list of matching video segments, each with timestamps, a relevance score, and a `metadata.best_frame_info` object. Use `best_frame_info` (video_id, timestamp, bucket_name, media_path, is_detected_crop, crop_bbox) with the `get_media_frame` tool to fetch the actual pixels of the peak-scoring frame."
+    },
+    "GET /frames": {
+      "type": "tool",
+      "name": "get_media_frame",
+      "description": "Fetch a single frame of stored media as an image. Address it by `video_id` + `timestamp` (seconds), taken straight from a search result's `metadata.best_frame_info`. For live-stream hits also pass `media_path` (the segment path from best_frame_info). Set `variant=full` for the whole frame or `variant=crop` with `crop_bbox` ('x1,y1,x2,y2', from best_frame_info.crop_bbox) for just the detected-object region. Set `format=json` to receive a base64-encoded JPEG plus frame metadata (recommended for agents); the default returns raw image/jpeg bytes. Use this to retrieve the exact frame that matched a query — e.g. to hand to a vision model for verification."
     }
   }
 }

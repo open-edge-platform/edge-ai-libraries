@@ -52,8 +52,9 @@ const MetricChartCard = styled.div`
 `;
 
 const ScrollBody = styled.div`
-  max-height: 60vh;
-  overflow-y: auto;
+  /* No internal max-height/scroll: let the telemetry content flow so expanding
+     the accordion extends the content panel (which owns the single scrollbar)
+     rather than trapping metrics in a nested 60vh scroll area. */
   padding-right: 0.5rem;
 `;
 
@@ -202,6 +203,7 @@ const TelemetryAccordion = (): JSX.Element | null => {
   const gpuCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const npuCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const epsCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const chartsRef = useRef<{
     cpu?: Chart;
     ram?: Chart;
@@ -411,12 +413,26 @@ const TelemetryAccordion = (): JSX.Element | null => {
     };
   }, [isOpen, telemetryAvailable]);
 
+  // When the panel is expanded, scroll its full content into view so the whole
+  // set of telemetry graphs becomes visible even if the user clicked while at the
+  // bottom of the page. Waits for Carbon's open animation to settle before
+  // measuring, then scrolls the owning content panel (block:'end' reveals the
+  // bottom of the expanded graphs). Declared before the early return below so the
+  // hook order stays stable (Rules of Hooks).
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const timer = window.setTimeout(() => {
+      panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [isOpen]);
+
   if (!statusChecked || !telemetryAvailable) {
     return null;
   }
 
   return (
-    <PanelWrapper>
+    <PanelWrapper ref={panelRef}>
       <Accordion align='start' size='sm'>
         {/* Default collapsed */}
         <AccordionItem title='System telemetry' open={isOpen} onHeadingClick={() => setIsOpen((prev) => !prev)}>

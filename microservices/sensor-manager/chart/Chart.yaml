@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: v2
+name: sensor-manager
+description: Helm chart for the Sensor Manager microservice (USB and ONVIF camera discovery)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

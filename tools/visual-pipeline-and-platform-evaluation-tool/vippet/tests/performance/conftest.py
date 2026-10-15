@@ -1,87 +1,115 @@
-# Copyright (C) 2026 Intel Corporation
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """Shared fixtures for VIPPET performance benchmark tests."""
 
+import dataclasses
 import logging
+import httpx
 import os
+import sys
 import time
+import pytest
 from collections.abc import Generator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import pytest
-import httpx
-
-from helpers.pipeline_case_helpers import (
-    SUPPORTED_DEVICE_FAMILIES,
-    PipelineCase,
-    discover_pipeline_cases_for_pytest,
-)
-from perf_helpers.config import (
-    BASE_URL,
-    CREATE_LATEST_LINK,
-    METRICS_SAMPLE_INTERVAL,
-    METRICS_URL,
-    ON_UNKNOWN_FILTER_ID,
-    PERF_RESULTS_DIR,
-    PIPELINE_FILTER,
-    POLL_INTERVAL,
-    POLL_TIMEOUT,
-    READINESS_TIMEOUT_SECONDS,
-    REQUEST_TIMEOUT,
-    RESULT_FORMATS,
-    SKIP_PIPELINES,
-    SKIP_VARIANTS,
-    STREAM_COUNTS,
-    VARIANT_FILTER,
-)
+from dataclasses import dataclass
+from helpers.pipeline_case_helpers import SUPPORTED_DEVICE_FAMILIES, PipelineCase
 from perf_helpers.hw_monitor import HardwareMonitor
-from perf_helpers.preflight import fetch_discovered_devices, run_preflight_or_exit
+from perf_helpers.preflight import (
+    fetch_capabilities,
+    fetch_discovered_devices,
+    fetch_vippet_version,
+    run_preflight_or_exit,
+)
 from perf_helpers.reporters import ResultExporter, generate_html_report
+from perf_helpers.settings import SettingsError
+
+try:
+    from perf_helpers.config import (
+        BASE_URL,
+        CAPABILITIES_URL,
+        CREATE_LATEST_LINK,
+        METRICS_SAMPLE_INTERVAL,
+        METRICS_URL,
+        ON_UNKNOWN_FILTER_ID,
+        PERF_RESULTS_DIR,
+        PIPELINE_FILTER,
+        POLL_INTERVAL,
+        POLL_TIMEOUT,
+        READINESS_TIMEOUT_SECONDS,
+        REQUEST_TIMEOUT,
+        RESULT_FORMATS,
+        SKIP_MISSING_MODELS,
+        SKIP_PIPELINES,
+        SKIP_VARIANTS,
+        SETTINGS,
+        STREAM_COUNTS,
+        VARIANT_FILTER,
+    )
+except SettingsError as exc:
+    # Same message and exit code (2) as the CLI instead of a traceback.
+    # pytest.exit() cannot be used here: pytest wraps any Exception raised
+    # while importing a conftest (including pytest's Exit) into a
+    # ConftestImportFailure and prints a traceback with exit code 4.
+    # SystemExit is a BaseException and is not wrapped.
+    print(f"error: invalid performance config: {exc}", file=sys.stderr)
+    raise SystemExit(2) from None
+
+# Propagate perf config to env vars consumed by functional helpers. This must
+# run BEFORE importing ``helpers.*``: helpers.config reads these env vars once
+# at import time. These keys are env-backed in perf_helpers.settings, so an
+# already-exported value is what BASE_URL/POLL_* resolved to; setdefault only
+# fills in YAML/default values.
+os.environ.setdefault("VIPPET_BASE_URL", BASE_URL)
+os.environ.setdefault("VIPPET_JOB_TIMEOUT_SECONDS", str(POLL_TIMEOUT))
+os.environ.setdefault("VIPPET_JOB_POLL_INTERVAL", str(POLL_INTERVAL))
+
+from helpers.pipeline_case_helpers import wrap_cases_for_pytest  # noqa: E402
+from perf_helpers.discovery import discover_matrix  # noqa: E402
+from perf_helpers.matrix import MatrixFilters  # noqa: E402
+from perf_helpers.system_info import collect_system_info
 
 logger = logging.getLogger(__name__)
 
-# Propagate perf YAML config to env vars consumed by functional helpers.
-# Only set if not already overridden by the environment.
-os.environ.setdefault("VIPPET_BASE_URL", BASE_URL)
-os.environ.setdefault("VIPPET_JOB_TIMEOUT_SECONDS", str(int(POLL_TIMEOUT)))
-os.environ.setdefault("VIPPET_JOB_POLL_INTERVAL", str(POLL_INTERVAL))
+_NO_CASES_REASON = (
+    "No pipeline/variant test cases were discovered from VIPPET API. "
+    "Ensure API reachability and at least one supported device (CPU/GPU/NPU)."
+)
 
-# Snapshot of GET /devices captured once at pre-flight time (see
-# pytest_sessionstart below). Populated independent of any test outcome so a
-# fully failed/skipped run still has the discovered hardware available for
-# the report.
+# Snapshot of GET /devices, GET /api/v1/capabilities and GET /status captured
+# once at pre-flight time (see pytest_sessionstart below). Populated
+# independent of any test outcome so a fully failed/skipped run still has
+# the discovered hardware/platform info available for the report.
 _DISCOVERED_DEVICES: list[dict[str, Any]] = []
-
-
-def _collect_system_info(devices: list[dict[str, Any]]) -> dict[str, Any]:
-    """Build system details for the benchmark report from a devices snapshot."""
-
-    devices_info: dict[str, str] = {}
-    for device in devices:
-        family = str(device.get("device_family", "")).upper()
-        full_name = device.get("full_device_name", "")
-        if family and full_name:
-            devices_info[family] = full_name
-
-    system: dict[str, str] = {}
-    if devices_info.get("CPU"):
-        system["Processor"] = devices_info["CPU"]
-    if devices_info.get("GPU"):
-        system["GPU"] = devices_info["GPU"]
-    if devices_info.get("NPU"):
-        system["NPU"] = devices_info["NPU"]
-
-    return {"system": system}
+_CAPABILITIES: dict[str, Any] = {}
+_VIPPET_VERSION: str = "Unknown"
 
 
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
 _QUICK_VARIANTS: set[str] = {"CPU", "GPU"}
 
-_PIPELINE_CASES: list[PipelineCase | object] | None = None
-_CASE_IDS: list[str] | None = None
+
+@dataclass
+class _DiscoveredCases:
+    """Cached, one-time result of :func:`_discover_case_params`.
+
+    * ``params``/``case_ids`` - the actual pytest parameter values (and
+      their matching string ids) for the ``pipeline_case`` fixture,
+      *after* all config/host filtering. This is what actually runs.
+    * ``known_pipeline_ids`` - every pipeline id the API reports to
+      exist, *before* any ``pipelines``/``skip_pipelines`` filtering.
+      Used to validate user-supplied filter ids.
+    """
+
+    params: list[PipelineCase | object]
+    case_ids: list[str]
+    known_pipeline_ids: list[str]
+
+
+_DISCOVERED_CASES: _DiscoveredCases | None = None
 
 
 def _unwrap_case(
@@ -99,7 +127,7 @@ def _unwrap_case(
 
 
 def _validate_filter_ids(
-    cases: list[PipelineCase | object],
+    known_pipeline_ids: list[str],
 ) -> list[PipelineCase | object]:
     """Diff configured filter ids against discovered ids.
 
@@ -108,9 +136,7 @@ def _validate_filter_ids(
     ``pytest.exit`` when it is ``"fail"`` (the default), naming every
     bad id and its valid alternatives.
     """
-    valid_pipeline_ids = sorted(
-        {c.pipeline_id for cp in cases for c, _, _ in [_unwrap_case(cp)] if c}
-    )
+    valid_pipeline_ids = sorted(set(known_pipeline_ids))
     valid_pipeline_ids_lower = {p.lower() for p in valid_pipeline_ids}
 
     issues: list[tuple[str, str, list[str]]] = []
@@ -172,20 +198,77 @@ def _validate_filter_ids(
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_sessionstart() -> None:
-    """Verify ViPPET readiness and capture its hardware snapshot once."""
-    run_preflight_or_exit(
-        BASE_URL,
-        READINESS_TIMEOUT_SECONDS,
-        POLL_INTERVAL,
-        REQUEST_TIMEOUT,
+    """Verify ViPPET readiness and capture its hardware/platform snapshot once.
+
+    Fixtures (e.g. ``http_client``) aren't available yet at this point in the
+    pytest lifecycle, so the pre-flight phase opens and owns its own client.
+    """
+    global _DISCOVERED_DEVICES, _CAPABILITIES, _VIPPET_VERSION
+    with httpx.Client(headers={"Accept": "application/json"}) as client:
+        run_preflight_or_exit(
+            BASE_URL,
+            READINESS_TIMEOUT_SECONDS,
+            POLL_INTERVAL,
+            REQUEST_TIMEOUT,
+            client=client,
+        )
+        _DISCOVERED_DEVICES = fetch_discovered_devices(
+            BASE_URL, REQUEST_TIMEOUT, client=client
+        )
+        _CAPABILITIES = fetch_capabilities(
+            CAPABILITIES_URL, REQUEST_TIMEOUT, client=client
+        )
+        _VIPPET_VERSION = fetch_vippet_version(BASE_URL, REQUEST_TIMEOUT, client=client)
+
+
+def _discover_case_params() -> _DiscoveredCases:
+    """Build the filtered matrix and wrap it for ``pytest.mark.parametrize``.
+
+    Filtering (pipelines / variants / skip lists / host families) is done by
+    :func:`perf_helpers.matrix.build_matrix`; missing-model handling stays in
+    :func:`wrap_cases_for_pytest`.
+    """
+    try:
+        matrix = discover_matrix(MatrixFilters.from_settings(SETTINGS))
+    except Exception:
+        logger.exception("Failed to collect pipeline cases from VIPPET API")
+        skip = pytest.mark.skip(reason=_NO_CASES_REASON)
+        return _DiscoveredCases([pytest.param(None, marks=skip)], ["no-cases"], [])
+
+    logger.info("Available device families: %s", matrix.available_families)
+    for excl in matrix.excluded:
+        logger.info(
+            "Excluded pipeline=%s variant=%s reason=%s (%s)",
+            excl.pipeline_id,
+            excl.variant,
+            excl.reason.value,
+            excl.detail,
+        )
+
+    if not matrix.included:
+        reason = (
+            f"All {len(matrix.excluded)} discovered pipeline/variant case(s) "
+            "were excluded by config or host capabilities. Run the CLI with "
+            "--dry-run to see why."
+            if matrix.excluded
+            else _NO_CASES_REASON
+        )
+        skip = pytest.mark.skip(reason=reason)
+        return _DiscoveredCases(
+            [pytest.param(None, marks=skip)], ["no-cases"], matrix.known_pipeline_ids
+        )
+
+    cases = [PipelineCase(**dataclasses.asdict(case)) for case in matrix.included]
+    missing = {pid: set(models) for pid, models in matrix.missing_models.items()}
+    params, ids = wrap_cases_for_pytest(
+        cases, missing, skip_missing_models=SKIP_MISSING_MODELS
     )
-    global _DISCOVERED_DEVICES
-    _DISCOVERED_DEVICES = fetch_discovered_devices(BASE_URL, REQUEST_TIMEOUT)
+    return _DiscoveredCases(params, ids, matrix.known_pipeline_ids)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Generate the cross-product parametrization: pipeline_case x stream_count."""
-    global _PIPELINE_CASES, _CASE_IDS
+    global _DISCOVERED_CASES
 
     if (
         "pipeline_case" not in metafunc.fixturenames
@@ -193,50 +276,23 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     ):
         return
 
-    if _PIPELINE_CASES is None or _CASE_IDS is None:
-        _PIPELINE_CASES, _CASE_IDS = discover_pipeline_cases_for_pytest()
+    if _DISCOVERED_CASES is None:
+        _DISCOVERED_CASES = _discover_case_params()
 
-    for invalid_param in _validate_filter_ids(_PIPELINE_CASES):
+    for invalid_param in _validate_filter_ids(_DISCOVERED_CASES.known_pipeline_ids):
         invalid_case, _, _ = _unwrap_case(invalid_param)
         if invalid_case is None:
             continue
-        _PIPELINE_CASES.append(invalid_param)
-        _CASE_IDS.append(invalid_case.case_id)
+        _DISCOVERED_CASES.params.append(invalid_param)
+        _DISCOVERED_CASES.case_ids.append(invalid_case.case_id)
 
     params = []
     ids = []
 
-    _allowed_variants = {v.upper() for v in VARIANT_FILTER}
-    _skip_pipelines = {p.lower() for p in SKIP_PIPELINES}
-    _skip_variants = {v.upper() for v in SKIP_VARIANTS}
-
-    for case_param, case_id in zip(_PIPELINE_CASES, _CASE_IDS):
+    for case_param, case_id in zip(
+        _DISCOVERED_CASES.params, _DISCOVERED_CASES.case_ids
+    ):
         actual_case, skip_marks, is_skipped = _unwrap_case(case_param)
-
-        if not is_skipped and actual_case is not None:
-            # Apply pipeline filter from config
-            if PIPELINE_FILTER != "*":
-                allowed_ids = (
-                    PIPELINE_FILTER
-                    if isinstance(PIPELINE_FILTER, list)
-                    else [PIPELINE_FILTER]
-                )
-                if actual_case.pipeline_id not in allowed_ids:
-                    continue
-
-            # Apply skip lists
-            if actual_case.pipeline_id.lower() in _skip_pipelines:
-                continue
-
-            device_family = actual_case.device_family.upper()
-            variant_parts = set(device_family.split("_"))
-
-            if device_family in _skip_variants:
-                continue
-
-            # Apply variant filter — all parts must be in allowed variants
-            if not variant_parts <= _allowed_variants:
-                continue
 
         for streams in STREAM_COUNTS:
             marks: list[Any] = [pytest.mark.perf]
@@ -297,7 +353,9 @@ def results_collector(
         output_dir = Path(PERF_RESULTS_DIR) / benchmark_id
         exporter = ResultExporter(output_dir, formats=RESULT_FORMATS)
 
-        system_info = _collect_system_info(_DISCOVERED_DEVICES)
+        system_info = collect_system_info(
+            _DISCOVERED_DEVICES, _CAPABILITIES, _VIPPET_VERSION
+        )
 
         # Built from the /devices snapshot captured at pre-flight, independent
         # of per-test outcomes, so a fully failed/skipped run still records
