@@ -22,9 +22,9 @@ export const mockDemoApi = async (page: Page) => {
             ])
           : "[]";
 
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
         body,
       });
     });
