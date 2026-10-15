@@ -190,7 +190,19 @@ print_status() {
     info "Docker not installed"
   elif docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
     if [[ "$(docker inspect -f '{{.State.Running}}' "$HARNESS_OVMS_CONTAINER" 2>/dev/null)" == "true" ]]; then
-      ok "Running — $(harness_llm_endpoint)"
+      # Assigned via `if endpoint=$(...); then` (not inlined into ok's
+      # argument list) so a failure inside harness_llm_endpoint (e.g. its
+      # resolve_advertised_host's tamper checks on the advertised-host state
+      # file) is actually detected here -- status is read-only and must
+      # degrade gracefully (still show the rest of the sections below)
+      # rather than either aborting outright or silently printing "Running
+      # — " with a blank endpoint.
+      local endpoint
+      if endpoint="$(harness_llm_endpoint)"; then
+        ok "Running — ${endpoint}"
+      else
+        warn "OVMS container is running, but its endpoint could not be resolved (see error above)."
+      fi
     else
       warn "Container exists but is not running (${HARNESS_OVMS_CONTAINER})"
     fi
@@ -344,7 +356,17 @@ main() {
 
   step 2 "$TOTAL_STEPS" "Inference routing"
   ensure_inference_backend
-  export HARNESS_LLM_ENDPOINT="${HARNESS_LLM_ENDPOINT:-$(harness_llm_endpoint)}"
+  # Assigned as its own plain statement before exporting (not
+  # `export VAR="$(...)"` combined) -- `export` is a builtin command, so a
+  # failing command substitution embedded directly in its argument is NOT
+  # checked by set -e (same pitfall as embedding one in printf/ok's
+  # argument list): only a bare `VAR=$(cmd)` assignment's own failure is.
+  # Without this split, a failure inside harness_llm_endpoint (e.g. its
+  # resolve_advertised_host's tamper checks) would silently leave
+  # HARNESS_LLM_ENDPOINT empty instead of aborting, and the agent would
+  # then get installed/onboarded against a broken empty endpoint.
+  HARNESS_LLM_ENDPOINT="${HARNESS_LLM_ENDPOINT:-$(harness_llm_endpoint)}"
+  export HARNESS_LLM_ENDPOINT
   ok "LLM endpoint: ${HARNESS_LLM_ENDPOINT}"
 
   step 3 "$TOTAL_STEPS" "Agent install"

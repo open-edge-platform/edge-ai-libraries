@@ -4,7 +4,18 @@
 # OpenVINO Model Server (OVMS) — serves an OpenAI-compatible chat-completions
 # endpoint on Intel Core Ultra iGPU and Arc (CRI) GPUs.
 
-HARNESS_OVMS_IMAGE="${HARNESS_OVMS_IMAGE:-openvino/model_server:2026.4.0-gpu}"
+# Pinned to 2026.1 rather than a newer release (e.g. 2026.4.x) because
+# OVMS's "-py" convenience variant (used by the default docker-pull
+# exporter below) is published under a different, coarser version scheme
+# than "-gpu"/the base serving image -- two-part "X.Y-py" tags, not
+# "X.Y.Z-py" -- and has not had a new "-py" tag published since 2026.1,
+# even though "-gpu"/base images have since moved through 2026.2.x,
+# 2026.3.x, and 2026.4.x. Confirmed against the openvino/model_server
+# Docker Hub tag list (2026-10-14): "2026.1-gpu" and "2026.1-py" are the
+# newest release where both variants actually exist together, so this is
+# the newest version the default exporter can actually pull working.
+# Bump this once OVMS publishes a newer matching "-py" tag.
+HARNESS_OVMS_IMAGE="${HARNESS_OVMS_IMAGE:-openvino/model_server:2026.1-gpu}"
 HARNESS_OVMS_REST_PORT="${HARNESS_OVMS_REST_PORT:-8000}"
 HARNESS_MODELS_DIR="${HARNESS_MODELS_DIR:-$HOME/.intel-agent/models}"
 HARNESS_OVMS_CONTAINER="${HARNESS_OVMS_CONTAINER:-intel-agent-ovms}"
@@ -38,15 +49,15 @@ HARNESS_OVMS_EXPORTER="${HARNESS_OVMS_EXPORTER:-docker-pull}"
 # servable definition OVMS's /v3/chat/completions endpoint requires for LLMs.
 # Pinned to the release tag matching HARNESS_OVMS_IMAGE for reproducible,
 # version-compatible exports.
-HARNESS_OVMS_EXPORT_MODEL_REF="${HARNESS_OVMS_EXPORT_MODEL_REF:-v2026.4.0}"
+HARNESS_OVMS_EXPORT_MODEL_REF="${HARNESS_OVMS_EXPORT_MODEL_REF:-v2026.1}"
 
 # Known-good SHA-256 for export_model.py / requirements.txt at the pinned
 # ref above (verified against openvinotoolkit/model_server). IMPORTANT:
 # update both hashes whenever HARNESS_OVMS_EXPORT_MODEL_REF's default
 # changes; they are only applied when the ref in use matches this exact tag.
-_OVMS_EXPORT_MODEL_PINNED_REF="v2026.4.0"
-_OVMS_EXPORT_MODEL_PY_SHA256="783df4b5bfbadd6b19574bef5a6deb3b5d51dc1218b8e375740a2a7edea2fb88"
-_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256="3068c47e01543fb2d8c4e4b30aadcf2922dc1288e5e733c880a562f523529663"
+_OVMS_EXPORT_MODEL_PINNED_REF="v2026.1"
+_OVMS_EXPORT_MODEL_PY_SHA256="7e419913a1ce3e93aab01d9b66b2f8ac008a2a6bce29069fe2ecd6152b323b05"
+_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256="95b51ba80b33f66fbec3ec7e4c27fa440391b88b25ff6a43f2fdbe436adcb25e"
 
 # Ensures a valid (possibly empty) config.json exists. export_model.py updates
 # this file itself on every export (appending to mediapipe_config_list), so
@@ -95,11 +106,42 @@ export step's HTTP client may not support (only http/https/socks5/socks5h are)."
 export_model_via_docker_pull() {
   local hf_model_id="$1" model_name="${2:-${1##*/}}" out_dir pull_image target_device
   out_dir="${HARNESS_MODELS_DIR}/${model_name}"
-  if [[ -d "$out_dir" ]]; then
+  # --model_name's documented effect on output placement (OVMS's own "Pull
+  # mode with optimum cli" doc) has been observed not to hold on at least
+  # one real release (2026.1-py): the export instead lands nested under the
+  # full --source_model path -- the same layout export_model_via_model_download
+  # below already has to account for -- so both locations are checked
+  # throughout this function, not just the documented flat one.
+  local existing_base_path=""
+  if [[ -f "${out_dir}/graph.pbtxt" ]]; then
+    existing_base_path="$model_name"
+  elif [[ -f "${HARNESS_MODELS_DIR}/${hf_model_id}/graph.pbtxt" ]]; then
+    existing_base_path="$hf_model_id"
+  fi
+  if [[ -n "$existing_base_path" ]]; then
     info "Model '${model_name}' is already exported."
+    # Re-registering unconditionally (not just when the directory first
+    # appears) is cheap and idempotent (_add_model_config_entry_locked
+    # replaces any existing same-name entry) -- without this, a directory
+    # that exists but was never registered (or whose config.json entry was
+    # later lost -- e.g. a reset/edited config.json, or a crash between
+    # pull and registration on an earlier run) would be silently treated as
+    # "fully set up" forever, since this fast path used to return before
+    # ever reaching the registration step below.
+    ensure_ovms_config
+    with_state_lock ovms-config _add_model_config_entry_locked \
+      "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$existing_base_path" \
+      || warn "Model '${model_name}' is already exported but could not confirm its
+OVMS config.json registration -- add a model_config_list entry for base_path
+'${existing_base_path}' manually if it doesn't serve requests."
     return 0
   fi
   command_exists docker || error "Docker is required to pull/convert models via the OVMS -py image."
+  # The -py image's bundled optimum-cli/httpx tooling is the same conversion
+  # stack export_model_to_openvino/export_model_via_model_download use
+  # host-side -- it chokes the same way on a malformed proxy scheme, so this
+  # exporter needs the same fail-fast check before doing any pull/convert work.
+  assert_proxy_scheme_supported
   ensure_ovms_config
   # The "-py" variant bundles optimum-cli for on-the-fly conversion -- the
   # regular serving image (HARNESS_OVMS_IMAGE) doesn't carry it at runtime.
@@ -119,22 +161,28 @@ export_model_via_docker_pull() {
       --source_model "$hf_model_id" --model_name "$model_name" \
       --model_repository_path /models --task text_generation \
       --weight-format int8 --target_device "$target_device"; then
-    rm -rf -- "$out_dir"
+    rm -rf -- "$out_dir" "${HARNESS_MODELS_DIR}/${hf_model_id}"
     error "Pulling/converting ${hf_model_id} via ${pull_image} failed. Check network
 access to huggingface.co, and that '${pull_image}' is a published tag
 (the -py variant may lag behind HARNESS_OVMS_IMAGE's own release) -- or try
 HARNESS_OVMS_EXPORTER=export-model-py as a fallback."
   fi
-  if [[ ! -f "${out_dir}/graph.pbtxt" ]]; then
-    error "No graph.pbtxt found at ${out_dir} after pull -- OVMS will not serve chat
-completions for '${model_name}'."
+  local relative_base_path
+  if [[ -f "${out_dir}/graph.pbtxt" ]]; then
+    relative_base_path="$model_name"
+  elif [[ -f "${HARNESS_MODELS_DIR}/${hf_model_id}/graph.pbtxt" ]]; then
+    out_dir="${HARNESS_MODELS_DIR}/${hf_model_id}"
+    relative_base_path="$hf_model_id"
+  else
+    error "No graph.pbtxt found at ${out_dir} or ${HARNESS_MODELS_DIR}/${hf_model_id}
+after pull -- OVMS will not serve chat completions for '${model_name}'."
   fi
   if with_state_lock ovms-config _add_model_config_entry_locked \
-      "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$model_name"; then
+      "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$relative_base_path"; then
     ok "Exported ${hf_model_id} -> ${out_dir} (registered with OVMS)"
   else
     error "Converted ${hf_model_id} but could not update OVMS's config.json --
-add a model_config_list entry for base_path '${model_name}' manually."
+add a model_config_list entry for base_path '${relative_base_path}' manually."
   fi
 }
 
@@ -312,6 +360,20 @@ Download microservice's logs above)."
 _add_model_config_entry_locked() {
   local config_file="$1" name="$2" base_path="$3" tmp
   tmp="$(mktemp)"
+  # mktemp creates its file mode 0600, owned by whichever host user is
+  # running the installer -- but the OVMS *server* container (unlike the
+  # -py pull/export helper, which runs with an explicit `-u $(id -u):$(id
+  # -g)`) runs as the image's own fixed internal user (the published
+  # openvino/model_server image's Dockerfile.redhat ends in `USER ovms`,
+  # uid/gid 5000), which essentially never matches the host user. Without
+  # this chmod, replacing config.json here leaves it unreadable by that
+  # uid, so OVMS's own ifs.good() check on /models/config.json fails at
+  # startup ("Configuration file is invalid") and the container crash-loops
+  # on every restart after the very first model registration -- confirmed
+  # against a real OVMS server log. ensure_ovms_config's initial plain
+  # `printf >file` happens to avoid this (its permissions come from umask,
+  # typically 644), which is why only the *first* registration ever breaks.
+  chmod 644 "$tmp"
   node -e '
       const fs = require("node:fs");
       const [configFile, name, basePath] = process.argv.slice(1);
@@ -401,7 +463,15 @@ no local model export happens; the external endpoint owns model selection."
 docker-pull, export-model-py, or model-download)." ;;
         esac
         ensure_openvino_model_server
-        wait_for_ovms_model_ready "${HARNESS_HF_MODEL##*/}"
+        # wait_for_ovms_model_ready returning 1 means "still loading, not
+        # confirmed ready yet" -- its own warn() message is the complete,
+        # intended signal for that ("retry if the next step fails"), not a
+        # fatal condition. Without `|| true`, that bare return 1 was
+        # silently killing the *entire* installer right here under set -e
+        # (no [ERROR], the script just exited) whenever a model took longer
+        # than 60s to report ready, well before reaching the "next step" the
+        # warning itself refers to.
+        wait_for_ovms_model_ready "${HARNESS_HF_MODEL##*/}" || true
       elif ! ovms_has_exported_models; then
         warn "No model is exported yet and no HARNESS_HF_MODEL was given -- OVMS is
 running but will not serve chat completions until a model is exported.
@@ -437,12 +507,52 @@ ovms_has_exported_models() {
   ' "$config_file"
 }
 
+# ovms_sole_registered_model_name — the one already-registered model's name,
+# printed only when config.json's model_config_list has *exactly* one entry
+# (unambiguous). Used by run_agent_onboard as a smarter fallback than the
+# literal string "default" for a standalone "./install.sh onboard" run with
+# neither --hf-model nor HARNESS_LLM_MODEL given -- "default" never matches
+# a real registered model name (exports are always registered under the HF
+# model's own basename), so that fallback previously 404'd unconditionally
+# whenever a model was already exported and serving. Deliberately returns
+# nothing (not a guess) when zero or more-than-one models are registered,
+# since picking the wrong one silently would be worse than the existing
+# "default" 404, which at least prompts the operator to check what's
+# actually registered.
+ovms_sole_registered_model_name() {
+  local config_file="${HARNESS_MODELS_DIR}/config.json"
+  [[ -f "$config_file" ]] || return 1
+  node -e '
+    try {
+      const d = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+      const names = (Array.isArray(d.model_config_list) ? d.model_config_list : [])
+        .map((e) => e?.config?.name)
+        .filter(Boolean);
+      if (names.length === 1) { process.stdout.write(names[0]); process.exit(0); }
+      process.exit(1);
+    } catch { process.exit(1); }
+  ' "$config_file"
+}
+
 harness_llm_endpoint() {
+  local host
   if [[ -n "$HARNESS_LLM_ROUTER_ENDPOINT" ]]; then
     printf '%s' "$HARNESS_LLM_ROUTER_ENDPOINT"
     return 0
   fi
-  printf 'http://%s:%s/v3' "$(resolve_advertised_host)" "$HARNESS_OVMS_REST_PORT"
+  # Assigned as its own plain statement (not inlined into the printf below)
+  # so a failure inside resolve_advertised_host (e.g. its
+  # assert_state_path_safe/assert_owned_by_current_user tamper checks on
+  # ~/.intel-agent/advertised-host) actually aborts via set -e instead of
+  # being silently discarded -- a command substitution's exit status is
+  # only checked by set -e when it's a bare assignment, not when embedded
+  # as another command's argument (confirmed: printf always "succeeds"
+  # regardless of what its arguments evaluated to, so the failure would
+  # otherwise go unnoticed and harness_llm_endpoint() would return a
+  # malformed empty-host URL that then gets persisted into the agent's own
+  # config file by run_agent_onboard's callers).
+  host="$(resolve_advertised_host)" || return 1
+  printf 'http://%s:%s/v3' "$host" "$HARNESS_OVMS_REST_PORT"
 }
 
 # Rejects path-traversal/empty/current-dir/hidden names before any
@@ -453,8 +563,32 @@ validate_model_name() {
   [[ -n "$name" && "$name" != .* && "$name" != *"/"* && "$name" != *".."* ]]
 }
 
+# Reads registered models from config.json (the same authoritative source
+# remove_exported_model now consults) rather than only scanning top-level
+# directories -- some exporters nest an export's files one level deeper
+# than the user-facing model name (see export_model_via_docker_pull's
+# comment), which a raw directory scan would otherwise misreport (e.g.
+# showing "Qwen" instead of "Qwen2.5-0.5B-Instruct" for a model nested
+# under "Qwen/..."). Falls back to a directory scan if config.json has no
+# entries yet, so models from an exporter/version that registered nothing
+# there are still visible.
 list_exported_models() {
-  local dir="$HARNESS_MODELS_DIR" entry name found=0
+  local dir="$HARNESS_MODELS_DIR" entry name found=0 line config_file
+  config_file="${dir}/config.json"
+  if [[ -f "$config_file" ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      found=1
+      printf '  %s\n' "$line"
+    done < <(node -e '
+      try {
+        const data = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+        const list = Array.isArray(data.model_config_list) ? data.model_config_list : [];
+        for (const e of list) { if (e?.config?.name) console.log(e.config.name); }
+      } catch {}
+    ' "$config_file")
+    [[ "$found" -eq 1 ]] && return 0
+  fi
   [[ -d "$dir" ]] || { info "No models exported yet (${dir})."; return 0; }
   for entry in "$dir"/*/; do
     [[ -d "$entry" ]] || continue
@@ -472,12 +606,24 @@ list_exported_models() {
 # serving it. Lets you export/test/delete a small model repeatedly without
 # wiping every other exported model.
 remove_exported_model() {
-  local name="$1" dir="$HARNESS_MODELS_DIR" model_dir config_file
+  local name="$1" dir="$HARNESS_MODELS_DIR" model_dir config_file base_path
   [[ -n "$name" ]] || error "Usage: ./install.sh models remove <name>"
   validate_model_name "$name" || error "Invalid model name: ${name}"
-  model_dir="${dir}/${name}"
-  [[ -d "$model_dir" ]] || error "Model '${name}' is not exported (looked in ${model_dir})."
   config_file="${dir}/config.json"
+  # Prefer the base_path OVMS was actually registered with over assuming a
+  # flat <models-dir>/<name> layout -- some exporters (docker-pull, at
+  # least on OVMS 2026.1-py, and model-download) nest the export under the
+  # full HF source_model path (e.g. "Qwen/Qwen2.5-0.5B-Instruct") instead
+  # of the flat model name. Falls back to the flat guess for models
+  # registered under the older convention or with no config.json entry.
+  base_path="$(_ovms_config_base_path_for "$config_file" "$name")"
+  if [[ -n "$base_path" ]]; then
+    [[ "$base_path" == *".."* ]] && error "Refusing a base_path containing '..' for '${name}' (${base_path})."
+    model_dir="${dir}/${base_path}"
+  else
+    model_dir="${dir}/${name}"
+  fi
+  [[ -d "$model_dir" ]] || error "Model '${name}' is not exported (looked in ${model_dir})."
   if [[ -f "$config_file" ]]; then
     with_state_lock ovms-config _remove_model_from_ovms_config_locked "$config_file" "$name" \
       || error "Could not update ${config_file} to remove '${name}'; leaving the model
@@ -485,6 +631,14 @@ directory in place so OVMS's config and the exported files don't disagree.
 Check disk space/permissions on ${config_file} and retry."
   fi
   rm -rf -- "$model_dir"
+  # A nested base_path (e.g. "Qwen/Qwen2.5-0.5B-Instruct") leaves an empty
+  # parent directory ("Qwen/") behind after removing just the leaf -- clean
+  # it up too so list_exported_models' directory-scan fallback doesn't
+  # later misreport it as a phantom model. rmdir only succeeds on a truly
+  # empty directory, so this is a safe no-op for a flat (non-nested) layout.
+  local parent_dir
+  parent_dir="$(dirname "$model_dir")"
+  [[ "$parent_dir" != "$dir" ]] && { rmdir "$parent_dir" 2>/dev/null || true; }
   ok "Removed exported model '${name}' (${model_dir})"
   if command_exists docker && docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
     docker restart "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1 \
@@ -492,11 +646,34 @@ Check disk space/permissions on ${config_file} and retry."
   fi
 }
 
+# _ovms_config_base_path_for config_file name — looks up the base_path a
+# model was actually registered under in config.json's model_config_list,
+# empty if not found (e.g. no config.json yet, or a model never registered
+# there). The authoritative source for where an exported model's files
+# really live, since exporters don't all use the same on-disk layout.
+_ovms_config_base_path_for() {
+  local config_file="$1" name="$2"
+  [[ -f "$config_file" ]] || return 0
+  node -e '
+    try {
+      const data = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+      const list = Array.isArray(data.model_config_list) ? data.model_config_list : [];
+      const entry = list.find((e) => e?.config?.name === process.argv[2]);
+      if (entry?.config?.base_path) process.stdout.write(String(entry.config.base_path));
+    } catch {}
+  ' "$config_file" "$name"
+}
+
+
 # Lock-protected (with_state_lock) so a concurrent export/remove can't race
 # on the same shared config.json read-modify-write.
 _remove_model_from_ovms_config_locked() {
   local config_file="$1" name="$2" tmp
   tmp="$(mktemp)"
+  # See _add_model_config_entry_locked's matching comment -- same
+  # mktemp-defaults-to-0600 vs. OVMS's fixed non-root container uid issue
+  # applies here too.
+  chmod 644 "$tmp"
   node -e '
       const fs = require("node:fs");
       const [configFile, name] = process.argv.slice(1);

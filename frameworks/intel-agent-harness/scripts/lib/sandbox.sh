@@ -153,9 +153,17 @@ port_is_available() {
 
 # Only auto-picks an alternate port when HARNESS_SANDBOX_PORT wasn't set
 # explicitly — an explicit request that collides should fail loudly instead.
+# The explicit `|| return 1` below matters: resolve_gateway_port's own
+# invalid-port check calls error() (exit 1) *inside* a nested command
+# substitution two levels deep from create_sandbox's call site
+# (`${port_spec:-$(resolve_available_gateway_port)}` -> `$(resolve_gateway_port)`).
+# Bash's `set -e` does not reliably propagate through that particular
+# doubly-nested shape -- confirmed empirically -- so without this explicit
+# check, an invalid port silently produced an *empty* host_port instead of
+# actually aborting, corrupting the subsequent `docker run -p` invocation.
 resolve_available_gateway_port() {
   local port candidate
-  port="$(resolve_gateway_port)"
+  port="$(resolve_gateway_port)" || return 1
   if port_is_available "$port"; then
     printf '%s' "$port"
     return 0
@@ -216,7 +224,15 @@ letters/digits/hyphens, start/end alphanumeric, no consecutive hyphens."
     host_port="${port_spec:-$HARNESS_DEFAULT_SANDBOX_PORT}"
     container_port="$host_port"
   else
-    host_port="${port_spec:-$(resolve_available_gateway_port)}"
+    # Explicit if/assign (not `${port_spec:-$(...)}`) plus an explicit
+    # `|| exit 1`: see resolve_available_gateway_port's comment -- a failing
+    # command substitution nested this way does not reliably trigger `set -e`
+    # here either, so this is checked explicitly rather than relied upon.
+    if [[ -n "$port_spec" ]]; then
+      host_port="$port_spec"
+    else
+      host_port="$(resolve_available_gateway_port)" || exit 1
+    fi
     container_port="$host_port"
   fi
   sandbox_exists "$name" && error "Sandbox '$name' already exists. Destroy it first, or
@@ -348,7 +364,7 @@ backup_sandbox() {
   local name="$1" container tag
   container="$(sandbox_container_name "$name")"
   sandbox_exists "$name" || error "Sandbox '$name' is not registered; nothing to back up."
-  tag="${container}-backup-$(date -u +%Y%m%dT%H%M%SZ)"
+  tag="${container}:backup-$(date -u +%Y%m%dT%H%M%SZ)"
   info "Backing up sandbox '${name}' to image ${tag}…"
   docker commit "$container" "$tag" >/dev/null || error "Backup failed for sandbox '$name'."
   ok "Backed up '${name}' -> ${tag}"
@@ -396,7 +412,7 @@ recover_sandbox() {
     } catch {}
   ' "$(sandbox_registry_file)" "$name")"
   latest_backup="$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null \
-    | grep "^$(sandbox_container_name "$name")-backup-" | sort | tail -1 || true)"
+    | grep "^$(sandbox_container_name "$name"):backup-" | sort | tail -1 || true)"
   # Leave the existing registry entry in place until create_sandbox
   # succeeds and overwrites it -- sandbox_exists checks the container, not
   # the registry, so a stale entry here doesn't block recreation, and it's

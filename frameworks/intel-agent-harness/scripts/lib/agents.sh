@@ -404,19 +404,29 @@ hermes_skill_remove() {
 # run_agent_onboard — wires the installed agent to HARNESS_LLM_ENDPOINT and
 # verifies it runs.
 run_agent_onboard() {
-  local agent endpoint cli_bin
+  local agent endpoint cli_bin model_hint
   agent="$(resolve_installed_agent)"
   endpoint="${HARNESS_LLM_ENDPOINT:-$(harness_llm_endpoint)}"
   cli_bin="$(agent_cli_bin "$agent")" \
     || error "Unknown agent: '${agent}' (expected openclaw, deepagents-code, or hermes).
 Check HARNESS_AGENT, or re-install with --agent <name>."
 
+  # Resolved once, shared by both the openclaw and dcode branches below.
+  # Precedence: an explicit --hf-model/HARNESS_HF_MODEL always wins; then,
+  # if nothing was given (e.g. a standalone "./install.sh onboard" run after
+  # an earlier --hf-model install), fall back to whatever single model is
+  # already registered with OVMS rather than the literal string "default"
+  # (which never matches a real registered model name and always 404s);
+  # HARNESS_LLM_MODEL overrides all of the above when set explicitly.
+  model_hint=""
+  [[ -n "${HARNESS_HF_MODEL:-}" ]] && model_hint="${HARNESS_HF_MODEL##*/}"
+  [[ -n "$model_hint" ]] || model_hint="$(ovms_sole_registered_model_name 2>/dev/null || true)"
+  [[ -n "$model_hint" ]] || model_hint="default"
+  model_hint="${HARNESS_LLM_MODEL:-$model_hint}"
+
   case "$agent" in
     openclaw)
       command_exists "$cli_bin" || error "openclaw CLI not found after install."
-      local model_hint="default"
-      [[ -n "${HARNESS_HF_MODEL:-}" ]] && model_hint="${HARNESS_HF_MODEL##*/}"
-      model_hint="${HARNESS_LLM_MODEL:-$model_hint}"
       if configure_openclaw_provider "$endpoint" "$model_hint"; then
         info "Smoke-testing OpenClaw against ${endpoint} (model: ovms/${model_hint})…"
         "$cli_bin" infer model run --prompt "Say hello." --model "ovms/${model_hint}" --json >/dev/null \
@@ -431,9 +441,6 @@ manually instead: openclaw config set models.providers.ovms '{\"baseUrl\":\"${en
       ;;
     deepagents-code)
       command_exists "$cli_bin" || error "dcode not found after install."
-      local model_hint="default"
-      [[ -n "${HARNESS_HF_MODEL:-}" ]] && model_hint="${HARNESS_HF_MODEL##*/}"
-      model_hint="${HARNESS_LLM_MODEL:-$model_hint}"
       configure_dcode_provider "$endpoint" "$model_hint"
       info "Smoke-testing dcode against ${endpoint} (model: ${model_hint})…"
       HARNESS_DCODE_API_KEY="${HARNESS_DCODE_API_KEY:-not-needed}" DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 \

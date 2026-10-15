@@ -1,2 +1,3 @@
 .codesight/
 node_modules/
+test/logs/

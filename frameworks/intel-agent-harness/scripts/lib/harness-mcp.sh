@@ -54,11 +54,20 @@ data.setdefault("mcp_servers", {})[name] = {
 
 # Hermes's config can carry provider API keys, so write it 0600 -- plain
 # open(..., "w") would use the process umask (commonly 0644) -- and refuse
-# to follow a symlink swapped in at the destination path.
+# to follow a symlink swapped in at the destination path. The mode argument
+# to os.open() is only applied when O_CREAT actually creates a *new* file;
+# it has no effect on a pre-existing file (e.g. one Hermes's own installer
+# already created with looser permissions before this ever runs) -- an
+# explicit os.fchmod() on the already-open descriptor (not a second,
+# path-based chmod, which would re-resolve the path and reopen a TOCTOU
+# window the O_NOFOLLOW open above was meant to close) enforces 0600
+# unconditionally, regardless of whether the file was just created or
+# already existed.
 import os
 
 flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
 fd = os.open(config_path, flags, 0o600)
+os.fchmod(fd, 0o600)
 with os.fdopen(fd, "w") as f:
     yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
 PY
