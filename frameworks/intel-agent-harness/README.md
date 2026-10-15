@@ -4,12 +4,6 @@ A generic setup script for deploying your own Node.js-based CLI/agent
 project onto Intel hardware (tested against Intel Core Ultra iGPU and Arc
 (CRI) GPUs; degrades gracefully to CPU-only when no Intel GPU is present).
 
-# Intel Agentic Harness
-
-A generic setup script for deploying your own Node.js-based CLI/agent
-project onto Intel hardware (tested against Intel Core Ultra iGPU and Arc
-(CRI) GPUs; degrades gracefully to CPU-only when no Intel GPU is present).
-
 ## Vision: Agentic Harness
 
 The standalone agent-plus-inference stack this repo installs (OpenClaw /
@@ -23,7 +17,9 @@ Uses a staged install flow (spinner/logging helpers, Node.js-via-nvm
 bootstrap, Docker setup, CLI verification, express install) with a
 **Docker-based sandbox manager** for running containerized workloads —
 Intel GPUs don't need a CDI step, since render nodes under `/dev/dri` pass
-straight through to containers via `--device`.
+straight through to containers via `--device` (plus `--group-add` for the
+render node's own group, since the published OVMS image runs as a fixed
+non-root user that otherwise can't open the device).
 
 This installer installs **real, independently-published open-source agent
 projects** rather than something invented for Intel:
