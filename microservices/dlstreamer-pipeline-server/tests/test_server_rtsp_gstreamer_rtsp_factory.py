@@ -93,13 +93,19 @@ class TestGStreamerRtspFactory:
         mock_appsrc.connect.assert_any_call('enough-data', mock_stream.source.on_enough_data)
         assert pipeline == mock_pipeline
         
-    def test_do_create_element_missing_source(self, gstreamer_rtsp_factory, mock_rtsp_server):
-        mock_rtsp_server.get_source.return_value = None
+    def test_do_create_element_missing_source(self, request):
+        """do_create_element must log an error and return None when the
+        RTSP server has no registered source for the requested path."""
+        factory = request.getfixturevalue("gstreamer_rtsp_factory")
+        rtsp_server = request.getfixturevalue("mock_rtsp_server")
+        rtsp_server.get_source.return_value = None
         url = MagicMock()
         url.abspath = "/test"
-        pipeline = gstreamer_rtsp_factory.do_create_element(url)
+        pipeline = factory.do_create_element(url)
         assert pipeline is None
-        gstreamer_rtsp_factory._logger.error.assert_called_once_with("GStreamerRtspFactory: Missing source for RTSP pipeline path /test")
+        getattr(factory, '_logger').error.assert_called_once_with(
+            "GStreamerRtspFactory: Missing source for RTSP pipeline path /test"
+        )
 
     @pytest.mark.parametrize(
         "case",

@@ -9,6 +9,7 @@ from collections import namedtuple
 import pytest
 from unittest.mock import MagicMock, patch
 from src.server.rtsp.gstreamer_rtsp_destination import GStreamerRtspDestination
+from src.server.rtsp.gstreamer_rtsp_server import Stream
 
 EncodingRequestCase = namedtuple(
     "EncodingRequestCase", ["encoding_value", "expected_encoding", "expect_warning"]
@@ -94,10 +95,13 @@ class TestGStreamerRtspDestination:
         assert gstreamer_rtsp_destination._frame_size == 1000
         assert gstreamer_rtsp_destination._need_data is False
         mock_pipeline.rtsp_server.add_stream.assert_called_once_with(
-            mock_pipeline.identifier, mock_pipeline.rtsp_path, mock_caps,
-            gstreamer_rtsp_destination, gstreamer_rtsp_destination.overlay,
-            gstreamer_rtsp_destination.overlay_properties,
-            encoding=gstreamer_rtsp_destination.encoding
+            mock_pipeline.identifier, mock_pipeline.rtsp_path,
+            Stream(
+                gstreamer_rtsp_destination, mock_caps,
+                gstreamer_rtsp_destination.overlay,
+                gstreamer_rtsp_destination.overlay_properties,
+                gstreamer_rtsp_destination.encoding
+            )
         )
         assert gstreamer_rtsp_destination._last_timestamp == 500
         mock_pipeline.appsink_element.set_property.assert_called_once_with("sync", True)
