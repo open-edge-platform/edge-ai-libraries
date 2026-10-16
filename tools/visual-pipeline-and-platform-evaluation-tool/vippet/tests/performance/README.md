@@ -103,7 +103,10 @@ python -m perf_helpers.cli --report-only results/bench_A results/bench_B --repor
 - Accepted inputs: a result JSON file, a single run directory, or the
   `latest` symlink. The whole results folder is not accepted.
 - Several inputs render as one report with several runs; duplicate inputs
-  are ignored.
+  are ignored. Charts and the summary table keep each run's measurements
+  separate (an extra "Run" column/legend label appears) even when two runs
+  share the same pipeline/variant/stream count, so comparisons across runs
+  are not lost.
 - Output location:
   - one run: overwrites `<run_dir>/<benchmark_id>.html`;
   - several runs: `<results-dir>/report_YYYYMMDD_HHMMSS.html`;
