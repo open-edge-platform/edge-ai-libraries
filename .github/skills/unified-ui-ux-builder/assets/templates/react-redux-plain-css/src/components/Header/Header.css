@@ -1,11 +1,19 @@
 /* SPDX-FileCopyrightText: (C) 2026 Intel Corporation */
 /* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Matches the reference app's actual HeaderBar.css (assets/css/HeaderBar.css
+ * in education-ai-suite/smart-classroom/ui) — white background (not blue,
+ * that's TopPanel's job), and its action is the outlined `.text-button`
+ * look, not a solid-fill button. See references/component-library.md
+ * "Stack B > Buttons" for all three button looks in this stack.
+ */
 
 .header-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
+  background: var(--color-light);
 }
 
 .header-bar__title {
@@ -17,16 +25,18 @@
 }
 
 .header-bar__action {
-  border: none;
+  color: var(--color-theme);
+  background: none;
+  border: 2px solid #82b6df;
   border-radius: var(--control-radius);
-  background: var(--color-theme);
-  color: var(--color-light);
-  padding: var(--control-padding);
+  padding: 8px 16px;
   font-family: var(--font-text);
-  font-size: var(--control-font-size);
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
 }
 
 .header-bar__action:hover {
-  background: #005a9e;
+  background: #eaf3fb;
+  border-color: var(--color-theme);
 }

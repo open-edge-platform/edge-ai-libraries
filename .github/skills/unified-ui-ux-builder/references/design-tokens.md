@@ -113,6 +113,10 @@ Source: `smart-classroom/ui/src/index.css`.
 
   --color-dark: #2B2C30;      /* body/heading text */
   --color-light: #FFF;
+  --color-on-accent: #FFF;    /* fixed white for text/icons on the permanently-
+                                 blue TopPanel/solid-primary surfaces — unlike
+                                 --color-light, never inverted by the dark
+                                 theme (see TopPanel note below) */
   --color-gray-700: #6A6D75;  /* labels */
   --color-gray-900: #2B2C30;
   --color-theme: #0071c5;     /* primary accent */
@@ -137,6 +141,24 @@ Source: `smart-classroom/ui/src/index.css`.
 - No formal gray ramp beyond `gray-700`/`gray-900` — other grays (panel background `#f8f8f8`,
   border `#e6e7e8`, input `#f7f7f7`) live directly in component CSS files, one per component under
   `src/assets/css/`. Reuse these exact values instead of picking new ones.
+- **`TopPanel`'s background is `var(--color-theme)` (solid blue), not `var(--color-light)`** — see
+  `component-library.md` "Stack B > Header". This is the single most commonly missed token when
+  scaffolding/migrating into this stack; verify it explicitly during Step A.8/B.3.
+- **Use `var(--color-on-accent)`, never `var(--color-light)`, for text/icons/borders sitting on
+  that always-blue TopPanel bar (brand text, active nav item, ThemeToggle on it).** `--color-light`
+  is a theme-dependent *page-surface* token (white in light mode, dark gray in dark mode) reused
+  elsewhere for cards/panels — it is **not** a "fixed white" token. Since the TopPanel bar stays
+  solid blue in both themes, anything placed on it must stay white in both themes too, which only
+  `--color-on-accent` guarantees. Wiring the TopPanel to `--color-light` instead silently breaks
+  dark-mode readability (dark text on the blue bar) — confirmed as a real regression while
+  migrating an app's UI into this stack; verify explicitly during Step A.8/B.3 after toggling dark
+  mode, not just a light-mode screenshot.
+- **No documented dark-theme palette** for this stack (unlike Stack A/C, which both ship one) —
+  the templates' `[data-theme='dark']` block (`--panel-border`, `--page-background`, inverted
+  `--color-dark`/`--color-light`/`--control-*`) is this skill's own addition, following the same
+  "same accent in both themes" convention Stack C uses, not something pulled from the reference
+  app. If the target app wants different dark values, ask the user and record the override in the
+  Step A.8 summary rather than inventing silently per-app.
 
 **Status colors** (component-local, not root tokens — reuse these exact values):
 

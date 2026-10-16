@@ -99,11 +99,20 @@ Reference: `visual-pipeline-and-platform-evaluation-tool/ui`
 Reference: `education-ai-suite/smart-classroom/ui`
 
 ### Header
-- `components/Header/Header.tsx` + `TopPanel/TopPanel.tsx`.
-- `TopPanel`: screen switcher / global nav, always shown.
-- `HeaderBar`: conditional, shown only on the main screen.
+- `components/TopPanel/TopPanel.tsx` (+ `assets/css/TopPanel.css`) and, on the main screen only,
+  `components/Header/HeaderBar.tsx`-equivalent (+ `assets/css/HeaderBar.css`).
+- `TopPanel`: always shown, **solid blue bar** — `background-color: var(--color-theme)` (not a
+  light/white surface), `height: 64px`, white text/logo (`color: var(--color-light)`). Carries the
+  brand/logo, screen switcher / global nav, and the theme toggle. Don't default this to a white
+  background — that's the single most common drift seen when building from this stack (see
+  `UploadSection.css`'s `.content-search-btn` for how secondary controls look sitting on top of it:
+  transparent background, `1.5px solid rgba(255, 255, 255, 0.7)` border, white text, hover fills
+  `rgba(255, 255, 255, 0.15)`).
+- `HeaderBar`: conditional, shown only on the main screen. White background (`#fff`), not blue —
+  this is the one that carries the outlined `.text-button` (see Buttons below).
 - Theme toggle writes the stack's own theming mechanism (same light/dark convention as stack A,
-  via plain CSS not `next-themes`).
+  via plain CSS not `next-themes`). Since it sits on `TopPanel`'s blue bar, style it on-accent
+  (transparent + light border/text), not with its default light-surface look.
 
 ### Sidebar / Navigation
 - **None.** No persistent sidebar in this stack.
@@ -124,10 +133,25 @@ Reference: `education-ai-suite/smart-classroom/ui`
 - Everything else: plain `<section>` + dedicated CSS file.
 
 ### Buttons
-- Plain `<button>` / `.text-button`.
-- `font-size: 12px; font-weight: 500; color: var(--color-dark); background: #FFF;
-  border-radius: 4px; border: none; padding: 6px 16px;`
-- No variant system — differentiate primary/secondary/danger with a modifier class per feature.
+Three looks coexist in the real app — pick the one matching the action's role, don't invent a
+fourth:
+- **Plain/neutral** (default, e.g. a basic action button): `font-size: 12px; font-weight: 500;
+  color: var(--color-dark); background: var(--color-light); border-radius: 4px; border: none;
+  padding: 6px 16px;`. The real reference app has no dark theme, so its source literally hardcodes
+  `background: #FFF` — **don't copy that literally**: this skill's own dark-theme addition (see
+  "No documented dark-theme palette" below) inverts `--color-dark`/`--color-light` together, so a
+  hardcoded `#FFF` paired with `var(--color-dark)` text becomes invisible (light-on-white) once
+  dark mode is toggled. Always pair theme-dependent text (`--color-dark`) with the matching
+  theme-dependent surface (`--color-light`), never a literal hex, for any button/surface in this
+  stack. Confirmed as a real regression in a migrated app's Copy button.
+- **Solid primary** (the main call-to-action, e.g. `.cs-browse-btn`): `background: #0071c5;
+  color: #fff; border: none; border-radius: 4px; padding: 6px 18px; font-size: 12px;`, hover
+  darkens to `#005fa3`.
+- **Outlined secondary** (`.text-button`, lives in `HeaderBar.css`): `color: #0071c5; background:
+  none; border: 2px solid #82b6df; border-radius: 4px; padding: 8px 16px; font-size: 14px;
+  font-weight: 500;`.
+- No variant system/prop — differentiate via a modifier class per feature, matching whichever of
+  the three looks above fits the action's importance.
 
 ### Forms / Inputs
 - Controlled React state + native `<input>`/`<select>`. No form library.
@@ -136,6 +160,11 @@ Reference: `education-ai-suite/smart-classroom/ui`
   - `--control-radius: 4px;`
   - `--control-border-color: #ccc;`
   - `--control-focus-ring: 0 0 0 2px rgba(0, 123, 255, 0.25);`
+- **File upload / dropzone** (`.cs-dropzone`, `UploadSection.css`): `border: 2px dashed #b0bec5;
+  border-radius: 8px; background: #f5f8fa;`. On hover/focus: `border-color: #0071c5; background:
+  #eaf3fb;`. While a file is actively being dragged over it (`.cs-dropzone--active`):
+  `border-color: #0071c5; background: #daeeff;`. Icon and any inline "Browse" button inside it use
+  the accent (`#0071c5`), matching the solid-primary button look above.
 
 ### Tables
 - No shared table primitive — feature-specific markup (e.g. `FileManager`, `Timeline`).

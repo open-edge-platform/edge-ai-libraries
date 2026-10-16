@@ -4,11 +4,13 @@ description: >-
   Design and scaffold a UI/UX for any app, sample, or suite across OEP repos
   (edge-ai-suites, edge-ai-libraries, and similar), any domain, so it matches
   the product family. Use for a new frontend, a redesign, a new
-  page/component/dashboard, or turning a backend API and/or mockup image
-  into a working UI. Auto-detects the stack for existing apps; for new apps
+  page/component/dashboard, migrating an existing UI off a non-reference
+  stack (e.g. Gradio, Vue, Angular), or turning a backend API and/or mockup
+  image into a working UI. Auto-detects the stack for existing apps; for new apps
   offers 3 curated stacks (React+Redux+Tailwind+Radix/shadcn, React+Redux+
   plain CSS, vanilla JS), each with shared design tokens, component
   patterns, layouts, and a starter template from 3 reference apps.
+
   Requires an approved draw.io wireframe before any code is scaffolded. Flags missing must-have
   baseline elements (e.g. no theme toggle) during build/edit or audit. Also supports a read-only
   audit mode: validate an existing UI's pages against the shared design system and produce a
@@ -37,11 +39,11 @@ SPDX-License-Identifier: Apache-2.0
 # UI/UX Builder
 
 - Scaffolds or evolves the frontend of **any app, any domain, any OEP repo** (edge-ai-suites,
-  edge-ai-libraries, or similar) so it's quick to build and instantly recognizable as the same
-  product family — same colors, typography, layout shells, components.
+  edge-ai-libraries, or similar) so it stays quick to build and instantly recognizable as the same
+  product family (colors, typography, layout shells, components).
 - Tokens/components/layouts below come **only** from three hand-picked reference apps (see
-  "Survey of the repo"), not a general survey of the whole monorepo — but nothing here is specific
-  to any one app's business domain or to one repo; apply the same patterns anywhere in OEP.
+  "Survey of the repo"), not a general repo-wide survey — none are domain- or repo-specific; apply
+  the same patterns anywhere in OEP.
 
 | Field | Value |
 |-------|-------|
@@ -71,6 +73,8 @@ phrase the request; similar wording with the same intent also applies.
   blueprint."**
 - Redesign/restyle an existing UI to match the OEP product family — **"Restyle the UI to match
   the rest of the repo."**
+- Migrate an existing UI off a non-reference stack (Gradio, Vue, Angular, etc.) onto one of the
+  three reference stacks — **"Migrate our Gradio UI to Stack B."**
 - Generate a UI from a backend's API/data model alone, with no blueprint — any business domain
   (the skill maps *data/endpoint shape* to layout, not domain vocabulary).
 
@@ -121,8 +125,8 @@ This skill runs in one of two independent modes. Steps are numbered per mode (`A
 
 ### Must-have baseline elements
 
-These are **not optional stylistic choices** — every reference stack has them, so their absence is
-always flagged (Step A.4, Step B.3), distinct from ordinary styling/token drift:
+These are **not optional** — all three stacks have them, so a missing one is always flagged
+(Step A.4, Step B.3), distinct from ordinary styling/token drift:
 
 - **Light/dark theme toggle** — `component-library.md`'s Header entry for the detected stack +
   `design-tokens.md`'s light/dark variants.
@@ -134,8 +138,8 @@ always flagged (Step A.4, Step B.3), distinct from ordinary styling/token drift:
 - **Status colors** for success/warning/error states, where the page shows any status (not just
   the primary accent) — see `design-tokens.md`'s shared status colors.
 
-This list is deliberately short — don't invent additional "must-haves" beyond what the reference
-docs actually establish as shared across all three stacks.
+This list is deliberately short — don't invent "must-haves" beyond what the reference docs
+establish as shared across all three stacks.
 
 Full detail: `references/stack-and-scaffolding.md`.
 
@@ -177,8 +181,8 @@ or ambiguous.
   1. Use case → read `README.md`/`docs/` "Getting Started"/user guide first for what the app does
      in plain language.
   2. Endpoints/params/schemas → look for an OpenAPI/Swagger spec (`openapi.yaml`/`.json`,
-     `/docs`/`/openapi.json` route, `swagger.yaml`) first; it already enumerates everything a route
-     grep would, far more cheaply.
+     `/docs`/`/openapi.json` route, `swagger.yaml`) first; it already enumerates what a route grep
+     would, more cheaply.
   3. Only read backend route/model source directly when no spec/docs exist, or they're
      incomplete/stale for what's needed — note the gap rather than trusting a stale spec silently.
   4. Can't locate backend code, docs, or spec at all → ask the user where it lives; never guess the
@@ -212,15 +216,19 @@ or ambiguous.
 
 ### Step A.4 — Analyze a blueprint/mockup image, if provided
 
-- Ask if the user has a blueprint/mockup/reference design before assuming they don't. Accept
-  either: an attached/pasted image (png/jpg/pdf/Figma export), or a repo/workspace file path
-  openable with `view`.
+- Ask if the user has a blueprint/mockup/reference design before assuming they don't. Accept any
+  of: an attached/pasted image (png/jpg/pdf/Figma export), a repo/workspace file path openable
+  with `view`, or — **only when migrating/extending an app that has an existing, runnable UI** —
+  running that live UI and capturing a screenshot of it to use as the blueprint (procedure:
+  `references/wireframing.md` "Capturing a live screenshot as a blueprint"). Never offer the
+  live-capture option for a brand-new app with nothing to run yet.
 - Path unreachable from this environment (e.g. local `C:/Users/...`) → say so plainly; ask for a
   repo/workspace path or a direct attachment. Never silently skip the blueprint or guess its
   contents.
-- No blueprint → ask whether the user wants to describe the layout in text instead (which
-  regions/components they want, order/priority) before falling back to reference-only design
-  (point 7 below). Only fall back once the user confirms they have neither.
+- No blueprint, no live UI to capture, or user declines the capture → ask whether the user wants
+  to describe the layout in text instead (which regions/components they want, order/priority)
+  before falling back to reference-only design (point 7 below). Only fall back once the user
+  confirms they have none of these.
 
 Once supplied:
 
@@ -329,7 +337,7 @@ cp -r .github/skills/unified-ui-ux-builder/assets/templates/vanilla-js/* <target
 ```
 
 All three templates are minimal starters, not full copies of the reference apps — extend them,
-don't feel bound to their exact file count.
+don't stay bound to their exact file count.
 
 Then, using Step A.2's use case, Step A.4's layout (if a blueprint was given), and the **approved
 wireframe from Step A.6**:

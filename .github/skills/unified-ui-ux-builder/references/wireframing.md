@@ -12,6 +12,29 @@ SPDX-License-Identifier: Apache-2.0
 - Never skip straight to scaffolding because the layout "seems obvious" — diagram feedback is
   cheap; app code is not.
 
+## Capturing a live screenshot as a blueprint
+
+Referenced from Step A.4 — most useful exactly when migrating an app off a non-reference stack
+(Step A.2) that has no static mockup/design file, where the live app itself is the only faithful
+source of truth for layout/content hierarchy. Only offer this when the app has an existing,
+runnable UI (never for a brand-new app with nothing to run yet):
+
+- Ask the user to confirm this is what they want before launching anything — never start a process
+  or install packages silently.
+- Ask for (or read from `README.md`/existing scripts) the exact run command, port, and any
+  required env vars; don't guess them.
+- Use a throwaway environment for this (e.g. a scratch venv/`node_modules`) with the minimal deps
+  needed to render the UI shell, not the full production dependency set — the goal is a visual
+  snapshot, not a working backend. Stub/dummy values for config the app requires just to boot (not
+  to render) are fine here; say so plainly, don't treat it as the real run configuration.
+- Use a headless browser (e.g. Playwright) to load the page and screenshot it; install it first if
+  not already available.
+- Save the screenshot under the target app's root folder (not inside its `ui/`/frontend
+  subdirectory, to keep it clearly separate from source code) — same cleanup question as any other
+  blueprint image (Step A.4 point 9: ask whether to keep/move/delete once the work is done).
+- Always stop the process you started once the screenshot is captured — never leave a launched
+  dev server/app running in the background afterward.
+
 ## 1. Ask which tool the user wants
 
 Use `ask_user` — never assume:

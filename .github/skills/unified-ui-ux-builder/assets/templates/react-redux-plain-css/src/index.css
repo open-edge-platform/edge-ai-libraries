@@ -13,6 +13,9 @@
 
   --color-dark: #2b2c30; /* body/heading text */
   --color-light: #fff;
+  --color-on-accent: #fff; /* always-white text/icons on the permanently-blue
+                               TopPanel/solid-primary surfaces — unlike
+                               --color-light, never flips in dark theme */
   --color-gray-700: #6a6d75; /* labels */
   --color-gray-900: #2b2c30;
   --color-theme: #0071c5; /* primary accent */
@@ -25,10 +28,33 @@
   --control-focus-color: #007bff;
   --control-focus-ring: 0 0 0 2px rgba(0, 123, 255, 0.25);
 
+  --panel-border: #e6e7e8;
+  --page-background: #f5f7fa;
+
   --z-index-header: 50;
   --z-index-toast: 1100;
   --z-index-video-stream: 1000;
   --z-index-modal: 9999;
+}
+
+/*
+ * Dark theme: the reference app doesn't document a dark palette for this
+ * stack (only stack A/C ship one) — this reuses the same accent in both
+ * themes (same convention stack C uses) and inverts the neutral surfaces.
+ * If the target app needs different dark values, ask the user and record
+ * the override in the Step A.8 summary; don't invent silently per-app.
+ */
+[data-theme='dark'] {
+  --color-dark: #f1f2f3;
+  --color-light: #2b2c30;
+  --color-gray-700: #b7bac2;
+  --color-gray-900: #f1f2f3;
+
+  --control-border-color: #4a4c52;
+  --control-background: #38393e;
+
+  --panel-border: #4a4c52;
+  --page-background: #1f2023;
 }
 
 * {
@@ -45,7 +71,8 @@ body {
   margin: 0;
   font-family: var(--font-text);
   color: var(--color-dark);
-  background-color: #f5f7fa;
+  background-color: var(--page-background);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .app {

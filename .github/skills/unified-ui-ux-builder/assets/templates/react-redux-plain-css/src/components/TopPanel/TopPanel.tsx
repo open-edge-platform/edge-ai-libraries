@@ -1,11 +1,14 @@
 // SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
-// Top navigation bar: app name + nav tabs + connection status.
-// See references/component-library.md "Stack B > Header / top bar".
+// Top navigation bar: app name + nav tabs + connection status + theme
+// toggle. Always a solid blue bar (`background-color: var(--color-theme)`)
+// with white text/logo — see references/component-library.md "Stack B >
+// Header" and TopPanel.css. Don't default this to a white/light surface.
 
 import React from 'react';
 import { useAppSelector } from '../../redux/hooks';
+import ThemeToggle from '../common/ThemeToggle';
 import './TopPanel.css';
 
 interface TopPanelProps {
@@ -34,6 +37,7 @@ const TopPanel: React.FC<TopPanelProps> = ({ activeScreen, setActiveScreen }) =>
       <span className={`top-panel__status top-panel__status--${connectionStatus}`}>
         {connectionStatus}
       </span>
+      <ThemeToggle />
     </header>
   );
 };

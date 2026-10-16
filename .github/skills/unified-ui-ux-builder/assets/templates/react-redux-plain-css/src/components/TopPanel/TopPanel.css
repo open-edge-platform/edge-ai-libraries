@@ -1,21 +1,30 @@
 /* SPDX-FileCopyrightText: (C) 2026 Intel Corporation */
 /* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Matches the reference app's actual TopPanel.css (assets/css/TopPanel.css
+ * in education-ai-suite/smart-classroom/ui) — a solid blue bar, not a
+ * white/light one. This is the single most common drift point when
+ * building from this stack; don't default the background to
+ * var(--color-light) or var(--page-background).
+ */
 
 .top-panel {
   display: flex;
   align-items: center;
   gap: 24px;
-  height: 56px;
-  padding: 0 20px;
-  background: var(--color-light);
-  border-bottom: 1px solid #e6e7e8;
+  height: 64px;
+  padding: 0 2rem;
+  background-color: var(--color-theme);
+  color: var(--color-on-accent);
+  border-bottom: 1px solid var(--panel-border);
   z-index: var(--z-index-header);
+  font-family: var(--font-display);
 }
 
 .top-panel__brand {
   font-family: var(--font-display);
   font-weight: 600;
-  color: var(--color-dark);
+  color: var(--color-on-accent);
 }
 
 .top-panel__nav {
@@ -31,28 +40,43 @@
   border-radius: var(--control-radius);
   font-family: var(--font-text);
   font-size: var(--control-font-size);
-  color: var(--color-gray-700);
+  color: rgba(255, 255, 255, 0.75);
   cursor: pointer;
 }
 
 .top-panel__nav-item--active {
-  color: var(--color-theme);
+  color: var(--color-on-accent);
   font-weight: 600;
 }
 
 .top-panel__status {
   font-size: 12px;
   text-transform: capitalize;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .top-panel__status--connected {
-  color: #1e8e3e;
+  color: #a8e6b0;
 }
 
 .top-panel__status--connecting {
-  color: #b8860b;
+  color: #ffe08a;
 }
 
 .top-panel__status--disconnected {
-  color: #c62828;
+  color: #ffb3ab;
+}
+
+/* Any control placed on this bar (e.g. ThemeToggle) needs the on-accent
+   look below instead of its default light-surface styling — see the real
+   app's .content-search-btn in UploadSection.css for the same treatment. */
+.top-panel .theme-toggle {
+  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  color: var(--color-on-accent);
+}
+
+.top-panel .theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--color-on-accent);
 }

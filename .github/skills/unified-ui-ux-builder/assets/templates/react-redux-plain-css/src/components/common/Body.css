@@ -14,7 +14,7 @@
   flex-shrink: 0;
   padding: 16px;
   overflow-y: auto;
-  border-right: 1px solid #e6e7e8;
+  border-right: 1px solid var(--panel-border);
   background: var(--color-light);
 }
 
@@ -32,7 +32,7 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  border: 1px solid #e6e7e8;
+  border: 1px solid var(--panel-border);
   background: var(--color-light);
   cursor: pointer;
 }
