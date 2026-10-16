@@ -154,3 +154,25 @@ class ValidationStatus(BaseModel):
     validation_id: str
     state: str  # One of: QUEUED, VALID, INVALID
     message: str  # error reason if state is INVALID, otherwise empty string
+
+
+# ---------------------------------------------------------------------------
+# GStreamer Elements
+# ---------------------------------------------------------------------------
+
+class ElementInfo(BaseModel):
+    """Information about a GStreamer element."""
+
+    name: str
+    plugin: str
+    description: str
+
+
+class ElementDetailResponse(BaseModel):
+    """Detailed information about a specific GStreamer element."""
+
+    name: str
+    plugin: str
+    description: str
+    details: str  # Full gst-inspect output
+

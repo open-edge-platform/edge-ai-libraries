@@ -42,6 +42,8 @@ authoritative schema for the version you are running:
 | `POST` | [/validate](#post-validate) | Validate a pipeline without starting it. | Yes |
 | `GET` | [/validate/status](#get-validatestatus) | Return the status of all validation requests. | Yes |
 | `GET` | [/validate/status/{validation_id}](#get-validatestatusvalidation_id) | Return the status of a specific validation request. | Yes |
+| `GET` | [/elements](#get-elements) | List available GStreamer elements. | Yes |
+| `GET` | [/elements/{element_name}](#get-elementselement_name) | Get details about a specific GStreamer element. | Yes |
 
 ### Differences from DLSPS 1.0
 
@@ -427,7 +429,81 @@ curl -X DELETE http://localhost:8080/pipelines/3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6
 ```
 
 ---
+## `GET` /elements
 
+Lists all available GStreamer elements installed on the system.
+
+### Responses
+
+#### `200 OK`: array of [ElementInfo](#elementinfo)
+
+```json
+[
+  {
+    "name": "videotestsrc",
+    "plugin": "videotestsrc",
+    "description": "Video test source"
+  },
+  {
+    "name": "fakesink",
+    "plugin": "fakesink",
+    "description": "Fake video sink"
+  },
+  {
+    "name": "videoconvert",
+    "plugin": "videoconvert",
+    "description": "Convert video formats"
+  }
+]
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/elements
+```
+
+---
+
+## `GET` /elements/{element_name}
+
+Returns detailed information about a specific GStreamer element, including
+factory properties, pad templates, and capabilities.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `element_name` | string | Yes | GStreamer element name (e.g., `xingmux`, `videotestsrc`). |
+
+### Responses
+
+#### `200 OK`: [ElementDetailResponse](#elementdetailresponse)
+
+```json
+{
+  "name": "gvadetect",
+  "plugin": "videoanalytics",
+  "description": "Object detection (generates GstVideoRegionOfInterestMeta)",
+  "details": "Factory Details:\n  Rank                     none (0)\n  Long-name                Object detection (generates GstVideoRegionOfInterestMeta)\n  Klass                    Video\n  Description              Performs object detection using SSD-like (including MobileNet-V1/V2 and ResNet), YOLOv5 - YOLO11, YOLOX and FasterRCNN-like object detection models.\n  Author                   Intel Corporation\n\nPlugin Details:\n  Name                     videoanalytics\n  Description              Deep Learning Streamer elements\n  Filename                 /opt/intel/dlstreamer/lib/libgstvideoanalytics.so\n  Version                  2026.1.0\n  License                  MIT/X11\n  Source module            dlstreamer\n  Binary package           Deep Learning Streamer elements\n  Origin URL               https://github.com/open-edge-platform/dlstreamer/tree/main\n\nGObject\n +----GInitiallyUnowned\n       +----GstObject\n             +----GstElement\n                   +----GstBaseTransform\n                         +----GvaBaseInference\n                               +----GstGvaDetect\n...[Pad Templates, Properties, and Element Configuration Details]..."
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "GStreamer element 'badelement' not found"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/elements/gvadetect
+```
+
+---
 ## Schemas
 
 ### StartPipelineRequest
@@ -624,3 +700,20 @@ curl http://localhost:8080/validate/status/3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f
 | `validation_id` | string | Validation request UUID. |
 | `state` | string | One of `QUEUED`, `VALID`, `INVALID`. |
 | `message` | string | Error reason if state is `INVALID`. Otherwise empty string. |
+
+### ElementInfo
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | GStreamer element name (e.g., `videotestsrc`). |
+| `plugin` | string | Plugin group name that provides this element (e.g., `videotestsrc`). |
+| `description` | string | One-line human-readable description of the element. |
+
+### ElementDetailResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | GStreamer element name. |
+| `plugin` | string | Plugin group name. |
+| `description` | string | One-line description. |
+| `details` | string | Full output from `gst-inspect-1.0`, including factory properties, pad templates, capabilities, and element hierarchy. |

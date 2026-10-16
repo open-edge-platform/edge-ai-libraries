@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from api.routers import pipelines, validate
+from api.routers import pipelines, validate, elements
 from config.loader import load_legacy_config
 from core.pipeline_manager import PipelineManager
 
@@ -78,3 +78,4 @@ app = FastAPI(
 
 app.include_router(pipelines.router)
 app.include_router(validate.router)
+app.include_router(elements.router)
