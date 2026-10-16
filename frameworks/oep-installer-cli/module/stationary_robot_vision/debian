@@ -28,7 +28,7 @@ debian_90_install_stationary_robot_vision () {
   configure_stationary_robot_vision
 
   if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Stationary Robot Vision & Control is already installed. Skipping..."
+    echo "Stationary Robot Vision & Control is installed." >&2
   else
     # declare ownership
     ensure_prop set installed/stationary_robot_vision/owned true

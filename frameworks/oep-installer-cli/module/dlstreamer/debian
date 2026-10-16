@@ -31,7 +31,7 @@ debian_75_install_dlstreamer () {
   configure_dlstreamer
   
   if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
-    echo "dlstreamer-${version} already installed. Skipping"
+    echo "dlstreamer-${version} is installed." >&2
   else
     ensure_disk_size 15000
 

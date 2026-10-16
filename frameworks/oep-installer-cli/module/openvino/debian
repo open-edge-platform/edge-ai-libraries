@@ -25,7 +25,7 @@ debian_70_install_openvino () {
   configure_openvino $*
   
   if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
-    echo "openvino-${version} already installed. Skipping"
+    echo "openvino-${version} is installed." >&2
   else
     ensure_disk_size 1500
     # remove old versions

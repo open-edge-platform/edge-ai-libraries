@@ -18,7 +18,7 @@ debian_80_profile_anomalib () {
 debian_80_install_anomalib () {
   configure_anomalib $*
   if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Anomalib already installed. Skipping"
+    echo "Anomalib is installed." >&2
   else
     ensure_disk_size 15000
     mkdir -p "$workspace"

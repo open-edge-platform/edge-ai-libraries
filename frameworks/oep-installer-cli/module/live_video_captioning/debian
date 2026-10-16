@@ -29,7 +29,7 @@ debian_90_profile_live_video_captioning () {
 debian_90_install_live_video_captioning () {
   configure_live_video_captioning
   if verify_live_video_captioning && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Live Video Captioning is already installed. Skipping"
+    echo "Live Video Captioning is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
 

@@ -15,7 +15,7 @@ debian_20_group_edge_pack_base_standard () {
 debian_20_install_edge_pack_base_standard () {
   configure_edge_pack_base_standard "$@"
   if ensure_apt_is_installed intel-edge-base-standard=$version && [[ " $* " != *" --reinstall "* ]]; then
-    echo "intel-edge-base-standard already installed. Skipping" 1>&2
+    echo "intel-edge-base-standard is installed." >&2
   else
     ensure_prop set installed/edge_pack_base_standard/owned true
     ensure_apt autoremove -y intel-edge-base-standard || true

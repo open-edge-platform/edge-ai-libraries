@@ -52,7 +52,7 @@ debian_90_install_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot "$@"
 
   if verify_autonomous_mobile_robot "$@" && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Autonomous Mobile Robot is already installed. Skipping..."
+    echo "Autonomous Mobile Robot is installed." >&2
   else
     # declare ownership
     ensure_prop set installed/autonomous_mobile_robot/owned true

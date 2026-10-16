@@ -11,7 +11,7 @@ debian_70_profile_edge_pack_media_gst () {
 debian_70_install_edge_pack_media_gst () {
   configure_edge_pack_media_gst "$@"
   if ensure_apt_is_installed intel-edge-media-gst=$version && [[ " $* " != *" --reinstall "* ]]; then
-    echo "intel-edge-media-gst already installed. Skipping" 1>&2
+    echo "intel-edge-media-gst is installed." >&2
   else
     ensure_prop set installed/edge_pack_media_gst/owned true
     ensure_apt autoremove -y intel-edge-media-gst || true

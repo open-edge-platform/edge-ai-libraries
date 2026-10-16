@@ -72,7 +72,7 @@ debian_60_install_edge_node_infrastructure_blueprint () {
     return 1
   fi
   if verify_edge_node_infrastructure_blueprint && [[ " $* " != *" --reinstall "* ]]; then
-    echo "edge_node_infrastructure_blueprint ($deployment) already installed. Skipping"
+    echo "edge_node_infrastructure_blueprint ($deployment) is installed." >&2
   else
     # switching away from k3s: stop and remove its runtime so it no longer holds TCP 6443
     [ "$deployment" = k3s ] || uninstall_k3s_edge_node_infrastructure_blueprint

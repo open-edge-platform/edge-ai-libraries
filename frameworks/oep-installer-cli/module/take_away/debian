@@ -39,7 +39,7 @@ debian_90_install_take_away () {
   configure_take_away
 
   if verify_take_away && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Order accuracy Take Away is already installed. Skipping"
+    echo "Order accuracy Take Away is installed." >&2
   else 
     ensure_ports_open "${used_ports[*]}" return 3
     # clone the repository

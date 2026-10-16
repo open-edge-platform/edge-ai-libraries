@@ -15,7 +15,7 @@ debian_20_group_edge_pack_base_realtime () {
 debian_20_install_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@"
   if ensure_apt_is_installed intel-edge-base-realtime=$version && [[ " $* " != *" --reinstall "* ]]; then
-    echo "intel-edge-base-realtime already installed. Skipping" 1>&2
+    echo "intel-edge-base-realtime is installed." >&2
   else
     local candidate
     candidate="$(apt-cache policy intel-edge-base-realtime 2> /dev/null | awk '/Candidate:/{print $2}')"

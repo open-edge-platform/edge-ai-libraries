@@ -15,7 +15,7 @@ debian_20_group_edge_pack_npu () {
 debian_20_install_edge_pack_npu () {
   configure_edge_pack_npu "$@"
   if ensure_apt_is_installed intel-edge-npu=$version && [[ " $* " != *" --reinstall "* ]]; then
-    echo "intel-edge-npu already installed. Skipping" 1>&2
+    echo "intel-edge-npu is installed." >&2
   else
     ensure_prop set installed/edge_pack_npu/owned true
     ensure_apt autoremove -y intel-edge-npu || true

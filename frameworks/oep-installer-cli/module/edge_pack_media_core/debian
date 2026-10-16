@@ -11,7 +11,7 @@ debian_20_profile_edge_pack_media_core () {
 debian_20_install_edge_pack_media_core () {
   configure_edge_pack_media_core "$@"
   if ensure_apt_is_installed intel-edge-media-core=$version && [[ " $* " != *" --reinstall "* ]]; then
-    echo "intel-edge-media-core already installed. Skipping" 1>&2
+    echo "intel-edge-media-core is installed." >&2
   else
     ensure_prop set installed/edge_pack_media_core/owned true
     ensure_apt autoremove -y intel-edge-media-core || true

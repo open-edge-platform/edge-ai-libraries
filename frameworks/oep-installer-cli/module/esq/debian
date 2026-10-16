@@ -10,7 +10,7 @@ debian_85_profile_esq () {
 debian_85_install_esq () {
   configure_uv
   if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Esq is already installed. Skipping..."
+    echo "Esq is installed." >&2
   else
     ensure_disk_size 25000
 

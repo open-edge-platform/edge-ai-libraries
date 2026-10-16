@@ -12,7 +12,7 @@ debian_70_profile_mediamtx () {
 debian_70_install_mediamtx () {
   configure_mediamtx
   if [ -x "$bin_path/mediamtx" ] && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Mediamtx already installed. Skipping" 1>&2
+    echo "Mediamtx is installed." >&2
   else
     ensure_fetch "$repository" - | ensure_sudo tar xz -C "$bin_path" mediamtx
     [ -x "$bin_path/mediamtx" ]

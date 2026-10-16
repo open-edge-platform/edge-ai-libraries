@@ -17,7 +17,7 @@ debian_90_install_geti () {
   configure_geti "$@"
 
   if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Geti already installed. Skipping."
+    echo "Geti is installed." >&2
   else
     ensure_ports_open "$port" return 3
     ensure_disk_size 20000
