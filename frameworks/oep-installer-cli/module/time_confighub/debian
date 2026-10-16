@@ -20,6 +20,7 @@ debian_70_install_time_confighub () {
   if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
     echo "pcm is installed. Skipping"
   else
+    configure_kernel_module_essential_debian "$@"
     ensure_git_export "$workspace" "$version" "$repository"
     cd "$workspace"
     chmod a+rx install.sh uninstall.sh

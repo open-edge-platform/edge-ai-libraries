@@ -1,11 +1,17 @@
 #!/bin/bash
 
 main () {
-  . /etc/os-release
-  ID_LIKE="$(echo "$ID_LIKE" | tr -cd 'a-zA-Z0-9')" # sanitize
+  if [ -z "$HOME" ]; then
+    echo "\$HOME must be set" >&2
+    return 3
+  fi
+
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
   installer_bin="$HOME/.local/bin/$installer_name"
+
+  . /etc/os-release
+  installer_family="$(x="${ID_LIKE:-$ID}";x="${x##* }";echo "${x//[^a-zA-Z0-9]/}")"
 
   local _globals=() _cmds=() _args=() cur=-1 v
   for v in "$@"; do
@@ -80,7 +86,7 @@ main () {
           for _dep in ${_deps[*]}; do
             _gf=${_dep/_install_/_group_}
             declare -F $_gf > /dev/null 2>&1 || continue
-            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${ID_LIKE}_*_install_}" ${_resolved[*]})); do
+            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${installer_family}_*_install_}" ${_resolved[*]})); do
               _groups["$_g"]=1
             done
           done
@@ -150,17 +156,18 @@ subcommand_bootstrap () {
     echo "bootstrap options:"
     echo "  --install=<name>       set default installation component|profile."
     echo "  --start=<name>         set default start component|profile."
+    echo "  --family=<name>        enumate OS family."
     echo "  --output/-o            specify the installer path to be created."
     echo "  --validate             validate installation orders."
     echo "  --dry-run              dry run the bootstrapping process."
     echo
-    local profiles=($(cd "$mydir";find profile -name "$ID_LIKE" | cut -f2 -d/))
+    local profiles=($(cd "$mydir";find profile -name "$installer_family" | cut -f2 -d/))
     [ ${#profiles[*]} -eq 0 ] || (
       IFS=$'\n'
       echo "  list of bootstrap profiles:"
       echo "${profiles[*]/#/    }" | sort
     )
-    local modules=($(cd "$mydir";find module -name "$ID_LIKE" | cut -f2 -d/))
+    local modules=($(cd "$mydir";find module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
     [ ${#modules[*]} -eq 0 ] || (
       IFS=$'\n'
       echo "  list of bootstrap components:"
@@ -174,6 +181,9 @@ subcommand_bootstrap () {
   local install_modules=() start_modules=() modules=() rendered="" v vlast=""
   for v in "${@}"; do
     case "$v" in
+    --family=*)
+      installer_family="${v#*=}"
+      ;;
     --install=*)
       install_modules+=("${v#*=}")
       ;;
@@ -199,13 +209,14 @@ subcommand_bootstrap () {
   done
 
   # scan for dependencies
-  [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";find profile module -name "$ID_LIKE" | cut -f2 -d/))
+  [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";find profile module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
   modules=(${modules[*]##*/})
   local -A scripts=() orders=() known=() depsof=()
   local i=0 script license_common=0
   while [ $i -lt ${#modules[*]} ]; do
-    local script="$mydir"/profile/${modules[$i]}/${ID_LIKE}
-    [ -r "$script" ] || script="$mydir"/module/${modules[$i]}/${ID_LIKE}
+    local script="$mydir"/profile/${modules[$i]}/${installer_family}
+    [ -r "$script" ] || script="$mydir"/module/${modules[$i]}/${installer_family}
+    [ -r "$script" ] || script="$mydir"/package/${installer_family}/${modules[$i]}
     if [ ${scripts["$script"]:-0} -eq 1 ]; then
       :
     elif [ -r "$script" ]; then
@@ -215,12 +226,12 @@ subcommand_bootstrap () {
       local funcs=($(
         [ ! -r "$script_nos" ] || . "$script_nos"
         . "$script"
-        declare -F | grep -E " ${ID_LIKE}_[0-9]+_(install|profile)_${name}$" | cut -f3 -d' '
+        declare -F | grep -E " ${installer_family}_[0-9]+_(install|profile)_${name}$" | cut -f3 -d' '
       ))
       local profiler=$(printf '%s\n' "${funcs[@]}" | grep -m1 "_profile_${name}$")
       local installer=$(printf '%s\n' "${funcs[@]}" | grep -m1 "_install_${name}$")
       if [ -n "$installer" ]; then
-        local o=${installer#${ID_LIKE}_}; orders[$name]=${o%%_*}
+        local o=${installer#${installer_family}_}; orders[$name]=${o%%_*}
       fi
       known[$name]=1
       local deps=()
@@ -236,7 +247,7 @@ subcommand_bootstrap () {
       local licenser=$(
         [ ! -r "$script_nos" ] || . "$script_nos"
         . "$script"
-        declare -F | grep -E -m1 " ${ID_LIKE}_[0-9]+_license_${modules[$i]}$"
+        declare -F | grep -E -m1 " ${installer_family}_[0-9]+_license_${modules[$i]}$"
       )
       [ -z "$licenser" ] || license_common=1
     else
@@ -281,9 +292,9 @@ subcommand_bootstrap () {
   # collect sources
   local sources=() f
   sources+=("$mydir"/common/linux/*)
-  [ ! -d "$mydir"/common/${ID_LIKE} ] || sources+=("$mydir"/common/${ID_LIKE}/*)
+  [ ! -d "$mydir"/common/${installer_family} ] || sources+=("$mydir"/common/${installer_family}/*)
   if [ $license_common -ne 0 ]; then
-    for f in "$mydir"/license/linux/ensure_license_* "$mydir"/license/${ID_LIKE}/ensure_license_*; do
+    for f in "$mydir"/license/linux/ensure_license_* "$mydir"/license/${installer_family}/ensure_license_*; do
       [ ! -r "$f" ] || sources+=("$f")
     done
   fi
@@ -311,7 +322,7 @@ subcommand_bootstrap () {
         . "$f" || { echo "Failed to source $f" 1>&2; exit 3; }
       done
       unset -f main   # main comes from the verbatim header
-      misc_funcs=($(declare -F | cut -f3 -d' ' | grep -v -E "^(${ID_LIKE}_[0-9]+|ensure_|act_|verify_|configure_|subcommand_|main$)"))
+      misc_funcs=($(declare -F | cut -f3 -d' ' | grep -v -E "^(${installer_family}_[0-9]+|ensure_|act_|verify_|configure_|subcommand_|main$)"))
       declare -f | sed "/^subcommand_setup () *\$/,/^}/ s|local installer_misc_functions=[^;]*|local installer_misc_functions=(${misc_funcs[*]})|"
     ) || exit 3
     echo

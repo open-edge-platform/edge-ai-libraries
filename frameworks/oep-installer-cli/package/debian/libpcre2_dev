@@ -1,0 +1,9 @@
+
+debian_30_install_libpcre2_dev () {
+  ensure_apt_install_package libpcre2-dev
+}
+
+debian_30_sbom_libpcre2_dev () {
+  ensure_sbom_format pkg-list libpcre2-dev
+}
+

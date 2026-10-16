@@ -19,7 +19,7 @@ verify_pallet_defect_detection () {
 }
 
 debian_90_profile_pallet_defect_detection () {
-  echo "git curl gawk unzip docker edge_base"
+  echo "git curl gawk unzip docker_io edge_base"
 }
 
 debian_90_install_pallet_defect_detection () {
@@ -29,7 +29,7 @@ debian_90_install_pallet_defect_detection () {
   else
     ensure_ports_open "${used_ports[*]}" return 3
     # clone the repository
-    ensure_disk_size 50
+    ensure_disk_size 10000
     ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision
 
     # setup
