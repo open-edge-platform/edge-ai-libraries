@@ -216,22 +216,18 @@ Always include this table, with exactly these five columns:
 | KPI | Status | Value | Why it Matters | Assessment |
 | --- | --- | --- | --- | --- |
 
-Fill in one row per KPI below, using a colored status: 🟢 Good/Low risk,
-🟡 Moderate, 🔴 Poor/High risk, ⚪ Not assessed (missing or insufficient evidence
+Fill in exactly one row for each of these four KPIs, using a colored status:
+🟢 Good/Low risk, 🟡 Moderate, 🔴 Poor/High risk, ⚪ Not assessed (missing or insufficient evidence
 — never guess a risk level in that case).
 
-- **Temporal Order** — Value from `pairwise_order_accuracy` (%); mention
-  `temporal_score` and any `out_of_order_pairs`/violations in the assessment.
-- **Semantic Similarity** — Value from `average_cosine_score` (%); note it's a
+- **Semantic Similarity (SS)** — Value from `average_cosine_score` (%); note it's a
   similarity score, not a calibrated "percent correct".
-- **Factual Support (Entailment)** — Value from `entailment_ratio` (%); cite
-  `entailment` out of `total_sentences_compared`.
-- **Neutral Content Rate** — Value from `neutral_ratio` (%); explain neutral
+- **MENLI Score** — Value from `MENLI_Score` in its native units (-2 to 1);
+  keep the status consistent with the overall picture.
+- **Neutral Ratio (NR)** — Value from `neutral_ratio` (%); explain neutral
   means "neither confirmed nor contradicted", not proof of a hallucination.
-- **Contradiction Risk** — Value from `contradiction_ratio` (%) and the raw
-  `contradiction` count; call out concrete conflicting details if any.
-- **Overall Faithfulness (MENLI)** — Value is `MENLI_Score` in its native units
-  (-2 to 1); keep this status consistent with the overall picture.
+- **Temporal Score (TS)** — Value from `temporal_score` (0–1, shown as %); mention any
+  `out_of_order_pairs`/violations in the assessment.
 
 Base every status and assessment on the numbers from this run and, where
 relevant, one or two concrete sentence examples from the response — not on
