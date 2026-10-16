@@ -156,6 +156,7 @@ subcommand_bootstrap () {
     echo "bootstrap options:"
     echo "  --install=<name>       set default installation component|profile."
     echo "  --start=<name>         set default start component|profile."
+    echo "  --family=<name>        enumate OS family."
     echo "  --output/-o            specify the installer path to be created."
     echo "  --validate             validate installation orders."
     echo "  --dry-run              dry run the bootstrapping process."
@@ -180,6 +181,9 @@ subcommand_bootstrap () {
   local install_modules=() start_modules=() modules=() rendered="" v vlast=""
   for v in "${@}"; do
     case "$v" in
+    --family=*)
+      installer_family="${v#*=}"
+      ;;
     --install=*)
       install_modules+=("${v#*=}")
       ;;
