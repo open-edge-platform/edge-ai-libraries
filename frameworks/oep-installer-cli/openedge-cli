@@ -166,7 +166,7 @@ subcommand_bootstrap () {
       echo "  list of bootstrap profiles:"
       echo "${profiles[*]/#/    }" | sort
     )
-    local modules=($(cd "$mydir";find module -name "$installer_family" | cut -f2 -d/))
+    local modules=($(cd "$mydir";find module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
     [ ${#modules[*]} -eq 0 ] || (
       IFS=$'\n'
       echo "  list of bootstrap components:"
@@ -205,13 +205,14 @@ subcommand_bootstrap () {
   done
 
   # scan for dependencies
-  [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";find profile module -name "$installer_family" | cut -f2 -d/))
+  [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";find profile module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
   modules=(${modules[*]##*/})
   local -A scripts=() orders=() known=() depsof=()
   local i=0 script license_common=0
   while [ $i -lt ${#modules[*]} ]; do
     local script="$mydir"/profile/${modules[$i]}/${installer_family}
     [ -r "$script" ] || script="$mydir"/module/${modules[$i]}/${installer_family}
+    [ -r "$script" ] || script="$mydir"/package/${installer_family}/${modules[$i]}
     if [ ${scripts["$script"]:-0} -eq 1 ]; then
       :
     elif [ -r "$script" ]; then

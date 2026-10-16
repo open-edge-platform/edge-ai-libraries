@@ -27,7 +27,7 @@ marketing segments. The table lists the profiles:
 | `federal_and_aerospace_ai_suite` | Multi-modal federal and aerospace use cases |
 | `health_and_life_science_ai_suite` | Patient and vitals monitoring |
 
-> See [`module`](module) for the list of available modules.   
+> See [`modules`](module) or [`packages`](package) for the list of available modules.   
 
 ## Installation
 
