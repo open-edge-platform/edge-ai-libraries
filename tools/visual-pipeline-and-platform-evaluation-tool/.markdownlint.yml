@@ -29,5 +29,4 @@ MD033:
     - picture  # allow responsive images
     - source  # allow responsive image sources
     - span  # allow span tags - needed if you need to highlight text in color
-MD060:
-  style: aligned
+MD060: false
