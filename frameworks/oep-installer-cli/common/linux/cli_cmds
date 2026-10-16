@@ -82,8 +82,13 @@ subcommand_list () {
     ;;
   *" --sbom "*)
     # scan for dependencies
+    if [ ${#*} -eq 1 ]; then
+      act_get prefix profile_; local all_profiles=(${_act_reply[*]})
+      local all_modules=(${_act_cache_modules[*]})
+      set -- ${all_modules[*]} ${all_profiles[*]#*_*_*_}
+    fi
     local handles=($(act_find_deps install $(act_resolve_args install "$@")))
-    local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}"
+    local all_install_modules="${handles[*]#${installer_family}_*_install_}"
     local handler sbomer
     for handler in $(printf '%s\n' "${handles[@]}" | sort); do
       sbomer=${handler/_install_/_sbom_}
@@ -172,7 +177,7 @@ subcommand_setup () {
   cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
   chmod a+rx "$installer_bin"

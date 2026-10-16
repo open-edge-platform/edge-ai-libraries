@@ -34,7 +34,7 @@ fedora_30_install_kernel_module_essential () {
 
   local p pkgs=()
   for p in ${install_pkgs[*]}; do
-    if ensure_rpm_is_installed $p; then
+    if ensure_dnf_is_installed $p; then
       echo "$p is installed. Skipping" >&2
     else
       ensure_prop set installed/kernel_module_essential/owned_$p true
@@ -43,8 +43,7 @@ fedora_30_install_kernel_module_essential () {
   done
   # TODO: install devtoolset differently
   if [ ${#pkgs[@]} -gt 0 ]; then
-    echo ensure_rpm update
-    echo ensure_rpm install "${pkgs[@]}"
+    ensure_dnf install "${pkgs[@]}"
   fi
 }
 
@@ -56,7 +55,7 @@ fedora_30_remove_kernel_module_essential () {
     [ "$(ensure_prop get installed/kernel_module_essential/owned_$p)" = "true" ] || continue
     pkgs+=($p)
   done
-  [ ${#pkgs[@]} -eq 0 ] || ensure_rpm remove ${pkgs[*]}
+  [ ${#pkgs[@]} -eq 0 ] || ensure_dnf remove ${pkgs[*]}
 }
 
 fedora_30_sbom_kernel_module_essential () {
