@@ -488,7 +488,10 @@ class PipelineManager:
                 first_frame_time = event.get("first_frame_time")
                 if first_frame_time is not None:
                     instance.first_frame_time = first_frame_time
-            logger.info("Pipeline %s received first frame at %.3f (restart attempts reset)", instance_id, instance.first_frame_time)
+            if instance.restart_attempts > 0:
+                logger.info("Pipeline %s received first frame at %.3f (after restart attempts)", instance_id, instance.first_frame_time)
+            else:
+                logger.info("Pipeline %s received first frame at %.3f", instance_id, instance.first_frame_time)
         elif evt == "started":
             logger.debug("Pipeline %s started", instance_id)
         elif evt == "eos":
