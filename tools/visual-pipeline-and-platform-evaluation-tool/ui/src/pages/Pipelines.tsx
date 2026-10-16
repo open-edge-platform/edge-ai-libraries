@@ -990,6 +990,7 @@ export const Pipelines = () => {
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
                       }
+                      events={jobStatus?.events}
                       resultOverrides={
                         jobStatus
                           ? {

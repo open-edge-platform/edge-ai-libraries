@@ -6,6 +6,7 @@ import {
   type VlmMetricsPoint,
 } from "@/features/metrics/VlmMetricsCharts.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
+import { LivePipelineEvents } from "@/features/pipeline-editor/LivePipelineEvents.tsx";
 import {
   useFrozenMetrics,
   type FrozenSnapshotOverrides,
@@ -13,6 +14,7 @@ import {
 import { useMetricHistory } from "@/hooks/useMetricHistory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
+import type { PipelineEvent } from "@/api/api.generated";
 import { ExternalLink } from "lucide-react";
 import "@/lib/hljs-theme.css";
 
@@ -65,6 +67,7 @@ type PerformanceTestPanelProps = {
   enableMetadata?: boolean;
   liveStreamUrl?: string | null;
   resultOverrides?: FrozenSnapshotOverrides | null;
+  events?: PipelineEvent[];
 };
 
 const PerformanceTestPanel = ({
@@ -77,6 +80,7 @@ const PerformanceTestPanel = ({
   enableMetadata = true,
   liveStreamUrl,
   resultOverrides,
+  events,
 }: PerformanceTestPanelProps) => {
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
@@ -97,6 +101,14 @@ const PerformanceTestPanel = ({
   const [connectionErrors, setConnectionErrors] = useState<
     Record<string, string | null>
   >({});
+  // Last non-empty events list, kept visible after the job status stops polling.
+  const [displayedEvents, setDisplayedEvents] = useState<PipelineEvent[]>([]);
+
+  useEffect(() => {
+    if (events && events.length > 0) {
+      setDisplayedEvents(events);
+    }
+  }, [events]);
 
   // Frozen snapshot of metadata kept after the run finishes
   const [frozenMetadata, setFrozenMetadata] = useState<{
@@ -148,6 +160,7 @@ const PerformanceTestPanel = ({
     if (!wasRunning && isRunning) {
       startRecording();
       setFrozenMetadata(null);
+      setDisplayedEvents([]);
     } else if (wasRunning && !isRunning) {
       freezeSnapshot(resultOverrides);
       setFrozenMetadata((prev) => {
@@ -394,6 +407,13 @@ const PerformanceTestPanel = ({
                   </p>
                 ) : null}
               </div>
+            )}
+
+            {displayedEvents.length > 0 && (
+              <LivePipelineEvents
+                events={displayedEvents}
+                isRunning={isRunning}
+              />
             )}
           </TabsContent>
         )}

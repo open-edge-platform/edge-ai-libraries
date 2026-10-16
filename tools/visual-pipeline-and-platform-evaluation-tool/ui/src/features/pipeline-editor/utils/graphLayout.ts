@@ -20,13 +20,19 @@ export const LayoutDirection = {
 export type LayoutDirectionType =
   (typeof LayoutDirection)[keyof typeof LayoutDirection];
 
-const getNodeWidth = (nodeType: string): number =>
+const getDeclaredWidth = (nodeType: string): number =>
   nodeWidths[nodeType] ?? defaultNodeWidth;
 
 export const createGraphLayout = (
   nodes: ReactFlowNode[],
   edges: ReactFlowEdge[],
   direction: LayoutDirectionType = LayoutDirection.TopToBottom,
+  // Per-node width override. When provided, these widths are fed into dagre
+  // and used to compute final positions instead of the declared values in
+  // `nodeWidths`. Used by PipelineEditor to re-run the layout once React Flow
+  // has measured the actual rendered node sizes so sibling spacing matches
+  // what the user sees on screen.
+  widthByNodeId?: ReadonlyMap<string, number>,
 ) => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
@@ -34,10 +40,12 @@ export const createGraphLayout = (
   const isHorizontal = direction === "LR" || direction === "RL";
   dagreGraph.setGraph({ rankdir: direction });
 
+  const widthFor = (node: ReactFlowNode): number =>
+    widthByNodeId?.get(node.id) ?? getDeclaredWidth(node.type || "default");
+
   nodes.forEach((node) => {
-    const currentNodeWidth = getNodeWidth(node.type || "default");
     dagreGraph.setNode(node.id, {
-      width: currentNodeWidth,
+      width: widthFor(node),
       height: defaultNodeHeight,
     });
   });
@@ -50,7 +58,7 @@ export const createGraphLayout = (
 
   return nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
-    const currentNodeWidth = getNodeWidth(node.type ?? "default");
+    const currentNodeWidth = widthFor(node);
 
     return {
       ...node,

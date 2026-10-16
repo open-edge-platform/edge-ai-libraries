@@ -2,6 +2,7 @@ import DataSrcNode, { DataSrcNodeWidth } from "./DataSrcNode.tsx";
 import Decodebin3Node from "./Decodebin3Node.tsx";
 import FakeSinkNode from "./FakeSinkNode.tsx";
 import FileSinkNode from "./FileSinkNode.tsx";
+import MultiFileSinkNode from "./MultiFileSinkNode.tsx";
 import FileSrcNode, { FileSrcNodeWidth } from "./FileSrcNode.tsx";
 import GVAClassifyNode, { GVAClassifyNodeWidth } from "./GVAClassifyNode.tsx";
 import GVADetectNode, { GVADetectNodeWidth } from "./GVADetectNode.tsx";
@@ -26,8 +27,10 @@ import GVAWatermarkNode, {
   GVAWatermarkNodeWidth,
 } from "./GVAWatermarkNode.tsx";
 import H264ParseNode from "./H264ParseNode.tsx";
+import JpegEncNode from "./JpegEncNode.tsx";
 import Mp4MuxNode from "./Mp4MuxNode.tsx";
 import ParsebinNode from "./ParsebinNode.tsx";
+import OpenH264EncNode from "./OpenH264EncNode.tsx";
 import QtdemuxNode from "./QtdemuxNode.tsx";
 import Queue2Node from "./Queue2Node.tsx";
 import QueueNode from "./QueueNode.tsx";
@@ -42,6 +45,7 @@ import VAPostProcNode from "./VAPostProcNode.tsx";
 import VideoConvertNode, {
   VideoConvertNodeWidth,
 } from "./VideoConvertNode.tsx";
+import VideoConvertScaleNode from "./VideoConvertScaleNode.tsx";
 import VideoScaleNode from "./VideoScaleNode.tsx";
 import VideoXRawNode from "./VideoXRawNode.tsx";
 import VideoXRawWithDimensionsNode from "./VideoXRawWithDimensionsNode.tsx";
@@ -52,6 +56,9 @@ import TsamIngestionNode, {
 import TsamOutputNode, { TsamOutputNodeWidth } from "./TsamOutputNode.tsx";
 import TsamUdfNode, { TsamUdfNodeWidth } from "./TsamUdfNode.tsx";
 import SourceNode, { SourceNodeWidth } from "./custom/SourceNode.tsx";
+import ProximityTriggerNode, {
+  ProximityTriggerNodeWidth,
+} from "./custom/ProximityTriggerNode.tsx";
 
 export const nodeTypes = {
   filesrc: FileSrcNode,
@@ -73,10 +80,13 @@ export const nodeTypes = {
   "video/x-raw(memory:VAMemory)": VideoXRawNode,
   vapostproc: VAPostProcNode,
   videoconvert: VideoConvertNode,
+  videoconvertscale: VideoConvertScaleNode,
   "video/x-raw": VideoXRawWithDimensionsNode,
   mp4mux: Mp4MuxNode,
   filesink: FileSinkNode,
+  multifilesink: MultiFileSinkNode,
   vah264enc: VAH264EncNode,
+  openh264enc: OpenH264EncNode,
   decodebin3: Decodebin3Node,
   parsebin: ParsebinNode,
   queue: QueueNode,
@@ -90,6 +100,8 @@ export const nodeTypes = {
   "tsam-udf": TsamUdfNode,
   "tsam-output": TsamOutputNode,
   source: SourceNode,
+  gvaproximitytrigger_py: ProximityTriggerNode,
+  jpegenc: JpegEncNode,
 };
 
 export const nodeWidths: Record<string, number> = {
@@ -110,6 +122,7 @@ export const nodeWidths: Record<string, number> = {
   videoconvert: VideoConvertNodeWidth,
   splitmuxsink: SplitMuxSinkNodeWidth,
   source: SourceNodeWidth,
+  gvaproximitytrigger_py: ProximityTriggerNodeWidth,
 };
 
 export const defaultNodeWidth = 220;
