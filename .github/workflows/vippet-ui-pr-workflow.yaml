@@ -32,6 +32,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -64,6 +65,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -154,6 +156,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: ${{ always() }}
     needs: [lint, e2e]
     steps:
