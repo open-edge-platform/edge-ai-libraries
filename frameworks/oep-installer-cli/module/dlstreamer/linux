@@ -1,5 +1,5 @@
 
-validate_dlstreamer () {
+test_dlstreamer_pipeline () {
   if [[ " $* " = *" --validate "* ]]; then
     mkdir -p "$workspace"
     cd "$workspace"

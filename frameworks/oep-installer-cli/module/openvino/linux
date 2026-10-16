@@ -1,5 +1,5 @@
 
-validate_openvino () {
+test_openvino () {
   if [[ " $* " = *" --validate "* ]]; then
     [ -r "$workspace"/${model##*/} ] || {
       mkdir -p "$workspace"

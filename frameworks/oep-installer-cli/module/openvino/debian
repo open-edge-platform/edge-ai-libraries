@@ -50,7 +50,7 @@ debian_70_install_openvino () {
   fi
 
   # validate openvino
-  validate_openvino "$@"
+  test_openvino "$@"
 
   # info
   echo "@@HIGHLIGHT openvino samples @/usr/share/openvino"

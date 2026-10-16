@@ -45,12 +45,12 @@ fedora_75_install_dlstreamer () {
     # install dlstreamer
     ensure_dnf install -y intel-dlstreamer=$version
 
-    validate_dlstreamer
+    verify_dlstreamer
     echo "intel-dlstreamer=$version installed successfully."
   fi
 
   # validate dlstreamer
-  validate_dlstreamer "$@"
+  test_dlstreamer_pipeline "$@"
     
   # info
   echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
