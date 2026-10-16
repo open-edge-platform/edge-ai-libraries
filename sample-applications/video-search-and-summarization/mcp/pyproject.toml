@@ -1,23 +1,31 @@
-[tool.poetry]
+[project]
 name = "mcp-app"
-version = "0.2.0"
-description = "Spec-driven FastMCP proxy for filtered REST APIs"
+version = "0.3.0"
+description = "MCP tool surface for Video Search and Summarization"
 readme = "README.md"
 authors = []
-packages = [{include = "src"}]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "fastmcp>=4.0.10,<5.0.0",
+    "httpx>=0.28.1,<1.0.0",
+    "pydantic>=2.13.4,<3.0.0",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.10,<3.14"
-fastmcp = "^3.4.0"
-httpx = ">=0.28.1,<1.0.0"
-pydantic = "^2.13.4"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^9.0.3"
-
-[tool.poetry.scripts]
+[project.scripts]
 mcp-app = "src.main:main"
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3,<10.0.0",
+]
+
+[tool.poetry]
+packages = [{include = "src"}]
+
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -185,6 +185,27 @@ The OpenAPI spec shows a nested shape - ignore it. The actual NestJS model is fl
 
 ---
 
+## Search images: `POST /search/images`, `DELETE /search/images/{imageId}`
+
+Upload a query image for image search (`--search`/`--dual` only; 400 otherwise).
+Multipart field `image`; `.jpg`/`.jpeg`/`.png`/`.webp` whose bytes match the
+extension; at most 2 MB (413), wrong type 415. Stored in the Pipeline Manager
+MinIO bucket under `search-images/`.
+
+```json
+{
+  "imageId": "3f1c...e9.jpg",
+  "imageUrl": "http://<HOST_IP>:12345/datastore/<bucket>/search-images/3f1c...e9.jpg",
+  "imagePath": "/datastore/<bucket>/search-images/3f1c...e9.jpg",
+  "contentType": "image/jpeg",
+  "size": 48213
+}
+```
+
+The host in `imageUrl` comes from `PM_PUBLIC_BASE_URL` (set by `setup.sh`),
+else the request's forwarded host. `DELETE` returns 400 for a malformed id and
+404 when the image does not exist.
+
 ## One-off search: `POST /search/query`
 
 Through nginx: `POST /manager/search/query`. Result returned immediately; nothing persisted.
@@ -193,7 +214,9 @@ Through nginx: `POST /manager/search/query`. Result returned immediately; nothin
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `query` | string | **yes** | Natural-language search text. |
+| `query` | string | one of three | Natural-language search text. |
+| `image` | string | one of three | Base64 or data URL image (`--search`/`--dual` only). |
+| `imageUrl` | string | one of three | `imageUrl`, `imagePath` or `imageId` from `POST /search/images`; loaded from MinIO by Pipeline Manager. Other URLs return 400, deleted images 404. |
 | `tags` | string | no | Comma-separated (e.g. `"outdoor,night"`). Accepted, **not forwarded** - no tag filtering on this path. Use managed `POST /search` or direct search-ms for tag filtering. |
 | `timeFilter` | object | no | Only `value`+`unit` produce a forwarded range. `start`, `end`, `source` are accepted but ignored here. |
 

@@ -11,6 +11,8 @@
 # Quick Start:
 #   make help              - Show all available commands
 #   make build             - Build all application Docker images
+#   make deploy-summary    - Set up and start the summary application
+#   make config MODE=search - Inspect the search Compose configuration
 #   make test              - Run all unit tests
 #   make trivy-scan        - Run all Trivy security scans
 #
@@ -21,7 +23,7 @@ SHELL := bash -eu -o pipefail
 
 # Auto-create .env from .env.example if it doesn't exist yet.
 # This runs only for targets that actually require the env file.
-$(if $(filter build build-deps push deploy-summary deploy-search deploy-dual deploy-unified health-check,$(MAKECMDGOALS)),$(shell [ -f .env ] || cp .env.example .env),)
+$(if $(filter build build-deps push,$(MAKECMDGOALS)),$(shell [ -f .env ] || cp .env.example .env),)
 
 # Load registry/tag defaults from .env at parse time so that `make build`
 # and `make push` honour .env without requiring shell exports.
@@ -76,7 +78,7 @@ REGISTRY  ?= $(_REG_URL)$(_PRJ_NAME)
 # Component Configuration
 # ==============================================================================
 
-COMPONENTS := pipeline-manager vss-ui video-search video-ingestion
+COMPONENTS := pipeline-manager vss-ui video-search video-ingestion mcp
 TEST_COMPONENTS := pipeline-manager vss-ui video-search video-ingestion
 
 # Build contexts and Dockerfiles
@@ -95,6 +97,15 @@ video-search_LANG := python
 video-ingestion_CONTEXT_DIR := ./video-ingestion
 video-ingestion_DOCKERFILE := ./video-ingestion/docker/Dockerfile
 video-ingestion_LANG := python
+mcp_CONTEXT_DIR := ./mcp
+mcp_DOCKERFILE := ./mcp/Dockerfile
+mcp_LANG := python
+# Per-component image-name override (defaults to the component name); the MCP
+# image is named vss-mcp-server to match docker/compose.mcp.yaml.
+mcp_IMAGE_NAME := vss-mcp-server
+MCP_IMAGE := $(REGISTRY)vss-mcp-server:$(TAG)
+# Full image reference for a component, honouring the per-component override.
+component_image = $(REGISTRY)$(if $($(1)_IMAGE_NAME),$($(1)_IMAGE_NAME),$(1)):$(TAG)
 
 # Dependency microservices (built via build-deps, pulled from registry or official images via compose)
 # multimodal-dataprep, multimodal-embedding-serving, vector-retriever, ovms-service, audio-analyzer
@@ -140,7 +151,7 @@ ALL_IMAGES  := $(DEP_IMAGES) $(APP_IMAGES)
 
 TEST_TARGETS := $(addprefix test-,$(TEST_COMPONENTS))
 
-.PHONY: build build-deps push check-docker test clean help list \
+.PHONY: build build-deps build-mcp push check-docker test clean help list \
         shellcheck pylint eslint \
         trivy-scan trivy-scan-fs trivy-scan-image trivy-scan-config \
         clamav-scan bandit-scan gitleaks-scan codeql-scan \
@@ -148,7 +159,9 @@ TEST_TARGETS := $(addprefix test-,$(TEST_COMPONENTS))
         get-service-name get-component-names get-image-tags get-context-dirs \
         get-python-version get-node-version get-go-version get-scan-matrix-json \
         deploy deploy-summary deploy-search deploy-dual deploy-unified \
-        deploy-stop deploy-clean health-check
+        deploy-stop deploy-clean stop down clean-data \
+        config deploy-config config-summary config-search config-dual config-unified \
+        init-env setenv health-check test-setup
 
 # ==============================================================================
 # Build Targets
@@ -163,9 +176,9 @@ build: check-docker
 	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
 	@echo "Building all application services..."
 	@$(foreach component,$(COMPONENTS), \
-		echo "  → Building $(component): $(REGISTRY)$(component):$(TAG)"; \
+		echo "  → Building $(component): $(call component_image,$(component))"; \
 		docker build $(DOCKER_BUILD_ARGS) \
-			-t $(REGISTRY)$(component):$(TAG) \
+			-t $(call component_image,$(component)) \
 			-f $($(component)_DOCKERFILE) $($(component)_CONTEXT_DIR); \
 	)
 	@echo "All application services built successfully."
@@ -203,6 +216,16 @@ build-deps: check-docker
 	fi
 	@echo "All dependency microservices built successfully."
 
+# Build the VSS MCP server image (mcp/Dockerfile). Kept as a convenience for
+# building just the MCP image; `make build` covers it via COMPONENTS.
+build-mcp: check-docker
+	@$(if $(REGISTRY),,echo "Warning: No registry prefix set. Images will be tagged without a registry prefix.")
+	@echo "Building VSS MCP server: $(MCP_IMAGE)"
+	@docker build $(DOCKER_BUILD_ARGS) \
+		-t $(MCP_IMAGE) \
+		-f $(mcp_DOCKERFILE) $(mcp_CONTEXT_DIR)
+	@echo "VSS MCP server built successfully."
+
 # Push all built images (app services + dependency microservices) to the registry.
 # Images are pushed in parallel (backgrounded) to speed up multi-image pushes.
 push: check-docker
@@ -238,123 +261,59 @@ push: check-docker
 # Deploy
 # ==============================================================================
 #
-# All configuration is loaded from .env (auto-created from .env.example on
-# first run). Edit .env to set models, ports, and feature flags.
+# Configuration precedence: Make command-line assignments, exported environment,
+# then non-empty .env values. ENV_FILE selects another configuration file.
+# The shared setup implementation handles device/model selection, downloads,
+# Compose overlays/profiles, validation, and URLs without requiring setup.sh.
 #
-# Every deploy target builds all application images from source first (via the
-# `build` prerequisite) so that newly built local images are always used instead
-# of pulling from a registry. Third-party images (nginx, postgres, etc.) are
-# still pulled from the registry when not already cached locally.
+# Deploy uses existing/published images, just like source setup.sh. Build local
+# images explicitly with `make build build-deps` before deploying if desired.
+# Stop explicitly before switching modes; deploying never implicitly tears down
+# a running stack. Model downloads and hardware-specific setup remain automatic.
 #
 # Secrets (POSTGRES_PASSWORD, MINIO_ROOT_PASSWORD, RABBITMQ_PASSWORD,
 # HUGGINGFACE_TOKEN) are intentionally blank in .env.example.
-# Supply them before running deploy targets via either:
-#
-#   Local dev:
-#     export POSTGRES_PASSWORD=<value>   # in your shell, then run make deploy-*
-#
-#   GitHub Actions:
-#     env:
-#       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-#       MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
-#       RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
-#
-# Modes:
-#   deploy-summary  → summarization pipeline + summary UI
-#   deploy-search   → embedding/index/search + search UI
-#   deploy-dual     → both pipelines, two separate UIs
-#   deploy-unified  → search over summary text in one UI
-#
-# Lifecycle:
-#   deploy-stop     → stop all containers (mode-agnostic, no env vars needed)
-#   deploy-clean    → stop all containers and wipe user-data volumes
+# Supply secrets through the environment, not Make command-line arguments.
 # ==============================================================================
 
-define WAIT_FOR_VSS_HEALTH
-VSS_BASE="http://$${HOST_IP:-localhost}:$${APP_HOST_PORT:-12345}"; \
-deadline=$$(( $$(date +%s) + 300 )); \
-until curl -sf --max-time 5 "$$VSS_BASE/manager/health" >/dev/null; do \
-	if [ "$$(date +%s)" -ge "$$deadline" ]; then \
-		echo "VSS health check timed out: $$VSS_BASE/manager/health" >&2; \
-		docker compose ps; \
-		exit 1; \
-	fi; \
-	sleep 5; \
-done
-endef
-
-# Load .env into the shell before calling setup.sh.
-# Rules:
-#   1. Empty values (secrets) are skipped — they must come from the environment.
-#   2. Variables already set in the environment are never overridden, so CI
-#      secrets (injected via workflow `env:`) always take precedence.
-define LOAD_ENV
-while IFS= read -r _line; do \
-  _k="$${_line%%=*}"; \
-  case "$$_k" in \#*|"") continue ;; esac; \
-  _v="$${_line#*=}"; \
-  [ -z "$$_v" ] && continue; \
-  [ -n "$${!_k+set}" ] && continue; \
-  export "$$_k=$$_v"; \
-done < .env
-endef
+export MODE ENV_FILE HEALTH_TIMEOUT CONFIRM
 
 deploy:
-	@echo ""
-	@echo "Please specify a deployment mode:"
-	@echo "  make deploy-summary   — summarization pipeline + summary UI"
-	@echo "  make deploy-search    — embedding/index/search + search UI"
-	@echo "  make deploy-dual      — both pipelines, two separate UIs"
-	@echo "  make deploy-unified   — search over summary text, one UI"
-	@echo ""
-	@echo "Lifecycle:"
-	@echo "  make deploy-stop      — stop all containers"
-	@echo "  make deploy-clean     — stop all containers and wipe data volumes"
-	@echo ""
-	@exit 1
+	@bash scripts/vss.sh deploy "$$MODE"
 
-deploy-summary: build build-deps
-	@echo "Deploying VSS in summary mode..."
-	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary'
-	@$(WAIT_FOR_VSS_HEALTH)
-	@echo "VSS summary mode deployed."
+deploy-summary deploy-search deploy-dual deploy-unified:
+	@bash scripts/vss.sh deploy "$(@:deploy-%=%)"
 
-deploy-search: build build-deps
-	@echo "Deploying VSS in search mode..."
-	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --search'
-	@$(WAIT_FOR_VSS_HEALTH)
-	@echo "VSS search mode deployed."
+config deploy-config:
+	@bash scripts/vss.sh config "$$MODE"
 
-deploy-dual: build build-deps
-	@echo "Deploying VSS in dual (summary + search) mode..."
-	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary --search'
-	@$(WAIT_FOR_VSS_HEALTH)
-	@echo "VSS dual mode deployed."
+config-summary config-search config-dual config-unified:
+	@bash scripts/vss.sh config "$(@:config-%=%)"
 
-deploy-unified: build build-deps
-	@echo "Deploying VSS in unified mode (search over summaries)..."
-	@bash -c '$(LOAD_ENV) && source setup.sh --stop && source setup.sh --summary-and-search'
-	@$(WAIT_FOR_VSS_HEALTH)
-	@echo "VSS unified mode deployed."
+deploy-stop stop down:
+	@bash scripts/vss.sh stop
 
-deploy-stop:
-	@echo "Stopping all VSS containers..."
-	@bash -c 'source setup.sh --stop'
-	@echo "VSS stack stopped."
+deploy-clean clean-data:
+	@bash scripts/vss.sh clean-data
 
-deploy-clean:
-	@echo "Stopping VSS containers and wiping user-data volumes..."
-	@bash -c 'source setup.sh --clean-data'
-	@echo "VSS stack stopped and data volumes wiped."
+init-env:
+	@bash scripts/vss.sh init-env
+
+# Outputs shell-quoted application exports; diagnostics go to stderr.
+# Make cannot modify its parent shell. See the get-started guide for safe use.
+setenv:
+	@bash scripts/vss.sh setenv
 
 health-check:
-	@echo "Checking VSS health..."
-	@$(WAIT_FOR_VSS_HEALTH)
+	@bash scripts/vss.sh health-check
 
 
 # ==============================================================================
 # Test Targets
 # ==============================================================================
+
+test-setup:
+	@cd tests && poetry run pytest test_setup.py
 
 test: $(TEST_TARGETS)
 	@if [ -z "$(TEST_TARGETS)" ]; then \
@@ -545,21 +504,23 @@ trivy-scan-image: build
 	@mkdir -p security-results
 	@$(ENSURE_TRIVY_HTML_TPL); \
 	for component in $(COMPONENTS) $(DEP_COMPONENTS); do \
+		image_name="$$component"; \
+		[ "$$component" = mcp ] && image_name="vss-mcp-server"; \
 		echo "  → Scanning $$component image..."; \
-		if [ -z "$$(docker images -q $(REGISTRY)$$component:$(TAG) 2>/dev/null)" ]; then \
-			echo "Image '$(REGISTRY)$$component:$(TAG)' not found, skipping."; \
+		if [ -z "$$(docker images -q $(REGISTRY)$$image_name:$(TAG) 2>/dev/null)" ]; then \
+			echo "Image '$(REGISTRY)$$image_name:$(TAG)' not found, skipping."; \
 		else \
 			trivy image --severity HIGH,CRITICAL --ignore-unfixed --format json \
 				--output security-results/trivy-image-$(SERVICE_NAME)-$$component.json \
-				$(REGISTRY)$$component:$(TAG); \
+				$(REGISTRY)$$image_name:$(TAG); \
 			trivy image --format spdx-json \
 				--output security-results/trivy-image-$(SERVICE_NAME)-$$component.spdx.json \
-				$(REGISTRY)$$component:$(TAG); \
+				$(REGISTRY)$$image_name:$(TAG); \
 			if [ -n "$$TRIVY_HTML_TPL" ] && [ -f "$$TRIVY_HTML_TPL" ]; then \
 				trivy image --severity HIGH,CRITICAL --ignore-unfixed --format template \
 					--template "@$$TRIVY_HTML_TPL" \
 					--output security-results/trivy-image-$(SERVICE_NAME)-$$component.html \
-					$(REGISTRY)$$component:$(TAG); \
+					$(REGISTRY)$$image_name:$(TAG); \
 			fi; \
 		fi; \
 	done
@@ -779,7 +740,7 @@ list:
 	@echo "  Go:               $(GO_VERSION)"
 	@echo ""
 	@echo "Application Images:"
-	@$(foreach component,$(COMPONENTS), echo "  • $(REGISTRY)$(component):$(TAG)";)
+	@$(foreach component,$(COMPONENTS), echo "  • $(call component_image,$(component))";)
 	@echo ""
 	@echo "Dependency Images:"
 	@$(foreach img,$(DEP_IMAGES), echo "  • $(img)";)
@@ -790,7 +751,7 @@ list:
 clean:
 	@echo "Removing Docker images..."
 	@$(foreach component,$(COMPONENTS), \
-		docker rmi -f $(REGISTRY)$(component):$(TAG) 2>/dev/null || true; \
+		docker rmi -f $(call component_image,$(component)) 2>/dev/null || true; \
 	)
 	@echo "Cleanup complete."
 
@@ -805,7 +766,7 @@ get-component-names:
 	@echo "$(COMPONENTS)"
 
 get-image-tags:
-	@$(foreach component,$(COMPONENTS), echo "$(REGISTRY)$(component):$(TAG)";)
+	@$(foreach component,$(COMPONENTS), echo "$(call component_image,$(component))";)
 
 get-context-dirs:
 	@$(foreach component,$(COMPONENTS), echo "$($(component)_CONTEXT_DIR)";)
@@ -823,7 +784,7 @@ get-scan-matrix-json:
 	@printf '{"include":['
 	@$(foreach component,$(COMPONENTS), \
 		$(eval COMMA := $(if $(findstring $(component),$(firstword $(COMPONENTS))),,',')) \
-		printf '%s' '$(COMMA){"name":"$(component)","image":"$(REGISTRY)$(component):$(TAG)","context":"$($(component)_CONTEXT_DIR)","dockerfile":"$($(component)_DOCKERFILE)"}'; \
+		printf '%s' '$(COMMA){"name":"$(component)","image":"$(call component_image,$(component))","context":"$($(component)_CONTEXT_DIR)","dockerfile":"$($(component)_DOCKERFILE)"}'; \
 	)
 	@printf ']}\n'
 
@@ -842,34 +803,57 @@ help:
 	@echo "BUILD & TEST"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "  build            Build application service images (video-ingestion,"
-	@echo "                   pipeline-manager, video-search, vss-ui)"
+	@echo "                   pipeline-manager, video-search, vss-ui, mcp)"
 	@echo "  build-deps       Build dependency images (multimodal-dataprep,"
 	@echo "                   multimodal-embedding-serving)"
+	@echo "  build-mcp        Build just the VSS MCP server image (vss-mcp-server)"
 	@echo "  push             Push all built images to the registry"
 	@echo "  test             Run all unit tests"
 	@echo "  test-pipeline-manager   Run pipeline-manager tests (NestJS/Jest)"
 	@echo "  test-vss-ui             Run UI tests (Vite/Vitest)"
 	@echo "  test-video-search       Run video-search tests (pytest)"
 	@echo "  test-video-ingestion    Run video-ingestion tests (pytest)"
+	@echo "  test-setup              Run offline mocked setup lifecycle tests (pytest)"
 	@echo ""
 	@echo "  Image tag:  TAG=<tag>  (default: $(TAG))"
 	@echo "  Registry:   REGISTRY=<prefix>/   or   REGISTRY_URL=<url> PROJECT_NAME=<proj>"
 	@echo "  Proxies:    http_proxy=  https_proxy=  no_proxy=  (omitted when unset)"
 	@echo "  Copyleft:   ADD_COPYLEFT_SOURCES=true  (injects COPYLEFT_SOURCES build-arg)"
 	@echo ""
-	@echo "DEPLOY"
+	@echo "SETUP & DEPLOY"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "  init-env         Create owner-only .env from .env.example; never overwrite"
+	@echo "  deploy MODE=...  Required mode: summary | search | dual | unified"
 	@echo "  deploy-summary   Deploy summarization pipeline + summary UI"
 	@echo "  deploy-search    Deploy embedding/index/search + search UI"
 	@echo "  deploy-dual      Deploy both pipelines with two separate UIs"
 	@echo "  deploy-unified   Deploy search over summary text in one UI"
-	@echo "  deploy-stop      Stop all VSS containers"
-	@echo "  deploy-clean     Stop all containers and wipe user-data volumes"
-	@echo "  health-check     Wait for Pipeline Manager health and print URLs"
+	@echo "  config [MODE=...]  Print diagnostics + resolved Compose (default: dual)"
+	@echo "  config-summary/search/dual/unified  Mode-specific config targets"
+	@echo "  deploy-config    Alias for config (accepts MODE)"
+	@echo "  stop/down/deploy-stop       Stop/remove all VSS containers"
+	@echo "  clean-data/deploy-clean     Stop/remove containers and user-data volumes"
+	@echo "                             Asks for confirmation; CONFIRM=yes skips the prompt"
+	@echo "                             Preserve model caches and ov_models/"
+	@echo "  setenv           Emit Bash-quoted application exports; diagnostics on stderr"
+	@echo "                   Mode-agnostic; does not change the parent shell"
+	@echo "  health-check     Wait for /manager/health (HEALTH_TIMEOUT=300 seconds)"
+	@echo "                   Default gateway: http://<host-ip>:12345"
 	@echo ""
-	@echo "  Config:  edit .env (auto-created from .env.example on first make run)"
-	@echo "  Secrets: export POSTGRES_PASSWORD=.. MINIO_ROOT_PASSWORD=.. etc. in"
-	@echo "           your shell, or inject via GitHub Actions 'env:' block."
+	@echo "  Deploy uses existing/published images; no implicit build, stop, or health wait."
+	@echo "  Missing model downloads, device settings, and overlay selection are automatic."
+	@echo "  Build explicitly, deploy in a separate invocation; stop before changing modes."
+	@echo "  GPU/NPU, vLLM CPU/GPU, metrics, vector DB, and model-download options unchanged."
+	@echo ""
+	@echo "  Config: make init-env, then edit .env. ENV_FILE=path selects an existing file."
+	@echo "          Create a custom file explicitly with make init-env ENV_FILE=path."
+	@echo "  Setup precedence: Make VAR=value > exported environment > nonempty .env."
+	@echo "  File syntax: KEY=value, optional export, quotes, comments, CRLF, blanks;"
+	@echo "               quotes stripped safely, no shell expansion/evaluation."
+	@echo "  Secrets: export service credentials or inject via CI; never use Make arguments."
+	@echo "  Config/setenv output may contain credentials. Do not commit or share it."
+	@echo "  See docs/user-guide/get-started.md for safely sourcing successful setenv output."
+	@echo "  source setup.sh remains supported; Make targets share the same setup.sh."
 	@echo ""
 	@echo "CODE QUALITY & SECURITY"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -909,10 +893,19 @@ help:
 	@echo "  # Run all tests"
 	@echo "  make test"
 	@echo ""
-	@echo "  # Deploy (export secrets first, then deploy)"
-	@echo "  export POSTGRES_PASSWORD=secret MINIO_ROOT_PASSWORD=secret \\"
-	@echo "         RABBITMQ_PASSWORD=secret"
+	@echo "  # Initialize, review .env, and export your service credentials before deploying"
+	@echo "  make init-env"
+	@echo "  make config MODE=summary"
+	@echo "  make deploy MODE=summary"
+	@echo "  make health-check HEALTH_TIMEOUT=300"
+	@echo ""
+	@echo "  # Local source builds: separate invocations avoid build/deploy races with -j"
+	@echo "  make build build-deps"
 	@echo "  make deploy-summary"
+	@echo ""
+	@echo "  # Change modes explicitly"
+	@echo "  make stop"
+	@echo "  make deploy-search"
 	@echo ""
 	@echo "  # Run all security scans"
 	@echo "  make trivy-scan bandit-scan gitleaks-scan codeql-scan"

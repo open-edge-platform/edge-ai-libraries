@@ -17,7 +17,7 @@ export interface Video {
   updatedAt: string;
   summaries?: string[];
   textEmbeddings?: boolean;
-  videoEmbeddings?: boolean;
+  searchEmbeddings?: boolean;
   dataStore?: VideoDatastoreInfo;
 }
 

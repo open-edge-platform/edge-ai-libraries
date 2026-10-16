@@ -35,6 +35,7 @@ along with the required microservices are as follows.
   - [How to Deploy with Helm](./deploy-with-helm.md): How to deploy using the Helm chart.
 
 - **AI Agents Integration**
+  - [Agentic Video Analytics](./agentic-video-analytics.md): Use AI agents such as Claude Code, OpenClaw, and Hermes Agent with the VSS MCP server and skills to review incidents, find people, track them across cameras, and get customized summaries.
   - [MCP Server](./mcp-server.md): Connect AI agents and IDE extensions to VSS using the Model Context Protocol (MCP).
 
 - **API Reference**
@@ -54,6 +55,7 @@ deploy-with-helm
 Deploy VSS with vLLM <helm-installation-vLLM-guide>
 directory-watcher-guide
 api-reference
+agentic-video-analytics
 mcp-server
 troubleshooting
 Release Notes <./release-notes.md>

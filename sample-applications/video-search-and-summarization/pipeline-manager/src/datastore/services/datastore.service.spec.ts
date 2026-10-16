@@ -63,6 +63,9 @@ describe('DatastoreService', () => {
       setBucketPolicy: jest.fn(),
       fPutObject: jest.fn(),
       fGetObject: jest.fn(),
+      putObject: jest.fn(),
+      statObject: jest.fn(),
+      getObject: jest.fn(),
     };
 
     // Update the MinioClient mock implementation
@@ -367,6 +370,67 @@ describe('DatastoreService', () => {
         'test-bucket',
         'test object/file with spaces.mp4',
         expect.stringContaining('test object/file with spaces.mp4'),
+      );
+    });
+  });
+
+  describe('uploadBuffer', () => {
+    it('should put the buffer with its content type', async () => {
+      const content = Buffer.from('abc');
+      mockClientImplementation.putObject.mockResolvedValueOnce({ etag: 'e' });
+
+      await service.uploadBuffer('search-images/a.png', content, 'image/png');
+
+      expect(mockClientImplementation.putObject).toHaveBeenCalledWith(
+        'test-bucket',
+        'search-images/a.png',
+        content,
+        3,
+        { 'Content-Type': 'image/png' },
+      );
+    });
+  });
+
+  describe('statObject', () => {
+    it('should return null when the object does not exist', async () => {
+      mockClientImplementation.statObject.mockRejectedValueOnce({
+        code: 'NotFound',
+      });
+      await expect(service.statObject('missing')).resolves.toBeNull();
+    });
+
+    it('should rethrow other errors', async () => {
+      mockClientImplementation.statObject.mockRejectedValueOnce(
+        new Error('down'),
+      );
+      await expect(service.statObject('x')).rejects.toThrow('down');
+    });
+  });
+
+  describe('getObjectBuffer', () => {
+    const streamOf = (...chunks: Buffer[]) => {
+      const { Readable } = jest.requireActual('stream');
+      return Readable.from(chunks);
+    };
+
+    it('should concatenate the object stream', async () => {
+      mockClientImplementation.getObject.mockResolvedValueOnce(
+        streamOf(Buffer.from('ab'), Buffer.from('cd')),
+      );
+      const result = await service.getObjectBuffer('obj', 10);
+      expect(result.toString()).toBe('abcd');
+      expect(mockClientImplementation.getObject).toHaveBeenCalledWith(
+        'test-bucket',
+        'obj',
+      );
+    });
+
+    it('should abort when the object exceeds maxBytes', async () => {
+      mockClientImplementation.getObject.mockResolvedValueOnce(
+        streamOf(Buffer.from('abc'), Buffer.from('def')),
+      );
+      await expect(service.getObjectBuffer('obj', 4)).rejects.toThrow(
+        'exceeds the maximum size',
       );
     });
   });

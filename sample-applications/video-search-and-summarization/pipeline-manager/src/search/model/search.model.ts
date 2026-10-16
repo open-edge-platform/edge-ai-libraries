@@ -34,7 +34,8 @@ export class TimeFilterSelection {
 export class SearchQueryDTO {
   @ApiPropertyOptional({
     description:
-      'Non-blank text search query. Provide either `query` or `image` (not both).',
+      'Non-blank text search query. Provide exactly one of `query`, ' +
+      '`image` or `imageUrl`.',
     example: 'person walking',
   })
   query?: string;
@@ -42,10 +43,22 @@ export class SearchQueryDTO {
   @ApiPropertyOptional({
     description:
       'Query image as a base64 string or data URL, for image-based search. ' +
-      'Provide either `query` or `image` (not both). Only supported in ' +
-      'frame-embedding modes (--search/--dual).',
+      'Provide exactly one of `query`, `image` or `imageUrl`. Only ' +
+      'supported in frame-embedding modes (--search/--dual).',
   })
   image?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Reference to a query image previously uploaded with ' +
+      '`POST /search/images`: its `imageUrl`, `imagePath` or `imageId`. ' +
+      'Any host is accepted; only the path is used. Provide exactly one of ' +
+      '`query`, `image` or `imageUrl`. Only supported in frame-embedding ' +
+      'modes (--search/--dual).',
+    example:
+      'http://192.168.1.10:12345/datastore/video-summary/search-images/3f0c1f1e-7c1b-4a8e-9a55-0d6f6c2b9e11.jpg',
+  })
+  imageUrl?: string;
 
   @ApiPropertyOptional({
     description: 'Comma-separated tags to filter by',
@@ -170,6 +183,12 @@ export interface SearchResult {
     // Present on aggregated (clip-level) results returned by the search
     // backend. These, not `id`/`interval_num`, are what actually identify
     // which moment of a video matched.
+    /**
+     * Point (seconds into the video) to seek playback to, as returned by
+     * the search-ms frame-to-video aggregation. Only present in
+     * frame-embedding search modes (--search/--dual); older/VDMS result
+     * shapes may omit it.
+     */
     seek_timestamp?: number;
     segment_start?: number;
     segment_end?: number;
@@ -178,6 +197,16 @@ export interface SearchResult {
     best_frame_info?: BestFrameInfo;
   };
   video?: VideoEntity;
+  /**
+   * Gateway-relative, directly downloadable/playable path for this hit's
+   * source video, e.g. `/my-bucket/<videoId>/source.mp4`. Prefix with the
+   * datastore base URL (the same host the search request itself was sent to,
+   * with `/datastore` in place of `/manager`) to get a fully qualified,
+   * host-reachable link. Present whenever the hit's `video_id` matches a
+   * known video with object-store info; absent otherwise (e.g. the video was
+   * deleted after being indexed).
+   */
+  videoPlaybackUrl?: string;
   page_content: string;
   type: string;
 }

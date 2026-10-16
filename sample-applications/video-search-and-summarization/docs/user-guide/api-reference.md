@@ -45,8 +45,8 @@ The Pipeline Manager is the primary API for interacting with the application. It
 | **Audio** | `GET /audio/models` | Available audio transcription models |
 | **Tags** | `GET /tags`, `DELETE /tags/{tagId}` | Tag management |
 | **Video** | `POST /videos`, `GET /videos`, `GET /videos/{videoId}`, `POST /videos/search-embeddings/{videoId}` | Video upload, listing, and embedding creation |
-| **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched`, `GET /search/refresh-config` | Search query management and execution. `GET /search/refresh-config` returns the effective auto-refresh settings applied to watched queries. |
-| **Frames** | `GET /frames` | On-demand single-frame retrieval for a search hit. Extracts one frame of stored media (uploaded video or live segment) by `video_id` + `timestamp` — nothing is persisted. Supports the full frame or a detected-crop region (`variant=full\|crop` + `crop_bbox`) and raw `image/jpeg` (default) or JSON base64 output (`format=json`). Fed by the `best_frame_info` returned on each search result. |
+| **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched`, `GET /search/refresh-config`, `POST /search/images`, `DELETE /search/images/{imageId}` | Search query management and execution; query-image upload for search-by-image. `GET /search/refresh-config` returns the effective auto-refresh settings applied to watched queries. |
+| **Frames** | `GET /frames` | One stored frame (whole, or cropped to a detected object) located by a search hit's `best_frame_info`; raw JPEG, or base64 JSON with `format=json` (search deployments only) |
 | **Live Streams** | `POST /streams`, `POST /streams/batch`, `GET /streams`, `GET /streams/{streamId}`, `PATCH /streams/{streamId}`, `DELETE /streams/{streamId}`, `DELETE /streams` | RTSP camera registration and lifecycle (search deployments only) |
 | **Summary** | `POST /summary`, `GET /summary`, `GET /summary/ui`, `GET /summary/{stateId}`, `GET /summary/{stateId}/raw`, `DELETE /summary/{stateId}` | Video summarization pipeline |
 
@@ -62,6 +62,58 @@ The Pipeline Manager is the primary API for interacting with the application. It
 > When accessing the Pipeline Manager through nginx, all paths are prefixed with `/manager/` (for example, `GET /manager/health`).
 
 For full request/response schemas, refer to the interactive docs or the OpenAPI spec.
+
+## Video Embedding Status
+
+Each video returned by `GET /videos` and `GET /videos/{videoId}` records which
+search index it has been embedded into. These flags apply to **uploaded videos
+only**; live RTSP cameras have no video record, and their ingestion progress is
+reported by `GET /streams` (`stats.embeddings_created`).
+
+| Field | Set by | Meaning |
+| ----- | ------ | ------- |
+| `searchEmbeddings` | `POST /videos/search-embeddings/{videoId}` and `POST /videos/search-embeddings-batch` | `true` once frame embeddings were created (`--search`, `--dual`); `false` if DataPrep rejected the request or the batch item failed |
+| `textEmbeddings` | Summary pipeline, when search is enabled (`--unified`, `--dual`) | `true` once at least one chunk caption was embedded |
+
+`null` means no outcome has been recorded, either because embedding was never
+requested or because the video was embedded before this status was tracked. A
+`true` flag is never reset by a later failed attempt, and a timed-out request
+leaves the flag unchanged because DataPrep may still complete it. Batch jobs are
+followed by Pipeline Manager until they finish, so their result is recorded even
+if no client polls `GET /videos/search-embeddings-jobs/{jobId}`.
+
+## Search by an Uploaded Image
+
+In `--search` and `--dual` modes, search-by-image can use an image stored in the
+object store instead of inline base64 data (claim-check pattern). This keeps
+large image payloads out of search requests and out of agent/MCP tool calls.
+
+1. Upload the image with `POST /search/images` (`multipart/form-data`, field
+   `image`). Accepted: `.jpg`/`.jpeg` (`image/jpeg`), `.png` (`image/png`),
+   `.webp` (`image/webp`), at most 2 MB. The file content must match its
+   extension. The response carries `imageId`, `imageUrl`, and `imagePath`.
+   `imageUrl` is the image's externally reachable gateway URL, for example
+   `http://<HOST_IP>:12345/datastore/<bucket>/search-images/<imageId>`. It is
+   built from `PM_PUBLIC_BASE_URL` (`setup.sh` defaults it to
+   `http://$HOST_IP:$APP_HOST_PORT`; set it for a DNS name or TLS proxy). If
+   that is unset, it is built from the request's `Host`/`X-Forwarded-*`
+   headers. `imagePath` is the same URL without the host.
+2. Search with `imageUrl` in place of `image` or `query` on `POST /search/query`
+   or `POST /search`. It accepts the returned `imageUrl`, `imagePath`, or the
+   bare `imageId`. Any host is accepted, so a caller can use whatever address
+   reaches the gateway. Only the path is used, and it must name an image stored
+   by step 1: Pipeline Manager reads the object from its own bucket and never
+   fetches any other URL.
+3. Delete the image with `DELETE /search/images/{imageId}` when it is no longer
+   needed. After that, searching by its URL returns `404`.
+
+```bash
+BASE=http://<HOST_IP>:12345/manager
+IMAGE_URL=$(curl -s -F "image=@frame.jpg;type=image/jpeg" "$BASE/search/images" | jq -r .imageUrl)
+curl -s -X POST "$BASE/search/query" -H 'Content-Type: application/json' \
+  -d "{\"imageUrl\": \"$IMAGE_URL\"}"
+curl -s -X DELETE "$BASE/search/images/$(basename "$IMAGE_URL")"
+```
 
 ## Using the OpenAPI Specification Offline
 

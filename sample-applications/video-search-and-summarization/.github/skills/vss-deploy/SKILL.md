@@ -302,6 +302,7 @@ and the host-backed `ov_models/` directory are deliberately **preserved**, so a
 | Pipeline Manager API + docs | `…/manager/docs`, health `…/manager/health` |
 | Data Prep docs (search modes) | `http://<HOST_IP>:7890/docs` |
 | Embedding server docs (search modes) | `http://<HOST_IP>:9777/docs` |
+| MCP server (all modes) | `http://<HOST_IP>:12345/mcp` (via the nginx gateway) |
 
 ## Troubleshooting ("why won't vss come up")
 

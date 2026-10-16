@@ -175,6 +175,8 @@ export class StreamsController {
       // Kick the poller so watched-query refresh works during live ingestion
       // even if nobody has the Live Streams view open.
       this.$poller.ensurePolling();
+      // Register the new tags now so a search right after can filter on them.
+      void this.$poller.poll();
       return result;
     } catch (error) {
       this.fail(error, 'create');
@@ -212,6 +214,7 @@ export class StreamsController {
     try {
       const result = await this.$shim.createBatch(body);
       this.$poller.ensurePolling();
+      void this.$poller.poll();
       return result;
     } catch (error) {
       this.fail(error, 'batch create');
@@ -298,6 +301,10 @@ export class StreamsController {
       // Resuming a paused stream must restart the poll loop if it had idled.
       if (body.state === LiveStreamState.RUNNING) {
         this.$poller.ensurePolling();
+      }
+      // Register new tags now; an idle poller would not see them otherwise.
+      if (body.tags) {
+        void this.$poller.poll();
       }
       return result;
     } catch (error) {

@@ -1,161 +1,108 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Video Search and Summarization MCP Server
 
-This is the **MCP (Model Context Protocol) server** for the [Video Search and Summarization (VSS)](https://github.com/open-edge-platform/edge-ai-libraries) sample application. It proxies VSS REST endpoints to MCP clients (agents, IDE extensions, MCP Inspector, etc.) as **tools** and **resources**.
+The **MCP (Model Context Protocol) server** for the
+[Video Search and Summarization (VSS)](https://github.com/open-edge-platform/edge-ai-libraries)
+sample application. It exposes VSS as a set of tools for agents, and IDE extensions.
 
-> [!NOTE]
-> The MCP server currently supports **Search mode** only.
-> Summary and combined Search + Summary modes will be supported in a future release.
+## Tools
 
+The **Needs** column is what a deployment must have for the tool to exist at
+all: at startup the server reads `GET /app/features` and registers only the
+tools that deployment can serve.
 
-## Project Structure
+Hits from a live camera carry `source: "live"`, `stream_id`, `observed_at`
+(wall-clock UTC of the matched frame) and `raw_score` (the absolute
+similarity; `score` is normalized so the top hit is 1). `vss_remove_stream`
+is the only tool that deletes anything, and is annotated destructive.
 
-```
-mcp/                             ← cd here before running any commands
-├── pyproject.toml               # Project metadata and dependencies (poetry-managed)
-├── poetry.lock                  # Locked dependency tree
-├── Dockerfile
-├── search.json                  # Filter: search-only endpoints
-│
-├── src/
-│   ├── main.py                  # Server bootstrap
-│   ├── server.py                # MCP factory and singleton
-│   ├── core/
-│   │   ├── config.py            # Settings, env parsing, path resolution
-│   │   └── logging.py           # Logging setup
-│   ├── filters/
-│   │   └── config.py            # Filter validation, ProxyFilterConfig, ApiConfig
-│   └── openapi/
-│       ├── loader.py            # Spec fetching and parsing
-│       └── mapping.py           # Route classification, tool/resource naming
-│
-└── tests/
-    ├── test_config.py           # Settings and environment parsing tests
-    └── test_filters.py          # Filter config validation tests
-    └── test_mapping.py          # FastMCP OpenAPI mapping callbacks tests
-```
+| Tool | Needs | Purpose |
+|---|---|---|
+| `vss_get_deployment_info` | — | Which features are on, how much of the library is indexed (search only), and where to upload a video |
+| `vss_list_videos` | — | Library listing, each with an `indexed` flag (search only) |
+| `vss_list_tags` | — | The tag vocabulary a filter has to be drawn from |
+| `vss_resolve_video` | — | Turn "the warehouse clip" into a video id |
+| `vss_index_video` | search | Make a video searchable (call once per video) |
+| `vss_search_video` | search | Find moments across indexed videos and live cameras, by text query or by image, optionally kept to some cameras (`stream_ids`); the search is saved in VSS's search history |
+| `vss_get_search` | search | A saved search and its latest results, by `query_id`; `refresh=true` (or `start`/`end`) re-runs it first |
+| `vss_list_searches` | search | Saved searches (VSS search history), newest first; `watched_only` for active watches |
+| `vss_watch_search` | search | Track someone or something live: start a watched search (from a `query`, `image`, or a hit's `frame` via `from_hit`, over a rolling `window_minutes`), poll it with `cursor` (each poll waits up to `wait_seconds`, default 30, for a new sighting) for new sightings and `last_seen` per camera, and stop it (`watch=false`, or automatically after `duration_minutes`) |
+| `vss_get_media_frame` | search | The image of a search hit's best-matching frame, from the hit's `frame` locator; crops to the detected object when the hit has a `crop_bbox`. Returns the image inline plus a shareable `url` |
+| `vss_list_streams` | search | Registered RTSP cameras with state and ingest stats; filter by `state` or `tags` |
+| `vss_get_stream` | search | One camera's state, stats and last error |
+| `vss_add_stream` | search | Add one or more RTSP cameras (batch with `streams`); ingestion starts in the background |
+| `vss_update_stream` | search | Pause/resume a camera or change its name, tags, frame interval or detection settings |
+| `vss_remove_stream` | search | Stop and deregister cameras; their recorded footage and embeddings are kept (never purged) |
+| `vss_summarize_video` | summary | Summarize a video and return only its final summary, in full (`final_summary=false` returns the timeline instead); sampling, Ingestion pipeline and audio are configurable, with the VSS UI defaults |
+| `vss_get_video_summary_timeline` | summary | Full timeline (and final summary, if produced) of an already-summarized video |
 
-
-## How It Works
-
-1. **Spec fetch** : on startup, the server GETs the VSS OpenAPI JSON from `API_SPEC_URL`.
-2. **Filter load** : the filter file is read and validated.
-3. **Route mapping** : for every operation in the spec, the server checks the
-   filter: expose as `tool`, `resource`, or exclude.
-4. **Name mapping** : tool names are resolved to `{prefix}_{tool_name}` and
-   resource names to `{prefix}_{resource_name}`.
-5. **Serve** : the MCP server runs on streamable HTTP at `MCP_HOST:MCP_PORT/MCP_PATH`.
-
+**Uploading a video is not a tool.** Call `vss_get_deployment_info` for
+`upload_url` (`http://<VSS_IP>:<APP_HOST_PORT>/manager/videos`); have the file
+POSTed there — by the user or their own tooling, outside this server — as
+`multipart/form-data` with field `video`, then pass the returned `videoId` to
+`vss_index_video`.
 
 ## Quick start
 
-All commands below assume you are in the `mcp/` directory:
+**The MCP server runs with every VSS deployment.** It is a part of the VSS
+deployment rather than a stack of its own — same Compose project, same
+`vs_network`, same `.env` — and `setup.sh` starts it along with everything
+else. At startup it probes `GET /app/features` and registers only the tools
+that deployment can serve.
 
 ```bash
-cd sample-applications/video-search-and-summarization/mcp
+cd sample-applications/video-search-and-summarization
+source setup.sh --search   # or --summary, --dual, --unified
 ```
 
-Docker Compose builds the MCP server and runs it alongside [MCP Inspector](https://github.com/modelcontextprotocol/inspector) for interactive testing.
+| Service | URL |
+|---|---|
+| MCP Server (via nginx gateway) | `http://<HOST_IP>:<APP_HOST_PORT>/mcp` (default port `12345`) |
 
-1. **Create your `.env` file:**
+Point any MCP client that supports the **Streamable HTTP** transport at that
+URL, or use MCP Inspector as described next.
 
-   ```bash
-   cp .env.example .env
-   ```
+## Debugging with MCP Inspector
 
-2.  **Edit `.env`** — set the VSS backend IP and HOST IP:
-
-   ```dotenv
-   VSS_IP=<your-vss-ip>
-   HOST_IP=<your-host-ip>
-   ```
-
-   If you are behind a corporate proxy, also set `http_proxy`, `https_proxy`, and `no_proxy`.
-   The `VSS_IP` is automatically appended to `no_proxy` inside the containers by `compose.yaml`.
-
-3. **Start the services:**
-
-   ```bash
-   docker compose up --build -d
-   ```
-
-4. **Access:**
-
-   | Service        | URL                              |
-   |----------------|----------------------------------|
-   | MCP Server     | `http://<HOST_IP>:8000/mcp`      |
-   | MCP Inspector  | `http://<HOST_IP>:6274`          |
-
-   In MCP Inspector, select **Streamable HTTP** transport and enter `http://<HOST_IP>:8000/mcp` to connect.
-
-5. **Stop:**
-
-   ```bash
-   docker compose down
-   ```
-
-See [docs/user-guide/mcp-server.md](../docs/user-guide/mcp-server.md) for the full guide, runtime configuration, filter file format, and how to extend the server.
-
-
-## Filter File Format
-
-Each filter file is a JSON object:
-
-```json
-{
-  "server_name": "vss_search_mcp",
-  "prefix": "vss",
-  "apis": {
-    "GET /app/features": { "type": "resource", "name": "app_features" },
-    "POST /search/query": { "type": "tool", "name": "run_search_query" },
-    "DELETE /tags/{tagId}": {
-      "type": "tool",
-      "name": "delete_tag",
-      "description": "Remove a tag from the VSS index."
-    }
-  }
-}
-```
-
-**Top-level fields:**
-
-| Field         | Description                                                                              |
-|---------------|------------------------------------------------------------------------------------------|
-| `server_name` | MCP server name reported to clients                                                      |
-| `prefix`      | Prefix applied to every tool and resource name (e.g. `"vss"` → `"vss_run_search_query"`) |
-| `apis`        | Map of `"METHOD /path"` → exposure config (entries not listed here are excluded)         |
-
-**Per-API entry fields:**
-
-| Field         | Required | Description                                                                              |
-|---------------|----------|------------------------------------------------------------------------------------------|
-| `type`        | yes      | `"tool"` or `"resource"`, selects the MCP component kind. Resources are GET-only.       |
-| `name`        | yes      | Identifier suffix; combined with `prefix` to form the final MCP name                     |
-| `description` | no       | Optional override prepended to the OpenAPI description for this tool/resource            |
-
-To exclude an endpoint, simply omit it from `apis`.
-
-
-## Adding a New Endpoint
-
-1. Open the relevant filter file (or create a new one) in the `mcp/` directory.
-2. Add a `"METHOD /path"` entry under `"apis"` with the desired `type` and `name`.
-3. Restart the container, the server re-reads the spec and filter on each start.
-
-No code changes are needed.
-
-
-## Running the Tests
-
-### Prerequisites
-
-Ensure you have `poetry` installed. If not, install it from [https://python-poetry.org/docs/#installation](https://python-poetry.org/docs/#installation).
-
-### Run All Tests
-
-From the `mcp/` directory:
+`setup.sh` does not start MCP Inspector, but it can connect to the running
+deployment's MCP server without stopping anything. From `mcp/`:
 
 ```bash
-poetry run python -m unittest discover tests -v
+cd mcp
+HOST_IP=<vss-host-ip> docker compose up -d mcp-inspector
 ```
 
-This discovers and runs all test files in the `tests/` directory with verbose output.
+Open Inspector at **`http://localhost:6274`** then choose **Streamable HTTP** and connect to
+**`http://<HOST_IP>:<APP_HOST_PORT>/mcp`** (default `http://<HOST_IP>:12345/mcp`),
+the running deployment's own MCP server.
+
+If your browser runs on the host, use `http://localhost:6274` directly. If it runs elsewhere, tunnel instead of using the bare IP:
+
+```bash
+ssh -L 6274:localhost:6274 <user>@host-ip>
+```
+
+then open `http://localhost:6274` locally.
+
+Inspector auth is on by default; find the session token with
+`docker compose logs mcp-inspector`. Only set `DANGEROUSLY_OMIT_AUTH=true` on
+a trusted, isolated network.
+
+## Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VSS_IP` | `HOST_IP` | Host of the VSS gateway, reachable by your agent; a bare IP or hostname |
+| `HOST_IP` | auto-detected by `setup.sh` | This host's address; the fallback for `VSS_IP` and the host shown in the MCP URL |
+| `APP_HOST_PORT` | `12345` | VSS gateway port |
+| `MCP_HOST` / `MCP_PORT` / `MCP_PATH` | `0.0.0.0` / `8000` / `/mcp` | Listener (the VSS stack pins `8000` and `/mcp` to match the nginx route) |
+| `REQUEST_TIMEOUT` | `60` | Per-HTTP-call timeout, seconds |
+| `POLL_INTERVAL` | `5` | Delay between pipeline polls, seconds |
+| `DEFAULT_WAIT_SECONDS` | `600` | Budget for tools that wait on a pipeline |
+| `VSS_INDEX_STRATEGY` | `auto` | `auto`, `summary`, or `embeddings` |
+| `LOG_LEVEL` | `INFO` | Python log level |
+

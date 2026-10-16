@@ -51,6 +51,8 @@ fi
 stop_containers() {
     echo -e "${YELLOW}Bringing down all the Docker containers... ${NC}"
     docker rm -f "${MODEL_DOWNLOAD_CTR_NAME}" >/dev/null 2>&1
+    # MCP Inspector is no longer shipped; remove one left by an older release.
+    docker rm -f vss-mcp-inspector >/dev/null 2>&1
     docker compose \
         -f docker/compose.base.yaml \
         -f docker/compose.summary.yaml \
@@ -61,10 +63,12 @@ stop_containers() {
         -f docker/compose.search.milvus.yaml \
         -f docker/compose.ui.yaml \
         -f docker/compose.metrics-manager.yaml \
+        -f docker/compose.mcp.yaml \
         --profile ovms --profile vlm-ov --profile vllm --profile vllm-xpu \
         --profile dual_ui --profile singleton_unified_ui \
         --profile singleton_summary_ui \
         --profile singleton_search_ui \
+        --profile mcp \
         down
     if [ $? -ne 0 ]; then
         echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}" >&2
@@ -109,8 +113,8 @@ docker_data-prep"
 
     if [ -n "$failed" ]; then
         echo -e "${YELLOW}Note: These volumes exist but could not be removed (likely still in use by a running container):${failed}${NC}"
-        echo -e "${YELLOW}Stop the containers first (source setup.sh --stop) and retry. ${NC}"
-        return 0
+        echo -e "${YELLOW}Stop the containers first (make stop) and retry. ${NC}" >&2
+        return 1
     fi
     if [ -z "$removed" ]; then
         echo -e "${GREEN}No user-data volumes present to remove. ${NC}"
@@ -154,9 +158,11 @@ show_full_help() {
     echo -e "${YELLOW}                  --search:  Deploy Video Search Application."
     echo -e  "                             ${GRAY}Use with ${GREEN}--summary${GRAY} option to deploy both search and summary applications together.${NC}"
     echo -e  "${YELLOW}      --summary-and-search:  Deploy a modified Video Search application which does video summarization first and searches on summary content."
-    echo -e  "                  --setenv:  Set environment variables without setting up application or starting any containers."
+    echo -e  "                             ${GRAY}Every deployment also starts the VSS MCP tool server at http://<HOST_IP>:${APP_HOST_PORT}/mcp (via the nginx gateway); ${GREEN}--stop${GRAY} brings it down with the stack.${NC}"
+    echo -e  "${YELLOW}                  --setenv:  Set environment variables without setting up application or starting any containers."
     echo -e  "            --down, --stop:  Bring down all the docker containers for the application."
     echo -e  "              --clean-data:  Bring down all the docker containers and remove all docker volumes for the user data."
+    echo -e  "                             ${GRAY}Asks for confirmation; set ${GREEN}CONFIRM=yes${GRAY} to skip the prompt.${NC}"
     echo -e  "             [Mode] config:  Print the final compose configuration with all environment variables resolved without"
     echo -e  "                             starting containers."
     echo -e  "                             ${GRAY}Mode defaults to ${GREEN}--summary --search${GRAY} when omitted."
@@ -205,7 +211,7 @@ elif [ "$#" -eq 2 ] && [ "$1" != "config" ] && [ "$2" != "config" ]; then
     return 1
 
 elif [ "$1" = "--stop" ] || [ "$1" = "--clean-data" ]; then
-    # Bring down all the Docker containers
+        # Bring down all the Docker containers
     stop_containers || return 1
     # Remove volumes if --clean-data is specified
     if [ "$1" = "--clean-data" ]; then
@@ -219,7 +225,12 @@ fi
 # ================================== Export Environment Variables ===================================
 # Base configuration
 export APP_HOST_PORT=${APP_HOST_PORT:-12345}  # Default host port for nginx proxy (external access to UIs)
-export HOST_IP=$(ip route get 1 | awk '{print $7}')  # Fetch the host IP
+export HOST_IP=${HOST_IP:-$(ip route get 1 | awk '{print $7}')}
+# Default VSS_IP to HOST_IP: the MCP server (always part of the stack) calls the
+# VSS gateway at this address and puts it in every URL it returns to agents.
+export VSS_IP=${VSS_IP:-${HOST_IP}}
+# Externally reachable gateway URL Pipeline Manager uses in links it returns
+export PM_PUBLIC_BASE_URL=${PM_PUBLIC_BASE_URL:-http://${HOST_IP}:${APP_HOST_PORT}}
 export TAG=${TAG:-latest}
 
 # If REGISTRY_URL is set, ensure it ends with a trailing slash
@@ -290,6 +301,7 @@ export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}  # Set this in your shell before r
 # env for minio-service
 export MINIO_ROOT_USER=${MINIO_ROOT_USER} # Set this in your shell before running the script
 export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} # Set this in your shell before running the script
+export OVMS_ALLOWED_MEDIA_DOMAINS=${OVMS_ALLOWED_MEDIA_DOMAINS:-${MINIO_HOST:-minio-service},localhost}
 
 # env for vdms-vector-db
 export VDMS_VDB_HOST_PORT=55555
@@ -1095,12 +1107,12 @@ md_run_downloads() {
             "Object Detection (${OD_MODEL_NAME})" || { md_teardown 1; return 1; }
     fi
     if [ "$MD_NEED_VLM" = true ]; then
-        md_download_ovms_model vlm "$VLM_MODEL_NAME" "$VLM_TARGET_DEVICE" "$VLM_COMPRESSION_WEIGHT_FORMAT" \
-            || { md_teardown 1; return 1; }
+        md_download_ovms_model vlm "$VLM_MODEL_NAME" "$VLM_TARGET_DEVICE" \
+            "$VLM_COMPRESSION_WEIGHT_FORMAT" || { md_teardown 1; return 1; }
     fi
     if [ "$MD_NEED_LLM" = true ]; then
-        md_download_ovms_model llm "$LLM_MODEL_NAME" "$LLM_TARGET_DEVICE" "$LLM_COMPRESSION_WEIGHT_FORMAT" \
-            || { md_teardown 1; return 1; }
+        md_download_ovms_model llm "$LLM_MODEL_NAME" "$LLM_TARGET_DEVICE" \
+            "$LLM_COMPRESSION_WEIGHT_FORMAT" || { md_teardown 1; return 1; }
     fi
 
     # Post-download steps: one ownership sweep over everything the container wrote as UID 1000, then IR verification and OVMS registration.
@@ -1183,6 +1195,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
     esac
 
     APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.ui.yaml"
+    APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.mcp.yaml"
 
     # Vector-DB backend overlay — applied only when the search path is active.
     # VDMS and Milvus each own their vector-DB container in a dedicated overlay
@@ -1197,7 +1210,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             ;;
     esac
 
-    mkdir -p ${VS_WATCHER_DIR}
+    mkdir -p "${VS_WATCHER_DIR}" || return 1
 
     echo -e  "[pipeline-manager] ${GREEN}Setting up: ${DEPLOYMENT_LABEL}${NC}"
     if [ -n "${VS_INDEX_NAME}" ]; then
@@ -1372,14 +1385,17 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
     fi
 
     # if config is passed, set the command to only generate the config
-    FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
-    DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE --profile $BACKEND_PROFILE --profile $UI_PROFILE $FINAL_ARG"
+    FINAL_ARGS=(up -d)
+    [ "$2" = "config" ] && FINAL_ARGS=(config)
+    # Overlay paths above are fixed tokens, never shell commands.
+    read -r -a COMPOSE_ARGS <<< "$APP_COMPOSE_FILE"
+    DOCKER_COMMAND=(docker compose "${COMPOSE_ARGS[@]}" --profile "$BACKEND_PROFILE" --profile "$UI_PROFILE" --profile mcp "${FINAL_ARGS[@]}")
 fi
 
 # Run the Docker command to set up the application
-if [ -n "$DOCKER_COMMAND" ]; then
-    echo -e  "${GREEN}Running Docker command: $DOCKER_COMMAND ${NC}"
-    eval "$DOCKER_COMMAND"
+if [ "${#DOCKER_COMMAND[@]}" -gt 0 ]; then
+    echo -e  "${GREEN}Running Docker command: ${DOCKER_COMMAND[*]} ${NC}"
+    "${DOCKER_COMMAND[@]}"
 else
     echo -e  "No valid setup command provided. Please run with --help option to see available commands."
 fi
@@ -1401,6 +1417,7 @@ if [ "$2" !=  "config" ]; then
     elif [ "$1" = "--search" ]; then
         echo -e "Video Search UI is now available at: ${YELLOW}http://${HOST_IP}:${APP_HOST_PORT}/${NC}"
     fi
+    echo -e "${GREEN}VSS MCP server (Streamable HTTP):${NC} ${YELLOW}http://${HOST_IP}:${APP_HOST_PORT}/mcp${NC}"
 fi
 
 # Reset all position arguments overrides
