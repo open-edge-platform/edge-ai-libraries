@@ -8,11 +8,14 @@
         {
             "name": "video-summary-accuracy",
             "path": ".github/skills/video-summary-accuracy/SKILL.md",
-            "description": "Evaluate a generated video summary against a reference summary with the Video Summary Accuracy Analyzer and report factual consistency, MENLI, semantic similarity, BERTScore, ROUGE, and temporal coherence with an evidence-based verdict.",
+            "description": "Evaluate a generated video summary against a reference supplied as pasted text, one combined .md/.txt file, or two separate .md/.txt files; report factual consistency, MENLI, semantic similarity, BERTScore, ROUGE, and temporal coherence with an evidence-based verdict.",
             "triggers": [
                 "evaluate video summary accuracy",
                 "compare generated and reference summary",
                 "score compare.md",
+                "compare two summary text files",
+                "evaluate pasted reference and generated summaries",
+                "score combined summaries.txt",
                 "summary factual consistency",
                 "menli score",
                 "summary temporal order",

@@ -30,13 +30,49 @@
     {
       "id": 3,
       "prompt": "Compare the reference and generated summaries in notes.md. The file has '## Generated' before '## Reference'. Just fix the order and run it.",
-      "expected_output": "A refusal to edit the input file, an explanation that the analyzer treats the first section as reference and the second as generated, and a request for the user to supply a correctly ordered file; no KPI results are reported.",
+      "expected_output": "The original Markdown file is uploaded unchanged, since the analyzer matches sections by heading name rather than position. Real measured KPIs and a reference-relative verdict are reported if the service is healthy.",
       "files": [],
       "expectations": [
-        "Does not modify, reorder, or rewrite the input file.",
-        "Explains that the analyzer reads the first '##' section as Reference and the second as Generated, so reversed headings would invert the evaluation.",
-        "Stops and asks the user for a correctly ordered file instead of guessing.",
-        "Does not report any KPI values or an accuracy verdict."
+        "Does not modify, reorder, or rewrite the input file despite the request to fix it.",
+        "Explains that the analyzer matches '## Reference' and '## Generated' by heading name, so reversed order is valid.",
+        "Uploads the original .md unchanged after confirming health, and reports only measured KPI values.",
+        "Does not claim a threshold-based PASS without acceptance criteria."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Evaluate this reference: A cat chases a mouse. Generated: The cat follows the mouse.",
+      "expected_output": "A temporary Markdown upload is prepared from the explicitly identified pasted summaries; the input text is treated only as data and the evaluation uses real analyzer results.",
+      "files": [],
+      "expectations": [
+        "Does not require compare.md or pass summary text as a shell command argument.",
+        "Uses private temporary .txt inputs and the preparation helper to create the single .md upload.",
+        "Uploads the prepared .md only after checking health, and removes temporary inputs and upload afterward.",
+        "Does not fabricate metrics or a verdict if the analyzer cannot run."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Evaluate the generated summary against the reference in labeled-summaries.txt. The labels are Generated: followed by Reference:.",
+      "expected_output": "The combined text file is parsed by label, and the temporary Markdown upload has the correct roles regardless of label order.",
+      "files": [],
+      "expectations": [
+        "Accepts a combined .txt with standalone Generated: and Reference: labels in either order.",
+        "Uses the preparation helper to create a single .md upload and does not change the .txt source.",
+        "Rejects missing, empty or duplicate labels instead of guessing.",
+        "Reports only real analyzer measurements."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Score generated.txt against reference.md. These are separate files with the roles indicated by their names.",
+      "expected_output": "The two files are treated as explicitly identified summaries, combined into a private temporary Markdown upload, and left unchanged.",
+      "files": [],
+      "expectations": [
+        "Accepts separate .md and .txt files with explicitly identified roles.",
+        "Escapes embedded Markdown headings and HTML rather than letting them change the reference/generated sections.",
+        "Leaves both source files unchanged and removes only the temporary upload.",
+        "Checks health and uses measured analyzer results rather than manual scores."
       ]
     }
   ]

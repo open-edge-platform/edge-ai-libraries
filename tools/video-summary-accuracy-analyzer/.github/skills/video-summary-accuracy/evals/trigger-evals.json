@@ -1,14 +1,10 @@
 [
     {
-        "query": "Evaluate the accuracy of the generated video summary in compare.md against the reference.",
+        "query": "Evaluate the accuracy of the generated summary in compare.md against the reference.",
         "should_trigger": true
     },
     {
-        "query": "How good is this generated video summary compared to the ground-truth summary?",
-        "should_trigger": true
-    },
-    {
-        "query": "Run the video summary accuracy analyzer on my markdown file and give me a verdict.",
+        "query": "How good is this generated summary compared to the ground-truth summary?",
         "should_trigger": true
     },
     {
@@ -20,7 +16,11 @@
         "should_trigger": true
     },
     {
-        "query": "Does this summary pass if contradiction ratio must be under 10%? File is summary_eval.md.",
+        "query": "Compare the reference in reference.txt to the generated summary in generated.md.",
+        "should_trigger": true
+    },
+    {
+        "query": "Score the video summaries labeled Reference and Generated in summaries.txt.",
         "should_trigger": true
     },
     {

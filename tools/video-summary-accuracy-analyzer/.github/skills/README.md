@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Video Summary Accuracy Analyzer Skills
 
-Agent skills for the Video Summary Accuracy Analyzer. Each skill teaches the
+Agent skills for the Video Summary Accuracy Analyzer. Skill teaches the
 agent how to use the analyzer's real interfaces (Docker Compose deployment,
 the nginx gateway, and the documented REST API) so evaluations are run and
 reported consistently.
@@ -71,7 +71,7 @@ Start a fresh agent session and try prompts such as:
 
 - "Evaluate the accuracy of the generated summary in compare.md"
 - "Is this generated video summary faithful to the reference?"
-- "Score summary_eval.md; accept only if contradiction ratio is at most 10%"
+- "Score the video summaries labeled Reference and Generated in summaries.txt."
 
 ---
 
@@ -87,7 +87,11 @@ Use natural language requests; the agent selects matching skills.
 
 If needed, you can nudge explicitly: "use the video-summary-accuracy skill".
 
-The input Markdown file must contain two non-empty sections in this order:
+The skill accepts pasted reference and generated summaries, two separate
+`.md` or `.txt` files identified by role, or one combined `.md` or `.txt` file.
+For two files or pasted text, it creates a temporary `.md` upload; it does not
+edit the originals. A combined Markdown file needs two non-empty sections
+(in either order):
 
 ```markdown
 ## Reference
@@ -98,6 +102,10 @@ The input Markdown file must contain two non-empty sections in this order:
 ```
 
 See [`../../compare.md`](../../compare.md) for an example.
+For a combined `.txt` file, use standalone `Reference:` and `Generated:`
+labels (in either order) followed by the corresponding summary. The analyzer
+API itself accepts a single `.md` upload; the skill prepares that upload for
+other input modes.
 
 ---
 
@@ -108,6 +116,7 @@ video-summary-accuracy/
 ├── SKILL.md
 ├── scripts/
 │   ├── vsa-bootstrap.sh     # resolve (or sparse-clone) the analyzer root
+│   ├── prepare_input.py     # prepare a single Markdown upload when needed
 │   └── extract_kpis.py      # validate the /evaluate response and extract KPIs
 ├── evals/
 │   ├── evals.json

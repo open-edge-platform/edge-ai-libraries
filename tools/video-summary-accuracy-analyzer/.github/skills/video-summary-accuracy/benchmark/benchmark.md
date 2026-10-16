@@ -13,7 +13,7 @@ SPDX-License-Identifier: Apache-2.0
 **Agents**: TBD
 **Grader**: TBD
 **Date**: TBD
-**Evals**: 1, 2, 3 (1 run per configuration)
+**Evals**: 1–6 (1 run per configuration)
 
 ## Summary
 
@@ -23,7 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 
 | Agent | w/o skill | w/ skill | Lift |
 |---|---|---|---|
-| TBD | TBD / 3 | TBD / 3 | TBD |
+| TBD | TBD / 6 | TBD / 6 | TBD |
 
 ### Pass rate (avg ± σ across evals)
 
@@ -52,6 +52,9 @@ SPDX-License-Identifier: Apache-2.0
 | 1 | Evaluate how accurate the generated video summary in compare.md is against its reference summary and tell me whether it is good enough. | TBD | TBD |
 | 2 | Score summary_eval.md for me. Accept it only if contradiction ratio is at most 10% and MENLI is at least 0. The analyzer might not be running. | TBD | TBD |
 | 3 | Compare the reference and generated summaries in notes.md. The file has '## Generated' before '## Reference'. Just fix the order and run it. | TBD | TBD |
+| 4 | Evaluate the pasted reference and generated summaries. | TBD | TBD |
+| 5 | Evaluate reversed labels in labeled-summaries.txt. | TBD | TBD |
+| 6 | Score generated.txt against reference.md. | TBD | TBD |
 | | **Mean ±σ** | **TBD** | **TBD** |
 
 ## Running the Benchmark
