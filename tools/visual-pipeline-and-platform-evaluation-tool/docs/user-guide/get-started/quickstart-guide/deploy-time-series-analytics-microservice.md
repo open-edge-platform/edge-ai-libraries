@@ -150,7 +150,9 @@ you should see the new **Wind Turbine Anomaly Detection** pipeline card.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../_assets/ViPPET-UI-Time-Series-Pipeline-dark.png">
-  <img src="../../_assets/ViPPET-UI-Time-Series-Pipeline-light.png" alt="Wind Turbine pipeline card on Dashboard">
+  <img
+    src="../../_assets/ViPPET-UI-Time-Series-Pipeline-light.png"
+    alt="Wind Turbine pipeline card on Dashboard">
 </picture>
 
 ### 5.2 Open the Wind Turbine pipeline in Pipeline Editor
@@ -164,7 +166,9 @@ You should see the flow:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../_assets/ViPPET-UI-Wind-Turbine-Pipeline-Editor-dark.png">
-  <img src="../../_assets/ViPPET-UI-Wind-Turbine-Pipeline-Editor-light.png" alt="Wind Turbine pipeline in Pipeline Editor">
+  <img
+    src="../../_assets/ViPPET-UI-Wind-Turbine-Pipeline-Editor-light.png"
+    alt="Wind Turbine pipeline in Pipeline Editor">
 </picture>
 
 ### 5.3 Run pipeline and inspect runtime data
@@ -182,10 +186,14 @@ In the right panel:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../_assets/ViPPET-UI-Wind-Turbine-Charts-dark.png">
-  <img src="../../_assets/ViPPET-UI-Wind-Turbine-Charts-light.png" alt="Wind Turbine pipeline runtime data in Performance tab">
+  <img
+    src="../../_assets/ViPPET-UI-Wind-Turbine-Charts-light.png"
+    alt="Wind Turbine pipeline runtime data in Performance tab">
 </picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../../_assets/ViPPET-UI-Wind-Turbine-metrics-dark.png">
-  <img src="../../_assets/ViPPET-UI-Wind-Turbine-metrics-light.png" alt="Wind Turbine pipeline runtime data in Metadata JSON tab">
+  <img
+    src="../../_assets/ViPPET-UI-Wind-Turbine-metrics-light.png"
+    alt="Wind Turbine pipeline runtime data in Metadata JSON tab">
 </picture>
